@@ -5870,7 +5870,7 @@ function complete_class_event_information($event, &$fetchedClasses)
     $eventModuleClassRelation = $DB->get_record(
         'gmk_bbb_attendance_relation',
         ['attendanceid' => $event->instance, 'attendancesessionid' => $attendanceSessionId],
-        'classid,bbbid,bbbmoduleid,attendancemoduleid,attendancesessionid'
+        'classid,bbbmoduleid,attendancemoduleid,attendancesessionid'
     );
 
     $gmkClass = null;
@@ -5891,27 +5891,15 @@ function complete_class_event_information($event, &$fetchedClasses)
 
     //Set the class information for the event
     $event->instructorName = $gmkClass->instructorName;
+    // Attendance is the authoritative source for schedule cards.
     $duration = (int)($event->timeduration ?? 0);
-    $fallbackclassduration = (int)($gmkClass->classduration ?? 0);
-
-    // For attendance events shown as schedule cards, align to BBB schedule when linked.
-    $bbbinstanceid = !empty($eventModuleClassRelation->bbbid) ? (int)$eventModuleClassRelation->bbbid : 0;
-    if ($bbbinstanceid <= 0 && !empty($eventModuleClassRelation->bbbmoduleid)) {
-        $bbbinstanceid = (int)$DB->get_field(
-            'course_modules',
-            'instance',
-            ['id' => (int)$eventModuleClassRelation->bbbmoduleid],
-            IGNORE_MISSING
-        );
+    if ($duration <= 0) {
+        $duration = (int)($gmkClass->classduration ?? 0);
     }
-    list($resolvedstart, $resolvedduration) = gmk_resolve_bbb_event_schedule(
-        $bbbinstanceid,
-        (int)$event->timestart,
-        $duration,
-        $fallbackclassduration
-    );
-    $event->timestart = $resolvedstart;
-    $event->timeduration = $resolvedduration;
+    if ($duration < 0) {
+        $duration = 0;
+    }
+    $event->timeduration = $duration;
     $event->timeRange = gmk_build_event_time_range((int)$event->timestart, (int)$event->timeduration);
     $event->classDaysES = $gmkClass->selectedDaysES;
     $event->classDaysEN = $gmkClass->selectedDaysEN;
