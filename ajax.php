@@ -3599,7 +3599,6 @@ try {
                     }
                 }
 
-                $viewurl = $CFG->wwwroot . '/mod/bigbluebuttonbn/view.php?id=' . (int)$cmid;
                 try {
                     $result = \mod_bigbluebuttonbn\external\get_join_url::execute((int)$cmid);
                     $joinurl = trim((string)($result['join_url'] ?? ''));
@@ -3608,7 +3607,6 @@ try {
                         $response = [
                             'status' => 'success',
                             'join_url' => $joinurl,
-                            'view_url' => $viewurl,
                             'source' => 'ws_join_url',
                             'debug' => $debug
                         ];
@@ -3624,10 +3622,8 @@ try {
                             $message .= ' ' . $warningtext;
                         }
                         $response = [
-                            'status' => 'success',
-                            'join_url' => $viewurl,
-                            'view_url' => $viewurl,
-                            'source' => 'view_fallback_empty',
+                            'status' => 'error',
+                            'source' => 'ws_join_url_empty',
                             'message' => $message,
                             'warnings' => $warnings,
                             'debug' => $debug
@@ -3635,10 +3631,8 @@ try {
                     }
                 } catch (\Throwable $t) {
                     $response = [
-                        'status' => 'success',
-                        'join_url' => $viewurl,
-                        'view_url' => $viewurl,
-                        'source' => 'view_fallback_exception',
+                        'status' => 'error',
+                        'source' => 'ws_join_url_exception',
                         'message' => 'BBB join service failed. ' . $t->getMessage(),
                         'debug' => $debug
                     ];
