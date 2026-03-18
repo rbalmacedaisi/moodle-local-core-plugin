@@ -87,6 +87,12 @@
                         </button>
                     </div>
                 </div>
+                {{#shiftfeedback}}
+                <div class="alert alert-success shadow-sm" role="alert">{{shiftfeedback}}</div>
+                {{/shiftfeedback}}
+                {{#shifterror}}
+                <div class="alert alert-danger shadow-sm" role="alert">{{shifterror}}</div>
+                {{/shifterror}}
 
                 {{! List View }}
                 <div id="class-list-view" class="d-none">
@@ -102,6 +108,7 @@
                                 <th scope="col" class="align-middle">{{#str}}class_type, local_grupomakro_core{{/str}}</th>
                                 <th scope="col" class="align-middle">{{#str}}startdate, local_grupomakro_core{{/str}}</th>
                                 <th scope="col" class="align-middle">{{#str}}class_schedule, local_grupomakro_core{{/str}}</th>
+                                <th scope="col" class="align-middle">Jornada</th>
                                 <th scope="col" class="align-middle text-center">{{#str}}actions, local_grupomakro_core{{/str}}</th>
                             </tr>
                         </thead>
@@ -130,6 +137,20 @@
                                     <div><i class="fa fa-clock-o mr-1 text-muted"></i> {{inithourformatted}}</div>
                                     <small class="text-muted">{{classDaysString}}</small>
                                 </td>
+                                <td class="align-middle">
+                                    <form method="post" class="d-flex align-items-center">
+                                        <input type="hidden" name="sesskey" value="{{sesskey}}">
+                                        <input type="hidden" name="action" value="update_shift">
+                                        <input type="hidden" name="classid" value="{{id}}">
+                                        <input type="text"
+                                            name="shift"
+                                            value="{{shiftvalue}}"
+                                            class="form-control form-control-sm mr-2"
+                                            style="min-width: 110px;"
+                                            placeholder="Sin jornada">
+                                        <button type="submit" class="btn btn-sm btn-outline-primary">Guardar</button>
+                                    </form>
+                                </td>
                                 <td class="align-middle text-center">
                                     <a data-toggle='tooltip' title="{{#str}} modify, local_grupomakro_core{{/str}}" href="/local/grupomakro_core/pages/editclass.php?class_id={{id}}" class="btn btn-sm btn-light border">
                                         <i class="fa fa-gear text-secondary"></i>
@@ -142,7 +163,7 @@
                             {{/allClasses}}
                             {{^allClasses}}
                             <tr>
-                                <td colspan="7" class="text-center py-4 text-muted">
+                                <td colspan="8" class="text-center py-4 text-muted">
                                     {{#str}}noclasses, local_grupomakro_core{{/str}}
                                 </td>
                             </tr>
@@ -198,6 +219,20 @@
                                     <small class="text-muted">{{classDaysString}}</small>
                                 </div>
                                 {{! End Class schedule }}
+                                <div class="mb-1 mt-2">
+                                    <small class="font-weight-bold d-block">Jornada actual: {{shiftdisplay}}</small>
+                                    <form method="post" class="d-flex align-items-center mt-1">
+                                        <input type="hidden" name="sesskey" value="{{sesskey}}">
+                                        <input type="hidden" name="action" value="update_shift">
+                                        <input type="hidden" name="classid" value="{{id}}">
+                                        <input type="text"
+                                            name="shift"
+                                            value="{{shiftvalue}}"
+                                            class="form-control form-control-sm mr-2"
+                                            placeholder="Sin jornada">
+                                        <button type="submit" class="btn btn-sm btn-outline-primary">Guardar</button>
+                                    </form>
+                                </div>
                             </div>
                             {{! End Class details }}
                         </div>
