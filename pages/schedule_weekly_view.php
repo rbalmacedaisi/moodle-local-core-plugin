@@ -495,19 +495,56 @@ async function swvDownloadPdf() {
 
     try {
         const { jsPDF } = window.jspdf;
-        const pdf     = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-        const pageW   = pdf.internal.pageSize.getWidth();   // 297 mm
-        const pageH   = pdf.internal.pageSize.getHeight();  // 210 mm
-        const margin  = 8;
-        const availW  = pageW - 2 * margin;
-        const availH  = pageH - 2 * margin;
-        // px → mm at 96 dpi: 1 px = 25.4/96 = 0.264583 mm
-        const PX2MM   = 25.4 / 96;
+        const pdf    = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+        const pageW  = pdf.internal.pageSize.getWidth();
+        const pageH  = pdf.internal.pageSize.getHeight();
+        const margin = 8;
+        const availW = pageW - 2 * margin;
+        const availH = pageH - 2 * margin;
+        const PX2MM  = 25.4 / 96;
 
         for (let i = 0; i < groups.length; i++) {
             btn.innerHTML = '⏳ Generando PDF… (' + (i + 1) + '/' + groups.length + ')';
 
-            const canvas = await html2canvas(groups[i], {
+            // Walk backwards from this .swv-group to find plan + period titles
+            let planText = '', periodText = '';
+            let sibling = groups[i].previousElementSibling;
+            while (sibling) {
+                if (!periodText && sibling.classList.contains('swv-period-title')) {
+                    periodText = sibling.innerText.trim();
+                }
+                if (sibling.classList.contains('swv-plan-title')) {
+                    planText = sibling.innerText.trim();
+                    break;
+                }
+                sibling = sibling.previousElementSibling;
+            }
+
+            // Build an off-screen wrapper: plan header + group clone
+            const wrap = document.createElement('div');
+            wrap.style.cssText = 'position:absolute;left:-9999px;top:0;width:' +
+                groups[i].offsetWidth + 'px;background:#fff;font-family:system-ui,sans-serif';
+
+            if (planText) {
+                const planHdr = document.createElement('div');
+                planHdr.style.cssText =
+                    'font-size:16px;font-weight:800;color:#1a237e;padding:10px 4px 6px;' +
+                    'border-bottom:3px solid #1976D2;margin-bottom:8px;display:flex;align-items:center;gap:8px';
+                planHdr.textContent = planText;
+                wrap.appendChild(planHdr);
+            }
+            if (periodText) {
+                const perHdr = document.createElement('div');
+                perHdr.style.cssText =
+                    'font-size:12px;font-weight:700;color:#37474f;padding:0 4px 8px;display:flex;align-items:center;gap:6px';
+                perHdr.textContent = periodText;
+                wrap.appendChild(perHdr);
+            }
+
+            wrap.appendChild(groups[i].cloneNode(true));
+            document.body.appendChild(wrap);
+
+            const canvas = await html2canvas(wrap, {
                 scale           : 2,
                 useCORS         : true,
                 allowTaint      : true,
@@ -515,8 +552,9 @@ async function swvDownloadPdf() {
                 logging         : false,
             });
 
+            document.body.removeChild(wrap);
+
             const imgData  = canvas.toDataURL('image/jpeg', 0.93);
-            // Canvas is scale×2 so actual element size in mm:
             const elemW_mm = (canvas.width  / 2) * PX2MM;
             const elemH_mm = (canvas.height / 2) * PX2MM;
 
