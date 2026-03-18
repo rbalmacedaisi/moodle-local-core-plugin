@@ -24,6 +24,6 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = "local_grupomakro_core";
-$plugin->version   = 20260310001;         // Add get_course_announcements and get_student_gradebook web services.
+$plugin->version   = 20260318005;         // Student forum custom API for LXP.
 $plugin->requires = 2014051200;
 $plugin->maturity = MATURITY_STABLE;
