@@ -456,9 +456,11 @@ if ($runall) {
         $attendanceparams = array_merge($classparams1, ['st1' => $startts, 'en1' => $endts]);
         $attendancers = $DB->get_recordset_sql(
             "SELECT c.id AS classid, c.name AS classname, c.inittime AS classstart, c.endtime AS classend,
-                    e.id AS eventid, e.name AS eventname, e.timestart, e.timeduration
+                    e.id AS eventid, e.name AS eventname, e.timestart, e.timeduration,
+                    COALESCE(r.bbbid, cm.instance, 0) AS bbbinstanceid
                FROM {gmk_class} c
                JOIN {gmk_bbb_attendance_relation} r ON r.classid = c.id
+          LEFT JOIN {course_modules} cm ON cm.id = r.bbbmoduleid
                JOIN {attendance_sessions} s ON s.id = r.attendancesessionid
                JOIN {event} e ON e.id = s.caleventid
               WHERE c.id {$classin1}
@@ -478,17 +480,23 @@ if ($runall) {
             if (!isset($classmap[$cid])) {
                 continue;
             }
-            $duration = (int)$row->timeduration;
-            if ($duration <= 0) {
-                $duration = (int)($classmap[$cid]->classduration ?? 0);
+            $rawduration = (int)$row->timeduration;
+            if ($rawduration <= 0) {
+                $rawduration = (int)($classmap[$cid]->classduration ?? 0);
             }
-            if ($duration < 0) {
-                $duration = 0;
+            if ($rawduration < 0) {
+                $rawduration = 0;
             }
-            $modalrange = gmk_build_event_time_range((int)$row->timestart, $duration);
+            list($expectedstart, $expectedduration) = gmk_resolve_bbb_event_schedule(
+                (int)($row->bbbinstanceid ?? 0),
+                (int)$row->timestart,
+                (int)$row->timeduration,
+                (int)($classmap[$cid]->classduration ?? 0)
+            );
+            $modalrange = gmk_build_event_time_range((int)$expectedstart, (int)$expectedduration);
             $evobj = (object)[
                 'timestart' => (int)$row->timestart,
-                'timeduration' => $duration,
+                'timeduration' => $rawduration,
                 'timeRange' => $modalrange,
             ];
             $cmp = dstm_build_event_compare($evobj);
@@ -523,9 +531,9 @@ if ($runall) {
                     'Module' => 'attendance',
                     'Event ID' => $eventid,
                     'Event' => dstm_h((string)$row->eventname),
-                    'Date start' => dstm_ts((int)$cmp['startts']),
+                    'Date start' => dstm_ts((int)$row->timestart),
                     'Card time' => dstm_h((string)$cmp['cardrange']),
-                    'Modal time' => dstm_h((string)$cmp['modalrange']),
+                    'BBB expected' => dstm_h((string)$cmp['modalrange']),
                     'Start delta(min)' => ($cmp['startdelta'] === null ? '-' : (string)$cmp['startdelta']),
                     'End delta(min)' => ($cmp['enddelta'] === null ? '-' : (string)$cmp['enddelta']),
                     'Action' => '<a href="' . (new moodle_url('/local/grupomakro_core/pages/debug_schedule_time_mismatch.php', [
@@ -573,16 +581,23 @@ if ($runall) {
             if (!isset($classmap[$cid])) {
                 continue;
             }
-            list($resolvedstart, $resolvedduration) = gmk_resolve_bbb_event_schedule(
+            list($expectedstart, $expectedduration) = gmk_resolve_bbb_event_schedule(
                 (int)($row->bbbinstanceid ?? 0),
                 (int)$row->timestart,
                 (int)$row->timeduration,
                 (int)($classmap[$cid]->classduration ?? 0)
             );
-            $modalrange = gmk_build_event_time_range((int)$resolvedstart, (int)$resolvedduration);
+            $rawduration = (int)$row->timeduration;
+            if ($rawduration <= 0) {
+                $rawduration = (int)($classmap[$cid]->classduration ?? 0);
+            }
+            if ($rawduration < 0) {
+                $rawduration = 0;
+            }
+            $modalrange = gmk_build_event_time_range((int)$expectedstart, (int)$expectedduration);
             $evobj = (object)[
-                'timestart' => (int)$resolvedstart,
-                'timeduration' => (int)$resolvedduration,
+                'timestart' => (int)$row->timestart,
+                'timeduration' => (int)$rawduration,
                 'timeRange' => $modalrange,
             ];
             $cmp = dstm_build_event_compare($evobj);
@@ -617,9 +632,9 @@ if ($runall) {
                     'Module' => 'bigbluebuttonbn',
                     'Event ID' => $eventid,
                     'Event' => dstm_h((string)$row->eventname),
-                    'Date start' => dstm_ts((int)$cmp['startts']),
+                    'Date start' => dstm_ts((int)$row->timestart),
                     'Card time' => dstm_h((string)$cmp['cardrange']),
-                    'Modal time' => dstm_h((string)$cmp['modalrange']),
+                    'BBB expected' => dstm_h((string)$cmp['modalrange']),
                     'Start delta(min)' => ($cmp['startdelta'] === null ? '-' : (string)$cmp['startdelta']),
                     'End delta(min)' => ($cmp['enddelta'] === null ? '-' : (string)$cmp['enddelta']),
                     'Action' => '<a href="' . (new moodle_url('/local/grupomakro_core/pages/debug_schedule_time_mismatch.php', [
@@ -795,18 +810,18 @@ if ($runall) {
             'Affected users' => (int)($ac['affectedusers'] ?? 0),
             'Modules' => dstm_h(implode(', ', array_keys($ac['modules'] ?? []))),
             'Sample card' => dstm_h((string)($ac['samplecard'] ?? '')),
-            'Sample modal' => dstm_h((string)($ac['samplemodal'] ?? '')),
+            'Sample BBB expected' => dstm_h((string)($ac['samplemodal'] ?? '')),
             'Sample delta start/end' => dstm_h($sampledelta),
             'Action' => $action,
         ];
     }
-    dstm_print_table(['Class ID', 'Class', 'Core course', 'Mismatches', 'Affected users', 'Modules', 'Sample card', 'Sample modal', 'Sample delta start/end', 'Action'], $classrows);
+    dstm_print_table(['Class ID', 'Class', 'Core course', 'Mismatches', 'Affected users', 'Modules', 'Sample card', 'Sample BBB expected', 'Sample delta start/end', 'Action'], $classrows);
     echo '</div>';
 
     echo '<div class="dstm-card"><div class="dstm-sub">Mismatch details (limited)</div>';
     echo '<div class="dstm-note">Showing up to ' . (int)$maxdetails . ' rows.</div>';
     dstm_print_table(
-        ['Class ID', 'Class', 'Module', 'Event ID', 'Event', 'Date start', 'Card time', 'Modal time', 'Start delta(min)', 'End delta(min)', 'Action'],
+        ['Class ID', 'Class', 'Module', 'Event ID', 'Event', 'Date start', 'Card time', 'BBB expected', 'Start delta(min)', 'End delta(min)', 'Action'],
         $detailrows
     );
     echo '</div>';
