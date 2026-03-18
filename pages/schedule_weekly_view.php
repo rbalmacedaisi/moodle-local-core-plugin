@@ -294,7 +294,13 @@ echo $OUTPUT->header();
 .swv-legend-item{display:flex;align-items:center;gap:6px;font-size:11px;color:#37474f;background:#fff;border:1px solid #e0e0e0;border-radius:20px;padding:3px 10px 3px 5px;white-space:nowrap;max-width:260px}
 .swv-legend-dot{width:12px;height:12px;border-radius:3px;flex-shrink:0}
 .swv-legend-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* ── PDF button ──────────────────────────────────────────────────────────────── */
+.swv-pdf-btn{display:inline-flex;align-items:center;gap:7px;background:#c62828;color:#fff;border:none;border-radius:6px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 2px 6px rgba(198,40,40,.28);transition:opacity .15s;margin-top:8px}
+.swv-pdf-btn:hover{opacity:.88}
+.swv-pdf-btn:disabled{opacity:.5;cursor:not-allowed}
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
 <div class="swv-wrap">
 <h2 style="margin-bottom:4px;color:#0d1b4b">📅 Vista Semanal de Horarios Activos</h2>
@@ -372,6 +378,9 @@ echo $OUTPUT->header();
 <?php if (empty($groups)): ?>
 <div class="swv-nodata">No se encontraron horarios activos con los filtros seleccionados.</div>
 <?php else: ?>
+<div>
+    <button class="swv-pdf-btn" id="swv-pdf-btn" onclick="swvDownloadPdf()">📄 Descargar PDF</button>
+</div>
 
 <?php foreach ($groups as $planName => $periods): ?>
 <div class="swv-plan-title">
@@ -474,5 +483,61 @@ echo $OUTPUT->header();
 
 <?php endif; ?>
 </div>
+
+<script>
+async function swvDownloadPdf() {
+    const btn = document.getElementById('swv-pdf-btn');
+    const groups = Array.from(document.querySelectorAll('.swv-group'));
+    if (!groups.length) { return; }
+
+    btn.disabled = true;
+    btn.innerHTML = '⏳ Generando PDF… (0/' + groups.length + ')';
+
+    try {
+        const { jsPDF } = window.jspdf;
+        const pdf     = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+        const pageW   = pdf.internal.pageSize.getWidth();   // 297 mm
+        const pageH   = pdf.internal.pageSize.getHeight();  // 210 mm
+        const margin  = 8;
+        const availW  = pageW - 2 * margin;
+        const availH  = pageH - 2 * margin;
+        // px → mm at 96 dpi: 1 px = 25.4/96 = 0.264583 mm
+        const PX2MM   = 25.4 / 96;
+
+        for (let i = 0; i < groups.length; i++) {
+            btn.innerHTML = '⏳ Generando PDF… (' + (i + 1) + '/' + groups.length + ')';
+
+            const canvas = await html2canvas(groups[i], {
+                scale           : 2,
+                useCORS         : true,
+                allowTaint      : true,
+                backgroundColor : '#ffffff',
+                logging         : false,
+            });
+
+            const imgData  = canvas.toDataURL('image/jpeg', 0.93);
+            // Canvas is scale×2 so actual element size in mm:
+            const elemW_mm = (canvas.width  / 2) * PX2MM;
+            const elemH_mm = (canvas.height / 2) * PX2MM;
+
+            const scale  = Math.min(availW / elemW_mm, availH / elemH_mm);
+            const finalW = elemW_mm * scale;
+            const finalH = elemH_mm * scale;
+            const x      = margin + (availW - finalW) / 2;
+            const y      = margin + (availH - finalH) / 2;
+
+            if (i > 0) { pdf.addPage(); }
+            pdf.addImage(imgData, 'JPEG', x, y, finalW, finalH);
+        }
+
+        pdf.save('horarios_semanales.pdf');
+    } catch (err) {
+        alert('Error generando PDF: ' + err.message);
+    }
+
+    btn.disabled = false;
+    btn.innerHTML = '📄 Descargar PDF';
+}
+</script>
 
 <?php echo $OUTPUT->footer(); ?>
