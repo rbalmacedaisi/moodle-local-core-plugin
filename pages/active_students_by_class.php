@@ -2,8 +2,7 @@
 /**
  * Active students by class report.
  *
- * Filters by class day and Moodle group.
- * Exports data to excel including all detected phone fields.
+ * Filters by class day and group, with Excel export.
  *
  * @package local_grupomakro_core
  */
@@ -15,15 +14,12 @@ require_once($CFG->libdir . '/dataformatlib.php');
 require_login();
 admin_externalpage_setup('grupomakro_core_active_students_by_class');
 
+$title = get_string('active_students_by_class_page', 'local_grupomakro_core');
 $PAGE->set_url(new moodle_url('/local/grupomakro_core/pages/active_students_by_class.php'));
 $PAGE->set_context(context_system::instance());
 $PAGE->set_pagelayout('admin');
-$PAGE->set_title('Estudiantes activos por clase');
-$PAGE->set_heading('Estudiantes activos por clase');
-
-// -----------------------------------------------------------------------------
-// Helpers.
-// -----------------------------------------------------------------------------
+$PAGE->set_title($title);
+$PAGE->set_heading($title);
 
 /**
  * Escape helper.
@@ -36,18 +32,20 @@ function asbc_h($value): string {
 }
 
 /**
- * Normalize text (lowercase + remove accents) for resilient matching.
+ * Normalize text for resilient matching.
  *
  * @param string $text
  * @return string
  */
 function asbc_normalize_text(string $text): string {
     $text = trim($text);
-    $text = strtr($text, [
-        'Á' => 'A', 'É' => 'E', 'Í' => 'I', 'Ó' => 'O', 'Ú' => 'U', 'Ñ' => 'N',
-        'á' => 'a', 'é' => 'e', 'í' => 'i', 'ó' => 'o', 'ú' => 'u', 'ñ' => 'n',
-        'Ü' => 'U', 'ü' => 'u',
-    ]);
+    if ($text === '') {
+        return '';
+    }
+    $ascii = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $text);
+    if ($ascii !== false && $ascii !== '') {
+        $text = $ascii;
+    }
     return core_text::strtolower($text);
 }
 
@@ -98,7 +96,7 @@ function asbc_day_label(string $daykey): string {
 }
 
 /**
- * Parse gmk_class.classdays fallback format (L/M/M/J/V/S/D 0/1).
+ * Parse gmk_class.classdays fallback format (0/1 values for week days).
  *
  * @param string $classdays
  * @return array
@@ -120,20 +118,53 @@ function asbc_parse_classdays(string $classdays): array {
 }
 
 /**
- * Find document field ID candidates.
+ * Get candidate profile fields for identification number.
  *
- * @return int
+ * @return array [fieldid => score]
  */
-function asbc_get_document_field_id(): int {
+function asbc_get_document_field_candidates(): array {
     global $DB;
-    $candidates = ['documentnumber', 'document_number', 'documento', 'cedula', 'identificacion'];
-    foreach ($candidates as $shortname) {
-        $field = $DB->get_record('user_info_field', ['shortname' => $shortname], 'id', IGNORE_MISSING);
-        if ($field) {
-            return (int)$field->id;
+
+    $prioritybyshortname = [
+        'documentnumber' => 1000,
+        'document_number' => 990,
+        'numerodocumento' => 980,
+        'numero_documento' => 970,
+        'identificacion' => 960,
+        'identification' => 950,
+        'cedula' => 940,
+    ];
+    $namekeywords = [
+        'identificacion' => 80,
+        'numero de documento' => 70,
+        'numero documento' => 60,
+        'cedula' => 50,
+    ];
+
+    $candidates = [];
+    $fields = $DB->get_records('user_info_field', null, 'id ASC');
+    foreach ($fields as $field) {
+        $shortname = asbc_normalize_text((string)$field->shortname);
+        $name = asbc_normalize_text((string)$field->name);
+        $score = 0;
+
+        if (isset($prioritybyshortname[$shortname])) {
+            $score = $prioritybyshortname[$shortname];
+        } else {
+            foreach ($namekeywords as $keyword => $boost) {
+                if ($name !== '' && strpos($name, $keyword) !== false) {
+                    $score = max($score, $boost);
+                }
+            }
+        }
+
+        if ($score > 0) {
+            $candidates[(int)$field->id] = $score;
         }
     }
-    return 0;
+
+    arsort($candidates);
+    return $candidates;
 }
 
 /**
@@ -156,7 +187,7 @@ function asbc_is_phone_custom_field(stdClass $field): bool {
 /**
  * Build schedule map by class.
  *
- * @param array $classes class records indexed by class id
+ * @param array $classes
  * @return array
  */
 function asbc_build_schedule_map(array $classes): array {
@@ -209,7 +240,6 @@ function asbc_build_schedule_map(array $classes): array {
         }
     }
 
-    // Fallback for classes without schedule rows.
     foreach ($classes as $classid => $class) {
         $classid = (int)$classid;
         if (!empty($map[$classid]['daykeys'])) {
@@ -235,7 +265,6 @@ function asbc_build_schedule_map(array $classes): array {
         }
     }
 
-    // Sort by week order and generate display.
     foreach ($map as $classid => $entry) {
         usort($entry['daykeys'], function($a, $b) use ($dayorder) {
             $oa = $dayorder[$a] ?? 99;
@@ -249,22 +278,13 @@ function asbc_build_schedule_map(array $classes): array {
     return $map;
 }
 
-// -----------------------------------------------------------------------------
-// Params.
-// -----------------------------------------------------------------------------
-
 $filterday = optional_param('day', '', PARAM_TEXT);
 $filtergroupid = optional_param('groupid', 0, PARAM_INT);
 $search = trim(optional_param('search', '', PARAM_TEXT));
 $action = optional_param('action', '', PARAM_ALPHA);
 $page = max(0, optional_param('page', 0, PARAM_INT));
 $perpage = 100;
-
 $filterdaykey = asbc_day_key($filterday);
-
-// -----------------------------------------------------------------------------
-// Load active classes.
-// -----------------------------------------------------------------------------
 
 $classconditions = [
     'gc.approved = 1',
@@ -292,29 +312,28 @@ $classsql = "
            gc.learningplanid,
            COALESCE(g.name, '') AS groupname
       FROM {gmk_class} gc
- LEFT JOIN {groups} g ON g.id = gc.groupid
+ LEFT JOIN {groups} g
+        ON g.id = gc.groupid
      WHERE " . implode(' AND ', $classconditions) . "
   ORDER BY gc.name ASC";
 
 $classes = $DB->get_records_sql($classsql, $classparams);
 $schedulemap = asbc_build_schedule_map($classes);
 
-// Build group options from active classes (before day filter).
 $groupset = [];
 foreach ($classes as $class) {
-    $gid = (int)$class->groupid;
-    if ($gid <= 0) {
+    $groupid = (int)$class->groupid;
+    if ($groupid <= 0) {
         continue;
     }
-    $gname = trim((string)$class->groupname);
-    if ($gname === '') {
-        $gname = 'Grupo ' . $gid;
+    $groupname = trim((string)$class->groupname);
+    if ($groupname === '') {
+        $groupname = 'Grupo ' . $groupid;
     }
-    $groupset[$gid] = $gname;
+    $groupset[$groupid] = $groupname;
 }
 asort($groupset);
 
-// Apply day filter at class level.
 if ($filterdaykey !== '') {
     foreach ($classes as $classid => $class) {
         $daykeys = $schedulemap[(int)$classid]['daykeys'] ?? [];
@@ -325,16 +344,16 @@ if ($filterdaykey !== '') {
     }
 }
 
-$classids = array_keys($classes);
 $rows = [];
 $phonefields = [];
+$classids = array_keys($classes);
 
 if (!empty($classids)) {
     list($classinsql, $classinparams) = $DB->get_in_or_equal($classids, SQL_PARAMS_NAMED, 'cid');
 
-    // Active student memberships by class group.
     $studentsql = "
-        SELECT gc.id AS classid,
+        SELECT gm.id,
+               gc.id AS classid,
                gc.name AS classname,
                gc.groupid,
                COALESCE(g.name, '') AS groupname,
@@ -365,25 +384,38 @@ if (!empty($classids)) {
     }
     $userids = array_values($userids);
 
-    // Identification from student profile field (documentnumber candidate).
-    $docfieldid = asbc_get_document_field_id();
     $docmap = [];
-    if ($docfieldid > 0 && !empty($userids)) {
-        list($uinsql, $uinparams) = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED, 'u_doc');
-        $docparams = array_merge($uinparams, ['docfieldid' => $docfieldid]);
+    $docfieldcandidates = asbc_get_document_field_candidates();
+    if (!empty($docfieldcandidates) && !empty($userids)) {
+        $docfieldids = array_keys($docfieldcandidates);
+        list($finsql, $finparams) = $DB->get_in_or_equal($docfieldids, SQL_PARAMS_NAMED, 'docf');
+        list($uinsql, $uinparams) = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED, 'docu');
+        $docparams = array_merge($finparams, $uinparams);
         $docrows = $DB->get_records_sql(
-            "SELECT userid, data
+            "SELECT id, userid, fieldid, data
                FROM {user_info_data}
-              WHERE fieldid = :docfieldid
-                AND userid $uinsql",
+              WHERE fieldid $finsql
+                AND userid $uinsql
+           ORDER BY userid ASC, id ASC",
             $docparams
         );
         foreach ($docrows as $docrow) {
-            $docmap[(int)$docrow->userid] = trim((string)$docrow->data);
+            $userid = (int)$docrow->userid;
+            $fieldid = (int)$docrow->fieldid;
+            $value = trim((string)$docrow->data);
+            if ($value === '') {
+                continue;
+            }
+            if (!isset($docmap[$userid])) {
+                $docmap[$userid] = ['value' => $value, 'score' => (int)$docfieldcandidates[$fieldid]];
+                continue;
+            }
+            if ((int)$docfieldcandidates[$fieldid] > (int)$docmap[$userid]['score']) {
+                $docmap[$userid] = ['value' => $value, 'score' => (int)$docfieldcandidates[$fieldid]];
+            }
         }
     }
 
-    // Detect all phone-related custom profile fields.
     $allcustomfields = $DB->get_records('user_info_field', null, 'id ASC');
     foreach ($allcustomfields as $field) {
         if (asbc_is_phone_custom_field($field)) {
@@ -393,23 +425,25 @@ if (!empty($classids)) {
 
     $customphonemap = [];
     if (!empty($phonefields) && !empty($userids)) {
-        list($finsql, $finparams) = $DB->get_in_or_equal(array_keys($phonefields), SQL_PARAMS_NAMED, 'f_phone');
-        list($uinsql, $uinparams) = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED, 'u_phone');
-        $rowsparams = array_merge($finparams, $uinparams);
+        list($finsql, $finparams) = $DB->get_in_or_equal(array_keys($phonefields), SQL_PARAMS_NAMED, 'phf');
+        list($uinsql, $uinparams) = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED, 'phu');
+        $customphoneparams = array_merge($finparams, $uinparams);
         $customrows = $DB->get_records_sql(
-            "SELECT userid, fieldid, data
+            "SELECT id, userid, fieldid, data
                FROM {user_info_data}
               WHERE fieldid $finsql
-                AND userid $uinsql",
-            $rowsparams
+                AND userid $uinsql
+           ORDER BY userid ASC, fieldid ASC",
+            $customphoneparams
         );
         foreach ($customrows as $crow) {
-            $uid = (int)$crow->userid;
-            $fid = (int)$crow->fieldid;
-            $customphonemap[$uid][$fid] = trim((string)$crow->data);
+            $userid = (int)$crow->userid;
+            $fieldid = (int)$crow->fieldid;
+            $customphonemap[$userid][$fieldid] = trim((string)$crow->data);
         }
     }
 
+    $needlesearch = asbc_normalize_text($search);
     foreach ($studentrecords as $record) {
         $classid = (int)$record->classid;
         if (!isset($classes[$classid])) {
@@ -417,66 +451,64 @@ if (!empty($classids)) {
         }
 
         $studentname = trim((string)$record->firstname . ' ' . (string)$record->lastname);
-        $identification = trim((string)($docmap[(int)$record->userid] ?? ''));
+        $identification = trim((string)($docmap[(int)$record->userid]['value'] ?? ''));
         if ($identification === '') {
             $identification = trim((string)$record->idnumber);
         }
 
-        $obj = new stdClass();
-        $obj->classid = $classid;
-        $obj->classname = (string)$record->classname;
-        $obj->schedule = (string)($schedulemap[$classid]['display'] ?? '--');
-        $obj->groupid = (int)$record->groupid;
-        $obj->groupname = trim((string)$record->groupname) !== '' ? (string)$record->groupname : ('Grupo ' . (int)$record->groupid);
-        $obj->userid = (int)$record->userid;
-        $obj->studentname = $studentname;
-        $obj->identification = $identification;
-        $obj->email = (string)$record->email;
-        $obj->phone1 = trim((string)$record->phone1);
-        $obj->phone2 = trim((string)$record->phone2);
+        $row = new stdClass();
+        $row->classid = $classid;
+        $row->classname = (string)$record->classname;
+        $row->schedule = (string)($schedulemap[$classid]['display'] ?? '--');
+        $row->groupid = (int)$record->groupid;
+        $row->groupname = trim((string)$record->groupname) !== '' ? (string)$record->groupname : ('Grupo ' . (int)$record->groupid);
+        $row->userid = (int)$record->userid;
+        $row->studentname = $studentname;
+        $row->identification = $identification;
+        $row->email = (string)$record->email;
+        $row->phone1 = trim((string)$record->phone1);
+        $row->phone2 = trim((string)$record->phone2);
 
         $allphones = [];
-        if ($obj->phone1 !== '') {
-            $allphones[] = $obj->phone1;
+        if ($row->phone1 !== '') {
+            $allphones[] = $row->phone1;
         }
-        if ($obj->phone2 !== '') {
-            $allphones[] = $obj->phone2;
+        if ($row->phone2 !== '') {
+            $allphones[] = $row->phone2;
         }
 
         foreach ($phonefields as $fieldid => $field) {
             $value = trim((string)($customphonemap[(int)$record->userid][$fieldid] ?? ''));
-            $obj->{'cf_phone_' . $fieldid} = $value;
+            $row->{'cf_phone_' . $fieldid} = $value;
             if ($value !== '') {
                 $allphones[] = $value;
             }
         }
 
         $allphones = array_values(array_unique(array_filter($allphones)));
-        $obj->allphones = implode(' | ', $allphones);
+        $row->allphones = implode(' | ', $allphones);
 
-        if ($search !== '') {
+        if ($needlesearch !== '') {
             $haystack = asbc_normalize_text(
-                $obj->classname . ' ' .
-                $obj->groupname . ' ' .
-                $obj->studentname . ' ' .
-                $obj->identification . ' ' .
-                $obj->email . ' ' .
-                $obj->phone1 . ' ' .
-                $obj->phone2 . ' ' .
-                $obj->allphones . ' ' .
-                $obj->schedule
+                $row->classname . ' ' .
+                $row->groupname . ' ' .
+                $row->studentname . ' ' .
+                $row->identification . ' ' .
+                $row->email . ' ' .
+                $row->phone1 . ' ' .
+                $row->phone2 . ' ' .
+                $row->allphones . ' ' .
+                $row->schedule
             );
-            $needle = asbc_normalize_text($search);
-            if (strpos($haystack, $needle) === false) {
+            if (strpos($haystack, $needlesearch) === false) {
                 continue;
             }
         }
 
-        $rows[] = $obj;
+        $rows[] = $row;
     }
 }
 
-// Stable sorting.
 usort($rows, function($a, $b) {
     $cmp = strcmp((string)$a->classname, (string)$b->classname);
     if ($cmp !== 0) {
@@ -489,42 +521,34 @@ usort($rows, function($a, $b) {
     return strcmp((string)$a->studentname, (string)$b->studentname);
 });
 
-// -----------------------------------------------------------------------------
-// Export.
-// -----------------------------------------------------------------------------
-
 $exportcolumns = [
-    'classid' => 'Class ID',
-    'classname' => 'Class',
-    'schedule' => 'Schedule',
-    'groupid' => 'Group ID',
-    'groupname' => 'Group',
-    'userid' => 'User ID',
-    'studentname' => 'Student',
-    'identification' => 'Identification',
-    'email' => 'Email',
-    'phone1' => 'Phone',
-    'phone2' => 'Mobile phone',
+    'classid' => 'ID clase',
+    'classname' => 'Clase',
+    'schedule' => 'Horario',
+    'groupid' => 'ID grupo',
+    'groupname' => 'Grupo',
+    'userid' => 'ID usuario',
+    'studentname' => 'Estudiante',
+    'identification' => 'Cedula/Identificacion',
+    'email' => 'Correo',
+    'phone1' => 'Telefono',
+    'phone2' => 'Telefono movil',
 ];
 foreach ($phonefields as $fieldid => $field) {
     $label = trim((string)$field->name) !== '' ? trim((string)$field->name) : trim((string)$field->shortname);
-    $exportcolumns['cf_phone_' . $fieldid] = 'Phone CF: ' . $label;
+    $exportcolumns['cf_phone_' . $fieldid] = 'Telefono extra: ' . $label;
 }
-$exportcolumns['allphones'] = 'All phones merged';
+$exportcolumns['allphones'] = 'Telefonos consolidados';
 
 if ($action === 'export') {
     \core\dataformat::download_data(
-        'active_students_by_class_' . date('Ymd_His'),
+        'estudiantes_activos_por_clase_' . date('Ymd_His'),
         'excel',
         $exportcolumns,
         $rows
     );
     die();
 }
-
-// -----------------------------------------------------------------------------
-// Pagination.
-// -----------------------------------------------------------------------------
 
 $totalrows = count($rows);
 $offset = $page * $perpage;
@@ -536,14 +560,10 @@ $pagingurl = new moodle_url('/local/grupomakro_core/pages/active_students_by_cla
     'search' => $search,
 ]);
 
-// -----------------------------------------------------------------------------
-// UI.
-// -----------------------------------------------------------------------------
-
 echo $OUTPUT->header();
 
 $dayoptions = [
-    '' => 'All days',
+    '' => 'Todos',
     'lunes' => 'Lunes',
     'martes' => 'Martes',
     'miercoles' => 'Miercoles',
@@ -575,19 +595,19 @@ echo '<style>
 </style>';
 
 echo '<div class="asbc-card">';
-echo '<div class="asbc-card-h">Active students by class</div>';
+echo '<div class="asbc-card-h">' . asbc_h($title) . '</div>';
 echo '<div class="asbc-card-b">';
 
 echo '<div class="asbc-grid mb-3">';
-echo '<div class="asbc-stat"><div class="n">' . count($uniqueclasses) . '</div><div>Classes</div></div>';
-echo '<div class="asbc-stat"><div class="n">' . count($uniquestudents) . '</div><div>Students</div></div>';
-echo '<div class="asbc-stat"><div class="n">' . $totalrows . '</div><div>Rows</div></div>';
+echo '<div class="asbc-stat"><div class="n">' . count($uniqueclasses) . '</div><div>Clases</div></div>';
+echo '<div class="asbc-stat"><div class="n">' . count($uniquestudents) . '</div><div>Estudiantes</div></div>';
+echo '<div class="asbc-stat"><div class="n">' . $totalrows . '</div><div>Registros</div></div>';
 echo '</div>';
 
 echo '<form method="get" class="asbc-form mb-3">';
 echo '<div class="row">';
 echo '<div class="col-md-3 mb-2">';
-echo '<label class="asbc-small">Day</label>';
+echo '<label class="asbc-small">Dia de clase</label>';
 echo '<select name="day" class="form-control">';
 foreach ($dayoptions as $daykey => $daylabel) {
     $selected = ($filterdaykey === $daykey) ? ' selected' : '';
@@ -597,9 +617,9 @@ echo '</select>';
 echo '</div>';
 
 echo '<div class="col-md-4 mb-2">';
-echo '<label class="asbc-small">Group</label>';
+echo '<label class="asbc-small">Grupo</label>';
 echo '<select name="groupid" class="form-control">';
-echo '<option value="0">All groups</option>';
+echo '<option value="0">Todos los grupos</option>';
 foreach ($groupset as $gid => $gname) {
     $selected = ((int)$filtergroupid === (int)$gid) ? ' selected' : '';
     echo '<option value="' . (int)$gid . '"' . $selected . '>' . asbc_h($gname) . ' (#' . (int)$gid . ')</option>';
@@ -608,28 +628,28 @@ echo '</select>';
 echo '</div>';
 
 echo '<div class="col-md-3 mb-2">';
-echo '<label class="asbc-small">Search</label>';
-echo '<input type="text" name="search" class="form-control" value="' . asbc_h($search) . '" placeholder="Name, ID, email, phone...">';
+echo '<label class="asbc-small">Busqueda</label>';
+echo '<input type="text" name="search" class="form-control" value="' . asbc_h($search) . '" placeholder="Nombre, cedula, correo, telefono...">';
 echo '</div>';
 
 echo '<div class="col-md-2 mb-2 d-flex align-items-end asbc-actions">';
-echo '<button type="submit" class="btn btn-primary">Filter</button>';
+echo '<button type="submit" class="btn btn-primary">Filtrar</button>';
 echo '</div>';
 echo '</div>';
 
 echo '<div class="asbc-actions">';
-echo '<a class="btn btn-outline-secondary" href="' . new moodle_url('/local/grupomakro_core/pages/active_students_by_class.php') . '">Clear</a>';
-echo '<button type="submit" name="action" value="export" class="btn btn-success">Excel</button>';
+echo '<a class="btn btn-outline-secondary" href="' . (new moodle_url('/local/grupomakro_core/pages/active_students_by_class.php'))->out(false) . '">Limpiar</a>';
+echo '<button type="submit" name="action" value="export" class="btn btn-success">Exportar Excel</button>';
 echo '</div>';
 echo '</form>';
 
 if (empty($pagerows)) {
-    echo '<div class="alert alert-info mb-0">No records found with current filters.</div>';
+    echo '<div class="alert alert-info mb-0">No se encontraron registros con los filtros seleccionados.</div>';
 } else {
     echo '<div class="table-responsive">';
     echo '<table class="table table-striped table-hover asbc-table">';
     echo '<thead><tr>';
-    foreach ($exportcolumns as $key => $header) {
+    foreach ($exportcolumns as $header) {
         echo '<th>' . asbc_h($header) . '</th>';
     }
     echo '</tr></thead><tbody>';
@@ -648,8 +668,7 @@ if (empty($pagerows)) {
     echo $OUTPUT->paging_bar($totalrows, $page, $perpage, $pagingurl);
 }
 
-echo '</div>'; // card body.
-echo '</div>'; // card.
-
+echo '</div>';
+echo '</div>';
 echo $OUTPUT->footer();
 
