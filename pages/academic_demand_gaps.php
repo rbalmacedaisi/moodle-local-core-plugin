@@ -327,18 +327,49 @@ foreach ($gapRawStudents as $stu) {
 
     if ($inprog === 0) { $statsZero++; } else { $statsOne++; }
 
-    $suggestOpen = array();
-    $suggestNew  = array();
+    $suggestOpen      = array();
+    $suggestOpenOther = array();
+    $suggestNew       = array();
+    $stuShift = isset($stu->shift) ? trim((string)$stu->shift) : '';
 
     foreach ($pending as $cid => $info) {
         $semNum = isset($structure[$planid][$cid]) ? (int)$structure[$planid][$cid]->sem_num : 0;
         if (!empty($openClassByCourseid[$cid])) {
-            $suggestOpen[$cid] = array(
-                'fullname' => $info['fullname'],
-                'sem_num'  => $semNum,
-                'cpstatus' => $info['cpstatus'],
-                'classes'  => $openClassByCourseid[$cid],
-            );
+            if ($stuShift !== '') {
+                $matchClasses = array();
+                $otherClasses = array();
+                foreach ($openClassByCourseid[$cid] as $cls) {
+                    $clsShift = isset($cls->shift) ? trim((string)$cls->shift) : '';
+                    if ($clsShift === $stuShift) {
+                        $matchClasses[] = $cls;
+                    } else {
+                        $otherClasses[] = $cls;
+                    }
+                }
+                if (!empty($matchClasses)) {
+                    $suggestOpen[$cid] = array(
+                        'fullname' => $info['fullname'],
+                        'sem_num'  => $semNum,
+                        'cpstatus' => $info['cpstatus'],
+                        'classes'  => $matchClasses,
+                    );
+                }
+                if (!empty($otherClasses)) {
+                    $suggestOpenOther[$cid] = array(
+                        'fullname' => $info['fullname'],
+                        'sem_num'  => $semNum,
+                        'cpstatus' => $info['cpstatus'],
+                        'classes'  => $otherClasses,
+                    );
+                }
+            } else {
+                $suggestOpen[$cid] = array(
+                    'fullname' => $info['fullname'],
+                    'sem_num'  => $semNum,
+                    'cpstatus' => $info['cpstatus'],
+                    'classes'  => $openClassByCourseid[$cid],
+                );
+            }
         } else {
             if (count($suggestNew) < 3) {
                 $suggestNew[$cid] = array(
@@ -350,15 +381,16 @@ foreach ($gapRawStudents as $stu) {
         }
     }
 
-    if (!empty($suggestOpen)) { $statsWithOpen++; }
+    if (!empty($suggestOpen) || !empty($suggestOpenOther)) { $statsWithOpen++; }
     if (!empty($suggestNew))  { $statsNeedNew++;  }
 
     $gapResults[] = array(
-        'stu'          => $stu,
-        'inprogress'   => $inprog,
-        'pending_count'=> count($pending),
-        'suggestOpen'  => $suggestOpen,
-        'suggestNew'   => $suggestNew,
+        'stu'              => $stu,
+        'inprogress'       => $inprog,
+        'pending_count'    => count($pending),
+        'suggestOpen'      => $suggestOpen,
+        'suggestOpenOther' => $suggestOpenOther,
+        'suggestNew'       => $suggestNew,
     );
 }
 
@@ -440,17 +472,46 @@ foreach ($failedRawStudents as $stu) {
     $planid = (int)$stu->planid;
     $statsFailedStudents++;
 
-    $subjectsWithOpen = array();
-    $subjectsNoOpen   = array();
+    $subjectsWithOpen      = array();
+    $subjectsWithOpenOther = array();
+    $subjectsNoOpen        = array();
+    $failedStuShift = isset($stu->shift) ? trim((string)$stu->shift) : '';
 
     foreach ($failedByUser[$uid] as $cid => $fullname) {
         $semNum = isset($structure[$planid][$cid]) ? (int)$structure[$planid][$cid]->sem_num : 0;
         if (!empty($openClassByCourseid[$cid])) {
-            $subjectsWithOpen[$cid] = array(
-                'fullname' => $fullname,
-                'sem_num'  => $semNum,
-                'classes'  => $openClassByCourseid[$cid],
-            );
+            if ($failedStuShift !== '') {
+                $matchClasses = array();
+                $otherClasses = array();
+                foreach ($openClassByCourseid[$cid] as $cls) {
+                    $clsShift = isset($cls->shift) ? trim((string)$cls->shift) : '';
+                    if ($clsShift === $failedStuShift) {
+                        $matchClasses[] = $cls;
+                    } else {
+                        $otherClasses[] = $cls;
+                    }
+                }
+                if (!empty($matchClasses)) {
+                    $subjectsWithOpen[$cid] = array(
+                        'fullname' => $fullname,
+                        'sem_num'  => $semNum,
+                        'classes'  => $matchClasses,
+                    );
+                }
+                if (!empty($otherClasses)) {
+                    $subjectsWithOpenOther[$cid] = array(
+                        'fullname' => $fullname,
+                        'sem_num'  => $semNum,
+                        'classes'  => $otherClasses,
+                    );
+                }
+            } else {
+                $subjectsWithOpen[$cid] = array(
+                    'fullname' => $fullname,
+                    'sem_num'  => $semNum,
+                    'classes'  => $openClassByCourseid[$cid],
+                );
+            }
         } else {
             $subjectsNoOpen[$cid] = array(
                 'fullname' => $fullname,
@@ -459,13 +520,14 @@ foreach ($failedRawStudents as $stu) {
         }
     }
 
-    if (!empty($subjectsWithOpen)) { $statsFailedWithOpen++; }
+    if (!empty($subjectsWithOpen) || !empty($subjectsWithOpenOther)) { $statsFailedWithOpen++; }
     if (!empty($subjectsNoOpen))   { $statsFailedNoOpen++;   }
 
     $failedResults[] = array(
-        'stu'              => $stu,
-        'subjectsWithOpen' => $subjectsWithOpen,
-        'subjectsNoOpen'   => $subjectsNoOpen,
+        'stu'                   => $stu,
+        'subjectsWithOpen'      => $subjectsWithOpen,
+        'subjectsWithOpenOther' => $subjectsWithOpenOther,
+        'subjectsNoOpen'        => $subjectsNoOpen,
     );
 }
 
@@ -651,16 +713,18 @@ $tabFailedUrl = clone $baseUrl; $tabFailedUrl->param('tab', 'failed');
     <th>Periodo actual</th>
     <th>Cursando</th>
     <th>Pendientes</th>
-    <th style="min-width:380px">Sugerencias</th>
+    <th style="min-width:280px">Módulos su jornada</th>
+    <th style="min-width:220px">Módulos otra jornada</th>
 </tr>
 </thead>
 <tbody>
 <?php foreach ($gapResults as $idx => $row):
-    $stu       = $row['stu'];
-    $inprog    = $row['inprogress'];
-    $sugOpen   = $row['suggestOpen'];
-    $sugNew    = $row['suggestNew'];
-    $pendCount = $row['pending_count'];
+    $stu        = $row['stu'];
+    $inprog     = $row['inprogress'];
+    $sugOpen    = $row['suggestOpen'];
+    $sugOpenOth = $row['suggestOpenOther'];
+    $sugNew     = $row['suggestNew'];
+    $pendCount  = $row['pending_count'];
     $fullname  = trim($stu->firstname . ' ' . $stu->lastname);
     $shift     = isset($stu->shift) ? trim((string)$stu->shift) : '';
     $studentdoc = !empty($stu->documentnumber) ? trim((string)$stu->documentnumber) : '';
@@ -695,6 +759,7 @@ $tabFailedUrl = clone $baseUrl; $tabFailedUrl->param('tab', 'failed');
             <?php echo adg_badge($pendCount . ' pendiente' . ($pendCount !== 1 ? 's' : ''), 'info'); ?>
         <?php endif; ?>
     </td>
+    <!-- Column: modules matching student's shift -->
     <td>
         <?php if (empty($sugOpen) && empty($sugNew)): ?>
             <span class="muted">-</span>
@@ -731,6 +796,37 @@ $tabFailedUrl = clone $baseUrl; $tabFailedUrl->param('tab', 'failed');
                         <span style="font-weight:400;color:#856404"><?php echo adg_h($semLbl); ?></span>
                     </div>
                     <div class="ca">&#9888; Sin modulo abierto &mdash; se recomienda apertura de clase</div>
+                </div>
+            </li>
+            <?php endforeach; ?>
+        </ul>
+        <?php endif; ?>
+    </td>
+    <!-- Column: modules of a different shift -->
+    <td style="background:#fffbf0">
+        <?php if (empty($sugOpenOth)): ?>
+            <span class="muted">-</span>
+        <?php else: ?>
+        <ul class="sug-list">
+            <?php foreach ($sugOpenOth as $cid => $sug):
+                $cls    = $sug['classes'][0];
+                $cdate  = date('d/m/Y', (int)$cls->initdate);
+                $cedate = date('d/m/Y', (int)$cls->enddate);
+                $cshift = isset($cls->shift) ? trim((string)$cls->shift) : '';
+                $ctype  = ((int)$cls->type === 1) ? 'Virtual' : 'Presencial';
+                $total  = count($sug['classes']);
+                $semLbl = $sug['sem_num'] > 0 ? ' <span style="font-weight:400;color:#6c757d">Sem. ' . (int)$sug['sem_num'] . '</span>' : '';
+            ?>
+            <li>
+                <div style="background:#fff3cd;border-radius:4px;padding:4px 8px;font-size:11px">
+                    <div style="font-weight:600;color:#664d03">&#128217; <?php echo adg_h($sug['fullname']); ?><?php echo $semLbl; ?></div>
+                    <div style="color:#856404;font-size:10px">
+                        <strong><?php echo adg_h($cls->name); ?></strong>
+                        &middot; <?php echo adg_h($ctype); ?>
+                        <?php if ($cshift !== ''): ?>&middot; <em><?php echo adg_h($cshift); ?></em><?php endif; ?>
+                        &middot; <?php echo adg_h($cdate); ?> &ndash; <?php echo adg_h($cedate); ?>
+                        <?php if ($total > 1): ?>&middot; <em>(+<?php echo $total - 1; ?> mas)</em><?php endif; ?>
+                    </div>
                 </div>
             </li>
             <?php endforeach; ?>
@@ -836,17 +932,19 @@ foreach ($gapResults as $row) {
     <th>Jornada</th>
     <th>Plan</th>
     <th>Periodo actual</th>
-    <th style="min-width:380px">Asignaturas reprobadas con modulo abierto</th>
-    <th style="min-width:200px">Reprobadas sin modulo abierto</th>
+    <th style="min-width:280px">Reprobadas con módulo su jornada</th>
+    <th style="min-width:200px">Reprobadas con módulo otra jornada</th>
+    <th style="min-width:180px">Reprobadas sin módulo abierto</th>
 </tr>
 </thead>
 <tbody>
 <?php foreach ($failedResults as $idx => $row):
-    $stu      = $row['stu'];
-    $swOpen   = $row['subjectsWithOpen'];
-    $swNone   = $row['subjectsNoOpen'];
-    $fullname = trim($stu->firstname . ' ' . $stu->lastname);
-    $shift    = isset($stu->shift) ? trim((string)$stu->shift) : '';
+    $stu       = $row['stu'];
+    $swOpen    = $row['subjectsWithOpen'];
+    $swOpenOth = $row['subjectsWithOpenOther'];
+    $swNone    = $row['subjectsNoOpen'];
+    $fullname  = trim($stu->firstname . ' ' . $stu->lastname);
+    $shift     = isset($stu->shift) ? trim((string)$stu->shift) : '';
     $studentdoc = !empty($stu->documentnumber) ? trim((string)$stu->documentnumber) : '';
     if ($studentdoc === '') {
         $studentdoc = trim((string)$stu->username);
@@ -901,6 +999,42 @@ foreach ($gapResults as $row) {
         </ul>
         <?php endif; ?>
     </td>
+    <!-- Column: modules of a different shift (failed tab) -->
+    <td style="background:#fffbf0">
+        <?php if (empty($swOpenOth)): ?>
+            <span class="muted">-</span>
+        <?php else: ?>
+        <ul class="sug-list">
+            <?php foreach ($swOpenOth as $cid => $sug):
+                $cls    = $sug['classes'][0];
+                $cdate  = date('d/m/Y', (int)$cls->initdate);
+                $cedate = date('d/m/Y', (int)$cls->enddate);
+                $cshift = isset($cls->shift) ? trim((string)$cls->shift) : '';
+                $ctype  = ((int)$cls->type === 1) ? 'Virtual' : 'Presencial';
+                $total  = count($sug['classes']);
+                $semLbl = $sug['sem_num'] > 0 ? ' Sem. ' . (int)$sug['sem_num'] : '';
+            ?>
+            <li>
+                <div style="background:#fff3cd;border-radius:4px;padding:4px 8px;font-size:11px">
+                    <div style="font-weight:600;color:#664d03">
+                        &#128683; <?php echo adg_h($sug['fullname']); ?>
+                        <?php if ($semLbl): ?><span style="font-weight:400;color:#6c757d"><?php echo adg_h($semLbl); ?></span><?php endif; ?>
+                        <span style="background:#fd7e14;color:#fff;border-radius:8px;padding:1px 6px;font-size:10px;margin-left:4px">Otra jornada</span>
+                    </div>
+                    <div style="color:#856404;font-size:10px">
+                        Módulo: <strong><?php echo adg_h($cls->name); ?></strong>
+                        &middot; <?php echo adg_h($ctype); ?>
+                        <?php if ($cshift !== ''): ?>&middot; <em><?php echo adg_h($cshift); ?></em><?php endif; ?>
+                        &middot; <?php echo adg_h($cdate); ?> &ndash; <?php echo adg_h($cedate); ?>
+                        <?php if ($total > 1): ?>&middot; <em>(+<?php echo $total - 1; ?> mas)</em><?php endif; ?>
+                    </div>
+                </div>
+            </li>
+            <?php endforeach; ?>
+        </ul>
+        <?php endif; ?>
+    </td>
+    <!-- Column: no open module -->
     <td>
         <?php if (empty($swNone)): ?>
             <span class="muted">-</span>
