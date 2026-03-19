@@ -80,6 +80,104 @@ function dbgtj_parse_int_list(string $raw): array {
 }
 
 /**
+ * Return explicit moderator user IDs from participant rules.
+ * @param array $rules
+ * @return array<int,int>
+ */
+function dbgtj_extract_explicit_moderator_users(array $rules): array {
+    $out = [];
+    foreach ($rules as $r) {
+        $seltype = (string)($r['selectiontype'] ?? '');
+        $selid = (string)($r['selectionid'] ?? '');
+        $role = core_text::strtolower((string)($r['role'] ?? ''));
+        if ($seltype === 'user' && $role === 'moderator' && preg_match('/^\d+$/', $selid)) {
+            $uid = (int)$selid;
+            if ($uid > 0) {
+                $out[$uid] = $uid;
+            }
+        }
+    }
+    ksort($out);
+    return $out;
+}
+
+/**
+ * Return explicit moderator users from raw participants JSON.
+ * @param string $json
+ * @return array<int,int>
+ */
+function dbgtj_extract_explicit_moderator_users_from_json(string $json): array {
+    $json = trim($json);
+    if ($json === '') {
+        return [];
+    }
+    $rules = json_decode($json, true);
+    if (!is_array($rules)) {
+        return [];
+    }
+    return dbgtj_extract_explicit_moderator_users($rules);
+}
+
+/**
+ * Evaluates moderator status for a target user (without current admin-user contamination).
+ * @param context $context
+ * @param array $participantlist
+ * @param int $userid
+ * @return bool
+ */
+function dbgtj_is_moderator_for_user(context $context, array $participantlist, int $userid): bool {
+    if ($userid <= 0) {
+        return false;
+    }
+    if (has_capability('moodle/site:config', $context, $userid)) {
+        return true;
+    }
+    if (empty($participantlist)) {
+        return false;
+    }
+
+    $roleids = [];
+    $roleshortnames = [];
+    $assignments = get_user_roles($context, $userid, true);
+    foreach ((array)$assignments as $ra) {
+        if (!empty($ra->roleid)) {
+            $roleids[(int)$ra->roleid] = 1;
+        }
+        if (!empty($ra->shortname)) {
+            $roleshortnames[core_text::strtolower((string)$ra->shortname)] = 1;
+        }
+    }
+
+    foreach ($participantlist as $participant) {
+        $role = core_text::strtolower((string)($participant['role'] ?? ''));
+        if ($role === 'viewer') {
+            continue;
+        }
+        $seltype = (string)($participant['selectiontype'] ?? '');
+        $selid = (string)($participant['selectionid'] ?? '');
+        if ($seltype === 'all') {
+            return true;
+        }
+        if ($seltype === 'user') {
+            if (preg_match('/^\d+$/', $selid) && (int)$selid === (int)$userid) {
+                return true;
+            }
+            continue;
+        }
+        if ($seltype === 'role') {
+            if (preg_match('/^\d+$/', $selid) && !empty($roleids[(int)$selid])) {
+                return true;
+            }
+            $sn = core_text::strtolower(trim($selid));
+            if ($sn !== '' && !empty($roleshortnames[$sn])) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+/**
  * Resolve teacher from id/query.
  * @param int $teacherid
  * @param string $teacherquery
@@ -336,28 +434,27 @@ function dbgtj_repair_moderator_rules_for_class(int $classid): array {
         $DB->set_field('bigbluebuttonbn', 'participants', $participants, ['id' => $instanceid]);
         $DB->set_field('bigbluebuttonbn', 'timemodified', $time, ['id' => $instanceid]);
 
-        // Verify write by re-reading participants and checking that class instructor is explicit moderator.
+        // Verify write by re-reading participants and checking against BBB helper interpretation.
         $after = $DB->get_record('bigbluebuttonbn', ['id' => $instanceid], 'id,participants', IGNORE_MISSING);
-        $explicitmods = [];
-        if ($after && !empty($after->participants)) {
-            $rules = json_decode((string)$after->participants, true);
-            if (is_array($rules)) {
-                foreach ($rules as $rule) {
-                    $seltype = (string)($rule['selectiontype'] ?? '');
-                    $selid = (string)($rule['selectionid'] ?? '');
-                    $role = core_text::strtolower((string)($rule['role'] ?? ''));
-                    if ($seltype === 'user' && $role === 'moderator' && preg_match('/^\d+$/', $selid)) {
-                        $explicitmods[(int)$selid] = (int)$selid;
-                    }
-                }
+        $afterrawmods = [];
+        $afterhelpermods = [];
+        $afterismoderator = false;
+        if ($after) {
+            $afterrawmods = dbgtj_extract_explicit_moderator_users_from_json((string)$after->participants);
+            $cmcontext = context_module::instance((int)$cmid, IGNORE_MISSING);
+            if ($cmcontext && class_exists('\mod_bigbluebuttonbn\local\helpers\roles')) {
+                $helperrules = \mod_bigbluebuttonbn\local\helpers\roles::get_participant_list($after, $cmcontext);
+                $afterhelpermods = dbgtj_extract_explicit_moderator_users((array)$helperrules);
+                $afterismoderator = dbgtj_is_moderator_for_user($cmcontext, (array)$helperrules, (int)$class->instructorid);
             }
         }
-        if (!empty($explicitmods[(int)$class->instructorid])) {
+        if ($afterismoderator) {
             $verifiedok++;
         } else {
             $verifyfailed++;
             $errors[] = 'cmid=' . (int)$cmid . ' verify_failed expected_moderator=' . (int)$class->instructorid .
-                ' configured=' . (!empty($explicitmods) ? implode(',', array_values($explicitmods)) : 'none');
+                ' raw=' . (!empty($afterrawmods) ? implode(',', array_values($afterrawmods)) : 'none') .
+                ' helper=' . (!empty($afterhelpermods) ? implode(',', array_values($afterhelpermods)) : 'none');
         }
         $updated++;
     }
@@ -567,16 +664,8 @@ if ($tab === 'global') {
                         continue;
                     }
                     $rules = \mod_bigbluebuttonbn\local\helpers\roles::get_participant_list($bbb, $cmcontext);
-                    $ismod = \mod_bigbluebuttonbn\local\helpers\roles::is_moderator($cmcontext, $rules, (int)$gclass->instructorid);
-                    $explicitmods = [];
-                    foreach ((array)$rules as $r) {
-                        $seltype = (string)($r['selectiontype'] ?? '');
-                        $selid = (string)($r['selectionid'] ?? '');
-                        $role = core_text::strtolower((string)($r['role'] ?? ''));
-                        if ($seltype === 'user' && $role === 'moderator' && preg_match('/^\d+$/', $selid)) {
-                            $explicitmods[(int)$selid] = (int)$selid;
-                        }
-                    }
+                    $ismod = dbgtj_is_moderator_for_user($cmcontext, (array)$rules, (int)$gclass->instructorid);
+                    $explicitmods = dbgtj_extract_explicit_moderator_users((array)$rules);
                     if ($wait === 1 && !empty($explicitmods) && empty($explicitmods[(int)$gclass->instructorid])) {
                         $riskexplicit++;
                         $scanstats['risk_explicit_mismatch']++;
@@ -954,15 +1043,8 @@ foreach ($allclasses as $class) {
                     if (class_exists('\mod_bigbluebuttonbn\local\helpers\roles')) {
                         $rules = \mod_bigbluebuttonbn\local\helpers\roles::get_participant_list($bbb, $cmcontext);
                         $ruletext = dbgtj_participant_rules_text($rules);
-                        $ismod = \mod_bigbluebuttonbn\local\helpers\roles::is_moderator($cmcontext, $rules, $teacherid);
-                        foreach ((array)$rules as $r) {
-                            $seltype = (string)($r['selectiontype'] ?? '');
-                            $selid = (string)($r['selectionid'] ?? '');
-                            $role = core_text::strtolower((string)($r['role'] ?? ''));
-                            if ($seltype === 'user' && $role === 'moderator' && preg_match('/^\d+$/', $selid)) {
-                                $explicitmodusers[(int)$selid] = (int)$selid;
-                            }
-                        }
+                        $ismod = dbgtj_is_moderator_for_user($cmcontext, (array)$rules, $teacherid);
+                        $explicitmodusers = dbgtj_extract_explicit_moderator_users((array)$rules);
                         if (!empty($explicitmodusers)) {
                             ksort($explicitmodusers);
                             $explicitmodtext = implode(',', array_values($explicitmodusers));

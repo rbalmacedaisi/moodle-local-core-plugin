@@ -3999,6 +3999,11 @@ function update_class($classParams)
 
     $classUpdated = $DB->update_record('gmk_class', $class);
 
+    // Keep BBB participant moderator in sync with class instructor.
+    if ((int)$class->instructorid !== (int)$classOldInstructorId) {
+        gmk_sync_bbb_moderator_rules_for_class((int)$class->id);
+    }
+
     $groupIdentityChanged = (
         (string)$class->name !== (string)$oldClass->name ||
         (int)$class->type !== (int)$oldClass->type ||
@@ -4951,6 +4956,9 @@ function update_teacher_disponibility($params)
                     $classRecord = $DB->get_record('gmk_class', array('id' => $instructorAsignedClass->id));
                     $classRecord->instructorid = $params['newInstructorId'];
                     $updateClassInstructor = $DB->update_record('gmk_class', $classRecord);
+                    if ($updateClassInstructor) {
+                        gmk_sync_bbb_moderator_rules_for_class((int)$classRecord->id);
+                    }
 
                     //Update the group with the new instructor
                     $classGroupId = $instructorAsignedClass->groupid;
@@ -5781,6 +5789,98 @@ function get_class_events($userId = null, $initDate = null, $endDate = null)
     }
 
     return $dedupedEvents;
+}
+
+/**
+ * Sync BBB participants rules for all BBB modules linked to a class.
+ * Sets current class instructor as explicit moderator and all users as viewer.
+ *
+ * @param int $classid
+ * @return array{updated:int,skipped:int,errors:array<int,string>}
+ */
+function gmk_sync_bbb_moderator_rules_for_class(int $classid): array
+{
+    global $DB;
+
+    $result = [
+        'updated' => 0,
+        'skipped' => 0,
+        'errors' => [],
+    ];
+
+    if ($classid <= 0) {
+        $result['errors'][] = 'invalid_classid';
+        return $result;
+    }
+
+    $class = $DB->get_record('gmk_class', ['id' => $classid], '*', IGNORE_MISSING);
+    if (!$class) {
+        $result['errors'][] = 'class_not_found';
+        return $result;
+    }
+    if ((int)$class->instructorid <= 0) {
+        $result['errors'][] = 'class_without_instructor';
+        return $result;
+    }
+
+    $cmids = [];
+    foreach (explode(',', (string)($class->bbbmoduleids ?? '')) as $part) {
+        $cmid = (int)trim($part);
+        if ($cmid > 0) {
+            $cmids[$cmid] = $cmid;
+        }
+    }
+    $relations = $DB->get_records('gmk_bbb_attendance_relation', ['classid' => (int)$classid], '', 'id,bbbmoduleid');
+    foreach ($relations as $rel) {
+        $cmid = (int)($rel->bbbmoduleid ?? 0);
+        if ($cmid > 0) {
+            $cmids[$cmid] = $cmid;
+        }
+    }
+    $cmids = array_values($cmids);
+    if (empty($cmids)) {
+        $result['errors'][] = 'no_bbb_cmids';
+        return $result;
+    }
+
+    $participants = json_encode([
+        [
+            'selectiontype' => 'user',
+            'selectionid' => (int)$class->instructorid,
+            'role' => 'moderator',
+        ],
+        [
+            'selectiontype' => 'all',
+            'selectionid' => 'all',
+            'role' => 'viewer',
+        ],
+    ]);
+
+    foreach ($cmids as $cmid) {
+        $cm = $DB->get_record_sql(
+            "SELECT cm.id, cm.instance, m.name AS modulename
+               FROM {course_modules} cm
+               JOIN {modules} m ON m.id = cm.module
+              WHERE cm.id = :cmid",
+            ['cmid' => (int)$cmid],
+            IGNORE_MISSING
+        );
+        if (!$cm || (string)$cm->modulename !== 'bigbluebuttonbn' || (int)$cm->instance <= 0) {
+            $result['skipped']++;
+            $result['errors'][] = 'cmid=' . (int)$cmid . ' invalid_non_bbb';
+            continue;
+        }
+
+        $DB->set_field('bigbluebuttonbn', 'participants', $participants, ['id' => (int)$cm->instance]);
+        $DB->set_field('bigbluebuttonbn', 'timemodified', time(), ['id' => (int)$cm->instance]);
+        $result['updated']++;
+    }
+
+    if (!empty($result['errors'])) {
+        gmk_log('WARNING: gmk_sync_bbb_moderator_rules_for_class classid=' . (int)$classid . ' errors=' . implode(' | ', $result['errors']));
+    }
+
+    return $result;
 }
 
 /**
