@@ -421,6 +421,7 @@ $failedWithGradeSql = "
             WHERE lu.userid        = cp.userid
               AND lu.learningplanid = cp.learningplanid
               AND lu.userroleid    = 5
+              AND lu.status        = 'activo'
        )
        AND NOT EXISTS (
            SELECT 1 FROM {gmk_course_progre} cp_ok
