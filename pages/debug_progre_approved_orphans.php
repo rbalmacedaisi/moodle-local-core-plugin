@@ -50,7 +50,7 @@ if ($action === 'cleanall') {
     $orphanSql = "
         SELECT cp.id
           FROM {gmk_course_progre} cp
-         WHERE cp.status IN (0, 1, 5)
+         WHERE cp.status IN (0, 1, 2, 5)
            AND EXISTS (
                SELECT 1 FROM {gmk_course_progre} cp_ok
                 WHERE cp_ok.userid   = cp.userid
@@ -86,7 +86,7 @@ if ($action === 'cleanone') {
     } else {
         $deleted = $DB->delete_records_select(
             'gmk_course_progre',
-            'userid = :uid AND courseid = :cid AND status IN (0, 1, 5)',
+            'userid = :uid AND courseid = :cid AND status IN (0, 1, 2, 5)',
             ['uid' => $uid, 'cid' => $cid]
         );
         $deleteCount = $deleted;
@@ -97,13 +97,14 @@ if ($action === 'cleanone') {
 // ─── Consulta: pares (userid, courseid) inconsistentes ──────────────────────
 // Get distinct userid+courseid pairs that have BOTH approved and orphan records
 $pairsSql = "
-    SELECT cp.userid, cp.courseid,
+    SELECT CONCAT(cp.userid, '_', cp.courseid) AS ukey,
+           cp.userid, cp.courseid,
            u.firstname, u.lastname, u.username,
            c.fullname AS coursename, c.shortname AS courseshort
       FROM {gmk_course_progre} cp
       JOIN {user}   u ON u.id = cp.userid   AND u.deleted = 0
       JOIN {course} c ON c.id = cp.courseid
-     WHERE cp.status IN (0, 1, 5)
+     WHERE cp.status IN (0, 1, 2, 5)
        AND EXISTS (
            SELECT 1 FROM {gmk_course_progre} cp_ok
             WHERE cp_ok.userid   = cp.userid
@@ -134,7 +135,7 @@ $totalPairs   = count($details);
 $totalOrphans = 0;
 foreach ($details as $d) {
     foreach ($d['records'] as $r) {
-        if (in_array((int)$r->status, [0, 1, 5])) {
+        if (in_array((int)$r->status, [0, 1, 2, 5])) {
             $totalOrphans++;
         }
     }
@@ -238,7 +239,7 @@ echo $OUTPUT->header();
     <?php foreach ($details as $d):
         $pair = $d['pair'];
         $recs = $d['records'];
-        $orphanCount = count(array_filter($recs, fn($r) => in_array((int)$r->status, [0, 1, 5])));
+        $orphanCount = count(array_filter($recs, fn($r) => in_array((int)$r->status, [0, 1, 2, 5])));
     ?>
     <div class="dpa-section">
         <div class="dpa-sec-head">
@@ -279,7 +280,7 @@ echo $OUTPUT->header();
             <?php foreach ($recs as $rec):
                 $st    = (int)$rec->status;
                 $info  = $STATUS_LABELS[$st] ?? ['txt' => "status=$st", 'cls' => 'secondary'];
-                $isOk  = in_array($st, [3, 4]);
+                $isOk   = in_array($st, [3, 4]);
                 $rowCls = $isOk ? 'row-keep' : 'row-orphan';
             ?>
                 <tr class="<?php echo $rowCls; ?>">
