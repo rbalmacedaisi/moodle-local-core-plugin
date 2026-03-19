@@ -260,7 +260,7 @@ function dbgtj_bbb_running_state(string $meetingid): array {
  * @return array{type:string,message:string,details:array<int,string>}
  */
 function dbgtj_repair_moderator_rules_for_class(int $classid): array {
-    global $DB;
+    global $DB, $CFG;
 
     $class = $DB->get_record('gmk_class', ['id' => $classid], '*', IGNORE_MISSING);
     if (!$class) {
@@ -312,8 +312,11 @@ function dbgtj_repair_moderator_rules_for_class(int $classid): array {
     ], JSON_UNESCAPED_UNICODE);
 
     $updated = 0;
+    $verifiedok = 0;
+    $verifyfailed = 0;
     $skipped = 0;
     $errors = [];
+    $time = time();
     foreach ($targetcmids as $cmid) {
         $cm = $DB->get_record_sql(
             "SELECT cm.id, cm.instance, m.name AS modulename
@@ -329,20 +332,52 @@ function dbgtj_repair_moderator_rules_for_class(int $classid): array {
             continue;
         }
 
-        $bbbrow = new stdClass();
-        $bbbrow->id = (int)$cm->instance;
-        $bbbrow->participants = $participants;
-        $bbbrow->timemodified = time();
-        $DB->update_record('bigbluebuttonbn', $bbbrow);
+        $instanceid = (int)$cm->instance;
+        $DB->set_field('bigbluebuttonbn', 'participants', $participants, ['id' => $instanceid]);
+        $DB->set_field('bigbluebuttonbn', 'timemodified', $time, ['id' => $instanceid]);
+
+        // Verify write by re-reading participants and checking that class instructor is explicit moderator.
+        $after = $DB->get_record('bigbluebuttonbn', ['id' => $instanceid], 'id,participants', IGNORE_MISSING);
+        $explicitmods = [];
+        if ($after && !empty($after->participants)) {
+            $rules = json_decode((string)$after->participants, true);
+            if (is_array($rules)) {
+                foreach ($rules as $rule) {
+                    $seltype = (string)($rule['selectiontype'] ?? '');
+                    $selid = (string)($rule['selectionid'] ?? '');
+                    $role = core_text::strtolower((string)($rule['role'] ?? ''));
+                    if ($seltype === 'user' && $role === 'moderator' && preg_match('/^\d+$/', $selid)) {
+                        $explicitmods[(int)$selid] = (int)$selid;
+                    }
+                }
+            }
+        }
+        if (!empty($explicitmods[(int)$class->instructorid])) {
+            $verifiedok++;
+        } else {
+            $verifyfailed++;
+            $errors[] = 'cmid=' . (int)$cmid . ' verify_failed expected_moderator=' . (int)$class->instructorid .
+                ' configured=' . (!empty($explicitmods) ? implode(',', array_values($explicitmods)) : 'none');
+        }
         $updated++;
     }
 
+    if ((int)$class->corecourseid > 0) {
+        if (!function_exists('rebuild_course_cache')) {
+            require_once($CFG->libdir . '/modinfolib.php');
+        }
+        rebuild_course_cache((int)$class->corecourseid, true);
+    }
+
     return [
-        'type' => ($updated > 0 ? 'ok' : 'warn'),
-        'message' => 'Repair moderator rules done. Updated BBB modules: ' . (int)$updated . '. Skipped: ' . (int)$skipped . '.',
+        'type' => ($updated > 0 && $verifyfailed === 0 ? 'ok' : 'warn'),
+        'message' => 'Repair moderator rules done. Updated BBB modules: ' . (int)$updated .
+            '. Verified: ' . (int)$verifiedok . '. Verify failed: ' . (int)$verifyfailed . '. Skipped: ' . (int)$skipped . '.',
         'details' => array_merge([
             'classid=' . (int)$classid,
-            'instructorid=' . (int)$class->instructorid
+            'instructorid=' . (int)$class->instructorid,
+            'courseid=' . (int)$class->corecourseid,
+            'cache_rebuilt=1'
         ], $errors)
     ];
 }
@@ -410,6 +445,7 @@ if ($tab === 'global') {
     echo '<div class="dbgtj-card">';
     echo '<h3 style="margin-top:0">Global BBB Moderator Mismatch Scan</h3>';
     echo '<p class="dbgtj-muted" style="margin-top:0">Finds classes where BBB participant rules can block teacher join (wait=1 + instructor not moderator).</p>';
+    echo '<p class="dbgtj-muted" style="margin-top:-6px">Root cause hint: if BBB participants are empty/invalid, BBB falls back to module owner as moderator. If class instructor changed later and participants were not synced, join_url can be empty.</p>';
     echo '<form method="get">';
     echo '<input type="hidden" name="tab" value="global">';
     echo '<div class="dbgtj-grid">';
