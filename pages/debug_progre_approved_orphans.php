@@ -188,18 +188,22 @@ $PASSING_GRADE = 70.0;
 
 // Helper: get best Moodle grade for userid+courseid
 function dpa_moodle_grade($DB, $userid, $courseid) {
-    // 1) Course total
-    $g = $DB->get_field_sql(
-        "SELECT MAX(COALESCE(gg.finalgrade, gg.rawgrade))
-           FROM {grade_items} gi
+    // 1) Course total — normalised to 0-100 (raw/grademax*100)
+    //    Raw score alone is misleading when grademax > 100 (e.g. 95 out of 1700 = 5.6%)
+    $ctRow = $DB->get_record_sql(
+        "SELECT COALESCE(gg.finalgrade, gg.rawgrade) AS raw_grade, gi.grademax
+           FROM {grade_items}  gi
            JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = :uid
           WHERE gi.itemtype = 'course' AND gi.courseid = :cid",
         ['uid' => $userid, 'cid' => $courseid]
     );
-    if ($g !== false && $g !== null && (float)$g > 0) {
-        return ['grade' => round((float)$g, 2), 'src' => 'Course total'];
+    if ($ctRow && $ctRow->raw_grade !== null && (float)$ctRow->grademax > 0) {
+        $pct = round((float)$ctRow->raw_grade / (float)$ctRow->grademax * 100, 2);
+        if ($pct > 0) {
+            return ['grade' => $pct, 'src' => 'Course total'];
+        }
     }
-    // 2) Nota Final Integrada
+    // 2) Nota Final Integrada (grademax=100 in this system — no normalization needed)
     $g = $DB->get_field_sql(
         "SELECT MAX(COALESCE(gg.finalgrade, gg.rawgrade))
            FROM {grade_items} gi
@@ -268,7 +272,8 @@ $missingSql = "
                SELECT 1 FROM {grade_items} gi
                JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = cp.userid
               WHERE gi.itemtype = 'course' AND gi.courseid = cp.courseid
-                AND COALESCE(gg.finalgrade, gg.rawgrade) >= :p1
+                AND gi.grademax > 0
+                AND COALESCE(gg.finalgrade, gg.rawgrade) / gi.grademax * 100 >= :p1
            )
            OR EXISTS (
                SELECT 1 FROM {grade_items} gi
@@ -428,7 +433,8 @@ $failedWithGradeSql = "
                SELECT 1 FROM {grade_items} gi
                JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = cp.userid
               WHERE gi.itemtype = 'course' AND gi.courseid = cp.courseid
-                AND COALESCE(gg.finalgrade, gg.rawgrade) >= :p1
+                AND gi.grademax > 0
+                AND COALESCE(gg.finalgrade, gg.rawgrade) / gi.grademax * 100 >= :p1
            )
            OR EXISTS (
                SELECT 1 FROM {grade_items} gi
