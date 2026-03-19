@@ -24,6 +24,9 @@ $PAGE->set_pagelayout('admin');
 $PAGE->set_title('Debug: Aprobados con huérfanos pendientes');
 $PAGE->set_heading('Inconsistencias gmk_course_progre: aprobado + registro huérfano');
 
+// ─── Filtro de búsqueda por estudiante ───────────────────────────────────────
+$searchName = trim(optional_param('q', '', PARAM_TEXT));
+
 // ─── Constantes de estado ────────────────────────────────────────────────────
 $STATUS_LABELS = [
     0  => ['txt' => 'No disponible', 'cls' => 'secondary'],
@@ -298,6 +301,79 @@ foreach ($missingRows as $mr) {
     ];
 }
 
+// ─── SECCIÓN 3: Pendientes sin nota Moodle (búsqueda por nombre) ─────────────
+// status 0/1 en plan activo + sin 3/4 + SIN nota en Moodle (o < 70)
+// Solo se ejecuta si hay búsqueda o se solicita explícitamente
+$showSec3   = $searchName !== '' || optional_param('sec3', 0, PARAM_INT) === 1;
+$sec3Data   = [];
+$sec3Search = [];
+
+if ($showSec3) {
+    $sec3NameWhere  = '';
+    $sec3NameParams = [];
+    if ($searchName !== '') {
+        $like = '%' . $DB->sql_like_escape($searchName) . '%';
+        $sec3NameWhere = " AND (" .
+            $DB->sql_like('u.firstname', ':sq1', false) . " OR " .
+            $DB->sql_like('u.lastname',  ':sq2', false) . " OR " .
+            $DB->sql_like('u.username',  ':sq3', false) . ")";
+        $sec3NameParams = ['sq1' => $like, 'sq2' => $like, 'sq3' => $like];
+    }
+
+    $sec3Sql = "
+        SELECT CONCAT(cp.userid, '_', cp.courseid) AS ukey,
+               cp.id AS progre_id,
+               cp.userid, cp.courseid, cp.status AS cpstatus,
+               cp.grade AS stored_grade, cp.learningplanid, cp.classid,
+               u.firstname, u.lastname, u.username,
+               c.fullname AS coursename, c.shortname AS courseshort
+          FROM {gmk_course_progre} cp
+          JOIN {user}   u ON u.id = cp.userid AND u.deleted = 0 AND u.suspended = 0
+          JOIN {course} c ON c.id = cp.courseid
+         WHERE cp.status IN (0, 1)
+           AND EXISTS (
+               SELECT 1 FROM {local_learning_users} lu
+                WHERE lu.userid        = cp.userid
+                  AND lu.learningplanid = cp.learningplanid
+                  AND lu.userroleid    = 5
+           )
+           AND NOT EXISTS (
+               SELECT 1 FROM {gmk_course_progre} cp_ok
+                WHERE cp_ok.userid   = cp.userid
+                  AND cp_ok.courseid = cp.courseid
+                  AND cp_ok.status  IN (3, 4)
+           )
+           AND NOT EXISTS (
+               SELECT 1 FROM {grade_items} gi
+               JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = cp.userid
+              WHERE gi.itemtype = 'course' AND gi.courseid = cp.courseid
+                AND COALESCE(gg.finalgrade, gg.rawgrade) >= :p1
+           )
+           AND NOT EXISTS (
+               SELECT 1 FROM {grade_items} gi
+               JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = cp.userid
+              WHERE gi.courseid = cp.courseid
+                AND (gi.itemname LIKE :nfi1 OR gi.itemname LIKE :nfi2)
+                AND COALESCE(gg.finalgrade, gg.rawgrade) >= :p2
+           )
+           $sec3NameWhere
+         ORDER BY u.lastname, u.firstname, c.fullname
+         LIMIT 300
+    ";
+    try {
+        $sec3Rows = $DB->get_records_sql($sec3Sql, array_merge([
+            'p1'   => $PASSING_GRADE,
+            'p2'   => $PASSING_GRADE,
+            'nfi1' => '%Nota Final Integrada%',
+            'nfi2' => '%Final Integrada%',
+        ], $sec3NameParams));
+        foreach ($sec3Rows as $r) {
+            $mgrade = dpa_moodle_grade($DB, $r->userid, $r->courseid);
+            $sec3Data[] = ['row' => $r, 'grade' => $mgrade['grade'], 'src' => $mgrade['src']];
+        }
+    } catch (Exception $e) {}
+}
+
 echo $OUTPUT->header();
 ?>
 <style>
@@ -334,6 +410,21 @@ echo $OUTPUT->header();
 
 <div class="dpa-wrap">
 <h2 style="font-size:20px;font-weight:700;margin-bottom:6px;">&#128269; Inconsistencias: aprobado + huérfano en gmk_course_progre</h2>
+
+<!-- Buscador global por nombre de estudiante -->
+<form method="get" style="margin-bottom:18px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <input type="text" name="q" value="<?php echo s($searchName); ?>"
+           placeholder="Buscar estudiante por nombre, apellido o usuario..."
+           style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;width:320px">
+    <button type="submit" class="dpa-btn dpa-btn-blue" style="padding:8px 14px">&#128269; Buscar</button>
+    <?php if ($searchName !== ''): ?>
+        <a href="?" class="dpa-btn" style="background:#6b7280;color:#fff;padding:8px 14px">&#10005; Limpiar</a>
+        <span style="font-size:13px;color:#6b7280">Mostrando resultados para: <strong><?php echo s($searchName); ?></strong></span>
+    <?php endif; ?>
+    <a href="?sec3=1" class="dpa-btn" style="background:#0369a1;color:#fff;padding:8px 14px;margin-left:auto">
+        &#128269; Ver todos sin nota Moodle (Sección 3)
+    </a>
+</form>
 
 <?php foreach ($actionLog as [$cls, $msg]): ?>
     <div class="dpa-alert-<?php echo $cls === 'ok' ? 'ok' : ($cls === 'error' ? 'err' : 'info'); ?>">

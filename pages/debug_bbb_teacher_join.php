@@ -115,7 +115,7 @@ function dbgtj_other_classes_using_bbb_cmid(int $cmid, int $classid): array {
 
     if (!$cachebuilt) {
         $relrows = $DB->get_records_sql(
-            "SELECT classid, bbbmoduleid
+            "SELECT id, classid, bbbmoduleid
                FROM {gmk_bbb_attendance_relation}
               WHERE classid > 0
                 AND bbbmoduleid > 0"
