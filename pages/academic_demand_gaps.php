@@ -241,6 +241,12 @@ try {
            FROM {gmk_course_progre} cp
            JOIN {course} c ON c.id = cp.courseid
           WHERE cp.status IN (0, 1)
+            AND NOT EXISTS (
+                SELECT 1 FROM {gmk_course_progre} cp_done
+                 WHERE cp_done.userid  = cp.userid
+                   AND cp_done.courseid = cp.courseid
+                   AND cp_done.status  IN (3, 4)
+            )
             AND EXISTS (
                 SELECT 1 FROM {local_learning_users} llu
                  WHERE llu.userid = cp.userid
@@ -409,6 +415,12 @@ try {
            FROM {gmk_course_progre} cp
            JOIN {course} c ON c.id = cp.courseid
           WHERE cp.status = 5
+            AND NOT EXISTS (
+                SELECT 1 FROM {gmk_course_progre} cp_done
+                 WHERE cp_done.userid  = cp.userid
+                   AND cp_done.courseid = cp.courseid
+                   AND cp_done.status  IN (3, 4)
+            )
             AND EXISTS (
                 SELECT 1 FROM {local_learning_users} llu
                  WHERE llu.userid = cp.userid

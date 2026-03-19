@@ -275,16 +275,16 @@ if ($hassiteconfig) {
         $settingspage->add(new admin_setting_configtext(
             'local_grupomakro_core/odoo_proxy_url',
             'URL del Proxy Odoo (Express Server)',
-            'URL base del servidor Express que gestiona la validaciÃ³n financiera. Ej: https://lms.isi.edu.pa:4000',
+            'URL base del servidor Express que gestiona la validación financiera. Ej: https://lms.isi.edu.pa:4000',
             'https://lms.isi.edu.pa:4000',
             PARAM_URL
         ));
 
-        // Secret de administraciÃ³n del proxy
+        // Secret de administración del proxy
         $settingspage->add(new admin_setting_configpasswordunmask(
             'local_grupomakro_core/odoo_proxy_admin_secret',
             'Secreto Admin del Proxy (Bypass Financiero)',
-            'Token secreto para autenticar solicitudes de administraciÃ³n al proxy Express. Debe coincidir con ADMIN_SECRET en server.js.',
+            'Token secreto para autenticar solicitudes de administración al proxy Express. Debe coincidir con ADMIN_SECRET en server.js.',
             'gmk_admin_bypass_2026',
             PARAM_TEXT
         ));
@@ -293,11 +293,11 @@ if ($hassiteconfig) {
         $settingspage->add(new admin_setting_configcheckbox(
             'local_grupomakro_core/grace_period_enabled',
             'Periodo de gracia en primer login',
-            'Si estÃ¡ activo, los estudiantes que inicien sesiÃ³n por primera vez tendrÃ¡n acceso hasta el final del mes sin restricciones financieras.',
+            'Si está activo, los estudiantes que inicien sesión por primera vez tendrán acceso hasta el final del mes sin restricciones financieras.',
             0
         ));
 
-        // Token compartido para la consulta server-to-server (Express â†’ Moodle)
+        // Token compartido para la consulta server-to-server (Express -> Moodle)
         $settingspage->add(new admin_setting_configpasswordunmask(
             'local_grupomakro_core/grace_period_token',
             'Token de consulta de periodo de gracia',
