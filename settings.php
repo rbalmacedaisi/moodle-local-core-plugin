@@ -28,99 +28,99 @@ if ($hassiteconfig) {
     $ADMIN->add('courses', new admin_category('grupomakrocore_plugin', new lang_string('admin_category_label', 'local_grupomakro_core')));
     $classManagementPage =new admin_externalpage(
         'grupomakro_core_class_management',
-        '📘 ' . get_string('class_management', 'local_grupomakro_core'),
+        'ðŸ“˜ ' . get_string('class_management', 'local_grupomakro_core'),
         new moodle_url('/local/grupomakro_core/pages/classmanagement.php')
     );
     $classSchedulesPage =new admin_externalpage(
         'grupomakro_core_class_schedule',
-        '🗓️ ' . get_string('class_schedules', 'local_grupomakro_core'),
+        'ðŸ—“ï¸ ' . get_string('class_schedules', 'local_grupomakro_core'),
         new moodle_url('/local/grupomakro_core/pages/schedules.php')
     );
     $availabilityPanelPage =new admin_externalpage(
         'grupomakro_core_availability_panel',
-        '🧑‍🏫 ' . get_string('availability_panel', 'local_grupomakro_core'),
+        'ðŸ§‘â€ðŸ« ' . get_string('availability_panel', 'local_grupomakro_core'),
         new moodle_url('/local/grupomakro_core/pages/availabilitypanel.php')
     );
     $availabilityCalendarPage =new admin_externalpage(
         'grupomakro_core_availability_calendar',
-        '📆 ' . get_string('availability_calendar', 'local_grupomakro_core'),
+        'ðŸ“† ' . get_string('availability_calendar', 'local_grupomakro_core'),
         new moodle_url('/local/grupomakro_core/pages/availability.php')
     );
     $schedulesPanelPage =new admin_externalpage(
         'grupomakro_core_schedules_panel',
-        '🕒 ' . get_string('schedules_panel', 'local_grupomakro_core'),
+        'ðŸ•’ ' . get_string('schedules_panel', 'local_grupomakro_core'),
         new moodle_url('/local/grupomakro_core/pages/schedulepanel.php')
     );
     $institutionManagementPage =new admin_externalpage(
         'grupomakro_core_institution_management',
-        '🏫 ' . get_string('institution_management', 'local_grupomakro_core'),
+        'ðŸ« ' . get_string('institution_management', 'local_grupomakro_core'),
         new moodle_url('/local/grupomakro_core/pages/institutionmanagement.php')
     );
     $academicDirectorPanelPage = new admin_externalpage(
         'grupomakro_core_academic_director_panel',
-        '🎯 ' . get_string('academic_director_panel', 'local_grupomakro_core'),
+        'ðŸŽ¯ ' . get_string('academic_director_panel', 'local_grupomakro_core'),
         new moodle_url('/local/grupomakro_core/pages/academicpanel.php')
     );
     $teachersManagementPage = new admin_externalpage(
         'grupomakro_core_teachers_management',
-        '👩‍🏫 ' . get_string('admin_teachers_management', 'local_grupomakro_core'),
+        'ðŸ‘©â€ðŸ« ' . get_string('admin_teachers_management', 'local_grupomakro_core'),
         new moodle_url('/local/grupomakro_core/pages/teachers.php')
     );
 
     // -- IMPORTADORES MASIVOS --
     $importUsersPage = new admin_externalpage(
         'grupomakro_core_import_users',
-        '👥 Importar Usuarios (Masivo)',
+        'ðŸ‘¥ Importar Usuarios (Masivo)',
         new moodle_url('/local/grupomakro_core/pages/import_users.php')
     );
     $importGradesPage = new admin_externalpage(
         'grupomakro_core_import_grades',
-        '📝 Importar Notas (Q10)',
+        'ðŸ“ Importar Notas (Q10)',
         new moodle_url('/local/grupomakro_core/pages/import_grades.php')
     );
     $bulkDeletePage = new admin_externalpage(
         'grupomakro_core_bulk_delete_users',
-        '🗑️ Eliminación Masiva',
+        'ðŸ—‘ï¸ EliminaciÃ³n Masiva',
         new moodle_url('/local/grupomakro_core/pages/bulk_delete_users.php')
     );
     $manageCoursesPage = new admin_externalpage(
         'grupomakro_core_manage_courses',
-        '📂 Gestor de Cursos',
+        'ðŸ“‚ Gestor de Cursos',
         new moodle_url('/local/grupomakro_core/pages/manage_courses.php')
     );
     $manageMeetingsPage = new admin_externalpage(
         'grupomakro_core_manage_meetings',
-        '🎥 Gestor de Sesiones Virtuales',
+        'ðŸŽ¥ Gestor de Sesiones Virtuales',
         new moodle_url('/local/grupomakro_core/pages/manage_meetings.php')
     );
     $bypassFinancialPage = new admin_externalpage(
         'grupomakro_core_bypass_financial',
-        '💳 Ignorar Estado Financiero en Login',
+        'ðŸ’³ Ignorar Estado Financiero en Login',
         new moodle_url('/local/grupomakro_core/pages/bypass_financial.php')
     );
     $gracePeriodPage = new admin_externalpage(
         'grupomakro_core_grace_period',
-        '⏳ Periodo de Gracia en Primer Login',
+        'â³ Periodo de Gracia en Primer Login',
         new moodle_url('/local/grupomakro_core/pages/grace_period.php')
     );
     $debugPublishStatusPage = new admin_externalpage(
         'grupomakro_core_debug_publish_status',
-        '🧪 Debug Publicación Horarios',
+        'ðŸ§ª Debug PublicaciÃ³n Horarios',
         new moodle_url('/local/grupomakro_core/pages/debug_publish_status.php')
     );
     $fixOrphanedClassidPage = new admin_externalpage(
         'grupomakro_core_fix_orphaned_classid',
-        '🔧 Fix: Clases Eliminadas (classid huérfano)',
+        'ðŸ”§ Fix: Clases Eliminadas (classid huÃ©rfano)',
         new moodle_url('/local/grupomakro_core/pages/fix_orphaned_classid.php')
     );
     $resetPeriodPublishPage = new admin_externalpage(
         'grupomakro_core_reset_period_publish',
-        '🗑 Reset: Limpiar Publicación de Período',
+        'ðŸ—‘ Reset: Limpiar PublicaciÃ³n de PerÃ­odo',
         new moodle_url('/local/grupomakro_core/pages/reset_period_publish.php')
     );
     $debugFixDraftPage = new admin_externalpage(
         'grupomakro_core_debug_fix_draft',
-        '🔍 Debug: Fix Draft & Grupos Huérfanos',
+        'ðŸ” Debug: Fix Draft & Grupos HuÃ©rfanos',
         new moodle_url('/local/grupomakro_core/pages/debug_fix_draft.php')
     );
     $debugPublishDraftPage = new admin_externalpage(
@@ -140,7 +140,7 @@ if ($hassiteconfig) {
     );
     $academicDemandGapsPage = new admin_externalpage(
         'grupomakro_core_academic_demand_gaps',
-        'Brechas de Demanda Académica',
+        'Brechas de Demanda AcadÃ©mica',
         new moodle_url('/local/grupomakro_core/pages/academic_demand_gaps.php')
     );
     $scheduleWeeklyViewPage = new admin_externalpage(
@@ -153,9 +153,14 @@ if ($hassiteconfig) {
         get_string('active_students_by_class_page', 'local_grupomakro_core'),
         new moodle_url('/local/grupomakro_core/pages/active_students_by_class.php')
     );
+    $debugBbbTeacherJoinPage = new admin_externalpage(
+        'grupomakro_core_debug_bbb_teacher_join',
+        'Debug BBB Join Docente',
+        new moodle_url('/local/grupomakro_core/pages/debug_bbb_teacher_join.php')
+    );
     $financialPlanningPage = new admin_externalpage(
         'grupomakro_core_financial_planning',
-        '💰 Análisis Financiero Docente',
+        'ðŸ’° AnÃ¡lisis Financiero Docente',
         new moodle_url('/local/grupomakro_core/pages/financial_planning.php')
     );
     $debugStudentActivityVisibilityPage = new admin_externalpage(
@@ -165,7 +170,7 @@ if ($hassiteconfig) {
     );
     $syncBbbRecordingsPage = new admin_externalpage(
         'grupomakro_core_sync_bbb_recordings',
-        '🎙️ Sincronizar Grabaciones BBB',
+        'ðŸŽ™ï¸ Sincronizar Grabaciones BBB',
         new moodle_url('/local/grupomakro_core/pages/sync_bbb_recordings.php')
     );
     $ADMIN->add('grupomakrocore_plugin', $classManagementPage);
@@ -195,6 +200,7 @@ if ($hassiteconfig) {
     $ADMIN->add('grupomakrocore_plugin', $activeStudentsByClassPage);
     $ADMIN->add('grupomakrocore_plugin', $financialPlanningPage);
     $ADMIN->add('grupomakrocore_plugin', $debugStudentActivityVisibilityPage);
+    $ADMIN->add('grupomakrocore_plugin', $debugBbbTeacherJoinPage);
     $ADMIN->add('grupomakrocore_plugin', $syncBbbRecordingsPage);
 
     $ADMIN->add('localplugins', new admin_category('grupomakrocore', new lang_string('pluginname', 'local_grupomakro_core')));
@@ -269,16 +275,16 @@ if ($hassiteconfig) {
         $settingspage->add(new admin_setting_configtext(
             'local_grupomakro_core/odoo_proxy_url',
             'URL del Proxy Odoo (Express Server)',
-            'URL base del servidor Express que gestiona la validación financiera. Ej: https://lms.isi.edu.pa:4000',
+            'URL base del servidor Express que gestiona la validaciÃ³n financiera. Ej: https://lms.isi.edu.pa:4000',
             'https://lms.isi.edu.pa:4000',
             PARAM_URL
         ));
 
-        // Secret de administración del proxy
+        // Secret de administraciÃ³n del proxy
         $settingspage->add(new admin_setting_configpasswordunmask(
             'local_grupomakro_core/odoo_proxy_admin_secret',
             'Secreto Admin del Proxy (Bypass Financiero)',
-            'Token secreto para autenticar solicitudes de administración al proxy Express. Debe coincidir con ADMIN_SECRET en server.js.',
+            'Token secreto para autenticar solicitudes de administraciÃ³n al proxy Express. Debe coincidir con ADMIN_SECRET en server.js.',
             'gmk_admin_bypass_2026',
             PARAM_TEXT
         ));
@@ -287,11 +293,11 @@ if ($hassiteconfig) {
         $settingspage->add(new admin_setting_configcheckbox(
             'local_grupomakro_core/grace_period_enabled',
             'Periodo de gracia en primer login',
-            'Si está activo, los estudiantes que inicien sesión por primera vez tendrán acceso hasta el final del mes sin restricciones financieras.',
+            'Si estÃ¡ activo, los estudiantes que inicien sesiÃ³n por primera vez tendrÃ¡n acceso hasta el final del mes sin restricciones financieras.',
             0
         ));
 
-        // Token compartido para la consulta server-to-server (Express → Moodle)
+        // Token compartido para la consulta server-to-server (Express â†’ Moodle)
         $settingspage->add(new admin_setting_configpasswordunmask(
             'local_grupomakro_core/grace_period_token',
             'Token de consulta de periodo de gracia',
@@ -366,3 +372,4 @@ if ($hassiteconfig) {
      * End of settings page: Email Templates.
      */
 }
+

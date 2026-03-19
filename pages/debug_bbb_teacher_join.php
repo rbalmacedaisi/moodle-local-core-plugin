@@ -1,0 +1,585 @@
+<?php
+// Debug page for BBB join failures on teacher dashboard.
+
+require_once(__DIR__ . '/../../../config.php');
+require_once($CFG->libdir . '/adminlib.php');
+
+global $DB, $PAGE, $OUTPUT, $USER, $CFG;
+
+require_login();
+$syscontext = context_system::instance();
+require_capability('moodle/site:config', $syscontext);
+admin_externalpage_setup('grupomakro_core_debug_bbb_teacher_join');
+
+$PAGE->set_url(new moodle_url('/local/grupomakro_core/pages/debug_bbb_teacher_join.php'));
+$PAGE->set_context($syscontext);
+$PAGE->set_title('Debug BBB Join Teacher');
+$PAGE->set_heading('Debug BBB Join Teacher');
+$PAGE->set_pagelayout('admin');
+
+$teacherid = optional_param('teacherid', 0, PARAM_INT);
+$teacherquery = trim(optional_param('teacher', 'CAMILO ANDRES CAITA MURCIA', PARAM_RAW_TRIMMED));
+$classid = optional_param('classid', 0, PARAM_INT);
+$classquery = trim(optional_param('classname', '', PARAM_RAW_TRIMMED));
+$onlyactive = optional_param('onlyactive', 1, PARAM_INT);
+$maxclasses = optional_param('maxclasses', 120, PARAM_INT);
+$maxclasses = max(10, min(500, $maxclasses));
+
+/**
+ * Escape helper.
+ * @param mixed $v
+ * @return string
+ */
+function dbgtj_h($v): string {
+    return s((string)$v);
+}
+
+/**
+ * Normalize text for accent-insensitive matching.
+ * @param string $text
+ * @return string
+ */
+function dbgtj_norm(string $text): string {
+    $text = trim($text);
+    if ($text === '') {
+        return '';
+    }
+    $ascii = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $text);
+    if ($ascii !== false && $ascii !== '') {
+        $text = $ascii;
+    }
+    $text = core_text::strtolower($text);
+    $text = preg_replace('/[^a-z0-9]+/', ' ', $text);
+    $text = preg_replace('/\s+/', ' ', $text);
+    return trim((string)$text);
+}
+
+/**
+ * Parse comma-separated integer list.
+ * @param string $raw
+ * @return int[]
+ */
+function dbgtj_parse_int_list(string $raw): array {
+    $out = [];
+    foreach (explode(',', $raw) as $part) {
+        $id = (int)trim((string)$part);
+        if ($id > 0) {
+            $out[$id] = $id;
+        }
+    }
+    return array_values($out);
+}
+
+/**
+ * Resolve teacher from id/query.
+ * @param int $teacherid
+ * @param string $teacherquery
+ * @return array{selected:?stdClass,candidates:array<int,stdClass>,warning:string}
+ */
+function dbgtj_resolve_teacher(int $teacherid, string $teacherquery): array {
+    global $DB;
+
+    $selected = null;
+    $candidates = [];
+    $warning = '';
+
+    if ($teacherid > 0) {
+        $selected = $DB->get_record('user', ['id' => $teacherid, 'deleted' => 0], 'id,username,firstname,lastname,email,idnumber,suspended', IGNORE_MISSING);
+        if ($selected) {
+            $candidates[(int)$selected->id] = $selected;
+        }
+    }
+
+    if (!$selected && $teacherquery !== '') {
+        $sql = "SELECT u.id, u.username, u.firstname, u.lastname, u.email, u.idnumber, u.suspended
+                  FROM {user} u
+                 WHERE u.deleted = 0
+                   AND (
+                        " . $DB->sql_like("CONCAT(u.firstname, ' ', u.lastname)", ':q1', false, false) . "
+                        OR " . $DB->sql_like('u.username', ':q2', false, false) . "
+                        OR " . $DB->sql_like('u.email', ':q3', false, false) . "
+                        OR " . $DB->sql_like('u.idnumber', ':q4', false, false) . "
+                   )
+              ORDER BY u.firstname ASC, u.lastname ASC";
+        $rows = $DB->get_records_sql($sql, [
+            'q1' => '%' . $teacherquery . '%',
+            'q2' => '%' . $teacherquery . '%',
+            'q3' => '%' . $teacherquery . '%',
+            'q4' => '%' . $teacherquery . '%',
+        ]);
+        foreach ($rows as $row) {
+            $candidates[(int)$row->id] = $row;
+        }
+
+        if (!empty($candidates)) {
+            $qnorm = dbgtj_norm($teacherquery);
+            $exact = [];
+            foreach ($candidates as $u) {
+                $fullname = dbgtj_norm(trim((string)$u->firstname . ' ' . (string)$u->lastname));
+                if ($qnorm !== '' && $fullname === $qnorm) {
+                    $exact[(int)$u->id] = $u;
+                }
+            }
+            if (count($exact) === 1) {
+                $selected = reset($exact);
+            } else {
+                $selected = reset($candidates);
+                if (count($candidates) > 1) {
+                    $warning = 'Multiple teacher matches found. Using the first match. Use teacherid to force one.';
+                }
+            }
+        }
+    }
+
+    return ['selected' => $selected, 'candidates' => $candidates, 'warning' => $warning];
+}
+
+/**
+ * Return role shortnames assigned to user in context (including inherited).
+ * @param context $context
+ * @param int $userid
+ * @return string
+ */
+function dbgtj_context_roles(context $context, int $userid): string {
+    $roles = get_user_roles($context, $userid, true);
+    if (empty($roles)) {
+        return '-';
+    }
+    $names = [];
+    foreach ($roles as $ra) {
+        if (!empty($ra->shortname)) {
+            $names[(string)$ra->shortname] = (string)$ra->shortname;
+        }
+    }
+    if (empty($names)) {
+        return '-';
+    }
+    ksort($names);
+    return implode(', ', array_values($names));
+}
+
+/**
+ * Build participant rule summary for display.
+ * @param array $rules
+ * @return string
+ */
+function dbgtj_participant_rules_text(array $rules): string {
+    global $DB;
+    if (empty($rules)) {
+        return '-';
+    }
+    static $rolemap = null;
+    if ($rolemap === null) {
+        $rolemap = [];
+        $roles = $DB->get_records('role', null, '', 'id,shortname,name');
+        foreach ($roles as $r) {
+            $label = trim((string)$r->shortname) !== '' ? (string)$r->shortname : (string)$r->name;
+            $rolemap[(int)$r->id] = $label;
+        }
+    }
+    $parts = [];
+    foreach ($rules as $r) {
+        $seltype = (string)($r['selectiontype'] ?? '');
+        $selid = (string)($r['selectionid'] ?? '');
+        $role = (string)($r['role'] ?? '');
+        if ($seltype === 'role' && is_numeric($selid)) {
+            $rid = (int)$selid;
+            if (!empty($rolemap[$rid])) {
+                $selid = $rolemap[$rid] . "({$rid})";
+            }
+        }
+        $parts[] = $seltype . ':' . $selid . '=>' . $role;
+    }
+    return implode(' | ', $parts);
+}
+
+/**
+ * Calls BBB isMeetingRunning API for quick state.
+ * @param string $meetingid
+ * @return array{status:string,running:?bool,message:string}
+ */
+function dbgtj_bbb_running_state(string $meetingid): array {
+    global $CFG;
+
+    $meetingid = trim($meetingid);
+    if ($meetingid === '') {
+        return ['status' => 'skip', 'running' => null, 'message' => 'empty_meetingid'];
+    }
+
+    $server = trim((string)get_config('core', 'bigbluebuttonbn_server_url'));
+    if ($server === '') {
+        $server = trim((string)($CFG->bigbluebuttonbn_server_url ?? ''));
+    }
+    $secret = trim((string)get_config('core', 'bigbluebuttonbn_shared_secret'));
+    if ($secret === '') {
+        $secret = trim((string)($CFG->bigbluebuttonbn_shared_secret ?? ''));
+    }
+
+    if ($server === '' || $secret === '') {
+        return ['status' => 'skip', 'running' => null, 'message' => 'bbb_server_or_secret_missing'];
+    }
+
+    if (substr($server, -1) !== '/') {
+        $server .= '/';
+    }
+    $action = 'isMeetingRunning';
+    $query = 'meetingID=' . urlencode($meetingid);
+    $checksum = sha1($action . $query . $secret);
+    $url = $server . 'api/' . $action . '?' . $query . '&checksum=' . $checksum;
+
+    $ctx = stream_context_create(['http' => ['timeout' => 5], 'ssl' => ['verify_peer' => true, 'verify_peer_name' => true]]);
+    $xmlraw = @file_get_contents($url, false, $ctx);
+    if ($xmlraw === false || trim((string)$xmlraw) === '') {
+        return ['status' => 'error', 'running' => null, 'message' => 'bbb_api_unreachable'];
+    }
+    $xml = @simplexml_load_string($xmlraw);
+    if (!$xml) {
+        return ['status' => 'error', 'running' => null, 'message' => 'bbb_api_invalid_xml'];
+    }
+    $returncode = strtolower((string)($xml->returncode ?? ''));
+    if ($returncode !== 'success') {
+        $msg = trim((string)($xml->message ?? 'bbb_api_return_not_success'));
+        return ['status' => 'error', 'running' => null, 'message' => $msg];
+    }
+    $running = strtolower((string)($xml->running ?? 'false')) === 'true';
+    return ['status' => 'ok', 'running' => $running, 'message' => $running ? 'running' : 'not_running'];
+}
+
+$teacherresolve = dbgtj_resolve_teacher($teacherid, $teacherquery);
+$teacher = $teacherresolve['selected'];
+
+echo $OUTPUT->header();
+
+echo '<style>
+.dbgtj-wrap{max-width:1700px;margin:14px auto}
+.dbgtj-card{background:#fff;border:1px solid #dee2e6;border-radius:8px;padding:14px;margin-bottom:14px}
+.dbgtj-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.dbgtj-table{width:100%;border-collapse:collapse;font-size:12px}
+.dbgtj-table th{background:#1f2937;color:#fff;padding:7px;border:1px solid #374151;text-align:left}
+.dbgtj-table td{padding:6px;border:1px solid #dee2e6;vertical-align:top}
+.dbgtj-ok{color:#166534;font-weight:700}
+.dbgtj-bad{color:#b91c1c;font-weight:700}
+.dbgtj-warn{color:#9a6700;font-weight:700}
+.dbgtj-muted{color:#6b7280}
+.dbgtj-badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700}
+.dbgtj-badge-ok{background:#dcfce7;color:#166534}
+.dbgtj-badge-bad{background:#fee2e2;color:#991b1b}
+.dbgtj-badge-warn{background:#fef3c7;color:#92400e}
+.dbgtj-pre{white-space:pre-wrap;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:8px}
+</style>';
+
+echo '<div class="dbgtj-wrap">';
+echo '<div class="dbgtj-card">';
+echo '<h3 style="margin-top:0">Debug BBB Join Teacher</h3>';
+echo '<p class="dbgtj-muted" style="margin-top:0">Diagnoses why join_url is empty for teacher BBB access. Focuses on moderator resolution, wait flag, and join capability.</p>';
+echo '<form method="get">';
+echo '<div class="dbgtj-grid">';
+echo '<div><label>Teacher</label><input type="text" name="teacher" value="' . dbgtj_h($teacherquery) . '" class="form-control"></div>';
+echo '<div><label>Teacher ID</label><input type="number" name="teacherid" value="' . (int)$teacherid . '" class="form-control"></div>';
+echo '<div><label>Class name filter</label><input type="text" name="classname" value="' . dbgtj_h($classquery) . '" class="form-control"></div>';
+echo '<div><label>Class ID</label><input type="number" name="classid" value="' . (int)$classid . '" class="form-control"></div>';
+echo '<div><label>Only active classes</label><select name="onlyactive" class="form-control">';
+echo '<option value="1"' . ((int)$onlyactive === 1 ? ' selected' : '') . '>Yes</option>';
+echo '<option value="0"' . ((int)$onlyactive === 0 ? ' selected' : '') . '>No</option>';
+echo '</select></div>';
+echo '<div><label>Max classes</label><input type="number" name="maxclasses" value="' . (int)$maxclasses . '" class="form-control"></div>';
+echo '</div>';
+echo '<div style="margin-top:10px"><button class="btn btn-primary" type="submit">Diagnose</button></div>';
+echo '</form>';
+echo '</div>';
+
+if (!empty($teacherresolve['warning'])) {
+    echo '<div class="dbgtj-card"><span class="dbgtj-warn">' . dbgtj_h($teacherresolve['warning']) . '</span></div>';
+}
+
+if (!empty($teacherresolve['candidates']) && count($teacherresolve['candidates']) > 1 && !$teacherid) {
+    echo '<div class="dbgtj-card">';
+    echo '<strong>Teacher candidates</strong>';
+    echo '<table class="dbgtj-table" style="margin-top:8px"><thead><tr><th>User ID</th><th>Name</th><th>Username</th><th>Email</th><th>Action</th></tr></thead><tbody>';
+    foreach ($teacherresolve['candidates'] as $cand) {
+        $pickurl = new moodle_url('/local/grupomakro_core/pages/debug_bbb_teacher_join.php', [
+            'teacherid' => (int)$cand->id,
+            'teacher' => $teacherquery,
+            'classname' => $classquery,
+            'classid' => $classid,
+            'onlyactive' => $onlyactive,
+            'maxclasses' => $maxclasses,
+        ]);
+        echo '<tr>';
+        echo '<td>' . (int)$cand->id . '</td>';
+        echo '<td>' . dbgtj_h(trim((string)$cand->firstname . ' ' . (string)$cand->lastname)) . '</td>';
+        echo '<td>' . dbgtj_h((string)$cand->username) . '</td>';
+        echo '<td>' . dbgtj_h((string)$cand->email) . '</td>';
+        echo '<td><a class="btn btn-secondary btn-sm" href="' . $pickurl->out(false) . '">Use</a></td>';
+        echo '</tr>';
+    }
+    echo '</tbody></table>';
+    echo '</div>';
+}
+
+if (!$teacher) {
+    echo '<div class="dbgtj-card"><span class="dbgtj-bad">Teacher not found.</span></div>';
+    echo '</div>';
+    echo $OUTPUT->footer();
+    exit;
+}
+
+$teacherid = (int)$teacher->id;
+$teachername = trim((string)$teacher->firstname . ' ' . (string)$teacher->lastname);
+$teacherisadmin = is_siteadmin($teacherid);
+
+echo '<div class="dbgtj-card">';
+echo '<strong>Selected teacher</strong><br>';
+echo 'User ID: ' . (int)$teacherid . ' | Name: ' . dbgtj_h($teachername) . ' | Username: ' . dbgtj_h((string)$teacher->username);
+echo ' | Email: ' . dbgtj_h((string)$teacher->email) . ' | Admin: ' . ($teacherisadmin ? 'YES' : 'NO');
+echo '</div>';
+
+$classsql = "SELECT c.id, c.name, c.instructorid, c.corecourseid, c.groupid, c.periodid, c.closed, c.approved, c.enddate, c.bbbmoduleids,
+                    c.attendancemoduleid, c.coursesectionid,
+                    cr.fullname AS coursename, g.name AS groupname
+               FROM {gmk_class} c
+          LEFT JOIN {course} cr ON cr.id = c.corecourseid
+          LEFT JOIN {groups} g ON g.id = c.groupid
+              WHERE c.instructorid = :teacherid";
+$classparams = ['teacherid' => $teacherid];
+if ((int)$classid > 0) {
+    $classsql .= " AND c.id = :classid";
+    $classparams['classid'] = (int)$classid;
+}
+if ($classquery !== '') {
+    $classsql .= " AND " . $DB->sql_like('c.name', ':classname', false, false);
+    $classparams['classname'] = '%' . $classquery . '%';
+}
+if ((int)$onlyactive === 1) {
+    $classsql .= " AND c.closed = 0";
+}
+$classsql .= " ORDER BY c.closed ASC, c.id DESC";
+
+$allclasses = $DB->get_records_sql($classsql, $classparams, 0, $maxclasses);
+
+echo '<div class="dbgtj-card">';
+echo 'Classes found for teacher: <strong>' . count($allclasses) . '</strong>';
+if (!empty($allclasses) && count($allclasses) >= $maxclasses) {
+    echo ' <span class="dbgtj-warn">(limited to ' . (int)$maxclasses . ')</span>';
+}
+echo '</div>';
+
+if (empty($allclasses)) {
+    echo '</div>';
+    echo $OUTPUT->footer();
+    exit;
+}
+
+$hasdeletion = isset($DB->get_columns('course_modules')['deletioninprogress']);
+$summary = [
+    'cm_missing' => 0,
+    'cm_not_bbb' => 0,
+    'bbb_missing' => 0,
+    'no_join_capability' => 0,
+    'not_moderator_wait' => 0,
+    'not_moderator_wait_running' => 0,
+    'likely_ok' => 0,
+    'relation_missing' => 0,
+];
+
+foreach ($allclasses as $class) {
+    $cid = (int)$class->id;
+    $relations = $DB->get_records('gmk_bbb_attendance_relation', ['classid' => $cid], 'id ASC');
+    if (empty($relations)) {
+        $summary['relation_missing']++;
+    }
+
+    $cmids = [];
+    foreach (dbgtj_parse_int_list((string)$class->bbbmoduleids) as $mid) {
+        $cmids[$mid] = $mid;
+    }
+    foreach ($relations as $rel) {
+        $bbcm = (int)($rel->bbbmoduleid ?? 0);
+        if ($bbcm > 0) {
+            $cmids[$bbcm] = $bbcm;
+        }
+    }
+    $cmids = array_values($cmids);
+
+    echo '<div class="dbgtj-card">';
+    echo '<h4 style="margin:0 0 8px 0">Class #' . $cid . ' - ' . dbgtj_h((string)$class->name) . '</h4>';
+    echo '<div class="dbgtj-grid" style="margin-bottom:10px">';
+    echo '<div>Course: ' . (int)$class->corecourseid . ' - ' . dbgtj_h((string)($class->coursename ?? '')) . '</div>';
+    echo '<div>Group: ' . (int)$class->groupid . ' - ' . dbgtj_h((string)($class->groupname ?? '')) . '</div>';
+    echo '<div>Approved/Closed: ' . (int)$class->approved . '/' . (int)$class->closed . '</div>';
+    echo '<div>Section/Attendance: ' . (int)$class->coursesectionid . ' / ' . (int)$class->attendancemoduleid . '</div>';
+    echo '<div>Class bbbmoduleids: ' . dbgtj_h((string)$class->bbbmoduleids) . '</div>';
+    echo '<div>Relation rows: ' . count($relations) . '</div>';
+    echo '</div>';
+
+    if (empty($relations)) {
+        echo '<div class="dbgtj-bad">No rows in gmk_bbb_attendance_relation for this class.</div>';
+    } else {
+        echo '<details style="margin-bottom:8px"><summary>Relation rows</summary>';
+        echo '<table class="dbgtj-table" style="margin-top:8px"><thead><tr><th>ID</th><th>attendancesessionid</th><th>bbbmoduleid</th><th>bbbid</th><th>attendanceid</th></tr></thead><tbody>';
+        foreach ($relations as $rel) {
+            echo '<tr>';
+            echo '<td>' . (int)$rel->id . '</td>';
+            echo '<td>' . (int)($rel->attendancesessionid ?? 0) . '</td>';
+            echo '<td>' . (int)($rel->bbbmoduleid ?? 0) . '</td>';
+            echo '<td>' . (int)($rel->bbbid ?? 0) . '</td>';
+            echo '<td>' . (int)($rel->attendanceid ?? 0) . '</td>';
+            echo '</tr>';
+        }
+        echo '</tbody></table>';
+        echo '</details>';
+    }
+
+    if (empty($cmids)) {
+        echo '<div class="dbgtj-bad">No BBB cmid candidates found from class.bbbmoduleids or relation rows.</div>';
+        echo '</div>';
+        continue;
+    }
+
+    list($insql, $inparams) = $DB->get_in_or_equal($cmids, SQL_PARAMS_NAMED, 'cm');
+    $cmsql = "SELECT cm.id, cm.module, cm.instance, cm.course, cm.section, cm.visible, m.name AS modulename" .
+        ($hasdeletion ? ", cm.deletioninprogress AS deletioninprogress" : ", 0 AS deletioninprogress") . "
+               FROM {course_modules} cm
+               JOIN {modules} m ON m.id = cm.module
+              WHERE cm.id {$insql}";
+    $cmrows = $DB->get_records_sql($cmsql, $inparams);
+
+    echo '<table class="dbgtj-table">';
+    echo '<thead><tr>';
+    echo '<th>CMID</th><th>Module</th><th>BBB instance</th><th>wait</th><th>meeting running</th><th>teacher roles in cm</th>';
+    echo '<th>join cap</th><th>group visible(0)</th><th>is moderator</th><th>predicted result</th><th>participant rules</th><th>notes</th>';
+    echo '</tr></thead><tbody>';
+
+    foreach ($cmids as $cmiditem) {
+        $cm = $cmrows[(int)$cmiditem] ?? null;
+        $module = '-';
+        $bbbname = '-';
+        $wait = null;
+        $runningstate = ['status' => 'skip', 'running' => null, 'message' => '-'];
+        $cmroles = '-';
+        $joincap = false;
+        $groupvisible = false;
+        $ismod = false;
+        $predicted = '';
+        $notes = [];
+        $ruletext = '-';
+
+        if (!$cm) {
+            $predicted = 'invalid_cmid';
+            $summary['cm_missing']++;
+            $notes[] = 'cm not found';
+        } else if ((string)$cm->modulename !== 'bigbluebuttonbn') {
+            $module = (string)$cm->modulename;
+            $predicted = 'invalid_module';
+            $summary['cm_not_bbb']++;
+            $notes[] = 'cmid is not bigbluebuttonbn';
+        } else {
+            $module = 'bigbluebuttonbn';
+            if (!empty($cm->deletioninprogress)) {
+                $notes[] = 'deletioninprogress=1';
+            }
+
+            $bbb = $DB->get_record('bigbluebuttonbn', ['id' => (int)$cm->instance], '*', IGNORE_MISSING);
+            if (!$bbb) {
+                $predicted = 'bbb_instance_missing';
+                $summary['bbb_missing']++;
+                $notes[] = 'bbb instance not found';
+            } else {
+                $bbbname = (string)$bbb->name . ' (#' . (int)$bbb->id . ')';
+                $wait = isset($bbb->wait) ? (int)$bbb->wait : 0;
+                $runningstate = dbgtj_bbb_running_state((string)($bbb->meetingid ?? ''));
+
+                $cmcontext = context_module::instance((int)$cm->id, IGNORE_MISSING);
+                $courseobj = $DB->get_record('course', ['id' => (int)$cm->course], '*', IGNORE_MISSING);
+                $cmobj = get_coursemodule_from_id('bigbluebuttonbn', (int)$cm->id, 0, false, IGNORE_MISSING);
+
+                if ($cmcontext && $cmobj && $courseobj) {
+                    $cmroles = dbgtj_context_roles($cmcontext, $teacherid);
+                    $joincap = has_capability('mod/bigbluebuttonbn:join', $cmcontext, $teacherid);
+                    $groupvisible = groups_group_visible(0, $courseobj, $cmobj, $teacherid);
+
+                    if (class_exists('\mod_bigbluebuttonbn\local\helpers\roles')) {
+                        $rules = \mod_bigbluebuttonbn\local\helpers\roles::get_participant_list($bbb, $cmcontext);
+                        $ruletext = dbgtj_participant_rules_text($rules);
+                        $ismod = \mod_bigbluebuttonbn\local\helpers\roles::is_moderator($cmcontext, $rules, $teacherid);
+                    } else {
+                        $notes[] = 'roles helper class not found';
+                    }
+
+                    $canjoin = $teacherisadmin || ($joincap && $groupvisible);
+                    $mustwait = ((int)$wait === 1) && !$teacherisadmin && !$ismod;
+
+                    if (!$canjoin) {
+                        $predicted = 'no_join_capability_or_group_visibility';
+                        $summary['no_join_capability']++;
+                    } else if ($mustwait) {
+                        if ($runningstate['status'] === 'ok' && $runningstate['running'] === false) {
+                            $predicted = 'join_url_empty_waiting_for_moderator (deterministic)';
+                            $summary['not_moderator_wait']++;
+                        } else {
+                            $predicted = 'not_moderator_wait=1 (may fail when room not running)';
+                            $summary['not_moderator_wait_running']++;
+                        }
+                    } else {
+                        $predicted = 'should_join_ok';
+                        $summary['likely_ok']++;
+                    }
+                } else {
+                    $predicted = 'context_or_cm_missing';
+                    $notes[] = 'cm context or cm object not resolved';
+                }
+            }
+        }
+
+        $runninglabel = '-';
+        if ($runningstate['status'] === 'ok') {
+            $runninglabel = $runningstate['running'] ? 'YES' : 'NO';
+        } else if ($runningstate['status'] === 'skip') {
+            $runninglabel = 'SKIP (' . dbgtj_h($runningstate['message']) . ')';
+        } else {
+            $runninglabel = 'ERR (' . dbgtj_h($runningstate['message']) . ')';
+        }
+
+        $predclass = 'dbgtj-ok';
+        if (strpos($predicted, 'wait') !== false) {
+            $predclass = 'dbgtj-warn';
+        }
+        if (strpos($predicted, 'no_join') !== false || strpos($predicted, 'invalid') !== false || strpos($predicted, 'missing') !== false) {
+            $predclass = 'dbgtj-bad';
+        }
+
+        echo '<tr>';
+        echo '<td>' . (int)$cmiditem . '</td>';
+        echo '<td>' . dbgtj_h($module) . '</td>';
+        echo '<td>' . dbgtj_h($bbbname) . '</td>';
+        echo '<td>' . (($wait === null) ? '-' : (int)$wait) . '</td>';
+        echo '<td>' . $runninglabel . '</td>';
+        echo '<td>' . dbgtj_h($cmroles) . '</td>';
+        echo '<td>' . ($joincap ? '<span class="dbgtj-badge dbgtj-badge-ok">YES</span>' : '<span class="dbgtj-badge dbgtj-badge-bad">NO</span>') . '</td>';
+        echo '<td>' . ($groupvisible ? '<span class="dbgtj-badge dbgtj-badge-ok">YES</span>' : '<span class="dbgtj-badge dbgtj-badge-bad">NO</span>') . '</td>';
+        echo '<td>' . ($ismod ? '<span class="dbgtj-badge dbgtj-badge-ok">YES</span>' : '<span class="dbgtj-badge dbgtj-badge-bad">NO</span>') . '</td>';
+        echo '<td><span class="' . $predclass . '">' . dbgtj_h($predicted) . '</span></td>';
+        echo '<td><div class="dbgtj-pre">' . dbgtj_h($ruletext) . '</div></td>';
+        echo '<td>' . dbgtj_h(implode(' | ', $notes)) . '</td>';
+        echo '</tr>';
+    }
+    echo '</tbody></table>';
+    echo '</div>';
+}
+
+echo '<div class="dbgtj-card">';
+echo '<h4 style="margin-top:0">Summary</h4>';
+echo '<div class="dbgtj-grid">';
+echo '<div>classes with no relation: <strong>' . (int)$summary['relation_missing'] . '</strong></div>';
+echo '<div>invalid cmid: <strong>' . (int)$summary['cm_missing'] . '</strong></div>';
+echo '<div>cm not bbb: <strong>' . (int)$summary['cm_not_bbb'] . '</strong></div>';
+echo '<div>bbb instance missing: <strong>' . (int)$summary['bbb_missing'] . '</strong></div>';
+echo '<div>no join capability/group visibility: <strong>' . (int)$summary['no_join_capability'] . '</strong></div>';
+echo '<div>not moderator + wait + meeting not running: <strong>' . (int)$summary['not_moderator_wait'] . '</strong></div>';
+echo '<div>not moderator + wait (running unknown/running): <strong>' . (int)$summary['not_moderator_wait_running'] . '</strong></div>';
+echo '<div>likely ok: <strong>' . (int)$summary['likely_ok'] . '</strong></div>';
+echo '</div>';
+echo '</div>';
+
+echo '</div>';
+echo $OUTPUT->footer();
