@@ -42,23 +42,33 @@ $action   = optional_param('action', '', PARAM_ALPHA);
 $actionLog = [];
 $deleteCount = 0;
 
+// Un registro es "huérfano" si:
+//   a) tiene status no-terminal (0/1/2/5)
+//   b) el estudiante NO está matriculado en ese learningplanid (no existe en local_learning_users con rol estudiante)
+//   c) Y para ese mismo userid+courseid existe al menos un registro aprobado (status 3/4)
+$ORPHAN_CONDITION = "
+    cp.status IN (0, 1, 2, 5)
+    AND NOT EXISTS (
+        SELECT 1 FROM {local_learning_users} lu
+         WHERE lu.userid        = cp.userid
+           AND lu.learningplanid = cp.learningplanid
+           AND lu.userroleid    = 5
+    )
+    AND EXISTS (
+        SELECT 1 FROM {gmk_course_progre} cp_ok
+         WHERE cp_ok.userid   = cp.userid
+           AND cp_ok.courseid = cp.courseid
+           AND cp_ok.status  IN (3, 4)
+    )
+";
+
 if ($action === 'cleanall') {
     require_sesskey();
 
-    // Find all orphan IDs: status IN (0,1,5) where the same userid+courseid
-    // has at least one approved record (status IN (3,4)).
-    $orphanSql = "
-        SELECT cp.id
-          FROM {gmk_course_progre} cp
-         WHERE cp.status IN (0, 1, 2, 5)
-           AND EXISTS (
-               SELECT 1 FROM {gmk_course_progre} cp_ok
-                WHERE cp_ok.userid   = cp.userid
-                  AND cp_ok.courseid = cp.courseid
-                  AND cp_ok.status  IN (3, 4)
-           )
-    ";
-    $orphanIds = $DB->get_fieldset_sql($orphanSql, []);
+    $orphanIds = $DB->get_fieldset_sql(
+        "SELECT cp.id FROM {gmk_course_progre} cp WHERE $ORPHAN_CONDITION",
+        []
+    );
 
     if (!empty($orphanIds)) {
         list($in, $params) = $DB->get_in_or_equal($orphanIds, SQL_PARAMS_NAMED);
@@ -84,18 +94,24 @@ if ($action === 'cleanone') {
     if (!$hasApproved) {
         $actionLog[] = ['error', "uid=$uid courseid=$cid no tiene registro aprobado — no se eliminó nada."];
     } else {
-        $deleted = $DB->delete_records_select(
-            'gmk_course_progre',
-            'userid = :uid AND courseid = :cid AND status IN (0, 1, 2, 5)',
+        $orphanIds = $DB->get_fieldset_sql(
+            "SELECT cp.id FROM {gmk_course_progre} cp
+              WHERE cp.userid   = :uid
+                AND cp.courseid = :cid
+                AND $ORPHAN_CONDITION",
             ['uid' => $uid, 'cid' => $cid]
         );
-        $deleteCount = $deleted;
-        $actionLog[] = ['ok', "Eliminados $deleted registros huérfanos para uid=$uid courseid=$cid."];
+        if (!empty($orphanIds)) {
+            list($in, $params) = $DB->get_in_or_equal($orphanIds, SQL_PARAMS_NAMED);
+            $DB->execute("DELETE FROM {gmk_course_progre} WHERE id $in", $params);
+            $deleteCount = count($orphanIds);
+        }
+        $actionLog[] = ['ok', "Eliminados $deleteCount registros huérfanos para uid=$uid courseid=$cid."];
     }
 }
 
 // ─── Consulta: pares (userid, courseid) inconsistentes ──────────────────────
-// Get distinct userid+courseid pairs that have BOTH approved and orphan records
+// Un par es inconsistente si tiene al menos un registro huérfano (según $ORPHAN_CONDITION)
 $pairsSql = "
     SELECT CONCAT(cp.userid, '_', cp.courseid) AS ukey,
            cp.userid, cp.courseid,
@@ -104,13 +120,7 @@ $pairsSql = "
       FROM {gmk_course_progre} cp
       JOIN {user}   u ON u.id = cp.userid   AND u.deleted = 0
       JOIN {course} c ON c.id = cp.courseid
-     WHERE cp.status IN (0, 1, 2, 5)
-       AND EXISTS (
-           SELECT 1 FROM {gmk_course_progre} cp_ok
-            WHERE cp_ok.userid   = cp.userid
-              AND cp_ok.courseid = cp.courseid
-              AND cp_ok.status  IN (3, 4)
-       )
+     WHERE $ORPHAN_CONDITION
      GROUP BY cp.userid, cp.courseid, u.firstname, u.lastname, u.username,
               c.fullname, c.shortname
      ORDER BY u.lastname, u.firstname, c.fullname
@@ -190,7 +200,7 @@ echo $OUTPUT->header();
     Estudiantes que tienen para el <strong>mismo curso</strong>:
     <ul style="margin:6px 0 0 18px; padding:0;">
         <li>&#10003; Un registro <strong>aprobado</strong> (status 3 = Completada o 4 = Aprobada)</li>
-        <li>&#10005; Y además un registro <strong>huérfano</strong> (status 0 = No disponible, 1 = Disponible, o 5 = Reprobada)</li>
+        <li>&#10005; Y además un registro <strong>huérfano</strong>: status 0/1/2/5 cuyo <code>learningplanid</code> <strong>no corresponde a ningún plan en que el estudiante esté actualmente matriculado</strong> (<code>local_learning_users</code>)</li>
     </ul>
     <br>
     <strong>&#128165; Causas habituales:</strong>
@@ -268,7 +278,7 @@ echo $OUTPUT->header();
                     <th>Estado</th>
                     <th>Nota</th>
                     <th>Progreso</th>
-                    <th>learningplanid</th>
+                    <th>Plan (learningplanid)</th>
                     <th>classid</th>
                     <th>periodid</th>
                     <th>Creado</th>
@@ -278,21 +288,39 @@ echo $OUTPUT->header();
             </thead>
             <tbody>
             <?php foreach ($recs as $rec):
-                $st    = (int)$rec->status;
-                $info  = $STATUS_LABELS[$st] ?? ['txt' => "status=$st", 'cls' => 'secondary'];
-                $isOk   = in_array($st, [3, 4]);
-                $rowCls = $isOk ? 'row-keep' : 'row-orphan';
+                $st      = (int)$rec->status;
+                $lpid    = (int)$rec->learningplanid;
+                $info    = $STATUS_LABELS[$st] ?? ['txt' => "status=$st", 'cls' => 'secondary'];
+                $isApproved = in_array($st, [3, 4]);
+                // Check if student is enrolled in this record's learningplan
+                $inPlan  = $lpid > 0 && $DB->record_exists('local_learning_users', [
+                    'userid'        => (int)$pair->userid,
+                    'learningplanid' => $lpid,
+                    'userroleid'    => 5,
+                ]);
+                // Orphan = not approved AND student not in that plan
+                $isOrphan = !$isApproved && !$inPlan;
+                $rowCls   = $isApproved ? 'row-keep' : ($isOrphan ? 'row-orphan' : '');
             ?>
                 <tr class="<?php echo $rowCls; ?>">
                     <td style="font-family:monospace;font-weight:600"><?php echo (int)$rec->id; ?></td>
                     <td>
                         <span class="dpa-badge badge-<?php echo $info['cls']; ?>"><?php echo $info['txt']; ?></span>
                     </td>
-                    <td style="font-weight:<?php echo $isOk ? '700' : '400'; ?>">
+                    <td style="font-weight:<?php echo $isApproved ? '700' : '400'; ?>">
                         <?php echo $rec->grade !== null ? number_format((float)$rec->grade, 2) : '—'; ?>
                     </td>
                     <td><?php echo $rec->progress !== null ? (int)$rec->progress . '%' : '—'; ?></td>
-                    <td><small><?php echo (int)$rec->learningplanid ?: '—'; ?></small></td>
+                    <td>
+                        <small><?php echo $lpid ?: '—'; ?></small>
+                        <?php if ($lpid > 0): ?>
+                            <?php if ($inPlan): ?>
+                                <span class="dpa-badge badge-success" style="font-size:10px">en plan</span>
+                            <?php else: ?>
+                                <span class="dpa-badge badge-danger" style="font-size:10px">sin plan</span>
+                            <?php endif; ?>
+                        <?php endif; ?>
+                    </td>
                     <td><small><?php echo (int)$rec->classid ?: '—'; ?></small></td>
                     <td><small><?php echo (int)$rec->periodid ?: '—'; ?></small></td>
                     <td style="font-size:11px;white-space:nowrap">
@@ -302,10 +330,12 @@ echo $OUTPUT->header();
                         <?php echo $rec->timemodified ? date('Y-m-d H:i', (int)$rec->timemodified) : '—'; ?>
                     </td>
                     <td style="font-weight:700;font-size:12px">
-                        <?php if ($isOk): ?>
+                        <?php if ($isApproved): ?>
                             <span style="color:#166534">&#10003; CONSERVAR</span>
-                        <?php else: ?>
+                        <?php elseif ($isOrphan): ?>
                             <span style="color:#dc2626">&#128465; ELIMINAR</span>
+                        <?php else: ?>
+                            <span style="color:#d97706">&#9888; en plan activo</span>
                         <?php endif; ?>
                     </td>
                 </tr>
