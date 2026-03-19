@@ -882,6 +882,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <?php
 // ── Find student(s) matching the search (max 5) ──────────────────────────
+// Match against firstname, lastname, username, OR full concatenated name
 $sec4Like = '%' . $DB->sql_like_escape($searchName) . '%';
 $sec4Students = $DB->get_records_sql(
     "SELECT id, username, firstname, lastname
@@ -890,11 +891,14 @@ $sec4Students = $DB->get_records_sql(
         AND (" .
         $DB->sql_like('firstname', ':fn', false) . " OR " .
         $DB->sql_like('lastname',  ':ln', false) . " OR " .
-        $DB->sql_like('username',  ':un', false) . "
+        $DB->sql_like('username',  ':un', false) . " OR " .
+        $DB->sql_like($DB->sql_concat('firstname', "' '", 'lastname'), ':full', false) . " OR " .
+        $DB->sql_like($DB->sql_concat('lastname', "' '", 'firstname'), ':full2', false) . "
       )
       ORDER BY lastname, firstname
       LIMIT 5",
-    ['fn' => $sec4Like, 'ln' => $sec4Like, 'un' => $sec4Like]
+    ['fn' => $sec4Like, 'ln' => $sec4Like, 'un' => $sec4Like,
+     'full' => $sec4Like, 'full2' => $sec4Like]
 );
 
 $sec4PlanNames = isset($planNames) ? $planNames
@@ -920,7 +924,7 @@ else:
     foreach ($sec4Students as $stu):
         $stuId = (int)$stu->id;
 
-        // Pending courses for this student
+        // ALL courses for this student (all statuses) for complete debug
         $sec4Courses = $DB->get_records_sql(
             "SELECT cp.id AS progre_id, cp.courseid, cp.status AS cpstatus,
                     cp.grade AS stored_grade, cp.learningplanid, cp.classid,
@@ -929,8 +933,7 @@ else:
                FROM {gmk_course_progre} cp
                JOIN {course} c ON c.id = cp.courseid
               WHERE cp.userid = :uid
-                AND cp.status IN (0, 1, 2)
-              ORDER BY c.fullname",
+              ORDER BY c.fullname, cp.status DESC",
             ['uid' => $stuId]
         );
 ?>
@@ -942,7 +945,7 @@ else:
 </h4>
 
 <?php if (empty($sec4Courses)): ?>
-    <div class="dpa-alert-info">&#8505; No tiene materias con status 0/1/2.</div>
+    <div class="dpa-alert-info">&#8505; No tiene registros en gmk_course_progre.</div>
 <?php else:
         foreach ($sec4Courses as $sc):
             $courseid = (int)$sc->courseid;
