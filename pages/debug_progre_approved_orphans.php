@@ -858,6 +858,306 @@ document.addEventListener('DOMContentLoaded', function() {
 <?php endif; ?>
 <?php endif; ?>
 
+
+<?php if ($searchName !== ''): ?>
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     SECCIÓN 4: Inspector de notas por estudiante
+     Muestra el desglose completo de grade_items/grade_grades para cada materia
+     pendiente (status 0/1/2) del estudiante buscado.
+     Misma lógica que get_student_gradebook.php (modal director académico).
+     ═══════════════════════════════════════════════════════════════════════ -->
+<hr style="border:none;border-top:2px solid #e5e7eb;margin:28px 0 20px">
+<h2 style="font-size:20px;font-weight:700;margin-bottom:6px;">
+    &#128300; Inspector de notas: &ldquo;<?php echo s($searchName); ?>&rdquo;
+</h2>
+
+<div class="dpa-explain" style="background:#f0fdf4;border-color:#86efac">
+    <strong>&#128270; ¿Qué muestra esta sección?</strong><br>
+    Para cada materia con status 0, 1 o 2 del estudiante buscado, muestra el <strong>desglose completo de notas en Moodle</strong>
+    (igual que el modal del panel del director académico): course total, Nota Final Integrada,
+    categoría de clase (vía <code>gmk_class.gradecategoryid</code>), y todos los ítems de calificación.<br>
+    Útil para diagnosticar por qué un estudiante sigue apareciendo en <em>academic_demand_gaps</em>
+    pese a haber aprobado la materia.
+</div>
+
+<?php
+// ── Find student(s) matching the search (max 5) ──────────────────────────
+$sec4Like = '%' . $DB->sql_like_escape($searchName) . '%';
+$sec4Students = $DB->get_records_sql(
+    "SELECT id, username, firstname, lastname
+       FROM {user}
+      WHERE deleted = 0
+        AND (" .
+        $DB->sql_like('firstname', ':fn', false) . " OR " .
+        $DB->sql_like('lastname',  ':ln', false) . " OR " .
+        $DB->sql_like('username',  ':un', false) . "
+      )
+      ORDER BY lastname, firstname
+      LIMIT 5",
+    ['fn' => $sec4Like, 'ln' => $sec4Like, 'un' => $sec4Like]
+);
+
+$sec4PlanNames = isset($planNames) ? $planNames
+    : $DB->get_records_menu('local_learning_plans', null, '', 'id, name');
+
+// Helper: format a grade value with colour
+$fmtGrade = function($g) use ($PASSING_GRADE) {
+    if ($g === false || $g === null) {
+        return '<span style="color:#9ca3af;font-weight:600">—</span>';
+    }
+    $gf  = round((float)$g, 2);
+    $col = $gf >= $PASSING_GRADE ? '#166534' : '#dc2626';
+    return "<strong style='color:$col'>$gf</strong>";
+};
+
+if (empty($sec4Students)):
+?>
+<div class="dpa-card">
+    <div class="dpa-alert-info">&#8505; No se encontró ningún estudiante con ese nombre.</div>
+</div>
+<?php
+else:
+    foreach ($sec4Students as $stu):
+        $stuId = (int)$stu->id;
+
+        // Pending courses for this student
+        $sec4Courses = $DB->get_records_sql(
+            "SELECT cp.id AS progre_id, cp.courseid, cp.status AS cpstatus,
+                    cp.grade AS stored_grade, cp.learningplanid, cp.classid,
+                    cp.periodid, cp.progress,
+                    c.fullname AS coursename, c.shortname AS courseshort
+               FROM {gmk_course_progre} cp
+               JOIN {course} c ON c.id = cp.courseid
+              WHERE cp.userid = :uid
+                AND cp.status IN (0, 1, 2)
+              ORDER BY c.fullname",
+            ['uid' => $stuId]
+        );
+?>
+<div class="dpa-card">
+<h4>&#128100; <?php echo s($stu->firstname . ' ' . $stu->lastname); ?>
+    <small style="font-size:12px;color:#6b7280;font-weight:400">
+        (<?php echo s($stu->username); ?> / uid=<?php echo $stuId; ?>)
+    </small>
+</h4>
+
+<?php if (empty($sec4Courses)): ?>
+    <div class="dpa-alert-info">&#8505; No tiene materias con status 0/1/2.</div>
+<?php else:
+        foreach ($sec4Courses as $sc):
+            $courseid = (int)$sc->courseid;
+            $stInfo   = $STATUS_LABELS[(int)$sc->cpstatus] ?? ['txt' => 'status='.(int)$sc->cpstatus, 'cls' => 'secondary'];
+            $lpLbl    = isset($sec4PlanNames[(int)$sc->learningplanid])
+                        ? s($sec4PlanNames[(int)$sc->learningplanid])
+                        : 'ID ' . (int)$sc->learningplanid;
+
+            // ── Course total ─────────────────────────────────────────────
+            $courseTotalGrade = $DB->get_field_sql(
+                "SELECT COALESCE(gg.finalgrade, gg.rawgrade)
+                   FROM {grade_items}  gi
+                   JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = :uid
+                  WHERE gi.itemtype = 'course' AND gi.courseid = :cid",
+                ['uid' => $stuId, 'cid' => $courseid]
+            );
+
+            // ── Nota Final Integrada ─────────────────────────────────────
+            $nfiGrade = $DB->get_field_sql(
+                "SELECT MAX(COALESCE(gg.finalgrade, gg.rawgrade))
+                   FROM {grade_items}  gi
+                   JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = :uid
+                  WHERE gi.courseid = :cid
+                    AND (gi.itemname LIKE :n1 OR gi.itemname LIKE :n2)",
+                ['uid' => $stuId, 'cid' => $courseid,
+                 'n1' => '%Nota Final Integrada%', 'n2' => '%Final Integrada%']
+            );
+
+            // ── Student groups in this course ────────────────────────────
+            $userGroupIds = $DB->get_fieldset_sql(
+                "SELECT gm.groupid
+                   FROM {groups_members} gm
+                   JOIN {groups} g ON g.id = gm.groupid
+                  WHERE gm.userid = :uid AND g.courseid = :cid",
+                ['uid' => $stuId, 'cid' => $courseid]
+            );
+            $userGroupIds = array_map('intval', $userGroupIds);
+
+            // ── gmk_class records for this course ────────────────────────
+            $classRecs = $DB->get_records('gmk_class',
+                ['corecourseid' => $courseid], '',
+                'id,groupid,gradecategoryid,attendancemoduleid'
+            );
+
+            $studentClassIds    = [];
+            $studentCategoryIds = [];
+            $otherCategoryIds   = [];   // categories of OTHER groups (to detect exclusion)
+            foreach ($classRecs as $cls) {
+                if (in_array((int)$cls->groupid, $userGroupIds)) {
+                    $studentClassIds[] = (int)$cls->id;
+                    if ((int)$cls->gradecategoryid > 0) {
+                        $studentCategoryIds[] = (int)$cls->gradecategoryid;
+                    }
+                } else {
+                    if ((int)$cls->gradecategoryid > 0) {
+                        $otherCategoryIds[] = (int)$cls->gradecategoryid;
+                    }
+                }
+            }
+
+            // ── Class category grade (student's own class) ───────────────
+            $classCatGrade = null;
+            if (!empty($studentCategoryIds)) {
+                list($catIn, $catParams) = $DB->get_in_or_equal($studentCategoryIds, SQL_PARAMS_NAMED);
+                $classCatGrade = $DB->get_field_sql(
+                    "SELECT MAX(COALESCE(gg.finalgrade, gg.rawgrade))
+                       FROM {grade_items}  gi
+                       JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = :uid
+                      WHERE gi.itemtype    = 'category'
+                        AND gi.courseid   = :cid
+                        AND gi.iteminstance $catIn",
+                    array_merge(['uid' => $stuId, 'cid' => $courseid], $catParams)
+                );
+            }
+
+            // ── All grade items for this course ──────────────────────────
+            $allItems = $DB->get_records_sql(
+                "SELECT gi.id, gi.categoryid, gi.itemname, gi.itemtype, gi.itemmodule,
+                        gi.iteminstance, gi.grademax, gi.sortorder,
+                        gg.finalgrade, gg.rawgrade,
+                        gc.fullname AS catname
+                   FROM {grade_items}       gi
+                   LEFT JOIN {grade_grades}    gg ON gg.itemid = gi.id AND gg.userid = :uid
+                   LEFT JOIN {grade_categories} gc ON gc.id = gi.categoryid
+                  WHERE gi.courseid = :cid
+                  ORDER BY gi.sortorder ASC",
+                ['uid' => $stuId, 'cid' => $courseid]
+            );
+?>
+    <div style="border:1px solid #e5e7eb;border-radius:8px;margin-bottom:14px;overflow:hidden">
+        <!-- Course header -->
+        <div style="background:#f1f5f9;padding:10px 14px;font-size:13px;font-weight:600;
+                    display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+            <span>&#128218; <?php echo s($sc->coursename); ?>
+                <small style="color:#6b7280;font-weight:400">(cid=<?php echo $courseid; ?>
+                / progre_id=<?php echo (int)$sc->progre_id; ?>)</small>
+            </span>
+            <span>
+                <span class="dpa-badge badge-<?php echo $stInfo['cls']; ?>"><?php echo $stInfo['txt']; ?></span>
+                &nbsp;
+                <small style="color:#6b7280">Plan: <?php echo $lpLbl; ?></small>
+            </span>
+        </div>
+
+        <!-- Key grade summary -->
+        <div style="padding:10px 16px;background:#fff;display:flex;gap:20px;flex-wrap:wrap;
+                    font-size:13px;border-bottom:1px solid #e5e7eb;align-items:center">
+            <span>&#128202; <strong>Course total:</strong>
+                <?php echo $fmtGrade($courseTotalGrade); ?>
+            </span>
+            <span>&#128221; <strong>NFI:</strong>
+                <?php echo $fmtGrade($nfiGrade); ?>
+            </span>
+            <span>&#127991; <strong>Cat. clase:</strong>
+                <?php echo $fmtGrade($classCatGrade); ?>
+                <?php if (!empty($studentCategoryIds)): ?>
+                    <small style="color:#6b7280">(catid=<?php echo implode(',', $studentCategoryIds); ?>)</small>
+                <?php elseif (empty($userGroupIds)): ?>
+                    <small style="color:#dc2626">&#9888; sin grupo</small>
+                <?php else: ?>
+                    <small style="color:#dc2626">&#9888; sin gmk_class con gradecategoryid</small>
+                <?php endif; ?>
+            </span>
+            <span style="color:#6b7280;font-size:12px">
+                Grupos: <?php echo empty($userGroupIds) ? '—' : implode(', ', $userGroupIds); ?>
+                &nbsp;|&nbsp;
+                classids: <?php echo empty($studentClassIds) ? '—' : implode(', ', $studentClassIds); ?>
+                <?php if (!empty($otherCategoryIds)): ?>
+                &nbsp;|&nbsp;
+                <span style="color:#d97706">otras cats excluidas: <?php echo implode(', ', $otherCategoryIds); ?></span>
+                <?php endif; ?>
+            </span>
+        </div>
+
+        <!-- All grade items -->
+        <?php if (!empty($allItems)): ?>
+        <div style="overflow-x:auto">
+        <table class="dpa-tbl" style="font-size:12px;margin:0">
+            <thead>
+                <tr>
+                    <th>gi.id</th>
+                    <th>itemtype / module</th>
+                    <th>Categoría (gc.fullname)</th>
+                    <th>itemname</th>
+                    <th>grademax</th>
+                    <th>finalgrade</th>
+                    <th>rawgrade</th>
+                    <th>&#128274; Vis.</th>
+                </tr>
+            </thead>
+            <tbody>
+            <?php foreach ($allItems as $item):
+                $isCourseItem   = $item->itemtype === 'course';
+                $isOtherCatItem = !$isCourseItem
+                                  && (int)$item->categoryid > 0
+                                  && in_array((int)$item->categoryid, $otherCategoryIds);
+                $hasGrade = ($item->finalgrade !== null || $item->rawgrade !== null);
+                $rowStyle = $isCourseItem   ? 'background:#f0fdf4;font-weight:600'
+                          : ($isOtherCatItem ? 'background:#fef9c3;color:#78350f'
+                          : ($hasGrade       ? '' : 'color:#9ca3af'));
+                $itemTypeLabel = s($item->itemtype)
+                               . ($item->itemmodule ? '/' . s($item->itemmodule) : '');
+                $itemname = $item->itemname ?? ($item->itemtype === 'course' ? '(Course Total)' : '—');
+                // Is this item in the student's class category?
+                $inStudentCat = !$isCourseItem
+                                && in_array((int)$item->categoryid, $studentCategoryIds);
+            ?>
+            <tr style="<?php echo $rowStyle; ?>">
+                <td style="font-family:monospace"><?php echo (int)$item->id; ?></td>
+                <td><code style="font-size:10px"><?php echo $itemTypeLabel; ?></code></td>
+                <td style="font-size:11px">
+                    <?php echo s($item->catname ?? '—'); ?>
+                    <?php if ($inStudentCat): ?>
+                        <span class="dpa-badge badge-success" style="font-size:9px">tu clase</span>
+                    <?php elseif ($isOtherCatItem): ?>
+                        <span class="dpa-badge badge-warning" style="font-size:9px">otra clase</span>
+                    <?php endif; ?>
+                </td>
+                <td><?php echo s($itemname); ?></td>
+                <td><?php echo $item->grademax !== null ? number_format((float)$item->grademax, 1) : '—'; ?></td>
+                <td><?php echo $fmtGrade($item->finalgrade); ?></td>
+                <td style="color:#6b7280">
+                    <?php echo $item->rawgrade !== null ? number_format((float)$item->rawgrade, 2) : '<span style="color:#9ca3af">null</span>'; ?>
+                </td>
+                <td style="font-size:11px;text-align:center">
+                    <?php if ($isOtherCatItem): ?>
+                        <span title="Este ítem pertenece a la categoría de otro grupo">&#128683;</span>
+                    <?php elseif ($isCourseItem): ?>
+                        <span title="Course total">&#9733;</span>
+                    <?php else: ?>
+                        <span title="Visible">&#10003;</span>
+                    <?php endif; ?>
+                </td>
+            </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+        </div>
+        <?php else: ?>
+        <div style="padding:10px 14px;font-size:13px;color:#6b7280">
+            Sin <code>grade_items</code> registrados para este curso y estudiante.
+        </div>
+        <?php endif; ?>
+    </div><!-- end course block -->
+<?php
+        endforeach; // courses
+    endif;
+?>
+</div><!-- end student card -->
+<?php
+    endforeach; // students
+endif;
+?>
+<?php endif; // end if $searchName !== '' ?>
+
 </div>
 
 <?php
