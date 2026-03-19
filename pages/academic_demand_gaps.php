@@ -28,14 +28,10 @@ $PAGE->set_title('Brechas de Demanda Academica');
 $PAGE->set_heading('Brechas de Demanda Academica');
 
 // ---
-$active_tab     = optional_param('tab',    'gaps', PARAM_ALPHA);
-$filter_planid  = optional_param('planid',  0,      PARAM_INT);
-$filter_planids = optional_param_array('planids', [], PARAM_INT);
-$filter_planids = array_values(array_filter(array_map('intval', $filter_planids)));
-// backward compat: single planid se agrega al array
-if ($filter_planid > 0 && !in_array($filter_planid, $filter_planids)) {
-    $filter_planids[] = $filter_planid;
-}
+$active_tab    = optional_param('tab',    'gaps', PARAM_ALPHA);
+$filter_planid = optional_param('planid',  0,      PARAM_INT);
+$corr_planids  = optional_param_array('corrplans', [], PARAM_INT);
+$corr_planids  = array_values(array_filter(array_map('intval', $corr_planids)));
 $filter_shift  = optional_param('shift',   '',     PARAM_TEXT);
 $filter_min    = optional_param('min',     'both', PARAM_ALPHA); // zero | one | both
 $filter_search = optional_param('search',  '',     PARAM_TEXT);
@@ -133,10 +129,9 @@ if ($documentFieldId > 0) {
 $extraWhere  = '';
 $extraParams = array();
 
-if (!empty($filter_planids)) {
-    list($insql, $inparams) = $DB->get_in_or_equal($filter_planids, SQL_PARAMS_NAMED, 'planid');
-    $extraWhere .= " AND lp.id $insql";
-    $extraParams = array_merge($extraParams, $inparams);
+if ($filter_planid > 0) {
+    $extraWhere .= ' AND lp.id = :planid';
+    $extraParams['planid'] = $filter_planid;
 }
 if ($filter_shift !== '' && $jornadaFieldId > 0) {
     $extraWhere .= ' AND uid_j.data = :shift';
@@ -321,25 +316,40 @@ try {
     $gapRawStudents = array_values($DB->get_records_sql($gapStudentsSql, $allFiltersParams));
 } catch (Exception $e) { }
 
-// Consolidar estudiantes que aparecen en múltiples planes correlacionados
+// Consolidar solo estudiantes en planes correlacionados seleccionados
 {
-    $consolidatedByUser = array();
+    $corrSet  = array_flip($corr_planids); // planid => true para búsqueda O(1)
+    $corrRows = array();   // userid => row consolidada (solo para corr_planids)
+    $finalRows = array();
     foreach ($gapRawStudents as $stu) {
         $uid = (int)$stu->userid;
-        if (!isset($consolidatedByUser[$uid])) {
-            $stu->plannames   = array((int)$stu->planid => (string)$stu->planname);
-            $stu->periodnames = array((int)$stu->planid => (string)($stu->periodname ?? ''));
-            $consolidatedByUser[$uid] = $stu;
-        } else {
-            $existing = $consolidatedByUser[$uid];
-            $existing->plannames[(int)$stu->planid]   = (string)$stu->planname;
-            $existing->periodnames[(int)$stu->planid] = (string)($stu->periodname ?? '');
-            if ((int)$stu->inprogress_count > (int)$existing->inprogress_count) {
-                $existing->inprogress_count = $stu->inprogress_count;
+        $pid = (int)$stu->planid;
+        $stu->plannames   = array($pid => (string)$stu->planname);
+        $stu->periodnames = array($pid => (string)($stu->periodname ?? ''));
+        if (!empty($corrSet) && isset($corrSet[$pid])) {
+            // Plan correlacionado: consolidar por userid
+            if (isset($corrRows[$uid])) {
+                $corrRows[$uid]->plannames[$pid]   = (string)$stu->planname;
+                $corrRows[$uid]->periodnames[$pid] = (string)($stu->periodname ?? '');
+                if ((int)$stu->inprogress_count > (int)$corrRows[$uid]->inprogress_count) {
+                    $corrRows[$uid]->inprogress_count = $stu->inprogress_count;
+                }
+            } else {
+                $corrRows[$uid] = $stu;
             }
+        } else {
+            // Plan no correlacionado: fila independiente por enrollment
+            $finalRows[] = $stu;
         }
     }
-    $gapRawStudents = array_values($consolidatedByUser);
+    // Insertar filas consolidadas en la posición correcta (al final de su bloque de plan)
+    foreach ($corrRows as $row) { $finalRows[] = $row; }
+    // Re-ordenar: apellido, nombre
+    usort($finalRows, function($a, $b) {
+        $cmp = strcmp((string)$a->lastname, (string)$b->lastname);
+        return $cmp !== 0 ? $cmp : strcmp((string)$a->firstname, (string)$b->firstname);
+    });
+    $gapRawStudents = $finalRows;
 }
 
 $gapResults    = array();
@@ -504,22 +514,33 @@ try {
     $failedRawStudents = array_values($DB->get_records_sql($failedStudentsSql, $allFiltersParams));
 } catch (Exception $e) { }
 
-// Consolidar por userid (planes correlacionados)
+// Consolidar solo estudiantes en planes correlacionados seleccionados
 {
-    $consolidatedFailed = array();
+    $corrSetF   = array_flip($corr_planids);
+    $corrRowsF  = array();
+    $finalRowsF = array();
     foreach ($failedRawStudents as $stu) {
         $uid = (int)$stu->userid;
-        if (!isset($consolidatedFailed[$uid])) {
-            $stu->plannames   = array((int)$stu->planid => (string)$stu->planname);
-            $stu->periodnames = array((int)$stu->planid => (string)($stu->periodname ?? ''));
-            $consolidatedFailed[$uid] = $stu;
+        $pid = (int)$stu->planid;
+        $stu->plannames   = array($pid => (string)$stu->planname);
+        $stu->periodnames = array($pid => (string)($stu->periodname ?? ''));
+        if (!empty($corrSetF) && isset($corrSetF[$pid])) {
+            if (isset($corrRowsF[$uid])) {
+                $corrRowsF[$uid]->plannames[$pid]   = (string)$stu->planname;
+                $corrRowsF[$uid]->periodnames[$pid] = (string)($stu->periodname ?? '');
+            } else {
+                $corrRowsF[$uid] = $stu;
+            }
         } else {
-            $existing = $consolidatedFailed[$uid];
-            $existing->plannames[(int)$stu->planid]   = (string)$stu->planname;
-            $existing->periodnames[(int)$stu->planid] = (string)($stu->periodname ?? '');
+            $finalRowsF[] = $stu;
         }
     }
-    $failedRawStudents = array_values($consolidatedFailed);
+    foreach ($corrRowsF as $row) { $finalRowsF[] = $row; }
+    usort($finalRowsF, function($a, $b) {
+        $cmp = strcmp((string)$a->lastname, (string)$b->lastname);
+        return $cmp !== 0 ? $cmp : strcmp((string)$a->firstname, (string)$b->firstname);
+    });
+    $failedRawStudents = $finalRowsF;
 }
 
 $failedResults       = array();
@@ -673,18 +694,16 @@ $tabFailedUrl = clone $baseUrl; $tabFailedUrl->param('tab', 'failed');
                placeholder="Nombre o email" style="width:220px">
     </div>
     <div>
-        <label>Planes (correlacionados)</label>
-        <select name="planids[]" multiple size="5" style="min-width:240px;font-size:12px">
+        <label>Plan de estudios</label>
+        <select name="planid">
+            <option value="0">- Todos -</option>
             <?php foreach ($allPlans as $pl): ?>
             <option value="<?php echo (int)$pl->id; ?>"
-                    <?php echo (in_array((int)$pl->id, $filter_planids) ? 'selected' : ''); ?>>
+                    <?php echo ((int)$pl->id === $filter_planid ? 'selected' : ''); ?>>
                 <?php echo adg_h($pl->name); ?>
             </option>
             <?php endforeach; ?>
         </select>
-        <div style="font-size:10px;color:#6c757d;margin-top:3px">
-            Ctrl+click para seleccionar varios.<br>Sin selección = todos los planes.
-        </div>
     </div>
     <div>
         <label>Jornada</label>
@@ -720,6 +739,50 @@ $tabFailedUrl = clone $baseUrl; $tabFailedUrl->param('tab', 'failed');
            class="btn btn-secondary" style="margin-left:6px;font-size:13px">Limpiar</a>
     </div>
 </form>
+
+<!-- Configuración: Planes correlacionados -->
+<details style="background:#fff;border:1px solid #dee2e6;border-radius:8px;padding:12px 16px;margin:10px 0"
+         <?php echo !empty($corr_planids) ? 'open' : ''; ?>>
+    <summary style="font-size:13px;font-weight:600;cursor:pointer;color:#495057">
+        &#9881; Planes correlacionados
+        <?php if (!empty($corr_planids)): ?>
+        <span style="background:#0d6efd;color:#fff;border-radius:10px;padding:1px 8px;font-size:11px;margin-left:8px">
+            <?php echo count($corr_planids); ?> plan<?php echo count($corr_planids) !== 1 ? 'es' : ''; ?> seleccionado<?php echo count($corr_planids) !== 1 ? 's' : ''; ?>
+        </span>
+        <?php endif; ?>
+    </summary>
+    <div style="margin-top:10px;font-size:12px;color:#6c757d;margin-bottom:8px">
+        Seleccioná los planes de estudios que comparten estudiantes. Los estudiantes que aparezcan
+        en <strong>dos o más</strong> de los planes seleccionados se consolidarán en una sola fila.
+        El resto aparece normalmente.
+    </div>
+    <form method="get" style="display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap">
+        <input type="hidden" name="tab"    value="<?php echo adg_h($active_tab); ?>">
+        <input type="hidden" name="planid" value="<?php echo (int)$filter_planid; ?>">
+        <input type="hidden" name="shift"  value="<?php echo adg_h($filter_shift); ?>">
+        <input type="hidden" name="min"    value="<?php echo adg_h($filter_min); ?>">
+        <input type="hidden" name="search" value="<?php echo adg_h($filter_search); ?>">
+        <div>
+            <select name="corrplans[]" multiple size="6" style="min-width:260px;font-size:12px">
+                <?php foreach ($allPlans as $pl): ?>
+                <option value="<?php echo (int)$pl->id; ?>"
+                        <?php echo (in_array((int)$pl->id, $corr_planids) ? 'selected' : ''); ?>>
+                    <?php echo adg_h($pl->name); ?>
+                </option>
+                <?php endforeach; ?>
+            </select>
+            <div style="font-size:10px;color:#6c757d;margin-top:3px">Ctrl+click para seleccionar varios.</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+            <button type="submit" class="btn btn-primary" style="font-size:12px">Aplicar correlación</button>
+            <a href="<?php echo (new moodle_url('/local/grupomakro_core/pages/academic_demand_gaps.php',
+                array('tab' => $active_tab, 'planid' => $filter_planid,
+                      'shift' => $filter_shift, 'min' => $filter_min,
+                      'search' => $filter_search)))->out(false); ?>"
+               style="font-size:12px;color:#6c757d;text-align:center">Quitar correlación</a>
+        </div>
+    </form>
+</details>
 
 <?php if ($active_tab !== 'failed'): ?>
 <!-- TAB 1: BRECHAS DE CARGA
@@ -1160,7 +1223,8 @@ foreach ($gapResults as $row) {
 <?php
 $byPlanFailed = array();
 foreach ($failedResults as $row) {
-    $pname = (string)$row['stu']->planname;
+    $stuObj2 = $row['stu'];
+    $pname   = isset($stuObj2->plannames) ? implode(' + ', array_values($stuObj2->plannames)) : (string)$stuObj2->planname;
     if (!isset($byPlanFailed[$pname])) {
         $byPlanFailed[$pname] = array('students' => 0, 'with_open' => 0, 'no_open' => 0);
     }
