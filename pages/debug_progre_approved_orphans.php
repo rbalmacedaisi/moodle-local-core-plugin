@@ -70,20 +70,19 @@ if ($action === 'cleanselected') {
     if (empty($selectedIds)) {
         $actionLog[] = ['error', 'No seleccionaste ningún registro.'];
     } else {
-        // Safety: only allow deleting records that are actual orphans (no approved status)
+        // Allow deleting any selected record (admin has full control)
         list($in, $inParams) = $DB->get_in_or_equal($selectedIds, SQL_PARAMS_NAMED);
-        $safeIds = $DB->get_fieldset_sql(
-            "SELECT id FROM {gmk_course_progre}
-              WHERE id $in AND status NOT IN (3, 4)",
+        $toDelete = $DB->get_fieldset_sql(
+            "SELECT id FROM {gmk_course_progre} WHERE id $in",
             $inParams
         );
-        if (!empty($safeIds)) {
-            list($in2, $params2) = $DB->get_in_or_equal($safeIds, SQL_PARAMS_NAMED);
+        if (!empty($toDelete)) {
+            list($in2, $params2) = $DB->get_in_or_equal($toDelete, SQL_PARAMS_NAMED);
             $DB->execute("DELETE FROM {gmk_course_progre} WHERE id $in2", $params2);
-            $deleteCount = count($safeIds);
+            $deleteCount = count($toDelete);
             $actionLog[] = ['ok', "Se eliminaron $deleteCount registros seleccionados."];
         } else {
-            $actionLog[] = ['info', 'Los registros seleccionados no son elegibles para eliminación.'];
+            $actionLog[] = ['info', 'No se encontraron los registros indicados.'];
         }
     }
 }
@@ -278,10 +277,7 @@ echo $OUTPUT->header();
 <div id="dpa-floatbar" style="display:none;position:sticky;top:0;z-index:100;background:#1f2937;color:#fff;
      padding:10px 16px;border-radius:8px;margin-bottom:12px;display:none;align-items:center;gap:12px;flex-wrap:wrap;">
     <span id="dpa-sel-count" style="font-size:13px;font-weight:600">0 seleccionados</span>
-    <button type="submit" class="dpa-btn dpa-btn-red"
-            onclick="var n=document.querySelectorAll('.dpa-cb:checked').length;
-                     if(!n){alert('Selecciona al menos un registro.');return false;}
-                     return confirm('¿Eliminar '+n+' registro(s) seleccionado(s)? Esta acción no se puede deshacer.');">
+    <button type="submit" class="dpa-btn dpa-btn-red">
         &#128465; Eliminar seleccionados
     </button>
     <button type="button" class="dpa-btn" style="background:#4b5563"
@@ -359,13 +355,12 @@ echo $OUTPUT->header();
             ?>
                 <tr class="<?php echo $rowCls; ?>">
                     <td style="text-align:center">
-                        <?php if ($isOrphan): ?>
-                            <input type="checkbox" class="dpa-cb" name="delids[]"
-                                   value="<?php echo (int)$rec->id; ?>"
-                                   onchange="updateBar()">
-                        <?php else: ?>
-                            <span style="color:#d1d5db">—</span>
-                        <?php endif; ?>
+                        <input type="checkbox"
+                               class="dpa-cb <?php echo $isApproved ? 'dpa-cb-approved' : ''; ?>"
+                               name="delids[]"
+                               value="<?php echo (int)$rec->id; ?>"
+                               onchange="updateBar()"
+                               <?php echo $isApproved ? 'title="⚠ Este registro está aprobado. Marcalo solo si estás seguro."' : ''; ?>>
                     </td>
                     <td style="font-family:monospace;font-weight:600"><?php echo (int)$rec->id; ?></td>
                     <td>
@@ -413,16 +408,31 @@ echo $OUTPUT->header();
 
 <script>
 function updateBar() {
-    var n = document.querySelectorAll('.dpa-cb:checked').length;
+    var all      = document.querySelectorAll('.dpa-cb:checked');
+    var approved = document.querySelectorAll('.dpa-cb-approved:checked');
+    var n = all.length, a = approved.length;
     var bar = document.getElementById('dpa-floatbar');
     bar.style.display = n > 0 ? 'flex' : 'none';
-    document.getElementById('dpa-sel-count').textContent = n + ' seleccionado' + (n !== 1 ? 's' : '');
+    var txt = n + ' seleccionado' + (n !== 1 ? 's' : '');
+    if (a > 0) txt += ' <span style="color:#fca5a5;font-weight:700">⚠ ' + a + ' aprobado' + (a !== 1 ? 's' : '') + '</span>';
+    document.getElementById('dpa-sel-count').innerHTML = txt;
 }
 function toggleGroup(masterCb) {
     var tbody = masterCb.closest('table').querySelector('tbody');
     tbody.querySelectorAll('.dpa-cb').forEach(cb => { cb.checked = masterCb.checked; });
     updateBar();
 }
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('form-selected').addEventListener('submit', function(e) {
+        var n = document.querySelectorAll('.dpa-cb:checked').length;
+        var a = document.querySelectorAll('.dpa-cb-approved:checked').length;
+        if (!n) { alert('Selecciona al menos un registro.'); e.preventDefault(); return; }
+        var msg = '¿Eliminar ' + n + ' registro(s)?\n';
+        if (a > 0) msg += '\n⚠ ATENCIÓN: ' + a + ' de ellos tiene status Aprobado/Completado.\n';
+        msg += '\nEsta acción no se puede deshacer.';
+        if (!confirm(msg)) e.preventDefault();
+    });
+});
 </script>
 
 <?php else: ?>
