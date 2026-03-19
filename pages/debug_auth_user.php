@@ -64,6 +64,20 @@ if ($action && $userid && confirm_sesskey()) {
         } else if ($action === 'force_manual_auth') {
             $DB->set_field('user', 'auth', 'manual', ['id' => $userid]);
             $msg = '<div class="alert alert-success">Auth cambiado a "manual" para ' . s($target->username) . '.</div>';
+
+        } else if ($action === 'test_password') {
+            $testpass = optional_param('testpassword', '', PARAM_RAW);
+            if ($testpass === '') {
+                $msg = '<div class="alert alert-warning">Ingresa una contraseña para probar.</div>';
+            } else {
+                // Recargar usuario fresco desde DB para tener el hash actual
+                $freshUser = $DB->get_record('user', ['id' => $userid, 'deleted' => 0]);
+                if (validate_internal_user_password($freshUser, $testpass)) {
+                    $msg = '<div class="alert alert-success">✅ Contraseña CORRECTA — el hash almacenado coincide con la contraseña ingresada.</div>';
+                } else {
+                    $msg = '<div class="alert alert-danger">❌ Contraseña INCORRECTA — el hash almacenado NO coincide. El hash en BD fue generado con otra contraseña.</div>';
+                }
+            }
         }
     }
 }
@@ -389,6 +403,45 @@ if ($q !== '') {
                     </form>
 
                 </div><!-- /dau-actions -->
+
+                <!-- Probar contraseña (valida el hash directamente) -->
+                <div style="margin-top:16px;padding:12px;background:#f0f4ff;border:1px solid #c8d6ff;border-radius:6px;">
+                    <strong style="font-size:13px;">🔬 Probar contraseña (verifica hash en BD sin iniciar sesión)</strong>
+                    <form method="post" class="pass-form" style="margin-top:8px;">
+                        <input type="hidden" name="sesskey" value="<?php echo sesskey(); ?>">
+                        <input type="hidden" name="action" value="test_password">
+                        <input type="hidden" name="userid" value="<?php echo $u->id; ?>">
+                        <input type="hidden" name="q" value="<?php echo s($q); ?>">
+                        <input type="text" name="testpassword" placeholder="Contraseña a verificar" autocomplete="off" style="width:280px;">
+                        <button type="submit" class="btn btn-info">Verificar hash</button>
+                    </form>
+                    <p style="font-size:11px;color:#6c757d;margin-top:6px;">
+                        Si dice "INCORRECTA", el hash en BD no corresponde a lo que el usuario escribe. Solución: forzar una contraseña nueva arriba.
+                    </p>
+                </div>
+
+                <!-- Plugins de autenticación activos en el sitio -->
+                <?php
+                $enabledAuthStr = get_config('core', 'auth');
+                $enabledPlugins = $enabledAuthStr ? array_map('trim', explode(',', $enabledAuthStr)) : [];
+                ?>
+                <details style="margin-top:12px;">
+                    <summary style="cursor:pointer;font-size:13px;color:#6c757d;">Plugins de auth habilitados en el sitio</summary>
+                    <div style="margin-top:8px;font-size:13px;">
+                        <?php if (empty($enabledPlugins)): ?>
+                            <span style="color:#6c757d;">Ninguno (sólo manual).</span>
+                        <?php else: foreach ($enabledPlugins as $ap): ?>
+                            <span style="display:inline-block;margin:2px 4px;padding:2px 10px;border-radius:4px;
+                                background:<?php echo ($ap === $u->auth) ? '#007bff' : '#6c757d'; ?>;color:#fff;font-size:12px;">
+                                <?php echo s($ap); ?><?php echo ($ap === $u->auth) ? ' ← usuario' : ''; ?>
+                            </span>
+                        <?php endforeach; endif; ?>
+                        <p style="margin-top:6px;color:#6c757d;font-size:11px;">
+                            El campo <code>auth</code> del usuario determina cuál plugin autentica su contraseña.
+                            Si el plugin es externo (ldap, db, cas…) la contraseña Moodle puede ignorarse.
+                        </p>
+                    </div>
+                </details>
 
                 <!-- Link a perfil Moodle -->
                 <p style="margin-top:14px;font-size:12px;">
