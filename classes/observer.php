@@ -303,9 +303,61 @@ class local_grupomakro_core_observer
     }
     public static function course_module_deleted(\core\event\course_module_deleted $event)
     {
-        $eventData = $event->get_data();
         global $DB;
         try {
+            $eventData = $event->get_data();
+            $cmid = (int)($eventData['objectid'] ?? ($eventData['contextinstanceid'] ?? 0));
+            if ($cmid > 0) {
+                // 1) Remove stale relation rows referencing deleted cmid.
+                $affectedclassids = [];
+                $relrows = $DB->get_records_select(
+                    'gmk_bbb_attendance_relation',
+                    'bbbmoduleid = :cmid OR attendancemoduleid = :cmid',
+                    ['cmid' => $cmid],
+                    '',
+                    'id,classid,bbbmoduleid,attendancemoduleid'
+                );
+                foreach ($relrows as $rr) {
+                    $cid = (int)($rr->classid ?? 0);
+                    if ($cid > 0) {
+                        $affectedclassids[$cid] = $cid;
+                    }
+                }
+                if (!empty($relrows)) {
+                    $DB->delete_records_select(
+                        'gmk_bbb_attendance_relation',
+                        'bbbmoduleid = :cmid OR attendancemoduleid = :cmid',
+                        ['cmid' => $cmid]
+                    );
+                }
+
+                // 2) If deleted CM was linked as attendance module, reset class pointers.
+                $attendanceclasses = $DB->get_records('gmk_class', ['attendancemoduleid' => $cmid], '', 'id');
+                foreach ($attendanceclasses as $ac) {
+                    $cid = (int)$ac->id;
+                    if ($cid > 0) {
+                        $affectedclassids[$cid] = $cid;
+                        $DB->set_field('gmk_class', 'attendancemoduleid', 0, ['id' => $cid]);
+                        $DB->set_field('gmk_class', 'bbbmoduleids', null, ['id' => $cid]);
+                        $DB->delete_records('gmk_bbb_attendance_relation', ['classid' => $cid]);
+                    }
+                }
+
+                // 3) Recompute bbbmoduleids for affected classes after relation cleanup.
+                foreach ($affectedclassids as $cid) {
+                    $rows = $DB->get_records('gmk_bbb_attendance_relation', ['classid' => (int)$cid], '', 'bbbmoduleid');
+                    $cmids = [];
+                    foreach ($rows as $r) {
+                        $bbcmid = (int)($r->bbbmoduleid ?? 0);
+                        if ($bbcmid > 0) {
+                            $cmids[$bbcmid] = $bbcmid;
+                        }
+                    }
+                    $newvalue = empty($cmids) ? null : implode(',', array_values($cmids));
+                    $DB->set_field('gmk_class', 'bbbmoduleids', $newvalue, ['id' => (int)$cid]);
+                }
+            }
+
             $courseUserProgreRecords = $DB->get_records('gmk_course_progre', ['courseid' => $eventData['courseid']], '', 'userid,groupid');
             foreach ($courseUserProgreRecords as $progreRecord) {
                 if (!$progreRecord->groupid) {
@@ -314,9 +366,9 @@ class local_grupomakro_core_observer
                 local_grupomakro_progress_manager::update_course_progress($eventData['courseid'], $progreRecord->userid);
             }
             return true;
-        } catch (Exception $e) {
-            print_object($e);
-            return false;
+        } catch (\Throwable $e) {
+            gmk_log("WARNING: observer course_module_deleted fallo: " . $e->getMessage());
+            return true;
         }
     }
     public static function learningplancourse_added(\local_sc_learningplans\event\learningplancourse_added $event)

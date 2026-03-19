@@ -2902,12 +2902,20 @@ function create_class_activities($class, $updating = false, $forceRebuildDates =
             }
             $bbbModulesToDelete[(int)$BBBModuleId] = (int)$BBBModuleId;
         }
-        $relatedBBBModules = $DB->get_records('gmk_bbb_attendance_relation', ['classid' => $class->id], '', 'bbbmoduleid');
+        $attendanceSessionIdsToBeDeleted = [];
+        $relatedBBBModules = $DB->get_records('gmk_bbb_attendance_relation', ['classid' => $class->id], '', 'bbbmoduleid,attendancesessionid');
         foreach ($relatedBBBModules as $relatedBBBModule) {
             if (!empty($relatedBBBModule->bbbmoduleid)) {
                 $bbbModulesToDelete[(int)$relatedBBBModule->bbbmoduleid] = (int)$relatedBBBModule->bbbmoduleid;
             }
+            if (!empty($relatedBBBModule->attendancesessionid)) {
+                $attendanceSessionIdsToBeDeleted[(int)$relatedBBBModule->attendancesessionid] = (int)$relatedBBBModule->attendancesessionid;
+            }
         }
+
+        // Drop relation rows first to avoid leaving stale CMIDs if execution stops mid-update.
+        $DB->delete_records('gmk_bbb_attendance_relation', ['classid' => $class->id]);
+
         foreach ($bbbModulesToDelete as $BBBModuleId) {
             try {
                 course_delete_module($BBBModuleId);
@@ -2922,13 +2930,6 @@ function create_class_activities($class, $updating = false, $forceRebuildDates =
         $attendanceRecord = $DB->get_record('attendance', array('id' => $attendanceCourseModule->instance), '*', MUST_EXIST);
         $attendanceStructure = new \mod_attendance_structure($attendanceRecord, $attendanceCourseModule, $class->course);
         gmk_ensure_cmid_in_section_sequence((int)$class->coursesectionid, (int)$attendanceCourseModule->id);
-        $attendanceSessionIdsToBeDeleted = [];
-        $sessionIdsFromRelations = $DB->get_records('gmk_bbb_attendance_relation', ['classid' => $class->id], '', 'attendancesessionid');
-        foreach ($sessionIdsFromRelations as $rel) {
-            if (!empty($rel->attendancesessionid)) {
-                $attendanceSessionIdsToBeDeleted[(int)$rel->attendancesessionid] = (int)$rel->attendancesessionid;
-            }
-        }
         // Defensive cleanup: relation table may be incomplete in legacy rows.
         $fallbackSessions = $DB->get_records('attendance_sessions', [
             'attendanceid' => (int)$attendanceRecord->id,
@@ -2941,9 +2942,6 @@ function create_class_activities($class, $updating = false, $forceRebuildDates =
         if (!empty($attendanceSessionIdsToBeDeleted)) {
             $attendanceStructure->delete_sessions(array_values($attendanceSessionIdsToBeDeleted));
         }
-
-        //Delete attendance - BBB sessions relation
-        $DB->delete_records('gmk_bbb_attendance_relation', ['classid' => $class->id]);
     } else {
         // Reuse attendance module if already created and still valid for this class.
         if (gmk_is_valid_class_attendance_module($class, $attendanceReason)) {
@@ -5843,6 +5841,48 @@ function gmk_sync_bbb_moderator_rules_for_class(int $classid): array
         return $result;
     }
 
+    // Build reverse map cmid -> classes to avoid editing shared/cross class BBB modules.
+    $cmclassmap = [];
+    $allrels = $DB->get_records_sql(
+        "SELECT id, classid, bbbmoduleid
+           FROM {gmk_bbb_attendance_relation}
+          WHERE classid > 0
+            AND bbbmoduleid > 0"
+    );
+    foreach ($allrels as $rr) {
+        $rid = (int)($rr->classid ?? 0);
+        $rcmid = (int)($rr->bbbmoduleid ?? 0);
+        if ($rid > 0 && $rcmid > 0) {
+            if (!isset($cmclassmap[$rcmid])) {
+                $cmclassmap[$rcmid] = [];
+            }
+            $cmclassmap[$rcmid][$rid] = 1;
+        }
+    }
+    $classrows = $DB->get_records_select(
+        'gmk_class',
+        'bbbmoduleids IS NOT NULL AND bbbmoduleids <> :empty',
+        ['empty' => ''],
+        '',
+        'id,bbbmoduleids'
+    );
+    foreach ($classrows as $crow) {
+        $cid = (int)$crow->id;
+        if ($cid <= 0) {
+            continue;
+        }
+        foreach (explode(',', (string)($crow->bbbmoduleids ?? '')) as $part) {
+            $rcmid = (int)trim((string)$part);
+            if ($rcmid <= 0) {
+                continue;
+            }
+            if (!isset($cmclassmap[$rcmid])) {
+                $cmclassmap[$rcmid] = [];
+            }
+            $cmclassmap[$rcmid][$cid] = 1;
+        }
+    }
+
     $participants = json_encode([
         [
             'selectiontype' => 'user',
@@ -5858,9 +5898,10 @@ function gmk_sync_bbb_moderator_rules_for_class(int $classid): array
 
     foreach ($cmids as $cmid) {
         $cm = $DB->get_record_sql(
-            "SELECT cm.id, cm.instance, m.name AS modulename
+            "SELECT cm.id, cm.instance, m.name AS modulename, b.name AS bbbname
                FROM {course_modules} cm
                JOIN {modules} m ON m.id = cm.module
+          LEFT JOIN {bigbluebuttonbn} b ON b.id = cm.instance
               WHERE cm.id = :cmid",
             ['cmid' => (int)$cmid],
             IGNORE_MISSING
@@ -5868,6 +5909,32 @@ function gmk_sync_bbb_moderator_rules_for_class(int $classid): array
         if (!$cm || (string)$cm->modulename !== 'bigbluebuttonbn' || (int)$cm->instance <= 0) {
             $result['skipped']++;
             $result['errors'][] = 'cmid=' . (int)$cmid . ' invalid_non_bbb';
+            continue;
+        }
+
+        // Enforce ownership by name token "<name>-<classid>-<timestamp>" when present.
+        $bbbname = trim((string)($cm->bbbname ?? ''));
+        if ($bbbname !== '' && preg_match('/-(\d+)-(\d{6,})$/', $bbbname, $m)) {
+            $tokenclassid = (int)$m[1];
+            if ($tokenclassid > 0 && $tokenclassid !== (int)$classid) {
+                $result['skipped']++;
+                $result['errors'][] = 'cmid=' . (int)$cmid . ' skipped_cross_mapping tokenclassid=' . $tokenclassid . ' classid=' . (int)$classid;
+                continue;
+            }
+        }
+
+        // Do not edit shared BBB modules (referenced by multiple classes).
+        $sharedwith = [];
+        foreach (($cmclassmap[(int)$cmid] ?? []) as $cid => $v) {
+            $cid = (int)$cid;
+            if ($cid > 0 && $cid !== (int)$classid) {
+                $sharedwith[$cid] = $cid;
+            }
+        }
+        if (!empty($sharedwith)) {
+            $result['skipped']++;
+            ksort($sharedwith);
+            $result['errors'][] = 'cmid=' . (int)$cmid . ' skipped_shared_ref shared_with=' . implode(',', array_values($sharedwith));
             continue;
         }
 

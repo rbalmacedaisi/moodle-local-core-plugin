@@ -779,6 +779,7 @@ class scheduler extends external_api {
 
                 $classRec = new stdClass();
                 $isUpdate = false;
+                $forceclearbbbmoduleids = false;
                 if (!empty($cls['id']) && is_numeric($cls['id'])) {
                     $classRec->id = (int)$cls['id'];
                     $isUpdate = true;
@@ -1124,7 +1125,20 @@ class scheduler extends external_api {
                         if (empty($classRec->coursesectionid))    $classRec->coursesectionid    = $existingDbRec->coursesectionid;
                         if (empty($classRec->groupid))            $classRec->groupid             = $existingDbRec->groupid;
                         if (empty($classRec->gradecategoryid))    $classRec->gradecategoryid     = $existingDbRec->gradecategoryid;
-                        if (empty($classRec->bbbmoduleids))       $classRec->bbbmoduleids        = $existingDbRec->bbbmoduleids;
+                        if (empty($classRec->bbbmoduleids) && !empty($existingDbRec->bbbmoduleids)) {
+                            $filtered = self::filter_preserved_bbbmoduleids(
+                                (string)$existingDbRec->bbbmoduleids,
+                                (int)$classRec->id,
+                                (int)$classRec->corecourseid
+                            );
+                            if (!empty($filtered)) {
+                                $classRec->bbbmoduleids = $filtered;
+                            } else {
+                                // Existing mapping is stale/crossed, clear it on update.
+                                $classRec->bbbmoduleids = null;
+                                $forceclearbbbmoduleids = true;
+                            }
+                        }
                     }
                 } else {
                     $classRec->approved = 0;
@@ -1182,7 +1196,17 @@ class scheduler extends external_api {
                             $classRec->gradecategoryid = $latestDbRec->gradecategoryid;
                         }
                         if (empty($classRec->bbbmoduleids) && !empty($latestDbRec->bbbmoduleids)) {
-                            $classRec->bbbmoduleids = $latestDbRec->bbbmoduleids;
+                            $filtered = self::filter_preserved_bbbmoduleids(
+                                (string)$latestDbRec->bbbmoduleids,
+                                (int)$classRec->id,
+                                (int)$classRec->corecourseid
+                            );
+                            if (!empty($filtered)) {
+                                $classRec->bbbmoduleids = $filtered;
+                            } else {
+                                $classRec->bbbmoduleids = null;
+                                $forceclearbbbmoduleids = true;
+                            }
                         }
                     }
 
@@ -1191,7 +1215,7 @@ class scheduler extends external_api {
                     if (empty($classRec->coursesectionid)) unset($classRec->coursesectionid);
                     if (empty($classRec->groupid)) unset($classRec->groupid);
                     if (empty($classRec->gradecategoryid)) unset($classRec->gradecategoryid);
-                    if (empty($classRec->bbbmoduleids)) unset($classRec->bbbmoduleids);
+                    if (empty($classRec->bbbmoduleids) && !$forceclearbbbmoduleids) unset($classRec->bbbmoduleids);
 
                     $classid = $classRec->id;
                     $DB->update_record('gmk_class', $classRec);
@@ -1588,6 +1612,74 @@ class scheduler extends external_api {
             return (int)$matches[1];
         }
         return 0;
+    }
+
+    /**
+     * Extract class id token from BBB name pattern "<class name>-<classid>-<timestamp>".
+     */
+    private static function extract_classid_from_bbb_name(string $bbbname): int {
+        $bbbname = trim($bbbname);
+        if ($bbbname === '') {
+            return 0;
+        }
+        if (preg_match('/-(\d+)-(\d{6,})$/', $bbbname, $m)) {
+            return (int)$m[1];
+        }
+        return 0;
+    }
+
+    /**
+     * Keep only safe BBB cmids for this class/course and discard stale/cross refs.
+     * Returns comma-separated list or null when none are valid.
+     */
+    private static function filter_preserved_bbbmoduleids(string $rawcmids, int $classid, int $corecourseid): ?string {
+        global $DB;
+
+        $ids = [];
+        foreach (explode(',', $rawcmids) as $part) {
+            $cmid = (int)trim((string)$part);
+            if ($cmid > 0) {
+                $ids[$cmid] = $cmid;
+            }
+        }
+        $ids = array_values($ids);
+        if (empty($ids)) {
+            return null;
+        }
+
+        list($insql, $params) = $DB->get_in_or_equal($ids, SQL_PARAMS_NAMED, 'bcm');
+        $rows = $DB->get_records_sql(
+            "SELECT cm.id, cm.course, m.name AS modulename, b.name AS bbbname
+               FROM {course_modules} cm
+               JOIN {modules} m ON m.id = cm.module
+          LEFT JOIN {bigbluebuttonbn} b ON b.id = cm.instance
+              WHERE cm.id {$insql}",
+            $params
+        );
+
+        $valid = [];
+        foreach ($ids as $cmid) {
+            $row = $rows[(int)$cmid] ?? null;
+            if (!$row || (string)$row->modulename !== 'bigbluebuttonbn') {
+                continue;
+            }
+            if ($corecourseid > 0 && (int)$row->course !== $corecourseid) {
+                continue;
+            }
+            $tokenclassid = self::extract_classid_from_bbb_name((string)($row->bbbname ?? ''));
+            if ($tokenclassid > 0 && $classid > 0 && $tokenclassid !== $classid) {
+                continue;
+            }
+            $valid[(int)$cmid] = (int)$cmid;
+        }
+
+        if (empty($valid)) {
+            return null;
+        }
+
+        $valid = array_values($valid);
+        sort($valid);
+        return implode(',', $valid);
     }
 
     // --- 6. Fetch Generated Schedules ---

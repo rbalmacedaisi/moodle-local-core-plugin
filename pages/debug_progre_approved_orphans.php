@@ -374,6 +374,86 @@ if ($showSec3) {
     } catch (Exception $e) {}
 }
 
+// ─── ACCIÓN: corregir status=5 con nota Moodle >= 70 ────────────────────────
+if ($action === 'fixfailed') {
+    require_sesskey();
+    $fixfailedIds = optional_param_array('failids', [], PARAM_INT);
+    $fixfailedIds = array_values(array_filter(array_map('intval', $fixfailedIds)));
+    $fixedF = 0; $errorsF = 0;
+    foreach ($fixfailedIds as $pid) {
+        $rec = $DB->get_record('gmk_course_progre', ['id' => $pid]);
+        if (!$rec || (int)$rec->status !== 5) { continue; }
+        $result = dpa_moodle_grade($DB, $rec->userid, $rec->courseid);
+        $grade  = $result['grade'];
+        if ($grade === null || $grade < $PASSING_GRADE) { $errorsF++; continue; }
+        try {
+            $DB->execute(
+                "UPDATE {gmk_course_progre}
+                    SET status=4, grade=:g, progress=100, timemodified=:now WHERE id=:id",
+                ['g' => $grade, 'now' => time(), 'id' => $pid]
+            );
+            $fixedF++;
+        } catch (Exception $e) { $errorsF++; }
+    }
+    $actionLog[] = ['ok', "Reprobadas corregidas a Aprobada: $fixedF." . ($errorsF ? " Errores: $errorsF." : '')];
+}
+
+// ─── SECCIÓN 5: Reprobadas incorrectas (status=5 + nota Moodle >= 70) ────────
+// status=5 en plan activo, sin registro 3/4, pero nota Moodle >= 70
+$failedWithGradeSql = "
+    SELECT CONCAT(cp.userid, '_', cp.courseid) AS ukey,
+           cp.id AS progre_id,
+           cp.userid, cp.courseid, cp.status AS cpstatus,
+           cp.grade AS stored_grade, cp.learningplanid,
+           u.firstname, u.lastname, u.username,
+           c.fullname AS coursename, c.shortname AS courseshort
+      FROM {gmk_course_progre} cp
+      JOIN {user}   u ON u.id = cp.userid AND u.deleted = 0 AND u.suspended = 0
+      JOIN {course} c ON c.id = cp.courseid
+     WHERE cp.status = 5
+       AND EXISTS (
+           SELECT 1 FROM {local_learning_users} lu
+            WHERE lu.userid        = cp.userid
+              AND lu.learningplanid = cp.learningplanid
+              AND lu.userroleid    = 5
+       )
+       AND NOT EXISTS (
+           SELECT 1 FROM {gmk_course_progre} cp_ok
+            WHERE cp_ok.userid   = cp.userid
+              AND cp_ok.courseid = cp.courseid
+              AND cp_ok.status  IN (3, 4)
+       )
+       AND (
+           EXISTS (
+               SELECT 1 FROM {grade_items} gi
+               JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = cp.userid
+              WHERE gi.itemtype = 'course' AND gi.courseid = cp.courseid
+                AND COALESCE(gg.finalgrade, gg.rawgrade) >= :p1
+           )
+           OR EXISTS (
+               SELECT 1 FROM {grade_items} gi
+               JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = cp.userid
+              WHERE gi.courseid = cp.courseid
+                AND (gi.itemname LIKE :nfi1 OR gi.itemname LIKE :nfi2)
+                AND COALESCE(gg.finalgrade, gg.rawgrade) >= :p2
+           )
+       )
+     ORDER BY u.lastname, u.firstname, c.fullname
+";
+$failedData = [];
+try {
+    $failedWithGradeRows = $DB->get_records_sql($failedWithGradeSql, [
+        'p1'   => $PASSING_GRADE,
+        'p2'   => $PASSING_GRADE,
+        'nfi1' => '%Nota Final Integrada%',
+        'nfi2' => '%Final Integrada%',
+    ]);
+    foreach ($failedWithGradeRows as $fr) {
+        $result = dpa_moodle_grade($DB, $fr->userid, $fr->courseid);
+        $failedData[] = ['row' => $fr, 'grade' => $result['grade'], 'src' => $result['src']];
+    }
+} catch (Exception $e) {}
+
 echo $OUTPUT->header();
 ?>
 <style>
@@ -858,6 +938,142 @@ document.addEventListener('DOMContentLoaded', function() {
 <?php endif; ?>
 <?php endif; ?>
 
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     SECCIÓN 5: Reprobadas incorrectas — status=5 pero nota Moodle >= 70
+     ═══════════════════════════════════════════════════════════════════════ -->
+<hr style="border:none;border-top:2px solid #e5e7eb;margin:28px 0 20px">
+<h2 style="font-size:20px;font-weight:700;margin-bottom:6px;">
+    &#127988; Reprobadas incorrectas: status=5 con nota Moodle &ge; <?php echo $PASSING_GRADE; ?>
+</h2>
+
+<div class="dpa-explain" style="background:#fdf4ff;border-color:#d8b4fe">
+    <strong>&#128270; ¿Qué detecta esta sección?</strong><br>
+    Estudiantes con <code>gmk_course_progre.status = 5</code> (Reprobada) en su plan activo,
+    que <strong>no tienen ningún registro aprobado (status 3/4)</strong> para ese curso,
+    pero <strong>sí tienen nota &ge; <?php echo $PASSING_GRADE; ?> en Moodle</strong>
+    (course total o Nota Final Integrada via <code>COALESCE(finalgrade, rawgrade)</code>).<br><br>
+    <strong>Causa típica:</strong> la materia fue aprobada vía revalidación o importación que cargó la nota
+    en Moodle pero dejó el registro en status=5, o <code>sync_progress</code> comparó
+    <code>finalgrade</code> (que puede ser <code>null</code>) ignorando <code>rawgrade</code>.<br><br>
+    <strong>Impacto directo:</strong> estos registros hacen que el estudiante aparezca en
+    <em>academic_demand_gaps</em> como si tuviera materias pendientes (el NOT EXISTS(status 3/4)
+    nunca se satisface), pese a haber aprobado.
+</div>
+
+<?php if (empty($failedData)): ?>
+<div class="dpa-card">
+    <div class="dpa-alert-ok">&#10003; No se encontraron registros con esta anomalía.</div>
+</div>
+<?php else: ?>
+
+<div class="dpa-card">
+    <h4>&#128202; Resumen</h4>
+    <div class="dpa-stat" style="border-color:#d8b4fe">
+        <div class="num" style="color:#7c3aed"><?php echo count($failedData); ?></div>
+        <div class="lbl">Registros Reprobados con nota &ge; <?php echo $PASSING_GRADE; ?> en Moodle</div>
+    </div>
+</div>
+
+<form method="post" id="form-fixfailed">
+<input type="hidden" name="action"  value="fixfailed">
+<input type="hidden" name="sesskey" value="<?php echo sesskey(); ?>">
+
+<!-- Barra flotante sección 5 -->
+<div id="dpa-floatbar5" style="display:none;position:sticky;top:0;z-index:100;background:#6d28d9;color:#fff;
+     padding:10px 16px;border-radius:8px;margin-bottom:12px;align-items:center;gap:12px;flex-wrap:wrap;">
+    <span id="dpa-fail-count" style="font-size:13px;font-weight:600">0 seleccionados</span>
+    <button type="submit" class="dpa-btn" style="background:#166534;color:#fff">
+        &#10003; Corregir: status=5 &rarr; status=4, grade=nota Moodle, progress=100
+    </button>
+    <button type="button" class="dpa-btn" style="background:#4c1d95"
+            onclick="document.querySelectorAll('.fail-cb').forEach(cb=>cb.checked=false);updateBar5();">
+        Deseleccionar todo
+    </button>
+</div>
+
+<div class="dpa-card">
+    <h4>&#128203; Detalle: Reprobadas con nota aprobatoria en Moodle</h4>
+    <table class="dpa-tbl">
+        <thead>
+            <tr>
+                <th style="width:32px">
+                    <input type="checkbox" id="fail-all"
+                           onchange="document.querySelectorAll('.fail-cb').forEach(cb=>cb.checked=this.checked);updateBar5();">
+                </th>
+                <th>Estudiante</th>
+                <th>Curso</th>
+                <th>Plan</th>
+                <th>Nota Moodle</th>
+                <th>Fuente</th>
+                <th>Nota almacenada (status=5)</th>
+                <th>progre_id</th>
+            </tr>
+        </thead>
+        <tbody>
+        <?php
+        $planNamesFail = isset($planNames) ? $planNames
+            : $DB->get_records_menu('local_learning_plans', null, '', 'id, name');
+        foreach ($failedData as $fd):
+            $fr    = $fd['row'];
+            $grade = $fd['grade'];
+            $src   = $fd['src'];
+            $lpLbl = isset($planNamesFail[(int)$fr->learningplanid])
+                     ? s($planNamesFail[(int)$fr->learningplanid]) : 'ID '.(int)$fr->learningplanid;
+        ?>
+        <tr style="background:#faf5ff">
+            <td style="text-align:center">
+                <?php if ($grade !== null && $grade >= $PASSING_GRADE): ?>
+                    <input type="checkbox" class="fail-cb" name="failids[]"
+                           value="<?php echo (int)$fr->progre_id; ?>"
+                           onchange="updateBar5()">
+                <?php else: ?>
+                    <span style="color:#d1d5db" title="Sin nota suficiente">—</span>
+                <?php endif; ?>
+            </td>
+            <td>
+                <strong><?php echo s($fr->firstname . ' ' . $fr->lastname); ?></strong><br>
+                <small style="color:#6b7280"><?php echo s($fr->username); ?> / uid=<?php echo (int)$fr->userid; ?></small>
+            </td>
+            <td>
+                <?php echo s($fr->coursename); ?><br>
+                <small style="color:#6b7280"><?php echo s($fr->courseshort); ?> / cid=<?php echo (int)$fr->courseid; ?></small>
+            </td>
+            <td><small><?php echo $lpLbl; ?></small></td>
+            <td style="font-weight:700;color:<?php echo ($grade !== null && $grade >= $PASSING_GRADE) ? '#166534' : '#dc2626'; ?>">
+                <?php echo $grade !== null ? number_format($grade, 2) : '—'; ?>
+            </td>
+            <td><small style="color:#6b7280"><?php echo s($src); ?></small></td>
+            <td style="color:#6b7280">
+                <small><?php echo $fr->stored_grade !== null ? number_format((float)$fr->stored_grade, 2) : '—'; ?></small>
+            </td>
+            <td style="font-family:monospace;font-size:11px"><?php echo (int)$fr->progre_id; ?></td>
+        </tr>
+        <?php endforeach; ?>
+        </tbody>
+    </table>
+</div>
+</form>
+
+<script>
+function updateBar5() {
+    var n = document.querySelectorAll('.fail-cb:checked').length;
+    var bar = document.getElementById('dpa-floatbar5');
+    bar.style.display = n > 0 ? 'flex' : 'none';
+    document.getElementById('dpa-fail-count').textContent = n + ' seleccionado' + (n !== 1 ? 's' : '');
+}
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('form-fixfailed').addEventListener('submit', function(e) {
+        var n = document.querySelectorAll('.fail-cb:checked').length;
+        if (!n) { alert('Selecciona al menos un registro.'); e.preventDefault(); return; }
+        if (!confirm('¿Corregir ' + n + ' registro(s)?\nstatus 5 → 4 (Aprobada), grade = nota Moodle, progress = 100.\nEsta acción no se puede deshacer.')) {
+            e.preventDefault();
+        }
+    });
+});
+</script>
+
+<?php endif; ?>
 
 <?php if ($searchName !== ''): ?>
 <!-- ═══════════════════════════════════════════════════════════════════════════
