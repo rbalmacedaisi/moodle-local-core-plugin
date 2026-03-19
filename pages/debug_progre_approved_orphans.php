@@ -993,7 +993,7 @@ document.addEventListener('DOMContentLoaded', function() {
      padding:10px 16px;border-radius:8px;margin-bottom:12px;align-items:center;gap:12px;flex-wrap:wrap;">
     <span id="dpa-fail-count" style="font-size:13px;font-weight:600">0 seleccionados</span>
     <button type="submit" class="dpa-btn" style="background:#166534;color:#fff">
-        &#10003; Corregir: status=5 &rarr; status=4, grade=nota Moodle, progress=100
+        &#10003; Corregir: status actual &rarr; status=4 (Aprobada), grade=nota Moodle, progress=100
     </button>
     <button type="button" class="dpa-btn" style="background:#4c1d95"
             onclick="document.querySelectorAll('.fail-cb').forEach(cb=>cb.checked=false);updateBar5();">
@@ -1015,7 +1015,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 <th>Plan</th>
                 <th>Nota Moodle</th>
                 <th>Fuente</th>
-                <th>Nota almacenada (status=5)</th>
+                <th>Estado actual</th>
+                <th>Nota almacenada</th>
                 <th>progre_id</th>
             </tr>
         </thead>
@@ -1053,6 +1054,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 <?php echo $grade !== null ? number_format($grade, 2) : '—'; ?>
             </td>
             <td><small style="color:#6b7280"><?php echo s($src); ?></small></td>
+            <td style="text-align:center">
+                <?php
+                $statusLabels = [0=>'No disp.',1=>'Disponible',2=>'Cursando',5=>'Reprobada'];
+                $statusColors = [0=>'#e5e7eb',1=>'#dbeafe',2=>'#fef9c3',5=>'#fee2e2'];
+                $stNum = (int)$fr->cpstatus;
+                $stLbl = isset($statusLabels[$stNum]) ? $statusLabels[$stNum] : 'Status '.$stNum;
+                $stClr = isset($statusColors[$stNum]) ? $statusColors[$stNum] : '#e5e7eb';
+                ?>
+                <span class="dpa-badge" style="background:<?php echo $stClr; ?>;color:#374151">
+                    <?php echo $stNum; ?> – <?php echo $stLbl; ?>
+                </span>
+            </td>
             <td style="color:#6b7280">
                 <small><?php echo $fr->stored_grade !== null ? number_format((float)$fr->stored_grade, 2) : '—'; ?></small>
             </td>
@@ -1075,7 +1088,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('form-fixfailed').addEventListener('submit', function(e) {
         var n = document.querySelectorAll('.fail-cb:checked').length;
         if (!n) { alert('Selecciona al menos un registro.'); e.preventDefault(); return; }
-        if (!confirm('¿Corregir ' + n + ' registro(s)?\nstatus 5 → 4 (Aprobada), grade = nota Moodle, progress = 100.\nEsta acción no se puede deshacer.')) {
+        if (!confirm('¿Corregir ' + n + ' registro(s)?\nEstado actual → 4 (Aprobada), grade = nota Moodle, progress = 100.\nEsta acción no se puede deshacer.')) {
             e.preventDefault();
         }
     });
