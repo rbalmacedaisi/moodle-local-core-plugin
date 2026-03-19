@@ -226,6 +226,15 @@ if ($hassiteconfig) {
             48,
             PARAM_INT)
         );
+
+        // Student app URL used by QR attendance bridge redirections.
+        $settingspage->add(new admin_setting_configtext(
+            'local_grupomakro_core/student_app_url',
+            'URL base de la interfaz de estudiantes (LXP)',
+            'URL base para redirigir al estudiante despues de escanear QR de asistencia.',
+            'https://students.isi.edu.pa',
+            PARAM_URL
+        ));
     }
 
     // Add the page to the settings tree.
@@ -378,4 +387,3 @@ if ($hassiteconfig) {
      * End of settings page: Email Templates.
      */
 }
-

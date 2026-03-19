@@ -19,6 +19,53 @@ use mod_attendance_structure;
 class attendance_manager extends external_api {
 
     /**
+     * Build the QR bridge URL.
+     *
+     * @param int $sessionid
+     * @param string $password
+     * @return string
+     */
+    private static function build_qr_bridge_url($sessionid, $password) {
+        $params = ['sessid' => (int)$sessionid];
+        if ($password !== '') {
+            $params['qrpass'] = $password;
+        }
+        return (new \moodle_url('/local/grupomakro_core/pages/attendance_qr_bridge.php', $params))->out(false);
+    }
+
+    /**
+     * Render QR HTML that points to the bridge endpoint.
+     *
+     * @param string $targeturl
+     * @param string $password
+     * @return string
+     */
+    private static function render_qr_bridge_html($targeturl, $password = '') {
+        global $CFG;
+
+        if (!class_exists('TCPDF2DBarcode')) {
+            require_once($CFG->libdir . '/tcpdf/tcpdf_barcodes_2d.php');
+        }
+
+        $barcode = new \TCPDF2DBarcode($targeturl, 'QRCODE');
+        $image = $barcode->getBarcodePngData(6, 6, [0, 0, 0]);
+        $imgsrc = 'data:image/png;base64,' . base64_encode($image);
+        $safeurl = s($targeturl);
+        $safepass = s((string)$password);
+
+        $html = '<div class="gmk-qr-wrapper" style="text-align:center;">';
+        $html .= '<img src="' . $imgsrc . '" alt="QR" style="max-width:280px;width:100%;height:auto;">';
+        $html .= '<div style="margin-top:10px;font-size:12px;color:#6b7280;">Escanea este QR para registrar asistencia.</div>';
+        if ($safepass !== '') {
+            $html .= '<div style="margin-top:6px;font-size:12px;color:#6b7280;">Clave: <strong>' . $safepass . '</strong></div>';
+        }
+        $html .= '<div style="margin-top:8px;font-size:11px;"><a href="' . $safeurl . '" target="_blank" rel="noopener">Abrir enlace</a></div>';
+        $html .= '</div>';
+
+        return $html;
+    }
+
+    /**
      * Get attendance sessions for the current class (Group)
      */
     public static function get_sessions($classid) {
@@ -299,12 +346,11 @@ class attendance_manager extends external_api {
      * Generate/Render QR for a session
      */
     public static function get_qr($sessionid) {
-        global $DB, $CFG;
+        global $DB;
 
         try {
             $session = $DB->get_record('attendance_sessions', ['id' => $sessionid], '*', MUST_EXIST);
             $att = $DB->get_record('attendance', ['id' => $session->attendanceid], '*', MUST_EXIST);
-            $cm = get_coursemodule_from_instance('attendance', $att->id, $att->course);
             $attconfig = get_config('attendance');
             
             // Resolve the password embedded in QR.
@@ -337,20 +383,9 @@ class attendance_manager extends external_api {
                 attendance_generate_passwords($session);
                 $password = (string)($session->studentpassword ?? '');
             }
-
-            // Fix: Ensure TCPDF Barcode class is loaded
-            if (!class_exists('TCPDF2DBarcode')) {
-                require_once($CFG->libdir . '/tcpdf/tcpdf_barcodes_2d.php');
-            }
-
-            // Capture Output
-            ob_start();
-            if (function_exists('attendance_renderqrcode')) {
-                attendance_renderqrcode($session);
-            } else {
-                echo "Error: Función QR no encontrada. Asegúrese de que el plugin attendance está instalado.";
-            }
-            $html = ob_get_clean();
+            // Build QR to local bridge (student gets Vue confirmation page after scan).
+            $bridgeurl = self::build_qr_bridge_url((int)$session->id, $password);
+            $html = self::render_qr_bridge_html($bridgeurl, $password);
 
             return [
                 'status' => 'success', 

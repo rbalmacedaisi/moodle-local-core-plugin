@@ -387,7 +387,7 @@ if ($action === 'fixfailed') {
     $fixedF = 0; $errorsF = 0;
     foreach ($fixfailedIds as $pid) {
         $rec = $DB->get_record('gmk_course_progre', ['id' => $pid]);
-        if (!$rec || (int)$rec->status !== 5) { continue; }
+        if (!$rec || in_array((int)$rec->status, [3, 4])) { continue; }
         $result = dpa_moodle_grade($DB, $rec->userid, $rec->courseid);
         $grade  = $result['grade'];
         if ($grade === null || $grade < $PASSING_GRADE) { $errorsF++; continue; }
@@ -403,10 +403,10 @@ if ($action === 'fixfailed') {
     $actionLog[] = ['ok', "Reprobadas corregidas a Aprobada: $fixedF." . ($errorsF ? " Errores: $errorsF." : '')];
 }
 
-// ─── SECCIÓN 5: Reprobadas incorrectas (status=5 + nota Moodle >= 70) ────────
-// status=5 en plan activo, sin registro 3/4, pero nota Moodle >= 70
+// ─── SECCIÓN 5: Estado incorrecto (status != 3/4) con nota Moodle >= 70 ───────
+// status NOT IN (3,4) en plan activo, sin registro 3/4, pero nota Moodle >= 70
 $failedWithGradeSql = "
-    SELECT CONCAT(cp.userid, '_', cp.courseid) AS ukey,
+    SELECT cp.id AS ukey,
            cp.id AS progre_id,
            cp.userid, cp.courseid, cp.status AS cpstatus,
            cp.grade AS stored_grade, cp.learningplanid,
@@ -415,7 +415,7 @@ $failedWithGradeSql = "
       FROM {gmk_course_progre} cp
       JOIN {user}   u ON u.id = cp.userid AND u.deleted = 0 AND u.suspended = 0
       JOIN {course} c ON c.id = cp.courseid
-     WHERE cp.status = 5
+     WHERE cp.status NOT IN (3, 4)
        AND EXISTS (
            SELECT 1 FROM {local_learning_users} lu
             WHERE lu.userid        = cp.userid
@@ -952,18 +952,19 @@ document.addEventListener('DOMContentLoaded', function() {
      ═══════════════════════════════════════════════════════════════════════ -->
 <hr style="border:none;border-top:2px solid #e5e7eb;margin:28px 0 20px">
 <h2 style="font-size:20px;font-weight:700;margin-bottom:6px;">
-    &#127988; Reprobadas incorrectas: status=5 con nota Moodle &ge; <?php echo $PASSING_GRADE; ?>
+    &#127988; Estado incorrecto: status &ne; 3/4 con nota Moodle &ge; <?php echo $PASSING_GRADE; ?>
 </h2>
 
 <div class="dpa-explain" style="background:#fdf4ff;border-color:#d8b4fe">
     <strong>&#128270; ¿Qué detecta esta sección?</strong><br>
-    Estudiantes con <code>gmk_course_progre.status = 5</code> (Reprobada) en su plan activo,
+    Estudiantes con <code>gmk_course_progre.status NOT IN (3, 4)</code> en su plan activo
+    (cualquier estado que no sea Completada/Aprobada),
     que <strong>no tienen ningún registro aprobado (status 3/4)</strong> para ese curso,
     pero <strong>sí tienen nota &ge; <?php echo $PASSING_GRADE; ?> en Moodle</strong>
     (course total o Nota Final Integrada via <code>COALESCE(finalgrade, rawgrade)</code>).<br><br>
     <strong>Causa típica:</strong> la materia fue aprobada vía revalidación o importación que cargó la nota
-    en Moodle pero dejó el registro en status=5, o <code>sync_progress</code> comparó
-    <code>finalgrade</code> (que puede ser <code>null</code>) ignorando <code>rawgrade</code>.<br><br>
+    en Moodle pero dejó el registro en un estado incorrecto (5=Reprobada, 2=Cursando, 0/1=sin iniciar),
+    o <code>sync_progress</code> comparó <code>finalgrade</code> (que puede ser <code>null</code>) ignorando <code>rawgrade</code>.<br><br>
     <strong>Impacto directo:</strong> estos registros hacen que el estudiante aparezca en
     <em>academic_demand_gaps</em> como si tuviera materias pendientes (el NOT EXISTS(status 3/4)
     nunca se satisface), pese a haber aprobado.
@@ -979,7 +980,7 @@ document.addEventListener('DOMContentLoaded', function() {
     <h4>&#128202; Resumen</h4>
     <div class="dpa-stat" style="border-color:#d8b4fe">
         <div class="num" style="color:#7c3aed"><?php echo count($failedData); ?></div>
-        <div class="lbl">Registros Reprobados con nota &ge; <?php echo $PASSING_GRADE; ?> en Moodle</div>
+        <div class="lbl">Registros con estado incorrecto y nota &ge; <?php echo $PASSING_GRADE; ?> en Moodle</div>
     </div>
 </div>
 
@@ -1001,7 +1002,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </div>
 
 <div class="dpa-card">
-    <h4>&#128203; Detalle: Reprobadas con nota aprobatoria en Moodle</h4>
+    <h4>&#128203; Detalle: Estado incorrecto con nota aprobatoria en Moodle</h4>
     <table class="dpa-tbl">
         <thead>
             <tr>
