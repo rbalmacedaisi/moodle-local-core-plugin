@@ -24,6 +24,13 @@ $classquery = trim(optional_param('classname', '', PARAM_RAW_TRIMMED));
 $onlyactive = optional_param('onlyactive', 1, PARAM_INT);
 $maxclasses = optional_param('maxclasses', 120, PARAM_INT);
 $maxclasses = max(10, min(500, $maxclasses));
+$tab = optional_param('tab', 'teacher', PARAM_ALPHA);
+$globalscan = optional_param('g_scan', 1, PARAM_INT);
+$globalonlyactive = optional_param('g_onlyactive', 1, PARAM_INT);
+$globalmaxclasses = optional_param('g_maxclasses', 300, PARAM_INT);
+$globalmaxclasses = max(20, min(2000, $globalmaxclasses));
+$globalperiodid = optional_param('g_periodid', 0, PARAM_INT);
+$globalname = trim(optional_param('g_name', '', PARAM_RAW_TRIMMED));
 $repairaction = optional_param('repair', '', PARAM_ALPHAEXT);
 $repairclassid = optional_param('repairclassid', 0, PARAM_INT);
 
@@ -245,6 +252,99 @@ function dbgtj_bbb_running_state(string $meetingid): array {
     }
     $running = strtolower((string)($xml->running ?? 'false')) === 'true';
     return ['status' => 'ok', 'running' => $running, 'message' => $running ? 'running' : 'not_running'];
+}
+
+/**
+ * Repairs BBB participant rules for one class, setting current class instructor as moderator.
+ * @param int $classid
+ * @return array{type:string,message:string,details:array<int,string>}
+ */
+function dbgtj_repair_moderator_rules_for_class(int $classid): array {
+    global $DB;
+
+    $class = $DB->get_record('gmk_class', ['id' => $classid], '*', IGNORE_MISSING);
+    if (!$class) {
+        return [
+            'type' => 'bad',
+            'message' => 'Repair target class not found.',
+            'details' => ['classid=' . (int)$classid]
+        ];
+    }
+    if ((int)$class->instructorid <= 0) {
+        return [
+            'type' => 'bad',
+            'message' => 'Class has no instructor assigned. Cannot set BBB moderator.',
+            'details' => ['classid=' . (int)$classid]
+        ];
+    }
+
+    $targetcmids = [];
+    foreach (dbgtj_parse_int_list((string)$class->bbbmoduleids) as $cmid) {
+        $targetcmids[$cmid] = $cmid;
+    }
+    $rels = $DB->get_records('gmk_bbb_attendance_relation', ['classid' => (int)$classid], '', 'id,bbbmoduleid');
+    foreach ($rels as $rel) {
+        $cmid = (int)($rel->bbbmoduleid ?? 0);
+        if ($cmid > 0) {
+            $targetcmids[$cmid] = $cmid;
+        }
+    }
+    $targetcmids = array_values($targetcmids);
+    if (empty($targetcmids)) {
+        return [
+            'type' => 'bad',
+            'message' => 'No BBB cmids found in class mapping/relation.',
+            'details' => ['classid=' . (int)$classid]
+        ];
+    }
+
+    $participants = json_encode([
+        [
+            'selectiontype' => 'user',
+            'selectionid' => (int)$class->instructorid,
+            'role' => 'moderator',
+        ],
+        [
+            'selectiontype' => 'all',
+            'selectionid' => 'all',
+            'role' => 'viewer',
+        ],
+    ], JSON_UNESCAPED_UNICODE);
+
+    $updated = 0;
+    $skipped = 0;
+    $errors = [];
+    foreach ($targetcmids as $cmid) {
+        $cm = $DB->get_record_sql(
+            "SELECT cm.id, cm.instance, m.name AS modulename
+               FROM {course_modules} cm
+               JOIN {modules} m ON m.id = cm.module
+              WHERE cm.id = :cmid",
+            ['cmid' => (int)$cmid],
+            IGNORE_MISSING
+        );
+        if (!$cm || (string)$cm->modulename !== 'bigbluebuttonbn' || (int)$cm->instance <= 0) {
+            $skipped++;
+            $errors[] = 'cmid=' . (int)$cmid . ' skipped (invalid/non-bbb)';
+            continue;
+        }
+
+        $bbbrow = new stdClass();
+        $bbbrow->id = (int)$cm->instance;
+        $bbbrow->participants = $participants;
+        $bbbrow->timemodified = time();
+        $DB->update_record('bigbluebuttonbn', $bbbrow);
+        $updated++;
+    }
+
+    return [
+        'type' => ($updated > 0 ? 'ok' : 'warn'),
+        'message' => 'Repair moderator rules done. Updated BBB modules: ' . (int)$updated . '. Skipped: ' . (int)$skipped . '.',
+        'details' => array_merge([
+            'classid=' . (int)$classid,
+            'instructorid=' . (int)$class->instructorid
+        ], $errors)
+    ];
 }
 
 $teacherresolve = dbgtj_resolve_teacher($teacherid, $teacherquery);
