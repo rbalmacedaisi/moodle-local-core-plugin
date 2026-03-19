@@ -791,38 +791,43 @@ class local_grupomakro_progress_manager
         global $CFG, $DB;
         require_once($CFG->dirroot . '/mod/attendance/classes/attendance_webservices_handler.php');
 
-        $courseMod = get_fast_modinfo($courseId);
-        $course = $courseMod->get_course();
-        $attendanceModule = $courseMod->get_cm($attendanceModuleId);
-        $attendanceModuleRecord = $attendanceModule->get_course_module_record(true);
-        $attendanceDBRecord = $DB->get_record('attendance', ['id' => $attendanceId]);
-        $attendanceSession = $DB->get_record('attendance_sessions', ['attendanceid' => $attendanceId, 'id' => $attendanceSessionId]);
+        try {
+            $courseMod = get_fast_modinfo($courseId);
+            $course = $courseMod->get_course();
+            $attendanceModule = $courseMod->get_cm($attendanceModuleId);
+            $attendanceModuleRecord = $attendanceModule->get_course_module_record(true);
+            $attendanceDBRecord = $DB->get_record('attendance', ['id' => $attendanceId], '*', MUST_EXIST);
 
-        $attendanceTakenTempRecords = array_values($DB->get_records('gmk_attendance_temp', ['sessionid' => $attendanceSessionId, 'studentid' => $studentId, 'courseid' => $courseId]));
-        $attendanceStructure = new mod_attendance_structure($attendanceDBRecord, $attendanceModuleRecord, $course);
+            $attendanceStructure = new mod_attendance_structure($attendanceDBRecord, $attendanceModuleRecord, $course);
 
-        if (empty($attendanceTakenTempRecords)) {
-            self::delete_assist_attendance($attendanceSessionId, $studentId, $attendanceStructure);
-            self::insert_attendance_temp_record($courseId, $studentId, $attendanceSessionId);
-            return;
-        }
+            // Idempotent QR handling:
+            // never remove attendance_log rows from observer side and never require
+            // a second scan to make the mark effective.
+            $hasAttendanceLog = $DB->record_exists('attendance_log', [
+                'sessionid' => (int)$attendanceSessionId,
+                'studentid' => (int)$studentId
+            ]);
 
-        if ($sessionTempRecords = count($attendanceTakenTempRecords)) {
-            $nowTimestamp = time();
-            $percentageOfSessionTimeElapsed = (($nowTimestamp - $attendanceTakenTempRecords[0]->timetaken) / $attendanceSession->duration) * 100;
-            if ($percentageOfSessionTimeElapsed > MINIMUM_ATTENDANCE_TIME_EXTEND_PERCENTAGE || $sessionTempRecords > 1) {
+            if (!$hasAttendanceLog) {
+                if (function_exists('gmk_log')) {
+                    gmk_log('WARNING: QR observer without attendance_log row'
+                        . ' sessionid=' . (int)$attendanceSessionId
+                        . ' studentid=' . (int)$studentId
+                        . ' courseid=' . (int)$courseId);
+                }
                 return;
             }
-            if ($percentageOfSessionTimeElapsed < MINIMUM_ATTENDANCE_TIME_PERCENTAGE) {
-                self::delete_assist_attendance($attendanceSessionId, $studentId, $attendanceStructure);
-                return;
-            }
-            $statusId  = attendance_session_get_highest_status($attendanceStructure, $attendanceSession);
-            $statusset = implode(',', array_keys(attendance_get_statuses($attendanceId, true, $attendanceSession->statusset)));
-            $recordAttendance = attendance_handler::update_user_status($attendanceSessionId, $studentId, $studentId, $statusId, $statusset);
-            $attendanceStructure->update_users_grade([$studentId]);
+
             self::insert_attendance_temp_record($courseId, $studentId, $attendanceSessionId);
-            self::update_course_progress($courseId, $studentId);
+            $attendanceStructure->update_users_grade([(int)$studentId]);
+            self::update_course_progress((int)$courseId, (int)$studentId);
+        } catch (\Throwable $e) {
+            if (function_exists('gmk_log')) {
+                gmk_log('ERROR: handle_qr_marked_attendance failed: ' . $e->getMessage()
+                    . ' | courseid=' . (int)$courseId
+                    . ' studentid=' . (int)$studentId
+                    . ' sessionid=' . (int)$attendanceSessionId);
+            }
         }
     }
 
@@ -830,21 +835,38 @@ class local_grupomakro_progress_manager
     {
         global $DB;
 
+        $existing = $DB->get_record('gmk_attendance_temp', [
+            'sessionid' => (int)$attendanceSessionId,
+            'studentid' => (int)$studentId,
+            'courseid' => (int)$courseId
+        ]);
+
+        if ($existing) {
+            $existing->timetaken = time();
+            $existing->takenby = (int)$studentId;
+            $DB->update_record('gmk_attendance_temp', $existing);
+            return;
+        }
+
         $logAttendanceTemp = new stdClass();
-        $logAttendanceTemp->sessionid = $attendanceSessionId;
-        $logAttendanceTemp->studentid = $studentId;
-        $logAttendanceTemp->courseid  = $courseId;
+        $logAttendanceTemp->sessionid = (int)$attendanceSessionId;
+        $logAttendanceTemp->studentid = (int)$studentId;
+        $logAttendanceTemp->courseid  = (int)$courseId;
         $logAttendanceTemp->timetaken = time();
-        $logAttendanceTemp->takenby   = $studentId;
+        $logAttendanceTemp->takenby   = (int)$studentId;
 
         $DB->insert_record('gmk_attendance_temp', $logAttendanceTemp, false);
     }
 
     public static function delete_assist_attendance($attendanceSessionId, $studentId, $attendanceStructure)
     {
-        global $DB;
-        $DB->delete_records('attendance_log', ['sessionid' => $attendanceSessionId, 'studentid' => $studentId]);
-        attendance_update_users_grade($attendanceStructure);
+        // Deprecated by idempotent QR flow.
+        // Keep method for compatibility, but do not delete attendance_log rows.
+        if (function_exists('gmk_log')) {
+            gmk_log('WARNING: delete_assist_attendance is disabled by design'
+                . ' sessionid=' . (int)$attendanceSessionId
+                . ' studentid=' . (int)$studentId);
+        }
         return;
     }
     public static function force_moodle_course_completion($courseId, $userId, $logFile = null)

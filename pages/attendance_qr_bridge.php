@@ -101,18 +101,94 @@ function gmk_qr_reason_message($reason) {
 }
 
 /**
+ * Resolve internal rejection/trace reason code.
+ *
+ * @param string $reason
+ * @param stdClass $session
+ * @return string
+ */
+function gmk_qr_reason_to_code($reason, $session) {
+    $reason = trim((string)$reason);
+    if ($reason === 'preventsharederror') {
+        return 'shared_ip_restricted';
+    }
+    if ($reason === 'closed') {
+        if (!attendance_session_open_for_students($session)) {
+            return 'outside_window';
+        }
+        return 'session_closed';
+    }
+    if ($reason === '') {
+        return '';
+    }
+    return 'attendance_' . preg_replace('/[^a-z0-9_]/', '_', strtolower($reason));
+}
+
+/**
+ * Build trace identifier for each QR decision.
+ *
+ * @return string
+ */
+function gmk_qr_trace_id() {
+    try {
+        return 'qr_' . gmdate('YmdHis') . '_' . bin2hex(random_bytes(4));
+    } catch (Throwable $ex) {
+        return 'qr_' . gmdate('YmdHis') . '_' . substr(md5(uniqid('', true)), 0, 8);
+    }
+}
+
+/**
+ * Persist QR decision trace.
+ *
+ * @param string $traceid
+ * @param string $status
+ * @param string $reasoncode
+ * @param string $message
+ * @param int $sessionid
+ * @param int $userid
+ * @param array $target
+ * @param array $extra
+ * @return void
+ */
+function gmk_qr_log_decision($traceid, $status, $reasoncode, $message, $sessionid, $userid, array $target, array $extra = []) {
+    $payload = [
+        'time' => date('Y-m-d H:i:s'),
+        'traceid' => (string)$traceid,
+        'status' => (string)$status,
+        'reasoncode' => (string)$reasoncode,
+        'message' => (string)$message,
+        'sessionid' => (int)$sessionid,
+        'userid' => (int)$userid,
+        'classid' => (int)($target['classid'] ?? 0),
+        'courseid' => (int)($target['courseid'] ?? 0),
+        'classname' => (string)($target['classname'] ?? ''),
+        'coursename' => (string)($target['coursename'] ?? ''),
+        'extra' => $extra,
+    ];
+    $logline = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    if (!is_string($logline) || $logline === '') {
+        $logline = '{"traceid":"' . (string)$traceid . '","status":"log_encode_error"}';
+    }
+    @file_put_contents(__DIR__ . '/../gmk_qr_attendance.log', $logline . PHP_EOL, FILE_APPEND);
+}
+
+/**
  * Redirect to Vue result page.
  *
  * @param string $status
+ * @param string $reasoncode
  * @param string $message
  * @param array $target
  * @param int $sessionid
+ * @param string $traceid
  */
-function gmk_qr_redirect_to_student_ui($status, $message, array $target, $sessionid) {
+function gmk_qr_redirect_to_student_ui($status, $reasoncode, $message, array $target, $sessionid, $traceid = '') {
     $base = gmk_qr_student_app_base_url();
     $params = [
         'status' => (string)$status,
+        'reasoncode' => (string)$reasoncode,
         'message' => (string)$message,
+        'traceid' => (string)$traceid,
         'sessid' => (int)$sessionid,
         'courseid' => (int)($target['courseid'] ?? 0),
         'classid' => (int)($target['classid'] ?? 0),
@@ -122,6 +198,24 @@ function gmk_qr_redirect_to_student_ui($status, $message, array $target, $sessio
     ];
     $url = new moodle_url($base . '/attendance/scan-result', $params);
     redirect($url);
+}
+
+/**
+ * Finalize request with trace + redirect.
+ *
+ * @param string $status
+ * @param string $reasoncode
+ * @param string $message
+ * @param array $target
+ * @param int $sessionid
+ * @param int $userid
+ * @param array $extra
+ * @return void
+ */
+function gmk_qr_finish($status, $reasoncode, $message, array $target, $sessionid, $userid, array $extra = []) {
+    $traceid = gmk_qr_trace_id();
+    gmk_qr_log_decision($traceid, $status, $reasoncode, $message, (int)$sessionid, (int)$userid, $target, $extra);
+    gmk_qr_redirect_to_student_ui($status, $reasoncode, $message, $target, $sessionid, $traceid);
 }
 
 $sessionid = required_param('sessid', PARAM_INT);
@@ -137,15 +231,31 @@ require_login($course, true, $cm);
 $target = gmk_qr_resolve_target_data($attendance, $session, $cm, $course);
 
 if (!empty($session->groupid) && !groups_is_member((int)$session->groupid, $USER->id)) {
-    gmk_qr_redirect_to_student_ui('error', 'No perteneces al grupo de esta sesion.', $target, $sessionid);
+    gmk_qr_finish(
+        'error',
+        'group_mismatch',
+        'No perteneces al grupo de esta sesion.',
+        $target,
+        $sessionid,
+        (int)$USER->id,
+        ['groupid' => (int)$session->groupid]
+    );
 }
 
-$already = $DB->record_exists('attendance_log', [
+$existinglog = $DB->get_record('attendance_log', [
     'sessionid' => (int)$sessionid,
     'studentid' => (int)$USER->id,
-]);
-if ($already && !attendance_check_allow_update((int)$sessionid)) {
-    gmk_qr_redirect_to_student_ui('success', 'Asistencia ya registrada previamente para esta sesion.', $target, $sessionid);
+], 'id,statusid,timetaken', IGNORE_MULTIPLE);
+if ($existinglog) {
+    gmk_qr_finish(
+        'success',
+        'already_marked',
+        'Asistencia ya registrada previamente para esta sesion.',
+        $target,
+        $sessionid,
+        (int)$USER->id,
+        ['attendance_log_id' => (int)$existinglog->id]
+    );
 }
 
 [$canmark, $reason] = attendance_can_student_mark($session);
@@ -154,7 +264,15 @@ if (!$canmark) {
     if ($msg === '') {
         $msg = 'No se puede registrar asistencia en este momento.';
     }
-    gmk_qr_redirect_to_student_ui('error', $msg, $target, $sessionid);
+    gmk_qr_finish(
+        'error',
+        gmk_qr_reason_to_code((string)$reason, $session),
+        $msg,
+        $target,
+        $sessionid,
+        (int)$USER->id,
+        ['attendance_reason' => (string)$reason]
+    );
 }
 
 $attconfig = get_config('attendance');
@@ -175,24 +293,54 @@ if (attendance_session_open_for_students($session) && (int)$session->rotateqrcod
         }
     }
     if (!$qrpassflag) {
-        gmk_qr_redirect_to_student_ui('error', 'QR invalido o expirado. Escanea nuevamente.', $target, $sessionid);
+        gmk_qr_finish(
+            'error',
+            'qr_expired',
+            'QR invalido o expirado. Escanea nuevamente.',
+            $target,
+            $sessionid,
+            (int)$USER->id,
+            ['rotate' => 1]
+        );
     }
 }
 
 if ((int)$session->autoassignstatus !== 1 || !attendance_session_open_for_students($session)) {
-    gmk_qr_redirect_to_student_ui('error', 'La sesion no permite marcado automatico por QR en este momento.', $target, $sessionid);
+    $reasoncode = !attendance_session_open_for_students($session) ? 'outside_window' : 'session_not_autoassign';
+    gmk_qr_finish(
+        'error',
+        $reasoncode,
+        'La sesion no permite marcado automatico por QR en este momento.',
+        $target,
+        $sessionid,
+        (int)$USER->id
+    );
 }
 
 if (!empty($session->studentpassword) && !$qrpassflag) {
     if ((string)$qrpass === '' || (string)$session->studentpassword !== (string)$qrpass) {
-        gmk_qr_redirect_to_student_ui('error', 'QR invalido para esta sesion.', $target, $sessionid);
+        gmk_qr_finish(
+            'error',
+            'qr_invalid',
+            'QR invalido para esta sesion.',
+            $target,
+            $sessionid,
+            (int)$USER->id
+        );
     }
 }
 
 $attstructure = new mod_attendance_structure($attendance, $cm, $course);
 $statusid = attendance_session_get_highest_status($attstructure, $session);
 if (empty($statusid)) {
-    gmk_qr_redirect_to_student_ui('error', 'No hay un estado de asistencia valido para registrar.', $target, $sessionid);
+    gmk_qr_finish(
+        'error',
+        'no_valid_status',
+        'No hay un estado de asistencia valido para registrar.',
+        $target,
+        $sessionid,
+        (int)$USER->id
+    );
 }
 
 $payload = new stdClass();
@@ -205,9 +353,31 @@ if ((string)$qrpass !== '') {
 $success = $attstructure->take_from_student($payload);
 if (!$success) {
     if ($DB->record_exists('attendance_log', ['sessionid' => (int)$sessionid, 'studentid' => (int)$USER->id])) {
-        gmk_qr_redirect_to_student_ui('success', 'Asistencia registrada para esta sesion.', $target, $sessionid);
+        gmk_qr_finish(
+            'success',
+            'already_marked',
+            'Asistencia registrada para esta sesion.',
+            $target,
+            $sessionid,
+            (int)$USER->id
+        );
     }
-    gmk_qr_redirect_to_student_ui('error', 'No fue posible registrar la asistencia. Intenta de nuevo.', $target, $sessionid);
+    gmk_qr_finish(
+        'error',
+        'mark_failed',
+        'No fue posible registrar la asistencia. Intenta de nuevo.',
+        $target,
+        $sessionid,
+        (int)$USER->id
+    );
 }
 
-gmk_qr_redirect_to_student_ui('success', 'Asistencia registrada correctamente.', $target, $sessionid);
+gmk_qr_finish(
+    'success',
+    'marked',
+    'Asistencia registrada correctamente.',
+    $target,
+    $sessionid,
+    (int)$USER->id,
+    ['statusid' => (int)$statusid]
+);
