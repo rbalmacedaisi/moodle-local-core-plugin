@@ -65,6 +65,40 @@ if ($action && $userid && confirm_sesskey()) {
             $DB->set_field('user', 'auth', 'manual', ['id' => $userid]);
             $msg = '<div class="alert alert-success">Auth cambiado a "manual" para ' . s($target->username) . '.</div>';
 
+        } else if ($action === 'fix_mnethostid') {
+            $localHostId = $DB->get_field('mnet_host', 'id', ['wwwroot' => $CFG->wwwroot]);
+            if (!$localHostId) { $localHostId = $CFG->mnet_localhost_id; }
+            $DB->set_field('user', 'mnethostid', $localHostId, ['id' => $userid]);
+            $msg = '<div class="alert alert-success">mnethostid corregido a ' . (int)$localHostId . ' para ' . s($target->username) . '. <strong>Intenta iniciar sesión ahora.</strong></div>';
+
+        } else if ($action === 'simulate_login') {
+            $simpass = optional_param('simpassword', '', PARAM_RAW);
+            if ($simpass === '') {
+                $msg = '<div class="alert alert-warning">Ingresa la contraseña para simular el login.</div>';
+            } else {
+                // authenticate_user_login es la función exacta que usa la página de login
+                $simUser = authenticate_user_login($target->username, $simpass);
+                if ($simUser) {
+                    $msg = '<div class="alert alert-success">✅ <strong>authenticate_user_login() EXITOSO</strong> — Moodle autentica correctamente. '
+                         . 'Si aún falla en el navegador, el problema puede ser caché, cookies o el tema.</div>';
+                } else {
+                    // Capturar razón
+                    $authplugin = get_auth_plugin($target->auth);
+                    $pluginResult = $authplugin->user_login($target->username, $simpass);
+                    $freshForCheck = $DB->get_record('user', ['id' => $userid]);
+                    $localHostId   = (int)$CFG->mnet_localhost_id;
+                    $reasons = [];
+                    if ((int)$freshForCheck->mnethostid !== $localHostId) {
+                        $reasons[] = 'mnethostid=' . $freshForCheck->mnethostid . ' ≠ mnet_localhost_id=' . $localHostId . ' → usuario invisible para el login';
+                    }
+                    if (!$pluginResult) { $reasons[] = 'auth_plugin->' . $target->auth . '::user_login() devolvió FALSE'; }
+                    if ($freshForCheck->suspended)  { $reasons[] = 'Cuenta suspendida'; }
+                    if (!$freshForCheck->confirmed) { $reasons[] = 'Email no confirmado'; }
+                    $reasonStr = $reasons ? implode('; ', $reasons) : 'Razón desconocida — revisar logs de Moodle';
+                    $msg = '<div class="alert alert-danger">❌ <strong>authenticate_user_login() FALLÓ</strong><br>Razón detectada: ' . s($reasonStr) . '</div>';
+                }
+            }
+
         } else if ($action === 'test_password') {
             $testpass = optional_param('testpassword', '', PARAM_RAW);
             if ($testpass === '') {
@@ -142,7 +176,7 @@ if ($q !== '') {
     $qlike = '%' . $DB->sql_like_escape($q) . '%';
     $users = $DB->get_records_sql(
         "SELECT id, username, email, firstname, lastname, auth, suspended, deleted, confirmed,
-                lastlogin, timecreated, password, idnumber, institution, department, city
+                lastlogin, timecreated, password, idnumber, institution, department, city, mnethostid
            FROM {user}
           WHERE deleted = 0
             AND (
@@ -161,10 +195,12 @@ if ($q !== '') {
 
     foreach ($users as $u) {
         // ── Indicadores de estado ─────────────────────────────────────────────
+        $localMnetId = (int)$CFG->mnet_localhost_id;
         $problems = [];
         if ($u->suspended)  $problems[] = ['err',  'Cuenta suspendida'];
         if (!$u->confirmed) $problems[] = ['warn', 'Email no confirmado'];
         if ($u->auth !== 'manual') $problems[] = ['warn', 'Auth: ' . s($u->auth) . ' (no manual)'];
+        if ((int)$u->mnethostid !== $localMnetId) $problems[] = ['err', 'mnethostid=' . (int)$u->mnethostid . ' ≠ local=' . $localMnetId . ' → login invisible'];
 
         // Preferencias de lockout
         $prefs = $DB->get_records('user_preferences', ['userid' => $u->id], 'name');
@@ -224,6 +260,16 @@ if ($q !== '') {
                         <td><?php echo $u->lastlogin ? userdate($u->lastlogin) . ' (' . format_time(time() - $u->lastlogin) . ' atrás)' : 'Nunca'; ?></td>
                     </tr>
                     <tr><th>timecreated</th><td><?php echo $u->timecreated ? userdate($u->timecreated) : '—'; ?></td></tr>
+                    <tr><th>mnethostid</th>
+                        <td>
+                            <?php echo (int)$u->mnethostid; ?> (mnet_localhost_id del sitio: <?php echo $localMnetId; ?>)
+                            <?php if ((int)$u->mnethostid === $localMnetId): ?>
+                                <span class="badge-ok">OK</span>
+                            <?php else: ?>
+                                <span class="badge-err">MISMATCH — el login no encontrará a este usuario</span>
+                            <?php endif; ?>
+                        </td>
+                    </tr>
                     <tr><th>Hash contraseña</th>
                         <td>
                             <?php
@@ -392,6 +438,16 @@ if ($q !== '') {
                     </form>
                     <?php endif; ?>
 
+                    <?php if ((int)$u->mnethostid !== $localMnetId): ?>
+                    <form method="post">
+                        <input type="hidden" name="sesskey" value="<?php echo sesskey(); ?>">
+                        <input type="hidden" name="action" value="fix_mnethostid">
+                        <input type="hidden" name="userid" value="<?php echo $u->id; ?>">
+                        <input type="hidden" name="q" value="<?php echo s($q); ?>">
+                        <button type="submit" class="btn btn-danger">🛠 Corregir mnethostid → <?php echo $localMnetId; ?></button>
+                    </form>
+                    <?php endif; ?>
+
                     <!-- Resetear contraseña -->
                     <form method="post" class="pass-form">
                         <input type="hidden" name="sesskey" value="<?php echo sesskey(); ?>">
@@ -418,6 +474,22 @@ if ($q !== '') {
                     <p style="font-size:11px;color:#6c757d;margin-top:6px;">
                         Si dice "INCORRECTA", el hash en BD no corresponde a lo que el usuario escribe. Solución: forzar una contraseña nueva arriba.
                     </p>
+                </div>
+
+                <!-- Simular login completo (authenticate_user_login) -->
+                <div style="margin-top:10px;padding:12px;background:#fff8e1;border:1px solid #ffe082;border-radius:6px;">
+                    <strong style="font-size:13px;">🧪 Simular login completo (authenticate_user_login)</strong>
+                    <p style="font-size:11px;color:#6c757d;margin:4px 0 8px;">
+                        Llama a la misma función que usa la página de login. Detecta el <code>mnethostid</code> incorrecto y otros bloqueos.
+                    </p>
+                    <form method="post" class="pass-form">
+                        <input type="hidden" name="sesskey" value="<?php echo sesskey(); ?>">
+                        <input type="hidden" name="action" value="simulate_login">
+                        <input type="hidden" name="userid" value="<?php echo $u->id; ?>">
+                        <input type="hidden" name="q" value="<?php echo s($q); ?>">
+                        <input type="text" name="simpassword" placeholder="Contraseña a simular" autocomplete="off" style="width:280px;">
+                        <button type="submit" class="btn btn-warning">Simular login</button>
+                    </form>
                 </div>
 
                 <!-- Plugins de autenticación activos en el sitio -->
