@@ -28,8 +28,14 @@ $PAGE->set_title('Brechas de Demanda Academica');
 $PAGE->set_heading('Brechas de Demanda Academica');
 
 // ---
-$active_tab    = optional_param('tab',    'gaps', PARAM_ALPHA);
-$filter_planid = optional_param('planid',  0,      PARAM_INT);
+$active_tab     = optional_param('tab',    'gaps', PARAM_ALPHA);
+$filter_planid  = optional_param('planid',  0,      PARAM_INT);
+$filter_planids = optional_param_array('planids', [], PARAM_INT);
+$filter_planids = array_values(array_filter(array_map('intval', $filter_planids)));
+// backward compat: single planid se agrega al array
+if ($filter_planid > 0 && !in_array($filter_planid, $filter_planids)) {
+    $filter_planids[] = $filter_planid;
+}
 $filter_shift  = optional_param('shift',   '',     PARAM_TEXT);
 $filter_min    = optional_param('min',     'both', PARAM_ALPHA); // zero | one | both
 $filter_search = optional_param('search',  '',     PARAM_TEXT);
@@ -127,9 +133,10 @@ if ($documentFieldId > 0) {
 $extraWhere  = '';
 $extraParams = array();
 
-if ($filter_planid > 0) {
-    $extraWhere .= ' AND lp.id = :planid';
-    $extraParams['planid'] = $filter_planid;
+if (!empty($filter_planids)) {
+    list($insql, $inparams) = $DB->get_in_or_equal($filter_planids, SQL_PARAMS_NAMED, 'planid');
+    $extraWhere .= " AND lp.id $insql";
+    $extraParams = array_merge($extraParams, $inparams);
 }
 if ($filter_shift !== '' && $jornadaFieldId > 0) {
     $extraWhere .= ' AND uid_j.data = :shift';
@@ -314,6 +321,27 @@ try {
     $gapRawStudents = array_values($DB->get_records_sql($gapStudentsSql, $allFiltersParams));
 } catch (Exception $e) { }
 
+// Consolidar estudiantes que aparecen en múltiples planes correlacionados
+{
+    $consolidatedByUser = array();
+    foreach ($gapRawStudents as $stu) {
+        $uid = (int)$stu->userid;
+        if (!isset($consolidatedByUser[$uid])) {
+            $stu->plannames   = array((int)$stu->planid => (string)$stu->planname);
+            $stu->periodnames = array((int)$stu->planid => (string)($stu->periodname ?? ''));
+            $consolidatedByUser[$uid] = $stu;
+        } else {
+            $existing = $consolidatedByUser[$uid];
+            $existing->plannames[(int)$stu->planid]   = (string)$stu->planname;
+            $existing->periodnames[(int)$stu->planid] = (string)($stu->periodname ?? '');
+            if ((int)$stu->inprogress_count > (int)$existing->inprogress_count) {
+                $existing->inprogress_count = $stu->inprogress_count;
+            }
+        }
+    }
+    $gapRawStudents = array_values($consolidatedByUser);
+}
+
 $gapResults    = array();
 $statsZero     = 0;
 $statsOne      = 0;
@@ -321,9 +349,10 @@ $statsWithOpen = 0;
 $statsNeedNew  = 0;
 
 foreach ($gapRawStudents as $stu) {
-    $uid    = (int)$stu->userid;
-    $planid = (int)$stu->planid;
-    $inprog = (int)$stu->inprogress_count;
+    $uid       = (int)$stu->userid;
+    $planid    = (int)$stu->planid;
+    $stuPlanIds = array_keys(isset($stu->plannames) ? $stu->plannames : array($planid => ''));
+    $inprog    = (int)$stu->inprogress_count;
 
     $pending = isset($pendingByUser[$uid]) ? $pendingByUser[$uid] : array();
     if (empty($pending)) {
@@ -339,7 +368,10 @@ foreach ($gapRawStudents as $stu) {
     $stuShift = isset($stu->shift) ? trim((string)$stu->shift) : '';
 
     foreach ($pending as $cid => $info) {
-        $semNum = isset($structure[$planid][$cid]) ? (int)$structure[$planid][$cid]->sem_num : 0;
+        $semNum = 0;
+        foreach ($stuPlanIds as $_pid) {
+            if (isset($structure[$_pid][$cid])) { $semNum = (int)$structure[$_pid][$cid]->sem_num; break; }
+        }
         if (!empty($openClassByCourseid[$cid])) {
             if ($stuShift !== '') {
                 $matchClasses = array();
@@ -472,6 +504,24 @@ try {
     $failedRawStudents = array_values($DB->get_records_sql($failedStudentsSql, $allFiltersParams));
 } catch (Exception $e) { }
 
+// Consolidar por userid (planes correlacionados)
+{
+    $consolidatedFailed = array();
+    foreach ($failedRawStudents as $stu) {
+        $uid = (int)$stu->userid;
+        if (!isset($consolidatedFailed[$uid])) {
+            $stu->plannames   = array((int)$stu->planid => (string)$stu->planname);
+            $stu->periodnames = array((int)$stu->planid => (string)($stu->periodname ?? ''));
+            $consolidatedFailed[$uid] = $stu;
+        } else {
+            $existing = $consolidatedFailed[$uid];
+            $existing->plannames[(int)$stu->planid]   = (string)$stu->planname;
+            $existing->periodnames[(int)$stu->planid] = (string)($stu->periodname ?? '');
+        }
+    }
+    $failedRawStudents = array_values($consolidatedFailed);
+}
+
 $failedResults       = array();
 $statsFailedStudents = 0;
 $statsFailedWithOpen = 0;
@@ -481,7 +531,8 @@ foreach ($failedRawStudents as $stu) {
     $uid = (int)$stu->userid;
     if (empty($failedByUser[$uid])) { continue; }
 
-    $planid = (int)$stu->planid;
+    $planid     = (int)$stu->planid;
+    $stuPlanIds = array_keys(isset($stu->plannames) ? $stu->plannames : array($planid => ''));
     $statsFailedStudents++;
 
     $subjectsWithOpen      = array();
@@ -490,7 +541,10 @@ foreach ($failedRawStudents as $stu) {
     $failedStuShift = isset($stu->shift) ? trim((string)$stu->shift) : '';
 
     foreach ($failedByUser[$uid] as $cid => $fullname) {
-        $semNum = isset($structure[$planid][$cid]) ? (int)$structure[$planid][$cid]->sem_num : 0;
+        $semNum = 0;
+        foreach ($stuPlanIds as $_pid) {
+            if (isset($structure[$_pid][$cid])) { $semNum = (int)$structure[$_pid][$cid]->sem_num; break; }
+        }
         if (!empty($openClassByCourseid[$cid])) {
             if ($failedStuShift !== '') {
                 $matchClasses = array();
@@ -619,16 +673,18 @@ $tabFailedUrl = clone $baseUrl; $tabFailedUrl->param('tab', 'failed');
                placeholder="Nombre o email" style="width:220px">
     </div>
     <div>
-        <label>Plan de estudios</label>
-        <select name="planid">
-            <option value="0">- Todos -</option>
+        <label>Planes (correlacionados)</label>
+        <select name="planids[]" multiple size="5" style="min-width:240px;font-size:12px">
             <?php foreach ($allPlans as $pl): ?>
             <option value="<?php echo (int)$pl->id; ?>"
-                    <?php echo ((int)$pl->id === $filter_planid ? 'selected' : ''); ?>>
+                    <?php echo (in_array((int)$pl->id, $filter_planids) ? 'selected' : ''); ?>>
                 <?php echo adg_h($pl->name); ?>
             </option>
             <?php endforeach; ?>
         </select>
+        <div style="font-size:10px;color:#6c757d;margin-top:3px">
+            Ctrl+click para seleccionar varios.<br>Sin selección = todos los planes.
+        </div>
     </div>
     <div>
         <label>Jornada</label>
@@ -755,8 +811,22 @@ $tabFailedUrl = clone $baseUrl; $tabFailedUrl->param('tab', 'failed');
     </td>
     <td><?php echo adg_h($studentdoc !== '' ? $studentdoc : '-'); ?></td>
     <td><?php echo adg_h($shift !== '' ? $shift : '-'); ?></td>
-    <td style="font-size:11px"><?php echo adg_h($stu->planname); ?></td>
-    <td style="font-size:11px"><?php echo adg_h(isset($stu->periodname) && $stu->periodname ? $stu->periodname : '-'); ?></td>
+    <td style="font-size:11px">
+        <?php
+        $planDisplay = isset($stu->plannames) ? implode('<br>', array_map('adg_h', array_values($stu->plannames))) : adg_h($stu->planname);
+        echo $planDisplay;
+        ?>
+    </td>
+    <td style="font-size:11px">
+        <?php
+        if (isset($stu->periodnames)) {
+            $pds = array_filter(array_values($stu->periodnames));
+            echo $pds ? implode('<br>', array_map('adg_h', $pds)) : '-';
+        } else {
+            echo adg_h(isset($stu->periodname) && $stu->periodname ? $stu->periodname : '-');
+        }
+        ?>
+    </td>
     <td>
         <?php if ($inprog === 0): ?>
             <?php echo adg_badge('0 - Sin asignaturas', 'zero'); ?>
@@ -854,7 +924,8 @@ $tabFailedUrl = clone $baseUrl; $tabFailedUrl->param('tab', 'failed');
 <?php
 $byPlan = array();
 foreach ($gapResults as $row) {
-    $pname = (string)$row['stu']->planname;
+    $stuObj = $row['stu'];
+    $pname  = isset($stuObj->plannames) ? implode(' + ', array_values($stuObj->plannames)) : (string)$stuObj->planname;
     if (!isset($byPlan[$pname])) {
         $byPlan[$pname] = array('zero' => 0, 'one' => 0, 'with_open' => 0, 'need_new' => 0);
     }
@@ -973,8 +1044,22 @@ foreach ($gapResults as $row) {
     </td>
     <td><?php echo adg_h($studentdoc !== '' ? $studentdoc : '-'); ?></td>
     <td><?php echo adg_h($shift !== '' ? $shift : '-'); ?></td>
-    <td style="font-size:11px"><?php echo adg_h($stu->planname); ?></td>
-    <td style="font-size:11px"><?php echo adg_h(isset($stu->periodname) && $stu->periodname ? $stu->periodname : '-'); ?></td>
+    <td style="font-size:11px">
+        <?php
+        $planDisplay = isset($stu->plannames) ? implode('<br>', array_map('adg_h', array_values($stu->plannames))) : adg_h($stu->planname);
+        echo $planDisplay;
+        ?>
+    </td>
+    <td style="font-size:11px">
+        <?php
+        if (isset($stu->periodnames)) {
+            $pds = array_filter(array_values($stu->periodnames));
+            echo $pds ? implode('<br>', array_map('adg_h', $pds)) : '-';
+        } else {
+            echo adg_h(isset($stu->periodname) && $stu->periodname ? $stu->periodname : '-');
+        }
+        ?>
+    </td>
     <td>
         <?php if (empty($swOpen)): ?>
             <span class="muted">-</span>
