@@ -664,12 +664,23 @@ function dbgtj_sanitize_class_bbb_mapping(int $classid): array {
     $DB->set_field('gmk_class', 'bbbmoduleids', $newcmtext, ['id' => (int)$classid]);
 
     $deletedrelations = 0;
+    $deletedforeignrelations = 0;
+    $deletedinvalidrelations = 0;
     if (!empty($foreign)) {
         list($finsql, $fparams) = $DB->get_in_or_equal($foreign, SQL_PARAMS_NAMED, 'fcm');
         $sql = "classid = :cid AND bbbmoduleid {$finsql}";
         $fparams['cid'] = (int)$classid;
-        $deletedrelations = $DB->count_records_select('gmk_bbb_attendance_relation', $sql, $fparams);
+        $deletedforeignrelations = $DB->count_records_select('gmk_bbb_attendance_relation', $sql, $fparams);
         $DB->delete_records_select('gmk_bbb_attendance_relation', $sql, $fparams);
+        $deletedrelations += (int)$deletedforeignrelations;
+    }
+    if (!empty($invalid)) {
+        list($iinsql, $iparams) = $DB->get_in_or_equal($invalid, SQL_PARAMS_NAMED, 'icm');
+        $isql = "classid = :cid AND bbbmoduleid {$iinsql}";
+        $iparams['cid'] = (int)$classid;
+        $deletedinvalidrelations = $DB->count_records_select('gmk_bbb_attendance_relation', $isql, $iparams);
+        $DB->delete_records_select('gmk_bbb_attendance_relation', $isql, $iparams);
+        $deletedrelations += (int)$deletedinvalidrelations;
     }
 
     return [
@@ -682,6 +693,8 @@ function dbgtj_sanitize_class_bbb_mapping(int $classid): array {
             'owned=' . (!empty($owned) ? implode(',', $owned) : 'none'),
             'foreign=' . (!empty($foreign) ? implode(',', $foreign) : 'none'),
             'invalid=' . (!empty($invalid) ? implode(',', $invalid) : 'none'),
+            'deleted_foreign_relations=' . (int)$deletedforeignrelations,
+            'deleted_invalid_relations=' . (int)$deletedinvalidrelations,
             'new_bbbmoduleids=' . ($newcmtext === null ? 'NULL' : $newcmtext)
         ]
     ];
