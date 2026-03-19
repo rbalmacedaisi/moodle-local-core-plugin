@@ -371,10 +371,279 @@ echo '<style>
 </style>';
 
 echo '<div class="dbgtj-wrap">';
+echo '<div class="dbgtj-card" style="padding:10px 14px">';
+$teachertaburl = new moodle_url('/local/grupomakro_core/pages/debug_bbb_teacher_join.php', [
+    'tab' => 'teacher',
+    'teacher' => $teacherquery,
+    'teacherid' => $teacherid,
+    'classname' => $classquery,
+    'classid' => $classid,
+    'onlyactive' => $onlyactive,
+    'maxclasses' => $maxclasses,
+]);
+$globaltaburl = new moodle_url('/local/grupomakro_core/pages/debug_bbb_teacher_join.php', [
+    'tab' => 'global',
+    'g_scan' => $globalscan,
+    'g_onlyactive' => $globalonlyactive,
+    'g_maxclasses' => $globalmaxclasses,
+    'g_periodid' => $globalperiodid,
+    'g_name' => $globalname,
+]);
+echo '<a class="btn ' . ($tab === 'teacher' ? 'btn-primary' : 'btn-secondary') . '" style="margin-right:8px" href="' . $teachertaburl->out(false) . '">Teacher Diagnose</a>';
+echo '<a class="btn ' . ($tab === 'global' ? 'btn-primary' : 'btn-secondary') . '" href="' . $globaltaburl->out(false) . '">Global Scan</a>';
+echo '</div>';
+
+if ($tab === 'global') {
+    $repairfeedback = ['type' => '', 'message' => '', 'details' => []];
+    if ($repairaction !== '') {
+        if (!confirm_sesskey()) {
+            $repairfeedback = [
+                'type' => 'bad',
+                'message' => 'Invalid sesskey for repair action.',
+                'details' => []
+            ];
+        } else if ($repairaction === 'fixmoderator' && $repairclassid > 0) {
+            $repairfeedback = dbgtj_repair_moderator_rules_for_class((int)$repairclassid);
+        }
+    }
+
+    echo '<div class="dbgtj-card">';
+    echo '<h3 style="margin-top:0">Global BBB Moderator Mismatch Scan</h3>';
+    echo '<p class="dbgtj-muted" style="margin-top:0">Finds classes where BBB participant rules can block teacher join (wait=1 + instructor not moderator).</p>';
+    echo '<form method="get">';
+    echo '<input type="hidden" name="tab" value="global">';
+    echo '<div class="dbgtj-grid">';
+    echo '<div><label>Only active classes</label><select name="g_onlyactive" class="form-control">';
+    echo '<option value="1"' . ((int)$globalonlyactive === 1 ? ' selected' : '') . '>Yes</option>';
+    echo '<option value="0"' . ((int)$globalonlyactive === 0 ? ' selected' : '') . '>No</option>';
+    echo '</select></div>';
+    echo '<div><label>Period ID</label><input type="number" name="g_periodid" value="' . (int)$globalperiodid . '" class="form-control"></div>';
+    echo '<div><label>Class name filter</label><input type="text" name="g_name" value="' . dbgtj_h($globalname) . '" class="form-control"></div>';
+    echo '<div><label>Max classes</label><input type="number" name="g_maxclasses" value="' . (int)$globalmaxclasses . '" class="form-control"></div>';
+    echo '</div>';
+    echo '<div style="margin-top:10px"><button class="btn btn-primary" type="submit" name="g_scan" value="1">Scan all</button></div>';
+    echo '</form>';
+    echo '</div>';
+
+    if (!empty($repairfeedback['message'])) {
+        $cls = 'dbgtj-warn';
+        if ($repairfeedback['type'] === 'ok') {
+            $cls = 'dbgtj-ok';
+        } else if ($repairfeedback['type'] === 'bad') {
+            $cls = 'dbgtj-bad';
+        }
+        echo '<div class="dbgtj-card">';
+        echo '<strong class="' . $cls . '">' . dbgtj_h((string)$repairfeedback['message']) . '</strong>';
+        if (!empty($repairfeedback['details'])) {
+            echo '<div class="dbgtj-pre" style="margin-top:8px">' . dbgtj_h(implode("\n", (array)$repairfeedback['details'])) . '</div>';
+        }
+        echo '</div>';
+    }
+
+    if ((int)$globalscan === 1) {
+        $globalsql = "SELECT c.id, c.name, c.instructorid, c.corecourseid, c.groupid, c.periodid, c.closed, c.approved, c.bbbmoduleids,
+                             u.firstname AS t_firstname, u.lastname AS t_lastname, u.username AS t_username,
+                             cr.fullname AS coursename
+                        FROM {gmk_class} c
+                   LEFT JOIN {user} u ON u.id = c.instructorid
+                   LEFT JOIN {course} cr ON cr.id = c.corecourseid
+                       WHERE 1=1";
+        $globalparams = [];
+        if ((int)$globalonlyactive === 1) {
+            $globalsql .= " AND c.closed = 0";
+        }
+        if ((int)$globalperiodid > 0) {
+            $globalsql .= " AND c.periodid = :periodid";
+            $globalparams['periodid'] = (int)$globalperiodid;
+        }
+        if ($globalname !== '') {
+            $globalsql .= " AND " . $DB->sql_like('c.name', ':gname', false, false);
+            $globalparams['gname'] = '%' . $globalname . '%';
+        }
+        $globalsql .= " ORDER BY c.id DESC";
+        $globalclasses = $DB->get_records_sql($globalsql, $globalparams, 0, (int)$globalmaxclasses);
+
+        $scanstats = [
+            'classes' => 0,
+            'classes_with_risk' => 0,
+            'cm_checked' => 0,
+            'risk_explicit_mismatch' => 0,
+            'risk_wait_not_moderator' => 0,
+            'risk_no_mapping' => 0,
+            'risk_invalid_cmid' => 0,
+        ];
+
+        $rows = [];
+        foreach ($globalclasses as $gclass) {
+            $scanstats['classes']++;
+            $issues = [];
+            $riskexplicit = 0;
+            $riskwaitnotmod = 0;
+            $invalidcm = 0;
+            $cmchecked = 0;
+
+            $cmids = [];
+            foreach (dbgtj_parse_int_list((string)$gclass->bbbmoduleids) as $cmid) {
+                $cmids[$cmid] = $cmid;
+            }
+            $grels = $DB->get_records('gmk_bbb_attendance_relation', ['classid' => (int)$gclass->id], '', 'id,bbbmoduleid');
+            foreach ($grels as $grel) {
+                $relcmid = (int)($grel->bbbmoduleid ?? 0);
+                if ($relcmid > 0) {
+                    $cmids[$relcmid] = $relcmid;
+                }
+            }
+            $cmids = array_values($cmids);
+            if (empty($cmids)) {
+                $issues[] = 'no_bbb_mapping';
+                $scanstats['risk_no_mapping']++;
+            } else {
+                list($insql, $inparams) = $DB->get_in_or_equal($cmids, SQL_PARAMS_NAMED, 'gc');
+                $gcmrows = $DB->get_records_sql(
+                    "SELECT cm.id, cm.instance, cm.course, m.name AS modulename
+                       FROM {course_modules} cm
+                       JOIN {modules} m ON m.id = cm.module
+                      WHERE cm.id {$insql}",
+                    $inparams
+                );
+
+                foreach ($cmids as $cmiditem) {
+                    $cmchecked++;
+                    $scanstats['cm_checked']++;
+                    $gcm = $gcmrows[(int)$cmiditem] ?? null;
+                    if (!$gcm || (string)$gcm->modulename !== 'bigbluebuttonbn' || (int)$gcm->instance <= 0) {
+                        $invalidcm++;
+                        $scanstats['risk_invalid_cmid']++;
+                        continue;
+                    }
+                    $bbb = $DB->get_record('bigbluebuttonbn', ['id' => (int)$gcm->instance], '*', IGNORE_MISSING);
+                    if (!$bbb) {
+                        $invalidcm++;
+                        $scanstats['risk_invalid_cmid']++;
+                        continue;
+                    }
+                    if ((int)$gclass->instructorid <= 0) {
+                        continue;
+                    }
+                    $wait = isset($bbb->wait) ? (int)$bbb->wait : 0;
+                    $cmcontext = context_module::instance((int)$gcm->id, IGNORE_MISSING);
+                    if (!$cmcontext || !class_exists('\mod_bigbluebuttonbn\local\helpers\roles')) {
+                        continue;
+                    }
+                    $rules = \mod_bigbluebuttonbn\local\helpers\roles::get_participant_list($bbb, $cmcontext);
+                    $ismod = \mod_bigbluebuttonbn\local\helpers\roles::is_moderator($cmcontext, $rules, (int)$gclass->instructorid);
+                    $explicitmods = [];
+                    foreach ((array)$rules as $r) {
+                        $seltype = (string)($r['selectiontype'] ?? '');
+                        $selid = (string)($r['selectionid'] ?? '');
+                        $role = core_text::strtolower((string)($r['role'] ?? ''));
+                        if ($seltype === 'user' && $role === 'moderator' && preg_match('/^\d+$/', $selid)) {
+                            $explicitmods[(int)$selid] = (int)$selid;
+                        }
+                    }
+                    if ($wait === 1 && !empty($explicitmods) && empty($explicitmods[(int)$gclass->instructorid])) {
+                        $riskexplicit++;
+                        $scanstats['risk_explicit_mismatch']++;
+                    }
+                    if ($wait === 1 && !$ismod) {
+                        $riskwaitnotmod++;
+                        $scanstats['risk_wait_not_moderator']++;
+                    }
+                }
+            }
+
+            if ($invalidcm > 0) {
+                $issues[] = 'invalid_or_missing_bbb_cmid=' . $invalidcm;
+            }
+            if ($riskexplicit > 0) {
+                $issues[] = 'explicit_moderator_mismatch=' . $riskexplicit;
+            }
+            if ($riskwaitnotmod > 0) {
+                $issues[] = 'wait1_instructor_not_moderator=' . $riskwaitnotmod;
+            }
+            if (!empty($issues)) {
+                $scanstats['classes_with_risk']++;
+                $rows[] = [
+                    'class' => $gclass,
+                    'cmchecked' => $cmchecked,
+                    'riskexplicit' => $riskexplicit,
+                    'riskwaitnotmod' => $riskwaitnotmod,
+                    'issues' => $issues,
+                ];
+            }
+        }
+
+        echo '<div class="dbgtj-card">';
+        echo '<h4 style="margin-top:0">Scan summary</h4>';
+        echo '<div class="dbgtj-grid">';
+        echo '<div>Classes scanned: <strong>' . (int)$scanstats['classes'] . '</strong></div>';
+        echo '<div>Classes with risk: <strong>' . (int)$scanstats['classes_with_risk'] . '</strong></div>';
+        echo '<div>CM checked: <strong>' . (int)$scanstats['cm_checked'] . '</strong></div>';
+        echo '<div>Explicit moderator mismatch: <strong>' . (int)$scanstats['risk_explicit_mismatch'] . '</strong></div>';
+        echo '<div>Wait=1 and instructor not moderator: <strong>' . (int)$scanstats['risk_wait_not_moderator'] . '</strong></div>';
+        echo '<div>No BBB mapping: <strong>' . (int)$scanstats['risk_no_mapping'] . '</strong></div>';
+        echo '<div>Invalid/missing BBB cmid: <strong>' . (int)$scanstats['risk_invalid_cmid'] . '</strong></div>';
+        echo '</div>';
+        echo '</div>';
+
+        if (!empty($rows)) {
+            echo '<div class="dbgtj-card">';
+            echo '<table class="dbgtj-table">';
+            echo '<thead><tr><th>Class</th><th>Instructor</th><th>Course</th><th>Period</th><th>CM checked</th><th>Risk explicit mismatch</th><th>Risk wait/not moderator</th><th>Issues</th><th>Actions</th></tr></thead><tbody>';
+            foreach ($rows as $row) {
+                $cls = $row['class'];
+                $teacherfullname = trim((string)($cls->t_firstname ?? '') . ' ' . (string)($cls->t_lastname ?? ''));
+                if ($teacherfullname === '') {
+                    $teacherfullname = '-';
+                }
+                $durl = new moodle_url('/local/grupomakro_core/pages/debug_bbb_teacher_join.php', [
+                    'tab' => 'teacher',
+                    'teacherid' => (int)$cls->instructorid,
+                    'teacher' => $teacherfullname,
+                    'classid' => (int)$cls->id,
+                    'onlyactive' => 0,
+                    'maxclasses' => 50,
+                ]);
+                $rurl = new moodle_url('/local/grupomakro_core/pages/debug_bbb_teacher_join.php', [
+                    'tab' => 'global',
+                    'g_scan' => 1,
+                    'g_onlyactive' => (int)$globalonlyactive,
+                    'g_maxclasses' => (int)$globalmaxclasses,
+                    'g_periodid' => (int)$globalperiodid,
+                    'g_name' => $globalname,
+                    'repair' => 'fixmoderator',
+                    'repairclassid' => (int)$cls->id,
+                    'sesskey' => sesskey(),
+                ]);
+                echo '<tr>';
+                echo '<td>#' . (int)$cls->id . ' ' . dbgtj_h((string)$cls->name) . '</td>';
+                echo '<td>id=' . (int)$cls->instructorid . ' ' . dbgtj_h($teacherfullname) . '</td>';
+                echo '<td>id=' . (int)$cls->corecourseid . ' ' . dbgtj_h((string)($cls->coursename ?? '')) . '</td>';
+                echo '<td>' . (int)$cls->periodid . '</td>';
+                echo '<td>' . (int)$row['cmchecked'] . '</td>';
+                echo '<td>' . (int)$row['riskexplicit'] . '</td>';
+                echo '<td>' . (int)$row['riskwaitnotmod'] . '</td>';
+                echo '<td>' . dbgtj_h(implode(' | ', (array)$row['issues'])) . '</td>';
+                echo '<td><a class="btn btn-secondary btn-sm" style="margin-right:6px" href="' . $durl->out(false) . '">Diagnose</a><a class="btn btn-secondary btn-sm" href="' . $rurl->out(false) . '">Repair</a></td>';
+                echo '</tr>';
+            }
+            echo '</tbody></table>';
+            echo '</div>';
+        } else {
+            echo '<div class="dbgtj-card"><span class="dbgtj-ok">No risky classes detected with current filters.</span></div>';
+        }
+    }
+
+    echo '</div>';
+    echo $OUTPUT->footer();
+    exit;
+}
+
 echo '<div class="dbgtj-card">';
 echo '<h3 style="margin-top:0">Debug BBB Join Teacher</h3>';
 echo '<p class="dbgtj-muted" style="margin-top:0">Diagnoses why join_url is empty for teacher BBB access. Focuses on moderator resolution, wait flag, and join capability.</p>';
 echo '<form method="get">';
+echo '<input type="hidden" name="tab" value="teacher">';
 echo '<div class="dbgtj-grid">';
 echo '<div><label>Teacher</label><input type="text" name="teacher" value="' . dbgtj_h($teacherquery) . '" class="form-control"></div>';
 echo '<div><label>Teacher ID</label><input type="number" name="teacherid" value="' . (int)$teacherid . '" class="form-control"></div>';
@@ -400,6 +669,7 @@ if (!empty($teacherresolve['candidates']) && count($teacherresolve['candidates']
     echo '<table class="dbgtj-table" style="margin-top:8px"><thead><tr><th>User ID</th><th>Name</th><th>Username</th><th>Email</th><th>Action</th></tr></thead><tbody>';
     foreach ($teacherresolve['candidates'] as $cand) {
         $pickurl = new moodle_url('/local/grupomakro_core/pages/debug_bbb_teacher_join.php', [
+            'tab' => 'teacher',
             'teacherid' => (int)$cand->id,
             'teacher' => $teacherquery,
             'classname' => $classquery,
@@ -439,89 +709,7 @@ if ($repairaction !== '') {
             'details' => []
         ];
     } else if ($repairaction === 'fixmoderator' && $repairclassid > 0) {
-        $repairclass = $DB->get_record('gmk_class', ['id' => (int)$repairclassid], '*', IGNORE_MISSING);
-        if (!$repairclass) {
-            $repairfeedback = [
-                'type' => 'bad',
-                'message' => 'Repair target class not found.',
-                'details' => ['classid=' . (int)$repairclassid]
-            ];
-        } else if ((int)$repairclass->instructorid <= 0) {
-            $repairfeedback = [
-                'type' => 'bad',
-                'message' => 'Class has no instructor assigned. Cannot set BBB moderator.',
-                'details' => ['classid=' . (int)$repairclassid]
-            ];
-        } else {
-            $targetcmids = [];
-            foreach (dbgtj_parse_int_list((string)$repairclass->bbbmoduleids) as $cmid) {
-                $targetcmids[$cmid] = $cmid;
-            }
-            $repairrels = $DB->get_records('gmk_bbb_attendance_relation', ['classid' => (int)$repairclassid], '', 'id,bbbmoduleid');
-            foreach ($repairrels as $repairrel) {
-                $rcmid = (int)($repairrel->bbbmoduleid ?? 0);
-                if ($rcmid > 0) {
-                    $targetcmids[$rcmid] = $rcmid;
-                }
-            }
-            $targetcmids = array_values($targetcmids);
-
-            if (empty($targetcmids)) {
-                $repairfeedback = [
-                    'type' => 'bad',
-                    'message' => 'No BBB cmids found in class mapping/relation.',
-                    'details' => ['classid=' . (int)$repairclassid]
-                ];
-            } else {
-                $participants = json_encode([
-                    [
-                        'selectiontype' => 'user',
-                        'selectionid' => (int)$repairclass->instructorid,
-                        'role' => 'moderator',
-                    ],
-                    [
-                        'selectiontype' => 'all',
-                        'selectionid' => 'all',
-                        'role' => 'viewer',
-                    ],
-                ], JSON_UNESCAPED_UNICODE);
-
-                $updated = 0;
-                $skipped = 0;
-                $errors = [];
-                foreach ($targetcmids as $repaircmid) {
-                    $repaircm = $DB->get_record_sql(
-                        "SELECT cm.id, cm.instance, m.name AS modulename
-                           FROM {course_modules} cm
-                           JOIN {modules} m ON m.id = cm.module
-                          WHERE cm.id = :cmid",
-                        ['cmid' => (int)$repaircmid],
-                        IGNORE_MISSING
-                    );
-                    if (!$repaircm || (string)$repaircm->modulename !== 'bigbluebuttonbn' || (int)$repaircm->instance <= 0) {
-                        $skipped++;
-                        $errors[] = 'cmid=' . (int)$repaircmid . ' skipped (invalid/non-bbb)';
-                        continue;
-                    }
-
-                    $bbbrow = new stdClass();
-                    $bbbrow->id = (int)$repaircm->instance;
-                    $bbbrow->participants = $participants;
-                    $bbbrow->timemodified = time();
-                    $DB->update_record('bigbluebuttonbn', $bbbrow);
-                    $updated++;
-                }
-
-                $repairfeedback = [
-                    'type' => ($updated > 0 ? 'ok' : 'warn'),
-                    'message' => 'Repair moderator rules done. Updated BBB modules: ' . (int)$updated . '. Skipped: ' . (int)$skipped . '.',
-                    'details' => array_merge([
-                        'classid=' . (int)$repairclassid,
-                        'instructorid=' . (int)$repairclass->instructorid
-                    ], $errors)
-                ];
-            }
-        }
+        $repairfeedback = dbgtj_repair_moderator_rules_for_class((int)$repairclassid);
     }
 }
 
@@ -617,6 +805,7 @@ foreach ($allclasses as $class) {
     echo '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px">';
     echo '<h4 style="margin:0 0 8px 0">Class #' . $cid . ' - ' . dbgtj_h((string)$class->name) . '</h4>';
     $repairurl = new moodle_url('/local/grupomakro_core/pages/debug_bbb_teacher_join.php', [
+        'tab' => 'teacher',
         'teacher' => $teacherquery,
         'teacherid' => (int)$teacherid,
         'classname' => $classquery,

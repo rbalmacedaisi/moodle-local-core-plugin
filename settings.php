@@ -173,6 +173,11 @@ if ($hassiteconfig) {
         '🎙️ Sincronizar Grabaciones BBB',
         new moodle_url('/local/grupomakro_core/pages/sync_bbb_recordings.php')
     );
+    $debugProgreApprovedOrphansPage = new admin_externalpage(
+        'grupomakro_core_debug_progre_approved_orphans',
+        '🩺 Inconsistencias Progreso: aprobado + huérfano',
+        new moodle_url('/local/grupomakro_core/pages/debug_progre_approved_orphans.php')
+    );
     $ADMIN->add('grupomakrocore_plugin', $classManagementPage);
     $ADMIN->add('grupomakrocore_plugin', $classSchedulesPage);
     $ADMIN->add('grupomakrocore_plugin', $availabilityPanelPage);
@@ -202,6 +207,7 @@ if ($hassiteconfig) {
     $ADMIN->add('grupomakrocore_plugin', $debugStudentActivityVisibilityPage);
     $ADMIN->add('grupomakrocore_plugin', $debugBbbTeacherJoinPage);
     $ADMIN->add('grupomakrocore_plugin', $syncBbbRecordingsPage);
+    $ADMIN->add('grupomakrocore_plugin', $debugProgreApprovedOrphansPage);
 
     $ADMIN->add('localplugins', new admin_category('grupomakrocore', new lang_string('pluginname', 'local_grupomakro_core')));
     /********
