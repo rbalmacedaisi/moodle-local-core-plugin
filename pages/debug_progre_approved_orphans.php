@@ -787,6 +787,77 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <?php endif; ?>
 
+<?php if ($showSec3): ?>
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     SECCIÓN 3: Pendientes sin nota Moodle (ni course total ni NFI >= 70)
+     ═══════════════════════════════════════════════════════════════════════ -->
+<hr style="border:none;border-top:2px solid #e5e7eb;margin:28px 0 20px">
+<h2 style="font-size:20px;font-weight:700;margin-bottom:6px;">
+    &#128270; Pendientes sin nota en Moodle
+    <?php if ($searchName !== ''): ?><small style="font-size:14px;color:#6b7280">— buscando: "<?php echo s($searchName); ?>"</small><?php endif; ?>
+</h2>
+
+<div class="dpa-explain" style="background:#fdf4ff;border-color:#d8b4fe">
+    <strong>&#128270; ¿Qué detecta esta sección?</strong><br>
+    Estudiantes con <code>status 0 o 1</code> en su plan activo, sin registro aprobado (3/4) y <strong>sin nota ≥ <?php echo $PASSING_GRADE; ?> en Moodle</strong>.<br>
+    Casos típicos: aprobaron en sistema anterior, revalidación incompleta, o el progreso se lleva manualmente.
+    <?php if (!$searchName): ?><br><strong>Limitado a 300 registros.</strong> Usá el buscador para filtrar por nombre.<?php endif; ?>
+</div>
+
+<?php if (empty($sec3Data)): ?>
+<div class="dpa-card">
+    <div class="dpa-alert-ok">&#10003; No se encontraron registros<?php echo $searchName ? ' para "' . s($searchName) . '"' : ''; ?>.</div>
+</div>
+<?php else: ?>
+<div class="dpa-card">
+    <h4>&#128202; <?php echo count($sec3Data); ?> registros encontrados</h4>
+    <table class="dpa-tbl">
+        <thead>
+            <tr>
+                <th>Estudiante</th>
+                <th>Curso</th>
+                <th>Status</th>
+                <th>Plan</th>
+                <th>Nota Moodle</th>
+                <th>Nota almacenada</th>
+                <th>classid</th>
+                <th>progre_id</th>
+            </tr>
+        </thead>
+        <tbody>
+        <?php
+        $planNamesS = isset($planNames) ? $planNames : $DB->get_records_menu('local_learning_plans', null, '', 'id, name');
+        foreach ($sec3Data as $sd):
+            $sr     = $sd['row'];
+            $sg     = $sd['grade'];
+            $stInfo = $STATUS_LABELS[(int)$sr->cpstatus] ?? ['txt' => 'status='.(int)$sr->cpstatus, 'cls'=>'secondary'];
+            $lpLbl  = isset($planNamesS[(int)$sr->learningplanid]) ? s($planNamesS[(int)$sr->learningplanid]) : 'ID '.(int)$sr->learningplanid;
+        ?>
+        <tr>
+            <td>
+                <strong><?php echo s($sr->firstname . ' ' . $sr->lastname); ?></strong><br>
+                <small style="color:#6b7280"><?php echo s($sr->username); ?> / uid=<?php echo (int)$sr->userid; ?></small>
+            </td>
+            <td>
+                <?php echo s($sr->coursename); ?><br>
+                <small style="color:#6b7280"><?php echo s($sr->courseshort); ?> / cid=<?php echo (int)$sr->courseid; ?></small>
+            </td>
+            <td><span class="dpa-badge badge-<?php echo $stInfo['cls']; ?>"><?php echo $stInfo['txt']; ?></span></td>
+            <td><small><?php echo $lpLbl; ?></small></td>
+            <td style="color:<?php echo ($sg !== null && $sg >= $PASSING_GRADE) ? '#166534' : '#9ca3af'; ?>;font-weight:600">
+                <?php echo $sg !== null ? number_format($sg, 2) : '—'; ?>
+            </td>
+            <td style="color:#6b7280"><small><?php echo $sr->stored_grade !== null ? number_format((float)$sr->stored_grade, 2) : '—'; ?></small></td>
+            <td><small><?php echo (int)$sr->classid ?: '—'; ?></small></td>
+            <td style="font-family:monospace;font-size:11px"><?php echo (int)$sr->progre_id; ?></td>
+        </tr>
+        <?php endforeach; ?>
+        </tbody>
+    </table>
+</div>
+<?php endif; ?>
+<?php endif; ?>
+
 </div>
 
 <?php
