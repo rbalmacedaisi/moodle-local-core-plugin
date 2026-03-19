@@ -457,6 +457,7 @@ try {
     ]);
     foreach ($failedWithGradeRows as $fr) {
         $result = dpa_moodle_grade($DB, $fr->userid, $fr->courseid);
+        if ($result['grade'] === null || (float)$result['grade'] < $PASSING_GRADE) { continue; }
         $failedData[] = ['row' => $fr, 'grade' => $result['grade'], 'src' => $result['src']];
     }
 } catch (Exception $e) {}
