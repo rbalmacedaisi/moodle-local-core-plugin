@@ -62,6 +62,32 @@ $ORPHAN_CONDITION = "
     )
 ";
 
+if ($action === 'cleanselected') {
+    require_sesskey();
+    $selectedIds = optional_param_array('delids', [], PARAM_INT);
+    $selectedIds = array_values(array_filter(array_map('intval', $selectedIds)));
+
+    if (empty($selectedIds)) {
+        $actionLog[] = ['error', 'No seleccionaste ningún registro.'];
+    } else {
+        // Safety: only allow deleting records that are actual orphans (no approved status)
+        list($in, $inParams) = $DB->get_in_or_equal($selectedIds, SQL_PARAMS_NAMED);
+        $safeIds = $DB->get_fieldset_sql(
+            "SELECT id FROM {gmk_course_progre}
+              WHERE id $in AND status NOT IN (3, 4)",
+            $inParams
+        );
+        if (!empty($safeIds)) {
+            list($in2, $params2) = $DB->get_in_or_equal($safeIds, SQL_PARAMS_NAMED);
+            $DB->execute("DELETE FROM {gmk_course_progre} WHERE id $in2", $params2);
+            $deleteCount = count($safeIds);
+            $actionLog[] = ['ok', "Se eliminaron $deleteCount registros seleccionados."];
+        } else {
+            $actionLog[] = ['info', 'Los registros seleccionados no son elegibles para eliminación.'];
+        }
+    }
+}
+
 if ($action === 'cleanall') {
     require_sesskey();
 
@@ -243,13 +269,50 @@ echo $OUTPUT->header();
     </form>
 </div>
 
-<!-- Detalle por par -->
+<!-- Detalle por par — todo dentro de un único form con checkboxes -->
+<form method="post" id="form-selected">
+<input type="hidden" name="action"  value="cleanselected">
+<input type="hidden" name="sesskey" value="<?php echo sesskey(); ?>">
+
+<!-- Barra flotante de selección -->
+<div id="dpa-floatbar" style="display:none;position:sticky;top:0;z-index:100;background:#1f2937;color:#fff;
+     padding:10px 16px;border-radius:8px;margin-bottom:12px;display:none;align-items:center;gap:12px;flex-wrap:wrap;">
+    <span id="dpa-sel-count" style="font-size:13px;font-weight:600">0 seleccionados</span>
+    <button type="submit" class="dpa-btn dpa-btn-red"
+            onclick="var n=document.querySelectorAll('.dpa-cb:checked').length;
+                     if(!n){alert('Selecciona al menos un registro.');return false;}
+                     return confirm('¿Eliminar '+n+' registro(s) seleccionado(s)? Esta acción no se puede deshacer.');">
+        &#128465; Eliminar seleccionados
+    </button>
+    <button type="button" class="dpa-btn" style="background:#4b5563"
+            onclick="document.querySelectorAll('.dpa-cb').forEach(cb=>cb.checked=false);updateBar();">
+        Deseleccionar todo
+    </button>
+</div>
+
 <div class="dpa-card">
     <h4>&#128203; Detalle por estudiante y curso</h4>
-    <?php foreach ($details as $d):
+    <?php
+    // Preload all learningplan names once to avoid N+1 queries
+    $planNames = $DB->get_records_menu('local_learning_plans', null, '', 'id, name');
+
+    foreach ($details as $d):
         $pair = $d['pair'];
         $recs = $d['records'];
-        $orphanCount = count(array_filter($recs, fn($r) => in_array((int)$r->status, [0, 1, 2, 5])));
+        // Student's active plans
+        $stuPlans = $DB->get_fieldset_select(
+            'local_learning_users', 'learningplanid',
+            'userid = :uid AND userroleid = 5',
+            ['uid' => (int)$pair->userid]
+        );
+        $stuPlans = array_map('intval', $stuPlans);
+        $orphanCount = 0;
+        foreach ($recs as $r) {
+            $lpid = (int)$r->learningplanid;
+            if (!in_array((int)$r->status, [3,4]) && !in_array($lpid, $stuPlans)) {
+                $orphanCount++;
+            }
+        }
     ?>
     <div class="dpa-section">
         <div class="dpa-sec-head">
@@ -260,49 +323,50 @@ echo $OUTPUT->header();
                 &#128218; <?php echo s($pair->coursename); ?>
                 <small style="color:#6b7280">(cid=<?php echo (int)$pair->courseid; ?> / <?php echo s($pair->courseshort); ?>)</small>
             </span>
-            <form method="post" style="margin:0"
-                  onsubmit="return confirm('¿Eliminar <?php echo $orphanCount; ?> huérfano(s) de este par?');">
-                <input type="hidden" name="action"  value="cleanone">
-                <input type="hidden" name="uid"     value="<?php echo (int)$pair->userid; ?>">
-                <input type="hidden" name="cid"     value="<?php echo (int)$pair->courseid; ?>">
-                <input type="hidden" name="sesskey" value="<?php echo sesskey(); ?>">
-                <button type="submit" class="dpa-btn dpa-btn-red">
-                    &#128465; Limpiar <?php echo $orphanCount; ?> huérfano(s)
-                </button>
-            </form>
+            <span style="font-size:12px;color:#6b7280">
+                <?php
+                $stuPlanLabels = array_map(fn($pid) => $planNames[$pid] ?? "plan $pid", $stuPlans);
+                echo '&#127891; Plan activo: ' . (empty($stuPlanLabels) ? '—' : implode(', ', array_map('s', $stuPlanLabels)));
+                ?>
+            </span>
         </div>
         <table class="dpa-tbl">
             <thead>
                 <tr>
+                    <th style="width:32px"><input type="checkbox" class="dpa-cb-group" title="Seleccionar huérfanos de este par" onchange="toggleGroup(this)"></th>
                     <th>ID</th>
                     <th>Estado</th>
                     <th>Nota</th>
                     <th>Progreso</th>
-                    <th>Plan (learningplanid)</th>
+                    <th>Plan del registro</th>
                     <th>classid</th>
                     <th>periodid</th>
                     <th>Creado</th>
                     <th>Modificado</th>
-                    <th>Acción</th>
+                    <th>Decisión</th>
                 </tr>
             </thead>
             <tbody>
             <?php foreach ($recs as $rec):
-                $st      = (int)$rec->status;
-                $lpid    = (int)$rec->learningplanid;
-                $info    = $STATUS_LABELS[$st] ?? ['txt' => "status=$st", 'cls' => 'secondary'];
+                $st         = (int)$rec->status;
+                $lpid       = (int)$rec->learningplanid;
+                $info       = $STATUS_LABELS[$st] ?? ['txt' => "status=$st", 'cls' => 'secondary'];
                 $isApproved = in_array($st, [3, 4]);
-                // Check if student is enrolled in this record's learningplan
-                $inPlan  = $lpid > 0 && $DB->record_exists('local_learning_users', [
-                    'userid'        => (int)$pair->userid,
-                    'learningplanid' => $lpid,
-                    'userroleid'    => 5,
-                ]);
-                // Orphan = not approved AND student not in that plan
-                $isOrphan = !$isApproved && !$inPlan;
-                $rowCls   = $isApproved ? 'row-keep' : ($isOrphan ? 'row-orphan' : '');
+                $inPlan     = in_array($lpid, $stuPlans);
+                $isOrphan   = !$isApproved && !$inPlan;
+                $rowCls     = $isApproved ? 'row-keep' : ($isOrphan ? 'row-orphan' : '');
+                $planLabel  = $lpid > 0 ? (isset($planNames[$lpid]) ? s($planNames[$lpid]) : "ID $lpid") : '—';
             ?>
                 <tr class="<?php echo $rowCls; ?>">
+                    <td style="text-align:center">
+                        <?php if ($isOrphan): ?>
+                            <input type="checkbox" class="dpa-cb" name="delids[]"
+                                   value="<?php echo (int)$rec->id; ?>"
+                                   onchange="updateBar()">
+                        <?php else: ?>
+                            <span style="color:#d1d5db">—</span>
+                        <?php endif; ?>
+                    </td>
                     <td style="font-family:monospace;font-weight:600"><?php echo (int)$rec->id; ?></td>
                     <td>
                         <span class="dpa-badge badge-<?php echo $info['cls']; ?>"><?php echo $info['txt']; ?></span>
@@ -312,10 +376,10 @@ echo $OUTPUT->header();
                     </td>
                     <td><?php echo $rec->progress !== null ? (int)$rec->progress . '%' : '—'; ?></td>
                     <td>
-                        <small><?php echo $lpid ?: '—'; ?></small>
+                        <?php echo $planLabel; ?>
                         <?php if ($lpid > 0): ?>
                             <?php if ($inPlan): ?>
-                                <span class="dpa-badge badge-success" style="font-size:10px">en plan</span>
+                                <span class="dpa-badge badge-success" style="font-size:10px">activo</span>
                             <?php else: ?>
                                 <span class="dpa-badge badge-danger" style="font-size:10px">sin plan</span>
                             <?php endif; ?>
@@ -333,7 +397,7 @@ echo $OUTPUT->header();
                         <?php if ($isApproved): ?>
                             <span style="color:#166534">&#10003; CONSERVAR</span>
                         <?php elseif ($isOrphan): ?>
-                            <span style="color:#dc2626">&#128465; ELIMINAR</span>
+                            <span style="color:#dc2626">&#128465; huérfano</span>
                         <?php else: ?>
                             <span style="color:#d97706">&#9888; en plan activo</span>
                         <?php endif; ?>
@@ -345,6 +409,21 @@ echo $OUTPUT->header();
     </div>
     <?php endforeach; ?>
 </div>
+</form>
+
+<script>
+function updateBar() {
+    var n = document.querySelectorAll('.dpa-cb:checked').length;
+    var bar = document.getElementById('dpa-floatbar');
+    bar.style.display = n > 0 ? 'flex' : 'none';
+    document.getElementById('dpa-sel-count').textContent = n + ' seleccionado' + (n !== 1 ? 's' : '');
+}
+function toggleGroup(masterCb) {
+    var tbody = masterCb.closest('table').querySelector('tbody');
+    tbody.querySelectorAll('.dpa-cb').forEach(cb => { cb.checked = masterCb.checked; });
+    updateBar();
+}
+</script>
 
 <?php else: ?>
 <div class="dpa-card">

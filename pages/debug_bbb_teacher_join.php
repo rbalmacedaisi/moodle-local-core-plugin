@@ -987,7 +987,7 @@ foreach ($allclasses as $class) {
     echo '<table class="dbgtj-table">';
     echo '<thead><tr>';
     echo '<th>CMID</th><th>Module</th><th>BBB instance</th><th>wait</th><th>meeting running</th><th>teacher roles in cm</th>';
-    echo '<th>join cap</th><th>group visible(0)</th><th>is moderator</th><th>explicit moderator users</th><th>predicted result</th><th>participant rules</th><th>notes</th>';
+    echo '<th>join cap</th><th>group visible(0)</th><th>is moderator</th><th>explicit moderator users</th><th>predicted result</th><th>participant rules</th><th>raw participants</th><th>notes</th>';
     echo '</tr></thead><tbody>';
 
     foreach ($cmids as $cmiditem) {
@@ -1005,6 +1005,7 @@ foreach ($allclasses as $class) {
         $ruletext = '-';
         $explicitmodusers = [];
         $explicitmodtext = '-';
+        $rawparticipantstext = '-';
 
         if (!$cm) {
             $predicted = 'invalid_cmid';
@@ -1030,6 +1031,14 @@ foreach ($allclasses as $class) {
                 $bbbname = (string)$bbb->name . ' (#' . (int)$bbb->id . ')';
                 $wait = isset($bbb->wait) ? (int)$bbb->wait : 0;
                 $runningstate = dbgtj_bbb_running_state((string)($bbb->meetingid ?? ''));
+                $rawparticipants = trim((string)($bbb->participants ?? ''));
+                if ($rawparticipants === '') {
+                    $rawparticipantstext = 'EMPTY';
+                } else {
+                    $decodedraw = json_decode($rawparticipants, true);
+                    $jsonok = (json_last_error() === JSON_ERROR_NONE && is_array($decodedraw));
+                    $rawparticipantstext = ($jsonok ? 'JSON_OK ' : 'JSON_ERR ') . substr($rawparticipants, 0, 180);
+                }
 
                 $cmcontext = context_module::instance((int)$cm->id, IGNORE_MISSING);
                 $courseobj = $DB->get_record('course', ['id' => (int)$cm->course], '*', IGNORE_MISSING);
@@ -1123,6 +1132,7 @@ foreach ($allclasses as $class) {
         echo '<td>' . dbgtj_h($explicitmodtext) . '</td>';
         echo '<td><span class="' . $predclass . '">' . dbgtj_h($predicted) . '</span></td>';
         echo '<td><div class="dbgtj-pre">' . dbgtj_h($ruletext) . '</div></td>';
+        echo '<td><div class="dbgtj-pre">' . dbgtj_h($rawparticipantstext) . '</div></td>';
         echo '<td>' . dbgtj_h(implode(' | ', $notes)) . '</td>';
         echo '</tr>';
     }
