@@ -176,6 +176,128 @@ foreach ($details as $d) {
     }
 }
 
+// ─── SECCIÓN 2: Aprobaciones faltantes ──────────────────────────────────────
+// Detecta registros con status 0/1 en el plan activo del estudiante,
+// sin ningún status 3/4 para ese userid+courseid,
+// pero con nota >= 70 en Moodle (grade_items/grade_grades).
+// ────────────────────────────────────────────────────────────────────────────
+$PASSING_GRADE = 70.0;
+
+// Helper: get best Moodle grade for userid+courseid
+function dpa_moodle_grade($DB, $userid, $courseid) {
+    // 1) Course total
+    $g = $DB->get_field_sql(
+        "SELECT MAX(COALESCE(gg.finalgrade, gg.rawgrade))
+           FROM {grade_items} gi
+           JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = :uid
+          WHERE gi.itemtype = 'course' AND gi.courseid = :cid",
+        ['uid' => $userid, 'cid' => $courseid]
+    );
+    if ($g !== false && $g !== null && (float)$g > 0) {
+        return ['grade' => round((float)$g, 2), 'src' => 'Course total'];
+    }
+    // 2) Nota Final Integrada
+    $g = $DB->get_field_sql(
+        "SELECT MAX(COALESCE(gg.finalgrade, gg.rawgrade))
+           FROM {grade_items} gi
+           JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = :uid
+          WHERE gi.courseid = :cid
+            AND (gi.itemname LIKE :n1 OR gi.itemname LIKE :n2)",
+        ['uid' => $userid, 'cid' => $courseid,
+         'n1' => '%Nota Final Integrada%', 'n2' => '%Final Integrada%']
+    );
+    if ($g !== false && $g !== null && (float)$g > 0) {
+        return ['grade' => round((float)$g, 2), 'src' => 'Nota Final Integrada'];
+    }
+    return ['grade' => null, 'src' => 'no encontrada'];
+}
+
+// Action: fix missing approvals
+if ($action === 'fixmissing') {
+    require_sesskey();
+    $fixIds = optional_param_array('fixids', [], PARAM_INT);
+    $fixIds = array_values(array_filter(array_map('intval', $fixIds)));
+    $fixed = 0; $errors = 0;
+    foreach ($fixIds as $pid) {
+        $rec = $DB->get_record('gmk_course_progre', ['id' => $pid]);
+        if (!$rec || in_array((int)$rec->status, [3, 4])) { continue; }
+        $result = dpa_moodle_grade($DB, $rec->userid, $rec->courseid);
+        $grade  = $result['grade'];
+        if ($grade === null || $grade < $PASSING_GRADE) { $errors++; continue; }
+        try {
+            $DB->execute(
+                "UPDATE {gmk_course_progre}
+                    SET status=4, grade=:g, progress=100, timemodified=:now WHERE id=:id",
+                ['g' => $grade, 'now' => time(), 'id' => $pid]
+            );
+            $fixed++;
+        } catch (Exception $e) { $errors++; }
+    }
+    $actionLog[] = ['ok', "Aprobaciones registradas: $fixed." . ($errors ? " Errores: $errors." : '')];
+}
+
+// Query: status 0/1 in active plan, no 3/4 exists, but Moodle grade >= 70
+$missingSql = "
+    SELECT CONCAT(cp.userid, '_', cp.courseid) AS ukey,
+           cp.id AS progre_id,
+           cp.userid, cp.courseid, cp.status AS cpstatus,
+           cp.grade AS stored_grade, cp.learningplanid,
+           u.firstname, u.lastname, u.username,
+           c.fullname AS coursename, c.shortname AS courseshort
+      FROM {gmk_course_progre} cp
+      JOIN {user}   u ON u.id = cp.userid AND u.deleted = 0 AND u.suspended = 0
+      JOIN {course} c ON c.id = cp.courseid
+     WHERE cp.status IN (0, 1)
+       AND EXISTS (
+           SELECT 1 FROM {local_learning_users} lu
+            WHERE lu.userid        = cp.userid
+              AND lu.learningplanid = cp.learningplanid
+              AND lu.userroleid    = 5
+       )
+       AND NOT EXISTS (
+           SELECT 1 FROM {gmk_course_progre} cp_ok
+            WHERE cp_ok.userid   = cp.userid
+              AND cp_ok.courseid = cp.courseid
+              AND cp_ok.status  IN (3, 4)
+       )
+       AND (
+           EXISTS (
+               SELECT 1 FROM {grade_items} gi
+               JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = cp.userid
+              WHERE gi.itemtype = 'course' AND gi.courseid = cp.courseid
+                AND COALESCE(gg.finalgrade, gg.rawgrade) >= :p1
+           )
+           OR EXISTS (
+               SELECT 1 FROM {grade_items} gi
+               JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = cp.userid
+              WHERE gi.courseid = cp.courseid
+                AND (gi.itemname LIKE :nfi1 OR gi.itemname LIKE :nfi2)
+                AND COALESCE(gg.finalgrade, gg.rawgrade) >= :p2
+           )
+       )
+     ORDER BY u.lastname, u.firstname, c.fullname
+";
+$missingRows = [];
+try {
+    $missingRows = $DB->get_records_sql($missingSql, [
+        'p1'   => $PASSING_GRADE,
+        'p2'   => $PASSING_GRADE,
+        'nfi1' => '%Nota Final Integrada%',
+        'nfi2' => '%Final Integrada%',
+    ]);
+} catch (Exception $e) {}
+
+// Pre-fetch Moodle grades for missing rows
+$missingData = [];
+foreach ($missingRows as $mr) {
+    $result = dpa_moodle_grade($DB, $mr->userid, $mr->courseid);
+    $missingData[] = [
+        'row'   => $mr,
+        'grade' => $result['grade'],
+        'src'   => $result['src'],
+    ];
+}
+
 echo $OUTPUT->header();
 ?>
 <style>
@@ -437,8 +559,141 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <?php else: ?>
 <div class="dpa-card">
-    <div class="dpa-alert-ok">&#10003; No se encontraron inconsistencias. Todos los pares (userid, courseid) son consistentes.</div>
+    <div class="dpa-alert-ok">&#10003; No se encontraron inconsistencias (sección 1). Todos los pares (userid, courseid) son consistentes.</div>
 </div>
+<?php endif; ?>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     SECCIÓN 2: Aprobaciones faltantes en gmk_course_progre
+     status 0/1 en plan activo + nota >= 70 en Moodle + sin registro 3/4
+     ═══════════════════════════════════════════════════════════════════════ -->
+<hr style="border:none;border-top:2px solid #e5e7eb;margin:28px 0 20px">
+<h2 style="font-size:20px;font-weight:700;margin-bottom:6px;">
+    &#9888;&#65039; Aprobaciones faltantes: nota en Moodle pero sin status 3/4
+</h2>
+
+<div class="dpa-explain" style="background:#f0f9ff;border-color:#7dd3fc">
+    <strong>&#128270; ¿Qué detecta esta sección?</strong><br>
+    Estudiantes con <code>gmk_course_progre.status 0 o 1</code> (No disponible / Disponible) en su plan activo,
+    que <strong>no tienen ningún registro aprobado (status 3/4)</strong> para ese curso,
+    pero <strong>sí tienen nota &ge; <?php echo $PASSING_GRADE; ?> en Moodle</strong> (course total o Nota Final Integrada).<br><br>
+    <strong>Causa típica:</strong> el estudiante cursó y aprobó la materia, pero <code>sync_progress</code> nunca actualizó el registro
+    (ej. aprobó antes de que el sistema existiera, o el sync falló), o la materia fue aprobada por revalidación
+    sin pasar por el flujo normal.
+</div>
+
+<?php if (empty($missingData)): ?>
+<div class="dpa-card">
+    <div class="dpa-alert-ok">&#10003; No se encontraron aprobaciones faltantes.</div>
+</div>
+<?php else: ?>
+
+<div class="dpa-card">
+    <h4>&#128202; Resumen</h4>
+    <div class="dpa-stat" style="border-color:#7dd3fc">
+        <div class="num" style="color:#0369a1"><?php echo count($missingData); ?></div>
+        <div class="lbl">Registros con aprobación faltante</div>
+    </div>
+</div>
+
+<form method="post" id="form-fixmissing">
+<input type="hidden" name="action"  value="fixmissing">
+<input type="hidden" name="sesskey" value="<?php echo sesskey(); ?>">
+
+<!-- Barra flotante sección 2 -->
+<div id="dpa-floatbar2" style="display:none;position:sticky;top:0;z-index:100;background:#0369a1;color:#fff;
+     padding:10px 16px;border-radius:8px;margin-bottom:12px;align-items:center;gap:12px;flex-wrap:wrap;">
+    <span id="dpa-fix-count" style="font-size:13px;font-weight:600">0 seleccionados</span>
+    <button type="submit" class="dpa-btn" style="background:#166534;color:#fff">
+        &#10003; Registrar aprobaciones seleccionadas (status=4)
+    </button>
+    <button type="button" class="dpa-btn" style="background:#1e3a5f"
+            onclick="document.querySelectorAll('.fix-cb').forEach(cb=>cb.checked=false);updateBar2();">
+        Deseleccionar todo
+    </button>
+</div>
+
+<div class="dpa-card">
+    <h4>&#128203; Detalle de aprobaciones faltantes</h4>
+    <table class="dpa-tbl">
+        <thead>
+            <tr>
+                <th style="width:32px">
+                    <input type="checkbox" id="fix-all"
+                           onchange="document.querySelectorAll('.fix-cb').forEach(cb=>cb.checked=this.checked);updateBar2();">
+                </th>
+                <th>Estudiante</th>
+                <th>Curso</th>
+                <th>Status actual</th>
+                <th>Plan</th>
+                <th>Nota Moodle</th>
+                <th>Fuente</th>
+                <th>progre_id</th>
+            </tr>
+        </thead>
+        <tbody>
+        <?php
+        $planNamesM = isset($planNames) ? $planNames : $DB->get_records_menu('local_learning_plans', null, '', 'id, name');
+        foreach ($missingData as $md):
+            $mr      = $md['row'];
+            $grade   = $md['grade'];
+            $src     = $md['src'];
+            $stInfo  = $STATUS_LABELS[(int)$mr->cpstatus] ?? ['txt' => 'status=' . (int)$mr->cpstatus, 'cls' => 'secondary'];
+            $lpLabel = isset($planNamesM[(int)$mr->learningplanid])
+                       ? s($planNamesM[(int)$mr->learningplanid]) : 'ID ' . (int)$mr->learningplanid;
+        ?>
+        <tr style="background:#f0f9ff">
+            <td style="text-align:center">
+                <?php if ($grade !== null && $grade >= $PASSING_GRADE): ?>
+                    <input type="checkbox" class="fix-cb" name="fixids[]"
+                           value="<?php echo (int)$mr->progre_id; ?>"
+                           onchange="updateBar2()">
+                <?php else: ?>
+                    <span style="color:#d1d5db" title="Sin nota suficiente en Moodle">—</span>
+                <?php endif; ?>
+            </td>
+            <td>
+                <strong><?php echo s($mr->firstname . ' ' . $mr->lastname); ?></strong><br>
+                <small style="color:#6b7280"><?php echo s($mr->username); ?> / uid=<?php echo (int)$mr->userid; ?></small>
+            </td>
+            <td>
+                <?php echo s($mr->coursename); ?><br>
+                <small style="color:#6b7280"><?php echo s($mr->courseshort); ?> / cid=<?php echo (int)$mr->courseid; ?></small>
+            </td>
+            <td>
+                <span class="dpa-badge badge-<?php echo $stInfo['cls']; ?>"><?php echo $stInfo['txt']; ?></span>
+            </td>
+            <td><small><?php echo $lpLabel; ?></small></td>
+            <td style="font-weight:700;color:<?php echo ($grade !== null && $grade >= $PASSING_GRADE) ? '#166534' : '#dc2626'; ?>">
+                <?php echo $grade !== null ? number_format($grade, 2) : '—'; ?>
+            </td>
+            <td><small style="color:#6b7280"><?php echo s($src); ?></small></td>
+            <td style="font-family:monospace;font-size:11px"><?php echo (int)$mr->progre_id; ?></td>
+        </tr>
+        <?php endforeach; ?>
+        </tbody>
+    </table>
+</div>
+</form>
+
+<script>
+function updateBar2() {
+    var n = document.querySelectorAll('.fix-cb:checked').length;
+    var bar = document.getElementById('dpa-floatbar2');
+    bar.style.display = n > 0 ? 'flex' : 'none';
+    document.getElementById('dpa-fix-count').textContent = n + ' seleccionado' + (n !== 1 ? 's' : '');
+}
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('form-fixmissing').addEventListener('submit', function(e) {
+        var n = document.querySelectorAll('.fix-cb:checked').length;
+        if (!n) { alert('Selecciona al menos un registro.'); e.preventDefault(); return; }
+        if (!confirm('¿Registrar ' + n + ' aprobación(es)? Se actualizará status=4, grade=nota Moodle, progress=100.')) {
+            e.preventDefault();
+        }
+    });
+});
+</script>
+
 <?php endif; ?>
 
 </div>

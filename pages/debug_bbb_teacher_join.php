@@ -80,6 +80,97 @@ function dbgtj_parse_int_list(string $raw): array {
 }
 
 /**
+ * Extract class id token from BBB activity name pattern "<class name>-<classid>-<timestamp>".
+ * @param string $bbbname
+ * @return int
+ */
+function dbgtj_extract_classid_from_bbb_name(string $bbbname): int {
+    $bbbname = trim($bbbname);
+    if ($bbbname === '') {
+        return 0;
+    }
+    if (preg_match('/-(\d+)-(\d{6,})$/', $bbbname, $m)) {
+        return (int)$m[1];
+    }
+    return 0;
+}
+
+/**
+ * Detect other classes that also reference the same BBB course module id.
+ * Checks both relation table and class.bbbmoduleids field.
+ *
+ * @param int $cmid
+ * @param int $classid
+ * @return int[]
+ */
+function dbgtj_other_classes_using_bbb_cmid(int $cmid, int $classid): array {
+    global $DB;
+
+    static $cachebuilt = false;
+    static $cmclassmap = [];
+
+    if ($cmid <= 0) {
+        return [];
+    }
+
+    if (!$cachebuilt) {
+        $relrows = $DB->get_records_sql(
+            "SELECT classid, bbbmoduleid
+               FROM {gmk_bbb_attendance_relation}
+              WHERE classid > 0
+                AND bbbmoduleid > 0"
+        );
+        foreach ($relrows as $rr) {
+            $otherid = (int)($rr->classid ?? 0);
+            $rcmid = (int)($rr->bbbmoduleid ?? 0);
+            if ($otherid > 0 && $rcmid > 0) {
+                if (!isset($cmclassmap[$rcmid])) {
+                    $cmclassmap[$rcmid] = [];
+                }
+                $cmclassmap[$rcmid][$otherid] = 1;
+            }
+        }
+
+        $classrows = $DB->get_records_select(
+            'gmk_class',
+            'bbbmoduleids IS NOT NULL AND bbbmoduleids <> :empty',
+            ['empty' => ''],
+            '',
+            'id,bbbmoduleids'
+        );
+        foreach ($classrows as $crow) {
+            $otherid = (int)$crow->id;
+            if ($otherid <= 0) {
+                continue;
+            }
+            $ids = dbgtj_parse_int_list((string)($crow->bbbmoduleids ?? ''));
+            foreach ($ids as $rcmid) {
+                $rcmid = (int)$rcmid;
+                if ($rcmid <= 0) {
+                    continue;
+                }
+                if (!isset($cmclassmap[$rcmid])) {
+                    $cmclassmap[$rcmid] = [];
+                }
+                $cmclassmap[$rcmid][$otherid] = 1;
+            }
+        }
+        $cachebuilt = true;
+    }
+
+    $out = [];
+    $classset = $cmclassmap[(int)$cmid] ?? [];
+    foreach ($classset as $otherid => $v) {
+        $otherid = (int)$otherid;
+        if ($otherid > 0 && $otherid !== (int)$classid) {
+            $out[$otherid] = $otherid;
+        }
+    }
+    ksort($out);
+    return array_values($out);
+}
+
+/**
  * Return explicit moderator user IDs from participant rules.
  * @param array $rules
  * @return array<int,int>
@@ -413,13 +504,16 @@ function dbgtj_repair_moderator_rules_for_class(int $classid): array {
     $verifiedok = 0;
     $verifyfailed = 0;
     $skipped = 0;
+    $foreignskipped = 0;
+    $sharedskipped = 0;
     $errors = [];
     $time = time();
     foreach ($targetcmids as $cmid) {
         $cm = $DB->get_record_sql(
-            "SELECT cm.id, cm.instance, m.name AS modulename
+            "SELECT cm.id, cm.instance, m.name AS modulename, b.name AS bbbname
                FROM {course_modules} cm
                JOIN {modules} m ON m.id = cm.module
+          LEFT JOIN {bigbluebuttonbn} b ON b.id = cm.instance
               WHERE cm.id = :cmid",
             ['cmid' => (int)$cmid],
             IGNORE_MISSING
@@ -427,6 +521,19 @@ function dbgtj_repair_moderator_rules_for_class(int $classid): array {
         if (!$cm || (string)$cm->modulename !== 'bigbluebuttonbn' || (int)$cm->instance <= 0) {
             $skipped++;
             $errors[] = 'cmid=' . (int)$cmid . ' skipped (invalid/non-bbb)';
+            continue;
+        }
+        $tokenclassid = dbgtj_extract_classid_from_bbb_name((string)($cm->bbbname ?? ''));
+        if ($tokenclassid > 0 && $tokenclassid !== (int)$classid) {
+            $foreignskipped++;
+            $errors[] = 'cmid=' . (int)$cmid . ' skipped_foreign_ref tokenclassid=' . (int)$tokenclassid . ' classid=' . (int)$classid;
+            continue;
+        }
+        $sharedwith = dbgtj_other_classes_using_bbb_cmid((int)$cmid, (int)$classid);
+        if (!empty($sharedwith)) {
+            $sharedskipped++;
+            $errors[] = 'cmid=' . (int)$cmid . ' skipped_shared_ref classid=' . (int)$classid .
+                ' shared_with=' . implode(',', $sharedwith);
             continue;
         }
 
@@ -469,13 +576,114 @@ function dbgtj_repair_moderator_rules_for_class(int $classid): array {
     return [
         'type' => ($updated > 0 && $verifyfailed === 0 ? 'ok' : 'warn'),
         'message' => 'Repair moderator rules done. Updated BBB modules: ' . (int)$updated .
-            '. Verified: ' . (int)$verifiedok . '. Verify failed: ' . (int)$verifyfailed . '. Skipped: ' . (int)$skipped . '.',
+            '. Verified: ' . (int)$verifiedok . '. Verify failed: ' . (int)$verifyfailed .
+            '. Skipped: ' . (int)$skipped . '. Foreign skipped: ' . (int)$foreignskipped .
+            '. Shared skipped: ' . (int)$sharedskipped . '.',
         'details' => array_merge([
             'classid=' . (int)$classid,
             'instructorid=' . (int)$class->instructorid,
             'courseid=' . (int)$class->corecourseid,
-            'cache_rebuilt=1'
+            'cache_rebuilt=1',
+            'foreign_skipped=' . (int)$foreignskipped,
+            'shared_skipped=' . (int)$sharedskipped,
+            'hint=if foreign/shared skipped > 0 run "Sanitize Mapping" first, then run repair again'
         ], $errors)
+    ];
+}
+
+/**
+ * Remove cross-class BBB references from gmk_class.bbbmoduleids and relation rows.
+ * Keeps only BBB cmids whose BBB name token matches current class id.
+ *
+ * @param int $classid
+ * @return array{type:string,message:string,details:array<int,string>}
+ */
+function dbgtj_sanitize_class_bbb_mapping(int $classid): array {
+    global $DB;
+
+    $class = $DB->get_record('gmk_class', ['id' => (int)$classid], '*', IGNORE_MISSING);
+    if (!$class) {
+        return [
+            'type' => 'bad',
+            'message' => 'Class not found for sanitize.',
+            'details' => ['classid=' . (int)$classid]
+        ];
+    }
+
+    $cmids = [];
+    foreach (dbgtj_parse_int_list((string)($class->bbbmoduleids ?? '')) as $cmid) {
+        $cmids[$cmid] = $cmid;
+    }
+    $relations = $DB->get_records('gmk_bbb_attendance_relation', ['classid' => (int)$classid], '', 'id,bbbmoduleid');
+    foreach ($relations as $rel) {
+        $cmid = (int)($rel->bbbmoduleid ?? 0);
+        if ($cmid > 0) {
+            $cmids[$cmid] = $cmid;
+        }
+    }
+    $cmids = array_values($cmids);
+
+    if (empty($cmids)) {
+        return [
+            'type' => 'warn',
+            'message' => 'No BBB cmids to sanitize for class.',
+            'details' => ['classid=' . (int)$classid]
+        ];
+    }
+
+    list($insql, $params) = $DB->get_in_or_equal($cmids, SQL_PARAMS_NAMED, 'scm');
+    $cms = $DB->get_records_sql(
+        "SELECT cm.id, cm.instance, m.name AS modulename, b.name AS bbbname
+           FROM {course_modules} cm
+           JOIN {modules} m ON m.id = cm.module
+      LEFT JOIN {bigbluebuttonbn} b ON b.id = cm.instance
+          WHERE cm.id {$insql}",
+        $params
+    );
+
+    $owned = [];
+    $foreign = [];
+    $invalid = [];
+    foreach ($cmids as $cmid) {
+        $cm = $cms[(int)$cmid] ?? null;
+        if (!$cm || (string)$cm->modulename !== 'bigbluebuttonbn') {
+            $invalid[] = (int)$cmid;
+            continue;
+        }
+        $tokenclassid = dbgtj_extract_classid_from_bbb_name((string)($cm->bbbname ?? ''));
+        if ($tokenclassid > 0 && $tokenclassid !== (int)$classid) {
+            $foreign[] = (int)$cmid;
+            continue;
+        }
+        $owned[] = (int)$cmid;
+    }
+    $owned = array_values(array_unique($owned));
+    sort($owned);
+
+    $newcmtext = !empty($owned) ? implode(',', $owned) : null;
+    $DB->set_field('gmk_class', 'bbbmoduleids', $newcmtext, ['id' => (int)$classid]);
+
+    $deletedrelations = 0;
+    if (!empty($foreign)) {
+        list($finsql, $fparams) = $DB->get_in_or_equal($foreign, SQL_PARAMS_NAMED, 'fcm');
+        $sql = "classid = :cid AND bbbmoduleid {$finsql}";
+        $fparams['cid'] = (int)$classid;
+        $deletedrelations = $DB->count_records_select('gmk_bbb_attendance_relation', $sql, $fparams);
+        $DB->delete_records_select('gmk_bbb_attendance_relation', $sql, $fparams);
+    }
+
+    return [
+        'type' => 'ok',
+        'message' => 'Sanitize mapping done. Owned=' . count($owned) . ' Foreign=' . count($foreign) .
+            ' Invalid=' . count($invalid) . ' Relation rows deleted=' . (int)$deletedrelations . '.',
+        'details' => [
+            'classid=' . (int)$classid,
+            'old_count=' . count($cmids),
+            'owned=' . (!empty($owned) ? implode(',', $owned) : 'none'),
+            'foreign=' . (!empty($foreign) ? implode(',', $foreign) : 'none'),
+            'invalid=' . (!empty($invalid) ? implode(',', $invalid) : 'none'),
+            'new_bbbmoduleids=' . ($newcmtext === null ? 'NULL' : $newcmtext)
+        ]
     ];
 }
 
@@ -536,6 +744,8 @@ if ($tab === 'global') {
             ];
         } else if ($repairaction === 'fixmoderator' && $repairclassid > 0) {
             $repairfeedback = dbgtj_repair_moderator_rules_for_class((int)$repairclassid);
+        } else if ($repairaction === 'sanitizebbb' && $repairclassid > 0) {
+            $repairfeedback = dbgtj_sanitize_class_bbb_mapping((int)$repairclassid);
         }
     }
 
@@ -600,6 +810,8 @@ if ($tab === 'global') {
             'classes' => 0,
             'classes_with_risk' => 0,
             'cm_checked' => 0,
+            'risk_cross_class_mapping' => 0,
+            'risk_shared_refs' => 0,
             'risk_explicit_mismatch' => 0,
             'risk_wait_not_moderator' => 0,
             'risk_no_mapping' => 0,
@@ -612,6 +824,8 @@ if ($tab === 'global') {
             $issues = [];
             $riskexplicit = 0;
             $riskwaitnotmod = 0;
+            $riskcrossmap = 0;
+            $riskshared = 0;
             $invalidcm = 0;
             $cmchecked = 0;
 
@@ -655,6 +869,16 @@ if ($tab === 'global') {
                         $scanstats['risk_invalid_cmid']++;
                         continue;
                     }
+                    $tokenclassid = dbgtj_extract_classid_from_bbb_name((string)($bbb->name ?? ''));
+                    if ($tokenclassid > 0 && $tokenclassid !== (int)$gclass->id) {
+                        $riskcrossmap++;
+                        $scanstats['risk_cross_class_mapping']++;
+                    }
+                    $sharedwith = dbgtj_other_classes_using_bbb_cmid((int)$cmiditem, (int)$gclass->id);
+                    if (!empty($sharedwith)) {
+                        $riskshared++;
+                        $scanstats['risk_shared_refs']++;
+                    }
                     if ((int)$gclass->instructorid <= 0) {
                         continue;
                     }
@@ -680,6 +904,12 @@ if ($tab === 'global') {
             if ($invalidcm > 0) {
                 $issues[] = 'invalid_or_missing_bbb_cmid=' . $invalidcm;
             }
+            if ($riskcrossmap > 0) {
+                $issues[] = 'cross_class_bbb_mapping=' . $riskcrossmap;
+            }
+            if ($riskshared > 0) {
+                $issues[] = 'shared_bbb_cmid_ref=' . $riskshared;
+            }
             if ($riskexplicit > 0) {
                 $issues[] = 'explicit_moderator_mismatch=' . $riskexplicit;
             }
@@ -691,6 +921,8 @@ if ($tab === 'global') {
                 $rows[] = [
                     'class' => $gclass,
                     'cmchecked' => $cmchecked,
+                    'riskcrossmap' => $riskcrossmap,
+                    'riskshared' => $riskshared,
                     'riskexplicit' => $riskexplicit,
                     'riskwaitnotmod' => $riskwaitnotmod,
                     'issues' => $issues,
@@ -704,6 +936,8 @@ if ($tab === 'global') {
         echo '<div>Classes scanned: <strong>' . (int)$scanstats['classes'] . '</strong></div>';
         echo '<div>Classes with risk: <strong>' . (int)$scanstats['classes_with_risk'] . '</strong></div>';
         echo '<div>CM checked: <strong>' . (int)$scanstats['cm_checked'] . '</strong></div>';
+        echo '<div>Cross-class BBB mapping: <strong>' . (int)$scanstats['risk_cross_class_mapping'] . '</strong></div>';
+        echo '<div>Shared BBB cmid refs: <strong>' . (int)$scanstats['risk_shared_refs'] . '</strong></div>';
         echo '<div>Explicit moderator mismatch: <strong>' . (int)$scanstats['risk_explicit_mismatch'] . '</strong></div>';
         echo '<div>Wait=1 and instructor not moderator: <strong>' . (int)$scanstats['risk_wait_not_moderator'] . '</strong></div>';
         echo '<div>No BBB mapping: <strong>' . (int)$scanstats['risk_no_mapping'] . '</strong></div>';
@@ -714,7 +948,7 @@ if ($tab === 'global') {
         if (!empty($rows)) {
             echo '<div class="dbgtj-card">';
             echo '<table class="dbgtj-table">';
-            echo '<thead><tr><th>Class</th><th>Instructor</th><th>Course</th><th>Period</th><th>CM checked</th><th>Risk explicit mismatch</th><th>Risk wait/not moderator</th><th>Issues</th><th>Actions</th></tr></thead><tbody>';
+            echo '<thead><tr><th>Class</th><th>Instructor</th><th>Course</th><th>Period</th><th>CM checked</th><th>Risk cross mapping</th><th>Risk shared refs</th><th>Risk explicit mismatch</th><th>Risk wait/not moderator</th><th>Issues</th><th>Actions</th></tr></thead><tbody>';
             foreach ($rows as $row) {
                 $cls = $row['class'];
                 $teacherfullname = trim((string)($cls->t_firstname ?? '') . ' ' . (string)($cls->t_lastname ?? ''));
@@ -740,16 +974,29 @@ if ($tab === 'global') {
                     'repairclassid' => (int)$cls->id,
                     'sesskey' => sesskey(),
                 ]);
+                $surl = new moodle_url('/local/grupomakro_core/pages/debug_bbb_teacher_join.php', [
+                    'tab' => 'global',
+                    'g_scan' => 1,
+                    'g_onlyactive' => (int)$globalonlyactive,
+                    'g_maxclasses' => (int)$globalmaxclasses,
+                    'g_periodid' => (int)$globalperiodid,
+                    'g_name' => $globalname,
+                    'repair' => 'sanitizebbb',
+                    'repairclassid' => (int)$cls->id,
+                    'sesskey' => sesskey(),
+                ]);
                 echo '<tr>';
                 echo '<td>#' . (int)$cls->id . ' ' . dbgtj_h((string)$cls->name) . '</td>';
                 echo '<td>id=' . (int)$cls->instructorid . ' ' . dbgtj_h($teacherfullname) . '</td>';
                 echo '<td>id=' . (int)$cls->corecourseid . ' ' . dbgtj_h((string)($cls->coursename ?? '')) . '</td>';
                 echo '<td>' . (int)$cls->periodid . '</td>';
                 echo '<td>' . (int)$row['cmchecked'] . '</td>';
+                echo '<td>' . (int)$row['riskcrossmap'] . '</td>';
+                echo '<td>' . (int)$row['riskshared'] . '</td>';
                 echo '<td>' . (int)$row['riskexplicit'] . '</td>';
                 echo '<td>' . (int)$row['riskwaitnotmod'] . '</td>';
                 echo '<td>' . dbgtj_h(implode(' | ', (array)$row['issues'])) . '</td>';
-                echo '<td><a class="btn btn-secondary btn-sm" style="margin-right:6px" href="' . $durl->out(false) . '">Diagnose</a><a class="btn btn-secondary btn-sm" href="' . $rurl->out(false) . '">Repair</a></td>';
+                echo '<td><a class="btn btn-secondary btn-sm" style="margin-right:6px" href="' . $durl->out(false) . '">Diagnose</a><a class="btn btn-secondary btn-sm" style="margin-right:6px" href="' . $rurl->out(false) . '">Repair</a><a class="btn btn-secondary btn-sm" href="' . $surl->out(false) . '">Sanitize Mapping</a></td>';
                 echo '</tr>';
             }
             echo '</tbody></table>';
@@ -835,6 +1082,8 @@ if ($repairaction !== '') {
         ];
     } else if ($repairaction === 'fixmoderator' && $repairclassid > 0) {
         $repairfeedback = dbgtj_repair_moderator_rules_for_class((int)$repairclassid);
+    } else if ($repairaction === 'sanitizebbb' && $repairclassid > 0) {
+        $repairfeedback = dbgtj_sanitize_class_bbb_mapping((int)$repairclassid);
     }
 }
 
@@ -900,6 +1149,8 @@ $summary = [
     'cm_missing' => 0,
     'cm_not_bbb' => 0,
     'bbb_missing' => 0,
+    'cross_class_mapping' => 0,
+    'shared_cmid_refs' => 0,
     'no_join_capability' => 0,
     'not_moderator_wait' => 0,
     'not_moderator_wait_running' => 0,
@@ -941,7 +1192,19 @@ foreach ($allclasses as $class) {
         'repairclassid' => (int)$cid,
         'sesskey' => sesskey(),
     ]);
-    echo '<a class="btn btn-secondary btn-sm" href="' . $repairurl->out(false) . '">Repair Moderator Rules</a>';
+    $sanitizeurl = new moodle_url('/local/grupomakro_core/pages/debug_bbb_teacher_join.php', [
+        'tab' => 'teacher',
+        'teacher' => $teacherquery,
+        'teacherid' => (int)$teacherid,
+        'classname' => $classquery,
+        'classid' => (int)$classid,
+        'onlyactive' => (int)$onlyactive,
+        'maxclasses' => (int)$maxclasses,
+        'repair' => 'sanitizebbb',
+        'repairclassid' => (int)$cid,
+        'sesskey' => sesskey(),
+    ]);
+    echo '<div><a class="btn btn-secondary btn-sm" style="margin-right:6px" href="' . $repairurl->out(false) . '">Repair Moderator Rules</a><a class="btn btn-secondary btn-sm" href="' . $sanitizeurl->out(false) . '">Sanitize Mapping</a></div>';
     echo '</div>';
     echo '<div class="dbgtj-grid" style="margin-bottom:10px">';
     echo '<div>Course: ' . (int)$class->corecourseid . ' - ' . dbgtj_h((string)($class->coursename ?? '')) . '</div>';
@@ -986,7 +1249,7 @@ foreach ($allclasses as $class) {
 
     echo '<table class="dbgtj-table">';
     echo '<thead><tr>';
-    echo '<th>CMID</th><th>Module</th><th>BBB instance</th><th>wait</th><th>meeting running</th><th>teacher roles in cm</th>';
+    echo '<th>CMID</th><th>Module</th><th>BBB instance</th><th>token classid</th><th>wait</th><th>meeting running</th><th>teacher roles in cm</th>';
     echo '<th>join cap</th><th>group visible(0)</th><th>is moderator</th><th>explicit moderator users</th><th>predicted result</th><th>participant rules</th><th>raw participants</th><th>notes</th>';
     echo '</tr></thead><tbody>';
 
@@ -1006,6 +1269,9 @@ foreach ($allclasses as $class) {
         $explicitmodusers = [];
         $explicitmodtext = '-';
         $rawparticipantstext = '-';
+        $tokenclassid = 0;
+        $crossmapping = false;
+        $sharedwithclasses = [];
 
         if (!$cm) {
             $predicted = 'invalid_cmid';
@@ -1032,6 +1298,15 @@ foreach ($allclasses as $class) {
                 $wait = isset($bbb->wait) ? (int)$bbb->wait : 0;
                 $runningstate = dbgtj_bbb_running_state((string)($bbb->meetingid ?? ''));
                 $rawparticipants = trim((string)($bbb->participants ?? ''));
+                $tokenclassid = dbgtj_extract_classid_from_bbb_name((string)($bbb->name ?? ''));
+                if ($tokenclassid > 0 && $tokenclassid !== (int)$cid) {
+                    $crossmapping = true;
+                    $notes[] = 'cross_class_bbb_mapping tokenclassid=' . (int)$tokenclassid . ' classid=' . (int)$cid;
+                }
+                $sharedwithclasses = dbgtj_other_classes_using_bbb_cmid((int)$cm->id, (int)$cid);
+                if (!empty($sharedwithclasses)) {
+                    $notes[] = 'shared_bbb_cmid_with_classes=' . implode(',', $sharedwithclasses);
+                }
                 if ($rawparticipants === '') {
                     $rawparticipantstext = 'EMPTY';
                 } else {
@@ -1072,7 +1347,13 @@ foreach ($allclasses as $class) {
                         && !empty($explicitmodusers)
                         && empty($explicitmodusers[$teacherid]);
 
-                    if (!$canjoin) {
+                    if ($crossmapping) {
+                        $predicted = 'cross_class_bbb_mapping';
+                        $summary['cross_class_mapping']++;
+                    } else if (!empty($sharedwithclasses)) {
+                        $predicted = 'shared_bbb_cmid_mapping';
+                        $summary['shared_cmid_refs']++;
+                    } else if (!$canjoin) {
                         $predicted = 'no_join_capability_or_group_visibility';
                         $summary['no_join_capability']++;
                     } else if ($explicitmismatchwait) {
@@ -1115,7 +1396,7 @@ foreach ($allclasses as $class) {
         if (strpos($predicted, 'wait') !== false || strpos($predicted, 'mismatch') !== false) {
             $predclass = 'dbgtj-warn';
         }
-        if (strpos($predicted, 'no_join') !== false || strpos($predicted, 'invalid') !== false || strpos($predicted, 'missing') !== false) {
+        if (strpos($predicted, 'no_join') !== false || strpos($predicted, 'invalid') !== false || strpos($predicted, 'missing') !== false || strpos($predicted, 'cross_class') !== false || strpos($predicted, 'shared_bbb_cmid') !== false) {
             $predclass = 'dbgtj-bad';
         }
 
@@ -1123,6 +1404,7 @@ foreach ($allclasses as $class) {
         echo '<td>' . (int)$cmiditem . '</td>';
         echo '<td>' . dbgtj_h($module) . '</td>';
         echo '<td>' . dbgtj_h($bbbname) . '</td>';
+        echo '<td>' . ($tokenclassid > 0 ? (int)$tokenclassid : '-') . '</td>';
         echo '<td>' . (($wait === null) ? '-' : (int)$wait) . '</td>';
         echo '<td>' . $runninglabel . '</td>';
         echo '<td>' . dbgtj_h($cmroles) . '</td>';
@@ -1147,6 +1429,8 @@ echo '<div>classes with no relation: <strong>' . (int)$summary['relation_missing
 echo '<div>invalid cmid: <strong>' . (int)$summary['cm_missing'] . '</strong></div>';
 echo '<div>cm not bbb: <strong>' . (int)$summary['cm_not_bbb'] . '</strong></div>';
 echo '<div>bbb instance missing: <strong>' . (int)$summary['bbb_missing'] . '</strong></div>';
+echo '<div>cross-class BBB mapping: <strong>' . (int)$summary['cross_class_mapping'] . '</strong></div>';
+echo '<div>shared BBB cmid refs: <strong>' . (int)$summary['shared_cmid_refs'] . '</strong></div>';
 echo '<div>no join capability/group visibility: <strong>' . (int)$summary['no_join_capability'] . '</strong></div>';
 echo '<div>not moderator + wait + meeting not running: <strong>' . (int)$summary['not_moderator_wait'] . '</strong></div>';
 echo '<div>not moderator + wait (running unknown/running): <strong>' . (int)$summary['not_moderator_wait_running'] . '</strong></div>';
