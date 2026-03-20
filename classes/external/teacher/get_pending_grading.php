@@ -81,22 +81,80 @@ class get_pending_grading extends external_api {
                     $item->cmid = $cm->id;
                     $context_mod = \context_module::instance($cm->id);
 
+                    // Resolve the effective latest submission id for this user+assignment.
+                    $effectivesubmissionid = (int)$sub->submissionid;
+                    $latestusersubmission = $DB->get_record_sql(
+                        "SELECT id
+                           FROM {assign_submission}
+                          WHERE assignment = :assignmentid
+                            AND userid = :userid
+                       ORDER BY latest DESC, timemodified DESC, id DESC",
+                        [
+                            'assignmentid' => (int)$sub->itemid,
+                            'userid' => (int)$sub->userid,
+                        ],
+                        IGNORE_MULTIPLE
+                    );
+                    if ($latestusersubmission && (int)$latestusersubmission->id > 0) {
+                        $effectivesubmissionid = (int)$latestusersubmission->id;
+                    }
+
                     // Submission online text (includes inline images with @@PLUGINFILE@@ placeholders).
                     $onlinetext = $DB->get_record(
                         'assignsubmission_onlinetext',
-                        ['assignment' => (int)$sub->itemid, 'submission' => (int)$sub->submissionid],
+                        ['assignment' => (int)$sub->itemid, 'submission' => $effectivesubmissionid],
                         'id,onlinetext,onlineformat',
                         IGNORE_MISSING
                     );
+                    if (!$onlinetext) {
+                        // Fallback: locate latest online text row by assignment + student submissions.
+                        $onlinetext = $DB->get_record_sql(
+                            "SELECT ot.id, ot.onlinetext, ot.onlineformat
+                               FROM {assignsubmission_onlinetext} ot
+                               JOIN {assign_submission} s ON s.id = ot.submission
+                              WHERE ot.assignment = :assignmentid
+                                AND s.assignment = :assignmentid2
+                                AND s.userid = :userid
+                           ORDER BY s.latest DESC, s.timemodified DESC, s.id DESC, ot.id DESC",
+                            [
+                                'assignmentid' => (int)$sub->itemid,
+                                'assignmentid2' => (int)$sub->itemid,
+                                'userid' => (int)$sub->userid,
+                            ],
+                            IGNORE_MULTIPLE
+                        );
+                    }
+
+                    $onlinetextfileitemids = [$effectivesubmissionid];
+                    if ($onlinetext && (int)$onlinetext->id > 0 && !in_array((int)$onlinetext->id, $onlinetextfileitemids, true)) {
+                        $onlinetextfileitemids[] = (int)$onlinetext->id;
+                    }
+
                     if ($onlinetext && trim((string)$onlinetext->onlinetext) !== '') {
                         $rawtext = (string)$onlinetext->onlinetext;
+                        $rewriteitemid = $effectivesubmissionid;
+                        foreach ($onlinetextfileitemids as $candidateitemid) {
+                            $candidatefiles = $fs->get_area_files(
+                                (int)$context_mod->id,
+                                'assignsubmission_onlinetext',
+                                'onlinetext',
+                                (int)$candidateitemid,
+                                'sortorder',
+                                false
+                            );
+                            if (!empty($candidatefiles)) {
+                                $rewriteitemid = (int)$candidateitemid;
+                                break;
+                            }
+                        }
+
                         $rewrittentext = file_rewrite_pluginfile_urls(
                             $rawtext,
                             'pluginfile.php',
                             (int)$context_mod->id,
                             'assignsubmission_onlinetext',
                             'onlinetext',
-                            (int)$sub->submissionid
+                            $rewriteitemid
                         );
                         $formattedtext = format_text(
                             $rewrittentext,
@@ -116,18 +174,24 @@ class get_pending_grading extends external_api {
                         (int)$context_mod->id,
                         'assignsubmission_file',
                         'submission_files',
-                        (int)$sub->submissionid,
+                        $effectivesubmissionid,
                         'sortorder',
                         false
                     );
-                    $inlinefiles = $fs->get_area_files(
-                        (int)$context_mod->id,
-                        'assignsubmission_onlinetext',
-                        'onlinetext',
-                        (int)$sub->submissionid,
-                        'sortorder',
-                        false
-                    );
+                    $inlinefiles = [];
+                    foreach ($onlinetextfileitemids as $inlineitemid) {
+                        $inlinechunk = $fs->get_area_files(
+                            (int)$context_mod->id,
+                            'assignsubmission_onlinetext',
+                            'onlinetext',
+                            (int)$inlineitemid,
+                            'sortorder',
+                            false
+                        );
+                        if (!empty($inlinechunk)) {
+                            $inlinefiles = array_merge($inlinefiles, $inlinechunk);
+                        }
+                    }
                     $seenhash = [];
                      
                     foreach (array_merge($files, $inlinefiles) as $file) {
