@@ -36,9 +36,19 @@ const QuickGrader = {
                                     <div v-if="selectedFile" class="preview-panel mb-4">
                                         <div class="d-flex justify-space-between align-center pa-2 grey lighten-3 border-bottom">
                                             <span class="text-caption font-weight-bold text-truncate mr-2">{{ selectedFile.filename }}</span>
-                                            <v-btn icon x-small @click="selectedFile = null">
-                                                <v-icon>mdi-close</v-icon>
-                                            </v-btn>
+                                            <div class="d-flex align-center" style="gap:4px;">
+                                                <v-tooltip bottom>
+                                                    <template v-slot:activator="{ on }">
+                                                        <v-btn icon x-small color="primary" v-on="on" @click="downloadFile(selectedFile)">
+                                                            <v-icon small>mdi-download</v-icon>
+                                                        </v-btn>
+                                                    </template>
+                                                    <span>Descargar archivo</span>
+                                                </v-tooltip>
+                                                <v-btn icon x-small @click="selectedFile = null">
+                                                    <v-icon>mdi-close</v-icon>
+                                                </v-btn>
+                                            </div>
                                         </div>
                                         <div class="preview-content-wrapper">
                                             <!-- Image Preview -->
@@ -75,8 +85,8 @@ const QuickGrader = {
                                     <h3 class="text-subtitle-1 font-weight-bold mb-2">Archivos Adjuntos:</h3>
                                     <v-row>
                                         <v-col v-for="(file, i) in currentTask.files" :key="i" cols="12" sm="6" md="4">
-                                            <v-card outlined ripple @click="handleFileClick(file)" :color="selectedFile === file ? 'primary lighten-5' : ''" :class="selectedFile === file ? 'border-primary' : ''">
-                                                <v-list-item dense>
+                                            <v-card outlined :color="selectedFile === file ? 'primary lighten-5' : ''" :class="selectedFile === file ? 'border-primary' : ''">
+                                                <v-list-item dense @click="handleFileClick(file)" style="cursor:pointer;">
                                                     <v-list-item-avatar tile size="32" :color="getFileIconColor(file)">
                                                         <v-icon dark small>{{ getFileIcon(file) }}</v-icon>
                                                     </v-list-item-avatar>
@@ -88,6 +98,16 @@ const QuickGrader = {
                                                             {{ isPreviewable(file) ? 'Ver' : 'Descargar' }}
                                                         </v-list-item-subtitle>
                                                     </v-list-item-content>
+                                                    <v-list-item-action>
+                                                        <v-tooltip bottom>
+                                                            <template v-slot:activator="{ on }">
+                                                                <v-btn icon x-small v-on="on" @click.stop="downloadFile(file)">
+                                                                    <v-icon small color="grey darken-1">mdi-download</v-icon>
+                                                                </v-btn>
+                                                            </template>
+                                                            <span>Descargar</span>
+                                                        </v-tooltip>
+                                                    </v-list-item-action>
                                                 </v-list-item>
                                             </v-card>
                                         </v-col>
@@ -367,6 +387,15 @@ const QuickGrader = {
         },
         openFile(url) {
             window.open(url, '_blank');
+        },
+        downloadFile(file) {
+            const a = document.createElement('a');
+            a.href = file.fileurl;
+            a.download = file.filename || 'archivo';
+            a.target = '_blank';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
         },
         handleFileClick(file) {
             if (this.selectedFile === file) {
