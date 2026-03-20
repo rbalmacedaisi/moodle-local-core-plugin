@@ -31,6 +31,23 @@ const QuickGrader = {
                             <v-card-subtitle>Enviado el: {{ formatDate(currentTask.submissiontime, true) }}</v-card-subtitle>
                             <v-divider></v-divider>
                             <v-card-text class="pa-4">
+                                <div class="mb-4">
+                                    <h3 class="text-subtitle-1 font-weight-bold mb-2">Texto en linea:</h3>
+                                    <div
+                                        v-if="currentTask.submissiontexthtml && currentTask.submissiontexthtml.trim() !== ''"
+                                        class="pa-3 grey lighten-5 rounded submission-onlinetext"
+                                        v-html="currentTask.submissiontexthtml"
+                                    ></div>
+                                    <div
+                                        v-else-if="currentTask.submissiontextplain && currentTask.submissiontextplain.trim() !== ''"
+                                        class="pa-3 grey lighten-5 rounded submission-onlinetext"
+                                        style="white-space: pre-wrap;"
+                                    >{{ currentTask.submissiontextplain }}</div>
+                                    <div v-else class="text-caption grey--text">
+                                        No hay texto en linea en esta entrega.
+                                    </div>
+                                </div>
+
                                 <!-- PREVIEW AREA -->
                                 <v-fade-transition>
                                     <div v-if="selectedFile" class="preview-panel mb-4">
@@ -336,6 +353,15 @@ const QuickGrader = {
                 }
                 .excel-table-wrapper tr:nth-child(even) { background-color: #f9f9f9; }
                 .excel-table-wrapper th { background-color: #f2f2f2; font-weight: bold; }
+                .submission-onlinetext img {
+                    max-width: 100%;
+                    height: auto;
+                }
+                .submission-onlinetext table {
+                    max-width: 100%;
+                    display: block;
+                    overflow-x: auto;
+                }
             `;
             document.head.appendChild(style);
         },

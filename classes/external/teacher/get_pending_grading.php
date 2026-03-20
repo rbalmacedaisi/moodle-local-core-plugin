@@ -71,15 +71,73 @@ class get_pending_grading extends external_api {
             
             // Files logic (only for assign for now)
             $item->files = [];
+            $item->submissiontext = '';
+            $item->submissiontexthtml = '';
+            $item->submissiontextplain = '';
             
             if ($sub->modname === 'assign') {
-                $cm = get_coursemodule_from_instance('assign', $sub->itemid);
+                $cm = get_coursemodule_from_instance('assign', (int)$sub->itemid, (int)$sub->courseid, false, IGNORE_MISSING);
                 if ($cm) {
                     $item->cmid = $cm->id;
                     $context_mod = \context_module::instance($cm->id);
-                    $files = $fs->get_area_files($context_mod->id, 'assignsubmission_file', 'submission_files', $sub->submissionid, 'sortorder', false);
-                    
-                    foreach ($files as $file) {
+
+                    // Submission online text (includes inline images with @@PLUGINFILE@@ placeholders).
+                    $onlinetext = $DB->get_record(
+                        'assignsubmission_onlinetext',
+                        ['assignment' => (int)$sub->itemid, 'submission' => (int)$sub->submissionid],
+                        'id,onlinetext,onlineformat',
+                        IGNORE_MISSING
+                    );
+                    if ($onlinetext && trim((string)$onlinetext->onlinetext) !== '') {
+                        $rawtext = (string)$onlinetext->onlinetext;
+                        $rewrittentext = file_rewrite_pluginfile_urls(
+                            $rawtext,
+                            'pluginfile.php',
+                            (int)$context_mod->id,
+                            'assignsubmission_onlinetext',
+                            'onlinetext',
+                            (int)$sub->submissionid
+                        );
+                        $formattedtext = format_text(
+                            $rewrittentext,
+                            (int)$onlinetext->onlineformat,
+                            [
+                                'context' => $context_mod,
+                                'overflowdiv' => true,
+                                'para' => false,
+                            ]
+                        );
+                        $item->submissiontext = $rawtext;
+                        $item->submissiontexthtml = $formattedtext;
+                        $item->submissiontextplain = trim(strip_tags($formattedtext));
+                    }
+
+                    $files = $fs->get_area_files(
+                        (int)$context_mod->id,
+                        'assignsubmission_file',
+                        'submission_files',
+                        (int)$sub->submissionid,
+                        'sortorder',
+                        false
+                    );
+                    $inlinefiles = $fs->get_area_files(
+                        (int)$context_mod->id,
+                        'assignsubmission_onlinetext',
+                        'onlinetext',
+                        (int)$sub->submissionid,
+                        'sortorder',
+                        false
+                    );
+                    $seenhash = [];
+                     
+                    foreach (array_merge($files, $inlinefiles) as $file) {
+                         $hash = (string)$file->get_pathnamehash();
+                         if ($hash !== '' && isset($seenhash[$hash])) {
+                             continue;
+                         }
+                         if ($hash !== '') {
+                             $seenhash[$hash] = true;
+                         }
                          $f = new stdClass();
                          $f->filename = $file->get_filename();
                          $url = \moodle_url::make_pluginfile_url(
@@ -92,6 +150,8 @@ class get_pending_grading extends external_api {
                          );
                          $f->fileurl = $url->out(false);
                          $f->mimetype = $file->get_mimetype();
+                         $f->filesize = (int)$file->get_filesize();
+                         $f->source = ((string)$file->get_component() === 'assignsubmission_onlinetext') ? 'onlinetext' : 'submission_file';
                          $item->files[] = $f;
                     }
                 }
@@ -125,12 +185,17 @@ class get_pending_grading extends external_api {
                     'duedate' => new external_value(PARAM_INT, 'Due Date Timestamp'),
                     'courseid' => new external_value(PARAM_INT, 'Course ID'),
                     'coursename' => new external_value(PARAM_TEXT, 'Course Name'),
+                    'submissiontext' => new external_value(PARAM_RAW, 'Submission text (raw)', VALUE_DEFAULT, ''),
+                    'submissiontexthtml' => new external_value(PARAM_RAW, 'Submission text (formatted html)', VALUE_DEFAULT, ''),
+                    'submissiontextplain' => new external_value(PARAM_RAW, 'Submission text (plain)', VALUE_DEFAULT, ''),
                     'files' => new external_multiple_structure(
                         new external_single_structure(
                             array(
                                 'filename' => new external_value(PARAM_TEXT, 'File Name'),
                                 'fileurl' => new external_value(PARAM_URL, 'Download URL'),
-                                'mimetype' => new external_value(PARAM_TEXT, 'Mime Type', VALUE_OPTIONAL)
+                                'mimetype' => new external_value(PARAM_TEXT, 'Mime Type', VALUE_OPTIONAL),
+                                'filesize' => new external_value(PARAM_INT, 'File size in bytes', VALUE_OPTIONAL),
+                                'source' => new external_value(PARAM_TEXT, 'Source area (submission_file/onlinetext)', VALUE_OPTIONAL)
                             )
                         )
                     )
