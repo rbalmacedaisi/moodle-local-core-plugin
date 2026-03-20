@@ -102,17 +102,7 @@ foreach ($pop_groups as $gidx => $group) {
     }
 }
 
-// ── Total active students (distinct, excluding system users) ─────────────────
-// Count from plan enrollments — already COUNT(DISTINCT) so no duplicates.
-
-$total_active = (int)$DB->get_field_sql(
-    "SELECT COUNT(DISTINCT u.id)
-       FROM {user} u
-       JOIN {local_learning_users} llu ON llu.userid = u.id
-                                       AND llu.userroleid = 5
-                                       AND llu.status = 'activo'
-      WHERE u.deleted = 0 AND u.suspended = 0 AND u.id > 2"
-);
+// $total_active se calcula más abajo, después de procesar los buckets de clases.
 
 // ── Students per career (distinct, for career header badges) ─────────────────
 
@@ -337,6 +327,18 @@ foreach ($career_tree as $key => &$cdata) {
     unset($shiftData);
 }
 unset($cdata);
+
+// ── Total activo: unión de todos los userids en todos los buckets ─────────────
+// Esto es definitivamente sin duplicados: un estudiante en múltiples carreras/
+// jornadas aparece una sola vez en el conteo global.
+$_all_uids = [];
+foreach ($bucket_users as $_users) {
+    foreach ($_users as $_uid => $_) {
+        $_all_uids[$_uid] = true;
+    }
+}
+$total_active = count($_all_uids);
+unset($_all_uids);
 
 // ── Sort shifts ───────────────────────────────────────────────────────────────
 
