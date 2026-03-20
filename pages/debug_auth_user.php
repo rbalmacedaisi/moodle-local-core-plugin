@@ -76,26 +76,53 @@ if ($action && $userid && confirm_sesskey()) {
             if ($simpass === '') {
                 $msg = '<div class="alert alert-warning">Ingresa la contraseña para simular el login.</div>';
             } else {
-                // authenticate_user_login es la función exacta que usa la página de login
-                $simUser = authenticate_user_login($target->username, $simpass);
+                // ── Pre-checks que hace authenticate_user_login internamente ──
+                $details = [];
+
+                // 1. ¿get_complete_user_data encuentra al usuario?
+                $foundUser = get_complete_user_data('username', $target->username);
+                if (!$foundUser) {
+                    $details[] = ['err', 'get_complete_user_data("username","' . s($target->username) . '") devolvió FALSE — el login no encuentra al usuario. Probable mnethostid incorrecto o username no coincide exactamente.'];
+                } else {
+                    $details[] = ['ok', 'get_complete_user_data encontró al usuario (ID: ' . $foundUser->id . ')'];
+                }
+
+                // 2. ¿manual está en get_enabled_auth_plugins()?
+                $authEnabled = get_enabled_auth_plugins();
+                if (in_array($target->auth, $authEnabled)) {
+                    $details[] = ['ok', 'Plugin auth "' . s($target->auth) . '" está habilitado en el sitio. Plugins activos: ' . implode(', ', $authEnabled)];
+                } else {
+                    $details[] = ['err', 'Plugin auth "' . s($target->auth) . '" NO está en get_enabled_auth_plugins(). Plugins activos: ' . implode(', ', $authEnabled) . ' — ESTO BLOQUEA EL LOGIN'];
+                }
+
+                // 3. Llamar authenticate_user_login con failurereason
+                $failurereason = AUTH_LOGIN_OK;
+                $simUser = authenticate_user_login($target->username, $simpass, false, $failurereason);
+
+                $reasonMap = [
+                    AUTH_LOGIN_OK          => 'AUTH_LOGIN_OK (éxito)',
+                    AUTH_LOGIN_FAILED      => 'AUTH_LOGIN_FAILED — contraseña incorrecta según el plugin de auth',
+                    AUTH_LOGIN_NOUSER      => 'AUTH_LOGIN_NOUSER — usuario no encontrado (mnethostid incorrecto o username no existe)',
+                    AUTH_LOGIN_UNAUTHORISED=> 'AUTH_LOGIN_UNAUTHORISED — plugin de auth denegó el acceso',
+                    AUTH_LOGIN_SUSPENDED   => 'AUTH_LOGIN_SUSPENDED — cuenta suspendida',
+                    AUTH_LOGIN_LOCKOUT     => 'AUTH_LOGIN_LOCKOUT — cuenta bloqueada por intentos fallidos',
+                ];
+                $reasonText = isset($reasonMap[$failurereason]) ? $reasonMap[$failurereason] : 'Código desconocido: ' . $failurereason;
+
                 if ($simUser) {
                     $msg = '<div class="alert alert-success">✅ <strong>authenticate_user_login() EXITOSO</strong> — Moodle autentica correctamente. '
-                         . 'Si aún falla en el navegador, el problema puede ser caché, cookies o el tema.</div>';
+                         . 'Si aún falla en el navegador, el problema es de caché, cookies o el tema.</div>';
                 } else {
-                    // Capturar razón
-                    $authplugin = get_auth_plugin($target->auth);
-                    $pluginResult = $authplugin->user_login($target->username, $simpass);
-                    $freshForCheck = $DB->get_record('user', ['id' => $userid]);
-                    $localHostId   = (int)$CFG->mnet_localhost_id;
-                    $reasons = [];
-                    if ((int)$freshForCheck->mnethostid !== $localHostId) {
-                        $reasons[] = 'mnethostid=' . $freshForCheck->mnethostid . ' ≠ mnet_localhost_id=' . $localHostId . ' → usuario invisible para el login';
+                    $detailsHtml = '';
+                    foreach ($details as $d) {
+                        $detailsHtml .= '<li style="color:' . ($d[0]==='ok'?'#28a745':'#dc3545') . ';">'
+                                      . ($d[0]==='ok'?'✅ ':'❌ ') . s($d[1]) . '</li>';
                     }
-                    if (!$pluginResult) { $reasons[] = 'auth_plugin->' . $target->auth . '::user_login() devolvió FALSE'; }
-                    if ($freshForCheck->suspended)  { $reasons[] = 'Cuenta suspendida'; }
-                    if (!$freshForCheck->confirmed) { $reasons[] = 'Email no confirmado'; }
-                    $reasonStr = $reasons ? implode('; ', $reasons) : 'Razón desconocida — revisar logs de Moodle';
-                    $msg = '<div class="alert alert-danger">❌ <strong>authenticate_user_login() FALLÓ</strong><br>Razón detectada: ' . s($reasonStr) . '</div>';
+                    $msg = '<div class="alert alert-danger">'
+                         . '❌ <strong>authenticate_user_login() FALLÓ</strong><br>'
+                         . '<strong>failurereason = ' . (int)$failurereason . ' → ' . s($reasonText) . '</strong>'
+                         . '<ul style="margin-top:8px;font-size:13px;">' . $detailsHtml . '</ul>'
+                         . '</div>';
                 }
             }
 
