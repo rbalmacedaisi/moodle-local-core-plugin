@@ -210,28 +210,7 @@ $tc_classes = $tc_fieldid ? $DB->get_records_sql(
     ['now' => $now]
 ) : [];
 
-// ── House student counts from ACTUAL class enrollments ───────────────────────
-// Source: gmk_course_progre — avoids relying on gmkjourney profile field being filled.
-
-$active_class_counts_raw = $DB->get_records_sql(
-    "SELECT gc.learningplanid AS planid,
-            gc.shift          AS classshift,
-            COUNT(DISTINCT gcp.userid) AS student_count
-       FROM {gmk_class} gc
-       JOIN {gmk_course_progre} gcp ON gcp.classid = gc.id AND gcp.status IN (1,2,3)
-       $tc_join
-      WHERE gc.approved = 1 AND gc.closed = 0 AND gc.enddate > :now $tc_where
-      GROUP BY gc.learningplanid, gc.shift",
-    ['now' => $now]
-);
-
-// Lookup: planid → normalized_shift → distinct_student_count
-$active_class_lookup = [];
-foreach ($active_class_counts_raw as $row) {
-    $pid   = (int)$row->planid;
-    $shift = pop_normalize_shift((string)$row->classshift);
-    $active_class_lookup[$pid][$shift] = ($active_class_lookup[$pid][$shift] ?? 0) + (int)$row->student_count;
-}
+// (house student counts computed after class assignment — see below)
 
 // ── Load schedules ────────────────────────────────────────────────────────────
 
@@ -315,20 +294,45 @@ foreach ($regular_classes as $cls) {
     $career_tree[$treeKey]['shifts'][$shift]['classes'][] = $cls;
 }
 
-// ── Replace house counts with class-enrollment-based counts ──────────────────
-// This correctly counts students regardless of whether gmkjourney profile is set.
+// ── Compute distinct students per shift bucket (post-assignment) ──────────────
+// We use the actual class IDs in each bucket — avoids planid/career_label mismatch.
 
+// 1. Map every assigned classid → (careerKey, shiftName)
+$classid_to_bucket = [];
+foreach ($career_tree as $key => $cdata) {
+    foreach ($cdata['shifts'] as $shift => $shiftData) {
+        foreach ($shiftData['classes'] as $cls) {
+            $classid_to_bucket[(int)$cls->id] = ['key' => $key, 'shift' => $shift];
+        }
+    }
+}
+
+// 2. Single query: all enrolled userids for those class IDs
+$bucket_users = [];   // [careerKey . '||' . shift] => [userid => true]
+if (!empty($classid_to_bucket)) {
+    [$insql, $inparams] = $DB->get_in_or_equal(array_keys($classid_to_bucket));
+    $rs = $DB->get_recordset_sql(
+        "SELECT classid, userid
+           FROM {gmk_course_progre}
+          WHERE classid $insql AND status IN (1,2,3)",
+        $inparams
+    );
+    foreach ($rs as $row) {
+        $cid = (int)$row->classid;
+        $uid = (int)$row->userid;
+        if (!isset($classid_to_bucket[$cid])) continue;
+        $b    = $classid_to_bucket[$cid];
+        $bkey = $b['key'] . '||' . $b['shift'];
+        $bucket_users[$bkey][$uid] = true;
+    }
+    $rs->close();
+}
+
+// 3. Push counts into career tree
 foreach ($career_tree as $key => &$cdata) {
     foreach ($cdata['shifts'] as $shift => &$shiftData) {
-        if ($cdata['is_group']) {
-            $count = 0;
-            foreach ($cdata['planids'] as $pid) {
-                $count += $active_class_lookup[(int)$pid][$shift] ?? 0;
-            }
-            $shiftData['student_count'] = $count;
-        } else {
-            $shiftData['student_count'] = $active_class_lookup[$cdata['planid']][$shift] ?? 0;
-        }
+        $bkey = $key . '||' . $shift;
+        $shiftData['student_count'] = isset($bucket_users[$bkey]) ? count($bucket_users[$bkey]) : 0;
     }
     unset($shiftData);
 }
