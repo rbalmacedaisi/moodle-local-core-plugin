@@ -24,6 +24,6 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = "local_grupomakro_core";
-$plugin->version   = 20260318005;         // Student forum custom API for LXP.
+$plugin->version   = 20260320001;         // Student assignment custom API for LXP.
 $plugin->requires = 2014051200;
 $plugin->maturity = MATURITY_STABLE;

@@ -640,6 +640,24 @@ $functions = array(
         'ajax' => true,
         'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
     ),
+    'local_grupomakro_get_assign_activity_data' => array(
+        'classname' => 'local_grupomakro_core\external\student\assign_activity',
+        'methodname' => 'get_activity_data',
+        'description' => 'Get assignment details and current student submission data',
+        'type' => 'read',
+        'capabilities' => '',
+        'ajax' => true,
+        'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
+    'local_grupomakro_submit_assign_activity' => array(
+        'classname' => 'local_grupomakro_core\external\student\assign_activity',
+        'methodname' => 'submit_activity',
+        'description' => 'Submit assignment online text and files from simplified student UI',
+        'type' => 'write',
+        'capabilities' => '',
+        'ajax' => true,
+        'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
     // Odoo Integration Services
     'local_grupomakro_odoo_enroll_student' => array(
         'classname'   => 'local_grupomakro_core\external\odoo\enroll_student',
