@@ -31,6 +31,9 @@ const QuickGrader = {
                             <v-card-subtitle>Enviado el: {{ formatDate(currentTask.submissiontime, true) }}</v-card-subtitle>
                             <v-divider></v-divider>
                             <v-card-text class="pa-4">
+                                <div v-if="loadingAssignDetails" class="mb-3 text-caption grey--text">
+                                    Cargando detalle de la entrega...
+                                </div>
                                 <div class="mb-4">
                                     <h3 class="text-subtitle-1 font-weight-bold mb-2">Texto en linea:</h3>
                                     <div
@@ -232,6 +235,7 @@ const QuickGrader = {
             selectedSlotIndex: 0,
             quizError: null,
             saveError: null,
+            loadingAssignDetails: false,
             // File Preview specifics
             selectedFile: null,
             docxContent: '',
@@ -275,6 +279,8 @@ const QuickGrader = {
                     this.resetForm();
                     if (val.modname === 'quiz') {
                         this.fetchQuizData();
+                    } else if (val.modname === 'assign') {
+                        this.fetchAssignDetails();
                     }
                 }
             }
@@ -373,6 +379,7 @@ const QuickGrader = {
             this.grade = '';
             this.feedback = '';
             this.saveError = null;
+            this.loadingAssignDetails = false;
             this.selectedFile = null;
             this.docxContent = '';
             if (this.$refs.form) this.$refs.form.resetValidation();
@@ -404,6 +411,41 @@ const QuickGrader = {
                 console.error("Quiz Connection Error:", e);
             } finally {
                 this.loadingQuiz = false;
+            }
+        },
+        async fetchAssignDetails() {
+            if (!this.currentTask || this.currentTask.modname !== 'assign') {
+                return;
+            }
+            if (!this.currentTask.assignmentid || !this.currentTask.studentid) {
+                return;
+            }
+            this.loadingAssignDetails = true;
+            try {
+                const response = await axios.post(window.wsUrl, {
+                    action: 'local_grupomakro_get_assign_submission_details',
+                    assignmentid: this.currentTask.assignmentid,
+                    studentid: this.currentTask.studentid,
+                    courseid: this.currentTask.courseid || 0,
+                    submissionid: this.currentTask.id || 0,
+                    sesskey: M.cfg.sesskey
+                });
+
+                if (response.data && response.data.status === 'success' && response.data.data) {
+                    const detail = response.data.data;
+                    this.currentTask = Object.assign({}, this.currentTask, {
+                        submissiontext: detail.submissiontext || '',
+                        submissiontexthtml: detail.submissiontexthtml || '',
+                        submissiontextplain: detail.submissiontextplain || '',
+                        files: Array.isArray(detail.files) ? detail.files : []
+                    });
+                } else {
+                    console.warn('[GMK] assign detail not loaded', response.data);
+                }
+            } catch (e) {
+                console.error('[GMK] assign detail error', e);
+            } finally {
+                this.loadingAssignDetails = false;
             }
         },
         formatDate(timestamp, full = false) {
