@@ -75,6 +75,23 @@ $total_active = (int)$DB->get_field_sql(
       WHERE u.deleted = 0 AND u.suspended = 0"
 );
 
+// ── Students per career (distinct, for header totals) ────────────────────────
+
+$per_career_distinct = $DB->get_records_sql(
+    "SELECT llu.learningplanid AS planid,
+            COUNT(DISTINCT u.id) AS student_count
+       FROM {user} u
+       JOIN {local_learning_users} llu ON llu.userid = u.id
+                                       AND llu.userroleid = 5
+                                       AND llu.status = 'activo'
+      WHERE u.deleted = 0 AND u.suspended = 0
+      GROUP BY llu.learningplanid"
+);
+$career_distinct_count = [];
+foreach ($per_career_distinct as $pcd) {
+    $career_distinct_count[(int)$pcd->planid] = (int)$pcd->student_count;
+}
+
 // ── Students per career + jornada ────────────────────────────────────────────
 
 $jfield = $jornada_fieldid ?: -1;
@@ -233,6 +250,12 @@ echo $OUTPUT->header();
     line-height: 1;
 }
 
+/* ── Total bar disclaimer ─────────────────────────────── */
+.pop-disclaimer {
+    font-size: 11px; color: #64748b; font-style: italic;
+    margin-top: 4px; text-align: right;
+}
+
 /* ── Career section ───────────────────────────────────── */
 .pop-career-section { margin-bottom: 32px; }
 .pop-career-title {
@@ -240,6 +263,13 @@ echo $OUTPUT->header();
     color: #2d3748; text-transform: uppercase;
     margin: 0 0 10px 0; padding-bottom: 4px;
     border-bottom: 2px solid #e2e8f0;
+    display: flex; align-items: center; justify-content: space-between;
+}
+.pop-career-badge {
+    font-size: 11px; font-weight: 700; letter-spacing: 0;
+    text-transform: none; background: #e2e8f0;
+    color: #374151; border-radius: 12px;
+    padding: 2px 10px; white-space: nowrap;
 }
 .pop-houses-row {
     display: flex; flex-wrap: wrap; gap: 14px;
@@ -342,6 +372,9 @@ echo $OUTPUT->header();
         <span>Total estudiantes activos:</span>
         <span class="pop-total-number"><?php echo $total_active; ?></span>
     </div>
+    <div class="pop-disclaimer">
+        * Estudiantes únicos sin duplicados. Un estudiante inscrito en varias carreras aparece en cada una de ellas.
+    </div>
 
     <!-- Career sections ──────────────────────────────────────────── -->
     <?php if (empty($career_tree)): ?>
@@ -349,7 +382,16 @@ echo $OUTPUT->header();
     <?php else: foreach ($career_tree as $careerName => $careerData): ?>
 
     <div class="pop-career-section">
-        <h2 class="pop-career-title"><?php echo s(strtoupper($careerName)); ?></h2>
+        <h2 class="pop-career-title">
+            <span><?php echo s(strtoupper($careerName)); ?></span>
+            <?php
+                $cPlanid = $careerData['planid'];
+                $cTotal  = $career_distinct_count[$cPlanid] ?? 0;
+                if ($cTotal > 0):
+            ?>
+            <span class="pop-career-badge"><?php echo $cTotal; ?> estudiantes</span>
+            <?php endif; ?>
+        </h2>
         <div class="pop-houses-row">
 
         <?php foreach ($careerData['shifts'] as $shiftName => $shiftData):
