@@ -328,16 +328,37 @@ foreach ($career_tree as $key => &$cdata) {
 }
 unset($cdata);
 
-// ── Total activo: unión de todos los userids en todos los buckets ─────────────
-// Esto es definitivamente sin duplicados: un estudiante en múltiples carreras/
-// jornadas aparece una sola vez en el conteo global.
+// ── Total activo: deduplicado por idnumber (número de identificación) ────────
+// u.idnumber = número de cédula/documento sincronizado desde Odoo (recordCode).
+// Si un estudiante tiene dos cuentas Moodle con el mismo documento, se cuenta
+// una sola vez. Para usuarios sin idnumber se usa u.id como fallback.
+
 $_all_uids = [];
 foreach ($bucket_users as $_users) {
     foreach ($_users as $_uid => $_) {
         $_all_uids[$_uid] = true;
     }
 }
-$total_active = count($_all_uids);
+
+$total_active = 0;
+if (!empty($_all_uids)) {
+    [$_insql, $_inparams] = $DB->get_in_or_equal(array_keys($_all_uids));
+    $_rs = $DB->get_recordset_sql(
+        "SELECT id, idnumber FROM {user} WHERE id $_insql",
+        $_inparams
+    );
+    $_seen = [];
+    foreach ($_rs as $_row) {
+        // Dedup: if idnumber is set use it; otherwise fallback to u.id
+        $_ident = trim((string)$_row->idnumber) !== ''
+            ? 'n:' . trim((string)$_row->idnumber)
+            : 'u:' . (int)$_row->id;
+        $_seen[$_ident] = true;
+    }
+    $_rs->close();
+    $total_active = count($_seen);
+    unset($_seen);
+}
 unset($_all_uids);
 
 // ── Sort shifts ───────────────────────────────────────────────────────────────
@@ -551,7 +572,7 @@ $sesskey = sesskey();
             <span class="pop-total-label">Total estudiantes activos:</span>
             <span class="pop-total-number"><?php echo $total_active; ?></span>
             <div class="pop-disclaimer">
-                * Estudiantes únicos (sin duplicados). Un alumno en varias carreras aparece en cada una.
+                * Deduplicado por número de identificación. Un alumno en varias carreras aparece en cada una.
             </div>
         </div>
     </div>
