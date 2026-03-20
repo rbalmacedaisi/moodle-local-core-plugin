@@ -182,6 +182,13 @@ echo $OUTPUT->header();
 
 <div class="dau-wrap">
     <h2 style="margin-bottom:20px;">🔐 Debug: Autenticación de usuario</h2>
+    <div style="background:#e8f4f8;border:1px solid #bee5eb;padding:8px 14px;border-radius:4px;margin-bottom:16px;font-size:13px;">
+        <strong>Moodle wwwroot:</strong> <code><?php echo s($CFG->wwwroot); ?></code>
+        &nbsp;&nbsp;|&nbsp;&nbsp;
+        <a href="<?php echo $CFG->wwwroot; ?>/login/index.php" target="_blank">Abrir página de login →</a>
+        &nbsp;&nbsp;|&nbsp;&nbsp;
+        <strong>mnet_localhost_id:</strong> <?php echo (int)$CFG->mnet_localhost_id; ?>
+    </div>
 
     <?php echo $msg; ?>
 
@@ -542,11 +549,31 @@ if ($q !== '') {
                     </div>
                 </details>
 
+                <!-- redirect_debug.log — entradas de este usuario -->
+                <?php
+                $logFile = $CFG->dirroot . '/local/grupomakro_core/redirect_debug.log';
+                if (file_exists($logFile)) {
+                    $logContent = file_get_contents($logFile);
+                    $userLines  = array_filter(explode("\n", $logContent), function($line) use ($u) {
+                        return strpos($line, 'User ID: ' . $u->id) !== false
+                            || strpos($line, 'userid=' . $u->id) !== false;
+                    });
+                    ?>
+                    <details style="margin-top:12px;">
+                        <summary style="cursor:pointer;font-size:13px;color:#6c757d;">redirect_debug.log — entradas del usuario (<?php echo count($userLines); ?>)</summary>
+                        <pre style="background:#1e1e1e;color:#d4d4d4;padding:10px;font-size:11px;border-radius:4px;margin-top:6px;max-height:200px;overflow-y:auto;"><?php
+                            echo $userLines ? s(implode("\n", $userLines)) : '(sin entradas — nunca llegó al event handler)';
+                        ?></pre>
+                    </details>
+                <?php } ?>
+
                 <!-- Link a perfil Moodle -->
                 <p style="margin-top:14px;font-size:12px;">
                     <a href="<?php echo $CFG->wwwroot; ?>/user/editadvanced.php?id=<?php echo $u->id; ?>" target="_blank">Editar perfil en Moodle →</a>
                     &nbsp;|&nbsp;
                     <a href="<?php echo $CFG->wwwroot; ?>/admin/user.php?delete=<?php echo $u->id; ?>" target="_blank">Admin usuarios →</a>
+                    &nbsp;|&nbsp;
+                    <a href="<?php echo $CFG->wwwroot; ?>/login/index.php" target="_blank">Página de login (<?php echo s($CFG->wwwroot); ?>/login/index.php) →</a>
                 </p>
 
             </div><!-- /dau-card-body -->
