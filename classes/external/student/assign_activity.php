@@ -290,7 +290,7 @@ class assign_activity extends external_api {
     }
 
     public static function submit_activity($courseId, $moduleId, $comment = '', $draftItemId = 0) {
-        global $USER;
+        global $USER, $DB;
 
         $params = self::validate_parameters(self::submit_activity_parameters(), [
             'courseId' => $courseId,
@@ -346,6 +346,17 @@ class assign_activity extends external_api {
                 ];
             }
 
+            $instance = $assign->get_instance();
+            $isteamsubmission = !empty($instance->teamsubmission);
+            $originaldraftmode = (int)$instance->submissiondrafts;
+
+            // Fast mode for individual submissions: save as draft first to avoid slow notification path.
+            if (!$isteamsubmission) {
+                $instance->submissiondrafts = 1;
+            }
+            $instance->sendnotifications = 0;
+            $instance->sendlatenotifications = 0;
+
             $data = new stdClass();
             $data->userid = (int)$USER->id;
             $data->submissionstatement = 1;
@@ -373,7 +384,35 @@ class assign_activity extends external_api {
                 ];
             }
 
-            if ((int)$assignrecord->submissiondrafts === 1) {
+            if (!$isteamsubmission) {
+                $updatedsubmission = $assign->get_user_submission((int)$USER->id, false);
+                if (!$updatedsubmission) {
+                    return [
+                        'status' => -1,
+                        'message' => 'Could not resolve submission after save.',
+                        'errorCode' => 'submission_not_found_after_save',
+                        'submissionData' => json_encode([]),
+                    ];
+                }
+                if ((string)$updatedsubmission->status !== ASSIGN_SUBMISSION_STATUS_SUBMITTED) {
+                    $updatedsubmission->status = ASSIGN_SUBMISSION_STATUS_SUBMITTED;
+                    $updatedsubmission->timemodified = time();
+                    $DB->update_record('assign_submission', $updatedsubmission);
+                }
+
+                if (!empty($instance->completionsubmit)) {
+                    $completion = new \completion_info($course);
+                    if ($completion->is_enabled($cm)) {
+                        $completion->update_state($cm, COMPLETION_COMPLETE, (int)$USER->id);
+                    }
+                }
+
+                if ($originaldraftmode === 1) {
+                    \mod_assign\event\assessable_submitted::create_from_submission($assign, $updatedsubmission, false)->trigger();
+                } else {
+                    \mod_assign\event\assessable_submitted::create_from_submission($assign, $updatedsubmission, true)->trigger();
+                }
+            } else if ((int)$assignrecord->submissiondrafts === 1) {
                 $submitdata = new stdClass();
                 $submitdata->userid = (int)$USER->id;
                 $submitdata->submissionstatement = 1;
