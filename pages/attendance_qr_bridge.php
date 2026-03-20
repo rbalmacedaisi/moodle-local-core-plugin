@@ -101,6 +101,25 @@ function gmk_qr_reason_message($reason) {
 }
 
 /**
+ * Check whether a session is open for students.
+ * Uses mod_attendance helper when available, otherwise local fallback.
+ *
+ * @param stdClass $session
+ * @return bool
+ */
+function gmk_qr_is_session_open_for_students($session) {
+    if (function_exists('attendance_session_open_for_students')) {
+        return (bool)attendance_session_open_for_students($session);
+    }
+
+    $sessdate = isset($session->sessdate) ? (int)$session->sessdate : 0;
+    $earlyopen = isset($session->studentsearlyopentime) ? (int)$session->studentsearlyopentime : 0;
+    $sessionopens = $sessdate - max(0, $earlyopen);
+
+    return (time() > $sessionopens);
+}
+
+/**
  * Resolve internal rejection/trace reason code.
  *
  * @param string $reason
@@ -113,7 +132,7 @@ function gmk_qr_reason_to_code($reason, $session) {
         return 'shared_ip_restricted';
     }
     if ($reason === 'closed') {
-        if (!attendance_session_open_for_students($session)) {
+        if (!gmk_qr_is_session_open_for_students($session)) {
             return 'outside_window';
         }
         return 'session_closed';
@@ -278,7 +297,7 @@ if (!$canmark) {
 $attconfig = get_config('attendance');
 $qrpassflag = false;
 
-if (attendance_session_open_for_students($session) && (int)$session->rotateqrcode === 1) {
+if (gmk_qr_is_session_open_for_students($session) && (int)$session->rotateqrcode === 1) {
     $sql = 'SELECT * FROM {attendance_rotate_passwords}
              WHERE attendanceid = ? AND expirytime > ?
           ORDER BY expirytime ASC';
@@ -305,8 +324,8 @@ if (attendance_session_open_for_students($session) && (int)$session->rotateqrcod
     }
 }
 
-if ((int)$session->autoassignstatus !== 1 || !attendance_session_open_for_students($session)) {
-    $reasoncode = !attendance_session_open_for_students($session) ? 'outside_window' : 'session_not_autoassign';
+if ((int)$session->autoassignstatus !== 1 || !gmk_qr_is_session_open_for_students($session)) {
+    $reasoncode = !gmk_qr_is_session_open_for_students($session) ? 'outside_window' : 'session_not_autoassign';
     gmk_qr_finish(
         'error',
         $reasoncode,
