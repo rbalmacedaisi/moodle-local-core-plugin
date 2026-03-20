@@ -90,8 +90,9 @@ function pop_house_svg(): string {
 
 // ── Fetch field IDs ──────────────────────────────────────────────────────────
 
-$jornada_fieldid = (int)($DB->get_field('user_info_field',  'id', ['shortname' => 'gmkjourney']) ?: 0);
-$tc_fieldid      = (int)($DB->get_field('customfield_field','id', ['shortname' => 'tc'])          ?: 0);
+$jornada_fieldid = (int)($DB->get_field('user_info_field',  'id', ['shortname' => 'gmkjourney'])     ?: 0);
+$tc_fieldid      = (int)($DB->get_field('customfield_field','id', ['shortname' => 'tc'])            ?: 0);
+$doc_fieldid     = (int)($DB->get_field('user_info_field',  'id', ['shortname' => 'documentnumber']) ?: 0);
 
 // ── Build group index ────────────────────────────────────────────────────────
 
@@ -363,25 +364,35 @@ $student_list  = [];   // ident_key => [idnumber, name, email, careers[]]
 
 if (!empty($_all_uids)) {
     [$_insql, $_inparams] = $DB->get_in_or_equal(array_keys($_all_uids));
+
+    // Join user_info_data to get the actual document number (cedula)
+    $_doc_join  = $doc_fieldid
+        ? "LEFT JOIN {user_info_data} _uid_doc ON _uid_doc.userid = u.id AND _uid_doc.fieldid = $doc_fieldid"
+        : '';
+    $_doc_select = $doc_fieldid ? ", COALESCE(_uid_doc.data, '') AS documentnumber" : ", '' AS documentnumber";
+
     $_rs = $DB->get_recordset_sql(
-        "SELECT id, idnumber, firstname, lastname, email
-           FROM {user} WHERE id $_insql
-          ORDER BY lastname, firstname",
+        "SELECT u.id, u.idnumber, u.firstname, u.lastname, u.email $_doc_select
+           FROM {user} u $_doc_join
+          WHERE u.id $_insql
+          ORDER BY u.lastname, u.firstname",
         $_inparams
     );
     foreach ($_rs as $_row) {
-        $_uid   = (int)$_row->id;
+        $_uid = (int)$_row->id;
+        // documentnumber (cedula) is preferred; fallback to idnumber, then uid
+        $_doc   = trim((string)$_row->documentnumber);
         $_idn   = trim((string)$_row->idnumber);
-        $_ident = $_idn !== '' ? 'n:' . $_idn : 'u:' . $_uid;
+        $_ident = $_doc !== '' ? 'doc:' . $_doc
+                : ($_idn !== '' ? 'idn:' . $_idn : 'u:' . $_uid);
         if (!isset($student_list[$_ident])) {
             $student_list[$_ident] = [
-                'idnumber' => $_idn ?: '—',
+                'idnumber' => $_doc ?: ($_idn ?: '—'),
                 'name'     => trim($_row->firstname . ' ' . $_row->lastname),
                 'email'    => (string)$_row->email,
                 'careers'  => [],
             ];
         }
-        // Merge careers from all uids that map to this identity
         foreach (array_keys($uid_to_careers[$_uid] ?? []) as $_car) {
             $student_list[$_ident]['careers'][$_car] = true;
         }
