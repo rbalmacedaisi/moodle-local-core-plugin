@@ -78,11 +78,11 @@ function pop_format_schedule(array $rows): string {
     foreach ($grouped as $time => $days) {
         $parts[] = implode('/', array_keys($days)) . ' ' . $time;
     }
-    return implode('<br>', $parts);
+    return implode(', ', $parts);
 }
 
 function pop_house_svg(): string {
-    return '<svg viewBox="0 0 64 64" width="52" height="52" fill="none" xmlns="http://www.w3.org/2000/svg">
+    return '<svg viewBox="0 0 64 64" width="40" height="40" fill="none" xmlns="http://www.w3.org/2000/svg">
         <polygon points="32,6 60,30 56,30 56,58 36,58 36,40 28,40 28,58 8,58 8,30 4,30" stroke="currentColor" stroke-width="3" fill="currentColor" fill-opacity="0.12"/>
         <polygon points="32,6 60,30 4,30" stroke="currentColor" stroke-width="3" fill="currentColor" fill-opacity="0.25"/>
     </svg>';
@@ -90,10 +90,10 @@ function pop_house_svg(): string {
 
 // ── Fetch field IDs ──────────────────────────────────────────────────────────
 
-$jornada_fieldid = (int)($DB->get_field('user_info_field', 'id', ['shortname' => 'gmkjourney']) ?: 0);
-$tc_fieldid      = (int)($DB->get_field('customfield_field', 'id', ['shortname' => 'tc']) ?: 0);
+$jornada_fieldid = (int)($DB->get_field('user_info_field',  'id', ['shortname' => 'gmkjourney']) ?: 0);
+$tc_fieldid      = (int)($DB->get_field('customfield_field','id', ['shortname' => 'tc'])          ?: 0);
 
-// ── Build group index (planid → group index) ─────────────────────────────────
+// ── Build group index ────────────────────────────────────────────────────────
 
 $planid_to_gidx = [];
 foreach ($pop_groups as $gidx => $group) {
@@ -102,7 +102,8 @@ foreach ($pop_groups as $gidx => $group) {
     }
 }
 
-// ── Total active students (distinct) ─────────────────────────────────────────
+// ── Total active students (distinct, excluding system users) ─────────────────
+// Count from plan enrollments — already COUNT(DISTINCT) so no duplicates.
 
 $total_active = (int)$DB->get_field_sql(
     "SELECT COUNT(DISTINCT u.id)
@@ -110,10 +111,10 @@ $total_active = (int)$DB->get_field_sql(
        JOIN {local_learning_users} llu ON llu.userid = u.id
                                        AND llu.userroleid = 5
                                        AND llu.status = 'activo'
-      WHERE u.deleted = 0 AND u.suspended = 0"
+      WHERE u.deleted = 0 AND u.suspended = 0 AND u.id > 2"
 );
 
-// ── Students per career (distinct, for header badges) ────────────────────────
+// ── Students per career (distinct, for career header badges) ─────────────────
 
 $per_career_distinct = $DB->get_records_sql(
     "SELECT llu.learningplanid AS planid,
@@ -122,7 +123,7 @@ $per_career_distinct = $DB->get_records_sql(
        JOIN {local_learning_users} llu ON llu.userid = u.id
                                        AND llu.userroleid = 5
                                        AND llu.status = 'activo'
-      WHERE u.deleted = 0 AND u.suspended = 0
+      WHERE u.deleted = 0 AND u.suspended = 0 AND u.id > 2
       GROUP BY llu.learningplanid"
 );
 $career_distinct_count = [];
@@ -130,7 +131,7 @@ foreach ($per_career_distinct as $pcd) {
     $career_distinct_count[(int)$pcd->planid] = (int)$pcd->student_count;
 }
 
-// ── Group distinct counts (true deduplicated across merged plans) ─────────────
+// ── Group distinct counts (true dedup across merged plans) ───────────────────
 
 $group_distinct_count = [];
 foreach ($pop_groups as $gidx => $group) {
@@ -144,88 +145,29 @@ foreach ($pop_groups as $gidx => $group) {
                                                AND llu.userroleid = 5
                                                AND llu.status = 'activo'
               WHERE llu.learningplanid $insql
-                AND u.deleted = 0 AND u.suspended = 0",
+                AND u.deleted = 0 AND u.suspended = 0 AND u.id > 2",
             $inparams
         );
     }
 }
 
-// ── Students per career + jornada ────────────────────────────────────────────
+// ── Plan names (for career tree and group UI) ────────────────────────────────
 
-$jfield   = $jornada_fieldid ?: -1;
 $pop_rows = $DB->get_records_sql(
-    "SELECT llu.learningplanid                  AS planid,
-            lp.name                             AS planname,
-            COALESCE(uid_j.data, '')            AS shift,
-            COUNT(DISTINCT u.id)                AS student_count
+    "SELECT DISTINCT llu.learningplanid AS planid,
+            lp.name                     AS planname
        FROM {user} u
        JOIN {local_learning_users} llu ON llu.userid = u.id
                                        AND llu.userroleid = 5
                                        AND llu.status = 'activo'
        JOIN {local_learning_plans} lp  ON lp.id = llu.learningplanid
-       LEFT JOIN {user_info_data} uid_j ON uid_j.userid  = u.id
-                                       AND uid_j.fieldid = :jfield
-      WHERE u.deleted = 0 AND u.suspended = 0
-      GROUP BY llu.learningplanid, lp.name, uid_j.data
-      ORDER BY lp.name, uid_j.data",
-    ['jfield' => $jfield]
+      WHERE u.deleted = 0 AND u.suspended = 0 AND u.id > 2
+      ORDER BY lp.name"
 );
 
-// ── Build available plans list (for group UI) ────────────────────────────────
-
-$available_plans = [];  // planid => planname
+$available_plans = [];
 foreach ($pop_rows as $row) {
-    $pid = (int)$row->planid;
-    if (!isset($available_plans[$pid])) {
-        $available_plans[$pid] = trim((string)$row->planname);
-    }
-}
-asort($available_plans);
-
-// ── Build career tree ─────────────────────────────────────────────────────────
-// Grouped plans merge under a '__GROUP_N' key; individual plans use plan name.
-
-$career_tree    = [];  // key → ['planid'|null, 'planids', 'is_group', 'gidx', 'group_name', 'shifts']
-$planid_to_name = [];  // planid → career key (for class assignment)
-
-foreach ($pop_rows as $row) {
-    $planid = (int)$row->planid;
-    $shift  = pop_normalize_shift((string)$row->shift);
-
-    if (isset($planid_to_gidx[$planid])) {
-        // This plan belongs to a group
-        $gidx = $planid_to_gidx[$planid];
-        $key  = '__GROUP_' . $gidx;
-        if (!isset($career_tree[$key])) {
-            $career_tree[$key] = [
-                'planid'     => null,
-                'planids'    => $pop_groups[$gidx]['planids'],
-                'is_group'   => true,
-                'gidx'       => $gidx,
-                'group_name' => $pop_groups[$gidx]['name'],
-                'shifts'     => [],
-            ];
-        }
-        $planid_to_name[$planid] = $key;
-        if (!isset($career_tree[$key]['shifts'][$shift])) {
-            $career_tree[$key]['shifts'][$shift] = ['student_count' => 0, 'classes' => []];
-        }
-        // Add distinct count per plan (may slightly double-count cross-plan students, group badge is authoritative)
-        $career_tree[$key]['shifts'][$shift]['student_count'] += (int)$row->student_count;
-    } else {
-        // Individual career
-        $career = trim((string)$row->planname);
-        if (!isset($career_tree[$career])) {
-            $career_tree[$career] = [
-                'planid'   => $planid,
-                'planids'  => [$planid],
-                'is_group' => false,
-                'shifts'   => [],
-            ];
-            $planid_to_name[$planid] = $career;
-        }
-        $career_tree[$career]['shifts'][$shift] = ['student_count' => (int)$row->student_count, 'classes' => []];
-    }
+    $available_plans[(int)$row->planid] = trim((string)$row->planname);
 }
 
 // ── Active classes ────────────────────────────────────────────────────────────
@@ -242,8 +184,6 @@ $class_sql_select = "SELECT gc.id,
             gc.career_label   AS career_label,
             gc.learningplanid AS learningplanid,
             gc.corecourseid   AS corecourseid,
-            gc.initdate       AS initdate,
-            gc.enddate        AS enddate,
             c.fullname        AS coursefullname,
             CONCAT(u.firstname, ' ', u.lastname) AS teachername,
             COUNT(DISTINCT gcp.userid) AS student_count
@@ -256,7 +196,7 @@ $regular_classes = $DB->get_records_sql(
     "$class_sql_select $tc_join
       WHERE gc.approved = 1 AND gc.closed = 0 AND gc.enddate > :now $tc_where
       GROUP BY gc.id, gc.name, gc.shift, gc.career_label, gc.learningplanid,
-               gc.corecourseid, gc.initdate, gc.enddate, c.fullname, u.firstname, u.lastname
+               gc.corecourseid, c.fullname, u.firstname, u.lastname
       ORDER BY gc.career_label, gc.shift, c.fullname",
     ['now' => $now]
 );
@@ -265,10 +205,33 @@ $tc_classes = $tc_fieldid ? $DB->get_records_sql(
     "$class_sql_select $tc_join2
       WHERE gc.approved = 1 AND gc.closed = 0 AND gc.enddate > :now
       GROUP BY gc.id, gc.name, gc.shift, gc.career_label, gc.learningplanid,
-               gc.corecourseid, gc.initdate, gc.enddate, c.fullname, u.firstname, u.lastname
+               gc.corecourseid, c.fullname, u.firstname, u.lastname
       ORDER BY c.fullname, gc.shift",
     ['now' => $now]
 ) : [];
+
+// ── House student counts from ACTUAL class enrollments ───────────────────────
+// Source: gmk_course_progre — avoids relying on gmkjourney profile field being filled.
+
+$active_class_counts_raw = $DB->get_records_sql(
+    "SELECT gc.learningplanid AS planid,
+            gc.shift          AS classshift,
+            COUNT(DISTINCT gcp.userid) AS student_count
+       FROM {gmk_class} gc
+       JOIN {gmk_course_progre} gcp ON gcp.classid = gc.id AND gcp.status IN (1,2,3)
+       $tc_join
+      WHERE gc.approved = 1 AND gc.closed = 0 AND gc.enddate > :now $tc_where
+      GROUP BY gc.learningplanid, gc.shift",
+    ['now' => $now]
+);
+
+// Lookup: planid → normalized_shift → distinct_student_count
+$active_class_lookup = [];
+foreach ($active_class_counts_raw as $row) {
+    $pid   = (int)$row->planid;
+    $shift = pop_normalize_shift((string)$row->classshift);
+    $active_class_lookup[$pid][$shift] = ($active_class_lookup[$pid][$shift] ?? 0) + (int)$row->student_count;
+}
 
 // ── Load schedules ────────────────────────────────────────────────────────────
 
@@ -288,19 +251,53 @@ if (!empty($all_ids)) {
             $schedules_by_class[(int)$sr->classid][] = $sr;
         }
     } catch (Exception $e) {
-        // table may not exist
+        // table may not exist yet
     }
 }
 
-// ── Assign classes to career tree ─────────────────────────────────────────────
+// ── Build career tree (structure from plan names, counts from class data) ─────
+
+$career_tree    = [];  // key → ['planid', 'planids', 'is_group', 'gidx', 'group_name', 'shifts']
+$planid_to_name = [];  // planid → tree key
+
+foreach ($pop_rows as $row) {
+    $planid = (int)$row->planid;
+    if (isset($planid_to_gidx[$planid])) {
+        $gidx = $planid_to_gidx[$planid];
+        $key  = '__GROUP_' . $gidx;
+        if (!isset($career_tree[$key])) {
+            $career_tree[$key] = [
+                'planid'     => null,
+                'planids'    => $pop_groups[$gidx]['planids'],
+                'is_group'   => true,
+                'gidx'       => $gidx,
+                'group_name' => $pop_groups[$gidx]['name'],
+                'shifts'     => [],
+            ];
+        }
+        $planid_to_name[$planid] = $key;
+    } else {
+        $career = trim((string)$row->planname);
+        if (!isset($career_tree[$career])) {
+            $career_tree[$career] = [
+                'planid'   => $planid,
+                'planids'  => [$planid],
+                'is_group' => false,
+                'shifts'   => [],
+            ];
+            $planid_to_name[$planid] = $career;
+        }
+    }
+}
+
+// ── Assign regular classes to career tree (creates shift buckets) ─────────────
 
 foreach ($regular_classes as $cls) {
-    $planid = (int)$cls->learningplanid;
-    $shift  = pop_normalize_shift((string)($cls->classshift ?? ''));
-
+    $planid  = (int)$cls->learningplanid;
+    $shift   = pop_normalize_shift((string)($cls->classshift ?? ''));
     $treeKey = $planid_to_name[$planid] ?? null;
 
-    // Fallback: text match on career_label
+    // Fallback: career_label text match
     if (!$treeKey && !empty($cls->career_label)) {
         foreach (array_keys($career_tree) as $cn) {
             if (stripos($cn, $cls->career_label) !== false || stripos($cls->career_label, $cn) !== false) {
@@ -318,7 +315,26 @@ foreach ($regular_classes as $cls) {
     $career_tree[$treeKey]['shifts'][$shift]['classes'][] = $cls;
 }
 
-// ── Sort shifts within each career ───────────────────────────────────────────
+// ── Replace house counts with class-enrollment-based counts ──────────────────
+// This correctly counts students regardless of whether gmkjourney profile is set.
+
+foreach ($career_tree as $key => &$cdata) {
+    foreach ($cdata['shifts'] as $shift => &$shiftData) {
+        if ($cdata['is_group']) {
+            $count = 0;
+            foreach ($cdata['planids'] as $pid) {
+                $count += $active_class_lookup[(int)$pid][$shift] ?? 0;
+            }
+            $shiftData['student_count'] = $count;
+        } else {
+            $shiftData['student_count'] = $active_class_lookup[$cdata['planid']][$shift] ?? 0;
+        }
+    }
+    unset($shiftData);
+}
+unset($cdata);
+
+// ── Sort shifts ───────────────────────────────────────────────────────────────
 
 $shift_order = ['Diurno' => 1, 'Nocturno' => 2, 'Sabatino' => 3];
 foreach ($career_tree as &$cdata) {
@@ -333,44 +349,47 @@ unset($cdata);
 echo $OUTPUT->header();
 
 $sesskey = sesskey();
-$pageurl = $PAGE->url->out(false);
 ?>
 <style>
-/* ── Layout ────────────────────────────────────────────── */
+/* ── Layout ─────────────────────────────────────────────────────── */
 .pop-page { max-width: 1400px; margin: 0 auto; padding: 16px 20px; font-family: 'Segoe UI', Arial, sans-serif; }
 
-/* ── Top bar ───────────────────────────────────────────── */
+/* ── Top bar ─────────────────────────────────────────────────────── */
 .pop-topbar {
     display: flex; align-items: flex-start; justify-content: space-between;
-    gap: 16px; margin-bottom: 6px; flex-wrap: wrap;
+    gap: 16px; margin-bottom: 8px; flex-wrap: wrap;
 }
 .pop-total-block { text-align: right; }
-.pop-total-label { font-size: 14px; font-weight: 600; color: #2d3748; }
-.pop-total-number { font-size: 40px; font-weight: 900; color: #1a56a4; line-height: 1; display: block; }
-.pop-disclaimer { font-size: 11px; color: #64748b; font-style: italic; margin-top: 3px; }
+.pop-total-label  { font-size: 14px; font-weight: 600; color: #2d3748; }
+.pop-total-number { font-size: 42px; font-weight: 900; color: #1a56a4; line-height: 1; display: block; }
+.pop-disclaimer   { font-size: 11px; color: #64748b; font-style: italic; margin-top: 3px; }
 
-/* ── Group management button ───────────────────────────── */
+/* ── Buttons ──────────────────────────────────────────────────────── */
 .pop-group-btn {
     display: inline-flex; align-items: center; gap: 6px;
     background: #1a56a4; color: #fff; border: none; border-radius: 8px;
-    padding: 8px 16px; font-size: 13px; font-weight: 600; cursor: pointer;
+    padding: 9px 16px; font-size: 13px; font-weight: 600; cursor: pointer;
     text-decoration: none; white-space: nowrap;
 }
-.pop-group-btn:hover { background: #144280; color: #fff; text-decoration: none; }
-.pop-group-btn-secondary {
+.pop-group-btn:hover { background: #144280; color: #fff; }
+.pop-group-btn-sm {
+    font-size: 11px; padding: 4px 10px; border-radius: 6px;
+}
+.pop-group-btn-outline {
     background: #f1f5f9; color: #374151; border: 1.5px solid #e2e8f0;
 }
-.pop-group-btn-secondary:hover { background: #e2e8f0; color: #374151; }
+.pop-group-btn-outline:hover { background: #e2e8f0; }
 
-/* ── Group panel ───────────────────────────────────────── */
+/* ── Group panel ─────────────────────────────────────────────────── */
 .pop-group-panel {
     background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 10px;
     padding: 18px 20px; margin-bottom: 24px; display: none;
 }
 .pop-group-panel.pop-open { display: block; }
-.pop-group-panel h3 { font-size: 13px; font-weight: 800; color: #1e293b; margin: 0 0 14px 0; text-transform: uppercase; letter-spacing: 0.5px; }
-
-/* Existing groups list */
+.pop-group-panel > h3 {
+    font-size: 13px; font-weight: 800; text-transform: uppercase;
+    letter-spacing: 0.5px; color: #1e293b; margin: 0 0 14px 0;
+}
 .pop-groups-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
 .pop-group-tag {
     display: inline-flex; align-items: center; gap: 6px;
@@ -382,43 +401,36 @@ $pageurl = $PAGE->url->out(false);
     padding: 0; line-height: 1; font-size: 14px; opacity: 0.7;
 }
 .pop-group-tag button:hover { opacity: 1; }
-
-/* New group form */
 .pop-new-group-form { border-top: 1.5px solid #e2e8f0; padding-top: 16px; }
-.pop-new-group-form label { font-size: 12px; font-weight: 700; color: #374151; display: block; margin-bottom: 6px; }
+.pop-new-group-form > label { font-size: 12px; font-weight: 700; color: #374151; display: block; margin-bottom: 5px; }
 .pop-new-group-form input[type=text] {
     width: 100%; max-width: 340px; border: 1.5px solid #e2e8f0; border-radius: 6px;
-    padding: 7px 10px; font-size: 13px; margin-bottom: 12px;
+    padding: 7px 10px; font-size: 13px; margin-bottom: 12px; box-sizing: border-box;
 }
-.pop-plans-checkboxes {
-    display: flex; flex-wrap: wrap; gap: 6px 14px; margin-bottom: 14px;
-}
+.pop-plans-checkboxes { display: flex; flex-wrap: wrap; gap: 5px 10px; margin-bottom: 14px; }
 .pop-plans-checkboxes label {
-    display: inline-flex; align-items: center; gap: 5px;
-    font-size: 12px; font-weight: 400; color: #374151; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 5px; font-weight: 400;
+    font-size: 12px; color: #374151; cursor: pointer;
     background: #fff; border: 1px solid #e2e8f0; border-radius: 6px;
     padding: 4px 10px; margin: 0; transition: background 0.15s;
 }
 .pop-plans-checkboxes label:hover { background: #eff6ff; border-color: #93c5fd; }
 .pop-plans-checkboxes input[type=checkbox] { accent-color: #1a56a4; }
-.pop-form-actions { display: flex; gap: 8px; align-items: center; }
 
-/* ── Career section ────────────────────────────────────── */
-.pop-career-section { margin-bottom: 32px; }
+/* ── Career section ──────────────────────────────────────────────── */
+.pop-career-section { margin-bottom: 28px; }
 .pop-career-title {
     font-size: 12px; font-weight: 800; letter-spacing: 1px;
     color: #2d3748; text-transform: uppercase;
-    margin: 0 0 10px 0; padding-bottom: 4px;
+    margin: 0 0 10px 0; padding-bottom: 5px;
     border-bottom: 2px solid #e2e8f0;
     display: flex; align-items: center; justify-content: space-between; gap: 8px;
 }
+.pop-career-title.pop-is-group { border-bottom-color: #93c5fd; color: #1e40af; }
 .pop-career-badge {
     font-size: 11px; font-weight: 700; letter-spacing: 0; text-transform: none;
     background: #e2e8f0; color: #374151; border-radius: 12px;
     padding: 2px 10px; white-space: nowrap; flex-shrink: 0;
-}
-.pop-career-title.pop-is-group {
-    border-bottom-color: #93c5fd; color: #1e40af;
 }
 .pop-career-title.pop-is-group .pop-career-badge {
     background: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe;
@@ -428,55 +440,78 @@ $pageurl = $PAGE->url->out(false);
     background: #1a56a4; color: #fff; border-radius: 3px;
     padding: 1px 5px; margin-right: 6px; text-transform: uppercase; vertical-align: middle;
 }
-.pop-houses-row { display: flex; flex-wrap: wrap; gap: 14px; }
 
-/* ── House card ────────────────────────────────────────── */
+/* ── House card — FULL WIDTH, chips in grid ──────────────────────── */
+.pop-houses-row { display: flex; flex-direction: column; gap: 12px; }
+
 .pop-house-card {
     background: #fff; border: 1.5px solid #e2e8f0; border-radius: 10px;
-    padding: 14px; min-width: 200px; max-width: 280px; flex: 1 1 200px;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.06); transition: box-shadow 0.2s;
+    padding: 14px 16px; width: 100%; box-sizing: border-box;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
 }
-.pop-house-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.10); }
 .pop-house-card.pop-active {
-    background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
-    border-color: #66bb6a; color: #1b5e20;
+    background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+    border-color: #86efac; color: #14532d;
 }
-.pop-house-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-.pop-house-icon svg { color: inherit; opacity: 0.85; }
-.pop-house-meta { flex: 1; }
-.pop-house-shift { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: inherit; line-height: 1.2; }
-.pop-house-count { font-size: 22px; font-weight: 900; line-height: 1.1; color: inherit; }
-.pop-house-count small { font-size: 12px; font-weight: 500; opacity: 0.75; margin-left: 3px; }
 
-/* ── Class chips inside house ──────────────────────────── */
-.pop-classes-inner { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+.pop-house-header {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 12px;
+}
+.pop-house-icon { flex-shrink: 0; }
+.pop-house-icon svg { color: inherit; opacity: 0.85; }
+.pop-house-meta { flex: 1; min-width: 0; }
+.pop-house-shift {
+    font-size: 13px; font-weight: 800; text-transform: uppercase;
+    letter-spacing: 0.5px; color: inherit; line-height: 1.2;
+}
+.pop-house-count {
+    font-size: 26px; font-weight: 900; line-height: 1.1; color: inherit;
+}
+.pop-house-count small {
+    font-size: 12px; font-weight: 500; opacity: 0.7; margin-left: 4px;
+}
+
+/* ── Class chips — responsive grid ──────────────────────────────── */
+.pop-classes-inner {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 8px;
+}
 .pop-class-chip {
-    background: rgba(255,255,255,0.70); border: 1px solid rgba(0,0,0,0.10);
-    border-radius: 6px; padding: 6px 9px; font-size: 11px; backdrop-filter: blur(4px);
+    background: rgba(255,255,255,0.80); border: 1px solid rgba(0,0,0,0.09);
+    border-radius: 7px; padding: 8px 10px; font-size: 11px;
+    backdrop-filter: blur(4px); min-width: 0;
 }
 .pop-class-chip-name {
-    font-weight: 700; color: #1a3a5c; font-size: 11px;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px;
+    font-weight: 700; color: #1a3a5c; font-size: 11.5px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.pop-class-chip-teacher { color: #475569; font-size: 10px; margin-top: 1px; }
-.pop-class-chip-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 6px; margin-top: 3px; }
-.pop-class-chip-sched { color: #374151; font-size: 10px; line-height: 1.35; }
+.pop-class-chip-teacher { color: #475569; font-size: 10px; margin-top: 2px; }
+.pop-class-chip-row {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 6px; margin-top: 5px;
+}
+.pop-class-chip-sched { color: #374151; font-size: 10px; line-height: 1.35; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pop-class-chip-count {
     background: #1a56a4; color: #fff; border-radius: 4px;
-    padding: 1px 6px; font-size: 10px; font-weight: 700; white-space: nowrap; flex-shrink: 0;
+    padding: 2px 7px; font-size: 10px; font-weight: 700; white-space: nowrap; flex-shrink: 0;
 }
 
-/* ── TRONCO COMÚN ──────────────────────────────────────── */
-.pop-tc-section { margin-bottom: 32px; }
+/* ── TRONCO COMÚN ────────────────────────────────────────────────── */
+.pop-tc-section { margin-bottom: 28px; }
 .pop-tc-title {
     font-size: 12px; font-weight: 800; letter-spacing: 1px;
     color: #2d3748; text-transform: uppercase;
-    margin: 0 0 10px 0; padding-bottom: 4px; border-bottom: 2px solid #e2e8f0;
+    margin: 0 0 10px 0; padding-bottom: 5px; border-bottom: 2px solid #e2e8f0;
+}
+.pop-tc-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 12px;
 }
 .pop-tc-house-card {
     background: #fff; border: 1.5px solid #e2e8f0; border-radius: 10px;
-    overflow: hidden; min-width: 240px; max-width: 320px;
-    flex: 1 1 240px; box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.06);
 }
 .pop-tc-house-header {
     background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
@@ -486,33 +521,36 @@ $pageurl = $PAGE->url->out(false);
 .pop-tc-house-title { font-size: 12px; font-weight: 700; }
 .pop-tc-house-body  { padding: 8px; display: flex; flex-direction: column; gap: 6px; }
 .pop-tc-chip { border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px 9px; font-size: 11px; background: #f8fafc; }
-.pop-tc-chip-teacher { color: #475569; font-size: 10px; margin-top: 1px; }
-.pop-tc-chip-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 6px; margin-top: 3px; }
+.pop-tc-chip-teacher { color: #475569; font-size: 10px; }
+.pop-tc-chip-row { display: flex; justify-content: space-between; align-items: center; gap: 6px; margin-top: 4px; }
 .pop-tc-chip-sched { color: #374151; font-size: 10px; line-height: 1.35; }
 .pop-tc-chip-count {
     background: #0d3c6b; color: #fff; border-radius: 4px;
-    padding: 1px 6px; font-size: 10px; font-weight: 700; white-space: nowrap; flex-shrink: 0;
+    padding: 2px 7px; font-size: 10px; font-weight: 700; white-space: nowrap; flex-shrink: 0;
 }
 
-/* ── Empty ──────────────────────────────────────────────── */
-.pop-empty { color: #94a3b8; font-size: 12px; font-style: italic; padding: 4px 0; }
+/* ── Misc ────────────────────────────────────────────────────────── */
+.pop-empty { color: #94a3b8; font-size: 12px; font-style: italic; padding: 2px 0; }
 </style>
 
 <div class="pop-page">
 
-    <!-- Top bar ──────────────────────────────────────────────────── -->
+    <!-- Top bar ─────────────────────────────────────────────────────── -->
     <div class="pop-topbar">
-        <button class="pop-group-btn" onclick="document.getElementById('popGroupPanel').classList.toggle('pop-open')">
-            &#9776; Gestionar grupos
+        <button class="pop-group-btn"
+            onclick="var p=document.getElementById('popGroupPanel');p.classList.toggle('pop-open')">
+            &#9776;&nbsp; Gestionar grupos
         </button>
         <div class="pop-total-block">
             <span class="pop-total-label">Total estudiantes activos:</span>
             <span class="pop-total-number"><?php echo $total_active; ?></span>
-            <div class="pop-disclaimer">* Sin duplicados. Un estudiante en varias carreras aparece en cada una.</div>
+            <div class="pop-disclaimer">
+                * Estudiantes únicos (sin duplicados). Un alumno en varias carreras aparece en cada una.
+            </div>
         </div>
     </div>
 
-    <!-- Group management panel ───────────────────────────────────── -->
+    <!-- Group management panel ──────────────────────────────────────── -->
     <div id="popGroupPanel" class="pop-group-panel <?php echo !empty($pop_groups) ? 'pop-open' : ''; ?>">
         <h3>Grupos de planes de estudio</h3>
 
@@ -520,22 +558,22 @@ $pageurl = $PAGE->url->out(false);
         <div class="pop-groups-list">
             <?php foreach ($pop_groups as $gidx => $group): ?>
             <form method="post" style="display:inline">
-                <input type="hidden" name="pop_action"  value="remove_group">
-                <input type="hidden" name="sesskey"     value="<?php echo $sesskey; ?>">
-                <input type="hidden" name="group_idx"   value="<?php echo (int)$gidx; ?>">
+                <input type="hidden" name="pop_action" value="remove_group">
+                <input type="hidden" name="sesskey"    value="<?php echo sesskey(); ?>">
+                <input type="hidden" name="group_idx"  value="<?php echo (int)$gidx; ?>">
                 <span class="pop-group-tag">
                     <?php echo s($group['name']); ?>
-                    <small style="opacity:0.7;font-weight:400">
+                    <span style="opacity:0.65;font-weight:400;font-size:10px">
                         (<?php echo implode(' + ', array_map(fn($p) => s($available_plans[$p] ?? "Plan $p"), $group['planids'])); ?>)
-                    </small>
-                    <button type="submit" title="Eliminar grupo">&#10005;</button>
+                    </span>
+                    <button type="submit" title="Eliminar">&#10005;</button>
                 </span>
             </form>
             <?php endforeach; ?>
             <form method="post" style="display:inline">
                 <input type="hidden" name="pop_action" value="clear_groups">
-                <input type="hidden" name="sesskey"    value="<?php echo $sesskey; ?>">
-                <button type="submit" class="pop-group-btn pop-group-btn-secondary" style="font-size:11px;padding:4px 10px">
+                <input type="hidden" name="sesskey"    value="<?php echo sesskey(); ?>">
+                <button type="submit" class="pop-group-btn pop-group-btn-sm pop-group-btn-outline">
                     Limpiar todos
                 </button>
             </form>
@@ -545,7 +583,7 @@ $pageurl = $PAGE->url->out(false);
         <div class="pop-new-group-form">
             <form method="post">
                 <input type="hidden" name="pop_action" value="add_group">
-                <input type="hidden" name="sesskey"    value="<?php echo $sesskey; ?>">
+                <input type="hidden" name="sesskey"    value="<?php echo sesskey(); ?>">
                 <label>Nombre del grupo</label>
                 <input type="text" name="group_name" placeholder="Ej: Ingeniería + Sistemas" required>
                 <label>Selecciona 2 o más planes</label>
@@ -557,14 +595,12 @@ $pageurl = $PAGE->url->out(false);
                     </label>
                     <?php endforeach; ?>
                 </div>
-                <div class="pop-form-actions">
-                    <button type="submit" class="pop-group-btn">Crear grupo</button>
-                </div>
+                <button type="submit" class="pop-group-btn">Crear grupo</button>
             </form>
         </div>
     </div>
 
-    <!-- Career sections ──────────────────────────────────────────── -->
+    <!-- Career sections ─────────────────────────────────────────────── -->
     <?php if (empty($career_tree)): ?>
         <div class="alert alert-warning">No hay estudiantes activos registrados.</div>
     <?php else: foreach ($career_tree as $careerKey => $careerData): ?>
@@ -593,31 +629,36 @@ $pageurl = $PAGE->url->out(false);
 
         <div class="pop-houses-row">
         <?php foreach ($careerData['shifts'] as $shiftName => $shiftData):
-            $isActive = $shiftData['student_count'] > 0 || !empty($shiftData['classes']);
+            $hasClasses  = !empty($shiftData['classes']);
+            $hasStudents = $shiftData['student_count'] > 0;
+            $isActive    = $hasStudents || $hasClasses;
         ?>
             <div class="pop-house-card <?php echo $isActive ? 'pop-active' : ''; ?>">
+
                 <div class="pop-house-header">
-                    <div class="pop-house-icon"><?php echo pop_house_svg(); ?></div>
+                    <div class="pop-house-icon"><?php
+                        echo str_replace('width="40" height="40"',
+                            'width="36" height="36"', pop_house_svg()); ?></div>
                     <div class="pop-house-meta">
                         <div class="pop-house-shift"><?php echo s($shiftName); ?></div>
                         <div class="pop-house-count">
                             <?php echo $shiftData['student_count']; ?>
-                            <small>estudiantes</small>
+                            <small>estudiantes en clases activas</small>
                         </div>
                     </div>
                 </div>
 
-                <?php if (!empty($shiftData['classes'])): ?>
+                <?php if ($hasClasses): ?>
                 <div class="pop-classes-inner">
                     <?php foreach ($shiftData['classes'] as $cls):
                         $schedHtml = pop_format_schedule($schedules_by_class[(int)$cls->id] ?? []);
-                        $cname = trim((string)($cls->coursefullname ?: $cls->classname));
+                        $cname     = trim((string)($cls->coursefullname ?: $cls->classname));
                     ?>
                     <div class="pop-class-chip">
                         <div class="pop-class-chip-name" title="<?php echo s($cname); ?>"><?php echo s($cname); ?></div>
                         <div class="pop-class-chip-teacher"><?php echo s(trim($cls->teachername)); ?></div>
                         <div class="pop-class-chip-row">
-                            <div class="pop-class-chip-sched">
+                            <div class="pop-class-chip-sched" title="<?php echo $schedHtml; ?>">
                                 <?php echo $schedHtml ?: '<span style="color:#94a3b8">Sin horario</span>'; ?>
                             </div>
                             <div class="pop-class-chip-count"><?php echo (int)$cls->student_count; ?> est.</div>
@@ -628,6 +669,7 @@ $pageurl = $PAGE->url->out(false);
                 <?php else: ?>
                     <div class="pop-empty">Sin clases activas</div>
                 <?php endif; ?>
+
             </div><!-- /pop-house-card -->
         <?php endforeach; ?>
         </div><!-- /pop-houses-row -->
@@ -635,21 +677,24 @@ $pageurl = $PAGE->url->out(false);
 
     <?php endforeach; endif; ?>
 
-    <!-- TRONCO COMÚN ─────────────────────────────────────────────── -->
+    <!-- TRONCO COMÚN ────────────────────────────────────────────────── -->
     <?php if (!empty($tc_classes)):
         $tc_by_course = [];
         foreach ($tc_classes as $cls) {
-            $coursename = trim((string)($cls->coursefullname ?: $cls->classname));
-            $tc_by_course[$coursename][] = $cls;
+            $cname = trim((string)($cls->coursefullname ?: $cls->classname));
+            $tc_by_course[$cname][] = $cls;
         }
     ?>
     <div class="pop-tc-section">
         <h2 class="pop-tc-title">Tronco Común</h2>
-        <div class="pop-houses-row">
+        <div class="pop-tc-grid">
         <?php foreach ($tc_by_course as $courseName => $groups): ?>
             <div class="pop-tc-house-card">
                 <div class="pop-tc-house-header">
-                    <?php echo pop_house_svg(); ?>
+                    <svg viewBox="0 0 64 64" width="28" height="28" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <polygon points="32,6 60,30 56,30 56,58 36,58 36,40 28,40 28,58 8,58 8,30 4,30" stroke="currentColor" stroke-width="3" fill="currentColor" fill-opacity="0.12"/>
+                        <polygon points="32,6 60,30 4,30" stroke="currentColor" stroke-width="3" fill="currentColor" fill-opacity="0.25"/>
+                    </svg>
                     <div class="pop-tc-house-title"><?php echo s($courseName); ?></div>
                 </div>
                 <div class="pop-tc-house-body">
@@ -661,7 +706,7 @@ $pageurl = $PAGE->url->out(false);
                         <div class="pop-tc-chip-teacher"><?php echo s(trim($cls->teachername)); ?></div>
                         <div class="pop-tc-chip-row">
                             <div class="pop-tc-chip-sched">
-                                <span style="background:#e2e8f0;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700;margin-right:3px;"><?php echo s($shift); ?></span>
+                                <span style="background:#dbeafe;color:#1e40af;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700;margin-right:3px;"><?php echo s($shift); ?></span>
                                 <?php echo $schedHtml ?: '<span style="color:#94a3b8">Sin horario</span>'; ?>
                             </div>
                             <div class="pop-tc-chip-count"><?php echo (int)$cls->student_count; ?> est.</div>
