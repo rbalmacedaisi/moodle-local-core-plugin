@@ -178,6 +178,11 @@ if ($hassiteconfig) {
         '🩺 Inconsistencias Progreso: aprobado + huérfano',
         new moodle_url('/local/grupomakro_core/pages/debug_progre_approved_orphans.php')
     );
+    $debugApprovedZeroGradePage = new admin_externalpage(
+        'grupomakro_core_debug_approved_zero_grade',
+        'Debug: Aprobada con nota 0',
+        new moodle_url('/local/grupomakro_core/pages/debug_approved_zero_grade.php')
+    );
     $ADMIN->add('grupomakrocore_plugin', $classManagementPage);
     $ADMIN->add('grupomakrocore_plugin', $classSchedulesPage);
     $ADMIN->add('grupomakrocore_plugin', $availabilityPanelPage);
@@ -208,6 +213,7 @@ if ($hassiteconfig) {
     $ADMIN->add('grupomakrocore_plugin', $debugBbbTeacherJoinPage);
     $ADMIN->add('grupomakrocore_plugin', $syncBbbRecordingsPage);
     $ADMIN->add('grupomakrocore_plugin', $debugProgreApprovedOrphansPage);
+    $ADMIN->add('grupomakrocore_plugin', $debugApprovedZeroGradePage);
 
     $ADMIN->add('localplugins', new admin_category('grupomakrocore', new lang_string('pluginname', 'local_grupomakro_core')));
     /********
