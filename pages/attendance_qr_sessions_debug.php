@@ -98,7 +98,7 @@ $sql = "SELECT
        FROM {attendance_sessions} ats
        JOIN {attendance}     att  ON att.id = ats.attendanceid
        JOIN {course_modules} cm   ON cm.instance = att.id{$deletion_cond}
-       JOIN {modules}        mod  ON mod.id = cm.module AND mod.name = 'attendance'
+       JOIN {modules}        mdlmod ON mdlmod.id = cm.module AND mdlmod.name = 'attendance'
        JOIN {course}         c    ON c.id = att.course
        JOIN {gmk_class}      gc   ON gc.attendancemoduleid = cm.id
                                   AND gc.approved = 1
