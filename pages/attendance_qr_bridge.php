@@ -240,6 +240,22 @@ function gmk_qr_finish($status, $reasoncode, $message, array $target, $sessionid
 $sessionid = required_param('sessid', PARAM_INT);
 $qrpass = optional_param('qrpass', '', PARAM_RAW_TRIMMED);
 
+// If the student has no Moodle session, route them through the Vue student
+// app instead of Moodle's login page. The Vue login (soluttolms_core/token.php)
+// creates both the Vue token and a Moodle web session, so returning to this
+// bridge afterwards will pass require_login() correctly.
+// This avoids the issue where the custom Moodle theme ignores wantsurl and
+// sends unauthenticated users to home after login instead of back here.
+if (!isloggedin() || isguestuser()) {
+    $vuebase  = gmk_qr_student_app_base_url();
+    $vueparams = ['sessid' => (int)$sessionid];
+    if ($qrpass !== '') {
+        $vueparams['qrpass'] = $qrpass;
+    }
+    header('Location: ' . $vuebase . '/attendance/qr?' . http_build_query($vueparams));
+    exit;
+}
+
 $session = $DB->get_record('attendance_sessions', ['id' => $sessionid], '*', MUST_EXIST);
 $attendance = $DB->get_record('attendance', ['id' => $session->attendanceid], '*', MUST_EXIST);
 $cm = get_coursemodule_from_instance('attendance', (int)$attendance->id, 0, false, MUST_EXIST);
