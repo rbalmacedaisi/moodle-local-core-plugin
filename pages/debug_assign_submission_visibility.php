@@ -156,7 +156,12 @@ function dasv_find_classes(int $classid, string $classquery, int $maxrows): arra
                        c.instructorid, c.learningplanid, c.periodid, c.approved, c.closed,
                        crs.fullname AS corecoursename,
                        lp.name AS planname,
-                       p.name AS periodname
+                       p.name AS periodname,
+                       (
+                           SELECT COUNT(1)
+                             FROM {assign} a
+                            WHERE (a.course = c.corecourseid OR a.course = c.courseid)
+                       ) AS assigncount
                   FROM {gmk_class} c
              LEFT JOIN {course} crs ON crs.id = c.corecourseid
              LEFT JOIN {local_learning_plans} lp ON lp.id = c.learningplanid
@@ -169,11 +174,21 @@ function dasv_find_classes(int $classid, string $classquery, int $maxrows): arra
                        c.instructorid, c.learningplanid, c.periodid, c.approved, c.closed,
                        crs.fullname AS corecoursename,
                        lp.name AS planname,
-                       p.name AS periodname
+                       p.name AS periodname,
+                       (
+                           SELECT COUNT(1)
+                             FROM {assign} a
+                            WHERE (a.course = c.corecourseid OR a.course = c.courseid)
+                       ) AS assigncount
                   FROM {gmk_class} c
              LEFT JOIN {course} crs ON crs.id = c.corecourseid
              LEFT JOIN {local_learning_plans} lp ON lp.id = c.learningplanid
              LEFT JOIN {local_learning_periods} p ON p.id = c.periodid
+                 WHERE EXISTS (
+                           SELECT 1
+                             FROM {assign} a2
+                            WHERE (a2.course = c.corecourseid OR a2.course = c.courseid)
+                       )
               ORDER BY c.closed ASC, c.approved DESC, c.id DESC";
         return array_values($DB->get_records_sql($sql, [], 0, $maxrows));
     }
@@ -182,13 +197,25 @@ function dasv_find_classes(int $classid, string $classquery, int $maxrows): arra
                    c.instructorid, c.learningplanid, c.periodid, c.approved, c.closed,
                    crs.fullname AS corecoursename,
                    lp.name AS planname,
-                   p.name AS periodname
+                   p.name AS periodname,
+                   (
+                       SELECT COUNT(1)
+                         FROM {assign} a
+                        WHERE (a.course = c.corecourseid OR a.course = c.courseid)
+                   ) AS assigncount
               FROM {gmk_class} c
          LEFT JOIN {course} crs ON crs.id = c.corecourseid
          LEFT JOIN {local_learning_plans} lp ON lp.id = c.learningplanid
          LEFT JOIN {local_learning_periods} p ON p.id = c.periodid
-             WHERE " . $DB->sql_like('c.name', ':q1', false) . "
-                OR " . $DB->sql_like('crs.fullname', ':q2', false) . "
+             WHERE (
+                    " . $DB->sql_like('c.name', ':q1', false) . "
+                 OR " . $DB->sql_like('crs.fullname', ':q2', false) . "
+             )
+               AND EXISTS (
+                   SELECT 1
+                     FROM {assign} a2
+                    WHERE (a2.course = c.corecourseid OR a2.course = c.courseid)
+               )
           ORDER BY c.id DESC";
     return array_values($DB->get_records_sql($sql, ['q1' => $like, 'q2' => $like], 0, $maxrows));
 }
@@ -434,6 +461,7 @@ foreach ($prefclasscandidates as $copt) {
     if (!empty($copt->corecoursename)) {
         $label .= ' | ' . (string)$copt->corecoursename;
     }
+    $label .= ' | Tareas: ' . (int)($copt->assigncount ?? 0);
     echo '<option value="' . (int)$copt->id . '"' . $selected . '>' . dasv_h($label) . '</option>';
 }
 echo '</select>';
@@ -451,7 +479,7 @@ foreach ($prefassignmentcandidates as $aopt) {
 }
 echo '</select>';
 if (empty($prefassignmentcandidates)) {
-    echo ' <span class="text-muted">Select class first</span>';
+    echo ' <span class="text-muted">' . ($prefselectedclass ? 'No hay tareas tipo assign en esta clase/curso.' : 'Selecciona una clase primero.') . '</span>';
 }
 echo '</td>';
 echo '</tr>';
@@ -474,7 +502,7 @@ foreach ($prefstudentcandidates as $uopt) {
 }
 echo '</select>';
 if (empty($prefstudentcandidates)) {
-    echo ' <span class="text-muted">Select class first</span>';
+    echo ' <span class="text-muted">' . ($prefselectedclass ? 'No se encontraron estudiantes en el alcance de esta clase.' : 'Selecciona una clase primero.') . '</span>';
 }
 echo '</td>';
 echo '</tr>';
@@ -505,6 +533,7 @@ foreach ($classcandidates as $c) {
         (int)$c->id,
         dasv_h((string)$c->name),
         dasv_h((string)($c->corecoursename ?? '')),
+        (int)($c->assigncount ?? 0),
         (int)$c->groupid,
         (int)$c->coursesectionid,
         (int)$c->gradecategoryid,
@@ -513,7 +542,7 @@ foreach ($classcandidates as $c) {
     ];
 }
 dasv_render_table(
-    ['ID', 'Class', 'Core course', 'Group', 'Section', 'Grade cat', 'Approved/Closed', 'Action'],
+    ['ID', 'Class', 'Core course', 'Assign count', 'Group', 'Section', 'Grade cat', 'Approved/Closed', 'Action'],
     $classrows
 );
 
