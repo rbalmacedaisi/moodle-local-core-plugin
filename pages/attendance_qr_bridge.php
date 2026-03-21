@@ -349,7 +349,14 @@ if (!empty($session->studentpassword) && !$qrpassflag) {
     }
 }
 
-$attstructure = new mod_attendance_structure($attendance, $cm, $course);
+// Pass pageparams with sessid so that mod_attendance's attendance_taken event
+// can correctly populate its required 'sessionid' field. Some versions of the
+// attendance module read this from pageparams when building the event data.
+$pageparams = new stdClass();
+$pageparams->sessid    = (int)$sessionid;
+$pageparams->grouptype = 0;
+
+$attstructure = new mod_attendance_structure($attendance, $cm, $course, $pageparams);
 $statusid = attendance_session_get_highest_status($attstructure, $session);
 if (empty($statusid)) {
     gmk_qr_finish(
@@ -369,7 +376,23 @@ if ((string)$qrpass !== '') {
     $payload->studentpassword = (string)$qrpass;
 }
 
-$success = $attstructure->take_from_student($payload);
+// take_from_student writes the attendance log and then fires the attendance_taken
+// event. Some versions of mod_attendance throw a coding_exception when the event
+// is missing 'sessionid' even though the log was already committed. We catch that
+// specific case and verify via the DB so the student still gets the success result.
+$success = false;
+try {
+    $success = $attstructure->take_from_student($payload);
+} catch (\coding_exception $e) {
+    // The event validation failed, but the DB write may have already succeeded.
+    $success = $DB->record_exists('attendance_log', [
+        'sessionid' => (int)$sessionid,
+        'studentid' => (int)$USER->id,
+    ]);
+} catch (Throwable $e) {
+    $success = false;
+}
+
 if (!$success) {
     if ($DB->record_exists('attendance_log', ['sessionid' => (int)$sessionid, 'studentid' => (int)$USER->id])) {
         gmk_qr_finish(
