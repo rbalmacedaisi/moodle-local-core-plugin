@@ -156,167 +156,197 @@ try {
             require_capability('mod/assign:grade', $cmcontext);
 
             $assign = new \assign($cmcontext, $cm, $course);
-            $usersubmission = $assign->get_user_submission((int)$studentid, false);
-
-            // Team submissions fallback.
-            if (!$usersubmission && !empty($assignrecord->teamsubmission)) {
-                $flatgroupids = [];
-                $usergroups = groups_get_user_groups((int)$course->id, (int)$studentid);
-                if (is_array($usergroups)) {
-                    foreach ($usergroups as $groupbucket) {
-                        if (!is_array($groupbucket)) {
-                            continue;
-                        }
-                        foreach ($groupbucket as $gid) {
-                            $gid = (int)$gid;
-                            if ($gid > 0 && !in_array($gid, $flatgroupids, true)) {
-                                $flatgroupids[] = $gid;
-                            }
-                        }
+            $flatgroupids = [];
+            $usergroups = groups_get_user_groups((int)$course->id, (int)$studentid);
+            if (is_array($usergroups)) {
+                foreach ($usergroups as $groupbucket) {
+                    if (!is_array($groupbucket)) {
+                        continue;
                     }
-                }
-                if (!empty($flatgroupids)) {
-                    list($ginsql, $ginparams) = $DB->get_in_or_equal($flatgroupids, SQL_PARAMS_NAMED, 'gid');
-                    $groupsub = $DB->get_record_sql(
-                        "SELECT id, status, timemodified
-                           FROM {assign_submission}
-                          WHERE assignment = :assignmentid
-                            AND groupid {$ginsql}
-                       ORDER BY latest DESC, timemodified DESC, id DESC",
-                        ['assignmentid' => (int)$assignmentid] + $ginparams,
-                        IGNORE_MULTIPLE
-                    );
-                    if ($groupsub) {
-                        $usersubmission = $groupsub;
+                    foreach ($groupbucket as $gid) {
+                        $gid = (int)$gid;
+                        if ($gid > 0 && !in_array($gid, $flatgroupids, true)) {
+                            $flatgroupids[] = $gid;
+                        }
                     }
                 }
             }
 
-            // Final fallback: use incoming submission id if present.
-            if (!$usersubmission && (int)$submissionid > 0) {
-                $fallbacksubmission = $DB->get_record(
+            $requestedsubmission = null;
+            $requestedsubmissionvalid = false;
+            if ((int)$submissionid > 0) {
+                $requestedsubmission = $DB->get_record(
                     'assign_submission',
                     ['id' => (int)$submissionid, 'assignment' => (int)$assignmentid],
-                    'id,status,timemodified',
+                    'id,assignment,userid,groupid,attemptnumber,status,latest,timemodified,timecreated',
                     IGNORE_MISSING
                 );
-                if ($fallbacksubmission) {
-                    $usersubmission = $fallbacksubmission;
+                if ($requestedsubmission) {
+                    $requesteduid = (int)$requestedsubmission->userid;
+                    $requestedgid = (int)$requestedsubmission->groupid;
+                    $requestedsubmissionvalid = (
+                        ($requesteduid > 0 && $requesteduid === (int)$studentid) ||
+                        ($requestedgid > 0 && in_array($requestedgid, $flatgroupids, true))
+                    );
                 }
             }
 
-            $effectivesubmissionid = $usersubmission ? (int)$usersubmission->id : 0;
-            $submissionstatus = $usersubmission ? (string)$usersubmission->status : 'new';
-            $submissiontimemodified = $usersubmission ? (int)$usersubmission->timemodified : 0;
+            $usersubmission = null;
+            $selectionstrategy = 'none';
 
-            $fs = get_file_storage();
-            $submissiontext = '';
-            $submissiontexthtml = '';
-            $submissiontextplain = '';
-            $onlinetextfileitemids = [];
-            if ($effectivesubmissionid > 0) {
-                $onlinetextfileitemids[] = $effectivesubmissionid;
+            if ($requestedsubmission && $requestedsubmissionvalid) {
+                $usersubmission = $requestedsubmission;
+                $selectionstrategy = 'requested_submissionid';
             }
 
-            $onlinetext = null;
-            if ($effectivesubmissionid > 0) {
+            $assignusersubmission = $assign->get_user_submission((int)$studentid, false);
+            if (!$usersubmission && $assignusersubmission) {
+                $usersubmission = $assignusersubmission;
+                $selectionstrategy = 'assign_get_user_submission';
+            }
+
+            if (!$usersubmission && !empty($flatgroupids)) {
+                list($ginsql, $ginparams) = $DB->get_in_or_equal($flatgroupids, SQL_PARAMS_NAMED, 'gid');
+                $groupsub = $DB->get_record_sql(
+                    "SELECT id, assignment, userid, groupid, attemptnumber, status, latest, timemodified, timecreated
+                       FROM {assign_submission}
+                      WHERE assignment = :assignmentid
+                        AND groupid {$ginsql}
+                   ORDER BY latest DESC, timemodified DESC, id DESC",
+                    ['assignmentid' => (int)$assignmentid] + $ginparams,
+                    IGNORE_MULTIPLE
+                );
+                if ($groupsub) {
+                    $usersubmission = $groupsub;
+                    $selectionstrategy = 'group_submission_fallback';
+                }
+            }
+
+            $candidateids = [];
+            if ($requestedsubmission) {
+                $candidateids[] = (int)$requestedsubmission->id;
+            }
+            if ($assignusersubmission) {
+                $candidateids[] = (int)$assignusersubmission->id;
+            }
+            if ($usersubmission) {
+                $candidateids[] = (int)$usersubmission->id;
+            }
+
+            $allsubparams = [
+                'assignmentid' => (int)$assignmentid,
+                'userid' => (int)$studentid,
+            ];
+            $allsubwhere = 's.assignment = :assignmentid AND s.userid = :userid';
+            if (!empty($flatgroupids)) {
+                list($allsubgsql, $allsubgparams) = $DB->get_in_or_equal($flatgroupids, SQL_PARAMS_NAMED, 'allgid');
+                $allsubwhere = "s.assignment = :assignmentid AND (s.userid = :userid OR s.groupid {$allsubgsql})";
+                $allsubparams += $allsubgparams;
+            }
+            $allsubmissions = $DB->get_records_sql(
+                "SELECT s.id
+                   FROM {assign_submission} s
+                  WHERE {$allsubwhere}
+               ORDER BY s.latest DESC, s.timemodified DESC, s.id DESC",
+                $allsubparams,
+                0,
+                30
+            );
+            foreach ($allsubmissions as $allsub) {
+                $candidateids[] = (int)$allsub->id;
+            }
+
+            $candidateids = array_values(array_unique(array_filter(array_map('intval', $candidateids))));
+            $fs = get_file_storage();
+
+            $collectsubmissionpayload = function(int $subid) use ($DB, $fs, $cmcontext, $assignmentid): array {
+                $row = $DB->get_record(
+                    'assign_submission',
+                    ['id' => $subid, 'assignment' => (int)$assignmentid],
+                    'id,assignment,userid,groupid,attemptnumber,status,latest,timemodified,timecreated',
+                    IGNORE_MISSING
+                );
+                if (!$row) {
+                    return [
+                        'submissionid' => (int)$subid,
+                        'status' => 'missing',
+                        'timemodified' => 0,
+                        'timecreated' => 0,
+                        'submissiontext' => '',
+                        'submissiontexthtml' => '',
+                        'submissiontextplain' => '',
+                        'files' => [],
+                        'hascontent' => false,
+                        'onlinetextlen' => 0,
+                    ];
+                }
+
+                $rawtext = '';
+                $formattedtext = '';
+                $plaintext = '';
+                $onlinetextlen = 0;
+                $hascontent = false;
+                $seenhash = [];
+                $files = [];
+
                 $onlinetext = $DB->get_record(
                     'assignsubmission_onlinetext',
-                    ['assignment' => (int)$assignmentid, 'submission' => $effectivesubmissionid],
+                    ['assignment' => (int)$assignmentid, 'submission' => (int)$row->id],
                     'id,onlinetext,onlineformat',
                     IGNORE_MISSING
                 );
-            }
-            if (!$onlinetext) {
-                $onlinetext = $DB->get_record_sql(
-                    "SELECT ot.id, ot.onlinetext, ot.onlineformat, s.id AS submissionid
-                       FROM {assignsubmission_onlinetext} ot
-                       JOIN {assign_submission} s ON s.id = ot.submission
-                      WHERE ot.assignment = :assignmentid
-                        AND s.assignment = :assignmentid2
-                        AND (
-                            s.userid = :userid
-                            OR (
-                                s.groupid > 0
-                                AND EXISTS (
-                                    SELECT 1
-                                      FROM {groups_members} gm
-                                     WHERE gm.groupid = s.groupid
-                                       AND gm.userid = :userid2
-                                )
-                            )
-                        )
-                   ORDER BY s.latest DESC, s.timemodified DESC, s.id DESC, ot.id DESC",
-                    [
-                        'assignmentid' => (int)$assignmentid,
-                        'assignmentid2' => (int)$assignmentid,
-                        'userid' => (int)$studentid,
-                        'userid2' => (int)$studentid,
-                    ],
-                    IGNORE_MULTIPLE
-                );
-                if ($onlinetext && (int)($onlinetext->submissionid ?? 0) > 0 && $effectivesubmissionid <= 0) {
-                    $effectivesubmissionid = (int)$onlinetext->submissionid;
-                    if (!in_array($effectivesubmissionid, $onlinetextfileitemids, true)) {
-                        $onlinetextfileitemids[] = $effectivesubmissionid;
-                    }
+                $onlinetextfileitemids = [(int)$row->id];
+                if ($onlinetext && (int)$onlinetext->id > 0) {
+                    $onlinetextfileitemids[] = (int)$onlinetext->id;
                 }
-            }
+                $onlinetextfileitemids = array_values(array_unique(array_filter(array_map('intval', $onlinetextfileitemids))));
 
-            if ($onlinetext && (int)$onlinetext->id > 0 && !in_array((int)$onlinetext->id, $onlinetextfileitemids, true)) {
-                $onlinetextfileitemids[] = (int)$onlinetext->id;
-            }
-
-            if ($onlinetext && trim((string)$onlinetext->onlinetext) !== '') {
-                $rawtext = (string)$onlinetext->onlinetext;
-                $rewriteitemid = $effectivesubmissionid;
-                foreach ($onlinetextfileitemids as $candidateitemid) {
-                    $candidatefiles = $fs->get_area_files(
+                if ($onlinetext && trim((string)$onlinetext->onlinetext) !== '') {
+                    $rawtext = (string)$onlinetext->onlinetext;
+                    $onlinetextlen = core_text::strlen(trim(strip_tags($rawtext)));
+                    $rewriteitemid = (int)$row->id;
+                    foreach ($onlinetextfileitemids as $candidateitemid) {
+                        $candidatefiles = $fs->get_area_files(
+                            (int)$cmcontext->id,
+                            'assignsubmission_onlinetext',
+                            'onlinetext',
+                            (int)$candidateitemid,
+                            'sortorder',
+                            false
+                        );
+                        if (!empty($candidatefiles)) {
+                            $rewriteitemid = (int)$candidateitemid;
+                            break;
+                        }
+                    }
+                    $rewrittentext = file_rewrite_pluginfile_urls(
+                        $rawtext,
+                        'pluginfile.php',
                         (int)$cmcontext->id,
                         'assignsubmission_onlinetext',
                         'onlinetext',
-                        (int)$candidateitemid,
-                        'sortorder',
-                        false
+                        $rewriteitemid
                     );
-                    if (!empty($candidatefiles)) {
-                        $rewriteitemid = (int)$candidateitemid;
-                        break;
+                    $formattedtext = format_text(
+                        $rewrittentext,
+                        (int)$onlinetext->onlineformat,
+                        [
+                            'context' => $cmcontext,
+                            'overflowdiv' => true,
+                            'para' => false,
+                        ]
+                    );
+                    $plaintext = trim(strip_tags($formattedtext));
+                    if ($plaintext !== '' || strpos($formattedtext, '<img') !== false) {
+                        $hascontent = true;
                     }
                 }
-                if ($rewriteitemid <= 0) {
-                    $rewriteitemid = (int)($effectivesubmissionid ?: 0);
-                }
-                $rewrittentext = file_rewrite_pluginfile_urls(
-                    $rawtext,
-                    'pluginfile.php',
-                    (int)$cmcontext->id,
-                    'assignsubmission_onlinetext',
-                    'onlinetext',
-                    (int)$rewriteitemid
-                );
-                $submissiontext = $rawtext;
-                $submissiontexthtml = format_text(
-                    $rewrittentext,
-                    (int)$onlinetext->onlineformat,
-                    [
-                        'context' => $cmcontext,
-                        'overflowdiv' => true,
-                        'para' => false,
-                    ]
-                );
-                $submissiontextplain = trim(strip_tags($submissiontexthtml));
-            }
 
-            $files = [];
-            $seenhash = [];
-
-            if ($effectivesubmissionid > 0) {
                 $submissionfiles = $fs->get_area_files(
                     (int)$cmcontext->id,
                     'assignsubmission_file',
                     'submission_files',
-                    (int)$effectivesubmissionid,
+                    (int)$row->id,
                     'sortorder',
                     false
                 );
@@ -344,53 +374,120 @@ try {
                         'source' => 'submission_file',
                     ];
                 }
+
+                foreach ($onlinetextfileitemids as $inlineitemid) {
+                    $inlinefiles = $fs->get_area_files(
+                        (int)$cmcontext->id,
+                        'assignsubmission_onlinetext',
+                        'onlinetext',
+                        (int)$inlineitemid,
+                        'sortorder',
+                        false
+                    );
+                    foreach ($inlinefiles as $file) {
+                        $hash = (string)$file->get_pathnamehash();
+                        if ($hash !== '' && isset($seenhash[$hash])) {
+                            continue;
+                        }
+                        if ($hash !== '') {
+                            $seenhash[$hash] = true;
+                        }
+                        $url = moodle_url::make_pluginfile_url(
+                            $file->get_contextid(),
+                            $file->get_component(),
+                            $file->get_filearea(),
+                            $file->get_itemid(),
+                            $file->get_filepath(),
+                            $file->get_filename()
+                        );
+                        $files[] = [
+                            'filename' => $file->get_filename(),
+                            'fileurl' => $url->out(false),
+                            'mimetype' => $file->get_mimetype(),
+                            'filesize' => (int)$file->get_filesize(),
+                            'source' => 'onlinetext',
+                        ];
+                    }
+                }
+
+                if (!empty($files)) {
+                    $hascontent = true;
+                }
+
+                return [
+                    'submissionid' => (int)$row->id,
+                    'status' => (string)$row->status,
+                    'timemodified' => (int)$row->timemodified,
+                    'timecreated' => (int)$row->timecreated,
+                    'submissiontext' => (string)$rawtext,
+                    'submissiontexthtml' => (string)$formattedtext,
+                    'submissiontextplain' => (string)$plaintext,
+                    'files' => $files,
+                    'hascontent' => $hascontent,
+                    'onlinetextlen' => (int)$onlinetextlen,
+                ];
+            };
+
+            $payloads = [];
+            foreach ($candidateids as $subid) {
+                $payloads[(int)$subid] = $collectsubmissionpayload((int)$subid);
             }
 
-            foreach ($onlinetextfileitemids as $inlineitemid) {
-                $inlinefiles = $fs->get_area_files(
-                    (int)$cmcontext->id,
-                    'assignsubmission_onlinetext',
-                    'onlinetext',
-                    (int)$inlineitemid,
-                    'sortorder',
-                    false
-                );
-                foreach ($inlinefiles as $file) {
-                    $hash = (string)$file->get_pathnamehash();
-                    if ($hash !== '' && isset($seenhash[$hash])) {
-                        continue;
-                    }
-                    if ($hash !== '') {
-                        $seenhash[$hash] = true;
-                    }
-                    $url = moodle_url::make_pluginfile_url(
-                        $file->get_contextid(),
-                        $file->get_component(),
-                        $file->get_filearea(),
-                        $file->get_itemid(),
-                        $file->get_filepath(),
-                        $file->get_filename()
-                    );
-                    $files[] = [
-                        'filename' => $file->get_filename(),
-                        'fileurl' => $url->out(false),
-                        'mimetype' => $file->get_mimetype(),
-                        'filesize' => (int)$file->get_filesize(),
-                        'source' => 'onlinetext',
-                    ];
+            $effectivesubmissionid = $usersubmission ? (int)$usersubmission->id : 0;
+            $selectedpayload = null;
+            if ($effectivesubmissionid > 0 && isset($payloads[$effectivesubmissionid])) {
+                $selectedpayload = $payloads[$effectivesubmissionid];
+            }
+            if (!$selectedpayload && !empty($candidateids)) {
+                $firstcandidateid = (int)$candidateids[0];
+                $selectedpayload = $payloads[$firstcandidateid] ?? null;
+                if ($selectedpayload && $selectionstrategy === 'none') {
+                    $selectionstrategy = 'first_candidate_fallback';
                 }
+            }
+            if ($selectedpayload && !$selectedpayload['hascontent']) {
+                foreach ($candidateids as $subid) {
+                    $subid = (int)$subid;
+                    if (!empty($payloads[$subid]['hascontent'])) {
+                        $selectedpayload = $payloads[$subid];
+                        $selectionstrategy .= '+content_fallback';
+                        break;
+                    }
+                }
+            }
+            if (!$selectedpayload) {
+                $selectedpayload = [
+                    'submissionid' => 0,
+                    'status' => 'new',
+                    'timemodified' => 0,
+                    'timecreated' => 0,
+                    'submissiontext' => '',
+                    'submissiontexthtml' => '',
+                    'submissiontextplain' => '',
+                    'files' => [],
+                    'hascontent' => false,
+                    'onlinetextlen' => 0,
+                ];
             }
 
             $response = [
                 'status' => 'success',
                 'data' => [
-                    'submissionid' => (int)$effectivesubmissionid,
-                    'status' => $submissionstatus,
-                    'timemodified' => (int)$submissiontimemodified,
-                    'submissiontext' => (string)$submissiontext,
-                    'submissiontexthtml' => (string)$submissiontexthtml,
-                    'submissiontextplain' => (string)$submissiontextplain,
-                    'files' => $files,
+                    'submissionid' => (int)$selectedpayload['submissionid'],
+                    'status' => (string)$selectedpayload['status'],
+                    'timemodified' => (int)$selectedpayload['timemodified'],
+                    'timecreated' => (int)$selectedpayload['timecreated'],
+                    'submissiontext' => (string)$selectedpayload['submissiontext'],
+                    'submissiontexthtml' => (string)$selectedpayload['submissiontexthtml'],
+                    'submissiontextplain' => (string)$selectedpayload['submissiontextplain'],
+                    'files' => (array)$selectedpayload['files'],
+                    'debug' => [
+                        'selectionstrategy' => (string)$selectionstrategy,
+                        'requestedsubmissionid' => (int)$submissionid,
+                        'requestedsubmissionvalid' => $requestedsubmissionvalid ? 1 : 0,
+                        'assignusersubmissionid' => $assignusersubmission ? (int)$assignusersubmission->id : 0,
+                        'candidateids' => $candidateids,
+                    ],
                 ],
             ];
             break;

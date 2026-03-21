@@ -26,6 +26,7 @@ $assignmentid = optional_param('assignmentid', 0, PARAM_INT);
 $assignmentquery = trim(optional_param('assignmentquery', '', PARAM_RAW_TRIMMED));
 $studentid = optional_param('studentid', 0, PARAM_INT);
 $studentquery = trim(optional_param('studentquery', '', PARAM_RAW_TRIMMED));
+$tasksubmissionid = optional_param('tasksubmissionid', 0, PARAM_INT);
 $maxrows = optional_param('maxrows', 100, PARAM_INT);
 $showalltext = optional_param('showalltext', 0, PARAM_INT);
 
@@ -125,12 +126,13 @@ function dasv_render_table(array $headers, array $rows): void {
  * @return moodle_url
  */
 function dasv_url(array $extra = []): moodle_url {
-    global $classquery, $assignmentquery, $studentquery, $maxrows, $showalltext;
+    global $classquery, $assignmentquery, $studentquery, $tasksubmissionid, $maxrows, $showalltext;
     $base = [
         'run' => 1,
         'classquery' => $classquery,
         'assignmentquery' => $assignmentquery,
         'studentquery' => $studentquery,
+        'tasksubmissionid' => $tasksubmissionid,
         'maxrows' => $maxrows,
         'showalltext' => $showalltext,
     ];
@@ -407,6 +409,10 @@ echo '<td><input type="text" name="studentid" value="' . dasv_h($studentid > 0 ?
 echo '<input type="text" name="studentquery" value="' . dasv_h($studentquery) . '" placeholder="student search" style="width:420px;"></td>';
 echo '</tr>';
 echo '<tr>';
+echo '<td><strong>Task submission id (optional)</strong></td>';
+echo '<td><input type="text" name="tasksubmissionid" value="' . dasv_h($tasksubmissionid > 0 ? $tasksubmissionid : '') . '" placeholder="submission id from modal" style="width:220px;"></td>';
+echo '</tr>';
+echo '<tr>';
 echo '<td><strong>Max rows</strong></td>';
 echo '<td><input type="number" name="maxrows" min="10" max="500" value="' . (int)$maxrows . '" style="width:120px;"> ';
 echo '<label><input type="checkbox" name="showalltext" value="1"' . ($showalltext ? ' checked' : '') . '> show full html text payload</label></td>';
@@ -568,6 +574,7 @@ echo html_writer::tag(
         . ' ' . dasv_h(trim((string)$selectedstudent->firstname . ' ' . (string)$selectedstudent->lastname))
         . ' | idnumber=' . dasv_h((string)$selectedstudent->idnumber)
         . ' | email=' . dasv_h((string)$selectedstudent->email)
+        . '<br><strong>Task submission id:</strong> ' . ((int)$tasksubmissionid > 0 ? (int)$tasksubmissionid : '-')
 );
 
 $cmcontext = context_module::instance((int)$selectedassignment->cmid);
@@ -587,6 +594,175 @@ $submissions = array_values($DB->get_records_select(
     $subparams,
     'latest DESC, timemodified DESC, id DESC'
 ));
+$assign = null;
+$assignusersubmissionid = 0;
+$groupsubmissionid = 0;
+$requestedvalid = false;
+$simulatedselectedsubmissionid = 0;
+$simulatedstrategy = 'none';
+
+try {
+    $cm = get_coursemodule_from_instance('assign', (int)$selectedassignment->id, $courseid, false, IGNORE_MISSING);
+    if ($cm) {
+        $assigncontext = context_module::instance((int)$cm->id);
+        $course = get_course($courseid);
+        $assign = new assign($assigncontext, $cm, $course);
+        $assignusersubmission = $assign->get_user_submission((int)$selectedstudent->id, false);
+        if ($assignusersubmission) {
+            $assignusersubmissionid = (int)$assignusersubmission->id;
+        }
+    }
+} catch (Throwable $e) {
+    $assign = null;
+}
+
+if (!empty($groupids)) {
+    list($ginsql, $ginparams) = $DB->get_in_or_equal($groupids, SQL_PARAMS_NAMED, 'simgid');
+    $groupsub = $DB->get_record_sql(
+        "SELECT id
+           FROM {assign_submission}
+          WHERE assignment = :aid
+            AND groupid {$ginsql}
+       ORDER BY latest DESC, timemodified DESC, id DESC",
+        ['aid' => (int)$selectedassignment->id] + $ginparams,
+        IGNORE_MULTIPLE
+    );
+    if ($groupsub) {
+        $groupsubmissionid = (int)$groupsub->id;
+    }
+}
+
+$candidateorder = [];
+if ((int)$tasksubmissionid > 0) {
+    $candidateorder[] = (int)$tasksubmissionid;
+}
+if ($assignusersubmissionid > 0) {
+    $candidateorder[] = $assignusersubmissionid;
+}
+if ($groupsubmissionid > 0) {
+    $candidateorder[] = $groupsubmissionid;
+}
+foreach ($submissions as $srow) {
+    $candidateorder[] = (int)$srow->id;
+}
+$candidateorder = array_values(array_unique(array_filter(array_map('intval', $candidateorder))));
+
+$candidateinspection = [];
+foreach ($candidateorder as $sid) {
+    $srec = $DB->get_record(
+        'assign_submission',
+        ['id' => (int)$sid, 'assignment' => (int)$selectedassignment->id],
+        'id,userid,groupid,attemptnumber,status,latest,timecreated,timemodified',
+        IGNORE_MISSING
+    );
+    if (!$srec) {
+        continue;
+    }
+    $isrequest = ((int)$tasksubmissionid > 0 && (int)$tasksubmissionid === (int)$sid);
+    $isrequestvalid = false;
+    if ($isrequest) {
+        $isrequestvalid = (
+            ((int)$srec->userid > 0 && (int)$srec->userid === (int)$selectedstudent->id) ||
+            ((int)$srec->groupid > 0 && in_array((int)$srec->groupid, $groupids, true))
+        );
+        $requestedvalid = $isrequestvalid;
+    }
+
+    $ot = $DB->get_record(
+        'assignsubmission_onlinetext',
+        ['assignment' => (int)$selectedassignment->id, 'submission' => (int)$sid],
+        'id,onlinetext,onlineformat',
+        IGNORE_MISSING
+    );
+    $otlen = 0;
+    $otrowid = 0;
+    $othaspluginfile = 'NO';
+    if ($ot) {
+        $otrowid = (int)$ot->id;
+        $otlen = core_text::strlen(trim(strip_tags((string)$ot->onlinetext)));
+        $othaspluginfile = (strpos((string)$ot->onlinetext, '@@PLUGINFILE@@') !== false) ? 'YES' : 'NO';
+    }
+
+    $submissionfiles = $fs->get_area_files(
+        (int)$cmcontext->id,
+        'assignsubmission_file',
+        'submission_files',
+        (int)$sid,
+        'sortorder',
+        false
+    );
+    $inlinecount = 0;
+    $inlineitemids = [(int)$sid];
+    if ($otrowid > 0) {
+        $inlineitemids[] = $otrowid;
+    }
+    $inlineitemids = array_values(array_unique(array_filter(array_map('intval', $inlineitemids))));
+    foreach ($inlineitemids as $iid) {
+        $inlinecount += count($fs->get_area_files(
+            (int)$cmcontext->id,
+            'assignsubmission_onlinetext',
+            'onlinetext',
+            (int)$iid,
+            'sortorder',
+            false
+        ));
+    }
+
+    $hascontent = ($otlen > 0 || !empty($submissionfiles) || $inlinecount > 0);
+    $candidateinspection[(int)$sid] = (object)[
+        'id' => (int)$sid,
+        'userid' => (int)$srec->userid,
+        'groupid' => (int)$srec->groupid,
+        'attemptnumber' => (int)$srec->attemptnumber,
+        'latest' => (int)$srec->latest,
+        'status' => (string)$srec->status,
+        'timecreated' => (int)$srec->timecreated,
+        'timemodified' => (int)$srec->timemodified,
+        'isrequested' => $isrequest ? 1 : 0,
+        'requestvalid' => $isrequestvalid ? 1 : 0,
+        'onlinetextrowid' => $otrowid,
+        'onlinetextlen' => $otlen,
+        'onlinetexthaspluginfile' => $othaspluginfile,
+        'submissionfilecount' => count($submissionfiles),
+        'inlinefilecount' => (int)$inlinecount,
+        'hascontent' => $hascontent ? 1 : 0,
+    ];
+}
+
+$baseid = 0;
+if ((int)$tasksubmissionid > 0 && !empty($candidateinspection[(int)$tasksubmissionid])) {
+    if ((int)$candidateinspection[(int)$tasksubmissionid]->requestvalid === 1) {
+        $baseid = (int)$tasksubmissionid;
+        $simulatedstrategy = 'requested_submissionid';
+    }
+}
+if ($baseid <= 0 && $assignusersubmissionid > 0 && !empty($candidateinspection[$assignusersubmissionid])) {
+    $baseid = (int)$assignusersubmissionid;
+    $simulatedstrategy = 'assign_get_user_submission';
+}
+if ($baseid <= 0 && $groupsubmissionid > 0 && !empty($candidateinspection[$groupsubmissionid])) {
+    $baseid = (int)$groupsubmissionid;
+    $simulatedstrategy = 'group_submission_fallback';
+}
+if ($baseid <= 0 && !empty($candidateorder)) {
+    $baseid = (int)$candidateorder[0];
+    $simulatedstrategy = 'first_candidate_fallback';
+}
+
+$simulatedselectedsubmissionid = $baseid;
+if ($simulatedselectedsubmissionid > 0
+    && !empty($candidateinspection[$simulatedselectedsubmissionid])
+    && (int)$candidateinspection[$simulatedselectedsubmissionid]->hascontent === 0) {
+    foreach ($candidateorder as $cid) {
+        $cid = (int)$cid;
+        if (!empty($candidateinspection[$cid]) && (int)$candidateinspection[$cid]->hascontent === 1) {
+            $simulatedselectedsubmissionid = $cid;
+            $simulatedstrategy .= '+content_fallback';
+            break;
+        }
+    }
+}
+
 $submissionids = [];
 foreach ($submissions as $srow) {
     $submissionids[(int)$srow->id] = (int)$srow->id;
@@ -663,6 +839,74 @@ foreach ($onlinetextitemids as $itemid) {
         }
     }
 }
+
+echo html_writer::tag('h3', 'QuickGrader selection simulation');
+echo html_writer::tag(
+    'p',
+    '<strong>tasksubmissionid:</strong> ' . ((int)$tasksubmissionid > 0 ? (int)$tasksubmissionid : '-')
+        . ' | <strong>requested valid:</strong> ' . ($requestedvalid ? 'YES' : 'NO')
+        . ' | <strong>assign->get_user_submission:</strong> ' . ($assignusersubmissionid > 0 ? $assignusersubmissionid : '-')
+        . ' | <strong>group fallback:</strong> ' . ($groupsubmissionid > 0 ? $groupsubmissionid : '-')
+        . ' | <strong>selected:</strong> ' . ($simulatedselectedsubmissionid > 0 ? $simulatedselectedsubmissionid : '-')
+        . ' | <strong>strategy:</strong> ' . dasv_h($simulatedstrategy)
+);
+
+$candidaterows = [];
+foreach ($candidateorder as $cid) {
+    $cid = (int)$cid;
+    if (empty($candidateinspection[$cid])) {
+        $candidaterows[] = [
+            $cid,
+            '-',
+            '-',
+            '-',
+            '-',
+            '-',
+            '-',
+            '-',
+            '-',
+            '-',
+            '-',
+            '-',
+            '-',
+        ];
+        continue;
+    }
+    $diag = $candidateinspection[$cid];
+    $candidaterows[] = [
+        (int)$diag->id,
+        (int)$diag->userid,
+        (int)$diag->groupid,
+        (int)$diag->attemptnumber,
+        (int)$diag->latest,
+        dasv_h((string)$diag->status),
+        (int)$diag->isrequested ? 'YES' : 'NO',
+        (int)$diag->requestvalid ? 'YES' : 'NO',
+        (int)$diag->onlinetextrowid,
+        (int)$diag->onlinetextlen,
+        dasv_h((string)$diag->onlinetexthaspluginfile),
+        (int)$diag->submissionfilecount . '/' . (int)$diag->inlinefilecount,
+        ((int)$diag->hascontent ? 'YES' : 'NO') . ((int)$simulatedselectedsubmissionid === (int)$diag->id ? ' (selected)' : ''),
+    ];
+}
+dasv_render_table(
+    [
+        'Submission ID',
+        'User',
+        'Group',
+        'Attempt',
+        'Latest',
+        'Status',
+        'Requested?',
+        'Requested valid?',
+        'Onlinetext row',
+        'Onlinetext len',
+        '@@PLUGINFILE@@',
+        'Files (submission/inline)',
+        'Has content / selected',
+    ],
+    $candidaterows
+);
 
 $submissiontable = [];
 foreach ($submissions as $srow) {
@@ -821,6 +1065,18 @@ if (!empty($onlinetextrows) && empty($filerows)) {
         }
     }
 }
+if ($simulatedselectedsubmissionid > 0 && !empty($candidateinspection[$simulatedselectedsubmissionid])) {
+    $selecteddiag = $candidateinspection[$simulatedselectedsubmissionid];
+    if ((int)$selecteddiag->hascontent === 0) {
+        $findings[] = 'QuickGrader selected submission has no detectable content (text/files).';
+    }
+}
+if ((int)$tasksubmissionid > 0 && !empty($candidateinspection[(int)$tasksubmissionid])) {
+    $taskdiag = $candidateinspection[(int)$tasksubmissionid];
+    if ((int)$taskdiag->hascontent === 1 && (int)$simulatedselectedsubmissionid !== (int)$tasksubmissionid) {
+        $findings[] = 'Task submission id has content, but selection strategy resolved a different submission.';
+    }
+}
 
 echo html_writer::tag('h3', 'Findings');
 if (empty($findings)) {
@@ -834,4 +1090,3 @@ if (empty($findings)) {
 }
 
 echo $OUTPUT->footer();
-

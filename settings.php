@@ -183,6 +183,11 @@ if ($hassiteconfig) {
         'Debug: Aprobada con nota 0',
         new moodle_url('/local/grupomakro_core/pages/debug_approved_zero_grade.php')
     );
+    $debugAssignSubmissionVisibilityPage = new admin_externalpage(
+        'grupomakro_core_debug_assign_submission_visibility',
+        'Debug: Entrega Tarea (texto/adjuntos)',
+        new moodle_url('/local/grupomakro_core/pages/debug_assign_submission_visibility.php')
+    );
     $ADMIN->add('grupomakrocore_plugin', $classManagementPage);
     $ADMIN->add('grupomakrocore_plugin', $classSchedulesPage);
     $ADMIN->add('grupomakrocore_plugin', $availabilityPanelPage);
@@ -214,6 +219,7 @@ if ($hassiteconfig) {
     $ADMIN->add('grupomakrocore_plugin', $syncBbbRecordingsPage);
     $ADMIN->add('grupomakrocore_plugin', $debugProgreApprovedOrphansPage);
     $ADMIN->add('grupomakrocore_plugin', $debugApprovedZeroGradePage);
+    $ADMIN->add('grupomakrocore_plugin', $debugAssignSubmissionVisibilityPage);
 
     $ADMIN->add('localplugins', new admin_category('grupomakrocore', new lang_string('pluginname', 'local_grupomakro_core')));
     /********
