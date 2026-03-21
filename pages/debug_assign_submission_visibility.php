@@ -165,7 +165,17 @@ function dasv_find_classes(int $classid, string $classquery, int $maxrows): arra
         return array_values($DB->get_records_sql($sql, ['cid' => $classid]));
     }
     if ($classquery === '') {
-        return [];
+        $sql = "SELECT c.id, c.name, c.corecourseid, c.courseid, c.groupid, c.coursesectionid, c.gradecategoryid,
+                       c.instructorid, c.learningplanid, c.periodid, c.approved, c.closed,
+                       crs.fullname AS corecoursename,
+                       lp.name AS planname,
+                       p.name AS periodname
+                  FROM {gmk_class} c
+             LEFT JOIN {course} crs ON crs.id = c.corecourseid
+             LEFT JOIN {local_learning_plans} lp ON lp.id = c.learningplanid
+             LEFT JOIN {local_learning_periods} p ON p.id = c.periodid
+              ORDER BY c.closed ASC, c.approved DESC, c.id DESC";
+        return array_values($DB->get_records_sql($sql, [], 0, $maxrows));
     }
     $like = '%' . $DB->sql_like_escape($classquery) . '%';
     $sql = "SELECT c.id, c.name, c.corecourseid, c.courseid, c.groupid, c.coursesectionid, c.gradecategoryid,
@@ -390,27 +400,83 @@ echo html_writer::tag(
     'Use this page to inspect why inline text/images are visible in Moodle but not in Teacher Dashboard.'
 );
 
+$prefclasscandidates = dasv_find_classes($classid, $classquery, $maxrows);
+$prefselectedclass = null;
+foreach ($prefclasscandidates as $pc) {
+    if ((int)$pc->id === (int)$classid) {
+        $prefselectedclass = $pc;
+        break;
+    }
+}
+
+$prefassignmentcandidates = [];
+$prefstudentcandidates = [];
+if ($prefselectedclass) {
+    $prefassignmentcandidates = dasv_find_assignments_for_class($prefselectedclass, $assignmentid, $assignmentquery, $maxrows);
+    $prefstudentcandidates = dasv_find_students_for_class($prefselectedclass, $studentid, $studentquery, $maxrows);
+}
+
 echo '<form method="get" action="">';
 echo '<input type="hidden" name="run" value="1">';
 echo '<table class="generaltable" style="max-width:1200px;">';
 echo '<tr>';
-echo '<td><strong>Class (id or name)</strong></td>';
-echo '<td><input type="text" name="classid" value="' . dasv_h($classid > 0 ? $classid : '') . '" placeholder="class id" style="width:120px;"> ';
-echo '<input type="text" name="classquery" value="' . dasv_h($classquery) . '" placeholder="class name" style="width:420px;"></td>';
+echo '<td><strong>Class</strong></td>';
+echo '<td>';
+echo '<input type="text" name="classquery" value="' . dasv_h($classquery) . '" placeholder="filter class by name" style="width:320px; margin-right:10px;">';
+echo '<select name="classid" style="width:520px;" onchange="this.form.assignmentid.value=\'\';this.form.studentid.value=\'\';this.form.submit();">';
+echo '<option value="">Select class...</option>';
+foreach ($prefclasscandidates as $copt) {
+    $selected = ((int)$copt->id === (int)$classid) ? ' selected' : '';
+    $label = (string)$copt->name;
+    if (!empty($copt->periodname)) {
+        $label .= ' | ' . (string)$copt->periodname;
+    }
+    if (!empty($copt->corecoursename)) {
+        $label .= ' | ' . (string)$copt->corecoursename;
+    }
+    echo '<option value="' . (int)$copt->id . '"' . $selected . '>' . dasv_h($label) . '</option>';
+}
+echo '</select>';
+echo '</td>';
 echo '</tr>';
 echo '<tr>';
-echo '<td><strong>Assignment (id or name)</strong></td>';
-echo '<td><input type="text" name="assignmentid" value="' . dasv_h($assignmentid > 0 ? $assignmentid : '') . '" placeholder="assignment id" style="width:120px;"> ';
-echo '<input type="text" name="assignmentquery" value="' . dasv_h($assignmentquery) . '" placeholder="assignment name" style="width:420px;"></td>';
+echo '<td><strong>Assignment</strong></td>';
+echo '<td>';
+echo '<input type="text" name="assignmentquery" value="' . dasv_h($assignmentquery) . '" placeholder="filter assignment by name" style="width:320px; margin-right:10px;">';
+echo '<select name="assignmentid" style="width:520px;"' . (empty($prefassignmentcandidates) ? ' disabled' : '') . '>';
+echo '<option value="">Select assignment...</option>';
+foreach ($prefassignmentcandidates as $aopt) {
+    $selected = ((int)$aopt->id === (int)$assignmentid) ? ' selected' : '';
+    echo '<option value="' . (int)$aopt->id . '"' . $selected . '>' . dasv_h((string)$aopt->name) . '</option>';
+}
+echo '</select>';
+if (empty($prefassignmentcandidates)) {
+    echo ' <span class="text-muted">Select class first</span>';
+}
+echo '</td>';
 echo '</tr>';
 echo '<tr>';
-echo '<td><strong>Student (id or name/email/idnumber)</strong></td>';
-echo '<td><input type="text" name="studentid" value="' . dasv_h($studentid > 0 ? $studentid : '') . '" placeholder="student id" style="width:120px;"> ';
-echo '<input type="text" name="studentquery" value="' . dasv_h($studentquery) . '" placeholder="student search" style="width:420px;"></td>';
-echo '</tr>';
-echo '<tr>';
-echo '<td><strong>Task submission id (optional)</strong></td>';
-echo '<td><input type="text" name="tasksubmissionid" value="' . dasv_h($tasksubmissionid > 0 ? $tasksubmissionid : '') . '" placeholder="submission id from modal" style="width:220px;"></td>';
+echo '<td><strong>Student</strong></td>';
+echo '<td>';
+echo '<input type="text" name="studentquery" value="' . dasv_h($studentquery) . '" placeholder="filter student by name, email or idnumber" style="width:320px; margin-right:10px;">';
+echo '<select name="studentid" style="width:520px;"' . (empty($prefstudentcandidates) ? ' disabled' : '') . '>';
+echo '<option value="">Select student...</option>';
+foreach ($prefstudentcandidates as $uopt) {
+    $selected = ((int)$uopt->id === (int)$studentid) ? ' selected' : '';
+    $label = trim((string)$uopt->firstname . ' ' . (string)$uopt->lastname);
+    if (!empty($uopt->idnumber)) {
+        $label .= ' | ' . (string)$uopt->idnumber;
+    }
+    if (!empty($uopt->email)) {
+        $label .= ' | ' . (string)$uopt->email;
+    }
+    echo '<option value="' . (int)$uopt->id . '"' . $selected . '>' . dasv_h($label) . '</option>';
+}
+echo '</select>';
+if (empty($prefstudentcandidates)) {
+    echo ' <span class="text-muted">Select class first</span>';
+}
+echo '</td>';
 echo '</tr>';
 echo '<tr>';
 echo '<td><strong>Max rows</strong></td>';
