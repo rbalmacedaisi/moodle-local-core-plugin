@@ -151,11 +151,37 @@ try {
 
             $assignrecord = $DB->get_record('assign', ['id' => $assignmentid], '*', MUST_EXIST);
             $course = $DB->get_record('course', ['id' => (int)$assignrecord->course], '*', MUST_EXIST);
-            $cm = get_coursemodule_from_instance('assign', (int)$assignmentid, (int)$course->id, false, MUST_EXIST);
-            $cmcontext = context_module::instance((int)$cm->id);
-            require_capability('mod/assign:grade', $cmcontext);
+            $assignmoduleid = (int)$DB->get_field('modules', 'id', ['name' => 'assign'], MUST_EXIST);
+            $cmrecords = $DB->get_records(
+                'course_modules',
+                ['module' => $assignmoduleid, 'instance' => (int)$assignmentid, 'course' => (int)$course->id],
+                'id ASC',
+                'id,course,section'
+            );
+            if (empty($cmrecords)) {
+                throw new Exception('No se encontro course_module para esta tarea.');
+            }
 
-            $assign = new \assign($cmcontext, $cm, $course);
+            $cmcontexts = [];
+            $usablecmid = 0;
+            $usablecontext = null;
+            foreach ($cmrecords as $cmrow) {
+                $ctx = context_module::instance((int)$cmrow->id, IGNORE_MISSING);
+                if (!$ctx) {
+                    continue;
+                }
+                $cmcontexts[] = $ctx;
+                if ($usablecmid <= 0 && has_capability('mod/assign:grade', $ctx)) {
+                    $usablecmid = (int)$cmrow->id;
+                    $usablecontext = $ctx;
+                }
+            }
+            if ($usablecmid <= 0 || !$usablecontext) {
+                throw new Exception('No tienes permiso para calificar esta tarea.');
+            }
+
+            $cm = get_coursemodule_from_id('assign', $usablecmid, (int)$course->id, false, MUST_EXIST);
+            $assign = new \assign($usablecontext, $cm, $course);
             $flatgroupids = [];
             $usergroups = groups_get_user_groups((int)$course->id, (int)$studentid);
             if (is_array($usergroups)) {
@@ -259,7 +285,7 @@ try {
             $candidateids = array_values(array_unique(array_filter(array_map('intval', $candidateids))));
             $fs = get_file_storage();
 
-            $collectsubmissionpayload = function(int $subid) use ($DB, $fs, $cmcontext, $assignmentid): array {
+            $collectsubmissionpayload = function(int $subid) use ($DB, $fs, $cmcontexts, $assignmentid): array {
                 $row = $DB->get_record(
                     'assign_submission',
                     ['id' => $subid, 'assignment' => (int)$assignmentid],
@@ -286,6 +312,7 @@ try {
                 $plaintext = '';
                 $onlinetextlen = 0;
                 $hascontent = false;
+                $usedcontextid = !empty($cmcontexts) ? (int)$cmcontexts[0]->id : 0;
                 $seenhash = [];
                 $files = [];
 
@@ -305,24 +332,29 @@ try {
                     $rawtext = (string)$onlinetext->onlinetext;
                     $onlinetextlen = core_text::strlen(trim(strip_tags($rawtext)));
                     $rewriteitemid = (int)$row->id;
-                    foreach ($onlinetextfileitemids as $candidateitemid) {
-                        $candidatefiles = $fs->get_area_files(
-                            (int)$cmcontext->id,
-                            'assignsubmission_onlinetext',
-                            'onlinetext',
-                            (int)$candidateitemid,
-                            'sortorder',
-                            false
-                        );
-                        if (!empty($candidatefiles)) {
-                            $rewriteitemid = (int)$candidateitemid;
-                            break;
+                    $rewritecontextid = $usedcontextid;
+                    foreach ($cmcontexts as $ctxcandidate) {
+                        foreach ($onlinetextfileitemids as $candidateitemid) {
+                            $candidatefiles = $fs->get_area_files(
+                                (int)$ctxcandidate->id,
+                                'assignsubmission_onlinetext',
+                                'onlinetext',
+                                (int)$candidateitemid,
+                                'sortorder',
+                                false
+                            );
+                            if (!empty($candidatefiles)) {
+                                $rewriteitemid = (int)$candidateitemid;
+                                $rewritecontextid = (int)$ctxcandidate->id;
+                                break 2;
+                            }
                         }
                     }
+                    $usedcontextid = (int)$rewritecontextid;
                     $rewrittentext = file_rewrite_pluginfile_urls(
                         $rawtext,
                         'pluginfile.php',
-                        (int)$cmcontext->id,
+                        (int)$rewritecontextid,
                         'assignsubmission_onlinetext',
                         'onlinetext',
                         $rewriteitemid
@@ -331,7 +363,7 @@ try {
                         $rewrittentext,
                         (int)$onlinetext->onlineformat,
                         [
-                            'context' => $cmcontext,
+                            'context' => context::instance_by_id((int)$rewritecontextid),
                             'overflowdiv' => true,
                             'para' => false,
                         ]
@@ -342,49 +374,16 @@ try {
                     }
                 }
 
-                $submissionfiles = $fs->get_area_files(
-                    (int)$cmcontext->id,
-                    'assignsubmission_file',
-                    'submission_files',
-                    (int)$row->id,
-                    'sortorder',
-                    false
-                );
-                foreach ($submissionfiles as $file) {
-                    $hash = (string)$file->get_pathnamehash();
-                    if ($hash !== '' && isset($seenhash[$hash])) {
-                        continue;
-                    }
-                    if ($hash !== '') {
-                        $seenhash[$hash] = true;
-                    }
-                    $url = moodle_url::make_pluginfile_url(
-                        $file->get_contextid(),
-                        $file->get_component(),
-                        $file->get_filearea(),
-                        $file->get_itemid(),
-                        $file->get_filepath(),
-                        $file->get_filename()
-                    );
-                    $files[] = [
-                        'filename' => $file->get_filename(),
-                        'fileurl' => $url->out(false),
-                        'mimetype' => $file->get_mimetype(),
-                        'filesize' => (int)$file->get_filesize(),
-                        'source' => 'submission_file',
-                    ];
-                }
-
-                foreach ($onlinetextfileitemids as $inlineitemid) {
-                    $inlinefiles = $fs->get_area_files(
-                        (int)$cmcontext->id,
-                        'assignsubmission_onlinetext',
-                        'onlinetext',
-                        (int)$inlineitemid,
+                foreach ($cmcontexts as $ctxcandidate) {
+                    $submissionfiles = $fs->get_area_files(
+                        (int)$ctxcandidate->id,
+                        'assignsubmission_file',
+                        'submission_files',
+                        (int)$row->id,
                         'sortorder',
                         false
                     );
-                    foreach ($inlinefiles as $file) {
+                    foreach ($submissionfiles as $file) {
                         $hash = (string)$file->get_pathnamehash();
                         if ($hash !== '' && isset($seenhash[$hash])) {
                             continue;
@@ -405,8 +404,45 @@ try {
                             'fileurl' => $url->out(false),
                             'mimetype' => $file->get_mimetype(),
                             'filesize' => (int)$file->get_filesize(),
-                            'source' => 'onlinetext',
+                            'source' => 'submission_file',
                         ];
+                    }
+                }
+
+                foreach ($cmcontexts as $ctxcandidate) {
+                    foreach ($onlinetextfileitemids as $inlineitemid) {
+                        $inlinefiles = $fs->get_area_files(
+                            (int)$ctxcandidate->id,
+                            'assignsubmission_onlinetext',
+                            'onlinetext',
+                            (int)$inlineitemid,
+                            'sortorder',
+                            false
+                        );
+                        foreach ($inlinefiles as $file) {
+                            $hash = (string)$file->get_pathnamehash();
+                            if ($hash !== '' && isset($seenhash[$hash])) {
+                                continue;
+                            }
+                            if ($hash !== '') {
+                                $seenhash[$hash] = true;
+                            }
+                            $url = moodle_url::make_pluginfile_url(
+                                $file->get_contextid(),
+                                $file->get_component(),
+                                $file->get_filearea(),
+                                $file->get_itemid(),
+                                $file->get_filepath(),
+                                $file->get_filename()
+                            );
+                            $files[] = [
+                                'filename' => $file->get_filename(),
+                                'fileurl' => $url->out(false),
+                                'mimetype' => $file->get_mimetype(),
+                                'filesize' => (int)$file->get_filesize(),
+                                'source' => 'onlinetext',
+                            ];
+                        }
                     }
                 }
 
@@ -425,6 +461,7 @@ try {
                     'files' => $files,
                     'hascontent' => $hascontent,
                     'onlinetextlen' => (int)$onlinetextlen,
+                    'contextid' => (int)$usedcontextid,
                 ];
             };
 
@@ -487,6 +524,10 @@ try {
                         'requestedsubmissionvalid' => $requestedsubmissionvalid ? 1 : 0,
                         'assignusersubmissionid' => $assignusersubmission ? (int)$assignusersubmission->id : 0,
                         'candidateids' => $candidateids,
+                        'cmidschecked' => array_values(array_map('intval', array_keys($cmrecords))),
+                        'primarycmid' => (int)$cm->id,
+                        'primarycontextid' => (int)$usablecontext->id,
+                        'selectedcontextid' => (int)($selectedpayload['contextid'] ?? 0),
                     ],
                 ],
             ];

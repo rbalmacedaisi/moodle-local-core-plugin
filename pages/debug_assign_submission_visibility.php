@@ -247,7 +247,8 @@ function dasv_find_assignments_for_class(stdClass $class, int $assignmentid, str
         $params['aq'] = $like;
     }
 
-    $sql = "SELECT a.id, a.name, a.course, a.duedate, a.allowsubmissionsfromdate, a.cutoffdate,
+    $sql = "SELECT CONCAT(a.id, '-', cm.id) AS rowkey,
+                   a.id, a.name, a.course, a.duedate, a.allowsubmissionsfromdate, a.cutoffdate,
                    a.teamsubmission, a.submissiondrafts, a.intro, a.introformat,
                    cm.id AS cmid, cm.section AS cmsection,
                    gi.id AS gradeitemid, gi.categoryid
