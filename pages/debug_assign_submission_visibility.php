@@ -936,6 +936,55 @@ foreach ($onlinetextitemids as $itemid) {
     }
 }
 
+$globalfilerows = [];
+$globalitems = [];
+foreach ($submissionids as $sid) {
+    $globalitems[(int)$sid] = (int)$sid;
+}
+foreach ($onlinetextitemids as $iid) {
+    $globalitems[(int)$iid] = (int)$iid;
+}
+$globalitems = array_values($globalitems);
+if (!empty($globalitems)) {
+    list($ginsql, $ginparams) = $DB->get_in_or_equal($globalitems, SQL_PARAMS_NAMED, 'gitem');
+    $globalfilesql = "SELECT f.id, f.contextid, f.component, f.filearea, f.itemid, f.filename, f.filesize, f.mimetype
+                        FROM {files} f
+                       WHERE f.filename <> '.'
+                         AND (
+                            (f.component = 'assignsubmission_file' AND f.filearea = 'submission_files')
+                            OR
+                            (f.component = 'assignsubmission_onlinetext' AND f.filearea = 'onlinetext')
+                         )
+                         AND f.itemid {$ginsql}
+                    ORDER BY f.timemodified DESC, f.id DESC";
+    $globalrows = $DB->get_records_sql($globalfilesql, $ginparams, 0, 300);
+    foreach ($globalrows as $gfr) {
+        $stored = $fs->get_file_by_id((int)$gfr->id);
+        if (!$stored) {
+            continue;
+        }
+        $gurl = moodle_url::make_pluginfile_url(
+            $stored->get_contextid(),
+            $stored->get_component(),
+            $stored->get_filearea(),
+            $stored->get_itemid(),
+            $stored->get_filepath(),
+            $stored->get_filename()
+        );
+        $globalfilerows[] = (object)[
+            'contextid' => (int)$stored->get_contextid(),
+            'source' => ((string)$stored->get_component() === 'assignsubmission_onlinetext') ? 'onlinetext' : 'submission_file',
+            'component' => (string)$stored->get_component(),
+            'filearea' => (string)$stored->get_filearea(),
+            'itemid' => (int)$stored->get_itemid(),
+            'filename' => (string)$stored->get_filename(),
+            'filesize' => (int)$stored->get_filesize(),
+            'mimetype' => (string)$stored->get_mimetype(),
+            'url' => $gurl->out(false),
+        ];
+    }
+}
+
 echo html_writer::tag('h3', 'QuickGrader selection simulation');
 echo html_writer::tag(
     'p',
@@ -1082,6 +1131,26 @@ dasv_render_table(
     $filestable
 );
 
+$globalfilestable = [];
+foreach ($globalfilerows as $gf) {
+    $globalfilestable[] = [
+        (int)$gf->contextid,
+        dasv_h((string)$gf->source),
+        dasv_h((string)$gf->component),
+        dasv_h((string)$gf->filearea),
+        (int)$gf->itemid,
+        dasv_h((string)$gf->filename),
+        (int)$gf->filesize,
+        dasv_h((string)$gf->mimetype),
+        '<a target="_blank" rel="noopener" href="' . dasv_h((string)$gf->url) . '">Open</a>',
+    ];
+}
+echo html_writer::tag('h3', 'Global file rows by known itemid');
+dasv_render_table(
+    ['Context', 'Source', 'Component', 'Area', 'Item ID', 'Filename', 'Size', 'Mime', 'URL'],
+    $globalfilestable
+);
+
 echo html_writer::tag('h3', 'Onlinetext rewrite tests');
 $rewriteheaders = ['Onlinetext row', 'Candidate itemid', 'Files in itemid', 'Rendered plain preview', 'Rendered HTML'];
 $rewriterows = [];
@@ -1160,6 +1229,9 @@ if (!empty($onlinetextrows) && empty($filerows)) {
             break;
         }
     }
+}
+if (empty($filerows) && !empty($globalfilerows)) {
+    $findings[] = 'No files found in selected class CM context, but files exist globally in other context IDs for the same itemids.';
 }
 if ($simulatedselectedsubmissionid > 0 && !empty($candidateinspection[$simulatedselectedsubmissionid])) {
     $selecteddiag = $candidateinspection[$simulatedselectedsubmissionid];

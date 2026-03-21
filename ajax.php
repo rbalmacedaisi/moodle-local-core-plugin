@@ -315,40 +315,121 @@ try {
                 $usedcontextid = !empty($cmcontexts) ? (int)$cmcontexts[0]->id : 0;
                 $seenhash = [];
                 $files = [];
+                $resolvedinlineitemid = (int)$row->id;
 
-                $onlinetext = $DB->get_record(
+                $onlinetextrows = $DB->get_records(
                     'assignsubmission_onlinetext',
                     ['assignment' => (int)$assignmentid, 'submission' => (int)$row->id],
-                    'id,onlinetext,onlineformat',
-                    IGNORE_MISSING
+                    'id DESC',
+                    'id,onlinetext,onlineformat'
                 );
+                $onlinetext = !empty($onlinetextrows) ? reset($onlinetextrows) : null;
+                if (!empty($onlinetextrows)) {
+                    foreach ($onlinetextrows as $candidateot) {
+                        if (trim((string)$candidateot->onlinetext) !== '') {
+                            $onlinetext = $candidateot;
+                            break;
+                        }
+                    }
+                }
                 $onlinetextfileitemids = [(int)$row->id];
-                if ($onlinetext && (int)$onlinetext->id > 0) {
+                if (!empty($onlinetextrows)) {
+                    foreach ($onlinetextrows as $otrow) {
+                        if ((int)$otrow->id > 0) {
+                            $onlinetextfileitemids[] = (int)$otrow->id;
+                        }
+                    }
+                } else if ($onlinetext && (int)$onlinetext->id > 0) {
                     $onlinetextfileitemids[] = (int)$onlinetext->id;
                 }
                 $onlinetextfileitemids = array_values(array_unique(array_filter(array_map('intval', $onlinetextfileitemids))));
 
+                $addfileentry = function(\stored_file $file, string $source) use (&$files, &$seenhash): void {
+                    $hash = (string)$file->get_pathnamehash();
+                    if ($hash !== '' && isset($seenhash[$hash])) {
+                        return;
+                    }
+                    if ($hash !== '') {
+                        $seenhash[$hash] = true;
+                    }
+                    $url = moodle_url::make_pluginfile_url(
+                        $file->get_contextid(),
+                        $file->get_component(),
+                        $file->get_filearea(),
+                        $file->get_itemid(),
+                        $file->get_filepath(),
+                        $file->get_filename()
+                    );
+                    $files[] = [
+                        'filename' => $file->get_filename(),
+                        'fileurl' => $url->out(false),
+                        'mimetype' => $file->get_mimetype(),
+                        'filesize' => (int)$file->get_filesize(),
+                        'source' => $source,
+                    ];
+                };
+
+                $resolvedinlinecontextid = $usedcontextid;
+                $foundinlinefiles = false;
+                foreach ($cmcontexts as $ctxcandidate) {
+                    foreach ($onlinetextfileitemids as $candidateitemid) {
+                        $candidatefiles = $fs->get_area_files(
+                            (int)$ctxcandidate->id,
+                            'assignsubmission_onlinetext',
+                            'onlinetext',
+                            (int)$candidateitemid,
+                            'sortorder',
+                            false
+                        );
+                        if (!empty($candidatefiles)) {
+                            $foundinlinefiles = true;
+                            $resolvedinlineitemid = (int)$candidateitemid;
+                            $resolvedinlinecontextid = (int)$ctxcandidate->id;
+                            foreach ($candidatefiles as $candidatefile) {
+                                $addfileentry($candidatefile, 'onlinetext');
+                            }
+                        }
+                    }
+                }
+
+                // Fallback for corrupted references: search files globally by known itemids.
+                if (!$foundinlinefiles && !empty($onlinetextfileitemids)) {
+                    list($inlineinsql, $inlineinparams) = $DB->get_in_or_equal(
+                        $onlinetextfileitemids,
+                        SQL_PARAMS_NAMED,
+                        'oi'
+                    );
+                    $globalinline = $DB->get_records_sql(
+                        "SELECT f.id, f.contextid, f.itemid
+                           FROM {files} f
+                          WHERE f.component = 'assignsubmission_onlinetext'
+                            AND f.filearea = 'onlinetext'
+                            AND f.filename <> '.'
+                            AND f.itemid {$inlineinsql}
+                       ORDER BY f.timemodified DESC, f.id DESC",
+                        $inlineinparams,
+                        0,
+                        100
+                    );
+                    foreach ($globalinline as $inlinefilerow) {
+                        $stored = $fs->get_file_by_id((int)$inlinefilerow->id);
+                        if (!$stored) {
+                            continue;
+                        }
+                        $resolvedinlinecontextid = (int)$stored->get_contextid();
+                        $resolvedinlineitemid = (int)$stored->get_itemid();
+                        $addfileentry($stored, 'onlinetext');
+                        $foundinlinefiles = true;
+                    }
+                }
+
                 if ($onlinetext && trim((string)$onlinetext->onlinetext) !== '') {
                     $rawtext = (string)$onlinetext->onlinetext;
                     $onlinetextlen = core_text::strlen(trim(strip_tags($rawtext)));
-                    $rewriteitemid = (int)$row->id;
-                    $rewritecontextid = $usedcontextid;
-                    foreach ($cmcontexts as $ctxcandidate) {
-                        foreach ($onlinetextfileitemids as $candidateitemid) {
-                            $candidatefiles = $fs->get_area_files(
-                                (int)$ctxcandidate->id,
-                                'assignsubmission_onlinetext',
-                                'onlinetext',
-                                (int)$candidateitemid,
-                                'sortorder',
-                                false
-                            );
-                            if (!empty($candidatefiles)) {
-                                $rewriteitemid = (int)$candidateitemid;
-                                $rewritecontextid = (int)$ctxcandidate->id;
-                                break 2;
-                            }
-                        }
+                    $rewriteitemid = (int)$resolvedinlineitemid;
+                    $rewritecontextid = (int)$resolvedinlinecontextid;
+                    if ($rewritecontextid <= 0 && !empty($cmcontexts)) {
+                        $rewritecontextid = (int)$cmcontexts[0]->id;
                     }
                     $usedcontextid = (int)$rewritecontextid;
                     $rewrittentext = file_rewrite_pluginfile_urls(
@@ -359,11 +440,15 @@ try {
                         'onlinetext',
                         $rewriteitemid
                     );
+                    $formatcontext = context::instance_by_id((int)$rewritecontextid, IGNORE_MISSING);
+                    if (!$formatcontext) {
+                        $formatcontext = context_system::instance();
+                    }
                     $formattedtext = format_text(
                         $rewrittentext,
                         (int)$onlinetext->onlineformat,
                         [
-                            'context' => context::instance_by_id((int)$rewritecontextid),
+                            'context' => $formatcontext,
                             'overflowdiv' => true,
                             'para' => false,
                         ]
@@ -384,65 +469,30 @@ try {
                         false
                     );
                     foreach ($submissionfiles as $file) {
-                        $hash = (string)$file->get_pathnamehash();
-                        if ($hash !== '' && isset($seenhash[$hash])) {
-                            continue;
-                        }
-                        if ($hash !== '') {
-                            $seenhash[$hash] = true;
-                        }
-                        $url = moodle_url::make_pluginfile_url(
-                            $file->get_contextid(),
-                            $file->get_component(),
-                            $file->get_filearea(),
-                            $file->get_itemid(),
-                            $file->get_filepath(),
-                            $file->get_filename()
-                        );
-                        $files[] = [
-                            'filename' => $file->get_filename(),
-                            'fileurl' => $url->out(false),
-                            'mimetype' => $file->get_mimetype(),
-                            'filesize' => (int)$file->get_filesize(),
-                            'source' => 'submission_file',
-                        ];
+                        $addfileentry($file, 'submission_file');
                     }
                 }
 
-                foreach ($cmcontexts as $ctxcandidate) {
-                    foreach ($onlinetextfileitemids as $inlineitemid) {
-                        $inlinefiles = $fs->get_area_files(
-                            (int)$ctxcandidate->id,
-                            'assignsubmission_onlinetext',
-                            'onlinetext',
-                            (int)$inlineitemid,
-                            'sortorder',
-                            false
-                        );
-                        foreach ($inlinefiles as $file) {
-                            $hash = (string)$file->get_pathnamehash();
-                            if ($hash !== '' && isset($seenhash[$hash])) {
-                                continue;
-                            }
-                            if ($hash !== '') {
-                                $seenhash[$hash] = true;
-                            }
-                            $url = moodle_url::make_pluginfile_url(
-                                $file->get_contextid(),
-                                $file->get_component(),
-                                $file->get_filearea(),
-                                $file->get_itemid(),
-                                $file->get_filepath(),
-                                $file->get_filename()
-                            );
-                            $files[] = [
-                                'filename' => $file->get_filename(),
-                                'fileurl' => $url->out(false),
-                                'mimetype' => $file->get_mimetype(),
-                                'filesize' => (int)$file->get_filesize(),
-                                'source' => 'onlinetext',
-                            ];
+                // Fallback for corrupted submission_file refs outside expected CM context.
+                if (empty($files)) {
+                    $globalsubfiles = $DB->get_records_sql(
+                        "SELECT f.id
+                           FROM {files} f
+                          WHERE f.component = 'assignsubmission_file'
+                            AND f.filearea = 'submission_files'
+                            AND f.filename <> '.'
+                            AND f.itemid = :itemid
+                       ORDER BY f.timemodified DESC, f.id DESC",
+                        ['itemid' => (int)$row->id],
+                        0,
+                        100
+                    );
+                    foreach ($globalsubfiles as $globalsubfile) {
+                        $stored = $fs->get_file_by_id((int)$globalsubfile->id);
+                        if (!$stored) {
+                            continue;
                         }
+                        $addfileentry($stored, 'submission_file');
                     }
                 }
 
