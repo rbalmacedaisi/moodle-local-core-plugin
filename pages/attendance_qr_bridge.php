@@ -380,7 +380,12 @@ if ((string)$qrpass !== '') {
 // event. Some versions of mod_attendance throw a coding_exception when the event
 // is missing 'sessionid' even though the log was already committed. We catch that
 // specific case and verify via the DB so the student still gets the success result.
+//
+// We also buffer output so that PHP notices emitted by the attendance event
+// internals do not reach the response stream. If they did, Moodle's redirect()
+// would fall back to the HTML confirmation page instead of an instant 303.
 $success = false;
+ob_start();
 try {
     $success = $attstructure->take_from_student($payload);
 } catch (\coding_exception $e) {
@@ -392,6 +397,7 @@ try {
 } catch (Throwable $e) {
     $success = false;
 }
+ob_end_clean();
 
 if (!$success) {
     if ($DB->record_exists('attendance_log', ['sessionid' => (int)$sessionid, 'studentid' => (int)$USER->id])) {
