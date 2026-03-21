@@ -71,6 +71,10 @@ $day_end   = $day_start + max(1, (int)$filter_days) * 86400;
 // Join: gmk_class → course_modules → attendance → attendance_sessions
 // Left join gmk_bbb_attendance_relation to flag BBB-origin sessions.
 
+// deletioninprogress was added in Moodle 3.6 — check at runtime before using it.
+$cm_columns = $DB->get_columns('course_modules');
+$deletion_cond = isset($cm_columns['deletioninprogress']) ? ' AND cm.deletioninprogress = 0' : '';
+
 $sql = "SELECT
             ats.id              AS sessid,
             ats.sessdate,
@@ -93,8 +97,7 @@ $sql = "SELECT
             ) THEN 1 ELSE 0 END) AS is_bbb
        FROM {attendance_sessions} ats
        JOIN {attendance}     att  ON att.id = ats.attendanceid
-       JOIN {course_modules} cm   ON cm.instance = att.id
-                                  AND cm.deletioninprogress = 0
+       JOIN {course_modules} cm   ON cm.instance = att.id{$deletion_cond}
        JOIN {modules}        mod  ON mod.id = cm.module AND mod.name = 'attendance'
        JOIN {course}         c    ON c.id = att.course
        JOIN {gmk_class}      gc   ON gc.attendancemoduleid = cm.id
