@@ -1090,6 +1090,7 @@ dasv_render_table(
 );
 
 $onlinetexttable = [];
+$tokenfilenames = [];
 foreach ($onlinetextrows as $ot) {
     $raw = (string)$ot->onlinetext;
     $rawlen = core_text::strlen($raw);
@@ -1105,12 +1106,38 @@ foreach ($onlinetextrows as $ot) {
         $haspluginfile,
         $preview,
     ];
+    if ($haspluginfile === 'YES') {
+        $matches = [];
+        if (preg_match_all('/@@PLUGINFILE@@\/([^"\'\s>]+)/', $raw, $matches)) {
+            foreach ((array)($matches[1] ?? []) as $tokpath) {
+                $tokpath = trim((string)$tokpath);
+                if ($tokpath === '') {
+                    continue;
+                }
+                $basename = basename(rawurldecode($tokpath));
+                if ($basename !== '' && $basename !== '.') {
+                    $tokenfilenames[$basename] = $basename;
+                }
+            }
+        }
+    }
 }
 echo html_writer::tag('h3', 'assignsubmission_onlinetext rows');
 dasv_render_table(
     ['ID', 'Submission', 'Belongs to selected submission', 'Format', 'Raw length', '@@PLUGINFILE@@', 'Raw preview'],
     $onlinetexttable
 );
+$tokenfilenames = array_values($tokenfilenames);
+echo html_writer::tag('h3', 'Token filenames parsed from onlinetext');
+if (empty($tokenfilenames)) {
+    echo html_writer::tag('div', 'No @@PLUGINFILE@@ filename tokens parsed.', ['class' => 'alert alert-info']);
+} else {
+    $tokrows = [];
+    foreach ($tokenfilenames as $tf) {
+        $tokrows[] = [dasv_h((string)$tf)];
+    }
+    dasv_render_table(['Filename'], $tokrows);
+}
 
 $filestable = [];
 foreach ($filerows as $f) {
@@ -1149,6 +1176,55 @@ echo html_writer::tag('h3', 'Global file rows by known itemid');
 dasv_render_table(
     ['Context', 'Source', 'Component', 'Area', 'Item ID', 'Filename', 'Size', 'Mime', 'URL'],
     $globalfilestable
+);
+
+$globaltokenmatches = [];
+if (!empty($tokenfilenames)) {
+    $timefrom = time() - (365 * DAYSECS);
+    $timeto = time() + DAYSECS;
+    list($tfinsql, $tfinparams) = $DB->get_in_or_equal($tokenfilenames, SQL_PARAMS_NAMED, 'tfn');
+    $tokenmatchsql = "SELECT f.id, f.contextid, f.component, f.filearea, f.itemid, f.filename, f.filesize, f.mimetype
+                        FROM {files} f
+                       WHERE f.filename <> '.'
+                         AND f.filename {$tfinsql}
+                         AND f.component = 'assignsubmission_onlinetext'
+                         AND f.filearea = 'onlinetext'
+                         AND f.userid = :tuser
+                         AND f.timemodified BETWEEN :tfrom AND :tto
+                    ORDER BY f.timemodified DESC, f.id DESC";
+    $tokenmatchparams = [
+        'tuser' => (int)$selectedstudent->id,
+        'tfrom' => (int)$timefrom,
+        'tto' => (int)$timeto,
+    ] + $tfinparams;
+    $tokenmatchrows = $DB->get_records_sql($tokenmatchsql, $tokenmatchparams, 0, 200);
+    foreach ($tokenmatchrows as $tmrow) {
+        $stored = $fs->get_file_by_id((int)$tmrow->id);
+        if (!$stored) {
+            continue;
+        }
+        $turl = moodle_url::make_pluginfile_url(
+            $stored->get_contextid(),
+            $stored->get_component(),
+            $stored->get_filearea(),
+            $stored->get_itemid(),
+            $stored->get_filepath(),
+            $stored->get_filename()
+        );
+        $globaltokenmatches[] = [
+            (int)$stored->get_contextid(),
+            (int)$stored->get_itemid(),
+            dasv_h((string)$stored->get_filename()),
+            (int)$stored->get_filesize(),
+            dasv_h((string)$stored->get_mimetype()),
+            '<a target="_blank" rel="noopener" href="' . dasv_h($turl->out(false)) . '">Open</a>',
+        ];
+    }
+}
+echo html_writer::tag('h3', 'Global token filename matches');
+dasv_render_table(
+    ['Context', 'Item ID', 'Filename', 'Size', 'Mime', 'URL'],
+    $globaltokenmatches
 );
 
 echo html_writer::tag('h3', 'Onlinetext rewrite tests');
@@ -1232,6 +1308,9 @@ if (!empty($onlinetextrows) && empty($filerows)) {
 }
 if (empty($filerows) && !empty($globalfilerows)) {
     $findings[] = 'No files found in selected class CM context, but files exist globally in other context IDs for the same itemids.';
+}
+if (!empty($tokenfilenames) && empty($globaltokenmatches)) {
+    $findings[] = 'Token filenames were parsed from @@PLUGINFILE@@ but no matching files were found by filename+user in files table.';
 }
 if ($simulatedselectedsubmissionid > 0 && !empty($candidateinspection[$simulatedselectedsubmissionid])) {
     $selecteddiag = $candidateinspection[$simulatedselectedsubmissionid];

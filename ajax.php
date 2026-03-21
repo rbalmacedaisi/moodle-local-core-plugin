@@ -333,6 +333,7 @@ try {
                     }
                 }
                 $onlinetextfileitemids = [(int)$row->id];
+                $tokenfilenames = [];
                 if (!empty($onlinetextrows)) {
                     foreach ($onlinetextrows as $otrow) {
                         if ((int)$otrow->id > 0) {
@@ -343,6 +344,22 @@ try {
                     $onlinetextfileitemids[] = (int)$onlinetext->id;
                 }
                 $onlinetextfileitemids = array_values(array_unique(array_filter(array_map('intval', $onlinetextfileitemids))));
+                if ($onlinetext && trim((string)$onlinetext->onlinetext) !== '') {
+                    $tokenmatches = [];
+                    if (preg_match_all('/@@PLUGINFILE@@\/([^"\'\s>]+)/', (string)$onlinetext->onlinetext, $tokenmatches)) {
+                        foreach ((array)($tokenmatches[1] ?? []) as $tokpath) {
+                            $tokpath = trim((string)$tokpath);
+                            if ($tokpath === '') {
+                                continue;
+                            }
+                            $basename = basename(rawurldecode($tokpath));
+                            if ($basename !== '' && $basename !== '.') {
+                                $tokenfilenames[$basename] = $basename;
+                            }
+                        }
+                    }
+                }
+                $tokenfilenames = array_values($tokenfilenames);
 
                 $addfileentry = function(\stored_file $file, string $source) use (&$files, &$seenhash): void {
                     $hash = (string)$file->get_pathnamehash();
@@ -413,6 +430,42 @@ try {
                     );
                     foreach ($globalinline as $inlinefilerow) {
                         $stored = $fs->get_file_by_id((int)$inlinefilerow->id);
+                        if (!$stored) {
+                            continue;
+                        }
+                        $resolvedinlinecontextid = (int)$stored->get_contextid();
+                        $resolvedinlineitemid = (int)$stored->get_itemid();
+                        $addfileentry($stored, 'onlinetext');
+                        $foundinlinefiles = true;
+                    }
+                }
+
+                // Secondary fallback: resolve by token filename when itemid references are broken.
+                if (!$foundinlinefiles && !empty($tokenfilenames)) {
+                    $timefrom = max(0, ((int)$row->timecreated > 0 ? (int)$row->timecreated : time()) - (60 * DAYSECS));
+                    $timeto = ((int)$row->timemodified > 0 ? (int)$row->timemodified : time()) + (60 * DAYSECS);
+                    list($nameinsql, $nameinparams) = $DB->get_in_or_equal($tokenfilenames, SQL_PARAMS_NAMED, 'tfn');
+                    $filenameparams = [
+                        'fuserid' => (int)$row->userid,
+                        'timefrom' => (int)$timefrom,
+                        'timeto' => (int)$timeto,
+                    ] + $nameinparams;
+                    $filenamefallbackrows = $DB->get_records_sql(
+                        "SELECT f.id
+                           FROM {files} f
+                          WHERE f.component = 'assignsubmission_onlinetext'
+                            AND f.filearea = 'onlinetext'
+                            AND f.filename {$nameinsql}
+                            AND f.filename <> '.'
+                            AND f.userid = :fuserid
+                            AND f.timemodified BETWEEN :timefrom AND :timeto
+                       ORDER BY f.timemodified DESC, f.id DESC",
+                        $filenameparams,
+                        0,
+                        100
+                    );
+                    foreach ($filenamefallbackrows as $ffrow) {
+                        $stored = $fs->get_file_by_id((int)$ffrow->id);
                         if (!$stored) {
                             continue;
                         }
@@ -512,6 +565,7 @@ try {
                     'hascontent' => $hascontent,
                     'onlinetextlen' => (int)$onlinetextlen,
                     'contextid' => (int)$usedcontextid,
+                    'tokenfilenames' => $tokenfilenames,
                 ];
             };
 
@@ -578,6 +632,7 @@ try {
                         'primarycmid' => (int)$cm->id,
                         'primarycontextid' => (int)$usablecontext->id,
                         'selectedcontextid' => (int)($selectedpayload['contextid'] ?? 0),
+                        'tokenfilenames' => (array)($selectedpayload['tokenfilenames'] ?? []),
                     ],
                 ],
             ];

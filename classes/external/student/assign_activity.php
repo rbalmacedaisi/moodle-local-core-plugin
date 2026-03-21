@@ -286,10 +286,11 @@ class assign_activity extends external_api {
             'moduleId' => new external_value(PARAM_INT, 'Assignment module id', VALUE_REQUIRED),
             'comment' => new external_value(PARAM_RAW, 'Online text/comment', VALUE_DEFAULT, ''),
             'draftItemId' => new external_value(PARAM_INT, 'User draft item id with uploaded files', VALUE_DEFAULT, 0),
+            'textDraftItemId' => new external_value(PARAM_INT, 'User draft item id used by online text editor', VALUE_DEFAULT, 0),
         ]);
     }
 
-    public static function submit_activity($courseId, $moduleId, $comment = '', $draftItemId = 0) {
+    public static function submit_activity($courseId, $moduleId, $comment = '', $draftItemId = 0, $textDraftItemId = 0) {
         global $USER, $DB;
 
         $params = self::validate_parameters(self::submit_activity_parameters(), [
@@ -297,6 +298,7 @@ class assign_activity extends external_api {
             'moduleId' => $moduleId,
             'comment' => $comment,
             'draftItemId' => $draftItemId,
+            'textDraftItemId' => $textDraftItemId,
         ]);
 
         try {
@@ -324,9 +326,13 @@ class assign_activity extends external_api {
             $plugins = self::get_submission_plugins_state($assign);
             $comment = trim((string)$params['comment']);
             $draftitemid = (int)$params['draftItemId'];
+            $textdraftitemid = (int)$params['textDraftItemId'];
 
             if ($plugins['file'] && $draftitemid <= 0) {
                 $draftitemid = file_get_unused_draft_itemid();
+            }
+            if ($plugins['onlinetext'] && $textdraftitemid <= 0) {
+                $textdraftitemid = file_get_unused_draft_itemid();
             }
 
             $draftfilescount = 0;
@@ -369,7 +375,7 @@ class assign_activity extends external_api {
                 $data->onlinetext_editor = [
                     'text' => $comment,
                     'format' => FORMAT_HTML,
-                    'itemid' => 0,
+                    'itemid' => $textdraftitemid,
                 ];
             }
 
