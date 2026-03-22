@@ -33,8 +33,8 @@ $PAGE->requires->js(new moodle_url('https://unpkg.com/axios/dist/axios.min.js'),
 
 // Load components (Standard JS files)
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/TeacherDashboard.js?v=20260312011'), true);
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/ActivityCreationWizard.js?v=20260318001'), true);
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/ManageClass.js?v=20260318004'), true);
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/ActivityCreationWizard.js?v=20260321001'), true);
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/ManageClass.js?v=20260321001'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/studenttable.js?v=20251231049'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/TeacherStudentTable.js?v=20260312001'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/GradesGrid.js?v=20260312010'), true);
@@ -43,7 +43,7 @@ $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/attendancemodal.js?v=20251231049'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/PendingGradingView.js?v=20260320003'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/QuickGrader.js?v=20260320003'), true);
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/QuizCreationWizard.js?v=20251231049'), true);
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/QuizCreationWizard.js?v=20260321001'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/quizeditor/QuestionBankDialog.js'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/quizeditor/TypeEditors.js'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/quizeditor/ClozeWizard.js'), true);

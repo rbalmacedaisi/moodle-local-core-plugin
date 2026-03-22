@@ -435,12 +435,13 @@ const ManageClass = {
             
             <activity-creation-wizard 
                 v-if="showActivityWizard" 
+                :key="'activity-wizard-' + activityWizardKey"
                 :class-id="parseInt(classId)" 
                 :activity-type="newActivityType"
                 :custom-label="customActivityLabel"
                 :edit-mode="isEditing"
                 :edit-data="editActivityData"
-                @close="showActivityWizard = false"
+                @close="closeActivityWizard"
                 @success="onActivityCreated"
             ></activity-creation-wizard>
 
@@ -684,6 +685,7 @@ const ManageClass = {
             showActivitySelector: false,
             availableModules: [],
             isLoadingModules: false,
+            activityWizardKey: 0,
             customActivityLabel: '',
             editActivityData: null,
             isEditing: false,
@@ -1303,10 +1305,20 @@ const ManageClass = {
                 this.$set(activity, '_deleting', false);
             }
         },
+        closeActivityWizard() {
+            this.showActivityWizard = false;
+            this.isEditing = false;
+            this.editActivityData = null;
+            this.newActivityType = '';
+            this.customActivityLabel = '';
+        },
         addActivity(type, label = '') {
             if (type === 'quiz') {
+                this.closeActivityWizard();
                 this.showQuizWizard = true;
             } else {
+                this.closeActivityWizard();
+                this.activityWizardKey += 1;
                 this.newActivityType = type;
                 this.customActivityLabel = label;
                 this.showActivityWizard = true;
@@ -1347,9 +1359,11 @@ const ManageClass = {
         onActivityCreated() {
             this.fetchTimeline(true);
             this.fetchActivities(true); // Refresh activities list
-            this.isEditing = false;
+            this.closeActivityWizard();
         },
         openEditActivity(activity) {
+            this.closeActivityWizard();
+            this.activityWizardKey += 1;
             this.isEditing = true;
             this.editActivityData = activity;
             this.newActivityType = activity.modname; // Needed for wizard type context

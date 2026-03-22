@@ -96,6 +96,7 @@ const ActivityCreationWizard = {
                             hint="Seleccione o escriba el nombre de la lección"
                             persistent-hint
                             clearable
+                            @change="normalizeLessonTagInput"
                         ></v-combobox>
 
                         <div v-if="isBBB" class="pa-4 rounded-lg mb-4" :class="$vuetify.theme.dark ? 'blue-grey darken-4' : 'blue lighten-5'">
@@ -191,7 +192,7 @@ const ActivityCreationWizard = {
                                     v-for="(f, idx) in resourceFiles"
                                     :key="idx"
                                     small
-                                    :close="!uploadingIndex || uploadingIndex !== idx"
+                                    :close="uploadingIndex === null || uploadingIndex !== idx"
                                     @click:close="removeResourceFile(idx)"
                                     class="mr-1 mb-1"
                                     :color="uploadedDrafts[idx] ? 'green lighten-5' : ''"
@@ -221,7 +222,6 @@ const ActivityCreationWizard = {
     data() {
         return {
             visible: true,
-            visible: true,
             valid: false,
             saving: false,
             saveAsTemplate: false,
@@ -244,6 +244,7 @@ const ActivityCreationWizard = {
             gradeCategories: [],
             resourceFiles: [],
             uploadedDrafts: [],    // parallel array: { draftitemid, filename } per resourceFiles entry
+            uploadDraftItemId: 0,
             uploadingIndex: null,  // index of file currently being uploaded, or null
             existingFiles: [],
             filesToDelete: []
@@ -296,9 +297,56 @@ const ActivityCreationWizard = {
     },
     methods: {
         close() {
+            this.resourceFiles = [];
             this.uploadedDrafts = [];
+            this.uploadDraftItemId = 0;
+            this.existingFiles = [];
+            this.filesToDelete = [];
             this.uploadingIndex = null;
             this.$emit('close');
+        },
+        normalizeLessonTagValue(raw) {
+            if (raw === null || raw === undefined) {
+                return '';
+            }
+            let value = '';
+            if (Array.isArray(raw)) {
+                for (let i = 0; i < raw.length; i++) {
+                    const normalizedItem = this.normalizeLessonTagValue(raw[i]);
+                    if (normalizedItem) {
+                        value = normalizedItem;
+                        break;
+                    }
+                }
+            } else if (typeof raw === 'object') {
+                value = String(raw.value || raw.text || raw.title || raw.name || '').trim();
+            } else {
+                value = String(raw).trim();
+            }
+
+            value = value.replace(/\s+/g, ' ').trim();
+            if (!value) {
+                return '';
+            }
+
+            const numericOnly = value.match(/^(\d{1,3})$/);
+            if (numericOnly) {
+                return 'Leccion ' + numericOnly[1];
+            }
+
+            const lessonPattern = value.match(/^lecci(?:o|\u00f3)n?\s*[-:]*\s*(\d{1,3})$/i);
+            if (lessonPattern) {
+                return 'Leccion ' + lessonPattern[1];
+            }
+
+            return value;
+        },
+        normalizeLessonTagInput(value) {
+            const normalized = this.normalizeLessonTagValue(
+                value !== undefined ? value : this.formData.tags
+            );
+            this.formData.tags = normalized;
+            return normalized;
         },
         async saveActivity() {
             this.saving = true;
@@ -309,12 +357,18 @@ const ActivityCreationWizard = {
 
                 let response;
 
-                const draftitemids = this.uploadedDrafts.map(function(d) { return d.draftitemid; });
+                const normalizedTag = this.normalizeLessonTagInput();
+                const draftitemids = Array.from(new Set(
+                    this.uploadedDrafts
+                        .filter(function(d) { return !!d && !!d.draftitemid; })
+                        .map(function(d) { return parseInt(d.draftitemid, 10) || 0; })
+                        .filter(function(v) { return v > 0; })
+                ));
                 const args = this.editMode ? {
                     cmid: this.editData.id,
                     name: this.formData.name,
                     intro: this.formData.intro || '',
-                    tags: this.formData.tags || '',
+                    tags: normalizedTag,
                     visible: this.formData.visible ? 1 : 0,
                     duedate: this.formData.duedate ? Math.floor(new Date(this.formData.duedate).getTime() / 1000) : 0,
                     timeopen: this.formData.timeopen ? Math.floor(new Date(this.formData.timeopen).getTime() / 1000) : 0,
@@ -327,13 +381,12 @@ const ActivityCreationWizard = {
                     type: this.activityType,
                     name: this.formData.name,
                     intro: this.formData.intro || '',
-                    tags: this.formData.tags || '',
+                    tags: normalizedTag,
                     duedate: this.formData.duedate ? Math.floor(new Date(this.formData.duedate).getTime() / 1000) : 0,
                     timeopen: this.formData.timeopen ? Math.floor(new Date(this.formData.timeopen).getTime() / 1000) : 0,
                     timeclose: this.formData.timeclose ? Math.floor(new Date(this.formData.timeclose).getTime() / 1000) : 0,
                     save_as_template: this.saveAsTemplate,
                     gradecat: this.formData.gradecat,
-                    tags: this.formData.tags,
                     guest: this.formData.guest,
                     forumtopic: this.isForum ? (this.formData.forumtopic || this.formData.name || '') : '',
                     forummessage: this.isForum ? (this.formData.forummessage || this.formData.intro || '') : '',
@@ -378,7 +431,9 @@ const ActivityCreationWizard = {
                     const act = response.data.activity;
                     this.formData.name = act.name;
                     this.formData.intro = this.stripHtml(act.intro);
-                    this.formData.tags = (act.tags && act.tags.length > 0) ? act.tags[0] : '';
+                    this.formData.tags = this.normalizeLessonTagValue(
+                        (act.tags && act.tags.length > 0) ? act.tags[0] : ''
+                    );
                     this.formData.visible = act.visible;
 
                     if (act.duedate) {
@@ -427,7 +482,10 @@ const ActivityCreationWizard = {
                     ...window.wsStaticParams
                 });
                 if (response.data.status === 'success') {
-                    this.courseTags = response.data.tags;
+                    const normalized = Array.isArray(response.data.tags)
+                        ? response.data.tags.map(t => this.normalizeLessonTagValue(t)).filter(Boolean)
+                        : [];
+                    this.courseTags = Array.from(new Set(normalized));
                 }
             } catch (error) {
                 console.error('Error fetching tags:', error);
@@ -457,9 +515,13 @@ const ActivityCreationWizard = {
                     var fd = new FormData();
                     fd.append('action', 'local_grupomakro_upload_draft_file');
                     fd.append('sesskey', window.wsStaticParams.sesskey);
+                    if (this.uploadDraftItemId > 0) {
+                        fd.append('draftitemid', String(this.uploadDraftItemId));
+                    }
                     fd.append('file', f, f.name);
                     var resp = await axios.post(window.wsUrl, fd);
                     if (resp.data.status === 'success') {
+                        this.uploadDraftItemId = parseInt(resp.data.draftitemid, 10) || this.uploadDraftItemId;
                         this.$set(this.uploadedDrafts, idx, { draftitemid: resp.data.draftitemid, filename: resp.data.filename });
                     } else {
                         alert('Error subiendo "' + f.name + '": ' + (resp.data.message || 'Error desconocido'));
@@ -478,6 +540,9 @@ const ActivityCreationWizard = {
         removeResourceFile(idx) {
             this.resourceFiles.splice(idx, 1);
             this.uploadedDrafts.splice(idx, 1);
+            if (this.resourceFiles.length === 0) {
+                this.uploadDraftItemId = 0;
+            }
         },
         markFileForDelete(filename) {
             if (this.filesToDelete.indexOf(filename) === -1) {

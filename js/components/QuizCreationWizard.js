@@ -42,6 +42,7 @@ const QuizCreationWizard = {
                             hint="Seleccione o escriba el nombre de la lección"
                             persistent-hint
                             clearable
+                            @change="quiz.tags = normalizeLessonTagValue(quiz.tags)"
                         ></v-combobox>
 
                         <div class="d-flex justify-end mt-4">
@@ -264,6 +265,40 @@ const QuizCreationWizard = {
         this.fetchCourseTags();
     },
     methods: {
+        normalizeLessonTagValue(raw) {
+            if (raw === null || raw === undefined) {
+                return '';
+            }
+            let value = '';
+            if (Array.isArray(raw)) {
+                for (let i = 0; i < raw.length; i++) {
+                    const normalizedItem = this.normalizeLessonTagValue(raw[i]);
+                    if (normalizedItem) {
+                        value = normalizedItem;
+                        break;
+                    }
+                }
+            } else if (typeof raw === 'object') {
+                value = String(raw.value || raw.text || raw.title || raw.name || '').trim();
+            } else {
+                value = String(raw).trim();
+            }
+
+            value = value.replace(/\s+/g, ' ').trim();
+            if (!value) {
+                return '';
+            }
+
+            const numericOnly = value.match(/^(\d{1,3})$/);
+            if (numericOnly) {
+                return 'Leccion ' + numericOnly[1];
+            }
+            const lessonPattern = value.match(/^lecci(?:o|\u00f3)n?\s*[-:]*\s*(\d{1,3})$/i);
+            if (lessonPattern) {
+                return 'Leccion ' + lessonPattern[1];
+            }
+            return value;
+        },
         closeDialog() {
             this.dialog = false;
         },
@@ -280,13 +315,15 @@ const QuizCreationWizard = {
                 // Prepare timestamps
                 const startDT = new Date(`${this.quiz.dateOpen}T${this.quiz.timeOpen}`);
                 const endDT = new Date(`${this.quiz.dateClose}T${this.quiz.timeClose}`);
+                const normalizedTag = this.normalizeLessonTagValue(this.quiz.tags);
+                this.quiz.tags = normalizedTag;
 
                 const payload = {
                     classid: this.classId,
                     type: 'quiz',
                     name: this.quiz.name,
                     intro: this.quiz.intro,
-                    tags: this.quiz.tags,
+                    tags: normalizedTag,
                     // Extra params mapped to backend expectations
                     timeopen: Math.floor(startDT.getTime() / 1000),
                     timeclose: Math.floor(endDT.getTime() / 1000),
@@ -330,7 +367,10 @@ const QuizCreationWizard = {
                     ...window.wsStaticParams
                 });
                 if (response.data.status === 'success') {
-                    this.courseTags = response.data.tags;
+                    const normalized = Array.isArray(response.data.tags)
+                        ? response.data.tags.map(t => this.normalizeLessonTagValue(t)).filter(Boolean)
+                        : [];
+                    this.courseTags = Array.from(new Set(normalized));
                 }
             } catch (error) {
                 console.error('Error fetching tags:', error);

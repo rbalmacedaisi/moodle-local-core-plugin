@@ -96,6 +96,123 @@ if (!function_exists('gmk_forum_manage_context')) {
     }
 }
 
+if (!function_exists('gmk_ajax_normalize_lesson_tag')) {
+    /**
+     * Normalize lesson/tag values sent from teacher dashboard forms.
+     * Converts numeric values like "8" into "Leccion 8".
+     */
+    function gmk_ajax_normalize_lesson_tag($raw): string {
+        $value = trim((string)$raw);
+        if ($value === '') {
+            return '';
+        }
+        $value = preg_replace('/\s+/', ' ', $value);
+
+        if (preg_match('/^(\d{1,3})$/', $value, $m)) {
+            return 'Leccion ' . $m[1];
+        }
+        if (preg_match('/^lecci(?:o|\x{00F3})n?\s*[-:]*\s*(\d{1,3})$/iu', $value, $m)) {
+            return 'Leccion ' . $m[1];
+        }
+        return $value;
+    }
+}
+
+if (!function_exists('gmk_ajax_extract_tags_from_request')) {
+    /**
+     * Extract tag values from string/array/object payloads and return unique normalized tags.
+     */
+    function gmk_ajax_extract_tags_from_request($raw): array {
+        $queue = [$raw];
+        $normalized = [];
+
+        while (!empty($queue)) {
+            $current = array_shift($queue);
+
+            if (is_array($current)) {
+                foreach ($current as $item) {
+                    $queue[] = $item;
+                }
+                continue;
+            }
+
+            if (is_object($current)) {
+                $obj = (array)$current;
+                if (isset($obj['value'])) {
+                    $queue[] = $obj['value'];
+                } else if (isset($obj['text'])) {
+                    $queue[] = $obj['text'];
+                } else if (isset($obj['title'])) {
+                    $queue[] = $obj['title'];
+                } else if (isset($obj['name'])) {
+                    $queue[] = $obj['name'];
+                }
+                continue;
+            }
+
+            if (is_string($current)) {
+                $trimmed = trim($current);
+                if ($trimmed !== '' && (
+                    (substr($trimmed, 0, 1) === '[' && substr($trimmed, -1) === ']') ||
+                    (substr($trimmed, 0, 1) === '{' && substr($trimmed, -1) === '}')
+                )) {
+                    $decoded = json_decode($trimmed, true);
+                    if (json_last_error() === JSON_ERROR_NONE) {
+                        $queue[] = $decoded;
+                        continue;
+                    }
+                }
+                if (strpos($current, ',') !== false) {
+                    foreach (explode(',', $current) as $part) {
+                        $queue[] = $part;
+                    }
+                    continue;
+                }
+            }
+
+            if ($current === null) {
+                continue;
+            }
+
+            $tag = gmk_ajax_normalize_lesson_tag($current);
+            if ($tag !== '') {
+                $normalized[$tag] = $tag;
+            }
+        }
+
+        return array_values($normalized);
+    }
+}
+
+if (!function_exists('gmk_ajax_make_unique_filename')) {
+    /**
+     * Ensures filename uniqueness in a target filearea by suffixing " (N)".
+     */
+    function gmk_ajax_make_unique_filename($fs, int $contextid, string $component, string $filearea, int $itemid, string $filepath, string $filename): string {
+        $clean = clean_filename($filename);
+        if ($clean === '' || $clean === '.') {
+            $clean = 'archivo';
+        }
+
+        if (!$fs->file_exists($contextid, $component, $filearea, $itemid, $filepath, $clean)) {
+            return $clean;
+        }
+
+        $dot = strrpos($clean, '.');
+        $base = ($dot === false) ? $clean : substr($clean, 0, $dot);
+        $ext = ($dot === false) ? '' : substr($clean, $dot);
+
+        for ($i = 1; $i < 1000; $i++) {
+            $candidate = $base . ' (' . $i . ')' . $ext;
+            if (!$fs->file_exists($contextid, $component, $filearea, $itemid, $filepath, $candidate)) {
+                return $candidate;
+            }
+        }
+
+        return $base . ' (' . time() . ')' . $ext;
+    }
+}
+
 // Ensure we don't have any output before header
 ob_start();
 
@@ -714,7 +831,7 @@ try {
                     $response = ['status' => 'error', 'message' => 'Error al actualizar base de datos.'];
                 }
             } else {
-                $response = ['status' => 'error', 'message' => 'InscripciÃ³n no encontrada.'];
+                $response = ['status' => 'error', 'message' => 'InscripciÃƒÂ³n no encontrada.'];
             }
             break;
 
@@ -776,7 +893,7 @@ try {
                 // Find Learning Plan for User (Assuming active student)
                 $lpUser = $DB->get_record('local_learning_users', ['userid' => $user->id, 'userrolename' => 'student']);
                 if (!$lpUser) {
-                    $log[] = "Error: Usuario $idnumber no estÃ¡ inscrito en plan de estudio.";
+                    $log[] = "Error: Usuario $idnumber no estÃƒÂ¡ inscrito en plan de estudio.";
                     $failCount++;
                     continue;
                 }
@@ -792,7 +909,7 @@ try {
                 if (\local_grupomakro_progress_manager::update_student_period($user->id, $lpUser->learningplanid, $targetPeriod->id)) {
                     $successCount++;
                 } else {
-                    $log[] = "Aviso: No se requiriÃ³ cambio para $idnumber.";
+                    $log[] = "Aviso: No se requiriÃƒÂ³ cambio para $idnumber.";
                     $successCount++; // Count as handled
                 }
             }
@@ -809,7 +926,7 @@ try {
             
             // Check file upload
             if (empty($_FILES['import_file'])) {
-                $response = ['status' => 'error', 'message' => 'No se recibiÃ³ ningÃºn archivo.'];
+                $response = ['status' => 'error', 'message' => 'No se recibiÃƒÂ³ ningÃƒÂºn archivo.'];
                 break;
             }
             
@@ -827,7 +944,7 @@ try {
                 $rows = $sheet->toArray();
                 
                 if (count($rows) < 2) {
-                    $response = ['status' => 'error', 'message' => 'El archivo parece estar vacÃ­o (o solo tiene cabecera).'];
+                    $response = ['status' => 'error', 'message' => 'El archivo parece estar vacÃƒÂ­o (o solo tiene cabecera).'];
                     break;
                 }
                 
@@ -837,7 +954,7 @@ try {
                 
                 // Flexible header search
                 foreach ($headers as $idx => $h) {
-                    if (strpos($h, 'id number') !== false || strpos($h, 'identificaciÃ³n') !== false || $h === 'idnumber') $idIdx = $idx;
+                    if (strpos($h, 'id number') !== false || strpos($h, 'identificaciÃƒÂ³n') !== false || $h === 'idnumber') $idIdx = $idx;
                     // Look for Bloque, Bimestre, Subperiodo
                     if (strpos($h, 'bloque') !== false || strpos($h, 'bimestre') !== false || strpos($h, 'subperiod') !== false) $bloqueIdx = $idx;
                 }
@@ -893,7 +1010,7 @@ try {
                     }
 
                     if (!$user) {
-                        $log[] = "Fila " . ($i+1) . ": Usuario con ID/CÃ©dula $idnumber no encontrado.";
+                        $log[] = "Fila " . ($i+1) . ": Usuario con ID/CÃƒÂ©dula $idnumber no encontrado.";
                         $failCount++;
                         continue;
                     }
@@ -901,7 +1018,7 @@ try {
                     // Find Learning Plan for User (Assuming active student)
                     $lpUser = $DB->get_record('local_learning_users', ['userid' => $user->id, 'userrolename' => 'student']);
                     if (!$lpUser) {
-                        $log[] = "Fila " . ($i+1) . ": Usuario $idnumber no estÃ¡ inscrito en plan de estudio.";
+                        $log[] = "Fila " . ($i+1) . ": Usuario $idnumber no estÃƒÂ¡ inscrito en plan de estudio.";
                         $failCount++;
                         continue;
                     }
@@ -934,7 +1051,7 @@ try {
                 ];
 
             } catch (Exception $e) {
-                $response = ['status' => 'error', 'message' => 'ExcepciÃ³n procesando archivo: ' . $e->getMessage()];
+                $response = ['status' => 'error', 'message' => 'ExcepciÃƒÂ³n procesando archivo: ' . $e->getMessage()];
             }
             break;
 
@@ -1668,50 +1785,121 @@ try {
         case 'local_grupomakro_get_student_attendance_details':
             $userid = required_param('userId', PARAM_INT);
             $classid = required_param('classId', PARAM_INT);
-            
-            $class = $DB->get_record('gmk_class', ['id' => $classid], '*', MUST_EXIST);
-            
-            // Find attendance instance
-            $all_atts = $DB->get_records('attendance', ['course' => $class->courseid], '', 'id');
-            if (empty($all_atts) && !empty($class->corecourseid)) {
-                $all_atts = $DB->get_records('attendance', ['course' => $class->corecourseid], '', 'id');
+
+            // New robust path: reuse attendance_manager resolver.
+            // This avoids false "no sessions" when class has multiple/legacy attendance mappings.
+            $DB->get_record('gmk_class', ['id' => $classid], 'id', MUST_EXIST);
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/teacher/attendance_manager.php');
+            $sessionspayload = \local_grupomakro_core\external\teacher\attendance_manager::get_sessions($classid);
+
+            if (($sessionspayload['status'] ?? 'error') !== 'success') {
+                $response = [
+                    'status' => 'error',
+                    'message' => (string)($sessionspayload['message'] ?? 'No se encontro actividad de asistencia para la clase.')
+                ];
+                break;
             }
-            
-            if (empty($all_atts)) {
-                 $response = ['status' => 'error', 'message' => 'No se encontrÃ³ actividad de asistencia.'];
-                 break;
+
+            $attendanceid = (int)($sessionspayload['attendance_id'] ?? 0);
+            $sessionrows = $sessionspayload['sessions'] ?? [];
+            if (!is_array($sessionrows) || empty($sessionrows)) {
+                $response = ['status' => 'success', 'details' => []];
+                break;
             }
-            
-            $att = reset($all_atts);
-            
-            // Get all sessions for this group
-            $sessions = $DB->get_records('attendance_sessions', ['attendanceid' => $att->id, 'groupid' => $class->groupid], 'sessdate ASC');
-            
-            // Get all statuses for this attendance
-            $statuses = $DB->get_records('attendance_statuses', ['attendanceid' => $att->id], '', 'id, acronym, description, grade');
-            
-            // Get all logs for this user in these sessions
-            $logs = $DB->get_records('attendance_log', ['studentid' => $userid], '', 'sessionid, statusid');
-            
+
+            $sessionids = [];
+            foreach ($sessionrows as $sessionrow) {
+                $sid = (int)(is_array($sessionrow) ? ($sessionrow['id'] ?? 0) : ($sessionrow->id ?? 0));
+                if ($sid > 0) {
+                    $sessionids[$sid] = $sid;
+                }
+            }
+            $sessionids = array_values($sessionids);
+
+            if ($attendanceid <= 0 && !empty($sessionids)) {
+                list($sessinsqlatt, $sessparamsatt) = $DB->get_in_or_equal($sessionids, SQL_PARAMS_NAMED, 'sidatt');
+                $attendanceid = (int)$DB->get_field_sql(
+                    "SELECT attendanceid
+                       FROM {attendance_sessions}
+                      WHERE id $sessinsqlatt
+                   ORDER BY id ASC",
+                    $sessparamsatt,
+                    IGNORE_MULTIPLE
+                );
+            }
+
+            $statuses = [];
+            if ($attendanceid > 0) {
+                $statuses = $DB->get_records(
+                    'attendance_statuses',
+                    ['attendanceid' => $attendanceid],
+                    '',
+                    'id, acronym, description, grade'
+                );
+            }
+
+            $logsbysession = [];
+            if (!empty($sessionids)) {
+                list($sessinsql, $sessparams) = $DB->get_in_or_equal($sessionids, SQL_PARAMS_NAMED, 'sid');
+                $logsql = "SELECT l.id, l.sessionid, l.statusid
+                             FROM {attendance_log} l
+                            WHERE l.studentid = :studentid
+                              AND l.sessionid $sessinsql
+                         ORDER BY l.sessionid ASC, l.id DESC";
+                $logparams = array_merge(['studentid' => $userid], $sessparams);
+                $recordset = $DB->get_recordset_sql($logsql, $logparams);
+                foreach ($recordset as $logrow) {
+                    $sessid = (int)$logrow->sessionid;
+                    if ($sessid > 0 && !isset($logsbysession[$sessid])) {
+                        $logsbysession[$sessid] = $logrow;
+                    }
+                }
+                $recordset->close();
+            }
+
             $details = [];
-            foreach ($sessions as $s) {
-                $statusid = isset($logs[$s->id]) ? $logs[$s->id]->statusid : null;
-                $statusObj = $statusid && isset($statuses[$statusid]) ? $statuses[$statusid] : null;
-                
+            foreach ($sessionrows as $sessionrow) {
+                $sid = (int)(is_array($sessionrow) ? ($sessionrow['id'] ?? 0) : ($sessionrow->id ?? 0));
+                if ($sid <= 0) {
+                    continue;
+                }
+
+                $sessdate = (int)(is_array($sessionrow) ? ($sessionrow['sessdate'] ?? 0) : ($sessionrow->sessdate ?? 0));
+                $description = (string)(is_array($sessionrow)
+                    ? ($sessionrow['description'] ?? '')
+                    : ($sessionrow->description ?? ''));
+                $datevalue = (string)(is_array($sessionrow)
+                    ? ($sessionrow['date'] ?? '')
+                    : ($sessionrow->date ?? ''));
+                $timevalue = (string)(is_array($sessionrow)
+                    ? ($sessionrow['time'] ?? '')
+                    : ($sessionrow->time ?? ''));
+
+                if ($datevalue === '') {
+                    $datevalue = userdate($sessdate, get_string('strftimedatefullshort', 'langconfig'));
+                }
+                if ($timevalue === '') {
+                    $timevalue = userdate($sessdate, '%H:%M');
+                }
+
+                $statusid = isset($logsbysession[$sid]) ? (int)$logsbysession[$sid]->statusid : 0;
+                $statusobj = ($statusid > 0 && isset($statuses[$statusid])) ? $statuses[$statusid] : null;
+
                 $details[] = [
-                    'id' => $s->id,
-                    'date' => userdate($s->sessdate, get_string('strftimedatefullshort', 'langconfig')),
-                    'time' => userdate($s->sessdate, '%H:%M'),
-                    'description' => $s->description,
-                    'status' => $statusObj ? $statusObj->description : 'Sin registrar',
-                    'acronym' => $statusObj ? $statusObj->acronym : '-',
-                    'grade' => $statusObj ? $statusObj->grade : null,
-                    'is_absence' => $statusObj ? ($statusObj->grade <= 0) : ($s->sessdate < time())
+                    'id' => $sid,
+                    'date' => $datevalue,
+                    'time' => $timevalue,
+                    'description' => $description,
+                    'status' => $statusobj ? (string)$statusobj->description : 'Sin registrar',
+                    'acronym' => $statusobj ? (string)$statusobj->acronym : '-',
+                    'grade' => $statusobj ? (float)$statusobj->grade : null,
+                    'is_absence' => $statusobj ? ((float)$statusobj->grade <= 0.0) : ($sessdate > 0 && $sessdate < time())
                 ];
             }
-            
-            $response = ['status' => 'success', 'details' => $details];
+
+            $response = ['status' => 'success', 'details' => array_values($details)];
             break;
+            
 
         case 'local_grupomakro_get_student_info':
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/student/get_student_info.php');
@@ -2383,7 +2571,7 @@ try {
             $sort_order_json = optional_param('sortorder', '', PARAM_RAW);
             $sort_order = !empty($sort_order_json) ? json_decode($sort_order_json, true) : null;
 
-            if (!is_array($weights)) throw new Exception("Datos invÃ¡lidos.");
+            if (!is_array($weights)) throw new Exception("Datos invÃƒÂ¡lidos.");
 
             $class = $DB->get_record('gmk_class', ['id' => $classid]);
             if (!$class) throw new Exception("Clase no encontrada.");
@@ -2591,7 +2779,7 @@ try {
                     }
                 }
 
-                $response = ['status' => 'success', 'message' => 'ConfiguraciÃ³n actualizada.'];
+                $response = ['status' => 'success', 'message' => 'ConfiguraciÃƒÂ³n actualizada.'];
             } catch (Exception $e) {
                 $tx->rollback($e);
                 throw $e;
@@ -2640,16 +2828,16 @@ try {
             require_once($CFG->libdir . '/gradelib.php');
 
             $gi = \grade_item::fetch(['id' => $itemid]);
-            if (!$gi) throw new Exception("Ãtem no encontrado.");
+            if (!$gi) throw new Exception("ÃƒÂtem no encontrado.");
             
             // Security check: Only manual items? Or allow deleting activities?
             // Safer to allow only manual for now, deleting activities deletes the module which is dangerous here.
             if ($gi->itemtype !== 'manual') {
-                throw new Exception("Solo se pueden eliminar Ã­tems manuales desde aquÃ­.");
+                throw new Exception("Solo se pueden eliminar ÃƒÂ­tems manuales desde aquÃƒÂ­.");
             }
 
             $gi->delete();
-            $response = ['status' => 'success', 'message' => 'Ãtem eliminado.'];
+            $response = ['status' => 'success', 'message' => 'ÃƒÂtem eliminado.'];
             break;
 
         case 'local_grupomakro_get_all_activities':
@@ -2678,7 +2866,7 @@ try {
                     }
                 }
             }
-            // If no section found, $cms stays empty â€” avoids leaking other classes' activities
+            // If no section found, $cms stays empty Ã¢â‚¬â€ avoids leaking other classes' activities
 
             $activities = [];
 
@@ -2687,7 +2875,7 @@ try {
                 // Exclude label
                 if ($cm->modname === 'label') continue;
 
-                // Attendance and BBB are "default" activities â€” always placed in General (no tags)
+                // Attendance and BBB are "default" activities Ã¢â‚¬â€ always placed in General (no tags)
                 $is_general = ($cm->modname === 'attendance' || $cm->modname === 'bigbluebuttonbn');
 
                 if ($is_general) {
@@ -3785,13 +3973,11 @@ try {
             $forummessage = optional_param('forummessage', '', PARAM_RAW);
             $forumcreateinitial = optional_param('forumcreateinitial', true, PARAM_BOOL);
 
-            // Normalize tags â€” may arrive as string (FormData/JSON) or array (JSON flattened)
-            $tagList = [];
+            // Normalize tags Ã¢â‚¬â€ may arrive as string (FormData/JSON) or array (JSON flattened)
             $raw_tags = isset($_POST['tags']) ? $_POST['tags'] : '';
-            if (is_array($raw_tags)) {
-                $tagList = array_values(array_filter(array_map('trim', $raw_tags)));
-            } else if (is_string($raw_tags) && trim($raw_tags) !== '') {
-                $tagList = array_values(array_filter(array_map('trim', explode(',', $raw_tags))));
+            $tagList = gmk_ajax_extract_tags_from_request($raw_tags);
+            if (!empty($tagList)) {
+                $tagList = [reset($tagList)];
             }
 
             try {
@@ -3858,9 +4044,15 @@ try {
                             if (!$draftid) continue;
                             $draft_files = $fs_new->get_area_files($usercontext_create->id, 'user', 'draft', $draftid, 'id', false);
                             foreach ($draft_files as $draft_file) {
-                                $fname = $draft_file->get_filename();
-                                $dup = $fs_new->get_file($new_ctx->id, $fi_comp, $fi_area, $fi_item, '/', $fname);
-                                if ($dup) $dup->delete();
+                                $fname = gmk_ajax_make_unique_filename(
+                                    $fs_new,
+                                    (int)$new_ctx->id,
+                                    (string)$fi_comp,
+                                    (string)$fi_area,
+                                    (int)$fi_item,
+                                    '/',
+                                    (string)$draft_file->get_filename()
+                                );
                                 $fs_new->create_file_from_storedfile([
                                     'contextid' => $new_ctx->id,
                                     'component' => $fi_comp,
@@ -3879,9 +4071,15 @@ try {
                     foreach ($_FILES as $fkey => $finfo) {
                         if (strpos($fkey, 'resource_file_') !== 0) continue;
                         if ($finfo['error'] !== UPLOAD_ERR_OK) continue;
-                        $fname = clean_filename($finfo['name']);
-                        $dup = $fs_new->get_file($new_ctx->id, $fi_comp, $fi_area, $fi_item, '/', $fname);
-                        if ($dup) $dup->delete();
+                        $fname = gmk_ajax_make_unique_filename(
+                            $fs_new,
+                            (int)$new_ctx->id,
+                            (string)$fi_comp,
+                            (string)$fi_area,
+                            (int)$fi_item,
+                            '/',
+                            (string)$finfo['name']
+                        );
                         $fs_new->create_file_from_pathname([
                             'contextid' => $new_ctx->id,
                             'component' => $fi_comp,
@@ -4367,7 +4565,7 @@ try {
                 throw new Exception('La actividad no pertenece al curso de la clase.');
             }
             if ((int)$cm->section !== (int)$class->coursesectionid) {
-                throw new Exception('La actividad no pertenece a la sección de esta clase.');
+                throw new Exception('La actividad no pertenece a la secciÃ³n de esta clase.');
             }
 
             if ($cm->modname === 'attendance' || $cm->modname === 'bigbluebuttonbn') {
@@ -4389,14 +4587,11 @@ try {
             $cmid = required_param('cmid', PARAM_INT);
             $name = required_param('name', PARAM_TEXT);
             $intro = optional_param('intro', '', PARAM_RAW);
-            // Normalize tags â€” may arrive as string (FormData/JSON) or array (JSON flattened)
+            // Normalize tags Ã¢â‚¬â€ may arrive as string (FormData/JSON) or array (JSON flattened)
             $raw_tags_upd = isset($_POST['tags']) ? $_POST['tags'] : '';
-            if (is_array($raw_tags_upd)) {
-                $tags = array_values(array_filter(array_map('trim', $raw_tags_upd)));
-            } else if (is_string($raw_tags_upd) && trim($raw_tags_upd) !== '') {
-                $tags = array_values(array_filter(array_map('trim', explode(',', $raw_tags_upd))));
-            } else {
-                $tags = [];
+            $tags = gmk_ajax_extract_tags_from_request($raw_tags_upd);
+            if (!empty($tags)) {
+                $tags = [reset($tags)];
             }
             $visible = required_param('visible', PARAM_BOOL);
             
@@ -4478,9 +4673,15 @@ try {
                         if (!$draftid) continue;
                         $draft_files_upd = $fs_upd->get_area_files($usercontext_upd->id, 'user', 'draft', $draftid, 'id', false);
                         foreach ($draft_files_upd as $draft_file) {
-                            $fname = $draft_file->get_filename();
-                            $dup = $fs_upd->get_file($context->id, $fi_comp, $fi_area, $fi_item, '/', $fname);
-                            if ($dup) $dup->delete();
+                            $fname = gmk_ajax_make_unique_filename(
+                                $fs_upd,
+                                (int)$context->id,
+                                (string)$fi_comp,
+                                (string)$fi_area,
+                                (int)$fi_item,
+                                '/',
+                                (string)$draft_file->get_filename()
+                            );
                             $fs_upd->create_file_from_storedfile([
                                 'contextid' => $context->id,
                                 'component' => $fi_comp,
@@ -4499,9 +4700,15 @@ try {
                 foreach ($_FILES as $fkey => $finfo) {
                     if (strpos($fkey, 'resource_file_') !== 0) continue;
                     if ($finfo['error'] !== UPLOAD_ERR_OK) continue;
-                    $fname = clean_filename($finfo['name']);
-                    $dup = $fs_upd->get_file($context->id, $fi_comp, $fi_area, $fi_item, '/', $fname);
-                    if ($dup) $dup->delete();
+                    $fname = gmk_ajax_make_unique_filename(
+                        $fs_upd,
+                        (int)$context->id,
+                        (string)$fi_comp,
+                        (string)$fi_area,
+                        (int)$fi_item,
+                        '/',
+                        (string)$finfo['name']
+                    );
                     $fs_upd->create_file_from_pathname([
                         'contextid' => $context->id,
                         'component' => $fi_comp,
@@ -4596,7 +4803,7 @@ try {
             if ($result) {
                 $response = ['status' => 'success'];
             } else {
-                $response = ['status' => 'error', 'message' => 'Error al guardar la configuraciÃ³n'];
+                $response = ['status' => 'error', 'message' => 'Error al guardar la configuraciÃƒÂ³n'];
             }
             break;
 
@@ -4969,13 +5176,13 @@ try {
                     $sid = create_class_section($class);
                     $DB->set_field('gmk_class', 'coursesectionid', $sid, ['id' => $classid]);
                     $class->coursesectionid = $sid;
-                    $log[] = "SecciÃ³n creada: id=$sid";
+                    $log[] = "SecciÃƒÂ³n creada: id=$sid";
                 } catch (Throwable $e) {
-                    $log[] = "WARN secciÃ³n: " . $e->getMessage();
-                    // non-fatal â€” continue to activities
+                    $log[] = "WARN secciÃƒÂ³n: " . $e->getMessage();
+                    // non-fatal Ã¢â‚¬â€ continue to activities
                 }
             } else {
-                $log[] = "SecciÃ³n ya existe: id={$class->coursesectionid}";
+                $log[] = "SecciÃƒÂ³n ya existe: id={$class->coursesectionid}";
             }
 
             // Activities
@@ -5142,7 +5349,7 @@ try {
             $loads = json_decode($loadsJson, true);
             
             if (!is_array($loads)) {
-                throw new Exception('Formato de cargas invÃ¡lido.');
+                throw new Exception('Formato de cargas invÃƒÂ¡lido.');
             }
             
             // Wipe existing loads for this period and insert new ones
@@ -5179,7 +5386,7 @@ try {
                 $source = 'RAW_INPUT_VAR';
             }
 
-            // When Content-Type is application/json, schedules may already be decoded as array â€” re-encode it
+            // When Content-Type is application/json, schedules may already be decoded as array Ã¢â‚¬â€ re-encode it
             if (is_array($schedulesJson)) {
                 $schedulesJson = json_encode($schedulesJson);
                 $source .= '_REENCODED';
@@ -5245,7 +5452,7 @@ try {
             $periodid = required_param('academicperiodid', PARAM_INT);
             
             if (empty($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
-                throw new Exception('No se recibiÃ³ un archivo vÃ¡lido.');
+                throw new Exception('No se recibiÃƒÂ³ un archivo vÃƒÂ¡lido.');
             }
             
             $tmpPath = $_FILES['file']['tmp_name'];
@@ -5264,7 +5471,7 @@ try {
             }
             
             if (empty($colMap['date'])) {
-                throw new Exception('No se encontrÃ³ la columna "Fecha" en el Excel.');
+                throw new Exception('No se encontrÃƒÂ³ la columna "Fecha" en el Excel.');
             }
             
             // Get existing dates to skip duplicates
@@ -5450,14 +5657,14 @@ try {
                     ['courseid' => $class->corecourseid, 'name' => 'Avisos%']
                 );
             }
-            if (!$forum) throw new Exception("No se encontrÃ³ el foro de avisos del curso.");
+            if (!$forum) throw new Exception("No se encontrÃƒÂ³ el foro de avisos del curso.");
 
             $now = time();
 
             $cm = get_coursemodule_from_instance('forum', $forum->id, $class->corecourseid, false, MUST_EXIST);
             $context = context_module::instance($cm->id);
 
-            // Insert the first post directly â€” forum_add_discussion() ignores $post->mailnow in Moodle 4.x
+            // Insert the first post directly Ã¢â‚¬â€ forum_add_discussion() ignores $post->mailnow in Moodle 4.x
             $post_record = new stdClass();
             $post_record->discussion    = 0; // Will update after discussion is created
             $post_record->parent        = 0;
@@ -5495,7 +5702,7 @@ try {
             $disc_record->timelocked   = 0;
 
             $discussionid = $DB->insert_record('forum_discussions', $disc_record);
-            if (!$discussionid) throw new Exception("No se pudo crear la discusiÃ³n del aviso.");
+            if (!$discussionid) throw new Exception("No se pudo crear la discusiÃƒÂ³n del aviso.");
 
             // Link post back to discussion
             $DB->set_field('forum_posts', 'discussion', $discussionid, ['id' => $postid]);
@@ -5533,7 +5740,7 @@ try {
         case 'local_grupomakro_delete_forum_discussion':
             $discussionid = required_param('discussionid', PARAM_INT);
             $disc = $DB->get_record('forum_discussions', ['id' => $discussionid]);
-            if (!$disc) throw new Exception("DiscusiÃ³n no encontrada.");
+            if (!$disc) throw new Exception("DiscusiÃƒÂ³n no encontrada.");
 
             // Verify the current user is the instructor of that course or site admin
             $class_del = $DB->get_record('gmk_class', ['corecourseid' => $disc->course, 'instructorid' => $USER->id]);
@@ -5855,7 +6062,7 @@ try {
             break;
 
         case 'debug_inspect_post':
-            // TEMPORARY DEBUG â€” remove after diagnosis
+            // TEMPORARY DEBUG Ã¢â‚¬â€ remove after diagnosis
             require_capability('moodle/site:config', context_system::instance());
             $response = [
                 'status' => 'success',
@@ -5874,7 +6081,7 @@ try {
             // Sube un archivo al draft area del usuario (paso previo a crear/editar actividad)
             if (empty($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
                 $upload_error = !empty($_FILES['file']) ? $_FILES['file']['error'] : 'no file received';
-                $response = ['status' => 'error', 'message' => 'No se recibiÃ³ ningÃºn archivo o hubo un error al subirlo. Error: ' . $upload_error];
+                $response = ['status' => 'error', 'message' => 'No se recibiÃƒÂ³ ningÃƒÂºn archivo o hubo un error al subirlo. Error: ' . $upload_error];
                 break;
             }
             $draftitemid = optional_param('draftitemid', 0, PARAM_INT);
@@ -5883,9 +6090,15 @@ try {
             }
             $usercontext = context_user::instance($USER->id);
             $fs = get_file_storage();
-            $fname = clean_filename($_FILES['file']['name']);
-            $existing = $fs->get_file($usercontext->id, 'user', 'draft', $draftitemid, '/', $fname);
-            if ($existing) $existing->delete();
+            $fname = gmk_ajax_make_unique_filename(
+                $fs,
+                (int)$usercontext->id,
+                'user',
+                'draft',
+                (int)$draftitemid,
+                '/',
+                (string)$_FILES['file']['name']
+            );
             $fs->create_file_from_pathname([
                 'contextid' => $usercontext->id,
                 'component' => 'user',

@@ -8378,11 +8378,19 @@ function gmk_safe_set_item_tags(int $cmid, $context, array $tagnames) {
         'contextid' => $context->id,
     ]);
 
+    $cleaned = [];
+    foreach ($tagnames as $rawtag) {
+        $rawtag = trim((string)$rawtag);
+        if ($rawtag === '') {
+            continue;
+        }
+        $rawtag = preg_replace('/\s+/', ' ', $rawtag);
+        $normalizedtag = core_text::strtolower($rawtag);
+        $cleaned[$normalizedtag] = $rawtag;
+    }
+
     $now = time();
-    foreach ($tagnames as $raw) {
-        $raw = trim($raw);
-        if ($raw === '') continue;
-        $normalized = core_text::strtolower($raw);
+    foreach ($cleaned as $normalized => $raw) {
 
         // Find or create the tag record safely
         $tag = null;
@@ -8425,7 +8433,15 @@ function gmk_safe_set_item_tags(int $cmid, $context, array $tagnames) {
         $ti->ordering     = 0;
         $ti->timecreated  = $now;
         $ti->timemodified = $now;
-        $DB->insert_record('tag_instance', $ti);
+        try {
+            $DB->insert_record('tag_instance', $ti);
+        } catch (dml_write_exception $e) {
+            // Ignore duplicate tag_instance inserts caused by races or repeated values.
+            $msg = strtolower((string)$e->getMessage());
+            if (strpos($msg, 'duplicate') === false && strpos($msg, 'duplicado') === false) {
+                throw $e;
+            }
+        }
     }
 }
 
