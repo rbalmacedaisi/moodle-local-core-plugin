@@ -33,7 +33,7 @@ function pop_save_groups(array $groups): void {
     set_config('pop_groups_u' . (int)$USER->id, json_encode(array_values($groups)), 'local_grupomakro_core');
 }
 
-$pop_action    = optional_param('pop_action', '', PARAM_ALPHA);
+$pop_action    = optional_param('pop_action', '', PARAM_ALPHANUMEXT);
 $pop_error     = '';
 $pop_debug_log = '';   // captured during action, shown later in debug block
 if ($pop_action) {
@@ -472,7 +472,7 @@ if (optional_param('pop_debug', 0, PARAM_INT)) {
     $test_key = 'pop_groups_test';
     set_config($test_key, 'test_ok_' . time(), 'local_grupomakro_core');
     $test_val = get_config('local_grupomakro_core', $test_key);
-    echo '<b style="color:#fbbf24">set_config/get_config test:</b> <span style="color:' . (str_starts_with((string)$test_val,'test_ok_') ? '#6ee7b7' : '#f87171') . '">'
+    echo '<b style="color:#fbbf24">set_config/get_config test:</b> <span style="color:' . (strpos((string)$test_val,'test_ok_') === 0 ? '#6ee7b7' : '#f87171') . '">'
        . htmlspecialchars((string)$test_val) . '</span><br><br>';
 
     echo '<b style="color:#fbbf24">$pop_groups:</b><pre>' . htmlspecialchars(json_encode($pop_groups, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)) . '</pre>';
