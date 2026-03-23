@@ -320,14 +320,16 @@ $custom_phone_map = [];
 if (!empty($phone_fields) && !empty($all_uids)) {
     [$finsql, $finparams] = $DB->get_in_or_equal(array_keys($phone_fields), SQL_PARAMS_NAMED, 'phf');
     [$uinsql, $uinparams] = $DB->get_in_or_equal(array_keys($all_uids), SQL_PARAMS_NAMED, 'phu');
-    foreach ($DB->get_records_sql(
+    $rs = $DB->get_recordset_sql(
         "SELECT userid, fieldid, data FROM {user_info_data}
           WHERE fieldid $finsql AND userid $uinsql",
         array_merge($finparams, $uinparams)
-    ) as $cr) {
+    );
+    foreach ($rs as $cr) {
         $v = trim((string)$cr->data);
         if ($v !== '') $custom_phone_map[(int)$cr->userid][(int)$cr->fieldid] = $v;
     }
+    $rs->close();
 }
 
 // Build modal JSON payload
@@ -827,7 +829,10 @@ $ajax_url = (new moodle_url('/local/grupomakro_core/pages/absence_dashboard.php'
 (function() {
     var SESSKEY   = <?php echo json_encode($sesskey); ?>;
     var AJAX_URL  = <?php echo json_encode($ajax_url); ?>;
-    var ALL_DATA  = <?php echo json_encode($modal_data, JSON_UNESCAPED_UNICODE); ?>;
+    var ALL_DATA  = <?php
+        $modal_json = json_encode($modal_data, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+        echo ($modal_json !== false) ? $modal_json : '{}';
+    ?>;
 
     var currentClassId = null;
     var currentStudents = [];
