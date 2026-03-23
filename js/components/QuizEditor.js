@@ -129,6 +129,12 @@ const QuizEditor = {
                             <v-col cols="12" md="4">
                                 <v-text-field label="Puntuación" v-model="newQuestion.defaultmark" type="number" outlined dense prepend-inner-icon="mdi-star-outline"></v-text-field>
                             </v-col>
+                            <v-col cols="12" md="8" class="d-flex align-center">
+                                <v-btn icon small color="primary" @click="showDefaultMarkHelp = true" aria-label="Ayuda de puntuacion">
+                                    <v-icon small>mdi-help-circle-outline</v-icon>
+                                </v-btn>
+                                <span class="caption grey--text ml-2">Que significa esta puntuacion?</span>
+                            </v-col>
                         </v-row>
 
                         <v-divider class="mb-6"></v-divider>
@@ -1152,6 +1158,69 @@ const QuizEditor = {
                 </v-card>
             </v-dialog>
 
+
+            <!-- Default Mark Help Dialog -->
+            <v-dialog v-model="showDefaultMarkHelp" max-width="760px">
+                <v-card>
+                    <v-card-title class="headline">
+                        <v-icon left color="primary">mdi-help-circle-outline</v-icon>
+                        Como funciona la puntuacion de una pregunta
+                    </v-card-title>
+                    <v-card-text>
+                        <p class="mb-3">
+                            Este valor es el <b>maximo de puntos</b> de la pregunta dentro del cuestionario
+                            (en Moodle corresponde al <code>defaultmark/maxmark</code> del slot).
+                        </p>
+                        <p class="mb-3">
+                            Si todas las preguntas tienen <b>1</b>, todas pesan igual.
+                            Si una pregunta tiene un valor mucho mayor, esa pregunta pesa mas en la nota final.
+                        </p>
+
+                        <v-alert type="info" dense text class="mb-3">
+                            Formula simple: Nota del quiz = (puntos obtenidos / puntos totales del quiz) x calificacion maxima del quiz.
+                        </v-alert>
+
+                        <div class="subtitle-2 mb-2">Ejemplos</div>
+                        <v-simple-table dense class="grey lighten-5 rounded-lg border mb-2">
+                            <template v-slot:default>
+                                <thead>
+                                    <tr>
+                                        <th class="text-left">Configuracion</th>
+                                        <th class="text-left">Que pasa</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>Todas en 1</td>
+                                        <td>Todas las preguntas pesan igual.</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Una en 100 y las demas en 1</td>
+                                        <td>Esa pregunta domina gran parte de la nota.</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Una en 200 y las demas en 1</td>
+                                        <td>Aun mas peso en esa pregunta.</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Todas en 100 o todas en 200</td>
+                                        <td>El peso relativo queda igual entre preguntas.</td>
+                                    </tr>
+                                </tbody>
+                            </template>
+                        </v-simple-table>
+
+                        <p class="mb-0">
+                            Recomendacion: usa 1 si quieres ponderacion uniforme, o usa valores distintos solo cuando
+                            quieras que ciertas preguntas valgan mas que otras.
+                        </p>
+                    </v-card-text>
+                    <v-card-actions>
+                        <v-spacer></v-spacer>
+                        <v-btn color="primary" text @click="showDefaultMarkHelp = false">Entendido</v-btn>
+                    </v-card-actions>
+                </v-card>
+            </v-dialog>
             <!-- Cloze Wizard component -->
             <cloze-wizard 
                 v-model="clozeDialog" 
@@ -1263,7 +1332,8 @@ const QuizEditor = {
         formulaConstant: '',
         showClozeHelp: false,
         showBankDialog: false,
-        showCalculatedHelp: false
+        showCalculatedHelp: false,
+        showDefaultMarkHelp: false
     }),
     computed: {
         previewClozeCode() {

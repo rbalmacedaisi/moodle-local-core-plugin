@@ -47,7 +47,7 @@ $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/QuizCre
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/quizeditor/QuestionBankDialog.js'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/quizeditor/TypeEditors.js'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/quizeditor/ClozeWizard.js'), true);
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/QuizEditor.js?v=20260204002'), true);
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/QuizEditor.js?v=20260323003'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/AttendancePanel.js?v=20251231049'), true);
 
 // Load main experience module as standard JS (bypassing AMD build issues)
