@@ -3181,13 +3181,27 @@ try {
                 
                 if ($save_to_course) {
                     $cat = question_get_default_category($course_context->id);
+                    if (!$cat) {
+                        $qecontexts = new question_edit_contexts($course_context);
+                        question_make_default_categories($qecontexts->all());
+                        $cat = question_get_default_category($course_context->id);
+                    }
                 } else {
                     $cat = question_get_default_category($context->id);
                     if (!$cat) {
                         $cat = question_get_default_category($course_context->id);
                     }
+                    if (!$cat) {
+                        // Categories not yet initialized — create them now
+                        $qecontexts = new question_edit_contexts($context);
+                        question_make_default_categories($qecontexts->all());
+                        $cat = question_get_default_category($context->id);
+                        if (!$cat) {
+                            $cat = question_get_default_category($course_context->id);
+                        }
+                    }
                 }
-                
+
                 if (!$cat) throw new Exception('No question category found for the selected context.');
 
                 // Prepare Question Object
