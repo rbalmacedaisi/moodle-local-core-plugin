@@ -429,6 +429,34 @@ if (!empty($_all_uids)) {
 }
 unset($_all_uids, $uid_to_careers);
 
+// ── Debug mode ────────────────────────────────────────────────────────────────
+
+if (optional_param('pop_debug', 0, PARAM_INT)) {
+    echo '<div style="background:#1e293b;color:#e2e8f0;font-family:monospace;font-size:12px;padding:20px;margin:20px 0;border-radius:8px;overflow:auto">';
+    echo '<h3 style="color:#93c5fd;margin:0 0 12px">🔍 DEBUG: student_population</h3>';
+
+    echo '<b style="color:#fbbf24">$pop_groups (session):</b><pre>' . htmlspecialchars(json_encode($pop_groups, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)) . '</pre>';
+    echo '<b style="color:#fbbf24">$planid_to_gidx:</b><pre>' . htmlspecialchars(json_encode($planid_to_gidx, JSON_PRETTY_PRINT)) . '</pre>';
+    echo '<b style="color:#fbbf24">$planid_to_name:</b><pre>' . htmlspecialchars(json_encode($planid_to_name, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)) . '</pre>';
+
+    $tree_summary = [];
+    foreach ($career_tree as $k => $v) {
+        $tree_summary[$k] = ['is_group' => $v['is_group'], 'shifts' => array_keys($v['shifts']), 'class_count' => array_sum(array_map(fn($s) => count($s['classes']), $v['shifts']))];
+    }
+    echo '<b style="color:#fbbf24">$career_tree (summary):</b><pre>' . htmlspecialchars(json_encode($tree_summary, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)) . '</pre>';
+
+    echo '<b style="color:#fbbf24">Primeras 30 clases (learningplanid | career_label | classname):</b><ul style="margin:0;padding-left:16px">';
+    $i = 0;
+    foreach ($regular_classes as $cls) {
+        if ($i++ >= 30) break;
+        echo '<li><span style="color:#6ee7b7">' . (int)$cls->learningplanid . '</span> | '
+           . htmlspecialchars((string)$cls->career_label) . ' | '
+           . htmlspecialchars((string)$cls->classname) . '</li>';
+    }
+    echo '</ul>';
+    echo '</div>';
+}
+
 // ── Sort shifts ───────────────────────────────────────────────────────────────
 
 $shift_order = ['Diurno' => 1, 'Nocturno' => 2, 'Sabatino' => 3];
