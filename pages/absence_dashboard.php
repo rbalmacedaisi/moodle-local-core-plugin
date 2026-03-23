@@ -174,18 +174,20 @@ $tc_classes = $tc_fieldid ? $DB->get_records_sql(
 ) : [];
 
 // ── Schedules ──────────────────────────────────────────────────────────────────
-$all_ids = array_merge(array_keys($regular_classes), array_keys($tc_classes));
+$all_ids = array_values(array_unique(array_merge(array_keys($regular_classes), array_keys($tc_classes))));
 $schedules_by_class = [];
 if (!empty($all_ids)) {
     [$insql, $inparams] = $DB->get_in_or_equal($all_ids);
     try {
-        foreach ($DB->get_records_sql(
+        $rs = $DB->get_recordset_sql(
             "SELECT id, classid, day, start_time, end_time
                FROM {gmk_class_schedules} WHERE classid $insql ORDER BY classid, day, start_time",
             $inparams
-        ) as $sr) {
+        );
+        foreach ($rs as $sr) {
             $schedules_by_class[(int)$sr->classid][] = $sr;
         }
+        $rs->close();
     } catch (Exception $e) {}
 }
 
@@ -240,7 +242,7 @@ if (!empty($all_ids)) {
     [$insql, $inparams] = $DB->get_in_or_equal($all_ids, SQL_PARAMS_NAMED, 'cid');
     $inparams['nowts'] = $now;
     try {
-        foreach ($DB->get_records_sql(
+        $rs = $DB->get_recordset_sql(
             "SELECT gc.id AS classid, gcp.userid, COUNT(l.id) AS absences
                FROM {gmk_class} gc
                JOIN {course_modules} cm ON cm.id = gc.attendancemoduleid
@@ -253,9 +255,11 @@ if (!empty($all_ids)) {
               WHERE gc.id $insql AND gc.attendancemoduleid > 0
               GROUP BY gc.id, gcp.userid",
             $inparams
-        ) as $row) {
+        );
+        foreach ($rs as $row) {
             $student_absences[(int)$row->classid][(int)$row->userid] = (int)$row->absences;
         }
+        $rs->close();
     } catch (Exception $e) {}
 }
 
@@ -264,7 +268,7 @@ $class_students_raw = []; // [classid][userid] => stdClass
 if (!empty($all_ids)) {
     [$insql, $inparams] = $DB->get_in_or_equal($all_ids, SQL_PARAMS_NAMED, 'cid');
     try {
-        foreach ($DB->get_records_sql(
+        $rs = $DB->get_recordset_sql(
             "SELECT gcp.classid, gcp.userid, u.firstname, u.lastname, u.idnumber,
                     u.email, u.phone1, u.phone2, u.suspended,
                     COALESCE(llu.status, 'activo') AS academic_status
@@ -276,13 +280,15 @@ if (!empty($all_ids)) {
               WHERE gcp.classid $insql AND gcp.status IN (1,2,3)
               ORDER BY gcp.classid, u.lastname, u.firstname",
             $inparams
-        ) as $row) {
+        );
+        foreach ($rs as $row) {
             $cid = (int)$row->classid;
             $uid = (int)$row->userid;
             if (!isset($class_students_raw[$cid][$uid])) {
                 $class_students_raw[$cid][$uid] = $row;
             }
         }
+        $rs->close();
     } catch (Exception $e) {}
 }
 
