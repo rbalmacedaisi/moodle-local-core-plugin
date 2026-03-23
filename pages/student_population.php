@@ -19,18 +19,18 @@ $PAGE->set_title('Población Estudiantil');
 $PAGE->set_heading('Población Estudiantil');
 $PAGE->set_pagelayout('admin');
 
-// ── Group management (stored in user preferences — persists across sessions) ──
-
-define('POP_GROUPS_PREF', 'local_grupomakro_core_pop_groups');
+// ── Group management (stored in config_plugins — reliable across all Moodle versions) ──
 
 function pop_load_groups(): array {
-    $raw = get_user_preferences(POP_GROUPS_PREF, '[]');
-    $groups = json_decode($raw, true);
+    global $USER;
+    $raw    = get_config('local_grupomakro_core', 'pop_groups_u' . (int)$USER->id);
+    $groups = json_decode((string)$raw, true);
     return is_array($groups) ? $groups : [];
 }
 
 function pop_save_groups(array $groups): void {
-    set_user_preference(POP_GROUPS_PREF, json_encode(array_values($groups)));
+    global $USER;
+    set_config('pop_groups_u' . (int)$USER->id, json_encode(array_values($groups)), 'local_grupomakro_core');
 }
 
 $pop_action = optional_param('pop_action', '', PARAM_ALPHA);
