@@ -424,6 +424,19 @@ foreach ($all_ids as $cid) {
     $class_absence_pct[$cid] = $expected > 0 ? round($absences / $expected * 100, 1) : 0.0;
 }
 
+// ── Pre-compute safe JSON for JavaScript ───────────────────────────────────────
+// Sanitise all string values to valid UTF-8 before encoding (PHP-version-safe).
+array_walk_recursive($modal_data, function (&$v) {
+    if (is_string($v)) {
+        $v = mb_convert_encoding($v, 'UTF-8', 'UTF-8');
+    }
+});
+// JSON_HEX_TAG escapes < and > so "</script>" can never appear inside the block.
+$modal_json_safe = json_encode($modal_data, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG);
+if ($modal_json_safe === false) {
+    $modal_json_safe = '{}';
+}
+
 // ── Output ─────────────────────────────────────────────────────────────────────
 echo $OUTPUT->header();
 $sesskey = sesskey();
@@ -829,10 +842,7 @@ $ajax_url = (new moodle_url('/local/grupomakro_core/pages/absence_dashboard.php'
 (function() {
     var SESSKEY   = <?php echo json_encode($sesskey); ?>;
     var AJAX_URL  = <?php echo json_encode($ajax_url); ?>;
-    var ALL_DATA  = <?php
-        $modal_json = json_encode($modal_data, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
-        echo ($modal_json !== false) ? $modal_json : '{}';
-    ?>;
+    var ALL_DATA  = <?php echo $modal_json_safe; ?>;
 
     var currentClassId = null;
     var currentStudents = [];
