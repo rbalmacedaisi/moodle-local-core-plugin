@@ -6,6 +6,117 @@ window.TeacherExperience = {
     init: function (config) {
         console.log('Teacher Experience Initialized', config);
 
+        const STORAGE_KEY = 'gmk_teacher_experience_state';
+        const QUERY_KEYS = {
+            page: 'gmk_page',
+            classId: 'gmk_classid',
+            cmid: 'gmk_cmid',
+            tab: 'gmk_tab'
+        };
+        const ALLOWED_PAGES = ['dashboard', 'manage-class', 'grading', 'quiz-editor'];
+
+        function normalizePositiveInt(value) {
+            const parsed = parseInt(value, 10);
+            return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+        }
+
+        function sanitizePage(value) {
+            return ALLOWED_PAGES.includes(value) ? value : 'dashboard';
+        }
+
+        function sanitizeState(rawState) {
+            const raw = rawState || {};
+            const state = {
+                page: sanitizePage(raw.page),
+                classId: normalizePositiveInt(raw.classId),
+                cmid: normalizePositiveInt(raw.cmid),
+                tab: typeof raw.tab === 'string' ? raw.tab : ''
+            };
+
+            if (state.page === 'manage-class' && !state.classId) {
+                state.page = 'dashboard';
+            }
+
+            if (state.page === 'quiz-editor') {
+                if (!state.classId) {
+                    state.page = 'dashboard';
+                } else if (!state.cmid) {
+                    state.page = 'manage-class';
+                }
+            }
+
+            if (state.page !== 'manage-class') {
+                state.tab = '';
+            }
+
+            return state;
+        }
+
+        function readStateFromUrl() {
+            const params = new URLSearchParams(window.location.search);
+            return sanitizeState({
+                page: params.get(QUERY_KEYS.page) || 'dashboard',
+                classId: params.get(QUERY_KEYS.classId),
+                cmid: params.get(QUERY_KEYS.cmid),
+                tab: params.get(QUERY_KEYS.tab) || ''
+            });
+        }
+
+        function readStateFromStorage() {
+            try {
+                const raw = window.sessionStorage.getItem(STORAGE_KEY);
+                if (!raw) {
+                    return sanitizeState({ page: 'dashboard' });
+                }
+                return sanitizeState(JSON.parse(raw));
+            } catch (error) {
+                return sanitizeState({ page: 'dashboard' });
+            }
+        }
+
+        function getInitialState() {
+            const urlState = readStateFromUrl();
+            if (urlState.page !== 'dashboard' || urlState.classId || urlState.cmid || urlState.tab) {
+                return urlState;
+            }
+            return readStateFromStorage();
+        }
+
+        function persistStateToStorage(state) {
+            try {
+                window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+            } catch (error) {
+                // Ignore session storage errors silently.
+            }
+        }
+
+        function persistStateToUrl(state) {
+            const url = new URL(window.location.href);
+            const params = url.searchParams;
+
+            [QUERY_KEYS.page, QUERY_KEYS.classId, QUERY_KEYS.cmid, QUERY_KEYS.tab].forEach(key => {
+                params.delete(key);
+            });
+
+            if (state.page && state.page !== 'dashboard') {
+                params.set(QUERY_KEYS.page, state.page);
+            }
+            if (state.classId) {
+                params.set(QUERY_KEYS.classId, String(state.classId));
+            }
+            if (state.cmid) {
+                params.set(QUERY_KEYS.cmid, String(state.cmid));
+            }
+            if (state.tab) {
+                params.set(QUERY_KEYS.tab, state.tab);
+            }
+
+            const nextUrl = url.pathname + (params.toString() ? '?' + params.toString() : '') + url.hash;
+            window.history.replaceState({}, '', nextUrl);
+        }
+
+        const initialState = getInitialState();
+
         // Globalize basic config for components
         window.strings = config.strings || {};
         window.userToken = config.userToken;
@@ -64,10 +175,10 @@ window.TeacherExperience = {
                             
                             <v-spacer></v-spacer>
 
-                            <v-btn text small color="primary" class="mr-2 d-none d-md-flex" @click="currentPage = 'dashboard'">
+                            <v-btn text small color="primary" class="mr-2 d-none d-md-flex" @click="setPage('dashboard')">
                                 <v-icon left>mdi-view-dashboard</v-icon> Mi Inicio
                             </v-btn>
-                            <v-btn text small color="orange" class="mr-2 d-none d-md-flex" @click="currentPage = 'grading'">
+                            <v-btn text small color="orange" class="mr-2 d-none d-md-flex" @click="setPage('grading')">
                                 <v-icon left>mdi-clipboard-check-outline</v-icon> Calificar
                             </v-btn>
 
@@ -107,8 +218,10 @@ window.TeacherExperience = {
                                 v-if="currentPage === 'manage-class'"
                                 :class-id="selectedClassId"
                                 :config="config"
-                                @back="currentPage = 'dashboard'"
+                                :initial-tab="manageClassTab"
+                                @back="setPage('dashboard')"
                                 @change-page="navigate"
+                                @state-change="handleManageClassStateChange"
                             ></manage-class>
 
                             <pending-grading-view
@@ -120,7 +233,7 @@ window.TeacherExperience = {
                                 v-if="currentPage === 'quiz-editor'"
                                 :config="config"
                                 :cmid="selectedCmid"
-                                @back="navigate({page: 'manage-class', id: selectedClassId})"
+                                @back="navigate({ page: 'manage-class', id: selectedClassId, tab: manageClassTab || 'content' })"
                             ></quiz-editor>
                         </v-fade-transition>
                     </v-main>
@@ -128,18 +241,79 @@ window.TeacherExperience = {
             `,
             data() {
                 return {
-                    currentPage: 'dashboard',
-                    selectedClassId: null,
-                    selectedCmid: null,
+                    currentPage: initialState.page || 'dashboard',
+                    selectedClassId: initialState.classId || null,
+                    selectedCmid: initialState.cmid || null,
+                    manageClassTab: initialState.tab || '',
                     config: config
                 };
             },
+            created() {
+                if (this.currentPage === 'manage-class' && !this.manageClassTab) {
+                    this.manageClassTab = 'timeline';
+                }
+                this.persistNavigationState();
+            },
             methods: {
+                buildNavigationState() {
+                    const page = sanitizePage(this.currentPage);
+                    return sanitizeState({
+                        page: page,
+                        classId: (page === 'manage-class' || page === 'quiz-editor') ? this.selectedClassId : null,
+                        cmid: page === 'quiz-editor' ? this.selectedCmid : null,
+                        tab: page === 'manage-class' ? this.manageClassTab : ''
+                    });
+                },
+                persistNavigationState() {
+                    const state = this.buildNavigationState();
+                    persistStateToStorage(state);
+                    persistStateToUrl(state);
+                },
+                setPage(page) {
+                    this.navigate({ page: page });
+                },
+                handleManageClassStateChange(payload) {
+                    if (!payload || typeof payload.tab !== 'string' || !payload.tab) {
+                        return;
+                    }
+                    if (this.manageClassTab === payload.tab) {
+                        return;
+                    }
+                    this.manageClassTab = payload.tab;
+                    this.persistNavigationState();
+                },
                 navigate(payload) {
-                    // console.log('Navigating to:', payload);
-                    this.currentPage = payload.page;
-                    if (payload.id) this.selectedClassId = payload.id;
-                    if (payload.cmid) this.selectedCmid = payload.cmid;
+                    const nextPayload = payload || {};
+                    const nextPage = sanitizePage(nextPayload.page || 'dashboard');
+                    const hasId = Object.prototype.hasOwnProperty.call(nextPayload, 'id');
+                    const hasCmid = Object.prototype.hasOwnProperty.call(nextPayload, 'cmid');
+                    const hasTab = Object.prototype.hasOwnProperty.call(nextPayload, 'tab');
+
+                    this.currentPage = nextPage;
+
+                    if (hasId) {
+                        this.selectedClassId = normalizePositiveInt(nextPayload.id);
+                    } else if (nextPage !== 'manage-class' && nextPage !== 'quiz-editor') {
+                        this.selectedClassId = null;
+                    }
+
+                    if (hasCmid) {
+                        this.selectedCmid = normalizePositiveInt(nextPayload.cmid);
+                    } else if (nextPage !== 'quiz-editor') {
+                        this.selectedCmid = null;
+                    }
+
+                    if (hasTab) {
+                        this.manageClassTab = typeof nextPayload.tab === 'string' ? nextPayload.tab : '';
+                    } else if (nextPage !== 'manage-class') {
+                        this.manageClassTab = '';
+                    }
+
+                    if (nextPage === 'manage-class' && !this.manageClassTab) {
+                        this.manageClassTab = 'timeline';
+                    }
+
+                    this.persistNavigationState();
                 }
             }
         });

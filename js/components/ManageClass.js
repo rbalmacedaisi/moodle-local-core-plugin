@@ -8,6 +8,14 @@ const ManageClass = {
         classId: {
             type: [Number, String],
             required: true
+        },
+        config: {
+            type: Object,
+            default: () => ({})
+        },
+        initialTab: {
+            type: String,
+            default: ''
         }
     },
     template: `
@@ -634,7 +642,6 @@ const ManageClass = {
 
         </v-container>
     `,
-    props: ['classId', 'config'],
     components: {
         // Global components: teacher-student-table, grades-grid, pending-grading-view, attendance-panel
     },
@@ -742,15 +749,35 @@ const ManageClass = {
         }
     },
     mounted() {
+        this.applyInitialTab(this.initialTab);
         this.fetchClassDetails();
         this.ensureTabLoaded(this.activeTab);
     },
     watch: {
         activeTab(newTab) {
             this.ensureTabLoaded(newTab);
+            this.$emit('state-change', { tab: newTab });
+        },
+        initialTab(newTab) {
+            this.applyInitialTab(newTab);
         }
     },
     methods: {
+        isValidTab(tabId) {
+            return this.tabs.some(tab => tab.id === tabId);
+        },
+        applyInitialTab(tabId) {
+            if (typeof tabId !== 'string' || tabId === '') {
+                return;
+            }
+            const normalized = tabId.replace(/^#/, '');
+            if (!this.isValidTab(normalized)) {
+                return;
+            }
+            if (normalized !== this.activeTab) {
+                this.activeTab = normalized;
+            }
+        },
         ensureTabLoaded(tabId) {
             if (!tabId || this.loadedTabs[tabId]) {
                 if (tabId === 'timeline' && !this.timelineLoaded && !this.loadingTimeline) {
@@ -1091,7 +1118,8 @@ const ManageClass = {
             this.$emit('change-page', {
                 page: 'quiz-editor',
                 cmid: activity.id,
-                id: this.classId // Ensure we keep track of current class
+                id: this.classId, // Ensure we keep track of current class
+                tab: this.activeTab
             });
         },
         openForumActivity(activity) {
