@@ -36,6 +36,7 @@ if ($maxrows < 10) {
 if ($maxrows > 500) {
     $maxrows = 500;
 }
+$onlinetextfileareas = ['submissions_onlinetext', 'onlinetext'];
 
 /**
  * Escape helper.
@@ -794,14 +795,16 @@ foreach ($candidateorder as $sid) {
     }
     $inlineitemids = array_values(array_unique(array_filter(array_map('intval', $inlineitemids))));
     foreach ($inlineitemids as $iid) {
-        $inlinecount += count($fs->get_area_files(
-            (int)$cmcontext->id,
-            'assignsubmission_onlinetext',
-            'onlinetext',
-            (int)$iid,
-            'sortorder',
-            false
-        ));
+        foreach ($onlinetextfileareas as $inlinefilearea) {
+            $inlinecount += count($fs->get_area_files(
+                (int)$cmcontext->id,
+                'assignsubmission_onlinetext',
+                $inlinefilearea,
+                (int)$iid,
+                'sortorder',
+                false
+            ));
+        }
     }
 
     $hascontent = ($otlen > 0 || !empty($submissionfiles) || $inlinecount > 0);
@@ -920,18 +923,20 @@ foreach ($submissionids as $sid) {
     }
 }
 foreach ($onlinetextitemids as $itemid) {
-    $chunk = dasv_get_area_files_rows(
-        $fs,
-        (int)$cmcontext->id,
-        'assignsubmission_onlinetext',
-        'onlinetext',
-        (int)$itemid,
-        'onlinetext'
-    );
-    foreach ($chunk as $r) {
-        if (!isset($seen[$r->pathnamehash])) {
-            $seen[$r->pathnamehash] = true;
-            $filerows[] = $r;
+    foreach ($onlinetextfileareas as $inlinefilearea) {
+        $chunk = dasv_get_area_files_rows(
+            $fs,
+            (int)$cmcontext->id,
+            'assignsubmission_onlinetext',
+            $inlinefilearea,
+            (int)$itemid,
+            'onlinetext'
+        );
+        foreach ($chunk as $r) {
+            if (!isset($seen[$r->pathnamehash])) {
+                $seen[$r->pathnamehash] = true;
+                $filerows[] = $r;
+            }
         }
     }
 }
@@ -953,7 +958,7 @@ if (!empty($globalitems)) {
                          AND (
                             (f.component = 'assignsubmission_file' AND f.filearea = 'submission_files')
                             OR
-                            (f.component = 'assignsubmission_onlinetext' AND f.filearea = 'onlinetext')
+                            (f.component = 'assignsubmission_onlinetext' AND f.filearea IN ('submissions_onlinetext','onlinetext'))
                          )
                          AND f.itemid {$ginsql}
                     ORDER BY f.timemodified DESC, f.id DESC";
@@ -1188,7 +1193,7 @@ if (!empty($tokenfilenames)) {
                        WHERE f.filename <> '.'
                          AND f.filename {$tfinsql}
                          AND f.component = 'assignsubmission_onlinetext'
-                         AND f.filearea = 'onlinetext'
+                         AND f.filearea IN ('submissions_onlinetext','onlinetext')
                          AND f.userid = :tuser
                          AND f.timemodified BETWEEN :tfrom AND :tto
                     ORDER BY f.timemodified DESC, f.id DESC";
@@ -1238,43 +1243,45 @@ foreach ($onlinetextrows as $ot) {
         $candidateitemids = [0];
     }
     foreach ($candidateitemids as $candidateitemid) {
-        $candidatefiles = $fs->get_area_files(
-            (int)$cmcontext->id,
-            'assignsubmission_onlinetext',
-            'onlinetext',
-            (int)$candidateitemid,
-            'sortorder',
-            false
-        );
-        $rewritten = file_rewrite_pluginfile_urls(
-            $raw,
-            'pluginfile.php',
-            (int)$cmcontext->id,
-            'assignsubmission_onlinetext',
-            'onlinetext',
-            (int)$candidateitemid
-        );
-        $formatted = format_text(
-            $rewritten,
-            (int)$ot->onlineformat,
-            [
-                'context' => $cmcontext,
-                'overflowdiv' => true,
-                'para' => false,
-            ]
-        );
-        $plain = trim(strip_tags($formatted));
-        $plainpreview = dasv_h(core_text::substr($plain, 0, 140));
-        $htmlout = $showalltext
-            ? $formatted
-            : '<div style="max-height:240px;overflow:auto;border:1px solid #ddd;padding:8px;">' . $formatted . '</div>';
-        $rewriterows[] = [
-            (int)$ot->id,
-            (int)$candidateitemid,
-            count($candidatefiles),
-            $plainpreview,
-            $htmlout,
-        ];
+        foreach ($onlinetextfileareas as $inlinefilearea) {
+            $candidatefiles = $fs->get_area_files(
+                (int)$cmcontext->id,
+                'assignsubmission_onlinetext',
+                $inlinefilearea,
+                (int)$candidateitemid,
+                'sortorder',
+                false
+            );
+            $rewritten = file_rewrite_pluginfile_urls(
+                $raw,
+                'pluginfile.php',
+                (int)$cmcontext->id,
+                'assignsubmission_onlinetext',
+                $inlinefilearea,
+                (int)$candidateitemid
+            );
+            $formatted = format_text(
+                $rewritten,
+                (int)$ot->onlineformat,
+                [
+                    'context' => $cmcontext,
+                    'overflowdiv' => true,
+                    'para' => false,
+                ]
+            );
+            $plain = trim(strip_tags($formatted));
+            $plainpreview = dasv_h(core_text::substr($plain, 0, 140));
+            $htmlout = $showalltext
+                ? $formatted
+                : '<div style="max-height:240px;overflow:auto;border:1px solid #ddd;padding:8px;">' . $formatted . '</div>';
+            $rewriterows[] = [
+                (int)$ot->id,
+                (int)$candidateitemid . ' [' . $inlinefilearea . ']',
+                count($candidatefiles),
+                $plainpreview,
+                $htmlout,
+            ];
+        }
     }
 }
 dasv_render_table($rewriteheaders, $rewriterows);

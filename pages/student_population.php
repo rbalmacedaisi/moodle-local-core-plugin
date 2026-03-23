@@ -757,10 +757,15 @@ $sesskey = sesskey();
 
     <!-- Top bar ─────────────────────────────────────────────────────── -->
     <div class="pop-topbar">
-        <button class="pop-group-btn"
-            onclick="var p=document.getElementById('popGroupPanel');p.classList.toggle('pop-open')">
-            &#9776;&nbsp; Gestionar grupos
-        </button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="pop-group-btn"
+                onclick="var p=document.getElementById('popGroupPanel');p.classList.toggle('pop-open')">
+                &#9776;&nbsp; Gestionar grupos
+            </button>
+            <button class="pop-group-btn" style="background:#0f766e" onclick="popPrintPDF()">
+                &#128196;&nbsp; Descargar PDF
+            </button>
+        </div>
         <div class="pop-total-block">
             <span class="pop-total-label">Total estudiantes activos:</span><br>
             <span class="pop-total-number" onclick="popOpenModal()" title="Ver listado de estudiantes">
@@ -1077,6 +1082,171 @@ $sesskey = sesskey();
         if (e.key === 'Escape') popCloseModal();
     });
 })();
+
+// ── PDF print ─────────────────────────────────────────────────────────────────
+window.popPrintPDF = function() {
+    var date = new Date().toLocaleDateString('es-PA', {year:'numeric', month:'long', day:'numeric'});
+    var pages = [];
+
+    document.querySelectorAll('.pop-career-section').forEach(function(sec) {
+        var titleEl  = sec.querySelector('.pop-career-title');
+        var isGroup  = titleEl && titleEl.classList.contains('pop-is-group');
+        var nameEl   = titleEl ? titleEl.querySelector('span:first-child') : null;
+
+        // career name: clone to strip inner badge/label spans
+        var careerName = '';
+        if (nameEl) {
+            var nameClone = nameEl.cloneNode(true);
+            var lbl = nameClone.querySelector('.pop-group-label');
+            if (lbl) lbl.remove();
+            careerName = nameClone.textContent.trim();
+        }
+
+        var badgeEl    = titleEl ? titleEl.querySelector('.pop-career-badge') : null;
+        var careerBadge = badgeEl ? badgeEl.textContent.trim() : '';
+
+        sec.querySelectorAll('.pop-house-card').forEach(function(card) {
+            var shiftEl   = card.querySelector('.pop-house-shift');
+            var countEl   = card.querySelector('.pop-house-count');
+            var chipsEl   = card.querySelector('.pop-classes-inner');
+            var emptyEl   = card.querySelector('.pop-empty');
+
+            // collect chips data
+            var chips = [];
+            if (chipsEl) {
+                chipsEl.querySelectorAll('.pop-class-chip').forEach(function(chip) {
+                    var nameC    = chip.querySelector('.pop-class-chip-name');
+                    var teacherC = chip.querySelector('.pop-class-chip-teacher');
+                    var schedC   = chip.querySelector('.pop-class-chip-sched');
+                    var countC   = chip.querySelector('.pop-class-chip-count');
+                    chips.push({
+                        name:    nameC    ? nameC.textContent.trim()    : '',
+                        teacher: teacherC ? teacherC.textContent.trim() : '',
+                        sched:   schedC   ? schedC.textContent.trim()   : '',
+                        count:   countC   ? countC.textContent.trim()   : ''
+                    });
+                });
+            }
+
+            pages.push({
+                careerName:  careerName,
+                careerBadge: careerBadge,
+                isGroup:     isGroup,
+                shift:       shiftEl   ? shiftEl.textContent.trim()  : '',
+                studentCount: countEl  ? countEl.childNodes[0] ? countEl.childNodes[0].textContent.trim() : '' : '',
+                chips:       chips,
+                empty:       !chips.length
+            });
+        });
+    });
+
+    // TC section
+    var tcGrid = document.querySelector('.pop-tc-grid');
+    if (tcGrid) {
+        var tcHouses = [];
+        tcGrid.querySelectorAll('.pop-tc-house-card').forEach(function(card) {
+            var titleC = card.querySelector('.pop-tc-house-title');
+            var chips  = [];
+            card.querySelectorAll('.pop-tc-chip').forEach(function(chip) {
+                var teacherC = chip.querySelector('.pop-tc-chip-teacher');
+                var schedC   = chip.querySelector('.pop-tc-chip-sched');
+                var countC   = chip.querySelector('.pop-tc-chip-count');
+                var shiftC   = chip.querySelector('.pop-class-chip-count'); // fallback
+                chips.push({
+                    name:    '',
+                    teacher: teacherC ? teacherC.textContent.trim() : '',
+                    sched:   schedC   ? schedC.textContent.trim()   : '',
+                    count:   countC   ? countC.textContent.trim()   : (shiftC ? shiftC.textContent.trim() : '')
+                });
+            });
+            tcHouses.push({courseName: titleC ? titleC.textContent.trim() : '', chips: chips});
+        });
+        pages.push({isTc: true, tcHouses: tcHouses});
+    }
+
+    if (!pages.length) { alert('No hay datos para exportar.'); return; }
+
+    var css = [
+        'body{font-family:Arial,sans-serif;margin:0;padding:0;color:#1e293b}',
+        '.page{padding:28px 32px 20px;box-sizing:border-box;page-break-after:always;break-after:always;min-height:100vh;display:flex;flex-direction:column}',
+        '.page:last-child{page-break-after:avoid;break-after:avoid}',
+        '.pg-header{border-bottom:3px solid #1a56a4;padding-bottom:10px;margin-bottom:18px}',
+        '.pg-header.is-group{border-bottom-color:#3b82f6}',
+        '.pg-group-tag{display:inline-block;background:#1a56a4;color:#fff;font-size:9px;font-weight:700;letter-spacing:1px;padding:2px 7px;border-radius:3px;text-transform:uppercase;margin-bottom:6px}',
+        '.pg-career{font-size:16px;font-weight:900;text-transform:uppercase;letter-spacing:.5px;color:#1e293b;line-height:1.2}',
+        '.pg-shift{font-size:22px;font-weight:900;color:#1a56a4;margin:6px 0 2px}',
+        '.pg-count{font-size:13px;color:#475569;margin-bottom:4px}',
+        '.pg-badge{display:inline-block;background:#e2e8f0;color:#374151;border-radius:10px;padding:2px 10px;font-size:11px;font-weight:700;margin-left:8px;vertical-align:middle}',
+        '.chips{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;flex:1}',
+        '.chip{border:1px solid #e2e8f0;border-radius:7px;padding:8px 10px;font-size:11px;background:#f8fafc}',
+        '.chip-name{font-weight:700;color:#1a3a5c;font-size:11.5px;margin-bottom:2px}',
+        '.chip-teacher{color:#475569;font-size:10px}',
+        '.chip-row{display:flex;justify-content:space-between;align-items:center;gap:6px;margin-top:5px}',
+        '.chip-sched{color:#374151;font-size:10px}',
+        '.chip-count{background:#1a56a4;color:#fff;border-radius:4px;padding:2px 7px;font-size:10px;font-weight:700;white-space:nowrap}',
+        '.pg-empty{color:#94a3b8;font-style:italic;font-size:12px;margin:12px 0}',
+        '.pg-footer{margin-top:auto;padding-top:12px;border-top:1px solid #e2e8f0;font-size:10px;color:#94a3b8;text-align:right}',
+        '.tc-houses{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}',
+        '.tc-house{border:1.5px solid #e2e8f0;border-radius:8px;overflow:hidden}',
+        '.tc-house-hdr{background:#e3f2fd;padding:8px 12px;font-size:12px;font-weight:700;color:#0d3c6b;border-bottom:1px solid #90caf9}',
+        '.tc-house-body{padding:6px 8px;display:flex;flex-direction:column;gap:4px}',
+        '.tc-chip{border:1px solid #e2e8f0;border-radius:5px;padding:5px 8px;font-size:11px;background:#f8fafc}',
+        '@media print{@page{margin:10mm 14mm}}'
+    ].join('\n');
+
+    function esc(s) {
+        return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    var body = pages.map(function(p) {
+        if (p.isTc) {
+            var housesHtml = p.tcHouses.map(function(h) {
+                var chipsHtml = h.chips.map(function(c) {
+                    return '<div class="tc-chip">' +
+                        (c.teacher ? '<div style="color:#475569;font-size:10px">' + esc(c.teacher) + '</div>' : '') +
+                        '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:3px">' +
+                            '<span style="font-size:10px;color:#374151">' + esc(c.sched) + '</span>' +
+                            (c.count ? '<span style="background:#0d3c6b;color:#fff;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">' + esc(c.count) + '</span>' : '') +
+                        '</div>' +
+                    '</div>';
+                }).join('');
+                return '<div class="tc-house"><div class="tc-house-hdr">' + esc(h.courseName) + '</div><div class="tc-house-body">' + chipsHtml + '</div></div>';
+            }).join('');
+            return '<div class="page">' +
+                '<div class="pg-header"><div class="pg-career">TRONCO COMÚN</div></div>' +
+                '<div class="tc-houses">' + housesHtml + '</div>' +
+                '<div class="pg-footer">Generado el ' + esc(date) + ' · Instituto Superior de Ingeniería</div>' +
+            '</div>';
+        }
+
+        var chipsHtml = p.chips.map(function(c) {
+            return '<div class="chip">' +
+                '<div class="chip-name">' + esc(c.name) + '</div>' +
+                '<div class="chip-teacher">' + esc(c.teacher) + '</div>' +
+                '<div class="chip-row">' +
+                    '<span class="chip-sched">' + esc(c.sched) + '</span>' +
+                    (c.count ? '<span class="chip-count">' + esc(c.count) + '</span>' : '') +
+                '</div>' +
+            '</div>';
+        }).join('');
+
+        return '<div class="page">' +
+            '<div class="pg-header' + (p.isGroup ? ' is-group' : '') + '">' +
+                (p.isGroup ? '<div class="pg-group-tag">Grupo</div>' : '') +
+                '<div class="pg-career">' + esc(p.careerName) + (p.careerBadge ? '<span class="pg-badge">' + esc(p.careerBadge) + '</span>' : '') + '</div>' +
+                '<div class="pg-shift">' + esc(p.shift) + '</div>' +
+                '<div class="pg-count">' + esc(p.studentCount) + ' estudiantes en clases activas</div>' +
+            '</div>' +
+            (chipsHtml ? '<div class="chips">' + chipsHtml + '</div>' : '<div class="pg-empty">Sin clases activas registradas</div>') +
+            '<div class="pg-footer">Generado el ' + esc(date) + '</div>' +
+        '</div>';
+    }).join('');
+
+    var win = window.open('', '_blank');
+    win.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Población Estudiantil</title><style>' + css + '</style></head><body>' + body + '</body></html>');
+    win.document.close();
+    setTimeout(function() { win.print(); }, 600);
+};
 </script>
 
 <?php echo $OUTPUT->footer(); ?>

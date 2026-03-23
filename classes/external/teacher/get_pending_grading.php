@@ -129,22 +129,28 @@ class get_pending_grading extends external_api {
                     if ($onlinetext && (int)$onlinetext->id > 0 && !in_array((int)$onlinetext->id, $onlinetextfileitemids, true)) {
                         $onlinetextfileitemids[] = (int)$onlinetext->id;
                     }
+                    // Moodle core uses "submissions_onlinetext"; keep legacy "onlinetext" fallback.
+                    $onlinetextfileareas = ['submissions_onlinetext', 'onlinetext'];
 
                     if ($onlinetext && trim((string)$onlinetext->onlinetext) !== '') {
                         $rawtext = (string)$onlinetext->onlinetext;
                         $rewriteitemid = $effectivesubmissionid;
+                        $rewritefilearea = $onlinetextfileareas[0];
                         foreach ($onlinetextfileitemids as $candidateitemid) {
-                            $candidatefiles = $fs->get_area_files(
-                                (int)$context_mod->id,
-                                'assignsubmission_onlinetext',
-                                'onlinetext',
-                                (int)$candidateitemid,
-                                'sortorder',
-                                false
-                            );
-                            if (!empty($candidatefiles)) {
-                                $rewriteitemid = (int)$candidateitemid;
-                                break;
+                            foreach ($onlinetextfileareas as $candidatefilearea) {
+                                $candidatefiles = $fs->get_area_files(
+                                    (int)$context_mod->id,
+                                    'assignsubmission_onlinetext',
+                                    $candidatefilearea,
+                                    (int)$candidateitemid,
+                                    'sortorder',
+                                    false
+                                );
+                                if (!empty($candidatefiles)) {
+                                    $rewriteitemid = (int)$candidateitemid;
+                                    $rewritefilearea = $candidatefilearea;
+                                    break 2;
+                                }
                             }
                         }
 
@@ -153,7 +159,7 @@ class get_pending_grading extends external_api {
                             'pluginfile.php',
                             (int)$context_mod->id,
                             'assignsubmission_onlinetext',
-                            'onlinetext',
+                            $rewritefilearea,
                             $rewriteitemid
                         );
                         $formattedtext = format_text(
@@ -180,16 +186,18 @@ class get_pending_grading extends external_api {
                     );
                     $inlinefiles = [];
                     foreach ($onlinetextfileitemids as $inlineitemid) {
-                        $inlinechunk = $fs->get_area_files(
-                            (int)$context_mod->id,
-                            'assignsubmission_onlinetext',
-                            'onlinetext',
-                            (int)$inlineitemid,
-                            'sortorder',
-                            false
-                        );
-                        if (!empty($inlinechunk)) {
-                            $inlinefiles = array_merge($inlinefiles, $inlinechunk);
+                        foreach ($onlinetextfileareas as $inlinefilearea) {
+                            $inlinechunk = $fs->get_area_files(
+                                (int)$context_mod->id,
+                                'assignsubmission_onlinetext',
+                                $inlinefilearea,
+                                (int)$inlineitemid,
+                                'sortorder',
+                                false
+                            );
+                            if (!empty($inlinechunk)) {
+                                $inlinefiles = array_merge($inlinefiles, $inlinechunk);
+                            }
                         }
                     }
                     $seenhash = [];

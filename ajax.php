@@ -433,6 +433,9 @@ try {
                 $seenhash = [];
                 $files = [];
                 $resolvedinlineitemid = (int)$row->id;
+                $resolvedinlinefilearea = 'submissions_onlinetext';
+                // Moodle core uses "submissions_onlinetext"; keep legacy "onlinetext" fallback.
+                $onlinetextfileareas = ['submissions_onlinetext', 'onlinetext'];
 
                 $onlinetextrows = $DB->get_records(
                     'assignsubmission_onlinetext',
@@ -507,20 +510,23 @@ try {
                 $foundinlinefiles = false;
                 foreach ($cmcontexts as $ctxcandidate) {
                     foreach ($onlinetextfileitemids as $candidateitemid) {
-                        $candidatefiles = $fs->get_area_files(
-                            (int)$ctxcandidate->id,
-                            'assignsubmission_onlinetext',
-                            'onlinetext',
-                            (int)$candidateitemid,
-                            'sortorder',
-                            false
-                        );
-                        if (!empty($candidatefiles)) {
-                            $foundinlinefiles = true;
-                            $resolvedinlineitemid = (int)$candidateitemid;
-                            $resolvedinlinecontextid = (int)$ctxcandidate->id;
-                            foreach ($candidatefiles as $candidatefile) {
-                                $addfileentry($candidatefile, 'onlinetext');
+                        foreach ($onlinetextfileareas as $candidatefilearea) {
+                            $candidatefiles = $fs->get_area_files(
+                                (int)$ctxcandidate->id,
+                                'assignsubmission_onlinetext',
+                                $candidatefilearea,
+                                (int)$candidateitemid,
+                                'sortorder',
+                                false
+                            );
+                            if (!empty($candidatefiles)) {
+                                $foundinlinefiles = true;
+                                $resolvedinlineitemid = (int)$candidateitemid;
+                                $resolvedinlinecontextid = (int)$ctxcandidate->id;
+                                $resolvedinlinefilearea = $candidatefilearea;
+                                foreach ($candidatefiles as $candidatefile) {
+                                    $addfileentry($candidatefile, 'onlinetext');
+                                }
                             }
                         }
                     }
@@ -537,7 +543,7 @@ try {
                         "SELECT f.id, f.contextid, f.itemid
                            FROM {files} f
                           WHERE f.component = 'assignsubmission_onlinetext'
-                            AND f.filearea = 'onlinetext'
+                            AND f.filearea IN ('submissions_onlinetext','onlinetext')
                             AND f.filename <> '.'
                             AND f.itemid {$inlineinsql}
                        ORDER BY f.timemodified DESC, f.id DESC",
@@ -552,6 +558,7 @@ try {
                         }
                         $resolvedinlinecontextid = (int)$stored->get_contextid();
                         $resolvedinlineitemid = (int)$stored->get_itemid();
+                        $resolvedinlinefilearea = (string)$stored->get_filearea();
                         $addfileentry($stored, 'onlinetext');
                         $foundinlinefiles = true;
                     }
@@ -571,7 +578,7 @@ try {
                         "SELECT f.id
                            FROM {files} f
                           WHERE f.component = 'assignsubmission_onlinetext'
-                            AND f.filearea = 'onlinetext'
+                            AND f.filearea IN ('submissions_onlinetext','onlinetext')
                             AND f.filename {$nameinsql}
                             AND f.filename <> '.'
                             AND f.userid = :fuserid
@@ -588,6 +595,7 @@ try {
                         }
                         $resolvedinlinecontextid = (int)$stored->get_contextid();
                         $resolvedinlineitemid = (int)$stored->get_itemid();
+                        $resolvedinlinefilearea = (string)$stored->get_filearea();
                         $addfileentry($stored, 'onlinetext');
                         $foundinlinefiles = true;
                     }
@@ -607,7 +615,7 @@ try {
                         'pluginfile.php',
                         (int)$rewritecontextid,
                         'assignsubmission_onlinetext',
-                        'onlinetext',
+                        (string)$resolvedinlinefilearea,
                         $rewriteitemid
                     );
                     $formatcontext = context::instance_by_id((int)$rewritecontextid, IGNORE_MISSING);
