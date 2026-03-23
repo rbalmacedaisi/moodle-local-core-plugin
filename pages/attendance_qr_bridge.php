@@ -313,13 +313,19 @@ if (!$canmark) {
 $attconfig = get_config('attendance');
 $qrpassflag = false;
 
+// Minimum grace period: 3 minutes (180 s) to allow students time to authenticate
+// through the Vue LXP before the rotated QR is considered expired.
+define('GMK_QR_MIN_EXPIRY_MARGIN', 180);
+
 if (gmk_qr_is_session_open_for_students($session) && (int)$session->rotateqrcode === 1) {
     $sql = 'SELECT * FROM {attendance_rotate_passwords}
              WHERE attendanceid = ? AND expirytime > ?
           ORDER BY expirytime ASC';
+    $configured_margin = (int)($attconfig->rotateqrcodeexpirymargin ?? 0);
+    $effective_margin  = max($configured_margin, GMK_QR_MIN_EXPIRY_MARGIN);
     $records = $DB->get_records_sql($sql, [
         (int)$sessionid,
-        time() - (int)($attconfig->rotateqrcodeexpirymargin ?? 0),
+        time() - $effective_margin,
     ], 0, 2);
     foreach ($records as $record) {
         if ((string)$qrpass !== '' && (string)$record->password === (string)$qrpass) {
