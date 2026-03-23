@@ -75,6 +75,33 @@ class get_data_by_courses extends external_api
             $courseProgre = $DB->get_record('gmk_course_progre', ['courseid' => $params['courseid'], 'userid' => $params['userid']], 'progress,credits');
             if ($courseProgre) {
                 $courseData = json_decode($courseData['coursedata']);
+                // Defensive normalization for student overview:
+                // 1) keep BBB modules visible when they are shown on course page.
+                // 2) keep BBB untagged so they are grouped under "Sesiones Virtuales".
+                if (!empty($courseData->activities) && is_array($courseData->activities)) {
+                    foreach ($courseData->activities as &$section) {
+                        if (empty($section->modules) || !is_array($section->modules)) {
+                            continue;
+                        }
+                        foreach ($section->modules as &$module) {
+                            if (empty($module->modname) || $module->modname !== 'bigbluebuttonbn') {
+                                continue;
+                            }
+                            if (
+                                isset($module->uservisible, $module->visibleoncoursepage) &&
+                                !$module->uservisible &&
+                                (int)$module->visibleoncoursepage === 1
+                            ) {
+                                $module->uservisible = true;
+                            }
+                            if (isset($module->tags)) {
+                                unset($module->tags);
+                            }
+                        }
+                        unset($module);
+                    }
+                    unset($section);
+                }
                 $progress = $courseProgre->progress;
 
                 // [VIRTUAL FALLBACK] Fast direct grade check (no grade tree traversal).
@@ -91,6 +118,30 @@ class get_data_by_courses extends external_api
             } else {
                 // Fallback attempt for credits if no progress record exists yet.
                 $courseData = json_decode($courseData['coursedata']);
+                if (!empty($courseData->activities) && is_array($courseData->activities)) {
+                    foreach ($courseData->activities as &$section) {
+                        if (empty($section->modules) || !is_array($section->modules)) {
+                            continue;
+                        }
+                        foreach ($section->modules as &$module) {
+                            if (empty($module->modname) || $module->modname !== 'bigbluebuttonbn') {
+                                continue;
+                            }
+                            if (
+                                isset($module->uservisible, $module->visibleoncoursepage) &&
+                                !$module->uservisible &&
+                                (int)$module->visibleoncoursepage === 1
+                            ) {
+                                $module->uservisible = true;
+                            }
+                            if (isset($module->tags)) {
+                                unset($module->tags);
+                            }
+                        }
+                        unset($module);
+                    }
+                    unset($section);
+                }
                 $courseData->progress = 0;
                 $courseData->credits = (int)$DB->get_field('local_learning_courses', 'credits', ['courseid' => $params['courseid']], IGNORE_MULTIPLE);
                 $courseData = ['coursedata' => json_encode($courseData)];
