@@ -25,6 +25,7 @@
 
 // Require the library.
 require_once($CFG->dirroot . '/local/grupomakro_core/db/upgradelib.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/db/upgrade.php');
 
 function xmldb_local_grupomakro_core_install() {
 
@@ -33,6 +34,9 @@ function xmldb_local_grupomakro_core_install() {
 
     // Creating the new custom user fields.
     create_custom_user_fields();
+
+    // Ensure late schema additions are created on fresh installs too.
+    xmldb_local_grupomakro_core_upgrade(20260310000);
 
     return true;
 }

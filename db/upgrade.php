@@ -1608,6 +1608,171 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20260310000, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20260323000) {
+        // Letter types catalog.
+        $table = new xmldb_table('gmk_letter_type');
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE);
+        $table->add_field('code', XMLDB_TYPE_CHAR, '100', null, XMLDB_NOTNULL);
+        $table->add_field('name', XMLDB_TYPE_CHAR, '255', null, XMLDB_NOTNULL);
+        $table->add_field('warningtext', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $table->add_field('cost', XMLDB_TYPE_NUMBER, '10,2', null, XMLDB_NOTNULL, null, '0.00');
+        $table->add_field('active', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '1');
+        $table->add_field('deliverymode', XMLDB_TYPE_CHAR, '20', null, XMLDB_NOTNULL, null, 'digital');
+        $table->add_field('generationmode', XMLDB_TYPE_CHAR, '20', null, XMLDB_NOTNULL, null, 'auto');
+        $table->add_field('autostamp', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('autosignature', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('stampimageurl', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $table->add_field('signatureimageurl', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $table->add_field('odoo_product_id', XMLDB_TYPE_INTEGER, '10', null, null, null, null);
+        $table->add_field('template_html', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $table->add_field('usermodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('codeuniq', XMLDB_KEY_UNIQUE, ['code']);
+        $table->add_key('usermodifiedfk', XMLDB_KEY_FOREIGN, ['usermodified'], 'user', ['id']);
+        $table->add_index('activeidx', XMLDB_INDEX_NOTUNIQUE, ['active']);
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // Dataset definitions for letter templates.
+        $table = new xmldb_table('gmk_letter_dataset_def');
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE);
+        $table->add_field('code', XMLDB_TYPE_CHAR, '100', null, XMLDB_NOTNULL);
+        $table->add_field('name', XMLDB_TYPE_CHAR, '255', null, XMLDB_NOTNULL);
+        $table->add_field('description', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $table->add_field('enabled', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '1');
+        $table->add_field('usermodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('codeuniq', XMLDB_KEY_UNIQUE, ['code']);
+        $table->add_key('usermodifiedfk', XMLDB_KEY_FOREIGN, ['usermodified'], 'user', ['id']);
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // Relation between letter types and datasets.
+        $table = new xmldb_table('gmk_letter_type_dataset');
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE);
+        $table->add_field('lettertypeid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL);
+        $table->add_field('datasetdefid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL);
+        $table->add_field('sortorder', XMLDB_TYPE_INTEGER, '4', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('usermodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('uniq', XMLDB_KEY_UNIQUE, ['lettertypeid', 'datasetdefid']);
+        $table->add_key('letterfk', XMLDB_KEY_FOREIGN, ['lettertypeid'], 'gmk_letter_type', ['id']);
+        $table->add_key('datasetfk', XMLDB_KEY_FOREIGN, ['datasetdefid'], 'gmk_letter_dataset_def', ['id']);
+        $table->add_key('usermodifiedfk', XMLDB_KEY_FOREIGN, ['usermodified'], 'user', ['id']);
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // Student letter requests.
+        $table = new xmldb_table('gmk_letter_request');
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE);
+        $table->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL);
+        $table->add_field('lettertypeid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL);
+        $table->add_field('status', XMLDB_TYPE_CHAR, '50', null, XMLDB_NOTNULL, null, 'solicitada');
+        $table->add_field('observation', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $table->add_field('warning_snapshot', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $table->add_field('cost_snapshot', XMLDB_TYPE_NUMBER, '10,2', null, XMLDB_NOTNULL, null, '0.00');
+        $table->add_field('deliverymode_snapshot', XMLDB_TYPE_CHAR, '20', null, XMLDB_NOTNULL, null, 'digital');
+        $table->add_field('generationmode_snapshot', XMLDB_TYPE_CHAR, '20', null, XMLDB_NOTNULL, null, 'auto');
+        $table->add_field('invoice_id', XMLDB_TYPE_CHAR, '64', null, null, null, null);
+        $table->add_field('invoice_number', XMLDB_TYPE_CHAR, '64', null, null, null, null);
+        $table->add_field('payment_link', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $table->add_field('paid_at', XMLDB_TYPE_INTEGER, '10', null, null, null, null);
+        $table->add_field('rejection_reason', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $table->add_field('cancel_reason', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $table->add_field('extra_data', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $table->add_field('usermodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('userfk', XMLDB_KEY_FOREIGN, ['userid'], 'user', ['id']);
+        $table->add_key('lettertypefk', XMLDB_KEY_FOREIGN, ['lettertypeid'], 'gmk_letter_type', ['id']);
+        $table->add_key('usermodifiedfk', XMLDB_KEY_FOREIGN, ['usermodified'], 'user', ['id']);
+        $table->add_index('statusidx', XMLDB_INDEX_NOTUNIQUE, ['status']);
+        $table->add_index('userididx', XMLDB_INDEX_NOTUNIQUE, ['userid']);
+        $table->add_index('letteridx', XMLDB_INDEX_NOTUNIQUE, ['lettertypeid']);
+        $table->add_index('invoiceidx', XMLDB_INDEX_NOTUNIQUE, ['invoice_id']);
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // Request lifecycle events.
+        $table = new xmldb_table('gmk_letter_request_event');
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE);
+        $table->add_field('requestid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL);
+        $table->add_field('oldstatus', XMLDB_TYPE_CHAR, '50', null, null, null, null);
+        $table->add_field('newstatus', XMLDB_TYPE_CHAR, '50', null, null, null, null);
+        $table->add_field('eventtype', XMLDB_TYPE_CHAR, '50', null, XMLDB_NOTNULL, null, 'status_change');
+        $table->add_field('message', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $table->add_field('metadata', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $table->add_field('usermodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('requestfk', XMLDB_KEY_FOREIGN, ['requestid'], 'gmk_letter_request', ['id']);
+        $table->add_key('usermodifiedfk', XMLDB_KEY_FOREIGN, ['usermodified'], 'user', ['id']);
+        $table->add_index('requestidx', XMLDB_INDEX_NOTUNIQUE, ['requestid']);
+        $table->add_index('eventidx', XMLDB_INDEX_NOTUNIQUE, ['eventtype']);
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // Generated letter documents.
+        $table = new xmldb_table('gmk_letter_document');
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE);
+        $table->add_field('requestid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL);
+        $table->add_field('versionno', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '1');
+        $table->add_field('filename', XMLDB_TYPE_CHAR, '255', null, XMLDB_NOTNULL);
+        $table->add_field('mimetype', XMLDB_TYPE_CHAR, '100', null, XMLDB_NOTNULL, null, 'application/pdf');
+        $table->add_field('filesize', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('fileitemid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('odoo_attachment_id', XMLDB_TYPE_CHAR, '64', null, null, null, null);
+        $table->add_field('usermodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('requestfk', XMLDB_KEY_FOREIGN, ['requestid'], 'gmk_letter_request', ['id']);
+        $table->add_key('usermodifiedfk', XMLDB_KEY_FOREIGN, ['usermodified'], 'user', ['id']);
+        $table->add_index('requestidx', XMLDB_INDEX_NOTUNIQUE, ['requestid']);
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // Seed predefined datasets for v1.
+        $now = time();
+        $datasets = [
+            ['code' => 'asignaturas_cursadas', 'name' => 'Asignaturas cursadas', 'description' => 'Lista de asignaturas, nota y créditos por estudiante.'],
+            ['code' => 'resumen_creditos', 'name' => 'Resumen de créditos', 'description' => 'Totales de créditos cursados y aprobados.'],
+            ['code' => 'periodo_actual', 'name' => 'Periodo actual', 'description' => 'Resumen del periodo académico actual del estudiante.'],
+        ];
+        foreach ($datasets as $dataset) {
+            if (!$DB->record_exists('gmk_letter_dataset_def', ['code' => $dataset['code']])) {
+                $record = (object) [
+                    'code' => $dataset['code'],
+                    'name' => $dataset['name'],
+                    'description' => $dataset['description'],
+                    'enabled' => 1,
+                    'usermodified' => 0,
+                    'timecreated' => $now,
+                    'timemodified' => $now,
+                ];
+                $DB->insert_record('gmk_letter_dataset_def', $record);
+            }
+        }
+
+        // Ensure capabilities are assigned to internal roles after introducing new ones.
+        assign_capabilities_to_internal_roles();
+
+        upgrade_plugin_savepoint(true, 20260323000, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

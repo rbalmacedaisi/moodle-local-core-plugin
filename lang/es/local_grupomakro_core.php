@@ -218,6 +218,79 @@ $string['userinformation'] = 'Información del usuario';
 $string['details'] = 'Ver Detalle';
 $string['profile'] = 'Perfil';
 $string['memessage'] = 'Mensaje';
+
+// Letter requests.
+$string['grupomakro_core:manageletters'] = 'Gestionar catálogo de cartas';
+$string['grupomakro_core:managerequests'] = 'Gestionar solicitudes de cartas';
+$string['grupomakro_core:viewallletterrequests'] = 'Ver todas las solicitudes de cartas';
+
+$string['messageprovider:payment_link'] = 'Notificación de enlace de pago para cartas';
+$string['messageprovider:letter_generated'] = 'Notificación de carta generada';
+$string['messageprovider:ready_for_pickup'] = 'Notificación de carta lista para retirar';
+$string['messageprovider:status_changed'] = 'Notificación de cambio de estado de solicitud';
+
+$string['letters_catalog_title'] = 'Catálogo de cartas';
+$string['letters_catalog_list'] = 'Cartas registradas';
+$string['letters_requests_title'] = 'Bandeja de solicitudes de cartas';
+$string['letters_manage_request'] = 'Gestionar solicitud';
+$string['letters_filter_status'] = 'Filtrar por estado';
+$string['letters_actions'] = 'Acciones';
+$string['letters_manage'] = 'Gestionar';
+$string['letters_generate_doc'] = 'Generar documento';
+$string['letters_doc_generated'] = 'Documento generado correctamente';
+$string['letters_status_updated'] = 'Estado actualizado';
+$string['letters_new_status'] = 'Nuevo estado';
+$string['letters_status_note'] = 'Observación de gestión';
+$string['letters_update_status'] = 'Actualizar estado';
+$string['letters_save'] = 'Guardar carta';
+$string['letters_saved'] = 'Carta guardada correctamente';
+$string['letters_deleted'] = 'Carta eliminada correctamente';
+$string['letters_cancel_edit'] = 'Cancelar edición';
+
+$string['letters_field_code'] = 'Código';
+$string['letters_field_name'] = 'Nombre de carta';
+$string['letters_field_warning'] = 'Advertencia para estudiante';
+$string['letters_field_cost'] = 'Costo';
+$string['letters_field_active'] = 'Activa';
+$string['letters_field_deliverymode'] = 'Modo de entrega';
+$string['letters_field_generationmode'] = 'Modo de generación';
+$string['letters_field_autostamp'] = 'Aplicar sello automático';
+$string['letters_field_autosignature'] = 'Aplicar firma automática';
+$string['letters_field_stampimageurl'] = 'URL/Path imagen de sello';
+$string['letters_field_signatureimageurl'] = 'URL/Path imagen de firma';
+$string['letters_field_odoo_product'] = 'ID producto Odoo';
+$string['letters_field_template'] = 'Plantilla HTML';
+$string['letters_field_datasets'] = 'Datasets habilitados';
+$string['letters_delivery_digital'] = 'Digital';
+$string['letters_delivery_fisica'] = 'Física';
+$string['letters_generation_auto'] = 'Automática';
+$string['letters_generation_manual'] = 'Manual';
+
+$string['letter_status_solicitada'] = 'Solicitada';
+$string['letter_status_pendiente_pago'] = 'Pendiente de pago';
+$string['letter_status_pagada'] = 'Pagada';
+$string['letter_status_generada_digital'] = 'Generada digitalmente';
+$string['letter_status_pendiente_gestion'] = 'Pendiente de gestión académica';
+$string['letter_status_pendiente_recoleccion'] = 'Pendiente de recolección';
+$string['letter_status_entregada'] = 'Entregada';
+$string['letter_status_rechazada'] = 'Rechazada';
+$string['letter_status_cancelada'] = 'Cancelada';
+
+$string['letter_type_not_found'] = 'No se encontró el tipo de carta solicitado.';
+$string['letter_invalid_transition'] = 'Transición de estado inválida: {$a}.';
+$string['letter_document_not_found'] = 'No se encontró el documento de carta generado.';
+$string['letter_documentnumber_required'] = 'El estudiante no tiene número de documento para facturación.';
+$string['letter_invoice_error'] = 'No se pudo crear la factura de la solicitud de carta: {$a}.';
+
+$string['letter_payment_subject'] = 'Solicitud de carta con pago pendiente: {$a}';
+$string['letter_payment_body'] = 'Su solicitud de carta "{$a->lettername}" (ID: {$a->requestid}) requiere pago. Monto: {$a->amount}. Enlace de pago: {$a->paymentlink}';
+$string['letter_generated_subject'] = 'Carta generada: {$a}';
+$string['letter_generated_body'] = 'Su carta "{$a->lettername}" (ID de solicitud: {$a->requestid}) ya fue generada y está disponible para descarga en la plataforma.';
+$string['letter_pickup_subject'] = 'Carta lista para recolección: {$a}';
+$string['letter_pickup_body'] = 'Su carta "{$a->lettername}" (ID de solicitud: {$a->requestid}) está lista para retirar en las instalaciones del instituto.';
+$string['letter_status_subject'] = 'Actualización de estado de solicitud de carta: {$a}';
+$string['letter_status_body'] = 'Su solicitud de carta "{$a->lettername}" (ID: {$a->requestid}) cambió al estado: {$a->status}.';
+$string['letter_context_url_name'] = 'Ver detalle de solicitud de carta';
 $string['selectcontract'] = 'Seleccionar un contrato';
 $string['bulkConfirmationMessage'] = '¿Esta seguro de subir el archivo y crear todos los contratos?';
 $string['contractBulkConfirmTitle'] = 'Confirmación creación contratos';

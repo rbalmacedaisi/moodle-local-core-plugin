@@ -723,7 +723,7 @@ $ajax_url = (new moodle_url('/local/grupomakro_core/pages/absence_dashboard.php'
                                 <?php echo $schedHtml ?: '<span style="color:#94a3b8">Sin horario</span>'; ?>
                             </div>
                             <button class="absd-open-modal-btn"
-                                    onclick="absdOpenModal(<?php echo $cid; ?>, <?php echo json_encode($cname); ?>)">
+                                    onclick="absdOpenModal(<?php echo $cid; ?>, <?php echo htmlspecialchars(json_encode(mb_convert_encoding($cname, 'UTF-8', 'UTF-8')) ?: '""'); ?>)">
                                 <?php echo $enrolled; ?> est.
                             </button>
                         </div>
@@ -785,7 +785,7 @@ $ajax_url = (new moodle_url('/local/grupomakro_core/pages/absence_dashboard.php'
                         </div>
                         <?php endif; ?>
                         <div style="margin-top:5px">
-                            <button class="absd-open-modal-btn" onclick="absdOpenModal(<?php echo $cid; ?>, <?php echo json_encode($courseName . ' — ' . $shift); ?>)">
+                            <button class="absd-open-modal-btn" onclick="absdOpenModal(<?php echo $cid; ?>, <?php echo htmlspecialchars(json_encode(mb_convert_encoding($courseName . ' — ' . $shift, 'UTF-8', 'UTF-8')) ?: '""'); ?>)">
                                 <?php echo $enrolled; ?> est.
                             </button>
                         </div>

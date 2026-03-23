@@ -39,6 +39,79 @@ $string['admin_teachers_management'] = 'Manage Teachers';
 $string['teachers'] = 'Teachers';
 $string['active_students_by_class_page'] = 'Active students by class';
 
+// Letter requests.
+$string['grupomakro_core:manageletters'] = 'Manage letter catalog';
+$string['grupomakro_core:managerequests'] = 'Manage letter requests';
+$string['grupomakro_core:viewallletterrequests'] = 'View all letter requests';
+
+$string['messageprovider:payment_link'] = 'Letter payment link notification';
+$string['messageprovider:letter_generated'] = 'Letter generated notification';
+$string['messageprovider:ready_for_pickup'] = 'Letter ready for pickup notification';
+$string['messageprovider:status_changed'] = 'Letter request status changed notification';
+
+$string['letters_catalog_title'] = 'Letter catalog';
+$string['letters_catalog_list'] = 'Configured letters';
+$string['letters_requests_title'] = 'Letter requests inbox';
+$string['letters_manage_request'] = 'Manage request';
+$string['letters_filter_status'] = 'Filter by status';
+$string['letters_actions'] = 'Actions';
+$string['letters_manage'] = 'Manage';
+$string['letters_generate_doc'] = 'Generate document';
+$string['letters_doc_generated'] = 'Document generated successfully';
+$string['letters_status_updated'] = 'Status updated successfully';
+$string['letters_new_status'] = 'New status';
+$string['letters_status_note'] = 'Management note';
+$string['letters_update_status'] = 'Update status';
+$string['letters_save'] = 'Save letter';
+$string['letters_saved'] = 'Letter saved successfully';
+$string['letters_deleted'] = 'Letter deleted successfully';
+$string['letters_cancel_edit'] = 'Cancel edit';
+
+$string['letters_field_code'] = 'Code';
+$string['letters_field_name'] = 'Letter name';
+$string['letters_field_warning'] = 'Student warning';
+$string['letters_field_cost'] = 'Cost';
+$string['letters_field_active'] = 'Active';
+$string['letters_field_deliverymode'] = 'Delivery mode';
+$string['letters_field_generationmode'] = 'Generation mode';
+$string['letters_field_autostamp'] = 'Apply automatic stamp';
+$string['letters_field_autosignature'] = 'Apply automatic signature';
+$string['letters_field_stampimageurl'] = 'Stamp image URL/path';
+$string['letters_field_signatureimageurl'] = 'Signature image URL/path';
+$string['letters_field_odoo_product'] = 'Odoo product ID';
+$string['letters_field_template'] = 'HTML template';
+$string['letters_field_datasets'] = 'Enabled datasets';
+$string['letters_delivery_digital'] = 'Digital';
+$string['letters_delivery_fisica'] = 'Physical';
+$string['letters_generation_auto'] = 'Automatic';
+$string['letters_generation_manual'] = 'Manual';
+
+$string['letter_status_solicitada'] = 'Requested';
+$string['letter_status_pendiente_pago'] = 'Pending payment';
+$string['letter_status_pagada'] = 'Paid';
+$string['letter_status_generada_digital'] = 'Digitally generated';
+$string['letter_status_pendiente_gestion'] = 'Pending academic management';
+$string['letter_status_pendiente_recoleccion'] = 'Pending pickup';
+$string['letter_status_entregada'] = 'Delivered';
+$string['letter_status_rechazada'] = 'Rejected';
+$string['letter_status_cancelada'] = 'Cancelled';
+
+$string['letter_type_not_found'] = 'Requested letter type was not found.';
+$string['letter_invalid_transition'] = 'Invalid status transition: {$a}.';
+$string['letter_document_not_found'] = 'Generated letter document was not found.';
+$string['letter_documentnumber_required'] = 'Student document number is required for billing.';
+$string['letter_invoice_error'] = 'Unable to create invoice for letter request: {$a}.';
+
+$string['letter_payment_subject'] = 'Letter request pending payment: {$a}';
+$string['letter_payment_body'] = 'Your letter request "{$a->lettername}" (request ID: {$a->requestid}) requires payment. Amount: {$a->amount}. Payment link: {$a->paymentlink}';
+$string['letter_generated_subject'] = 'Letter generated: {$a}';
+$string['letter_generated_body'] = 'Your letter "{$a->lettername}" (request ID: {$a->requestid}) has been generated and is available for download on the platform.';
+$string['letter_pickup_subject'] = 'Letter ready for pickup: {$a}';
+$string['letter_pickup_body'] = 'Your letter "{$a->lettername}" (request ID: {$a->requestid}) is ready for pickup at the institute facilities.';
+$string['letter_status_subject'] = 'Letter request status updated: {$a}';
+$string['letter_status_body'] = 'Your letter request "{$a->lettername}" (ID: {$a->requestid}) changed to status: {$a->status}.';
+$string['letter_context_url_name'] = 'View letter request detail';
+
 // Capabilities.
 $string['grupomakro_core:seeallorders'] = 'See all orders';
 

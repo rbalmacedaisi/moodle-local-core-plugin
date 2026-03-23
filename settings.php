@@ -198,6 +198,16 @@ if ($hassiteconfig) {
         '📊 Inasistencias y Deserciones',
         new moodle_url('/local/grupomakro_core/pages/absence_dashboard.php')
     );
+    $letterTypesPage = new admin_externalpage(
+        'grupomakro_core_letter_types',
+        'Catálogo de Cartas',
+        new moodle_url('/local/grupomakro_core/pages/lettertypes.php')
+    );
+    $letterRequestsPage = new admin_externalpage(
+        'grupomakro_core_letter_requests',
+        'Bandeja Solicitudes de Cartas',
+        new moodle_url('/local/grupomakro_core/pages/letterrequests.php')
+    );
     $ADMIN->add('grupomakrocore_plugin', $classManagementPage);
     $ADMIN->add('grupomakrocore_plugin', $classSchedulesPage);
     $ADMIN->add('grupomakrocore_plugin', $availabilityPanelPage);
@@ -225,6 +235,8 @@ if ($hassiteconfig) {
     $ADMIN->add('grupomakrocore_plugin', $activeStudentsByClassPage);
     $ADMIN->add('grupomakrocore_plugin', $studentPopulationPage);
     $ADMIN->add('grupomakrocore_plugin', $absenceDashboardPage);
+    $ADMIN->add('grupomakrocore_plugin', $letterTypesPage);
+    $ADMIN->add('grupomakrocore_plugin', $letterRequestsPage);
     $ADMIN->add('grupomakrocore_plugin', $financialPlanningPage);
     $ADMIN->add('grupomakrocore_plugin', $debugStudentActivityVisibilityPage);
     $ADMIN->add('grupomakrocore_plugin', $debugBbbTeacherJoinPage);
@@ -343,6 +355,22 @@ if ($hassiteconfig) {
             'Token secreto compartido entre el Express Server y Moodle. Debe coincidir con MOODLE_GRACE_TOKEN en server.js.',
             'gmk_grace_check_2026',
             PARAM_TEXT
+        ));
+
+        $settingspage->add(new admin_setting_configpasswordunmask(
+            'local_grupomakro_core/letter_webhook_token',
+            'Token webhook de cartas (Express -> Moodle)',
+            'Token secreto para autenticar webhook de pagos de cartas desde Express.',
+            'gmk_letter_webhook_2026',
+            PARAM_TEXT
+        ));
+
+        $settingspage->add(new admin_setting_configtext(
+            'local_grupomakro_core/letters_default_odoo_product_id',
+            'Producto Odoo por defecto para cartas',
+            'ID de producto en Odoo a usar cuando una carta no tenga producto configurado.',
+            '0',
+            PARAM_INT
         ));
 
         // Add the "tuitionfee" setting, which is an text field.
