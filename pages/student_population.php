@@ -33,9 +33,13 @@ function pop_save_groups(array $groups): void {
     set_config('pop_groups_u' . (int)$USER->id, json_encode(array_values($groups)), 'local_grupomakro_core');
 }
 
-$pop_action = optional_param('pop_action', '', PARAM_ALPHA);
-$pop_error  = '';
+$pop_action    = optional_param('pop_action', '', PARAM_ALPHA);
+$pop_error     = '';
+$pop_debug_log = '';   // captured during action, shown later in debug block
 if ($pop_action) {
+    $pop_debug_log .= 'pop_action=' . $pop_action . "\n";
+    $pop_debug_log .= 'POST keys: ' . implode(', ', array_keys($_POST)) . "\n";
+    $pop_debug_log .= 'planids raw: ' . json_encode($_POST['planids'] ?? 'NOT SET') . "\n";
     require_sesskey();
     $pop_groups = pop_load_groups();
     if ($pop_action === 'add_group') {
@@ -453,7 +457,25 @@ if (optional_param('pop_debug', 0, PARAM_INT)) {
     echo '<div style="background:#1e293b;color:#e2e8f0;font-family:monospace;font-size:12px;padding:20px;margin:20px 0;border-radius:8px;overflow:auto">';
     echo '<h3 style="color:#93c5fd;margin:0 0 12px">🔍 DEBUG: student_population</h3>';
 
-    echo '<b style="color:#fbbf24">$pop_groups (session):</b><pre>' . htmlspecialchars(json_encode($pop_groups, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)) . '</pre>';
+    // ── Last action log ──
+    if ($pop_debug_log !== '') {
+        echo '<b style="color:#fbbf24">Last action log:</b><pre style="color:#a5f3fc">' . htmlspecialchars($pop_debug_log) . '</pre>';
+    }
+
+    // ── Storage test ──
+    $cfg_key = 'pop_groups_u' . (int)$USER->id;
+    $cfg_raw  = get_config('local_grupomakro_core', $cfg_key);
+    echo '<b style="color:#fbbf24">Config key:</b> <span style="color:#6ee7b7">' . htmlspecialchars($cfg_key) . '</span><br>';
+    echo '<b style="color:#fbbf24">Raw config value:</b> <span style="color:#6ee7b7">' . htmlspecialchars((string)$cfg_raw) . '</span><br><br>';
+
+    // ── Write/read test ──
+    $test_key = 'pop_groups_test';
+    set_config($test_key, 'test_ok_' . time(), 'local_grupomakro_core');
+    $test_val = get_config('local_grupomakro_core', $test_key);
+    echo '<b style="color:#fbbf24">set_config/get_config test:</b> <span style="color:' . (str_starts_with((string)$test_val,'test_ok_') ? '#6ee7b7' : '#f87171') . '">'
+       . htmlspecialchars((string)$test_val) . '</span><br><br>';
+
+    echo '<b style="color:#fbbf24">$pop_groups:</b><pre>' . htmlspecialchars(json_encode($pop_groups, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)) . '</pre>';
     echo '<b style="color:#fbbf24">$planid_to_gidx:</b><pre>' . htmlspecialchars(json_encode($planid_to_gidx, JSON_PRETTY_PRINT)) . '</pre>';
     echo '<b style="color:#fbbf24">$planid_to_name:</b><pre>' . htmlspecialchars(json_encode($planid_to_name, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)) . '</pre>';
 
