@@ -24,7 +24,7 @@ $PAGE->set_pagelayout('admin');
 define('POP_GROUPS_PREF', 'local_grupomakro_core_pop_groups');
 
 function pop_load_groups(): array {
-    $raw = get_user_preference(POP_GROUPS_PREF, '[]');
+    $raw = get_user_preferences(POP_GROUPS_PREF, '[]');
     $groups = json_decode($raw, true);
     return is_array($groups) ? $groups : [];
 }
@@ -34,6 +34,7 @@ function pop_save_groups(array $groups): void {
 }
 
 $pop_action = optional_param('pop_action', '', PARAM_ALPHA);
+$pop_error  = '';
 if ($pop_action) {
     require_sesskey();
     $pop_groups = pop_load_groups();
@@ -41,9 +42,14 @@ if ($pop_action) {
         $gname   = trim(optional_param('group_name', '', PARAM_TEXT));
         $planids = optional_param_array('planids', [], PARAM_INT);
         $planids = array_values(array_filter(array_unique($planids)));
-        if ($gname !== '' && count($planids) >= 2) {
+        if ($gname === '') {
+            $pop_error = 'Debes ingresar un nombre para el grupo.';
+        } elseif (count($planids) < 2) {
+            $pop_error = 'Debes seleccionar al menos 2 planes de estudio. Recibidos: ' . count($planids) . '. IDs: ' . implode(',', $planids);
+        } else {
             $pop_groups[] = ['name' => $gname, 'planids' => $planids];
             pop_save_groups($pop_groups);
+            redirect($PAGE->url);
         }
     } elseif ($pop_action === 'remove_group') {
         $idx = optional_param('group_idx', -1, PARAM_INT);
@@ -51,10 +57,11 @@ if ($pop_action) {
             array_splice($pop_groups, $idx, 1);
             pop_save_groups($pop_groups);
         }
+        redirect($PAGE->url);
     } elseif ($pop_action === 'clear_groups') {
         pop_save_groups([]);
+        redirect($PAGE->url);
     }
-    redirect($PAGE->url);
 }
 
 $pop_groups = pop_load_groups();
@@ -744,8 +751,13 @@ $sesskey = sesskey();
     </div>
 
     <!-- Group management panel ──────────────────────────────────────── -->
-    <div id="popGroupPanel" class="pop-group-panel <?php echo !empty($pop_groups) ? 'pop-open' : ''; ?>">
+    <div id="popGroupPanel" class="pop-group-panel <?php echo (!empty($pop_groups) || $pop_error !== '') ? 'pop-open' : ''; ?>">
         <h3>Grupos de planes de estudio</h3>
+        <?php if ($pop_error !== ''): ?>
+        <div style="background:#fef2f2;border:1.5px solid #fca5a5;color:#991b1b;border-radius:7px;padding:10px 14px;margin-bottom:14px;font-size:13px;">
+            &#9888; <?php echo s($pop_error); ?>
+        </div>
+        <?php endif; ?>
 
         <?php if (!empty($pop_groups)): ?>
         <div class="pop-groups-list">
