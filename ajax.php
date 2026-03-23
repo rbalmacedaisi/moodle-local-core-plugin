@@ -6102,8 +6102,18 @@ try {
         case 'local_grupomakro_upload_draft_file':
             // Sube un archivo al draft area del usuario (paso previo a crear/editar actividad)
             if (empty($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
-                $upload_error = !empty($_FILES['file']) ? $_FILES['file']['error'] : 'no file received';
-                $response = ['status' => 'error', 'message' => 'No se recibiÃƒÂ³ ningÃƒÂºn archivo o hubo un error al subirlo. Error: ' . $upload_error];
+                $upload_error_code = !empty($_FILES['file']) ? (int)$_FILES['file']['error'] : -1;
+                $upload_error_msgs = [
+                    1 => 'El archivo supera el límite de PHP (upload_max_filesize=' . ini_get('upload_max_filesize') . ', post_max_size=' . ini_get('post_max_size') . ').',
+                    2 => 'El archivo supera el límite del formulario.',
+                    3 => 'El archivo se subió de forma incompleta.',
+                    4 => 'No se seleccionó ningún archivo.',
+                    6 => 'Falta la carpeta temporal del servidor.',
+                    7 => 'No se pudo escribir el archivo en disco.',
+                    8 => 'Una extensión de PHP detuvo la subida.',
+                ];
+                $upload_msg = $upload_error_msgs[$upload_error_code] ?? ('Error al subir. Código: ' . $upload_error_code);
+                $response = ['status' => 'error', 'message' => $upload_msg];
                 break;
             }
             $draftitemid = optional_param('draftitemid', 0, PARAM_INT);
