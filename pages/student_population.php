@@ -70,7 +70,7 @@ function pop_format_schedule(array $rows): string {
     foreach ($rows as $r) {
         $start    = substr((string)($r->start_time ?? ''), 0, 5);
         $end      = substr((string)($r->end_time   ?? ''), 0, 5);
-        $timeKey  = "$start–$end";
+        $timeKey  = "{$start}–{$end}";
         $dayLabel = $dayMap[(string)($r->day ?? '')] ?? (string)($r->day ?? '');
         $grouped[$timeKey][$dayLabel] = true;
     }

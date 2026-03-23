@@ -188,6 +188,11 @@ if ($hassiteconfig) {
         'Debug: Entrega Tarea (texto/adjuntos)',
         new moodle_url('/local/grupomakro_core/pages/debug_assign_submission_visibility.php')
     );
+    $studentPopulationPage = new admin_externalpage(
+        'grupomakro_core_student_population',
+        '👥 Población Estudiantil',
+        new moodle_url('/local/grupomakro_core/pages/student_population.php')
+    );
     $ADMIN->add('grupomakrocore_plugin', $classManagementPage);
     $ADMIN->add('grupomakrocore_plugin', $classSchedulesPage);
     $ADMIN->add('grupomakrocore_plugin', $availabilityPanelPage);
@@ -213,6 +218,7 @@ if ($hassiteconfig) {
     $ADMIN->add('grupomakrocore_plugin', $academicDemandGapsPage);
     $ADMIN->add('grupomakrocore_plugin', $scheduleWeeklyViewPage);
     $ADMIN->add('grupomakrocore_plugin', $activeStudentsByClassPage);
+    $ADMIN->add('grupomakrocore_plugin', $studentPopulationPage);
     $ADMIN->add('grupomakrocore_plugin', $financialPlanningPage);
     $ADMIN->add('grupomakrocore_plugin', $debugStudentActivityVisibilityPage);
     $ADMIN->add('grupomakrocore_plugin', $debugBbbTeacherJoinPage);
