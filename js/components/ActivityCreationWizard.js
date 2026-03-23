@@ -88,7 +88,9 @@ const ActivityCreationWizard = {
 
                         <!-- Tags Input -->
                         <v-combobox
+                            ref="lessonTagInput"
                             v-model="formData.tags"
+                            :search-input.sync="tagSearchInput"
                             :items="courseTags"
                             label="Etiqueta / Lección"
                             outlined
@@ -240,6 +242,7 @@ const ActivityCreationWizard = {
                 forummessage: '',
                 forumcreateinitial: true
             },
+            tagSearchInput: '',
             courseTags: [],
             gradeCategories: [],
             resourceFiles: [],
@@ -303,6 +306,7 @@ const ActivityCreationWizard = {
             this.existingFiles = [];
             this.filesToDelete = [];
             this.uploadingIndex = null;
+            this.tagSearchInput = '';
             this.$emit('close');
         },
         normalizeLessonTagValue(raw) {
@@ -345,8 +349,17 @@ const ActivityCreationWizard = {
             const normalized = this.normalizeLessonTagValue(
                 value !== undefined ? value : this.formData.tags
             );
-            this.formData.tags = normalized;
-            return normalized;
+            if (normalized) {
+                this.formData.tags = normalized;
+                this.tagSearchInput = normalized;
+                return normalized;
+            }
+
+            // In v-combobox, typed values can stay in search-input until blur/enter.
+            const pending = this.normalizeLessonTagValue(this.tagSearchInput);
+            this.formData.tags = pending;
+            this.tagSearchInput = pending;
+            return pending;
         },
         async saveActivity() {
             this.saving = true;
@@ -434,6 +447,7 @@ const ActivityCreationWizard = {
                     this.formData.tags = this.normalizeLessonTagValue(
                         (act.tags && act.tags.length > 0) ? act.tags[0] : ''
                     );
+                    this.tagSearchInput = this.formData.tags;
                     this.formData.visible = act.visible;
 
                     if (act.duedate) {

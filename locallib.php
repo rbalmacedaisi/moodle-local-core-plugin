@@ -8360,9 +8360,8 @@ function gmk_get_course_tags($courseid) {
  * @param array  $tagnames Array of tag raw names (strings)
  */
 function gmk_safe_set_item_tags(int $cmid, $context, array $tagnames) {
-    global $DB;
+    global $DB, $USER;
 
-    // Get the tagcollid used for core/course_modules (unique key on mdl_tag is tagcollid+name)
     $tagcollid = $DB->get_field_sql(
         "SELECT tc.id FROM {tag_coll} tc
          JOIN {tag_area} ta ON ta.tagcollid = tc.id
@@ -8370,7 +8369,6 @@ function gmk_safe_set_item_tags(int $cmid, $context, array $tagnames) {
          LIMIT 1"
     );
 
-    // Remove any existing tag_instance rows for this cm first (clean slate)
     $DB->delete_records('tag_instance', [
         'component' => 'core',
         'itemtype'  => 'course_modules',
@@ -8390,9 +8388,10 @@ function gmk_safe_set_item_tags(int $cmid, $context, array $tagnames) {
     }
 
     $now = time();
-    foreach ($cleaned as $normalized => $raw) {
+    $tagcolumns = $DB->get_columns('tag');
+    $fallbackcollid = (int)($tagcollid ?: 1);
 
-        // Find or create the tag record safely
+    foreach ($cleaned as $normalized => $raw) {
         $tag = null;
         if ($tagcollid) {
             $tag = $DB->get_record('tag', ['tagcollid' => $tagcollid, 'name' => $normalized], 'id', IGNORE_MISSING);
@@ -8402,28 +8401,61 @@ function gmk_safe_set_item_tags(int $cmid, $context, array $tagnames) {
         }
 
         if (!$tag) {
-            // Tag doesn't exist at all Ã¢â‚¬â€ insert it safely
             $newrec = new stdClass();
-            $newrec->isstandard   = 0;
-            $newrec->userid       = 0;
-            $newrec->timemodified = $now;
-            $newrec->tagcollid    = $tagcollid ?: 1;
-            $newrec->rawname      = $raw;
-            $newrec->name         = $normalized;
+            if (isset($tagcolumns['isstandard'])) {
+                $newrec->isstandard = 0;
+            }
+            if (isset($tagcolumns['userid'])) {
+                $newrec->userid = !empty($USER->id) ? (int)$USER->id : 0;
+            }
+            if (isset($tagcolumns['usermodified'])) {
+                $newrec->usermodified = !empty($USER->id) ? (int)$USER->id : 0;
+            }
+            if (isset($tagcolumns['tagcollid'])) {
+                $newrec->tagcollid = $fallbackcollid;
+            }
+            if (isset($tagcolumns['rawname'])) {
+                $newrec->rawname = $raw;
+            }
+            if (isset($tagcolumns['name'])) {
+                $newrec->name = $normalized;
+            }
+            if (isset($tagcolumns['description'])) {
+                $newrec->description = '';
+            }
+            if (isset($tagcolumns['descriptionformat'])) {
+                $newrec->descriptionformat = FORMAT_HTML;
+            }
+            if (isset($tagcolumns['flag'])) {
+                $newrec->flag = 0;
+            }
+            if (isset($tagcolumns['timecreated'])) {
+                $newrec->timecreated = $now;
+            }
+            if (isset($tagcolumns['timemodified'])) {
+                $newrec->timemodified = $now;
+            }
+
             try {
                 $tagid = $DB->insert_record('tag', $newrec);
             } catch (dml_write_exception $e) {
-                // Race condition: another request inserted it just now Ã¢â‚¬â€ fetch it
-                $tag = $DB->get_record('tag', ['tagcollid' => $newrec->tagcollid, 'name' => $normalized], 'id', IGNORE_MISSING);
-                $tagid = $tag ? $tag->id : null;
+                $msg = core_text::strtolower((string)$e->getMessage());
+                $isduplicate = (strpos($msg, 'duplicate') !== false || strpos($msg, 'duplicado') !== false);
+                if ($isduplicate) {
+                    $tag = $DB->get_record('tag', ['tagcollid' => $fallbackcollid, 'name' => $normalized], 'id', IGNORE_MISSING);
+                    $tagid = $tag ? $tag->id : null;
+                } else {
+                    throw $e;
+                }
             }
         } else {
             $tagid = $tag->id;
         }
 
-        if (!$tagid) continue;
+        if (!$tagid) {
+            continue;
+        }
 
-        // Insert tag_instance
         $ti = new stdClass();
         $ti->tagid        = $tagid;
         $ti->component    = 'core';
@@ -8436,7 +8468,6 @@ function gmk_safe_set_item_tags(int $cmid, $context, array $tagnames) {
         try {
             $DB->insert_record('tag_instance', $ti);
         } catch (dml_write_exception $e) {
-            // Ignore duplicate tag_instance inserts caused by races or repeated values.
             $msg = strtolower((string)$e->getMessage());
             if (strpos($msg, 'duplicate') === false && strpos($msg, 'duplicado') === false) {
                 throw $e;

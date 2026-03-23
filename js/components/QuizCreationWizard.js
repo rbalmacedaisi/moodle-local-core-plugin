@@ -35,7 +35,9 @@ const QuizCreationWizard = {
                         ></v-textarea>
 
                         <v-combobox
+                            ref="lessonTagInput"
                             v-model="quiz.tags"
+                            :search-input.sync="tagSearchInput"
                             :items="courseTags"
                             label="Etiqueta / Lección"
                             variant="outlined"
@@ -237,6 +239,7 @@ const QuizCreationWizard = {
                 attempts: 1,
                 grademethod: 1 // Highest grade
             },
+            tagSearchInput: '',
             courseTags: [],
             attemptOptions: [
                 { text: '1 Intento', value: 1 },
@@ -300,6 +303,7 @@ const QuizCreationWizard = {
             return value;
         },
         closeDialog() {
+            this.tagSearchInput = '';
             this.dialog = false;
         },
         nextStep(currentStep) {
@@ -315,8 +319,12 @@ const QuizCreationWizard = {
                 // Prepare timestamps
                 const startDT = new Date(`${this.quiz.dateOpen}T${this.quiz.timeOpen}`);
                 const endDT = new Date(`${this.quiz.dateClose}T${this.quiz.timeClose}`);
-                const normalizedTag = this.normalizeLessonTagValue(this.quiz.tags);
+                let normalizedTag = this.normalizeLessonTagValue(this.quiz.tags);
+                if (!normalizedTag) {
+                    normalizedTag = this.normalizeLessonTagValue(this.tagSearchInput);
+                }
                 this.quiz.tags = normalizedTag;
+                this.tagSearchInput = normalizedTag;
 
                 const payload = {
                     classid: this.classId,
