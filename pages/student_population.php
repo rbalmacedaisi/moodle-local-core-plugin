@@ -230,33 +230,38 @@ if (!empty($all_ids)) {
 $career_tree    = [];  // key → ['planid', 'planids', 'is_group', 'gidx', 'group_name', 'shifts']
 $planid_to_name = [];  // planid → tree key
 
+// 1. Pre-create group entries and map ALL their planids upfront.
+//    This guarantees groups exist regardless of whether $pop_rows contains those planids.
+foreach ($pop_groups as $gidx => $group) {
+    $key = '__GROUP_' . $gidx;
+    $career_tree[$key] = [
+        'planid'     => null,
+        'planids'    => $group['planids'],
+        'is_group'   => true,
+        'gidx'       => $gidx,
+        'group_name' => $group['name'],
+        'shifts'     => [],
+    ];
+    foreach ($group['planids'] as $pid) {
+        $planid_to_name[(int)$pid] = $key;
+    }
+}
+
+// 2. Add individual (non-grouped) plan entries from active-student data.
 foreach ($pop_rows as $row) {
     $planid = (int)$row->planid;
     if (isset($planid_to_gidx[$planid])) {
-        $gidx = $planid_to_gidx[$planid];
-        $key  = '__GROUP_' . $gidx;
-        if (!isset($career_tree[$key])) {
-            $career_tree[$key] = [
-                'planid'     => null,
-                'planids'    => $pop_groups[$gidx]['planids'],
-                'is_group'   => true,
-                'gidx'       => $gidx,
-                'group_name' => $pop_groups[$gidx]['name'],
-                'shifts'     => [],
-            ];
-        }
-        $planid_to_name[$planid] = $key;
-    } else {
-        $career = trim((string)$row->planname);
-        if (!isset($career_tree[$career])) {
-            $career_tree[$career] = [
-                'planid'   => $planid,
-                'planids'  => [$planid],
-                'is_group' => false,
-                'shifts'   => [],
-            ];
-            $planid_to_name[$planid] = $career;
-        }
+        continue; // already handled above
+    }
+    $career = trim((string)$row->planname);
+    if (!isset($career_tree[$career])) {
+        $career_tree[$career] = [
+            'planid'   => $planid,
+            'planids'  => [$planid],
+            'is_group' => false,
+            'shifts'   => [],
+        ];
+        $planid_to_name[$planid] = $career;
     }
 }
 
