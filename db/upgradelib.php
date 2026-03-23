@@ -375,13 +375,22 @@ function assign_capabilities_to_internal_roles() {
     // First we need tu update the capabilities definition for this plugin.
     update_capabilities('local_grupomakro_core');
 
-    // Let's assign the grupomakro_core:seeallorders capability to the "administrative" role.
+    // Let's assign required capabilities to the "administrative" role.
     $role = $DB->get_record('role', array('shortname' => 'administrative'));
+    if (!$role) {
+        return;
+    }
     $context = context_system::instance();
-    $capability = 'local/grupomakro_core:seeallorders';
     $permission = CAP_ALLOW;
-
-    assign_capability($capability, $permission, $role->id, $context->id);
+    $capabilities = [
+        'local/grupomakro_core:seeallorders',
+        'local/grupomakro_core:manageletters',
+        'local/grupomakro_core:managerequests',
+        'local/grupomakro_core:viewallletterrequests',
+    ];
+    foreach ($capabilities as $capability) {
+        assign_capability($capability, $permission, $role->id, $context->id);
+    }
 }
 
 /**

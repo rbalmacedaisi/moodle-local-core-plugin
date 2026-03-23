@@ -378,137 +378,6 @@ if (!empty($all_ids)) {
     } catch (Exception $e) {}
 }
 
-// ── Per-student absences (for modal) ───────────────────────────────────────────
-$student_absences = []; // [classid][userid] => count
-if (!empty($all_ids)) {
-    [$insql, $inparams] = $DB->get_in_or_equal($all_ids, SQL_PARAMS_NAMED, 'cid');
-    $inparams['nowts'] = $now;
-    try {
-        $rs = $DB->get_recordset_sql(
-            "SELECT gc.id AS classid, gcp.userid, COUNT(l.id) AS absences
-               FROM {gmk_class} gc
-               JOIN {course_modules} cm ON cm.id = gc.attendancemoduleid
-               JOIN {attendance_sessions} s ON s.attendanceid = cm.instance
-                    AND s.groupid = gc.groupid AND s.sessdate < :nowts
-               JOIN {attendance_log} l ON l.sessionid = s.id
-               JOIN {attendance_statuses} ast ON ast.id = l.statusid AND ast.grade <= 0
-               JOIN {gmk_course_progre} gcp ON gcp.classid = gc.id
-                    AND gcp.userid = l.studentid AND gcp.status IN (1,2,3)
-              WHERE gc.id $insql AND gc.attendancemoduleid > 0
-              GROUP BY gc.id, gcp.userid",
-            $inparams
-        );
-        foreach ($rs as $row) {
-            $student_absences[(int)$row->classid][(int)$row->userid] = (int)$row->absences;
-        }
-        $rs->close();
-    } catch (Exception $e) {}
-}
-
-// ── Enrolled students with user info ───────────────────────────────────────────
-$class_students_raw = []; // [classid][userid] => stdClass
-if (!empty($all_ids)) {
-    [$insql, $inparams] = $DB->get_in_or_equal($all_ids, SQL_PARAMS_NAMED, 'cid');
-    try {
-        $rs = $DB->get_recordset_sql(
-            "SELECT gcp.classid, gcp.userid, u.firstname, u.lastname, u.idnumber,
-                    u.email, u.phone1, u.phone2, u.suspended,
-                    COALESCE(llu.status, 'activo') AS academic_status
-               FROM {gmk_course_progre} gcp
-               JOIN {gmk_class} gc ON gc.id = gcp.classid
-               JOIN {user} u ON u.id = gcp.userid AND u.deleted = 0
-          LEFT JOIN {local_learning_users} llu ON llu.userid = gcp.userid
-                    AND llu.learningplanid = gc.learningplanid AND llu.userroleid = 5
-              WHERE gcp.classid $insql AND gcp.status IN (1,2,3)
-              ORDER BY gcp.classid, u.lastname, u.firstname",
-            $inparams
-        );
-        foreach ($rs as $row) {
-            $cid = (int)$row->classid;
-            $uid = (int)$row->userid;
-            if (!isset($class_students_raw[$cid][$uid])) {
-                $class_students_raw[$cid][$uid] = $row;
-            }
-        }
-        $rs->close();
-    } catch (Exception $e) {}
-}
-
-// Document numbers (cédulas)
-$doc_map = [];
-$all_uids = [];
-foreach ($class_students_raw as $students) {
-    foreach (array_keys($students) as $uid) { $all_uids[$uid] = true; }
-}
-if (!empty($all_uids) && $doc_fieldid) {
-    [$uinsql, $uinparams] = $DB->get_in_or_equal(array_keys($all_uids), SQL_PARAMS_NAMED, 'docu');
-    $uinparams['docf'] = $doc_fieldid;
-    foreach ($DB->get_records_sql(
-        "SELECT userid, data FROM {user_info_data} WHERE fieldid = :docf AND userid $uinsql",
-        $uinparams
-    ) as $dr) {
-        $v = trim((string)$dr->data);
-        if ($v !== '') $doc_map[(int)$dr->userid] = $v;
-    }
-}
-
-// Custom phone fields
-$phone_fields = [];
-foreach ($DB->get_records('user_info_field', null, 'id ASC') as $cf) {
-    if (absd_is_phone_field($cf)) $phone_fields[(int)$cf->id] = $cf;
-}
-
-$custom_phone_map = [];
-if (!empty($phone_fields) && !empty($all_uids)) {
-    [$finsql, $finparams] = $DB->get_in_or_equal(array_keys($phone_fields), SQL_PARAMS_NAMED, 'phf');
-    [$uinsql, $uinparams] = $DB->get_in_or_equal(array_keys($all_uids), SQL_PARAMS_NAMED, 'phu');
-    $rs = $DB->get_recordset_sql(
-        "SELECT userid, fieldid, data FROM {user_info_data}
-          WHERE fieldid $finsql AND userid $uinsql",
-        array_merge($finparams, $uinparams)
-    );
-    foreach ($rs as $cr) {
-        $v = trim((string)$cr->data);
-        if ($v !== '') $custom_phone_map[(int)$cr->userid][(int)$cr->fieldid] = $v;
-    }
-    $rs->close();
-}
-
-// Build modal JSON payload
-$modal_data = []; // classid => [student, ...]
-foreach ($class_students_raw as $cid => $students) {
-    $modal_data[$cid] = [];
-    foreach ($students as $uid => $row) {
-        $cedula = $doc_map[$uid] ?? trim((string)$row->idnumber);
-        $phones = [];
-        if (($v = trim((string)$row->phone1)) !== '') {
-            $phones[] = ['label' => 'Teléfono', 'value' => $v, 'wa' => absd_phone_for_wa($v)];
-        }
-        if (($v = trim((string)$row->phone2)) !== '') {
-            $phones[] = ['label' => 'Móvil', 'value' => $v, 'wa' => absd_phone_for_wa($v)];
-        }
-        foreach ($phone_fields as $fid => $fobj) {
-            $v = $custom_phone_map[$uid][$fid] ?? '';
-            if ($v !== '') {
-                $label = trim((string)$fobj->name) ?: trim((string)$fobj->shortname);
-                $phones[] = ['label' => $label, 'value' => $v, 'wa' => absd_phone_for_wa($v)];
-            }
-        }
-        $modal_data[$cid][] = [
-            'userid'          => $uid,
-            'name'            => trim($row->firstname . ' ' . $row->lastname),
-            'cedula'          => $cedula ?: '—',
-            'email'           => (string)$row->email,
-            'phones'          => $phones,
-            'absences'        => $student_absences[$cid][$uid] ?? 0,
-            'suspended'       => (bool)$row->suspended,
-            'academic_status' => trim((string)$row->academic_status),
-        ];
-    }
-    // Sort by absences desc
-    usort($modal_data[$cid], fn($a, $b) => $b['absences'] <=> $a['absences']);
-}
-
 // ── Plan names & career tree ────────────────────────────────────────────────────
 $plan_rows = $DB->get_records_sql(
     "SELECT DISTINCT llu.learningplanid AS planid, lp.name AS planname
@@ -564,19 +433,6 @@ foreach ($all_ids as $cid) {
     $absences = $class_total_absences[$cid] ?? 0;
     $expected = $sessions * $enrolled;
     $class_absence_pct[$cid] = $expected > 0 ? round($absences / $expected * 100, 1) : 0.0;
-}
-
-// ── Pre-compute safe JSON for JavaScript ───────────────────────────────────────
-// Sanitise all string values to valid UTF-8 before encoding (PHP-version-safe).
-array_walk_recursive($modal_data, function (&$v) {
-    if (is_string($v)) {
-        $v = mb_convert_encoding($v, 'UTF-8', 'UTF-8');
-    }
-});
-// JSON_HEX_TAG escapes < and > so "</script>" can never appear inside the block.
-$modal_json_safe = json_encode($modal_data, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG);
-if ($modal_json_safe === false) {
-    $modal_json_safe = '{}';
 }
 
 // ── Output ─────────────────────────────────────────────────────────────────────
@@ -984,7 +840,6 @@ $ajax_url = (new moodle_url('/local/grupomakro_core/pages/absence_dashboard.php'
 (function() {
     var SESSKEY   = <?php echo json_encode($sesskey); ?>;
     var AJAX_URL  = <?php echo json_encode($ajax_url); ?>;
-    var ALL_DATA  = <?php echo $modal_json_safe; ?>;
 
     var currentClassId = null;
     var currentStudents = [];
@@ -1043,14 +898,30 @@ $ajax_url = (new moodle_url('/local/grupomakro_core/pages/absence_dashboard.php'
 
     window.absdOpenModal = function(classId, className) {
         currentClassId = classId;
-        currentStudents = ALL_DATA[classId] || [];
-        filteredStudents = currentStudents.slice();
+        currentStudents = [];
+        filteredStudents = [];
         document.getElementById('absdModalTitle').textContent = className + ' — Estudiantes';
         document.getElementById('absdSearch').value = '';
-        document.getElementById('absdCount').textContent = currentStudents.length + ' estudiantes';
-        renderTable(filteredStudents);
+        document.getElementById('absdCount').textContent = 'Cargando...';
+        document.getElementById('absdTbody').innerHTML =
+            '<tr><td colspan="7" style="text-align:center;padding:24px;color:#64748b">Cargando estudiantes...</td></tr>';
         document.getElementById('absdModal').classList.add('absd-modal-open');
-        document.getElementById('absdSearch').focus();
+        var params = new URLSearchParams({ abs_ajax: 1, abs_action: 'get_students', classid: classId, sesskey: SESSKEY });
+        fetch(AJAX_URL + '?' + params.toString())
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.ok) throw new Error(data.message || 'Error desconocido');
+                currentStudents = data.students || [];
+                filteredStudents = currentStudents.slice();
+                document.getElementById('absdCount').textContent = currentStudents.length + ' estudiantes';
+                renderTable(filteredStudents);
+                document.getElementById('absdSearch').focus();
+            })
+            .catch(function(err) {
+                document.getElementById('absdTbody').innerHTML =
+                    '<tr><td colspan="7" style="text-align:center;padding:24px;color:#dc2626">Error al cargar: ' + err.message + '</td></tr>';
+                document.getElementById('absdCount').textContent = '';
+            });
     };
 
     window.absdCloseModal = function() {

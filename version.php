@@ -24,6 +24,6 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = "local_grupomakro_core";
-$plugin->version   = 20260320001;         // Student assignment custom API for LXP.
+$plugin->version   = 20260323000;         // Letter requests management v1 (Moodle+LXP+Express+Odoo).
 $plugin->requires = 2014051200;
 $plugin->maturity = MATURITY_STABLE;
