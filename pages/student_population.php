@@ -272,12 +272,28 @@ foreach ($regular_classes as $cls) {
     $shift   = pop_normalize_shift((string)($cls->classshift ?? ''));
     $treeKey = $planid_to_name[$planid] ?? null;
 
-    // Fallback: career_label text match
+    // Fallback: career_label text match.
+    // For individual careers the tree key IS the plan name — easy text match.
+    // For groups the key is __GROUP_X, so we match against each constituent plan name.
     if (!$treeKey && !empty($cls->career_label)) {
-        foreach (array_keys($career_tree) as $cn) {
-            if (stripos($cn, $cls->career_label) !== false || stripos($cls->career_label, $cn) !== false) {
-                $treeKey = $cn;
-                break;
+        foreach ($career_tree as $cn => $cdata) {
+            if (!$cdata['is_group']) {
+                if (stripos($cn, $cls->career_label) !== false ||
+                    stripos($cls->career_label, $cn) !== false) {
+                    $treeKey = $cn;
+                    break;
+                }
+            } else {
+                foreach ($cdata['planids'] as $gpid) {
+                    $gpname = $available_plans[(int)$gpid] ?? '';
+                    if ($gpname !== '' && (
+                        stripos($gpname, $cls->career_label) !== false ||
+                        stripos($cls->career_label, $gpname) !== false
+                    )) {
+                        $treeKey = $cn;
+                        break 2;
+                    }
+                }
             }
         }
     }
