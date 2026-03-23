@@ -19,34 +19,44 @@ $PAGE->set_title('Población Estudiantil');
 $PAGE->set_heading('Población Estudiantil');
 $PAGE->set_pagelayout('admin');
 
-// ── Session: group management ────────────────────────────────────────────────
+// ── Group management (stored in user preferences — persists across sessions) ──
 
-global $SESSION;
-if (!isset($SESSION->pop_groups) || !is_array($SESSION->pop_groups)) {
-    $SESSION->pop_groups = [];
+define('POP_GROUPS_PREF', 'local_grupomakro_core_pop_groups');
+
+function pop_load_groups(): array {
+    $raw = get_user_preferences(POP_GROUPS_PREF, '[]');
+    $groups = json_decode($raw, true);
+    return is_array($groups) ? $groups : [];
+}
+
+function pop_save_groups(array $groups): void {
+    set_user_preference(POP_GROUPS_PREF, json_encode(array_values($groups)));
 }
 
 $pop_action = optional_param('pop_action', '', PARAM_ALPHA);
 if ($pop_action && confirm_sesskey()) {
+    $pop_groups = pop_load_groups();
     if ($pop_action === 'add_group') {
         $gname   = trim(optional_param('group_name', '', PARAM_TEXT));
         $planids = optional_param_array('planids', [], PARAM_INT);
         $planids = array_values(array_filter(array_unique($planids)));
         if ($gname !== '' && count($planids) >= 2) {
-            $SESSION->pop_groups[] = ['name' => $gname, 'planids' => $planids];
+            $pop_groups[] = ['name' => $gname, 'planids' => $planids];
+            pop_save_groups($pop_groups);
         }
     } elseif ($pop_action === 'remove_group') {
         $idx = optional_param('group_idx', -1, PARAM_INT);
-        if (isset($SESSION->pop_groups[$idx])) {
-            array_splice($SESSION->pop_groups, $idx, 1);
+        if (isset($pop_groups[$idx])) {
+            array_splice($pop_groups, $idx, 1);
+            pop_save_groups($pop_groups);
         }
     } elseif ($pop_action === 'clear_groups') {
-        $SESSION->pop_groups = [];
+        pop_save_groups([]);
     }
     redirect($PAGE->url);
 }
 
-$pop_groups = $SESSION->pop_groups;
+$pop_groups = pop_load_groups();
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
