@@ -35,6 +35,148 @@ if (optional_param('abs_ajax', 0, PARAM_INT)) {
             $reason          = optional_param('reason', '', PARAM_TEXT);
             $res             = \local_grupomakro_progress_manager::update_external_status($userid, $academic_action, $reason);
             echo json_encode($res);
+        } elseif ($abs_action === 'get_students') {
+            // Load student details for one class on-demand (avoids embedding large JSON in HTML).
+            $classid = required_param('classid', PARAM_INT);
+            $class   = $DB->get_record('gmk_class', ['id' => $classid],
+                'id, learningplanid, attendancemoduleid, groupid', MUST_EXIST);
+            $nowts   = time();
+
+            // Past sessions for this class
+            $past_sessions = 0;
+            if ($class->attendancemoduleid > 0) {
+                try {
+                    $past_sessions = (int)$DB->get_field_sql(
+                        "SELECT COUNT(DISTINCT s.id)
+                           FROM {course_modules} cm
+                           JOIN {attendance_sessions} s ON s.attendanceid = cm.instance
+                                AND s.groupid = :groupid AND s.sessdate < :nowts
+                          WHERE cm.id = :cmid",
+                        ['cmid' => $class->attendancemoduleid, 'groupid' => $class->groupid, 'nowts' => $nowts]
+                    );
+                } catch (Exception $e) {}
+            }
+
+            // Enrolled students
+            $students_raw = [];
+            $rs = $DB->get_recordset_sql(
+                "SELECT gcp.userid, u.firstname, u.lastname, u.idnumber, u.email,
+                        u.phone1, u.phone2, u.suspended,
+                        COALESCE(llu.status, 'activo') AS academic_status
+                   FROM {gmk_course_progre} gcp
+                   JOIN {user} u ON u.id = gcp.userid AND u.deleted = 0
+              LEFT JOIN {local_learning_users} llu ON llu.userid = gcp.userid
+                        AND llu.learningplanid = :planid AND llu.userroleid = 5
+                  WHERE gcp.classid = :classid AND gcp.status IN (1,2,3)
+                  ORDER BY u.lastname, u.firstname",
+                ['classid' => $classid, 'planid' => $class->learningplanid]
+            );
+            foreach ($rs as $row) { $students_raw[(int)$row->userid] = $row; }
+            $rs->close();
+
+            if (empty($students_raw)) {
+                echo json_encode(['ok' => true, 'students' => [], 'past_sessions' => $past_sessions]);
+                exit;
+            }
+            $userids = array_keys($students_raw);
+
+            // Per-student absences
+            $student_abs = [];
+            if ($class->attendancemoduleid > 0) {
+                try {
+                    [$uinsql, $uinp] = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED, 'suid');
+                    $uinp['cmid']    = $class->attendancemoduleid;
+                    $uinp['groupid'] = $class->groupid;
+                    $uinp['nowts']   = $nowts;
+                    $rs = $DB->get_recordset_sql(
+                        "SELECT l.studentid, COUNT(l.id) AS absences
+                           FROM {course_modules} cm
+                           JOIN {attendance_sessions} s ON s.attendanceid = cm.instance
+                                AND s.groupid = :groupid AND s.sessdate < :nowts
+                           JOIN {attendance_log} l ON l.sessionid = s.id
+                           JOIN {attendance_statuses} ast ON ast.id = l.statusid AND ast.grade <= 0
+                          WHERE cm.id = :cmid AND l.studentid $uinsql
+                          GROUP BY l.studentid",
+                        $uinp
+                    );
+                    foreach ($rs as $row) { $student_abs[(int)$row->studentid] = (int)$row->absences; }
+                    $rs->close();
+                } catch (Exception $e) {}
+            }
+
+            // Document numbers
+            $doc_map_s = [];
+            $doc_fid   = (int)($DB->get_field('user_info_field', 'id', ['shortname' => 'documentnumber']) ?: 0);
+            if ($doc_fid) {
+                [$uinsql, $uinp] = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED, 'docu');
+                $uinp['docf'] = $doc_fid;
+                $rs = $DB->get_recordset_sql(
+                    "SELECT userid, data FROM {user_info_data} WHERE fieldid = :docf AND userid $uinsql",
+                    $uinp
+                );
+                foreach ($rs as $dr) {
+                    $v = trim((string)$dr->data);
+                    if ($v !== '') $doc_map_s[(int)$dr->userid] = $v;
+                }
+                $rs->close();
+            }
+
+            // Custom phone fields
+            $pf_ids = [];
+            $pf_names = [];
+            foreach ($DB->get_records('user_info_field', null, 'id ASC') as $cf) {
+                if (absd_is_phone_field($cf)) {
+                    $pf_ids[]              = (int)$cf->id;
+                    $pf_names[(int)$cf->id] = trim((string)$cf->name) ?: trim((string)$cf->shortname);
+                }
+            }
+            $custom_pm = [];
+            if (!empty($pf_ids)) {
+                [$finsql, $finp] = $DB->get_in_or_equal($pf_ids, SQL_PARAMS_NAMED, 'phf');
+                [$uinsql, $uinp] = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED, 'phu');
+                $rs = $DB->get_recordset_sql(
+                    "SELECT userid, fieldid, data FROM {user_info_data}
+                      WHERE fieldid $finsql AND userid $uinsql",
+                    array_merge($finp, $uinp)
+                );
+                foreach ($rs as $cr) {
+                    $v = trim((string)$cr->data);
+                    if ($v !== '') $custom_pm[(int)$cr->userid][(int)$cr->fieldid] = $v;
+                }
+                $rs->close();
+            }
+
+            // Build result
+            $out = [];
+            foreach ($students_raw as $uid => $row) {
+                $cedula = $doc_map_s[$uid] ?? trim((string)$row->idnumber);
+                $phones = [];
+                if (($v = trim((string)$row->phone1)) !== '') {
+                    $phones[] = ['label' => 'Teléfono', 'value' => $v, 'wa' => absd_phone_for_wa($v)];
+                }
+                if (($v = trim((string)$row->phone2)) !== '') {
+                    $phones[] = ['label' => 'Móvil', 'value' => $v, 'wa' => absd_phone_for_wa($v)];
+                }
+                foreach ($pf_ids as $fid) {
+                    $v = $custom_pm[$uid][$fid] ?? '';
+                    if ($v !== '') {
+                        $phones[] = ['label' => $pf_names[$fid], 'value' => $v, 'wa' => absd_phone_for_wa($v)];
+                    }
+                }
+                $out[] = [
+                    'userid'          => $uid,
+                    'name'            => mb_convert_encoding(trim($row->firstname . ' ' . $row->lastname), 'UTF-8', 'UTF-8'),
+                    'cedula'          => $cedula ?: '—',
+                    'email'           => (string)$row->email,
+                    'phones'          => $phones,
+                    'absences'        => $student_abs[$uid] ?? 0,
+                    'suspended'       => (bool)$row->suspended,
+                    'academic_status' => trim((string)$row->academic_status),
+                ];
+            }
+            usort($out, fn($a, $b) => $b['absences'] <=> $a['absences']);
+            echo json_encode(['ok' => true, 'students' => $out, 'past_sessions' => $past_sessions],
+                JSON_UNESCAPED_UNICODE | JSON_HEX_TAG);
         } else {
             echo json_encode(['ok' => false, 'message' => 'Unknown action']);
         }
