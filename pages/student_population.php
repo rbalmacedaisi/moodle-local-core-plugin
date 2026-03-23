@@ -368,13 +368,21 @@ if (!empty($classid_to_bucket)) {
     $rs->close();
 }
 
-// 3. Push counts into career tree
+// 3. Push counts into career tree + compute per-career distinct total
+$career_active_count = [];   // careerKey => distinct student count across all shifts
 foreach ($career_tree as $key => &$cdata) {
+    $all_uids_career = [];
     foreach ($cdata['shifts'] as $shift => &$shiftData) {
         $bkey = $key . '||' . $shift;
         $shiftData['student_count'] = isset($bucket_users[$bkey]) ? count($bucket_users[$bkey]) : 0;
+        if (isset($bucket_users[$bkey])) {
+            foreach (array_keys($bucket_users[$bkey]) as $uid) {
+                $all_uids_career[$uid] = true;
+            }
+        }
     }
     unset($shiftData);
+    $career_active_count[$key] = count($all_uids_career);
 }
 unset($cdata);
 
@@ -844,17 +852,17 @@ $sesskey = sesskey();
                 <span class="pop-group-label">grupo</span>
                 <?php echo s(strtoupper($careerData['group_name'])); ?>
             </span>
-            <?php $gTotal = $group_distinct_count[$careerData['gidx']] ?? 0; ?>
+            <?php $gTotal = $career_active_count[$careerKey] ?? 0; ?>
             <?php if ($gTotal > 0): ?>
-            <span class="pop-career-badge"><?php echo $gTotal; ?> estudiantes</span>
+            <span class="pop-career-badge"><?php echo $gTotal; ?> en clases activas</span>
             <?php endif; ?>
         </h2>
         <?php else: ?>
         <h2 class="pop-career-title">
             <span><?php echo s(strtoupper($careerKey)); ?></span>
-            <?php $cTotal = $career_distinct_count[$careerData['planid']] ?? 0; ?>
+            <?php $cTotal = $career_active_count[$careerKey] ?? 0; ?>
             <?php if ($cTotal > 0): ?>
-            <span class="pop-career-badge"><?php echo $cTotal; ?> estudiantes</span>
+            <span class="pop-career-badge"><?php echo $cTotal; ?> en clases activas</span>
             <?php endif; ?>
         </h2>
         <?php endif; ?>
