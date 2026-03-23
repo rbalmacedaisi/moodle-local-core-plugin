@@ -1,0 +1,978 @@
+<?php
+/**
+ * Dashboard de Inasistencias y Deserciones
+ *
+ * Muestra, por carrera y jornada, las estadísticas de inasistencias de cada
+ * clase activa. Solo considera sesiones de asistencia ya realizadas (passadas).
+ *
+ * @package    local_grupomakro_core
+ * @copyright  2025 Antigravity
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
+require_once(__DIR__ . '/../../../config.php');
+require_once($CFG->libdir . '/adminlib.php');
+
+require_login();
+require_capability('moodle/site:config', context_system::instance());
+
+// ── Inline AJAX ───────────────────────────────────────────────────────────────
+if (optional_param('abs_ajax', 0, PARAM_INT)) {
+    header('Content-Type: application/json; charset=utf-8');
+    try {
+        require_sesskey();
+        $abs_action = required_param('abs_action', PARAM_ALPHANUMEXT);
+        if ($abs_action === 'suspend') {
+            $userid = required_param('userid', PARAM_INT);
+            $u      = $DB->get_record('user', ['id' => $userid, 'deleted' => 0], 'id, suspended', MUST_EXIST);
+            $newval = $u->suspended ? 0 : 1;
+            $DB->set_field('user', 'suspended', $newval, ['id' => $userid]);
+            echo json_encode(['ok' => true, 'suspended' => (bool)$newval]);
+        } elseif ($abs_action === 'academic') {
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/progress_manager.php');
+            $userid          = required_param('userid', PARAM_INT);
+            $academic_action = required_param('academic_action', PARAM_ALPHA); // aplazo|retiro|reingreso
+            $reason          = optional_param('reason', '', PARAM_TEXT);
+            $res             = \local_grupomakro_progress_manager::update_external_status($userid, $academic_action, $reason);
+            echo json_encode($res);
+        } else {
+            echo json_encode(['ok' => false, 'message' => 'Unknown action']);
+        }
+    } catch (Throwable $e) {
+        echo json_encode(['ok' => false, 'message' => $e->getMessage()]);
+    }
+    exit;
+}
+
+// ── Page setup ─────────────────────────────────────────────────────────────────
+$PAGE->set_url(new moodle_url('/local/grupomakro_core/pages/absence_dashboard.php'));
+$PAGE->set_context(context_system::instance());
+$PAGE->set_title('Inasistencias y Deserciones');
+$PAGE->set_heading('Inasistencias y Deserciones');
+$PAGE->set_pagelayout('admin');
+
+// ── Helpers ─────────────────────────────────────────────────────────────────────
+
+function absd_normalize_shift(string $s): string {
+    $s = strtolower(trim($s));
+    if (in_array($s, ['d', 'diurno', 'diurna', 'dia', 'mañana', 'manana'])) return 'Diurno';
+    if (in_array($s, ['n', 'nocturno', 'nocturna', 'noche']))               return 'Nocturno';
+    if (in_array($s, ['s', 'sabatino', 'sabatina', 'sabado', 'sábado']))    return 'Sabatino';
+    return $s !== '' ? ucfirst($s) : 'Sin jornada';
+}
+
+function absd_format_schedule(array $rows): string {
+    if (empty($rows)) return '';
+    $dayMap = [
+        'Lunes' => 'Lun', 'Martes' => 'Mar', 'Miercoles' => 'Mié', 'Miércoles' => 'Mié',
+        'Jueves' => 'Jue', 'Viernes' => 'Vie', 'Sabado' => 'Sáb', 'Sábado' => 'Sáb', 'Domingo' => 'Dom',
+    ];
+    $grouped = [];
+    foreach ($rows as $r) {
+        $start   = substr((string)($r->start_time ?? ''), 0, 5);
+        $end     = substr((string)($r->end_time   ?? ''), 0, 5);
+        $key     = "{$start}–{$end}";
+        $dl      = $dayMap[(string)($r->day ?? '')] ?? (string)($r->day ?? '');
+        $grouped[$key][$dl] = true;
+    }
+    $parts = [];
+    foreach ($grouped as $t => $days) {
+        $parts[] = implode('/', array_keys($days)) . ' ' . $t;
+    }
+    return implode(', ', $parts);
+}
+
+function absd_pct_color(float $pct): string {
+    if ($pct > 40) return '#dc2626';
+    if ($pct >= 10) return '#f97316';
+    return '#16a34a';
+}
+function absd_pct_bg(float $pct): string {
+    if ($pct > 40) return '#fef2f2';
+    if ($pct >= 10) return '#fff7ed';
+    return '#f0fdf4';
+}
+function absd_pct_border(float $pct): string {
+    if ($pct > 40) return '#fca5a5';
+    if ($pct >= 10) return '#fdba74';
+    return '#86efac';
+}
+function absd_pct_badge(float $pct): string {
+    if ($pct > 40) return 'CRÍTICO';
+    if ($pct >= 10) return 'ALERTA';
+    return 'OK';
+}
+
+function absd_phone_for_wa(string $phone): string {
+    $d = preg_replace('/[^0-9]/', '', $phone);
+    if ($d === '') return '';
+    if (strlen($d) >= 10 && substr($d, 0, 3) === '507') return $d;
+    if (strlen($d) === 7 || strlen($d) === 8) return '507' . $d;
+    return $d;
+}
+
+function absd_is_phone_field(stdClass $f): bool {
+    $t = strtolower((string)$f->shortname . ' ' . (string)$f->name);
+    foreach (['phone', 'telefono', 'movil', 'mobile', 'celular', 'whatsapp', 'customphone'] as $kw) {
+        if (strpos($t, $kw) !== false) return true;
+    }
+    return false;
+}
+
+function absd_house_svg(): string {
+    return '<svg viewBox="0 0 64 64" width="36" height="36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <polygon points="32,6 60,30 56,30 56,58 36,58 36,40 28,40 28,58 8,58 8,30 4,30"
+            stroke="currentColor" stroke-width="3" fill="currentColor" fill-opacity="0.12"/>
+        <polygon points="32,6 60,30 4,30"
+            stroke="currentColor" stroke-width="3" fill="currentColor" fill-opacity="0.25"/>
+    </svg>';
+}
+
+// ── Field IDs ──────────────────────────────────────────────────────────────────
+$tc_fieldid  = (int)($DB->get_field('customfield_field', 'id', ['shortname' => 'tc'])            ?: 0);
+$doc_fieldid = (int)($DB->get_field('user_info_field',   'id', ['shortname' => 'documentnumber']) ?: 0);
+
+// ── Active classes (same filter as student_population) ─────────────────────────
+$now = time();
+
+$tc_join  = $tc_fieldid ? "LEFT JOIN {customfield_data} _cfd ON _cfd.instanceid = gc.corecourseid AND _cfd.fieldid = $tc_fieldid" : '';
+$tc_where = $tc_fieldid ? "AND (_cfd.value IS NULL OR _cfd.value <> '1')" : '';
+$tc_join2 = $tc_fieldid ? "JOIN {customfield_data} _cfd ON _cfd.instanceid = gc.corecourseid AND _cfd.fieldid = $tc_fieldid AND _cfd.value = '1'" : '';
+
+$class_sel = "SELECT gc.id,
+        gc.name           AS classname,
+        gc.shift          AS classshift,
+        gc.career_label,
+        gc.learningplanid,
+        gc.corecourseid,
+        gc.attendancemoduleid,
+        gc.groupid,
+        c.fullname        AS coursefullname,
+        CONCAT(u.firstname,' ',u.lastname) AS teachername,
+        COUNT(DISTINCT gcp.userid) AS student_count
+   FROM {gmk_class} gc
+   LEFT JOIN {course} c              ON c.id    = gc.corecourseid
+   LEFT JOIN {user} u                ON u.id    = gc.instructorid
+   LEFT JOIN {gmk_course_progre} gcp ON gcp.classid = gc.id AND gcp.status IN (1,2,3)";
+
+$regular_classes = $DB->get_records_sql(
+    "$class_sel $tc_join
+      WHERE gc.approved=1 AND gc.closed=0 AND gc.enddate>:now $tc_where
+      GROUP BY gc.id,gc.name,gc.shift,gc.career_label,gc.learningplanid,
+               gc.corecourseid,gc.attendancemoduleid,gc.groupid,c.fullname,u.firstname,u.lastname
+      ORDER BY gc.career_label, gc.shift, c.fullname",
+    ['now' => $now]
+);
+
+$tc_classes = $tc_fieldid ? $DB->get_records_sql(
+    "$class_sel $tc_join2
+      WHERE gc.approved=1 AND gc.closed=0 AND gc.enddate>:now
+      GROUP BY gc.id,gc.name,gc.shift,gc.career_label,gc.learningplanid,
+               gc.corecourseid,gc.attendancemoduleid,gc.groupid,c.fullname,u.firstname,u.lastname
+      ORDER BY c.fullname, gc.shift",
+    ['now' => $now]
+) : [];
+
+// ── Schedules ──────────────────────────────────────────────────────────────────
+$all_ids = array_merge(array_keys($regular_classes), array_keys($tc_classes));
+$schedules_by_class = [];
+if (!empty($all_ids)) {
+    [$insql, $inparams] = $DB->get_in_or_equal($all_ids);
+    try {
+        foreach ($DB->get_records_sql(
+            "SELECT id, classid, day, start_time, end_time
+               FROM {gmk_class_schedules} WHERE classid $insql ORDER BY classid, day, start_time",
+            $inparams
+        ) as $sr) {
+            $schedules_by_class[(int)$sr->classid][] = $sr;
+        }
+    } catch (Exception $e) {}
+}
+
+// ── Attendance stats (past sessions + absences per class) ──────────────────────
+$class_past_sessions  = []; // classid => int
+$class_total_absences = []; // classid => int
+
+if (!empty($all_ids)) {
+    [$insql, $inparams] = $DB->get_in_or_equal($all_ids, SQL_PARAMS_NAMED, 'cid');
+    $inparams['nowts'] = $now;
+
+    // Past sessions
+    try {
+        foreach ($DB->get_records_sql(
+            "SELECT gc.id AS classid, COUNT(DISTINCT s.id) AS cnt
+               FROM {gmk_class} gc
+               JOIN {course_modules} cm ON cm.id = gc.attendancemoduleid
+               JOIN {attendance_sessions} s ON s.attendanceid = cm.instance
+                    AND s.groupid = gc.groupid AND s.sessdate < :nowts
+              WHERE gc.id $insql AND gc.attendancemoduleid > 0
+              GROUP BY gc.id",
+            $inparams
+        ) as $row) {
+            $class_past_sessions[(int)$row->classid] = (int)$row->cnt;
+        }
+    } catch (Exception $e) {}
+
+    // Absences (enrolled students with grade-0 status in past sessions)
+    try {
+        foreach ($DB->get_records_sql(
+            "SELECT gc.id AS classid, COUNT(l.id) AS cnt
+               FROM {gmk_class} gc
+               JOIN {course_modules} cm ON cm.id = gc.attendancemoduleid
+               JOIN {attendance_sessions} s ON s.attendanceid = cm.instance
+                    AND s.groupid = gc.groupid AND s.sessdate < :nowts
+               JOIN {attendance_log} l ON l.sessionid = s.id
+               JOIN {attendance_statuses} ast ON ast.id = l.statusid AND ast.grade <= 0
+               JOIN {gmk_course_progre} gcp ON gcp.classid = gc.id
+                    AND gcp.userid = l.studentid AND gcp.status IN (1,2,3)
+              WHERE gc.id $insql AND gc.attendancemoduleid > 0
+              GROUP BY gc.id",
+            $inparams
+        ) as $row) {
+            $class_total_absences[(int)$row->classid] = (int)$row->cnt;
+        }
+    } catch (Exception $e) {}
+}
+
+// ── Per-student absences (for modal) ───────────────────────────────────────────
+$student_absences = []; // [classid][userid] => count
+if (!empty($all_ids)) {
+    [$insql, $inparams] = $DB->get_in_or_equal($all_ids, SQL_PARAMS_NAMED, 'cid');
+    $inparams['nowts'] = $now;
+    try {
+        foreach ($DB->get_records_sql(
+            "SELECT gc.id AS classid, gcp.userid, COUNT(l.id) AS absences
+               FROM {gmk_class} gc
+               JOIN {course_modules} cm ON cm.id = gc.attendancemoduleid
+               JOIN {attendance_sessions} s ON s.attendanceid = cm.instance
+                    AND s.groupid = gc.groupid AND s.sessdate < :nowts
+               JOIN {attendance_log} l ON l.sessionid = s.id
+               JOIN {attendance_statuses} ast ON ast.id = l.statusid AND ast.grade <= 0
+               JOIN {gmk_course_progre} gcp ON gcp.classid = gc.id
+                    AND gcp.userid = l.studentid AND gcp.status IN (1,2,3)
+              WHERE gc.id $insql AND gc.attendancemoduleid > 0
+              GROUP BY gc.id, gcp.userid",
+            $inparams
+        ) as $row) {
+            $student_absences[(int)$row->classid][(int)$row->userid] = (int)$row->absences;
+        }
+    } catch (Exception $e) {}
+}
+
+// ── Enrolled students with user info ───────────────────────────────────────────
+$class_students_raw = []; // [classid][userid] => stdClass
+if (!empty($all_ids)) {
+    [$insql, $inparams] = $DB->get_in_or_equal($all_ids, SQL_PARAMS_NAMED, 'cid');
+    try {
+        foreach ($DB->get_records_sql(
+            "SELECT gcp.classid, gcp.userid, u.firstname, u.lastname, u.idnumber,
+                    u.email, u.phone1, u.phone2, u.suspended,
+                    COALESCE(llu.status, 'activo') AS academic_status
+               FROM {gmk_course_progre} gcp
+               JOIN {gmk_class} gc ON gc.id = gcp.classid
+               JOIN {user} u ON u.id = gcp.userid AND u.deleted = 0
+          LEFT JOIN {local_learning_users} llu ON llu.userid = gcp.userid
+                    AND llu.learningplanid = gc.learningplanid AND llu.userroleid = 5
+              WHERE gcp.classid $insql AND gcp.status IN (1,2,3)
+              ORDER BY gcp.classid, u.lastname, u.firstname",
+            $inparams
+        ) as $row) {
+            $cid = (int)$row->classid;
+            $uid = (int)$row->userid;
+            if (!isset($class_students_raw[$cid][$uid])) {
+                $class_students_raw[$cid][$uid] = $row;
+            }
+        }
+    } catch (Exception $e) {}
+}
+
+// Document numbers (cédulas)
+$doc_map = [];
+$all_uids = [];
+foreach ($class_students_raw as $students) {
+    foreach (array_keys($students) as $uid) { $all_uids[$uid] = true; }
+}
+if (!empty($all_uids) && $doc_fieldid) {
+    [$uinsql, $uinparams] = $DB->get_in_or_equal(array_keys($all_uids), SQL_PARAMS_NAMED, 'docu');
+    $uinparams['docf'] = $doc_fieldid;
+    foreach ($DB->get_records_sql(
+        "SELECT userid, data FROM {user_info_data} WHERE fieldid = :docf AND userid $uinsql",
+        $uinparams
+    ) as $dr) {
+        $v = trim((string)$dr->data);
+        if ($v !== '') $doc_map[(int)$dr->userid] = $v;
+    }
+}
+
+// Custom phone fields
+$phone_fields = [];
+foreach ($DB->get_records('user_info_field', null, 'id ASC') as $cf) {
+    if (absd_is_phone_field($cf)) $phone_fields[(int)$cf->id] = $cf;
+}
+
+$custom_phone_map = [];
+if (!empty($phone_fields) && !empty($all_uids)) {
+    [$finsql, $finparams] = $DB->get_in_or_equal(array_keys($phone_fields), SQL_PARAMS_NAMED, 'phf');
+    [$uinsql, $uinparams] = $DB->get_in_or_equal(array_keys($all_uids), SQL_PARAMS_NAMED, 'phu');
+    foreach ($DB->get_records_sql(
+        "SELECT userid, fieldid, data FROM {user_info_data}
+          WHERE fieldid $finsql AND userid $uinsql",
+        array_merge($finparams, $uinparams)
+    ) as $cr) {
+        $v = trim((string)$cr->data);
+        if ($v !== '') $custom_phone_map[(int)$cr->userid][(int)$cr->fieldid] = $v;
+    }
+}
+
+// Build modal JSON payload
+$modal_data = []; // classid => [student, ...]
+foreach ($class_students_raw as $cid => $students) {
+    $modal_data[$cid] = [];
+    foreach ($students as $uid => $row) {
+        $cedula = $doc_map[$uid] ?? trim((string)$row->idnumber);
+        $phones = [];
+        if (($v = trim((string)$row->phone1)) !== '') {
+            $phones[] = ['label' => 'Teléfono', 'value' => $v, 'wa' => absd_phone_for_wa($v)];
+        }
+        if (($v = trim((string)$row->phone2)) !== '') {
+            $phones[] = ['label' => 'Móvil', 'value' => $v, 'wa' => absd_phone_for_wa($v)];
+        }
+        foreach ($phone_fields as $fid => $fobj) {
+            $v = $custom_phone_map[$uid][$fid] ?? '';
+            if ($v !== '') {
+                $label = trim((string)$fobj->name) ?: trim((string)$fobj->shortname);
+                $phones[] = ['label' => $label, 'value' => $v, 'wa' => absd_phone_for_wa($v)];
+            }
+        }
+        $modal_data[$cid][] = [
+            'userid'          => $uid,
+            'name'            => trim($row->firstname . ' ' . $row->lastname),
+            'cedula'          => $cedula ?: '—',
+            'email'           => (string)$row->email,
+            'phones'          => $phones,
+            'absences'        => $student_absences[$cid][$uid] ?? 0,
+            'suspended'       => (bool)$row->suspended,
+            'academic_status' => trim((string)$row->academic_status),
+        ];
+    }
+    // Sort by absences desc
+    usort($modal_data[$cid], fn($a, $b) => $b['absences'] <=> $a['absences']);
+}
+
+// ── Plan names & career tree ────────────────────────────────────────────────────
+$plan_rows = $DB->get_records_sql(
+    "SELECT DISTINCT llu.learningplanid AS planid, lp.name AS planname
+       FROM {user} u
+       JOIN {local_learning_users} llu ON llu.userid = u.id AND llu.userroleid = 5 AND llu.status = 'activo'
+       JOIN {local_learning_plans} lp  ON lp.id = llu.learningplanid
+      WHERE u.deleted = 0 AND u.suspended = 0 AND u.id > 2
+      ORDER BY lp.name"
+);
+$available_plans = [];
+$career_tree    = [];
+$planid_to_name = [];
+foreach ($plan_rows as $row) {
+    $pid = (int)$row->planid;
+    $car = trim((string)$row->planname);
+    $available_plans[$pid] = $car;
+    if (!isset($career_tree[$car])) {
+        $career_tree[$car] = ['planid' => $pid, 'planids' => [$pid], 'is_group' => false, 'shifts' => []];
+        $planid_to_name[$pid] = $car;
+    }
+}
+
+foreach ($regular_classes as $cls) {
+    $planid  = (int)$cls->learningplanid;
+    $shift   = absd_normalize_shift((string)($cls->classshift ?? ''));
+    $treeKey = $planid_to_name[$planid] ?? null;
+    if (!$treeKey && !empty($cls->career_label)) {
+        foreach ($career_tree as $cn => $_) {
+            if (stripos($cn, $cls->career_label) !== false || stripos($cls->career_label, $cn) !== false) {
+                $treeKey = $cn; break;
+            }
+        }
+    }
+    if (!$treeKey) continue;
+    if (!isset($career_tree[$treeKey]['shifts'][$shift])) {
+        $career_tree[$treeKey]['shifts'][$shift] = ['classes' => []];
+    }
+    $career_tree[$treeKey]['shifts'][$shift]['classes'][] = $cls;
+}
+
+$shift_order = ['Diurno' => 1, 'Nocturno' => 2, 'Sabatino' => 3];
+foreach ($career_tree as &$cdata) {
+    uksort($cdata['shifts'], fn($a, $b) => ($shift_order[$a] ?? 9) <=> ($shift_order[$b] ?? 9));
+}
+unset($cdata);
+
+// Compute absence % per class
+$class_absence_pct = [];
+foreach ($all_ids as $cid) {
+    $cls      = $regular_classes[$cid] ?? ($tc_classes[$cid] ?? null);
+    $sessions = $class_past_sessions[$cid] ?? 0;
+    $enrolled = $cls ? (int)$cls->student_count : 0;
+    $absences = $class_total_absences[$cid] ?? 0;
+    $expected = $sessions * $enrolled;
+    $class_absence_pct[$cid] = $expected > 0 ? round($absences / $expected * 100, 1) : 0.0;
+}
+
+// ── Output ─────────────────────────────────────────────────────────────────────
+echo $OUTPUT->header();
+$sesskey = sesskey();
+$ajax_url = (new moodle_url('/local/grupomakro_core/pages/absence_dashboard.php'))->out(false);
+?>
+<style>
+/* ── Layout ─────────────────────────────────────────────────────── */
+.absd-page { max-width: 1400px; margin: 0 auto; padding: 16px 20px; font-family: 'Segoe UI', Arial, sans-serif; }
+
+/* ── Career section ──────────────────────────────────────────────── */
+.absd-career-section { margin-bottom: 28px; }
+.absd-career-title {
+    font-size: 12px; font-weight: 800; letter-spacing: 1px; color: #2d3748;
+    text-transform: uppercase; margin: 0 0 10px; padding-bottom: 5px;
+    border-bottom: 2px solid #e2e8f0;
+    display: flex; align-items: center; justify-content: space-between;
+}
+
+/* ── House card ──────────────────────────────────────────────────── */
+.absd-houses-row { display: flex; flex-direction: column; gap: 12px; }
+.absd-house-card {
+    background: #fff; border: 1.5px solid #e2e8f0; border-radius: 10px;
+    padding: 14px 16px; box-sizing: border-box;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+.absd-house-header {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap;
+}
+.absd-house-icon { flex-shrink: 0; color: #475569; }
+.absd-house-meta { flex: 1; min-width: 0; }
+.absd-house-shift {
+    font-size: 13px; font-weight: 800; text-transform: uppercase;
+    letter-spacing: 0.5px; color: #1e293b; line-height: 1.2;
+}
+.absd-house-stats {
+    display: flex; align-items: center; gap: 10px; margin-top: 4px; flex-wrap: wrap;
+}
+.absd-house-pct-badge {
+    font-size: 22px; font-weight: 900; line-height: 1; padding: 3px 12px;
+    border-radius: 8px; border: 1.5px solid; display: inline-flex; align-items: center; gap: 6px;
+}
+.absd-house-pct-label {
+    font-size: 9px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;
+    border-radius: 3px; padding: 2px 5px; vertical-align: middle;
+}
+
+/* ── Class chips ─────────────────────────────────────────────────── */
+.absd-classes-inner {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 8px;
+}
+.absd-class-chip {
+    background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;
+    padding: 9px 11px; font-size: 11px;
+}
+.absd-class-chip-name {
+    font-weight: 700; color: #1a3a5c; font-size: 11.5px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.absd-class-chip-teacher { color: #475569; font-size: 10px; margin-top: 2px; }
+.absd-class-chip-row {
+    display: flex; justify-content: space-between; align-items: center; gap: 6px; margin-top: 6px;
+}
+.absd-class-chip-sched { color: #374151; font-size: 10px; line-height: 1.35; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ── Absence mini-bar ────────────────────────────────────────────── */
+.absd-bar-wrap { margin: 7px 0 0; }
+.absd-bar-label { font-size: 9.5px; color: #64748b; display: flex; justify-content: space-between; margin-bottom: 2px; }
+.absd-bar-track { background: #e2e8f0; border-radius: 4px; height: 8px; width: 100%; overflow: hidden; }
+.absd-bar-fill  { height: 100%; border-radius: 4px; transition: width 0.3s ease; }
+
+/* ── Student count badge ─────────────────────────────────────────── */
+.absd-open-modal-btn {
+    background: #1a56a4; color: #fff; border: none; border-radius: 5px;
+    padding: 3px 9px; font-size: 10px; font-weight: 700; cursor: pointer;
+    white-space: nowrap; flex-shrink: 0;
+}
+.absd-open-modal-btn:hover { background: #144280; }
+
+/* ── No-data chip ─────────────────────────────────────────────────── */
+.absd-no-data { color: #94a3b8; font-size: 10px; font-style: italic; margin-top: 5px; }
+
+/* ── TC section ──────────────────────────────────────────────────── */
+.absd-tc-section { margin-bottom: 28px; }
+.absd-tc-title {
+    font-size: 12px; font-weight: 800; letter-spacing: 1px; color: #2d3748;
+    text-transform: uppercase; margin: 0 0 10px; padding-bottom: 5px;
+    border-bottom: 2px solid #e2e8f0;
+}
+.absd-tc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.absd-tc-card { background: #fff; border: 1.5px solid #e2e8f0; border-radius: 10px; overflow: hidden; }
+.absd-tc-header {
+    background: linear-gradient(135deg,#e3f2fd,#bbdefb); border-bottom: 1.5px solid #90caf9;
+    padding: 10px 12px; display: flex; align-items: center; gap: 8px; color: #0d3c6b;
+    font-size: 12px; font-weight: 700;
+}
+.absd-tc-body { padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+
+/* ── Modal ─────────────────────────────────────────────────────────── */
+.absd-modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.45); z-index: 9000;
+    align-items: center; justify-content: center;
+}
+.absd-modal-overlay.absd-modal-open { display: flex; }
+.absd-modal {
+    background: #fff; border-radius: 12px; width: 96%; max-width: 1100px;
+    max-height: 90vh; display: flex; flex-direction: column;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+}
+.absd-modal-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 20px; border-bottom: 1.5px solid #e2e8f0; flex-shrink: 0;
+}
+.absd-modal-header h2 { font-size: 14px; font-weight: 800; color: #1e293b; margin: 0; }
+.absd-modal-close {
+    background: none; border: none; font-size: 20px; cursor: pointer;
+    color: #64748b; padding: 2px 6px; border-radius: 4px;
+}
+.absd-modal-close:hover { background: #f1f5f9; }
+.absd-modal-toolbar {
+    padding: 10px 20px; border-bottom: 1px solid #f1f5f9; flex-shrink: 0;
+    display: flex; gap: 10px; align-items: center;
+}
+.absd-modal-search {
+    flex: 1; border: 1.5px solid #e2e8f0; border-radius: 7px; padding: 7px 12px; font-size: 13px;
+}
+.absd-modal-search:focus { outline: none; border-color: #93c5fd; }
+.absd-modal-body { overflow-y: auto; flex: 1; }
+.absd-modal-footer {
+    padding: 10px 20px; border-top: 1.5px solid #e2e8f0; flex-shrink: 0;
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 12px; color: #64748b;
+}
+
+/* ── Student table ─────────────────────────────────────────────────── */
+.absd-student-table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+.absd-student-table thead th {
+    background: #f8fafc; color: #374151; font-weight: 700; font-size: 10.5px;
+    text-transform: uppercase; letter-spacing: 0.5px; padding: 8px 10px; text-align: left;
+    position: sticky; top: 0; border-bottom: 1.5px solid #e2e8f0;
+}
+.absd-student-table tbody tr:nth-child(even) { background: #fafafa; }
+.absd-student-table tbody tr:hover { background: #eff6ff; }
+.absd-student-table tbody td { padding: 7px 10px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+.absd-badge-abs {
+    display: inline-block; background: #fee2e2; color: #991b1b; font-weight: 700;
+    border-radius: 4px; padding: 1px 7px; font-size: 10.5px; min-width: 28px; text-align: center;
+}
+.absd-badge-abs.zero { background: #dcfce7; color: #166534; }
+.absd-wa-link {
+    display: inline-flex; align-items: center; gap: 3px;
+    background: #d1fae5; color: #065f46; border-radius: 4px;
+    padding: 2px 7px; font-size: 10px; font-weight: 600; text-decoration: none; margin: 1px 2px;
+    white-space: nowrap;
+}
+.absd-wa-link:hover { background: #a7f3d0; color: #064e3b; }
+.absd-status-select {
+    border: 1px solid #e2e8f0; border-radius: 5px; padding: 3px 6px;
+    font-size: 10.5px; cursor: pointer; background: #f8fafc;
+}
+.absd-status-select:focus { outline: none; border-color: #93c5fd; }
+.absd-suspend-btn {
+    border: 1.5px solid; border-radius: 5px; padding: 3px 8px;
+    font-size: 10px; font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.absd-suspend-btn.active   { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+.absd-suspend-btn.inactive { background: #dcfce7; color: #166534; border-color: #86efac; }
+.absd-empty { color: #94a3b8; font-size: 12px; font-style: italic; padding: 2px 0; }
+</style>
+
+<div class="absd-page">
+
+    <!-- Top bar ─────────────────────────────────────────────────────── -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:8px">
+        <div>
+            <h1 style="margin:0;font-size:20px;font-weight:900;color:#1e293b">Inasistencias y Deserciones</h1>
+            <div style="font-size:11px;color:#64748b;margin-top:2px">
+                Solo sesiones ya realizadas (pasadas). Porcentaje = inasistencias / (sesiones × estudiantes).
+            </div>
+        </div>
+        <div style="display:flex;gap:8px">
+            <a href="<?php echo (new moodle_url('/local/grupomakro_core/pages/student_population.php'))->out(false); ?>"
+               style="background:#475569;color:#fff;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;text-decoration:none">
+               &#128100;&nbsp; Población estudiantil
+            </a>
+        </div>
+    </div>
+
+    <!-- Legend ──────────────────────────────────────────────────────── -->
+    <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+        <?php foreach ([['OK', '#16a34a', '#f0fdf4', '#86efac', '< 10%'], ['ALERTA', '#f97316', '#fff7ed', '#fdba74', '10 – 40%'], ['CRÍTICO', '#dc2626', '#fef2f2', '#fca5a5', '> 40%']] as [$lbl, $c, $bg, $brd, $range]): ?>
+        <span style="display:inline-flex;align-items:center;gap:6px;background:<?php echo $bg; ?>;border:1.5px solid <?php echo $brd; ?>;color:<?php echo $c; ?>;border-radius:6px;padding:4px 12px;font-size:11px;font-weight:700">
+            <?php echo $lbl; ?> <span style="font-weight:400;color:#374151"><?php echo $range; ?> inasistencias</span>
+        </span>
+        <?php endforeach; ?>
+    </div>
+
+    <!-- Career sections ──────────────────────────────────────────────── -->
+    <?php if (empty($career_tree)): ?>
+        <div class="alert alert-warning">No hay estudiantes activos registrados.</div>
+    <?php else: foreach ($career_tree as $careerKey => $careerData): if (empty($careerData['shifts'])) continue; ?>
+
+    <div class="absd-career-section">
+        <h2 class="absd-career-title">
+            <span><?php echo s(strtoupper($careerKey)); ?></span>
+        </h2>
+
+        <div class="absd-houses-row">
+        <?php foreach ($careerData['shifts'] as $shiftName => $shiftData):
+            // Aggregate absence % across this shift
+            $sh_total_abs = 0; $sh_total_exp = 0;
+            foreach ($shiftData['classes'] as $cls) {
+                $cid      = (int)$cls->id;
+                $sessions = $class_past_sessions[$cid] ?? 0;
+                $enrolled = (int)$cls->student_count;
+                $sh_total_abs += $class_total_absences[$cid] ?? 0;
+                $sh_total_exp += $sessions * $enrolled;
+            }
+            $shift_pct    = $sh_total_exp > 0 ? round($sh_total_abs / $sh_total_exp * 100, 1) : -1;
+            $pct_color    = $shift_pct >= 0 ? absd_pct_color($shift_pct) : '#64748b';
+            $pct_bg       = $shift_pct >= 0 ? absd_pct_bg($shift_pct) : '#f8fafc';
+            $pct_border   = $shift_pct >= 0 ? absd_pct_border($shift_pct) : '#e2e8f0';
+        ?>
+            <div class="absd-house-card">
+                <div class="absd-house-header">
+                    <div class="absd-house-icon"><?php echo absd_house_svg(); ?></div>
+                    <div class="absd-house-meta">
+                        <div class="absd-house-shift"><?php echo s($shiftName); ?></div>
+                        <div class="absd-house-stats">
+                            <?php if ($shift_pct >= 0): ?>
+                            <div class="absd-house-pct-badge" style="color:<?php echo $pct_color; ?>;background:<?php echo $pct_bg; ?>;border-color:<?php echo $pct_border; ?>">
+                                <?php echo $shift_pct; ?>%
+                                <span class="absd-house-pct-label" style="background:<?php echo $pct_color; ?>;color:#fff">
+                                    <?php echo absd_pct_badge($shift_pct); ?>
+                                </span>
+                            </div>
+                            <span style="font-size:11px;color:#64748b">
+                                <?php echo $sh_total_abs; ?> aus. /
+                                <?php echo $sh_total_exp; ?> esperadas
+                            </span>
+                            <?php else: ?>
+                            <span style="font-size:11px;color:#94a3b8;font-style:italic">Sin datos de asistencia</span>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+
+                <?php if (!empty($shiftData['classes'])): ?>
+                <div class="absd-classes-inner">
+                    <?php foreach ($shiftData['classes'] as $cls):
+                        $cid      = (int)$cls->id;
+                        $cname    = trim((string)($cls->coursefullname ?: $cls->classname));
+                        $schedHtml = absd_format_schedule($schedules_by_class[$cid] ?? []);
+                        $sessions = $class_past_sessions[$cid]  ?? 0;
+                        $enrolled = (int)$cls->student_count;
+                        $absences = $class_total_absences[$cid] ?? 0;
+                        $expected = $sessions * $enrolled;
+                        $cpct     = $expected > 0 ? round($absences / $expected * 100, 1) : 0.0;
+                        $bar_pct  = min(100, $cpct);
+                        $c_color  = $sessions > 0 ? absd_pct_color($cpct)  : '#94a3b8';
+                        $c_bg     = $sessions > 0 ? absd_pct_bg($cpct)     : '#f8fafc';
+                        $c_border = $sessions > 0 ? absd_pct_border($cpct) : '#e2e8f0';
+                    ?>
+                    <div class="absd-class-chip" style="border-color:<?php echo $c_border; ?>;background:<?php echo $c_bg; ?>">
+                        <div class="absd-class-chip-name" title="<?php echo s($cname); ?>"><?php echo s($cname); ?></div>
+                        <div class="absd-class-chip-teacher"><?php echo s(trim($cls->teachername)); ?></div>
+
+                        <?php if ($sessions > 0): ?>
+                        <div class="absd-bar-wrap">
+                            <div class="absd-bar-label">
+                                <span><?php echo $sessions; ?> ses. &middot; <?php echo $enrolled; ?> est.</span>
+                                <span style="font-weight:700;color:<?php echo $c_color; ?>"><?php echo $cpct; ?>% aus.</span>
+                            </div>
+                            <div class="absd-bar-track">
+                                <div class="absd-bar-fill" style="width:<?php echo $bar_pct; ?>%;background:<?php echo $c_color; ?>"></div>
+                            </div>
+                        </div>
+                        <?php else: ?>
+                        <div class="absd-no-data">Sin sesiones pasadas</div>
+                        <?php endif; ?>
+
+                        <div class="absd-class-chip-row">
+                            <div class="absd-class-chip-sched" title="<?php echo $schedHtml; ?>">
+                                <?php echo $schedHtml ?: '<span style="color:#94a3b8">Sin horario</span>'; ?>
+                            </div>
+                            <button class="absd-open-modal-btn"
+                                    onclick="absdOpenModal(<?php echo $cid; ?>, <?php echo json_encode($cname); ?>)">
+                                <?php echo $enrolled; ?> est.
+                            </button>
+                        </div>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+                <?php else: ?>
+                    <div class="absd-empty">Sin clases activas</div>
+                <?php endif; ?>
+            </div>
+        <?php endforeach; ?>
+        </div>
+    </div>
+
+    <?php endforeach; endif; ?>
+
+    <!-- TRONCO COMÚN ─────────────────────────────────────────────────── -->
+    <?php if (!empty($tc_classes)):
+        $tc_by_course = [];
+        foreach ($tc_classes as $cls) {
+            $cname = trim((string)($cls->coursefullname ?: $cls->classname));
+            $tc_by_course[$cname][] = $cls;
+        }
+    ?>
+    <div class="absd-tc-section">
+        <h2 class="absd-tc-title">Tronco Común</h2>
+        <div class="absd-tc-grid">
+        <?php foreach ($tc_by_course as $courseName => $groups): ?>
+            <div class="absd-tc-card">
+                <div class="absd-tc-header">
+                    <svg viewBox="0 0 64 64" width="24" height="24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <polygon points="32,6 60,30 56,30 56,58 36,58 36,40 28,40 28,58 8,58 8,30 4,30"
+                            stroke="currentColor" stroke-width="3" fill="currentColor" fill-opacity="0.2"/>
+                    </svg>
+                    <?php echo s($courseName); ?>
+                </div>
+                <div class="absd-tc-body">
+                <?php foreach ($groups as $cls):
+                    $cid      = (int)$cls->id;
+                    $shift    = absd_normalize_shift((string)($cls->classshift ?? ''));
+                    $sessions = $class_past_sessions[$cid] ?? 0;
+                    $enrolled = (int)$cls->student_count;
+                    $absences = $class_total_absences[$cid] ?? 0;
+                    $expected = $sessions * $enrolled;
+                    $cpct     = $expected > 0 ? round($absences / $expected * 100, 1) : 0.0;
+                    $c_color  = $sessions > 0 ? absd_pct_color($cpct) : '#94a3b8';
+                    $c_bg     = $sessions > 0 ? absd_pct_bg($cpct)    : '#f8fafc';
+                    $c_border = $sessions > 0 ? absd_pct_border($cpct): '#e2e8f0';
+                ?>
+                    <div style="border:1px solid <?php echo $c_border; ?>;background:<?php echo $c_bg; ?>;border-radius:6px;padding:7px 9px;font-size:11px">
+                        <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">
+                            <span style="background:#dbeafe;color:#1e40af;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700"><?php echo s($shift); ?></span>
+                            <span style="color:<?php echo $c_color; ?>;font-weight:700;font-size:11px"><?php echo $sessions > 0 ? $cpct . '%' : '—'; ?></span>
+                        </div>
+                        <div style="margin-top:4px;color:#475569;font-size:10px"><?php echo s(trim($cls->teachername)); ?></div>
+                        <?php if ($sessions > 0): ?>
+                        <div class="absd-bar-wrap" style="margin-top:5px">
+                            <div class="absd-bar-track"><div class="absd-bar-fill" style="width:<?php echo min(100,$cpct); ?>%;background:<?php echo $c_color; ?>"></div></div>
+                        </div>
+                        <?php endif; ?>
+                        <div style="margin-top:5px">
+                            <button class="absd-open-modal-btn" onclick="absdOpenModal(<?php echo $cid; ?>, <?php echo json_encode($courseName . ' — ' . $shift); ?>)">
+                                <?php echo $enrolled; ?> est.
+                            </button>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+                </div>
+            </div>
+        <?php endforeach; ?>
+        </div>
+    </div>
+    <?php endif; ?>
+
+</div><!-- /absd-page -->
+
+<!-- ── Student modal ─────────────────────────────────────────────────── -->
+<div id="absdModal" class="absd-modal-overlay" onclick="if(event.target===this)absdCloseModal()">
+    <div class="absd-modal">
+        <div class="absd-modal-header">
+            <h2 id="absdModalTitle">Estudiantes</h2>
+            <button class="absd-modal-close" onclick="absdCloseModal()">&#10005;</button>
+        </div>
+        <div class="absd-modal-toolbar">
+            <input type="text" class="absd-modal-search" id="absdSearch"
+                placeholder="Buscar por nombre, cédula o correo..."
+                oninput="absdFilterTable()">
+            <span id="absdCount" style="font-size:12px;color:#64748b;white-space:nowrap"></span>
+        </div>
+        <div class="absd-modal-body">
+            <table class="absd-student-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Cédula / ID</th>
+                        <th>Nombre</th>
+                        <th>Teléfonos</th>
+                        <th style="text-align:center">Inasistencias</th>
+                        <th>Est. usuario</th>
+                        <th>Est. académico</th>
+                    </tr>
+                </thead>
+                <tbody id="absdTbody"></tbody>
+            </table>
+        </div>
+        <div class="absd-modal-footer">
+            <span>* Inasistencias en sesiones pasadas de esta clase</span>
+            <span id="absdFooterCount"></span>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    var SESSKEY   = <?php echo json_encode($sesskey); ?>;
+    var AJAX_URL  = <?php echo json_encode($ajax_url); ?>;
+    var ALL_DATA  = <?php echo json_encode($modal_data, JSON_UNESCAPED_UNICODE); ?>;
+
+    var currentClassId = null;
+    var currentStudents = [];
+    var filteredStudents = [];
+
+    function esc(str) {
+        return String(str)
+            .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function renderTable(students) {
+        var tbody = document.getElementById('absdTbody');
+        var html = '';
+        if (!students.length) {
+            html = '<tr><td colspan="7" style="text-align:center;padding:20px;color:#94a3b8;font-style:italic">No hay estudiantes que coincidan</td></tr>';
+        }
+        students.forEach(function(s, i) {
+            var absClass = s.absences === 0 ? 'zero' : '';
+            var phones = s.phones.map(function(p) {
+                var waHref = p.wa ? 'https://wa.me/' + esc(p.wa) : '';
+                return waHref
+                    ? '<a href="' + waHref + '" target="_blank" class="absd-wa-link" title="' + esc(p.label) + '">&#128241; ' + esc(p.value) + '</a>'
+                    : '<span style="font-size:10px;color:#374151">' + esc(p.label) + ': ' + esc(p.value) + '</span>';
+            }).join(' ');
+
+            var suspBtnClass = s.suspended ? 'inactive' : 'active';
+            var suspBtnLabel = s.suspended ? '&#10003; Activo' : '&#10007; Suspendido';
+            var suspBtnTitle = s.suspended ? 'Reactivar usuario' : 'Suspender usuario';
+
+            var acStatus = s.academic_status || 'activo';
+            var acLabel  = {activo:'Activo', aplazado:'Aplazado', retirado:'Retirado', inactivo:'Inactivo'}[acStatus] || acStatus;
+
+            html += '<tr id="absd-row-' + s.userid + '">' +
+                '<td>' + (i + 1) + '</td>' +
+                '<td style="font-weight:700;color:#1a56a4;white-space:nowrap">' + esc(s.cedula) + '</td>' +
+                '<td><strong>' + esc(s.name) + '</strong><br><span style="color:#94a3b8;font-size:10px">' + esc(s.email) + '</span></td>' +
+                '<td>' + (phones || '<span style="color:#94a3b8;font-style:italic">—</span>') + '</td>' +
+                '<td style="text-align:center"><span class="absd-badge-abs ' + absClass + '">' + s.absences + '</span></td>' +
+                '<td><button class="absd-suspend-btn ' + (s.suspended ? 'active' : 'inactive') + '" ' +
+                    'title="' + esc(suspBtnTitle) + '" ' +
+                    'onclick="absdToggleSuspend(' + s.userid + ', this)">' +
+                    (s.suspended ? '&#10007; Suspendido' : '&#10003; Activo') + '</button></td>' +
+                '<td>' +
+                    '<select class="absd-status-select" data-uid="' + s.userid + '" onchange="absdUpdateAcademic(this)">' +
+                    '<option value="reingreso"' + (acStatus==='activo' ? ' selected' : '') + '>Activo</option>' +
+                    '<option value="aplazo"'    + (acStatus==='aplazado' ? ' selected' : '') + '>Aplazado</option>' +
+                    '<option value="retiro"'    + (acStatus==='retirado' ? ' selected' : '') + '>Retirado</option>' +
+                    '</select>' +
+                '</td>' +
+                '</tr>';
+        });
+        tbody.innerHTML = html;
+        document.getElementById('absdFooterCount').textContent =
+            'Mostrando ' + students.length + ' de ' + currentStudents.length;
+    }
+
+    window.absdOpenModal = function(classId, className) {
+        currentClassId = classId;
+        currentStudents = ALL_DATA[classId] || [];
+        filteredStudents = currentStudents.slice();
+        document.getElementById('absdModalTitle').textContent = className + ' — Estudiantes';
+        document.getElementById('absdSearch').value = '';
+        document.getElementById('absdCount').textContent = currentStudents.length + ' estudiantes';
+        renderTable(filteredStudents);
+        document.getElementById('absdModal').classList.add('absd-modal-open');
+        document.getElementById('absdSearch').focus();
+    };
+
+    window.absdCloseModal = function() {
+        document.getElementById('absdModal').classList.remove('absd-modal-open');
+    };
+
+    window.absdFilterTable = function() {
+        var q = document.getElementById('absdSearch').value.toLowerCase().trim();
+        filteredStudents = q
+            ? currentStudents.filter(function(s) {
+                return s.name.toLowerCase().includes(q) ||
+                       s.cedula.toLowerCase().includes(q) ||
+                       s.email.toLowerCase().includes(q) ||
+                       s.phones.some(function(p) { return p.value.toLowerCase().includes(q); });
+              })
+            : currentStudents.slice();
+        renderTable(filteredStudents);
+        document.getElementById('absdCount').textContent = currentStudents.length + ' estudiantes';
+    };
+
+    window.absdToggleSuspend = function(userid, btn) {
+        btn.disabled = true;
+        btn.textContent = '...';
+        var params = new URLSearchParams({
+            abs_ajax: 1,
+            abs_action: 'suspend',
+            userid: userid,
+            sesskey: SESSKEY
+        });
+        fetch(AJAX_URL + '?' + params.toString(), {method: 'POST'})
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                btn.disabled = false;
+                if (data.ok) {
+                    var suspended = data.suspended;
+                    btn.className = 'absd-suspend-btn ' + (suspended ? 'inactive' : 'active');
+                    btn.textContent = suspended ? '\u2717 Suspendido' : '\u2713 Activo';
+                    // update local data
+                    var s = currentStudents.find(function(x) { return x.userid === userid; });
+                    if (s) s.suspended = suspended;
+                } else {
+                    btn.textContent = '!Error';
+                    alert('Error: ' + (data.message || 'No se pudo actualizar'));
+                }
+            })
+            .catch(function() { btn.disabled = false; btn.textContent = '!Error'; });
+    };
+
+    window.absdUpdateAcademic = function(select) {
+        var uid    = parseInt(select.getAttribute('data-uid'), 10);
+        var action = select.value; // aplazo | retiro | reingreso
+        select.disabled = true;
+        var params = new URLSearchParams({
+            abs_ajax: 1,
+            abs_action: 'academic',
+            userid: uid,
+            academic_action: action,
+            sesskey: SESSKEY
+        });
+        fetch(AJAX_URL + '?' + params.toString(), {method: 'POST'})
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                select.disabled = false;
+                if (data.status !== 'success' && data.ok !== true) {
+                    alert('Error: ' + (data.message || 'No se pudo actualizar'));
+                    // revert to old value
+                    var s = currentStudents.find(function(x) { return x.userid === uid; });
+                    if (s) select.value = {activo:'reingreso', aplazado:'aplazo', retirado:'retiro'}[s.academic_status] || 'reingreso';
+                } else {
+                    var s = currentStudents.find(function(x) { return x.userid === uid; });
+                    if (s) {
+                        var newStatus = {reingreso:'activo', aplazo:'aplazado', retiro:'retirado'}[action] || 'activo';
+                        s.academic_status = newStatus;
+                    }
+                }
+            })
+            .catch(function() {
+                select.disabled = false;
+                alert('Error de conexión.');
+            });
+    };
+
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') absdCloseModal();
+    });
+})();
+</script>
+<?php echo $OUTPUT->footer(); ?>

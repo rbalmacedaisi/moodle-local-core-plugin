@@ -193,6 +193,11 @@ if ($hassiteconfig) {
         '👥 Población Estudiantil',
         new moodle_url('/local/grupomakro_core/pages/student_population.php')
     );
+    $absenceDashboardPage = new admin_externalpage(
+        'grupomakro_core_absence_dashboard',
+        '📊 Inasistencias y Deserciones',
+        new moodle_url('/local/grupomakro_core/pages/absence_dashboard.php')
+    );
     $ADMIN->add('grupomakrocore_plugin', $classManagementPage);
     $ADMIN->add('grupomakrocore_plugin', $classSchedulesPage);
     $ADMIN->add('grupomakrocore_plugin', $availabilityPanelPage);
@@ -219,6 +224,7 @@ if ($hassiteconfig) {
     $ADMIN->add('grupomakrocore_plugin', $scheduleWeeklyViewPage);
     $ADMIN->add('grupomakrocore_plugin', $activeStudentsByClassPage);
     $ADMIN->add('grupomakrocore_plugin', $studentPopulationPage);
+    $ADMIN->add('grupomakrocore_plugin', $absenceDashboardPage);
     $ADMIN->add('grupomakrocore_plugin', $financialPlanningPage);
     $ADMIN->add('grupomakrocore_plugin', $debugStudentActivityVisibilityPage);
     $ADMIN->add('grupomakrocore_plugin', $debugBbbTeacherJoinPage);
