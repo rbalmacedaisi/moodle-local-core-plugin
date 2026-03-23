@@ -1697,8 +1697,6 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         $table->add_key('lettertypefk', XMLDB_KEY_FOREIGN, ['lettertypeid'], 'gmk_letter_type', ['id']);
         $table->add_key('usermodifiedfk', XMLDB_KEY_FOREIGN, ['usermodified'], 'user', ['id']);
         $table->add_index('statusidx', XMLDB_INDEX_NOTUNIQUE, ['status']);
-        $table->add_index('userididx', XMLDB_INDEX_NOTUNIQUE, ['userid']);
-        $table->add_index('letteridx', XMLDB_INDEX_NOTUNIQUE, ['lettertypeid']);
         $table->add_index('invoiceidx', XMLDB_INDEX_NOTUNIQUE, ['invoice_id']);
         if (!$dbman->table_exists($table)) {
             $dbman->create_table($table);
@@ -1718,7 +1716,6 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
         $table->add_key('requestfk', XMLDB_KEY_FOREIGN, ['requestid'], 'gmk_letter_request', ['id']);
         $table->add_key('usermodifiedfk', XMLDB_KEY_FOREIGN, ['usermodified'], 'user', ['id']);
-        $table->add_index('requestidx', XMLDB_INDEX_NOTUNIQUE, ['requestid']);
         $table->add_index('eventidx', XMLDB_INDEX_NOTUNIQUE, ['eventtype']);
         if (!$dbman->table_exists($table)) {
             $dbman->create_table($table);
@@ -1740,7 +1737,6 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
         $table->add_key('requestfk', XMLDB_KEY_FOREIGN, ['requestid'], 'gmk_letter_request', ['id']);
         $table->add_key('usermodifiedfk', XMLDB_KEY_FOREIGN, ['usermodified'], 'user', ['id']);
-        $table->add_index('requestidx', XMLDB_INDEX_NOTUNIQUE, ['requestid']);
         if (!$dbman->table_exists($table)) {
             $dbman->create_table($table);
         }
