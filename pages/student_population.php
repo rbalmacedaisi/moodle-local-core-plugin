@@ -24,7 +24,7 @@ $PAGE->set_pagelayout('admin');
 define('POP_GROUPS_PREF', 'local_grupomakro_core_pop_groups');
 
 function pop_load_groups(): array {
-    $raw = get_user_preferences(POP_GROUPS_PREF, '[]');
+    $raw = get_user_preference(POP_GROUPS_PREF, '[]');
     $groups = json_decode($raw, true);
     return is_array($groups) ? $groups : [];
 }
@@ -34,7 +34,8 @@ function pop_save_groups(array $groups): void {
 }
 
 $pop_action = optional_param('pop_action', '', PARAM_ALPHA);
-if ($pop_action && confirm_sesskey()) {
+if ($pop_action) {
+    require_sesskey();
     $pop_groups = pop_load_groups();
     if ($pop_action === 'add_group') {
         $gname   = trim(optional_param('group_name', '', PARAM_TEXT));
