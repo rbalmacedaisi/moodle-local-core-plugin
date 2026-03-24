@@ -47,6 +47,21 @@ if ($action === 'generatedoc') {
     );
 }
 
+$download = optional_param('download', 0, PARAM_BOOL);
+if ($download && $requestid > 0) {
+    require_sesskey();
+    $payload = manager::download_document_payload($requestid, (int)$USER->id, true);
+    $binary = base64_decode($payload['contentbase64']);
+    $filename = clean_filename((string)$payload['filename']);
+    header('Content-Type: ' . (string)$payload['mimetype']);
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    header('Content-Length: ' . strlen($binary));
+    header('Cache-Control: private, no-store, no-cache, must-revalidate');
+    header('Pragma: no-cache');
+    echo $binary;
+    exit;
+}
+
 $requests = manager::get_requests(0, true, $statusfilter);
 $statuslabels = manager::get_status_labels();
 
@@ -159,15 +174,6 @@ if ($editmode && $requestid > 0) {
 
     echo html_writer::empty_tag('input', ['type' => 'submit', 'class' => 'btn btn-primary', 'value' => get_string('letters_update_status', $pluginname)]);
     echo html_writer::end_tag('form');
-}
-
-$download = optional_param('download', 0, PARAM_BOOL);
-if ($download && $requestid > 0) {
-    require_sesskey();
-    $payload = manager::download_document_payload($requestid, (int)$USER->id, true);
-    $binary = base64_decode($payload['contentbase64']);
-    send_file_from_string($binary, $payload['filename'], 0, 0, true, true, $payload['mimetype']);
-    exit;
 }
 
 echo $OUTPUT->footer();

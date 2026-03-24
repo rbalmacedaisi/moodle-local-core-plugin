@@ -198,7 +198,6 @@ class manager {
                 $userid,
                 'Carta digital sin costo generada automáticamente'
             );
-            self::send_generated_notification((int)$request->userid, $request, $lettertype);
         } else {
             $request = self::set_request_status(
                 (int)$request->id,
@@ -272,8 +271,6 @@ class manager {
             $payload
         );
 
-        $lettertype = $DB->get_record('gmk_letter_type', ['id' => $request->lettertypeid], '*', MUST_EXIST);
-
         if ($request->deliverymode_snapshot === self::DELIVERY_DIGITAL
             && $request->generationmode_snapshot === self::GENERATION_AUTO) {
             self::generate_document_for_request((int)$request->id, 0);
@@ -284,7 +281,6 @@ class manager {
                 'Carta digital generada automáticamente tras pago',
                 $payload
             );
-            self::send_generated_notification((int)$request->userid, $request, $lettertype);
         } else {
             $request = self::set_request_status(
                 (int)$request->id,
