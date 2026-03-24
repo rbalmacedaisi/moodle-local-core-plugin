@@ -39,23 +39,10 @@ if (optional_param('abs_ajax', 0, PARAM_INT)) {
             // Load student details for one class on-demand (avoids embedding large JSON in HTML).
             $classid = required_param('classid', PARAM_INT);
             $class   = $DB->get_record('gmk_class', ['id' => $classid],
-                'id, learningplanid, attendancemoduleid, groupid', MUST_EXIST);
+                'id, learningplanid, attendancemoduleid, groupid, courseid, corecourseid, initdate, enddate', MUST_EXIST);
             $nowts   = time();
-
-            // Past sessions for this class
-            $past_sessions = 0;
-            if ($class->attendancemoduleid > 0) {
-                try {
-                    $past_sessions = (int)$DB->get_field_sql(
-                        "SELECT COUNT(DISTINCT s.id)
-                           FROM {course_modules} cm
-                           JOIN {attendance_sessions} s ON s.attendanceid = cm.instance
-                                AND s.groupid = :groupid AND s.sessdate < :nowts
-                          WHERE cm.id = :cmid",
-                        ['cmid' => $class->attendancemoduleid, 'groupid' => $class->groupid, 'nowts' => $nowts]
-                    );
-                } catch (Exception $e) {}
-            }
+            $pastsessionids = absd_get_class_past_session_ids($class, $nowts);
+            $past_sessions = count($pastsessionids);
 
             // Enrolled students
             $students_raw = [];
@@ -80,29 +67,8 @@ if (optional_param('abs_ajax', 0, PARAM_INT)) {
             }
             $userids = array_keys($students_raw);
 
-            // Per-student absences
-            $student_abs = [];
-            if ($class->attendancemoduleid > 0) {
-                try {
-                    [$uinsql, $uinp] = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED, 'suid');
-                    $uinp['cmid']    = $class->attendancemoduleid;
-                    $uinp['groupid'] = $class->groupid;
-                    $uinp['nowts']   = $nowts;
-                    $rs = $DB->get_recordset_sql(
-                        "SELECT l.studentid, COUNT(l.id) AS absences
-                           FROM {course_modules} cm
-                           JOIN {attendance_sessions} s ON s.attendanceid = cm.instance
-                                AND s.groupid = :groupid AND s.sessdate < :nowts
-                           JOIN {attendance_log} l ON l.sessionid = s.id
-                           JOIN {attendance_statuses} ast ON ast.id = l.statusid AND (ast.grade IS NULL OR ast.grade <= 0)
-                          WHERE cm.id = :cmid AND l.studentid $uinsql
-                          GROUP BY l.studentid",
-                        $uinp
-                    );
-                    foreach ($rs as $row) { $student_abs[(int)$row->studentid] = (int)$row->absences; }
-                    $rs->close();
-                } catch (Exception $e) {}
-            }
+            // Per-student absences (robust session resolution).
+            $student_abs = absd_get_student_absences($pastsessionids, $userids);
 
             // Document numbers
             $doc_map_s = [];
@@ -261,6 +227,250 @@ function absd_is_phone_field(stdClass $f): bool {
     return false;
 }
 
+/**
+ * Returns the canonical date window used to resolve class attendance sessions.
+ *
+ * @param stdClass $class
+ * @param int $nowts
+ * @return array{start:int,end:int}
+ */
+function absd_get_class_session_window(stdClass $class, int $nowts): array {
+    $start = !empty($class->initdate)
+        ? max(0, (int)$class->initdate - (30 * DAYSECS))
+        : max(0, $nowts - (365 * DAYSECS));
+    $end = !empty($class->enddate)
+        ? ((int)$class->enddate + (60 * DAYSECS))
+        : ($nowts + (365 * DAYSECS));
+    return ['start' => $start, 'end' => $end];
+}
+
+/**
+ * Resolve attendance instance id for a class using strict and fallback strategies.
+ *
+ * @param stdClass $class
+ * @return int
+ */
+function absd_resolve_class_attendanceid(stdClass $class): int {
+    global $DB;
+
+    // 1) class.attendancemoduleid.
+    if (!empty($class->attendancemoduleid)) {
+        $attcm = $DB->get_record_sql(
+            "SELECT cm.instance, m.name AS modulename
+               FROM {course_modules} cm
+               JOIN {modules} m ON m.id = cm.module
+              WHERE cm.id = :cmid",
+            ['cmid' => (int)$class->attendancemoduleid],
+            IGNORE_MISSING
+        );
+        if ($attcm && (string)$attcm->modulename === 'attendance') {
+            return (int)$attcm->instance;
+        }
+    }
+
+    // 2) relation.attendanceid.
+    $mappedattid = (int)$DB->get_field_sql(
+        "SELECT attendanceid
+           FROM {gmk_bbb_attendance_relation}
+          WHERE classid = :classid
+            AND attendanceid > 0
+       ORDER BY id DESC",
+        ['classid' => (int)$class->id],
+        IGNORE_MULTIPLE
+    );
+    if ($mappedattid > 0 && $DB->record_exists('attendance', ['id' => $mappedattid])) {
+        return $mappedattid;
+    }
+
+    // 3) relation.attendancemoduleid -> cm.instance.
+    $mappedattcmid = (int)$DB->get_field_sql(
+        "SELECT attendancemoduleid
+           FROM {gmk_bbb_attendance_relation}
+          WHERE classid = :classid
+            AND attendancemoduleid > 0
+       ORDER BY id DESC",
+        ['classid' => (int)$class->id],
+        IGNORE_MULTIPLE
+    );
+    if ($mappedattcmid > 0) {
+        $attcm2 = $DB->get_record_sql(
+            "SELECT cm.instance, m.name AS modulename
+               FROM {course_modules} cm
+               JOIN {modules} m ON m.id = cm.module
+              WHERE cm.id = :cmid",
+            ['cmid' => $mappedattcmid],
+            IGNORE_MISSING
+        );
+        if ($attcm2 && (string)$attcm2->modulename === 'attendance') {
+            return (int)$attcm2->instance;
+        }
+    }
+
+    // 4) attendance by class course.
+    if (!empty($class->courseid)) {
+        $attid = (int)$DB->get_field('attendance', 'id', ['course' => (int)$class->courseid], IGNORE_MULTIPLE);
+        if ($attid > 0) {
+            return $attid;
+        }
+    }
+
+    // 5) attendance by core/template course.
+    if (!empty($class->corecourseid) && (int)$class->corecourseid !== (int)$class->courseid) {
+        $attid = (int)$DB->get_field('attendance', 'id', ['course' => (int)$class->corecourseid], IGNORE_MULTIPLE);
+        if ($attid > 0) {
+            return $attid;
+        }
+    }
+
+    return 0;
+}
+
+/**
+ * Resolve past attendance session ids for a class (robust mode).
+ *
+ * @param stdClass $class
+ * @param int $nowts
+ * @return int[]
+ */
+function absd_get_class_past_session_ids(stdClass $class, int $nowts): array {
+    global $DB;
+
+    $window = absd_get_class_session_window($class, $nowts);
+    $attendanceid = absd_resolve_class_attendanceid($class);
+    $sessionids = [];
+
+    // Strict: attendance + group + date window + past.
+    if ($attendanceid > 0) {
+        $strictids = $DB->get_fieldset_sql(
+            "SELECT s.id
+               FROM {attendance_sessions} s
+              WHERE s.attendanceid = :attid
+                AND s.groupid = :groupid
+                AND s.sessdate >= :start
+                AND s.sessdate <= :end
+                AND s.sessdate < :nowts
+           ORDER BY s.sessdate ASC",
+            [
+                'attid' => $attendanceid,
+                'groupid' => (int)$class->groupid,
+                'start' => $window['start'],
+                'end' => $window['end'],
+                'nowts' => $nowts,
+            ]
+        );
+        $sessionids = array_values(array_unique(array_merge($sessionids, array_map('intval', $strictids))));
+    }
+
+    // Class relation session ids (authoritative for mixed/legacy mappings).
+    $relsessionids = $DB->get_fieldset_select(
+        'gmk_bbb_attendance_relation',
+        'attendancesessionid',
+        'classid = :classid AND attendancesessionid > 0',
+        ['classid' => (int)$class->id]
+    );
+    $relsessionids = array_values(array_unique(array_filter(array_map('intval', $relsessionids))));
+    if (!empty($relsessionids)) {
+        list($sessinsql, $sessparams) = $DB->get_in_or_equal($relsessionids, SQL_PARAMS_NAMED, 'sidrel');
+        $rowids = $DB->get_fieldset_sql(
+            "SELECT s.id
+               FROM {attendance_sessions} s
+              WHERE s.id $sessinsql
+                AND s.sessdate < :nowts
+           ORDER BY s.sessdate ASC",
+            array_merge($sessparams, ['nowts' => $nowts])
+        );
+        $sessionids = array_values(array_unique(array_merge($sessionids, array_map('intval', $rowids))));
+    }
+
+    // If we already have sessions from strict/relation paths, use them.
+    if (!empty($sessionids)) {
+        sort($sessionids);
+        return $sessionids;
+    }
+
+    // Fallback: attendance + date window (without group).
+    if ($attendanceid > 0) {
+        $fallbackids = $DB->get_fieldset_sql(
+            "SELECT s.id
+               FROM {attendance_sessions} s
+              WHERE s.attendanceid = :attid
+                AND s.sessdate >= :start
+                AND s.sessdate <= :end
+                AND s.sessdate < :nowts
+           ORDER BY s.sessdate ASC",
+            [
+                'attid' => $attendanceid,
+                'start' => $window['start'],
+                'end' => $window['end'],
+                'nowts' => $nowts,
+            ]
+        );
+        $fallbackids = array_values(array_unique(array_map('intval', $fallbackids)));
+        if (!empty($fallbackids)) {
+            sort($fallbackids);
+            return $fallbackids;
+        }
+    }
+
+    return [];
+}
+
+/**
+ * Returns enrolled user ids for a class (active statuses only).
+ *
+ * @param int $classid
+ * @return int[]
+ */
+function absd_get_class_enrolled_userids(int $classid): array {
+    global $DB;
+    $userids = $DB->get_fieldset_sql(
+        "SELECT DISTINCT userid
+           FROM {gmk_course_progre}
+          WHERE classid = :classid
+            AND status IN (1,2,3)",
+        ['classid' => $classid]
+    );
+    return array_values(array_unique(array_filter(array_map('intval', $userids))));
+}
+
+/**
+ * Returns per-student absence counters from attendance logs.
+ *
+ * Absence is considered any status with grade <= 0 (or null), and is counted
+ * once per session per student.
+ *
+ * @param int[] $sessionids
+ * @param int[] $userids
+ * @return array<int,int> studentid => absences
+ */
+function absd_get_student_absences(array $sessionids, array $userids): array {
+    global $DB;
+    if (empty($sessionids) || empty($userids)) {
+        return [];
+    }
+
+    list($sessinsql, $sessparams) = $DB->get_in_or_equal($sessionids, SQL_PARAMS_NAMED, 'sess');
+    list($uinsql, $uinparams) = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED, 'usr');
+    $rs = $DB->get_recordset_sql(
+        "SELECT l.studentid, COUNT(DISTINCT l.sessionid) AS absences
+           FROM {attendance_log} l
+           JOIN {attendance_statuses} ast
+             ON ast.id = l.statusid
+            AND (ast.grade IS NULL OR ast.grade <= 0)
+          WHERE l.sessionid $sessinsql
+            AND l.studentid $uinsql
+          GROUP BY l.studentid",
+        array_merge($sessparams, $uinparams)
+    );
+
+    $map = [];
+    foreach ($rs as $row) {
+        $map[(int)$row->studentid] = (int)$row->absences;
+    }
+    $rs->close();
+    return $map;
+}
+
 function absd_house_svg(): string {
     return '<svg viewBox="0 0 64 64" width="36" height="36" fill="none" xmlns="http://www.w3.org/2000/svg">
         <polygon points="32,6 60,30 56,30 56,58 36,58 36,40 28,40 28,58 8,58 8,30 4,30"
@@ -338,44 +548,34 @@ $class_past_sessions  = []; // classid => int
 $class_total_absences = []; // classid => int
 
 if (!empty($all_ids)) {
-    [$insql, $inparams] = $DB->get_in_or_equal($all_ids, SQL_PARAMS_NAMED, 'cid');
-    $inparams['nowts'] = $now;
+    [$insql, $inparams] = $DB->get_in_or_equal($all_ids, SQL_PARAMS_NAMED, 'cidbase');
+    $classbase = $DB->get_records_sql(
+        "SELECT id, courseid, corecourseid, groupid, attendancemoduleid, initdate, enddate
+           FROM {gmk_class}
+          WHERE id $insql",
+        $inparams
+    );
 
-    // Past sessions
-    try {
-        foreach ($DB->get_records_sql(
-            "SELECT gc.id AS classid, COUNT(DISTINCT s.id) AS cnt
-               FROM {gmk_class} gc
-               JOIN {course_modules} cm ON cm.id = gc.attendancemoduleid
-               JOIN {attendance_sessions} s ON s.attendanceid = cm.instance
-                    AND s.groupid = gc.groupid AND s.sessdate < :nowts
-              WHERE gc.id $insql AND gc.attendancemoduleid > 0
-              GROUP BY gc.id",
-            $inparams
-        ) as $row) {
-            $class_past_sessions[(int)$row->classid] = (int)$row->cnt;
+    foreach ($all_ids as $cid) {
+        $base = $classbase[$cid] ?? null;
+        if (!$base) {
+            continue;
         }
-    } catch (Exception $e) {}
 
-    // Absences (enrolled students with grade-0 status in past sessions)
-    try {
-        foreach ($DB->get_records_sql(
-            "SELECT gc.id AS classid, COUNT(l.id) AS cnt
-               FROM {gmk_class} gc
-               JOIN {course_modules} cm ON cm.id = gc.attendancemoduleid
-               JOIN {attendance_sessions} s ON s.attendanceid = cm.instance
-                    AND s.groupid = gc.groupid AND s.sessdate < :nowts
-               JOIN {attendance_log} l ON l.sessionid = s.id
-               JOIN {attendance_statuses} ast ON ast.id = l.statusid AND (ast.grade IS NULL OR ast.grade <= 0)
-               JOIN {gmk_course_progre} gcp ON gcp.classid = gc.id
-                    AND gcp.userid = l.studentid AND gcp.status IN (1,2,3)
-              WHERE gc.id $insql AND gc.attendancemoduleid > 0
-              GROUP BY gc.id",
-            $inparams
-        ) as $row) {
-            $class_total_absences[(int)$row->classid] = (int)$row->cnt;
+        $pastsessionids = absd_get_class_past_session_ids($base, $now);
+        $class_past_sessions[$cid] = count($pastsessionids);
+        if (empty($pastsessionids)) {
+            continue;
         }
-    } catch (Exception $e) {}
+
+        $enrolleduserids = absd_get_class_enrolled_userids((int)$cid);
+        if (empty($enrolleduserids)) {
+            continue;
+        }
+
+        $studentabs = absd_get_student_absences($pastsessionids, $enrolleduserids);
+        $class_total_absences[$cid] = array_sum($studentabs);
+    }
 }
 
 // ── Plan names & career tree ────────────────────────────────────────────────────
