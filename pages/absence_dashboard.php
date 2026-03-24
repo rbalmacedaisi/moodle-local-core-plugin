@@ -496,9 +496,9 @@ function absd_get_taken_session_ids(array $sessionids): array {
 /**
  * Returns per-student absence counters from attendance logs.
  *
- * Absence is counted only from latest recorded logs per student/session:
- * - grade <= 0 or null => absence
- * - no log for that session/student is not counted as absence here
+ * Absence is computed over sessions where attendance was taken:
+ * - present when latest grade > 0
+ * - absence when no latest present mark exists for that session/student
  *
  * @param int[] $sessionids
  * @param int[] $userids
@@ -513,9 +513,10 @@ function absd_get_student_absences(array $sessionids, array $userids): array {
     list($sessinsql, $sessparams) = $DB->get_in_or_equal($sessionids, SQL_PARAMS_NAMED, 'sess');
     list($uinsql, $uinparams) = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED, 'usr');
     $params = array_merge($sessparams, $uinparams);
+    $totalsessions = count($sessionids);
 
-    // Count per student only sessions whose latest mark is absent.
-    $sql = "SELECT l.studentid, COUNT(1) AS absencecount
+    // Count per student only sessions whose latest mark is present.
+    $sql = "SELECT l.studentid, COUNT(1) AS presentcount
               FROM {attendance_log} l
               JOIN (
                     SELECT studentid, sessionid, MAX(id) AS maxid
@@ -525,15 +526,23 @@ function absd_get_student_absences(array $sessionids, array $userids): array {
                    GROUP BY studentid, sessionid
                 ) ll ON ll.maxid = l.id
          LEFT JOIN {attendance_statuses} ast ON ast.id = l.statusid
-             WHERE COALESCE(ast.grade, 0) <= 0
+             WHERE COALESCE(ast.grade, 0) > 0
            GROUP BY l.studentid";
 
-    $map = [];
+    $presentbyuser = [];
     $rs = $DB->get_recordset_sql($sql, $params);
     foreach ($rs as $row) {
-        $map[(int)$row->studentid] = (int)$row->absencecount;
+        $presentbyuser[(int)$row->studentid] = (int)$row->presentcount;
     }
     $rs->close();
+
+    // For taken sessions, any missing/non-present latest mark is treated as absence.
+    $map = [];
+    foreach ($userids as $uid) {
+        $uid = (int)$uid;
+        $present = $presentbyuser[$uid] ?? 0;
+        $map[$uid] = max(0, $totalsessions - $present);
+    }
     return $map;
 }
 

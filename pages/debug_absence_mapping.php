@@ -464,8 +464,8 @@ function dbg_abs_filter_taken_session_ids(array $sessionids): array {
  * Compute absences per student using latest log per session.
  *
  * Absence rule:
- * - latest status grade <= 0 or null => absence
- * - no log for that session/student => not counted here
+ * - present when latest status grade > 0
+ * - absence when no latest present mark exists for that taken session/student
  *
  * @param array<int,int> $sessionids
  * @param array<int,int> $studentids
@@ -475,8 +475,9 @@ function dbg_abs_compute_student_absences(array $sessionids, array $studentids):
     global $DB;
 
     $stats = [];
+    $totalsessions = count($sessionids);
     foreach ($studentids as $uid) {
-        $stats[(int)$uid] = ['present' => 0, 'logged' => 0, 'absences' => 0];
+        $stats[(int)$uid] = ['present' => 0, 'logged' => 0, 'absences' => $totalsessions];
     }
 
     if (empty($sessionids) || empty($studentids)) {
@@ -508,9 +509,11 @@ function dbg_abs_compute_student_absences(array $sessionids, array $studentids):
         $stats[$uid]['logged']++;
         if ($row->grade !== null && (float)$row->grade > 0) {
             $stats[$uid]['present']++;
-        } else {
-            $stats[$uid]['absences']++;
         }
+    }
+
+    foreach ($stats as $uid => $row) {
+        $stats[$uid]['absences'] = max(0, $totalsessions - (int)$row['present']);
     }
 
     return $stats;
