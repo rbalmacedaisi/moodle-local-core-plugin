@@ -59,6 +59,90 @@ if (optional_param('abs_ajax', 0, PARAM_INT)) {
                 $user_status
             );
             echo json_encode($res);
+        } elseif ($abs_action === 'get_student_sessions') {
+            $classid = required_param('classid', PARAM_INT);
+            $userid = required_param('userid', PARAM_INT);
+
+            $class = $DB->get_record(
+                'gmk_class',
+                ['id' => $classid],
+                'id, attendancemoduleid, groupid, courseid, corecourseid, initdate, enddate',
+                MUST_EXIST
+            );
+
+            $isenrolled = $DB->record_exists_select(
+                'gmk_course_progre',
+                'classid = :classid AND userid = :userid AND status IN (1,2,3)',
+                ['classid' => $classid, 'userid' => $userid]
+            );
+            if (!$isenrolled) {
+                echo json_encode(['ok' => false, 'message' => 'El estudiante no pertenece a esta clase.']);
+                exit;
+            }
+
+            $pastsessionids = absd_get_class_past_session_ids($class, time());
+            $takensessionids = absd_get_taken_session_ids($pastsessionids);
+            if (empty($takensessionids)) {
+                echo json_encode(['ok' => true, 'sessions' => []], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG);
+                exit;
+            }
+
+            [$sessinsql, $sessparams] = $DB->get_in_or_equal($takensessionids, SQL_PARAMS_NAMED, 'sessd');
+            $sessions = $DB->get_records_sql(
+                "SELECT s.id, s.sessdate, s.duration, s.description
+                   FROM {attendance_sessions} s
+                  WHERE s.id $sessinsql
+               ORDER BY s.sessdate ASC",
+                $sessparams
+            );
+
+            $logparams = $sessparams;
+            $logparams['userid'] = $userid;
+            $logs = $DB->get_records_sql(
+                "SELECT l.sessionid,
+                        l.statusid,
+                        l.timetaken,
+                        COALESCE(ast.acronym, '') AS acronym,
+                        COALESCE(ast.description, '') AS statusdesc,
+                        COALESCE(ast.grade, 0) AS grade
+                   FROM {attendance_log} l
+                   JOIN (
+                        SELECT sessionid, MAX(id) AS maxid
+                          FROM {attendance_log}
+                         WHERE studentid = :userid
+                           AND sessionid $sessinsql
+                      GROUP BY sessionid
+                   ) mx ON mx.maxid = l.id
+              LEFT JOIN {attendance_statuses} ast ON ast.id = l.statusid",
+                $logparams
+            );
+
+            $sessionrows = [];
+            foreach ($sessions as $session) {
+                $sid = (int)$session->id;
+                $log = $logs[$sid] ?? null;
+                $haslog = $log !== null;
+                $grade = $haslog ? (float)$log->grade : null;
+                $present = $haslog && $grade > 0;
+                $statusdesc = $haslog ? trim((string)$log->statusdesc) : 'Sin registro';
+                $acronym = $haslog ? trim((string)$log->acronym) : '';
+
+                $sessionrows[] = [
+                    'sessionid' => $sid,
+                    'date' => userdate((int)$session->sessdate, get_string('strftimedatefullshort', 'langconfig')),
+                    'time' => userdate((int)$session->sessdate, '%H:%M'),
+                    'description' => trim((string)$session->description),
+                    'status' => $statusdesc !== '' ? $statusdesc : 'Sin registro',
+                    'acronym' => $acronym,
+                    'haslog' => $haslog,
+                    'present' => $present,
+                ];
+            }
+
+            echo json_encode(
+                ['ok' => true, 'sessions' => $sessionrows],
+                JSON_UNESCAPED_UNICODE | JSON_HEX_TAG
+            );
         } elseif ($abs_action === 'get_students') {
             // Load student details for one class on-demand (avoids embedding large JSON in HTML).
             $classid = required_param('classid', PARAM_INT);
@@ -978,6 +1062,19 @@ $ajax_url = (new moodle_url('/local/grupomakro_core/pages/absence_dashboard.php'
 }
 .absd-suspend-btn.active   { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
 .absd-suspend-btn.inactive { background: #dcfce7; color: #166534; border-color: #86efac; }
+.absd-name-link { color:#1a56a4; text-decoration:none; font-weight:700; }
+.absd-name-link:hover { text-decoration:underline; }
+.absd-abs-link {
+    border: none; cursor: pointer; background: #fee2e2; color: #991b1b; font-weight: 700;
+    border-radius: 4px; padding: 1px 7px; font-size: 10.5px; min-width: 28px; text-align: center;
+}
+.absd-abs-link.zero { background: #dcfce7; color: #166534; }
+.absd-session-state {
+    display:inline-flex; align-items:center; gap:6px; font-size:10px; font-weight:700;
+    border-radius:999px; padding:2px 8px; text-transform:uppercase; letter-spacing:0.4px;
+}
+.absd-session-state.present { background:#dcfce7; color:#166534; }
+.absd-session-state.absent { background:#fee2e2; color:#991b1b; }
 .absd-empty { color: #94a3b8; font-size: 12px; font-style: italic; padding: 2px 0; }
 </style>
 
@@ -1226,10 +1323,39 @@ $ajax_url = (new moodle_url('/local/grupomakro_core/pages/absence_dashboard.php'
     </div>
 </div>
 
+<!-- â”€â”€ Sessions modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+<div id="absdSessionsModal" class="absd-modal-overlay" onclick="if(event.target===this)absdCloseSessionsModal()">
+    <div class="absd-modal" style="max-width:980px">
+        <div class="absd-modal-header">
+            <h2 id="absdSessionsTitle">Detalle de sesiones</h2>
+            <button class="absd-modal-close" onclick="absdCloseSessionsModal()">&#10005;</button>
+        </div>
+        <div class="absd-modal-toolbar">
+            <span id="absdSessionsCount" style="font-size:12px;color:#64748b"></span>
+        </div>
+        <div class="absd-modal-body">
+            <table class="absd-student-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Fecha</th>
+                        <th>Hora</th>
+                        <th>Sesión</th>
+                        <th>Registro</th>
+                        <th>Estado</th>
+                    </tr>
+                </thead>
+                <tbody id="absdSessionsTbody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
 <script>
 (function() {
     var SESSKEY = <?php echo json_encode($sesskey); ?>;
     var AJAX_URL = <?php echo json_encode($ajax_url); ?>;
+    var PROFILE_URL_BASE = <?php echo json_encode((new moodle_url('/user/profile.php'))->out(false)); ?>;
 
     var USER_STATUS_OPTIONS = ['Activo', 'Inactivo'];
     var ACADEMIC_STATUS_OPTIONS = ['activo', 'aplazado', 'retirado', 'suspendido', 'desertor', 'graduado', 'egresado'];
@@ -1243,6 +1369,7 @@ $ajax_url = (new moodle_url('/local/grupomakro_core/pages/absence_dashboard.php'
         egresado: 'Egresado'
     };
 
+    var currentClassId = 0;
     var currentStudents = [];
     var filteredStudents = [];
 
@@ -1304,9 +1431,9 @@ $ajax_url = (new moodle_url('/local/grupomakro_core/pages/absence_dashboard.php'
             html += '<tr id="absd-row-' + s.userid + '">' +
                 '<td>' + (i + 1) + '</td>' +
                 '<td style="font-weight:700;color:#1a56a4;white-space:nowrap">' + esc(s.cedula) + '</td>' +
-                '<td><strong>' + esc(s.name) + '</strong><br><span style="color:#94a3b8;font-size:10px">' + esc(s.email) + '</span></td>' +
+                '<td><a class="absd-name-link" href="' + PROFILE_URL_BASE + '?id=' + s.userid + '">' + esc(s.name) + '</a><br><span style="color:#94a3b8;font-size:10px">' + esc(s.email) + '</span></td>' +
                 '<td>' + (phones || '<span style="color:#94a3b8;font-style:italic">-</span>') + '</td>' +
-                '<td style="text-align:center"><span class="absd-badge-abs ' + absClass + '">' + s.absences + '</span></td>' +
+                '<td style="text-align:center"><button type="button" class="absd-abs-link ' + absClass + '" data-uid="' + s.userid + '" data-name="' + esc(s.name) + '" onclick="absdOpenSessionsModal(this)">' + s.absences + '</button></td>' +
                 '<td>' +
                     '<select class="absd-status-select" data-uid="' + s.userid + '" onchange="absdUpdateUserStatus(this)">' +
                         optionList(userOpts, userStatus) +
@@ -1327,7 +1454,84 @@ $ajax_url = (new moodle_url('/local/grupomakro_core/pages/absence_dashboard.php'
             'Mostrando ' + students.length + ' de ' + currentStudents.length;
     }
 
+    function renderSessionsTable(sessions) {
+        var tbody = document.getElementById('absdSessionsTbody');
+        if (!sessions.length) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:#94a3b8;font-style:italic">No hay sesiones con asistencia tomada.</td></tr>';
+            document.getElementById('absdSessionsCount').textContent = '0 sesiones';
+            return;
+        }
+
+        var html = '';
+        sessions.forEach(function(s, idx) {
+            var stateClass = s.present ? 'present' : 'absent';
+            var stateLabel = s.present ? 'Asistencia' : 'Sin asistencia';
+            var desc = String(s.description || '').trim();
+            var status = String(s.status || '').trim();
+            var acronym = String(s.acronym || '').trim();
+            if (acronym) {
+                status = status ? (acronym + ' - ' + status) : acronym;
+            }
+
+            html += '<tr>' +
+                '<td>' + (idx + 1) + '</td>' +
+                '<td>' + esc(s.date || '-') + '</td>' +
+                '<td>' + esc(s.time || '-') + '</td>' +
+                '<td>' + esc(desc || ('Sesion #' + s.sessionid)) + '</td>' +
+                '<td><span class="absd-session-state ' + stateClass + '">' + stateLabel + '</span></td>' +
+                '<td>' + esc(status || 'Sin registro') + '</td>' +
+                '</tr>';
+        });
+
+        tbody.innerHTML = html;
+        document.getElementById('absdSessionsCount').textContent = sessions.length + ' sesiones';
+    }
+
+    window.absdOpenSessionsModal = function(trigger) {
+        if (!trigger || !currentClassId) {
+            return;
+        }
+        var userid = parseInt(trigger.getAttribute('data-uid'), 10) || 0;
+        var studentName = trigger.getAttribute('data-name') || '';
+        if (!userid) {
+            return;
+        }
+
+        document.getElementById('absdSessionsTitle').textContent = 'Detalle de sesiones - ' + studentName;
+        document.getElementById('absdSessionsCount').textContent = 'Cargando...';
+        document.getElementById('absdSessionsTbody').innerHTML =
+            '<tr><td colspan="6" style="text-align:center;padding:20px;color:#64748b">Cargando sesiones...</td></tr>';
+        document.getElementById('absdSessionsModal').classList.add('absd-modal-open');
+
+        var params = new URLSearchParams({
+            abs_ajax: 1,
+            abs_action: 'get_student_sessions',
+            classid: currentClassId,
+            userid: userid,
+            sesskey: SESSKEY
+        });
+
+        fetch(AJAX_URL + '?' + params.toString())
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.ok) {
+                    throw new Error(data.message || 'Error al cargar sesiones');
+                }
+                renderSessionsTable(data.sessions || []);
+            })
+            .catch(function(err) {
+                document.getElementById('absdSessionsTbody').innerHTML =
+                    '<tr><td colspan="6" style="text-align:center;padding:20px;color:#dc2626">' + esc(err.message) + '</td></tr>';
+                document.getElementById('absdSessionsCount').textContent = '';
+            });
+    };
+
+    window.absdCloseSessionsModal = function() {
+        document.getElementById('absdSessionsModal').classList.remove('absd-modal-open');
+    };
+
     window.absdOpenModal = function(classId, className) {
+        currentClassId = classId;
         currentStudents = [];
         filteredStudents = [];
         document.getElementById('absdModalTitle').textContent = className + ' - Estudiantes';
@@ -1359,6 +1563,7 @@ $ajax_url = (new moodle_url('/local/grupomakro_core/pages/absence_dashboard.php'
 
     window.absdCloseModal = function() {
         document.getElementById('absdModal').classList.remove('absd-modal-open');
+        absdCloseSessionsModal();
     };
 
     window.absdFilterTable = function() {
@@ -1484,7 +1689,12 @@ $ajax_url = (new moodle_url('/local/grupomakro_core/pages/absence_dashboard.php'
 
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {
-            absdCloseModal();
+            var sessionsModal = document.getElementById('absdSessionsModal');
+            if (sessionsModal && sessionsModal.classList.contains('absd-modal-open')) {
+                absdCloseSessionsModal();
+            } else {
+                absdCloseModal();
+            }
         }
     });
 })();
