@@ -66,30 +66,44 @@ if ($download && $requestid > 0) {
 $requests = manager::get_requests(0, true, $statusfilter);
 $statuslabels = manager::get_status_labels();
 
+// Defensive fallback in case language keys are not deployed yet.
+$alllabel = get_string_manager()->string_exists('letters_all', $pluginname)
+    ? get_string('letters_all', $pluginname)
+    : 'Todos';
+$filterlabel = get_string_manager()->string_exists('letters_filter', $pluginname)
+    ? get_string('letters_filter', $pluginname)
+    : 'Filtrar';
+$idlabel = get_string_manager()->string_exists('letters_col_id', $pluginname)
+    ? get_string('letters_col_id', $pluginname)
+    : 'ID';
+$createdlabel = get_string_manager()->string_exists('letters_col_created', $pluginname)
+    ? get_string('letters_col_created', $pluginname)
+    : 'Fecha de creación';
+
 echo $OUTPUT->header();
 echo $OUTPUT->heading(get_string('letters_requests_title', $pluginname));
 
 echo html_writer::start_tag('form', ['method' => 'get', 'action' => new moodle_url('/local/grupomakro_core/pages/letterrequests.php')]);
 echo html_writer::start_div('mb-3');
 echo html_writer::label(get_string('letters_filter_status', $pluginname), 'id_status');
-$statusoptions = ['' => get_string('letters_all', $pluginname)];
+$statusoptions = ['' => $alllabel];
 foreach ($statuslabels as $statuscode => $statusname) {
     $statusoptions[$statuscode] = $statusname;
 }
 echo html_writer::select($statusoptions, 'status', $statusfilter, false, ['id' => 'id_status', 'class' => 'custom-select']);
 echo ' ';
-echo html_writer::empty_tag('input', ['type' => 'submit', 'class' => 'btn btn-secondary', 'value' => get_string('letters_filter', $pluginname)]);
+echo html_writer::empty_tag('input', ['type' => 'submit', 'class' => 'btn btn-secondary', 'value' => $filterlabel]);
 echo html_writer::end_div();
 echo html_writer::end_tag('form');
 
 $table = new html_table();
 $table->head = [
-    get_string('letters_col_id', $pluginname),
+    $idlabel,
     get_string('user', $pluginname),
     get_string('letters_field_name', $pluginname),
     get_string('letters_field_cost', $pluginname),
     get_string('state', $pluginname),
-    get_string('letters_col_created', $pluginname),
+    $createdlabel,
     get_string('letters_actions', $pluginname),
 ];
 $table->data = [];
