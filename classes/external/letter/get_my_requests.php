@@ -59,6 +59,7 @@ class get_my_requests extends external_api {
                     'payment_link' => new external_value(PARAM_RAW, 'Payment link'),
                     'document_available' => new external_value(PARAM_INT, 'Document available'),
                     'document_filename' => new external_value(PARAM_TEXT, 'Document filename'),
+                    'document_verification_url' => new external_value(PARAM_RAW, 'Public verification URL'),
                     'timecreated' => new external_value(PARAM_INT, 'Creation timestamp'),
                     'timemodified' => new external_value(PARAM_INT, 'Modification timestamp'),
                 ])
@@ -66,4 +67,3 @@ class get_my_requests extends external_api {
         ]);
     }
 }
-

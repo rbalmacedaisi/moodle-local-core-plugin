@@ -24,6 +24,6 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = "local_grupomakro_core";
-$plugin->version   = 20260324000;         // Seed default pilot letter types + dataset mapping.
+$plugin->version   = 20260324010;         // Letter document public verification QR/token.
 $plugin->requires = 2014051200;
 $plugin->maturity = MATURITY_STABLE;

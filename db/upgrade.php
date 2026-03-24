@@ -40,7 +40,7 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
     create_roles();
     // Creating the new custom user fields.
     create_custom_user_fields();
-    global $DB;
+    global $DB, $CFG;
     $dbman = $DB->get_manager();
     if ($oldversion < 20230306003) {
     
@@ -1873,6 +1873,44 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         }
 
         upgrade_plugin_savepoint(true, 20260324000, 'local', 'grupomakro_core');
+    }
+
+    if ($oldversion < 20260324010) {
+        // Add public verification fields to generated letter documents.
+        $table = new xmldb_table('gmk_letter_document');
+
+        $field = new xmldb_field('verificationtoken', XMLDB_TYPE_CHAR, '64', null, null, null, null, 'odoo_attachment_id');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        $field = new xmldb_field('verificationurl', XMLDB_TYPE_TEXT, null, null, null, null, null, 'verificationtoken');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        $index = new xmldb_index('verificationtokenux', XMLDB_INDEX_UNIQUE, ['verificationtoken']);
+        if (!$dbman->index_exists($table, $index)) {
+            $dbman->add_index($table, $index);
+        }
+
+        // Backfill existing documents so old letters can also be verified publicly.
+        $records = $DB->get_records_select('gmk_letter_document', '(verificationtoken IS NULL OR verificationtoken = :empty)', ['empty' => '']);
+        foreach ($records as $record) {
+            do {
+                try {
+                    $token = bin2hex(random_bytes(20));
+                } catch (Throwable $ex) {
+                    $token = sha1(uniqid((string)time(), true) . mt_rand());
+                }
+            } while ($DB->record_exists('gmk_letter_document', ['verificationtoken' => $token]));
+
+            $record->verificationtoken = $token;
+            $record->verificationurl = rtrim($CFG->wwwroot, '/') . '/local/grupomakro_core/pages/letter_verify.php?t=' . $token;
+            $DB->update_record('gmk_letter_document', $record);
+        }
+
+        upgrade_plugin_savepoint(true, 20260324010, 'local', 'grupomakro_core');
     }
 
     return true;

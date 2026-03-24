@@ -98,6 +98,8 @@ $templatevariables = [
     ['token' => 'request.letter_code', 'label' => 'request.letter_code'],
     ['token' => 'request.cost', 'label' => 'request.cost'],
     ['token' => 'request.observation', 'label' => 'request.observation'],
+    ['token' => 'request.verification_url', 'label' => 'request.verification_url'],
+    ['token' => 'request.verification_token', 'label' => 'request.verification_token'],
     ['token' => 'date.today', 'label' => 'date.today'],
 ];
 $datasetcodes = array_values(array_map(function($dataset) {
@@ -514,6 +516,8 @@ $builderjs = <<<JS
       'request.letter_code': 'carta_demo',
       'request.cost': '10.00',
       'request.observation': 'Observacion de prueba',
+      'request.verification_url': 'https://lms.ejemplo.edu/local/grupomakro_core/pages/letter_verify.php?t=demo123',
+      'request.verification_token': 'demo123',
       'date.today': (new Date()).toISOString().slice(0, 10)
     };
 

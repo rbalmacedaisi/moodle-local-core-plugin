@@ -417,6 +417,8 @@ class manager {
             'document_available' => $document ? 1 : 0,
             'document_version' => $document ? (int)$document->versionno : 0,
             'document_filename' => $document ? (string)$document->filename : '',
+            'document_verification_url' => $document ? (string)($document->verificationurl ?? '') : '',
+            'document_verification_token' => $document ? (string)($document->verificationtoken ?? '') : '',
             'timecreated' => (int)$request->timecreated,
             'timemodified' => (int)$request->timemodified,
         ];
@@ -471,11 +473,69 @@ class manager {
                 'payment_link' => (string)($record->payment_link ?? ''),
                 'document_available' => $document ? 1 : 0,
                 'document_filename' => $document ? (string)$document->filename : '',
+                'document_verification_url' => $document ? (string)($document->verificationurl ?? '') : '',
                 'timecreated' => (int)$record->timecreated,
                 'timemodified' => (int)$record->timemodified,
             ];
         }
         return $result;
+    }
+
+    /**
+     * Resolves public verification data by document token.
+     *
+     * @param string $verificationtoken
+     * @return array|null
+     * @throws dml_exception
+     */
+    public static function get_verification_data(string $verificationtoken): ?array {
+        global $DB;
+
+        $token = trim($verificationtoken);
+        if ($token === '') {
+            return null;
+        }
+
+        $sql = "SELECT d.id AS documentid, d.requestid, d.versionno, d.filename, d.timecreated AS generatedat,
+                       d.verificationtoken, d.verificationurl,
+                       r.status, r.timecreated AS requestcreated, r.timemodified AS requestupdated,
+                       t.name AS lettertypename, t.code AS lettertypecode,
+                       u.id AS userid, u.firstname, u.lastname
+                  FROM {gmk_letter_document} d
+                  JOIN {gmk_letter_request} r ON r.id = d.requestid
+                  JOIN {gmk_letter_type} t ON t.id = r.lettertypeid
+                  JOIN {user} u ON u.id = r.userid
+                 WHERE d.verificationtoken = :token";
+        $record = $DB->get_record_sql($sql, ['token' => $token], IGNORE_MULTIPLE);
+        if (!$record) {
+            return null;
+        }
+
+        $labels = self::get_status_labels();
+        return [
+            'documentid' => (int)$record->documentid,
+            'requestid' => (int)$record->requestid,
+            'version' => (int)$record->versionno,
+            'filename' => (string)$record->filename,
+            'verificationtoken' => (string)$record->verificationtoken,
+            'verificationurl' => (string)($record->verificationurl ?? ''),
+            'status' => (string)$record->status,
+            'statuslabel' => (string)($labels[$record->status] ?? $record->status),
+            'lettertypename' => (string)$record->lettertypename,
+            'lettertypecode' => (string)$record->lettertypecode,
+            'studentname' => trim(fullname((object)[
+                'id' => (int)$record->userid,
+                'firstname' => (string)$record->firstname,
+                'lastname' => (string)$record->lastname,
+                'firstnamephonetic' => '',
+                'lastnamephonetic' => '',
+                'middlename' => '',
+                'alternatename' => '',
+            ])),
+            'generatedat' => (int)$record->generatedat,
+            'requestcreated' => (int)$record->requestcreated,
+            'requestupdated' => (int)$record->requestupdated,
+        ];
     }
 
     /**
@@ -493,12 +553,15 @@ class manager {
         $type = $DB->get_record('gmk_letter_type', ['id' => $request->lettertypeid], '*', MUST_EXIST);
         $user = $DB->get_record('user', ['id' => $request->userid, 'deleted' => 0], '*', MUST_EXIST);
 
-        $rendered = self::render_letter_html($request, $type, $user);
-        $pdfcontent = self::render_pdf($rendered);
+        $verificationtoken = self::generate_verification_token();
+        $verificationurl = self::build_verification_url($verificationtoken);
+
+        $rendered = self::render_letter_html($request, $type, $user, $verificationurl, $verificationtoken);
+        $pdfcontent = self::render_pdf($rendered, $verificationurl);
 
         $safe = preg_replace('/[^a-zA-Z0-9_\-]/', '_', (string)$type->code);
         $filename = 'carta_' . $safe . '_req_' . $requestid . '_v' . (self::get_next_document_version($requestid)) . '.pdf';
-        $docrecord = self::save_document($requestid, $filename, $pdfcontent, $actorid);
+        $docrecord = self::save_document($requestid, $filename, $pdfcontent, $actorid, $verificationtoken, $verificationurl);
 
         self::duplicate_document_to_odoo($request, $docrecord, base64_encode($pdfcontent));
         self::add_event($requestid, $request->status, $request->status, 'document_generated', 'Documento de carta generado', $actorid);
@@ -507,6 +570,7 @@ class manager {
             'documentid' => (int)$docrecord->id,
             'filename' => (string)$docrecord->filename,
             'version' => (int)$docrecord->versionno,
+            'verificationurl' => (string)($docrecord->verificationurl ?? $verificationurl),
         ];
     }
 
@@ -756,13 +820,19 @@ class manager {
      * @param stdClass $user
      * @return string
      */
-    private static function render_letter_html(stdClass $request, stdClass $type, stdClass $user): string {
+    private static function render_letter_html(
+        stdClass $request,
+        stdClass $type,
+        stdClass $user,
+        string $verificationurl = '',
+        string $verificationtoken = ''
+    ): string {
         $template = trim((string)($type->template_html ?? ''));
         if ($template === '') {
             $template = '<h1>{{request.letter_name}}</h1><p>Estudiante: {{student.fullname}}</p><p>Documento: {{student.document_number}}</p><p>Fecha: {{date.today}}</p><p>{{request.observation}}</p>{{DATASET:resumen_creditos}}';
         }
 
-        $vars = self::build_scalar_variables($request, $type, $user);
+        $vars = self::build_scalar_variables($request, $type, $user, $verificationurl, $verificationtoken);
         $rendered = preg_replace_callback('/\{\{\s*([a-zA-Z0-9\._]+)\s*\}\}/', function($matches) use ($vars) {
             $key = $matches[1];
             return array_key_exists($key, $vars) ? (string)$vars[$key] : '';
@@ -798,7 +868,13 @@ class manager {
      * @param stdClass $user
      * @return array
      */
-    private static function build_scalar_variables(stdClass $request, stdClass $type, stdClass $user): array {
+    private static function build_scalar_variables(
+        stdClass $request,
+        stdClass $type,
+        stdClass $user,
+        string $verificationurl = '',
+        string $verificationtoken = ''
+    ): array {
         $doc = self::get_user_document_number((int)$user->id);
         $date = userdate(time(), '%Y-%m-%d');
         return [
@@ -815,6 +891,8 @@ class manager {
             'request.letter_code' => (string)$type->code,
             'request.cost' => number_format((float)$request->cost_snapshot, 2, '.', ''),
             'request.observation' => (string)($request->observation ?? ''),
+            'request.verification_url' => (string)$verificationurl,
+            'request.verification_token' => (string)$verificationtoken,
             'date.today' => (string)$date,
         ];
     }
@@ -920,9 +998,10 @@ class manager {
      * Renders PDF bytes from HTML.
      *
      * @param string $html
+     * @param string $verificationurl
      * @return string
      */
-    private static function render_pdf(string $html): string {
+    private static function render_pdf(string $html, string $verificationurl = ''): string {
         global $CFG;
         require_once($CFG->libdir . '/tcpdf/tcpdf.php');
         $pdf = new \TCPDF('P', 'mm', 'A4', true, 'UTF-8', false);
@@ -933,6 +1012,30 @@ class manager {
         $pdf->SetAutoPageBreak(true, 15);
         $pdf->AddPage();
         $pdf->writeHTML($html, true, false, true, false, '');
+
+        if ($verificationurl !== '') {
+            $pdf->Ln(4);
+            $pdf->SetFont('helvetica', '', 8);
+            $pdf->MultiCell(0, 0, 'Codigo de verificacion: ' . $verificationurl, 0, 'L', false, 1);
+
+            $y = (float)$pdf->GetY();
+            $usablebottom = (float)$pdf->getPageHeight() - 18;
+            if (($y + 30) > $usablebottom) {
+                $pdf->AddPage();
+                $y = (float)$pdf->GetY();
+            }
+
+            $style = [
+                'border' => 0,
+                'padding' => 0,
+                'fgcolor' => [0, 0, 0],
+                'bgcolor' => false,
+            ];
+            $pdf->write2DBarcode($verificationurl, 'QRCODE,H', 15, $y + 1, 28, 28, $style, 'N');
+            $pdf->SetXY(46, $y + 4);
+            $pdf->MultiCell(0, 0, 'Escanee el QR o abra el enlace para validar esta carta.', 0, 'L', false, 1);
+        }
+
         return $pdf->Output('', 'S');
     }
 
@@ -943,10 +1046,19 @@ class manager {
      * @param string $filename
      * @param string $content
      * @param int $actorid
+     * @param string $verificationtoken
+     * @param string $verificationurl
      * @return stdClass
      * @throws dml_exception
      */
-    private static function save_document(int $requestid, string $filename, string $content, int $actorid): stdClass {
+    private static function save_document(
+        int $requestid,
+        string $filename,
+        string $content,
+        int $actorid,
+        string $verificationtoken = '',
+        string $verificationurl = ''
+    ): stdClass {
         global $DB;
         $now = time();
         $doc = (object)[
@@ -956,6 +1068,8 @@ class manager {
             'mimetype' => 'application/pdf',
             'filesize' => strlen($content),
             'fileitemid' => 0,
+            'verificationtoken' => $verificationtoken !== '' ? $verificationtoken : null,
+            'verificationurl' => $verificationurl !== '' ? $verificationurl : null,
             'odoo_attachment_id' => null,
             'usermodified' => $actorid,
             'timecreated' => $now,
@@ -1019,6 +1133,37 @@ class manager {
         $sql = "SELECT MAX(versionno) FROM {gmk_letter_document} WHERE requestid = :requestid";
         $max = (int)$DB->get_field_sql($sql, ['requestid' => $requestid]);
         return $max + 1;
+    }
+
+    /**
+     * Generates a unique token used for public document verification.
+     *
+     * @return string
+     * @throws dml_exception
+     */
+    private static function generate_verification_token(): string {
+        global $DB;
+
+        do {
+            try {
+                $token = bin2hex(random_bytes(20));
+            } catch (\Throwable $ex) {
+                $token = sha1(uniqid((string)time(), true) . mt_rand());
+            }
+        } while ($DB->record_exists('gmk_letter_document', ['verificationtoken' => $token]));
+
+        return $token;
+    }
+
+    /**
+     * Builds the public verification URL for a document token.
+     *
+     * @param string $token
+     * @return string
+     */
+    private static function build_verification_url(string $token): string {
+        $url = new \moodle_url('/local/grupomakro_core/pages/letter_verify.php', ['t' => $token]);
+        return $url->out(false);
     }
 
     /**

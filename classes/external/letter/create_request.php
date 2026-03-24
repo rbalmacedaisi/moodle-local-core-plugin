@@ -66,9 +66,10 @@ class create_request extends external_api {
             'document_available' => new external_value(PARAM_INT, 'Document available'),
             'document_version' => new external_value(PARAM_INT, 'Document version'),
             'document_filename' => new external_value(PARAM_TEXT, 'Document filename'),
+            'document_verification_url' => new external_value(PARAM_RAW, 'Public verification URL'),
+            'document_verification_token' => new external_value(PARAM_RAW, 'Verification token'),
             'timecreated' => new external_value(PARAM_INT, 'Creation timestamp'),
             'timemodified' => new external_value(PARAM_INT, 'Modification timestamp'),
         ]);
     }
 }
-
