@@ -26,187 +26,190 @@ defined('MOODLE_INTERNAL') || die();
 
 if ($hassiteconfig) {
     $ADMIN->add('courses', new admin_category('grupomakrocore_plugin', new lang_string('admin_category_label', 'local_grupomakro_core')));
+    $emojititle = static function(string $emoji, string $label): string {
+        return $emoji . ' ' . $label;
+    };
     $classManagementPage =new admin_externalpage(
         'grupomakro_core_class_management',
-        '📘 ' . get_string('class_management', 'local_grupomakro_core'),
+        $emojititle("\u{1F4D8}", get_string('class_management', 'local_grupomakro_core')),
         new moodle_url('/local/grupomakro_core/pages/classmanagement.php')
     );
     $classSchedulesPage =new admin_externalpage(
         'grupomakro_core_class_schedule',
-        '🗓️ ' . get_string('class_schedules', 'local_grupomakro_core'),
+        $emojititle("\u{1F5D3}\u{FE0F}", get_string('class_schedules', 'local_grupomakro_core')),
         new moodle_url('/local/grupomakro_core/pages/schedules.php')
     );
     $availabilityPanelPage =new admin_externalpage(
         'grupomakro_core_availability_panel',
-        '🧑‍🏫 ' . get_string('availability_panel', 'local_grupomakro_core'),
+        $emojititle("\u{1F9D1}\u{200D}\u{1F3EB}", get_string('availability_panel', 'local_grupomakro_core')),
         new moodle_url('/local/grupomakro_core/pages/availabilitypanel.php')
     );
     $availabilityCalendarPage =new admin_externalpage(
         'grupomakro_core_availability_calendar',
-        '📆 ' . get_string('availability_calendar', 'local_grupomakro_core'),
+        $emojititle("\u{1F4C5}", get_string('availability_calendar', 'local_grupomakro_core')),
         new moodle_url('/local/grupomakro_core/pages/availability.php')
     );
     $schedulesPanelPage =new admin_externalpage(
         'grupomakro_core_schedules_panel',
-        '🕒 ' . get_string('schedules_panel', 'local_grupomakro_core'),
+        $emojititle("\u{1F552}", get_string('schedules_panel', 'local_grupomakro_core')),
         new moodle_url('/local/grupomakro_core/pages/schedulepanel.php')
     );
     $institutionManagementPage =new admin_externalpage(
         'grupomakro_core_institution_management',
-        '🏫 ' . get_string('institution_management', 'local_grupomakro_core'),
+        $emojititle("\u{1F3EB}", get_string('institution_management', 'local_grupomakro_core')),
         new moodle_url('/local/grupomakro_core/pages/institutionmanagement.php')
     );
     $academicDirectorPanelPage = new admin_externalpage(
         'grupomakro_core_academic_director_panel',
-        '🎯 ' . get_string('academic_director_panel', 'local_grupomakro_core'),
+        $emojititle("\u{1F3AF}", get_string('academic_director_panel', 'local_grupomakro_core')),
         new moodle_url('/local/grupomakro_core/pages/academicpanel.php')
     );
     $teachersManagementPage = new admin_externalpage(
         'grupomakro_core_teachers_management',
-        '👩‍🏫 ' . get_string('admin_teachers_management', 'local_grupomakro_core'),
+        $emojititle("\u{1F469}\u{200D}\u{1F3EB}", get_string('admin_teachers_management', 'local_grupomakro_core')),
         new moodle_url('/local/grupomakro_core/pages/teachers.php')
     );
 
     // -- IMPORTADORES MASIVOS --
     $importUsersPage = new admin_externalpage(
         'grupomakro_core_import_users',
-        '👥 Importar Usuarios (Masivo)',
+        $emojititle("\u{1F465}", 'Importar Usuarios (Masivo)'),
         new moodle_url('/local/grupomakro_core/pages/import_users.php')
     );
     $importGradesPage = new admin_externalpage(
         'grupomakro_core_import_grades',
-        '📝 Importar Notas (Q10)',
+        $emojititle("\u{1F4DD}", 'Importar Notas (Q10)'),
         new moodle_url('/local/grupomakro_core/pages/import_grades.php')
     );
     $bulkDeletePage = new admin_externalpage(
         'grupomakro_core_bulk_delete_users',
-        '🗑️ Eliminación Masiva',
+        $emojititle("\u{1F5D1}\u{FE0F}", 'Eliminacion Masiva'),
         new moodle_url('/local/grupomakro_core/pages/bulk_delete_users.php')
     );
     $manageCoursesPage = new admin_externalpage(
         'grupomakro_core_manage_courses',
-        '📂 Gestor de Cursos',
+        $emojititle("\u{1F4C2}", 'Gestor de Cursos'),
         new moodle_url('/local/grupomakro_core/pages/manage_courses.php')
     );
     $manageMeetingsPage = new admin_externalpage(
         'grupomakro_core_manage_meetings',
-        '🎥 Gestor de Sesiones Virtuales',
+        $emojititle("\u{1F3A5}", 'Gestor de Sesiones Virtuales'),
         new moodle_url('/local/grupomakro_core/pages/manage_meetings.php')
     );
     $bypassFinancialPage = new admin_externalpage(
         'grupomakro_core_bypass_financial',
-        '💳 Ignorar Estado Financiero en Login',
+        $emojititle("\u{1F4B3}", 'Ignorar Estado Financiero en Login'),
         new moodle_url('/local/grupomakro_core/pages/bypass_financial.php')
     );
     $gracePeriodPage = new admin_externalpage(
         'grupomakro_core_grace_period',
-        '⏳ Periodo de Gracia en Primer Login',
+        $emojititle("\u{23F3}", 'Periodo de Gracia en Primer Login'),
         new moodle_url('/local/grupomakro_core/pages/grace_period.php')
     );
     $debugPublishStatusPage = new admin_externalpage(
         'grupomakro_core_debug_publish_status',
-        '🧪 Debug Publicación Horarios',
+        $emojititle("\u{1F9EA}", 'Debug Publicacion Horarios'),
         new moodle_url('/local/grupomakro_core/pages/debug_publish_status.php')
     );
     $fixOrphanedClassidPage = new admin_externalpage(
         'grupomakro_core_fix_orphaned_classid',
-        '🔧 Fix: Clases Eliminadas (classid huérfano)',
+        $emojititle("\u{1F527}", 'Fix: Clases Eliminadas (classid huerfano)'),
         new moodle_url('/local/grupomakro_core/pages/fix_orphaned_classid.php')
     );
     $resetPeriodPublishPage = new admin_externalpage(
         'grupomakro_core_reset_period_publish',
-        '🗑 Reset: Limpiar Publicación de Período',
+        $emojititle("\u{1F9F9}", 'Reset: Limpiar Publicacion de Periodo'),
         new moodle_url('/local/grupomakro_core/pages/reset_period_publish.php')
     );
     $debugFixDraftPage = new admin_externalpage(
         'grupomakro_core_debug_fix_draft',
-        '🔍 Debug: Fix Draft & Grupos Huérfanos',
+        $emojititle("\u{1F50D}", 'Debug: Fix Draft & Grupos Huerfanos'),
         new moodle_url('/local/grupomakro_core/pages/debug_fix_draft.php')
     );
     $debugPublishDraftPage = new admin_externalpage(
         'grupomakro_core_debug_publish_draft',
-        'Debug: Draft Publish Inspector',
+        $emojititle("\u{1F9ED}", 'Debug: Draft Publish Inspector'),
         new moodle_url('/local/grupomakro_core/pages/debug_publish_draft.php')
     );
     $overlapAnalyticsPage = new admin_externalpage(
         'grupomakro_core_overlap_analytics',
-        'Analítica de Solapamientos',
+        $emojititle("\u{1F4C8}", 'Analitica de Solapamientos'),
         new moodle_url('/local/grupomakro_core/pages/overlap_analytics.php')
     );
     $debugOverlapStudentPage = new admin_externalpage(
         'grupomakro_core_debug_overlap_student',
-        'Debug: Overlap Student Trace',
+        $emojititle("\u{1F9EA}", 'Debug: Overlap Student Trace'),
         new moodle_url('/local/grupomakro_core/pages/debug_overlap_student_trace.php')
     );
     $academicDemandGapsPage = new admin_externalpage(
         'grupomakro_core_academic_demand_gaps',
-        'Brechas de Demanda Académica',
+        $emojititle("\u{1F9E0}", 'Brechas de Demanda Academica'),
         new moodle_url('/local/grupomakro_core/pages/academic_demand_gaps.php')
     );
     $scheduleWeeklyViewPage = new admin_externalpage(
         'grupomakro_core_schedule_weekly_view',
-        'Vista Semanal de Horarios',
+        $emojititle("\u{1F5D3}\u{FE0F}", 'Vista Semanal de Horarios'),
         new moodle_url('/local/grupomakro_core/pages/schedule_weekly_view.php')
     );
     $activeStudentsByClassPage = new admin_externalpage(
         'grupomakro_core_active_students_by_class',
-        get_string('active_students_by_class_page', 'local_grupomakro_core'),
+        $emojititle("\u{1F393}", get_string('active_students_by_class_page', 'local_grupomakro_core')),
         new moodle_url('/local/grupomakro_core/pages/active_students_by_class.php')
     );
     $debugBbbTeacherJoinPage = new admin_externalpage(
         'grupomakro_core_debug_bbb_teacher_join',
-        'Debug BBB Join Docente',
+        $emojititle("\u{1F9EA}", 'Debug BBB Join Docente'),
         new moodle_url('/local/grupomakro_core/pages/debug_bbb_teacher_join.php')
     );
     $financialPlanningPage = new admin_externalpage(
         'grupomakro_core_financial_planning',
-        '💰 Análisis Financiero Docente',
+        $emojititle("\u{1F4B0}", 'Analisis Financiero Docente'),
         new moodle_url('/local/grupomakro_core/pages/financial_planning.php')
     );
     $debugStudentActivityVisibilityPage = new admin_externalpage(
         'grupomakro_core_debug_student_activity_visibility',
-        'Debug: Student Activity Visibility',
+        $emojititle("\u{1F9EA}", 'Debug: Student Activity Visibility'),
         new moodle_url('/local/grupomakro_core/pages/debug_student_activity_visibility.php')
     );
     $syncBbbRecordingsPage = new admin_externalpage(
         'grupomakro_core_sync_bbb_recordings',
-        '🎙️ Sincronizar Grabaciones BBB',
+        $emojititle("\u{1F399}\u{FE0F}", 'Sincronizar Grabaciones BBB'),
         new moodle_url('/local/grupomakro_core/pages/sync_bbb_recordings.php')
     );
     $debugProgreApprovedOrphansPage = new admin_externalpage(
         'grupomakro_core_debug_progre_approved_orphans',
-        '🩺 Inconsistencias Progreso: aprobado + huérfano',
+        $emojititle("\u{1F9EC}", 'Inconsistencias Progreso: aprobado + huerfano'),
         new moodle_url('/local/grupomakro_core/pages/debug_progre_approved_orphans.php')
     );
     $debugApprovedZeroGradePage = new admin_externalpage(
         'grupomakro_core_debug_approved_zero_grade',
-        'Debug: Aprobada con nota 0',
+        $emojititle("\u{1F9EA}", 'Debug: Aprobada con nota 0'),
         new moodle_url('/local/grupomakro_core/pages/debug_approved_zero_grade.php')
     );
     $debugAssignSubmissionVisibilityPage = new admin_externalpage(
         'grupomakro_core_debug_assign_submission_visibility',
-        'Debug: Entrega Tarea (texto/adjuntos)',
+        $emojititle("\u{1F9EA}", 'Debug: Entrega Tarea (texto/adjuntos)'),
         new moodle_url('/local/grupomakro_core/pages/debug_assign_submission_visibility.php')
     );
     $studentPopulationPage = new admin_externalpage(
         'grupomakro_core_student_population',
-        '👥 Población Estudiantil',
+        $emojititle("\u{1F465}", 'Poblacion Estudiantil'),
         new moodle_url('/local/grupomakro_core/pages/student_population.php')
     );
     $absenceDashboardPage = new admin_externalpage(
         'grupomakro_core_absence_dashboard',
-        '📊 ' . get_string('absence_dashboard', 'local_grupomakro_core'),
+        $emojititle("\u{1F4CA}", get_string('absence_dashboard', 'local_grupomakro_core')),
         new moodle_url('/local/grupomakro_core/pages/absence_dashboard.php'),
         'local/grupomakro_core:viewabsencedashboard'
     );
     $letterTypesPage = new admin_externalpage(
         'grupomakro_core_letter_types',
-        'Catálogo de Cartas',
+        $emojititle("\u{1F4C4}", 'Catalogo de Cartas'),
         new moodle_url('/local/grupomakro_core/pages/lettertypes.php')
     );
     $letterRequestsPage = new admin_externalpage(
         'grupomakro_core_letter_requests',
-        'Bandeja Solicitudes de Cartas',
+        $emojititle("\u{1F4EC}", 'Bandeja Solicitudes de Cartas'),
         new moodle_url('/local/grupomakro_core/pages/letterrequests.php')
     );
     $ADMIN->add('grupomakrocore_plugin', $classManagementPage);
