@@ -1769,6 +1769,112 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20260323000, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20260324000) {
+        // Seed default letter types for pilot (only when missing by code).
+        if ($dbman->table_exists(new xmldb_table('gmk_letter_type'))
+            && $dbman->table_exists(new xmldb_table('gmk_letter_dataset_def'))
+            && $dbman->table_exists(new xmldb_table('gmk_letter_type_dataset'))) {
+
+            $now = time();
+            $systemuserid = (int)$DB->get_field('user', 'id', ['username' => 'admin'], IGNORE_MISSING);
+            if ($systemuserid <= 0) {
+                $systemuserid = 0;
+            }
+
+            $defaultletters = [
+                [
+                    'code' => 'constancia_estudios',
+                    'name' => 'Constancia de estudios',
+                    'warningtext' => 'Verifique que sus datos personales esten actualizados antes de solicitar esta carta.',
+                    'cost' => 0.00,
+                    'deliverymode' => 'digital',
+                    'generationmode' => 'auto',
+                    'autostamp' => 1,
+                    'autosignature' => 1,
+                    'template_html' => '<h1>Constancia de estudios</h1><p>Por medio de la presente se certifica que <strong>{{student.fullname}}</strong>, con documento <strong>{{student.document_number}}</strong>, es estudiante activo de la institucion.</p><p>Fecha de expedicion: {{date.today}}</p><p>{{request.observation}}</p>{{DATASET:periodo_actual}}',
+                    'datasets' => ['periodo_actual'],
+                ],
+                [
+                    'code' => 'carta_practica_profesional',
+                    'name' => 'Carta para practica profesional',
+                    'warningtext' => 'Para esta carta el estudiante debe estar cursando su ultimo cuatrimestre y cumplir las condiciones academicas definidas por la institucion.',
+                    'cost' => 0.00,
+                    'deliverymode' => 'fisica',
+                    'generationmode' => 'manual',
+                    'autostamp' => 0,
+                    'autosignature' => 0,
+                    'template_html' => '<h1>Carta de practica profesional</h1><p>Se certifica que <strong>{{student.fullname}}</strong>, identificado con <strong>{{student.document_number}}</strong>, es estudiante de la institucion y solicita esta carta para fines de practica profesional.</p><p>Fecha: {{date.today}}</p><p>{{request.observation}}</p>{{DATASET:resumen_creditos}}',
+                    'datasets' => ['resumen_creditos'],
+                ],
+                [
+                    'code' => 'certificacion_creditos',
+                    'name' => 'Certificacion de creditos y asignaturas',
+                    'warningtext' => 'Esta solicitud genera factura y se procesa automaticamente despues del pago.',
+                    'cost' => 10.00,
+                    'deliverymode' => 'digital',
+                    'generationmode' => 'auto',
+                    'autostamp' => 1,
+                    'autosignature' => 1,
+                    'template_html' => '<h1>Certificacion de creditos y asignaturas</h1><p>Se certifica el avance academico de <strong>{{student.fullname}}</strong>, documento <strong>{{student.document_number}}</strong>.</p><p>Fecha: {{date.today}}</p>{{DATASET:resumen_creditos}}{{DATASET:asignaturas_cursadas}}',
+                    'datasets' => ['resumen_creditos', 'asignaturas_cursadas'],
+                ],
+            ];
+
+            $datasetbycode = [];
+            $datasetrecords = $DB->get_records('gmk_letter_dataset_def', []);
+            foreach ($datasetrecords as $datasetrecord) {
+                $datasetbycode[(string)$datasetrecord->code] = (int)$datasetrecord->id;
+            }
+
+            foreach ($defaultletters as $def) {
+                $type = $DB->get_record('gmk_letter_type', ['code' => $def['code']], '*', IGNORE_MISSING);
+                if (!$type) {
+                    $typeid = $DB->insert_record('gmk_letter_type', (object)[
+                        'code' => $def['code'],
+                        'name' => $def['name'],
+                        'warningtext' => $def['warningtext'],
+                        'cost' => $def['cost'],
+                        'active' => 1,
+                        'deliverymode' => $def['deliverymode'],
+                        'generationmode' => $def['generationmode'],
+                        'autostamp' => $def['autostamp'],
+                        'autosignature' => $def['autosignature'],
+                        'stampimageurl' => '',
+                        'signatureimageurl' => '',
+                        'odoo_product_id' => 0,
+                        'template_html' => $def['template_html'],
+                        'usermodified' => $systemuserid,
+                        'timecreated' => $now,
+                        'timemodified' => $now,
+                    ]);
+                } else {
+                    $typeid = (int)$type->id;
+                }
+
+                $sortorder = 1;
+                foreach ($def['datasets'] as $datasetcode) {
+                    if (empty($datasetbycode[$datasetcode])) {
+                        continue;
+                    }
+                    $datasetid = (int)$datasetbycode[$datasetcode];
+                    if (!$DB->record_exists('gmk_letter_type_dataset', ['lettertypeid' => $typeid, 'datasetdefid' => $datasetid])) {
+                        $DB->insert_record('gmk_letter_type_dataset', (object)[
+                            'lettertypeid' => $typeid,
+                            'datasetdefid' => $datasetid,
+                            'sortorder' => $sortorder,
+                            'usermodified' => $systemuserid,
+                            'timecreated' => $now,
+                            'timemodified' => $now,
+                        ]);
+                    }
+                    $sortorder++;
+                }
+            }
+        }
+
+        upgrade_plugin_savepoint(true, 20260324000, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

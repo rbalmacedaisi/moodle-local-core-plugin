@@ -24,6 +24,6 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = "local_grupomakro_core";
-$plugin->version   = 20260323000;         // Letter requests management v1 (Moodle+LXP+Express+Odoo).
+$plugin->version   = 20260324000;         // Seed default pilot letter types + dataset mapping.
 $plugin->requires = 2014051200;
 $plugin->maturity = MATURITY_STABLE;
