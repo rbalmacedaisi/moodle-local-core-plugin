@@ -94,7 +94,7 @@ if (optional_param('abs_ajax', 0, PARAM_INT)) {
                            JOIN {attendance_sessions} s ON s.attendanceid = cm.instance
                                 AND s.groupid = :groupid AND s.sessdate < :nowts
                            JOIN {attendance_log} l ON l.sessionid = s.id
-                           JOIN {attendance_statuses} ast ON ast.id = l.statusid AND ast.grade <= 0
+                           JOIN {attendance_statuses} ast ON ast.id = l.statusid AND (ast.grade IS NULL OR ast.grade <= 0)
                           WHERE cm.id = :cmid AND l.studentid $uinsql
                           GROUP BY l.studentid",
                         $uinp
@@ -366,7 +366,7 @@ if (!empty($all_ids)) {
                JOIN {attendance_sessions} s ON s.attendanceid = cm.instance
                     AND s.groupid = gc.groupid AND s.sessdate < :nowts
                JOIN {attendance_log} l ON l.sessionid = s.id
-               JOIN {attendance_statuses} ast ON ast.id = l.statusid AND ast.grade <= 0
+               JOIN {attendance_statuses} ast ON ast.id = l.statusid AND (ast.grade IS NULL OR ast.grade <= 0)
                JOIN {gmk_course_progre} gcp ON gcp.classid = gc.id
                     AND gcp.userid = l.studentid AND gcp.status IN (1,2,3)
               WHERE gc.id $insql AND gc.attendancemoduleid > 0
