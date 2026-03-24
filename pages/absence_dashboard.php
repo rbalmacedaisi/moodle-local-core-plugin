@@ -42,7 +42,8 @@ if (optional_param('abs_ajax', 0, PARAM_INT)) {
                 'id, learningplanid, attendancemoduleid, groupid, courseid, corecourseid, initdate, enddate', MUST_EXIST);
             $nowts   = time();
             $pastsessionids = absd_get_class_past_session_ids($class, $nowts);
-            $past_sessions = count($pastsessionids);
+            $takensessionids = absd_get_taken_session_ids($pastsessionids);
+            $past_sessions = count($takensessionids);
 
             // Enrolled students
             $students_raw = [];
@@ -67,8 +68,8 @@ if (optional_param('abs_ajax', 0, PARAM_INT)) {
             }
             $userids = array_keys($students_raw);
 
-            // Per-student absences (robust session resolution).
-            $student_abs = absd_get_student_absences($pastsessionids, $userids);
+            // Per-student absences from sessions where attendance was actually taken.
+            $student_abs = absd_get_student_absences($takensessionids, $userids);
 
             // Document numbers
             $doc_map_s = [];
@@ -436,10 +437,68 @@ function absd_get_class_enrolled_userids(int $classid): array {
 }
 
 /**
+ * Filters session ids to sessions where attendance was actually taken.
+ *
+ * A session is considered taken when:
+ * - it has at least one row in attendance_log, or
+ * - attendance_sessions.lasttaken > 0 (when available in schema).
+ *
+ * @param int[] $sessionids
+ * @return int[]
+ */
+function absd_get_taken_session_ids(array $sessionids): array {
+    global $DB;
+    if (empty($sessionids)) {
+        return [];
+    }
+
+    list($sessinsql, $sessparams) = $DB->get_in_or_equal($sessionids, SQL_PARAMS_NAMED, 'tsess');
+    $taken = [];
+
+    // 1) Sessions with any attendance log.
+    $withlogs = $DB->get_fieldset_sql(
+        "SELECT DISTINCT l.sessionid
+           FROM {attendance_log} l
+          WHERE l.sessionid $sessinsql",
+        $sessparams
+    );
+    foreach ($withlogs as $sid) {
+        $sid = (int)$sid;
+        if ($sid > 0) {
+            $taken[$sid] = $sid;
+        }
+    }
+
+    // 2) Sessions explicitly marked as taken.
+    try {
+        $lasttaken = $DB->get_fieldset_sql(
+            "SELECT s.id
+               FROM {attendance_sessions} s
+              WHERE s.id $sessinsql
+                AND COALESCE(s.lasttaken, 0) > 0",
+            $sessparams
+        );
+        foreach ($lasttaken as $sid) {
+            $sid = (int)$sid;
+            if ($sid > 0) {
+                $taken[$sid] = $sid;
+            }
+        }
+    } catch (Exception $e) {
+        // Compatibility fallback for schemas without lasttaken column.
+    }
+
+    $out = array_values($taken);
+    sort($out);
+    return $out;
+}
+
+/**
  * Returns per-student absence counters from attendance logs.
  *
- * Absence is considered any status with grade <= 0 (or null), and is counted
- * once per session per student.
+ * Absence is counted only from latest recorded logs per student/session:
+ * - grade <= 0 or null => absence
+ * - no log for that session/student is not counted as absence here
  *
  * @param int[] $sessionids
  * @param int[] $userids
@@ -454,10 +513,9 @@ function absd_get_student_absences(array $sessionids, array $userids): array {
     list($sessinsql, $sessparams) = $DB->get_in_or_equal($sessionids, SQL_PARAMS_NAMED, 'sess');
     list($uinsql, $uinparams) = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED, 'usr');
     $params = array_merge($sessparams, $uinparams);
-    $totalsessions = count($sessionids);
 
-    // Count per student only sessions with latest mark grade > 0.
-    $sql = "SELECT l.studentid, COUNT(1) AS presentcount
+    // Count per student only sessions whose latest mark is absent.
+    $sql = "SELECT l.studentid, COUNT(1) AS absencecount
               FROM {attendance_log} l
               JOIN (
                     SELECT studentid, sessionid, MAX(id) AS maxid
@@ -465,28 +523,19 @@ function absd_get_student_absences(array $sessionids, array $userids): array {
                      WHERE sessionid $sessinsql
                        AND studentid $uinsql
                   GROUP BY studentid, sessionid
-              ) ll ON ll.maxid = l.id
+               ) ll ON ll.maxid = l.id
          LEFT JOIN {attendance_statuses} ast ON ast.id = l.statusid
              WHERE l.studentid $uinsql
                AND l.sessionid $sessinsql
-               AND COALESCE(ast.grade, 0) > 0
-          GROUP BY l.studentid";
+                AND COALESCE(ast.grade, 0) <= 0
+           GROUP BY l.studentid";
 
-    $presentbyuser = [];
+    $map = [];
     $rs = $DB->get_recordset_sql($sql, $params);
     foreach ($rs as $row) {
-        $presentbyuser[(int)$row->studentid] = (int)$row->presentcount;
+        $map[(int)$row->studentid] = (int)$row->absencecount;
     }
     $rs->close();
-
-    // Missing log in past session is treated as absence (same behavior as attendance details endpoint).
-    $map = [];
-    foreach ($userids as $uid) {
-        $uid = (int)$uid;
-        $present = $presentbyuser[$uid] ?? 0;
-        $absences = max(0, $totalsessions - $present);
-        $map[$uid] = $absences;
-    }
     return $map;
 }
 
@@ -582,8 +631,9 @@ if (!empty($all_ids)) {
         }
 
         $pastsessionids = absd_get_class_past_session_ids($base, $now);
-        $class_past_sessions[$cid] = count($pastsessionids);
-        if (empty($pastsessionids)) {
+        $takensessionids = absd_get_taken_session_ids($pastsessionids);
+        $class_past_sessions[$cid] = count($takensessionids);
+        if (empty($takensessionids)) {
             continue;
         }
 
@@ -592,7 +642,7 @@ if (!empty($all_ids)) {
             continue;
         }
 
-        $studentabs = absd_get_student_absences($pastsessionids, $enrolleduserids);
+        $studentabs = absd_get_student_absences($takensessionids, $enrolleduserids);
         $class_total_absences[$cid] = array_sum($studentabs);
     }
 }

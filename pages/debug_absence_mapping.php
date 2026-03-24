@@ -409,11 +409,63 @@ function dbg_abs_build_session_sets(stdClass $class, int $attendanceid, int $now
 }
 
 /**
+ * Keep only sessions where attendance was actually taken.
+ *
+ * @param array<int,int> $sessionids
+ * @return array<int,int>
+ */
+function dbg_abs_filter_taken_session_ids(array $sessionids): array {
+    global $DB;
+
+    if (empty($sessionids)) {
+        return [];
+    }
+
+    [$insql, $params] = $DB->get_in_or_equal($sessionids, SQL_PARAMS_NAMED, 'tss');
+    $taken = [];
+
+    $fromlogs = $DB->get_fieldset_sql(
+        "SELECT DISTINCT l.sessionid
+           FROM {attendance_log} l
+          WHERE l.sessionid $insql",
+        $params
+    );
+    foreach ($fromlogs as $sid) {
+        $sid = (int)$sid;
+        if ($sid > 0) {
+            $taken[$sid] = $sid;
+        }
+    }
+
+    try {
+        $fromlasttaken = $DB->get_fieldset_sql(
+            "SELECT s.id
+               FROM {attendance_sessions} s
+              WHERE s.id $insql
+                AND COALESCE(s.lasttaken, 0) > 0",
+            $params
+        );
+        foreach ($fromlasttaken as $sid) {
+            $sid = (int)$sid;
+            if ($sid > 0) {
+                $taken[$sid] = $sid;
+            }
+        }
+    } catch (Throwable $e) {
+        // Compatibility fallback for environments without lasttaken column.
+    }
+
+    $out = array_values($taken);
+    sort($out);
+    return $out;
+}
+
+/**
  * Compute absences per student using latest log per session.
  *
  * Absence rule:
- * - Present: latest status grade > 0
- * - Absence: total past sessions - present sessions
+ * - latest status grade <= 0 or null => absence
+ * - no log for that session/student => not counted here
  *
  * @param array<int,int> $sessionids
  * @param array<int,int> $studentids
@@ -423,9 +475,8 @@ function dbg_abs_compute_student_absences(array $sessionids, array $studentids):
     global $DB;
 
     $stats = [];
-    $totalsessions = count($sessionids);
     foreach ($studentids as $uid) {
-        $stats[(int)$uid] = ['present' => 0, 'logged' => 0, 'absences' => $totalsessions];
+        $stats[(int)$uid] = ['present' => 0, 'logged' => 0, 'absences' => 0];
     }
 
     if (empty($sessionids) || empty($studentids)) {
@@ -457,12 +508,9 @@ function dbg_abs_compute_student_absences(array $sessionids, array $studentids):
         $stats[$uid]['logged']++;
         if ($row->grade !== null && (float)$row->grade > 0) {
             $stats[$uid]['present']++;
+        } else {
+            $stats[$uid]['absences']++;
         }
-    }
-
-    foreach ($stats as $uid => $row) {
-        $abs = $totalsessions - (int)$row['present'];
-        $stats[$uid]['absences'] = max(0, $abs);
     }
 
     return $stats;
@@ -661,6 +709,7 @@ echo '</div>';
 
 // Section 4: sessions mapping.
 $sessionsets = dbg_abs_build_session_sets($class, $attendanceid, $now);
+$takensessionids = dbg_abs_filter_taken_session_ids($sessionsets['union']);
 echo '<div class="dbg-section">';
 echo '<h3>4) Sesiones detectadas para conteo de inasistencias</h3>';
 if ($attendanceid <= 0) {
@@ -672,6 +721,7 @@ if ($attendanceid <= 0) {
     echo '<tr><td>groupor0: attendanceid + (groupid o 0)</td><td>' . count($sessionsets['groupor0']) . '</td></tr>';
     echo '<tr><td>relation: attendancesessionid en relation</td><td>' . count($sessionsets['relation']) . '</td></tr>';
     echo '<tr><td>union usada en debug</td><td><b>' . count($sessionsets['union']) . '</b></td></tr>';
+    echo '<tr><td>sesiones tomadas (logs/lasttaken)</td><td><b>' . count($takensessionids) . '</b></td></tr>';
     echo '</table>';
 
     $groupcounts = $DB->get_records_sql(
@@ -706,8 +756,8 @@ if ($attendanceid <= 0) {
         echo '</table>';
     }
 
-    if (!empty($sessionsets['union'])) {
-        [$insql, $inparams] = $DB->get_in_or_equal($sessionsets['union'], SQL_PARAMS_NAMED, 'sid');
+    if (!empty($takensessionids)) {
+        [$insql, $inparams] = $DB->get_in_or_equal($takensessionids, SQL_PARAMS_NAMED, 'sid');
         $samples = $DB->get_records_sql(
             "SELECT id, attendanceid, groupid, sessdate, duration, description
                FROM {attendance_sessions}
@@ -719,7 +769,7 @@ if ($attendanceid <= 0) {
         );
 
         if (!empty($samples)) {
-            echo '<p style="margin-top:10px"><b>Ultimas sesiones candidatas:</b></p>';
+            echo '<p style="margin-top:10px"><b>Ultimas sesiones tomadas:</b></p>';
             echo '<table class="dbg">';
             echo '<tr><th>sessionid</th><th>date</th><th>groupid</th><th>duration</th><th>description</th></tr>';
             foreach ($samples as $srow) {
@@ -810,12 +860,12 @@ if (!dbg_abs_table_exists('gmk_course_progre')) {
         echo '<p class="dbg-warn">No hay estudiantes activos (status IN 1,2,3) en gmk_course_progre para esta clase.</p>';
     } else {
         $studentids = array_map(static function($r) { return (int)$r->userid; }, array_values($students));
-        $studentstats = dbg_abs_compute_student_absences($sessionsets['union'], $studentids);
+        $studentstats = dbg_abs_compute_student_absences($takensessionids, $studentids);
 
         $rows = [];
         foreach ($students as $st) {
             $uid = (int)$st->userid;
-            $calc = $studentstats[$uid] ?? ['present' => 0, 'logged' => 0, 'absences' => count($sessionsets['union'])];
+            $calc = $studentstats[$uid] ?? ['present' => 0, 'logged' => 0, 'absences' => 0];
             $rows[] = [
                 'userid' => $uid,
                 'name' => trim((string)$st->firstname . ' ' . (string)$st->lastname),
@@ -830,7 +880,7 @@ if (!dbg_abs_table_exists('gmk_course_progre')) {
             return $b['absences'] <=> $a['absences'];
         });
 
-        echo '<p>Sesiones pasadas usadas para el calculo: <b>' . count($sessionsets['union']) . '</b></p>';
+        echo '<p>Sesiones tomadas usadas para el calculo: <b>' . count($takensessionids) . '</b></p>';
         echo '<table class="dbg">';
         echo '<tr><th>userid</th><th>estudiante</th><th>status progre</th><th>presentes</th><th>sesiones con log</th><th>inasistencias</th></tr>';
         foreach ($rows as $row) {
