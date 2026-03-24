@@ -46,4 +46,9 @@ $capabilities = array(
         'contextlevel' => CONTEXT_SYSTEM,
         'archetypes' => array(),
     ),
+    'local/grupomakro_core:viewabsencedashboard' => array(
+        'captype' => 'read',
+        'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array(),
+    ),
 );

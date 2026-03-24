@@ -387,6 +387,7 @@ function assign_capabilities_to_internal_roles() {
         'local/grupomakro_core:manageletters',
         'local/grupomakro_core:managerequests',
         'local/grupomakro_core:viewallletterrequests',
+        'local/grupomakro_core:viewabsencedashboard',
     ];
     foreach ($capabilities as $capability) {
         assign_capability($capability, $permission, $role->id, $context->id);

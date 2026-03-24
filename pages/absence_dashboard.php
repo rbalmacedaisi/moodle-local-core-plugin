@@ -14,7 +14,7 @@ require_once(__DIR__ . '/../../../config.php');
 require_once($CFG->libdir . '/adminlib.php');
 
 require_login();
-require_capability('moodle/site:config', context_system::instance());
+require_capability('local/grupomakro_core:viewabsencedashboard', context_system::instance());
 
 // ── Inline AJAX ───────────────────────────────────────────────────────────────
 if (optional_param('abs_ajax', 0, PARAM_INT)) {

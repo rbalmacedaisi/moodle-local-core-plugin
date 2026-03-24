@@ -38,11 +38,13 @@ $string['academic_director_panel'] = 'Academic Panel';
 $string['admin_teachers_management'] = 'Manage Teachers';
 $string['teachers'] = 'Teachers';
 $string['active_students_by_class_page'] = 'Active students by class';
+$string['absence_dashboard'] = 'Absences and dropouts';
 
 // Letter requests.
 $string['grupomakro_core:manageletters'] = 'Manage letter catalog';
 $string['grupomakro_core:managerequests'] = 'Manage letter requests';
 $string['grupomakro_core:viewallletterrequests'] = 'View all letter requests';
+$string['grupomakro_core:viewabsencedashboard'] = 'View absences dashboard';
 
 $string['messageprovider:payment_link'] = 'Letter payment link notification';
 $string['messageprovider:letter_generated'] = 'Letter generated notification';

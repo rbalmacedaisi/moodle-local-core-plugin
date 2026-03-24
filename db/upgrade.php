@@ -1913,6 +1913,12 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20260324010, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20260324020) {
+        // Ensure absence dashboard capability exists and is assigned to internal administrative role.
+        assign_capabilities_to_internal_roles();
+        upgrade_plugin_savepoint(true, 20260324020, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

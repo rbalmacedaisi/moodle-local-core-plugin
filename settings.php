@@ -195,8 +195,9 @@ if ($hassiteconfig) {
     );
     $absenceDashboardPage = new admin_externalpage(
         'grupomakro_core_absence_dashboard',
-        '📊 Inasistencias y Deserciones',
-        new moodle_url('/local/grupomakro_core/pages/absence_dashboard.php')
+        '📊 ' . get_string('absence_dashboard', 'local_grupomakro_core'),
+        new moodle_url('/local/grupomakro_core/pages/absence_dashboard.php'),
+        'local/grupomakro_core:viewabsencedashboard'
     );
     $letterTypesPage = new admin_externalpage(
         'grupomakro_core_letter_types',

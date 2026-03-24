@@ -37,6 +37,7 @@ $string['academic_director_panel'] = 'Panel del Director Académico';
 $string['admin_teachers_management'] = 'Administrar Docentes';
 $string['teachers'] = 'Docentes';
 $string['active_students_by_class_page'] = 'Estudiantes activos por clase';
+$string['absence_dashboard'] = 'Inasistencias y Deserciones';
 
 // Capabilities.
 $string['grupomakro_core:seeallorders'] = 'Ver todas las órdenes';
@@ -223,6 +224,7 @@ $string['memessage'] = 'Mensaje';
 $string['grupomakro_core:manageletters'] = 'Gestionar catálogo de cartas';
 $string['grupomakro_core:managerequests'] = 'Gestionar solicitudes de cartas';
 $string['grupomakro_core:viewallletterrequests'] = 'Ver todas las solicitudes de cartas';
+$string['grupomakro_core:viewabsencedashboard'] = 'Ver panel de inasistencias';
 
 $string['messageprovider:payment_link'] = 'Notificación de enlace de pago para cartas';
 $string['messageprovider:letter_generated'] = 'Notificación de carta generada';
