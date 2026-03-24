@@ -595,6 +595,15 @@ $functions = array(
         'ajax'          => true,
         'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
     ),
+    'local_grupomakro_get_student_modules' => array(
+        'classname' => 'local_grupomakro_core\external\student\get_student_modules',
+        'methodname' => 'execute',
+        'description' => 'Get active independent study module enrollments for a student',
+        'type' => 'read',
+        'capabilities' => '',
+        'ajax'          => true,
+        'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
     'local_grupomakro_get_data_by_courses' => array(
         'classname' => 'local_grupomakro_core\external\student\get_data_by_courses',
         'methodname' => 'execute',

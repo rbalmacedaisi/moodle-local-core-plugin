@@ -24,6 +24,6 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = "local_grupomakro_core";
-$plugin->version   = 20260324020;         // Absence dashboard capability/menu access alignment.
+$plugin->version   = 20260324030;         // Add gmk_module_enrollment table and is_module fields for independent study modules.
 $plugin->requires = 2014051200;
 $plugin->maturity = MATURITY_STABLE;

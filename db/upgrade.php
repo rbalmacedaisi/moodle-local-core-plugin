@@ -1919,6 +1919,45 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20260324020, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20260324030) {
+        // Add is_module and module_deadline_days fields to gmk_class for independent study modules.
+        $table = new xmldb_table('gmk_class');
+
+        $field_is_module = new xmldb_field('is_module', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0', 'career_label');
+        if (!$DB->get_manager()->field_exists($table, $field_is_module)) {
+            $DB->get_manager()->add_field($table, $field_is_module);
+        }
+
+        $field_deadline = new xmldb_field('module_deadline_days', XMLDB_TYPE_INTEGER, '4', null, XMLDB_NOTNULL, null, '30', 'is_module');
+        if (!$DB->get_manager()->field_exists($table, $field_deadline)) {
+            $DB->get_manager()->add_field($table, $field_deadline);
+        }
+
+        // Create gmk_module_enrollment table.
+        $enroll_table = new xmldb_table('gmk_module_enrollment');
+        if (!$DB->get_manager()->table_exists($enroll_table)) {
+            $enroll_table->add_field('id',           XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE);
+            $enroll_table->add_field('classid',      XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $enroll_table->add_field('userid',       XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $enroll_table->add_field('enrolldate',   XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $enroll_table->add_field('duedate',      XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $enroll_table->add_field('status',       XMLDB_TYPE_CHAR,    '20', null, XMLDB_NOTNULL, null, 'active');
+            $enroll_table->add_field('timecreated',  XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $enroll_table->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $enroll_table->add_field('usermodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+
+            $enroll_table->add_key('primary',  XMLDB_KEY_PRIMARY,  ['id']);
+            $enroll_table->add_key('classfk',  XMLDB_KEY_FOREIGN,  ['classid'], 'gmk_class', ['id']);
+            $enroll_table->add_key('userfk',   XMLDB_KEY_FOREIGN,  ['userid'],  'user',       ['id']);
+
+            $enroll_table->add_index('classuser_unique', XMLDB_INDEX_UNIQUE, ['classid', 'userid']);
+
+            $DB->get_manager()->create_table($enroll_table);
+        }
+
+        upgrade_plugin_savepoint(true, 20260324030, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

@@ -1499,6 +1499,97 @@ try {
             ];
             break;
 
+        case 'local_grupomakro_enroll_module':
+            require_sesskey();
+            require_capability('moodle/site:config', $context);
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/schedule/enroll_module.php');
+            $userid         = required_param('userId',       PARAM_INT);
+            $corecourseid   = required_param('coreCourseId', PARAM_INT);
+            $learningplanid = optional_param('learningPlanId', 0, PARAM_INT);
+            $result = \local_grupomakro_core\external\schedule\enroll_module::execute($userid, $corecourseid, $learningplanid);
+            $response = [
+                'status' => 'success',
+                'data'   => $result,
+            ];
+            break;
+
+        case 'local_grupomakro_get_student_modules':
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/student/get_student_modules.php');
+            $userid = required_param('userid', PARAM_INT);
+            $modules = \local_grupomakro_core\external\student\get_student_modules::execute($userid);
+            $response = [
+                'status'  => 'success',
+                'modules' => $modules,
+            ];
+            break;
+
+        case 'local_grupomakro_get_module_list':
+            require_capability('moodle/site:config', $context);
+            $periodid = optional_param('periodId', 0, PARAM_INT);
+            $where    = 'gc.is_module = 1';
+            $params_q = [];
+            if ($periodid > 0) {
+                $where   .= ' AND gc.periodid = :periodid';
+                $params_q = ['periodid' => $periodid];
+            }
+            $module_list = $DB->get_records_sql(
+                "SELECT gc.id, gc.coursename, gc.name, gc.module_deadline_days, gc.groupid, gc.periodid,
+                        COALESCE(gap.code, gap.name) AS periodcode,
+                        COUNT(gme.id) AS enrolled_count
+                   FROM {gmk_class} gc
+                   JOIN {gmk_academic_periods} gap ON gap.id = gc.periodid
+                   LEFT JOIN {gmk_module_enrollment} gme ON gme.classid = gc.id AND gme.status = 'active'
+                  WHERE $where
+                  GROUP BY gc.id, gc.coursename, gc.name, gc.module_deadline_days, gc.groupid,
+                           gc.periodid, gap.code, gap.name
+                  ORDER BY gap.id DESC, gc.coursename ASC",
+                $params_q
+            );
+            $response = ['status' => 'success', 'data' => array_values($module_list)];
+            break;
+
+        case 'local_grupomakro_get_module_students':
+            require_capability('moodle/site:config', $context);
+            $classid_m = required_param('classId', PARAM_INT);
+            $module_students = $DB->get_records_sql(
+                "SELECT gme.id, gme.userid, gme.enrolldate, gme.duedate, gme.status,
+                        u.firstname, u.lastname, u.email
+                   FROM {gmk_module_enrollment} gme
+                   JOIN {user} u ON u.id = gme.userid
+                  WHERE gme.classid = :classid
+                  ORDER BY u.lastname ASC, u.firstname ASC",
+                ['classid' => $classid_m]
+            );
+            $response = ['status' => 'success', 'data' => array_values($module_students)];
+            break;
+
+        case 'local_grupomakro_update_module_enrollment':
+            require_sesskey();
+            require_capability('moodle/site:config', $context);
+            $enrollment_id  = required_param('enrollmentId', PARAM_INT);
+            $update_action  = required_param('updateAction',  PARAM_ALPHA);
+            $enrollment_rec = $DB->get_record('gmk_module_enrollment', ['id' => $enrollment_id], '*', MUST_EXIST);
+            $now_t = time();
+            if ($update_action === 'extend') {
+                $extra_days = required_param('days', PARAM_INT);
+                $extra_days = max(1, min(365, $extra_days));
+                $new_due = (int)$enrollment_rec->duedate + ($extra_days * DAYSECS);
+                $DB->set_field('gmk_module_enrollment', 'duedate',      $new_due, ['id' => $enrollment_id]);
+                $DB->set_field('gmk_module_enrollment', 'timemodified', $now_t,   ['id' => $enrollment_id]);
+                $due_fmt = userdate($new_due, get_string('strftimedatefullshort', 'langconfig'));
+                $response = ['status' => 'success', 'data' => [
+                    'duedate' => $new_due,
+                    'message' => 'Plazo extendido. Nueva fecha límite: ' . $due_fmt,
+                ]];
+            } else if ($update_action === 'complete') {
+                $DB->set_field('gmk_module_enrollment', 'status',       'completed', ['id' => $enrollment_id]);
+                $DB->set_field('gmk_module_enrollment', 'timemodified', $now_t,      ['id' => $enrollment_id]);
+                $response = ['status' => 'success', 'data' => ['message' => 'Inscripción marcada como completada.']];
+            } else {
+                $response = ['status' => 'error', 'data' => ['message' => 'Acción no reconocida.']];
+            }
+            break;
+
         case 'local_grupomakro_withdraw_student':
             require_sesskey();
             require_capability('moodle/site:config', $context);

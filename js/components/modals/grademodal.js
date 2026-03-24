@@ -127,7 +127,7 @@ Vue.component('grademodal', {
                                                     <td class="text-right font-weight-bold" :class="getGradeColor(course.grade)">
                                                         {{ course.grade }}
                                                     </td>
-                                                    <td class="text-center py-1">
+                                                    <td class="text-center py-1" style="white-space:nowrap;">
                                                         <v-btn
                                                             v-if="canWithdrawFromCourse(course)"
                                                             x-small
@@ -146,6 +146,20 @@ Vue.component('grademodal', {
                                                             @click.stop="openEnrollDialog(course)"
                                                         >
                                                             Inscribir
+                                                        </v-btn>
+                                                        <v-btn
+                                                            v-if="Number(course.courseid || 0) > 0"
+                                                            x-small
+                                                            :color="moduleStatusMap[getCourseKey(course)] ? 'teal lighten-1' : 'teal darken-2'"
+                                                            dark
+                                                            :loading="enrollingModuleKey === getCourseKey(course)"
+                                                            :disabled="!!enrollingModuleKey || !!withdrawingCourseKey"
+                                                            @click.stop="enrollInModule(course)"
+                                                            class="ml-1"
+                                                            title="Inscribir en módulo independiente"
+                                                        >
+                                                            <v-icon x-small :left="!!moduleStatusMap[getCourseKey(course)]">mdi-book-education-outline</v-icon>
+                                                            <span v-if="moduleStatusMap[getCourseKey(course)]">Módulo ✓</span>
                                                         </v-btn>
                                                     </td>
                                                 </tr>
@@ -288,7 +302,9 @@ Vue.component('grademodal', {
             enrollClassesError: '',
             selectedCourse: null,
             withdrawingCourseKey: null,
-            exportingSchedulePdf: false
+            exportingSchedulePdf: false,
+            enrollingModuleKey: null,
+            moduleStatusMap: {}
         };
     },
     props: {
@@ -1081,6 +1097,60 @@ Vue.component('grademodal', {
         canWithdrawFromCourse(course) {
             const label = String((course && course.statusLabel) ? course.statusLabel : '').trim().toLowerCase();
             return label === 'cursando' && Number(course && course.progressclassid ? course.progressclassid : 0) > 0;
+        },
+        async enrollInModule(course) {
+            const key = this.getCourseKey(course);
+            const existing = this.moduleStatusMap[key];
+            if (existing) {
+                const date = existing.duedate
+                    ? new Date(existing.duedate * 1000).toLocaleDateString('es-PA', { day: '2-digit', month: 'short', year: 'numeric' })
+                    : '—';
+                this.showMessage('info', 'Ya inscrito en módulo. Plazo: ' + date);
+                return;
+            }
+
+            const swResult = await window.Swal.fire({
+                title: 'Inscribir en Módulo',
+                html: '¿Inscribir a <b>' + this.studentName + '</b> en el módulo de <b>' + (course.coursename || '') + '</b>?<br>'
+                    + '<small class="grey--text">El estudiante tendrá <b>30 días</b> para completar las actividades.</small>',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Inscribir',
+                cancelButtonText: 'Cancelar',
+                confirmButtonColor: '#00796B',
+            });
+            if (!swResult.isConfirmed) return;
+
+            this.enrollingModuleKey = key;
+            try {
+                const url = window.wsUrl || (window.location.origin + '/local/grupomakro_core/ajax.php');
+                const response = await window.axios.get(url, {
+                    params: {
+                        action: 'local_grupomakro_enroll_module',
+                        sesskey: M.cfg.sesskey,
+                        userId: this.dataStudent.id,
+                        coreCourseId: Number(course.courseid || 0),
+                        learningPlanId: Number(course.learningplanid || 0),
+                    }
+                });
+                const payload = response.data || {};
+                const data = (payload.data) ? payload.data : payload;
+
+                if (data.status === 'ok') {
+                    this.$set(this.moduleStatusMap, key, { enrolled: true, duedate: data.duedate || 0 });
+                    this.showMessage('success', data.message || 'Inscrito en módulo correctamente.');
+                } else if (data.status === 'warning') {
+                    this.$set(this.moduleStatusMap, key, { enrolled: true, duedate: data.duedate || 0 });
+                    this.showMessage('warning', data.message || 'Ya estaba inscrito en este módulo.');
+                } else {
+                    this.showMessage('error', data.message || 'No se pudo inscribir en el módulo.');
+                }
+            } catch (e) {
+                console.error('Error enrolling in module:', e);
+                this.showMessage('error', 'Error al inscribir en módulo.');
+            } finally {
+                this.enrollingModuleKey = null;
+            }
         },
         getCourseKey(course) {
             return String(course && course.progressclassid ? course.progressclassid : 0) + '_' + String(course && course.courseid ? course.courseid : 0);

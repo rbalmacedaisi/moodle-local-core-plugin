@@ -95,6 +95,8 @@
         <FIELD NAME="shift" TYPE="char" LENGTH="50" NOTNULL="false" SEQUENCE="false"/>
         <FIELD NAME="level_label" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
         <FIELD NAME="career_label" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="is_module" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="1 = independent study module, 0 = regular class"/>
+        <FIELD NAME="module_deadline_days" TYPE="int" LENGTH="4" NOTNULL="true" DEFAULT="30" SEQUENCE="false" COMMENT="Days from enrollment before student deadline expires"/>
       </FIELDS>
       <KEYS>
         <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
@@ -687,6 +689,27 @@
         <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
         <KEY NAME="userid" TYPE="unique" FIELDS="userid"/>
       </KEYS>
+    </TABLE>
+    <TABLE NAME="gmk_module_enrollment" COMMENT="Per-student independent module enrollment with individual deadline">
+      <FIELDS>
+        <FIELD NAME="id"           TYPE="int"  LENGTH="10" NOTNULL="true"  SEQUENCE="true"/>
+        <FIELD NAME="classid"      TYPE="int"  LENGTH="10" NOTNULL="true"  DEFAULT="0" SEQUENCE="false" COMMENT="gmk_class.id where is_module=1"/>
+        <FIELD NAME="userid"       TYPE="int"  LENGTH="10" NOTNULL="true"  DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="enrolldate"   TYPE="int"  LENGTH="10" NOTNULL="true"  DEFAULT="0" SEQUENCE="false" COMMENT="Unix timestamp of enrollment"/>
+        <FIELD NAME="duedate"      TYPE="int"  LENGTH="10" NOTNULL="true"  DEFAULT="0" SEQUENCE="false" COMMENT="Unix timestamp of deadline"/>
+        <FIELD NAME="status"       TYPE="char" LENGTH="20" NOTNULL="true"  DEFAULT="active" SEQUENCE="false" COMMENT="active|completed|expired"/>
+        <FIELD NAME="timecreated"  TYPE="int"  LENGTH="10" NOTNULL="true"  DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int"  LENGTH="10" NOTNULL="true"  DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="usermodified" TYPE="int"  LENGTH="10" NOTNULL="true"  DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary"  TYPE="primary"  FIELDS="id"/>
+        <KEY NAME="classfk"  TYPE="foreign"  FIELDS="classid" REFTABLE="gmk_class" REFFIELDS="id"/>
+        <KEY NAME="userfk"   TYPE="foreign"  FIELDS="userid"  REFTABLE="user"      REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="classuser_unique" UNIQUE="true" FIELDS="classid, userid"/>
+      </INDEXES>
     </TABLE>
   </TABLES>
 </XMLDB>
