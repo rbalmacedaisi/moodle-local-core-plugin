@@ -522,12 +522,10 @@ function absd_get_student_absences(array $sessionids, array $userids): array {
                       FROM {attendance_log}
                      WHERE sessionid $sessinsql
                        AND studentid $uinsql
-                  GROUP BY studentid, sessionid
-               ) ll ON ll.maxid = l.id
+                   GROUP BY studentid, sessionid
+                ) ll ON ll.maxid = l.id
          LEFT JOIN {attendance_statuses} ast ON ast.id = l.statusid
-             WHERE l.studentid $uinsql
-               AND l.sessionid $sessinsql
-                AND COALESCE(ast.grade, 0) <= 0
+             WHERE COALESCE(ast.grade, 0) <= 0
            GROUP BY l.studentid";
 
     $map = [];
