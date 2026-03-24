@@ -29,11 +29,35 @@ if (optional_param('abs_ajax', 0, PARAM_INT)) {
             $DB->set_field('user', 'suspended', $newval, ['id' => $userid]);
             echo json_encode(['ok' => true, 'suspended' => (bool)$newval]);
         } elseif ($abs_action === 'academic') {
-            require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/progress_manager.php');
-            $userid          = required_param('userid', PARAM_INT);
-            $academic_action = required_param('academic_action', PARAM_ALPHA); // aplazo|retiro|reingreso
-            $reason          = optional_param('reason', '', PARAM_TEXT);
-            $res             = \local_grupomakro_progress_manager::update_external_status($userid, $academic_action, $reason);
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/student/update_student_status.php');
+            $userid = required_param('userid', PARAM_INT);
+            $academic_status = trim((string)optional_param('academic_status', '', PARAM_TEXT));
+
+            // Backward compatibility with older action values.
+            if ($academic_status === '') {
+                $academic_action = required_param('academic_action', PARAM_ALPHA);
+                $academic_status = [
+                    'reingreso' => 'activo',
+                    'aplazo' => 'aplazado',
+                    'retiro' => 'retirado',
+                ][$academic_action] ?? 'activo';
+            }
+
+            $res = \local_grupomakro_core\external\student\update_student_status::execute(
+                $userid,
+                'academicstatus',
+                strtolower($academic_status)
+            );
+            echo json_encode($res);
+        } elseif ($abs_action === 'userstatus') {
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/student/update_student_status.php');
+            $userid = required_param('userid', PARAM_INT);
+            $user_status = trim((string)required_param('user_status', PARAM_TEXT));
+            $res = \local_grupomakro_core\external\student\update_student_status::execute(
+                $userid,
+                'studentstatus',
+                $user_status
+            );
             echo json_encode($res);
         } elseif ($abs_action === 'get_students') {
             // Load student details for one class on-demand (avoids embedding large JSON in HTML).
@@ -67,6 +91,44 @@ if (optional_param('abs_ajax', 0, PARAM_INT)) {
                 exit;
             }
             $userids = array_keys($students_raw);
+
+            // Canonical statuses from the same source used by studenttable.
+            $status_by_user = [];
+            try {
+                require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/student/get_student_info.php');
+                $resultsperpage = max(200, count($userids) + 20);
+                $ws = \local_grupomakro_core\external\student\get_student_info::execute(
+                    1,
+                    $resultsperpage,
+                    '',
+                    '',
+                    '',
+                    '',
+                    $classid,
+                    ''
+                );
+
+                $wsusers = [];
+                if (!empty($ws['dataUsers'])) {
+                    $decoded = json_decode((string)$ws['dataUsers'], true);
+                    if (is_array($decoded)) {
+                        $wsusers = $decoded;
+                    }
+                }
+
+                foreach ($wsusers as $wsuser) {
+                    $uid = (int)($wsuser['userid'] ?? 0);
+                    if ($uid <= 0) {
+                        continue;
+                    }
+                    $status_by_user[$uid] = [
+                        'user_status' => trim((string)($wsuser['status'] ?? 'Activo')) ?: 'Activo',
+                        'academic_status' => strtolower(trim((string)($wsuser['academicstatus'] ?? 'activo'))) ?: 'activo',
+                    ];
+                }
+            } catch (Throwable $e) {
+                // Fallback to local values below.
+            }
 
             // Per-student absences from sessions where attendance was actually taken.
             $student_abs = absd_get_student_absences($takensessionids, $userids);
@@ -116,6 +178,11 @@ if (optional_param('abs_ajax', 0, PARAM_INT)) {
             // Build result
             $out = [];
             foreach ($students_raw as $uid => $row) {
+                $canonical = $status_by_user[$uid] ?? null;
+                $academic_status = $canonical['academic_status'] ?? strtolower(trim((string)$row->academic_status));
+                if ($academic_status === '') {
+                    $academic_status = 'activo';
+                }
                 $cedula = $doc_map_s[$uid] ?? trim((string)$row->idnumber);
                 $phones = [];
                 if (($v = trim((string)$row->phone1)) !== '') {
@@ -138,7 +205,8 @@ if (optional_param('abs_ajax', 0, PARAM_INT)) {
                     'phones'          => $phones,
                     'absences'        => $student_abs[$uid] ?? 0,
                     'suspended'       => (bool)$row->suspended,
-                    'academic_status' => trim((string)$row->academic_status),
+                    'user_status'     => $canonical['user_status'] ?? 'Activo',
+                    'academic_status' => $academic_status,
                 ];
             }
             usort($out, fn($a, $b) => $b['absences'] <=> $a['absences']);
@@ -168,6 +236,11 @@ function absd_normalize_shift(string $s): string {
     if (in_array($s, ['n', 'nocturno', 'nocturna', 'noche']))               return 'Nocturno';
     if (in_array($s, ['s', 'sabatino', 'sabatina', 'sabado', 'sábado']))    return 'Sabatino';
     return $s !== '' ? ucfirst($s) : 'Sin jornada';
+}
+
+function absd_shift_sort_key(string $shift): int {
+    static $order = ['Diurno' => 1, 'Nocturno' => 2, 'Sabatino' => 3, 'Sin jornada' => 9];
+    return $order[$shift] ?? 8;
 }
 
 function absd_format_schedule(array $rows): string {
@@ -561,6 +634,7 @@ $doc_fieldid = (int)($DB->get_field('user_info_field',   'id', ['shortname' => '
 
 // ── Active classes (same filter as student_population) ─────────────────────────
 $now = time();
+$selected_shift = trim((string)optional_param('shift', '', PARAM_TEXT));
 
 $tc_join  = $tc_fieldid ? "LEFT JOIN {customfield_data} _cfd ON _cfd.instanceid = gc.corecourseid AND _cfd.fieldid = $tc_fieldid" : '';
 $tc_where = $tc_fieldid ? "AND (_cfd.value IS NULL OR _cfd.value <> '1')" : '';
@@ -599,6 +673,31 @@ $tc_classes = $tc_fieldid ? $DB->get_records_sql(
       ORDER BY c.fullname, gc.shift",
     ['now' => $now]
 ) : [];
+
+// Shift filter options from available classes.
+$available_shifts = [];
+foreach ([$regular_classes, $tc_classes] as $classgroup) {
+    foreach ($classgroup as $cls) {
+        $shift = absd_normalize_shift((string)($cls->classshift ?? ''));
+        $available_shifts[$shift] = $shift;
+    }
+}
+uksort($available_shifts, function(string $a, string $b): int {
+    return absd_shift_sort_key($a) <=> absd_shift_sort_key($b);
+});
+
+// Apply selected shift filter.
+if ($selected_shift !== '' && !isset($available_shifts[$selected_shift])) {
+    $selected_shift = '';
+}
+if ($selected_shift !== '') {
+    $regular_classes = array_filter($regular_classes, function($cls) use ($selected_shift) {
+        return absd_normalize_shift((string)($cls->classshift ?? '')) === $selected_shift;
+    });
+    $tc_classes = array_filter($tc_classes, function($cls) use ($selected_shift) {
+        return absd_normalize_shift((string)($cls->classshift ?? '')) === $selected_shift;
+    });
+}
 
 // ── Schedules ──────────────────────────────────────────────────────────────────
 $all_ids = array_values(array_unique(array_merge(array_keys($regular_classes), array_keys($tc_classes))));
@@ -694,9 +793,8 @@ foreach ($regular_classes as $cls) {
     $career_tree[$treeKey]['shifts'][$shift]['classes'][] = $cls;
 }
 
-$shift_order = ['Diurno' => 1, 'Nocturno' => 2, 'Sabatino' => 3];
 foreach ($career_tree as &$cdata) {
-    uksort($cdata['shifts'], fn($a, $b) => ($shift_order[$a] ?? 9) <=> ($shift_order[$b] ?? 9));
+    uksort($cdata['shifts'], fn($a, $b) => absd_shift_sort_key((string)$a) <=> absd_shift_sort_key((string)$b));
 }
 unset($cdata);
 
@@ -893,7 +991,22 @@ $ajax_url = (new moodle_url('/local/grupomakro_core/pages/absence_dashboard.php'
                 Solo sesiones ya realizadas (pasadas). Porcentaje = inasistencias / (sesiones × estudiantes).
             </div>
         </div>
-        <div style="display:flex;gap:8px">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <form method="get" action="" style="display:flex;gap:6px;align-items:center">
+                <label for="absd-shift-filter" style="font-size:12px;color:#334155;font-weight:700">Jornada</label>
+                <select id="absd-shift-filter" name="shift" class="absd-status-select" onchange="this.form.submit()">
+                    <option value="">Todas</option>
+                    <?php foreach ($available_shifts as $shiftopt): ?>
+                        <option value="<?php echo s($shiftopt); ?>" <?php echo $selected_shift === $shiftopt ? 'selected' : ''; ?>>
+                            <?php echo s($shiftopt); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+                <?php if ($selected_shift !== ''): ?>
+                    <a href="<?php echo (new moodle_url('/local/grupomakro_core/pages/absence_dashboard.php'))->out(false); ?>"
+                       style="font-size:11px;color:#1d4ed8;text-decoration:none;font-weight:600">Limpiar</a>
+                <?php endif; ?>
+            </form>
             <a href="<?php echo (new moodle_url('/local/grupomakro_core/pages/student_population.php'))->out(false); ?>"
                style="background:#475569;color:#fff;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;text-decoration:none">
                &#128100;&nbsp; Población estudiantil
@@ -1098,8 +1211,9 @@ $ajax_url = (new moodle_url('/local/grupomakro_core/pages/absence_dashboard.php'
                         <th>Nombre</th>
                         <th>Teléfonos</th>
                         <th style="text-align:center">Inasistencias</th>
-                        <th>Est. usuario</th>
-                        <th>Est. académico</th>
+                        <th>Estado usuario</th>
+                        <th>Estado académico</th>
+                        <th>Cuenta Moodle</th>
                     </tr>
                 </thead>
                 <tbody id="absdTbody"></tbody>
@@ -1114,79 +1228,122 @@ $ajax_url = (new moodle_url('/local/grupomakro_core/pages/absence_dashboard.php'
 
 <script>
 (function() {
-    var SESSKEY   = <?php echo json_encode($sesskey); ?>;
-    var AJAX_URL  = <?php echo json_encode($ajax_url); ?>;
+    var SESSKEY = <?php echo json_encode($sesskey); ?>;
+    var AJAX_URL = <?php echo json_encode($ajax_url); ?>;
 
-    var currentClassId = null;
+    var USER_STATUS_OPTIONS = ['Activo', 'Inactivo'];
+    var ACADEMIC_STATUS_OPTIONS = ['activo', 'aplazado', 'retirado', 'suspendido', 'desertor', 'graduado', 'egresado'];
+    var ACADEMIC_STATUS_LABELS = {
+        activo: 'Activo',
+        aplazado: 'Aplazado',
+        retirado: 'Retirado',
+        suspendido: 'Suspendido',
+        desertor: 'Desertor',
+        graduado: 'Graduado',
+        egresado: 'Egresado'
+    };
+
     var currentStudents = [];
     var filteredStudents = [];
 
     function esc(str) {
         return String(str)
-            .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    function normalizeAcademic(value) {
+        return String(value || 'activo').trim().toLowerCase();
+    }
+
+    function optionList(options, selected, labelFn) {
+        return options.map(function(opt) {
+            var val = String(opt);
+            var label = labelFn ? labelFn(val) : val;
+            return '<option value="' + esc(val) + '"' + (val === selected ? ' selected' : '') + '>' + esc(label) + '</option>';
+        }).join('');
     }
 
     function renderTable(students) {
         var tbody = document.getElementById('absdTbody');
-        var html = '';
+
         if (!students.length) {
-            html = '<tr><td colspan="7" style="text-align:center;padding:20px;color:#94a3b8;font-style:italic">No hay estudiantes que coincidan</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:20px;color:#94a3b8;font-style:italic">No hay estudiantes que coincidan</td></tr>';
+            document.getElementById('absdFooterCount').textContent = 'Mostrando 0 de ' + currentStudents.length;
+            return;
         }
+
+        var html = '';
         students.forEach(function(s, i) {
             var absClass = s.absences === 0 ? 'zero' : '';
-            var phones = s.phones.map(function(p) {
+            var phones = (s.phones || []).map(function(p) {
                 var waHref = p.wa ? 'https://wa.me/' + esc(p.wa) : '';
                 return waHref
                     ? '<a href="' + waHref + '" target="_blank" class="absd-wa-link" title="' + esc(p.label) + '">&#128241; ' + esc(p.value) + '</a>'
                     : '<span style="font-size:10px;color:#374151">' + esc(p.label) + ': ' + esc(p.value) + '</span>';
             }).join(' ');
 
-            var suspBtnClass = s.suspended ? 'inactive' : 'active';
-            var suspBtnLabel = s.suspended ? '&#10003; Activo' : '&#10007; Suspendido';
-            var suspBtnTitle = s.suspended ? 'Reactivar usuario' : 'Suspender usuario';
+            var userStatus = String(s.user_status || 'Activo').trim() || 'Activo';
+            var userOpts = USER_STATUS_OPTIONS.slice();
+            if (userOpts.indexOf(userStatus) === -1) {
+                userOpts.unshift(userStatus);
+            }
 
-            var acStatus = s.academic_status || 'activo';
-            var acLabel  = {activo:'Activo', aplazado:'Aplazado', retirado:'Retirado', inactivo:'Inactivo'}[acStatus] || acStatus;
+            var academicStatus = normalizeAcademic(s.academic_status);
+            var academicOpts = ACADEMIC_STATUS_OPTIONS.slice();
+            if (academicOpts.indexOf(academicStatus) === -1) {
+                academicOpts.unshift(academicStatus);
+            }
+
+            var moodleLabel = s.suspended ? '\u2717 Suspendido' : '\u2713 Activo';
+            var moodleTitle = s.suspended ? 'Reactivar cuenta Moodle' : 'Suspender cuenta Moodle';
+            var moodleClass = s.suspended ? 'active' : 'inactive';
 
             html += '<tr id="absd-row-' + s.userid + '">' +
                 '<td>' + (i + 1) + '</td>' +
                 '<td style="font-weight:700;color:#1a56a4;white-space:nowrap">' + esc(s.cedula) + '</td>' +
                 '<td><strong>' + esc(s.name) + '</strong><br><span style="color:#94a3b8;font-size:10px">' + esc(s.email) + '</span></td>' +
-                '<td>' + (phones || '<span style="color:#94a3b8;font-style:italic">—</span>') + '</td>' +
+                '<td>' + (phones || '<span style="color:#94a3b8;font-style:italic">-</span>') + '</td>' +
                 '<td style="text-align:center"><span class="absd-badge-abs ' + absClass + '">' + s.absences + '</span></td>' +
-                '<td><button class="absd-suspend-btn ' + (s.suspended ? 'active' : 'inactive') + '" ' +
-                    'title="' + esc(suspBtnTitle) + '" ' +
-                    'onclick="absdToggleSuspend(' + s.userid + ', this)">' +
-                    (s.suspended ? '&#10007; Suspendido' : '&#10003; Activo') + '</button></td>' +
                 '<td>' +
-                    '<select class="absd-status-select" data-uid="' + s.userid + '" onchange="absdUpdateAcademic(this)">' +
-                    '<option value="reingreso"' + (acStatus==='activo' ? ' selected' : '') + '>Activo</option>' +
-                    '<option value="aplazo"'    + (acStatus==='aplazado' ? ' selected' : '') + '>Aplazado</option>' +
-                    '<option value="retiro"'    + (acStatus==='retirado' ? ' selected' : '') + '>Retirado</option>' +
+                    '<select class="absd-status-select" data-uid="' + s.userid + '" onchange="absdUpdateUserStatus(this)">' +
+                        optionList(userOpts, userStatus) +
                     '</select>' +
                 '</td>' +
+                '<td>' +
+                    '<select class="absd-status-select" data-uid="' + s.userid + '" onchange="absdUpdateAcademic(this)">' +
+                        optionList(academicOpts, academicStatus, function(v) { return ACADEMIC_STATUS_LABELS[v] || v; }) +
+                    '</select>' +
+                '</td>' +
+                '<td><button class="absd-suspend-btn ' + moodleClass + '" title="' + esc(moodleTitle) + '" onclick="absdToggleSuspend(' + s.userid + ', this)">' +
+                    moodleLabel + '</button></td>' +
                 '</tr>';
         });
+
         tbody.innerHTML = html;
         document.getElementById('absdFooterCount').textContent =
             'Mostrando ' + students.length + ' de ' + currentStudents.length;
     }
 
     window.absdOpenModal = function(classId, className) {
-        currentClassId = classId;
         currentStudents = [];
         filteredStudents = [];
-        document.getElementById('absdModalTitle').textContent = className + ' — Estudiantes';
+        document.getElementById('absdModalTitle').textContent = className + ' - Estudiantes';
         document.getElementById('absdSearch').value = '';
         document.getElementById('absdCount').textContent = 'Cargando...';
         document.getElementById('absdTbody').innerHTML =
-            '<tr><td colspan="7" style="text-align:center;padding:24px;color:#64748b">Cargando estudiantes...</td></tr>';
+            '<tr><td colspan="8" style="text-align:center;padding:24px;color:#64748b">Cargando estudiantes...</td></tr>';
         document.getElementById('absdModal').classList.add('absd-modal-open');
+
         var params = new URLSearchParams({ abs_ajax: 1, abs_action: 'get_students', classid: classId, sesskey: SESSKEY });
         fetch(AJAX_URL + '?' + params.toString())
             .then(function(r) { return r.json(); })
             .then(function(data) {
-                if (!data.ok) throw new Error(data.message || 'Error desconocido');
+                if (!data.ok) {
+                    throw new Error(data.message || 'Error desconocido');
+                }
                 currentStudents = data.students || [];
                 filteredStudents = currentStudents.slice();
                 document.getElementById('absdCount').textContent = currentStudents.length + ' estudiantes';
@@ -1195,7 +1352,7 @@ $ajax_url = (new moodle_url('/local/grupomakro_core/pages/absence_dashboard.php'
             })
             .catch(function(err) {
                 document.getElementById('absdTbody').innerHTML =
-                    '<tr><td colspan="7" style="text-align:center;padding:24px;color:#dc2626">Error al cargar: ' + err.message + '</td></tr>';
+                    '<tr><td colspan="8" style="text-align:center;padding:24px;color:#dc2626">Error al cargar: ' + esc(err.message) + '</td></tr>';
                 document.getElementById('absdCount').textContent = '';
             });
     };
@@ -1208,11 +1365,13 @@ $ajax_url = (new moodle_url('/local/grupomakro_core/pages/absence_dashboard.php'
         var q = document.getElementById('absdSearch').value.toLowerCase().trim();
         filteredStudents = q
             ? currentStudents.filter(function(s) {
-                return s.name.toLowerCase().includes(q) ||
-                       s.cedula.toLowerCase().includes(q) ||
-                       s.email.toLowerCase().includes(q) ||
-                       s.phones.some(function(p) { return p.value.toLowerCase().includes(q); });
-              })
+                return String(s.name || '').toLowerCase().includes(q) ||
+                    String(s.cedula || '').toLowerCase().includes(q) ||
+                    String(s.email || '').toLowerCase().includes(q) ||
+                    String(s.user_status || '').toLowerCase().includes(q) ||
+                    String(s.academic_status || '').toLowerCase().includes(q) ||
+                    (s.phones || []).some(function(p) { return String(p.value || '').toLowerCase().includes(q); });
+            })
             : currentStudents.slice();
         renderTable(filteredStudents);
         document.getElementById('absdCount').textContent = currentStudents.length + ' estudiantes';
@@ -1227,61 +1386,106 @@ $ajax_url = (new moodle_url('/local/grupomakro_core/pages/absence_dashboard.php'
             userid: userid,
             sesskey: SESSKEY
         });
-        fetch(AJAX_URL + '?' + params.toString(), {method: 'POST'})
+        fetch(AJAX_URL + '?' + params.toString(), { method: 'POST' })
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 btn.disabled = false;
-                if (data.ok) {
-                    var suspended = data.suspended;
-                    btn.className = 'absd-suspend-btn ' + (suspended ? 'inactive' : 'active');
-                    btn.textContent = suspended ? '\u2717 Suspendido' : '\u2713 Activo';
-                    // update local data
-                    var s = currentStudents.find(function(x) { return x.userid === userid; });
-                    if (s) s.suspended = suspended;
-                } else {
+                if (!data.ok) {
                     btn.textContent = '!Error';
                     alert('Error: ' + (data.message || 'No se pudo actualizar'));
+                    return;
+                }
+
+                var suspended = !!data.suspended;
+                btn.className = 'absd-suspend-btn ' + (suspended ? 'active' : 'inactive');
+                btn.textContent = suspended ? '\u2717 Suspendido' : '\u2713 Activo';
+                btn.title = suspended ? 'Reactivar cuenta Moodle' : 'Suspender cuenta Moodle';
+
+                var s = currentStudents.find(function(x) { return x.userid === userid; });
+                if (s) {
+                    s.suspended = suspended;
                 }
             })
-            .catch(function() { btn.disabled = false; btn.textContent = '!Error'; });
+            .catch(function() {
+                btn.disabled = false;
+                btn.textContent = '!Error';
+            });
     };
 
-    window.absdUpdateAcademic = function(select) {
-        var uid    = parseInt(select.getAttribute('data-uid'), 10);
-        var action = select.value; // aplazo | retiro | reingreso
+    window.absdUpdateUserStatus = function(select) {
+        var uid = parseInt(select.getAttribute('data-uid'), 10);
+        var nextValue = select.value;
+        var student = currentStudents.find(function(x) { return x.userid === uid; });
+        var prevValue = student ? student.user_status : '';
         select.disabled = true;
+
         var params = new URLSearchParams({
             abs_ajax: 1,
-            abs_action: 'academic',
+            abs_action: 'userstatus',
             userid: uid,
-            academic_action: action,
+            user_status: nextValue,
             sesskey: SESSKEY
         });
-        fetch(AJAX_URL + '?' + params.toString(), {method: 'POST'})
+
+        fetch(AJAX_URL + '?' + params.toString(), { method: 'POST' })
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 select.disabled = false;
                 if (data.status !== 'success' && data.ok !== true) {
                     alert('Error: ' + (data.message || 'No se pudo actualizar'));
-                    // revert to old value
-                    var s = currentStudents.find(function(x) { return x.userid === uid; });
-                    if (s) select.value = {activo:'reingreso', aplazado:'aplazo', retirado:'retiro'}[s.academic_status] || 'reingreso';
-                } else {
-                    var s = currentStudents.find(function(x) { return x.userid === uid; });
-                    if (s) {
-                        var newStatus = {reingreso:'activo', aplazo:'aplazado', retiro:'retirado'}[action] || 'activo';
-                        s.academic_status = newStatus;
-                    }
+                    select.value = prevValue || 'Activo';
+                    return;
+                }
+                if (student) {
+                    student.user_status = nextValue;
                 }
             })
             .catch(function() {
                 select.disabled = false;
-                alert('Error de conexión.');
+                select.value = prevValue || 'Activo';
+                alert('Error de conexion.');
+            });
+    };
+
+    window.absdUpdateAcademic = function(select) {
+        var uid = parseInt(select.getAttribute('data-uid'), 10);
+        var nextValue = normalizeAcademic(select.value);
+        var student = currentStudents.find(function(x) { return x.userid === uid; });
+        var prevValue = normalizeAcademic(student ? student.academic_status : 'activo');
+        select.disabled = true;
+
+        var params = new URLSearchParams({
+            abs_ajax: 1,
+            abs_action: 'academic',
+            userid: uid,
+            academic_status: nextValue,
+            sesskey: SESSKEY
+        });
+
+        fetch(AJAX_URL + '?' + params.toString(), { method: 'POST' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                select.disabled = false;
+                if (data.status !== 'success' && data.ok !== true) {
+                    alert('Error: ' + (data.message || 'No se pudo actualizar'));
+                    select.value = prevValue;
+                    return;
+                }
+                if (student) {
+                    student.academic_status = nextValue;
+                }
+            })
+            .catch(function() {
+                select.disabled = false;
+                select.value = prevValue;
+                alert('Error de conexion.');
             });
     };
 
     document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') absdCloseModal();
+        if (e.key === 'Escape') {
+            absdCloseModal();
+        }
     });
 })();
 </script>
