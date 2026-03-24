@@ -72,24 +72,24 @@ echo $OUTPUT->heading(get_string('letters_requests_title', $pluginname));
 echo html_writer::start_tag('form', ['method' => 'get', 'action' => new moodle_url('/local/grupomakro_core/pages/letterrequests.php')]);
 echo html_writer::start_div('mb-3');
 echo html_writer::label(get_string('letters_filter_status', $pluginname), 'id_status');
-$statusoptions = ['' => get_string('all')];
+$statusoptions = ['' => get_string('letters_all', $pluginname)];
 foreach ($statuslabels as $statuscode => $statusname) {
     $statusoptions[$statuscode] = $statusname;
 }
 echo html_writer::select($statusoptions, 'status', $statusfilter, false, ['id' => 'id_status', 'class' => 'custom-select']);
 echo ' ';
-echo html_writer::empty_tag('input', ['type' => 'submit', 'class' => 'btn btn-secondary', 'value' => get_string('filter')]);
+echo html_writer::empty_tag('input', ['type' => 'submit', 'class' => 'btn btn-secondary', 'value' => get_string('letters_filter', $pluginname)]);
 echo html_writer::end_div();
 echo html_writer::end_tag('form');
 
 $table = new html_table();
 $table->head = [
-    get_string('id'),
+    get_string('letters_col_id', $pluginname),
     get_string('user', $pluginname),
     get_string('letters_field_name', $pluginname),
     get_string('letters_field_cost', $pluginname),
     get_string('state', $pluginname),
-    get_string('timecreated'),
+    get_string('letters_col_created', $pluginname),
     get_string('letters_actions', $pluginname),
 ];
 $table->data = [];
