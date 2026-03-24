@@ -347,6 +347,37 @@ class manager {
     }
 
     /**
+     * Deletes a letter request permanently, including events and generated documents.
+     *
+     * @param int $requestid
+     * @return void
+     * @throws dml_exception
+     */
+    public static function delete_request_permanently(int $requestid): void {
+        global $DB;
+
+        $DB->get_record('gmk_letter_request', ['id' => $requestid], 'id', MUST_EXIST);
+        $context = context_system::instance();
+        $fs = get_file_storage();
+
+        $transaction = $DB->start_delegated_transaction();
+
+        $documents = $DB->get_records('gmk_letter_document', ['requestid' => $requestid]);
+        foreach ($documents as $document) {
+            $itemid = (int)($document->fileitemid ?? 0);
+            if ($itemid > 0) {
+                $fs->delete_area_files($context->id, 'local_grupomakro_core', 'letter_document', $itemid);
+            }
+        }
+
+        $DB->delete_records('gmk_letter_document', ['requestid' => $requestid]);
+        $DB->delete_records('gmk_letter_request_event', ['requestid' => $requestid]);
+        $DB->delete_records('gmk_letter_request', ['id' => $requestid]);
+
+        $transaction->allow_commit();
+    }
+
+    /**
      * Returns request detail.
      *
      * @param int $requestid

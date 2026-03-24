@@ -31,6 +31,17 @@ if ($action === 'updatestatus' && data_submitted()) {
     );
 }
 
+if ($action === 'deleterequest' && $requestid > 0) {
+    require_sesskey();
+    manager::delete_request_permanently($requestid);
+    redirect(
+        new moodle_url('/local/grupomakro_core/pages/letterrequests.php', ['status' => $statusfilter]),
+        get_string('letters_request_deleted', $pluginname),
+        1,
+        \core\output\notification::NOTIFY_SUCCESS
+    );
+}
+
 if ($action === 'generatedoc') {
     require_sesskey();
     manager::generate_document_for_request($requestid, (int)$USER->id);
@@ -112,6 +123,12 @@ foreach ($requests as $item) {
     $user = $DB->get_record('user', ['id' => $item['userid']], 'id,firstname,lastname,username', IGNORE_MISSING);
     $username = $user ? fullname($user) . ' (' . s($user->username) . ')' : ('ID ' . $item['userid']);
     $actions = [];
+    $deleteconfirm = get_string_manager()->string_exists('letters_delete_request_confirm', $pluginname)
+        ? get_string('letters_delete_request_confirm', $pluginname)
+        : 'Seguro que desea eliminar definitivamente esta solicitud?';
+    $deletelabel = get_string_manager()->string_exists('letters_delete_request', $pluginname)
+        ? get_string('letters_delete_request', $pluginname)
+        : 'Eliminar';
 
     $actions[] = html_writer::link(
         new moodle_url('/local/grupomakro_core/pages/letterrequests.php', [
@@ -145,6 +162,17 @@ foreach ($requests as $item) {
             get_string('download', $pluginname)
         );
     }
+
+    $actions[] = html_writer::link(
+        new moodle_url('/local/grupomakro_core/pages/letterrequests.php', [
+            'action' => 'deleterequest',
+            'requestid' => $item['id'],
+            'status' => $statusfilter,
+            'sesskey' => sesskey(),
+        ]),
+        $deletelabel,
+        ['onclick' => "return confirm('" . addslashes_js($deleteconfirm) . "');"]
+    );
 
     $table->data[] = [
         $item['id'],

@@ -249,6 +249,9 @@ $string['letters_update_status'] = 'Actualizar estado';
 $string['letters_save'] = 'Guardar carta';
 $string['letters_saved'] = 'Carta guardada correctamente';
 $string['letters_deleted'] = 'Carta eliminada correctamente';
+$string['letters_delete_request'] = 'Eliminar solicitud';
+$string['letters_delete_request_confirm'] = 'Desea eliminar definitivamente esta solicitud de carta? Esta accion no se puede deshacer.';
+$string['letters_request_deleted'] = 'Solicitud eliminada definitivamente';
 $string['letters_cancel_edit'] = 'Cancelar edición';
 
 $string['letters_field_code'] = 'Código';

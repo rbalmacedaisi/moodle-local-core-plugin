@@ -69,6 +69,9 @@ $string['letters_update_status'] = 'Update status';
 $string['letters_save'] = 'Save letter';
 $string['letters_saved'] = 'Letter saved successfully';
 $string['letters_deleted'] = 'Letter deleted successfully';
+$string['letters_delete_request'] = 'Delete request';
+$string['letters_delete_request_confirm'] = 'Do you want to permanently delete this letter request? This action cannot be undone.';
+$string['letters_request_deleted'] = 'Request deleted permanently';
 $string['letters_cancel_edit'] = 'Cancel edit';
 
 $string['letters_field_code'] = 'Code';
