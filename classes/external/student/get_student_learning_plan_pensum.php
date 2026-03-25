@@ -635,8 +635,11 @@ class get_student_learning_plan_pensum extends external_api
                 if (!is_null($coursegrade)) {
                     $userPensumCourse->grade = (string)$coursegrade;
 
-                    // [VIRTUAL FALLBACK] If grade is approved but status is not, update it virtually.
-                    if ($coursegrade >= 70 && !in_array($userPensumCourse->status, [3, 4])) {
+                    // [VIRTUAL FALLBACK]
+                    // Only auto-upgrade status when the base state is "not started/available".
+                    // Never override explicit in-progress/failed states, which are operational states.
+                    $canvirtualapprove = in_array((int)$userPensumCourse->status, [0, 1], true);
+                    if ($coursegrade >= 70 && $canvirtualapprove) {
                         $userPensumCourse->status = 3; // COURSE_COMPLETED
                         $userPensumCourse->progress = 100.00;
                     }
