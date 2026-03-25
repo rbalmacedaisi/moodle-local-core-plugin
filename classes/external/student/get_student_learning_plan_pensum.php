@@ -636,10 +636,12 @@ class get_student_learning_plan_pensum extends external_api
                     $userPensumCourse->grade = (string)$coursegrade;
 
                     // [VIRTUAL FALLBACK]
-                    // Only auto-upgrade status when the base state is "not started/available".
-                    // Never override explicit in-progress/failed states, which are operational states.
-                    $canvirtualapprove = in_array((int)$userPensumCourse->status, [0, 1], true);
-                    if ($coursegrade >= 70 && $canvirtualapprove) {
+                    // Auto-upgrade when base state is not-started/available OR an inconsistent failed record.
+                    // Keep explicit "Cursando" (2) untouched to avoid showing approved while still active.
+                    $basestatus = (int)$userPensumCourse->status;
+                    $canvirtualapprove = in_array($basestatus, [0, 1, 5], true);
+                    $virtualpassgrade = ($basestatus === 5) ? 71.0 : 70.0;
+                    if ($coursegrade >= $virtualpassgrade && $canvirtualapprove) {
                         $userPensumCourse->status = 3; // COURSE_COMPLETED
                         $userPensumCourse->progress = 100.00;
                     }
