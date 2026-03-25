@@ -1556,7 +1556,7 @@ try {
                 $params_q = ['periodid' => $periodid];
             }
             $module_list = $DB->get_records_sql(
-                "SELECT gc.id, c.fullname AS coursename, gc.name, gc.module_deadline_days, gc.groupid, gc.periodid,
+                "SELECT gc.id, gc.corecourseid, c.fullname AS coursename, gc.name, gc.module_deadline_days, gc.groupid, gc.periodid,
                         gap.name AS periodcode,
                         COUNT(gme.id) AS enrolled_count
                    FROM {gmk_class} gc
@@ -1564,7 +1564,7 @@ try {
                    JOIN {gmk_academic_periods} gap ON gap.id = gc.periodid
                    LEFT JOIN {gmk_module_enrollment} gme ON gme.classid = gc.id AND gme.status = 'active'
                   WHERE $where
-                  GROUP BY gc.id, c.fullname, gc.name, gc.module_deadline_days, gc.groupid,
+                  GROUP BY gc.id, gc.corecourseid, c.fullname, gc.name, gc.module_deadline_days, gc.groupid,
                            gc.periodid, gap.name
                   ORDER BY gap.id DESC, c.fullname ASC",
                 $params_q

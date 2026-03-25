@@ -5,6 +5,8 @@
 Vue.component('modulemanagement', {
     data() {
         return {
+            wwwroot: (typeof wwwroot !== 'undefined' ? wwwroot : ''),
+
             // Periods
             periods: [],
             selectedPeriodId: 0,
@@ -358,6 +360,22 @@ Vue.component('modulemanagement', {
       <!-- Período -->
       <template v-slot:item.periodcode="{ item }">
         <v-chip x-small outlined color="teal">{{ item.periodcode }}</v-chip>
+      </template>
+
+      <!-- Grupo Moodle — link to group members page -->
+      <template v-slot:item.name="{ item }">
+        <a
+          v-if="item.groupid"
+          :href="wwwroot + '/group/members.php?group=' + item.groupid"
+          target="_blank"
+          class="teal--text text--darken-2"
+          style="text-decoration:none; display:inline-flex; align-items:center; gap:4px;"
+          title="Ver grupo en Moodle"
+        >
+          <v-icon x-small color="teal darken-2">mdi-open-in-new</v-icon>
+          {{ item.name }}
+        </a>
+        <span v-else>{{ item.name }}</span>
       </template>
 
       <!-- Plazo días -->

@@ -40,22 +40,19 @@ class enroll_module {
         $user = $DB->get_record('user', ['id' => $userId, 'deleted' => 0], 'id,firstname,lastname', MUST_EXIST);
         $course = $DB->get_record('course', ['id' => $coreCourseId], 'id,fullname,shortname', MUST_EXIST);
 
-        // ── 2. Get student's current academic period ──────────────────────────────
+        // ── 2. Get the last period that has already started ───────────────────────
         $academicPeriod = $DB->get_record_sql(
-            "SELECT gap.id, gap.name
-               FROM {gmk_academic_periods} gap
-               JOIN {local_learning_users} llu ON llu.academicperiodid = gap.id
-              WHERE llu.userid = :userid
-              ORDER BY gap.id DESC
+            "SELECT id, name FROM {gmk_academic_periods}
+              WHERE startdate > 0 AND startdate <= :now
+              ORDER BY startdate DESC
               LIMIT 1",
-            ['userid' => $userId]
+            ['now' => time()]
         );
 
         if (!$academicPeriod) {
-            // Fallback: use the most recent active academic period
+            // Fallback: most recent period regardless of startdate
             $academicPeriod = $DB->get_record_sql(
                 "SELECT id, name FROM {gmk_academic_periods}
-                  WHERE status = 1
                   ORDER BY id DESC
                   LIMIT 1"
             );
@@ -136,11 +133,19 @@ class enroll_module {
         $existing = $DB->get_record('gmk_module_enrollment', ['classid' => $classId, 'userid' => $userId]);
         if ($existing) {
             // Ensure the student is still in the regular class group (retroactive fix)
+            // Use the same period logic: last started period
+            $retro_period = $DB->get_record_sql(
+                "SELECT id FROM {gmk_academic_periods}
+                  WHERE startdate > 0 AND startdate <= :now
+                  ORDER BY startdate DESC LIMIT 1",
+                ['now' => time()]
+            );
+            $retro_pid = $retro_period ? (int)$retro_period->id : (int)$academicPeriod->id;
             $regularClassCheck = $DB->get_record_sql(
                 "SELECT groupid FROM {gmk_class}
                   WHERE corecourseid = :cid AND periodid = :pid AND is_module = 0 AND groupid > 0
                   ORDER BY id DESC LIMIT 1",
-                ['cid' => $coreCourseId, 'pid' => (int)$academicPeriod->id]
+                ['cid' => $coreCourseId, 'pid' => $retro_pid]
             );
             if ($regularClassCheck && !empty($regularClassCheck->groupid)) {
                 if (!groups_is_member((int)$regularClassCheck->groupid, $userId)) {
