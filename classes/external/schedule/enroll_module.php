@@ -135,6 +135,18 @@ class enroll_module {
         // ── 4. Check for existing enrollment ──────────────────────────────────────
         $existing = $DB->get_record('gmk_module_enrollment', ['classid' => $classId, 'userid' => $userId]);
         if ($existing) {
+            // Ensure the student is still in the regular class group (retroactive fix)
+            $regularClassCheck = $DB->get_record_sql(
+                "SELECT groupid FROM {gmk_class}
+                  WHERE corecourseid = :cid AND periodid = :pid AND is_module = 0 AND groupid > 0
+                  ORDER BY id DESC LIMIT 1",
+                ['cid' => $coreCourseId, 'pid' => (int)$academicPeriod->id]
+            );
+            if ($regularClassCheck && !empty($regularClassCheck->groupid)) {
+                if (!groups_is_member((int)$regularClassCheck->groupid, $userId)) {
+                    groups_add_member((int)$regularClassCheck->groupid, $userId);
+                }
+            }
             $dueDateFormatted = userdate((int)$existing->duedate, get_string('strftimedatefullshort', 'langconfig'));
             return [
                 'status'     => 'warning',
@@ -155,6 +167,21 @@ class enroll_module {
 
         if ($groupId > 0 && !groups_is_member($groupId, $userId)) {
             groups_add_member($groupId, $userId);
+        }
+
+        // ── 5b. Also add to the regular class group so group-restricted
+        //        course sections remain visible to the module student ──────────────
+        $regularClass = $DB->get_record_sql(
+            "SELECT groupid FROM {gmk_class}
+              WHERE corecourseid = :cid AND periodid = :pid AND is_module = 0 AND groupid > 0
+              ORDER BY id DESC
+              LIMIT 1",
+            ['cid' => $coreCourseId, 'pid' => (int)$academicPeriod->id]
+        );
+        if ($regularClass && !empty($regularClass->groupid)) {
+            if (!groups_is_member((int)$regularClass->groupid, $userId)) {
+                groups_add_member((int)$regularClass->groupid, $userId);
+            }
         }
 
         // ── 6. Create enrollment record ───────────────────────────────────────────
