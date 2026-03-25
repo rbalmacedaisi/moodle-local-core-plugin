@@ -93,9 +93,10 @@ if (isset($period_cols['code'])) {
 echo "<h3>3. Módulos existentes en gmk_class (is_module=1)</h3>";
 try {
     $module_classes = $DB->get_records_sql(
-        "SELECT gc.id, gc.coursename, gc.name, gc.module_deadline_days, gc.periodid, gc.groupid,
+        "SELECT gc.id, c.fullname AS coursename, gc.name, gc.module_deadline_days, gc.periodid, gc.groupid,
                 gap.name AS periodname
            FROM {gmk_class} gc
+           JOIN {course} c ON c.id = gc.corecourseid
            LEFT JOIN {gmk_academic_periods} gap ON gap.id = gc.periodid
           WHERE gc.is_module = 1
           ORDER BY gc.id DESC
@@ -136,10 +137,11 @@ if ($table_exists) {
         $enrollments = $DB->get_records_sql(
             "SELECT gme.id, gme.classid, gme.userid, gme.enrolldate, gme.duedate, gme.status,
                     u.firstname, u.lastname,
-                    gc.coursename
+                    co.fullname AS coursename
                FROM {gmk_module_enrollment} gme
                JOIN {user} u  ON u.id  = gme.userid
                JOIN {gmk_class} gc ON gc.id = gme.classid
+               JOIN {course} co ON co.id = gc.corecourseid
               ORDER BY gme.id DESC
               LIMIT 20"
         );

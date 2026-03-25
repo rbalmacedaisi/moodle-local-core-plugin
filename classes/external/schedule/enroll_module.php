@@ -103,8 +103,7 @@ class enroll_module {
             $now = time();
             $newClass = new \stdClass();
             $newClass->name               = $groupName;
-            $newClass->coursename         = $courseName;
-            $newClass->type               = 1; // Virtual (módulo asíncrono)
+                        $newClass->type               = 1; // Virtual (módulo asíncrono)
             $newClass->is_module          = 1;
             $newClass->module_deadline_days = 25;
             $newClass->corecourseid       = $coreCourseId;

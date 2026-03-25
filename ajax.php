@@ -1556,16 +1556,17 @@ try {
                 $params_q = ['periodid' => $periodid];
             }
             $module_list = $DB->get_records_sql(
-                "SELECT gc.id, gc.coursename, gc.name, gc.module_deadline_days, gc.groupid, gc.periodid,
+                "SELECT gc.id, c.fullname AS coursename, gc.name, gc.module_deadline_days, gc.groupid, gc.periodid,
                         gap.name AS periodcode,
                         COUNT(gme.id) AS enrolled_count
                    FROM {gmk_class} gc
+                   JOIN {course} c ON c.id = gc.corecourseid
                    JOIN {gmk_academic_periods} gap ON gap.id = gc.periodid
                    LEFT JOIN {gmk_module_enrollment} gme ON gme.classid = gc.id AND gme.status = 'active'
                   WHERE $where
-                  GROUP BY gc.id, gc.coursename, gc.name, gc.module_deadline_days, gc.groupid,
+                  GROUP BY gc.id, c.fullname, gc.name, gc.module_deadline_days, gc.groupid,
                            gc.periodid, gap.name
-                  ORDER BY gap.id DESC, gc.coursename ASC",
+                  ORDER BY gap.id DESC, c.fullname ASC",
                 $params_q
             );
             $response = ['status' => 'success', 'data' => array_values($module_list)];
@@ -1576,9 +1577,12 @@ try {
             $classid_m = required_param('classId', PARAM_INT);
             $module_students = $DB->get_records_sql(
                 "SELECT gme.id, gme.userid, gme.enrolldate, gme.duedate, gme.status,
-                        u.firstname, u.lastname, u.email
+                        u.firstname, u.lastname, u.email,
+                        c.fullname AS coursename
                    FROM {gmk_module_enrollment} gme
                    JOIN {user} u ON u.id = gme.userid
+                   JOIN {gmk_class} gc ON gc.id = gme.classid
+                   JOIN {course} c ON c.id = gc.corecourseid
                   WHERE gme.classid = :classid
                   ORDER BY u.lastname ASC, u.firstname ASC",
                 ['classid' => $classid_m]

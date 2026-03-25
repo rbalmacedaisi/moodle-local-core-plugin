@@ -39,11 +39,12 @@ class get_student_modules extends external_api {
                     gme.duedate,
                     gme.status,
                     gc.corecourseid,
-                    gc.coursename,
+                    c.fullname  AS coursename,
                     gc.module_deadline_days,
                     gap.name  AS periodcode
                FROM {gmk_module_enrollment} gme
                JOIN {gmk_class} gc  ON gc.id  = gme.classid AND gc.is_module = 1
+               JOIN {course} c      ON c.id   = gc.corecourseid
                JOIN {gmk_academic_periods} gap ON gap.id = gc.periodid
               WHERE gme.userid = :userid
                 AND gme.status = 'active'
