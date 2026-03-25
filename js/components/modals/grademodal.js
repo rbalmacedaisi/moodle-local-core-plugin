@@ -1149,6 +1149,7 @@ Vue.component('grademodal', {
                     }
                 });
                 const payload = response.data || {};
+                console.log('[enroll_module] raw response:', JSON.stringify(payload));
                 const data = (payload.data) ? payload.data : payload;
 
                 if (data.status === 'ok') {

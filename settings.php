@@ -260,6 +260,11 @@ if ($hassiteconfig) {
     $ADMIN->add('grupomakrocore_plugin', $debugApprovedZeroGradePage);
     $ADMIN->add('grupomakrocore_plugin', $debugAssignSubmissionVisibilityPage);
     $ADMIN->add('grupomakrocore_plugin', $debugStudentSubjectStatusPage);
+    $ADMIN->add('grupomakrocore_plugin', new admin_externalpage(
+        'grupomakro_core_debug_module_enrollment',
+        '🔬 Debug: Módulos Independientes',
+        new moodle_url('/local/grupomakro_core/pages/debug_module_enrollment.php')
+    ));
 
     $ADMIN->add('localplugins', new admin_category('grupomakrocore', new lang_string('pluginname', 'local_grupomakro_core')));
     /********
