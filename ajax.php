@@ -1612,6 +1612,20 @@ try {
                 $DB->set_field('gmk_module_enrollment', 'status',       'completed', ['id' => $enrollment_id]);
                 $DB->set_field('gmk_module_enrollment', 'timemodified', $now_t,      ['id' => $enrollment_id]);
                 $response = ['status' => 'success', 'data' => ['message' => 'Inscripción marcada como completada.']];
+            } else if ($update_action === 'remove') {
+                // Get class info to remove from group
+                $class_rec = $DB->get_record('gmk_class', ['id' => $enrollment_rec->classid], 'id, groupid, corecourseid');
+                // Remove from Moodle group
+                if ($class_rec && !empty($class_rec->groupid)) {
+                    require_once($CFG->dirroot . '/group/lib.php');
+                    groups_remove_member((int)$class_rec->groupid, (int)$enrollment_rec->userid);
+                }
+                // Delete the enrollment record
+                $DB->delete_records('gmk_module_enrollment', ['id' => $enrollment_id]);
+                $response = ['status' => 'success', 'data' => [
+                    'message'    => 'Estudiante desvinculado del módulo correctamente.',
+                    'was_active' => ($enrollment_rec->status === 'active'),
+                ]];
             } else {
                 $response = ['status' => 'error', 'data' => ['message' => 'Acción no reconocida.']];
             }

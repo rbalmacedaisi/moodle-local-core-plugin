@@ -165,6 +165,53 @@ Vue.component('modulemanagement', {
             }
         },
 
+        async removeEnrollment(enrollment) {
+            const confirmed = await window.Swal.fire({
+                title:             'Desvincular estudiante',
+                html:              `¿Desvincular a <b>${enrollment._fullname}</b> de este módulo?<br><small class="red--text">Se eliminará la inscripción y se removerá del grupo Moodle. Esta acción no se puede deshacer.</small>`,
+                icon:              'warning',
+                showCancelButton:  true,
+                confirmButtonText: 'Sí, desvincular',
+                cancelButtonText:  'Cancelar',
+                confirmButtonColor:'#D32F2F',
+            });
+            if (!confirmed.isConfirmed) return;
+
+            this.$set(this.updatingMap, enrollment.id, true);
+            try {
+                const res = await window.axios.get(ajaxUrl, { params: {
+                    action:       'local_grupomakro_update_module_enrollment',
+                    sesskey,
+                    enrollmentId: enrollment.id,
+                    updateAction: 'remove',
+                }});
+                const payload = res.data || {};
+                if (payload.status === 'success') {
+                    const d = payload.data || {};
+                    // Remove row from students list
+                    this.students = this.students.filter(s => s.id !== enrollment.id);
+                    // Decrement count on parent module if was active
+                    if (d.was_active) {
+                        const mIdx = this.modules.findIndex(m => m.id === (this.selectedModule || {}).id);
+                        if (mIdx !== -1) {
+                            this.$set(this.modules, mIdx, {
+                                ...this.modules[mIdx],
+                                enrolled_count: Math.max(0, (this.modules[mIdx].enrolled_count || 1) - 1),
+                            });
+                        }
+                    }
+                    this.showMessage('success', d.message || 'Estudiante desvinculado.');
+                } else {
+                    this.showMessage('error', ((payload.data || payload).message) || 'No se pudo desvincular.');
+                }
+            } catch (e) {
+                console.error('Error removing enrollment:', e);
+                this.showMessage('error', 'Error al desvincular al estudiante.');
+            } finally {
+                this.$delete(this.updatingMap, enrollment.id);
+            }
+        },
+
         async markCompleted(enrollment) {
             const confirmed = await window.Swal.fire({
                 title:             'Marcar como completado',
@@ -388,24 +435,34 @@ Vue.component('modulemanagement', {
 
           <!-- Row actions -->
           <template v-slot:item._actions="{ item }">
-            <div style="white-space:nowrap" v-if="item.status === 'active'">
-              <v-btn x-small outlined color="orange darken-2"
-                class="mr-1"
-                :disabled="!!updatingMap[item.id]"
-                @click="openExtendDialog(item)"
-                title="Extender plazo"
-              >
-                <v-icon x-small left>mdi-clock-plus-outline</v-icon> Extender
-              </v-btn>
-              <v-btn x-small outlined color="green darken-2"
+            <div style="white-space:nowrap">
+              <template v-if="item.status === 'active'">
+                <v-btn x-small outlined color="orange darken-2"
+                  class="mr-1"
+                  :disabled="!!updatingMap[item.id]"
+                  @click="openExtendDialog(item)"
+                  title="Extender plazo"
+                >
+                  <v-icon x-small left>mdi-clock-plus-outline</v-icon> Extender
+                </v-btn>
+                <v-btn x-small outlined color="green darken-2"
+                  class="mr-1"
+                  :loading="!!updatingMap[item.id]"
+                  @click="markCompleted(item)"
+                  title="Marcar como completado"
+                >
+                  <v-icon x-small left>mdi-check-circle-outline</v-icon> Completado
+                </v-btn>
+              </template>
+              <v-btn x-small outlined color="red darken-2"
                 :loading="!!updatingMap[item.id]"
-                @click="markCompleted(item)"
-                title="Marcar como completado"
+                :disabled="!!updatingMap[item.id]"
+                @click="removeEnrollment(item)"
+                title="Desvincular del módulo"
               >
-                <v-icon x-small left>mdi-check-circle-outline</v-icon> Completado
+                <v-icon x-small left>mdi-account-remove-outline</v-icon> Desvincular
               </v-btn>
             </div>
-            <span v-else class="grey--text text-caption">—</span>
           </template>
         </v-data-table>
       </v-card-text>
