@@ -196,6 +196,11 @@ if ($hassiteconfig) {
         $emojititle("\u{1F9EA}", 'Debug: Entrega Tarea (texto/adjuntos)'),
         new moodle_url('/local/grupomakro_core/pages/debug_assign_submission_visibility.php')
     );
+    $debugStudentSubjectStatusPage = new admin_externalpage(
+        'grupomakro_core_debug_student_subject_status',
+        $emojititle("\u{1F9EA}", 'Debug: Estado materia estudiante'),
+        new moodle_url('/local/grupomakro_core/pages/debug_student_subject_status.php')
+    );
     $studentPopulationPage = new admin_externalpage(
         'grupomakro_core_student_population',
         $emojititle("\u{1F465}", 'Poblacion Estudiantil'),
@@ -254,6 +259,7 @@ if ($hassiteconfig) {
     $ADMIN->add('grupomakrocore_plugin', $debugProgreApprovedOrphansPage);
     $ADMIN->add('grupomakrocore_plugin', $debugApprovedZeroGradePage);
     $ADMIN->add('grupomakrocore_plugin', $debugAssignSubmissionVisibilityPage);
+    $ADMIN->add('grupomakrocore_plugin', $debugStudentSubjectStatusPage);
 
     $ADMIN->add('localplugins', new admin_category('grupomakrocore', new lang_string('pluginname', 'local_grupomakro_core')));
     /********
