@@ -57,6 +57,29 @@ class forum_activity extends external_api {
         return fullname($user);
     }
 
+    private static function get_post_attachments(int $contextid, int $postid): array {
+        $fs = get_file_storage();
+        $files = $fs->get_area_files($contextid, 'mod_forum', 'attachment', $postid, 'filename ASC, id ASC', false);
+        $rows = [];
+        foreach ($files as $file) {
+            $rows[] = [
+                'filename' => (string)$file->get_filename(),
+                'filepath' => (string)$file->get_filepath(),
+                'filesize' => (int)$file->get_filesize(),
+                'mimetype' => (string)$file->get_mimetype(),
+                'url' => \moodle_url::make_pluginfile_url(
+                    $contextid,
+                    'mod_forum',
+                    'attachment',
+                    $postid,
+                    $file->get_filepath(),
+                    $file->get_filename()
+                )->out(false),
+            ];
+        }
+        return $rows;
+    }
+
     public static function get_activity_data_parameters(): external_function_parameters {
         return new external_function_parameters([
             'courseId' => new external_value(PARAM_INT, 'Course id', VALUE_REQUIRED),
@@ -199,6 +222,7 @@ class forum_activity extends external_api {
                     'created' => (int)$post->created,
                     'modified' => (int)$post->modified,
                     'isMine' => ((int)$post->userid === (int)$USER->id) ? 1 : 0,
+                    'attachments' => self::get_post_attachments((int)$cmcontext->id, (int)$post->id),
                 ];
             }
 
