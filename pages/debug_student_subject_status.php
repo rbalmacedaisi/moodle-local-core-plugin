@@ -116,7 +116,7 @@ function dss_get_course_grade_signals(int $userid, int $courseid): array {
     }
 
     $rows = $DB->get_records_sql(
-        "SELECT gi.itemtype, gi.itemname, COALESCE(gg.finalgrade, gg.rawgrade) AS gradeval
+        "SELECT gi.id, gi.itemtype, gi.itemname, COALESCE(gg.finalgrade, gg.rawgrade) AS gradeval
            FROM {grade_items} gi
       LEFT JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = :uid
           WHERE gi.courseid = :cid",
@@ -333,7 +333,7 @@ function dss_load_mass_candidates(array $filters): array {
         if (!empty($userids)) {
             list($uin, $uparams) = $DB->get_in_or_equal(array_values($userids), SQL_PARAMS_NAMED, 'uid');
             $docs = $DB->get_records_sql(
-                "SELECT userid, data FROM {user_info_data} WHERE fieldid = :fid AND userid $uin",
+                "SELECT id, userid, data FROM {user_info_data} WHERE fieldid = :fid AND userid $uin",
                 ['fid' => $docfieldid] + $uparams
             );
             foreach ($docs as $d) {
@@ -505,15 +505,21 @@ if ($document !== '') {
 $plans = [];
 if ($user) {
     $userid = (int)$user->id;
-    $plans = $DB->get_records_sql(
-        "SELECT lu.learningplanid, lu.status, lp.name
+    $planrows = $DB->get_records_sql(
+        "SELECT lu.id, lu.learningplanid, lu.status, lp.name
            FROM {local_learning_users} lu
            JOIN {local_learning_plans} lp ON lp.id = lu.learningplanid
           WHERE lu.userid = :uid
             AND (lu.userroleid = 5 OR lu.userrolename = 'student')
-       ORDER BY (CASE WHEN lu.status = 'activo' THEN 0 ELSE 1 END), lu.id DESC",
+        ORDER BY (CASE WHEN lu.status = 'activo' THEN 0 ELSE 1 END), lu.id DESC",
         ['uid' => $userid]
     );
+    foreach ($planrows as $prow) {
+        $lpid = (int)$prow->learningplanid;
+        if (!isset($plans[$lpid])) {
+            $plans[$lpid] = $prow;
+        }
+    }
 }
 
 echo $OUTPUT->header();
