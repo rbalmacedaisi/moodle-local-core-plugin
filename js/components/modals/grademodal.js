@@ -1112,7 +1112,7 @@ Vue.component('grademodal', {
             const swResult = await window.Swal.fire({
                 title: 'Inscribir en Módulo',
                 html: '¿Inscribir a <b>' + this.studentName + '</b> en el módulo de <b>' + (course.coursename || '') + '</b>?<br>'
-                    + '<small class="grey--text">El estudiante tendrá <b>30 días</b> para completar las actividades.</small>',
+                    + '<small class="grey--text">El estudiante tendrá <b>25 días</b> para completar las actividades.</small>',
                 icon: 'question',
                 showCancelButton: true,
                 confirmButtonText: 'Inscribir',

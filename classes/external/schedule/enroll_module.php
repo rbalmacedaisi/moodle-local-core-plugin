@@ -106,7 +106,7 @@ class enroll_module {
             $newClass->coursename         = $courseName;
             $newClass->type               = 1; // Virtual (módulo asíncrono)
             $newClass->is_module          = 1;
-            $newClass->module_deadline_days = 30;
+            $newClass->module_deadline_days = 25;
             $newClass->corecourseid       = $coreCourseId;
             $newClass->groupid            = $groupId;
             $newClass->periodid           = (int)$academicPeriod->id;
@@ -131,7 +131,7 @@ class enroll_module {
 
         $classId     = (int)$moduleClass->id;
         $groupId     = (int)$moduleClass->groupid;
-        $deadlineDays = (int)($moduleClass->module_deadline_days ?: 30);
+        $deadlineDays = (int)($moduleClass->module_deadline_days ?: 25);
 
         // ── 4. Check for existing enrollment ──────────────────────────────────────
         $existing = $DB->get_record('gmk_module_enrollment', ['classid' => $classId, 'userid' => $userId]);

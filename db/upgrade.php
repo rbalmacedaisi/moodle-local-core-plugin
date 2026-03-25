@@ -1928,7 +1928,7 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
             $DB->get_manager()->add_field($table, $field_is_module);
         }
 
-        $field_deadline = new xmldb_field('module_deadline_days', XMLDB_TYPE_INTEGER, '4', null, XMLDB_NOTNULL, null, '30', 'is_module');
+        $field_deadline = new xmldb_field('module_deadline_days', XMLDB_TYPE_INTEGER, '4', null, XMLDB_NOTNULL, null, '25', 'is_module');
         if (!$DB->get_manager()->field_exists($table, $field_deadline)) {
             $DB->get_manager()->add_field($table, $field_deadline);
         }
