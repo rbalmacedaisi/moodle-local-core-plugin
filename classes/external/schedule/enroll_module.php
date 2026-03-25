@@ -42,7 +42,7 @@ class enroll_module {
 
         // ── 2. Get student's current academic period ──────────────────────────────
         $academicPeriod = $DB->get_record_sql(
-            "SELECT gap.id, gap.code, gap.name
+            "SELECT gap.id, gap.name
                FROM {gmk_academic_periods} gap
                JOIN {local_learning_users} llu ON llu.academicperiodid = gap.id
               WHERE llu.userid = :userid
@@ -54,7 +54,7 @@ class enroll_module {
         if (!$academicPeriod) {
             // Fallback: use the most recent active academic period
             $academicPeriod = $DB->get_record_sql(
-                "SELECT id, code, name FROM {gmk_academic_periods}
+                "SELECT id, name FROM {gmk_academic_periods}
                   WHERE status = 1
                   ORDER BY id DESC
                   LIMIT 1"
@@ -65,7 +65,7 @@ class enroll_module {
             return ['status' => 'error', 'message' => 'No se encontró período académico activo.', 'duedate' => 0];
         }
 
-        $periodCode = trim((string)($academicPeriod->code ?: $academicPeriod->name));
+        $periodCode = trim((string)$academicPeriod->name);
         $courseName = trim((string)$course->fullname);
         $groupName  = $courseName . ' (MÓDULO) ' . $periodCode;
 

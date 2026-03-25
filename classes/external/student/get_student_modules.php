@@ -41,8 +41,7 @@ class get_student_modules extends external_api {
                     gc.corecourseid,
                     gc.coursename,
                     gc.module_deadline_days,
-                    gap.code  AS periodcode,
-                    gap.name  AS periodname
+                    gap.name  AS periodcode
                FROM {gmk_module_enrollment} gme
                JOIN {gmk_class} gc  ON gc.id  = gme.classid AND gc.is_module = 1
                JOIN {gmk_academic_periods} gap ON gap.id = gc.periodid
@@ -60,7 +59,7 @@ class get_student_modules extends external_api {
                 'classid'        => (int)$r->classid,
                 'corecourseid'   => (int)$r->corecourseid,
                 'coursename'     => (string)($r->coursename ?? ''),
-                'periodcode'     => (string)($r->periodcode ?: $r->periodname),
+                'periodcode'     => (string)($r->periodcode ?? ''),
                 'enrolldate'     => (int)$r->enrolldate,
                 'duedate'        => (int)$r->duedate,
                 'daysremaining'  => max(0, $daysRemaining),

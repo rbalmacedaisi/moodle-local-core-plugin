@@ -1534,14 +1534,14 @@ try {
             }
             $module_list = $DB->get_records_sql(
                 "SELECT gc.id, gc.coursename, gc.name, gc.module_deadline_days, gc.groupid, gc.periodid,
-                        COALESCE(gap.code, gap.name) AS periodcode,
+                        gap.name AS periodcode,
                         COUNT(gme.id) AS enrolled_count
                    FROM {gmk_class} gc
                    JOIN {gmk_academic_periods} gap ON gap.id = gc.periodid
                    LEFT JOIN {gmk_module_enrollment} gme ON gme.classid = gc.id AND gme.status = 'active'
                   WHERE $where
                   GROUP BY gc.id, gc.coursename, gc.name, gc.module_deadline_days, gc.groupid,
-                           gc.periodid, gap.code, gap.name
+                           gc.periodid, gap.name
                   ORDER BY gap.id DESC, gc.coursename ASC",
                 $params_q
             );
