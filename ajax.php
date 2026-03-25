@@ -1513,6 +1513,29 @@ try {
             ];
             break;
 
+        case 'local_grupomakro_get_student_period':
+            require_capability('moodle/site:config', $context);
+            $sp_userid = required_param('userId', PARAM_INT);
+            $sp_period = $DB->get_record_sql(
+                "SELECT gap.id, gap.name
+                   FROM {gmk_academic_periods} gap
+                   JOIN {local_learning_users} llu ON llu.academicperiodid = gap.id
+                  WHERE llu.userid = :userid
+                  ORDER BY gap.id DESC
+                  LIMIT 1",
+                ['userid' => $sp_userid]
+            );
+            if (!$sp_period) {
+                $sp_period = $DB->get_record_sql(
+                    "SELECT id, name FROM {gmk_academic_periods} WHERE status = 1 ORDER BY id DESC LIMIT 1"
+                );
+            }
+            $response = [
+                'status' => 'success',
+                'data'   => ['periodname' => $sp_period ? (string)$sp_period->name : ''],
+            ];
+            break;
+
         case 'local_grupomakro_get_student_modules':
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/student/get_student_modules.php');
             $userid = required_param('userid', PARAM_INT);

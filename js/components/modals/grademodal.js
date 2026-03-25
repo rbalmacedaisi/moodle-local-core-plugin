@@ -1105,14 +1105,29 @@ Vue.component('grademodal', {
                 const date = existing.duedate
                     ? new Date(existing.duedate * 1000).toLocaleDateString('es-PA', { day: '2-digit', month: 'short', year: 'numeric' })
                     : '—';
-                this.showMessage('info', 'Ya inscrito en módulo. Plazo: ' + date);
+                const period = existing.periodname ? ' | Período: ' + existing.periodname : '';
+                this.showMessage('info', 'Ya inscrito en módulo' + period + '. Plazo: ' + date);
                 return;
             }
 
+            // Pre-fetch the student period name to show in the confirmation dialog
+            let periodLabel = '';
+            try {
+                const url = window.wsUrl || (window.location.origin + '/local/grupomakro_core/ajax.php');
+                const preRes = await window.axios.get(url, { params: {
+                    action: 'local_grupomakro_get_student_period',
+                    sesskey: M.cfg.sesskey,
+                    userId: this.dataStudent.id,
+                }});
+                const preData = ((preRes.data || {}).data) || {};
+                if (preData.periodname) periodLabel = '<br><small><b>Período:</b> ' + preData.periodname + '</small>';
+            } catch (_) {}
+
             const swResult = await window.Swal.fire({
                 title: 'Inscribir en Módulo',
-                html: '¿Inscribir a <b>' + this.studentName + '</b> en el módulo de <b>' + (course.coursename || '') + '</b>?<br>'
-                    + '<small class="grey--text">El estudiante tendrá <b>25 días</b> para completar las actividades.</small>',
+                html: '¿Inscribir a <b>' + this.studentName + '</b> en el módulo de <b>' + (course.coursename || '') + '</b>?'
+                    + periodLabel
+                    + '<br><small class="grey--text">El estudiante tendrá <b>25 días</b> para completar las actividades.</small>',
                 icon: 'question',
                 showCancelButton: true,
                 confirmButtonText: 'Inscribir',
@@ -1137,10 +1152,10 @@ Vue.component('grademodal', {
                 const data = (payload.data) ? payload.data : payload;
 
                 if (data.status === 'ok') {
-                    this.$set(this.moduleStatusMap, key, { enrolled: true, duedate: data.duedate || 0 });
+                    this.$set(this.moduleStatusMap, key, { enrolled: true, duedate: data.duedate || 0, periodname: data.periodname || '' });
                     this.showMessage('success', data.message || 'Inscrito en módulo correctamente.');
                 } else if (data.status === 'warning') {
-                    this.$set(this.moduleStatusMap, key, { enrolled: true, duedate: data.duedate || 0 });
+                    this.$set(this.moduleStatusMap, key, { enrolled: true, duedate: data.duedate || 0, periodname: data.periodname || '' });
                     this.showMessage('warning', data.message || 'Ya estaba inscrito en este módulo.');
                 } else {
                     this.showMessage('error', data.message || 'No se pudo inscribir en el módulo.');

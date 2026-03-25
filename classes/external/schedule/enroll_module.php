@@ -138,9 +138,10 @@ class enroll_module {
         if ($existing) {
             $dueDateFormatted = userdate((int)$existing->duedate, get_string('strftimedatefullshort', 'langconfig'));
             return [
-                'status'  => 'warning',
-                'message' => 'El estudiante ya está inscrito en este módulo. Plazo: ' . $dueDateFormatted,
-                'duedate' => (int)$existing->duedate,
+                'status'     => 'warning',
+                'message'    => 'El estudiante ya está inscrito en este módulo. Período: ' . $periodCode . '. Plazo: ' . $dueDateFormatted,
+                'duedate'    => (int)$existing->duedate,
+                'periodname' => $periodCode,
             ];
         }
 
@@ -175,9 +176,10 @@ class enroll_module {
 
         $dueDateFormatted = userdate($dueDate, get_string('strftimedatefullshort', 'langconfig'));
         return [
-            'status'  => 'ok',
-            'message' => 'Inscrito en módulo correctamente. Plazo: ' . $dueDateFormatted,
-            'duedate' => $dueDate,
+            'status'     => 'ok',
+            'message'    => 'Inscrito en módulo correctamente. Período: ' . $periodCode . '. Plazo: ' . $dueDateFormatted,
+            'duedate'    => $dueDate,
+            'periodname' => $periodCode,
         ];
     }
 }

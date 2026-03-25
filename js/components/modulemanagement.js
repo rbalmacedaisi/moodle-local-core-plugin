@@ -70,10 +70,7 @@ Vue.component('modulemanagement', {
                 }});
                 const data = (res.data || {}).data || [];
                 this.periods = Array.isArray(data) ? data : [];
-                // Auto-select most recent period
-                if (this.periods.length > 0) {
-                    this.selectedPeriodId = this.periods[0].id;
-                }
+                // Default to "all periods" so newly created modules are always visible
                 this.loadModules();
             } catch (e) {
                 console.error('Error loading periods:', e);
