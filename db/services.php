@@ -667,6 +667,15 @@ $functions = array(
         'ajax' => true,
         'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
     ),
+    'local_grupomakro_reopen_assignment' => array(
+        'classname'   => 'local_grupomakro_core\external\teacher\reopen_assignment',
+        'methodname'  => 'execute',
+        'description' => 'Reopen a student assignment submission so they can submit again',
+        'type'        => 'write',
+        'capabilities'=> 'mod/assign:grade',
+        'ajax'        => true,
+        'services'    => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
     // Odoo Integration Services
     'local_grupomakro_odoo_enroll_student' => array(
         'classname'   => 'local_grupomakro_core\external\odoo\enroll_student',

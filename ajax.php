@@ -811,6 +811,22 @@ try {
             ];
             break;
 
+        case 'local_grupomakro_reopen_assignment':
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/teacher/reopen_assignment.php');
+            $args = required_param('args', PARAM_RAW);
+            $data = json_decode($args, true);
+            if (!$data) throw new moodle_exception('invalidjson');
+
+            $result = \local_grupomakro_core\external\teacher\reopen_assignment::execute(
+                (int)$data['assignmentid'],
+                (int)$data['studentid']
+            );
+            $response = [
+                'status'  => $result['status'],
+                'message' => $result['message'],
+            ];
+            break;
+
         case 'local_grupomakro_update_period':
             $userid = required_param('userid', PARAM_INT);
             $planid = required_param('planid', PARAM_INT);

@@ -214,6 +214,22 @@ const QuickGrader = {
                               <v-btn block text color="grey darken-1" class="mt-1" @click="close">
                                   Cerrar
                              </v-btn>
+                             <template v-if="currentTask.modname === 'assign'">
+                                 <v-divider class="my-3"></v-divider>
+                                 <v-alert v-if="reopenError" type="error" dense text class="mb-2 text-caption">{{ reopenError }}</v-alert>
+                                 <v-alert v-if="reopenSuccess" type="success" dense text class="mb-2 text-caption">{{ reopenSuccess }}</v-alert>
+                                 <v-btn
+                                     block
+                                     outlined
+                                     color="orange darken-2"
+                                     :loading="reopening"
+                                     :disabled="reopening || !!reopenSuccess"
+                                     @click="reopenSubmission"
+                                 >
+                                     <v-icon left small>mdi-lock-open-variant-outline</v-icon>
+                                     Habilitar reenvío
+                                 </v-btn>
+                             </template>
                          </div>
                     </div>
                 </div>
@@ -240,7 +256,11 @@ const QuickGrader = {
             selectedFile: null,
             docxContent: '',
             mammothLoaded: false,
-            xlsxLoaded: false
+            xlsxLoaded: false,
+            // Reopen submission
+            reopening: false,
+            reopenError: '',
+            reopenSuccess: ''
         }
     },
     computed: {
@@ -382,6 +402,9 @@ const QuickGrader = {
             this.loadingAssignDetails = false;
             this.selectedFile = null;
             this.docxContent = '';
+            this.reopening = false;
+            this.reopenError = '';
+            this.reopenSuccess = '';
             if (this.$refs.form) this.$refs.form.resetValidation();
         },
         async fetchQuizData() {
@@ -639,6 +662,35 @@ const QuickGrader = {
                 this.saveError = error.message || 'Error de conexión con el servidor.';
             } finally {
                 this.saving = false;
+            }
+        },
+        async reopenSubmission() {
+            if (!this.currentTask.assignmentid || !this.currentTask.studentid) {
+                this.reopenError = 'No se pudo identificar la tarea o el estudiante.';
+                return;
+            }
+            this.reopening = true;
+            this.reopenError = '';
+            this.reopenSuccess = '';
+            try {
+                const response = await axios.post(window.wsUrl, {
+                    action: 'local_grupomakro_reopen_assignment',
+                    args: JSON.stringify({
+                        assignmentid: this.currentTask.assignmentid,
+                        studentid: this.currentTask.studentid,
+                    }),
+                    sesskey: M.cfg.sesskey,
+                });
+                if (response.data && response.data.status === 'success') {
+                    this.reopenSuccess = response.data.message || 'Reenvío habilitado correctamente.';
+                } else {
+                    this.reopenError = (response.data && response.data.message) || 'No se pudo reabrir la entrega.';
+                }
+            } catch (e) {
+                this.reopenError = 'Error de conexión al servidor.';
+                console.error('[GMK] reopen error', e);
+            } finally {
+                this.reopening = false;
             }
         },
         loadNext() {
