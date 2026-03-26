@@ -43,6 +43,73 @@ require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
  */
 class get_data_by_courses extends external_api
 {
+    /**
+     * Normalizes module payload for student UI.
+     * - Keep BBB visible when configured as visible on course page.
+     * - Keep BBB untagged for virtual session grouping.
+     * - Ensure resource intro is available as description in activity header.
+     *
+     * @param object $coursedata
+     * @param int $courseid
+     * @return void
+     */
+    private static function normalize_activities_payload(object &$coursedata, int $courseid): void {
+        if (empty($coursedata->activities) || !is_array($coursedata->activities)) {
+            return;
+        }
+
+        $modinfo = get_fast_modinfo($courseid);
+
+        foreach ($coursedata->activities as &$section) {
+            if (empty($section->modules) || !is_array($section->modules)) {
+                continue;
+            }
+            foreach ($section->modules as &$module) {
+                if (empty($module->modname)) {
+                    continue;
+                }
+
+                if ($module->modname === 'bigbluebuttonbn') {
+                    if (
+                        isset($module->uservisible, $module->visibleoncoursepage) &&
+                        !$module->uservisible &&
+                        (int)$module->visibleoncoursepage === 1
+                    ) {
+                        $module->uservisible = true;
+                    }
+                    if (isset($module->tags)) {
+                        unset($module->tags);
+                    }
+                    continue;
+                }
+
+                // Resource intro is needed in the right panel even when "showdescription" is disabled in section list.
+                if ($module->modname === 'resource' && empty(trim(strip_tags((string)($module->description ?? ''))))) {
+                    $cmid = (int)($module->id ?? 0);
+                    if ($cmid > 0 && !empty($modinfo->cms[$cmid])) {
+                        $cm = $modinfo->cms[$cmid];
+                        if (!empty($cm->content)) {
+                            $options = ['noclean' => true];
+                            list($description,) = external_format_text(
+                                $cm->content,
+                                FORMAT_HTML,
+                                \context_module::instance($cmid)->id,
+                                $cm->modname,
+                                'intro',
+                                $cmid,
+                                $options
+                            );
+                            if (!empty(trim(strip_tags((string)$description)))) {
+                                $module->description = $description;
+                            }
+                        }
+                    }
+                }
+            }
+            unset($module);
+        }
+        unset($section);
+    }
 
     /**
      * Describes parameters of the {@see self::execute()} method.
@@ -72,36 +139,14 @@ class get_data_by_courses extends external_api
         global $DB;
         try {
             $courseData = \local_soluttolms_core\external\get_data_by_courses::execute($params['courseid'], $params['userid']);
+            $courseData = json_decode($courseData['coursedata']);
+            if (!$courseData) {
+                throw new Exception('No se pudo decodificar la data del curso.');
+            }
+            self::normalize_activities_payload($courseData, (int)$params['courseid']);
+
             $courseProgre = $DB->get_record('gmk_course_progre', ['courseid' => $params['courseid'], 'userid' => $params['userid']], 'progress,credits');
             if ($courseProgre) {
-                $courseData = json_decode($courseData['coursedata']);
-                // Defensive normalization for student overview:
-                // 1) keep BBB modules visible when they are shown on course page.
-                // 2) keep BBB untagged so they are grouped under "Sesiones Virtuales".
-                if (!empty($courseData->activities) && is_array($courseData->activities)) {
-                    foreach ($courseData->activities as &$section) {
-                        if (empty($section->modules) || !is_array($section->modules)) {
-                            continue;
-                        }
-                        foreach ($section->modules as &$module) {
-                            if (empty($module->modname) || $module->modname !== 'bigbluebuttonbn') {
-                                continue;
-                            }
-                            if (
-                                isset($module->uservisible, $module->visibleoncoursepage) &&
-                                !$module->uservisible &&
-                                (int)$module->visibleoncoursepage === 1
-                            ) {
-                                $module->uservisible = true;
-                            }
-                            if (isset($module->tags)) {
-                                unset($module->tags);
-                            }
-                        }
-                        unset($module);
-                    }
-                    unset($section);
-                }
                 $progress = $courseProgre->progress;
 
                 // [VIRTUAL FALLBACK] Fast direct grade check (no grade tree traversal).
@@ -114,39 +159,12 @@ class get_data_by_courses extends external_api
 
                 $courseData->progress = (float)$progress;
                 $courseData->credits = (int)$courseProgre->credits;
-                $courseData = ['coursedata' => json_encode($courseData)];
             } else {
                 // Fallback attempt for credits if no progress record exists yet.
-                $courseData = json_decode($courseData['coursedata']);
-                if (!empty($courseData->activities) && is_array($courseData->activities)) {
-                    foreach ($courseData->activities as &$section) {
-                        if (empty($section->modules) || !is_array($section->modules)) {
-                            continue;
-                        }
-                        foreach ($section->modules as &$module) {
-                            if (empty($module->modname) || $module->modname !== 'bigbluebuttonbn') {
-                                continue;
-                            }
-                            if (
-                                isset($module->uservisible, $module->visibleoncoursepage) &&
-                                !$module->uservisible &&
-                                (int)$module->visibleoncoursepage === 1
-                            ) {
-                                $module->uservisible = true;
-                            }
-                            if (isset($module->tags)) {
-                                unset($module->tags);
-                            }
-                        }
-                        unset($module);
-                    }
-                    unset($section);
-                }
                 $courseData->progress = 0;
                 $courseData->credits = (int)$DB->get_field('local_learning_courses', 'credits', ['courseid' => $params['courseid']], IGNORE_MULTIPLE);
-                $courseData = ['coursedata' => json_encode($courseData)];
             }
-            return $courseData;
+            return ['coursedata' => json_encode($courseData)];
         } catch (Exception $e) {
             return ['status' => -1, 'error' => true, 'message' => $e->getMessage()];
         }
