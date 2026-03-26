@@ -7,6 +7,7 @@ defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 require_once($CFG->dirroot . '/group/lib.php');
+require_once($CFG->dirroot . '/course/lib.php');
 
 /**
  * Enroll a student in an independent study module.
@@ -68,7 +69,7 @@ class enroll_module {
 
         // ── 3. Find or create the module class ────────────────────────────────────
         $moduleClass = $DB->get_record_sql(
-            "SELECT id, groupid, module_deadline_days
+            "SELECT id, name, corecourseid, groupid, coursesectionid, module_deadline_days
                FROM {gmk_class}
               WHERE is_module = 1
                 AND corecourseid = :cid
@@ -116,13 +117,22 @@ class enroll_module {
             $newClass->classdays          = '0/0/0/0/0/0/0';
             $newClass->approved           = 1;
             $newClass->closed             = 0;
+            $newClass->coursesectionid    = 0;
             $newClass->gradecategoryid    = 0;
             $newClass->usermodified       = (int)$USER->id;
             $newClass->timecreated        = $now;
             $newClass->timemodified       = $now;
 
             $newClass->id = $DB->insert_record('gmk_class', $newClass);
+            $newClass->coursesectionid = create_class_section($newClass);
+            $DB->set_field('gmk_class', 'coursesectionid', (int)$newClass->coursesectionid, ['id' => (int)$newClass->id]);
             $moduleClass  = $DB->get_record('gmk_class', ['id' => $newClass->id]);
+        }
+
+        $sectionReason = '';
+        if (!gmk_is_valid_class_section($moduleClass, $sectionReason)) {
+            $moduleClass->coursesectionid = create_class_section($moduleClass);
+            $DB->set_field('gmk_class', 'coursesectionid', (int)$moduleClass->coursesectionid, ['id' => (int)$moduleClass->id]);
         }
 
         $classId     = (int)$moduleClass->id;
