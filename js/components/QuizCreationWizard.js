@@ -217,6 +217,16 @@ const QuizCreationWizard = {
         classId: { type: Number, required: true }
     },
     data() {
+        const formatLocalDate = function(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        };
+        const today = new Date();
+        const nextWeek = new Date(today.getTime());
+        nextWeek.setDate(nextWeek.getDate() + 7);
+
         return {
             dialog: this.visible,
             step: 1,
@@ -230,9 +240,9 @@ const QuizCreationWizard = {
                 name: '',
                 intro: '',
                 tags: '',
-                dateOpen: new Date().toISOString().substr(0, 10),
+                dateOpen: formatLocalDate(today),
                 timeOpen: '00:00',
-                dateClose: new Date(Date.now() + 7 * 86400000).toISOString().substr(0, 10), // +7 days
+                dateClose: formatLocalDate(nextWeek),
                 timeClose: '23:59',
                 enableTimeLimit: false,
                 timeLimitMinutes: 60,
@@ -268,6 +278,35 @@ const QuizCreationWizard = {
         this.fetchCourseTags();
     },
     methods: {
+        buildLocalTimestamp(dateValue, timeValue) {
+            if (!dateValue) {
+                return 0;
+            }
+
+            const dateParts = dateValue.split('-').map(function(part) {
+                return parseInt(part, 10);
+            });
+            const timeParts = (timeValue || '00:00').split(':').map(function(part) {
+                return parseInt(part, 10);
+            });
+
+            if (dateParts.length !== 3 || dateParts.some(Number.isNaN)) {
+                return 0;
+            }
+
+            const year = dateParts[0];
+            const monthIndex = dateParts[1] - 1;
+            const day = dateParts[2];
+            const hour = Number.isNaN(timeParts[0]) ? 0 : timeParts[0];
+            const minute = Number.isNaN(timeParts[1]) ? 0 : timeParts[1];
+            const localDate = new Date(year, monthIndex, day, hour, minute, 0, 0);
+
+            if (Number.isNaN(localDate.getTime())) {
+                return 0;
+            }
+
+            return Math.floor(localDate.getTime() / 1000);
+        },
         normalizeLessonTagValue(raw) {
             if (raw === null || raw === undefined) {
                 return '';
@@ -316,9 +355,11 @@ const QuizCreationWizard = {
         async createQuiz() {
             this.saving = true;
             try {
-                // Prepare timestamps
-                const startDT = new Date(`${this.quiz.dateOpen}T${this.quiz.timeOpen}`);
-                const endDT = new Date(`${this.quiz.dateClose}T${this.quiz.timeClose}`);
+                const timeopen = this.buildLocalTimestamp(this.quiz.dateOpen, this.quiz.timeOpen);
+                const timeclose = this.buildLocalTimestamp(this.quiz.dateClose, this.quiz.timeClose);
+                if (!timeopen || !timeclose) {
+                    throw new Error('No fue posible interpretar la fecha y hora del cuestionario.');
+                }
                 let normalizedTag = this.normalizeLessonTagValue(this.quiz.tags);
                 if (!normalizedTag) {
                     normalizedTag = this.normalizeLessonTagValue(this.tagSearchInput);
@@ -333,8 +374,8 @@ const QuizCreationWizard = {
                     intro: this.quiz.intro,
                     tags: normalizedTag,
                     // Extra params mapped to backend expectations
-                    timeopen: Math.floor(startDT.getTime() / 1000),
-                    timeclose: Math.floor(endDT.getTime() / 1000),
+                    timeopen: timeopen,
+                    timeclose: timeclose,
                     timelimit: this.quiz.enableTimeLimit ? (this.quiz.timeLimitMinutes * 60) : 0,
                     attempts: this.quiz.attempts,
                     grademethod: this.quiz.grademethod,

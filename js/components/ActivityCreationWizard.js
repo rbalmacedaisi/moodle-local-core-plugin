@@ -309,6 +309,59 @@ const ActivityCreationWizard = {
             this.tagSearchInput = '';
             this.$emit('close');
         },
+        parseDatetimeLocalToTimestamp(value) {
+            if (!value || typeof value !== 'string') {
+                return 0;
+            }
+
+            const parts = value.split('T');
+            if (parts.length !== 2) {
+                return 0;
+            }
+
+            const dateParts = parts[0].split('-').map(function(part) {
+                return parseInt(part, 10);
+            });
+            const timeParts = parts[1].split(':').map(function(part) {
+                return parseInt(part, 10);
+            });
+
+            if (dateParts.length !== 3 || dateParts.some(Number.isNaN)) {
+                return 0;
+            }
+
+            const year = dateParts[0];
+            const monthIndex = dateParts[1] - 1;
+            const day = dateParts[2];
+            const hour = Number.isNaN(timeParts[0]) ? 0 : timeParts[0];
+            const minute = Number.isNaN(timeParts[1]) ? 0 : timeParts[1];
+            const localDate = new Date(year, monthIndex, day, hour, minute, 0, 0);
+
+            if (Number.isNaN(localDate.getTime())) {
+                return 0;
+            }
+
+            return Math.floor(localDate.getTime() / 1000);
+        },
+        formatTimestampForDatetimeLocal(timestamp) {
+            const numericTimestamp = parseInt(timestamp, 10);
+            if (!numericTimestamp) {
+                return '';
+            }
+
+            const localDate = new Date(numericTimestamp * 1000);
+            if (Number.isNaN(localDate.getTime())) {
+                return '';
+            }
+
+            const year = localDate.getFullYear();
+            const month = String(localDate.getMonth() + 1).padStart(2, '0');
+            const day = String(localDate.getDate()).padStart(2, '0');
+            const hours = String(localDate.getHours()).padStart(2, '0');
+            const minutes = String(localDate.getMinutes()).padStart(2, '0');
+
+            return `${year}-${month}-${day}T${hours}:${minutes}`;
+        },
         normalizeLessonTagValue(raw) {
             if (raw === null || raw === undefined) {
                 return '';
@@ -377,15 +430,18 @@ const ActivityCreationWizard = {
                         .map(function(d) { return parseInt(d.draftitemid, 10) || 0; })
                         .filter(function(v) { return v > 0; })
                 ));
+                const duedate = this.parseDatetimeLocalToTimestamp(this.formData.duedate);
+                const timeopen = this.parseDatetimeLocalToTimestamp(this.formData.timeopen);
+                const timeclose = this.parseDatetimeLocalToTimestamp(this.formData.timeclose);
                 const args = this.editMode ? {
                     cmid: this.editData.id,
                     name: this.formData.name,
                     intro: this.formData.intro || '',
                     tags: normalizedTag,
                     visible: this.formData.visible ? 1 : 0,
-                    duedate: this.formData.duedate ? Math.floor(new Date(this.formData.duedate).getTime() / 1000) : 0,
-                    timeopen: this.formData.timeopen ? Math.floor(new Date(this.formData.timeopen).getTime() / 1000) : 0,
-                    timeclose: this.formData.timeclose ? Math.floor(new Date(this.formData.timeclose).getTime() / 1000) : 0,
+                    duedate: duedate,
+                    timeopen: timeopen,
+                    timeclose: timeclose,
                     attempts: this.formData.attempts,
                     delete_files: this.filesToDelete,
                     draftitemids: draftitemids
@@ -395,9 +451,9 @@ const ActivityCreationWizard = {
                     name: this.formData.name,
                     intro: this.formData.intro || '',
                     tags: normalizedTag,
-                    duedate: this.formData.duedate ? Math.floor(new Date(this.formData.duedate).getTime() / 1000) : 0,
-                    timeopen: this.formData.timeopen ? Math.floor(new Date(this.formData.timeopen).getTime() / 1000) : 0,
-                    timeclose: this.formData.timeclose ? Math.floor(new Date(this.formData.timeclose).getTime() / 1000) : 0,
+                    duedate: duedate,
+                    timeopen: timeopen,
+                    timeclose: timeclose,
                     save_as_template: this.saveAsTemplate,
                     gradecat: this.formData.gradecat,
                     guest: this.formData.guest,
@@ -449,16 +505,9 @@ const ActivityCreationWizard = {
                     );
                     this.tagSearchInput = this.formData.tags;
                     this.formData.visible = act.visible;
-
-                    if (act.duedate) {
-                        this.formData.duedate = new Date(act.duedate * 1000).toISOString().slice(0, 16);
-                    }
-                    if (act.timeopen) {
-                        this.formData.timeopen = new Date(act.timeopen * 1000).toISOString().slice(0, 16);
-                    }
-                    if (act.timeclose) {
-                        this.formData.timeclose = new Date(act.timeclose * 1000).toISOString().slice(0, 16);
-                    }
+                    this.formData.duedate = this.formatTimestampForDatetimeLocal(act.duedate);
+                    this.formData.timeopen = this.formatTimestampForDatetimeLocal(act.timeopen);
+                    this.formData.timeclose = this.formatTimestampForDatetimeLocal(act.timeclose);
                     this.formData.attempts = act.attempts || 1;
 
                     if (act.files && act.files.length > 0) {
