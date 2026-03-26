@@ -46,6 +46,7 @@ Vue.component('modulemanagement', {
 
             // Update enrollment loading map { enrollmentid: true }
             updatingMap: {},
+            deletingModuleId: null,
         };
     },
 
@@ -120,6 +121,48 @@ Vue.component('modulemanagement', {
                 console.error('Error loading module students:', e);
             } finally {
                 this.loadingStudents = false;
+            }
+        },
+
+        async deleteModule(module) {
+            if (!module || !module.id) return;
+
+            const enrolledCount = Number(module.enrolled_count || 0);
+            const confirmed = await window.Swal.fire({
+                title: 'Eliminar módulo',
+                html: `¿Eliminar <b>${module.name}</b>?<br><small class="red--text">Se eliminará el grupo Moodle, el registro del módulo y ${enrolledCount} inscripción(es) asociada(s). Los usuarios no se desmatricularán del curso completo.</small>`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Sí, eliminar',
+                cancelButtonText: 'Cancelar',
+                confirmButtonColor: '#D32F2F',
+            });
+            if (!confirmed.isConfirmed) return;
+
+            this.deletingModuleId = module.id;
+            try {
+                const res = await window.axios.get(ajaxUrl, { params: {
+                    action: 'local_grupomakro_delete_module',
+                    sesskey,
+                    classId: module.id,
+                }});
+                const payload = res.data || {};
+                if (payload.status === 'success') {
+                    this.modules = this.modules.filter(m => m.id !== module.id);
+                    if (this.selectedModule && this.selectedModule.id === module.id) {
+                        this.studentsDialog = false;
+                        this.selectedModule = null;
+                        this.students = [];
+                    }
+                    this.showMessage('success', ((payload.data || {}).message) || 'Módulo eliminado correctamente.');
+                } else {
+                    this.showMessage('error', ((payload.data || payload).message) || 'No se pudo eliminar el módulo.');
+                }
+            } catch (e) {
+                console.error('Error deleting module:', e);
+                this.showMessage('error', 'Error al eliminar el módulo.');
+            } finally {
+                this.deletingModuleId = null;
             }
         },
 
@@ -392,9 +435,19 @@ Vue.component('modulemanagement', {
 
       <!-- Acciones -->
       <template v-slot:item._actions="{ item }">
-        <v-btn x-small color="teal darken-2" dark @click="openStudents(item)" title="Ver estudiantes inscritos">
-          <v-icon x-small left>mdi-account-group</v-icon> Estudiantes
-        </v-btn>
+        <div style="white-space:nowrap">
+          <v-btn x-small color="teal darken-2" dark class="mr-1"
+            :disabled="deletingModuleId === item.id"
+            @click="openStudents(item)" title="Ver estudiantes inscritos">
+            <v-icon x-small left>mdi-account-group</v-icon> Estudiantes
+          </v-btn>
+          <v-btn x-small outlined color="red darken-2"
+            :loading="deletingModuleId === item.id"
+            :disabled="!!deletingModuleId && deletingModuleId !== item.id"
+            @click="deleteModule(item)" title="Eliminar módulo y grupo">
+            <v-icon x-small left>mdi-delete-outline</v-icon> Eliminar
+          </v-btn>
+        </div>
       </template>
     </v-data-table>
   </v-card>

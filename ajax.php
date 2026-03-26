@@ -1609,6 +1609,22 @@ try {
             $response = ['status' => 'success', 'data' => array_values($module_students)];
             break;
 
+        case 'local_grupomakro_delete_module':
+            require_sesskey();
+            require_capability('moodle/site:config', $context);
+            $classid_m = required_param('classId', PARAM_INT);
+            $module_class = $DB->get_record('gmk_class', ['id' => $classid_m, 'is_module' => 1], '*', MUST_EXIST);
+            $deleted_enrollments = (int)$DB->count_records('gmk_module_enrollment', ['classid' => (int)$module_class->id]);
+
+            delete_class((int)$module_class->id, 'Independent module deleted from module management');
+            $DB->delete_records('gmk_module_enrollment', ['classid' => (int)$module_class->id]);
+
+            $response = ['status' => 'success', 'data' => [
+                'message' => 'Módulo eliminado correctamente.',
+                'deletedenrollments' => $deleted_enrollments,
+            ]];
+            break;
+
         case 'local_grupomakro_update_module_enrollment':
             require_sesskey();
             require_capability('moodle/site:config', $context);
