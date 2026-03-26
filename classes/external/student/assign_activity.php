@@ -118,6 +118,57 @@ class assign_activity extends external_api {
         return count($files);
     }
 
+    private static function has_visible_html_content(string $html): bool {
+        $plain = trim(html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+        return $plain !== '';
+    }
+
+    private static function resolve_assignment_intro(stdClass $assignrecord, stdClass $cm, context_module $cmcontext): string {
+        $candidates = [];
+
+        try {
+            $formattedintro = format_module_intro('assign', $assignrecord, (int)$cm->id, false);
+            if (is_string($formattedintro) && trim($formattedintro) !== '') {
+                $candidates[] = $formattedintro;
+            }
+        } catch (\Throwable $e) {
+            // Fallback candidates below.
+        }
+
+        if (!empty($assignrecord->intro)) {
+            $candidates[] = format_text(
+                (string)$assignrecord->intro,
+                (int)$assignrecord->introformat,
+                ['context' => $cmcontext, 'noclean' => true]
+            );
+        }
+
+        if (!empty($cm->content)) {
+            $candidates[] = format_text(
+                (string)$cm->content,
+                FORMAT_HTML,
+                ['context' => $cmcontext, 'noclean' => true]
+            );
+        }
+
+        foreach ($candidates as $candidate) {
+            if (trim((string)$candidate) === '') {
+                continue;
+            }
+            if (self::has_visible_html_content((string)$candidate)) {
+                return (string)$candidate;
+            }
+        }
+
+        foreach ($candidates as $candidate) {
+            if (trim((string)$candidate) !== '') {
+                return (string)$candidate;
+            }
+        }
+
+        return '';
+    }
+
     public static function get_activity_data_parameters(): external_function_parameters {
         return new external_function_parameters([
             'courseId' => new external_value(PARAM_INT, 'Course id', VALUE_REQUIRED),
@@ -211,15 +262,15 @@ class assign_activity extends external_api {
 
             $cansubmit = (has_capability('mod/assign:submit', $cmcontext) || is_siteadmin()) ? 1 : 0;
             $submissionsopen = ($cansubmit && $assign->submissions_open((int)$USER->id)) ? 1 : 0;
+            $assignmentintro = self::resolve_assignment_intro($assignrecord, $cm, $cmcontext);
 
             $payload = [
                 'courseid' => (int)$course->id,
                 'moduleid' => (int)$cm->id,
                 'assignmentid' => (int)$assignrecord->id,
                 'name' => (string)$cm->name,
-                'intro' => !empty($assignrecord->intro)
-                    ? format_text($assignrecord->intro, (int)$assignrecord->introformat, ['context' => $cmcontext])
-                    : '',
+                'intro' => $assignmentintro,
+                'description' => $assignmentintro,
                 'allowsubmissionsfromdate' => (int)$assignrecord->allowsubmissionsfromdate,
                 'duedate' => (int)$assignrecord->duedate,
                 'cutoffdate' => (int)$assignrecord->cutoffdate,
