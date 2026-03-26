@@ -1110,7 +1110,7 @@ Vue.component('grademodal', {
                 return;
             }
 
-            // Pre-fetch the student period name to show in the confirmation dialog
+            // Pre-fetch the active lective period name to show in the confirmation dialog
             let periodLabel = '';
             try {
                 const url = window.wsUrl || (window.location.origin + '/local/grupomakro_core/ajax.php');
@@ -1120,7 +1120,9 @@ Vue.component('grademodal', {
                     userId: this.dataStudent.id,
                 }});
                 const preData = ((preRes.data || {}).data) || {};
-                if (preData.periodname) periodLabel = '<br><small><b>Período:</b> ' + preData.periodname + '</small>';
+                if (preData.periodname) {
+                    periodLabel = '<br><small><b>Periodo activo:</b> ' + preData.periodname + '</small>';
+                }
             } catch (_) {}
 
             const swResult = await window.Swal.fire({

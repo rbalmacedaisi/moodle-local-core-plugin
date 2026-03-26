@@ -1515,19 +1515,38 @@ try {
 
         case 'local_grupomakro_get_student_period':
             require_capability('moodle/site:config', $context);
-            $sp_userid = required_param('userId', PARAM_INT);
+            required_param('userId', PARAM_INT); // Mantener compatibilidad con el caller actual.
+            $now = time();
             $sp_period = $DB->get_record_sql(
-                "SELECT gap.id, gap.name
-                   FROM {gmk_academic_periods} gap
-                   JOIN {local_learning_users} llu ON llu.academicperiodid = gap.id
-                  WHERE llu.userid = :userid
-                  ORDER BY gap.id DESC
+                "SELECT id, name
+                   FROM {gmk_academic_periods}
+                  WHERE status = 1
+                    AND startdate > 0
+                    AND startdate <= :now
+                    AND (enddate = 0 OR enddate >= :now)
+                  ORDER BY startdate DESC, id DESC
                   LIMIT 1",
-                ['userid' => $sp_userid]
+                ['now' => $now]
             );
             if (!$sp_period) {
                 $sp_period = $DB->get_record_sql(
-                    "SELECT id, name FROM {gmk_academic_periods} WHERE status = 1 ORDER BY id DESC LIMIT 1"
+                    "SELECT id, name
+                       FROM {gmk_academic_periods}
+                      WHERE status = 1
+                        AND startdate > 0
+                        AND startdate <= :now
+                      ORDER BY startdate DESC, id DESC
+                      LIMIT 1",
+                    ['now' => $now]
+                );
+            }
+            if (!$sp_period) {
+                $sp_period = $DB->get_record_sql(
+                    "SELECT id, name
+                       FROM {gmk_academic_periods}
+                      WHERE status = 1
+                      ORDER BY startdate DESC, id DESC
+                      LIMIT 1"
                 );
             }
             $response = [
