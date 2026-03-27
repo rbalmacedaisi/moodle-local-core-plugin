@@ -32,6 +32,11 @@ class attendance_manager extends external_api {
         $params = ['sessid' => (int)$sessionid];
         if ($token !== '') {
             $params['gmkqr'] = $token;
+            // Backward-compatible fallback for older student-app bundles that
+            // only preserve the historical qrpass query parameter through login.
+            if ($password === '') {
+                $params['qrpass'] = 'gmk:' . $token;
+            }
         }
         if ($password !== '') {
             $params['qrpass'] = $password;

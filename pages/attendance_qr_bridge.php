@@ -330,6 +330,13 @@ $sessionid = required_param('sessid', PARAM_INT);
 $qrpass = optional_param('qrpass', '', PARAM_RAW_TRIMMED);
 $gmkqrtoken = optional_param('gmkqr', '', PARAM_RAW_TRIMMED);
 
+// Older student-app bundles only preserve qrpass across the login flow.
+// Accept the signed bridge token there too when prefixed with "gmk:".
+if ($gmkqrtoken === '' && strpos($qrpass, 'gmk:') === 0) {
+    $gmkqrtoken = substr($qrpass, 4);
+    $qrpass = '';
+}
+
 // If the student has no Moodle session, route them through the Vue student
 // app instead of Moodle's login page. The Vue login (soluttolms_core/token.php)
 // creates both the Vue token and a Moodle web session, so returning to this
@@ -341,6 +348,7 @@ if (!isloggedin() || isguestuser()) {
     $vueparams = ['sessid' => (int)$sessionid];
     if ($gmkqrtoken !== '') {
         $vueparams['gmkqr'] = $gmkqrtoken;
+        $vueparams['qrpass'] = 'gmk:' . $gmkqrtoken;
     }
     if ($qrpass !== '') {
         $vueparams['qrpass'] = $qrpass;
