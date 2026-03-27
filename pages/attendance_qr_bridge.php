@@ -192,6 +192,95 @@ function gmk_qr_log_decision($traceid, $status, $reasoncode, $message, $sessioni
 }
 
 /**
+ * Decode URL-safe base64 payloads.
+ *
+ * @param string $value
+ * @return string|false
+ */
+function gmk_qr_base64url_decode($value) {
+    $value = strtr((string)$value, '-_', '+/');
+    $padding = strlen($value) % 4;
+    if ($padding > 0) {
+        $value .= str_repeat('=', 4 - $padding);
+    }
+    return base64_decode($value, true);
+}
+
+/**
+ * Resolve the signing secret for bridge QR tokens.
+ *
+ * @param stdClass $session
+ * @return string
+ */
+function gmk_qr_bridge_secret($session) {
+    global $CFG;
+
+    $secretbase = (string)($CFG->passwordsaltmain ?? '');
+    if ($secretbase === '') {
+        $secretbase = sha1((string)($CFG->wwwroot ?? ''));
+    }
+
+    return hash('sha256', implode('|', [
+        $secretbase,
+        (string)((int)$session->id),
+        (string)((int)$session->attendanceid),
+        (string)($session->rotateqrcodesecret ?? ''),
+        (string)($session->studentpassword ?? ''),
+    ]));
+}
+
+/**
+ * Validate a signed bridge QR token.
+ *
+ * @param string $token
+ * @param stdClass $session
+ * @return array{0:bool,1:string,2:array}
+ */
+function gmk_qr_validate_bridge_token($token, $session) {
+    $token = trim((string)$token);
+    if ($token === '') {
+        return [false, 'missing', []];
+    }
+
+    $parts = explode('.', $token, 2);
+    if (count($parts) !== 2) {
+        return [false, 'format', []];
+    }
+
+    [$payloadb64, $signature] = $parts;
+    $expected = hash_hmac('sha256', $payloadb64, gmk_qr_bridge_secret($session));
+    if (!hash_equals($expected, (string)$signature)) {
+        return [false, 'signature', []];
+    }
+
+    $decoded = gmk_qr_base64url_decode($payloadb64);
+    if ($decoded === false) {
+        return [false, 'decode', []];
+    }
+
+    $payload = json_decode($decoded, true);
+    if (!is_array($payload)) {
+        return [false, 'json', []];
+    }
+
+    if ((int)($payload['sid'] ?? 0) !== (int)$session->id) {
+        return [false, 'session', $payload];
+    }
+
+    $issuedat = (int)($payload['iat'] ?? 0);
+    $expiresat = (int)($payload['exp'] ?? 0);
+    $now = time();
+    if ($expiresat <= 0 || $expiresat < $now) {
+        return [false, 'expired', $payload];
+    }
+    if ($issuedat > ($now + 60)) {
+        return [false, 'issued_in_future', $payload];
+    }
+
+    return [true, 'ok', $payload];
+}
+
+/**
  * Redirect to Vue result page.
  *
  * @param string $status
@@ -239,6 +328,7 @@ function gmk_qr_finish($status, $reasoncode, $message, array $target, $sessionid
 
 $sessionid = required_param('sessid', PARAM_INT);
 $qrpass = optional_param('qrpass', '', PARAM_RAW_TRIMMED);
+$gmkqrtoken = optional_param('gmkqr', '', PARAM_RAW_TRIMMED);
 
 // If the student has no Moodle session, route them through the Vue student
 // app instead of Moodle's login page. The Vue login (soluttolms_core/token.php)
@@ -249,6 +339,9 @@ $qrpass = optional_param('qrpass', '', PARAM_RAW_TRIMMED);
 if (!isloggedin() || isguestuser()) {
     $vuebase  = gmk_qr_student_app_base_url();
     $vueparams = ['sessid' => (int)$sessionid];
+    if ($gmkqrtoken !== '') {
+        $vueparams['gmkqr'] = $gmkqrtoken;
+    }
     if ($qrpass !== '') {
         $vueparams['qrpass'] = $qrpass;
     }
@@ -312,6 +405,9 @@ if (!$canmark) {
 
 $attconfig = get_config('attendance');
 $qrpassflag = false;
+$signedtokenflag = false;
+$signedtokenreason = 'missing';
+$signedtokenpayload = [];
 
 // Minimum grace period: 3 minutes (180 s) to allow students time to authenticate
 // through the Vue LXP before the rotated QR is considered expired.
@@ -319,7 +415,11 @@ if (!defined('GMK_QR_MIN_EXPIRY_MARGIN')) {
     define('GMK_QR_MIN_EXPIRY_MARGIN', 180);
 }
 
-if (gmk_qr_is_session_open_for_students($session) && (int)$session->rotateqrcode === 1) {
+if ($gmkqrtoken !== '') {
+    [$signedtokenflag, $signedtokenreason, $signedtokenpayload] = gmk_qr_validate_bridge_token($gmkqrtoken, $session);
+}
+
+if (!$signedtokenflag && gmk_qr_is_session_open_for_students($session) && (int)$session->rotateqrcode === 1) {
     $configured_margin = (int)($attconfig->rotateqrcodeexpirymargin ?? 0);
     $effective_margin  = max($configured_margin, GMK_QR_MIN_EXPIRY_MARGIN);
     if ((string)$qrpass !== '') {
@@ -341,7 +441,13 @@ if (gmk_qr_is_session_open_for_students($session) && (int)$session->rotateqrcode
             $target,
             $sessionid,
             (int)$USER->id,
-            ['rotate' => 1]
+            [
+                'rotate' => 1,
+                'signedtokenpresent' => ($gmkqrtoken !== ''),
+                'signedtokenreason' => $signedtokenreason,
+                'signedtokenpayload' => $signedtokenpayload,
+                'qrpasspresent' => ((string)$qrpass !== ''),
+            ]
         );
     }
 }
@@ -358,7 +464,7 @@ if ((int)$session->autoassignstatus !== 1 || !gmk_qr_is_session_open_for_student
     );
 }
 
-if (!empty($session->studentpassword) && !$qrpassflag) {
+if (!empty($session->studentpassword) && !$qrpassflag && !$signedtokenflag) {
     if ((string)$qrpass === '' || (string)$session->studentpassword !== (string)$qrpass) {
         gmk_qr_finish(
             'error',
@@ -366,7 +472,12 @@ if (!empty($session->studentpassword) && !$qrpassflag) {
             'QR invalido para esta sesion.',
             $target,
             $sessionid,
-            (int)$USER->id
+            (int)$USER->id,
+            [
+                'signedtokenpresent' => ($gmkqrtoken !== ''),
+                'signedtokenreason' => $signedtokenreason,
+                'qrpasspresent' => ((string)$qrpass !== ''),
+            ]
         );
     }
 }

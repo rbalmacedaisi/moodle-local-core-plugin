@@ -13,28 +13,25 @@ Vue.component('attendance-panel', {
 
                 <v-alert v-if="error" type="error" dense dismissible>{{ error }}</v-alert>
 
-                <!-- Loading State -->
                 <div v-if="loading" class="text-center py-5">
                     <v-progress-circular indeterminate color="primary"></v-progress-circular>
                     <div class="caption mt-2">Cargando sesiones...</div>
                 </div>
 
-                <!-- Empty State -->
                 <div v-else-if="sessions.length === 0" class="text-center py-5 grey--text">
                     <v-icon size="48" color="grey lighten-2">mdi-calendar-blank</v-icon>
                     <p>No hay sesiones de asistencia programadas para hoy.</p>
                 </div>
 
-                <!-- Sessions List -->
                 <v-list v-else two-line>
                     <v-list-item v-for="session in sessions" :key="session.id" class="mb-2 elevation-1 rounded white">
                         <v-list-item-avatar color="primary" class="white--text font-weight-bold">
                             {{ session.date.substr(0, 2) }}
                         </v-list-item-avatar>
-                        
+
                         <v-list-item-content>
                             <v-list-item-title class="font-weight-bold">
-                                {{ session.description || 'Sesión Regular' }}
+                                {{ session.description || 'Sesion Regular' }}
                             </v-list-item-title>
                             <v-list-item-subtitle>
                                 <v-icon x-small>mdi-clock-outline</v-icon> {{ session.time }}
@@ -45,22 +42,20 @@ Vue.component('attendance-panel', {
 
                         <v-list-item-action>
                             <div class="d-flex">
-                                <!-- Project QR Button -->
-                                <v-btn 
+                                <v-btn
                                     v-if="session.has_qr"
-                                    color="secondary" 
-                                    dark 
-                                    small 
+                                    color="secondary"
+                                    dark
+                                    small
                                     class="mr-2"
                                     @click="showQR(session)"
                                 >
                                     <v-icon left>mdi-qrcode</v-icon> Proyectar QR
                                 </v-btn>
-                                
-                                <!-- Go to Moodle (Manual Mark) -->
-                                <v-btn 
-                                    icon 
-                                    :href="config.wwwroot + '/mod/attendance/take.php?id=' + session.id" 
+
+                                <v-btn
+                                    icon
+                                    :href="config.wwwroot + '/mod/attendance/take.php?id=' + session.id"
                                     target="_blank"
                                     title="Pasar lista manual"
                                 >
@@ -72,11 +67,10 @@ Vue.component('attendance-panel', {
                 </v-list>
             </v-card-text>
 
-            <!-- QR Dialog -->
             <v-dialog v-model="qrDialog" max-width="500px" persistent>
                 <v-card v-if="currentQR" class="text-center pa-4">
                     <v-card-title class="justify-center text-h5">
-                        Código de Asistencia
+                        Codigo de Asistencia
                     </v-card-title>
                     <v-card-text>
                         <div class="d-flex justify-center my-4" style="background: white; padding: 10px; display: inline-block;">
@@ -86,11 +80,20 @@ Vue.component('attendance-panel', {
                             {{ currentQR.password }}
                         </div>
                         <div class="caption mt-2" v-if="currentQR.rotate">
-                            El código rota automáticamente.
+                            El codigo se actualiza automaticamente.
+                            <div class="mt-2" v-if="qrSecondsLeft > 0">
+                                <v-progress-linear
+                                    :value="(qrSecondsLeft / qrTotalSeconds) * 100"
+                                    color="primary"
+                                    height="8"
+                                    rounded
+                                ></v-progress-linear>
+                                <div class="caption mt-1">Actualizando en {{ qrSecondsLeft }}s</div>
+                            </div>
                         </div>
                     </v-card-text>
                     <v-card-actions class="justify-center">
-                        <v-btn color="primary" text @click="qrDialog = false">Cerrar</v-btn>
+                        <v-btn color="primary" text @click="closeQRDialog">Cerrar</v-btn>
                     </v-card-actions>
                 </v-card>
             </v-dialog>
@@ -103,8 +106,18 @@ Vue.component('attendance-panel', {
             error: null,
             qrDialog: false,
             currentQR: null,
-            loadingQR: false // internal loading for QR fetch
+            currentSession: null,
+            loadingQR: false,
+            qrTimer: null,
+            qrTotalSeconds: 180,
+            qrSecondsLeft: 0
         };
+    },
+    beforeDestroy() {
+        if (this.qrTimer) {
+            clearInterval(this.qrTimer);
+            this.qrTimer = null;
+        }
     },
     mounted() {
         this.fetchSessions();
@@ -117,7 +130,6 @@ Vue.component('attendance-panel', {
                 const params = new URLSearchParams();
                 params.append('action', 'local_grupomakro_get_attendance_sessions');
                 params.append('classid', this.classId);
-                // params.append('sesskey', this.config.sesskey); // Usually needed
 
                 const response = await axios.post(this.config.wwwroot + '/local/grupomakro_core/ajax.php', params);
 
@@ -128,13 +140,14 @@ Vue.component('attendance-panel', {
                 }
             } catch (e) {
                 console.error(e);
-                this.error = 'Error de conexión';
+                this.error = 'Error de conexion';
             } finally {
                 this.loading = false;
             }
         },
         async showQR(session) {
-            this.loadingQR = true; // Could show a loader toast
+            this.currentSession = session;
+            this.loadingQR = true;
             try {
                 const params = new URLSearchParams();
                 params.append('action', 'local_grupomakro_get_session_qr');
@@ -144,15 +157,50 @@ Vue.component('attendance-panel', {
 
                 if (response.data && response.data.status === 'success') {
                     this.currentQR = response.data;
+                    this.currentSession = session;
                     this.qrDialog = true;
+                    if (this.currentQR.rotate) {
+                        this.startQRRotation(this.currentQR.rotate_interval);
+                    } else if (this.qrTimer) {
+                        clearInterval(this.qrTimer);
+                        this.qrTimer = null;
+                    }
                 } else {
                     alert(response.data.message || 'Error al obtener QR');
                 }
             } catch (e) {
                 console.error(e);
-                alert('Error de conexión al obtener QR');
+                alert('Error de conexion al obtener QR');
             } finally {
                 this.loadingQR = false;
+            }
+        },
+        startQRRotation(intervalSeconds = 180) {
+            if (this.qrTimer) {
+                clearInterval(this.qrTimer);
+            }
+
+            const parsed = parseInt(intervalSeconds, 10);
+            this.qrTotalSeconds = (!isNaN(parsed) && parsed > 1) ? parsed : 180;
+            this.qrSecondsLeft = this.qrTotalSeconds;
+
+            this.qrTimer = setInterval(() => {
+                this.qrSecondsLeft--;
+                if (this.qrSecondsLeft <= 0) {
+                    clearInterval(this.qrTimer);
+                    this.qrTimer = null;
+                    if (this.qrDialog && this.currentSession) {
+                        this.showQR(this.currentSession);
+                    }
+                }
+            }, 1000);
+        },
+        closeQRDialog() {
+            this.qrDialog = false;
+            this.currentSession = null;
+            if (this.qrTimer) {
+                clearInterval(this.qrTimer);
+                this.qrTimer = null;
             }
         }
     }

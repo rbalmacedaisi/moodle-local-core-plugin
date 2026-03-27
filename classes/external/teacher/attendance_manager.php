@@ -17,16 +17,22 @@ use context_course;
 use mod_attendance_structure;
 
 class attendance_manager extends external_api {
+    /** @var int Lifetime in seconds for QR bridge tokens. */
+    private const QR_BRIDGE_TTL = 180;
 
     /**
      * Build the QR bridge URL.
      *
      * @param int $sessionid
      * @param string $password
+     * @param string $token
      * @return string
      */
-    private static function build_qr_bridge_url($sessionid, $password) {
+    private static function build_qr_bridge_url($sessionid, $password = '', $token = '') {
         $params = ['sessid' => (int)$sessionid];
+        if ($token !== '') {
+            $params['gmkqr'] = $token;
+        }
         if ($password !== '') {
             $params['qrpass'] = $password;
         }
@@ -63,6 +69,65 @@ class attendance_manager extends external_api {
         $html .= '</div>';
 
         return $html;
+    }
+
+    /**
+     * Encode data using URL-safe base64 without padding.
+     *
+     * @param string $value
+     * @return string
+     */
+    private static function base64url_encode($value) {
+        return rtrim(strtr(base64_encode($value), '+/', '-_'), '=');
+    }
+
+    /**
+     * Build the signing secret for QR bridge tokens.
+     *
+     * @param \stdClass $session
+     * @return string
+     */
+    private static function get_qr_bridge_secret($session) {
+        global $CFG;
+
+        $secretbase = (string)($CFG->passwordsaltmain ?? '');
+        if ($secretbase === '') {
+            $secretbase = sha1((string)($CFG->wwwroot ?? ''));
+        }
+
+        return hash('sha256', implode('|', [
+            $secretbase,
+            (string)((int)$session->id),
+            (string)((int)$session->attendanceid),
+            (string)($session->rotateqrcodesecret ?? ''),
+            (string)($session->studentpassword ?? ''),
+        ]));
+    }
+
+    /**
+     * Build a signed QR token for the bridge with a fixed lifetime.
+     *
+     * @param \stdClass $session
+     * @return string
+     */
+    private static function build_qr_bridge_token($session) {
+        $now = time();
+        try {
+            $nonce = bin2hex(random_bytes(8));
+        } catch (\Throwable $e) {
+            $nonce = substr(md5(uniqid('', true)), 0, 16);
+        }
+
+        $payload = [
+            'sid' => (int)$session->id,
+            'iat' => $now,
+            'exp' => $now + self::QR_BRIDGE_TTL,
+            'nonce' => $nonce,
+        ];
+        $encodedpayload = self::base64url_encode(json_encode($payload));
+        $signature = hash_hmac('sha256', $encodedpayload, self::get_qr_bridge_secret($session));
+
+        return $encodedpayload . '.' . $signature;
     }
 
     /**
@@ -350,48 +415,21 @@ class attendance_manager extends external_api {
 
         try {
             $session = $DB->get_record('attendance_sessions', ['id' => $sessionid], '*', MUST_EXIST);
-            $att = $DB->get_record('attendance', ['id' => $session->attendanceid], '*', MUST_EXIST);
-            $attconfig = get_config('attendance');
-            
-            // Resolve the password embedded in QR.
-            // For rotate QR sessions, attendance.php validates against attendance_rotate_passwords.
-            $password = (string)($session->studentpassword ?? '');
-            if (!empty($session->rotateqrcode)) {
-                $sql = "SELECT password
-                          FROM {attendance_rotate_passwords}
-                         WHERE attendanceid = :sessionid
-                           AND expirytime > :mintime
-                      ORDER BY expirytime ASC";
-                $rotrow = $DB->get_record_sql($sql, [
-                    'sessionid' => (int)$session->id,
-                    'mintime' => time()
-                ], IGNORE_MULTIPLE);
-                if (empty($rotrow->password) && function_exists('attendance_generate_passwords')) {
-                    attendance_generate_passwords($session);
-                    $rotrow = $DB->get_record_sql($sql, [
-                        'sessionid' => (int)$session->id,
-                        'mintime' => time()
-                    ], IGNORE_MULTIPLE);
-                }
-                if (!empty($rotrow->password)) {
-                    $password = (string)$rotrow->password;
-                    // attendance_renderqrcode reads session->studentpassword.
-                    $session->studentpassword = $password;
-                }
-            } else if (function_exists('attendance_generate_passwords') && empty($password)) {
-                attendance_generate_passwords($session);
-                $password = (string)($session->studentpassword ?? '');
-            }
-            // Build QR to local bridge (student gets Vue confirmation page after scan).
-            $bridgeurl = self::build_qr_bridge_url((int)$session->id, $password);
-            $html = self::render_qr_bridge_html($bridgeurl, $password);
+            $DB->get_record('attendance', ['id' => $session->attendanceid], '*', MUST_EXIST);
+
+            // The custom teacher panel uses a signed bridge token with a fixed
+            // 3-minute lifetime so scanning does not depend on mod_attendance's
+            // internal rotating password state.
+            $bridgetoken = self::build_qr_bridge_token($session);
+            $bridgeurl = self::build_qr_bridge_url((int)$session->id, '', $bridgetoken);
+            $html = self::render_qr_bridge_html($bridgeurl);
 
             return [
                 'status' => 'success', 
                 'html' => $html, 
-                'password' => $password,
-                'rotate' => $session->rotateqrcode ?? 0,
-                'rotate_interval' => (int)($attconfig->rotateqrcodeinterval ?? 10)
+                'password' => '',
+                'rotate' => 1,
+                'rotate_interval' => self::QR_BRIDGE_TTL
             ];
         } catch (\Throwable $e) {
             return [
