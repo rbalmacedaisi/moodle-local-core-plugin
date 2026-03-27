@@ -183,12 +183,128 @@ function gmk_qr_log_decision($traceid, $status, $reasoncode, $message, $sessioni
         'classname' => (string)($target['classname'] ?? ''),
         'coursename' => (string)($target['coursename'] ?? ''),
         'extra' => $extra,
+        'request' => gmk_qr_request_snapshot((int)$sessionid),
     ];
     $logline = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     if (!is_string($logline) || $logline === '') {
         $logline = '{"traceid":"' . (string)$traceid . '","status":"log_encode_error"}';
     }
     @file_put_contents(__DIR__ . '/../gmk_qr_attendance.log', $logline . PHP_EOL, FILE_APPEND);
+}
+
+/**
+ * Build a diagnostic snapshot for the current QR attempt.
+ *
+ * @param int $sessionid
+ * @return array
+ */
+function gmk_qr_request_snapshot($sessionid = 0) {
+    global $DB, $gmkqrtoken, $qrpass;
+
+    $sessioncookie = session_name();
+    $snapshot = [
+        'server_time' => time(),
+        'server_time_iso' => date('c'),
+        'request_method' => (string)($_SERVER['REQUEST_METHOD'] ?? ''),
+        'request_uri' => (string)($_SERVER['REQUEST_URI'] ?? ''),
+        'remote_addr' => function_exists('getremoteaddr') ? (string)getremoteaddr(null) : '',
+        'user_agent' => substr((string)($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 255),
+        'referer' => substr((string)($_SERVER['HTTP_REFERER'] ?? ''), 0, 255),
+        'origin' => substr((string)($_SERVER['HTTP_ORIGIN'] ?? ''), 0, 255),
+        'query' => [
+            'keys' => array_keys($_GET ?? []),
+            'gmkqr_present' => ((string)$gmkqrtoken !== ''),
+            'gmkqr_length' => strlen((string)$gmkqrtoken),
+            'gmkqr_digest' => ((string)$gmkqrtoken !== '') ? substr(hash('sha256', (string)$gmkqrtoken), 0, 16) : '',
+            'qrpass_present' => ((string)$qrpass !== ''),
+            'qrpass_length' => strlen((string)$qrpass),
+            'qrpass_prefix' => substr((string)$qrpass, 0, 16),
+            'qrpass_digest' => ((string)$qrpass !== '') ? substr(hash('sha256', (string)$qrpass), 0, 16) : '',
+        ],
+        'cookies' => [
+            'session_cookie_name' => (string)$sessioncookie,
+            'session_cookie_present' => ($sessioncookie !== '' && isset($_COOKIE[$sessioncookie])),
+            'cookie_names' => array_slice(array_keys($_COOKIE ?? []), 0, 20),
+        ],
+        'signedtoken' => [
+            'present' => ((string)$gmkqrtoken !== ''),
+            'valid' => !empty($GLOBALS['GMK_QR_DEBUG_SIGNEDTOKENFLAG']),
+            'reason' => (string)($GLOBALS['GMK_QR_DEBUG_SIGNEDTOKENREASON'] ?? ''),
+            'payload' => $GLOBALS['GMK_QR_DEBUG_SIGNEDTOKENPAYLOAD'] ?? [],
+        ],
+        'qrpass_validation' => [
+            'accepted' => !empty($GLOBALS['GMK_QR_DEBUG_QRPASSFLAG']),
+        ],
+    ];
+
+    $currentsession = $GLOBALS['GMK_QR_DEBUG_SESSION'] ?? null;
+    if (!$currentsession && !empty($sessionid)) {
+        $currentsession = $DB->get_record('attendance_sessions', ['id' => (int)$sessionid], '*', IGNORE_MISSING);
+    }
+
+    if ($currentsession) {
+        $attconfig = get_config('attendance');
+        $margin = max(
+            (int)($attconfig->rotateqrcodeexpirymargin ?? 0),
+            defined('GMK_QR_MIN_EXPIRY_MARGIN') ? GMK_QR_MIN_EXPIRY_MARGIN : 0
+        );
+        $now = time();
+        $validnow = 0;
+        $validmargin = 0;
+        $nextexpiry = 0;
+        $lastexpiry = 0;
+        try {
+            $validnow = (int)$DB->count_records_select(
+                'attendance_rotate_passwords',
+                'attendanceid = :sessionid AND expirytime > :now',
+                ['sessionid' => (int)$currentsession->id, 'now' => $now]
+            );
+            $validmargin = (int)$DB->count_records_select(
+                'attendance_rotate_passwords',
+                'attendanceid = :sessionid AND expirytime > :mintime',
+                ['sessionid' => (int)$currentsession->id, 'mintime' => ($now - $margin)]
+            );
+            $nextexpiry = (int)$DB->get_field_sql(
+                'SELECT MIN(expirytime)
+                   FROM {attendance_rotate_passwords}
+                  WHERE attendanceid = :sessionid
+                    AND expirytime > :now',
+                ['sessionid' => (int)$currentsession->id, 'now' => $now]
+            );
+            $lastexpiry = (int)$DB->get_field_sql(
+                'SELECT MAX(expirytime)
+                   FROM {attendance_rotate_passwords}
+                  WHERE attendanceid = :sessionid',
+                ['sessionid' => (int)$currentsession->id]
+            );
+        } catch (Throwable $e) {
+            // Keep the snapshot lightweight and non-blocking.
+        }
+
+        $sessionend = ((int)$currentsession->sessdate) + ((int)$currentsession->duration);
+        $snapshot['session'] = [
+            'id' => (int)$currentsession->id,
+            'attendanceid' => (int)$currentsession->attendanceid,
+            'groupid' => (int)($currentsession->groupid ?? 0),
+            'sessdate' => (int)$currentsession->sessdate,
+            'duration' => (int)$currentsession->duration,
+            'enddate' => $sessionend,
+            'studentscanmark' => (int)($currentsession->studentscanmark ?? 0),
+            'autoassignstatus' => (int)($currentsession->autoassignstatus ?? 0),
+            'includeqrcode' => (int)($currentsession->includeqrcode ?? 0),
+            'rotateqrcode' => (int)($currentsession->rotateqrcode ?? 0),
+            'studentsearlyopentime' => (int)($currentsession->studentsearlyopentime ?? 0),
+            'studentpassword_present' => (trim((string)($currentsession->studentpassword ?? '')) !== ''),
+            'open_now' => gmk_qr_is_session_open_for_students($currentsession),
+            'rotation_margin' => $margin,
+            'rotation_valid_now' => $validnow,
+            'rotation_valid_with_margin' => $validmargin,
+            'rotation_next_expiry' => $nextexpiry,
+            'rotation_last_expiry' => $lastexpiry,
+        ];
+    }
+
+    return $snapshot;
 }
 
 /**
@@ -344,6 +460,16 @@ if ($gmkqrtoken === '' && strpos($qrpass, 'gmk:') === 0) {
 // This avoids the issue where the custom Moodle theme ignores wantsurl and
 // sends unauthenticated users to home after login instead of back here.
 if (!isloggedin() || isguestuser()) {
+    gmk_qr_log_decision(
+        gmk_qr_trace_id(),
+        'redirect',
+        'bridge_requires_login',
+        'Bridge redirigido al LXP para autenticacion previa.',
+        (int)$sessionid,
+        0,
+        ['classid' => 0, 'courseid' => 0, 'classname' => '', 'coursename' => ''],
+        ['target' => 'lxp_attendance_qr']
+    );
     $vuebase  = gmk_qr_student_app_base_url();
     $vueparams = ['sessid' => (int)$sessionid];
     if ($gmkqrtoken !== '') {
@@ -361,6 +487,8 @@ $session = $DB->get_record('attendance_sessions', ['id' => $sessionid], '*', MUS
 $attendance = $DB->get_record('attendance', ['id' => $session->attendanceid], '*', MUST_EXIST);
 $cm = get_coursemodule_from_instance('attendance', (int)$attendance->id, 0, false, MUST_EXIST);
 $course = $DB->get_record('course', ['id' => (int)$cm->course], '*', MUST_EXIST);
+$GLOBALS['GMK_QR_DEBUG_SESSION'] = $session;
+$GLOBALS['GMK_QR_DEBUG_ATTENDANCE'] = $attendance;
 
 require_login($course, true, $cm);
 
@@ -426,6 +554,9 @@ if (!defined('GMK_QR_MIN_EXPIRY_MARGIN')) {
 if ($gmkqrtoken !== '') {
     [$signedtokenflag, $signedtokenreason, $signedtokenpayload] = gmk_qr_validate_bridge_token($gmkqrtoken, $session);
 }
+$GLOBALS['GMK_QR_DEBUG_SIGNEDTOKENFLAG'] = $signedtokenflag;
+$GLOBALS['GMK_QR_DEBUG_SIGNEDTOKENREASON'] = $signedtokenreason;
+$GLOBALS['GMK_QR_DEBUG_SIGNEDTOKENPAYLOAD'] = $signedtokenpayload;
 
 if (!$signedtokenflag && gmk_qr_is_session_open_for_students($session) && (int)$session->rotateqrcode === 1) {
     $configured_margin = (int)($attconfig->rotateqrcodeexpirymargin ?? 0);
@@ -441,6 +572,7 @@ if (!$signedtokenflag && gmk_qr_is_session_open_for_students($session) && (int)$
             ]
         );
     }
+    $GLOBALS['GMK_QR_DEBUG_QRPASSFLAG'] = $qrpassflag;
     if (!$qrpassflag) {
         gmk_qr_finish(
             'error',
