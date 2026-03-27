@@ -165,6 +165,24 @@ function gmk_qr_debug_token_from_qrpass($qrpass) {
 }
 
 /**
+ * Check whether a session is currently open for students.
+ *
+ * @param stdClass $session
+ * @return bool
+ */
+function gmk_qr_debug_is_session_open_for_students($session) {
+    if (function_exists('attendance_session_open_for_students')) {
+        return (bool)attendance_session_open_for_students($session);
+    }
+
+    $sessdate = isset($session->sessdate) ? (int)$session->sessdate : 0;
+    $earlyopen = isset($session->studentsearlyopentime) ? (int)$session->studentsearlyopentime : 0;
+    $sessionopens = $sessdate - max(0, $earlyopen);
+
+    return time() > $sessionopens;
+}
+
+/**
  * Read recent log entries, optionally filtered by trace or session.
  *
  * @param string $logfile
@@ -332,7 +350,7 @@ function gmk_qr_debug_session_data($sessionid) {
         'cm' => $cm,
         'course' => $course,
         'class' => $class,
-        'open_now' => attendance_session_open_for_students($session),
+        'open_now' => gmk_qr_debug_is_session_open_for_students($session),
         'margin' => $margin,
         'rotation_valid_now' => $validnow,
         'rotation_valid_margin' => $validmargin,
