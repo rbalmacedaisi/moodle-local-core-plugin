@@ -357,7 +357,6 @@ class attendance_manager extends external_api {
             // For rotate QR sessions, attendance.php validates against attendance_rotate_passwords.
             $password = (string)($session->studentpassword ?? '');
             if (!empty($session->rotateqrcode)) {
-                $margin = (int)($attconfig->rotateqrcodeexpirymargin ?? 0);
                 $sql = "SELECT password
                           FROM {attendance_rotate_passwords}
                          WHERE attendanceid = :sessionid
@@ -365,13 +364,13 @@ class attendance_manager extends external_api {
                       ORDER BY expirytime ASC";
                 $rotrow = $DB->get_record_sql($sql, [
                     'sessionid' => (int)$session->id,
-                    'mintime' => time() - $margin
+                    'mintime' => time()
                 ], IGNORE_MULTIPLE);
                 if (empty($rotrow->password) && function_exists('attendance_generate_passwords')) {
                     attendance_generate_passwords($session);
                     $rotrow = $DB->get_record_sql($sql, [
                         'sessionid' => (int)$session->id,
-                        'mintime' => time() - $margin
+                        'mintime' => time()
                     ], IGNORE_MULTIPLE);
                 }
                 if (!empty($rotrow->password)) {
