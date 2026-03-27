@@ -226,6 +226,7 @@ function gmk_qr_request_snapshot($sessionid = 0) {
             'session_cookie_present' => ($sessioncookie !== '' && isset($_COOKIE[$sessioncookie])),
             'cookie_names' => array_slice(array_keys($_COOKIE ?? []), 0, 20),
         ],
+        'pending_cookie' => $GLOBALS['GMK_QR_DEBUG_PENDINGCOOKIE'] ?? [],
         'signedtoken' => [
             'present' => ((string)$gmkqrtoken !== ''),
             'valid' => !empty($GLOBALS['GMK_QR_DEBUG_SIGNEDTOKENFLAG']),
@@ -320,6 +321,181 @@ function gmk_qr_base64url_decode($value) {
         $value .= str_repeat('=', 4 - $padding);
     }
     return base64_decode($value, true);
+}
+
+/**
+ * Build the secret used to sign pending QR cookies.
+ *
+ * @param int $sessionid
+ * @return string
+ */
+function gmk_qr_pending_cookie_secret($sessionid) {
+    global $CFG;
+
+    $secretbase = (string)($CFG->passwordsaltmain ?? '');
+    if ($secretbase === '') {
+        $secretbase = sha1((string)($CFG->wwwroot ?? ''));
+    }
+
+    return hash('sha256', $secretbase . '|gmk_qr_pending|' . (int)$sessionid);
+}
+
+/**
+ * Get the cookie name used to persist QR data across auth redirects.
+ *
+ * @param int $sessionid
+ * @return string
+ */
+function gmk_qr_pending_cookie_name($sessionid) {
+    return 'gmk_qr_pending_' . (int)$sessionid;
+}
+
+/**
+ * Store pending QR data in a short-lived signed cookie.
+ *
+ * @param int $sessionid
+ * @param string $gmkqrtoken
+ * @param string $qrpass
+ * @return bool
+ */
+function gmk_qr_set_pending_cookie($sessionid, $gmkqrtoken, $qrpass) {
+    $sessionid = (int)$sessionid;
+    if ($sessionid <= 0 || ((string)$gmkqrtoken === '' && (string)$qrpass === '')) {
+        return false;
+    }
+
+    $payload = [
+        'sid' => $sessionid,
+        'exp' => time() + 600,
+        'gmkqr' => (string)$gmkqrtoken,
+        'qrpass' => (string)$qrpass,
+    ];
+    $encodedpayload = rtrim(strtr(base64_encode(json_encode($payload)), '+/', '-_'), '=');
+    $signature = hash_hmac('sha256', $encodedpayload, gmk_qr_pending_cookie_secret($sessionid));
+    $cookievalue = $encodedpayload . '.' . $signature;
+
+    return setcookie(gmk_qr_pending_cookie_name($sessionid), $cookievalue, [
+        'expires' => time() + 600,
+        'path' => '/',
+        'secure' => is_https(),
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
+}
+
+/**
+ * Read and validate pending QR data from cookie.
+ *
+ * @param int $sessionid
+ * @return array
+ */
+function gmk_qr_read_pending_cookie($sessionid) {
+    $sessionid = (int)$sessionid;
+    $name = gmk_qr_pending_cookie_name($sessionid);
+    if ($sessionid <= 0 || empty($_COOKIE[$name])) {
+        return [
+            'present' => false,
+            'valid' => false,
+            'reason' => 'missing',
+            'gmkqr' => '',
+            'qrpass' => '',
+        ];
+    }
+
+    $cookievalue = trim((string)$_COOKIE[$name]);
+    $parts = explode('.', $cookievalue, 2);
+    if (count($parts) !== 2) {
+        return [
+            'present' => true,
+            'valid' => false,
+            'reason' => 'format',
+            'gmkqr' => '',
+            'qrpass' => '',
+        ];
+    }
+
+    [$payloadb64, $signature] = $parts;
+    $expected = hash_hmac('sha256', $payloadb64, gmk_qr_pending_cookie_secret($sessionid));
+    if (!hash_equals($expected, (string)$signature)) {
+        return [
+            'present' => true,
+            'valid' => false,
+            'reason' => 'signature',
+            'gmkqr' => '',
+            'qrpass' => '',
+        ];
+    }
+
+    $decoded = gmk_qr_base64url_decode($payloadb64);
+    if ($decoded === false) {
+        return [
+            'present' => true,
+            'valid' => false,
+            'reason' => 'decode',
+            'gmkqr' => '',
+            'qrpass' => '',
+        ];
+    }
+
+    $payload = json_decode($decoded, true);
+    if (!is_array($payload)) {
+        return [
+            'present' => true,
+            'valid' => false,
+            'reason' => 'json',
+            'gmkqr' => '',
+            'qrpass' => '',
+        ];
+    }
+
+    if ((int)($payload['sid'] ?? 0) !== $sessionid) {
+        return [
+            'present' => true,
+            'valid' => false,
+            'reason' => 'session',
+            'gmkqr' => '',
+            'qrpass' => '',
+        ];
+    }
+
+    if ((int)($payload['exp'] ?? 0) < time()) {
+        return [
+            'present' => true,
+            'valid' => false,
+            'reason' => 'expired',
+            'gmkqr' => '',
+            'qrpass' => '',
+        ];
+    }
+
+    return [
+        'present' => true,
+        'valid' => true,
+        'reason' => 'ok',
+        'gmkqr' => (string)($payload['gmkqr'] ?? ''),
+        'qrpass' => (string)($payload['qrpass'] ?? ''),
+    ];
+}
+
+/**
+ * Clear the pending QR cookie for a session.
+ *
+ * @param int $sessionid
+ * @return void
+ */
+function gmk_qr_clear_pending_cookie($sessionid) {
+    $sessionid = (int)$sessionid;
+    if ($sessionid <= 0) {
+        return;
+    }
+
+    setcookie(gmk_qr_pending_cookie_name($sessionid), '', [
+        'expires' => time() - 3600,
+        'path' => '/',
+        'secure' => is_https(),
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
 }
 
 /**
@@ -439,6 +615,7 @@ function gmk_qr_redirect_to_student_ui($status, $reasoncode, $message, array $ta
 function gmk_qr_finish($status, $reasoncode, $message, array $target, $sessionid, $userid, array $extra = []) {
     $traceid = gmk_qr_trace_id();
     gmk_qr_log_decision($traceid, $status, $reasoncode, $message, (int)$sessionid, (int)$userid, $target, $extra);
+    gmk_qr_clear_pending_cookie((int)$sessionid);
     gmk_qr_redirect_to_student_ui($status, $reasoncode, $message, $target, $sessionid, $traceid);
 }
 
@@ -460,6 +637,13 @@ if ($gmkqrtoken === '' && strpos($qrpass, 'gmk:') === 0) {
 // This avoids the issue where the custom Moodle theme ignores wantsurl and
 // sends unauthenticated users to home after login instead of back here.
 if (!isloggedin() || isguestuser()) {
+    $pendingcookieset = gmk_qr_set_pending_cookie((int)$sessionid, (string)$gmkqrtoken, (string)$qrpass);
+    $GLOBALS['GMK_QR_DEBUG_PENDINGCOOKIE'] = [
+        'set' => $pendingcookieset,
+        'present' => false,
+        'recovered' => false,
+        'reason' => $pendingcookieset ? 'stored_before_redirect' : 'not_stored',
+    ];
     gmk_qr_log_decision(
         gmk_qr_trace_id(),
         'redirect',
@@ -481,6 +665,27 @@ if (!isloggedin() || isguestuser()) {
     }
     header('Location: ' . $vuebase . '/attendance/qr?' . http_build_query($vueparams));
     exit;
+}
+
+$pendingcookie = gmk_qr_read_pending_cookie((int)$sessionid);
+$GLOBALS['GMK_QR_DEBUG_PENDINGCOOKIE'] = [
+    'set' => false,
+    'present' => !empty($pendingcookie['present']),
+    'recovered' => false,
+    'reason' => (string)($pendingcookie['reason'] ?? 'missing'),
+];
+if ((string)$gmkqrtoken === '' && !empty($pendingcookie['valid']) && (string)($pendingcookie['gmkqr'] ?? '') !== '') {
+    $gmkqrtoken = (string)$pendingcookie['gmkqr'];
+    $GLOBALS['GMK_QR_DEBUG_PENDINGCOOKIE']['recovered'] = true;
+}
+if ((string)$qrpass === '' && !empty($pendingcookie['valid']) && (string)($pendingcookie['qrpass'] ?? '') !== '') {
+    $qrpass = (string)$pendingcookie['qrpass'];
+    $GLOBALS['GMK_QR_DEBUG_PENDINGCOOKIE']['recovered'] = true;
+}
+if ($gmkqrtoken === '' && strpos($qrpass, 'gmk:') === 0) {
+    $gmkqrtoken = substr($qrpass, 4);
+    $qrpass = '';
+    $GLOBALS['GMK_QR_DEBUG_PENDINGCOOKIE']['recovered'] = true;
 }
 
 $session = $DB->get_record('attendance_sessions', ['id' => $sessionid], '*', MUST_EXIST);
