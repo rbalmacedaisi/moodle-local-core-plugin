@@ -5344,8 +5344,33 @@ try {
             $forcerebuilddates = optional_param('forcerebuilddates', 0, PARAM_INT); // 1 = ignore assigned_dates and rebuild from day/range
             require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
             core_php_time_limit::raise(120);
-            $class = $DB->get_record('gmk_class', ['id' => $classid], '*', MUST_EXIST);
             $log   = [];
+
+            // Defensive lookup to handle short cross-connection lag right after phase 1 writes.
+            $class = null;
+            $lookupattempts = 0;
+            $maxlookupattempts = 4;
+            while ($lookupattempts < $maxlookupattempts && !$class) {
+                $lookupattempts++;
+                $class = $DB->get_record('gmk_class', ['id' => $classid], '*', IGNORE_MISSING);
+                if ($class) {
+                    break;
+                }
+                // Short backoff before next attempt.
+                usleep(350000);
+            }
+
+            if (!$class) {
+                $log[] = "Clase {$classid} no existe en gmk_class despues de {$lookupattempts} intentos; se omite para no bloquear la publicacion.";
+                $response = [
+                    'status' => 'success',
+                    'classid' => $classid,
+                    'skipped' => 1,
+                    'message' => 'Clase no encontrada; omitida.',
+                    'log' => $log,
+                ];
+                break;
+            }
 
             if (empty($class->corecourseid)) {
                 $response = ['status' => 'error', 'message' => 'Sin corecourseid', 'log' => []];
