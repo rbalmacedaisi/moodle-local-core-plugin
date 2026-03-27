@@ -263,11 +263,12 @@ function gmk_qr_debug_session_data($sessionid) {
             "SELECT gc.id, gc.name, gc.groupid, gc.periodid, gc.corecourseid
                FROM {gmk_class} gc
               WHERE gc.attendancemoduleid = :cmid
-                AND (:groupid = 0 OR gc.groupid = :groupid OR gc.groupid = 0)
+                AND (:groupidzero = 0 OR gc.groupid = :groupidmatch OR gc.groupid = 0)
            ORDER BY CASE WHEN gc.groupid = :groupidexact THEN 0 ELSE 1 END, gc.id DESC",
             [
                 'cmid' => (int)$cm->id,
-                'groupid' => (int)($session->groupid ?? 0),
+                'groupidzero' => (int)($session->groupid ?? 0),
+                'groupidmatch' => (int)($session->groupid ?? 0),
                 'groupidexact' => (int)($session->groupid ?? 0),
             ],
             IGNORE_MISSING
