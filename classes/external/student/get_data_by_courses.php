@@ -83,8 +83,10 @@ class get_data_by_courses extends external_api
                     continue;
                 }
 
-                // Resource intro is needed in the right panel even when "showdescription" is disabled in section list.
-                if ($module->modname === 'resource' && empty(trim(strip_tags((string)($module->description ?? ''))))) {
+                // Module intro is needed in the right panel even when "showdescription" is disabled.
+                // Assign and forum have dedicated panels that fetch descriptions independently.
+                $types_with_own_description_panel = ['assign', 'forum'];
+                if (!in_array($module->modname, $types_with_own_description_panel) && empty(trim(strip_tags((string)($module->description ?? ''))))) {
                     $cmid = (int)($module->id ?? 0);
                     if ($cmid > 0 && !empty($modinfo->cms[$cmid])) {
                         $cm = $modinfo->cms[$cmid];
