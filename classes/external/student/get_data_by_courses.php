@@ -54,6 +54,8 @@ class get_data_by_courses extends external_api
      * @return void
      */
     private static function normalize_activities_payload(object &$coursedata, int $courseid): void {
+        global $DB;
+
         if (empty($coursedata->activities) || !is_array($coursedata->activities)) {
             return;
         }
@@ -90,11 +92,46 @@ class get_data_by_courses extends external_api
                     $cmid = (int)($module->id ?? 0);
                     if ($cmid > 0 && !empty($modinfo->cms[$cmid])) {
                         $cm = $modinfo->cms[$cmid];
-                        if (!empty($cm->content)) {
+                        $rawdescription = '';
+                        $rawdescriptionformat = FORMAT_HTML;
+
+                        if (!empty(trim(strip_tags((string)($cm->content ?? ''))))) {
+                            $rawdescription = (string)$cm->content;
+                        }
+
+                        // Fallback for activities where cm_info->content is empty but intro is stored
+                        // in the module instance table (resource/page/url/label/etc).
+                        if (empty($rawdescription)) {
+                            $instanceid = (int)($module->instance ?? 0);
+                            if ($instanceid > 0) {
+                                $instancerecord = null;
+                                try {
+                                    $instancerecord = $DB->get_record((string)$module->modname, ['id' => $instanceid], '*', IGNORE_MISSING);
+                                } catch (\Throwable $e) {
+                                    $instancerecord = null;
+                                }
+
+                                if ($instancerecord) {
+                                    foreach (['intro', 'description', 'content'] as $fieldname) {
+                                        $value = isset($instancerecord->{$fieldname}) ? (string)$instancerecord->{$fieldname} : '';
+                                        if (!empty(trim(strip_tags($value)))) {
+                                            $rawdescription = $value;
+                                            $formatfield = $fieldname . 'format';
+                                            if (!empty($instancerecord->{$formatfield})) {
+                                                $rawdescriptionformat = (int)$instancerecord->{$formatfield};
+                                            }
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        if (!empty($rawdescription)) {
                             $options = ['noclean' => true];
                             list($description,) = external_format_text(
-                                $cm->content,
-                                FORMAT_HTML,
+                                $rawdescription,
+                                $rawdescriptionformat,
                                 \context_module::instance($cmid)->id,
                                 $cm->modname,
                                 'intro',
