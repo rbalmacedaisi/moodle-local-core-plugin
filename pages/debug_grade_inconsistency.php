@@ -73,7 +73,7 @@ function resolve_panel_grades_bulk(array $useridFilter = []): array {
     $result = [];
 
     // Priority 3 (lowest): course total BETWEEN 0-100
-    $rows = $DB->get_records_sql(
+    $rs = $DB->get_recordset_sql(
         "SELECT gi.courseid, gg.userid,
                 MAX(CASE WHEN COALESCE(gg.finalgrade, gg.rawgrade) BETWEEN 0 AND 100
                          THEN COALESCE(gg.finalgrade, gg.rawgrade) END) AS gradeval
@@ -83,14 +83,15 @@ function resolve_panel_grades_bulk(array $useridFilter = []): array {
        GROUP BY gi.courseid, gg.userid",
         $userParams
     );
-    foreach ($rows as $r) {
+    foreach ($rs as $r) {
         if ($r->gradeval === null || $r->userid === null) continue;
         $key = (int)$r->userid . '_' . (int)$r->courseid;
         $result[$key] = ['grade' => round((float)$r->gradeval, 2), 'source' => 'Total del curso'];
     }
+    $rs->close();
 
     // Priority 2: class category grade (gmk_class.gradecategoryid)
-    $rows = $DB->get_records_sql(
+    $rs = $DB->get_recordset_sql(
         "SELECT c.corecourseid, gg.userid,
                 MAX(CASE WHEN COALESCE(gg.finalgrade, gg.rawgrade) BETWEEN 0 AND 100
                          THEN COALESCE(gg.finalgrade, gg.rawgrade) END) AS gradeval
@@ -103,14 +104,15 @@ function resolve_panel_grades_bulk(array $useridFilter = []): array {
        GROUP BY c.corecourseid, gg.userid",
         $userParams
     );
-    foreach ($rows as $r) {
+    foreach ($rs as $r) {
         if ($r->gradeval === null || $r->userid === null) continue;
         $key = (int)$r->userid . '_' . (int)$r->corecourseid;
         $result[$key] = ['grade' => round((float)$r->gradeval, 2), 'source' => 'Categoría de clase'];
     }
+    $rs->close();
 
     // Priority 1 (highest): Nota Final Integrada
-    $rows = $DB->get_records_sql(
+    $rs = $DB->get_recordset_sql(
         "SELECT gi.courseid, gg.userid,
                 MAX(CASE WHEN COALESCE(gg.finalgrade, gg.rawgrade) BETWEEN 0 AND 100
                          THEN COALESCE(gg.finalgrade, gg.rawgrade) END) AS gradeval
@@ -122,11 +124,12 @@ function resolve_panel_grades_bulk(array $useridFilter = []): array {
        GROUP BY gi.courseid, gg.userid",
         $userParams
     );
-    foreach ($rows as $r) {
+    foreach ($rs as $r) {
         if ($r->gradeval === null || $r->userid === null) continue;
         $key = (int)$r->userid . '_' . (int)$r->courseid;
         $result[$key] = ['grade' => round((float)$r->gradeval, 2), 'source' => 'Nota Final Integrada'];
     }
+    $rs->close();
 
     return $result;
 }
@@ -140,7 +143,7 @@ function get_feedback_bulk(array $useridFilter = []): array {
         [$inSql, $userParams] = $DB->get_in_or_equal($useridFilter, SQL_PARAMS_NAMED, 'uid');
         $userWhere = "AND gg.userid $inSql";
     }
-    $rows = $DB->get_records_sql(
+    $rs = $DB->get_recordset_sql(
         "SELECT gi.courseid, gg.userid, gg.feedback
            FROM {grade_items} gi
            JOIN {grade_grades} gg ON (gg.itemid = gi.id)
@@ -148,9 +151,13 @@ function get_feedback_bulk(array $useridFilter = []): array {
         $userParams
     );
     $map = [];
-    foreach ($rows as $r) {
-        $map[(int)$r->userid . '_' . (int)$r->courseid] = $r->feedback;
+    foreach ($rs as $r) {
+        $key = (int)$r->userid . '_' . (int)$r->courseid;
+        if (!isset($map[$key])) {
+            $map[$key] = $r->feedback;
+        }
     }
+    $rs->close();
     return $map;
 }
 
