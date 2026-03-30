@@ -59,22 +59,89 @@ if ($username_input !== '') {
           ORDER BY gcp.learningplanid, gcp.periodid, c.fullname
         ", [$user->id]);
 
-        // 3. Actual grades from Moodle gradebook (grade_grades + grade_items type=course)
-        $gradebook_grades = $DB->get_records_sql("
-            SELECT gi.courseid, c.fullname as coursefullname,
-                   gg.finalgrade, gg.rawgrade, gg.feedback,
-                   gg.timemodified
+        // 3a. Feedback from gradebook (grade_items type=course, for feedback text only)
+        $gradebook_feedback = $DB->get_records_sql("
+            SELECT gi.courseid, gg.feedback
               FROM {grade_items} gi
               JOIN {grade_grades} gg ON (gg.itemid = gi.id AND gg.userid = ?)
-         LEFT JOIN {course} c ON c.id = gi.courseid
              WHERE gi.itemtype = 'course'
-          ORDER BY c.fullname
         ", [$user->id]);
+        $feedback_by_courseid = [];
+        foreach ($gradebook_feedback as $gf) {
+            $feedback_by_courseid[(int)$gf->courseid] = $gf->feedback;
+        }
 
-        // Index gradebook by courseid for easy lookup
-        $gradebook_by_courseid = [];
-        foreach ($gradebook_grades as $gg) {
-            $gradebook_by_courseid[(int)$gg->courseid] = $gg;
+        // 3b. Panel-equivalent grade: class category grade (same logic as get_student_learning_plan_pensum).
+        // Priority 1: "Nota Final Integrada" grade item (value BETWEEN 0 AND 100).
+        $nfi_grades = $DB->get_records_sql("
+            SELECT gi.courseid,
+                   MAX(CASE WHEN COALESCE(gg.finalgrade, gg.rawgrade) BETWEEN 0 AND 100
+                            THEN COALESCE(gg.finalgrade, gg.rawgrade) END) AS gradeval
+              FROM {grade_items} gi
+         LEFT JOIN {grade_grades} gg ON (gg.itemid = gi.id AND gg.userid = ?)
+             WHERE (gi.itemname LIKE '%Nota Final Integrada%'
+                    OR gi.itemname LIKE '%Final Integrada%'
+                    OR gi.itemname LIKE '%Nota Final%')
+          GROUP BY gi.courseid
+        ", [$user->id]);
+        $nfi_by_courseid = [];
+        foreach ($nfi_grades as $ng) {
+            if ($ng->gradeval !== null) {
+                $nfi_by_courseid[(int)$ng->courseid] = round((float)$ng->gradeval, 2);
+            }
+        }
+
+        // Priority 2: class category grade (gmk_class.gradecategoryid, value BETWEEN 0 AND 100).
+        $class_grades = $DB->get_records_sql("
+            SELECT c.corecourseid,
+                   MAX(CASE WHEN COALESCE(gg.finalgrade, gg.rawgrade) BETWEEN 0 AND 100
+                            THEN COALESCE(gg.finalgrade, gg.rawgrade) END) AS gradeval
+              FROM {gmk_class} c
+              JOIN {grade_items} gi ON (gi.courseid = c.corecourseid
+                                       AND gi.itemtype = 'category'
+                                       AND gi.iteminstance = c.gradecategoryid)
+         LEFT JOIN {grade_grades} gg ON (gg.itemid = gi.id AND gg.userid = ?)
+             WHERE c.gradecategoryid > 0
+          GROUP BY c.corecourseid
+        ", [$user->id]);
+        $class_by_courseid = [];
+        foreach ($class_grades as $cg) {
+            if ($cg->gradeval !== null) {
+                $class_by_courseid[(int)$cg->corecourseid] = round((float)$cg->gradeval, 2);
+            }
+        }
+
+        // Priority 3: course total grade (itemtype='course', value BETWEEN 0 AND 100 only).
+        $course_totals = $DB->get_records_sql("
+            SELECT gi.courseid,
+                   MAX(CASE WHEN COALESCE(gg.finalgrade, gg.rawgrade) BETWEEN 0 AND 100
+                            THEN COALESCE(gg.finalgrade, gg.rawgrade) END) AS gradeval
+              FROM {grade_items} gi
+         LEFT JOIN {grade_grades} gg ON (gg.itemid = gi.id AND gg.userid = ?)
+             WHERE gi.itemtype = 'course'
+          GROUP BY gi.courseid
+        ", [$user->id]);
+        $total_by_courseid = [];
+        foreach ($course_totals as $ct) {
+            if ($ct->gradeval !== null) {
+                $total_by_courseid[(int)$ct->courseid] = round((float)$ct->gradeval, 2);
+            }
+        }
+
+        // Build panel_grade_by_courseid using same priority as pensum function.
+        $panel_grade_by_courseid = [];
+        foreach (array_unique(array_merge(
+            array_keys($nfi_by_courseid),
+            array_keys($class_by_courseid),
+            array_keys($total_by_courseid)
+        )) as $cid) {
+            if (isset($nfi_by_courseid[$cid])) {
+                $panel_grade_by_courseid[$cid] = ['grade' => $nfi_by_courseid[$cid], 'source' => 'Nota Final Integrada'];
+            } elseif (isset($class_by_courseid[$cid])) {
+                $panel_grade_by_courseid[$cid] = ['grade' => $class_by_courseid[$cid], 'source' => 'Categoría de clase'];
+            } elseif (isset($total_by_courseid[$cid])) {
+                $panel_grade_by_courseid[$cid] = ['grade' => $total_by_courseid[$cid], 'source' => 'Total del curso'];
+            }
         }
 
         // 4. Detect duplicates (same courseid + learningplanid appearing more than once)
@@ -87,11 +154,13 @@ if ($username_input !== '') {
         // 5. Build comparison rows
         $comparison = [];
         foreach ($progre_records as $rec) {
-            $gg = $gradebook_by_courseid[(int)$rec->courseid] ?? null;
-            $gb_grade = $gg ? (float)$gg->finalgrade : null;
+            $panel_entry = $panel_grade_by_courseid[(int)$rec->courseid] ?? null;
+            $panel_grade = $panel_entry ? (float)$panel_entry['grade'] : null;
+            $panel_source = $panel_entry ? $panel_entry['source'] : null;
             $cp_grade = (float)$rec->grade;
+            $feedback = $feedback_by_courseid[(int)$rec->courseid] ?? null;
 
-            $grade_diff = ($gb_grade !== null) ? abs($gb_grade - $cp_grade) : null;
+            $grade_diff = ($panel_grade !== null) ? abs($panel_grade - $cp_grade) : null;
 
             // What status SHOULD be based on cp.grade
             $expected_status_from_cp = null;
@@ -101,8 +170,9 @@ if ($username_input !== '') {
                 $expected_status_from_cp = 5; // Reprobada
             }
 
-            // What status SHOULD be based on gradebook grade
+            // What status SHOULD be based on panel grade
             $expected_status_from_gb = null;
+            $gb_grade = $panel_grade; // alias for rest of existing logic
             if ($gb_grade !== null) {
                 if ($gb_grade >= $PASSING_THRESHOLD) {
                     $expected_status_from_gb = 4;
@@ -116,10 +186,11 @@ if ($username_input !== '') {
 
             $comparison[] = [
                 'rec'                     => $rec,
-                'gb'                      => $gg,
-                'gb_grade'                => $gb_grade,
+                'panel_grade'             => $panel_grade,
+                'panel_source'            => $panel_source,
                 'cp_grade'                => $cp_grade,
                 'grade_diff'              => $grade_diff,
+                'feedback'                => $feedback,
                 'status_label'            => $statusLabels[$rec->status] ?? '??',
                 'expected_from_cp'        => $expected_status_from_cp,
                 'expected_from_gb'        => $expected_status_from_gb,
@@ -129,16 +200,12 @@ if ($username_input !== '') {
             ];
         }
 
-        // 6. What the REPORT would show vs PANEL (summary)
-        // Report uses: cp.grade, cp.status, lpu.currentperiodid (NOT cp.periodid)
-        // Panel resolves: actual gradebook grade + cp.status
-
         $result = [
             'user'       => $user,
             'lpu'        => array_values($lpu_records),
             'comparison' => $comparison,
             'total_cp'   => count($progre_records),
-            'total_gb'   => count($gradebook_grades),
+            'total_panel' => count($panel_grade_by_courseid),
         ];
     }
 }
@@ -226,7 +293,7 @@ tr:hover td { background: #fafbfd; }
     <tr><td>Nombre</td><td><?= htmlspecialchars($u->firstname . ' ' . $u->lastname) ?></td></tr>
     <tr><td>Email</td><td><?= htmlspecialchars($u->email) ?></td></tr>
     <tr><td>Registros en gmk_course_progre</td><td class="num"><?= $result['total_cp'] ?></td></tr>
-    <tr><td>Cursos en grade_grades (gradebook)</td><td class="num"><?= $result['total_gb'] ?></td></tr>
+    <tr><td>Cursos con nota resuelta (igual que panel)</td><td class="num"><?= $result['total_panel'] ?></td></tr>
   </table>
 
   <?php if (!empty($lpu)): ?>
@@ -259,8 +326,8 @@ tr:hover td { background: #fafbfd; }
   <h2>Comparación por curso: gmk_course_progre vs grade_grades</h2>
 
   <div class="legend">
-    <div class="legend-item"><div class="legend-color" style="background:#fff0f0"></div> Estado de gmk difiere del gradebook real</div>
-    <div class="legend-item"><div class="legend-color" style="background:#fffde7"></div> Nota significativamente diferente entre tablas</div>
+    <div class="legend-item"><div class="legend-color" style="background:#fff0f0"></div> Estado en gmk difiere de la nota real del panel</div>
+    <div class="legend-item"><div class="legend-color" style="background:#fffde7"></div> Nota significativamente diferente (gmk vs panel)</div>
     <div class="legend-item"><div class="legend-color" style="background:#f3e5f5"></div> Registro duplicado (mismo curso + carrera)</div>
   </div>
 
@@ -279,11 +346,11 @@ tr:hover td { background: #fafbfd; }
         <th>Period ID (gmk)</th>
         <th>Período (gmk)</th>
         <th>Nota gmk<br><small>← usa el reporte</small></th>
-        <th>Nota gradebook<br><small>← usa el panel</small></th>
+        <th>Nota panel (0-100)<br><small>← misma lógica que panel</small></th>
+        <th>Fuente nota panel</th>
         <th>Diferencia</th>
         <th>Estado gmk</th>
-        <th>Estado esperado<br>(por nota gmk)</th>
-        <th>Estado esperado<br>(por nota gradebook)</th>
+        <th>Estado esperado<br>(por nota panel)</th>
         <th>Feedback (gradebook)</th>
         <th>Flags</th>
       </tr>
@@ -291,26 +358,23 @@ tr:hover td { background: #fafbfd; }
     <tbody>
     <?php foreach ($cmp as $row):
       $rec = $row['rec'];
-      $gg  = $row['gb'];
 
       $rowClass = '';
-      if ($row['is_duplicate'])          $rowClass = 'row-dup';
+      if ($row['is_duplicate'])              $rowClass = 'row-dup';
       elseif ($row['status_vs_gb_mismatch']) $rowClass = 'row-err';
-      elseif ($row['grade_significant_diff']) $rowClass = 'row-warn';
+      elseif ($row['grade_significant_diff'])$rowClass = 'row-warn';
 
-      $cp_note = number_format($row['cp_grade'], 2);
-      $gb_note = $row['gb_grade'] !== null ? number_format($row['gb_grade'], 2) : '—';
+      $cp_note    = number_format($row['cp_grade'], 2);
+      $panel_note = $row['panel_grade'] !== null ? number_format($row['panel_grade'], 2) : '—';
 
       $diff_str = '—';
       if ($row['grade_diff'] !== null) {
           $diff_str = number_format($row['grade_diff'], 2);
       }
 
-      $status_label      = $statusLabels[$rec->status] ?? '??(' . $rec->status . ')';
-      $exp_cp_label      = $row['expected_from_cp'] !== null ? ($statusLabels[$row['expected_from_cp']] ?? '??') : '—';
-      $exp_gb_label      = $row['expected_from_gb'] !== null ? ($statusLabels[$row['expected_from_gb']] ?? '??') : '—';
-
-      $status_ok = ((int)$rec->status === ($row['expected_from_gb'] ?? $rec->status));
+      $status_label = $statusLabels[$rec->status] ?? '??(' . $rec->status . ')';
+      $exp_gb_label = $row['expected_from_gb'] !== null ? ($statusLabels[$row['expected_from_gb']] ?? '??') : '—';
+      $diff_str     = $row['grade_diff'] !== null ? number_format($row['grade_diff'], 2) : '—';
     ?>
     <tr class="<?= $rowClass ?>">
       <td><?= htmlspecialchars($rec->coursefullname ?: $rec->coursename ?: '(ID: ' . $rec->courseid . ')') ?></td>
@@ -318,19 +382,19 @@ tr:hover td { background: #fafbfd; }
       <td class="num"><?= (int)$rec->periodid ?></td>
       <td><?= htmlspecialchars($rec->periodname_from_table ?: '—') ?></td>
       <td class="num"><strong><?= $cp_note ?></strong></td>
-      <td class="num"><strong><?= $gb_note ?></strong></td>
+      <td class="num"><strong><?= $panel_note ?></strong></td>
+      <td style="font-size:.75rem;color:#666"><?= htmlspecialchars($row['panel_source'] ?? '—') ?></td>
       <td class="num"><?= $row['grade_significant_diff'] ? "<strong style='color:#b71c1c'>{$diff_str}</strong>" : $diff_str ?></td>
       <td><?= htmlspecialchars($status_label) ?></td>
-      <td><?= htmlspecialchars($exp_cp_label) ?></td>
       <td><?= $row['status_vs_gb_mismatch']
               ? "<strong style='color:#b71c1c'>" . htmlspecialchars($exp_gb_label) . '</strong>'
               : htmlspecialchars($exp_gb_label) ?>
       </td>
-      <td style="max-width:200px;word-break:break-word"><?= htmlspecialchars($gg->feedback ?? '—') ?></td>
+      <td style="max-width:180px;word-break:break-word;font-size:.78rem"><?= htmlspecialchars($row['feedback'] ?? '—') ?></td>
       <td>
         <?= $row['is_duplicate']          ? badge('DUPLICADO', 'err')  : '' ?>
-        <?= $row['status_vs_gb_mismatch'] ? badge('ESTADO↔GB', 'err')  : '' ?>
-        <?= $row['grade_significant_diff']? badge('NOTA≠GB',   'warn') : '' ?>
+        <?= $row['status_vs_gb_mismatch'] ? badge('ESTADO≠PANEL', 'err')  : '' ?>
+        <?= $row['grade_significant_diff']? badge('NOTA≠PANEL', 'warn') : '' ?>
         <?php if (!$row['is_duplicate'] && !$row['status_vs_gb_mismatch'] && !$row['grade_significant_diff']): ?>
           <?= badge('OK', 'ok') ?>
         <?php endif; ?>
