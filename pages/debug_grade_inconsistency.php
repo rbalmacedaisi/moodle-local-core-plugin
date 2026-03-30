@@ -243,6 +243,10 @@ if ($mode === 'student' && $username_input !== '') {
 // ══════════════════════════════════════════════════════════════════════════════
 $fix_result = null;
 if ($action === 'fix' && $mode === 'scan') {
+    // Evitar timeout y memoria insuficiente para datasets grandes
+    set_time_limit(0);
+    raise_memory_limit(MEMORY_EXTRA);
+
     // Obtener todos los registros elegibles (mismo filtro que el scan)
     $fixWhere  = "gcp.status NOT IN (0, 1, 2, 99)";
     $fixParams = [];
@@ -256,13 +260,20 @@ if ($action === 'fix' && $mode === 'scan') {
          WHERE $fixWhere
     ", $fixParams);
 
-    $fix_userids      = array_unique(array_map(fn($r) => (int)$r->userid, $fix_records));
-    $fix_panel_grades = resolve_panel_grades_bulk($fix_userids);
+    // Resolver notas del panel en lotes de 200 usuarios para evitar IN() enormes
+    $fix_userids      = array_values(array_unique(array_map(fn($r) => (int)$r->userid, $fix_records)));
+    $fix_panel_grades = [];
+    foreach (array_chunk($fix_userids, 200) as $chunk) {
+        if (empty($chunk)) continue;
+        $fix_panel_grades += resolve_panel_grades_bulk($chunk);
+    }
 
+    // Construir lista de cambios necesarios (sin tocar la DB todavía)
     $fx_updated = 0;
     $fx_skipped = 0;
     $fx_errors  = [];
-    $fx_changed = [];  // para mostrar resumen
+    $fx_changed = [];
+    $pending_updates = [];   // [id => [grade, status, old_grade, old_status, userid, courseid]]
 
     foreach ($fix_records as $rec) {
         $pkey   = (int)$rec->userid . '_' . (int)$rec->courseid;
@@ -277,26 +288,46 @@ if ($action === 'fix' && $mode === 'scan') {
         $stat_mis = $exp !== null && (int)$rec->status !== $exp;
         $note_dif = $diff > 0.05;
 
-        if (!$stat_mis && !$note_dif) continue;  // sin inconsistencia, ignorar
-        if ($exp === null) { $fx_skipped++; continue; }  // nota 0, no aplica
+        if (!$stat_mis && !$note_dif) continue;
+        if ($exp === null) { $fx_skipped++; continue; }
 
+        $pending_updates[(int)$rec->id] = [
+            'grade'      => $pgr,
+            'status'     => $exp,
+            'old_grade'  => $cpgr,
+            'old_status' => (int)$rec->status,
+            'userid'     => $rec->userid,
+            'courseid'   => $rec->courseid,
+        ];
+    }
+    unset($fix_records, $fix_panel_grades);   // liberar memoria antes de la escritura
+
+    // Ejecutar todos los UPDATEs dentro de una transacción (rollback automático si algo falla)
+    if (!empty($pending_updates)) {
         try {
-            $DB->execute(
-                "UPDATE {gmk_course_progre} SET grade = ?, status = ? WHERE id = ?",
-                [$pgr, $exp, $rec->id]
-            );
-            $fx_updated++;
-            $fx_changed[] = [
-                'id'         => $rec->id,
-                'userid'     => $rec->userid,
-                'courseid'   => $rec->courseid,
-                'old_grade'  => $cpgr,
-                'new_grade'  => $pgr,
-                'old_status' => (int)$rec->status,
-                'new_status' => $exp,
-            ];
+            $transaction = $DB->start_delegated_transaction();
+            foreach ($pending_updates as $rid => $upd) {
+                $DB->execute(
+                    "UPDATE {gmk_course_progre} SET grade = ?, status = ? WHERE id = ?",
+                    [$upd['grade'], $upd['status'], $rid]
+                );
+                $fx_updated++;
+                $fx_changed[] = [
+                    'id'         => $rid,
+                    'userid'     => $upd['userid'],
+                    'courseid'   => $upd['courseid'],
+                    'old_grade'  => $upd['old_grade'],
+                    'new_grade'  => $upd['grade'],
+                    'old_status' => $upd['old_status'],
+                    'new_status' => $upd['status'],
+                ];
+            }
+            $transaction->allow_commit();
         } catch (Exception $e) {
-            $fx_errors[] = 'gmk ID ' . $rec->id . ': ' . $e->getMessage();
+            // La transacción hace rollback automáticamente al destruirse
+            $fx_errors[]  = 'Transacción cancelada — rollback aplicado: ' . $e->getMessage();
+            $fx_updated   = 0;
+            $fx_changed   = [];
         }
     }
 
