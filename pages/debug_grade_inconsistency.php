@@ -38,6 +38,7 @@ $username_input = trim($_POST['username'] ?? '');
 $filter_plan   = (int)($_POST['filter_plan']   ?? $_GET['filter_plan']   ?? 0);
 $filter_period = (int)($_POST['filter_period'] ?? $_GET['filter_period'] ?? 0);
 $show_ok       = !empty($_POST['show_ok'] ?? $_GET['show_ok'] ?? '');
+$action        = $_POST['action'] ?? '';
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 function expected_status(float $grade): ?int {
@@ -238,6 +239,76 @@ if ($mode === 'student' && $username_input !== '') {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// CORRECCIÓN MASIVA — se ejecuta ANTES del escaneo para que el scan refleje el estado post-fix
+// ══════════════════════════════════════════════════════════════════════════════
+$fix_result = null;
+if ($action === 'fix' && $mode === 'scan') {
+    // Obtener todos los registros elegibles (mismo filtro que el scan)
+    $fixWhere  = "gcp.status NOT IN (0, 1, 2, 99)";
+    $fixParams = [];
+    if ($filter_plan)   { $fixWhere .= " AND gcp.learningplanid = :planid";  $fixParams['planid']   = $filter_plan; }
+    if ($filter_period) { $fixWhere .= " AND gcp.periodid = :periodid";      $fixParams['periodid'] = $filter_period; }
+
+    $fix_records = $DB->get_records_sql("
+        SELECT gcp.id, gcp.userid, gcp.courseid, gcp.grade, gcp.status
+          FROM {gmk_course_progre} gcp
+          JOIN {user} u ON u.id = gcp.userid AND u.deleted = 0
+         WHERE $fixWhere
+    ", $fixParams);
+
+    $fix_userids      = array_unique(array_map(fn($r) => (int)$r->userid, $fix_records));
+    $fix_panel_grades = resolve_panel_grades_bulk($fix_userids);
+
+    $fx_updated = 0;
+    $fx_skipped = 0;
+    $fx_errors  = [];
+    $fx_changed = [];  // para mostrar resumen
+
+    foreach ($fix_records as $rec) {
+        $pkey   = (int)$rec->userid . '_' . (int)$rec->courseid;
+        $pentry = $fix_panel_grades[$pkey] ?? null;
+        $pgr    = $pentry ? (float)$pentry['grade'] : null;
+        $cpgr   = (float)$rec->grade;
+
+        if ($pgr === null) { $fx_skipped++; continue; }
+
+        $diff     = abs($pgr - $cpgr);
+        $exp      = expected_status($pgr);
+        $stat_mis = $exp !== null && (int)$rec->status !== $exp;
+        $note_dif = $diff > 0.05;
+
+        if (!$stat_mis && !$note_dif) continue;  // sin inconsistencia, ignorar
+        if ($exp === null) { $fx_skipped++; continue; }  // nota 0, no aplica
+
+        try {
+            $DB->execute(
+                "UPDATE {gmk_course_progre} SET grade = ?, status = ? WHERE id = ?",
+                [$pgr, $exp, $rec->id]
+            );
+            $fx_updated++;
+            $fx_changed[] = [
+                'id'         => $rec->id,
+                'userid'     => $rec->userid,
+                'courseid'   => $rec->courseid,
+                'old_grade'  => $cpgr,
+                'new_grade'  => $pgr,
+                'old_status' => (int)$rec->status,
+                'new_status' => $exp,
+            ];
+        } catch (Exception $e) {
+            $fx_errors[] = 'gmk ID ' . $rec->id . ': ' . $e->getMessage();
+        }
+    }
+
+    $fix_result = [
+        'updated' => $fx_updated,
+        'skipped' => $fx_skipped,
+        'errors'  => $fx_errors,
+        'changed' => $fx_changed,
+    ];
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // MODO: ESCANEO GLOBAL
 // ══════════════════════════════════════════════════════════════════════════════
 $scan_result = null;
@@ -429,6 +500,44 @@ if ($mode === 'scan' && $scan_result !== null):
 ?>
 
 <div class="card">
+
+  <?php if ($fix_result !== null): ?>
+  <div style="background:<?= empty($fix_result['errors']) ? '#f0fff4' : '#fff5f5' ?>;border:1px solid <?= empty($fix_result['errors']) ? '#b7ebc4' : '#fcc' ?>;border-radius:6px;padding:14px 18px;margin-bottom:16px">
+    <strong><?= empty($fix_result['errors']) ? '✅ Corrección masiva completada' : '⚠ Corrección parcial' ?></strong>
+    <div style="margin-top:8px;font-size:.85rem">
+      <span style="margin-right:16px">Registros actualizados: <strong><?= $fix_result['updated'] ?></strong></span>
+      <span style="margin-right:16px">Sin nota panel (omitidos): <strong><?= $fix_result['skipped'] ?></strong></span>
+      <?php if (!empty($fix_result['errors'])): ?>
+        <span style="color:#b71c1c">Errores: <strong><?= count($fix_result['errors']) ?></strong></span>
+        <ul style="margin-top:6px;padding-left:18px;color:#b71c1c">
+          <?php foreach ($fix_result['errors'] as $err): ?>
+            <li style="font-size:.8rem"><?= htmlspecialchars($err) ?></li>
+          <?php endforeach; ?>
+        </ul>
+      <?php endif; ?>
+    </div>
+    <?php if (!empty($fix_result['changed'])): ?>
+    <details style="margin-top:10px">
+      <summary style="cursor:pointer;font-size:.8rem;color:#555">Ver detalle de cambios (<?= count($fix_result['changed']) ?>)</summary>
+      <table style="margin-top:8px;font-size:.78rem">
+        <tr><th>gmk ID</th><th>userid</th><th>courseid</th><th>Nota anterior</th><th>Nota nueva</th><th>Estado anterior</th><th>Estado nuevo</th></tr>
+        <?php foreach ($fix_result['changed'] as $ch): ?>
+        <tr>
+          <td class="num"><?= $ch['id'] ?></td>
+          <td class="num"><?= $ch['userid'] ?></td>
+          <td class="num"><?= $ch['courseid'] ?></td>
+          <td class="num"><?= number_format($ch['old_grade'], 2) ?></td>
+          <td class="num"><strong><?= number_format($ch['new_grade'], 2) ?></strong></td>
+          <td><?= htmlspecialchars($STATUS_LABELS[$ch['old_status']] ?? '??' . $ch['old_status']) ?></td>
+          <td><strong><?= htmlspecialchars($STATUS_LABELS[$ch['new_status']] ?? '??' . $ch['new_status']) ?></strong></td>
+        </tr>
+        <?php endforeach; ?>
+      </table>
+    </details>
+    <?php endif; ?>
+  </div>
+  <?php endif; ?>
+
   <h2>Resumen del escaneo</h2>
   <div style="margin-bottom:14px">
     <span class="stat-card" style="background:#e8f5e9">
@@ -492,6 +601,26 @@ if ($mode === 'scan' && $scan_result !== null):
 </div>
 
 <?php if (!empty($sr['inconsistencies'])): ?>
+<div class="card" style="border-left:4px solid #e65100">
+  <h2>Corrección masiva</h2>
+  <p style="font-size:.85rem;color:#555;margin-bottom:12px">
+    Actualiza <code>gmk_course_progre.grade</code> con la nota real del panel y recalcula
+    <code>gmk_course_progre.status</code> usando el umbral de aprobación (≥<?= PASSING_THRESHOLD ?>).
+    Solo se modifican los <strong><?= $sr['total_inc'] ?></strong> registros inconsistentes donde la nota del panel está disponible.
+    Esta operación <strong>no se puede deshacer automáticamente</strong>.
+  </p>
+  <form method="POST"
+        onsubmit="return confirm('¿Ejecutar corrección masiva sobre <?= $sr['total_inc'] ?> registros inconsistentes?\n\nEsta acción actualiza grade y status en gmk_course_progre.\nNo se puede deshacer automáticamente.')">
+    <input type="hidden" name="mode" value="scan">
+    <input type="hidden" name="action" value="fix">
+    <input type="hidden" name="filter_plan" value="<?= $filter_plan ?>">
+    <input type="hidden" name="filter_period" value="<?= $filter_period ?>">
+    <button type="submit" class="btn" style="background:#e65100">
+      Ejecutar corrección masiva (<?= $sr['total_inc'] ?> registros)
+    </button>
+  </form>
+</div>
+
 <div class="card">
   <h2>Detalle de todos los registros inconsistentes</h2>
   <div style="margin-bottom:8px;font-size:.8rem;color:#666">
