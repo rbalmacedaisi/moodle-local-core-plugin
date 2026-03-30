@@ -6,8 +6,6 @@
  * @package    local_grupomakro_core
  */
 
-define('NO_MOODLE_COOKIES', true);
-
 require_once(__DIR__ . '/../../../config.php');
 require_login();
 
