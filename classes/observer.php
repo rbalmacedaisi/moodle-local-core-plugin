@@ -223,7 +223,9 @@ class local_grupomakro_core_observer
         } else {
         }
         foreach (array_keys(groups_get_members($groupId)) as $groupMemberId) {
-            if ($DB->get_record('gmk_course_progre', ['userid' => $groupMemberId, 'courseid' => $courseId])) {
+            // FIX: Handle duplicates in gmk_course_progre - use get_records instead of get_record
+            $progressRecords = $DB->get_records('gmk_course_progre', ['userid' => $groupMemberId, 'courseid' => $courseId]);
+            if (!empty($progressRecords)) {
                 local_grupomakro_progress_manager::update_course_progress($courseId, $groupMemberId);
             }
         }
