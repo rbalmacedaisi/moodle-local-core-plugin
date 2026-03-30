@@ -1,20 +1,26 @@
 <?php
 /**
- * debug_grade_inconsistency.php — Diagnóstico de inconsistencias entre gmk_course_progre y grade_grades
+ * debug_grade_inconsistency.php — Diagnóstico de inconsistencias entre gmk_course_progre y nota real del panel
  * ELIMINAR ESTE ARCHIVO DESPUÉS DE USARLO
+ *
+ * Modos:
+ *   - Escaneo global (GET): muestra todos los estudiantes/cursos con inconsistencias
+ *   - Detalle individual (POST username): muestra comparación completa para un estudiante
  *
  * @package    local_grupomakro_core
  */
 
 require_once(__DIR__ . '/../../../config.php');
 require_login();
-
 $context = context_system::instance();
 require_capability('moodle/site:config', $context);
 
 global $DB;
 
-$statusLabels = [
+// ── Constantes ─────────────────────────────────────────────────────────────
+define('PASSING_THRESHOLD', 71);
+
+$STATUS_LABELS = [
     0  => 'No disponible',
     1  => 'Disponible',
     2  => 'Cursando',
@@ -26,19 +32,142 @@ $statusLabels = [
     99 => 'Migración Pendiente',
 ];
 
-$PASSING_THRESHOLD = 71;
-
+// ── Parámetros de entrada ───────────────────────────────────────────────────
+$mode          = $_POST['mode']     ?? $_GET['mode']     ?? 'scan';   // 'scan' | 'student'
 $username_input = trim($_POST['username'] ?? '');
-$result = null;
+$filter_plan   = (int)($_POST['filter_plan']   ?? $_GET['filter_plan']   ?? 0);
+$filter_period = (int)($_POST['filter_period'] ?? $_GET['filter_period'] ?? 0);
+$show_ok       = !empty($_POST['show_ok'] ?? $_GET['show_ok'] ?? '');
 
-if ($username_input !== '') {
-    $username_clean = core_text::strtolower($username_input);
-    $user = $DB->get_record('user', ['username' => $username_clean, 'deleted' => 0], '*', IGNORE_MISSING);
+// ── Helpers ─────────────────────────────────────────────────────────────────
+function expected_status(float $grade): ?int {
+    if ($grade >= PASSING_THRESHOLD) return 4;
+    if ($grade > 0)                  return 5;
+    return null;
+}
 
+function badge_html(string $text, string $type): string {
+    $colors = [
+        'ok'   => '#155724;background:#d4edda',
+        'warn' => '#856404;background:#fff3cd',
+        'err'  => '#721c24;background:#f8d7da',
+        'info' => '#004085;background:#cce5ff',
+        'dup'  => '#4a148c;background:#f3e5f5',
+    ];
+    $s = $colors[$type] ?? $colors['info'];
+    return "<span style='display:inline-block;padding:2px 8px;border-radius:10px;font-size:.75rem;font-weight:700;color:{$s}'>{$text}</span>";
+}
+
+// ── Bulk-resolución de notas del panel (igual que get_student_learning_plan_pensum) ──────
+// Devuelve [userid_courseid => ['grade'=>float,'source'=>string]]
+function resolve_panel_grades_bulk(array $useridFilter = []): array {
+    global $DB;
+
+    $userWhere  = '';
+    $userParams = [];
+    if (!empty($useridFilter)) {
+        [$inSql, $userParams] = $DB->get_in_or_equal($useridFilter, SQL_PARAMS_NAMED, 'uid');
+        $userWhere = "AND gg.userid $inSql";
+    }
+
+    $result = [];
+
+    // Priority 3 (lowest): course total BETWEEN 0-100
+    $rows = $DB->get_records_sql(
+        "SELECT gi.courseid, gg.userid,
+                MAX(CASE WHEN COALESCE(gg.finalgrade, gg.rawgrade) BETWEEN 0 AND 100
+                         THEN COALESCE(gg.finalgrade, gg.rawgrade) END) AS gradeval
+           FROM {grade_items} gi
+      LEFT JOIN {grade_grades} gg ON (gg.itemid = gi.id)
+          WHERE gi.itemtype = 'course' $userWhere
+       GROUP BY gi.courseid, gg.userid",
+        $userParams
+    );
+    foreach ($rows as $r) {
+        if ($r->gradeval === null || $r->userid === null) continue;
+        $key = (int)$r->userid . '_' . (int)$r->courseid;
+        $result[$key] = ['grade' => round((float)$r->gradeval, 2), 'source' => 'Total del curso'];
+    }
+
+    // Priority 2: class category grade (gmk_class.gradecategoryid)
+    $rows = $DB->get_records_sql(
+        "SELECT c.corecourseid, gg.userid,
+                MAX(CASE WHEN COALESCE(gg.finalgrade, gg.rawgrade) BETWEEN 0 AND 100
+                         THEN COALESCE(gg.finalgrade, gg.rawgrade) END) AS gradeval
+           FROM {gmk_class} c
+           JOIN {grade_items} gi ON (gi.courseid = c.corecourseid
+                                    AND gi.itemtype = 'category'
+                                    AND gi.iteminstance = c.gradecategoryid)
+      LEFT JOIN {grade_grades} gg ON (gg.itemid = gi.id)
+          WHERE c.gradecategoryid > 0 $userWhere
+       GROUP BY c.corecourseid, gg.userid",
+        $userParams
+    );
+    foreach ($rows as $r) {
+        if ($r->gradeval === null || $r->userid === null) continue;
+        $key = (int)$r->userid . '_' . (int)$r->corecourseid;
+        $result[$key] = ['grade' => round((float)$r->gradeval, 2), 'source' => 'Categoría de clase'];
+    }
+
+    // Priority 1 (highest): Nota Final Integrada
+    $rows = $DB->get_records_sql(
+        "SELECT gi.courseid, gg.userid,
+                MAX(CASE WHEN COALESCE(gg.finalgrade, gg.rawgrade) BETWEEN 0 AND 100
+                         THEN COALESCE(gg.finalgrade, gg.rawgrade) END) AS gradeval
+           FROM {grade_items} gi
+      LEFT JOIN {grade_grades} gg ON (gg.itemid = gi.id)
+          WHERE (gi.itemname LIKE '%Nota Final Integrada%'
+                 OR gi.itemname LIKE '%Final Integrada%'
+                 OR gi.itemname LIKE '%Nota Final%') $userWhere
+       GROUP BY gi.courseid, gg.userid",
+        $userParams
+    );
+    foreach ($rows as $r) {
+        if ($r->gradeval === null || $r->userid === null) continue;
+        $key = (int)$r->userid . '_' . (int)$r->courseid;
+        $result[$key] = ['grade' => round((float)$r->gradeval, 2), 'source' => 'Nota Final Integrada'];
+    }
+
+    return $result;
+}
+
+// Feedback por (userid, courseid)
+function get_feedback_bulk(array $useridFilter = []): array {
+    global $DB;
+    $userWhere  = '';
+    $userParams = [];
+    if (!empty($useridFilter)) {
+        [$inSql, $userParams] = $DB->get_in_or_equal($useridFilter, SQL_PARAMS_NAMED, 'uid');
+        $userWhere = "AND gg.userid $inSql";
+    }
+    $rows = $DB->get_records_sql(
+        "SELECT gi.courseid, gg.userid, gg.feedback
+           FROM {grade_items} gi
+           JOIN {grade_grades} gg ON (gg.itemid = gi.id)
+          WHERE gi.itemtype = 'course' $userWhere",
+        $userParams
+    );
+    $map = [];
+    foreach ($rows as $r) {
+        $map[(int)$r->userid . '_' . (int)$r->courseid] = $r->feedback;
+    }
+    return $map;
+}
+
+// ── Listas para filtros ─────────────────────────────────────────────────────
+$plans   = $DB->get_records('local_learning_plans',  [], 'name', 'id,name');
+$periods = $DB->get_records('local_learning_periods', [], 'name', 'id,name');
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MODO: DETALLE DE UN ESTUDIANTE
+// ══════════════════════════════════════════════════════════════════════════════
+$student_result = null;
+if ($mode === 'student' && $username_input !== '') {
+    $uclean = core_text::strtolower($username_input);
+    $user   = $DB->get_record('user', ['username' => $uclean, 'deleted' => 0], '*', IGNORE_MISSING);
     if (!$user) {
-        $result = ['error' => "Usuario <strong>" . htmlspecialchars($username_clean) . "</strong> no encontrado."];
+        $student_result = ['error' => "Usuario <strong>" . htmlspecialchars($uclean) . "</strong> no encontrado."];
     } else {
-        // 1. All local_learning_users entries (what plan/period the student is in)
         $lpu_records = $DB->get_records_sql("
             SELECT lpu.*, lp.name as planname, per.name as currentperiodname
               FROM {local_learning_users} lpu
@@ -47,7 +176,11 @@ if ($username_input !== '') {
              WHERE lpu.userid = ? AND lpu.userrolename = 'student'
         ", [$user->id]);
 
-        // 2. All gmk_course_progre records for this student
+        $cpWhere  = "gcp.userid = ?";
+        $cpParams = [$user->id];
+        if ($filter_plan)   { $cpWhere .= " AND gcp.learningplanid = ?"; $cpParams[] = $filter_plan; }
+        if ($filter_period) { $cpWhere .= " AND gcp.periodid = ?";       $cpParams[] = $filter_period; }
+
         $progre_records = $DB->get_records_sql("
             SELECT gcp.*, c.fullname as coursefullname,
                    lp.name as planname, per.name as periodname_from_table
@@ -55,170 +188,124 @@ if ($username_input !== '') {
          LEFT JOIN {course} c ON c.id = gcp.courseid
          LEFT JOIN {local_learning_plans} lp ON lp.id = gcp.learningplanid
          LEFT JOIN {local_learning_periods} per ON per.id = gcp.periodid
-             WHERE gcp.userid = ?
+             WHERE $cpWhere
           ORDER BY gcp.learningplanid, gcp.periodid, c.fullname
-        ", [$user->id]);
+        ", $cpParams);
 
-        // 3a. Feedback from gradebook (grade_items type=course, for feedback text only)
-        $gradebook_feedback = $DB->get_records_sql("
-            SELECT gi.courseid, gg.feedback
-              FROM {grade_items} gi
-              JOIN {grade_grades} gg ON (gg.itemid = gi.id AND gg.userid = ?)
-             WHERE gi.itemtype = 'course'
-        ", [$user->id]);
-        $feedback_by_courseid = [];
-        foreach ($gradebook_feedback as $gf) {
-            $feedback_by_courseid[(int)$gf->courseid] = $gf->feedback;
-        }
+        $panel_grades = resolve_panel_grades_bulk([$user->id]);
+        $feedbacks    = get_feedback_bulk([$user->id]);
 
-        // 3b. Panel-equivalent grade: class category grade (same logic as get_student_learning_plan_pensum).
-        // Priority 1: "Nota Final Integrada" grade item (value BETWEEN 0 AND 100).
-        $nfi_grades = $DB->get_records_sql("
-            SELECT gi.courseid,
-                   MAX(CASE WHEN COALESCE(gg.finalgrade, gg.rawgrade) BETWEEN 0 AND 100
-                            THEN COALESCE(gg.finalgrade, gg.rawgrade) END) AS gradeval
-              FROM {grade_items} gi
-         LEFT JOIN {grade_grades} gg ON (gg.itemid = gi.id AND gg.userid = ?)
-             WHERE (gi.itemname LIKE '%Nota Final Integrada%'
-                    OR gi.itemname LIKE '%Final Integrada%'
-                    OR gi.itemname LIKE '%Nota Final%')
-          GROUP BY gi.courseid
-        ", [$user->id]);
-        $nfi_by_courseid = [];
-        foreach ($nfi_grades as $ng) {
-            if ($ng->gradeval !== null) {
-                $nfi_by_courseid[(int)$ng->courseid] = round((float)$ng->gradeval, 2);
-            }
-        }
-
-        // Priority 2: class category grade (gmk_class.gradecategoryid, value BETWEEN 0 AND 100).
-        $class_grades = $DB->get_records_sql("
-            SELECT c.corecourseid,
-                   MAX(CASE WHEN COALESCE(gg.finalgrade, gg.rawgrade) BETWEEN 0 AND 100
-                            THEN COALESCE(gg.finalgrade, gg.rawgrade) END) AS gradeval
-              FROM {gmk_class} c
-              JOIN {grade_items} gi ON (gi.courseid = c.corecourseid
-                                       AND gi.itemtype = 'category'
-                                       AND gi.iteminstance = c.gradecategoryid)
-         LEFT JOIN {grade_grades} gg ON (gg.itemid = gi.id AND gg.userid = ?)
-             WHERE c.gradecategoryid > 0
-          GROUP BY c.corecourseid
-        ", [$user->id]);
-        $class_by_courseid = [];
-        foreach ($class_grades as $cg) {
-            if ($cg->gradeval !== null) {
-                $class_by_courseid[(int)$cg->corecourseid] = round((float)$cg->gradeval, 2);
-            }
-        }
-
-        // Priority 3: course total grade (itemtype='course', value BETWEEN 0 AND 100 only).
-        $course_totals = $DB->get_records_sql("
-            SELECT gi.courseid,
-                   MAX(CASE WHEN COALESCE(gg.finalgrade, gg.rawgrade) BETWEEN 0 AND 100
-                            THEN COALESCE(gg.finalgrade, gg.rawgrade) END) AS gradeval
-              FROM {grade_items} gi
-         LEFT JOIN {grade_grades} gg ON (gg.itemid = gi.id AND gg.userid = ?)
-             WHERE gi.itemtype = 'course'
-          GROUP BY gi.courseid
-        ", [$user->id]);
-        $total_by_courseid = [];
-        foreach ($course_totals as $ct) {
-            if ($ct->gradeval !== null) {
-                $total_by_courseid[(int)$ct->courseid] = round((float)$ct->gradeval, 2);
-            }
-        }
-
-        // Build panel_grade_by_courseid using same priority as pensum function.
-        $panel_grade_by_courseid = [];
-        foreach (array_unique(array_merge(
-            array_keys($nfi_by_courseid),
-            array_keys($class_by_courseid),
-            array_keys($total_by_courseid)
-        )) as $cid) {
-            if (isset($nfi_by_courseid[$cid])) {
-                $panel_grade_by_courseid[$cid] = ['grade' => $nfi_by_courseid[$cid], 'source' => 'Nota Final Integrada'];
-            } elseif (isset($class_by_courseid[$cid])) {
-                $panel_grade_by_courseid[$cid] = ['grade' => $class_by_courseid[$cid], 'source' => 'Categoría de clase'];
-            } elseif (isset($total_by_courseid[$cid])) {
-                $panel_grade_by_courseid[$cid] = ['grade' => $total_by_courseid[$cid], 'source' => 'Total del curso'];
-            }
-        }
-
-        // 4. Detect duplicates (same courseid + learningplanid appearing more than once)
         $course_plan_count = [];
-        foreach ($progre_records as $rec) {
-            $key = $rec->courseid . '_' . $rec->learningplanid;
-            $course_plan_count[$key] = ($course_plan_count[$key] ?? 0) + 1;
+        foreach ($progre_records as $r) {
+            $k = $r->courseid . '_' . $r->learningplanid;
+            $course_plan_count[$k] = ($course_plan_count[$k] ?? 0) + 1;
         }
 
-        // 5. Build comparison rows
-        $comparison = [];
+        $rows = [];
         foreach ($progre_records as $rec) {
-            $panel_entry = $panel_grade_by_courseid[(int)$rec->courseid] ?? null;
-            $panel_grade = $panel_entry ? (float)$panel_entry['grade'] : null;
-            $panel_source = $panel_entry ? $panel_entry['source'] : null;
-            $cp_grade = (float)$rec->grade;
-            $feedback = $feedback_by_courseid[(int)$rec->courseid] ?? null;
+            $pkey      = (int)$rec->userid . '_' . (int)$rec->courseid;
+            $pentry    = $panel_grades[$pkey] ?? null;
+            $pgr       = $pentry ? (float)$pentry['grade'] : null;
+            $psource   = $pentry ? $pentry['source'] : null;
+            $cpgr      = (float)$rec->grade;
+            $feedback  = $feedbacks[$pkey] ?? null;
+            $diff      = $pgr !== null ? abs($pgr - $cpgr) : null;
+            $exp_panel = $pgr !== null ? expected_status($pgr) : null;
+            $exp_cp    = $cpgr > 0    ? expected_status($cpgr) : null;
+            $is_dup    = ($course_plan_count[$rec->courseid . '_' . $rec->learningplanid] ?? 1) > 1;
+            $stat_mis  = $exp_panel !== null && (int)$rec->status !== $exp_panel;
+            $note_dif  = $diff !== null && $diff > 0.05;
 
-            $grade_diff = ($panel_grade !== null) ? abs($panel_grade - $cp_grade) : null;
+            if (!$show_ok && !$is_dup && !$stat_mis && !$note_dif) continue;
 
-            // What status SHOULD be based on cp.grade
-            $expected_status_from_cp = null;
-            if ($cp_grade >= $PASSING_THRESHOLD) {
-                $expected_status_from_cp = 4; // Aprobada
-            } elseif ($cp_grade > 0) {
-                $expected_status_from_cp = 5; // Reprobada
-            }
-
-            // What status SHOULD be based on panel grade
-            $expected_status_from_gb = null;
-            $gb_grade = $panel_grade; // alias for rest of existing logic
-            if ($gb_grade !== null) {
-                if ($gb_grade >= $PASSING_THRESHOLD) {
-                    $expected_status_from_gb = 4;
-                } elseif ($gb_grade > 0) {
-                    $expected_status_from_gb = 5;
-                }
-            }
-
-            $key = $rec->courseid . '_' . $rec->learningplanid;
-            $is_duplicate = ($course_plan_count[$key] ?? 1) > 1;
-
-            $comparison[] = [
-                'rec'                     => $rec,
-                'panel_grade'             => $panel_grade,
-                'panel_source'            => $panel_source,
-                'cp_grade'                => $cp_grade,
-                'grade_diff'              => $grade_diff,
-                'feedback'                => $feedback,
-                'status_label'            => $statusLabels[$rec->status] ?? '??',
-                'expected_from_cp'        => $expected_status_from_cp,
-                'expected_from_gb'        => $expected_status_from_gb,
-                'is_duplicate'            => $is_duplicate,
-                'status_vs_gb_mismatch'   => ($expected_status_from_gb !== null && (int)$rec->status !== $expected_status_from_gb),
-                'grade_significant_diff'  => ($grade_diff !== null && $grade_diff > 0.05),
-            ];
+            $rows[] = compact('rec','pgr','psource','cpgr','diff','feedback','exp_panel','exp_cp','is_dup','stat_mis','note_dif');
         }
 
-        $result = [
-            'user'       => $user,
-            'lpu'        => array_values($lpu_records),
-            'comparison' => $comparison,
-            'total_cp'   => count($progre_records),
-            'total_panel' => count($panel_grade_by_courseid),
+        $student_result = [
+            'user' => $user, 'lpu' => array_values($lpu_records),
+            'rows' => $rows,
+            'total_cp'  => count($progre_records),
+            'total_inc' => count(array_filter($rows, fn($r) => $r['stat_mis'] || $r['note_dif'] || $r['is_dup'])),
         ];
     }
 }
 
-function badge(string $text, string $type): string {
-    $colors = [
-        'ok'   => '#155724;background:#d4edda',
-        'warn' => '#856404;background:#fff3cd',
-        'err'  => '#721c24;background:#f8d7da',
-        'info' => '#004085;background:#cce5ff',
+// ══════════════════════════════════════════════════════════════════════════════
+// MODO: ESCANEO GLOBAL
+// ══════════════════════════════════════════════════════════════════════════════
+$scan_result = null;
+if ($mode === 'scan') {
+    $cpWhere  = "1=1";
+    $cpParams = [];
+    if ($filter_plan)   { $cpWhere .= " AND gcp.learningplanid = :planid";   $cpParams['planid']   = $filter_plan; }
+    if ($filter_period) { $cpWhere .= " AND gcp.periodid = :periodid";       $cpParams['periodid'] = $filter_period; }
+
+    // Exclude statuses that can't meaningfully be compared (Disponible, No disponible, Migración Pendiente, Cursando)
+    $cpWhere .= " AND gcp.status NOT IN (0, 1, 2, 99)";
+
+    $progre_all = $DB->get_records_sql("
+        SELECT gcp.id, gcp.userid, gcp.courseid, gcp.learningplanid, gcp.periodid,
+               gcp.grade, gcp.status, gcp.coursename,
+               c.fullname as coursefullname,
+               u.firstname, u.lastname, u.username, u.email,
+               lp.name as planname,
+               per.name as periodname
+          FROM {gmk_course_progre} gcp
+          JOIN {user} u ON u.id = gcp.userid AND u.deleted = 0
+     LEFT JOIN {course} c ON c.id = gcp.courseid
+     LEFT JOIN {local_learning_plans} lp ON lp.id = gcp.learningplanid
+     LEFT JOIN {local_learning_periods} per ON per.id = gcp.periodid
+         WHERE $cpWhere
+      ORDER BY u.lastname, u.firstname, lp.name, c.fullname
+    ", $cpParams);
+
+    // Collect unique user IDs for bulk grade resolution
+    $userids = array_unique(array_map(fn($r) => (int)$r->userid, $progre_all));
+
+    $panel_grades = resolve_panel_grades_bulk($userids);
+    $feedbacks    = get_feedback_bulk($userids);
+
+    $inconsistencies = [];
+    $summary_by_user = [];
+
+    foreach ($progre_all as $rec) {
+        $pkey     = (int)$rec->userid . '_' . (int)$rec->courseid;
+        $pentry   = $panel_grades[$pkey] ?? null;
+        $pgr      = $pentry ? (float)$pentry['grade'] : null;
+        $psource  = $pentry ? $pentry['source'] : null;
+        $cpgr     = (float)$rec->grade;
+        $feedback = $feedbacks[$pkey] ?? null;
+        $diff     = $pgr !== null ? abs($pgr - $cpgr) : null;
+        $exp      = $pgr !== null ? expected_status($pgr) : null;
+        $stat_mis = $exp !== null && (int)$rec->status !== $exp;
+        $note_dif = $diff !== null && $diff > 0.05;
+
+        if (!$stat_mis && !$note_dif) continue;
+
+        $uid = (int)$rec->userid;
+        if (!isset($summary_by_user[$uid])) {
+            $summary_by_user[$uid] = [
+                'uid'      => $uid,
+                'name'     => $rec->firstname . ' ' . $rec->lastname,
+                'username' => $rec->username,
+                'email'    => $rec->email,
+                'stat_mis' => 0, 'note_dif' => 0, 'total' => 0,
+            ];
+        }
+        if ($stat_mis) $summary_by_user[$uid]['stat_mis']++;
+        if ($note_dif) $summary_by_user[$uid]['note_dif']++;
+        $summary_by_user[$uid]['total']++;
+
+        $inconsistencies[] = compact('rec','pgr','psource','cpgr','diff','feedback','exp','stat_mis','note_dif');
+    }
+
+    $scan_result = [
+        'summary'         => array_values($summary_by_user),
+        'inconsistencies' => $inconsistencies,
+        'total_records'   => count($progre_all),
+        'total_inc'       => count($inconsistencies),
+        'total_students'  => count($summary_by_user),
     ];
-    $style = $colors[$type] ?? $colors['info'];
-    return "<span style=\"display:inline-block;padding:2px 8px;border-radius:10px;font-size:.78rem;font-weight:600;color:{$style}\">{$text}</span>";
 }
 ?>
 <!DOCTYPE html>
@@ -226,221 +313,361 @@ function badge(string $text, string $type): string {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Debug Inconsistencias de Notas</title>
+<title>Debug: Inconsistencias de Notas — gmk_course_progre</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: system-ui, sans-serif; background: #f4f6f9; color: #333; padding: 24px 16px; font-size: 14px; }
-.card { background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,.1); padding: 24px 28px; max-width: 1280px; margin: 0 auto 20px; }
-h1 { font-size: 1.2rem; margin-bottom: 4px; }
-h2 { font-size: 1rem; margin-bottom: 12px; color: #444; }
-.subtitle { font-size: .82rem; color: #888; margin-bottom: 20px; }
-label { font-size: .85rem; font-weight: 600; display: block; margin-bottom: 6px; }
-input[type=text] { width: 300px; padding: 9px 12px; border: 1px solid #ccd; border-radius: 6px; font-size: .95rem; }
-.btn { padding: 9px 20px; border: none; border-radius: 6px; font-size: .9rem; font-weight: 600; cursor: pointer; background: #4f8ef7; color: #fff; }
-.btn:hover { background: #3a7ce0; }
-table { width: 100%; border-collapse: collapse; font-size: .82rem; }
-th { background: #f0f2f5; font-weight: 700; text-align: left; padding: 8px 10px; border-bottom: 2px solid #dde; white-space: nowrap; }
-td { padding: 7px 10px; border-bottom: 1px solid #eee; vertical-align: top; }
+body { font-family: system-ui, sans-serif; background: #f4f6f9; color: #333; padding: 20px 12px; font-size: 13px; }
+.card { background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,.08); padding: 20px 24px; max-width: 1400px; margin: 0 auto 16px; }
+h1 { font-size: 1.15rem; margin-bottom: 2px; }
+h2 { font-size: .95rem; margin-bottom: 10px; color: #444; }
+.subtitle { font-size: .8rem; color: #888; margin-bottom: 16px; }
+.tabs { display: flex; gap: 4px; margin-bottom: 14px; }
+.tab { padding: 7px 18px; border-radius: 6px 6px 0 0; border: 1px solid #dde; background: #f0f2f5; cursor: pointer; font-weight: 600; font-size: .85rem; text-decoration: none; color: #555; }
+.tab.active { background: #fff; border-bottom-color: #fff; color: #1a73e8; }
+.filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-bottom: 14px; }
+.filters label { font-size: .8rem; font-weight: 600; display: block; margin-bottom: 3px; }
+.filters select, .filters input[type=text] { padding: 7px 10px; border: 1px solid #ccd; border-radius: 6px; font-size: .85rem; }
+.btn { padding: 7px 18px; border: none; border-radius: 6px; font-size: .85rem; font-weight: 600; cursor: pointer; background: #1a73e8; color: #fff; }
+.btn:hover { background: #1558b0; }
+.btn-sm { padding: 4px 12px; font-size: .78rem; }
+.btn-outline { background: #fff; color: #1a73e8; border: 1px solid #1a73e8; }
+table { width: 100%; border-collapse: collapse; font-size: .8rem; }
+th { background: #f0f2f5; font-weight: 700; text-align: left; padding: 7px 9px; border-bottom: 2px solid #dde; white-space: nowrap; }
+td { padding: 6px 9px; border-bottom: 1px solid #eee; vertical-align: top; }
 tr:hover td { background: #fafbfd; }
-.row-warn td { background: #fffde7; }
 .row-err  td { background: #fff0f0; }
+.row-warn td { background: #fffde7; }
+.row-both td { background: #fff3e0; }
 .row-dup  td { background: #f3e5f5; }
-.section-title { font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #888; margin: 16px 0 8px; }
-.error-box { background: #fff0f0; border: 1px solid #fcc; border-radius: 6px; padding: 12px 16px; }
-.legend { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 14px; font-size: .8rem; }
-.legend-item { display: flex; align-items: center; gap: 6px; }
-.legend-color { width: 14px; height: 14px; border-radius: 3px; }
-.delete-notice { font-size: .78rem; color: #c0392b; font-weight: 600; text-align: center; margin-top: 12px; }
 .num { font-family: monospace; }
+.stat-card { display: inline-flex; flex-direction: column; align-items: center; padding: 12px 20px; border-radius: 8px; min-width: 120px; margin: 0 6px 6px 0; }
+.stat-num { font-size: 1.6rem; font-weight: 700; }
+.stat-lbl { font-size: .75rem; color: #555; margin-top: 2px; text-align: center; }
+.error-box { background: #fff0f0; border: 1px solid #fcc; border-radius: 6px; padding: 12px 16px; }
+.notice { background: #e8f4fd; border-left: 4px solid #1a73e8; padding: 10px 14px; border-radius: 4px; font-size: .82rem; margin-bottom: 12px; }
+.delete-notice { font-size: .78rem; color: #c0392b; font-weight: 600; text-align: center; margin-top: 10px; }
+.search-box { width: 100%; margin-bottom: 8px; padding: 6px 10px; border: 1px solid #ccd; border-radius: 6px; font-size: .82rem; }
 </style>
 </head>
 <body>
 
 <div class="card">
-  <h1>Diagnóstico de Inconsistencias de Notas</h1>
-  <p class="subtitle">Compara <code>gmk_course_progre</code> (fuente del reporte) con <code>grade_grades</code> (fuente real del gradebook) para identificar discrepancias.</p>
+  <h1>Diagnóstico de Inconsistencias: <code>gmk_course_progre</code> vs Nota Real del Panel</h1>
+  <p class="subtitle">Compara la nota almacenada en gmk con la nota que el panel resuelve (categoría de clase / Nota Final Integrada / total 0-100). Excluye cursos con estado: Disponible, No disponible, Cursando, Migración Pendiente.</p>
+
+  <div class="tabs">
+    <a class="tab <?= $mode === 'scan' ? 'active' : '' ?>"
+       href="?mode=scan&filter_plan=<?= $filter_plan ?>&filter_period=<?= $filter_period ?>">
+       Escaneo global
+    </a>
+    <a class="tab <?= $mode === 'student' ? 'active' : '' ?>"
+       href="?mode=student">
+       Detalle por estudiante
+    </a>
+  </div>
+
   <form method="POST">
-    <label for="username">Usuario (cédula / username):</label>
-    <input type="text" id="username" name="username"
-           placeholder="Ej: 3-759-782"
-           value="<?= htmlspecialchars($username_input) ?>"
-           autocomplete="off" autofocus>
-    <button type="submit" class="btn" style="margin-left:10px">Diagnosticar</button>
+    <input type="hidden" name="mode" value="<?= htmlspecialchars($mode) ?>">
+    <div class="filters">
+      <div>
+        <label>Carrera (plan)</label>
+        <select name="filter_plan">
+          <option value="0">Todas las carreras</option>
+          <?php foreach ($plans as $p): ?>
+            <option value="<?= $p->id ?>" <?= $filter_plan == $p->id ? 'selected' : '' ?>>
+              <?= htmlspecialchars($p->name) ?>
+            </option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <div>
+        <label>Período (cuatrimestre)</label>
+        <select name="filter_period">
+          <option value="0">Todos los períodos</option>
+          <?php foreach ($periods as $p): ?>
+            <option value="<?= $p->id ?>" <?= $filter_period == $p->id ? 'selected' : '' ?>>
+              <?= htmlspecialchars($p->name) ?>
+            </option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <?php if ($mode === 'student'): ?>
+      <div>
+        <label>Username / cédula</label>
+        <input type="text" name="username" value="<?= htmlspecialchars($username_input) ?>"
+               placeholder="Ej: 3-759-782" autocomplete="off">
+      </div>
+      <div>
+        <label style="visibility:hidden">_</label>
+        <label style="display:flex;align-items:center;gap:6px;padding:7px 0">
+          <input type="checkbox" name="show_ok" value="1" <?= $show_ok ? 'checked' : '' ?>>
+          Mostrar también OK
+        </label>
+      </div>
+      <?php endif; ?>
+      <div>
+        <label style="visibility:hidden">_</label>
+        <button type="submit" class="btn"><?= $mode === 'student' ? 'Diagnosticar' : 'Escanear' ?></button>
+      </div>
+    </div>
   </form>
 </div>
 
-<?php if ($result !== null): ?>
-
-<?php if (isset($result['error'])): ?>
-  <div class="card"><div class="error-box"><?= $result['error'] ?></div></div>
-
-<?php else:
-  $u   = $result['user'];
-  $lpu = $result['lpu'];
-  $cmp = $result['comparison'];
-
-  $has_grade_diff  = count(array_filter($cmp, fn($r) => $r['grade_significant_diff']));
-  $has_status_mis  = count(array_filter($cmp, fn($r) => $r['status_vs_gb_mismatch']));
-  $has_duplicates  = count(array_filter($cmp, fn($r) => $r['is_duplicate']));
+<?php
+// ══════════════════════════════════════════════════════════════════════════════
+// RENDER: ESCANEO GLOBAL
+// ══════════════════════════════════════════════════════════════════════════════
+if ($mode === 'scan' && $scan_result !== null):
+  $sr = $scan_result;
 ?>
 
 <div class="card">
-  <h2>Información del estudiante</h2>
-  <table style="max-width:640px">
-    <tr><th>Campo</th><th>Valor</th></tr>
-    <tr><td>ID Moodle</td><td class="num"><?= (int)$u->id ?></td></tr>
-    <tr><td>Username</td><td><?= htmlspecialchars($u->username) ?></td></tr>
-    <tr><td>Nombre</td><td><?= htmlspecialchars($u->firstname . ' ' . $u->lastname) ?></td></tr>
-    <tr><td>Email</td><td><?= htmlspecialchars($u->email) ?></td></tr>
-    <tr><td>Registros en gmk_course_progre</td><td class="num"><?= $result['total_cp'] ?></td></tr>
-    <tr><td>Cursos con nota resuelta (igual que panel)</td><td class="num"><?= $result['total_panel'] ?></td></tr>
-  </table>
+  <h2>Resumen del escaneo</h2>
+  <div style="margin-bottom:14px">
+    <span class="stat-card" style="background:#e8f5e9">
+      <span class="stat-num"><?= $sr['total_records'] ?></span>
+      <span class="stat-lbl">Registros gmk<br>analizados</span>
+    </span>
+    <span class="stat-card" style="background:#fff3e0">
+      <span class="stat-num"><?= $sr['total_students'] ?></span>
+      <span class="stat-lbl">Estudiantes<br>con inconsistencias</span>
+    </span>
+    <span class="stat-card" style="background:#fff0f0">
+      <span class="stat-num"><?= $sr['total_inc'] ?></span>
+      <span class="stat-lbl">Registros<br>inconsistentes</span>
+    </span>
+  </div>
 
-  <?php if (!empty($lpu)): ?>
-  <div class="section-title">Matrículas (local_learning_users) — fuente del "Cuatrimestre" en el reporte</div>
-  <table>
+  <?php if ($sr['total_students'] > 0): ?>
+  <h2>Estudiantes afectados</h2>
+  <input class="search-box" type="text" id="student-search" placeholder="Buscar por nombre, username o email..." oninput="filterStudents(this.value)">
+  <table id="student-table">
+    <thead>
+      <tr>
+        <th>Nombre</th>
+        <th>Username</th>
+        <th>Email</th>
+        <th>Estado≠Panel</th>
+        <th>Nota≠Panel</th>
+        <th>Total</th>
+        <th>Acción</th>
+      </tr>
+    </thead>
+    <tbody>
+    <?php foreach ($sr['summary'] as $s): ?>
     <tr>
-      <th>Plan / Carrera</th>
-      <th>Cuatrimestre actual (currentperiodid)</th>
-      <th>Período actual (nombre)</th>
-      <th>Rol</th>
-    </tr>
-    <?php foreach ($lpu as $l): ?>
-    <tr>
-      <td><?= htmlspecialchars($l->planname) ?></td>
-      <td class="num"><?= (int)$l->currentperiodid ?></td>
-      <td><?= htmlspecialchars($l->currentperiodname ?: '—') ?></td>
-      <td><?= htmlspecialchars($l->userrolename) ?></td>
+      <td><?= htmlspecialchars($s['name']) ?></td>
+      <td class="num"><?= htmlspecialchars($s['username']) ?></td>
+      <td><?= htmlspecialchars($s['email']) ?></td>
+      <td class="num" style="color:<?= $s['stat_mis'] > 0 ? '#b71c1c' : '#2e7d32' ?>;font-weight:700"><?= $s['stat_mis'] ?></td>
+      <td class="num" style="color:<?= $s['note_dif'] > 0 ? '#e65100' : '#2e7d32' ?>;font-weight:700"><?= $s['note_dif'] ?></td>
+      <td class="num"><strong><?= $s['total'] ?></strong></td>
+      <td>
+        <a href="?mode=student&filter_plan=<?= $filter_plan ?>&filter_period=<?= $filter_period ?>"
+           onclick="document.querySelector('[name=username]') && (document.querySelector('[name=username]').value='<?= htmlspecialchars($s['username']) ?>')"
+           class="btn btn-sm btn-outline"
+           target="_self">Ver detalle</a>
+        <form method="POST" style="display:inline">
+          <input type="hidden" name="mode" value="student">
+          <input type="hidden" name="username" value="<?= htmlspecialchars($s['username']) ?>">
+          <input type="hidden" name="filter_plan" value="<?= $filter_plan ?>">
+          <input type="hidden" name="filter_period" value="<?= $filter_period ?>">
+          <button type="submit" class="btn btn-sm btn-outline">Ver detalle</button>
+        </form>
+      </td>
     </tr>
     <?php endforeach; ?>
+    </tbody>
   </table>
-  <p style="font-size:.8rem;color:#666;margin-top:6px">
-    ⚠ El reporte usa <strong>lpu.currentperiodid</strong> para el "Cuatrimestre", no el <code>periodid</code> de cada curso en gmk_course_progre.
-    Si el estudiante está en Cuatrimestre 3 pero sus cursos migrados tienen periodid de Cuatrimestre 1, el reporte
-    <strong>muestra todos los cursos bajo el período actual del estudiante</strong>.
-  </p>
+  <?php else: ?>
+  <div style="color:#2e7d32;font-weight:600;padding:12px 0">✅ No se detectaron inconsistencias con los filtros actuales.</div>
   <?php endif; ?>
 </div>
 
+<?php if (!empty($sr['inconsistencies'])): ?>
 <div class="card">
-  <h2>Comparación por curso: gmk_course_progre vs grade_grades</h2>
-
-  <div class="legend">
-    <div class="legend-item"><div class="legend-color" style="background:#fff0f0"></div> Estado en gmk difiere de la nota real del panel</div>
-    <div class="legend-item"><div class="legend-color" style="background:#fffde7"></div> Nota significativamente diferente (gmk vs panel)</div>
-    <div class="legend-item"><div class="legend-color" style="background:#f3e5f5"></div> Registro duplicado (mismo curso + carrera)</div>
+  <h2>Detalle de todos los registros inconsistentes</h2>
+  <div style="margin-bottom:8px;font-size:.8rem;color:#666">
+    <?= badge_html('ESTADO≠PANEL', 'err') ?> Estado en gmk no coincide con lo que la nota real indicaría &nbsp;
+    <?= badge_html('NOTA≠PANEL', 'warn') ?> Nota en gmk difiere Δ&gt;0.05 de la nota resuelta del panel
   </div>
-
-  <?php if ($has_duplicates > 0): ?>
-  <p style="color:#8e24aa;font-weight:600;margin-bottom:10px">
-    ⚠ Se detectaron <?= $has_duplicates ?> registro(s) duplicado(s) en gmk_course_progre para el mismo curso + carrera.
-    Esto puede causar que el reporte muestre filas repetidas con datos de migración incorrectos.
-  </p>
-  <?php endif; ?>
-
-  <table>
+  <input class="search-box" type="text" id="detail-search" placeholder="Buscar curso, estudiante..." oninput="filterDetail(this.value)">
+  <table id="detail-table">
     <thead>
       <tr>
+        <th>Estudiante</th>
         <th>Curso</th>
-        <th>Carrera (plan)</th>
-        <th>Period ID (gmk)</th>
-        <th>Período (gmk)</th>
-        <th>Nota gmk<br><small>← usa el reporte</small></th>
-        <th>Nota panel (0-100)<br><small>← misma lógica que panel</small></th>
-        <th>Fuente nota panel</th>
-        <th>Diferencia</th>
+        <th>Carrera</th>
+        <th>Nota gmk<br><small>reporte usa esta</small></th>
+        <th>Nota panel (0-100)<br><small>nota real</small></th>
+        <th>Fuente</th>
+        <th>Δ</th>
         <th>Estado gmk</th>
-        <th>Estado esperado<br>(por nota panel)</th>
-        <th>Feedback (gradebook)</th>
+        <th>Estado correcto<br>(por nota panel)</th>
+        <th>Feedback</th>
         <th>Flags</th>
       </tr>
     </thead>
     <tbody>
-    <?php foreach ($cmp as $row):
-      $rec = $row['rec'];
+    <?php foreach ($sr['inconsistencies'] as $row):
+      $rec      = $row['rec'];
+      $pgr      = $row['pgr'];
+      $cpgr     = $row['cpgr'];
+      $diff     = $row['diff'];
+      $feedback = $row['feedback'];
+      $exp      = $row['exp'];
 
-      $rowClass = '';
-      if ($row['is_duplicate'])              $rowClass = 'row-dup';
-      elseif ($row['status_vs_gb_mismatch']) $rowClass = 'row-err';
-      elseif ($row['grade_significant_diff'])$rowClass = 'row-warn';
+      if ($row['stat_mis'] && $row['note_dif']) $rc = 'row-both';
+      elseif ($row['stat_mis'])                 $rc = 'row-err';
+      else                                      $rc = 'row-warn';
 
-      $cp_note    = number_format($row['cp_grade'], 2);
-      $panel_note = $row['panel_grade'] !== null ? number_format($row['panel_grade'], 2) : '—';
-
-      $diff_str = '—';
-      if ($row['grade_diff'] !== null) {
-          $diff_str = number_format($row['grade_diff'], 2);
-      }
-
-      $status_label = $statusLabels[$rec->status] ?? '??(' . $rec->status . ')';
-      $exp_gb_label = $row['expected_from_gb'] !== null ? ($statusLabels[$row['expected_from_gb']] ?? '??') : '—';
-      $diff_str     = $row['grade_diff'] !== null ? number_format($row['grade_diff'], 2) : '—';
+      $exp_label = $exp !== null ? ($STATUS_LABELS[$exp] ?? '??') : '—';
+      $st_label  = $STATUS_LABELS[(int)$rec->status] ?? '??(' . $rec->status . ')';
     ?>
-    <tr class="<?= $rowClass ?>">
-      <td><?= htmlspecialchars($rec->coursefullname ?: $rec->coursename ?: '(ID: ' . $rec->courseid . ')') ?></td>
-      <td><?= htmlspecialchars($rec->planname ?: '—') ?></td>
-      <td class="num"><?= (int)$rec->periodid ?></td>
-      <td><?= htmlspecialchars($rec->periodname_from_table ?: '—') ?></td>
-      <td class="num"><strong><?= $cp_note ?></strong></td>
-      <td class="num"><strong><?= $panel_note ?></strong></td>
-      <td style="font-size:.75rem;color:#666"><?= htmlspecialchars($row['panel_source'] ?? '—') ?></td>
-      <td class="num"><?= $row['grade_significant_diff'] ? "<strong style='color:#b71c1c'>{$diff_str}</strong>" : $diff_str ?></td>
-      <td><?= htmlspecialchars($status_label) ?></td>
-      <td><?= $row['status_vs_gb_mismatch']
-              ? "<strong style='color:#b71c1c'>" . htmlspecialchars($exp_gb_label) . '</strong>'
-              : htmlspecialchars($exp_gb_label) ?>
-      </td>
-      <td style="max-width:180px;word-break:break-word;font-size:.78rem"><?= htmlspecialchars($row['feedback'] ?? '—') ?></td>
+    <tr class="<?= $rc ?>">
+      <td><?= htmlspecialchars($rec->firstname . ' ' . $rec->lastname) ?><br>
+          <span style="color:#888;font-size:.75rem"><?= htmlspecialchars($rec->username) ?></span></td>
+      <td><?= htmlspecialchars($rec->coursefullname ?: $rec->coursename ?: 'ID:' . $rec->courseid) ?></td>
+      <td style="font-size:.75rem"><?= htmlspecialchars($rec->planname ?: '—') ?></td>
+      <td class="num"><strong><?= number_format($cpgr, 2) ?></strong></td>
+      <td class="num"><strong><?= $pgr !== null ? number_format($pgr, 2) : '—' ?></strong></td>
+      <td style="font-size:.72rem;color:#666"><?= htmlspecialchars($row['psource'] ?? '—') ?></td>
+      <td class="num"><?= $row['note_dif'] ? "<strong style='color:#b71c1c'>" . number_format($diff, 2) . "</strong>" : ($diff !== null ? number_format($diff, 2) : '—') ?></td>
+      <td><?= htmlspecialchars($st_label) ?></td>
+      <td><?= $row['stat_mis'] ? "<strong style='color:#b71c1c'>" . htmlspecialchars($exp_label) . "</strong>" : htmlspecialchars($exp_label) ?></td>
+      <td style="max-width:160px;word-break:break-word;font-size:.72rem"><?= htmlspecialchars($feedback ?? '—') ?></td>
       <td>
-        <?= $row['is_duplicate']          ? badge('DUPLICADO', 'err')  : '' ?>
-        <?= $row['status_vs_gb_mismatch'] ? badge('ESTADO≠PANEL', 'err')  : '' ?>
-        <?= $row['grade_significant_diff']? badge('NOTA≠PANEL', 'warn') : '' ?>
-        <?php if (!$row['is_duplicate'] && !$row['status_vs_gb_mismatch'] && !$row['grade_significant_diff']): ?>
-          <?= badge('OK', 'ok') ?>
-        <?php endif; ?>
+        <?= $row['stat_mis'] ? badge_html('ESTADO≠PANEL', 'err')  : '' ?>
+        <?= $row['note_dif'] ? badge_html('NOTA≠PANEL',   'warn') : '' ?>
       </td>
     </tr>
     <?php endforeach; ?>
     </tbody>
   </table>
 </div>
-
-<div class="card">
-  <h2>Resumen del diagnóstico</h2>
-  <table style="max-width:600px">
-    <tr><th>Problema</th><th>Cantidad</th><th>Impacto</th></tr>
-    <tr>
-      <td>Nota en gmk_course_progre ≠ nota en gradebook (Δ > 0.05)</td>
-      <td class="num"><?= $has_grade_diff ?></td>
-      <td>El reporte muestra nota distinta a la que el panel usa</td>
-    </tr>
-    <tr>
-      <td>Estado en gmk ≠ estado esperado por nota del gradebook</td>
-      <td class="num"><?= $has_status_mis ?></td>
-      <td>El estado (Aprobada/Reprobada) del reporte no corresponde a la nota real</td>
-    </tr>
-    <tr>
-      <td>Registros duplicados (mismo curso + carrera)</td>
-      <td class="num"><?= $has_duplicates ?></td>
-      <td>El reporte genera filas repetidas con datos contradictorios</td>
-    </tr>
-  </table>
-
-  <div style="margin-top:16px;padding:14px;background:#e8f5e9;border-radius:6px;font-size:.84rem">
-    <strong>Causa raíz probable:</strong>
-    La migración Q10 importó notas como 70.00 con <em>feedback "Migracion Q10 - Aprobado"</em>, pero
-    <code>import_grades.php</code> recalculó el estado usando umbral <strong>≥ 71 = Aprobada</strong>,
-    por lo que cursos con nota 70 quedaron marcados como <strong>Reprobada</strong> en gmk_course_progre,
-    aunque en Q10 el estudiante estaba aprobado (Q10 usa ≥ 70).
-    El panel del administrador muestra la nota actual del gradebook (nota real ≠ 70) y el estado de gmk
-    puede diferir. El reporte usa <code>cp.grade</code> (la nota migrada 70) y <code>lpu.currentperiodid</code>
-    (período actual del estudiante, no el período por curso), produciendo datos incorrectos.
-  </div>
-</div>
-
 <?php endif; ?>
+
+<?php
+// ══════════════════════════════════════════════════════════════════════════════
+// RENDER: DETALLE DE ESTUDIANTE
+// ══════════════════════════════════════════════════════════════════════════════
+elseif ($mode === 'student'):
+  if ($student_result === null): ?>
+  <div class="card">
+    <div class="notice">Ingresa un username o cédula y presiona <strong>Diagnosticar</strong>.</div>
+  </div>
+  <?php elseif (isset($student_result['error'])): ?>
+  <div class="card"><div class="error-box"><?= $student_result['error'] ?></div></div>
+  <?php else:
+    $u    = $student_result['user'];
+    $lpu  = $student_result['lpu'];
+    $rows = $student_result['rows'];
+  ?>
+  <div class="card">
+    <h2>Estudiante: <?= htmlspecialchars($u->firstname . ' ' . $u->lastname) ?></h2>
+    <table style="max-width:580px;margin-bottom:14px">
+      <tr><td style="color:#666">ID Moodle</td><td class="num"><?= (int)$u->id ?></td></tr>
+      <tr><td style="color:#666">Username</td><td><?= htmlspecialchars($u->username) ?></td></tr>
+      <tr><td style="color:#666">Email</td><td><?= htmlspecialchars($u->email) ?></td></tr>
+      <tr><td style="color:#666">Registros gmk analizados</td><td class="num"><?= $student_result['total_cp'] ?></td></tr>
+      <tr><td style="color:#666">Con inconsistencias</td>
+          <td class="num" style="color:<?= $student_result['total_inc'] > 0 ? '#b71c1c' : '#2e7d32' ?>;font-weight:700">
+            <?= $student_result['total_inc'] ?>
+          </td>
+      </tr>
+    </table>
+
+    <?php if (!empty($lpu)): ?>
+    <div style="font-size:.8rem;font-weight:700;text-transform:uppercase;color:#888;margin-bottom:6px">Matrículas activas</div>
+    <table style="max-width:700px;margin-bottom:14px">
+      <tr><th>Carrera</th><th>currentperiodid</th><th>Período actual</th><th>Rol</th></tr>
+      <?php foreach ($lpu as $l): ?>
+      <tr>
+        <td><?= htmlspecialchars($l->planname) ?></td>
+        <td class="num"><?= (int)$l->currentperiodid ?></td>
+        <td><?= htmlspecialchars($l->currentperiodname ?: '—') ?></td>
+        <td><?= htmlspecialchars($l->userrolename) ?></td>
+      </tr>
+      <?php endforeach; ?>
+    </table>
+    <?php endif; ?>
+
+    <?php if (empty($rows)): ?>
+    <div style="color:#2e7d32;font-weight:600">✅ Sin inconsistencias detectadas<?= $show_ok ? '' : ' (activa "Mostrar también OK" para ver todos los registros)' ?>.</div>
+    <?php else: ?>
+    <table>
+      <thead>
+        <tr>
+          <th>Curso</th>
+          <th>Período (gmk)</th>
+          <th>Nota gmk<br><small>reporte</small></th>
+          <th>Nota panel (0-100)<br><small>nota real</small></th>
+          <th>Fuente</th>
+          <th>Δ</th>
+          <th>Estado gmk</th>
+          <th>Estado correcto<br>(por nota panel)</th>
+          <th>Feedback</th>
+          <th>Flags</th>
+        </tr>
+      </thead>
+      <tbody>
+      <?php foreach ($rows as $row):
+        $rec     = $row['rec'];
+        $pgr     = $row['pgr'];
+        $cpgr    = $row['cpgr'];
+
+        if ($row['is_dup'])                      $rc = 'row-dup';
+        elseif ($row['stat_mis'] && $row['note_dif']) $rc = 'row-both';
+        elseif ($row['stat_mis'])                $rc = 'row-err';
+        elseif ($row['note_dif'])                $rc = 'row-warn';
+        else                                     $rc = '';
+
+        $exp_label = $row['exp_panel'] !== null ? ($STATUS_LABELS[$row['exp_panel']] ?? '??') : '—';
+        $st_label  = $STATUS_LABELS[(int)$rec->status] ?? '??(' . $rec->status . ')';
+        $diff_str  = $row['diff'] !== null ? number_format($row['diff'], 2) : '—';
+      ?>
+      <tr class="<?= $rc ?>">
+        <td><?= htmlspecialchars($rec->coursefullname ?: $rec->coursename ?: 'ID:' . $rec->courseid) ?></td>
+        <td style="font-size:.75rem"><?= htmlspecialchars($rec->periodname_from_table ?: '(id:' . (int)$rec->periodid . ')') ?></td>
+        <td class="num"><strong><?= number_format($cpgr, 2) ?></strong></td>
+        <td class="num"><strong><?= $pgr !== null ? number_format($pgr, 2) : '—' ?></strong></td>
+        <td style="font-size:.72rem;color:#666"><?= htmlspecialchars($row['psource'] ?? '—') ?></td>
+        <td class="num"><?= $row['note_dif'] ? "<strong style='color:#b71c1c'>{$diff_str}</strong>" : $diff_str ?></td>
+        <td><?= htmlspecialchars($st_label) ?></td>
+        <td><?= $row['stat_mis'] ? "<strong style='color:#b71c1c'>" . htmlspecialchars($exp_label) . "</strong>" : htmlspecialchars($exp_label) ?></td>
+        <td style="max-width:160px;word-break:break-word;font-size:.75rem"><?= htmlspecialchars($row['feedback'] ?? '—') ?></td>
+        <td>
+          <?= $row['is_dup']    ? badge_html('DUPLICADO',    'dup')  : '' ?>
+          <?= $row['stat_mis']  ? badge_html('ESTADO≠PANEL', 'err')  : '' ?>
+          <?= $row['note_dif']  ? badge_html('NOTA≠PANEL',   'warn') : '' ?>
+          <?php if (!$row['is_dup'] && !$row['stat_mis'] && !$row['note_dif']): ?>
+            <?= badge_html('OK', 'ok') ?>
+          <?php endif; ?>
+        </td>
+      </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+    <?php endif; ?>
+  </div>
+  <?php endif; ?>
 <?php endif; ?>
 
 <p class="delete-notice">⚠ Eliminar este archivo del servidor después de usarlo</p>
+
+<script>
+function filterStudents(q) {
+    q = q.toLowerCase();
+    document.querySelectorAll('#student-table tbody tr').forEach(function(tr) {
+        tr.style.display = tr.textContent.toLowerCase().includes(q) ? '' : 'none';
+    });
+}
+function filterDetail(q) {
+    q = q.toLowerCase();
+    document.querySelectorAll('#detail-table tbody tr').forEach(function(tr) {
+        tr.style.display = tr.textContent.toLowerCase().includes(q) ? '' : 'none';
+    });
+}
+</script>
 </body>
 </html>
