@@ -6427,34 +6427,53 @@ try {
                 $advanceType   = 'period';
             }
 
-            // Buscar siguiente periodo lectivo (por startdate > enddate del actual)
+            // ── Periodo lectivo sugerido ──────────────────────────────────────
+            // Prioridad 1: periodo que inicia en los próximos 30 días
+            // Prioridad 2 (fallback): periodo en curso (el que ya inició, más reciente)
+            $now      = time();
+            $in30days = $now + (30 * 24 * 3600);
+
+            $suggestedAcPeriod = $DB->get_record_sql(
+                "SELECT id, name, startdate, enddate, status FROM {gmk_academic_periods}
+                  WHERE startdate > :now AND startdate <= :in30
+                  ORDER BY startdate ASC",
+                ['now' => $now, 'in30' => $in30days],
+                0, 1
+            );
+
+            // Fallback: periodo en curso (startdate ya pasó, el más reciente)
+            if (!$suggestedAcPeriod) {
+                $suggestedAcPeriod = $DB->get_record_sql(
+                    "SELECT id, name, startdate, enddate, status FROM {gmk_academic_periods}
+                      WHERE startdate <= :now
+                      ORDER BY startdate DESC",
+                    ['now' => $now],
+                    0, 1
+                );
+            }
+
+            if (!$suggestedAcPeriod) {
+                $response = ['status' => 'error',
+                    'message' => 'No hay Periodos Lectivos configurados en el sistema.'];
+                break;
+            }
+
+            // Lista completa de periodos lectivos para el dropdown del dialog
+            $allAcPeriods = array_values(array_map(function($ap) {
+                return [
+                    'id'        => (int)$ap->id,
+                    'name'      => $ap->name,
+                    'startdate' => (int)$ap->startdate,
+                    'status'    => (int)$ap->status,
+                ];
+            }, $DB->get_records_sql(
+                "SELECT id, name, startdate, enddate, status FROM {gmk_academic_periods}
+                  ORDER BY startdate DESC"
+            )));
+
             $currentAcPeriod = $lpUser->academicperiodid
                 ? $DB->get_record('gmk_academic_periods', ['id' => $lpUser->academicperiodid])
                 : null;
-
-            $nextAcPeriod = null;
-            if ($currentAcPeriod && $currentAcPeriod->enddate > 0) {
-                $nextAcPeriod = $DB->get_record_sql(
-                    "SELECT id, name, startdate, enddate, status FROM {gmk_academic_periods}
-                      WHERE startdate > :enddate ORDER BY startdate ASC",
-                    ['enddate' => $currentAcPeriod->enddate],
-                    0, 1
-                );
-            }
-            // Fallback: siguiente por id con status activo
-            if (!$nextAcPeriod && $lpUser->academicperiodid) {
-                $nextAcPeriod = $DB->get_record_sql(
-                    "SELECT id, name, startdate, enddate, status FROM {gmk_academic_periods}
-                      WHERE id > :currentid AND status = 1 ORDER BY id ASC",
-                    ['currentid' => $lpUser->academicperiodid],
-                    0, 1
-                );
-            }
-            if (!$nextAcPeriod) {
-                $response = ['status' => 'error',
-                    'message' => 'No hay un Periodo Lectivo siguiente configurado con fechas.'];
-                break;
-            }
 
             $currentPeriod = $DB->get_record('local_learning_periods',
                 ['id' => $lpUser->currentperiodid], 'id, name');
@@ -6473,15 +6492,25 @@ try {
                     'periodname'         => $nextPeriod->name,
                     'subperiodid'        => (int)$nextSubperiod->id,
                     'subperiodname'      => $nextSubperiod->name,
-                    'academicperiodid'   => (int)$nextAcPeriod->id,
-                    'academicperiodname' => $nextAcPeriod->name,
+                    'academicperiodid'   => (int)$suggestedAcPeriod->id,
+                    'academicperiodname' => $suggestedAcPeriod->name,
                 ],
-                'advancetype' => $advanceType,
+                'advancetype'      => $advanceType,
+                'allAcademicPeriods' => $allAcPeriods,
             ];
 
             if ($dryrun) {
                 $response = ['status' => 'success', 'data' => $previewData];
                 break;
+            }
+
+            // En ejecución (dryrun=0): respetar el periodo lectivo elegido en el dialog
+            $overrideAcId = optional_param('academicperiodid', 0, PARAM_INT);
+            if ($overrideAcId && $overrideAcId !== (int)$suggestedAcPeriod->id) {
+                $override = $DB->get_record('gmk_academic_periods', ['id' => $overrideAcId]);
+                if ($override) {
+                    $suggestedAcPeriod = $override;
+                }
             }
 
             // Ejecutar actualización atómica
@@ -6494,7 +6523,7 @@ try {
                 if (!$ok) {
                     throw new Exception('Error al actualizar nivel/bloque: ' . $errorMsg);
                 }
-                $DB->set_field('local_learning_users', 'academicperiodid', $nextAcPeriod->id,
+                $DB->set_field('local_learning_users', 'academicperiodid', $suggestedAcPeriod->id,
                     ['userid' => $userid, 'learningplanid' => $planid]);
                 $DB->set_field('local_learning_users', 'timemodified', time(),
                     ['userid' => $userid, 'learningplanid' => $planid]);

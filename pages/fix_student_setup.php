@@ -42,6 +42,46 @@ function php_parse_date($date_str) {
     return 0;
 }
 
+function php_resolve_id_by_name(array $records, string $inputname): int {
+    $inputname = trim((string)$inputname);
+    if ($inputname === '') {
+        return 0;
+    }
+
+    // Allow direct numeric id in import cell.
+    if (ctype_digit($inputname)) {
+        $asint = (int)$inputname;
+        foreach ($records as $record) {
+            if ((int)$record->id === $asint) {
+                return $asint;
+            }
+        }
+    }
+
+    $normalizedinput = php_normalize_field($inputname);
+    foreach ($records as $record) {
+        if (php_normalize_field((string)$record->name) === $normalizedinput) {
+            return (int)$record->id;
+        }
+    }
+
+    return 0;
+}
+
+function php_preview_names(array $records, int $limit = 8): string {
+    if (empty($records)) {
+        return '';
+    }
+    $names = [];
+    foreach ($records as $record) {
+        $names[] = (string)$record->name;
+        if (count($names) >= $limit) {
+            break;
+        }
+    }
+    return implode(' | ', $names);
+}
+
 // ========== AJAX HANDLERS ==========
 if ($action === 'get_plans') {
     header('Content-Type: application/json');

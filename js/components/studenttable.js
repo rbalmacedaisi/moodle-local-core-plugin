@@ -387,7 +387,18 @@ Vue.component('studenttable', {
                                 <tr>
                                     <td class="text-body-2">{{ renovarDialog.current.academicperiodname }}</td>
                                     <td class="text-center"><v-icon x-small color="grey">mdi-arrow-right</v-icon></td>
-                                    <td class="text-body-2 teal--text font-weight-medium">{{ renovarDialog.next.academicperiodname }}</td>
+                                    <td>
+                                        <v-select
+                                            v-model="renovarDialog.selectedAcademicPeriodId"
+                                            :items="renovarDialog.allAcademicPeriods"
+                                            item-text="name"
+                                            item-value="id"
+                                            dense
+                                            hide-details
+                                            class="text-body-2 teal--text"
+                                            style="min-width:160px;"
+                                        ></v-select>
+                                    </td>
                                 </tr>
                             </tbody>
                         </v-simple-table>
@@ -455,6 +466,8 @@ Vue.component('studenttable', {
                 carrer: null,
                 current: { periodid: null, periodname: '--', subperiodid: null, subperiodname: '--', academicperiodid: null, academicperiodname: '--' },
                 next:    { periodid: null, periodname: '--', subperiodid: null, subperiodname: '--', academicperiodid: null, academicperiodname: '--' },
+                selectedAcademicPeriodId: null,
+                allAcademicPeriods: [],
             },
         };
     },
@@ -1170,14 +1183,16 @@ Vue.component('studenttable', {
                 const response = await axios.post(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php`, params);
                 if (response.data.status === 'success') {
                     const d = response.data.data;
-                    this.renovarDialog.studentName  = item.name;
-                    this.renovarDialog.studentItem  = item;
-                    this.renovarDialog.carrer       = carrer;
-                    this.renovarDialog.current      = { ...d.current };
-                    this.renovarDialog.next         = { ...d.next };
-                    this.renovarDialog.confirming   = false;
-                    this.renovarDialog.error        = '';
-                    this.renovarDialog.show         = true;
+                    this.renovarDialog.studentName           = item.name;
+                    this.renovarDialog.studentItem           = item;
+                    this.renovarDialog.carrer                = carrer;
+                    this.renovarDialog.current               = { ...d.current };
+                    this.renovarDialog.next                  = { ...d.next };
+                    this.renovarDialog.allAcademicPeriods    = d.allAcademicPeriods || [];
+                    this.renovarDialog.selectedAcademicPeriodId = d.next.academicperiodid;
+                    this.renovarDialog.confirming            = false;
+                    this.renovarDialog.error                 = '';
+                    this.renovarDialog.show                  = true;
                 } else {
                     alert('No se puede renovar: ' + (response.data.message || 'Error desconocido'));
                 }
@@ -1203,15 +1218,19 @@ Vue.component('studenttable', {
                 params.append('userid', item.id);
                 params.append('planid', carrer.planid);
                 params.append('dryrun', '0');
+                params.append('academicperiodid', this.renovarDialog.selectedAcademicPeriodId || 0);
 
                 const response = await axios.post(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php`, params);
                 if (response.data.status === 'success') {
                     const next = this.renovarDialog.next;
+                    const selAp = this.renovarDialog.allAcademicPeriods.find(
+                        ap => ap.id === this.renovarDialog.selectedAcademicPeriodId
+                    );
                     this.$set(carrer, 'periodid',           next.periodid);
                     this.$set(carrer, 'periodname',         next.periodname);
                     this.$set(carrer, 'subperiodname',      next.subperiodname);
-                    this.$set(item,   'academicperiodid',   next.academicperiodid);
-                    this.$set(item,   'academicperiodname', next.academicperiodname);
+                    this.$set(item,   'academicperiodid',   this.renovarDialog.selectedAcademicPeriodId);
+                    this.$set(item,   'academicperiodname', selAp ? selAp.name : next.academicperiodname);
                     this.renovarDialog.show = false;
                     await this.getDataFromApi();
                 } else {
