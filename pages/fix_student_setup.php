@@ -82,6 +82,70 @@ function php_preview_names(array $records, int $limit = 8): string {
     return implode(' | ', $names);
 }
 
+function php_get_profile_fields_index(): array {
+    global $DB;
+    $records = $DB->get_records('user_info_field', null, '', 'id, shortname, name');
+
+    $index = [
+        'byshort' => [],
+        'bynormshort' => [],
+        'bynormname' => [],
+    ];
+
+    foreach ($records as $record) {
+        $short = trim((string)$record->shortname);
+        $name = trim((string)$record->name);
+        if ($short !== '') {
+            $index['byshort'][$short] = $record;
+            $index['bynormshort'][php_normalize_field($short)] = $record;
+        }
+        if ($name !== '') {
+            $index['bynormname'][php_normalize_field($name)] = $record;
+        }
+    }
+    return $index;
+}
+
+function php_resolve_profile_field(array $index, string $logicalkey, array $namealiases = []): ?stdClass {
+    if (isset($index['byshort'][$logicalkey])) {
+        return $index['byshort'][$logicalkey];
+    }
+
+    $normkey = php_normalize_field($logicalkey);
+    if ($normkey !== '' && isset($index['bynormshort'][$normkey])) {
+        return $index['bynormshort'][$normkey];
+    }
+    if ($normkey !== '' && isset($index['bynormname'][$normkey])) {
+        return $index['bynormname'][$normkey];
+    }
+
+    foreach ($namealiases as $alias) {
+        $normalias = php_normalize_field((string)$alias);
+        if ($normalias !== '' && isset($index['bynormname'][$normalias])) {
+            return $index['bynormname'][$normalias];
+        }
+    }
+
+    return null;
+}
+
+function php_upsert_profile_field_value(int $userid, int $fieldid, $value): void {
+    global $DB;
+    $value = ($value === null) ? '' : (string)$value;
+    $existing = $DB->get_record('user_info_data', ['userid' => $userid, 'fieldid' => $fieldid], 'id', IGNORE_MULTIPLE);
+    if ($existing) {
+        $DB->set_field('user_info_data', 'data', $value, ['id' => $existing->id]);
+        return;
+    }
+
+    $record = new stdClass();
+    $record->userid = $userid;
+    $record->fieldid = $fieldid;
+    $record->data = $value;
+    $record->dataformat = 0;
+    $DB->insert_record('user_info_data', $record);
+}
+
 // ========== AJAX HANDLERS ==========
 if ($action === 'get_plans') {
     header('Content-Type: application/json');
@@ -223,7 +287,7 @@ if ($action === 'ajax_fix') {
         $documentnumber = optional_param('documentnumber', '', PARAM_RAW);
         $needfirsttuition = optional_param('needfirsttuition', '', PARAM_ALPHA);
         $personalemail = optional_param('personalemail', '', PARAM_RAW);
-        $studentstatus = optional_param('studentstatus', '', PARAM_TEXT);
+        $studentstatus = trim((string)optional_param('studentstatus', '', PARAM_TEXT));
         $gmkgenre = optional_param('gmkgenre', '', PARAM_ALPHA);
         $gmkjourney = optional_param('gmkjourney', '', PARAM_ALPHA);
         $custom_phone = optional_param('custom_phone', '', PARAM_RAW);
@@ -235,13 +299,8 @@ if ($action === 'ajax_fix') {
         if ($status === '' || !in_array($status, $valid_statuses, true)) {
             $status = 'activo';
         }
-        $studentstatus = mb_strtolower(trim((string)$studentstatus), 'UTF-8');
-        if ($studentstatus !== '' && !in_array($studentstatus, $valid_statuses, true)) {
-            if ($is_master_template) {
-                throw new Exception("Estado Estudiante inválido: '$studentstatus'.");
-            }
-            $studentstatus = '';
-        }
+        // Keep original text for custom profile field "Estado Estudiante".
+        // It may be a menu/text field with values that are not the same as academic status.
 
         // 1. Resolve User
         if ($userid > 0) {
@@ -368,11 +427,11 @@ if ($action === 'ajax_fix') {
         }
 
         // Update Custom Profile Fields.
-        // In master template mode we always push the exported fields (including empty values)
+        // In master template mode we always push exported fields (including empty values),
         // so import behaves as true mirror of export columns.
-        $custom_fields = [];
-        if ($is_master_template || trim((string)$usertype) !== '') $custom_fields['usertype'] = trim((string)$usertype);
-        if ($is_master_template || trim((string)$accountmanager) !== '') $custom_fields['accountmanager'] = trim((string)$accountmanager);
+        $custom_values = [];
+        if ($is_master_template || trim((string)$usertype) !== '') $custom_values['usertype'] = trim((string)$usertype);
+        if ($is_master_template || trim((string)$accountmanager) !== '') $custom_values['accountmanager'] = trim((string)$accountmanager);
 
         $birthdate = trim((string)$birthdate);
         if ($birthdate !== '') {
@@ -382,28 +441,63 @@ if ($action === 'ajax_fix') {
                     throw new Exception("Fecha Nacimiento inválida para '$username': '$birthdate'.");
                 }
             } else {
-                $custom_fields['birthdate'] = $bdate_ts;
+                $custom_values['birthdate'] = $bdate_ts;
             }
         } else if ($is_master_template) {
-            $custom_fields['birthdate'] = '';
+            $custom_values['birthdate'] = '';
         }
 
-        if ($is_master_template || trim((string)$documenttype) !== '') $custom_fields['documenttype'] = trim((string)$documenttype);
-        if ($is_master_template || trim((string)$documentnumber) !== '') $custom_fields['documentnumber'] = trim((string)$documentnumber);
-        if ($is_master_template || trim((string)$needfirsttuition) !== '') $custom_fields['needfirsttuition'] = trim((string)$needfirsttuition);
-        if ($is_master_template || trim((string)$personalemail) !== '') $custom_fields['personalemail'] = trim((string)$personalemail);
-        if ($is_master_template || $studentstatus !== '') $custom_fields['studentstatus'] = $studentstatus;
-        if ($is_master_template || trim((string)$gmkgenre) !== '') $custom_fields['gmkgenre'] = trim((string)$gmkgenre);
-        if ($is_master_template || trim((string)$gmkjourney) !== '') $custom_fields['gmkjourney'] = trim((string)$gmkjourney);
-        if ($is_master_template || trim((string)$custom_phone) !== '') $custom_fields['custom_phone'] = trim((string)$custom_phone);
-        if ($is_master_template || trim((string)$periodo_ingreso) !== '') $custom_fields['periodo_ingreso'] = trim((string)$periodo_ingreso);
+        if ($is_master_template || trim((string)$documenttype) !== '') $custom_values['documenttype'] = trim((string)$documenttype);
+        if ($is_master_template || trim((string)$documentnumber) !== '') $custom_values['documentnumber'] = trim((string)$documentnumber);
+        if ($is_master_template || trim((string)$needfirsttuition) !== '') $custom_values['needfirsttuition'] = trim((string)$needfirsttuition);
+        if ($is_master_template || trim((string)$personalemail) !== '') $custom_values['personalemail'] = trim((string)$personalemail);
+        if ($is_master_template || $studentstatus !== '') $custom_values['studentstatus'] = $studentstatus;
+        if ($is_master_template || trim((string)$gmkgenre) !== '') $custom_values['gmkgenre'] = trim((string)$gmkgenre);
+        if ($is_master_template || trim((string)$gmkjourney) !== '') $custom_values['gmkjourney'] = trim((string)$gmkjourney);
+        if ($is_master_template || trim((string)$custom_phone) !== '') $custom_values['custom_phone'] = trim((string)$custom_phone);
+        if ($is_master_template || trim((string)$periodo_ingreso) !== '') $custom_values['periodo_ingreso'] = trim((string)$periodo_ingreso);
 
-        error_log("Custom fields a actualizar: " . json_encode($custom_fields));
+        $profile_field_aliases = [
+            'usertype' => ['tipo usuario'],
+            'accountmanager' => ['asesor comercial'],
+            'birthdate' => ['fecha nacimiento'],
+            'documenttype' => ['tipo documento'],
+            'documentnumber' => ['numero documento'],
+            'needfirsttuition' => ['paga matricula'],
+            'personalemail' => ['correo personal'],
+            'studentstatus' => ['estado estudiante'],
+            'gmkgenre' => ['genero'],
+            'gmkjourney' => ['jornada'],
+            'custom_phone' => ['movil personalizado'],
+            'periodo_ingreso' => ['periodo ingreso'],
+        ];
 
-        if (!empty($custom_fields)) {
-            require_once($CFG->dirroot . '/user/profile/lib.php');
-            profile_save_custom_fields($userid, $custom_fields);
-            error_log("Custom fields guardados exitosamente");
+        error_log("Custom fields (logical keys) a actualizar: " . json_encode($custom_values));
+
+        if (!empty($custom_values)) {
+            $profileindex = php_get_profile_fields_index();
+            $updatedshortnames = [];
+            $unresolvedlogicalkeys = [];
+
+            foreach ($custom_values as $logicalkey => $value) {
+                $aliases = $profile_field_aliases[$logicalkey] ?? [];
+                $field = php_resolve_profile_field($profileindex, $logicalkey, $aliases);
+                if (!$field) {
+                    $unresolvedlogicalkeys[] = $logicalkey;
+                    continue;
+                }
+                php_upsert_profile_field_value($userid, (int)$field->id, $value);
+                $updatedshortnames[] = $field->shortname;
+            }
+
+            error_log("Custom fields guardados (shortname): " . implode(', ', $updatedshortnames));
+            if (!empty($unresolvedlogicalkeys)) {
+                $msg = "Campos de perfil no encontrados en BD para actualizar: " . implode(', ', $unresolvedlogicalkeys);
+                if ($is_master_template) {
+                    throw new Exception($msg);
+                }
+                error_log($msg);
+            }
         } else {
             error_log("No hay custom fields para actualizar");
         }
