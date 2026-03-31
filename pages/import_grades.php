@@ -307,59 +307,68 @@ if ($action === 'ajax_import_grade') {
         }
 
         // Save feedback to Moodle gradebook if provided
-        if (!empty($feedback) || !empty($nota)) {
+        // FIX: use ($nota !== null) instead of !empty($nota) — !empty(0) is false in PHP,
+        //      which caused grade=0 to silently skip all gradebook updates.
+        if (!empty($feedback) || $nota !== null) {
             error_log("Procesando gradebook: feedback=" . ($feedback ?? 'NULL') . ", nota=" . ($nota ?? 'NULL'));
             require_once($CFG->libdir . '/gradelib.php');
 
-            // Get the course grade item (final grade)
-            $grade_item = grade_item::fetch([
-                'courseid' => $course->id,
-                'itemtype' => 'course'
-            ]);
-
-            if ($grade_item) {
-                error_log("Grade item encontrado: ID={$grade_item->id}");
-
-                // FIRST: Try to fetch existing grade_grade record
-                $grade_grade = grade_grade::fetch([
-                    'itemid' => $grade_item->id,
-                    'userid' => $user->id
-                ]);
-
-                if ($grade_grade) {
-                    // UPDATE existing record
-                    error_log("ACTUALIZANDO grade_grade existente ID: {$grade_grade->id}");
-                    if (!empty($feedback)) {
-                        $grade_grade->feedback = $feedback;
-                        $grade_grade->feedbackformat = FORMAT_PLAIN;
+            // ── Helper: upsert one grade_grade record ──────────────────────────
+            $upsert_grade = function(grade_item $gi, float $grade_val, string $fb) use ($user): void {
+                $gg = grade_grade::fetch(['itemid' => $gi->id, 'userid' => $user->id]);
+                if ($gg) {
+                    $gg->finalgrade = $grade_val;
+                    $gg->rawgrade   = $grade_val;
+                    if ($fb !== '') {
+                        $gg->feedback       = $fb;
+                        $gg->feedbackformat = FORMAT_PLAIN;
                     }
-                    if (!empty($nota)) {
-                        $grade_grade->finalgrade = $nota;
-                        $grade_grade->rawgrade = $nota;
-                    }
-                    $grade_grade->update('import');
-                    error_log("✓ grade_grade actualizado");
+                    $gg->update('import');
                 } else {
-                    // CREATE new record
-                    error_log("CREANDO nuevo grade_grade");
-                    $grade_grade = new grade_grade();
-                    $grade_grade->itemid = $grade_item->id;
-                    $grade_grade->userid = $user->id;
-                    $grade_grade->rawgrademax = $grade_item->grademax;
-                    $grade_grade->rawgrademin = $grade_item->grademin;
-                    if (!empty($nota)) {
-                        $grade_grade->finalgrade = $nota;
-                        $grade_grade->rawgrade = $nota;
+                    $gg = new grade_grade();
+                    $gg->itemid       = $gi->id;
+                    $gg->userid       = $user->id;
+                    $gg->rawgrademax  = $gi->grademax;
+                    $gg->rawgrademin  = $gi->grademin;
+                    $gg->finalgrade   = $grade_val;
+                    $gg->rawgrade     = $grade_val;
+                    if ($fb !== '') {
+                        $gg->feedback       = $fb;
+                        $gg->feedbackformat = FORMAT_PLAIN;
                     }
-                    if (!empty($feedback)) {
-                        $grade_grade->feedback = $feedback;
-                        $grade_grade->feedbackformat = FORMAT_PLAIN;
-                    }
-                    $grade_grade->insert('import');
-                    error_log("✓ grade_grade creado");
+                    $gg->insert('import');
                 }
+            };
+
+            // ── Priority 3: course total (itemtype='course') ───────────────────
+            $grade_item = grade_item::fetch(['courseid' => $course->id, 'itemtype' => 'course']);
+            if ($grade_item && $nota !== null) {
+                error_log("Actualizando Priority-3 (course total) grade_item ID={$grade_item->id}");
+                $upsert_grade($grade_item, (float)$nota, $feedback);
+                error_log("✓ Priority-3 grade_grade actualizado");
             } else {
-                error_log("⚠ No se encontró grade_item para el curso {$course->id}");
+                error_log("⚠ No se encontró grade_item (course total) para el curso {$course->id}");
+            }
+
+            // ── Priority 1: "Nota Final Integrada" items (panel reads these first) ──
+            // FIX: import_grades only updated the course total (Priority 3), but the panel
+            //      reads Priority 1 first — so imported grades were invisible when these items existed.
+            if ($nota !== null) {
+                $nfi_items = $DB->get_records_sql(
+                    "SELECT * FROM {grade_items}
+                      WHERE courseid = ?
+                        AND (itemname LIKE '%Nota Final Integrada%'
+                             OR itemname LIKE '%Final Integrada%'
+                             OR itemname LIKE '%Nota Final%')",
+                    [$course->id]
+                );
+                foreach ($nfi_items as $nfi_raw) {
+                    $nfi_item = grade_item::fetch(['id' => $nfi_raw->id]);
+                    if (!$nfi_item) continue;
+                    error_log("Actualizando Priority-1 (Nota Final Integrada) grade_item ID={$nfi_item->id}");
+                    $upsert_grade($nfi_item, (float)$nota, '');
+                    error_log("✓ Priority-1 grade_grade actualizado");
+                }
             }
         } else {
             error_log("No hay feedback ni nota para guardar en gradebook");
