@@ -374,18 +374,38 @@ Vue.component('studenttable', {
                         </v-row>
                         <v-simple-table dense class="mb-3">
                             <tbody>
+                                <!-- Una sección por cada plan de aprendizaje del estudiante -->
+                                <template v-for="(planEntry, idx) in renovarDialog.plans">
+                                    <!-- Nombre del plan (solo si hay más de uno) -->
+                                    <tr v-if="renovarDialog.plans.length > 1" :key="'ph-'+idx">
+                                        <td colspan="3" class="caption font-weight-bold grey--text text--darken-1 pt-2 pb-0">
+                                            {{ planEntry.carrer.career || ('Plan ' + planEntry.carrer.planid) }}
+                                        </td>
+                                    </tr>
+                                    <!-- Error de este plan -->
+                                    <tr v-if="planEntry.error" :key="'pe-'+idx">
+                                        <td colspan="3" class="caption error--text">{{ planEntry.error }}</td>
+                                    </tr>
+                                    <!-- Cuatrimestre -->
+                                    <tr v-if="planEntry.preview" :key="'pp-'+idx">
+                                        <td class="text-body-2">{{ planEntry.preview.current.periodname }}</td>
+                                        <td class="text-center"><v-icon x-small color="grey">mdi-arrow-right</v-icon></td>
+                                        <td class="text-body-2 teal--text font-weight-medium">{{ planEntry.preview.next.periodname }}</td>
+                                    </tr>
+                                    <!-- Bimestre -->
+                                    <tr v-if="planEntry.preview" :key="'ps-'+idx">
+                                        <td class="text-body-2 pl-4">{{ planEntry.preview.current.subperiodname }}</td>
+                                        <td class="text-center"><v-icon x-small color="grey">mdi-arrow-right</v-icon></td>
+                                        <td class="text-body-2 teal--text font-weight-medium">{{ planEntry.preview.next.subperiodname }}</td>
+                                    </tr>
+                                </template>
+                                <!-- Periodo Lectivo compartido (un selector para todos los planes) -->
                                 <tr>
-                                    <td class="text-body-2">{{ renovarDialog.current.periodname }}</td>
-                                    <td class="text-center"><v-icon x-small color="grey">mdi-arrow-right</v-icon></td>
-                                    <td class="text-body-2 teal--text font-weight-medium">{{ renovarDialog.next.periodname }}</td>
-                                </tr>
-                                <tr>
-                                    <td class="text-body-2">{{ renovarDialog.current.subperiodname }}</td>
-                                    <td class="text-center"><v-icon x-small color="grey">mdi-arrow-right</v-icon></td>
-                                    <td class="text-body-2 teal--text font-weight-medium">{{ renovarDialog.next.subperiodname }}</td>
-                                </tr>
-                                <tr>
-                                    <td class="text-body-2">{{ renovarDialog.current.academicperiodname }}</td>
+                                    <td class="text-body-2">
+                                        {{ renovarDialog.plans[0] && renovarDialog.plans[0].preview
+                                            ? renovarDialog.plans[0].preview.current.academicperiodname
+                                            : '--' }}
+                                    </td>
                                     <td class="text-center"><v-icon x-small color="grey">mdi-arrow-right</v-icon></td>
                                     <td>
                                         <v-select
@@ -463,9 +483,7 @@ Vue.component('studenttable', {
                 error: '',
                 studentName: '',
                 studentItem: null,
-                carrer: null,
-                current: { periodid: null, periodname: '--', subperiodid: null, subperiodname: '--', academicperiodid: null, academicperiodname: '--' },
-                next:    { periodid: null, periodname: '--', subperiodid: null, subperiodname: '--', academicperiodid: null, academicperiodname: '--' },
+                plans: [],              // [{ carrer, preview, error }] — uno por plan
                 selectedAcademicPeriodId: null,
                 allAcademicPeriods: [],
             },
@@ -1167,35 +1185,49 @@ Vue.component('studenttable', {
         },
 
         async openRenovarPreview(item) {
-            const carrer = item.carrers && item.carrers[0];
-            if (!carrer) { alert('Este estudiante no tiene carrera asignada.'); return; }
+            const carrers = item.carrers && item.carrers.length ? item.carrers : null;
+            if (!carrers) { alert('Este estudiante no tiene carrera asignada.'); return; }
 
             this.$set(item, 'renovating', true);
             this.renovarDialog.error = '';
             try {
-                const params = new URLSearchParams();
-                params.append('action', 'local_grupomakro_renovar_student');
-                params.append('sesskey', M.cfg.sesskey);
-                params.append('userid', item.id);
-                params.append('planid', carrer.planid);
-                params.append('dryrun', '1');
+                // Solicitar preview para TODOS los planes en paralelo
+                const results = await Promise.all(carrers.map(carrer => {
+                    const params = new URLSearchParams();
+                    params.append('action', 'local_grupomakro_renovar_student');
+                    params.append('sesskey', M.cfg.sesskey);
+                    params.append('userid', item.id);
+                    params.append('planid', carrer.planid);
+                    params.append('dryrun', '1');
+                    return axios.post(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php`, params)
+                        .then(r => ({ carrer, data: r.data }));
+                }));
 
-                const response = await axios.post(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php`, params);
-                if (response.data.status === 'success') {
-                    const d = response.data.data;
-                    this.renovarDialog.studentName           = item.name;
-                    this.renovarDialog.studentItem           = item;
-                    this.renovarDialog.carrer                = carrer;
-                    this.renovarDialog.current               = { ...d.current };
-                    this.renovarDialog.next                  = { ...d.next };
-                    this.renovarDialog.allAcademicPeriods    = d.allAcademicPeriods || [];
-                    this.renovarDialog.selectedAcademicPeriodId = d.next.academicperiodid;
-                    this.renovarDialog.confirming            = false;
-                    this.renovarDialog.error                 = '';
-                    this.renovarDialog.show                  = true;
-                } else {
-                    alert('No se puede renovar: ' + (response.data.message || 'Error desconocido'));
+                const plans = results.map(({ carrer, data }) => ({
+                    carrer,
+                    preview: data.status === 'success' ? data.data : null,
+                    error:   data.status !== 'success' ? data.message : null,
+                }));
+
+                // Si TODOS fallaron, mostrar el primer error y no abrir el dialog
+                if (plans.every(p => p.error)) {
+                    alert('No se puede renovar: ' + plans[0].error);
+                    return;
                 }
+
+                // Tomar lista de periodos lectivos del primer plan exitoso
+                const firstOk = plans.find(p => p.preview);
+                const allAcPeriods    = firstOk.preview.allAcademicPeriods || [];
+                const suggestedAcId   = firstOk.preview.next.academicperiodid;
+
+                this.renovarDialog.studentName              = item.name;
+                this.renovarDialog.studentItem              = item;
+                this.renovarDialog.plans                    = plans;
+                this.renovarDialog.allAcademicPeriods       = allAcPeriods;
+                this.renovarDialog.selectedAcademicPeriodId = suggestedAcId;
+                this.renovarDialog.confirming               = false;
+                this.renovarDialog.error                    = '';
+                this.renovarDialog.show                     = true;
             } catch (error) {
                 console.error('Error en preview de renovación:', error);
                 alert('Error de conexión al obtener la vista previa.');

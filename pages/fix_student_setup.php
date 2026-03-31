@@ -194,13 +194,15 @@ if ($action === 'ajax_fix') {
         $userid = optional_param('userid', 0, PARAM_INT);
         $username = optional_param('username', '', PARAM_RAW);
         $planid = optional_param('planid', 0, PARAM_INT);
-        $plan_name = optional_param('plan_name', '', PARAM_RAW);
-        $level_name = optional_param('level_name', '', PARAM_RAW);
-        $subperiod_name = optional_param('subperiod_name', '', PARAM_RAW);
-        $academic_name = optional_param('academic_name', '', PARAM_RAW);
-        $groupname = optional_param('groupname', '', PARAM_RAW);
+        $plan_name = trim((string)optional_param('plan_name', '', PARAM_RAW));
+        $level_name = trim((string)optional_param('level_name', '', PARAM_RAW));
+        $subperiod_name = trim((string)optional_param('subperiod_name', '', PARAM_RAW));
+        $academic_name = trim((string)optional_param('academic_name', '', PARAM_RAW));
+        $groupname = trim((string)optional_param('groupname', '', PARAM_RAW));
         $status = optional_param('status', '', PARAM_TEXT);
         $new_idnumber = optional_param('idnumber', '', PARAM_RAW);
+        $template_mode = optional_param('template_mode', 'repair', PARAM_ALPHA);
+        $is_master_template = ($template_mode === 'master');
         
         // Identity Fields
         $firstname = optional_param('firstname', '', PARAM_TEXT);
@@ -227,6 +229,20 @@ if ($action === 'ajax_fix') {
         $custom_phone = optional_param('custom_phone', '', PARAM_RAW);
         $periodo_ingreso = optional_param('periodo_ingreso', '', PARAM_RAW);
 
+        // Normalize statuses early so they are used consistently in llu + custom fields.
+        $valid_statuses = ['activo', 'inactivo', 'aplazado', 'retirado', 'suspendido', 'desertor', 'graduado', 'egresado'];
+        $status = mb_strtolower(trim((string)$status), 'UTF-8');
+        if ($status === '' || !in_array($status, $valid_statuses, true)) {
+            $status = 'activo';
+        }
+        $studentstatus = mb_strtolower(trim((string)$studentstatus), 'UTF-8');
+        if ($studentstatus !== '' && !in_array($studentstatus, $valid_statuses, true)) {
+            if ($is_master_template) {
+                throw new Exception("Estado Estudiante inválido: '$studentstatus'.");
+            }
+            $studentstatus = '';
+        }
+
         // 1. Resolve User
         if ($userid > 0) {
             $user = $DB->get_record('user', ['id' => $userid, 'deleted' => 0]);
@@ -239,64 +255,97 @@ if ($action === 'ajax_fix') {
         $userid = $user->id;
 
         // 2. Resolve Plan
-        if ($planid <= 0 && !empty($plan_name)) {
-            $normalized_pname = php_normalize_field($plan_name);
-            $all_plans = $DB->get_records('local_learning_plans', null, '', 'id, name');
-            foreach ($all_plans as $p) {
-                if (php_normalize_field($p->name) === $normalized_pname) {
-                    $planid = $p->id;
-                    break;
-                }
-            }
+        $all_plans = $DB->get_records('local_learning_plans', null, 'name ASC', 'id, name');
+        if ($planid <= 0 && $plan_name !== '') {
+            $planid = php_resolve_id_by_name($all_plans, $plan_name);
         }
-        if ($planid <= 0) throw new Exception("Plan no proporcionado o no encontrado: '$plan_name'");
+        if ($planid <= 0) {
+            throw new Exception("Plan no proporcionado o no encontrado: '$plan_name'.");
+        }
+
+        // Resolve candidate local_learning_users row early:
+        // 1) Exact by user+plan (preferred)
+        // 2) Latest student row for user (fallback to avoid duplicate orphan rows)
+        $llu_by_plan = $DB->get_record('local_learning_users', [
+            'userid' => $userid,
+            'learningplanid' => $planid,
+            'userrolename' => 'student',
+        ], '*', IGNORE_MULTIPLE);
+        $llu_latest = null;
+        if (!$llu_by_plan) {
+            $llu_latest = $DB->get_record_sql(
+                "SELECT *
+                   FROM {local_learning_users}
+                  WHERE userid = ? AND userrolename = 'student'
+               ORDER BY timemodified DESC, id DESC",
+                [$userid],
+                IGNORE_MULTIPLE
+            );
+        }
+        $llu = $llu_by_plan ?: $llu_latest;
+        $llu_found_by_plan = !empty($llu_by_plan);
 
         // 3. Resolve Level (Period)
+        $plan_periods = $DB->get_records('local_learning_periods', ['learningplanid' => $planid], 'id ASC', 'id, name');
         $current_period_id = 0;
-        if (!empty($level_name)) {
-            $normalized_lname = php_normalize_field($level_name);
-            $plan_periods = $DB->get_records('local_learning_periods', ['learningplanid' => $planid], 'id ASC', 'id, name');
-            foreach ($plan_periods as $pp) {
-                if (php_normalize_field($pp->name) === $normalized_lname) {
-                    $current_period_id = $pp->id;
-                    break;
-                }
+        if ($level_name !== '') {
+            $current_period_id = php_resolve_id_by_name($plan_periods, $level_name);
+            if ($current_period_id <= 0) {
+                throw new Exception("Nivel (Periodo) no encontrado para el plan '$plan_name': '$level_name'. Disponibles: " . php_preview_names($plan_periods));
             }
         }
         if ($current_period_id <= 0) {
-            // Default to first period of the plan if none specified or found
-            $first_period = $DB->get_record_sql("SELECT id FROM {local_learning_periods} WHERE learningplanid = ? ORDER BY id ASC", [$planid], IGNORE_MULTIPLE);
-            $current_period_id = $first_period ? $first_period->id : 1;
+            if ($is_master_template) {
+                if ($llu_found_by_plan && !empty($llu->currentperiodid)) {
+                    $current_period_id = (int)$llu->currentperiodid;
+                } else {
+                    throw new Exception("La plantilla maestra requiere 'Nivel (Periodo)' válido para '$username'.");
+                }
+            } else {
+                $first_period = reset($plan_periods);
+                if ($first_period) {
+                    $current_period_id = (int)$first_period->id;
+                } else {
+                    throw new Exception("El plan '$plan_name' no tiene periodos configurados.");
+                }
+            }
         }
 
         // 4. Resolve Subperiod
+        $subperiods = $DB->get_records('local_learning_subperiods', [
+            'learningplanid' => $planid,
+            'periodid' => $current_period_id,
+        ], 'id ASC', 'id, name');
         $current_subperiod_id = 0;
-        if (!empty($subperiod_name)) {
-            $normalized_sname = php_normalize_field($subperiod_name);
-            $subperiods = $DB->get_records('local_learning_subperiods', ['learningplanid' => $planid, 'periodid' => $current_period_id], 'id ASC', 'id, name');
-            foreach ($subperiods as $sp) {
-                if (php_normalize_field($sp->name) === $normalized_sname) {
-                    $current_subperiod_id = $sp->id;
-                    break;
-                }
+        if ($subperiod_name !== '') {
+            $current_subperiod_id = php_resolve_id_by_name($subperiods, $subperiod_name);
+            if ($current_subperiod_id <= 0) {
+                throw new Exception("Subperiodo no encontrado para '$level_name': '$subperiod_name'. Disponibles: " . php_preview_names($subperiods));
             }
+        } else if (!$is_master_template && $llu_found_by_plan && !empty($llu->currentsubperiodid)) {
+            // In repair template we preserve existing subperiod if it was not provided.
+            $current_subperiod_id = (int)$llu->currentsubperiodid;
         }
 
         // 5. Resolve Academic Period
+        $all_aps = $DB->get_records('gmk_academic_periods', null, 'name ASC', 'id, name');
         $academic_period_id = 0;
-        if (!empty($academic_name)) {
-            $normalized_aname = php_normalize_field($academic_name);
-            $all_aps = $DB->get_records('gmk_academic_periods', null, '', 'id, name');
-            foreach ($all_aps as $ap) {
-                if (php_normalize_field($ap->name) === $normalized_aname) {
-                    $academic_period_id = $ap->id;
-                    break;
-                }
+        if ($academic_name !== '') {
+            $academic_period_id = php_resolve_id_by_name($all_aps, $academic_name);
+            if ($academic_period_id <= 0) {
+                throw new Exception("Periodo Académico no encontrado: '$academic_name'. Disponibles: " . php_preview_names($all_aps));
             }
         }
         if ($academic_period_id <= 0) {
-            $academic_period = $DB->get_record('gmk_academic_periods', ['status' => 1], 'id', IGNORE_MULTIPLE);
-            $academic_period_id = $academic_period ? $academic_period->id : 0;
+            if ($llu_found_by_plan && !empty($llu->academicperiodid)) {
+                $academic_period_id = (int)$llu->academicperiodid;
+            } else {
+                $academic_period = $DB->get_record('gmk_academic_periods', ['status' => 1], 'id', IGNORE_MULTIPLE);
+                $academic_period_id = $academic_period ? (int)$academic_period->id : 0;
+            }
+        }
+        if ($academic_period_id <= 0) {
+            throw new Exception("No se pudo resolver un Periodo Académico para '$username'.");
         }
 
         $transaction = $DB->start_delegated_transaction();
@@ -318,22 +367,36 @@ if ($action === 'ajax_fix') {
             $DB->update_record('user', $user);
         }
 
-        // Update Custom Profile Fields
+        // Update Custom Profile Fields.
+        // In master template mode we always push the exported fields (including empty values)
+        // so import behaves as true mirror of export columns.
         $custom_fields = [];
-        if (!empty($usertype)) $custom_fields['usertype'] = $usertype;
-        if (!empty($accountmanager)) $custom_fields['accountmanager'] = $accountmanager;
+        if ($is_master_template || trim((string)$usertype) !== '') $custom_fields['usertype'] = trim((string)$usertype);
+        if ($is_master_template || trim((string)$accountmanager) !== '') $custom_fields['accountmanager'] = trim((string)$accountmanager);
 
-        $bdate_ts = php_parse_date($birthdate);
-        if ($bdate_ts > 0) $custom_fields['birthdate'] = $bdate_ts;
-        if (!empty($documenttype)) $custom_fields['documenttype'] = $documenttype;
-        if (!empty($documentnumber)) $custom_fields['documentnumber'] = $documentnumber;
-        if (!empty($needfirsttuition)) $custom_fields['needfirsttuition'] = $needfirsttuition;
-        if (!empty($personalemail)) $custom_fields['personalemail'] = $personalemail;
-        if (!empty($studentstatus)) $custom_fields['studentstatus'] = $studentstatus;
-        if (!empty($gmkgenre)) $custom_fields['gmkgenre'] = $gmkgenre;
-        if (!empty($gmkjourney)) $custom_fields['gmkjourney'] = $gmkjourney;
-        if (!empty($custom_phone)) $custom_fields['custom_phone'] = $custom_phone;
-        if (!empty($periodo_ingreso)) $custom_fields['periodo_ingreso'] = $periodo_ingreso;
+        $birthdate = trim((string)$birthdate);
+        if ($birthdate !== '') {
+            $bdate_ts = php_parse_date($birthdate);
+            if ($bdate_ts <= 0) {
+                if ($is_master_template) {
+                    throw new Exception("Fecha Nacimiento inválida para '$username': '$birthdate'.");
+                }
+            } else {
+                $custom_fields['birthdate'] = $bdate_ts;
+            }
+        } else if ($is_master_template) {
+            $custom_fields['birthdate'] = '';
+        }
+
+        if ($is_master_template || trim((string)$documenttype) !== '') $custom_fields['documenttype'] = trim((string)$documenttype);
+        if ($is_master_template || trim((string)$documentnumber) !== '') $custom_fields['documentnumber'] = trim((string)$documentnumber);
+        if ($is_master_template || trim((string)$needfirsttuition) !== '') $custom_fields['needfirsttuition'] = trim((string)$needfirsttuition);
+        if ($is_master_template || trim((string)$personalemail) !== '') $custom_fields['personalemail'] = trim((string)$personalemail);
+        if ($is_master_template || $studentstatus !== '') $custom_fields['studentstatus'] = $studentstatus;
+        if ($is_master_template || trim((string)$gmkgenre) !== '') $custom_fields['gmkgenre'] = trim((string)$gmkgenre);
+        if ($is_master_template || trim((string)$gmkjourney) !== '') $custom_fields['gmkjourney'] = trim((string)$gmkjourney);
+        if ($is_master_template || trim((string)$custom_phone) !== '') $custom_fields['custom_phone'] = trim((string)$custom_phone);
+        if ($is_master_template || trim((string)$periodo_ingreso) !== '') $custom_fields['periodo_ingreso'] = trim((string)$periodo_ingreso);
 
         error_log("Custom fields a actualizar: " . json_encode($custom_fields));
 
@@ -355,29 +418,26 @@ if ($action === 'ajax_fix') {
             }
         }
 
-        // Create/Update local_learning_users
-        // CRITICAL: Must search by userid + learningplanid + userrolename to handle students in multiple plans
-        $llu = $DB->get_record('local_learning_users', [
-            'userid' => $userid,
-            'learningplanid' => $planid,
-            'userrolename' => 'student'
-        ]);
-        $valid_statuses = ['activo', 'inactivo', 'aplazado', 'retirado', 'suspendido', 'desertor', 'graduado', 'egresado'];
-        $status = strtolower(trim($status));
-        if (!in_array($status, $valid_statuses)) {
-            $status = 'activo';
-        }
-
-        $studentstatus = strtolower(trim($studentstatus));
-        if (!empty($studentstatus) && !in_array($studentstatus, $valid_statuses)) {
-            $studentstatus = '';
+        // Create/Update local_learning_users.
+        // If no exact (user+plan) row exists, reuse latest student row for that user.
+        if (!$llu) {
+            $llu = $DB->get_record_sql(
+                "SELECT *
+                   FROM {local_learning_users}
+                  WHERE userid = ? AND userrolename = 'student'
+               ORDER BY timemodified DESC, id DESC",
+                [$userid],
+                IGNORE_MULTIPLE
+            );
         }
 
         // LOG: Debug info
         error_log("=== FIX STUDENT DEBUG ===");
         error_log("Usuario: $username (ID: $userid)");
+        error_log("Template mode: $template_mode");
         error_log("Plan ID resuelto: $planid");
         error_log("Buscando registro: userid=$userid, learningplanid=$planid, userrolename=student");
+        error_log("Coincidencia exacta por plan: " . ($llu_found_by_plan ? 'SI' : 'NO'));
         error_log("Period ID resuelto: $current_period_id");
         error_log("Subperiod ID resuelto: $current_subperiod_id");
         error_log("Academic Period ID resuelto: $academic_period_id");
@@ -400,6 +460,7 @@ if ($action === 'ajax_fix') {
             $record->timemodified = time();
             $record->usermodified = $USER->id;
             $new_id = $DB->insert_record('local_learning_users', $record);
+            $record->id = $new_id;
             error_log("Registro creado con ID: $new_id");
         } else {
             error_log("ACTUALIZANDO registro existente ID: " . $llu->id);
@@ -428,7 +489,7 @@ if ($action === 'ajax_fix') {
             
             $event = \local_sc_learningplans\event\learningplanuser_added::create(array(
                 'context' => context_system::instance(),
-                'objectid' => $llu ? $llu->id : $record->id,
+                'objectid' => $llu ? $llu->id : $new_id,
                 'relateduserid' => $userid,
                 'other' => ["learningPlanId" => $planid, "roleId" => 5]
             ));
@@ -865,10 +926,7 @@ createApp({
                 const ws = wb.Sheets[wsname];
                 
                 // Convert to JSON
-                const rawRows = XLSX.utils.sheet_to_json(ws, { header: 1 });
-                
-                // Remove header
-                rawRows.shift();
+                const rawRows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
                 
                 // Function to normalize strings for matching (remove accents, lowercase, trim)
                 const normalize = (str) => {
@@ -883,18 +941,26 @@ createApp({
                 };
 
                 // Find the header row (the one containing 'Username')
-                const headerIndex = rawRows.findIndex(r => r[0] && String(r[0]).trim() === 'Username');
+                const headerIndex = rawRows.findIndex(r => normalize((r && r[0] !== undefined) ? r[0] : '').startsWith('username'));
                 if (headerIndex === -1) {
                     alert('No se encontró la fila de encabezados (Username)');
                     this.state = 'idle';
                     return;
                 }
+                const headerRow = rawRows[headerIndex] || [];
+                const normalizedHeaders = headerRow.map(h => normalize(h));
+                const isMasterTemplate =
+                    normalizedHeaders.includes('nivel periodo') &&
+                    normalizedHeaders.includes('subperiodo') &&
+                    normalizedHeaders.includes('periodo academico') &&
+                    normalizedHeaders.includes('estado academico') &&
+                    normalizedHeaders.includes('estado estudiante');
 
                 this.rows = rawRows
                     .slice(headerIndex + 1) // Skip headers and everything above
                     .filter(r => r[0] && String(r[0]).trim() !== '') // Skip empty rows
                     .map(r => {
-                        const isMaster = r.length > 5;
+                        const isMaster = isMasterTemplate;
                         
                         // Mapping based on column index
                         const username = String(r[0]).trim();
@@ -966,6 +1032,7 @@ createApp({
                             needfirsttuition: firstPay, personalemail: personalMail,
                             studentstatus: sStatus, gmkgenre: genre, gmkjourney: journey,
                             custom_phone: cPhone, periodo_ingreso: pIngreso,
+                            template_mode: isMaster ? 'master' : 'repair',
                             
                             status_ui: 'pending'
                         };
@@ -1012,6 +1079,7 @@ createApp({
                     const res = await axios.post(url, null, {
                         params: {
                             action: 'ajax_fix',
+                            template_mode: row.template_mode || 'repair',
                             username: row.username,
                             firstname: row.firstname,
                             lastname: row.lastname,
