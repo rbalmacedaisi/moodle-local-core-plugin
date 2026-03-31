@@ -6355,6 +6355,158 @@ try {
             ];
             break;
 
+        case 'local_grupomakro_renovar_student':
+            require_capability('moodle/site:config', $context);
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/progress_manager.php');
+
+            $userid = required_param('userid', PARAM_INT);
+            $planid = required_param('planid', PARAM_INT);
+            $dryrun = optional_param('dryrun', 1, PARAM_INT); // 1=preview, 0=ejecutar
+
+            $lpUser = $DB->get_record('local_learning_users',
+                ['userid' => $userid, 'learningplanid' => $planid]);
+            if (!$lpUser) {
+                $response = ['status' => 'error', 'message' => 'Inscripción no encontrada.'];
+                break;
+            }
+
+            $currentSubperiod = $DB->get_record('local_learning_subperiods',
+                ['id' => $lpUser->currentsubperiodid]);
+            if (!$currentSubperiod) {
+                $response = ['status' => 'error', 'message' => 'El bloque actual no está configurado.'];
+                break;
+            }
+
+            // Buscar siguiente subperiodo en el mismo cuatrimestre (siguiente bimestre)
+            $siblingsAfter = $DB->get_records_sql(
+                "SELECT id, name, periodid, position
+                   FROM {local_learning_subperiods}
+                  WHERE periodid = :periodid AND position > :pos
+                  ORDER BY position ASC, id ASC",
+                ['periodid' => $currentSubperiod->periodid,
+                 'pos'      => (int)($currentSubperiod->position ?? 0)],
+                0, 1
+            );
+
+            $nextSubperiod = null;
+            $nextPeriod    = null;
+            $advanceType   = '';
+
+            if (!empty($siblingsAfter)) {
+                // Caso A: avance de bimestre (mismo cuatrimestre)
+                $nextSubperiod = reset($siblingsAfter);
+                $nextPeriod    = $DB->get_record('local_learning_periods', ['id' => $nextSubperiod->periodid]);
+                $advanceType   = 'subperiod';
+            } else {
+                // Caso B: avance de cuatrimestre (siguiente periodo del plan)
+                $nextPeriods = $DB->get_records_sql(
+                    "SELECT id, name FROM {local_learning_periods}
+                      WHERE learningplanid = :lpid AND id > :currentid
+                      ORDER BY id ASC",
+                    ['lpid' => $lpUser->learningplanid, 'currentid' => $lpUser->currentperiodid],
+                    0, 1
+                );
+                if (empty($nextPeriods)) {
+                    $response = ['status' => 'error',
+                        'message' => 'El estudiante ya está en el último nivel del plan de estudios.'];
+                    break;
+                }
+                $nextPeriod = reset($nextPeriods);
+                $firstSubs  = $DB->get_records_sql(
+                    "SELECT id, name, periodid, position FROM {local_learning_subperiods}
+                      WHERE periodid = :periodid ORDER BY position ASC, id ASC",
+                    ['periodid' => $nextPeriod->id],
+                    0, 1
+                );
+                if (empty($firstSubs)) {
+                    $response = ['status' => 'error',
+                        'message' => "El siguiente nivel ({$nextPeriod->name}) no tiene bloques configurados."];
+                    break;
+                }
+                $nextSubperiod = reset($firstSubs);
+                $advanceType   = 'period';
+            }
+
+            // Buscar siguiente periodo lectivo (por startdate > enddate del actual)
+            $currentAcPeriod = $lpUser->academicperiodid
+                ? $DB->get_record('gmk_academic_periods', ['id' => $lpUser->academicperiodid])
+                : null;
+
+            $nextAcPeriod = null;
+            if ($currentAcPeriod && $currentAcPeriod->enddate > 0) {
+                $nextAcPeriod = $DB->get_record_sql(
+                    "SELECT id, name, startdate, enddate, status FROM {gmk_academic_periods}
+                      WHERE startdate > :enddate ORDER BY startdate ASC",
+                    ['enddate' => $currentAcPeriod->enddate],
+                    0, 1
+                );
+            }
+            // Fallback: siguiente por id con status activo
+            if (!$nextAcPeriod && $lpUser->academicperiodid) {
+                $nextAcPeriod = $DB->get_record_sql(
+                    "SELECT id, name, startdate, enddate, status FROM {gmk_academic_periods}
+                      WHERE id > :currentid AND status = 1 ORDER BY id ASC",
+                    ['currentid' => $lpUser->academicperiodid],
+                    0, 1
+                );
+            }
+            if (!$nextAcPeriod) {
+                $response = ['status' => 'error',
+                    'message' => 'No hay un Periodo Lectivo siguiente configurado con fechas.'];
+                break;
+            }
+
+            $currentPeriod = $DB->get_record('local_learning_periods',
+                ['id' => $lpUser->currentperiodid], 'id, name');
+
+            $previewData = [
+                'current' => [
+                    'periodid'           => (int)$lpUser->currentperiodid,
+                    'periodname'         => $currentPeriod ? $currentPeriod->name : '--',
+                    'subperiodid'        => (int)$lpUser->currentsubperiodid,
+                    'subperiodname'      => $currentSubperiod->name,
+                    'academicperiodid'   => (int)$lpUser->academicperiodid,
+                    'academicperiodname' => $currentAcPeriod ? $currentAcPeriod->name : '--',
+                ],
+                'next' => [
+                    'periodid'           => (int)$nextPeriod->id,
+                    'periodname'         => $nextPeriod->name,
+                    'subperiodid'        => (int)$nextSubperiod->id,
+                    'subperiodname'      => $nextSubperiod->name,
+                    'academicperiodid'   => (int)$nextAcPeriod->id,
+                    'academicperiodname' => $nextAcPeriod->name,
+                ],
+                'advancetype' => $advanceType,
+            ];
+
+            if ($dryrun) {
+                $response = ['status' => 'success', 'data' => $previewData];
+                break;
+            }
+
+            // Ejecutar actualización atómica
+            $transaction = $DB->start_delegated_transaction();
+            try {
+                $errorMsg = '';
+                $ok = \local_grupomakro_progress_manager::update_student_subperiod(
+                    $userid, $planid, $nextSubperiod->id, null, $errorMsg
+                );
+                if (!$ok) {
+                    throw new Exception('Error al actualizar nivel/bloque: ' . $errorMsg);
+                }
+                $DB->set_field('local_learning_users', 'academicperiodid', $nextAcPeriod->id,
+                    ['userid' => $userid, 'learningplanid' => $planid]);
+                $DB->set_field('local_learning_users', 'timemodified', time(),
+                    ['userid' => $userid, 'learningplanid' => $planid]);
+                $transaction->allow_commit();
+                $response = ['status' => 'success', 'message' => 'Renovación aplicada correctamente.',
+                             'data' => $previewData];
+            } catch (Exception $e) {
+                $transaction->rollback($e);
+                $response = ['status' => 'error', 'message' => $e->getMessage()];
+            }
+            break;
+
         default:
             $response['message'] = 'Action not found: ' . $action;
             break;

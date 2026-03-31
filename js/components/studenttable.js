@@ -313,9 +313,18 @@ Vue.component('studenttable', {
                     </template>
 
                     <template v-slot:item.grade="{ item }">
-                        <v-btn small color="primary" class="elevation-0 text-capitalize font-weight-bold" @click="gradeDialog(item)">
-                             notas
-                        </v-btn>
+                        <div class="d-flex flex-column" style="gap:4px;">
+                            <v-btn small color="primary" class="elevation-0 text-capitalize font-weight-bold" @click="gradeDialog(item)">
+                                notas
+                            </v-btn>
+                            <v-btn v-if="isAdmin" small color="teal darken-1" dark
+                                   class="elevation-0 text-capitalize font-weight-bold"
+                                   @click="openRenovarPreview(item)"
+                                   :loading="item.renovating === true">
+                                <v-icon left small>mdi-arrow-right-bold-circle</v-icon>
+                                Renovar
+                            </v-btn>
+                        </div>
                     </template>
 
                     <template v-slot:item.financial_status="{ item }">
@@ -349,6 +358,54 @@ Vue.component('studenttable', {
                     </template>
                 </v-data-table>
             </v-col>
+            <!-- Dialog de confirmación de Renovación -->
+            <v-dialog v-model="renovarDialog.show" max-width="520px" persistent>
+                <v-card>
+                    <v-card-title class="headline white--text teal darken-1 py-3">
+                        <v-icon left color="white">mdi-arrow-right-bold-circle</v-icon>
+                        Renovar Estudiante
+                    </v-card-title>
+                    <v-card-text class="pt-4 pb-0">
+                        <div class="text-subtitle-1 font-weight-bold mb-3">{{ renovarDialog.studentName }}</div>
+                        <v-row no-gutters class="mb-2">
+                            <v-col cols="5" class="caption font-weight-bold grey--text text--darken-2 text-uppercase">Estado Actual</v-col>
+                            <v-col cols="2" class="text-center"><v-icon color="teal" small>mdi-arrow-right</v-icon></v-col>
+                            <v-col cols="5" class="caption font-weight-bold teal--text text-uppercase">Próximo Estado</v-col>
+                        </v-row>
+                        <v-simple-table dense class="mb-3">
+                            <tbody>
+                                <tr>
+                                    <td class="text-body-2">{{ renovarDialog.current.periodname }}</td>
+                                    <td class="text-center"><v-icon x-small color="grey">mdi-arrow-right</v-icon></td>
+                                    <td class="text-body-2 teal--text font-weight-medium">{{ renovarDialog.next.periodname }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-body-2">{{ renovarDialog.current.subperiodname }}</td>
+                                    <td class="text-center"><v-icon x-small color="grey">mdi-arrow-right</v-icon></td>
+                                    <td class="text-body-2 teal--text font-weight-medium">{{ renovarDialog.next.subperiodname }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-body-2">{{ renovarDialog.current.academicperiodname }}</td>
+                                    <td class="text-center"><v-icon x-small color="grey">mdi-arrow-right</v-icon></td>
+                                    <td class="text-body-2 teal--text font-weight-medium">{{ renovarDialog.next.academicperiodname }}</td>
+                                </tr>
+                            </tbody>
+                        </v-simple-table>
+                        <v-alert v-if="renovarDialog.error" type="error" dense class="mt-2 mb-0">
+                            {{ renovarDialog.error }}
+                        </v-alert>
+                    </v-card-text>
+                    <v-card-actions class="pa-4">
+                        <v-spacer></v-spacer>
+                        <v-btn text @click="renovarDialog.show = false" :disabled="renovarDialog.confirming">Cancelar</v-btn>
+                        <v-btn color="teal darken-1" dark @click="confirmRenovar" :loading="renovarDialog.confirming">
+                            <v-icon left>mdi-check</v-icon>
+                            Confirmar Renovación
+                        </v-btn>
+                    </v-card-actions>
+                </v-card>
+            </v-dialog>
+
             <grademodal v-if="studentsGrades"  :dataStudent="studentGradeSelected" @close-dialog="closeDialog"></grademodal>
             
         </v-row>
@@ -389,6 +446,16 @@ Vue.component('studenttable', {
             loadingAcademicPeriods: false,
             currentFetchController: null,
             fetchNonce: 0,
+            renovarDialog: {
+                show: false,
+                confirming: false,
+                error: '',
+                studentName: '',
+                studentItem: null,
+                carrer: null,
+                current: { periodid: null, periodname: '--', subperiodid: null, subperiodname: '--', academicperiodid: null, academicperiodname: '--' },
+                next:    { periodid: null, periodname: '--', subperiodid: null, subperiodname: '--', academicperiodid: null, academicperiodname: '--' },
+            },
         };
     },
     computed: {
@@ -1084,6 +1151,78 @@ Vue.component('studenttable', {
             } finally {
                 this.syncing = false;
             }
-        }
+        },
+
+        async openRenovarPreview(item) {
+            const carrer = item.carrers && item.carrers[0];
+            if (!carrer) { alert('Este estudiante no tiene carrera asignada.'); return; }
+
+            this.$set(item, 'renovating', true);
+            this.renovarDialog.error = '';
+            try {
+                const params = new URLSearchParams();
+                params.append('action', 'local_grupomakro_renovar_student');
+                params.append('sesskey', M.cfg.sesskey);
+                params.append('userid', item.id);
+                params.append('planid', carrer.planid);
+                params.append('dryrun', '1');
+
+                const response = await axios.post(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php`, params);
+                if (response.data.status === 'success') {
+                    const d = response.data.data;
+                    this.renovarDialog.studentName  = item.name;
+                    this.renovarDialog.studentItem  = item;
+                    this.renovarDialog.carrer       = carrer;
+                    this.renovarDialog.current      = { ...d.current };
+                    this.renovarDialog.next         = { ...d.next };
+                    this.renovarDialog.confirming   = false;
+                    this.renovarDialog.error        = '';
+                    this.renovarDialog.show         = true;
+                } else {
+                    alert('No se puede renovar: ' + (response.data.message || 'Error desconocido'));
+                }
+            } catch (error) {
+                console.error('Error en preview de renovación:', error);
+                alert('Error de conexión al obtener la vista previa.');
+            } finally {
+                this.$set(item, 'renovating', false);
+            }
+        },
+
+        async confirmRenovar() {
+            const item   = this.renovarDialog.studentItem;
+            const carrer = this.renovarDialog.carrer;
+            if (!item || !carrer) return;
+
+            this.renovarDialog.confirming = true;
+            this.renovarDialog.error = '';
+            try {
+                const params = new URLSearchParams();
+                params.append('action', 'local_grupomakro_renovar_student');
+                params.append('sesskey', M.cfg.sesskey);
+                params.append('userid', item.id);
+                params.append('planid', carrer.planid);
+                params.append('dryrun', '0');
+
+                const response = await axios.post(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php`, params);
+                if (response.data.status === 'success') {
+                    const next = this.renovarDialog.next;
+                    this.$set(carrer, 'periodid',           next.periodid);
+                    this.$set(carrer, 'periodname',         next.periodname);
+                    this.$set(carrer, 'subperiodname',      next.subperiodname);
+                    this.$set(item,   'academicperiodid',   next.academicperiodid);
+                    this.$set(item,   'academicperiodname', next.academicperiodname);
+                    this.renovarDialog.show = false;
+                    await this.getDataFromApi();
+                } else {
+                    this.renovarDialog.error = response.data.message || 'Error desconocido';
+                }
+            } catch (error) {
+                console.error('Error confirmando renovación:', error);
+                this.renovarDialog.error = 'Error de conexión. Intente nuevamente.';
+            } finally {
+                this.renovarDialog.confirming = false;
+            }
+        },
     }
 })
