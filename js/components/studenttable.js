@@ -1237,36 +1237,48 @@ Vue.component('studenttable', {
         },
 
         async confirmRenovar() {
-            const item   = this.renovarDialog.studentItem;
-            const carrer = this.renovarDialog.carrer;
-            if (!item || !carrer) return;
+            const item = this.renovarDialog.studentItem;
+            if (!item) return;
 
             this.renovarDialog.confirming = true;
             this.renovarDialog.error = '';
             try {
-                const params = new URLSearchParams();
-                params.append('action', 'local_grupomakro_renovar_student');
-                params.append('sesskey', M.cfg.sesskey);
-                params.append('userid', item.id);
-                params.append('planid', carrer.planid);
-                params.append('dryrun', '0');
-                params.append('academicperiodid', this.renovarDialog.selectedAcademicPeriodId || 0);
+                const selAcId = this.renovarDialog.selectedAcademicPeriodId || 0;
+                const selAp   = this.renovarDialog.allAcademicPeriods.find(ap => ap.id === selAcId);
+                const errors  = [];
 
-                const response = await axios.post(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php`, params);
-                if (response.data.status === 'success') {
-                    const next = this.renovarDialog.next;
-                    const selAp = this.renovarDialog.allAcademicPeriods.find(
-                        ap => ap.id === this.renovarDialog.selectedAcademicPeriodId
-                    );
-                    this.$set(carrer, 'periodid',           next.periodid);
-                    this.$set(carrer, 'periodname',         next.periodname);
-                    this.$set(carrer, 'subperiodname',      next.subperiodname);
-                    this.$set(item,   'academicperiodid',   this.renovarDialog.selectedAcademicPeriodId);
-                    this.$set(item,   'academicperiodname', selAp ? selAp.name : next.academicperiodname);
+                // Ejecutar renovación para cada plan secuencialmente
+                for (const planEntry of this.renovarDialog.plans) {
+                    if (planEntry.error) continue; // omitir planes con error de preview
+
+                    const { carrer, preview } = planEntry;
+                    const params = new URLSearchParams();
+                    params.append('action', 'local_grupomakro_renovar_student');
+                    params.append('sesskey', M.cfg.sesskey);
+                    params.append('userid', item.id);
+                    params.append('planid', carrer.planid);
+                    params.append('dryrun', '0');
+                    params.append('academicperiodid', selAcId);
+
+                    const response = await axios.post(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php`, params);
+                    if (response.data.status === 'success') {
+                        const next = preview.next;
+                        this.$set(carrer, 'periodid',    next.periodid);
+                        this.$set(carrer, 'periodname',  next.periodname);
+                        this.$set(carrer, 'subperiodname', next.subperiodname);
+                        this.$set(item, 'academicperiodid',   selAcId);
+                        this.$set(item, 'academicperiodname', selAp ? selAp.name : next.academicperiodname);
+                    } else {
+                        const planLabel = carrer.career || ('Plan ' + carrer.planid);
+                        errors.push(`${planLabel}: ${response.data.message || 'Error desconocido'}`);
+                    }
+                }
+
+                if (errors.length > 0) {
+                    this.renovarDialog.error = errors.join(' | ');
+                } else {
                     this.renovarDialog.show = false;
                     await this.getDataFromApi();
-                } else {
-                    this.renovarDialog.error = response.data.message || 'Error desconocido';
                 }
             } catch (error) {
                 console.error('Error confirmando renovación:', error);
