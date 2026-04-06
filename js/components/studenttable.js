@@ -1147,19 +1147,28 @@ Vue.component('studenttable', {
                 try {
                     const response = await axios.get(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php?action=local_grupomakro_sync_financial_bulk`);
 
+                    if (response.data.status === 'error') {
+                        throw new Error(response.data.message || 'Error en el servidor');
+                    }
+
                     if (response.data.status === 'success') {
                         const result = response.data.data;
+
+                        // Surface proxy/Q10 errors that come back as data.error
+                        if (result && result.error) {
+                            throw new Error('Error del proxy: ' + result.error + (result.details ? ' — ' + result.details : ''));
+                        }
+
                         const updatedCount = result.updated || 0;
 
                         if (updatedCount > 0) {
                             totalUpdated += updatedCount;
-                            this.syncLog = `Actualizados: ${totalUpdated} estudiantes... Continuado...`;
+                            this.syncLog = `Actualizados: ${totalUpdated} estudiantes... Continuando...`;
                             consecutiveZeroUpdates = 0;
                             await syncBatch(); // Continue next batch
                         } else {
-                            // If 0 updated, maybe everyone is up to date or no users found needing update
-                            // To be safe, we stop if we hit 0 or if message says so
-                            this.syncLog = `Proceso finalizado. Total actualizados: ${totalUpdated}.`;
+                            const msg = result.message || '';
+                            this.syncLog = `Proceso finalizado. Total actualizados: ${totalUpdated}.${msg ? ' (' + msg + ')' : ''}`;
                             finished = true;
                         }
                     } else {

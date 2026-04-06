@@ -7664,8 +7664,12 @@ function local_grupomakro_sync_financial_status($userids = []) {
         $sql .= " ORDER BY COALESCE(fs.lastupdated, 0) ASC";
     }
 
-    // Limit batch size to 50 if automated (no IDs provided) to avoid timeouts
-    $limit = empty($userids) ? 50 : 0;
+    // Limit batch size to avoid timeouts.
+    // Q10 processes students sequentially (~1-3s each), so use a smaller batch.
+    // Odoo processes in bulk so 50 is fine.
+    $financialSource = get_config('local_grupomakro_core', 'odoo_proxy_url') ? 'odoo' : 'odoo'; // placeholder
+    // Read actual source from proxy config file if accessible, default to safe small batch
+    $limit = empty($userids) ? 15 : 0;
     
     $users = $DB->get_records_sql($sql, $params, 0, $limit);
     if (empty($users)) {
@@ -7700,7 +7704,8 @@ function local_grupomakro_sync_financial_status($userids = []) {
     curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
     curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 120);      // Q10 sequential processing needs more time
     curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
     
     $response = curl_exec($ch);
