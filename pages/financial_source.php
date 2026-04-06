@@ -21,7 +21,7 @@ $PAGE->set_pagelayout('admin');
 $PROXY_URL    = get_config('local_grupomakro_core', 'odoo_proxy_url') ?: 'https://lms.isi.edu.pa:4000';
 $ADMIN_SECRET = get_config('local_grupomakro_core', 'odoo_proxy_admin_secret') ?: 'gmk_admin_bypass_2026';
 
-$action  = optional_param('action', '', PARAM_ALPHA);
+$action  = optional_param('action', '', PARAM_ALPHANUM);
 $message = '';
 $error   = '';
 
