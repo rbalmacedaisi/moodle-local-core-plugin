@@ -3091,7 +3091,10 @@ try {
             $activities = [];
 
             foreach ($cms as $cm) {
-                if (!$cm->uservisible) continue;
+                // Use $cm->visible instead of $cm->uservisible because the instructor may not be
+                // enrolled in the Moodle course (enrollment is managed via gmk_class, not mdl_enrol).
+                // This is a management endpoint — the teacher should see all published activities.
+                if (!$cm->visible) continue;
                 // Exclude label
                 if ($cm->modname === 'label') continue;
 
