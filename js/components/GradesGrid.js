@@ -299,6 +299,22 @@ Vue.component('grades-grid', {
                 .grade-inline-input::-webkit-outer-spin-button {
                     opacity: 1;
                 }
+                .theme--dark.gradebook-card .grade-editable:hover {
+                    background-color: rgba(25, 118, 210, 0.2) !important;
+                }
+                .theme--dark .grade-inline-input {
+                    background: #2c2c2c;
+                    color: rgba(255,255,255,0.87);
+                    border-color: #90caf9;
+                }
+                .theme--dark.gradebook-card .grade-course-total {
+                    background: rgba(25, 118, 210, 0.15) !important;
+                    color: #90caf9 !important;
+                    border-left: 2px solid #90caf9;
+                }
+                .theme--dark.gradebook-card tbody tr:hover td {
+                    background-color: rgba(255,255,255,0.05);
+                }
             `;
             document.head.appendChild(style);
         },

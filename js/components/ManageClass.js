@@ -475,8 +475,10 @@ const ManageClass = {
                         C&oacute;digo de Asistencia
                     </v-card-title>
                     <v-card-text>
-                        <div class="d-flex justify-center my-4" style="background: white; padding: 10px; display: inline-block;">
-                            <div v-html="currentQR.html"></div>
+                        <div class="d-flex justify-center my-4">
+                            <div style="background: white; padding: 12px; border-radius: 8px; display: inline-block;">
+                                <div v-html="currentQR.html"></div>
+                            </div>
                         </div>
                         <div class="text-h4 font-weight-bold primary--text" v-if="currentQR.password">
                             {{ currentQR.password }}

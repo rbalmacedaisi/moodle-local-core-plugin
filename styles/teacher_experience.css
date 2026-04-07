@@ -55,6 +55,10 @@
     border-bottom: 1px solid #E0E4E8 !important;
 }
 
+.theme--dark .border-bottom {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12) !important;
+}
+
 /* Timeline Customizations */
 .v-timeline-item__dot--small {
     width: 14px !important;
@@ -87,7 +91,7 @@ body.gmk-full-frame .block_settings {
 body.gmk-full-frame #page {
     margin-top: 0 !important;
     padding-top: 0 !important;
-    background: white !important;
+    background: transparent !important;
 }
 
 body.gmk-full-frame #page-content {
@@ -206,4 +210,18 @@ body.gmk-full-frame .drawer-toggler {
     .v-card__title {
         font-size: 1rem !important;
     }
+}
+
+/* ============================================================
+   Dark Mode Overrides
+   ============================================================ */
+
+.theme--dark {
+    --gmk-bg: #121212;
+    --gmk-white: #1e1e1e;
+    --gmk-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.theme--dark #teacher-app {
+    background-color: var(--gmk-bg);
 }
