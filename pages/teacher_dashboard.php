@@ -51,7 +51,7 @@ $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/QuizEdi
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/AttendancePanel.js?v=20251231049'), true);
 
 // Load main experience module as standard JS (bypassing AMD build issues)
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/amd/src/teacher_experience.js?v=20260323001'), true);
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/amd/src/teacher_experience.js?v=20260407001'), true);
 
 // Initialize the experience
 $logoUrl = $OUTPUT->get_logo_url();

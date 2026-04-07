@@ -144,12 +144,21 @@ window.TeacherExperience = {
         }
 
         // Check for Moodle Dark Mode
-        // Checks for 'dark-mode' class on body or 'data-bs-theme=dark' (Moodle 4.x)
-        const isDarkMode = document.body.classList.contains('dark-mode') ||
+        // Supports multiple Moodle dark mode mechanisms:
+        //   - data-preset="dark" on <html> or <body> (Boost/custom themes)
+        //   - data-bs-theme="dark" on <html> (Moodle 4.x Bootstrap)
+        //   - 'dark-mode' class on <body> (legacy)
+        //   - OS preference fallback
+        const isDarkMode =
+            document.documentElement.getAttribute('data-preset') === 'dark' ||
+            document.body.getAttribute('data-preset') === 'dark' ||
             document.documentElement.getAttribute('data-bs-theme') === 'dark' ||
-            window.matchMedia('(prefers-color-scheme: dark)').matches; // Optional fallback
+            document.body.classList.contains('dark-mode') ||
+            window.matchMedia('(prefers-color-scheme: dark)').matches;
 
-        console.log('Teacher Experience: Dark Mode detected?', isDarkMode);
+        console.log('Teacher Experience: Dark Mode detected?', isDarkMode,
+            '| data-preset:', document.documentElement.getAttribute('data-preset'),
+            '| data-bs-theme:', document.documentElement.getAttribute('data-bs-theme'));
 
         const app = new Vue({
             el: '#teacher-app',
