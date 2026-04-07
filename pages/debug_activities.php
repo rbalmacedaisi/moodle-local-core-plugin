@@ -153,6 +153,41 @@ foreach ($debug_classes as $class) {
     }
     dbg_ok("Curso: [{$course->shortname}] {$course->fullname} (ID: {$course->id})");
 
+    // 3a-2. Verificar inscripción del docente en el curso Moodle
+    echo '<p style="margin:8px 0 2px"><strong>3a-2. Inscripcion del docente en el curso Moodle</strong></p>';
+    $enrolcheck = $DB->get_record_sql(
+        "SELECT ue.id, ue.status, ue.timestart, ue.timeend, r.shortname AS rolename
+           FROM {user_enrolments} ue
+           JOIN {enrol} e ON e.id = ue.enrolid
+           JOIN {role_assignments} ra ON ra.userid = ue.userid AND ra.contextid = (SELECT id FROM {context} WHERE contextlevel=50 AND instanceid=e.courseid)
+           JOIN {role} r ON r.id = ra.roleid
+          WHERE ue.userid = :userid AND e.courseid = :courseid
+          LIMIT 1",
+        ['userid' => $user->id, 'courseid' => $class->corecourseid]
+    );
+    if (!$enrolcheck) {
+        // Try simpler check
+        $enrolsimple = $DB->get_record_sql(
+            "SELECT ue.id, ue.status FROM {user_enrolments} ue
+               JOIN {enrol} e ON e.id = ue.enrolid
+              WHERE ue.userid = :userid AND e.courseid = :courseid LIMIT 1",
+            ['userid' => $user->id, 'courseid' => $class->corecourseid]
+        );
+        if (!$enrolsimple) {
+            dbg_err("El docente NO esta inscrito en el curso Moodle ID {$class->corecourseid}. Esto causara que uservisible=false para todas las actividades.");
+            dbg_info("FIX: Inscribir manualmente al docente en el curso con rol editingteacher.");
+        } else {
+            dbg_warn("Inscripcion encontrada (status={$enrolsimple->status}) pero sin role_assignment claro. Status=1 significa suspendido.");
+        }
+    } else {
+        $statusLabel = $enrolcheck->status == 0 ? 'activa' : 'SUSPENDIDA';
+        if ($enrolcheck->status == 0) {
+            dbg_ok("Inscripcion {$statusLabel} con rol: {$enrolcheck->rolename}");
+        } else {
+            dbg_err("Inscripcion SUSPENDIDA (status=1) con rol: {$enrolcheck->rolename}. El docente no puede ver las actividades.");
+        }
+    }
+
     // 3b. coursesectionid
     echo '<p style="margin:8px 0 2px"><strong>3b. coursesectionid</strong></p>';
     if (empty($class->coursesectionid)) {
@@ -211,9 +246,9 @@ foreach ($debug_classes as $class) {
     }
 
     // 3d. get_fast_modinfo — simular filtro uservisible
-    echo '<p style="margin:8px 0 2px"><strong>3d. Simulacion get_fast_modinfo + filtro uservisible (exactamente como get_all_activities)</strong></p>';
+    echo '<p style="margin:8px 0 2px"><strong>3d. Simulacion get_fast_modinfo + filtro uservisible AS TEACHER (userid=' . $user->id . ')</strong></p>';
     try {
-        $modinfo = get_fast_modinfo($class->corecourseid);
+        $modinfo = get_fast_modinfo($class->corecourseid, $user->id);
 
         if (empty($class->coursesectionid)) {
             dbg_err("coursesectionid vacio → cms=[] → response activities:[]");
@@ -284,11 +319,11 @@ foreach ($debug_classes as $class) {
     }
 
     // 3f. Respuesta JSON final simulada
-    echo '<p style="margin:8px 0 2px"><strong>3f. JSON que retornaria get_all_activities ahora mismo</strong></p>';
+    echo '<p style="margin:8px 0 2px"><strong>3f. JSON que retornaria get_all_activities ahora mismo (como el docente)</strong></p>';
     $context_course = context_course::instance($class->corecourseid);
     $PAGE->set_context($context_course);
     try {
-        $mi2 = get_fast_modinfo($class->corecourseid);
+        $mi2 = get_fast_modinfo($class->corecourseid, $user->id);
         $cms2 = [];
         if (!empty($class->coursesectionid)) {
             $si2 = $mi2->get_section_info_by_id((int)$class->coursesectionid);
