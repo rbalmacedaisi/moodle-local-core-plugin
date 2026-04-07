@@ -2596,6 +2596,28 @@ try {
             ];
             break;
 
+        case 'local_grupomakro_save_manual_grade':
+            require_capability('moodle/grade:edit', $context);
+            require_once($CFG->libdir . '/gradelib.php');
+
+            $gradeitemid = required_param('gradeitemid', PARAM_INT);
+            $studentid   = required_param('studentid', PARAM_INT);
+            $grade       = required_param('grade', PARAM_FLOAT);
+
+            $gi = \grade_item::fetch(['id' => $gradeitemid]);
+            if (!$gi) throw new Exception("Item de calificación no encontrado.");
+            if ($gi->itemtype !== 'manual') throw new Exception("Solo se pueden editar ítems manuales.");
+
+            if ($grade < (float)$gi->grademin || $grade > (float)$gi->grademax) {
+                throw new Exception("La nota debe estar entre {$gi->grademin} y {$gi->grademax}.");
+            }
+
+            $result = $gi->update_final_grade($studentid, $grade, 'manual', '', FORMAT_MOODLE);
+            if ($result === false) throw new Exception("No se pudo guardar la calificación.");
+
+            $response = ['status' => 'success', 'message' => 'Nota guardada.'];
+            break;
+
         case 'local_grupomakro_get_gradebook_structure':
             $classid = required_param('classid', PARAM_INT);
             $class = $DB->get_record('gmk_class', ['id' => $classid]);

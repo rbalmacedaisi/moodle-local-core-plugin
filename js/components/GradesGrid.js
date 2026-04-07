@@ -63,14 +63,43 @@ Vue.component('grades-grid', {
                                         </div>
                                     </div>
                                 </td>
-                                <td v-for="col in columns" :key="col.id" 
+                                <td v-for="col in columns" :key="col.id"
                                     class="grade-cell"
                                     :class="{
-                                        'grade-total': col.is_total, 
+                                        'grade-total': col.is_total,
                                         'grade-course-total': col.itemtype === 'course',
-                                        'red--text font-weight-bold': isFailing(student.grades[col.id], col.max_grade)
-                                    }">
-                                    {{ formatGrade(student.grades[col.id]) }}
+                                        'red--text font-weight-bold': !isEditing(student.id, col.id) && isFailing(student.grades[col.id], col.max_grade),
+                                        'grade-editable': isManualEditable(student, col)
+                                    }"
+                                    @click="isManualEditable(student, col) ? startEdit(student, col) : null">
+
+                                    <!-- Editing: inline number input -->
+                                    <template v-if="isEditing(student.id, col.id)">
+                                        <input
+                                            v-focus
+                                            class="grade-inline-input"
+                                            type="number"
+                                            :min="0"
+                                            :max="col.max_grade"
+                                            :step="0.1"
+                                            v-model.number="editingValue"
+                                            @keyup.enter="commitEdit(student, col)"
+                                            @keyup.esc="cancelEdit"
+                                            @blur="commitEdit(student, col)"
+                                            @click.stop
+                                        />
+                                    </template>
+
+                                    <!-- Saving: spinner -->
+                                    <template v-else-if="isSaving(student.id, col.id)">
+                                        <v-progress-circular indeterminate size="16" width="2" color="primary"></v-progress-circular>
+                                    </template>
+
+                                    <!-- Normal display -->
+                                    <template v-else>
+                                        {{ formatGrade(student.grades[col.id]) }}
+                                        <v-icon v-if="isManualEditable(student, col)" x-small class="grade-edit-icon ml-1" color="grey lighten-1">mdi-pencil</v-icon>
+                                    </template>
                                 </td>
                             </tr>
                         </tbody>
@@ -99,8 +128,16 @@ Vue.component('grades-grid', {
             error: null,
             students: [],
             columns: [],
-            showGradebookManager: false
+            showGradebookManager: false,
+            editingCell: null,   // { studentId, colId }
+            editingValue: '',
+            savingCell: null,    // { studentId, colId }
         };
+    },
+    directives: {
+        focus: {
+            inserted(el) { el.focus(); el.select(); }
+        }
     },
     computed: {
         tableStyles() {
@@ -233,6 +270,35 @@ Vue.component('grades-grid', {
                 .theme--dark.gradebook-card tbody tr:hover td.sticky-col {
                     background-color: #252525;
                 }
+                .grade-editable {
+                    cursor: pointer;
+                    position: relative;
+                }
+                .grade-editable:hover {
+                    background-color: #e8f0fe !important;
+                }
+                .grade-editable .grade-edit-icon {
+                    opacity: 0;
+                    transition: opacity 0.15s;
+                    vertical-align: middle;
+                }
+                .grade-editable:hover .grade-edit-icon {
+                    opacity: 1;
+                }
+                .grade-inline-input {
+                    width: 70px;
+                    text-align: center;
+                    border: 2px solid #1976d2;
+                    border-radius: 4px;
+                    padding: 2px 6px;
+                    font-size: 0.95rem;
+                    outline: none;
+                    background: white;
+                }
+                .grade-inline-input::-webkit-inner-spin-button,
+                .grade-inline-input::-webkit-outer-spin-button {
+                    opacity: 1;
+                }
             `;
             document.head.appendChild(style);
         },
@@ -339,6 +405,70 @@ Vue.component('grades-grid', {
             const max = parseFloat(maxGrade) || 100;
             // 71% threshold (standard for many institutions)
             return (val < (max * 0.71));
+        },
+        isManualEditable(student, col) {
+            if (col.itemtype !== 'manual' || col.is_total) return false;
+            const grade = student.grades[col.id];
+            return grade === '-' || grade === null || grade === undefined;
+        },
+        isEditing(studentId, colId) {
+            return this.editingCell !== null &&
+                   this.editingCell.studentId === studentId &&
+                   this.editingCell.colId === colId;
+        },
+        isSaving(studentId, colId) {
+            return this.savingCell !== null &&
+                   this.savingCell.studentId === studentId &&
+                   this.savingCell.colId === colId;
+        },
+        startEdit(student, col) {
+            if (this.editingCell) this.cancelEdit();
+            const current = student.grades[col.id];
+            this.editingValue = (current === '-' || current === null || current === undefined)
+                ? ''
+                : parseFloat(current);
+            this.editingCell = { studentId: student.id, colId: col.id };
+        },
+        cancelEdit() {
+            this.editingCell = null;
+            this.editingValue = '';
+        },
+        async commitEdit(student, col) {
+            if (!this.editingCell) return;
+            if (this.editingCell.studentId !== student.id || this.editingCell.colId !== col.id) return;
+
+            const value = this.editingValue;
+            // Clear editing state immediately to prevent double-fire (Enter + blur)
+            this.editingCell = null;
+            this.editingValue = '';
+
+            if (value === '' || value === null || value === undefined || isNaN(parseFloat(value))) return;
+
+            const numVal = parseFloat(value);
+            if (numVal < 0 || numVal > col.max_grade) {
+                alert(`La nota debe estar entre 0 y ${col.max_grade}.`);
+                return;
+            }
+
+            this.savingCell = { studentId: student.id, colId: col.id };
+            try {
+                const response = await axios.post(window.wsUrl, {
+                    action: 'local_grupomakro_save_manual_grade',
+                    args: { gradeitemid: col.id, studentid: student.id, grade: numVal },
+                    sesskey: window.Y.config.sesskey
+                });
+                if (response.data && response.data.status === 'success') {
+                    const studentObj = this.students.find(s => s.id === student.id);
+                    if (studentObj) this.$set(studentObj.grades, col.id, numVal);
+                } else {
+                    throw new Error(response.data?.message || 'Error desconocido');
+                }
+            } catch (err) {
+                console.error('[GradesGrid] Error guardando nota manual:', err);
+                alert('No se pudo guardar la nota: ' + err.message);
+            } finally {
+                this.savingCell = null;
+            }
         }
     }
 });
