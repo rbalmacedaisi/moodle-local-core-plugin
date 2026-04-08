@@ -8,90 +8,137 @@ const TeacherDashboard = {
         <v-app>
         <v-container fluid class="pa-4" style="background-color: var(--gmk-bg); min-height: 100vh;">
             <v-row v-if="loading">
-                <v-col cols="12" class="text-center">
-                    <v-progress-circular indeterminate color="primary"></v-progress-circular>
+                <v-col cols="12" class="text-center py-12">
+                    <v-progress-circular indeterminate color="primary" size="64"></v-progress-circular>
                 </v-col>
             </v-row>
             <v-row v-else>
-                <!-- Overview Stats -->
-                <v-col cols="12" md="4" v-for="(stat, index) in overviewStats" :key="'stat-' + index">
-                    <v-card class="rounded-lg shadow-sm" :ripple="!!stat.action" @click="stat.action ? handleStatClick(stat.action) : null" :class="{'cursor-pointer': !!stat.action}">
-                        <v-card-text class="d-flex align-center">
-                            <v-avatar :color="stat.color + ' lighten-4'" size="48" class="mr-4">
-                                <v-icon :color="stat.color">{{ stat.icon }}</v-icon>
+
+                <!-- ── Stats row (compact, always full-width across top) ── -->
+                <v-col cols="12" sm="4" v-for="(stat, index) in overviewStats" :key="'stat-' + index">
+                    <v-card class="rounded-lg" :ripple="!!stat.action"
+                        @click="stat.action ? handleStatClick(stat.action) : null"
+                        :class="{'cursor-pointer': !!stat.action}">
+                        <v-card-text class="d-flex align-center py-3">
+                            <v-avatar :color="stat.color + ' lighten-4'" size="44" class="mr-3">
+                                <v-icon :color="stat.color" small>{{ stat.icon }}</v-icon>
                             </v-avatar>
                             <div>
-                                <div class="text-caption grey--text text--darken-1">{{ stat.label }}</div>
+                                <div class="text-caption grey--text">{{ stat.label }}</div>
                                 <div class="text-h5 font-weight-bold">{{ stat.value }}</div>
                             </div>
                         </v-card-text>
                     </v-card>
                 </v-col>
 
-                <!-- Active Classes (Cards) -->
-                <v-col cols="12" class="mt-4">
+                <!-- ── LEFT PANEL: class cards (full width mobile, 8 cols desktop) ── -->
+                <v-col cols="12" lg="8" xl="9" class="mt-2">
                     <div class="d-flex align-center mb-4">
                         <h2 class="text-h5 font-weight-bold mb-0">{{ lang.my_active_classes || 'Mis Clases Activas' }}</h2>
                         <v-spacer></v-spacer>
-                        <v-btn outlined color="primary" class="rounded-lg shadow-sm" @click="showCalendar = true">
-                            <v-icon left>mdi-calendar</v-icon> Ver Calendario Completo
+                        <!-- Calendar button visible on mobile/tablet only; on desktop it's in the sidebar -->
+                        <v-btn outlined color="primary" class="rounded-lg d-flex d-lg-none" @click="showCalendar = true">
+                            <v-icon left>mdi-calendar</v-icon> Calendario
                         </v-btn>
                     </div>
                     <v-row>
-                        <v-col cols="12" sm="6" lg="4" v-for="classItem in dashboardData.active_classes" :key="classItem.id">
+                        <!-- sm=6 → 2 cols on tablet; xl=4 → 3 cols on XL within the 9-col panel -->
+                        <v-col cols="12" sm="6" xl="4" v-for="classItem in dashboardData.active_classes" :key="classItem.id">
                             <v-card class="rounded-xl hover-card overflow-hidden" elevation="2" @click="goToClass(classItem.id)">
-                                <v-img :src="getClassImage(classItem)" height="140" class="align-start">
+                                <v-img :src="getClassImage(classItem)" height="120" class="align-start">
                                     <v-chip dark small :color="classItem.type === 1 ? 'blue darken-2' : 'green darken-2'" class="ma-3 font-weight-bold">
                                         {{ classItem.typelabel }}
                                     </v-chip>
                                 </v-img>
-                                <v-card-text class="pt-4">
-                                    <div class="text-overline primary--text font-weight-black mb-1" style="line-height:1.4;word-break:break-word;">{{ classItem.course_shortname }}</div>
-                                    <div class="text-subtitle-1 font-weight-bold mb-2" style="min-height:3.2em;line-height:1.6em;word-break:break-word;">
+                                <v-card-text class="pt-3 pb-2">
+                                    <div class="text-overline primary--text font-weight-black mb-0" style="line-height:1.3;word-break:break-word;">{{ classItem.course_shortname }}</div>
+                                    <div class="text-subtitle-2 font-weight-bold mb-2" style="min-height:2.8em;line-height:1.5em;word-break:break-word;">
                                         {{ classItem.name || classItem.course_fullname }}
                                     </div>
-                                    
-                                    <v-row no-gutters class="mb-4">
-                                        <v-col cols="6">
+                                    <div class="d-flex align-center justify-space-between mb-2">
+                                        <div>
                                             <div class="d-flex align-center mb-1">
-                                                <v-icon x-small color="grey lighten-1" class="mr-1">mdi-calendar-range</v-icon>
+                                                <v-icon x-small color="grey" class="mr-1">mdi-calendar-range</v-icon>
                                                 <span class="text-caption grey--text">{{ formatDateSimple(classItem.initdate) }} - {{ formatDateSimple(classItem.enddate) }}</span>
                                             </div>
                                             <div class="d-flex align-center">
-                                                <v-icon x-small color="grey lighten-1" class="mr-1">mdi-clock-outline</v-icon>
+                                                <v-icon x-small color="grey" class="mr-1">mdi-clock-outline</v-icon>
                                                 <span class="text-caption font-weight-bold">{{ classItem.schedule_text }}</span>
                                             </div>
-                                        </v-col>
-                                        <v-col cols="6" class="text-right">
-                                            <div class="text-caption grey--text mb-1">{{ lang.active_students || lang.active_users || 'Estudiantes' }}</div>
-                                            <div class="text-h6 font-weight-black blue--text">
-                                                <v-icon left small color="blue">mdi-account-group</v-icon>
-                                                {{ classItem.student_count || 0 }}
-                                            </div>
-                                        </v-col>
-                                    </v-row>
-
-                                    <v-divider class="mb-3"></v-divider>
-                                    
+                                        </div>
+                                        <div class="text-right">
+                                            <div class="text-caption grey--text">Estudiantes</div>
+                                            <div class="text-h6 font-weight-black blue--text">{{ classItem.student_count || 0 }}</div>
+                                        </div>
+                                    </div>
+                                    <v-divider class="mb-2"></v-divider>
                                     <div class="d-flex align-center">
-                                        <v-icon small :color="classItem.next_session ? 'primary' : 'grey'" class="mr-2">
+                                        <v-icon small :color="classItem.next_session ? 'primary' : 'grey'" class="mr-1">
                                             {{ classItem.next_session ? 'mdi-clock-alert' : 'mdi-clock-off' }}
                                         </v-icon>
-                                        <div>
-                                            <div class="text-caption grey--text lh-1">{{ lang.next_session || 'Siguiente Sesión' }}</div>
-                                            <div class="font-weight-medium" :class="classItem.next_session ? 'primary--text' : 'grey--text'">
-                                                {{ classItem.next_session ? formatSession(classItem.next_session) : 'Sin fecha programada' }}
-                                            </div>
+                                        <div class="text-caption" :class="classItem.next_session ? 'primary--text font-weight-medium' : 'grey--text'">
+                                            {{ classItem.next_session ? formatSession(classItem.next_session) : 'Sin fecha programada' }}
                                         </div>
                                     </div>
                                 </v-card-text>
-                                <v-btn block color="primary" tile height="48" class="font-weight-bold mt-2">
+                                <v-btn block color="primary" tile height="40" class="font-weight-bold">
                                     Gestionar Clase <v-icon right small>mdi-arrow-right</v-icon>
                                 </v-btn>
                             </v-card>
                         </v-col>
                     </v-row>
                 </v-col>
+
+                <!-- ── RIGHT PANEL: sidebar (hidden on mobile, 4 cols on lg, 3 on xl) ── -->
+                <v-col cols="12" lg="4" xl="3" class="mt-2 d-none d-lg-flex flex-column" style="gap:16px;">
+
+                    <!-- Calendar button -->
+                    <v-btn block outlined color="primary" class="rounded-lg" @click="showCalendar = true">
+                        <v-icon left>mdi-calendar-month</v-icon> Ver Calendario Completo
+                    </v-btn>
+
+                    <!-- Upcoming sessions across all classes -->
+                    <v-card class="rounded-xl flex-grow-1" v-if="upcomingSessions.length > 0">
+                        <v-card-title class="text-subtitle-1 font-weight-bold pb-1">
+                            <v-icon left color="primary" small>mdi-clock-fast</v-icon>
+                            Próximas Sesiones
+                        </v-card-title>
+                        <v-list dense class="pt-0">
+                            <template v-for="(session, i) in upcomingSessions">
+                                <v-list-item :key="session.classid + '-' + i" @click="goToClass(session.classid)" class="rounded-lg mx-2 mb-1 px-3" style="cursor:pointer;min-height:56px;">
+                                    <v-list-item-avatar size="36" :color="session.isToday ? 'primary' : 'grey lighten-3'" class="mr-3">
+                                        <v-icon :color="session.isToday ? 'white' : 'grey'" small>mdi-calendar-clock</v-icon>
+                                    </v-list-item-avatar>
+                                    <v-list-item-content>
+                                        <v-list-item-title class="text-caption font-weight-bold" style="white-space:normal;line-height:1.3;">
+                                            {{ session.shortname }}
+                                        </v-list-item-title>
+                                        <v-list-item-subtitle class="text-caption">
+                                            <v-chip x-small :color="session.isToday ? 'primary' : ''" :dark="session.isToday" class="mr-1">
+                                                {{ session.dateLabel }}
+                                            </v-chip>
+                                            {{ session.timeLabel }}
+                                        </v-list-item-subtitle>
+                                    </v-list-item-content>
+                                    <v-list-item-action class="ma-0">
+                                        <v-icon small color="grey lighten-1">mdi-chevron-right</v-icon>
+                                    </v-list-item-action>
+                                </v-list-item>
+                                <v-divider v-if="i < upcomingSessions.length - 1" :key="'div-' + i" inset class="mx-4"></v-divider>
+                            </template>
+                        </v-list>
+                    </v-card>
+
+                    <!-- No upcoming sessions placeholder -->
+                    <v-card class="rounded-xl" v-else>
+                        <v-card-text class="text-center grey--text py-8">
+                            <v-icon large color="grey lighten-2" class="mb-2">mdi-calendar-check</v-icon>
+                            <div class="text-caption">No hay sesiones próximas</div>
+                        </v-card-text>
+                    </v-card>
+
+                </v-col>
+
             </v-row>
 
             <!-- Calendar Dialog -->
@@ -223,6 +270,28 @@ const TeacherDashboard = {
     computed: {
         lang() {
             return window.strings || {};
+        },
+        upcomingSessions() {
+            const now = Math.floor(Date.now() / 1000);
+            const todayStr = new Date().toDateString();
+            return this.dashboardData.active_classes
+                .filter(c => c.next_session && parseInt(c.next_session) >= now)
+                .sort((a, b) => parseInt(a.next_session) - parseInt(b.next_session))
+                .slice(0, 7)
+                .map(c => {
+                    const ts = parseInt(c.next_session);
+                    const date = new Date(ts * 1000);
+                    const isToday = date.toDateString() === todayStr;
+                    return {
+                        classid: c.id,
+                        shortname: c.course_shortname || c.name,
+                        classname: c.name,
+                        timestamp: ts,
+                        isToday,
+                        dateLabel: isToday ? 'Hoy' : date.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' }),
+                        timeLabel: date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
+                    };
+                });
         },
         calendarEvents() {
             return this.dashboardData.calendar_events.map(e => {
