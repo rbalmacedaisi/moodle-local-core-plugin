@@ -5,7 +5,6 @@
 
 const TeacherDashboard = {
     template: `
-        <v-app>
         <v-container fluid class="pa-4" style="background-color: var(--gmk-bg); min-height: 100vh;">
             <v-row v-if="loading">
                 <v-col cols="12" class="text-center py-12">
@@ -42,8 +41,7 @@ const TeacherDashboard = {
                         </v-btn>
                     </div>
                     <v-row>
-                        <!-- sm=6 → 2 cols on tablet; xl=4 → 3 cols on XL within the 9-col panel -->
-                        <v-col cols="12" sm="6" xl="4" v-for="classItem in dashboardData.active_classes" :key="classItem.id">
+                        <v-col cols="12" sm="6" md="4" v-for="classItem in dashboardData.active_classes" :key="classItem.id">
                             <v-card class="rounded-xl hover-card overflow-hidden" elevation="2" @click="goToClass(classItem.id)">
                                 <v-img :src="getClassImage(classItem)" height="120" class="align-start">
                                     <v-chip dark small :color="classItem.type === 1 ? 'blue darken-2' : 'green darken-2'" class="ma-3 font-weight-bold">
@@ -90,10 +88,10 @@ const TeacherDashboard = {
                 </v-col>
 
                 <!-- ── RIGHT PANEL: sidebar (hidden on mobile, 4 cols on lg, 3 on xl) ── -->
-                <v-col cols="12" lg="4" xl="3" class="mt-2 d-none d-lg-flex flex-column" style="gap:16px;">
+                <v-col cols="12" lg="4" xl="3" class="mt-2 d-none d-lg-block">
 
                     <!-- Calendar button -->
-                    <v-btn block outlined color="primary" class="rounded-lg" @click="showCalendar = true">
+                    <v-btn block outlined color="primary" class="rounded-lg mb-4" @click="showCalendar = true">
                         <v-icon left>mdi-calendar-month</v-icon> Ver Calendario Completo
                     </v-btn>
 
@@ -237,7 +235,6 @@ const TeacherDashboard = {
                 </v-card>
             </v-dialog>
         </v-container>
-        </v-app>
     `,
     data() {
         return {

@@ -32,7 +32,7 @@ $PAGE->requires->js(new moodle_url('https://cdnjs.cloudflare.com/ajax/libs/Vue.D
 $PAGE->requires->js(new moodle_url('https://unpkg.com/axios/dist/axios.min.js'), true);
 
 // Load components (Standard JS files)
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/TeacherDashboard.js?v=20260408002'), true);
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/TeacherDashboard.js?v=20260408003'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/ActivityCreationWizard.js?v=20260326001'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/ManageClass.js?v=20260323001'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/studenttable.js?v=20251231049'), true);
