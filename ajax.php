@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 define('AJAX_SCRIPT', true);
 
@@ -862,7 +862,7 @@ try {
                     $response = ['status' => 'error', 'message' => 'Error al actualizar base de datos.'];
                 }
             } else {
-                $response = ['status' => 'error', 'message' => 'InscripciÃƒÂ³n no encontrada.'];
+                $response = ['status' => 'error', 'message' => 'InscripciÃƒÆ’Ã‚Â³n no encontrada.'];
             }
             break;
 
@@ -924,7 +924,7 @@ try {
                 // Find Learning Plan for User (Assuming active student)
                 $lpUser = $DB->get_record('local_learning_users', ['userid' => $user->id, 'userrolename' => 'student']);
                 if (!$lpUser) {
-                    $log[] = "Error: Usuario $idnumber no estÃƒÂ¡ inscrito en plan de estudio.";
+                    $log[] = "Error: Usuario $idnumber no estÃƒÆ’Ã‚Â¡ inscrito en plan de estudio.";
                     $failCount++;
                     continue;
                 }
@@ -940,7 +940,7 @@ try {
                 if (\local_grupomakro_progress_manager::update_student_period($user->id, $lpUser->learningplanid, $targetPeriod->id)) {
                     $successCount++;
                 } else {
-                    $log[] = "Aviso: No se requiriÃƒÂ³ cambio para $idnumber.";
+                    $log[] = "Aviso: No se requiriÃƒÆ’Ã‚Â³ cambio para $idnumber.";
                     $successCount++; // Count as handled
                 }
             }
@@ -957,7 +957,7 @@ try {
             
             // Check file upload
             if (empty($_FILES['import_file'])) {
-                $response = ['status' => 'error', 'message' => 'No se recibiÃƒÂ³ ningÃƒÂºn archivo.'];
+                $response = ['status' => 'error', 'message' => 'No se recibiÃƒÆ’Ã‚Â³ ningÃƒÆ’Ã‚Âºn archivo.'];
                 break;
             }
             
@@ -975,7 +975,7 @@ try {
                 $rows = $sheet->toArray();
                 
                 if (count($rows) < 2) {
-                    $response = ['status' => 'error', 'message' => 'El archivo parece estar vacÃƒÂ­o (o solo tiene cabecera).'];
+                    $response = ['status' => 'error', 'message' => 'El archivo parece estar vacÃƒÆ’Ã‚Â­o (o solo tiene cabecera).'];
                     break;
                 }
                 
@@ -985,7 +985,7 @@ try {
                 
                 // Flexible header search
                 foreach ($headers as $idx => $h) {
-                    if (strpos($h, 'id number') !== false || strpos($h, 'identificaciÃƒÂ³n') !== false || $h === 'idnumber') $idIdx = $idx;
+                    if (strpos($h, 'id number') !== false || strpos($h, 'identificaciÃƒÆ’Ã‚Â³n') !== false || $h === 'idnumber') $idIdx = $idx;
                     // Look for Bloque, Bimestre, Subperiodo
                     if (strpos($h, 'bloque') !== false || strpos($h, 'bimestre') !== false || strpos($h, 'subperiod') !== false) $bloqueIdx = $idx;
                 }
@@ -1041,7 +1041,7 @@ try {
                     }
 
                     if (!$user) {
-                        $log[] = "Fila " . ($i+1) . ": Usuario con ID/CÃƒÂ©dula $idnumber no encontrado.";
+                        $log[] = "Fila " . ($i+1) . ": Usuario con ID/CÃƒÆ’Ã‚Â©dula $idnumber no encontrado.";
                         $failCount++;
                         continue;
                     }
@@ -1049,7 +1049,7 @@ try {
                     // Find Learning Plan for User (Assuming active student)
                     $lpUser = $DB->get_record('local_learning_users', ['userid' => $user->id, 'userrolename' => 'student']);
                     if (!$lpUser) {
-                        $log[] = "Fila " . ($i+1) . ": Usuario $idnumber no estÃƒÂ¡ inscrito en plan de estudio.";
+                        $log[] = "Fila " . ($i+1) . ": Usuario $idnumber no estÃƒÆ’Ã‚Â¡ inscrito en plan de estudio.";
                         $failCount++;
                         continue;
                     }
@@ -1082,7 +1082,7 @@ try {
                 ];
 
             } catch (Exception $e) {
-                $response = ['status' => 'error', 'message' => 'ExcepciÃƒÂ³n procesando archivo: ' . $e->getMessage()];
+                $response = ['status' => 'error', 'message' => 'ExcepciÃƒÆ’Ã‚Â³n procesando archivo: ' . $e->getMessage()];
             }
             break;
 
@@ -1643,7 +1643,7 @@ try {
             $DB->delete_records('gmk_module_enrollment', ['classid' => (int)$module_class->id]);
 
             $response = ['status' => 'success', 'data' => [
-                'message' => 'Módulo eliminado correctamente.',
+                'message' => 'MÃ³dulo eliminado correctamente.',
                 'deletedenrollments' => $deleted_enrollments,
             ]];
             break;
@@ -1664,12 +1664,12 @@ try {
                 $due_fmt = userdate($new_due, get_string('strftimedatefullshort', 'langconfig'));
                 $response = ['status' => 'success', 'data' => [
                     'duedate' => $new_due,
-                    'message' => 'Plazo extendido. Nueva fecha límite: ' . $due_fmt,
+                    'message' => 'Plazo extendido. Nueva fecha lÃ­mite: ' . $due_fmt,
                 ]];
             } else if ($update_action === 'complete') {
                 $DB->set_field('gmk_module_enrollment', 'status',       'completed', ['id' => $enrollment_id]);
                 $DB->set_field('gmk_module_enrollment', 'timemodified', $now_t,      ['id' => $enrollment_id]);
-                $response = ['status' => 'success', 'data' => ['message' => 'Inscripción marcada como completada.']];
+                $response = ['status' => 'success', 'data' => ['message' => 'InscripciÃ³n marcada como completada.']];
             } else if ($update_action === 'remove') {
                 // Get class info to remove from group
                 $class_rec = $DB->get_record('gmk_class', ['id' => $enrollment_rec->classid], 'id, groupid, corecourseid');
@@ -1681,11 +1681,11 @@ try {
                 // Delete the enrollment record
                 $DB->delete_records('gmk_module_enrollment', ['id' => $enrollment_id]);
                 $response = ['status' => 'success', 'data' => [
-                    'message'    => 'Estudiante desvinculado del módulo correctamente.',
+                    'message'    => 'Estudiante desvinculado del mÃ³dulo correctamente.',
                     'was_active' => ($enrollment_rec->status === 'active'),
                 ]];
             } else {
-                $response = ['status' => 'error', 'data' => ['message' => 'Acción no reconocida.']];
+                $response = ['status' => 'error', 'data' => ['message' => 'AcciÃ³n no reconocida.']];
             }
             break;
 
@@ -2597,7 +2597,6 @@ try {
             break;
 
         case 'local_grupomakro_save_manual_grade':
-            require_capability('moodle/grade:edit', $context);
             require_once($CFG->libdir . '/gradelib.php');
 
             $gradeitemid = required_param('gradeitemid', PARAM_INT);
@@ -2605,15 +2604,18 @@ try {
             $grade       = required_param('grade', PARAM_FLOAT);
 
             $gi = \grade_item::fetch(['id' => $gradeitemid]);
-            if (!$gi) throw new Exception("Item de calificación no encontrado.");
-            if ($gi->itemtype !== 'manual') throw new Exception("Solo se pueden editar ítems manuales.");
+            if (!$gi) throw new Exception("Item de calificaciÃ³n no encontrado.");
+            // Teachers usually hold grade permissions at course level, not system level.
+            $gradecontext = context_course::instance((int)$gi->courseid);
+            require_capability('moodle/grade:edit', $gradecontext);
+            if ($gi->itemtype !== 'manual') throw new Exception("Solo se pueden editar Ã­tems manuales.");
 
             if ($grade < (float)$gi->grademin || $grade > (float)$gi->grademax) {
                 throw new Exception("La nota debe estar entre {$gi->grademin} y {$gi->grademax}.");
             }
 
             $result = $gi->update_final_grade($studentid, $grade, 'manual', '', FORMAT_MOODLE);
-            if ($result === false) throw new Exception("No se pudo guardar la calificación.");
+            if ($result === false) throw new Exception("No se pudo guardar la calificaciÃ³n.");
 
             $response = ['status' => 'success', 'message' => 'Nota guardada.'];
             break;
@@ -2791,7 +2793,7 @@ try {
             $sort_order_json = optional_param('sortorder', '', PARAM_RAW);
             $sort_order = !empty($sort_order_json) ? json_decode($sort_order_json, true) : null;
 
-            if (!is_array($weights)) throw new Exception("Datos invÃƒÂ¡lidos.");
+            if (!is_array($weights)) throw new Exception("Datos invÃƒÆ’Ã‚Â¡lidos.");
 
             $class = $DB->get_record('gmk_class', ['id' => $classid]);
             if (!$class) throw new Exception("Clase no encontrada.");
@@ -2999,7 +3001,7 @@ try {
                     }
                 }
 
-                $response = ['status' => 'success', 'message' => 'ConfiguraciÃƒÂ³n actualizada.'];
+                $response = ['status' => 'success', 'message' => 'ConfiguraciÃƒÆ’Ã‚Â³n actualizada.'];
             } catch (Exception $e) {
                 $tx->rollback($e);
                 throw $e;
@@ -3048,16 +3050,16 @@ try {
             require_once($CFG->libdir . '/gradelib.php');
 
             $gi = \grade_item::fetch(['id' => $itemid]);
-            if (!$gi) throw new Exception("ÃƒÂtem no encontrado.");
+            if (!$gi) throw new Exception("ÃƒÆ’Ã‚Âtem no encontrado.");
             
             // Security check: Only manual items? Or allow deleting activities?
             // Safer to allow only manual for now, deleting activities deletes the module which is dangerous here.
             if ($gi->itemtype !== 'manual') {
-                throw new Exception("Solo se pueden eliminar ÃƒÂ­tems manuales desde aquÃƒÂ­.");
+                throw new Exception("Solo se pueden eliminar ÃƒÆ’Ã‚Â­tems manuales desde aquÃƒÆ’Ã‚Â­.");
             }
 
             $gi->delete();
-            $response = ['status' => 'success', 'message' => 'ÃƒÂtem eliminado.'];
+            $response = ['status' => 'success', 'message' => 'ÃƒÆ’Ã‚Âtem eliminado.'];
             break;
 
         case 'local_grupomakro_get_all_activities':
@@ -3086,19 +3088,19 @@ try {
                     }
                 }
             }
-            // If no section found, $cms stays empty Ã¢â‚¬â€ avoids leaking other classes' activities
+            // If no section found, $cms stays empty ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â avoids leaking other classes' activities
 
             $activities = [];
 
             foreach ($cms as $cm) {
                 // Use $cm->visible instead of $cm->uservisible because the instructor may not be
                 // enrolled in the Moodle course (enrollment is managed via gmk_class, not mdl_enrol).
-                // This is a management endpoint — the teacher should see all published activities.
+                // This is a management endpoint â€” the teacher should see all published activities.
                 if (!$cm->visible) continue;
                 // Exclude label
                 if ($cm->modname === 'label') continue;
 
-                // Attendance and BBB are "default" activities Ã¢â‚¬â€ always placed in General (no tags)
+                // Attendance and BBB are "default" activities ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â always placed in General (no tags)
                 $is_general = ($cm->modname === 'attendance' || $cm->modname === 'bigbluebuttonbn');
 
                 if ($is_general) {
@@ -3407,7 +3409,7 @@ try {
                         $cat = question_get_default_category($course_context->id);
                     }
                     if (!$cat) {
-                        // Categories not yet initialized — create them now
+                        // Categories not yet initialized â€” create them now
                         $qecontexts = new question_edit_contexts($context);
                         question_make_default_categories($qecontexts->all());
                         $cat = question_get_default_category($context->id);
@@ -4210,7 +4212,7 @@ try {
             $forummessage = optional_param('forummessage', '', PARAM_RAW);
             $forumcreateinitial = optional_param('forumcreateinitial', true, PARAM_BOOL);
 
-            // Normalize tags Ã¢â‚¬â€ may arrive as string (FormData/JSON) or array (JSON flattened)
+            // Normalize tags ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â may arrive as string (FormData/JSON) or array (JSON flattened)
             $raw_tags = isset($_POST['tags']) ? $_POST['tags'] : '';
             $tagList = gmk_ajax_extract_tags_from_request($raw_tags);
             if (!empty($tagList)) {
@@ -4802,7 +4804,7 @@ try {
                 throw new Exception('La actividad no pertenece al curso de la clase.');
             }
             if ((int)$cm->section !== (int)$class->coursesectionid) {
-                throw new Exception('La actividad no pertenece a la secciÃ³n de esta clase.');
+                throw new Exception('La actividad no pertenece a la secciÃƒÂ³n de esta clase.');
             }
 
             if ($cm->modname === 'attendance' || $cm->modname === 'bigbluebuttonbn') {
@@ -4824,7 +4826,7 @@ try {
             $cmid = required_param('cmid', PARAM_INT);
             $name = required_param('name', PARAM_TEXT);
             $intro = optional_param('intro', '', PARAM_RAW);
-            // Normalize tags Ã¢â‚¬â€ may arrive as string (FormData/JSON) or array (JSON flattened)
+            // Normalize tags ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â may arrive as string (FormData/JSON) or array (JSON flattened)
             $raw_tags_upd = isset($_POST['tags']) ? $_POST['tags'] : '';
             $tags = gmk_ajax_extract_tags_from_request($raw_tags_upd);
             if (!empty($tags)) {
@@ -5040,7 +5042,7 @@ try {
             if ($result) {
                 $response = ['status' => 'success'];
             } else {
-                $response = ['status' => 'error', 'message' => 'Error al guardar la configuraciÃƒÂ³n'];
+                $response = ['status' => 'error', 'message' => 'Error al guardar la configuraciÃƒÆ’Ã‚Â³n'];
             }
             break;
 
@@ -5438,13 +5440,13 @@ try {
                     $sid = create_class_section($class);
                     $DB->set_field('gmk_class', 'coursesectionid', $sid, ['id' => $classid]);
                     $class->coursesectionid = $sid;
-                    $log[] = "SecciÃƒÂ³n creada: id=$sid";
+                    $log[] = "SecciÃƒÆ’Ã‚Â³n creada: id=$sid";
                 } catch (Throwable $e) {
-                    $log[] = "WARN secciÃƒÂ³n: " . $e->getMessage();
-                    // non-fatal Ã¢â‚¬â€ continue to activities
+                    $log[] = "WARN secciÃƒÆ’Ã‚Â³n: " . $e->getMessage();
+                    // non-fatal ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â continue to activities
                 }
             } else {
-                $log[] = "SecciÃƒÂ³n ya existe: id={$class->coursesectionid}";
+                $log[] = "SecciÃƒÆ’Ã‚Â³n ya existe: id={$class->coursesectionid}";
             }
 
             // Activities
@@ -5611,7 +5613,7 @@ try {
             $loads = json_decode($loadsJson, true);
             
             if (!is_array($loads)) {
-                throw new Exception('Formato de cargas invÃƒÂ¡lido.');
+                throw new Exception('Formato de cargas invÃƒÆ’Ã‚Â¡lido.');
             }
             
             // Wipe existing loads for this period and insert new ones
@@ -5648,7 +5650,7 @@ try {
                 $source = 'RAW_INPUT_VAR';
             }
 
-            // When Content-Type is application/json, schedules may already be decoded as array Ã¢â‚¬â€ re-encode it
+            // When Content-Type is application/json, schedules may already be decoded as array ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â re-encode it
             if (is_array($schedulesJson)) {
                 $schedulesJson = json_encode($schedulesJson);
                 $source .= '_REENCODED';
@@ -5714,7 +5716,7 @@ try {
             $periodid = required_param('academicperiodid', PARAM_INT);
             
             if (empty($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
-                throw new Exception('No se recibiÃƒÂ³ un archivo vÃƒÂ¡lido.');
+                throw new Exception('No se recibiÃƒÆ’Ã‚Â³ un archivo vÃƒÆ’Ã‚Â¡lido.');
             }
             
             $tmpPath = $_FILES['file']['tmp_name'];
@@ -5733,7 +5735,7 @@ try {
             }
             
             if (empty($colMap['date'])) {
-                throw new Exception('No se encontrÃƒÂ³ la columna "Fecha" en el Excel.');
+                throw new Exception('No se encontrÃƒÆ’Ã‚Â³ la columna "Fecha" en el Excel.');
             }
             
             // Get existing dates to skip duplicates
@@ -5919,14 +5921,14 @@ try {
                     ['courseid' => $class->corecourseid, 'name' => 'Avisos%']
                 );
             }
-            if (!$forum) throw new Exception("No se encontrÃƒÂ³ el foro de avisos del curso.");
+            if (!$forum) throw new Exception("No se encontrÃƒÆ’Ã‚Â³ el foro de avisos del curso.");
 
             $now = time();
 
             $cm = get_coursemodule_from_instance('forum', $forum->id, $class->corecourseid, false, MUST_EXIST);
             $context = context_module::instance($cm->id);
 
-            // Insert the first post directly Ã¢â‚¬â€ forum_add_discussion() ignores $post->mailnow in Moodle 4.x
+            // Insert the first post directly ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â forum_add_discussion() ignores $post->mailnow in Moodle 4.x
             $post_record = new stdClass();
             $post_record->discussion    = 0; // Will update after discussion is created
             $post_record->parent        = 0;
@@ -5964,7 +5966,7 @@ try {
             $disc_record->timelocked   = 0;
 
             $discussionid = $DB->insert_record('forum_discussions', $disc_record);
-            if (!$discussionid) throw new Exception("No se pudo crear la discusiÃƒÂ³n del aviso.");
+            if (!$discussionid) throw new Exception("No se pudo crear la discusiÃƒÆ’Ã‚Â³n del aviso.");
 
             // Link post back to discussion
             $DB->set_field('forum_posts', 'discussion', $discussionid, ['id' => $postid]);
@@ -6002,7 +6004,7 @@ try {
         case 'local_grupomakro_delete_forum_discussion':
             $discussionid = required_param('discussionid', PARAM_INT);
             $disc = $DB->get_record('forum_discussions', ['id' => $discussionid]);
-            if (!$disc) throw new Exception("DiscusiÃƒÂ³n no encontrada.");
+            if (!$disc) throw new Exception("DiscusiÃƒÆ’Ã‚Â³n no encontrada.");
 
             // Verify the current user is the instructor of that course or site admin
             $class_del = $DB->get_record('gmk_class', ['corecourseid' => $disc->course, 'instructorid' => $USER->id]);
@@ -6324,7 +6326,7 @@ try {
             break;
 
         case 'debug_inspect_post':
-            // TEMPORARY DEBUG Ã¢â‚¬â€ remove after diagnosis
+            // TEMPORARY DEBUG ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â remove after diagnosis
             require_capability('moodle/site:config', context_system::instance());
             $response = [
                 'status' => 'success',
@@ -6344,15 +6346,15 @@ try {
             if (empty($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
                 $upload_error_code = !empty($_FILES['file']) ? (int)$_FILES['file']['error'] : -1;
                 $upload_error_msgs = [
-                    1 => 'El archivo supera el límite de PHP (upload_max_filesize=' . ini_get('upload_max_filesize') . ', post_max_size=' . ini_get('post_max_size') . ').',
-                    2 => 'El archivo supera el límite del formulario.',
-                    3 => 'El archivo se subió de forma incompleta.',
-                    4 => 'No se seleccionó ningún archivo.',
+                    1 => 'El archivo supera el lÃ­mite de PHP (upload_max_filesize=' . ini_get('upload_max_filesize') . ', post_max_size=' . ini_get('post_max_size') . ').',
+                    2 => 'El archivo supera el lÃ­mite del formulario.',
+                    3 => 'El archivo se subiÃ³ de forma incompleta.',
+                    4 => 'No se seleccionÃ³ ningÃºn archivo.',
                     6 => 'Falta la carpeta temporal del servidor.',
                     7 => 'No se pudo escribir el archivo en disco.',
-                    8 => 'Una extensión de PHP detuvo la subida.',
+                    8 => 'Una extensiÃ³n de PHP detuvo la subida.',
                 ];
-                $upload_msg = $upload_error_msgs[$upload_error_code] ?? ('Error al subir. Código: ' . $upload_error_code);
+                $upload_msg = $upload_error_msgs[$upload_error_code] ?? ('Error al subir. CÃ³digo: ' . $upload_error_code);
                 $response = ['status' => 'error', 'message' => $upload_msg];
                 break;
             }
@@ -6398,14 +6400,14 @@ try {
             $lpUser = $DB->get_record('local_learning_users',
                 ['userid' => $userid, 'learningplanid' => $planid]);
             if (!$lpUser) {
-                $response = ['status' => 'error', 'message' => 'Inscripción no encontrada.'];
+                $response = ['status' => 'error', 'message' => 'InscripciÃ³n no encontrada.'];
                 break;
             }
 
             $currentSubperiod = $DB->get_record('local_learning_subperiods',
                 ['id' => $lpUser->currentsubperiodid]);
             if (!$currentSubperiod) {
-                $response = ['status' => 'error', 'message' => 'El bloque actual no está configurado.'];
+                $response = ['status' => 'error', 'message' => 'El bloque actual no estÃ¡ configurado.'];
                 break;
             }
 
@@ -6440,7 +6442,7 @@ try {
                 );
                 if (empty($nextPeriods)) {
                     $response = ['status' => 'error',
-                        'message' => 'El estudiante ya está en el último nivel del plan de estudios.'];
+                        'message' => 'El estudiante ya estÃ¡ en el Ãºltimo nivel del plan de estudios.'];
                     break;
                 }
                 $nextPeriod = reset($nextPeriods);
@@ -6459,9 +6461,9 @@ try {
                 $advanceType   = 'period';
             }
 
-            // ── Periodo lectivo sugerido ──────────────────────────────────────
-            // Prioridad 1: periodo que inicia en los próximos 30 días
-            // Prioridad 2 (fallback): periodo en curso (el que ya inició, más reciente)
+            // â”€â”€ Periodo lectivo sugerido â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // Prioridad 1: periodo que inicia en los prÃ³ximos 30 dÃ­as
+            // Prioridad 2 (fallback): periodo en curso (el que ya iniciÃ³, mÃ¡s reciente)
             $now      = time();
             $in30days = $now + (30 * 24 * 3600);
 
@@ -6473,7 +6475,7 @@ try {
                 0, 1
             );
 
-            // Fallback: periodo en curso (startdate ya pasó, el más reciente)
+            // Fallback: periodo en curso (startdate ya pasÃ³, el mÃ¡s reciente)
             if (!$suggestedAcPeriod) {
                 $suggestedAcPeriod = $DB->get_record_sql(
                     "SELECT id, name, startdate, enddate, status FROM {gmk_academic_periods}
@@ -6536,7 +6538,7 @@ try {
                 break;
             }
 
-            // En ejecución (dryrun=0): respetar el periodo lectivo elegido en el dialog
+            // En ejecuciÃ³n (dryrun=0): respetar el periodo lectivo elegido en el dialog
             $overrideAcId = optional_param('academicperiodid', 0, PARAM_INT);
             if ($overrideAcId && $overrideAcId !== (int)$suggestedAcPeriod->id) {
                 $override = $DB->get_record('gmk_academic_periods', ['id' => $overrideAcId]);
@@ -6545,7 +6547,7 @@ try {
                 }
             }
 
-            // Ejecutar actualización atómica
+            // Ejecutar actualizaciÃ³n atÃ³mica
             $transaction = $DB->start_delegated_transaction();
             try {
                 $errorMsg = '';
@@ -6560,7 +6562,7 @@ try {
                 $DB->set_field('local_learning_users', 'timemodified', time(),
                     ['userid' => $userid, 'learningplanid' => $planid]);
                 $transaction->allow_commit();
-                $response = ['status' => 'success', 'message' => 'Renovación aplicada correctamente.',
+                $response = ['status' => 'success', 'message' => 'RenovaciÃ³n aplicada correctamente.',
                              'data' => $previewData];
             } catch (Exception $e) {
                 $transaction->rollback($e);

@@ -98,40 +98,37 @@ const TeacherDashboard = {
                     </v-btn>
 
                     <!-- Upcoming sessions across all classes -->
-                    <v-card class="rounded-xl flex-grow-1" v-if="upcomingSessions.length > 0">
-                        <v-card-title class="text-subtitle-1 font-weight-bold pb-1">
+                    <v-card class="rounded-xl" v-if="upcomingSessions.length > 0">
+                        <v-card-title class="text-subtitle-2 font-weight-bold pb-0 pt-3 px-3">
                             <v-icon left color="primary" small>mdi-clock-fast</v-icon>
                             Próximas Sesiones
                         </v-card-title>
-                        <v-list dense class="pt-0">
-                            <template v-for="(session, i) in upcomingSessions">
-                                <v-list-item :key="session.classid + '-' + i" @click="goToClass(session.classid)" class="rounded-lg mx-2 mb-1 px-3" style="cursor:pointer;min-height:56px;">
-                                    <v-list-item-avatar size="36" :color="session.isToday ? 'primary' : 'grey lighten-3'" class="mr-3">
-                                        <v-icon :color="session.isToday ? 'white' : 'grey'" small>mdi-calendar-clock</v-icon>
-                                    </v-list-item-avatar>
-                                    <v-list-item-content>
-                                        <v-list-item-title class="text-caption font-weight-bold" style="white-space:normal;line-height:1.3;">
-                                            {{ session.shortname }}
-                                        </v-list-item-title>
-                                        <v-list-item-subtitle class="text-caption">
-                                            <v-chip x-small :color="session.isToday ? 'primary' : ''" :dark="session.isToday" class="mr-1">
-                                                {{ session.dateLabel }}
-                                            </v-chip>
-                                            {{ session.timeLabel }}
-                                        </v-list-item-subtitle>
-                                    </v-list-item-content>
-                                    <v-list-item-action class="ma-0">
-                                        <v-icon small color="grey lighten-1">mdi-chevron-right</v-icon>
-                                    </v-list-item-action>
-                                </v-list-item>
-                                <v-divider v-if="i < upcomingSessions.length - 1" :key="'div-' + i" inset class="mx-4"></v-divider>
-                            </template>
+                        <v-list dense class="pt-1 pb-2">
+                            <v-list-item
+                                v-for="(session, i) in upcomingSessions"
+                                :key="session.classid + '-' + i"
+                                @click="goToClass(session.classid)"
+                                class="px-3 py-1"
+                                style="cursor:pointer;min-height:auto;"
+                            >
+                                <v-list-item-content class="py-1">
+                                    <div class="d-flex align-center mb-1" style="gap:4px;flex-wrap:nowrap;">
+                                        <v-chip x-small :color="session.isToday ? 'primary' : 'grey lighten-2'" :dark="session.isToday" style="flex-shrink:0;">
+                                            {{ session.dateLabel }}
+                                        </v-chip>
+                                        <span class="text-caption grey--text" style="flex-shrink:0;">{{ session.timeLabel }}</span>
+                                        <v-spacer></v-spacer>
+                                        <v-icon x-small color="grey lighten-1">mdi-chevron-right</v-icon>
+                                    </div>
+                                    <div class="text-caption font-weight-medium session-name">{{ session.displayName }}</div>
+                                </v-list-item-content>
+                            </v-list-item>
                         </v-list>
                     </v-card>
 
                     <!-- No upcoming sessions placeholder -->
                     <v-card class="rounded-xl" v-else>
-                        <v-card-text class="text-center grey--text py-8">
+                        <v-card-text class="text-center grey--text py-6">
                             <v-icon large color="grey lighten-2" class="mb-2">mdi-calendar-check</v-icon>
                             <div class="text-caption">No hay sesiones próximas</div>
                         </v-card-text>
@@ -282,9 +279,13 @@ const TeacherDashboard = {
                     const ts = parseInt(c.next_session);
                     const date = new Date(ts * 1000);
                     const isToday = date.toDateString() === todayStr;
+                    // Prefer short course code; fall back to class name truncated at 40 chars
+                    const rawName = c.course_shortname || c.name || '';
+                    const displayName = rawName.length > 42 ? rawName.substring(0, 42) + '…' : rawName;
                     return {
                         classid: c.id,
                         shortname: c.course_shortname || c.name,
+                        displayName,
                         classname: c.name,
                         timestamp: ts,
                         isToday,
@@ -463,6 +464,14 @@ const TeacherDashboard = {
             style.textContent = `
                 .event-details-menu {
                     z-index: 10000 !important;
+                }
+                .session-name {
+                    display: -webkit-box;
+                    -webkit-line-clamp: 2;
+                    -webkit-box-orient: vertical;
+                    overflow: hidden;
+                    line-height: 1.35;
+                    word-break: break-word;
                 }
             `;
             document.head.appendChild(style);
