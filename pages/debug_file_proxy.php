@@ -1,12 +1,8 @@
 <?php
 /**
- * Debug: File Proxy Diagnostics
- * Verifies that file_proxy.php works and that Moodle file storage returns the correct file.
- *
- * Usage: /local/grupomakro_core/pages/debug_file_proxy.php
- *   With params: ?url=PLUGINFILE_URL   (test a specific file)
+ * Debug: File Proxy Diagnostics (auto-mode)
+ * URL: /local/grupomakro_core/pages/debug_file_proxy.php
  */
-
 require_once(__DIR__ . '/../../../config.php');
 require_login();
 require_capability('moodle/site:config', context_system::instance());
@@ -14,203 +10,262 @@ require_capability('moodle/site:config', context_system::instance());
 $PAGE->set_url(new moodle_url('/local/grupomakro_core/pages/debug_file_proxy.php'));
 $PAGE->set_context(context_system::instance());
 $PAGE->set_title('Debug: File Proxy');
-$PAGE->set_heading('Debug: File Proxy');
 $PAGE->set_pagelayout('admin');
 
-$testurl = optional_param('url', '', PARAM_RAW);
+$testAction = optional_param('action', '', PARAM_ALPHA);
+$testContextid = optional_param('contextid', 0, PARAM_INT);
+$testComponent = optional_param('component', '', PARAM_ALPHANUMEXT);
+$testFilearea  = optional_param('filearea',  '', PARAM_ALPHANUMEXT);
+$testItemid    = optional_param('itemid',    0, PARAM_INT);
+$testFilepath  = optional_param('filepath',  '/', PARAM_PATH);
+$testFilename  = optional_param('filename',  '', PARAM_FILE);
 
 echo $OUTPUT->header();
 ?>
 <style>
-body { font-family: monospace; }
-.ok  { color: #1b5e20; } .err { color: #b71c1c; } .warn { color: #e65100; } .info { color: #1565c0; }
-.box { background:#f5f5f5; border-left:4px solid #1976d2; padding:12px 16px; margin:12px 0 4px; font-size:1rem; font-weight:bold; }
-pre  { background:#263238; color:#eceff1; padding:12px; border-radius:4px; overflow-x:auto; font-size:0.82rem; }
-table { border-collapse:collapse; font-size:0.85rem; }
+.ok   { color:#1b5e20; margin:2px 0; } .err  { color:#b71c1c; margin:2px 0; }
+.warn { color:#e65100; margin:2px 0; } .info { color:#1565c0; margin:2px 0; }
+.box  { background:#e3f2fd; border-left:4px solid #1976d2; padding:10px 16px; margin:16px 0 6px; font-weight:bold; font-size:1rem; }
+pre   { background:#263238; color:#eceff1; padding:10px; border-radius:4px; overflow-x:auto; font-size:0.8rem; word-break:break-all; }
+table { border-collapse:collapse; font-size:0.82rem; margin:6px 0; }
 td,th { border:1px solid #ddd; padding:4px 10px; }
-th { background:#f5f5f5; }
+th    { background:#f5f5f5; font-weight:bold; }
+.badge-pdf  { background:#f44336; color:#fff; border-radius:4px; padding:1px 6px; font-size:0.75rem; }
+.badge-docx { background:#1976d2; color:#fff; border-radius:4px; padding:1px 6px; font-size:0.75rem; }
+.badge-xlsx { background:#388e3c; color:#fff; border-radius:4px; padding:1px 6px; font-size:0.75rem; }
+.badge-other{ background:#757575; color:#fff; border-radius:4px; padding:1px 6px; font-size:0.75rem; }
 </style>
 <?php
 
-function ok($m)   { echo '<p class="ok">&#x2705; '.htmlspecialchars($m).'</p>'; }
-function err($m)  { echo '<p class="err">&#x274C; '.htmlspecialchars($m).'</p>'; }
+function ok($m)   { echo '<p class="ok">&#x2705; '  .htmlspecialchars($m).'</p>'; }
+function err($m)  { echo '<p class="err">&#x274C; ' .htmlspecialchars($m).'</p>'; }
 function warn($m) { echo '<p class="warn">&#x26A0;&#xFE0F; '.htmlspecialchars($m).'</p>'; }
 function inf($m)  { echo '<p class="info">&#x2139;&#xFE0F; '.htmlspecialchars($m).'</p>'; }
 function box($m)  { echo '<div class="box">'.htmlspecialchars($m).'</div>'; }
 
-// ── STEP 1: Verify file_proxy.php exists on disk ──────────────────────────
-box('1. Archivo file_proxy.php en disco');
-$proxyPath = __DIR__ . '/file_proxy.php';
-if (file_exists($proxyPath)) {
-    ok("file_proxy.php existe en: $proxyPath");
-    $proxyUrl = $CFG->wwwroot . '/local/grupomakro_core/pages/file_proxy.php';
-    inf("URL esperada: $proxyUrl");
-} else {
-    err("file_proxy.php NO existe en: $proxyPath");
-    err("El archivo no se ha sincronizado al servidor.");
-    echo '<p>Asegúrate de subir el archivo al servidor en la ruta indicada.</p>';
+function fileBadge($mime, $name) {
+    if (strpos($mime, 'pdf') !== false || preg_match('/\.pdf$/i', $name))
+        return '<span class="badge-pdf">PDF</span>';
+    if (strpos($mime, 'word') !== false || preg_match('/\.docx?$/i', $name))
+        return '<span class="badge-docx">DOCX</span>';
+    if (strpos($mime, 'spreadsheet') !== false || strpos($mime, 'excel') !== false || preg_match('/\.xlsx?$/i', $name))
+        return '<span class="badge-xlsx">XLSX</span>';
+    return '<span class="badge-other">'.htmlspecialchars(strtoupper(pathinfo($name, PATHINFO_EXTENSION))).'</span>';
 }
 
-// ── STEP 2: Test HTTP accessibility of file_proxy.php ─────────────────────
-box('2. Accesibilidad HTTP de file_proxy.php (sin parámetros → debe dar 400, no 404)');
-$proxyTestUrl = $CFG->wwwroot . '/local/grupomakro_core/pages/file_proxy.php';
-$ch = curl_init($proxyTestUrl);
+global $CFG, $DB;
+$fs = get_file_storage();
+
+// ── STEP 1: file_proxy.php on disk ──────────────────────────────────────
+box('1. ¿Existe file_proxy.php en el servidor?');
+$proxyPath = __DIR__ . '/file_proxy.php';
+if (file_exists($proxyPath)) {
+    ok("file_proxy.php encontrado en disco: $proxyPath");
+} else {
+    err("file_proxy.php NO existe en: $proxyPath");
+    err("Debes subir/sincronizar el archivo al servidor antes de continuar.");
+    echo $OUTPUT->footer(); exit;
+}
+
+// ── STEP 2: HTTP reachability ────────────────────────────────────────────
+box('2. ¿Responde el proxy por HTTP?');
+$proxyBase = $CFG->wwwroot . '/local/grupomakro_core/pages/file_proxy.php';
+$ch = curl_init($proxyBase . '?url=test');
 curl_setopt_array($ch, [
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_HEADER         => true,
-    CURLOPT_NOBODY         => true,
-    CURLOPT_FOLLOWLOCATION => false,
+    CURLOPT_NOBODY         => false,
+    CURLOPT_FOLLOWLOCATION => true,
     CURLOPT_SSL_VERIFYPEER => false,
-    CURLOPT_TIMEOUT        => 5,
-    CURLOPT_COOKIE         => 'MoodleSession=' . session_id(),
+    CURLOPT_TIMEOUT        => 6,
 ]);
-$resp    = curl_exec($ch);
+$resp     = curl_exec($ch);
 $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 curl_close($ch);
 
 if ($httpCode === 404) {
-    err("HTTP 404 — el archivo NO está accesible en el servidor. Confirma que fue subido/sincronizado.");
-} elseif ($httpCode === 400 || $httpCode === 403) {
-    ok("HTTP $httpCode — el archivo SÍ existe y responde (400/403 es esperado sin parámetros válidos).");
-} elseif ($httpCode === 200) {
-    ok("HTTP 200 — el archivo existe y responde.");
+    err("HTTP 404 — el servidor devuelve 404. Moodle no puede enrutar a este archivo.");
+    err("Causa probable: Moodle tiene activado el router de URL y necesita que el plugin esté instalado correctamente, o hay un .htaccess bloqueando el acceso.");
+    inf("Verifica en el servidor: ls -la " . $proxyPath);
+} elseif (in_array($httpCode, [400, 403, 200])) {
+    ok("HTTP $httpCode — el proxy responde correctamente ($httpCode es esperado para URL inválida).");
 } else {
     warn("HTTP $httpCode — respuesta inesperada.");
 }
-inf("Código HTTP obtenido: $httpCode");
 
-// ── STEP 3: Parse and look up file from URL ───────────────────────────────
-if (!empty($testurl)) {
-    $testurl = html_entity_decode($testurl, ENT_QUOTES, 'UTF-8');
-    // Double-decode if needed (browser may send %2520 → %20 after first decode)
-    if (strpos($testurl, '%25') !== false) {
-        $testurl = rawurldecode($testurl);
+// ── STEP 3: Find recent submission files automatically ───────────────────
+box('3. Archivos de entregas recientes (últimas 20 entregas con archivos)');
+
+$recentSubmissions = $DB->get_records_sql("
+    SELECT asub.id, asub.assignment, asub.userid, asub.timemodified,
+           a.name AS assignname, u.firstname, u.lastname, cm.id AS cmid, ctx.id AS contextid
+      FROM {assign_submission} asub
+      JOIN {assign} a ON a.id = asub.assignment
+      JOIN {user} u ON u.id = asub.userid
+      JOIN {course_modules} cm ON cm.instance = asub.assignment
+         AND cm.module = (SELECT id FROM {modules} WHERE name = 'assign')
+      JOIN {context} ctx ON ctx.instanceid = cm.id AND ctx.contextlevel = 70
+     WHERE asub.status = 'submitted'
+       AND asub.latest = 1
+  ORDER BY asub.timemodified DESC
+     LIMIT 50
+");
+
+$foundFiles = [];
+foreach ($recentSubmissions as $sub) {
+    $files = $fs->get_area_files(
+        $sub->contextid,
+        'assignsubmission_file',
+        'submission_files',
+        $sub->id,
+        'filename',
+        false
+    );
+    foreach ($files as $f) {
+        $foundFiles[] = [
+            'file'       => $f,
+            'sub'        => $sub,
+            'contextid'  => $sub->contextid,
+            'component'  => 'assignsubmission_file',
+            'filearea'   => 'submission_files',
+            'itemid'     => $sub->id,
+        ];
+        if (count($foundFiles) >= 20) break 2;
     }
-
-    box("3. Parseo de URL y búsqueda en file storage");
-    inf("URL a analizar: $testurl");
-
-    $parsed = parse_url($testurl);
-    $path   = $parsed['path'] ?? '';
-    inf("Path extraído: $path");
-
-    if (!preg_match('|pluginfile\.php/(\d+)/([^/]+)/([^/]+)/(\d+)((?:/[^/]+)*?)/?([^/]+)$|', $path, $m)) {
-        err("No se pudo parsear el path como pluginfile.php URL.");
-        err("Path: $path");
-    } else {
-        $contextid = (int)$m[1];
-        $component = $m[2];
-        $filearea  = $m[3];
-        $itemid    = (int)$m[4];
-        $filepathRaw = $m[5];
-        $filename  = rawurldecode($m[6]);
-        $filepath  = ($filepathRaw === '' || $filepathRaw === '/') ? '/' : '/' . trim(rawurldecode($filepathRaw), '/') . '/';
-
-        echo '<table><tr><th>Campo</th><th>Valor</th></tr>';
-        echo "<tr><td>contextid</td><td>$contextid</td></tr>";
-        echo "<tr><td>component</td><td>$component</td></tr>";
-        echo "<tr><td>filearea</td><td>$filearea</td></tr>";
-        echo "<tr><td>itemid</td><td>$itemid</td></tr>";
-        echo "<tr><td>filepath</td><td>" . htmlspecialchars($filepath) . "</td></tr>";
-        echo "<tr><td>filename</td><td>" . htmlspecialchars($filename) . "</td></tr>";
-        echo '</table>';
-
-        // Capability check
-        $context = context::instance_by_id($contextid, IGNORE_MISSING);
-        if (!$context) {
-            err("Context $contextid no existe.");
-        } else {
-            ok("Context encontrado: $contextid (level={$context->contextlevel})");
-            $canGrade = has_capability('mod/assign:grade', $context);
-            $canView  = has_capability('mod/assign:view', $context);
-            $canGrade ? ok("Tienes mod/assign:grade en este contexto.") : warn("NO tienes mod/assign:grade en este contexto.");
-            $canView  ? ok("Tienes mod/assign:view en este contexto.")  : warn("NO tienes mod/assign:view en este contexto.");
-        }
-
-        // File storage lookup
-        $fs   = get_file_storage();
-        $file = $fs->get_file($contextid, $component, $filearea, $itemid, $filepath, $filename);
-
-        if (!$file || $file->is_directory()) {
-            err("Archivo NO encontrado en el file storage con los parámetros dados.");
-
-            // Try alternative filepath variations
-            inf("Intentando variaciones de filepath...");
-            foreach (['/', '// '] as $alt) {
-                $altFile = $fs->get_file($contextid, $component, $filearea, $itemid, $alt, $filename);
-                if ($altFile && !$altFile->is_directory()) {
-                    ok("Encontrado con filepath='$alt'");
-                    break;
-                }
-            }
-
-            // List ALL files in this context/component/filearea/itemid
-            inf("Archivos disponibles en contextid=$contextid / $component / $filearea / itemid=$itemid:");
-            $allfiles = $fs->get_area_files($contextid, $component, $filearea, $itemid, 'filename', false);
-            if (empty($allfiles)) {
-                warn("No hay archivos en este area. Intentando sin itemid...");
-                $allfiles = $fs->get_area_files($contextid, $component, $filearea, false, 'itemid,filename', false);
-            }
-            if (empty($allfiles)) {
-                err("No se encontró ningún archivo en este contexto/componente/filearea.");
-            } else {
-                echo '<table><tr><th>filename</th><th>filepath</th><th>itemid</th><th>mimetype</th><th>filesize</th></tr>';
-                foreach ($allfiles as $f) {
-                    echo '<tr>';
-                    echo '<td>' . htmlspecialchars($f->get_filename()) . '</td>';
-                    echo '<td>' . htmlspecialchars($f->get_filepath()) . '</td>';
-                    echo '<td>' . $f->get_itemid() . '</td>';
-                    echo '<td>' . htmlspecialchars($f->get_mimetype()) . '</td>';
-                    echo '<td>' . number_format($f->get_filesize()) . ' bytes</td>';
-                    echo '</tr>';
-                }
-                echo '</table>';
-            }
-        } else {
-            ok("Archivo encontrado en file storage:");
-            echo '<table>';
-            echo '<tr><td>filename</td><td>' . htmlspecialchars($file->get_filename()) . '</td></tr>';
-            echo '<tr><td>filepath</td><td>' . htmlspecialchars($file->get_filepath()) . '</td></tr>';
-            echo '<tr><td>mimetype</td><td>' . htmlspecialchars($file->get_mimetype()) . '</td></tr>';
-            echo '<tr><td>filesize</td><td>' . number_format($file->get_filesize()) . ' bytes</td></tr>';
-            echo '<tr><td>timecreated</td><td>' . date('Y-m-d H:i:s', $file->get_timecreated()) . '</td></tr>';
-            echo '</table>';
-
-            // Build proxy URL
-            $proxy = $CFG->wwwroot . '/local/grupomakro_core/pages/file_proxy.php?url=' . urlencode($testurl);
-            ok("URL del proxy que se usaría:");
-            echo '<pre>' . htmlspecialchars($proxy) . '</pre>';
-            echo '<p><a href="' . htmlspecialchars($proxy) . '" target="_blank">Abrir vía proxy (nueva pestaña)</a></p>';
-        }
-    }
-} else {
-    box('3. Prueba con URL de archivo');
-    echo '<form method="get">';
-    echo '<p>Pega la URL de un pluginfile.php para diagnosticar:</p>';
-    echo '<input type="text" name="url" style="width:600px;padding:6px;border:1px solid #ccc;border-radius:4px;" placeholder="https://lms.isi.edu.pa/pluginfile.php/..."><br><br>';
-    echo '<button type="submit" style="padding:6px 16px;background:#1976d2;color:white;border:none;border-radius:4px;cursor:pointer">Diagnosticar</button>';
-    echo '</form>';
 }
 
-// ── STEP 4: X-Frame-Options issue ────────────────────────────────────────
-box('4. Configuración X-Frame-Options (para PDFs en iframe)');
-inf("El error 'ALLOW-FROM' en la consola viene de la configuración global de Moodle.");
-inf("En config.php busca: \$CFG->additionalhtmlhead, header(), o X-Frame-Options en .htaccess");
-$htaccess = $CFG->dirroot . '/.htaccess';
-if (file_exists($htaccess)) {
-    $content = file_get_contents($htaccess);
-    if (stripos($content, 'X-Frame-Options') !== false) {
-        warn("X-Frame-Options encontrado en .htaccess:");
-        preg_match_all('/.*X-Frame-Options.*/i', $content, $matches);
-        foreach ($matches[0] as $line) {
-            echo '<pre>' . htmlspecialchars(trim($line)) . '</pre>';
-        }
-        inf("Fix: cambiar 'ALLOW-FROM' por 'SAMEORIGIN' en .htaccess para que el iframe funcione.");
-    } else {
-        ok("X-Frame-Options no está en .htaccess");
-    }
+if (empty($foundFiles)) {
+    warn("No se encontraron archivos en entregas recientes.");
 } else {
-    inf(".htaccess no existe o no es accesible desde PHP.");
+    echo '<table>';
+    echo '<tr><th>#</th><th>Tipo</th><th>Archivo</th><th>Estudiante</th><th>Tarea</th><th>Tamaño</th><th>Acciones</th></tr>';
+    foreach ($foundFiles as $i => $entry) {
+        $f      = $entry['file'];
+        $sub    = $entry['sub'];
+        $badge  = fileBadge($f->get_mimetype(), $f->get_filename());
+        $size   = number_format($f->get_filesize() / 1024, 1) . ' KB';
+        $name   = htmlspecialchars($f->get_filename());
+        $student= htmlspecialchars($sub->firstname . ' ' . $sub->lastname);
+        $assign = htmlspecialchars($sub->assignname);
+
+        // Build proxy URL from parameters
+        $params = http_build_query([
+            'action'    => 'test',
+            'contextid' => $entry['contextid'],
+            'component' => $entry['component'],
+            'filearea'  => $entry['filearea'],
+            'itemid'    => $entry['itemid'],
+            'filepath'  => $f->get_filepath(),
+            'filename'  => $f->get_filename(),
+        ]);
+        $testLink = new moodle_url('/local/grupomakro_core/pages/debug_file_proxy.php', [
+            'action'    => 'test',
+            'contextid' => $entry['contextid'],
+            'component' => $entry['component'],
+            'filearea'  => $entry['filearea'],
+            'itemid'    => $entry['itemid'],
+            'filepath'  => $f->get_filepath(),
+            'filename'  => $f->get_filename(),
+        ]);
+
+        echo "<tr>";
+        echo "<td>" . ($i+1) . "</td>";
+        echo "<td>$badge</td>";
+        echo "<td>$name</td>";
+        echo "<td>$student</td>";
+        echo "<td>$assign</td>";
+        echo "<td>$size</td>";
+        echo '<td><a href="' . $testLink->out(false) . '">Probar proxy</a></td>';
+        echo "</tr>";
+    }
+    echo '</table>';
+}
+
+// ── STEP 4: Test a specific file ─────────────────────────────────────────
+if ($testAction === 'test' && $testContextid && $testFilename) {
+    box("4. Resultado del proxy para: " . htmlspecialchars($testFilename));
+
+    $context = context::instance_by_id($testContextid, IGNORE_MISSING);
+    if (!$context) {
+        err("Context $testContextid no existe.");
+    } else {
+        ok("Context encontrado (level={$context->contextlevel})");
+
+        $file = $fs->get_file($testContextid, $testComponent, $testFilearea, $testItemid, $testFilepath, $testFilename);
+        if (!$file || $file->is_directory()) {
+            err("Archivo NO encontrado en file storage con:");
+            echo '<pre>contextid=' . $testContextid . "\ncomponent=" . $testComponent . "\nfilearea=" . $testFilearea . "\nitemid=" . $testItemid . "\nfilepath=" . $testFilepath . "\nfilename=" . $testFilename . '</pre>';
+
+            // Try listing what IS in that area
+            inf("Archivos disponibles en esa área:");
+            $area = $fs->get_area_files($testContextid, $testComponent, $testFilearea, $testItemid, 'filename', false);
+            if ($area) {
+                foreach ($area as $af) {
+                    echo '<pre>filename=' . htmlspecialchars($af->get_filename()) . ' filepath=' . htmlspecialchars($af->get_filepath()) . '</pre>';
+                }
+            } else {
+                err("No hay archivos en esa área.");
+            }
+        } else {
+            ok("Archivo encontrado: " . $file->get_filename() . " (" . number_format($file->get_filesize()/1024, 1) . " KB, " . $file->get_mimetype() . ")");
+
+            // Build the actual proxy URL
+            $pluginfileUrl = moodle_url::make_pluginfile_url(
+                $file->get_contextid(),
+                $file->get_component(),
+                $file->get_filearea(),
+                $file->get_itemid(),
+                $file->get_filepath(),
+                $file->get_filename()
+            );
+            $proxyTestUrl = $proxyBase . '?url=' . urlencode($pluginfileUrl->out(false));
+
+            ok("URL del proxy construida:");
+            echo '<pre>' . htmlspecialchars($proxyTestUrl) . '</pre>';
+
+            // Test proxy via curl
+            inf("Probando proxy via curl...");
+            $ch2 = curl_init($proxyTestUrl);
+            curl_setopt_array($ch2, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_HEADER         => true,
+                CURLOPT_NOBODY         => true,
+                CURLOPT_SSL_VERIFYPEER => false,
+                CURLOPT_TIMEOUT        => 8,
+                CURLOPT_COOKIE         => 'MoodleSession=' . session_id(),
+            ]);
+            $r2   = curl_exec($ch2);
+            $code2 = curl_getinfo($ch2, CURLINFO_HTTP_CODE);
+            $ct    = curl_getinfo($ch2, CURLINFO_CONTENT_TYPE);
+            curl_close($ch2);
+
+            if ($code2 === 200) {
+                ok("HTTP 200 — proxy funciona correctamente.");
+                ok("Content-Type devuelto: $ct");
+                if (strpos($ct, 'inline') !== false || strpos($ct, 'pdf') !== false || strpos($ct, 'word') !== false) {
+                    ok("Content-Disposition parece inline — el archivo se mostrará en el visor.");
+                }
+            } elseif ($code2 === 404) {
+                err("HTTP 404 — el proxy no puede ser alcanzado por el servidor (curl interno).");
+                inf("Headers recibidos:");
+                echo '<pre>' . htmlspecialchars(substr($r2, 0, 500)) . '</pre>';
+            } else {
+                warn("HTTP $code2");
+                echo '<pre>' . htmlspecialchars(substr($r2, 0, 500)) . '</pre>';
+            }
+
+            // Show direct links for manual test
+            echo '<br>';
+            echo '<p><strong>Pruebas manuales (abrir en nueva pestaña):</strong></p>';
+            echo '<ul>';
+            echo '<li><a href="' . htmlspecialchars($proxyTestUrl) . '" target="_blank">Abrir vía proxy</a> (debe mostrar inline)</li>';
+            echo '<li><a href="' . htmlspecialchars($pluginfileUrl->out(false)) . '" target="_blank">Abrir pluginfile.php original</a> (puede descargar)</li>';
+            echo '</ul>';
+        }
+    }
+} elseif ($testAction !== 'test') {
+    box('4. Cómo usar este debug');
+    inf('Haz clic en "Probar proxy" en cualquier archivo de la tabla de arriba para diagnóstico completo.');
 }
 
 echo $OUTPUT->footer();
