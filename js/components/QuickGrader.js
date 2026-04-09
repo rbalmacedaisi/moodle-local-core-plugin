@@ -577,11 +577,18 @@ const QuickGrader = {
             this.previewLoading = true;
             this.previewError = false;
             this.officeContent = '';
-            if (!this.mammothLoaded) {
+            // Check actual global, not just the flag — a previous failed load can leave
+            // a stale <script> tag that resolves loadScript without actually defining mammoth.
+            if (typeof mammoth === 'undefined') {
                 try {
                     await this.loadScript('https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js');
-                    this.mammothLoaded = true;
                 } catch (e) {
+                    this.previewLoading = false;
+                    this.previewError = true;
+                    return;
+                }
+                if (typeof mammoth === 'undefined') {
+                    console.error('[GMK] mammoth failed to define global (CSP or network)');
                     this.previewLoading = false;
                     this.previewError = true;
                     return;
@@ -607,11 +614,16 @@ const QuickGrader = {
             this.previewLoading = true;
             this.previewError = false;
             this.officeContent = '';
-            if (!this.xlsxLoaded) {
+            if (typeof XLSX === 'undefined') {
                 try {
                     await this.loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
-                    this.xlsxLoaded = true;
                 } catch (e) {
+                    this.previewLoading = false;
+                    this.previewError = true;
+                    return;
+                }
+                if (typeof XLSX === 'undefined') {
+                    console.error('[GMK] XLSX failed to define global (CSP or network)');
                     this.previewLoading = false;
                     this.previewError = true;
                     return;
@@ -635,9 +647,16 @@ const QuickGrader = {
         },
         loadScript(src) {
             return new Promise((resolve, reject) => {
-                if (document.querySelector('script[src="' + src + '"]')) { resolve(); return; }
+                const existing = document.querySelector('script[src="' + src + '"]');
+                if (existing) {
+                    // If the tag was marked as failed on a prior attempt, remove and retry.
+                    if (existing.dataset.loadFailed) { existing.remove(); }
+                    else { resolve(); return; }
+                }
                 const s = document.createElement('script');
-                s.src = src; s.onload = resolve; s.onerror = reject;
+                s.src = src;
+                s.onload = resolve;
+                s.onerror = (e) => { s.dataset.loadFailed = '1'; reject(e); };
                 document.head.appendChild(s);
             });
         },

@@ -131,6 +131,9 @@ header('Content-Length: ' . $filesize);
 header('Cache-Control: private, max-age=3600');
 header('X-Content-Type-Options: nosniff');
 // Allow iframe embedding from same origin
+// Remove any server-level X-Frame-Options (e.g. ALLOW-FROM set by nginx/Moodle)
+// to avoid conflicting-header browser denial, then set SAMEORIGIN.
+header_remove('X-Frame-Options');
 header('X-Frame-Options: SAMEORIGIN');
 
 $file->readfile();
