@@ -75,48 +75,43 @@ const QuickGrader = {
                                             <!-- Image Preview -->
                                             <v-img v-if="isImage(selectedFile)" :src="selectedFile.fileurl" contain max-height="600" class="grey lighten-4"></v-img>
 
-                                            <!-- PDF Preview -->
-                                            <div v-else-if="isPDF(selectedFile)" style="position:relative;">
+                                            <!-- PDF Preview — iframe same-origin, browser handles loading natively -->
+                                            <iframe
+                                                v-else-if="isPDF(selectedFile)"
+                                                :src="selectedFile.fileurl + '#toolbar=1&navpanes=0'"
+                                                class="preview-iframe"
+                                            ></iframe>
+
+                                            <!-- DOCX Preview via mammoth.js (client-side, with session credentials) -->
+                                            <div v-else-if="isWord(selectedFile)" class="preview-office-wrapper">
                                                 <div v-if="previewLoading" class="preview-loading-overlay">
                                                     <v-progress-circular indeterminate color="primary" size="40"></v-progress-circular>
+                                                    <div class="mt-2 text-caption grey--text">Convirtiendo documento...</div>
                                                 </div>
-                                                <iframe
-                                                    :src="selectedFile.fileurl + '#toolbar=1&navpanes=0'"
-                                                    class="preview-iframe"
-                                                    @load="previewLoading = false"
-                                                    @error="previewLoading = false; previewError = true"
-                                                ></iframe>
-                                                <div v-if="previewError" class="pa-6 text-center">
-                                                    <v-icon large color="red lighten-2">mdi-file-pdf-box</v-icon>
-                                                    <div class="mt-2 grey--text text-caption">No se pudo mostrar el PDF en el visor.</div>
-                                                    <v-btn small color="primary" class="mt-3" @click="openFile(selectedFile.fileurl)">
-                                                        <v-icon left small>mdi-open-in-new</v-icon> Abrir en nueva pestaña
+                                                <div v-else-if="previewError" class="pa-6 text-center grey lighten-4">
+                                                    <v-icon large color="blue lighten-2">mdi-file-word-outline</v-icon>
+                                                    <div class="mt-2 grey--text">No se pudo convertir el documento.</div>
+                                                    <v-btn small color="primary" class="mt-3" @click="downloadFile(selectedFile)">
+                                                        <v-icon left small>mdi-download</v-icon> Descargar para ver
                                                     </v-btn>
                                                 </div>
+                                                <div v-else class="pa-4 white docx-preview" v-html="officeContent"></div>
                                             </div>
 
-                                            <!-- Office Preview (DOCX, XLSX, PPTX, XLS, PPT) via Microsoft Office Online -->
-                                            <div v-else-if="isOffice(selectedFile)" style="position:relative;">
+                                            <!-- XLSX/XLS Preview via SheetJS (client-side, with session credentials) -->
+                                            <div v-else-if="isExcel(selectedFile)" class="preview-office-wrapper">
                                                 <div v-if="previewLoading" class="preview-loading-overlay">
                                                     <v-progress-circular indeterminate color="primary" size="40"></v-progress-circular>
-                                                    <div class="mt-2 text-caption grey--text">Cargando visor de Office...</div>
+                                                    <div class="mt-2 text-caption grey--text">Procesando hoja de cálculo...</div>
                                                 </div>
-                                                <iframe
-                                                    v-if="!previewError"
-                                                    :src="officeViewerUrl(selectedFile)"
-                                                    class="preview-iframe"
-                                                    allowfullscreen
-                                                    @load="previewLoading = false"
-                                                    @error="previewLoading = false; previewError = true"
-                                                ></iframe>
-                                                <div v-if="previewError" class="pa-6 text-center grey lighten-4">
-                                                    <v-icon large color="grey lighten-1">mdi-file-eye-off</v-icon>
-                                                    <div class="mt-2 grey--text">No se pudo cargar el visor de Office.</div>
-                                                    <div class="text-caption grey--text mt-1">Verifica que el servidor sea accesible desde internet.</div>
-                                                    <v-btn small color="primary" class="mt-3" @click="openFile(selectedFile.fileurl)">
-                                                        <v-icon left small>mdi-download</v-icon> Descargar archivo
+                                                <div v-else-if="previewError" class="pa-6 text-center grey lighten-4">
+                                                    <v-icon large color="green lighten-2">mdi-file-excel-outline</v-icon>
+                                                    <div class="mt-2 grey--text">No se pudo procesar el archivo.</div>
+                                                    <v-btn small color="primary" class="mt-3" @click="downloadFile(selectedFile)">
+                                                        <v-icon left small>mdi-download</v-icon> Descargar para ver
                                                     </v-btn>
                                                 </div>
+                                                <div v-else class="pa-2 excel-table-wrapper" v-html="officeContent"></div>
                                             </div>
 
                                             <!-- Generic / Not supported -->
@@ -285,8 +280,11 @@ const QuickGrader = {
             loadingAssignDetails: false,
             // File Preview specifics
             selectedFile: null,
+            officeContent: '',
             previewLoading: false,
             previewError: false,
+            mammothLoaded: false,
+            xlsxLoaded: false,
             // Reopen submission
             reopening: false,
             reopenError: '',
@@ -384,17 +382,38 @@ const QuickGrader = {
                     border: none;
                     display: block;
                 }
+                .preview-office-wrapper {
+                    position: relative;
+                    min-height: 200px;
+                }
                 .preview-loading-overlay {
-                    position: absolute;
-                    inset: 0;
-                    background: rgba(255,255,255,0.85);
                     display: flex;
                     flex-direction: column;
                     align-items: center;
                     justify-content: center;
-                    z-index: 2;
-                    min-height: 120px;
+                    min-height: 200px;
+                    padding: 32px;
                 }
+                .docx-preview {
+                    font-family: 'Times New Roman', Times, serif;
+                    line-height: 1.6;
+                    max-width: 860px;
+                    margin: 0 auto;
+                }
+                .docx-preview img { max-width: 100%; height: auto; }
+                .excel-table-wrapper { overflow-x: auto; }
+                .excel-table-wrapper table {
+                    border-collapse: collapse;
+                    width: 100%;
+                    font-size: 0.8rem;
+                }
+                .excel-table-wrapper th, .excel-table-wrapper td {
+                    border: 1px solid #ddd;
+                    padding: 4px 8px;
+                    white-space: nowrap;
+                }
+                .excel-table-wrapper tr:nth-child(even) { background-color: #f9f9f9; }
+                .excel-table-wrapper th { background-color: #f2f2f2; font-weight: bold; }
                 .border-primary {
                     border: 1px solid var(--v-primary-base) !important;
                 }
@@ -423,6 +442,7 @@ const QuickGrader = {
             this.saveError = null;
             this.loadingAssignDetails = false;
             this.selectedFile = null;
+            this.officeContent = '';
             this.previewLoading = false;
             this.previewError = false;
             this.reopening = false;
@@ -516,12 +536,14 @@ const QuickGrader = {
                 this.selectedFile = null;
                 return;
             }
-            this.previewLoading = true;
+            this.previewLoading = false;
             this.previewError = false;
+            this.officeContent = '';
             this.selectedFile = file;
-            // Images load via v-img which has its own loading, no spinner needed
-            if (this.isImage(file)) {
-                this.previewLoading = false;
+            if (this.isWord(file)) {
+                this.renderDocx(file);
+            } else if (this.isExcel(file)) {
+                this.renderXlsx(file);
             }
         },
         isPreviewable(file) {
@@ -535,19 +557,80 @@ const QuickGrader = {
             return (file.mimetype === 'application/pdf') ||
                 /\.pdf$/i.test(file.filename);
         },
-        isOffice(file) {
-            return (file.mimetype && (
-                file.mimetype.includes('word') ||
-                file.mimetype.includes('spreadsheet') ||
-                file.mimetype.includes('excel') ||
-                file.mimetype.includes('powerpoint') ||
-                file.mimetype.includes('presentation')
-            )) || /\.(docx?|xlsx?|pptx?|csv)$/i.test(file.filename);
+        isWord(file) {
+            return (file.mimetype && file.mimetype.includes('word')) ||
+                /\.docx?$/i.test(file.filename);
         },
-        officeViewerUrl(file) {
-            // Microsoft Office Online Viewer — handles docx, xlsx, pptx natively in-browser
-            const encoded = encodeURIComponent(file.fileurl);
-            return 'https://view.officeapps.live.com/op/embed.aspx?src=' + encoded;
+        isExcel(file) {
+            return (file.mimetype && (file.mimetype.includes('spreadsheet') || file.mimetype.includes('excel'))) ||
+                /\.(xlsx?|csv)$/i.test(file.filename);
+        },
+        isOffice(file) {
+            return this.isWord(file) || this.isExcel(file);
+        },
+        async renderDocx(file) {
+            this.previewLoading = true;
+            this.previewError = false;
+            this.officeContent = '';
+            if (!this.mammothLoaded) {
+                try {
+                    await this.loadScript('https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js');
+                    this.mammothLoaded = true;
+                } catch (e) {
+                    this.previewLoading = false;
+                    this.previewError = true;
+                    return;
+                }
+            }
+            try {
+                // credentials: 'include' sends the Moodle session cookie — required for authenticated file URLs
+                const response = await fetch(file.fileurl, { credentials: 'include' });
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                const arrayBuffer = await response.arrayBuffer();
+                const result = await mammoth.convertToHtml({ arrayBuffer });
+                this.officeContent = result.value;
+            } catch (e) {
+                console.error('[GMK] docx render failed', e);
+                this.previewError = true;
+            } finally {
+                this.previewLoading = false;
+            }
+        },
+        async renderXlsx(file) {
+            this.previewLoading = true;
+            this.previewError = false;
+            this.officeContent = '';
+            if (!this.xlsxLoaded) {
+                try {
+                    await this.loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+                    this.xlsxLoaded = true;
+                } catch (e) {
+                    this.previewLoading = false;
+                    this.previewError = true;
+                    return;
+                }
+            }
+            try {
+                const response = await fetch(file.fileurl, { credentials: 'include' });
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                const arrayBuffer = await response.arrayBuffer();
+                const workbook = XLSX.read(new Uint8Array(arrayBuffer), { type: 'array' });
+                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                this.officeContent = XLSX.utils.sheet_to_html(firstSheet);
+            } catch (e) {
+                console.error('[GMK] xlsx render failed', e);
+                this.previewError = true;
+            } finally {
+                this.previewLoading = false;
+            }
+        },
+        loadScript(src) {
+            return new Promise((resolve, reject) => {
+                if (document.querySelector('script[src="' + src + '"]')) { resolve(); return; }
+                const s = document.createElement('script');
+                s.src = src; s.onload = resolve; s.onerror = reject;
+                document.head.appendChild(s);
+            });
         },
         getFileIcon(file) {
             if (this.isImage(file)) return 'mdi-image-outline';
