@@ -558,18 +558,9 @@ const QuickGrader = {
                 /\.pdf$/i.test(file.filename);
         },
         proxyUrl(file) {
-            // Parse Moodle pluginfile.php URL:
-            // https://host/pluginfile.php/CONTEXTID/COMPONENT/FILEAREA/ITEMID/FILEPATH.../FILENAME
-            // Also handles webservice/pluginfile.php variant
-            const match = file.fileurl.match(/pluginfile\.php\/(\d+)\/([^/]+)\/([^/]+)\/(\d+)((?:\/[^/]+)*)\/([^/?]+)/);
-            if (!match) {
-                console.warn('[GMK] proxyUrl: could not parse', file.fileurl);
-                return null;
-            }
-            const [, contextid, component, filearea, itemid, filepathRaw, filename] = match;
-            const filepath = (filepathRaw || '') + '/';
-            const params = new URLSearchParams({ contextid, component, filearea, itemid, filepath, filename });
-            return (window.wwwroot || '') + '/local/grupomakro_core/pages/file_proxy.php?' + params.toString();
+            if (!file || !file.fileurl) return null;
+            const base = (window.wwwroot || '') + '/local/grupomakro_core/pages/file_proxy.php';
+            return base + '?url=' + encodeURIComponent(file.fileurl);
         },
         isWord(file) {
             return (file.mimetype && file.mimetype.includes('word')) ||
