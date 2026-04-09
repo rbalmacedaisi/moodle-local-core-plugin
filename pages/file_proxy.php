@@ -28,9 +28,9 @@ if (!$parsed || empty($parsed['path'])) {
 $path = $parsed['path'];
 
 // Match pluginfile.php pattern:
-// /pluginfile.php/CONTEXTID/COMPONENT/FILEAREA/ITEMID[/FILEPATH]/FILENAME
-// Also handles /webservice/pluginfile.php/...
-if (!preg_match('|pluginfile\.php/(\d+)/([^/]+)/([^/]+)/(\d+)((?:/[^/]+)*/?)([^/]+)$|', $path, $m)) {
+// /pluginfile.php/CONTEXTID/COMPONENT/FILEAREA/ITEMID/[FILEPATH/]FILENAME
+// Capture everything after itemid as one group to avoid greedy-backtrack bugs.
+if (!preg_match('|pluginfile\.php/(\d+)/([^/]+)/([^/]+)/(\d+)(/.+)$|', $path, $m)) {
     http_response_code(400);
     die('Could not parse file path.');
 }
@@ -39,14 +39,20 @@ $contextid = (int)$m[1];
 $component = clean_param($m[2], PARAM_ALPHANUMEXT);
 $filearea  = clean_param($m[3], PARAM_ALPHANUMEXT);
 $itemid    = (int)$m[4];
-$filepath  = rawurldecode($m[5]);
-$filename  = rawurldecode($m[6]);
+
+// Decode the full path-after-itemid, then split at the last slash.
+// strrpos is used instead of regex to avoid backtracking that eats the filename.
+$decodedPath = rawurldecode($m[5]);
+$lastSlash   = strrpos($decodedPath, '/');
+$filename    = substr($decodedPath, $lastSlash + 1);
+$filepath    = ($lastSlash >= 0) ? substr($decodedPath, 0, $lastSlash + 1) : '/';
 
 // Normalize filepath — must start and end with /
-if ($filepath === '' || $filepath === '/') {
-    $filepath = '/';
-} else {
-    $filepath = '/' . trim($filepath, '/') . '/';
+if (empty($filepath) || $filepath[0] !== '/') {
+    $filepath = '/' . $filepath;
+}
+if (substr($filepath, -1) !== '/') {
+    $filepath .= '/';
 }
 
 // Only allow submission-related components
@@ -71,6 +77,31 @@ if (!has_capability('mod/assign:grade', $context) && !has_capability('mod/assign
 // Fetch from Moodle file storage
 $fs   = get_file_storage();
 $file = $fs->get_file($contextid, $component, $filearea, $itemid, $filepath, $filename);
+
+// Fallback: try NFC Unicode normalization.
+// URLs sometimes use decomposed form (o + %CC%81) while DB stores precomposed (ó = %C3%B3).
+if (!$file && function_exists('normalizer_normalize')) {
+    $filenameNFC = normalizer_normalize($filename, Normalizer::FORM_C);
+    if ($filenameNFC && $filenameNFC !== $filename) {
+        $file = $fs->get_file($contextid, $component, $filearea, $itemid, $filepath, $filenameNFC);
+    }
+}
+
+// Fallback: search all files in area and match by normalized filename.
+if (!$file) {
+    $areaFiles = $fs->get_area_files($contextid, $component, $filearea, $itemid, 'filename', false);
+    $needleNFC = function_exists('normalizer_normalize') ? normalizer_normalize($filename, Normalizer::FORM_C) : $filename;
+    foreach ($areaFiles as $af) {
+        if ($af->is_directory()) {
+            continue;
+        }
+        $storedNFC = function_exists('normalizer_normalize') ? normalizer_normalize($af->get_filename(), Normalizer::FORM_C) : $af->get_filename();
+        if ($storedNFC === $needleNFC || $af->get_filename() === $filename) {
+            $file = $af;
+            break;
+        }
+    }
+}
 
 if (!$file || $file->is_directory()) {
     // Debug info (only shown to admin)
