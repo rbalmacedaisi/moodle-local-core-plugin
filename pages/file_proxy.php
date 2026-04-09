@@ -122,23 +122,37 @@ if (!$file || $file->is_directory()) {
 $mimetype = $file->get_mimetype();
 $filename = $file->get_filename(); // use the actual stored name (may differ via fallback)
 
-// ── DOCX → HTML conversion mode ──────────────────────────────────────────────
+// ── Office → HTML conversion mode ────────────────────────────────────────────
 if ($convertMode === 'html') {
-    $isDocx = preg_match('/\.docx?$/i', $filename)
+    $isDocx = preg_match('/\.docx?m?$/i', $filename)
            || strpos($mimetype, 'word') !== false
-           || strpos($mimetype, 'officedocument.wordprocessing') !== false;
+           || strpos($mimetype, 'wordprocessing') !== false;
 
-    if (!$isDocx) {
+    $isXlsx = preg_match('/\.xlsx?m?$/i', $filename)
+           || strpos($mimetype, 'spreadsheet') !== false
+           || strpos($mimetype, 'excel') !== false;
+
+    $isPptx = preg_match('/\.pptx?m?$/i', $filename)
+           || strpos($mimetype, 'powerpoint') !== false
+           || strpos($mimetype, 'presentation') !== false;
+
+    if (!$isDocx && !$isXlsx && !$isPptx) {
         http_response_code(400);
-        die('convert=html only supported for DOCX files.');
+        die('convert=html only supported for Office files (DOCX, XLSX, PPTX and macro variants).');
     }
 
     $content = $file->get_content();
-    $html    = gmk_docx_to_html($content);
+
+    if ($isDocx) {
+        $html = gmk_docx_to_html($content);
+    } elseif ($isXlsx) {
+        $html = gmk_xlsx_to_html($content);
+    } else {
+        $html = gmk_pptx_to_html($content);
+    }
 
     header('Content-Type: text/html; charset=UTF-8');
     header('Cache-Control: private, max-age=3600');
-    // CSP frame-ancestors overrides conflicting X-Frame-Options from the server.
     header('Content-Security-Policy: frame-ancestors \'self\'');
     echo $html !== false ? $html : '<p style="color:red">No se pudo procesar el documento.</p>';
     exit;
@@ -298,5 +312,196 @@ function gmk_docx_table($tbl, $xpath) {
         $html .= '</tr>';
     }
     $html .= '</table>';
+    return $html;
+}
+
+// ── PPTX to HTML converter ────────────────────────────────────────────────────
+
+function gmk_pptx_to_html($fileContent) {
+    if (!class_exists('ZipArchive')) {
+        return '<p style="color:red">ZipArchive no disponible en el servidor.</p>';
+    }
+
+    $tmp = tempnam(sys_get_temp_dir(), 'gmk_pptx_');
+    file_put_contents($tmp, $fileContent);
+
+    $zip = new ZipArchive();
+    if ($zip->open($tmp) !== true) {
+        @unlink($tmp);
+        return false;
+    }
+
+    // Collect slide paths sorted by number
+    $slides = [];
+    for ($i = 0; $i < $zip->numFiles; $i++) {
+        $name = $zip->getNameIndex($i);
+        if (preg_match('|^ppt/slides/slide(\d+)\.xml$|', $name, $m)) {
+            $slides[(int)$m[1]] = $name;
+        }
+    }
+    ksort($slides);
+
+    $html = '<div class="gmk-pptx-preview" style="font-family:sans-serif;font-size:14px;padding:8px">';
+
+    foreach ($slides as $slideNum => $slidePath) {
+        $xml = $zip->getFromName($slidePath);
+        if ($xml === false) continue;
+
+        libxml_use_internal_errors(true);
+        $dom = new DOMDocument('1.0', 'UTF-8');
+        if (!$dom->loadXML($xml)) continue;
+
+        $xpath = new DOMXPath($dom);
+        $xpath->registerNamespace('a', 'http://schemas.openxmlformats.org/drawingml/2006/main');
+        $xpath->registerNamespace('p', 'http://schemas.openxmlformats.org/presentationml/2006/main');
+
+        $html .= '<div style="border:1px solid #ddd;border-radius:4px;margin:8px 0;padding:16px 20px;background:#fafafa">';
+        $html .= '<div style="font-size:0.72em;color:#aaa;margin-bottom:6px;text-transform:uppercase;letter-spacing:1px">Diapositiva ' . $slideNum . '</div>';
+
+        // Each shape's text body → paragraphs
+        $txBodies = $xpath->query('//p:sp/p:txBody');
+        foreach ($txBodies as $txBody) {
+            $paragraphs = $xpath->query('a:p', $txBody);
+            foreach ($paragraphs as $para) {
+                $runs = $xpath->query('a:r', $para);
+                $text = '';
+                foreach ($runs as $run) {
+                    $tNodes = $xpath->query('a:t', $run);
+                    foreach ($tNodes as $t) {
+                        $text .= $t->textContent;
+                    }
+                }
+                if (trim($text) === '') continue;
+
+                // Detect if this looks like a title (first text body, first para)
+                $isBold = $xpath->query('.//a:rPr[@b="1"]', $para)->length > 0
+                       || $xpath->query('a:r/a:rPr[@b="1"]', $para)->length > 0;
+                $tag    = $isBold ? 'strong' : 'span';
+                $html  .= "<p style=\"margin:3px 0\"><{$tag}>" . htmlspecialchars($text) . "</{$tag}></p>";
+            }
+        }
+
+        $html .= '</div>';
+    }
+
+    $zip->close();
+    @unlink($tmp);
+
+    $html .= '</div>';
+    return $html;
+}
+
+// ── XLSX to HTML converter ────────────────────────────────────────────────────
+
+function gmk_xlsx_to_html($fileContent) {
+    if (!class_exists('ZipArchive')) {
+        return '<p style="color:red">ZipArchive no disponible en el servidor.</p>';
+    }
+
+    $tmp = tempnam(sys_get_temp_dir(), 'gmk_xlsx_');
+    file_put_contents($tmp, $fileContent);
+
+    $zip = new ZipArchive();
+    if ($zip->open($tmp) !== true) {
+        @unlink($tmp);
+        return false;
+    }
+
+    // Load shared strings (string values are stored separately)
+    $sharedStrings = [];
+    $ssXml = $zip->getFromName('xl/sharedStrings.xml');
+    if ($ssXml !== false) {
+        libxml_use_internal_errors(true);
+        $ssDom = new DOMDocument();
+        $ssDom->loadXML($ssXml);
+        $ssXp = new DOMXPath($ssDom);
+        $ssXp->registerNamespace('x', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
+        foreach ($ssXp->query('//x:si') as $si) {
+            $sharedStrings[] = $si->textContent;
+        }
+    }
+
+    // Find the first sheet file
+    $wsXml = null;
+    for ($i = 0; $i < $zip->numFiles; $i++) {
+        $name = $zip->getNameIndex($i);
+        if (preg_match('|^xl/worksheets/sheet1\.xml$|', $name)) {
+            $wsXml = $zip->getFromName($name);
+            break;
+        }
+    }
+    $zip->close();
+    @unlink($tmp);
+
+    if ($wsXml === false || $wsXml === null) {
+        return '<p style="color:red">No se encontró la hoja de cálculo (sheet1.xml).</p>';
+    }
+
+    libxml_use_internal_errors(true);
+    $dom = new DOMDocument();
+    $dom->loadXML($wsXml);
+    $xpath = new DOMXPath($dom);
+    $xpath->registerNamespace('x', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
+
+    $rows = $xpath->query('//x:row');
+    if ($rows->length === 0) {
+        return '<p style="color:#888;padding:16px">La hoja está vacía.</p>';
+    }
+
+    // Build a 2D array respecting column references (A=0, B=1, AA=26, …)
+    $data   = [];
+    $maxCol = 0;
+    $maxRow = 0;
+
+    foreach ($rows as $row) {
+        $rowIdx = (int)$row->getAttribute('r') - 1;
+        if ($rowIdx > 200) break; // Hard limit to avoid huge tables
+
+        $cells = $xpath->query('x:c', $row);
+        foreach ($cells as $cell) {
+            $ref = $cell->getAttribute('r'); // e.g. "B3"
+            preg_match('/^([A-Z]+)(\d+)$/', $ref, $cm);
+            if (!$cm) continue;
+
+            // Convert column letters to 0-based index
+            $colStr = $cm[1];
+            $colIdx = 0;
+            for ($ci = 0; $ci < strlen($colStr); $ci++) {
+                $colIdx = $colIdx * 26 + (ord($colStr[$ci]) - 64);
+            }
+            $colIdx--; // 0-based
+
+            $type  = $cell->getAttribute('t');
+            $vNode = $xpath->query('x:v', $cell);
+            $value = $vNode->length > 0 ? $vNode->item(0)->textContent : '';
+
+            if ($type === 's') {
+                $value = isset($sharedStrings[(int)$value]) ? $sharedStrings[(int)$value] : '';
+            } elseif ($type === 'b') {
+                $value = $value ? 'TRUE' : 'FALSE';
+            }
+
+            $data[$rowIdx][$colIdx] = $value;
+            if ($colIdx > $maxCol) $maxCol = $colIdx;
+            if ($rowIdx > $maxRow) $maxRow = $rowIdx;
+        }
+    }
+
+    $maxCol = min($maxCol, 50); // Cap at 50 columns
+
+    $html  = '<div style="overflow-x:auto;font-size:12px">';
+    $html .= '<table style="border-collapse:collapse;min-width:100%">';
+    for ($r = 0; $r <= $maxRow; $r++) {
+        $html .= '<tr>';
+        for ($c = 0; $c <= $maxCol; $c++) {
+            $val   = isset($data[$r][$c]) ? htmlspecialchars($data[$r][$c]) : '';
+            $style = 'border:1px solid #ddd;padding:3px 8px;white-space:nowrap;';
+            if ($r === 0) $style .= 'background:#f5f5f5;font-weight:bold;';
+            $html .= "<td style=\"{$style}\">{$val}</td>";
+        }
+        $html .= '</tr>';
+    }
+    $html .= '</table></div>';
+
     return $html;
 }

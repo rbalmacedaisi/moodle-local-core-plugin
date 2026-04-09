@@ -82,36 +82,20 @@ const QuickGrader = {
                                                 class="preview-iframe"
                                             ></iframe>
 
-                                            <!-- DOCX Preview via mammoth.js (client-side, with session credentials) -->
-                                            <div v-else-if="isWord(selectedFile)" class="preview-office-wrapper">
+                                            <!-- Office files: DOCX, XLSX, PPTX, PPTM, etc. — server-side PHP converter -->
+                                            <div v-else-if="isOffice(selectedFile)" class="preview-office-wrapper">
                                                 <div v-if="previewLoading" class="preview-loading-overlay">
                                                     <v-progress-circular indeterminate color="primary" size="40"></v-progress-circular>
                                                     <div class="mt-2 text-caption grey--text">Convirtiendo documento...</div>
                                                 </div>
                                                 <div v-else-if="previewError" class="pa-6 text-center grey lighten-4">
-                                                    <v-icon large color="blue lighten-2">mdi-file-word-outline</v-icon>
+                                                    <v-icon large :color="getOfficeErrorColor(selectedFile)">{{ getFileIcon(selectedFile) }}</v-icon>
                                                     <div class="mt-2 grey--text">No se pudo convertir el documento.</div>
                                                     <v-btn small color="primary" class="mt-3" @click="downloadFile(selectedFile)">
                                                         <v-icon left small>mdi-download</v-icon> Descargar para ver
                                                     </v-btn>
                                                 </div>
-                                                <div v-else class="pa-4 white docx-preview" v-html="officeContent"></div>
-                                            </div>
-
-                                            <!-- XLSX/XLS Preview via SheetJS (client-side, with session credentials) -->
-                                            <div v-else-if="isExcel(selectedFile)" class="preview-office-wrapper">
-                                                <div v-if="previewLoading" class="preview-loading-overlay">
-                                                    <v-progress-circular indeterminate color="primary" size="40"></v-progress-circular>
-                                                    <div class="mt-2 text-caption grey--text">Procesando hoja de cálculo...</div>
-                                                </div>
-                                                <div v-else-if="previewError" class="pa-6 text-center grey lighten-4">
-                                                    <v-icon large color="green lighten-2">mdi-file-excel-outline</v-icon>
-                                                    <div class="mt-2 grey--text">No se pudo procesar el archivo.</div>
-                                                    <v-btn small color="primary" class="mt-3" @click="downloadFile(selectedFile)">
-                                                        <v-icon left small>mdi-download</v-icon> Descargar para ver
-                                                    </v-btn>
-                                                </div>
-                                                <div v-else class="pa-2 excel-table-wrapper" v-html="officeContent"></div>
+                                                <div v-else class="pa-3 office-preview" v-html="officeContent"></div>
                                             </div>
 
                                             <!-- Generic / Not supported -->
@@ -540,10 +524,8 @@ const QuickGrader = {
             this.previewError = false;
             this.officeContent = '';
             this.selectedFile = file;
-            if (this.isWord(file)) {
-                this.renderDocx(file);
-            } else if (this.isExcel(file)) {
-                this.renderXlsx(file);
+            if (this.isOffice(file)) {
+                this.renderOffice(file);
             }
         },
         isPreviewable(file) {
@@ -563,98 +545,58 @@ const QuickGrader = {
             return base + '?url=' + encodeURIComponent(file.fileurl);
         },
         isWord(file) {
-            return (file.mimetype && file.mimetype.includes('word')) ||
-                /\.docx?$/i.test(file.filename);
+            return (file.mimetype && (file.mimetype.includes('word') || file.mimetype.includes('officedocument.wordprocessing'))) ||
+                /\.docx?m?$/i.test(file.filename);
         },
         isExcel(file) {
-            return (file.mimetype && (file.mimetype.includes('spreadsheet') || file.mimetype.includes('excel'))) ||
-                /\.(xlsx?|csv)$/i.test(file.filename);
+            return (file.mimetype && (file.mimetype.includes('spreadsheet') || file.mimetype.includes('excel') || file.mimetype.includes('officedocument.spreadsheet'))) ||
+                /\.xlsx?m?$/i.test(file.filename);
+        },
+        isPowerPoint(file) {
+            return (file.mimetype && (file.mimetype.includes('powerpoint') || file.mimetype.includes('presentation') || file.mimetype.includes('officedocument.presentation'))) ||
+                /\.pptx?m?$/i.test(file.filename);
         },
         isOffice(file) {
-            return this.isWord(file) || this.isExcel(file);
+            return this.isWord(file) || this.isExcel(file) || this.isPowerPoint(file);
         },
-        async renderDocx(file) {
+        // All Office formats use the PHP server-side converter — no CDN, no CSP issues.
+        async renderOffice(file) {
             this.previewLoading = true;
             this.previewError = false;
             this.officeContent = '';
             try {
-                // Server-side DOCX→HTML via PHP proxy (no CDN / no CSP issues).
                 const url = this.proxyUrl(file) + '&convert=html';
                 const response = await fetch(url);
                 if (!response.ok) throw new Error('HTTP ' + response.status);
                 const html = await response.text();
                 this.officeContent = html || '<p class="grey--text">El documento está vacío.</p>';
             } catch (e) {
-                console.error('[GMK] docx render failed', e);
+                console.error('[GMK] office render failed', e);
                 this.previewError = true;
             } finally {
                 this.previewLoading = false;
             }
         },
-        async renderXlsx(file) {
-            this.previewLoading = true;
-            this.previewError = false;
-            this.officeContent = '';
-            if (typeof XLSX === 'undefined') {
-                try {
-                    await this.loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
-                } catch (e) {
-                    this.previewLoading = false;
-                    this.previewError = true;
-                    return;
-                }
-                if (typeof XLSX === 'undefined') {
-                    console.error('[GMK] XLSX failed to define global (CSP or network)');
-                    this.previewLoading = false;
-                    this.previewError = true;
-                    return;
-                }
-            }
-            try {
-                const url = this.proxyUrl(file);
-                if (!url) throw new Error('Could not build proxy URL');
-                const response = await fetch(url);
-                if (!response.ok) throw new Error('HTTP ' + response.status);
-                const arrayBuffer = await response.arrayBuffer();
-                const workbook = XLSX.read(new Uint8Array(arrayBuffer), { type: 'array' });
-                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-                this.officeContent = XLSX.utils.sheet_to_html(firstSheet);
-            } catch (e) {
-                console.error('[GMK] xlsx render failed', e);
-                this.previewError = true;
-            } finally {
-                this.previewLoading = false;
-            }
-        },
-        loadScript(src) {
-            return new Promise((resolve, reject) => {
-                const existing = document.querySelector('script[src="' + src + '"]');
-                if (existing) {
-                    // If the tag was marked as failed on a prior attempt, remove and retry.
-                    if (existing.dataset.loadFailed) { existing.remove(); }
-                    else { resolve(); return; }
-                }
-                const s = document.createElement('script');
-                s.src = src;
-                s.onload = resolve;
-                s.onerror = (e) => { s.dataset.loadFailed = '1'; reject(e); };
-                document.head.appendChild(s);
-            });
+        getOfficeErrorColor(file) {
+            if (this.isWord(file))       return 'blue lighten-2';
+            if (this.isExcel(file))      return 'green lighten-2';
+            if (this.isPowerPoint(file)) return 'orange lighten-2';
+            return 'grey lighten-2';
         },
         getFileIcon(file) {
-            if (this.isImage(file)) return 'mdi-image-outline';
-            if (this.isPDF(file)) return 'mdi-file-pdf-box';
-            if (/\.(docx?)$/i.test(file.filename) || (file.mimetype && file.mimetype.includes('word'))) return 'mdi-file-word-outline';
-            if (/\.(xlsx?|csv)$/i.test(file.filename) || (file.mimetype && (file.mimetype.includes('spreadsheet') || file.mimetype.includes('excel')))) return 'mdi-file-excel-outline';
-            if (/\.(pptx?)$/i.test(file.filename) || (file.mimetype && (file.mimetype.includes('powerpoint') || file.mimetype.includes('presentation')))) return 'mdi-file-powerpoint-outline';
+            if (this.isImage(file))       return 'mdi-image-outline';
+            if (this.isPDF(file))         return 'mdi-file-pdf-box';
+            if (this.isWord(file))        return 'mdi-file-word-outline';
+            if (this.isExcel(file))       return 'mdi-file-excel-outline';
+            if (this.isPowerPoint(file))  return 'mdi-file-powerpoint-outline';
             return 'mdi-file-document-outline';
         },
         getFileIconColor(file) {
-            if (this.isImage(file)) return 'purple lighten-4';
-            if (this.isPDF(file)) return 'red lighten-4';
-            if (/\.(docx?)$/i.test(file.filename) || (file.mimetype && file.mimetype.includes('word'))) return 'blue lighten-4';
-            if (/\.(xlsx?|csv)$/i.test(file.filename)) return 'green lighten-4';
-            if (/\.(pptx?)$/i.test(file.filename)) return 'orange lighten-4';
+            if (this.isImage(file))       return 'purple lighten-4';
+            if (this.isPDF(file))         return 'red lighten-4';
+            if (this.isWord(file))        return 'blue lighten-4';
+            if (this.isExcel(file))       return 'green lighten-4';
+            if (this.isPowerPoint(file))  return 'orange lighten-4';
             return 'primary lighten-4';
         },
         skip() {

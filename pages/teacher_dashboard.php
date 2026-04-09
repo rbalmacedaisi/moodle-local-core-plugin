@@ -42,7 +42,7 @@ $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/Gradebo
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/grademodal.js?v=20260317002'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/attendancemodal.js?v=20251231049'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/PendingGradingView.js?v=20260320003'), true);
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/QuickGrader.js?v=20260409006'), true);
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/QuickGrader.js?v=20260409007'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/QuizCreationWizard.js?v=20260326001'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/quizeditor/QuestionBankDialog.js'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/quizeditor/TypeEditors.js'), true);
