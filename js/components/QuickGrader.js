@@ -75,10 +75,10 @@ const QuickGrader = {
                                             <!-- Image Preview -->
                                             <v-img v-if="isImage(selectedFile)" :src="selectedFile.fileurl" contain max-height="600" class="grey lighten-4"></v-img>
 
-                                            <!-- PDF Preview — iframe same-origin, browser handles loading natively -->
+                                            <!-- PDF Preview — via proxy (inline disposition, no forced download) -->
                                             <iframe
                                                 v-else-if="isPDF(selectedFile)"
-                                                :src="selectedFile.fileurl + '#toolbar=1&navpanes=0'"
+                                                :src="proxyUrl(selectedFile) + '#toolbar=1&navpanes=0'"
                                                 class="preview-iframe"
                                             ></iframe>
 
@@ -557,6 +557,20 @@ const QuickGrader = {
             return (file.mimetype === 'application/pdf') ||
                 /\.pdf$/i.test(file.filename);
         },
+        proxyUrl(file) {
+            // Parse Moodle pluginfile.php URL:
+            // https://host/pluginfile.php/CONTEXTID/COMPONENT/FILEAREA/ITEMID/FILEPATH.../FILENAME
+            // Also handles webservice/pluginfile.php variant
+            const match = file.fileurl.match(/pluginfile\.php\/(\d+)\/([^/]+)\/([^/]+)\/(\d+)((?:\/[^/]+)*)\/([^/?]+)/);
+            if (!match) {
+                console.warn('[GMK] proxyUrl: could not parse', file.fileurl);
+                return null;
+            }
+            const [, contextid, component, filearea, itemid, filepathRaw, filename] = match;
+            const filepath = (filepathRaw || '') + '/';
+            const params = new URLSearchParams({ contextid, component, filearea, itemid, filepath, filename });
+            return (window.wwwroot || '') + '/local/grupomakro_core/pages/file_proxy.php?' + params.toString();
+        },
         isWord(file) {
             return (file.mimetype && file.mimetype.includes('word')) ||
                 /\.docx?$/i.test(file.filename);
@@ -583,12 +597,14 @@ const QuickGrader = {
                 }
             }
             try {
-                // credentials: 'include' sends the Moodle session cookie — required for authenticated file URLs
-                const response = await fetch(file.fileurl, { credentials: 'include' });
+                // Use the PHP proxy — same-origin, serves file directly from Moodle storage, no auth issues
+                const url = this.proxyUrl(file);
+                if (!url) throw new Error('Could not build proxy URL');
+                const response = await fetch(url);
                 if (!response.ok) throw new Error('HTTP ' + response.status);
                 const arrayBuffer = await response.arrayBuffer();
                 const result = await mammoth.convertToHtml({ arrayBuffer });
-                this.officeContent = result.value;
+                this.officeContent = result.value || '<p class="grey--text">El documento está vacío.</p>';
             } catch (e) {
                 console.error('[GMK] docx render failed', e);
                 this.previewError = true;
@@ -611,7 +627,9 @@ const QuickGrader = {
                 }
             }
             try {
-                const response = await fetch(file.fileurl, { credentials: 'include' });
+                const url = this.proxyUrl(file);
+                if (!url) throw new Error('Could not build proxy URL');
+                const response = await fetch(url);
                 if (!response.ok) throw new Error('HTTP ' + response.status);
                 const arrayBuffer = await response.arrayBuffer();
                 const workbook = XLSX.read(new Uint8Array(arrayBuffer), { type: 'array' });
