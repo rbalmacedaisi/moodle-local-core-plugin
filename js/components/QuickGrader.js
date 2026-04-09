@@ -577,32 +577,13 @@ const QuickGrader = {
             this.previewLoading = true;
             this.previewError = false;
             this.officeContent = '';
-            // Check actual global, not just the flag — a previous failed load can leave
-            // a stale <script> tag that resolves loadScript without actually defining mammoth.
-            if (typeof mammoth === 'undefined') {
-                try {
-                    await this.loadScript('https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js');
-                } catch (e) {
-                    this.previewLoading = false;
-                    this.previewError = true;
-                    return;
-                }
-                if (typeof mammoth === 'undefined') {
-                    console.error('[GMK] mammoth failed to define global (CSP or network)');
-                    this.previewLoading = false;
-                    this.previewError = true;
-                    return;
-                }
-            }
             try {
-                // Use the PHP proxy — same-origin, serves file directly from Moodle storage, no auth issues
-                const url = this.proxyUrl(file);
-                if (!url) throw new Error('Could not build proxy URL');
+                // Server-side DOCX→HTML via PHP proxy (no CDN / no CSP issues).
+                const url = this.proxyUrl(file) + '&convert=html';
                 const response = await fetch(url);
                 if (!response.ok) throw new Error('HTTP ' + response.status);
-                const arrayBuffer = await response.arrayBuffer();
-                const result = await mammoth.convertToHtml({ arrayBuffer });
-                this.officeContent = result.value || '<p class="grey--text">El documento está vacío.</p>';
+                const html = await response.text();
+                this.officeContent = html || '<p class="grey--text">El documento está vacío.</p>';
             } catch (e) {
                 console.error('[GMK] docx render failed', e);
                 this.previewError = true;
