@@ -77,11 +77,13 @@ class get_bbb_module_url extends external_api {
 
         try{
 
-            global $DB;
+            global $DB, $USER;
 
             $courseModuleInfo = get_fast_modinfo($courseId);
-            $moduleInfo = $courseModuleInfo->get_cm($moduleId)->get_course_module_record();
-            $BBBMeetingInfo = \mod_bigbluebuttonbn\external\meeting_info::execute($moduleInfo->instance,0);
+            $cm               = $courseModuleInfo->get_cm($moduleId);
+            $moduleInfo       = $cm->get_course_module_record();
+            $course           = $courseModuleInfo->get_course();
+            $BBBMeetingInfo   = \mod_bigbluebuttonbn\external\meeting_info::execute($moduleInfo->instance, 0);
 
             // Get the most recent valid recording (PROCESSED=2 or NOTIFIED=3), excluding dismissed/deleted/awaiting.
             $recording = $DB->get_record_sql(
@@ -98,15 +100,40 @@ class get_bbb_module_url extends external_api {
             );
             $recordingId = $recording ? $recording->recordingid : null;
 
+            // --- Session duration (for 70% attendance threshold) ---
+            // Primary: openingtime / closingtime from the BBB module itself.
+            $bbbRecord       = $DB->get_record('bigbluebuttonbn', ['id' => $moduleInfo->instance]);
+            $sessionDuration = 0;
+            if ($bbbRecord && !empty($bbbRecord->closingtime) && !empty($bbbRecord->openingtime)) {
+                $sessionDuration = max(0, (int)$bbbRecord->closingtime - (int)$bbbRecord->openingtime);
+            }
+            // Fallback: duration stored in the linked attendance session.
+            if ($sessionDuration <= 0) {
+                $relation = $DB->get_record('gmk_bbb_attendance_relation', ['bbbmoduleid' => (int)$moduleId]);
+                if ($relation && !empty($relation->attendancesessionid)) {
+                    $session = $DB->get_record('attendance_sessions', ['id' => (int)$relation->attendancesessionid]);
+                    if ($session && !empty($session->duration)) {
+                        $sessionDuration = (int)$session->duration;
+                    }
+                }
+            }
+
+            // --- Has this user already had their attendance marked? ---
+            $completionInfo         = new \completion_info($course);
+            $completionData         = $completionInfo->get_data($cm, false, (int)$USER->id);
+            $attendanceAlreadyMarked = ((int)$completionData->completionstate === COMPLETION_COMPLETE);
+
             $meetingInfo = new stdClass();
-            $meetingInfo->opened      = $BBBMeetingInfo['statusopen'];
-            $meetingInfo->closed      = $recordingId ? true : $BBBMeetingInfo['statusclosed'];
-            $meetingInfo->running     = $BBBMeetingInfo['statusrunning'];
-            $meetingInfo->message     = $BBBMeetingInfo['statusmessage'];
-            $meetingInfo->openingtime = $BBBMeetingInfo['openingtime'] ?? null;
-            $meetingInfo->joinUrl     = $BBBMeetingInfo['canjoin'] ? \mod_bigbluebuttonbn\external\get_join_url::execute($params['moduleId'])['join_url'] : null;
-            $meetingInfo->recordingUrl = $recordingId ? "https://bbb.isi.edu.pa/playback/presentation/2.3/" . $recordingId : null;
-            return ['BBBInfo'=>json_encode($meetingInfo)];
+            $meetingInfo->opened               = $BBBMeetingInfo['statusopen'];
+            $meetingInfo->closed               = $recordingId ? true : $BBBMeetingInfo['statusclosed'];
+            $meetingInfo->running              = $BBBMeetingInfo['statusrunning'];
+            $meetingInfo->message              = $BBBMeetingInfo['statusmessage'];
+            $meetingInfo->openingtime          = $BBBMeetingInfo['openingtime'] ?? null;
+            $meetingInfo->joinUrl              = $BBBMeetingInfo['canjoin'] ? \mod_bigbluebuttonbn\external\get_join_url::execute($params['moduleId'])['join_url'] : null;
+            $meetingInfo->recordingUrl         = $recordingId ? "https://bbb.isi.edu.pa/playback/presentation/2.3/" . $recordingId : null;
+            $meetingInfo->sessionDuration      = $sessionDuration;          // seconds
+            $meetingInfo->attendanceAlreadyMarked = $attendanceAlreadyMarked;
+            return ['BBBInfo' => json_encode($meetingInfo)];
             
         }
         catch (Exception $e) {
