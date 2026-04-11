@@ -86,12 +86,15 @@ Vue.component('pending-grading-view', {
                                 </v-icon>
                                 {{ item.assignmentname }}
                             </div>
+                            <v-chip x-small color="orange darken-1" dark class="mt-1" v-if="item.submissionstatus === 'new'">
+                                <v-icon x-small left>mdi-lock-open-variant-outline</v-icon>Reabierta
+                            </v-chip>
                             <div class="caption grey--text" v-if="!classId">
                                 <v-icon x-small class="mr-1">mdi-school</v-icon>
                                 {{ item.coursename }}
                             </div>
                             <div class="caption red--text mt-1" v-if="isOverdue(item.duedate)">
-                                <v-icon x-small color="red">mdi-clock-alert</v-icon> 
+                                <v-icon x-small color="red">mdi-clock-alert</v-icon>
                                 Vencida: {{ formatDate(item.duedate) }}
                             </div>
                             <div class="caption green--text mt-1" v-else>

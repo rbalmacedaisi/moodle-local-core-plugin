@@ -8115,10 +8115,13 @@ function gmk_get_pending_grading_items($userid, $classid = 0, $status = 'pending
     }
 
     $assign_grade_condition = ($status === 'history') ? "(g.grade IS NOT NULL AND g.grade >= 0)" : "(g.grade IS NULL OR g.grade < 0)";
+    // For history: also include reopened submissions (status='new') that still carry a grade from the previous attempt.
+    $assign_status_condition = ($status === 'history') ? "s.status IN ('submitted', 'new')" : "s.status = 'submitted'";
 
     $sql_assign = "SELECT s.id as submissionid, s.userid, s.assignment as itemid, s.timecreated as submissiontime,
+                          s.status as submissionstatus,
                           a.name as itemname, a.course as courseid, a.duedate,
-                          c.fullname as coursename, 
+                          c.fullname as coursename,
                           u.firstname, u.lastname, u.email, u.picture, u.imagealt,
                           u.firstnamephonetic, u.lastnamephonetic, u.middlename, u.alternatename
                    FROM {assign_submission} s
@@ -8126,7 +8129,7 @@ function gmk_get_pending_grading_items($userid, $classid = 0, $status = 'pending
                    JOIN {course} c ON c.id = a.course
                    JOIN {user} u ON u.id = s.userid
                    LEFT JOIN {assign_grades} g ON g.assignment = a.id AND g.userid = s.userid AND g.attemptnumber = s.attemptnumber
-                   WHERE s.status = 'submitted' AND s.latest = 1 AND $assign_grade_condition
+                   WHERE $assign_status_condition AND s.latest = 1 AND $assign_grade_condition
                    $assign_course_filter $assign_group_filter $assign_item_scope_filter";
     
     // Store for debug if requested

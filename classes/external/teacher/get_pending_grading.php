@@ -65,6 +65,7 @@ class get_pending_grading extends external_api {
             $item->studentavatar = $user_picture->get_url($PAGE)->out(false);
 
             $item->submissiontime = $sub->submissiontime;
+            $item->submissionstatus = $sub->submissionstatus ?? 'submitted';
             $item->duedate = $sub->duedate;
             $item->courseid = $sub->courseid;
             $item->coursename = $sub->coursename;
@@ -254,6 +255,7 @@ class get_pending_grading extends external_api {
                     'studentemail' => new external_value(PARAM_TEXT, 'Student Email'),
                     'studentavatar' => new external_value(PARAM_URL, 'Student Avatar URL'),
                     'submissiontime' => new external_value(PARAM_INT, 'Submission Timestamp'),
+                    'submissionstatus' => new external_value(PARAM_TEXT, 'Submission status (submitted/new=reopened)', VALUE_DEFAULT, 'submitted'),
                     'duedate' => new external_value(PARAM_INT, 'Due Date Timestamp'),
                     'courseid' => new external_value(PARAM_INT, 'Course ID'),
                     'coursename' => new external_value(PARAM_TEXT, 'Course Name'),

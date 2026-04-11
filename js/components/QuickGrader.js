@@ -28,7 +28,13 @@ const QuickGrader = {
                         <!-- ASSIGNMENT VIEW -->
                         <v-card v-if="currentTask.modname === 'assign'" class="mx-auto" max-width="900" min-height="100%">
                             <v-card-title>Entrega de Tarea</v-card-title>
-                            <v-card-subtitle>Enviado el: {{ formatDate(currentTask.submissiontime, true) }}</v-card-subtitle>
+                            <v-card-subtitle>
+                                <template v-if="currentTask.submissionstatus === 'new'">
+                                    <v-icon small color="orange darken-1">mdi-lock-open-variant-outline</v-icon>
+                                    <span class="orange--text text--darken-1 font-weight-medium ml-1">Reabierta — esperando nueva entrega del estudiante</span>
+                                </template>
+                                <template v-else>Enviado el: {{ formatDate(currentTask.submissiontime, true) }}</template>
+                            </v-card-subtitle>
                             <v-divider></v-divider>
                             <v-card-text class="pa-4">
                                 <div v-if="loadingAssignDetails" class="mb-3 text-caption grey--text">
@@ -309,6 +315,10 @@ const QuickGrader = {
                 if (val) {
                     this.currentTask = val;
                     this.resetForm();
+                    // If submission was already reopened, disable the reopen button accordingly.
+                    if (val.submissionstatus === 'new') {
+                        this.reopenSuccess = 'El reenvío ya está habilitado. Esperando nueva entrega del estudiante.';
+                    }
                     if (val.modname === 'quiz') {
                         this.fetchQuizData();
                     } else if (val.modname === 'assign') {
