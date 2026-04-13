@@ -35,13 +35,27 @@ Vue.component('pending-grading-view', {
                             <div>
                                 <div class="caption grey--text">{{ activeTab === 0 ? 'Total Pendientes' : 'Total Calificados' }}</div>
                                 <div class="text-h5 font-weight-bold" :class="$vuetify.theme.dark ? 'white--text' : 'orange--text text--darken-3'">
-                                    {{ activeTab === 0 ? totalPending : tasks.length }}
+                                    {{ activeTab === 0 ? totalPending : filteredTasks.length }}
                                 </div>
                             </div>
                         </v-card>
                     </v-col>
-                    
-                    <v-col cols="12" sm="8">
+
+                    <v-col cols="12" sm="4">
+                        <v-select
+                            v-model="selectedCourse"
+                            :items="courseOptions"
+                            label="Filtrar por asignatura"
+                            prepend-inner-icon="mdi-book-open-variant"
+                            clearable
+                            hide-details
+                            outlined
+                            dense
+                            :background-color="$vuetify.theme.dark ? '' : 'white'"
+                        ></v-select>
+                    </v-col>
+
+                    <v-col cols="12" sm="4">
                         <v-text-field
                             v-model="search"
                             append-icon="mdi-magnify"
@@ -58,7 +72,7 @@ Vue.component('pending-grading-view', {
                 <!-- Data Table -->
                 <v-data-table
                     :headers="headers"
-                    :items="tasks"
+                    :items="filteredTasks"
                     :search="search"
                     :loading="loading"
                     :items-per-page="10"
@@ -139,14 +153,27 @@ Vue.component('pending-grading-view', {
             loading: false,
             tasks: [],
             search: '',
+            selectedCourse: null,
             showGrader: false,
             selectedTask: null,
             activeTab: 0
         };
     },
     computed: {
+        courseOptions() {
+            const seen = new Set();
+            return this.tasks
+                .map(t => t.coursename)
+                .filter(name => name && !seen.has(name) && seen.add(name))
+                .sort()
+                .map(name => ({ text: name, value: name }));
+        },
+        filteredTasks() {
+            if (!this.selectedCourse) return this.tasks;
+            return this.tasks.filter(t => t.coursename === this.selectedCourse);
+        },
         totalPending() {
-            return this.tasks.length;
+            return this.filteredTasks.length;
         },
         headers() {
             return [
@@ -167,6 +194,7 @@ Vue.component('pending-grading-view', {
     },
     methods: {
         async fetchTasks() {
+            this.selectedCourse = null;
             this.loading = true;
             try {
                 const response = await axios.post(window.wsUrl, {
