@@ -1454,7 +1454,7 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
         egresado: 'Egresado'
     };
 
-    var currentClassId = 0;
+    window.currentClassId = 0;
     var currentStudents = [];
     var filteredStudents = [];
 
