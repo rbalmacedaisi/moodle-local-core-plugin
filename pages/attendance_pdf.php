@@ -145,6 +145,17 @@ $avg_pct = $total_expected > 0 ? round($total_absent_all / $total_expected * 100
 // ── PDF generation ────────────────────────────────────────────────────────────
 require_once($CFG->libdir . '/tcpdf/tcpdf.php');
 
+// Resolve best available unicode font (Moodle bundles vary across versions).
+$_tcpdf_font_dir = $CFG->libdir . '/tcpdf/fonts/';
+$_font_candidates = ['freeserif', 'freesans', 'dejavusans', 'dejavuserif', 'helvetica'];
+$PDF_FONT = 'helvetica'; // always available as core PDF font (no file needed)
+foreach ($_font_candidates as $_fc) {
+    if ($_fc === 'helvetica' || file_exists($_tcpdf_font_dir . $_fc . '.php')) {
+        $PDF_FONT = $_fc;
+        break;
+    }
+}
+
 define('PDF_CHUNK_SIZE', 25); // max session columns per page pass
 
 $chunks = !empty($all_session_ids_sorted)
@@ -154,24 +165,25 @@ $total_chunks = count($chunks);
 
 // Custom TCPDF with fixed header.
 class AttendancePDF extends TCPDF {
-    public $hd = []; // header data
+    public $hd = []; // header data including 'font' key
 
     public function Header() {
         $d = $this->hd;
-        $this->SetFont('dejavusans', 'B', 9);
+        $font = $d['font'] ?? 'freeserif';
+        $this->SetFont($font, 'B', 9);
         $this->SetTextColor(15, 23, 42);
-        $this->Cell(0, 6, 'Instituto Superior ISI — Lista de Asistencia', 0, 1, 'C');
+        $this->Cell(0, 6, 'Instituto Superior ISI - Lista de Asistencia', 0, 1, 'C');
 
-        $this->SetFont('dejavusans', '', 7.5);
+        $this->SetFont($font, '', 7.5);
         $this->SetTextColor(51, 65, 85);
-        $this->Cell(130, 4.5, 'Grupo: ' . ($d['cname'] ?? '') . ' — ' . ($d['shift'] ?? ''), 0, 0);
+        $this->Cell(130, 4.5, 'Grupo: ' . ($d['cname'] ?? '') . ' - ' . ($d['shift'] ?? ''), 0, 0);
         $this->Cell(0,   4.5, 'Docente: ' . ($d['teacher'] ?? ''), 0, 1);
         $this->Cell(130, 4.5, 'Horario: ' . ($d['schedule'] ?? ''), 0, 0);
         $this->Cell(0,   4.5, 'Impreso: ' . date('d/m/Y H:i'), 0, 1);
         $this->Cell(130, 4.5,
             'Est. totales: ' . ($d['total'] ?? 0) .
             '   Activos (<3 aus.): ' . ($d['active'] ?? 0) .
-            '   Inactivos (≥3 aus.): ' . (($d['total'] ?? 0) - ($d['active'] ?? 0)),
+            '   Inactivos (>=3 aus.): ' . (($d['total'] ?? 0) - ($d['active'] ?? 0)),
             0, 0
         );
         $this->Cell(0, 4.5,
@@ -192,6 +204,7 @@ class AttendancePDF extends TCPDF {
 
 $pdf = new AttendancePDF('L', 'mm', 'A4', true, 'UTF-8', false);
 $pdf->hd = [
+    'font'     => $PDF_FONT,
     'cname'    => $cname,
     'shift'    => $shift,
     'teacher'  => $teacher,
@@ -202,7 +215,7 @@ $pdf->hd = [
     'avg_pct'  => $avg_pct,
 ];
 $pdf->SetCreator('ISI Moodle');
-$pdf->SetTitle('Asistencia — ' . $cname);
+$pdf->SetTitle('Asistencia - ' . $cname);
 $pdf->SetAutoPageBreak(true, 12);
 $pdf->setPrintHeader(true);
 $pdf->setPrintFooter(false);
@@ -251,10 +264,10 @@ foreach ($chunks as $chunkIdx => $chunk_sids) {
     $chunkLabel = $total_chunks > 1 ? '  (bloque ' . ($chunkIdx + 1) . '/' . $total_chunks . ')' : '';
 
     // ── Header row ──────────────────────────────────────────────────────
-    $pdf->SetFont('dejavusans', 'B', 7);
+    $pdf->SetFont($PDF_FONT, 'B', 7);
     pdfFill($pdf, $C['hdr_blue']); pdfText($pdf, $C['white']);
     $pdf->Cell($numColW,  6, '#',      'LTB', 0, 'C', true);
-    $pdf->Cell($cedColW,  6, 'Cédula', 'LTB', 0, 'C', true);
+    $pdf->Cell($cedColW,  6, 'Cedula', 'LTB', 0, 'C', true);
     $pdf->Cell($nameColW, 6, 'Nombre' . $chunkLabel, 'LTB', 0, 'L', true);
 
     foreach ($chunk_sids as $sid) {
@@ -273,7 +286,7 @@ foreach ($chunks as $chunkIdx => $chunk_sids) {
     $pdf->Cell($ausColW, 6, 'Aus.', 'LTBR', 1, 'C', true);
 
     // ── Data rows ────────────────────────────────────────────────────────
-    $pdf->SetFont('dejavusans', '', 6.5);
+    $pdf->SetFont($PDF_FONT, '', 6.5);
     $rowNum = 0;
     foreach ($student_order as $uid) {
         $s = $students[$uid] ?? ['name' => '', 'cedula' => ''];
@@ -298,7 +311,7 @@ foreach ($chunks as $chunkIdx => $chunk_sids) {
             $info = $session_info[$sid] ?? ['taken' => false];
             if (!$info['taken']) {
                 pdfFill($pdf, $C['future_bg']); pdfText($pdf, $C['future_fg']);
-                $pdf->Cell($sessColW, 5, "\xe2\x80\x94", 'LTB', 0, 'C', true);
+                $pdf->Cell($sessColW, 5, '-', 'LTB', 0, 'C', true);
             } else {
                 $entry = $matrix[$uid][$sid] ?? null;
                 if ($entry !== null && $entry['present']) {
@@ -321,13 +334,13 @@ foreach ($chunks as $chunkIdx => $chunk_sids) {
 
     // ── Legend note ──────────────────────────────────────────────────────
     $pdf->Ln(2);
-    $pdf->SetFont('dejavusans', 'I', 5.5);
+    $pdf->SetFont($PDF_FONT, 'I', 5.5);
     pdfText($pdf, $C['muted']); pdfFill($pdf, $C['white']);
     $legendParts = [
         'P = Presente',
         'F = Falta/Ausente',
-        "\xe2\x80\x94 = Sesión no tomada aún",
-        'Columna azul oscuro = última sesión tomada',
+        '- = Sesion no tomada aun',
+        'Columna azul oscuro = ultima sesion tomada',
     ];
     $pdf->Cell(0, 4, implode('   ', $legendParts), 0, 1, 'C');
 }
