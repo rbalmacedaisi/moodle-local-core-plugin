@@ -12,6 +12,7 @@
 
 require_once(__DIR__ . '/../../../config.php');
 require_once($CFG->libdir . '/adminlib.php');
+require_once(__DIR__ . '/absence_helpers.php');
 
 require_login();
 require_capability('local/grupomakro_core:viewabsencedashboard', context_system::instance());
@@ -217,6 +218,14 @@ if (optional_param('abs_ajax', 0, PARAM_INT)) {
             // Per-student absences from sessions where attendance was actually taken.
             $student_abs = absd_get_student_absences($takensessionids, $userids);
 
+            // Exemption flags.
+            $exempt_users = [];
+            foreach ($userids as $uid) {
+                if (absd_is_user_exempt((int)$uid, $classid)) {
+                    $exempt_users[(int)$uid] = true;
+                }
+            }
+
             // Document numbers
             $doc_map_s = [];
             $doc_fid   = (int)($DB->get_field('user_info_field', 'id', ['shortname' => 'documentnumber']) ?: 0);
@@ -291,11 +300,22 @@ if (optional_param('abs_ajax', 0, PARAM_INT)) {
                     'suspended'       => (bool)$row->suspended,
                     'user_status'     => $canonical['user_status'] ?? 'Activo',
                     'academic_status' => $academic_status,
+                    'exempt'          => isset($exempt_users[$uid]),
                 ];
             }
             usort($out, fn($a, $b) => $b['absences'] <=> $a['absences']);
             echo json_encode(['ok' => true, 'students' => $out, 'past_sessions' => $past_sessions],
                 JSON_UNESCAPED_UNICODE | JSON_HEX_TAG);
+        } elseif ($abs_action === 'run_absence_check') {
+            $summary = absd_run_absence_inactivation_check();
+            echo json_encode(array_merge(['ok' => true], $summary), JSON_UNESCAPED_UNICODE);
+
+        } elseif ($abs_action === 'toggle_absence_exempt') {
+            $userid  = required_param('userid',  PARAM_INT);
+            $classid = optional_param('classid', 0, PARAM_INT);
+            $exempt  = absd_toggle_user_exempt($userid, $classid);
+            echo json_encode(['ok' => true, 'exempt' => $exempt]);
+
         } else {
             echo json_encode(['ok' => false, 'message' => 'Unknown action']);
         }
@@ -312,7 +332,10 @@ $PAGE->set_title('Inasistencias y Deserciones');
 $PAGE->set_heading('Inasistencias y Deserciones');
 $PAGE->set_pagelayout('admin');
 
-// ── Helpers ─────────────────────────────────────────────────────────────────────
+// ── Helpers (see absence_helpers.php — functions are guarded below) ──────────
+// Functions already defined when absence_helpers.php is included at the top.
+// The guard prevents redeclaration errors if this file is loaded standalone.
+if (!function_exists('absd_normalize_shift')) {
 
 function absd_normalize_shift(string $s): string {
     $s = strtolower(trim($s));
@@ -712,6 +735,8 @@ function absd_house_svg(): string {
     </svg>';
 }
 
+} // end if (!function_exists('absd_normalize_shift'))
+
 // ── Field IDs ──────────────────────────────────────────────────────────────────
 $tc_fieldid  = (int)($DB->get_field('customfield_field', 'id', ['shortname' => 'tc'])            ?: 0);
 $doc_fieldid = (int)($DB->get_field('user_info_field',   'id', ['shortname' => 'documentnumber']) ?: 0);
@@ -802,8 +827,10 @@ if (!empty($all_ids)) {
 }
 
 // ── Attendance stats (past sessions + absences per class) ──────────────────────
-$class_past_sessions  = []; // classid => int
-$class_total_absences = []; // classid => int
+$class_past_sessions    = []; // classid => int
+$class_total_absences   = []; // classid => int
+$class_active_students  = []; // classid => students with < 3 absences
+$class_inactive_students = []; // classid => students with >= 3 absences
 
 if (!empty($all_ids)) {
     [$insql, $inparams] = $DB->get_in_or_equal($all_ids, SQL_PARAMS_NAMED, 'cidbase');
@@ -834,6 +861,15 @@ if (!empty($all_ids)) {
 
         $studentabs = absd_get_student_absences($takensessionids, $enrolleduserids);
         $class_total_absences[$cid] = array_sum($studentabs);
+
+        // Count active (< 3 absences) vs inactive (>= 3 absences) students.
+        $active_cnt = 0; $inactive_cnt = 0;
+        foreach ($enrolleduserids as $uid) {
+            $abs = $studentabs[(int)$uid] ?? 0;
+            if ($abs < 3) { $active_cnt++; } else { $inactive_cnt++; }
+        }
+        $class_active_students[$cid]   = $active_cnt;
+        $class_inactive_students[$cid] = $inactive_cnt;
     }
 }
 
@@ -895,8 +931,9 @@ foreach ($all_ids as $cid) {
 
 // ── Output ─────────────────────────────────────────────────────────────────────
 echo $OUTPUT->header();
-$sesskey = sesskey();
+$sesskey  = sesskey();
 $ajax_url = (new moodle_url('/local/grupomakro_core/pages/absence_dashboard.php'))->out(false);
+$pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))->out(false);
 ?>
 <style>
 /* ── Layout ─────────────────────────────────────────────────────── */
@@ -1076,6 +1113,9 @@ $ajax_url = (new moodle_url('/local/grupomakro_core/pages/absence_dashboard.php'
 .absd-session-state.present { background:#dcfce7; color:#166534; }
 .absd-session-state.absent { background:#fee2e2; color:#991b1b; }
 .absd-empty { color: #94a3b8; font-size: 12px; font-style: italic; padding: 2px 0; }
+.absd-exempt-btn { background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 5px; padding: 2px 7px; cursor: pointer; line-height: 1; }
+.absd-exempt-btn.active { background: #fef3c7; border-color: #fbbf24; }
+.absd-exempt-btn:disabled { opacity: .5; cursor: default; }
 </style>
 
 <div class="absd-page">
@@ -1104,6 +1144,10 @@ $ajax_url = (new moodle_url('/local/grupomakro_core/pages/absence_dashboard.php'
                        style="font-size:11px;color:#1d4ed8;text-decoration:none;font-weight:600">Limpiar</a>
                 <?php endif; ?>
             </form>
+            <button onclick="absdRunAbsenceCheck()" id="absd-run-check-btn"
+                style="background:#dc2626;color:#fff;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;border:none;cursor:pointer">
+                &#9888; Verificar inasistencias
+            </button>
             <a href="<?php echo (new moodle_url('/local/grupomakro_core/pages/student_population.php'))->out(false); ?>"
                style="background:#475569;color:#fff;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;text-decoration:none">
                &#128100;&nbsp; Población estudiantil
@@ -1200,6 +1244,10 @@ $ajax_url = (new moodle_url('/local/grupomakro_core/pages/absence_dashboard.php'
                                 <div class="absd-bar-fill" style="width:<?php echo $bar_pct; ?>%;background:<?php echo $c_color; ?>"></div>
                             </div>
                         </div>
+                        <div style="font-size:10px;margin-top:4px;display:flex;gap:6px">
+                            <span style="background:#dcfce7;color:#166534;border-radius:3px;padding:1px 5px;font-weight:700">&#10003; <?php echo $class_active_students[$cid] ?? 0; ?> activos</span>
+                            <span style="background:#fee2e2;color:#991b1b;border-radius:3px;padding:1px 5px;font-weight:700">&#10007; <?php echo $class_inactive_students[$cid] ?? 0; ?> inactivos</span>
+                        </div>
                         <?php else: ?>
                         <div class="absd-no-data">Sin sesiones pasadas</div>
                         <?php endif; ?>
@@ -1208,6 +1256,9 @@ $ajax_url = (new moodle_url('/local/grupomakro_core/pages/absence_dashboard.php'
                             <div class="absd-class-chip-sched" title="<?php echo $schedHtml; ?>">
                                 <?php echo $schedHtml ?: '<span style="color:#94a3b8">Sin horario</span>'; ?>
                             </div>
+                            <a href="<?php echo htmlspecialchars($pdf_base . '?classid=' . $cid . '&sesskey=' . $sesskey); ?>" target="_blank"
+                               title="Descargar lista de asistencia PDF"
+                               style="color:#475569;font-size:15px;text-decoration:none;line-height:1;flex-shrink:0">&#128196;</a>
                             <button class="absd-open-modal-btn"
                                     onclick="absdOpenModal(<?php echo $cid; ?>, <?php echo htmlspecialchars(json_encode(mb_convert_encoding($cname, 'UTF-8', 'UTF-8')) ?: '""'); ?>)">
                                 <?php echo $enrolled; ?> est.
@@ -1269,8 +1320,15 @@ $ajax_url = (new moodle_url('/local/grupomakro_core/pages/absence_dashboard.php'
                         <div class="absd-bar-wrap" style="margin-top:5px">
                             <div class="absd-bar-track"><div class="absd-bar-fill" style="width:<?php echo min(100,$cpct); ?>%;background:<?php echo $c_color; ?>"></div></div>
                         </div>
+                        <div style="font-size:10px;margin-top:4px;display:flex;gap:6px">
+                            <span style="background:#dcfce7;color:#166534;border-radius:3px;padding:1px 5px;font-weight:700">&#10003; <?php echo $class_active_students[$cid] ?? 0; ?> activos</span>
+                            <span style="background:#fee2e2;color:#991b1b;border-radius:3px;padding:1px 5px;font-weight:700">&#10007; <?php echo $class_inactive_students[$cid] ?? 0; ?> inactivos</span>
+                        </div>
                         <?php endif; ?>
-                        <div style="margin-top:5px">
+                        <div style="margin-top:5px;display:flex;align-items:center;gap:6px">
+                            <a href="<?php echo htmlspecialchars($pdf_base . '?classid=' . $cid . '&sesskey=' . $sesskey); ?>" target="_blank"
+                               title="Descargar lista de asistencia PDF"
+                               style="color:#475569;font-size:15px;text-decoration:none;line-height:1;flex-shrink:0">&#128196;</a>
                             <button class="absd-open-modal-btn" onclick="absdOpenModal(<?php echo $cid; ?>, <?php echo htmlspecialchars(json_encode(mb_convert_encoding($courseName . ' — ' . $shift, 'UTF-8', 'UTF-8')) ?: '""'); ?>)">
                                 <?php echo $enrolled; ?> est.
                             </button>
@@ -1311,6 +1369,7 @@ $ajax_url = (new moodle_url('/local/grupomakro_core/pages/absence_dashboard.php'
                         <th>Estado usuario</th>
                         <th>Estado académico</th>
                         <th>Cuenta Moodle</th>
+                        <th style="text-align:center" title="Excluye al estudiante de la inactivación automática">Excepción</th>
                     </tr>
                 </thead>
                 <tbody id="absdTbody"></tbody>
@@ -1351,10 +1410,36 @@ $ajax_url = (new moodle_url('/local/grupomakro_core/pages/absence_dashboard.php'
     </div>
 </div>
 
+<!-- ── Absence check confirm modal ───────────────────────────────────── -->
+<div id="absd-check-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;align-items:center;justify-content:center">
+    <div style="background:#fff;border-radius:12px;padding:28px 32px;max-width:440px;width:92%;box-shadow:0 8px 32px rgba(0,0,0,.25)">
+        <h3 style="margin:0 0 10px;font-size:17px;color:#1e293b">&#9888; Verificar inasistencias</h3>
+        <p style="margin:0 0 18px;font-size:13px;color:#475569">
+            Esta acción revisará todos los estudiantes activos. Aquellos con <strong>3 o más inasistencias</strong> en una clase serán marcados como <strong>Inactivos</strong> en los tres sistemas (Estado Usuario, Estado Académico y Cuenta Moodle), salvo que tengan excepción registrada.
+        </p>
+        <div style="display:flex;gap:10px;justify-content:flex-end">
+            <button onclick="absdCancelCheck()" style="background:#e2e8f0;color:#334155;border:none;border-radius:7px;padding:8px 18px;font-size:13px;font-weight:600;cursor:pointer">Cancelar</button>
+            <button onclick="absdConfirmCheck()" style="background:#dc2626;color:#fff;border:none;border-radius:7px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer">Sí, ejecutar ahora</button>
+        </div>
+    </div>
+</div>
+
+<!-- ── Absence check result modal ────────────────────────────────────── -->
+<div id="absd-check-result-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9001;align-items:center;justify-content:center">
+    <div style="background:#fff;border-radius:12px;padding:28px 32px;max-width:520px;width:92%;box-shadow:0 8px 32px rgba(0,0,0,.25)">
+        <h3 style="margin:0 0 14px;font-size:17px;color:#1e293b">Resultado de la verificación</h3>
+        <div id="absd-check-result"></div>
+        <div style="margin-top:20px;display:flex;justify-content:flex-end">
+            <button onclick="absdCloseCheckResult()" style="background:#475569;color:#fff;border:none;border-radius:7px;padding:8px 20px;font-size:13px;font-weight:600;cursor:pointer">Cerrar y recargar</button>
+        </div>
+    </div>
+</div>
+
 <script>
 (function() {
     var SESSKEY = <?php echo json_encode($sesskey); ?>;
     var AJAX_URL = <?php echo json_encode($ajax_url); ?>;
+    var PDF_BASE = <?php echo json_encode($pdf_base); ?>;
     var PROFILE_URL_BASE = <?php echo json_encode((new moodle_url('/user/profile.php'))->out(false)); ?>;
 
     var USER_STATUS_OPTIONS = ['Activo', 'Inactivo'];
@@ -1397,7 +1482,7 @@ $ajax_url = (new moodle_url('/local/grupomakro_core/pages/absence_dashboard.php'
         var tbody = document.getElementById('absdTbody');
 
         if (!students.length) {
-            tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:20px;color:#94a3b8;font-style:italic">No hay estudiantes que coincidan</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:20px;color:#94a3b8;font-style:italic">No hay estudiantes que coincidan</td></tr>';
             document.getElementById('absdFooterCount').textContent = 'Mostrando 0 de ' + currentStudents.length;
             return;
         }
@@ -1446,6 +1531,9 @@ $ajax_url = (new moodle_url('/local/grupomakro_core/pages/absence_dashboard.php'
                 '</td>' +
                 '<td><button class="absd-suspend-btn ' + moodleClass + '" title="' + esc(moodleTitle) + '" onclick="absdToggleSuspend(' + s.userid + ', this)">' +
                     moodleLabel + '</button></td>' +
+                '<td style="text-align:center">' + (s.absences >= 3
+                    ? '<button class="absd-exempt-btn' + (s.exempt ? ' active' : '') + '" title="' + (s.exempt ? 'Quitar excepción (será considerado para inactivación)' : 'Agregar excepción (excluir de inactivación automática)') + '" onclick="absdToggleExempt(' + s.userid + ', currentClassId, this)"><span style="font-size:15px">' + (s.exempt ? '&#128274;' : '&#128275;') + '</span></button>'
+                    : '<span style="color:#94a3b8;font-size:11px">—</span>') + '</td>' +
                 '</tr>';
         });
 
@@ -1687,8 +1775,104 @@ $ajax_url = (new moodle_url('/local/grupomakro_core/pages/absence_dashboard.php'
             });
     };
 
+    // ── Absence inactivation check ────────────────────────────────────
+    window.absdRunAbsenceCheck = function() {
+        var modal = document.getElementById('absd-check-modal');
+        if (modal) {
+            modal.style.display = 'flex';
+        }
+    };
+
+    window.absdConfirmCheck = function() {
+        var modal = document.getElementById('absd-check-modal');
+        var resultDiv = document.getElementById('absd-check-result');
+        var btn = document.getElementById('absd-run-check-btn');
+        if (modal) modal.style.display = 'none';
+        if (resultDiv) { resultDiv.innerHTML = ''; }
+        if (btn) { btn.disabled = true; btn.textContent = '⏳ Procesando…'; }
+
+        var params = new URLSearchParams({ abs_ajax: 1, abs_action: 'run_absence_check', sesskey: SESSKEY });
+        fetch(AJAX_URL + '?' + params.toString(), { method: 'POST' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (btn) { btn.disabled = false; btn.innerHTML = '&#9888; Verificar inasistencias'; }
+                var resultModal = document.getElementById('absd-check-result-modal');
+                var resultBody = document.getElementById('absd-check-result-body');
+                if (!resultModal || !resultBody) return;
+                if (!data.ok) {
+                    resultBody.innerHTML = '<p style="color:#dc2626">Error: ' + esc(data.message || 'Error desconocido') + '</p>';
+                } else {
+                    var errHtml = '';
+                    if (data.errors && data.errors.length) {
+                        errHtml = '<div style="margin-top:10px"><b>Errores (' + data.errors.length + '):</b><ul style="margin:4px 0 0 18px;color:#dc2626">' +
+                            data.errors.map(function(e) { return '<li>' + esc(e) + '</li>'; }).join('') + '</ul></div>';
+                    }
+                    resultBody.innerHTML =
+                        '<div style="display:flex;flex-direction:column;gap:8px">' +
+                        '<div style="display:flex;gap:12px;flex-wrap:wrap">' +
+                        '<span style="background:#f0fdf4;color:#166534;border:1px solid #86efac;border-radius:6px;padding:8px 16px;font-size:13px;font-weight:700">&#10003; Procesados: ' + (data.processed || 0) + '</span>' +
+                        '<span style="background:#fef2f2;color:#991b1b;border:1px solid #fca5a5;border-radius:6px;padding:8px 16px;font-size:13px;font-weight:700">&#10007; Marcados inactivos: ' + (data.marked_inactive || 0) + '</span>' +
+                        '<span style="background:#fefce8;color:#92400e;border:1px solid #fde68a;border-radius:6px;padding:8px 16px;font-size:13px;font-weight:700">&#128274; Con excepción: ' + (data.skipped_exempt || 0) + '</span>' +
+                        '</div>' + errHtml + '</div>';
+                }
+                resultModal.style.display = 'flex';
+            })
+            .catch(function(err) {
+                if (btn) { btn.disabled = false; btn.innerHTML = '&#9888; Verificar inasistencias'; }
+                alert('Error de conexión: ' + err.message);
+            });
+    };
+
+    window.absdCancelCheck = function() {
+        var modal = document.getElementById('absd-check-modal');
+        if (modal) modal.style.display = 'none';
+    };
+
+    window.absdCloseCheckResult = function() {
+        var modal = document.getElementById('absd-check-result-modal');
+        if (modal) modal.style.display = 'none';
+        location.reload();
+    };
+
+    // ── Toggle absence exemption ──────────────────────────────────────
+    window.absdToggleExempt = function(userid, classid, btn) {
+        if (!btn) return;
+        btn.disabled = true;
+        var params = new URLSearchParams({
+            abs_ajax: 1,
+            abs_action: 'toggle_absence_exempt',
+            userid: userid,
+            classid: classid,
+            sesskey: SESSKEY
+        });
+        fetch(AJAX_URL + '?' + params.toString(), { method: 'POST' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                btn.disabled = false;
+                if (!data.ok) {
+                    alert('Error: ' + (data.message || 'No se pudo cambiar la excepción'));
+                    return;
+                }
+                var exempt = data.exempt;
+                btn.className = 'absd-exempt-btn' + (exempt ? ' active' : '');
+                btn.title = exempt ? 'Quitar excepción (será considerado para inactivación)' : 'Agregar excepción (excluir de inactivación automática)';
+                btn.innerHTML = '<span style="font-size:15px">' + (exempt ? '&#128274;' : '&#128275;') + '</span>';
+                // Update local student data
+                var student = currentStudents.find(function(s) { return s.userid === userid; });
+                if (student) student.exempt = exempt;
+            })
+            .catch(function(err) {
+                btn.disabled = false;
+                alert('Error de conexión: ' + err.message);
+            });
+    };
+
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {
+            var checkModal = document.getElementById('absd-check-modal');
+            if (checkModal && checkModal.style.display === 'flex') { absdCancelCheck(); return; }
+            var resultModal = document.getElementById('absd-check-result-modal');
+            if (resultModal && resultModal.style.display === 'flex') { absdCloseCheckResult(); return; }
             var sessionsModal = document.getElementById('absdSessionsModal');
             if (sessionsModal && sessionsModal.classList.contains('absd-modal-open')) {
                 absdCloseSessionsModal();
