@@ -108,15 +108,19 @@ Vue.component('teacher-student-table', {
                                     ></v-switch>
                                 </v-card-text>
                                 <v-divider></v-divider>
-                                <v-card-actions class="pa-4">
-                                    <v-btn color="success" block class="mb-2" @click="exportConsolidatedGrades">
-                                        <v-icon left>mdi-file-excel</v-icon>
-                                        Exportar Notas Consolidadas
+                                <v-divider class="mt-2"></v-divider>
+                                <v-card-actions class="pa-4 flex-column" style="gap:8px">
+                                    <v-btn color="error" block @click="exportPdf" :loading="exportingPdf">
+                                        <v-icon left>mdi-file-pdf-box</v-icon>
+                                        Exportar PDF (Asistencia y Notas)
                                     </v-btn>
-                                    <v-spacer></v-spacer>
+                                    <v-btn color="success" block @click="exportConsolidatedGrades">
+                                        <v-icon left>mdi-file-excel</v-icon>
+                                        Exportar Excel (Notas Consolidadas)
+                                    </v-btn>
                                 </v-card-actions>
                                 <v-card-actions class="pa-4 pt-0">
-                                    <v-btn color="primary" @click="applyFilters">Aplicar a la Tabla</v-btn>
+                                    <v-btn color="primary" @click="applyFilters">Aplicar Filtros</v-btn>
                                     <v-btn text @click="filterDialog = false">Cerrar</v-btn>
                                 </v-card-actions>
                             </v-card>
@@ -304,6 +308,7 @@ Vue.component('teacher-student-table', {
             careerFilter: '',
             quarterFilter: '',
             filterDialog: false,
+            exportingPdf: false,
             studentsGrades: false,
             studentGradeSelected: {},
             showAttendanceModal: false,
@@ -513,15 +518,34 @@ Vue.component('teacher-student-table', {
             this.getDataFromApi();
             this.filterDialog = false;
         },
+        exportPdf() {
+            this.exportingPdf = true;
+            const params = new URLSearchParams();
+            params.set('sesskey', M.cfg.sesskey);
+            if (this.classId)                                        params.set('classid',  this.classId);
+            if (this.filters.planid   && this.filters.planid.length) params.set('planid',   this.filters.planid.join(','));
+            if (this.filters.periodid && this.filters.periodid.length) params.set('periodid', this.filters.periodid.join(','));
+            if (this.filters.status)                                 params.set('status',   this.filters.status);
+            if (this.options.search)                                 params.set('search',   this.options.search);
+
+            const url = `${M.cfg.wwwroot}/local/grupomakro_core/pages/export_class_pdf.php?${params.toString()}`;
+            const link = document.createElement('a');
+            link.href = url;
+            link.target = '_blank';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            // Re-enable button after a short delay (download starts immediately)
+            setTimeout(() => { this.exportingPdf = false; }, 2000);
+            this.filterDialog = false;
+        },
         exportConsolidatedGrades() {
             let url = `${M.cfg.wwwroot}/local/grupomakro_core/pages/export_consolidated_grades.php?`;
-            if (this.filters.planid && this.filters.planid.length > 0) {
-                url += `planid=${this.filters.planid.join(',')}&`;
-            }
-            if (this.filters.periodid && this.filters.periodid.length > 0) {
-                url += `periodid=${this.filters.periodid.join(',')}&`;
-            }
-            if (this.filters.status) url += `status=${this.filters.status}&`;
+            if (this.classId)                                            url += `classid=${this.classId}&`;
+            if (this.filters.planid && this.filters.planid.length > 0)  url += `planid=${this.filters.planid.join(',')}&`;
+            if (this.filters.periodid && this.filters.periodid.length)  url += `periodid=${this.filters.periodid.join(',')}&`;
+            if (this.filters.status)                                     url += `status=${this.filters.status}&`;
             url += `withgrades=${this.filters.withGrades ? 1 : 0}`;
             window.open(url, '_blank');
         },
