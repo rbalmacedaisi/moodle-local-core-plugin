@@ -1531,9 +1531,7 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
                 '</td>' +
                 '<td><button class="absd-suspend-btn ' + moodleClass + '" title="' + esc(moodleTitle) + '" onclick="absdToggleSuspend(' + s.userid + ', this)">' +
                     moodleLabel + '</button></td>' +
-                '<td style="text-align:center">' + (s.absences >= 3
-                    ? '<button class="absd-exempt-btn' + (s.exempt ? ' active' : '') + '" title="' + (s.exempt ? 'Quitar excepción (será considerado para inactivación)' : 'Agregar excepción (excluir de inactivación automática)') + '" onclick="absdToggleExempt(' + s.userid + ', currentClassId, this)"><span style="font-size:15px">' + (s.exempt ? '&#128274;' : '&#128275;') + '</span></button>'
-                    : '<span style="color:#94a3b8;font-size:11px">—</span>') + '</td>' +
+                '<td style="text-align:center"><button class="absd-exempt-btn' + (s.exempt ? ' active' : '') + '" title="' + (s.exempt ? 'Quitar excepción (será considerado para inactivación)' : 'Agregar excepción (excluir de inactivación automática)') + '" onclick="absdToggleExempt(' + s.userid + ', currentClassId, this)"><span style="font-size:15px">' + (s.exempt ? '&#128274;' : '&#128275;') + '</span></button></td>' +
                 '</tr>';
         });
 
