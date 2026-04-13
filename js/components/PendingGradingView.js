@@ -45,8 +45,8 @@ Vue.component('pending-grading-view', {
                         <v-select
                             v-model="selectedCourse"
                             :items="courseOptions"
-                            label="Filtrar por asignatura"
-                            prepend-inner-icon="mdi-book-open-variant"
+                            label="Filtrar por actividad"
+                            prepend-inner-icon="mdi-file-document-edit-outline"
                             clearable
                             hide-details
                             outlined
@@ -163,14 +163,14 @@ Vue.component('pending-grading-view', {
         courseOptions() {
             const seen = new Set();
             return this.tasks
-                .map(t => t.coursename)
+                .map(t => t.assignmentname)
                 .filter(name => name && !seen.has(name) && seen.add(name))
                 .sort()
                 .map(name => ({ text: name, value: name }));
         },
         filteredTasks() {
             if (!this.selectedCourse) return this.tasks;
-            return this.tasks.filter(t => t.coursename === this.selectedCourse);
+            return this.tasks.filter(t => t.assignmentname === this.selectedCourse);
         },
         totalPending() {
             return this.filteredTasks.length;
