@@ -8051,8 +8051,14 @@ function gmk_get_pending_grading_items($userid, $classid = 0, $status = 'pending
         $assign_course_filter = " AND a.course = :courseid";
         $assign_params['courseid'] = $cid;
         if (!empty($class->groupid)) {
-            $assign_group_filter = " AND EXISTS (SELECT 1 FROM {groups_members} gm WHERE gm.groupid = :groupid AND gm.userid = s.userid)";
+            // Use groups_members OR gmk_course_progre as fallback: suspended students may be
+            // removed from the Moodle group but still enrolled in the class via course_progre.
+            $assign_group_filter = " AND (
+                EXISTS (SELECT 1 FROM {groups_members} gm WHERE gm.groupid = :groupid AND gm.userid = s.userid)
+                OR EXISTS (SELECT 1 FROM {gmk_course_progre} cp_fb WHERE cp_fb.classid = :cpfbclassid AND cp_fb.userid = s.userid)
+            )";
             $assign_params['groupid'] = $class->groupid;
+            $assign_params['cpfbclassid'] = (int)$classid;
         } else {
             $assign_group_filter = " AND EXISTS (SELECT 1 FROM {gmk_course_progre} cp2 WHERE cp2.classid = :assignclassid AND cp2.userid = s.userid)";
             $assign_params['assignclassid'] = (int)$classid;
@@ -8096,11 +8102,19 @@ function gmk_get_pending_grading_items($userid, $classid = 0, $status = 'pending
                AND cls.closed = 0
                AND (cls.corecourseid = a.course OR cls.courseid = a.course)
                AND (
-                    (cls.groupid > 0 AND EXISTS (
-                        SELECT 1
-                          FROM {groups_members} gm2
-                         WHERE gm2.groupid = cls.groupid
-                           AND gm2.userid = s.userid
+                    (cls.groupid > 0 AND (
+                        EXISTS (
+                            SELECT 1
+                              FROM {groups_members} gm2
+                             WHERE gm2.groupid = cls.groupid
+                               AND gm2.userid = s.userid
+                        )
+                        OR EXISTS (
+                            SELECT 1
+                              FROM {gmk_course_progre} cp3
+                             WHERE cp3.classid = cls.id
+                               AND cp3.userid = s.userid
+                        )
                     ))
                     OR
                     (cls.groupid = 0 AND EXISTS (
@@ -8158,8 +8172,13 @@ function gmk_get_pending_grading_items($userid, $classid = 0, $status = 'pending
         $quiz_course_filter = " AND q.course = :courseid";
         $quiz_params['courseid'] = $cid;
         if (!empty($class->groupid)) {
-            $quiz_group_filter = " AND EXISTS (SELECT 1 FROM {groups_members} gm WHERE gm.groupid = :groupid AND gm.userid = quiza.userid)";
+            // Fallback to gmk_course_progre: suspended students may lose group membership.
+            $quiz_group_filter = " AND (
+                EXISTS (SELECT 1 FROM {groups_members} gm WHERE gm.groupid = :groupid AND gm.userid = quiza.userid)
+                OR EXISTS (SELECT 1 FROM {gmk_course_progre} cp_fb WHERE cp_fb.classid = :cpfbquizclassid AND cp_fb.userid = quiza.userid)
+            )";
             $quiz_params['groupid'] = $class->groupid;
+            $quiz_params['cpfbquizclassid'] = (int)$classid;
         } else {
             $quiz_group_filter = " AND EXISTS (SELECT 1 FROM {gmk_course_progre} cp2 WHERE cp2.classid = :quizclassid AND cp2.userid = quiza.userid)";
             $quiz_params['quizclassid'] = (int)$classid;
@@ -8203,11 +8222,19 @@ function gmk_get_pending_grading_items($userid, $classid = 0, $status = 'pending
                AND cls.closed = 0
                AND (cls.corecourseid = q.course OR cls.courseid = q.course)
                AND (
-                    (cls.groupid > 0 AND EXISTS (
-                        SELECT 1
-                          FROM {groups_members} gm2
-                         WHERE gm2.groupid = cls.groupid
-                           AND gm2.userid = quiza.userid
+                    (cls.groupid > 0 AND (
+                        EXISTS (
+                            SELECT 1
+                              FROM {groups_members} gm2
+                             WHERE gm2.groupid = cls.groupid
+                               AND gm2.userid = quiza.userid
+                        )
+                        OR EXISTS (
+                            SELECT 1
+                              FROM {gmk_course_progre} cp3
+                             WHERE cp3.classid = cls.id
+                               AND cp3.userid = quiza.userid
+                        )
                     ))
                     OR
                     (cls.groupid = 0 AND EXISTS (
