@@ -165,7 +165,7 @@ const QuizEditor = {
                         </div>
                         
                         <!-- Essay / Description -->
-                        <div v-else-if="newQuestion.type === 'essay' || newQuestion.type === 'description'">
+                        <div v-else-if="newQuestion.type === 'essay'">
                             <v-alert colored-border border="left" :color="newQuestion.type === 'essay' ? 'amber' : 'blue'" class="mb-6 elevation-1" text>
                                 <div class="d-flex align-center">
                                     <v-icon :color="newQuestion.type === 'essay' ? 'amber' : 'blue'" class="mr-3">
@@ -1259,7 +1259,6 @@ const QuizEditor = {
             { text: 'Elige la palabra perdida', value: 'gapselect' },
             { text: 'Emparejamiento aleatorio', value: 'randomsamatch' },
             { text: 'Respuestas anidadas (Cloze)', value: 'multianswer' },
-            { text: 'Descripción', value: 'description' }
         ],
         newQuestion: {
             type: 'multichoice',
