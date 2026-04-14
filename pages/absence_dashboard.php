@@ -878,16 +878,17 @@ if (!empty($all_ids)) {
 $class_cedula_map = [];
 if (!empty($all_ids)) {
     [$_cm_insql, $_cm_inparams] = $DB->get_in_or_equal($all_ids, SQL_PARAMS_NAMED, 'cedc');
-    $_cm_rows = $DB->get_records_sql(
+    $_cm_rs = $DB->get_recordset_sql(
         "SELECT classid, userid FROM {gmk_course_progre} WHERE classid $_cm_insql AND status IN (1,2,3)",
         $_cm_inparams
     );
     $_cm_class_uids = [];
     $_cm_all_uids   = [];
-    foreach ($_cm_rows as $_cr) {
+    foreach ($_cm_rs as $_cr) {
         $_cm_class_uids[(int)$_cr->classid][] = (int)$_cr->userid;
         $_cm_all_uids[(int)$_cr->userid]       = (int)$_cr->userid;
     }
+    $_cm_rs->close();
     if (!empty($_cm_all_uids)) {
         [$_cm_uinsql, $_cm_uinp] = $DB->get_in_or_equal(array_values($_cm_all_uids), SQL_PARAMS_NAMED, 'cedu');
         $_cm_uid_ced = [];
