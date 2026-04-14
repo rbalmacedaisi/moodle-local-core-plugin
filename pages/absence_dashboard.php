@@ -158,7 +158,7 @@ if (optional_param('abs_ajax', 0, PARAM_INT)) {
             $students_raw = [];
             $rs = $DB->get_recordset_sql(
                 "SELECT gcp.userid, u.firstname, u.lastname, u.idnumber, u.email,
-                        u.phone1, u.phone2, u.suspended,
+                        u.phone1, u.phone2, u.suspended, u.lastaccess,
                         COALESCE(llu.status, 'activo') AS academic_status
                    FROM {gmk_course_progre} gcp
                    JOIN {user} u ON u.id = gcp.userid AND u.deleted = 0
@@ -226,6 +226,23 @@ if (optional_param('abs_ajax', 0, PARAM_INT)) {
                 }
             }
 
+            // Financial status
+            $financial_map = [];
+            if (!empty($userids)) {
+                [$_fs_insql, $_fs_inparams] = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED, 'fsu');
+                $_fs_rs = $DB->get_recordset_sql(
+                    "SELECT userid, status, reason FROM {gmk_financial_status} WHERE userid $_fs_insql",
+                    $_fs_inparams
+                );
+                foreach ($_fs_rs as $_fsr) {
+                    $financial_map[(int)$_fsr->userid] = [
+                        'status' => trim((string)$_fsr->status),
+                        'reason' => trim((string)$_fsr->reason),
+                    ];
+                }
+                $_fs_rs->close();
+            }
+
             // Document numbers
             $doc_map_s = [];
             $doc_fid   = (int)($DB->get_field('user_info_field', 'id', ['shortname' => 'documentnumber']) ?: 0);
@@ -291,16 +308,19 @@ if (optional_param('abs_ajax', 0, PARAM_INT)) {
                     }
                 }
                 $out[] = [
-                    'userid'          => $uid,
-                    'name'            => mb_convert_encoding(trim($row->firstname . ' ' . $row->lastname), 'UTF-8', 'UTF-8'),
-                    'cedula'          => $cedula ?: '—',
-                    'email'           => (string)$row->email,
-                    'phones'          => $phones,
-                    'absences'        => $student_abs[$uid] ?? 0,
-                    'suspended'       => (bool)$row->suspended,
-                    'user_status'     => $canonical['user_status'] ?? 'Activo',
-                    'academic_status' => $academic_status,
-                    'exempt'          => isset($exempt_users[$uid]),
+                    'userid'            => $uid,
+                    'name'              => mb_convert_encoding(trim($row->firstname . ' ' . $row->lastname), 'UTF-8', 'UTF-8'),
+                    'cedula'            => $cedula ?: '—',
+                    'email'             => (string)$row->email,
+                    'phones'            => $phones,
+                    'absences'          => $student_abs[$uid] ?? 0,
+                    'suspended'         => (bool)$row->suspended,
+                    'user_status'       => $canonical['user_status'] ?? 'Activo',
+                    'academic_status'   => $academic_status,
+                    'exempt'            => isset($exempt_users[$uid]),
+                    'last_access'       => (int)($row->lastaccess ?? 0),
+                    'financial_status'  => $financial_map[$uid]['status'] ?? 'none',
+                    'financial_reason'  => $financial_map[$uid]['reason'] ?? '',
                 ];
             }
             usort($out, fn($a, $b) => $b['absences'] <=> $a['absences']);
@@ -1420,6 +1440,8 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
                         <th>Estado usuario</th>
                         <th>Estado académico</th>
                         <th>Cuenta Moodle</th>
+                        <th title="Verde &lt;3 días · Amarillo 3–7 días · Rojo &gt;7 días">Última conexión</th>
+                        <th>Estado financiero</th>
                         <th style="text-align:center" title="Excluye al estudiante de la inactivación automática">Excepción</th>
                     </tr>
                 </thead>
@@ -1571,7 +1593,7 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
         var tbody = document.getElementById('absdTbody');
 
         if (!students.length) {
-            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:20px;color:#94a3b8;font-style:italic">No hay estudiantes que coincidan</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:20px;color:#94a3b8;font-style:italic">No hay estudiantes que coincidan</td></tr>';
             document.getElementById('absdFooterCount').textContent = 'Mostrando 0 de ' + currentStudents.length;
             return;
         }
@@ -1602,6 +1624,55 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
             var moodleTitle = s.suspended ? 'Reactivar cuenta Moodle' : 'Suspender cuenta Moodle';
             var moodleClass = s.suspended ? 'active' : 'inactive';
 
+            // ── Last-access traffic light ──────────────────────────────
+            var lastAccess = s.last_access || 0;
+            var nowSec = Math.floor(Date.now() / 1000);
+            var daysSince = lastAccess > 0 ? Math.floor((nowSec - lastAccess) / 86400) : -1;
+            var dotColor, loginLabel, loginTitle;
+            if (daysSince < 0) {
+                dotColor = '#94a3b8'; loginLabel = 'Nunca';
+                loginTitle = 'Sin registro de acceso';
+            } else if (daysSince === 0) {
+                dotColor = '#22c55e'; loginLabel = 'Hoy';
+                loginTitle = 'Último acceso: hoy';
+            } else if (daysSince <= 2) {
+                dotColor = '#22c55e'; loginLabel = 'Hace ' + daysSince + ' día' + (daysSince > 1 ? 's' : '');
+                loginTitle = 'Último acceso hace ' + daysSince + ' día(s)';
+            } else if (daysSince <= 7) {
+                dotColor = '#f59e0b'; loginLabel = 'Hace ' + daysSince + ' días';
+                loginTitle = 'Sin conexión por ' + daysSince + ' días (atención)';
+            } else {
+                dotColor = '#ef4444'; loginLabel = 'Hace ' + daysSince + ' días';
+                loginTitle = 'Sin conexión por ' + daysSince + ' días (crítico)';
+            }
+            var loginCell = '<span title="' + esc(loginTitle) + '" style="display:inline-flex;align-items:center;gap:4px;white-space:nowrap">' +
+                '<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:' + dotColor + ';flex-shrink:0"></span>' +
+                '<span style="font-size:10px;color:#475569">' + esc(loginLabel) + '</span></span>';
+            if (lastAccess > 0) {
+                var d = new Date(lastAccess * 1000);
+                loginCell += '<br><span style="font-size:9.5px;color:#94a3b8">' +
+                    ('0' + d.getDate()).slice(-2) + '/' + ('0' + (d.getMonth() + 1)).slice(-2) + '/' + d.getFullYear() + '</span>';
+            }
+
+            // ── Financial status badge ─────────────────────────────────
+            var fin = String(s.financial_status || 'none').toLowerCase().trim();
+            var finLabels = {
+                'al_dia': 'Al día', 'mora': 'En mora',
+                'solvente': 'Solvente', 'insolvente': 'Insolvente',
+                'none': 'Sin datos', 'unknown': 'Sin datos', '': 'Sin datos'
+            };
+            var finLabel = finLabels.hasOwnProperty(fin) ? finLabels[fin] : fin;
+            var finGood = fin === 'al_dia' || fin === 'solvente';
+            var finBad  = fin === 'mora'   || fin === 'insolvente';
+            var finBg   = finGood ? '#dcfce7' : finBad ? '#fee2e2' : '#f1f5f9';
+            var finFg   = finGood ? '#166534' : finBad ? '#991b1b' : '#64748b';
+            var finReason = String(s.financial_reason || '').trim();
+            var finTitle  = finReason ? finLabel + ' — ' + finReason : finLabel;
+            var finCell   = '<span style="background:' + finBg + ';color:' + finFg + ';border-radius:4px;padding:2px 7px;font-size:10.5px;font-weight:700;white-space:nowrap" title="' + esc(finTitle) + '">' + esc(finLabel) + '</span>';
+            if (finReason) {
+                finCell += '<br><span style="font-size:9px;color:#94a3b8" title="' + esc(finReason) + '">' + esc(finReason.length > 22 ? finReason.slice(0, 22) + '…' : finReason) + '</span>';
+            }
+
             html += '<tr id="absd-row-' + s.userid + '">' +
                 '<td>' + (i + 1) + '</td>' +
                 '<td style="font-weight:700;color:#1a56a4;white-space:nowrap">' + esc(s.cedula) + '</td>' +
@@ -1620,6 +1691,8 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
                 '</td>' +
                 '<td><button class="absd-suspend-btn ' + moodleClass + '" title="' + esc(moodleTitle) + '" onclick="absdToggleSuspend(' + s.userid + ', this)">' +
                     moodleLabel + '</button></td>' +
+                '<td style="white-space:nowrap">' + loginCell + '</td>' +
+                '<td style="white-space:nowrap">' + finCell + '</td>' +
                 '<td style="text-align:center"><button class="absd-exempt-btn' + (s.exempt ? ' active' : '') + '" title="' + (s.exempt ? 'Quitar excepción (será considerado para inactivación)' : 'Agregar excepción (excluir de inactivación automática)') + '" onclick="absdToggleExempt(' + s.userid + ', currentClassId, this)"><span style="font-size:15px">' + (s.exempt ? '&#128274;' : '&#128275;') + '</span></button></td>' +
                 '</tr>';
         });
