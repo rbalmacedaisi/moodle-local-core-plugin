@@ -53,29 +53,41 @@ class save_grade extends external_api {
 
         $assign = new \assign($context_module, $cm, $course);
 
-        // 2. Prepare grade data
+        // 2. Prepare grade data with all required fields.
         $data = new stdClass();
-        $data->grade = $params['grade'];
-        $data->attemptnumber = -1; // Current attempt
-             
-        // Plugin specific data (feedback comments)
-        // Moodle assign feedback plugins usually look for 'assignfeedbackcomments_editor'
-        // But for a simple backend API without an editor, we might need to manually construct logic or use `save_grade` carefully.
-        
-        // The core `save_grade` function takes $data where keys correspond to plugin data
-        // For 'comments' feedback plugin:
+        $data->grade            = $params['grade'];
+        $data->attemptnumber    = -1;   // -1 = current (latest) attempt
+        $data->applytoall       = 0;    // not a team/group submission
+        $data->addattempt       = 0;    // do not add a new attempt
+        $data->sendstudentnotifications = false;
+
+        // If the assignment uses marking workflow, set state to 'released' so the
+        // grade becomes immediately visible to the student.
+        if (!empty($assignment_record->markingworkflow)) {
+            $data->workflowstate = ASSIGN_MARKING_WORKFLOW_STATE_RELEASED;
+        } else {
+            $data->workflowstate = '';
+        }
+
+        // Feedback comments plugin data.
         $data->assignfeedbackcomments_editor = [
-            'text' => $params['feedback'],
-            'format' => FORMAT_HTML
+            'text'   => $params['feedback'],
+            'format' => FORMAT_HTML,
         ];
 
-        // 3. Save
-        // apply_grade_to_user($data, $userid, $attemptnumber)
-        $result = $assign->save_grade($params['studentid'], $data);
-        
+        // 3. Save via Moodle assign API.
+        $assign->save_grade($params['studentid'], $data);
+
+        // 4. Explicitly push the grade to the Moodle gradebook.
+        // save_grade() calls update_grade() internally, but in some AJAX / workflow
+        // scenarios the gradebook entry is not flushed.  Calling assign_update_grades()
+        // here guarantees the grade_grades table is updated and the student sees it.
+        require_once($CFG->dirroot . '/mod/assign/lib.php');
+        assign_update_grades($assignment_record, $params['studentid']);
+
         return array(
-            'status' => $result ? 'success' : 'error',
-            'message' => $result ? 'Calificación guardada correctamente' : 'Error al guardar calificación'
+            'status'  => 'success',
+            'message' => 'Calificación guardada correctamente',
         );
     }
 

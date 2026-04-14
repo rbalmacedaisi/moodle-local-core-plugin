@@ -743,6 +743,17 @@ try {
                 ];
             }
 
+            // Fetch the latest saved grade for this student/assignment so the UI can pre-populate it.
+            $_ag = $DB->get_record(
+                'assign_grades',
+                ['assignment' => (int)$assignmentid, 'userid' => (int)$studentid],
+                'id, grade',
+                IGNORE_MISSING
+            );
+            $_currentgrade = ($_ag && $_ag->grade !== null && (float)$_ag->grade >= 0)
+                ? (float)$_ag->grade
+                : null;
+
             $response = [
                 'status' => 'success',
                 'data' => [
@@ -754,6 +765,7 @@ try {
                     'submissiontexthtml' => (string)$selectedpayload['submissiontexthtml'],
                     'submissiontextplain' => (string)$selectedpayload['submissiontextplain'],
                     'files' => (array)$selectedpayload['files'],
+                    'currentgrade' => $_currentgrade,
                     'debug' => [
                         'selectionstrategy' => (string)$selectionstrategy,
                         'requestedsubmissionid' => (int)$submissionid,

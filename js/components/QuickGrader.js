@@ -330,8 +330,9 @@ const QuickGrader = {
         selectedSlotIndex(newIdx) {
             if (this.currentTask.modname === 'quiz' && this.quizData.questions[newIdx]) {
                 const q = this.quizData.questions[newIdx];
-                this.grade = q.currentgrade || '';
-                this.feedback = ''; // We don't usually fetch existing feedback for speed, but could.
+                // Use != null so that a 0-point auto-graded answer shows "0" and not ""
+                this.grade = (q.currentgrade != null) ? q.currentgrade : '';
+                this.feedback = '';
             }
         }
     },
@@ -442,6 +443,8 @@ const QuickGrader = {
             this.reopening = false;
             this.reopenError = '';
             this.reopenSuccess = '';
+            this.quizData = { questions: [] };
+            this.selectedSlotIndex = 0;
             if (this.$refs.form) this.$refs.form.resetValidation();
         },
         async fetchQuizData() {
@@ -460,7 +463,12 @@ const QuickGrader = {
                         this.quizError = "No se encontraron preguntas en este intento.";
                     } else {
                         const firstNeeds = this.quizData.questions.findIndex(q => q.needsgrading);
-                        this.selectedSlotIndex = firstNeeds !== -1 ? firstNeeds : 0;
+                        const firstIdx = firstNeeds !== -1 ? firstNeeds : 0;
+                        this.selectedSlotIndex = firstIdx;
+                        // Pre-populate grade — watcher may not fire if index was already 0
+                        const q = this.quizData.questions[firstIdx];
+                        this.grade = (q && q.currentgrade != null) ? q.currentgrade : '';
+                        this.feedback = '';
                     }
                 } else {
                     this.quizError = response.data.message || "Error al cargar datos del cuestionario.";
@@ -499,6 +507,10 @@ const QuickGrader = {
                         submissiontextplain: detail.submissiontextplain || '',
                         files: Array.isArray(detail.files) ? detail.files : []
                     });
+                    // Pre-populate grade if Moodle already has one saved for this submission
+                    if (detail.currentgrade != null) {
+                        this.grade = detail.currentgrade;
+                    }
                 } else {
                     console.warn('[GMK] assign detail not loaded', response.data);
                 }

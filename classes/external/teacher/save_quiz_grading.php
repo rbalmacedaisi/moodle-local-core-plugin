@@ -51,26 +51,31 @@ class save_quiz_grading extends external_api {
                 $PAGE->set_context($context);
             }
 
-            // Perform manual grading.
-            // We use the question_engine API directly because quiz_attempt->get_question_usage()
-            // is restricted to unit tests in this Moodle version.
+            // Perform manual grading via the question engine API.
             $quba = \question_engine::load_questions_usage_by_activity($attemptobj->get_uniqueid());
             $qa = $quba->get_question_attempt($slot);
-            
+
             // Parameters: comment, mark, commentformat, timestamp, userid
             $qa->manual_grade($params['comment'], (float)$params['mark'], FORMAT_HTML, time(), $USER->id);
-            
+
             // Persist the changes to the question engine database tables.
             \question_engine::save_questions_usage_by_activity($quba, $DB);
 
-            // Recalculate and update the attempt summarks (points).
-            // This ensures the dashboard and gradebook show the updated total.
-            $newsum = $attemptobj->get_sum_marks();
-            $DB->set_field('quiz_attempts', 'sumgrades', $newsum, array('id' => $params['attemptid']));
-            
-            // Also trigger a re-assessment of the overall quiz grade for the student.
-            // Documentation shows 3 params: quiz, userid, attempts.
-            quiz_save_best_grade($attemptobj->get_quiz(), $attemptobj->get_userid(), (array)$attemptobj->get_attempt());
+            // Recalculate sumgrades from the freshly-persisted quba so we get the
+            // updated total (the attemptobj was loaded before the grade was saved
+            // and may hold a stale in-memory quba).
+            $fresh_quba = \question_engine::load_questions_usage_by_activity($attemptobj->get_uniqueid());
+            $newsum = 0;
+            foreach ($attemptobj->get_slots() as $s) {
+                $mark = $fresh_quba->get_question_attempt($s)->get_mark();
+                $newsum += ($mark !== null) ? (float)$mark : 0.0;
+            }
+            $DB->set_field('quiz_attempts', 'sumgrades', $newsum, ['id' => $params['attemptid']]);
+
+            // Push the updated grade to the Moodle gradebook.
+            // Pass no $attempts so quiz_save_best_grade fetches fresh records from DB
+            // (avoids using the stale attempt object that still has old sumgrades).
+            quiz_save_best_grade($attemptobj->get_quiz(), $attemptobj->get_userid());
             
             return array(
                 'status' => 'success',
