@@ -238,10 +238,9 @@ try {
 
         case 'local_grupomakro_sync_financial_bulk':
             raise_memory_limit(MEMORY_HUGE);
-            core_php_time_limit::raise(300);
-
-            $result = local_grupomakro_sync_financial_status([]);
-
+            core_php_time_limit::raise(180);
+            $userids_raw = optional_param_array('userids', [], PARAM_INT);
+            $result = local_grupomakro_sync_financial_status($userids_raw);
             if (isset($result['error'])) {
                 $response = [
                     'status' => 'error',
@@ -254,6 +253,22 @@ try {
                     'data' => $result
                 ];
             }
+            break;
+
+        case 'local_grupomakro_get_financial_user_ids':
+            $fieldDoc = $DB->get_record('user_info_field', ['shortname' => 'documentnumber']);
+            if (!$fieldDoc) {
+                $response = ['status' => 'error', 'message' => 'Field documentnumber not found'];
+                break;
+            }
+            $rows = $DB->get_records_sql(
+                "SELECT u.id FROM {user} u
+                 JOIN {user_info_data} d ON d.userid = u.id AND d.fieldid = :fieldid
+                 WHERE u.deleted = 0 AND d.data IS NOT NULL AND d.data != ''
+                 ORDER BY u.id ASC",
+                ['fieldid' => $fieldDoc->id]
+            );
+            $response = ['status' => 'success', 'userids' => array_keys($rows), 'total' => count($rows)];
             break;
 
         case 'local_grupomakro_get_pending_grading':

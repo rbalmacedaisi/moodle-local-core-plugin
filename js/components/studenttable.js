@@ -138,13 +138,6 @@ Vue.component('studenttable', {
                                 </v-card-actions>
                             </v-card>
                         </v-dialog>
-                        <v-row v-if="syncing || syncLog" class="ma-0 px-3 pb-2">
-                             <v-col cols="12">
-                                <v-alert dense outlined type="info" class="text-caption mb-0" style="white-space: pre-wrap; font-family: monospace; max-height: 150px; overflow-y: auto;">
-                                    {{ syncLog }}
-                                </v-alert>
-                             </v-col>
-                        </v-row>
                     </template>
                     
                     <template v-slot:item.name="{ item }">
@@ -358,6 +351,54 @@ Vue.component('studenttable', {
                     </template>
                 </v-data-table>
             </v-col>
+            <!-- Diálogo de progreso financiero -->
+            <v-dialog v-model="syncDialog" max-width="460px" persistent>
+                <v-card>
+                    <v-card-title class="white--text purple darken-2 py-3">
+                        <v-icon left color="white">mdi-cash-sync</v-icon>
+                        Actualizando estado financiero
+                    </v-card-title>
+                    <v-card-text class="pt-5 pb-2">
+                        <div class="text-body-2 mb-3 grey--text text--darken-2">{{ syncLog }}</div>
+                        <v-progress-linear
+                            :value="syncProgressPct"
+                            color="purple"
+                            height="12"
+                            rounded
+                            striped
+                            :indeterminate="syncProgressPct === 0 && !syncDone"
+                            class="mb-2"
+                        ></v-progress-linear>
+                        <div class="d-flex justify-space-between text-caption grey--text mt-1">
+                            <span>{{ syncCompleted }} / {{ syncTotal > 0 ? syncTotal : '...' }} estudiantes</span>
+                            <span>{{ syncProgressPct }}%</span>
+                        </div>
+                    </v-card-text>
+                    <v-card-actions class="px-4 pb-4">
+                        <v-spacer></v-spacer>
+                        <v-btn
+                            v-if="!syncDone"
+                            color="grey darken-1"
+                            text
+                            @click="syncCancelled = true"
+                            :disabled="syncCancelled"
+                        >
+                            <v-icon left small>mdi-cancel</v-icon>
+                            {{ syncCancelled ? 'Cancelando...' : 'Cancelar' }}
+                        </v-btn>
+                        <v-btn
+                            v-if="syncDone"
+                            color="purple"
+                            dark
+                            @click="syncDialog = false"
+                        >
+                            <v-icon left small>mdi-check</v-icon>
+                            Cerrar
+                        </v-btn>
+                    </v-card-actions>
+                </v-card>
+            </v-dialog>
+
             <!-- Dialog de confirmación de Renovación -->
             <v-dialog v-model="renovarDialog.show" max-width="520px" persistent>
                 <v-card>
@@ -447,6 +488,13 @@ Vue.component('studenttable', {
             activeUsers: 0,
             syncing: false,
             syncLog: '',
+            syncProgressPct: 0,
+            syncTotal: 0,
+            syncCompleted: 0,
+            syncUpdated: 0,
+            syncDialog: false,
+            syncCancelled: false,
+            syncDone: false,
             loading: true,
             options: {
                 page: 1,
@@ -1135,61 +1183,82 @@ Vue.component('studenttable', {
             }
         },
         async syncFinancialBulk() {
-            if (!confirm('Esta acción actualizará el estado financiero de TODOS los estudiantes en bloques de 50. Puede tardar varios minutos. ¿Continuar?')) return;
+            if (!confirm('¿Actualizar el estado financiero de TODOS los estudiantes? El proceso corre en paralelo y puede cancelarse.')) return;
 
+            // Resetear estado
+            this.syncProgressPct = 0;
+            this.syncTotal = 0;
+            this.syncCompleted = 0;
+            this.syncUpdated = 0;
+            this.syncDone = false;
+            this.syncCancelled = false;
+            this.syncLog = 'Obteniendo lista de estudiantes...';
             this.syncing = true;
-            this.syncLog = 'Iniciando actualización masiva financiera...';
-            let finished = false;
-            let totalUpdated = 0;
-            let consecutiveZeroUpdates = 0;
-
-            const syncBatch = async () => {
-                try {
-                    const response = await axios.get(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php?action=local_grupomakro_sync_financial_bulk`);
-
-                    if (response.data.status === 'error') {
-                        throw new Error(response.data.message || 'Error en el servidor');
-                    }
-
-                    if (response.data.status === 'success') {
-                        const result = response.data.data;
-
-                        // Surface proxy/Q10 errors that come back as data.error
-                        if (result && result.error) {
-                            throw new Error('Error del proxy: ' + result.error + (result.details ? ' — ' + result.details : ''));
-                        }
-
-                        const updatedCount = result.updated || 0;
-
-                        if (updatedCount > 0) {
-                            totalUpdated += updatedCount;
-                            this.syncLog = `Actualizados: ${totalUpdated} estudiantes... Continuando...`;
-                            consecutiveZeroUpdates = 0;
-                            await syncBatch(); // Continue next batch
-                        } else {
-                            const msg = result.message || '';
-                            this.syncLog = `Proceso finalizado. Total actualizados: ${totalUpdated}.${msg ? ' (' + msg + ')' : ''}`;
-                            finished = true;
-                        }
-                    } else {
-                        throw new Error(response.data.message || 'Error desconocido del servidor');
-                    }
-                } catch (error) {
-                    console.error('Bulk sync error:', error);
-                    this.syncLog += '\nError: ' + error.message;
-                    finished = true; // Stop on error
-                    alert('El proceso se detuvo por un error: ' + error.message);
-                }
-            };
+            this.syncDialog = true;
 
             try {
-                await syncBatch();
-                if (finished) {
-                    await this.getDataFromApi();
-                    alert(`Actualización masiva completada. Se actualizaron ${totalUpdated} registros.`);
+                // Paso 1: Obtener todos los IDs
+                const listRes = await axios.get(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php?action=local_grupomakro_get_financial_user_ids`);
+                if (listRes.data.status !== 'success') throw new Error(listRes.data.message || 'Error obteniendo lista');
+
+                const allIds = listRes.data.userids || [];
+                const total = allIds.length;
+                this.syncTotal = total;
+
+                if (total === 0) {
+                    this.syncLog = 'No se encontraron estudiantes con número de documento.';
+                    this.syncDone = true;
+                    return;
                 }
+
+                // Paso 2: Dividir en lotes de 15, procesar en oleadas de 3 paralelos
+                const CHUNK_SIZE = 15;
+                const CONCURRENCY = 3;
+                const chunks = [];
+                for (let i = 0; i < total; i += CHUNK_SIZE) {
+                    chunks.push(allIds.slice(i, i + CHUNK_SIZE));
+                }
+
+                this.syncLog = `Actualizando ${total} estudiantes en ${chunks.length} lotes...`;
+
+                for (let i = 0; i < chunks.length; i += CONCURRENCY) {
+                    if (this.syncCancelled) {
+                        this.syncLog = `Cancelado. Se actualizaron ${this.syncUpdated} de ${total} estudiantes.`;
+                        break;
+                    }
+
+                    const wave = chunks.slice(i, i + CONCURRENCY);
+                    const promises = wave.map(chunk => {
+                        const params = new URLSearchParams();
+                        params.append('action', 'local_grupomakro_sync_financial_bulk');
+                        chunk.forEach(id => params.append('userids[]', id));
+                        return axios.post(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php`, params)
+                            .then(res => ({ ok: true, data: res.data, count: chunk.length }))
+                            .catch(e  => ({ ok: false, error: e.message, count: chunk.length }));
+                    });
+
+                    const results = await Promise.all(promises);
+                    results.forEach(r => {
+                        this.syncCompleted += r.count;
+                        if (r.ok && r.data && r.data.status === 'success') {
+                            this.syncUpdated += r.data.data.updated || 0;
+                        }
+                    });
+
+                    this.syncProgressPct = Math.round((this.syncCompleted / total) * 100);
+                    this.syncLog = `Lote ${Math.min(i + CONCURRENCY, chunks.length)}/${chunks.length} completado — ${this.syncUpdated} actualizados`;
+                }
+
+                if (!this.syncCancelled) {
+                    this.syncProgressPct = 100;
+                    this.syncLog = `Completado. ${this.syncUpdated} de ${total} estudiantes actualizados.`;
+                    await this.getDataFromApi();
+                }
+            } catch (e) {
+                this.syncLog = 'Error: ' + e.message;
             } finally {
                 this.syncing = false;
+                this.syncDone = true;
             }
         },
 
