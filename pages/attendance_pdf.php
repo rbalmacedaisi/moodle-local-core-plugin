@@ -91,11 +91,10 @@ $userids = absd_get_class_enrolled_userids($classid);
 $students = [];
 if (!empty($userids)) {
     list($uinsql, $uinparams) = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED, 'pdfu');
+    // Use idnumber as baseline; override with documentnumber custom field if present.
     $user_rows = $DB->get_records_sql(
-        "SELECT u.id, u.firstname, u.lastname, uid.data AS cedula
+        "SELECT u.id, u.firstname, u.lastname, u.idnumber
            FROM {user} u
-           LEFT JOIN {user_info_data} uid ON uid.userid = u.id
-             AND uid.fieldid = (SELECT id FROM {user_info_field} WHERE shortname = 'cedula' ORDER BY id LIMIT 1)
           WHERE u.id $uinsql
           ORDER BY u.lastname ASC, u.firstname ASC",
         $uinparams
@@ -103,8 +102,23 @@ if (!empty($userids)) {
     foreach ($user_rows as $ur) {
         $students[(int)$ur->id] = [
             'name'   => trim($ur->firstname . ' ' . $ur->lastname),
-            'cedula' => trim((string)($ur->cedula ?? '')),
+            'cedula' => trim((string)$ur->idnumber),
         ];
+    }
+    // Override with documentnumber custom field when available.
+    $_pdf_docfid = (int)($DB->get_field('user_info_field', 'id', ['shortname' => 'documentnumber']) ?: 0);
+    if ($_pdf_docfid && !empty($students)) {
+        list($uinsql2, $uinparams2) = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED, 'pdfu2');
+        $doc_rows = $DB->get_records_sql(
+            "SELECT userid, data FROM {user_info_data} WHERE fieldid = :pdfdocfid AND userid $uinsql2",
+            array_merge(['pdfdocfid' => $_pdf_docfid], $uinparams2)
+        );
+        foreach ($doc_rows as $dr) {
+            $v = trim((string)$dr->data);
+            if ($v !== '' && isset($students[(int)$dr->userid])) {
+                $students[(int)$dr->userid]['cedula'] = $v;
+            }
+        }
     }
 }
 

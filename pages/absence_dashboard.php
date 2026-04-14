@@ -873,6 +873,45 @@ if (!empty($all_ids)) {
     }
 }
 
+// ── Cedula map for student filter ─────────────────────────────────────────────
+// Builds classid => [lowercase cedula, ...] used by the JS front-end filter.
+$class_cedula_map = [];
+if (!empty($all_ids)) {
+    [$_cm_insql, $_cm_inparams] = $DB->get_in_or_equal($all_ids, SQL_PARAMS_NAMED, 'cedc');
+    $_cm_rows = $DB->get_records_sql(
+        "SELECT classid, userid FROM {gmk_course_progre} WHERE classid $_cm_insql AND status IN (1,2,3)",
+        $_cm_inparams
+    );
+    $_cm_class_uids = [];
+    $_cm_all_uids   = [];
+    foreach ($_cm_rows as $_cr) {
+        $_cm_class_uids[(int)$_cr->classid][] = (int)$_cr->userid;
+        $_cm_all_uids[(int)$_cr->userid]       = (int)$_cr->userid;
+    }
+    if (!empty($_cm_all_uids)) {
+        [$_cm_uinsql, $_cm_uinp] = $DB->get_in_or_equal(array_values($_cm_all_uids), SQL_PARAMS_NAMED, 'cedu');
+        $_cm_uid_ced = [];
+        foreach ($DB->get_records_sql("SELECT id, idnumber FROM {user} WHERE id $_cm_uinsql", $_cm_uinp) as $_ur) {
+            $_cm_uid_ced[(int)$_ur->id] = strtolower(trim((string)$_ur->idnumber));
+        }
+        $_cm_docfid = (int)($DB->get_field('user_info_field', 'id', ['shortname' => 'documentnumber']) ?: 0);
+        if ($_cm_docfid) {
+            [$_cm_uinsql2, $_cm_uinp2] = $DB->get_in_or_equal(array_values($_cm_all_uids), SQL_PARAMS_NAMED, 'cedu2');
+            foreach ($DB->get_records_sql(
+                "SELECT userid, data FROM {user_info_data} WHERE fieldid = :cmfid AND userid $_cm_uinsql2",
+                array_merge(['cmfid' => $_cm_docfid], $_cm_uinp2)
+            ) as $_dr) {
+                $_v = strtolower(trim((string)$_dr->data));
+                if ($_v !== '') { $_cm_uid_ced[(int)$_dr->userid] = $_v; }
+            }
+        }
+        foreach ($_cm_class_uids as $_cid => $_uids) {
+            $_ceds = array_values(array_filter(array_map(fn($u) => $_cm_uid_ced[$u] ?? '', $_uids)));
+            if (!empty($_ceds)) { $class_cedula_map[$_cid] = $_ceds; }
+        }
+    }
+}
+
 // ── Plan names & career tree ────────────────────────────────────────────────────
 $plan_rows = $DB->get_records_sql(
     "SELECT DISTINCT llu.learningplanid AS planid, lp.name AS planname
@@ -1116,6 +1155,7 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
 .absd-exempt-btn { background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 5px; padding: 2px 7px; cursor: pointer; line-height: 1; }
 .absd-exempt-btn.active { background: #fef3c7; border-color: #fbbf24; }
 .absd-exempt-btn:disabled { opacity: .5; cursor: default; }
+.absd-hidden { display: none !important; }
 </style>
 
 <div class="absd-page">
@@ -1144,6 +1184,16 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
                        style="font-size:11px;color:#1d4ed8;text-decoration:none;font-weight:600">Limpiar</a>
                 <?php endif; ?>
             </form>
+            <div style="display:flex;align-items:center;gap:4px">
+                <span style="font-size:12px;color:#334155;font-weight:700;white-space:nowrap">&#128100; Cédula</span>
+                <input type="text" id="absd-cedula-filter"
+                    placeholder="Buscar ficha por cédula..."
+                    oninput="absdFilterByCedula(this.value)"
+                    style="border:1px solid #e2e8f0;border-radius:6px;padding:6px 10px;font-size:12px;width:190px;outline:none">
+                <button onclick="document.getElementById('absd-cedula-filter').value='';absdFilterByCedula('')"
+                    title="Limpiar filtro"
+                    style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;padding:5px 8px;font-size:12px;cursor:pointer;line-height:1">&#10005;</button>
+            </div>
             <button onclick="absdRunAbsenceCheck()" id="absd-run-check-btn"
                 style="background:#dc2626;color:#fff;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;border:none;cursor:pointer">
                 &#9888; Verificar inasistencias
@@ -1230,7 +1280,7 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
                         $c_bg     = $sessions > 0 ? absd_pct_bg($cpct)     : '#f8fafc';
                         $c_border = $sessions > 0 ? absd_pct_border($cpct) : '#e2e8f0';
                     ?>
-                    <div class="absd-class-chip" style="border-color:<?php echo $c_border; ?>;background:<?php echo $c_bg; ?>">
+                    <div class="absd-class-chip" data-classid="<?php echo $cid; ?>" style="border-color:<?php echo $c_border; ?>;background:<?php echo $c_bg; ?>">
                         <div class="absd-class-chip-name" title="<?php echo s($cname); ?>"><?php echo s($cname); ?></div>
                         <div class="absd-class-chip-teacher"><?php echo s(trim($cls->teachername)); ?></div>
 
@@ -1310,7 +1360,7 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
                     $c_bg     = $sessions > 0 ? absd_pct_bg($cpct)    : '#f8fafc';
                     $c_border = $sessions > 0 ? absd_pct_border($cpct): '#e2e8f0';
                 ?>
-                    <div style="border:1px solid <?php echo $c_border; ?>;background:<?php echo $c_bg; ?>;border-radius:6px;padding:7px 9px;font-size:11px">
+                    <div data-classid="<?php echo $cid; ?>" style="border:1px solid <?php echo $c_border; ?>;background:<?php echo $c_bg; ?>;border-radius:6px;padding:7px 9px;font-size:11px">
                         <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">
                             <span style="background:#dbeafe;color:#1e40af;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700"><?php echo s($shift); ?></span>
                             <span style="color:<?php echo $c_color; ?>;font-weight:700;font-size:11px"><?php echo $sessions > 0 ? $cpct . '%' : '—'; ?></span>
@@ -1441,6 +1491,44 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
     var AJAX_URL = <?php echo json_encode($ajax_url); ?>;
     var PDF_BASE = <?php echo json_encode($pdf_base); ?>;
     var PROFILE_URL_BASE = <?php echo json_encode((new moodle_url('/user/profile.php'))->out(false)); ?>;
+    var ABSD_CLASS_CEDULAS = <?php echo json_encode($class_cedula_map); ?>;
+
+    window.absdFilterByCedula = function(val) {
+        val = val.trim().toLowerCase();
+
+        // Show/hide individual chips
+        document.querySelectorAll('[data-classid]').forEach(function(chip) {
+            var cid = parseInt(chip.getAttribute('data-classid'), 10);
+            var cedulas = ABSD_CLASS_CEDULAS[cid] || [];
+            var match = !val || cedulas.some(function(c) { return c.indexOf(val) !== -1; });
+            chip.classList.toggle('absd-hidden', !match);
+        });
+
+        // Hide house-cards whose every chip is hidden
+        document.querySelectorAll('.absd-house-card').forEach(function(hc) {
+            var hasVisible = hc.querySelector('[data-classid]:not(.absd-hidden)');
+            hc.classList.toggle('absd-hidden', val !== '' && !hasVisible);
+        });
+
+        // Hide career sections whose every house-card is hidden
+        document.querySelectorAll('.absd-career-section').forEach(function(sec) {
+            var hasVisible = sec.querySelector('.absd-house-card:not(.absd-hidden)');
+            sec.classList.toggle('absd-hidden', val !== '' && !hasVisible);
+        });
+
+        // Hide TC cards whose every chip is hidden
+        document.querySelectorAll('.absd-tc-card').forEach(function(tc) {
+            var hasVisible = tc.querySelector('[data-classid]:not(.absd-hidden)');
+            tc.classList.toggle('absd-hidden', val !== '' && !hasVisible);
+        });
+
+        // Hide TC section if all TC cards are hidden
+        var tcSec = document.querySelector('.absd-tc-section');
+        if (tcSec) {
+            var hasTc = tcSec.querySelector('.absd-tc-card:not(.absd-hidden)');
+            tcSec.classList.toggle('absd-hidden', val !== '' && !hasTc);
+        }
+    };
 
     var USER_STATUS_OPTIONS = ['Activo', 'Inactivo'];
     var ACADEMIC_STATUS_OPTIONS = ['activo', 'aplazado', 'retirado', 'suspendido', 'desertor', 'graduado', 'egresado'];
