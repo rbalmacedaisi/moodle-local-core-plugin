@@ -1635,7 +1635,7 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
             } else if (daysSince === 0) {
                 dotColor = '#22c55e'; loginLabel = 'Hoy';
                 loginTitle = 'Último acceso: hoy';
-            } else if (daysSince <= 2) {
+            } else if (daysSince <= 3) {
                 dotColor = '#22c55e'; loginLabel = 'Hace ' + daysSince + ' día' + (daysSince > 1 ? 's' : '');
                 loginTitle = 'Último acceso hace ' + daysSince + ' día(s)';
             } else if (daysSince <= 7) {
