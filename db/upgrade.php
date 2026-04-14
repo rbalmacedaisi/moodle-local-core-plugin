@@ -1958,6 +1958,23 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20260324030, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20260414010) {
+        $obs_table = new xmldb_table('gmk_student_observations');
+        if (!$DB->get_manager()->table_exists($obs_table)) {
+            $obs_table->add_field('id',           XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE);
+            $obs_table->add_field('userid',       XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $obs_table->add_field('classid',      XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $obs_table->add_field('teacherid',    XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $obs_table->add_field('observation',  XMLDB_TYPE_TEXT,    null, null, XMLDB_NOTNULL, null, null);
+            $obs_table->add_field('timecreated',  XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $obs_table->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $obs_table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+            $obs_table->add_index('userid_classid', XMLDB_INDEX_NOTUNIQUE, ['userid', 'classid']);
+            $DB->get_manager()->create_table($obs_table);
+        }
+        upgrade_plugin_savepoint(true, 20260414010, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

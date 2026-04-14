@@ -336,6 +336,102 @@ if (optional_param('abs_ajax', 0, PARAM_INT)) {
             $exempt  = absd_toggle_user_exempt($userid, $classid);
             echo json_encode(['ok' => true, 'exempt' => $exempt]);
 
+        } elseif ($abs_action === 'get_observations') {
+            $userid  = required_param('userid',  PARAM_INT);
+            $classid = required_param('classid', PARAM_INT);
+            $rows = $DB->get_records_sql(
+                "SELECT o.id, o.observation, o.timecreated, u.firstname, u.lastname
+                 FROM {gmk_student_observations} o
+                 JOIN {user} u ON u.id = o.teacherid
+                 WHERE o.userid = :uid AND o.classid = :cid
+                 ORDER BY o.timecreated DESC",
+                ['uid' => $userid, 'cid' => $classid]
+            );
+            $obs = [];
+            foreach ($rows as $r) {
+                $obs[] = [
+                    'id'          => (int)$r->id,
+                    'teacher'     => trim($r->firstname . ' ' . $r->lastname),
+                    'observation' => (string)$r->observation,
+                    'date'        => userdate((int)$r->timecreated, get_string('strftimedatetime', 'langconfig')),
+                ];
+            }
+            echo json_encode(['ok' => true, 'observations' => $obs], JSON_UNESCAPED_UNICODE);
+
+        } elseif ($abs_action === 'save_observation') {
+            $userid      = required_param('userid',      PARAM_INT);
+            $classid     = required_param('classid',     PARAM_INT);
+            $observation = trim((string)required_param('observation', PARAM_TEXT));
+            if ($observation === '') {
+                echo json_encode(['ok' => false, 'message' => 'La observación no puede estar vacía']);
+                exit;
+            }
+            $rec               = new stdClass();
+            $rec->userid       = $userid;
+            $rec->classid      = $classid;
+            $rec->teacherid    = $USER->id;
+            $rec->observation  = $observation;
+            $rec->timecreated  = time();
+            $rec->timemodified = time();
+            $DB->insert_record('gmk_student_observations', $rec);
+            echo json_encode([
+                'ok' => true,
+                'observation' => [
+                    'teacher'     => fullname($USER),
+                    'observation' => $observation,
+                    'date'        => userdate(time(), get_string('strftimedatetime', 'langconfig')),
+                ]
+            ], JSON_UNESCAPED_UNICODE);
+
+        } elseif ($abs_action === 'mark_session_present') {
+            $sessionid     = required_param('sessionid',     PARAM_INT);
+            $userid        = required_param('userid',        PARAM_INT);
+            $classid       = required_param('classid',       PARAM_INT);
+            $justification = trim((string)required_param('justification', PARAM_TEXT));
+            if ($justification === '') {
+                echo json_encode(['ok' => false, 'message' => 'La justificación es obligatoria']);
+                exit;
+            }
+            $session = $DB->get_record('attendance_sessions', ['id' => $sessionid], 'id, attendanceid', MUST_EXIST);
+            $present_status = $DB->get_record_sql(
+                "SELECT id FROM {attendance_statuses} WHERE attendanceid = :aid AND grade > 0 ORDER BY grade DESC LIMIT 1",
+                ['aid' => $session->attendanceid]
+            );
+            if (!$present_status) {
+                echo json_encode(['ok' => false, 'message' => 'No se encontró estado de presencia para este módulo de asistencia']);
+                exit;
+            }
+            $existing = $DB->get_record('attendance_log', ['sessionid' => $sessionid, 'studentid' => $userid]);
+            if ($existing) {
+                $DB->set_field('attendance_log', 'statusid',  $present_status->id, ['id' => $existing->id]);
+                $DB->set_field('attendance_log', 'remarks',   $justification,      ['id' => $existing->id]);
+                $DB->set_field('attendance_log', 'timetaken', time(),              ['id' => $existing->id]);
+            } else {
+                $log            = new stdClass();
+                $log->sessionid = $sessionid;
+                $log->studentid = $userid;
+                $log->statusid  = $present_status->id;
+                $log->timetaken = time();
+                $log->remarks   = $justification;
+                $DB->insert_record('attendance_log', $log);
+            }
+            // Recalculate absences for this student in this class
+            $past_sids = absd_get_class_past_session_ids($classid);
+            $new_absences = 0;
+            if (!empty($past_sids)) {
+                list($in_sql, $in_params) = $DB->get_in_or_equal($past_sids, SQL_PARAMS_NAMED, 'sid');
+                $in_params['uid'] = $userid;
+                $present_count = (int)$DB->count_records_sql(
+                    "SELECT COUNT(DISTINCT al.sessionid)
+                     FROM {attendance_log} al
+                     JOIN {attendance_statuses} ast ON ast.id = al.statusid
+                     WHERE al.sessionid $in_sql AND al.studentid = :uid AND ast.grade > 0",
+                    $in_params
+                );
+                $new_absences = max(0, count($past_sids) - $present_count);
+            }
+            echo json_encode(['ok' => true, 'new_absences' => $new_absences], JSON_UNESCAPED_UNICODE);
+
         } else {
             echo json_encode(['ok' => false, 'message' => 'Unknown action']);
         }
@@ -1177,6 +1273,19 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
 .absd-exempt-btn.active { background: #fef3c7; border-color: #fbbf24; }
 .absd-exempt-btn:disabled { opacity: .5; cursor: default; }
 .absd-hidden { display: none !important; }
+.absd-obs-btn {
+    background: none; border: 1px solid #cbd5e1; border-radius: 6px;
+    padding: 4px 8px; cursor: pointer; color: #475569; font-size: 15px;
+    transition: background .15s;
+}
+.absd-obs-btn:hover { background: #f1f5f9; }
+.absd-mark-present-btn {
+    padding: 4px 10px; background: #dcfce7; color: #166534;
+    border: 1px solid #86efac; border-radius: 6px; font-size: 11px;
+    font-weight: 600; cursor: pointer; white-space: nowrap;
+    transition: background .15s;
+}
+.absd-mark-present-btn:hover { background: #bbf7d0; }
 </style>
 
 <div class="absd-page">
@@ -1443,6 +1552,7 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
                         <th title="Verde &lt;3 días · Amarillo 3–7 días · Rojo &gt;7 días">Última conexión</th>
                         <th>Estado financiero</th>
                         <th style="text-align:center" title="Excluye al estudiante de la inactivación automática">Excepción</th>
+                        <th style="text-align:center">Seguimiento</th>
                     </tr>
                 </thead>
                 <tbody id="absdTbody"></tbody>
@@ -1475,10 +1585,51 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
                         <th>Sesión</th>
                         <th>Registro</th>
                         <th>Estado</th>
+                        <th>Acción</th>
                     </tr>
                 </thead>
                 <tbody id="absdSessionsTbody"></tbody>
             </table>
+        </div>
+    </div>
+</div>
+
+<!-- ── Observations modal ─────────────────────────────────────────────── -->
+<div id="absdObsModal" class="absd-modal-overlay" onclick="if(event.target===this)absdCloseObsModal()">
+    <div class="absd-modal" style="max-width:620px">
+        <div class="absd-modal-header">
+            <h2 id="absdObsTitle">Seguimiento</h2>
+            <button class="absd-modal-close" onclick="absdCloseObsModal()">&#10005;</button>
+        </div>
+        <div class="absd-modal-body">
+            <div id="absdObsList" style="max-height:260px;overflow-y:auto;margin-bottom:16px;border-bottom:1px solid #e2e8f0;padding-bottom:12px"></div>
+            <div>
+                <label style="font-size:13px;font-weight:600;color:#475569;display:block;margin-bottom:6px">Nueva observación</label>
+                <textarea id="absdObsText" rows="3" style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;resize:vertical;box-sizing:border-box" placeholder="Escriba una observación de seguimiento..."></textarea>
+                <div style="text-align:right;margin-top:8px;display:flex;justify-content:flex-end;gap:8px">
+                    <button onclick="absdCloseObsModal()" style="padding:7px 16px;border:1px solid #cbd5e1;border-radius:6px;background:#f8fafc;color:#475569;cursor:pointer;font-size:13px">Cerrar</button>
+                    <button onclick="absdSaveObservation()" id="absdObsSaveBtn" style="padding:7px 16px;background:#2563eb;color:#fff;border:none;border-radius:6px;font-weight:600;cursor:pointer;font-size:13px">Guardar observación</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Mark present justification modal ──────────────────────────────── -->
+<div id="absdMarkPresentModal" class="absd-modal-overlay">
+    <div class="absd-modal" style="max-width:480px">
+        <div class="absd-modal-header">
+            <h2>Justificar asistencia</h2>
+            <button class="absd-modal-close" onclick="absdCloseMarkPresent()">&#10005;</button>
+        </div>
+        <div class="absd-modal-body">
+            <p style="color:#475569;font-size:13px;margin-bottom:12px">Ingrese la justificación para registrar esta asistencia. <strong>Este campo es obligatorio.</strong></p>
+            <textarea id="absdJustificationText" rows="3" style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;resize:vertical;box-sizing:border-box" placeholder="Justificación obligatoria..."></textarea>
+            <p id="absdJustificationError" style="color:#dc2626;font-size:12px;margin-top:4px;display:none">&#9888; La justificación es obligatoria.</p>
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;padding:12px 20px 20px">
+            <button onclick="absdCloseMarkPresent()" style="padding:7px 16px;border:1px solid #cbd5e1;border-radius:6px;background:#f8fafc;color:#475569;cursor:pointer;font-size:13px">Cancelar</button>
+            <button onclick="absdConfirmMarkPresent()" id="absdMarkPresentConfirmBtn" style="padding:7px 16px;background:#16a34a;color:#fff;border:none;border-radius:6px;font-weight:600;cursor:pointer;font-size:13px">&#10003; Confirmar asistencia</button>
         </div>
     </div>
 </div>
@@ -1568,6 +1719,10 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
     window.currentClassId = 0;
     var currentStudents = [];
     var filteredStudents = [];
+    var absdCurrentObsUserId      = 0;
+    var absdCurrentObsName        = '';
+    var absdCurrentSessionsUserId = 0;
+    var absdMarkPresentSession    = null;
 
     function esc(str) {
         return String(str)
@@ -1694,6 +1849,7 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
                 '<td style="white-space:nowrap">' + loginCell + '</td>' +
                 '<td style="white-space:nowrap">' + finCell + '</td>' +
                 '<td style="text-align:center"><button class="absd-exempt-btn' + (s.exempt ? ' active' : '') + '" title="' + (s.exempt ? 'Quitar excepción (será considerado para inactivación)' : 'Agregar excepción (excluir de inactivación automática)') + '" onclick="absdToggleExempt(' + s.userid + ', currentClassId, this)"><span style="font-size:15px">' + (s.exempt ? '&#128274;' : '&#128275;') + '</span></button></td>' +
+                '<td style="text-align:center"><button class="absd-obs-btn" title="Ver/agregar seguimiento" onclick="absdOpenObsModal(' + s.userid + ',\'' + esc(s.name).replace(/\\/g,'\\\\').replace(/'/g,'\\\'') + '\')">&#128196;</button></td>' +
                 '</tr>';
         });
 
@@ -1705,7 +1861,7 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
     function renderSessionsTable(sessions) {
         var tbody = document.getElementById('absdSessionsTbody');
         if (!sessions.length) {
-            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:#94a3b8;font-style:italic">No hay sesiones con asistencia tomada.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:#94a3b8;font-style:italic">No hay sesiones con asistencia tomada.</td></tr>';
             document.getElementById('absdSessionsCount').textContent = '0 sesiones';
             return;
         }
@@ -1720,14 +1876,18 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
             if (acronym) {
                 status = status ? (acronym + ' - ' + status) : acronym;
             }
+            var actionCell = !s.present
+                ? '<button class="absd-mark-present-btn" onclick="absdOpenMarkPresent(' + s.sessionid + ')">Marcar presente</button>'
+                : '';
 
-            html += '<tr>' +
+            html += '<tr data-sessionid="' + s.sessionid + '">' +
                 '<td>' + (idx + 1) + '</td>' +
                 '<td>' + esc(s.date || '-') + '</td>' +
                 '<td>' + esc(s.time || '-') + '</td>' +
                 '<td>' + esc(desc || ('Sesion #' + s.sessionid)) + '</td>' +
                 '<td><span class="absd-session-state ' + stateClass + '">' + stateLabel + '</span></td>' +
                 '<td>' + esc(status || 'Sin registro') + '</td>' +
+                '<td>' + actionCell + '</td>' +
                 '</tr>';
         });
 
@@ -1744,11 +1904,12 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
         if (!userid) {
             return;
         }
+        absdCurrentSessionsUserId = userid;
 
         document.getElementById('absdSessionsTitle').textContent = 'Detalle de sesiones - ' + studentName;
         document.getElementById('absdSessionsCount').textContent = 'Cargando...';
         document.getElementById('absdSessionsTbody').innerHTML =
-            '<tr><td colspan="6" style="text-align:center;padding:20px;color:#64748b">Cargando sesiones...</td></tr>';
+            '<tr><td colspan="7" style="text-align:center;padding:20px;color:#64748b">Cargando sesiones...</td></tr>';
         document.getElementById('absdSessionsModal').classList.add('absd-modal-open');
 
         var params = new URLSearchParams({
@@ -1769,7 +1930,7 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
             })
             .catch(function(err) {
                 document.getElementById('absdSessionsTbody').innerHTML =
-                    '<tr><td colspan="6" style="text-align:center;padding:20px;color:#dc2626">' + esc(err.message) + '</td></tr>';
+                    '<tr><td colspan="7" style="text-align:center;padding:20px;color:#dc2626">' + esc(err.message) + '</td></tr>';
                 document.getElementById('absdSessionsCount').textContent = '';
             });
     };
@@ -2041,6 +2202,141 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
             }
         }
     });
+
+    // ── Seguimiento / Observaciones ──────────────────────────────────────────
+    window.absdOpenObsModal = function(userid, name) {
+        absdCurrentObsUserId = userid;
+        absdCurrentObsName   = name;
+        document.getElementById('absdObsTitle').textContent = 'Seguimiento — ' + name;
+        document.getElementById('absdObsText').value = '';
+        document.getElementById('absdObsList').innerHTML =
+            '<span style="color:#64748b;font-size:13px">Cargando...</span>';
+        document.getElementById('absdObsModal').classList.add('absd-modal-open');
+        var params = new URLSearchParams({
+            abs_ajax: 1, abs_action: 'get_observations',
+            classid: currentClassId, userid: userid, sesskey: SESSKEY
+        });
+        fetch(AJAX_URL + '?' + params.toString())
+            .then(function(r){ return r.json(); })
+            .then(function(data){
+                if (!data.ok) throw new Error(data.message);
+                absdRenderObsList(data.observations || []);
+            })
+            .catch(function(err){
+                document.getElementById('absdObsList').innerHTML =
+                    '<span style="color:#dc2626">' + esc(err.message) + '</span>';
+            });
+    };
+
+    window.absdCloseObsModal = function() {
+        document.getElementById('absdObsModal').classList.remove('absd-modal-open');
+    };
+
+    function absdRenderObsList(observations) {
+        var el = document.getElementById('absdObsList');
+        if (!observations.length) {
+            el.innerHTML = '<span style="color:#94a3b8;font-size:13px;font-style:italic">Sin observaciones registradas.</span>';
+            return;
+        }
+        var html = '';
+        observations.forEach(function(o) {
+            html += '<div style="padding:8px 0;border-bottom:1px solid #f1f5f9">' +
+                '<div style="display:flex;justify-content:space-between;margin-bottom:2px">' +
+                    '<span style="font-weight:600;font-size:12px;color:#334155">' + esc(o.teacher) + '</span>' +
+                    '<span style="font-size:11px;color:#94a3b8">' + esc(o.date) + '</span>' +
+                '</div>' +
+                '<div style="font-size:13px;color:#475569;white-space:pre-wrap">' + esc(o.observation) + '</div>' +
+            '</div>';
+        });
+        el.innerHTML = html;
+    }
+
+    window.absdSaveObservation = function() {
+        var text = document.getElementById('absdObsText').value.trim();
+        if (!text) { alert('La observación no puede estar vacía.'); return; }
+        var btn = document.getElementById('absdObsSaveBtn');
+        btn.disabled = true; btn.textContent = 'Guardando...';
+        var params = new URLSearchParams({
+            abs_ajax: 1, abs_action: 'save_observation',
+            classid: currentClassId, userid: absdCurrentObsUserId,
+            observation: text, sesskey: SESSKEY
+        });
+        fetch(AJAX_URL, { method: 'POST', body: params })
+            .then(function(r){ return r.json(); })
+            .then(function(data){
+                if (!data.ok) throw new Error(data.message);
+                document.getElementById('absdObsText').value = '';
+                var o = data.observation;
+                var newHtml = '<div style="padding:8px 0;border-bottom:1px solid #f1f5f9">' +
+                    '<div style="display:flex;justify-content:space-between;margin-bottom:2px">' +
+                        '<span style="font-weight:600;font-size:12px;color:#334155">' + esc(o.teacher) + '</span>' +
+                        '<span style="font-size:11px;color:#94a3b8">' + esc(o.date) + '</span>' +
+                    '</div>' +
+                    '<div style="font-size:13px;color:#475569;white-space:pre-wrap">' + esc(o.observation) + '</div>' +
+                '</div>';
+                var el = document.getElementById('absdObsList');
+                var existing = el.innerHTML.indexOf('Sin observaciones') !== -1 ? '' : el.innerHTML;
+                el.innerHTML = newHtml + existing;
+            })
+            .catch(function(err){ alert('Error: ' + err.message); })
+            .finally(function(){ btn.disabled = false; btn.textContent = 'Guardar observación'; });
+    };
+
+    // ── Marcar presente ──────────────────────────────────────────────────────
+    window.absdOpenMarkPresent = function(sessionid) {
+        absdMarkPresentSession = sessionid;
+        document.getElementById('absdJustificationText').value = '';
+        document.getElementById('absdJustificationError').style.display = 'none';
+        document.getElementById('absdMarkPresentModal').classList.add('absd-modal-open');
+    };
+
+    window.absdCloseMarkPresent = function() {
+        document.getElementById('absdMarkPresentModal').classList.remove('absd-modal-open');
+    };
+
+    window.absdConfirmMarkPresent = function() {
+        var justification = document.getElementById('absdJustificationText').value.trim();
+        if (!justification) {
+            document.getElementById('absdJustificationError').style.display = 'block';
+            return;
+        }
+        document.getElementById('absdJustificationError').style.display = 'none';
+        var btn = document.getElementById('absdMarkPresentConfirmBtn');
+        btn.disabled = true; btn.textContent = 'Procesando...';
+        var params = new URLSearchParams({
+            abs_ajax: 1, abs_action: 'mark_session_present',
+            sessionid: absdMarkPresentSession,
+            userid: absdCurrentSessionsUserId,
+            classid: currentClassId,
+            justification: justification,
+            sesskey: SESSKEY
+        });
+        fetch(AJAX_URL, { method: 'POST', body: params })
+            .then(function(r){ return r.json(); })
+            .then(function(data){
+                if (!data.ok) throw new Error(data.message);
+                // Actualizar fila en el modal de sesiones
+                var row = document.querySelector('#absdSessionsTbody tr[data-sessionid="' + absdMarkPresentSession + '"]');
+                if (row) {
+                    var span = row.querySelector('.absd-session-state');
+                    if (span) { span.className = 'absd-session-state present'; span.textContent = 'Asistencia'; }
+                    var lastCell = row.cells[row.cells.length - 1];
+                    if (lastCell) lastCell.innerHTML = '';
+                }
+                // Actualizar botón de inasistencias en la tabla principal
+                var absBtn = document.querySelector('.absd-abs-link[data-uid="' + absdCurrentSessionsUserId + '"]');
+                if (absBtn) {
+                    var n = parseInt(data.new_absences, 10);
+                    absBtn.textContent = n;
+                    absBtn.classList.toggle('absd-abs-high', n > 0);
+                    absBtn.classList.toggle('absd-abs-zero', n === 0);
+                }
+                absdCloseMarkPresent();
+            })
+            .catch(function(err){ alert('Error: ' + err.message); })
+            .finally(function(){ btn.disabled = false; btn.textContent = '✓ Confirmar asistencia'; });
+    };
+
 })();
 </script>
 <?php echo $OUTPUT->footer(); ?>
