@@ -1516,5 +1516,6 @@ var POP_ANALYTICS = <?php echo json_encode($analytics_json, JSON_UNESCAPED_UNICO
 
     panlUpdate();
 })();
+</script>
 
 <?php echo $OUTPUT->footer(); ?>
