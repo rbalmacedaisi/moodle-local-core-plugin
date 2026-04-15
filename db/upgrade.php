@@ -1975,6 +1975,28 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20260414010, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20260414020) {
+        // Deduplicate gmk_financial_status: keep only the row with the highest id per userid,
+        // then add a UNIQUE index on userid to prevent future duplicates.
+        // The subquery alias is required by MySQL to avoid "can't reopen table" error.
+        $DB->execute("
+            DELETE FROM {gmk_financial_status}
+            WHERE id NOT IN (
+                SELECT max_id FROM (
+                    SELECT MAX(id) AS max_id FROM {gmk_financial_status} GROUP BY userid
+                ) AS latest
+            )
+        ");
+
+        $table = new xmldb_table('gmk_financial_status');
+        $index = new xmldb_index('userid_unique', XMLDB_INDEX_UNIQUE, ['userid']);
+        if (!$DB->get_manager()->index_exists($table, $index)) {
+            $DB->get_manager()->add_index($table, $index);
+        }
+
+        upgrade_plugin_savepoint(true, 20260414020, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

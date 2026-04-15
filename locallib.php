@@ -7751,14 +7751,11 @@ function local_grupomakro_sync_financial_status($userids = []) {
         $record->lastupdated = $time;
         $record->timemodified = $time;
 
-        // Check if exists
-        $existing = $DB->get_record('gmk_financial_status', ['userid' => $userid]);
-        if ($existing) {
-            $record->id = $existing->id;
-            $DB->update_record('gmk_financial_status', $record);
-        } else {
-            $DB->insert_record('gmk_financial_status', $record);
-        }
+        // DELETE all existing rows for this user (handles duplicates) then INSERT fresh.
+        // Using DELETE+INSERT within the transaction is safe and guarantees exactly
+        // one row per userid after each sync, regardless of how many stale duplicates exist.
+        $DB->delete_records('gmk_financial_status', ['userid' => $userid]);
+        $DB->insert_record('gmk_financial_status', $record);
         $updated++;
     }
     

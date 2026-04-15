@@ -476,6 +476,7 @@
       </KEYS>
       <INDEXES>
         <INDEX NAME="status_idx" UNIQUE="false" FIELDS="status"/>
+        <INDEX NAME="userid_unique" UNIQUE="true" FIELDS="userid"/>
       </INDEXES>
     </TABLE>
     <TABLE NAME="gmk_academic_periods" COMMENT="Definitive academic periods for institution">

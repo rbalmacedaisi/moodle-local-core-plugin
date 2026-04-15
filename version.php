@@ -24,6 +24,6 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = "local_grupomakro_core";
-$plugin->version   = 20260414010;         // Add gmk_student_observations table; absence dashboard: observations + mark present features.
+$plugin->version   = 20260414020;         // Deduplicate gmk_financial_status + UNIQUE index on userid; fix sync to DELETE+INSERT.
 $plugin->requires = 2014051200;
 $plugin->maturity = MATURITY_STABLE;
