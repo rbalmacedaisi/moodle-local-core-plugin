@@ -45,9 +45,9 @@ $whereClause = "WHERE " . implode(' AND ', $sqlConditions);
 
 // Query
 $query = "
-    SELECT lpu.id as recordid, lpu.currentperiodid as periodid, lpu.currentsubperiodid as subperiodid, 
+    SELECT lpu.id as recordid, lpu.currentperiodid as periodid, lpu.currentsubperiodid as subperiodid,
     lp.name as career, u.id as userid, u.email as email, u.idnumber,
-    u.firstname as firstname, u.lastname as lastname, fs.status as financial_status
+    u.firstname as firstname, u.lastname as lastname, lpu.status as academic_status, fs.status as financial_status
     FROM {user} u
     JOIN {local_learning_users} lpu ON (lpu.userid = u.id)
     JOIN {local_learning_plans} lp ON (lpu.learningplanid = lp.id)
@@ -61,8 +61,8 @@ $fieldStatus = $DB->get_record('user_info_field', array('shortname' => 'students
 $fieldDoc = $DB->get_record('user_info_field', array('shortname' => 'documentnumber'));
 
 // Columns
-$columns = ['id', 'fullname', 'email', 'identification', 'career', 'period', 'block', 'status', 'financial_status'];
-$headers = ['ID Moodle', 'Nombre Completo', 'Email', 'Identificación', 'Carrera', 'Cuatrimestre', 'Bloque', 'Estado', 'Estado Financiero'];
+$columns = ['id', 'fullname', 'email', 'identification', 'career', 'period', 'block', 'status', 'academic_status', 'financial_status'];
+$headers = ['ID Moodle', 'Nombre Completo', 'Email', 'Identificación', 'Carrera', 'Cuatrimestre', 'Bloque', 'Estado', 'Estado Académico', 'Estado Financiero'];
 
 // Prepare Iterator
 $data = [];
@@ -126,6 +126,7 @@ foreach ($recordset as $user) {
     $row->block = $subperiodname;
 
     $row->status = $status;
+    $row->academic_status = $user->academic_status ?: 'activo';
     $row->financial_status = $user->financial_status ?: 'Pendiente';
 
     $data[] = $row;

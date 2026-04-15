@@ -515,6 +515,55 @@ foreach ($career_tree as &$cdata) {
 }
 unset($cdata);
 
+// ── Analytics data ───────────────────────────────────────────────────────────
+
+if ($jornada_fieldid) {
+    $an_jd_join  = "LEFT JOIN {user_info_data} jd ON jd.userid = u.id AND jd.fieldid = $jornada_fieldid";
+    $an_jd_field = "COALESCE(jd.data, 'Sin jornada')";
+} else {
+    $an_jd_join  = '';
+    $an_jd_field = "'Sin jornada'";
+}
+
+$analytics_rows = $DB->get_records_sql(
+    "SELECT
+         COALESCE(llu.status, 'activo')           AS academic_status,
+         COALESCE(fs.status, 'Pendiente')         AS financial_status,
+         lp.name                                  AS career,
+         $an_jd_field                             AS jornada,
+         COALESCE(best.level_label, 'Sin nivel')  AS nivel,
+         COUNT(DISTINCT u.id)                     AS cnt
+     FROM {user} u
+     JOIN {local_learning_users} llu ON llu.userid = u.id AND llu.userroleid = 5
+     JOIN {local_learning_plans} lp  ON lp.id = llu.learningplanid
+     LEFT JOIN {gmk_financial_status} fs ON fs.userid = u.id
+     $an_jd_join
+     LEFT JOIN (
+         SELECT gcp2.userid, MAX(gc2.level_label) AS level_label
+           FROM {gmk_course_progre} gcp2
+           JOIN {gmk_class} gc2 ON gc2.id = gcp2.classid
+                AND gc2.approved = 1 AND gc2.closed = 0 AND gc2.enddate > :anow
+          WHERE gcp2.status IN (1,2,3)
+          GROUP BY gcp2.userid
+     ) best ON best.userid = u.id
+     WHERE u.deleted = 0 AND u.id > 2
+     GROUP BY llu.status, fs.status, lp.name, $an_jd_field, best.level_label
+     ORDER BY lp.name, llu.status",
+    ['anow' => $now]
+);
+
+$analytics_json = [];
+foreach ($analytics_rows as $ar) {
+    $analytics_json[] = [
+        'academic_status'  => (string)$ar->academic_status,
+        'financial_status' => (string)$ar->financial_status,
+        'career'           => (string)$ar->career,
+        'jornada'          => (string)$ar->jornada,
+        'nivel'            => (string)$ar->nivel,
+        'cnt'              => (int)$ar->cnt,
+    ];
+}
+
 // ── Output ────────────────────────────────────────────────────────────────────
 
 echo $OUTPUT->header();
@@ -759,6 +808,41 @@ $sesskey = sesskey();
 
 /* ── Misc ────────────────────────────────────────────────────────── */
 .pop-empty { color: #94a3b8; font-size: 12px; font-style: italic; padding: 2px 0; }
+
+/* ── Analítica ───────────────────────────────────────────────────── */
+.pop-analytics-wrap {
+    margin-top: 36px; padding: 22px 24px; background: #fff;
+    border: 1.5px solid #e2e8f0; border-radius: 12px;
+}
+.pop-analytics-title {
+    font-size: 14px; font-weight: 800; letter-spacing: 0.5px;
+    color: #1e293b; text-transform: uppercase; margin: 0 0 16px;
+    border-bottom: 2px solid #e2e8f0; padding-bottom: 8px;
+}
+.pop-analytics-filters {
+    display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px;
+}
+.pop-af-group { display: flex; flex-direction: column; gap: 4px; min-width: 160px; }
+.pop-af-group label {
+    font-size: 11px; font-weight: 700; color: #64748b;
+    text-transform: uppercase; letter-spacing: 0.4px;
+}
+.pop-af-group select {
+    border: 1.5px solid #e2e8f0; border-radius: 7px;
+    padding: 6px 10px; font-size: 13px; color: #374151; background: #f8fafc;
+    cursor: pointer;
+}
+.pop-af-group select:focus { outline: none; border-color: #93c5fd; }
+.pop-analytics-charts {
+    display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap;
+}
+.pop-chart-box {
+    background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;
+    padding: 16px; position: relative;
+}
+.pop-analytics-note {
+    font-size: 11px; color: #94a3b8; font-style: italic; margin: 12px 0 0;
+}
 </style>
 
 <div class="pop-page">
@@ -959,6 +1043,44 @@ $sesskey = sesskey();
         </div>
     </div>
     <?php endif; ?>
+
+    <!-- ── Analítica ──────────────────────────────────────────────── -->
+    <div class="pop-analytics-wrap" id="popAnalyticsWrap">
+        <h2 class="pop-analytics-title">Analítica de Población</h2>
+        <div class="pop-analytics-filters">
+            <div class="pop-af-group">
+                <label>Carrera</label>
+                <select id="pafCareer"><option value="">Todas</option></select>
+            </div>
+            <div class="pop-af-group">
+                <label>Jornada</label>
+                <select id="pafJornada"><option value="">Todas</option></select>
+            </div>
+            <div class="pop-af-group">
+                <label>Nivel</label>
+                <select id="pafNivel"><option value="">Todos</option></select>
+            </div>
+            <div class="pop-af-group">
+                <label>Vista</label>
+                <select id="pafView">
+                    <option value="career">Por carrera</option>
+                    <option value="academic">Por estado académico</option>
+                </select>
+            </div>
+        </div>
+        <div class="pop-analytics-charts">
+            <div class="pop-chart-box" style="flex:2;min-width:300px">
+                <canvas id="popChartMain"></canvas>
+            </div>
+            <div class="pop-chart-box" style="flex:1;min-width:220px">
+                <canvas id="popChartDonut"></canvas>
+            </div>
+        </div>
+        <p class="pop-analytics-note">
+            * Incluye todos los estudiantes matriculados (activos e inactivos).
+            El nivel corresponde al MAX(level_label) de las clases activas del estudiante.
+        </p>
+    </div>
 
 </div><!-- /pop-page -->
 
@@ -1255,6 +1377,140 @@ window.popPrintPDF = function() {
     win.document.close();
     setTimeout(function() { win.print(); }, 600);
 };
+
+/* ── Analytics ─────────────────────────────────────────────────────── */
+var POP_ANALYTICS = <?php echo json_encode($analytics_json, JSON_UNESCAPED_UNICODE); ?>;
+
+(function() {
+    var FIN_COLORS = {
+        'al_dia':    { bg: 'rgba(22,163,74,0.75)',   border: '#16a34a' },
+        'mora':      { bg: 'rgba(220,38,38,0.75)',   border: '#dc2626' },
+        'becado':    { bg: 'rgba(37,99,235,0.75)',   border: '#2563eb' },
+        'convenio':  { bg: 'rgba(139,92,246,0.75)',  border: '#7c3aed' },
+        'Pendiente': { bg: 'rgba(148,163,184,0.75)', border: '#94a3b8' },
+    };
+    function getColor(key) {
+        return FIN_COLORS[key] || { bg: 'rgba(100,116,139,0.6)', border: '#64748b' };
+    }
+    function uniq(arr) { return [...new Set(arr)].sort(); }
+
+    var careers  = uniq(POP_ANALYTICS.map(function(r){ return r.career; }));
+    var jornadas = uniq(POP_ANALYTICS.map(function(r){ return r.jornada; }));
+    var nivelES  = uniq(POP_ANALYTICS.map(function(r){ return r.nivel; }));
+
+    function populate(selId, items) {
+        var sel = document.getElementById(selId);
+        items.forEach(function(v) {
+            var opt = document.createElement('option');
+            opt.value = v; opt.textContent = v; sel.appendChild(opt);
+        });
+    }
+    populate('pafCareer',  careers);
+    populate('pafJornada', jornadas);
+    populate('pafNivel',   nivelES);
+
+    var chartMain = null, chartDonut = null;
+
+    function getFiltered() {
+        var c = document.getElementById('pafCareer').value;
+        var j = document.getElementById('pafJornada').value;
+        var n = document.getElementById('pafNivel').value;
+        return POP_ANALYTICS.filter(function(r) {
+            return (!c || r.career === c) && (!j || r.jornada === j) && (!n || r.nivel === n);
+        });
+    }
+
+    function updateCharts() {
+        var rows = getFiltered();
+        var view = document.getElementById('pafView').value;
+        var xKey = view === 'career' ? 'career' : 'academic_status';
+
+        var xLabels = uniq(rows.map(function(r){ return r[xKey]; }));
+        var finKeys = uniq(rows.map(function(r){ return r.financial_status; }));
+
+        var agg = {};
+        rows.forEach(function(r) {
+            var x = r[xKey];
+            agg[x] = agg[x] || {};
+            agg[x][r.financial_status] = (agg[x][r.financial_status] || 0) + r.cnt;
+        });
+
+        var datasets = finKeys.map(function(fk) {
+            var col = getColor(fk);
+            return {
+                label: fk,
+                data: xLabels.map(function(x){ return agg[x] && agg[x][fk] ? agg[x][fk] : 0; }),
+                backgroundColor: col.bg,
+                borderColor: col.border,
+                borderWidth: 1,
+            };
+        });
+
+        if (chartMain) chartMain.destroy();
+        chartMain = new Chart(document.getElementById('popChartMain').getContext('2d'), {
+            type: 'bar',
+            data: { labels: xLabels, datasets: datasets },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { position: 'bottom', labels: { font: { size: 11 } } },
+                    title: {
+                        display: true,
+                        text: view === 'career'
+                            ? 'Estudiantes por Carrera \u2014 Estado Financiero'
+                            : 'Estudiantes por Estado Acad\u00e9mico \u2014 Estado Financiero',
+                        font: { size: 13, weight: '700' }, color: '#1e293b'
+                    }
+                },
+                scales: {
+                    x: { stacked: true, ticks: { font: { size: 10 }, maxRotation: 40 } },
+                    y: { stacked: true, beginAtZero: true, ticks: { font: { size: 11 }, precision: 0 } }
+                }
+            }
+        });
+
+        var finAgg = {};
+        rows.forEach(function(r) {
+            finAgg[r.financial_status] = (finAgg[r.financial_status] || 0) + r.cnt;
+        });
+        var dLabels = Object.keys(finAgg);
+        if (chartDonut) chartDonut.destroy();
+        chartDonut = new Chart(document.getElementById('popChartDonut').getContext('2d'), {
+            type: 'doughnut',
+            data: {
+                labels: dLabels,
+                datasets: [{
+                    data: dLabels.map(function(l){ return finAgg[l]; }),
+                    backgroundColor: dLabels.map(function(l){ return getColor(l).bg; }),
+                    borderColor:     dLabels.map(function(l){ return getColor(l).border; }),
+                    borderWidth: 1,
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { position: 'bottom', labels: { font: { size: 11 } } },
+                    title: { display: true, text: 'Distribuci\u00f3n Financiera',
+                             font: { size: 13, weight: '700' }, color: '#1e293b' }
+                }
+            }
+        });
+    }
+
+    ['pafCareer','pafJornada','pafNivel','pafView'].forEach(function(id) {
+        document.getElementById(id).addEventListener('change', updateCharts);
+    });
+
+    if (typeof Chart !== 'undefined') {
+        updateCharts();
+    } else {
+        var _si = setInterval(function(){
+            if (typeof Chart !== 'undefined') { clearInterval(_si); updateCharts(); }
+        }, 100);
+    }
+})();
 </script>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 
 <?php echo $OUTPUT->footer(); ?>
