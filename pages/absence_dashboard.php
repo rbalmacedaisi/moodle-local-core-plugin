@@ -416,7 +416,8 @@ if (optional_param('abs_ajax', 0, PARAM_INT)) {
                 $DB->insert_record('attendance_log', $log);
             }
             // Recalculate absences for this student in this class
-            $past_sids = absd_get_class_past_session_ids($classid);
+            $class_obj = $DB->get_record('gmk_class', ['id' => $classid], '*', MUST_EXIST);
+            $past_sids = absd_get_class_past_session_ids($class_obj, time());
             $new_absences = 0;
             if (!empty($past_sids)) {
                 list($in_sql, $in_params) = $DB->get_in_or_equal($past_sids, SQL_PARAMS_NAMED, 'sid');
