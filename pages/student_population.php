@@ -527,6 +527,7 @@ if ($jornada_fieldid) {
 
 $analytics_rows = $DB->get_records_sql(
     "SELECT
+         CONCAT(COALESCE(llu.status,'activo'),'|',COALESCE(fs.status,'Pendiente'),'|',lp.name,'|',$an_jd_field,'|',COALESCE(best.level_label,'Sin nivel')) AS rowkey,
          COALESCE(llu.status, 'activo')           AS academic_status,
          COALESCE(fs.status, 'Pendiente')         AS financial_status,
          lp.name                                  AS career,
