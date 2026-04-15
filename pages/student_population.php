@@ -834,15 +834,53 @@ $sesskey = sesskey();
     cursor: pointer;
 }
 .pop-af-group select:focus { outline: none; border-color: #93c5fd; }
-.pop-analytics-charts {
-    display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap;
+.pop-analytics-toolbar {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap;
 }
-.pop-chart-box {
-    background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;
-    padding: 16px; position: relative;
+.pop-anl-search {
+    flex: 1; min-width: 180px; max-width: 280px;
+    border: 1.5px solid #e2e8f0; border-radius: 7px;
+    padding: 6px 10px; font-size: 13px; color: #374151; background: #f8fafc;
 }
+.pop-anl-search:focus { outline: none; border-color: #93c5fd; }
+.pop-anl-table-wrap { overflow-x: auto; }
+.pop-anl-table {
+    width: 100%; border-collapse: collapse; font-size: 12px; white-space: nowrap;
+}
+.pop-anl-table thead tr:first-child th {
+    background: #1a56a4; color: #fff; font-size: 11px; font-weight: 700;
+    padding: 7px 10px; text-align: center; border: 1px solid #1e40af;
+}
+.pop-anl-table thead tr:last-child th {
+    background: #e8f0fe; color: #1e3a8a; font-size: 10px; font-weight: 700;
+    padding: 5px 8px; text-align: center; border: 1px solid #c7d7f8;
+    text-transform: uppercase; letter-spacing: 0.3px;
+}
+.pop-anl-table thead th.th-left { text-align: left; }
+.pop-anl-table tbody tr:nth-child(even) { background: #f8fafc; }
+.pop-anl-table tbody tr:hover { background: #eff6ff; }
+.pop-anl-table tbody td {
+    padding: 6px 10px; border: 1px solid #e2e8f0; text-align: center; vertical-align: middle;
+}
+.pop-anl-table tbody td.td-left { text-align: left; font-weight: 600; color: #1e293b; }
+.pop-anl-table tbody td.td-jornada { color: #475569; font-weight: 400; }
+.pop-anl-table tbody td.td-total {
+    font-weight: 800; color: #1a56a4; background: #eff6ff;
+}
+.pop-anl-cell-0 { color: #94a3b8; }
+.pop-anl-acad-activo    { background: rgba(22,163,74,.12);  color: #166534; font-weight: 600; }
+.pop-anl-acad-aplazado  { background: rgba(251,146,60,.15); color: #9a3412; font-weight: 600; }
+.pop-anl-acad-retirado  { background: rgba(220,38,38,.12);  color: #991b1b; font-weight: 600; }
+.pop-anl-acad-desertor  { background: rgba(220,38,38,.12);  color: #991b1b; font-weight: 600; }
+.pop-anl-acad-suspendido{ background: rgba(148,163,184,.18);color: #334155; font-weight: 600; }
+.pop-anl-acad-graduado  { background: rgba(37,99,235,.12);  color: #1e3a8a; font-weight: 600; }
+.pop-anl-fin-al_dia     { background: rgba(22,163,74,.12);  color: #166534; font-weight: 600; }
+.pop-anl-fin-mora       { background: rgba(220,38,38,.12);  color: #991b1b; font-weight: 600; }
+.pop-anl-fin-becado     { background: rgba(37,99,235,.12);  color: #1e3a8a; font-weight: 600; }
+.pop-anl-fin-convenio   { background: rgba(139,92,246,.12); color: #5b21b6; font-weight: 600; }
+.pop-anl-fin-Pendiente  { background: rgba(148,163,184,.18);color: #334155; font-weight: 600; }
 .pop-analytics-note {
-    font-size: 11px; color: #94a3b8; font-style: italic; margin: 12px 0 0;
+    font-size: 11px; color: #94a3b8; font-style: italic; margin: 10px 0 0;
 }
 </style>
 
@@ -1048,34 +1086,18 @@ $sesskey = sesskey();
     <!-- ── Analítica ──────────────────────────────────────────────── -->
     <div class="pop-analytics-wrap" id="popAnalyticsWrap">
         <h2 class="pop-analytics-title">Analítica de Población</h2>
-        <div class="pop-analytics-filters">
-            <div class="pop-af-group">
-                <label>Carrera</label>
-                <select id="pafCareer"><option value="">Todas</option></select>
-            </div>
-            <div class="pop-af-group">
-                <label>Jornada</label>
-                <select id="pafJornada"><option value="">Todas</option></select>
-            </div>
-            <div class="pop-af-group">
+        <div class="pop-analytics-toolbar">
+            <input type="text" id="pafSearch" class="pop-anl-search" placeholder="Buscar carrera…" oninput="panlUpdate()">
+            <div class="pop-af-group" style="min-width:140px">
                 <label>Nivel</label>
-                <select id="pafNivel"><option value="">Todos</option></select>
-            </div>
-            <div class="pop-af-group">
-                <label>Vista</label>
-                <select id="pafView">
-                    <option value="career">Por carrera</option>
-                    <option value="academic">Por estado académico</option>
-                </select>
+                <select id="pafNivel" onchange="panlUpdate()"><option value="">Todos</option></select>
             </div>
         </div>
-        <div class="pop-analytics-charts">
-            <div class="pop-chart-box" style="flex:2;min-width:300px">
-                <canvas id="popChartMain"></canvas>
-            </div>
-            <div class="pop-chart-box" style="flex:1;min-width:220px">
-                <canvas id="popChartDonut"></canvas>
-            </div>
+        <div class="pop-anl-table-wrap">
+            <table class="pop-anl-table" id="panlTable">
+                <thead id="panlThead"></thead>
+                <tbody id="panlTbody"></tbody>
+            </table>
         </div>
         <p class="pop-analytics-note">
             * Incluye todos los estudiantes matriculados (activos e inactivos).
@@ -1379,139 +1401,120 @@ window.popPrintPDF = function() {
     setTimeout(function() { win.print(); }, 600);
 };
 
-/* ── Analytics ─────────────────────────────────────────────────────── */
+/* ── Analytics table ────────────────────────────────────────────────── */
 var POP_ANALYTICS = <?php echo json_encode($analytics_json, JSON_UNESCAPED_UNICODE); ?>;
 
 (function() {
-    var FIN_COLORS = {
-        'al_dia':    { bg: 'rgba(22,163,74,0.75)',   border: '#16a34a' },
-        'mora':      { bg: 'rgba(220,38,38,0.75)',   border: '#dc2626' },
-        'becado':    { bg: 'rgba(37,99,235,0.75)',   border: '#2563eb' },
-        'convenio':  { bg: 'rgba(139,92,246,0.75)',  border: '#7c3aed' },
-        'Pendiente': { bg: 'rgba(148,163,184,0.75)', border: '#94a3b8' },
+    // Friendly labels
+    var ACAD_LABEL = {
+        'activo':'Activo','aplazado':'Aplazado','retirado':'Retirado',
+        'desertor':'Desertor','suspendido':'Suspendido','graduado':'Graduado'
     };
-    function getColor(key) {
-        return FIN_COLORS[key] || { bg: 'rgba(100,116,139,0.6)', border: '#64748b' };
-    }
-    function uniq(arr) { return [...new Set(arr)].sort(); }
+    var FIN_LABEL = {
+        'al_dia':'Al día','mora':'Mora','becado':'Becado',
+        'convenio':'Convenio','Pendiente':'Pendiente'
+    };
+    function acadLabel(k){ return ACAD_LABEL[k] || k; }
+    function finLabel(k){  return FIN_LABEL[k]  || k; }
 
-    var careers  = uniq(POP_ANALYTICS.map(function(r){ return r.career; }));
-    var jornadas = uniq(POP_ANALYTICS.map(function(r){ return r.jornada; }));
-    var nivelES  = uniq(POP_ANALYTICS.map(function(r){ return r.nivel; }));
+    function uniq(arr){ return [...new Set(arr)].sort(); }
 
-    function populate(selId, items) {
-        var sel = document.getElementById(selId);
-        items.forEach(function(v) {
-            var opt = document.createElement('option');
-            opt.value = v; opt.textContent = v; sel.appendChild(opt);
-        });
-    }
-    populate('pafCareer',  careers);
-    populate('pafJornada', jornadas);
-    populate('pafNivel',   nivelES);
-
-    var chartMain = null, chartDonut = null;
-
-    function getFiltered() {
-        var c = document.getElementById('pafCareer').value;
-        var j = document.getElementById('pafJornada').value;
-        var n = document.getElementById('pafNivel').value;
-        return POP_ANALYTICS.filter(function(r) {
-            return (!c || r.career === c) && (!j || r.jornada === j) && (!n || r.nivel === n);
-        });
-    }
-
-    function updateCharts() {
-        var rows = getFiltered();
-        var view = document.getElementById('pafView').value;
-        var xKey = view === 'career' ? 'career' : 'academic_status';
-
-        var xLabels = uniq(rows.map(function(r){ return r[xKey]; }));
-        var finKeys = uniq(rows.map(function(r){ return r.financial_status; }));
-
-        var agg = {};
-        rows.forEach(function(r) {
-            var x = r[xKey];
-            agg[x] = agg[x] || {};
-            agg[x][r.financial_status] = (agg[x][r.financial_status] || 0) + r.cnt;
-        });
-
-        var datasets = finKeys.map(function(fk) {
-            var col = getColor(fk);
-            return {
-                label: fk,
-                data: xLabels.map(function(x){ return agg[x] && agg[x][fk] ? agg[x][fk] : 0; }),
-                backgroundColor: col.bg,
-                borderColor: col.border,
-                borderWidth: 1,
-            };
-        });
-
-        if (chartMain) chartMain.destroy();
-        chartMain = new Chart(document.getElementById('popChartMain').getContext('2d'), {
-            type: 'bar',
-            data: { labels: xLabels, datasets: datasets },
-            options: {
-                responsive: true,
-                plugins: {
-                    legend: { position: 'bottom', labels: { font: { size: 11 } } },
-                    title: {
-                        display: true,
-                        text: view === 'career'
-                            ? 'Estudiantes por Carrera \u2014 Estado Financiero'
-                            : 'Estudiantes por Estado Acad\u00e9mico \u2014 Estado Financiero',
-                        font: { size: 13, weight: '700' }, color: '#1e293b'
-                    }
-                },
-                scales: {
-                    x: { stacked: true, ticks: { font: { size: 10 }, maxRotation: 40 } },
-                    y: { stacked: true, beginAtZero: true, ticks: { font: { size: 11 }, precision: 0 } }
-                }
-            }
-        });
-
-        var finAgg = {};
-        rows.forEach(function(r) {
-            finAgg[r.financial_status] = (finAgg[r.financial_status] || 0) + r.cnt;
-        });
-        var dLabels = Object.keys(finAgg);
-        if (chartDonut) chartDonut.destroy();
-        chartDonut = new Chart(document.getElementById('popChartDonut').getContext('2d'), {
-            type: 'doughnut',
-            data: {
-                labels: dLabels,
-                datasets: [{
-                    data: dLabels.map(function(l){ return finAgg[l]; }),
-                    backgroundColor: dLabels.map(function(l){ return getColor(l).bg; }),
-                    borderColor:     dLabels.map(function(l){ return getColor(l).border; }),
-                    borderWidth: 1,
-                }]
-            },
-            options: {
-                responsive: true,
-                plugins: {
-                    legend: { position: 'bottom', labels: { font: { size: 11 } } },
-                    title: { display: true, text: 'Distribuci\u00f3n Financiera',
-                             font: { size: 13, weight: '700' }, color: '#1e293b' }
-                }
-            }
-        });
-    }
-
-    ['pafCareer','pafJornada','pafNivel','pafView'].forEach(function(id) {
-        document.getElementById(id).addEventListener('change', updateCharts);
+    // Populate nivel filter
+    var allNiveles = uniq(POP_ANALYTICS.map(function(r){ return r.nivel; }));
+    var selNivel = document.getElementById('pafNivel');
+    allNiveles.forEach(function(v){
+        var o = document.createElement('option'); o.value = v; o.textContent = v;
+        selNivel.appendChild(o);
     });
 
-    if (typeof Chart !== 'undefined') {
-        updateCharts();
-    } else {
-        var _si = setInterval(function(){
-            if (typeof Chart !== 'undefined') { clearInterval(_si); updateCharts(); }
-        }, 100);
-    }
-})();
-</script>
+    window.panlUpdate = function() {
+        var search = document.getElementById('pafSearch').value.trim().toLowerCase();
+        var nivel  = document.getElementById('pafNivel').value;
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+        // Filter rows
+        var rows = POP_ANALYTICS.filter(function(r){
+            return (!nivel  || r.nivel === nivel)
+                && (!search || r.career.toLowerCase().indexOf(search) !== -1);
+        });
+
+        // Collect all distinct academic and financial statuses present in filtered data
+        var acadKeys = uniq(rows.map(function(r){ return r.academic_status; }));
+        var finKeys  = uniq(rows.map(function(r){ return r.financial_status; }));
+
+        // Aggregate: career+jornada → { acad:{}, fin:{}, total }
+        var agg = {};   // key = career+'||'+jornada
+        var careerOrder = [];
+        rows.forEach(function(r) {
+            var k = r.career + '||' + r.jornada;
+            if (!agg[k]) {
+                agg[k] = { career: r.career, jornada: r.jornada, acad: {}, fin: {}, total: 0 };
+                careerOrder.push(k);
+            }
+            agg[k].acad[r.academic_status] = (agg[k].acad[r.academic_status] || 0) + r.cnt;
+            agg[k].fin[r.financial_status]  = (agg[k].fin[r.financial_status]  || 0) + r.cnt;
+            agg[k].total += r.cnt;
+        });
+
+        // Totals row
+        var totAcad = {}, totFin = {}, totAll = 0;
+        careerOrder.forEach(function(k){
+            var d = agg[k];
+            acadKeys.forEach(function(a){ totAcad[a] = (totAcad[a]||0) + (d.acad[a]||0); });
+            finKeys.forEach(function(f){  totFin[f]  = (totFin[f] ||0) + (d.fin[f] ||0);  });
+            totAll += d.total;
+        });
+
+        function acadClass(k)  { return 'pop-anl-acad-' + k; }
+        function finClass(k)   { return 'pop-anl-fin-'  + k; }
+        function cell(v, cls) {
+            if (!v) return '<td class="pop-anl-cell-0">—</td>';
+            return '<td class="' + cls + '">' + v + '</td>';
+        }
+
+        // Build thead
+        var nAcad = acadKeys.length, nFin = finKeys.length;
+        var thead =
+            '<tr>' +
+                '<th class="th-left" rowspan="2">Carrera</th>' +
+                '<th class="th-left" rowspan="2">Jornada</th>' +
+                '<th rowspan="2">Total</th>' +
+                (nAcad ? '<th colspan="' + nAcad + '">Estado Acad\u00e9mico</th>' : '') +
+                (nFin  ? '<th colspan="' + nFin  + '">Estado Financiero</th>'    : '') +
+            '</tr>' +
+            '<tr>' +
+                acadKeys.map(function(a){ return '<th>' + acadLabel(a) + '</th>'; }).join('') +
+                finKeys.map(function(f){  return '<th>' + finLabel(f)  + '</th>'; }).join('') +
+            '</tr>';
+
+        // Build tbody
+        var tbody = '';
+        careerOrder.forEach(function(k) {
+            var d = agg[k];
+            tbody += '<tr>' +
+                '<td class="td-left">'    + esc(d.career)  + '</td>' +
+                '<td class="td-jornada">' + esc(d.jornada) + '</td>' +
+                '<td class="td-total">'   + d.total        + '</td>' +
+                acadKeys.map(function(a){ return cell(d.acad[a]||0, acadClass(a)); }).join('') +
+                finKeys.map(function(f){  return cell(d.fin[f] ||0, finClass(f));  }).join('') +
+            '</tr>';
+        });
+
+        // Totals row
+        if (careerOrder.length > 1) {
+            tbody +=
+                '<tr style="border-top:2px solid #1a56a4;font-weight:800">' +
+                '<td class="td-left" colspan="2" style="background:#e8f0fe;color:#1e3a8a">TOTAL</td>' +
+                '<td class="td-total" style="background:#dbeafe">' + totAll + '</td>' +
+                acadKeys.map(function(a){ return '<td style="font-weight:800">' + (totAcad[a]||0) + '</td>'; }).join('') +
+                finKeys.map(function(f){  return '<td style="font-weight:800">' + (totFin[f] ||0) + '</td>'; }).join('') +
+                '</tr>';
+        }
+
+        document.getElementById('panlThead').innerHTML = thead;
+        document.getElementById('panlTbody').innerHTML = tbody || '<tr><td colspan="99" style="text-align:center;color:#94a3b8;padding:16px">Sin resultados</td></tr>';
+    };
+
+    panlUpdate();
+})();
 
 <?php echo $OUTPUT->footer(); ?>
