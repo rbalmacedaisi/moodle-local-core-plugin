@@ -980,13 +980,15 @@ if (!empty($all_ids)) {
         $class_total_absences[$cid] = array_sum($studentabs);
 
         // Count active (< 3 absences) vs inactive (>= 3 absences) students.
-        $active_cnt = 0; $inactive_cnt = 0;
+        $active_uids = []; $inactive_uids = [];
         foreach ($enrolleduserids as $uid) {
             $abs = $studentabs[(int)$uid] ?? 0;
-            if ($abs < 3) { $active_cnt++; } else { $inactive_cnt++; }
+            if ($abs < 3) { $active_uids[] = (int)$uid; } else { $inactive_uids[] = (int)$uid; }
         }
-        $class_active_students[$cid]   = $active_cnt;
-        $class_inactive_students[$cid] = $inactive_cnt;
+        $class_active_uids[$cid]       = $active_uids;
+        $class_inactive_uids[$cid]     = $inactive_uids;
+        $class_active_students[$cid]   = count($active_uids);
+        $class_inactive_students[$cid] = count($inactive_uids);
     }
 }
 
@@ -1350,19 +1352,30 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
     <?php if (empty($career_tree)): ?>
         <div class="alert alert-warning">No hay estudiantes activos registrados.</div>
     <?php else:
-    $grand_active = 0; $grand_inactive = 0;
+    $grand_all_uids = []; $grand_inactive_uids = [];
     foreach ($career_tree as $careerKey => $careerData): if (empty($careerData['shifts'])) continue; ?>
 
     <div class="absd-career-section">
         <?php
-        $plan_active = 0; $plan_inactive = 0;
+        // Deduplicate: a student inactive in ANY class in the plan = inactivo.
+        $plan_all_uids = []; $plan_inactive_uids = [];
         foreach ($careerData['shifts'] as $sd) {
             foreach ($sd['classes'] as $cls) {
                 $cid = (int)$cls->id;
-                $plan_active   += $class_active_students[$cid]   ?? 0;
-                $plan_inactive += $class_inactive_students[$cid] ?? 0;
+                foreach ($class_inactive_uids[$cid] ?? [] as $uid) {
+                    $plan_all_uids[$uid] = true;
+                    $plan_inactive_uids[$uid] = true;
+                    $grand_all_uids[$uid] = true;
+                    $grand_inactive_uids[$uid] = true;
+                }
+                foreach ($class_active_uids[$cid] ?? [] as $uid) {
+                    $plan_all_uids[$uid] = true;
+                    $grand_all_uids[$uid] = true;
+                }
             }
         }
+        $plan_inactive = count($plan_inactive_uids);
+        $plan_active   = count($plan_all_uids) - $plan_inactive;
         ?>
         <h2 class="absd-career-title">
             <span><?php echo s(strtoupper($careerKey)); ?></span>
@@ -1374,19 +1387,25 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
 
         <div class="absd-houses-row">
         <?php foreach ($careerData['shifts'] as $shiftName => $shiftData):
-            // Aggregate absence % and active/inactive counts across this shift
-            $sh_total_abs = 0; $sh_total_exp = 0; $sh_active = 0; $sh_inactive = 0;
+            // Aggregate absence % and deduplicated active/inactive counts across this shift.
+            $sh_total_abs = 0; $sh_total_exp = 0;
+            $sh_all_uids = []; $sh_inactive_uids = [];
             foreach ($shiftData['classes'] as $cls) {
                 $cid      = (int)$cls->id;
                 $sessions = $class_past_sessions[$cid] ?? 0;
                 $enrolled = (int)$cls->student_count;
-                $sh_total_abs   += $class_total_absences[$cid]    ?? 0;
-                $sh_total_exp   += $sessions * $enrolled;
-                $sh_active      += $class_active_students[$cid]   ?? 0;
-                $sh_inactive    += $class_inactive_students[$cid] ?? 0;
-                $grand_active   += $class_active_students[$cid]   ?? 0;
-                $grand_inactive += $class_inactive_students[$cid] ?? 0;
+                $sh_total_abs += $class_total_absences[$cid] ?? 0;
+                $sh_total_exp += $sessions * $enrolled;
+                foreach ($class_inactive_uids[$cid] ?? [] as $uid) {
+                    $sh_all_uids[$uid] = true;
+                    $sh_inactive_uids[$uid] = true;
+                }
+                foreach ($class_active_uids[$cid] ?? [] as $uid) {
+                    $sh_all_uids[$uid] = true;
+                }
             }
+            $sh_inactive = count($sh_inactive_uids);
+            $sh_active   = count($sh_all_uids) - $sh_inactive;
             $shift_pct    = $sh_total_exp > 0 ? round($sh_total_abs / $sh_total_exp * 100, 1) : -1;
             $pct_color    = $shift_pct >= 0 ? absd_pct_color($shift_pct) : '#64748b';
             $pct_bg       = $shift_pct >= 0 ? absd_pct_bg($shift_pct) : '#f8fafc';
@@ -1484,6 +1503,7 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
     <?php endforeach; ?>
     <div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:12px 20px;display:flex;align-items:center;gap:12px;margin-top:8px;flex-wrap:wrap">
         <span style="font-size:13px;font-weight:700;color:#374151">Total general:</span>
+        <?php $grand_inactive = count($grand_inactive_uids); $grand_active = count($grand_all_uids) - $grand_inactive; ?>
         <span style="background:#dcfce7;color:#166534;border-radius:5px;padding:3px 12px;font-size:13px;font-weight:700">&#10003; <?php echo $grand_active; ?> activos</span>
         <span style="background:#fee2e2;color:#991b1b;border-radius:5px;padding:3px 12px;font-size:13px;font-weight:700">&#10007; <?php echo $grand_inactive; ?> inactivos</span>
         <span style="font-size:11px;color:#64748b">(<?php echo $grand_active + $grand_inactive; ?> estudiantes en seguimiento)</span>
