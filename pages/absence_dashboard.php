@@ -1099,6 +1099,7 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
 /* ── Career section ──────────────────────────────────────────────── */
 .absd-career-section { margin-bottom: 28px; }
 .absd-career-title {
+    display: flex; align-items: center;
     font-size: 12px; font-weight: 800; letter-spacing: 1px; color: #2d3748;
     text-transform: uppercase; margin: 0 0 10px; padding-bottom: 5px;
     border-bottom: 2px solid #e2e8f0;
@@ -1348,23 +1349,43 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
     <!-- Career sections ──────────────────────────────────────────────── -->
     <?php if (empty($career_tree)): ?>
         <div class="alert alert-warning">No hay estudiantes activos registrados.</div>
-    <?php else: foreach ($career_tree as $careerKey => $careerData): if (empty($careerData['shifts'])) continue; ?>
+    <?php else:
+    $grand_active = 0; $grand_inactive = 0;
+    foreach ($career_tree as $careerKey => $careerData): if (empty($careerData['shifts'])) continue; ?>
 
     <div class="absd-career-section">
+        <?php
+        $plan_active = 0; $plan_inactive = 0;
+        foreach ($careerData['shifts'] as $sd) {
+            foreach ($sd['classes'] as $cls) {
+                $cid = (int)$cls->id;
+                $plan_active   += $class_active_students[$cid]   ?? 0;
+                $plan_inactive += $class_inactive_students[$cid] ?? 0;
+            }
+        }
+        ?>
         <h2 class="absd-career-title">
             <span><?php echo s(strtoupper($careerKey)); ?></span>
+            <span style="display:flex;gap:6px;align-items:center;margin-left:auto">
+                <span style="background:#dcfce7;color:#166534;border-radius:4px;padding:2px 9px;font-size:12px;font-weight:700">&#10003; <?php echo $plan_active; ?> activos</span>
+                <span style="background:#fee2e2;color:#991b1b;border-radius:4px;padding:2px 9px;font-size:12px;font-weight:700">&#10007; <?php echo $plan_inactive; ?> inactivos</span>
+            </span>
         </h2>
 
         <div class="absd-houses-row">
         <?php foreach ($careerData['shifts'] as $shiftName => $shiftData):
-            // Aggregate absence % across this shift
-            $sh_total_abs = 0; $sh_total_exp = 0;
+            // Aggregate absence % and active/inactive counts across this shift
+            $sh_total_abs = 0; $sh_total_exp = 0; $sh_active = 0; $sh_inactive = 0;
             foreach ($shiftData['classes'] as $cls) {
                 $cid      = (int)$cls->id;
                 $sessions = $class_past_sessions[$cid] ?? 0;
                 $enrolled = (int)$cls->student_count;
-                $sh_total_abs += $class_total_absences[$cid] ?? 0;
-                $sh_total_exp += $sessions * $enrolled;
+                $sh_total_abs   += $class_total_absences[$cid]    ?? 0;
+                $sh_total_exp   += $sessions * $enrolled;
+                $sh_active      += $class_active_students[$cid]   ?? 0;
+                $sh_inactive    += $class_inactive_students[$cid] ?? 0;
+                $grand_active   += $class_active_students[$cid]   ?? 0;
+                $grand_inactive += $class_inactive_students[$cid] ?? 0;
             }
             $shift_pct    = $sh_total_exp > 0 ? round($sh_total_abs / $sh_total_exp * 100, 1) : -1;
             $pct_color    = $shift_pct >= 0 ? absd_pct_color($shift_pct) : '#64748b';
@@ -1391,6 +1412,10 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
                             <?php else: ?>
                             <span style="font-size:11px;color:#94a3b8;font-style:italic">Sin datos de asistencia</span>
                             <?php endif; ?>
+                            <div style="display:flex;gap:6px;margin-top:4px">
+                                <span style="background:#dcfce7;color:#166534;border-radius:4px;padding:2px 7px;font-size:11px;font-weight:700">&#10003; <?php echo $sh_active; ?> activos</span>
+                                <span style="background:#fee2e2;color:#991b1b;border-radius:4px;padding:2px 7px;font-size:11px;font-weight:700">&#10007; <?php echo $sh_inactive; ?> inactivos</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1456,7 +1481,14 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
         </div>
     </div>
 
-    <?php endforeach; endif; ?>
+    <?php endforeach; ?>
+    <div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:12px 20px;display:flex;align-items:center;gap:12px;margin-top:8px;flex-wrap:wrap">
+        <span style="font-size:13px;font-weight:700;color:#374151">Total general:</span>
+        <span style="background:#dcfce7;color:#166534;border-radius:5px;padding:3px 12px;font-size:13px;font-weight:700">&#10003; <?php echo $grand_active; ?> activos</span>
+        <span style="background:#fee2e2;color:#991b1b;border-radius:5px;padding:3px 12px;font-size:13px;font-weight:700">&#10007; <?php echo $grand_inactive; ?> inactivos</span>
+        <span style="font-size:11px;color:#64748b">(<?php echo $grand_active + $grand_inactive; ?> estudiantes en seguimiento)</span>
+    </div>
+    <?php endif; ?>
 
     <!-- TRONCO COMÚN ─────────────────────────────────────────────────── -->
     <?php if (!empty($tc_classes)):
