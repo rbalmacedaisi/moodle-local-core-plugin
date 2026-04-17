@@ -1367,8 +1367,31 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
     <?php if (empty($career_tree)): ?>
         <div class="alert alert-warning">No hay estudiantes activos registrados.</div>
     <?php else:
+    // Pre-compute grand totals so they can be displayed before the render loop.
     $grand_all_uids = []; $grand_inactive_uids = [];
-    foreach ($career_tree as $careerKey => $careerData): if (empty($careerData['shifts'])) continue; ?>
+    foreach ($career_tree as $_gcd) {
+        foreach ($_gcd['shifts'] as $_gsd) {
+            foreach ($_gsd['classes'] as $_gcls) {
+                $_gcid = (int)$_gcls->id;
+                foreach ($class_inactive_uids[$_gcid] ?? [] as $uid) {
+                    $grand_all_uids[$uid] = true; $grand_inactive_uids[$uid] = true;
+                }
+                foreach ($class_active_uids[$_gcid] ?? [] as $uid) {
+                    $grand_all_uids[$uid] = true;
+                }
+            }
+        }
+    }
+    $grand_inactive_cnt = count($grand_inactive_uids);
+    $grand_active_cnt   = count($grand_all_uids) - $grand_inactive_cnt;
+    ?>
+    <div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:12px 20px;display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+        <span style="font-size:13px;font-weight:700;color:#374151">Total general:</span>
+        <span style="background:#dcfce7;color:#166534;border-radius:5px;padding:3px 12px;font-size:13px;font-weight:700">&#10003; <?php echo $grand_active_cnt; ?> activos</span>
+        <span style="background:#fee2e2;color:#991b1b;border-radius:5px;padding:3px 12px;font-size:13px;font-weight:700">&#10007; <?php echo $grand_inactive_cnt; ?> inactivos</span>
+        <span style="font-size:11px;color:#64748b">(<?php echo $grand_active_cnt + $grand_inactive_cnt; ?> estudiantes en seguimiento)</span>
+    </div>
+    <?php foreach ($career_tree as $careerKey => $careerData): if (empty($careerData['shifts'])) continue; ?>
 
     <div class="absd-career-section">
         <?php
@@ -1380,12 +1403,9 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
                 foreach ($class_inactive_uids[$cid] ?? [] as $uid) {
                     $plan_all_uids[$uid] = true;
                     $plan_inactive_uids[$uid] = true;
-                    $grand_all_uids[$uid] = true;
-                    $grand_inactive_uids[$uid] = true;
                 }
                 foreach ($class_active_uids[$cid] ?? [] as $uid) {
                     $plan_all_uids[$uid] = true;
-                    $grand_all_uids[$uid] = true;
                 }
             }
         }
@@ -1515,15 +1535,7 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
         </div>
     </div>
 
-    <?php endforeach; ?>
-    <div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:12px 20px;display:flex;align-items:center;gap:12px;margin-top:8px;flex-wrap:wrap">
-        <span style="font-size:13px;font-weight:700;color:#374151">Total general:</span>
-        <?php $grand_inactive = count($grand_inactive_uids); $grand_active = count($grand_all_uids) - $grand_inactive; ?>
-        <span style="background:#dcfce7;color:#166534;border-radius:5px;padding:3px 12px;font-size:13px;font-weight:700">&#10003; <?php echo $grand_active; ?> activos</span>
-        <span style="background:#fee2e2;color:#991b1b;border-radius:5px;padding:3px 12px;font-size:13px;font-weight:700">&#10007; <?php echo $grand_inactive; ?> inactivos</span>
-        <span style="font-size:11px;color:#64748b">(<?php echo $grand_active + $grand_inactive; ?> estudiantes en seguimiento)</span>
-    </div>
-    <?php endif; ?>
+    <?php endforeach; endif; ?>
 
     <!-- TRONCO COMÚN ─────────────────────────────────────────────────── -->
     <?php if (!empty($tc_classes)):
