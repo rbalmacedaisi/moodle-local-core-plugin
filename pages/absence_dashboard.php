@@ -952,7 +952,7 @@ $class_inactive_students = []; // classid => students with >= 3 absences
 if (!empty($all_ids)) {
     [$insql, $inparams] = $DB->get_in_or_equal($all_ids, SQL_PARAMS_NAMED, 'cidbase');
     $classbase = $DB->get_records_sql(
-        "SELECT id, courseid, corecourseid, groupid, attendancemoduleid, initdate, enddate
+        "SELECT id, courseid, corecourseid, groupid, attendancemoduleid, initdate, enddate, learningplanid
            FROM {gmk_class}
           WHERE id $insql",
         $inparams
@@ -967,28 +967,43 @@ if (!empty($all_ids)) {
         $pastsessionids = absd_get_class_past_session_ids($base, $now);
         $takensessionids = absd_get_taken_session_ids($pastsessionids);
         $class_past_sessions[$cid] = count($takensessionids);
-        if (empty($takensessionids)) {
-            continue;
-        }
 
         $enrolleduserids = absd_get_class_enrolled_userids((int)$cid);
         if (empty($enrolleduserids)) {
             continue;
         }
 
-        $studentabs = absd_get_student_absences($takensessionids, $enrolleduserids);
-        $class_total_absences[$cid] = array_sum($studentabs);
-
-        // Count active (< 3 absences) vs inactive (>= 3 absences) students.
+        // Classify by academic status (local_learning_users.status).
+        $planid = (int)($base->learningplanid ?? 0);
+        [$_st_insql, $_st_params] = $DB->get_in_or_equal(array_values($enrolleduserids), SQL_PARAMS_NAMED, 'stuid');
+        $_st_map = [];
+        foreach ($DB->get_records_sql(
+            "SELECT userid, status FROM {local_learning_users}
+              WHERE userroleid = 5 AND learningplanid = :planid AND userid $_st_insql",
+            array_merge(['planid' => $planid], $_st_params)
+        ) as $_sr) {
+            $_st_map[(int)$_sr->userid] = (string)$_sr->status;
+        }
         $active_uids = []; $inactive_uids = [];
         foreach ($enrolleduserids as $uid) {
-            $abs = $studentabs[(int)$uid] ?? 0;
-            if ($abs < 3) { $active_uids[] = (int)$uid; } else { $inactive_uids[] = (int)$uid; }
+            $st = $_st_map[(int)$uid] ?? 'activo';
+            if ($st === 'activo' || $st === '') {
+                $active_uids[] = (int)$uid;
+            } else {
+                $inactive_uids[] = (int)$uid;
+            }
         }
         $class_active_uids[$cid]       = $active_uids;
         $class_inactive_uids[$cid]     = $inactive_uids;
         $class_active_students[$cid]   = count($active_uids);
         $class_inactive_students[$cid] = count($inactive_uids);
+
+        if (empty($takensessionids)) {
+            continue;
+        }
+
+        $studentabs = absd_get_student_absences($takensessionids, $enrolleduserids);
+        $class_total_absences[$cid] = array_sum($studentabs);
     }
 }
 
