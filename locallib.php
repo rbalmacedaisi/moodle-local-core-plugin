@@ -8125,9 +8125,10 @@ function gmk_get_pending_grading_items($userid, $classid = 0, $status = 'pending
         $assign_params['instructorid'] = $userid;
     }
 
-    $assign_grade_condition = ($status === 'history') ? "(g.grade IS NOT NULL AND g.grade >= 0)" : "(g.grade IS NULL OR g.grade < 0)";
-    // For history: also include reopened submissions (status='new') that still carry a grade from the previous attempt.
-    $assign_status_condition = ($status === 'history') ? "s.status IN ('submitted', 'new')" : "s.status = 'submitted'";
+    // For pending: 'reopened' bypasses the grade filter so teacher can track them even if previously graded.
+    $assign_grade_condition = ($status === 'history') ? "(g.grade IS NOT NULL AND g.grade >= 0)" : "(s.status = 'reopened' OR g.grade IS NULL OR g.grade < 0)";
+    // For history: keep 'new' for backwards compat + add 'reopened'. For pending: include 'reopened' so teacher sees who is awaiting resubmission.
+    $assign_status_condition = ($status === 'history') ? "s.status IN ('submitted', 'new', 'reopened')" : "s.status IN ('submitted', 'reopened')";
 
     $sql_assign = "SELECT s.id as submissionid, s.userid, s.assignment as itemid, s.timecreated as submissiontime,
                           s.status as submissionstatus,
