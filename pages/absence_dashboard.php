@@ -2367,6 +2367,8 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
                         '<span style="background:#f0fdf4;color:#166534;border:1px solid #86efac;border-radius:6px;padding:8px 16px;font-size:13px;font-weight:700">&#10003; Procesados: ' + (data.processed || 0) + '</span>' +
                         '<span style="background:#fef2f2;color:#991b1b;border:1px solid #fca5a5;border-radius:6px;padding:8px 16px;font-size:13px;font-weight:700">&#10007; Marcados inactivos: ' + (data.marked_inactive || 0) + '</span>' +
                         '<span style="background:#fefce8;color:#92400e;border:1px solid #fde68a;border-radius:6px;padding:8px 16px;font-size:13px;font-weight:700">&#128274; Con excepción: ' + (data.skipped_exempt || 0) + '</span>' +
+                        '<span style="background:#eff6ff;color:#1d4ed8;border:1px solid #93c5fd;border-radius:6px;padding:8px 16px;font-size:13px;font-weight:700">&#128179; Al día (omitidos): ' + (data.skipped_financial || 0) + '</span>' +
+                        '<span style="background:#f0fdf4;color:#15803d;border:1px solid #4ade80;border-radius:6px;padding:8px 16px;font-size:13px;font-weight:700">&#8635; Reactivados: ' + (data.reactivated || 0) + '</span>' +
                         '</div>' + errHtml + '</div>';
                 }
                 resultModal.style.display = 'flex';

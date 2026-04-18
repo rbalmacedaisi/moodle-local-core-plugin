@@ -520,6 +520,43 @@ function absd_mark_user_inactive(int $userid, int $studentstatus_fieldid): void 
 }
 
 /**
+ * Reverse the three-field inactivation for a single user.
+ * Only restores learning-plan rows that were set to 'suspendido'; other
+ * statuses (retirado, aplazado, desertor…) are left untouched.
+ *
+ * @param int $userid
+ * @param int $studentstatus_fieldid  Field ID of the `studentstatus` custom profile field.
+ * @return void
+ */
+function absd_mark_user_active(int $userid, int $studentstatus_fieldid): void {
+    global $DB;
+
+    // 1. Unsuspend Moodle account.
+    $DB->set_field('user', 'suspended', 0, ['id' => $userid]);
+
+    // 2. Custom profile field studentstatus → 'Activo'.
+    if ($studentstatus_fieldid > 0) {
+        $existing = $DB->get_record('user_info_data', ['userid' => $userid, 'fieldid' => $studentstatus_fieldid]);
+        if ($existing) {
+            $DB->set_field('user_info_data', 'data', 'Activo', ['id' => $existing->id]);
+        } else {
+            $rec = new stdClass();
+            $rec->userid     = $userid;
+            $rec->fieldid    = $studentstatus_fieldid;
+            $rec->data       = 'Activo';
+            $rec->dataformat = 0;
+            $DB->insert_record('user_info_data', $rec);
+        }
+    }
+
+    // 3. Restore only the entries the absence-check suspended.
+    $DB->execute(
+        "UPDATE {local_learning_users} SET status = 'activo' WHERE userid = :uid AND status = 'suspendido'",
+        ['uid' => $userid]
+    );
+}
+
+/**
  * Check if a user has an absence exemption (either global or for a specific class).
  *
  * @param int $userid
@@ -601,7 +638,15 @@ function absd_toggle_user_exempt(int $userid, int $classid = 0): bool {
 function absd_run_absence_inactivation_check(): array {
     global $DB;
 
-    $summary = ['processed' => 0, 'marked_inactive' => 0, 'skipped_exempt' => 0, 'errors' => []];
+    $summary = [
+        'processed'         => 0,
+        'marked_inactive'   => 0,
+        'skipped_exempt'    => 0,
+        'skipped_financial' => 0,
+        'reactivated'       => 0,
+        'errors'            => [],
+    ];
+    $reactivated_uids = []; // track cross-class to avoid double-counting
     $nowts = time();
 
     // Studentstatus field id.
@@ -632,8 +677,42 @@ function absd_run_absence_inactivation_check(): array {
 
             $studentabs = absd_get_student_absences($takensessionids, $enrolleduserids);
 
+            // Pre-fetch financial status for all enrolled students in this class.
+            $enrolled_array = array_values($enrolleduserids);
+            [$_fs_insql, $_fs_params] = $DB->get_in_or_equal($enrolled_array, SQL_PARAMS_NAMED, 'fsuid');
+            $_financial_map = [];
+            foreach ($DB->get_records_sql(
+                "SELECT userid, status FROM {gmk_financial_status} WHERE userid $_fs_insql",
+                $_fs_params
+            ) as $_fr) {
+                $_financial_map[(int)$_fr->userid] = (string)$_fr->status;
+            }
+
+            // Pre-fetch which of these students are currently suspended.
+            [$_sus_insql, $_sus_params] = $DB->get_in_or_equal($enrolled_array, SQL_PARAMS_NAMED, 'susuid');
+            $_suspended_uids = [];
+            foreach ($DB->get_records_sql(
+                "SELECT id FROM {user} WHERE suspended = 1 AND id $_sus_insql",
+                $_sus_params
+            ) as $_ur) {
+                $_suspended_uids[(int)$_ur->id] = true;
+            }
+
             foreach ($enrolleduserids as $uid) {
                 $uid = (int)$uid;
+                $fin_status = $_financial_map[$uid] ?? 'none';
+                $is_financially_current = ($fin_status === 'al_dia' || $fin_status === 'becado');
+
+                // Reactivate: student is suspended but is now financially current.
+                if ($is_financially_current && !empty($_suspended_uids[$uid]) && !isset($reactivated_uids[$uid])) {
+                    absd_mark_user_active($uid, $studentstatus_fieldid);
+                    $reactivated_uids[$uid] = true;
+                    $summary['reactivated']++;
+                    // Also remove from suspended map so the inactivation block below
+                    // won't try to mark them inactive again in this same pass.
+                    unset($_suspended_uids[$uid]);
+                }
+
                 $abs = $studentabs[$uid] ?? 0;
                 if ($abs <= 2) {
                     continue;
@@ -645,9 +724,14 @@ function absd_run_absence_inactivation_check(): array {
                     continue;
                 }
 
-                // Check if already inactive to avoid redundant writes.
-                $user = $DB->get_record('user', ['id' => $uid], 'id, suspended', IGNORE_MISSING);
-                if (!$user) {
+                // Skip inactivation if the student is financially up to date.
+                if ($is_financially_current) {
+                    $summary['skipped_financial']++;
+                    continue;
+                }
+
+                // Verify the user record still exists before writing.
+                if (!$DB->record_exists('user', ['id' => $uid, 'deleted' => 0])) {
                     continue;
                 }
 
