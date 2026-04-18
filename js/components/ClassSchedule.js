@@ -62,6 +62,15 @@ window.Vue.component('classschedule', {
                     </v-toolbar-title>
                     <v-spacer></v-spacer>
                     <v-btn
+                      outlined
+                      class="mr-2"
+                      color="grey darken-2"
+                      @click="printSchedule"
+                    >
+                      <v-icon small class="mr-1">mdi-printer</v-icon>
+                      PDF
+                    </v-btn>
+                    <v-btn
                       v-if="isAdmin"
                       color="primary"
                       @click="openLink('availability')"
@@ -138,6 +147,7 @@ window.Vue.component('classschedule', {
                     :short-weekdays="false"
                     :events="filteredEvents"
                     :type="calendarType"
+                    event-overlap-mode="stack"
                     first-time="06:00"
                     interval-count="18"
                     interval-minutes="60"
@@ -148,10 +158,11 @@ window.Vue.component('classschedule', {
                     @change="getEvents"
                 >
                     <template v-slot:event="{ event }">
-                        <div class="v-event-draggable">
-                            <strong>{{ event.name }}</strong><v-spacer/>
-                            {{ formatEventTime(event.start) }} -
-                            {{ formatEventTime(event.end) }}
+                        <div class="v-event-draggable" style="padding:2px 4px;line-height:1.3;overflow:hidden">
+                            <strong style="font-size:11px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ event.name }}</strong>
+                            <span style="font-size:10px;display:block;opacity:0.9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ formatEventTime(event.start) }} – {{ formatEventTime(event.end) }}</span>
+                            <span v-if="event.instructor" style="font-size:10px;display:block;opacity:0.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">👤 {{ event.instructor }}</span>
+                            <span v-if="event.room" style="font-size:10px;display:block;opacity:0.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">📍 {{ event.room }}</span>
                         </div>
                     </template>
                     <template v-slot:day-body="{ date, week }">
@@ -400,6 +411,12 @@ window.Vue.component('classschedule', {
                                 </v-avatar>
                                 <span v-html="selectedEvent.instructor"></span>
                             </div>
+                            <div v-if="selectedEvent.room" class="d-flex align-center">
+                                <v-avatar size="36px" class="mr-2">
+                                    <v-icon>mdi-map-marker</v-icon>
+                                </v-avatar>
+                                <span v-html="selectedEvent.room"></span>
+                            </div>
                             <div class="d-flex align-center">
                                 <v-avatar
                                  size="36px"
@@ -547,6 +564,49 @@ window.Vue.component('classschedule', {
     methods: {
         // This method makes an HTTP GET request to retrieve calendar events from the Moodle server. 
         // The received data is processed and relevant information is extracted from each event, which is added to the events array. 
+        printSchedule() {
+            const events = (this.filteredEvents || []).slice().sort((a, b) => new Date(a.start) - new Date(b.start));
+            const dayNames = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+            const monthNames = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+            const byDate = {};
+            events.forEach(e => {
+                const d = e.start.substring(0, 10);
+                if (!byDate[d]) byDate[d] = [];
+                byDate[d].push(e);
+            });
+            let rows = '';
+            Object.entries(byDate).forEach(([date, evts]) => {
+                const d = new Date(date + 'T00:00:00');
+                const label = dayNames[d.getDay()] + ', ' + d.getDate() + ' de ' + monthNames[d.getMonth()] + ' de ' + d.getFullYear();
+                rows += `<tr><td colspan="5" style="background:#1e3a5f;color:#fff;font-weight:700;padding:7px 12px;font-size:12px">${label}</td></tr>`;
+                evts.forEach(e => {
+                    const typeBg = e.details === 'Virtual' ? '#dbeafe' : e.details === 'Presencial' ? '#dcfce7' : '#f3e8ff';
+                    const typeFg = e.details === 'Virtual' ? '#1e40af' : e.details === 'Presencial' ? '#166534' : '#6d28d9';
+                    rows += `<tr>
+                        <td style="padding:5px 10px;border-bottom:1px solid #e2e8f0;font-weight:600;color:#1e293b">${e.name || ''}</td>
+                        <td style="padding:5px 10px;border-bottom:1px solid #e2e8f0;color:#475569">${e.instructor || '—'}</td>
+                        <td style="padding:5px 10px;border-bottom:1px solid #e2e8f0;color:#475569">${e.room || '—'}</td>
+                        <td style="padding:5px 10px;border-bottom:1px solid #e2e8f0;white-space:nowrap;color:#475569">${this.formatEventTime(e.start)} – ${this.formatEventTime(e.end)}</td>
+                        <td style="padding:5px 10px;border-bottom:1px solid #e2e8f0"><span style="background:${typeBg};color:${typeFg};border-radius:4px;padding:2px 8px;font-size:11px;font-weight:600">${e.details || ''}</span></td>
+                    </tr>`;
+                });
+            });
+            const generated = new Date().toLocaleDateString('es-ES', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+            const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Horario de Clases</title>
+            <style>body{font-family:Arial,sans-serif;font-size:12px;margin:20px;color:#1e293b}
+            h1{font-size:17px;margin-bottom:2px}p{color:#64748b;font-size:11px;margin-bottom:14px}
+            table{width:100%;border-collapse:collapse}
+            th{background:#1e3a5f;color:#fff;padding:7px 10px;text-align:left;font-size:12px}
+            tr:nth-child(even){background:#f8fafc}
+            @media print{@page{size:A4 landscape;margin:12mm}}</style></head>
+            <body><h1>Horario de Clases</h1><p>Generado el ${generated}</p>
+            <table><thead><tr><th>Asignatura</th><th>Docente</th><th>Aula</th><th>Horario</th><th>Modalidad</th></tr></thead>
+            <tbody>${rows}</tbody></table></body></html>`;
+            const win = window.open('', '_blank', 'width=960,height=720');
+            win.document.write(html);
+            win.document.close();
+            win.onload = () => win.print();
+        },
         // This method also handles errors if the request fails.
         async getEvents() {
             // Initialize the events property to an empty array.
@@ -712,10 +772,11 @@ window.Vue.component('classschedule', {
             }
         },
         formattedEvents() {
-            return this.events?.map(({ coursename, instructorName, typelabel, color, start, end, classDaysES, timeRange, modulename, moduleId, bigBlueButtonActivityUrl, attendanceActivityUrl, classId, className, sessionId, instructorid, visible, courseid }) => ({
+            return this.events?.map(({ coursename, instructorName, typelabel, color, start, end, classDaysES, timeRange, modulename, moduleId, bigBlueButtonActivityUrl, attendanceActivityUrl, classId, className, sessionId, instructorid, visible, courseid, classroomName, room }) => ({
                 name: coursename,
                 instructorId: instructorid,
                 instructor: instructorName,
+                room: room || classroomName || '',
                 details: typelabel,
                 days: classDaysES.join(" - "),
                 hour: timeRange,
@@ -741,7 +802,10 @@ window.Vue.component('classschedule', {
         filteredEvents() {
             const selectedInstructorsIds = this.selectedInstructors.map(instructor => instructor.id)
             const selectedCoursesIds = this.selectedCourses.map(course => course.id)
-            let filteredEvents = this.formattedEvents
+            // Only show class sessions — exclude tasks, assignments and deadline events.
+            let filteredEvents = (this.formattedEvents || []).filter(e =>
+                e.modulename === 'attendance' || e.modulename === 'bigbluebuttonbn'
+            )
             if (!selectedInstructorsIds.length && !selectedCoursesIds.length) {
                 return filteredEvents;
             }
