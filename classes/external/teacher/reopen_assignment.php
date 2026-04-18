@@ -44,11 +44,11 @@ class reopen_assignment extends external_api {
         $course       = $DB->get_record('course', ['id' => $assignrecord->course], '*', MUST_EXIST);
         $assign       = new \assign($context, $cm, $course);
 
-        // Reopen: change the existing submission status back to 'new' so the
-        // student can upload and submit again without losing their previous files.
+        // Reopen: mark as 'reopened' so the student can submit again without
+        // losing previous files, and so the LXP can show "Reabierto" instead of "Sin envio".
         $submission = $assign->get_user_submission($studentid, false);
         if ($submission) {
-            $submission->status       = ASSIGN_SUBMISSION_STATUS_NEW;
+            $submission->status       = 'reopened';
             $submission->timemodified = time();
             $DB->update_record('assign_submission', $submission);
         }
@@ -63,6 +63,13 @@ class reopen_assignment extends external_api {
             $flags->assignment = $assignmentid;
             $flags->userid     = $studentid;
             $DB->insert_record('assign_user_flags', $flags);
+        }
+
+        // Reset completion so the activity appears as pending again in the LXP.
+        require_once($CFG->libdir . '/completionlib.php');
+        $completion = new \completion_info($course);
+        if ($completion->is_enabled($cm)) {
+            $completion->update_state($cm, COMPLETION_INCOMPLETE, $studentid);
         }
 
         return [
