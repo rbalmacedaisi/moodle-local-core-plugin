@@ -87,16 +87,34 @@ $docfieldid    = (int)($DB->get_field('user_info_field', 'id', ['shortname' => '
 
 // ════════════════════════════════════════════════════════════════════════════
 // MÉTODO A: absence_dashboard.php
-// Universo: estudiantes en gmk_course_progre(status IN 1,2,3) en clases activas.
-// Activo: local_learning_users.status = 'activo' | '' para el plan de la clase.
+// Replica la lógica exacta del career_tree del dashboard:
+//   - Solo planes con al menos un estudiante activo no suspendido (misma query que plan_rows)
+//   - Solo clases activas en esos planes
+//   - Excluye docentes: solo users con local_learning_users.userroleid=5
+//   - Activo: llu.status='activo'|'' para el plan de la clase
 // ════════════════════════════════════════════════════════════════════════════
 
-$active_classes = $DB->get_records_sql(
+// Step 1: planids válidos (misma lógica que $plan_rows en absence_dashboard).
+$valid_planids = [];
+foreach ($DB->get_records_sql(
+    "SELECT DISTINCT llu.learningplanid AS planid
+       FROM {user} u
+       JOIN {local_learning_users} llu ON llu.userid = u.id AND llu.userroleid = 5 AND llu.status = 'activo'
+      WHERE u.deleted = 0 AND u.suspended = 0 AND u.id > 2"
+) as $_pr) {
+    $valid_planids[(int)$_pr->planid] = true;
+}
+
+// Step 2: clases activas en esos planes.
+$active_classes_all = $DB->get_records_sql(
     "SELECT gc.id, gc.learningplanid
        FROM {gmk_class} gc
       WHERE gc.approved=1 AND gc.closed=0 AND gc.enddate>:now",
     ['now' => $now]
 );
+$active_classes = array_filter($active_classes_all, function($cls) use ($valid_planids) {
+    return isset($valid_planids[(int)($cls->learningplanid ?? 0)]);
+});
 
 $absd_all_uids      = [];   // uid => true
 $absd_active_uids   = [];   // uid => true
@@ -115,6 +133,17 @@ foreach ($active_classes as $cls) {
     if (empty($enrolled)) continue;
 
     [$in_sql, $in_params] = $DB->get_in_or_equal($enrolled, SQL_PARAMS_NAMED, 'su');
+
+    // Only count users registered as students (any plan) — same fix as absence_dashboard.
+    $student_uids_set = [];
+    foreach ($DB->get_records_sql(
+        "SELECT DISTINCT userid FROM {local_learning_users}
+          WHERE userroleid=5 AND userid $in_sql",
+        $in_params
+    ) as $_s) {
+        $student_uids_set[(int)$_s->userid] = true;
+    }
+
     $st_map = [];
     if ($planid > 0) {
         foreach ($DB->get_records_sql(
@@ -128,6 +157,7 @@ foreach ($active_classes as $cls) {
 
     foreach ($enrolled as $uid) {
         $uid = (int)$uid;
+        if (!isset($student_uids_set[$uid])) continue; // teacher/non-student
         $absd_all_uids[$uid] = true;
         $st = $st_map[$uid] ?? 'activo';
         if ($st === 'activo' || $st === '') {
@@ -251,7 +281,7 @@ function dac_user_info(int $uid): array {
 </tr>
 <tr>
     <td><b>Universo (todos)</b></td>
-    <td><?php echo $absd_total_count; ?> (en gmk_course_progre de clases activas)</td>
+    <td><?php echo $absd_total_count; ?> (estudiantes en clases de planes válidos)</td>
     <td><?php echo $panel_total_count; ?> (en local_learning_users, rol student)</td>
     <td><?php echo abs($panel_total_count - $absd_total_count); ?></td>
 </tr>

@@ -1127,8 +1127,18 @@ if (!empty($all_ids)) {
         ) as $_sr) {
             $_st_map[(int)$_sr->userid] = (string)$_sr->status;
         }
+        // Only count users registered as students (any plan) — excludes teachers in gmk_course_progre.
+        $_student_uids_set = [];
+        foreach ($DB->get_records_sql(
+            "SELECT DISTINCT userid FROM {local_learning_users}
+              WHERE userroleid = 5 AND userid $_st_insql",
+            $_st_params
+        ) as $_s) {
+            $_student_uids_set[(int)$_s->userid] = true;
+        }
         $active_uids = []; $inactive_uids = [];
         foreach ($enrolleduserids as $uid) {
+            if (!isset($_student_uids_set[(int)$uid])) continue; // teacher/non-student
             $st = $_st_map[(int)$uid] ?? 'activo';
             if ($st === 'activo' || $st === '') {
                 $active_uids[] = (int)$uid;
