@@ -971,9 +971,20 @@ function absd_house_svg(): string {
 $tc_fieldid  = (int)($DB->get_field('customfield_field', 'id', ['shortname' => 'tc'])            ?: 0);
 $doc_fieldid = (int)($DB->get_field('user_info_field',   'id', ['shortname' => 'documentnumber']) ?: 0);
 
-// ── Active classes (same filter as student_population) ─────────────────────────
+// ── Classes: read filters ───────────────────────────────────────────────────────
 $now = time();
-$selected_shift = trim((string)optional_param('shift', '', PARAM_TEXT));
+$selected_shift  = trim((string)optional_param('shift',  '',       PARAM_TEXT));
+$selected_period = (int)optional_param('period', 0, PARAM_INT);
+$selected_status = trim((string)optional_param('status', 'active', PARAM_ALPHA));
+if (!in_array($selected_status, ['active', 'closed', 'all'], true)) {
+    $selected_status = 'active';
+}
+
+// Load available periods for the dropdown.
+$available_periods = $DB->get_records('gmk_academic_periods', [], 'startdate DESC', 'id, name');
+if ($selected_period > 0 && !isset($available_periods[$selected_period])) {
+    $selected_period = 0;
+}
 
 $tc_join  = $tc_fieldid ? "LEFT JOIN {customfield_data} _cfd ON _cfd.instanceid = gc.corecourseid AND _cfd.fieldid = $tc_fieldid" : '';
 $tc_where = $tc_fieldid ? "AND (_cfd.value IS NULL OR _cfd.value <> '1')" : '';
@@ -987,6 +998,8 @@ $class_sel = "SELECT gc.id,
         gc.corecourseid,
         gc.attendancemoduleid,
         gc.groupid,
+        gc.periodid,
+        gc.closed         AS class_closed,
         c.fullname        AS coursefullname,
         CONCAT(u.firstname,' ',u.lastname) AS teachername,
         COUNT(DISTINCT gcp.userid) AS student_count
@@ -995,22 +1008,39 @@ $class_sel = "SELECT gc.id,
    LEFT JOIN {user} u                ON u.id    = gc.instructorid
    LEFT JOIN {gmk_course_progre} gcp ON gcp.classid = gc.id AND gcp.status IN (1,2,3)";
 
+// Build dynamic WHERE conditions for status and period filters.
+$filter_params = [];
+$status_cond   = '';
+if ($selected_status === 'active') {
+    $status_cond = "AND gc.closed=0 AND gc.enddate>:now";
+    $filter_params['now'] = $now;
+} elseif ($selected_status === 'closed') {
+    $status_cond = "AND (gc.closed=1 OR gc.enddate<=:now_cl)";
+    $filter_params['now_cl'] = $now;
+}
+$period_cond = '';
+if ($selected_period > 0) {
+    $period_cond = "AND gc.periodid=:selectedperiod";
+    $filter_params['selectedperiod'] = $selected_period;
+}
+
+$group_by = "GROUP BY gc.id,gc.name,gc.shift,gc.career_label,gc.learningplanid,
+               gc.corecourseid,gc.attendancemoduleid,gc.groupid,gc.periodid,gc.closed,c.fullname,u.firstname,u.lastname";
+
 $regular_classes = $DB->get_records_sql(
     "$class_sel $tc_join
-      WHERE gc.approved=1 AND gc.closed=0 AND gc.enddate>:now $tc_where
-      GROUP BY gc.id,gc.name,gc.shift,gc.career_label,gc.learningplanid,
-               gc.corecourseid,gc.attendancemoduleid,gc.groupid,c.fullname,u.firstname,u.lastname
+      WHERE gc.approved=1 $status_cond $period_cond $tc_where
+      $group_by
       ORDER BY gc.career_label, gc.shift, c.fullname",
-    ['now' => $now]
+    $filter_params
 );
 
 $tc_classes = $tc_fieldid ? $DB->get_records_sql(
     "$class_sel $tc_join2
-      WHERE gc.approved=1 AND gc.closed=0 AND gc.enddate>:now
-      GROUP BY gc.id,gc.name,gc.shift,gc.career_label,gc.learningplanid,
-               gc.corecourseid,gc.attendancemoduleid,gc.groupid,c.fullname,u.firstname,u.lastname
+      WHERE gc.approved=1 $status_cond $period_cond
+      $group_by
       ORDER BY c.fullname, gc.shift",
-    ['now' => $now]
+    $filter_params
 ) : [];
 
 // Shift filter options from available classes.
@@ -1431,19 +1461,43 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
             </div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-            <form method="get" action="" style="display:flex;gap:6px;align-items:center">
-                <label for="absd-shift-filter" style="font-size:12px;color:#334155;font-weight:700">Jornada</label>
-                <select id="absd-shift-filter" name="shift" class="absd-status-select" onchange="this.form.submit()">
-                    <option value="">Todas</option>
-                    <?php foreach ($available_shifts as $shiftopt): ?>
-                        <option value="<?php echo s($shiftopt); ?>" <?php echo $selected_shift === $shiftopt ? 'selected' : ''; ?>>
-                            <?php echo s($shiftopt); ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-                <?php if ($selected_shift !== ''): ?>
+            <form method="get" action="" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+                <!-- Periodo lectivo -->
+                <div style="display:flex;align-items:center;gap:5px">
+                    <label for="absd-period-filter" style="font-size:12px;color:#334155;font-weight:700;white-space:nowrap">Periodo</label>
+                    <select id="absd-period-filter" name="period" class="absd-status-select" onchange="this.form.submit()">
+                        <option value="0">Todos los periodos</option>
+                        <?php foreach ($available_periods as $per): ?>
+                            <option value="<?php echo (int)$per->id; ?>" <?php echo $selected_period === (int)$per->id ? 'selected' : ''; ?>>
+                                <?php echo s($per->name); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <!-- Estado activo / cerrado -->
+                <div style="display:flex;align-items:center;gap:5px">
+                    <label for="absd-status-filter" style="font-size:12px;color:#334155;font-weight:700;white-space:nowrap">Estado</label>
+                    <select id="absd-status-filter" name="status" class="absd-status-select" onchange="this.form.submit()">
+                        <option value="active" <?php echo $selected_status === 'active' ? 'selected' : ''; ?>>Activos</option>
+                        <option value="closed" <?php echo $selected_status === 'closed' ? 'selected' : ''; ?>>Cerrados</option>
+                        <option value="all"    <?php echo $selected_status === 'all'    ? 'selected' : ''; ?>>Todos</option>
+                    </select>
+                </div>
+                <!-- Jornada -->
+                <div style="display:flex;align-items:center;gap:5px">
+                    <label for="absd-shift-filter" style="font-size:12px;color:#334155;font-weight:700;white-space:nowrap">Jornada</label>
+                    <select id="absd-shift-filter" name="shift" class="absd-status-select" onchange="this.form.submit()">
+                        <option value="">Todas</option>
+                        <?php foreach ($available_shifts as $shiftopt): ?>
+                            <option value="<?php echo s($shiftopt); ?>" <?php echo $selected_shift === $shiftopt ? 'selected' : ''; ?>>
+                                <?php echo s($shiftopt); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <?php if ($selected_shift !== '' || $selected_period > 0 || $selected_status !== 'active'): ?>
                     <a href="<?php echo (new moodle_url('/local/grupomakro_core/pages/absence_dashboard.php'))->out(false); ?>"
-                       style="font-size:11px;color:#1d4ed8;text-decoration:none;font-weight:600">Limpiar</a>
+                       style="font-size:11px;color:#1d4ed8;text-decoration:none;font-weight:600;white-space:nowrap">Limpiar filtros</a>
                 <?php endif; ?>
             </form>
             <div style="display:flex;align-items:center;gap:4px">
@@ -1478,7 +1532,13 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
 
     <!-- Career sections ──────────────────────────────────────────────── -->
     <?php if (empty($career_tree)): ?>
-        <div class="alert alert-warning">No hay estudiantes activos registrados.</div>
+        <div class="alert alert-warning">
+            No hay clases que coincidan con los filtros seleccionados.
+            <?php if ($selected_period > 0 || $selected_status !== 'active' || $selected_shift !== ''): ?>
+                <a href="<?php echo (new moodle_url('/local/grupomakro_core/pages/absence_dashboard.php'))->out(false); ?>"
+                   style="margin-left:8px;font-weight:600">Limpiar filtros</a>
+            <?php endif; ?>
+        </div>
     <?php else:
     // Pre-compute grand totals so they can be displayed before the render loop.
     $grand_all_uids = []; $grand_inactive_uids = [];
@@ -1608,7 +1668,12 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
                         $c_border = $sessions > 0 ? absd_pct_border($cpct) : '#e2e8f0';
                     ?>
                     <div class="absd-class-chip" data-classid="<?php echo $cid; ?>" style="border-color:<?php echo $c_border; ?>;background:<?php echo $c_bg; ?>">
-                        <div class="absd-class-chip-name" title="<?php echo s($cname); ?>"><?php echo s($cname); ?></div>
+                        <div style="display:flex;align-items:center;gap:5px">
+                            <div class="absd-class-chip-name" title="<?php echo s($cname); ?>" style="flex:1;min-width:0"><?php echo s($cname); ?></div>
+                            <?php if (!empty($cls->class_closed)): ?>
+                            <span style="background:#e2e8f0;color:#475569;border-radius:4px;padding:1px 6px;font-size:9px;font-weight:700;white-space:nowrap;flex-shrink:0">CERRADO</span>
+                            <?php endif; ?>
+                        </div>
                         <div class="absd-class-chip-teacher"><?php echo s(trim($cls->teachername)); ?></div>
 
                         <?php if ($sessions > 0): ?>
@@ -1645,7 +1710,7 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
                     <?php endforeach; ?>
                 </div>
                 <?php else: ?>
-                    <div class="absd-empty">Sin clases activas</div>
+                    <div class="absd-empty">Sin clases en esta jornada</div>
                 <?php endif; ?>
             </div>
         <?php endforeach; ?>
