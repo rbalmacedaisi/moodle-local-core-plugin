@@ -569,8 +569,9 @@ class get_student_info extends external_api {
         }
 
         // Count active students with the same logic as absence_dashboard.php:
-        // a student is active only if NONE of their local_learning_users rows carries
-        // a non-activo status (suspendido, retirado, aplazado, desertor, etc.).
+        //  1. Enrolled in at least one active class (gmk_course_progre status IN (1,2,3),
+        //     class approved, not closed, not expired) — absence_dashboard only shows these.
+        //  2. NONE of their local_learning_users rows carries a non-activo academic status.
         $activeuserscount = (int)$DB->count_records_sql(
             "SELECT COUNT(DISTINCT u.id) $fromsql $whereclause
              AND NOT EXISTS (
@@ -578,8 +579,18 @@ class get_student_info extends external_api {
                   WHERE lpu_chk.userid = u.id
                     AND lpu_chk.userrolename = :lpu_chk_role
                     AND COALESCE(lpu_chk.status, 'activo') <> 'activo'
+             )
+             AND EXISTS (
+                 SELECT 1
+                   FROM {gmk_course_progre} cp_act
+                   JOIN {gmk_class} gc_act ON gc_act.id = cp_act.classid
+                  WHERE cp_act.userid = u.id
+                    AND cp_act.status IN (1, 2, 3)
+                    AND gc_act.approved = 1
+                    AND gc_act.closed   = 0
+                    AND gc_act.enddate  > :now_act
              )",
-            array_merge($sqlparams, ['lpu_chk_role' => 'student'])
+            array_merge($sqlparams, ['lpu_chk_role' => 'student', 'now_act' => time()])
         );
 
         $pageusers = $DB->get_records_sql(
