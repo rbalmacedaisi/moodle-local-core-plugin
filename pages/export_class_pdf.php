@@ -375,7 +375,7 @@ foreach ($chunks as $chunkIdx => $chunk_sids) {
         // ── Session cells ─────────────────────────────────────────────
         foreach ($chunk_sids as $sid) {
             $entry = $matrix[$uid][$sid] ?? null;
-            if ($entry === null || !$entry['taken']) {
+            if ($entry === null || !($entry['has_log'] ?? false)) {
                 pdfFill($pdf, $C['future_bg']); pdfText($pdf, $C['future_fg']);
                 $pdf->Cell($sessColW, 7, '-', 'LTB', 0, 'C', true);
             } elseif ($entry['present']) {
