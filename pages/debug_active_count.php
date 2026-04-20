@@ -89,7 +89,7 @@ $docfieldid    = (int)($DB->get_field('user_info_field', 'id', ['shortname' => '
 // MÉTODO A: absence_dashboard.php
 // Replica la lógica exacta del career_tree del dashboard:
 //   - Solo planes con al menos un estudiante activo no suspendido (misma query que plan_rows)
-//   - Solo clases activas en esos planes
+//   - Solo clases activas en esos planes, excluyendo cursos TC (techcollege custom field)
 //   - Excluye docentes: solo users con local_learning_users.userroleid=5
 //   - Activo: llu.status='activo'|'' para el plan de la clase
 // ════════════════════════════════════════════════════════════════════════════
@@ -105,15 +105,29 @@ foreach ($DB->get_records_sql(
     $valid_planids[(int)$_pr->planid] = true;
 }
 
-// Step 2: clases activas en esos planes.
+// Step 2: TC course IDs (excluded from regular_classes in the dashboard).
+$tc_fieldid = (int)($DB->get_field('customfield_field', 'id', ['shortname' => 'techcollege']) ?: 0);
+$tc_course_ids = [];
+if ($tc_fieldid) {
+    foreach ($DB->get_records_sql(
+        "SELECT instanceid FROM {customfield_data} WHERE fieldid = :fid AND value = '1'",
+        ['fid' => $tc_fieldid]
+    ) as $_tc) {
+        $tc_course_ids[(int)$_tc->instanceid] = true;
+    }
+}
+
+// Step 3: clases activas en esos planes, sin cursos TC.
 $active_classes_all = $DB->get_records_sql(
-    "SELECT gc.id, gc.learningplanid
+    "SELECT gc.id, gc.learningplanid, gc.corecourseid
        FROM {gmk_class} gc
       WHERE gc.approved=1 AND gc.closed=0 AND gc.enddate>:now",
     ['now' => $now]
 );
-$active_classes = array_filter($active_classes_all, function($cls) use ($valid_planids) {
-    return isset($valid_planids[(int)($cls->learningplanid ?? 0)]);
+$active_classes = array_filter($active_classes_all, function($cls) use ($valid_planids, $tc_course_ids) {
+    if (!isset($valid_planids[(int)($cls->learningplanid ?? 0)])) return false;
+    if (!empty($tc_course_ids) && isset($tc_course_ids[(int)($cls->corecourseid ?? 0)])) return false;
+    return true;
 });
 
 $absd_all_uids      = [];   // uid => true
@@ -272,6 +286,17 @@ function dac_user_info(int $uid): array {
 <!-- Resumen -->
 <div class="box">
 <h2 style="background:#1e293b;color:#fff;margin:0 0 12px">Resumen</h2>
+<p style="font-size:11px;color:#64748b;margin-bottom:10px">
+    <b>Método A</b> replica la lógica del <i>absence_dashboard.php</i>: solo clases en planes con estudiantes activos no suspendidos,
+    sin cursos TC (campo <code>techcollege=1</code>), sin docentes.<br>
+    <b>Método B</b> replica el <i>academicpanel.php</i>: usuarios con <code>local_learning_users.userroleid='student'</code>
+    que tienen todos sus planes en estado <code>activo</code> y al menos una matrícula en clase activa.<br>
+    <?php if ($tc_fieldid): ?>
+    <b>Filtro TC activo:</b> se encontraron <?php echo count($tc_course_ids); ?> cursos TC (campo <code>techcollege</code> ID=<?php echo $tc_fieldid; ?>).
+    <?php else: ?>
+    <b>Filtro TC:</b> campo <code>techcollege</code> no encontrado — todos los cursos se consideran regulares.
+    <?php endif; ?>
+</p>
 <table>
 <tr>
     <th>Métrica</th>
@@ -316,7 +341,10 @@ function dac_user_info(int $uid): array {
     ⚠ Activos en absence_dashboard pero NO en academicpanel (<?php echo count($only_in_absd); ?>)
 </h2>
 <p style="font-size:11px;color:#64748b;margin-bottom:8px">
-    Estos estudiantes cuentan como activos en el dashboard de inasistencias pero el panel académico NO los cuenta.
+    Estos estudiantes cuentan como activos en el dashboard de inasistencias pero el panel académico NO los cuenta.<br>
+    <b>Causa probable:</b> tienen <code>llu.status='suspendido'</code> en un plan diferente al de la clase donde están matriculados.
+    El dashboard solo detecta su suspensión si ese otro plan aparece en la career_tree (necesita al menos otro estudiante activo).
+    El Método B (panel) los excluye correctamente porque revisa <i>todos</i> sus planes.
 </p>
 <table>
 <tr>
