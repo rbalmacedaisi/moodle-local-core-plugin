@@ -6,7 +6,25 @@ Vue.component('studenttable', {
                  <v-card class="pa-4 d-flex align-center" outlined style="border-left: 5px solid #4CAF50;">
                     <div>
                         <div class="text-overline mb-0">Estudiantes Activos</div>
-                        <div class="text-h4 font-weight-bold success--text">{{ activeUsers }}</div>
+                        <div class="d-flex align-center" style="gap:6px">
+                            <span class="text-h4 font-weight-bold success--text">{{ activeUsers }}</span>
+                            <v-tooltip max-width="340" right>
+                                <template v-slot:activator="{ on, attrs }">
+                                    <v-icon v-bind="attrs" v-on="on" size="18" color="grey darken-1" style="cursor:pointer;margin-top:2px">mdi-information-outline</v-icon>
+                                </template>
+                                <div style="font-size:12px;line-height:1.6">
+                                    <div style="font-weight:700;margin-bottom:6px">¿Cómo se calcula?</div>
+                                    <div>Se cuentan los usuarios que cumplen <b>todas</b> estas condiciones:</div>
+                                    <ul style="margin:6px 0 0 14px;padding:0">
+                                        <li>Rol de estudiante en <em>local_learning_users</em></li>
+                                        <li>Todos sus planes académicos en estado <em>activo</em></li>
+                                        <li>Matrícula activa (status 1–3) en al menos una clase aprobada, no cerrada y vigente</li>
+                                        <li>La clase no es un curso transversal (TC)</li>
+                                    </ul>
+                                    <div style="margin-top:8px;color:#bdbdbd;font-size:11px">Misma lógica que el Total general del dashboard de inasistencias.</div>
+                                </div>
+                            </v-tooltip>
+                        </div>
                     </div>
                     <v-spacer></v-spacer>
                     <v-icon size="48" color="success" class=" opacity-50">mdi-account-check</v-icon>
