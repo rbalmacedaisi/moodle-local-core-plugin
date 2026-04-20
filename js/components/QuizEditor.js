@@ -1542,6 +1542,7 @@ const QuizEditor = {
                     this.newQuestion.defaultmark = q.defaultmark;
 
                     if (q.answers) this.newQuestion.answers = q.answers;
+                    if (q.correctAnswer !== undefined) this.newQuestion.correctAnswer = String(q.correctAnswer);
                     this.newQuestion.type = q.type; // Set type AFTER answers to avoid watcher clearing them
                     if (q.subquestions) this.newQuestion.subquestions = q.subquestions;
                     if (q.draggables) this.newQuestion.draggables = q.draggables;
