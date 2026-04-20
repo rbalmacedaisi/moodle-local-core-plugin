@@ -12,7 +12,6 @@
 
 require_once(__DIR__ . '/../../../config.php');
 require_once(__DIR__ . '/absence_helpers.php');
-require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/student/get_student_info.php');
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 
 require_login();
@@ -65,56 +64,52 @@ if ($classid > 0) {
     }
 }
 
-// ── Student data ──────────────────────────────────────────────────────────────
-$result = \local_grupomakro_core\external\student\get_student_info::execute(
-    1, 9999, $search, $planid, $periodid, $status, $classid, ''
-);
+// ── Student IDs via the same helper used by attendance_pdf.php ────────────────
+$userids = ($classid > 0)
+    ? absd_get_class_enrolled_userids($classid)
+    : [];
 
-$raw = $result['dataUsers'] ?? '[]';
-$students = is_string($raw) ? json_decode($raw, true) ?: [] : (is_array($raw) ? $raw : []);
+if (empty($userids)) {
+    print_error('No students found for this class or class not specified.');
+}
 
-$userids = array_column($students, 'id');
-$total_students = count($userids);
+// ── Sessions ─────────────────────────────────────────────────────────────────
+$all_session_ids = ($classid > 0)
+    ? absd_get_class_all_session_ids($class)
+    : [];
 
-// ── Sessions ──────────────────────────────────────────────────────────────────
-if (!$classid || empty($userids)) {
-    $all_session_ids = [];
-    $taken_session_ids = [];
-    $session_info = [];
-} else {
-    $class_for_sessions = (object)['id' => $classid];
-    $all_session_ids    = absd_get_class_all_session_ids($class_for_sessions);
-    $taken_session_ids  = absd_get_taken_session_ids($all_session_ids);
-    $taken_set         = array_flip($taken_session_ids);
+$taken_session_ids  = absd_get_taken_session_ids($all_session_ids);
+$taken_set          = array_flip($taken_session_ids);
+$taken_count        = count($taken_session_ids);
 
-    $session_info = [];
-    if (!empty($all_session_ids)) {
-        list($sinsql, $sparams) = $DB->get_in_or_equal($all_session_ids, SQL_PARAMS_NAMED, 'sess');
-        $sess_rows = $DB->get_records_sql(
-            "SELECT id, sessdate FROM {attendance_sessions} WHERE id $sinsql ORDER BY sessdate ASC",
-            $sparams
-        );
-        foreach ($sess_rows as $sr) {
-            $session_info[(int)$sr->id] = [
-                'date'  => date('d/m', (int)$sr->sessdate),
-                'ts'    => (int)$sr->sessdate,
-                'taken' => isset($taken_set[(int)$sr->id]),
-            ];
-        }
+$all_session_ids = array_values(array_filter($all_session_ids, function($sid) use ($taken_set) {
+    return isset($taken_set[$sid]);
+}));
+sort($all_session_ids);
+
+$session_info = [];
+if (!empty($all_session_ids)) {
+    list($sinsql, $sparams) = $DB->get_in_or_equal($all_session_ids, SQL_PARAMS_NAMED, 'sess');
+    $sess_rows = $DB->get_records_sql(
+        "SELECT id, sessdate FROM {attendance_sessions} WHERE id $sinsql ORDER BY sessdate ASC",
+        $sparams
+    );
+    foreach ($sess_rows as $sr) {
+        $session_info[(int)$sr->id] = [
+            'date'  => date('d/m', (int)$sr->sessdate),
+            'ts'    => (int)$sr->sessdate,
+            'taken' => isset($taken_set[(int)$sr->id]),
+        ];
     }
+}
 
-    usort($all_session_ids, function($a, $b) use ($session_info) {
-        return ($session_info[$a]['ts'] ?? 0) - ($session_info[$b]['ts'] ?? 0);
-    });
-
-    $last_taken_id = 0;
-    $last_taken_ts = 0;
-    foreach ($taken_session_ids as $tsid) {
-        $ts = $session_info[$tsid]['ts'] ?? 0;
-        if ($ts > $last_taken_ts) {
-            $last_taken_ts = $ts;
-            $last_taken_id = $tsid;
-        }
+$last_taken_id = 0;
+$last_taken_ts = 0;
+foreach ($taken_session_ids as $tsid) {
+    $ts = $session_info[$tsid]['ts'] ?? 0;
+    if ($ts > $last_taken_ts) {
+        $last_taken_ts = $ts;
+        $last_taken_id = $tsid;
     }
 }
 
@@ -128,7 +123,10 @@ $student_map = [];
 if (!empty($userids)) {
     list($uinsql, $uinparams) = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED, 'u');
     $user_rows = $DB->get_records_sql(
-        "SELECT u.id, u.firstname, u.lastname, u.idnumber FROM {user} u WHERE u.id $uinsql ORDER BY u.lastname ASC, u.firstname ASC",
+        "SELECT u.id, u.firstname, u.lastname, u.idnumber
+           FROM {user} u
+          WHERE u.id $uinsql
+       ORDER BY u.lastname ASC, u.firstname ASC",
         $uinparams
     );
     foreach ($user_rows as $ur) {
@@ -137,11 +135,14 @@ if (!empty($userids)) {
             'cedula' => trim((string)$ur->idnumber),
         ];
     }
+
     $_pdf_docfid = (int)$DB->get_field('user_info_field', 'id', ['shortname' => 'documentnumber']) ?: 0;
     if ($_pdf_docfid) {
         list($uinsql2, $uinparams2) = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED, 'u2');
         $doc_rows = $DB->get_records_sql(
-            "SELECT userid, data FROM {user_info_data} WHERE fieldid = :fid AND userid $uinsql2",
+            "SELECT userid, data
+               FROM {user_info_data}
+              WHERE fieldid = :fid AND userid $uinsql2",
             array_merge(['fid' => $_pdf_docfid], $uinparams2)
         );
         foreach ($doc_rows as $dr) {
@@ -154,7 +155,7 @@ if (!empty($userids)) {
 }
 
 // ── Stats ──────────────────────────────────────────────────────────────────────
-$taken_count     = count($taken_session_ids);
+$total_students  = count($userids);
 $absent_students = 0;
 $total_present   = 0;
 
@@ -173,7 +174,7 @@ foreach ($userids as $uid) {
 $active_students = $total_students - $absent_students;
 $total_expected  = $taken_count * $total_students;
 $total_absent    = $total_expected - $total_present;
-$avg_pct         = $total_expected > 0 ? round($total_absent / $total_expected * 100, 1) : 0.0;
+$avg_pct          = $total_expected > 0 ? round($total_absent / $total_expected * 100, 1) : 0.0;
 
 // ── PDF generation ────────────────────────────────────────────────────────────
 require_once($CFG->libdir . '/tcpdf/tcpdf.php');
@@ -190,7 +191,7 @@ foreach ($_font_candidates as $_fc) {
 
 define('PDF_CHUNK_SIZE', 20);
 
-$chunks = !empty($all_session_ids) ? array_chunk($all_session_ids, PDF_CHUNK_SIZE) : [[]];
+$chunks      = array_chunk($all_session_ids, PDF_CHUNK_SIZE);
 $total_chunks = count($chunks);
 
 class AttendanceExportPDF extends TCPDF {
