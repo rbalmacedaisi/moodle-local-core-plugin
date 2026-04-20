@@ -203,12 +203,40 @@ class enroll_module {
         $now     = time();
         $dueDate = $now + ($deadlineDays * DAYSECS);
 
+        // Save current course progress status before enrolling in module.
+        // This allows us to restore it when the module is removed.
+        $currentProgress = $DB->get_record('gmk_course_progre', [
+            'userid' => $userId,
+            'courseid' => $coreCourseId,
+            'learningplanid' => $learningPlanId,
+        ]);
+        $originalStatus = $currentProgress ? (int)$currentProgress->status : null;
+
+        // Update course progress to 'Cursando' (status = 2).
+        if ($currentProgress) {
+            $DB->set_field('gmk_course_progre', 'status', 2, ['id' => $currentProgress->id]);
+        } else {
+            // If no progress record exists, create one.
+            $newProgress = new \stdClass();
+            $newProgress->userid = $userId;
+            $newProgress->courseid = $coreCourseId;
+            $newProgress->learningplanid = $learningPlanId;
+            $newProgress->status = 2;
+            $newProgress->progress = 0;
+            $newProgress->grade = null;
+            $newProgress->credits = 0;
+            $newProgress->timecreated = $now;
+            $newProgress->timemodified = $now;
+            $DB->insert_record('gmk_course_progre', $newProgress);
+        }
+
         $enrollment               = new \stdClass();
         $enrollment->classid      = $classId;
         $enrollment->userid       = $userId;
         $enrollment->enrolldate   = $now;
         $enrollment->duedate      = $dueDate;
         $enrollment->status       = 'active';
+        $enrollment->original_status = $originalStatus;
         $enrollment->timecreated  = $now;
         $enrollment->timemodified = $now;
         $enrollment->usermodified = (int)$USER->id;

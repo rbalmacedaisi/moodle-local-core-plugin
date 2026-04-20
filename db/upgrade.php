@@ -1997,6 +1997,17 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20260414020, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20260420001) {
+        // Add original_status column to gmk_module_enrollment to store the course status
+        // before enrolling in a module, so it can be restored when the module is removed.
+        $table = new xmldb_table('gmk_module_enrollment');
+        $field = new xmldb_field('original_status', XMLDB_TYPE_INTEGER, '10', null, null, null, null, 'status');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+        upgrade_plugin_savepoint(true, 20260420001, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

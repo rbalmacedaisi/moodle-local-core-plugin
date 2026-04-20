@@ -1699,11 +1699,22 @@ try {
                 $response = ['status' => 'success', 'data' => ['message' => 'InscripciÃ³n marcada como completada.']];
             } else if ($update_action === 'remove') {
                 // Get class info to remove from group
-                $class_rec = $DB->get_record('gmk_class', ['id' => $enrollment_rec->classid], 'id, groupid, corecourseid');
+                $class_rec = $DB->get_record('gmk_class', ['id' => $enrollment_rec->classid], 'id, groupid, corecourseid, learningplanid');
                 // Remove from Moodle group
                 if ($class_rec && !empty($class_rec->groupid)) {
                     require_once($CFG->dirroot . '/group/lib.php');
                     groups_remove_member((int)$class_rec->groupid, (int)$enrollment_rec->userid);
+                }
+                // Restore original course progress status if available.
+                if (isset($enrollment_rec->original_status) && $enrollment_rec->original_status !== null) {
+                    $progress = $DB->get_record('gmk_course_progre', [
+                        'userid' => $enrollment_rec->userid,
+                        'courseid' => $class_rec->corecourseid,
+                        'learningplanid' => $class_rec->learningplanid,
+                    ]);
+                    if ($progress) {
+                        $DB->set_field('gmk_course_progre', 'status', $enrollment_rec->original_status, ['id' => $progress->id]);
+                    }
                 }
                 // Delete the enrollment record
                 $DB->delete_records('gmk_module_enrollment', ['id' => $enrollment_id]);

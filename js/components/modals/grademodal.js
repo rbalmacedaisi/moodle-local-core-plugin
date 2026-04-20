@@ -980,6 +980,11 @@ Vue.component('grademodal', {
             return statusLabel === 'disponible' || statusLabel === 'no disponible' || statusLabel === 'reprobada';
         },
         canEnrollInCourse(course) {
+            // Disable enrollment if student already has an independent module for this course.
+            const key = this.getCourseKey(course);
+            if (this.moduleStatusMap && this.moduleStatusMap[key] && this.moduleStatusMap[key].enrolled) {
+                return false;
+            }
             return this.hasActiveClasses(course) && this.hasAllowedStatusForEnroll(course);
         },
         async openEnrollDialog(course) {
