@@ -162,6 +162,9 @@
             console.log("[SchedulerStore] loadDemand raw response:", res);
             console.log("[SchedulerStore] loadDemand demand_tree:", res.demand_tree);
             console.log("[SchedulerStore] loadDemand student_list count:", res.student_list ? res.student_list.length : 0);
+            if (res._debug) {
+                console.log("[SchedulerStore] loadDemand DEBUG:", res._debug);
+            }
 
             // demand_tree comes as JSON string
             this.state.demand = typeof res.demand_tree === 'string' ? JSON.parse(res.demand_tree) : res.demand_tree;

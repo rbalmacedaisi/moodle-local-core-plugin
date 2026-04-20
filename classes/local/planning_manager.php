@@ -848,9 +848,16 @@ class planning_manager {
         return [
             'demand_tree'        => $tree,
             'student_list'       => $uniqueStudentList,
-            'projections'        => $planningData['projections'],          // New-entrant projections (gmk_academic_projections: career, shift, count)
+            'projections'        => $planningData['projections'],
             'subjects'           => $planningData['all_subjects'] ?? [],
             'confirmed_subjects' => array_keys($confirmedSubjects),
+            '_debug' => [
+                'total_students' => count($students),
+                'added_to_tree' => count($debug_students_with_priority),
+                'not_added' => count($debug_students_no_priority),
+                'first_3_not_added' => array_slice($debug_students_no_priority, 0, 3),
+                'first_3_priority_false' => array_slice($debug_ispriority_false_reasons, 0, 3),
+            ]
         ];
     }
 
