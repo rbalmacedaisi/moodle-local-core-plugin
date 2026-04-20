@@ -568,11 +568,18 @@ class get_student_info extends external_api {
             ];
         }
 
-        $activeparams = $sqlparams;
-        $activeparams['activestatus'] = 'activo';
+        // Count active students with the same logic as absence_dashboard.php:
+        // a student is active only if NONE of their local_learning_users rows carries
+        // a non-activo status (suspendido, retirado, aplazado, desertor, etc.).
         $activeuserscount = (int)$DB->count_records_sql(
-            "SELECT COUNT(DISTINCT u.id) $fromsql $whereclause AND LOWER(COALESCE(statusud.data, 'Activo')) = :activestatus",
-            $activeparams
+            "SELECT COUNT(DISTINCT u.id) $fromsql $whereclause
+             AND NOT EXISTS (
+                 SELECT 1 FROM {local_learning_users} lpu_chk
+                  WHERE lpu_chk.userid = u.id
+                    AND lpu_chk.userrolename = :lpu_chk_role
+                    AND COALESCE(lpu_chk.status, 'activo') <> 'activo'
+             )",
+            array_merge($sqlparams, ['lpu_chk_role' => 'student'])
         );
 
         $pageusers = $DB->get_records_sql(
