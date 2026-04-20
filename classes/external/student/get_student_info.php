@@ -569,9 +569,18 @@ class get_student_info extends external_api {
         }
 
         // Count active students with the same logic as absence_dashboard.php:
-        //  1. Enrolled in at least one active class (gmk_course_progre status IN (1,2,3),
-        //     class approved, not closed, not expired) — absence_dashboard only shows these.
+        //  1. Enrolled in at least one active NON-TC class (absence_dashboard excludes tc=1 courses
+        //     from the career grand total — they appear in a separate TC section).
         //  2. NONE of their local_learning_users rows carries a non-activo academic status.
+        $tc_fid = (int)($DB->get_field('customfield_field', 'id', ['shortname' => 'tc']) ?: 0);
+        $tc_join_sql  = $tc_fid
+            ? "LEFT JOIN {customfield_data} _tc_chk
+                      ON _tc_chk.instanceid = gc_act.corecourseid
+                     AND _tc_chk.fieldid = :tc_fid_chk
+                     AND _tc_chk.value = '1'"
+            : '';
+        $tc_where_sql = $tc_fid ? "AND _tc_chk.instanceid IS NULL" : '';
+
         $activeuserscount = (int)$DB->count_records_sql(
             "SELECT COUNT(DISTINCT u.id) $fromsql $whereclause
              AND NOT EXISTS (
@@ -584,13 +593,19 @@ class get_student_info extends external_api {
                  SELECT 1
                    FROM {gmk_course_progre} cp_act
                    JOIN {gmk_class} gc_act ON gc_act.id = cp_act.classid
+                   $tc_join_sql
                   WHERE cp_act.userid = u.id
                     AND cp_act.status IN (1, 2, 3)
                     AND gc_act.approved = 1
                     AND gc_act.closed   = 0
                     AND gc_act.enddate  > :now_act
+                    $tc_where_sql
              )",
-            array_merge($sqlparams, ['lpu_chk_role' => 'student', 'now_act' => time()])
+            array_merge(
+                $sqlparams,
+                ['lpu_chk_role' => 'student', 'now_act' => time()],
+                $tc_fid ? ['tc_fid_chk' => $tc_fid] : []
+            )
         );
 
         $pageusers = $DB->get_records_sql(

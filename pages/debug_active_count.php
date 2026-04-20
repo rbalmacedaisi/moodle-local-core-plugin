@@ -199,7 +199,7 @@ $absd_total_count  = count($absd_all_uids);
 // MÉTODO B: academicpanel.php / get_student_info::execute_optimized()
 // Universo: local_learning_users (userrolename='student')
 // Activo:   NOT EXISTS lpu con status != 'activo'
-//           AND EXISTS gmk_course_progre(status IN 1,2,3) + clase activa
+//           AND EXISTS gmk_course_progre(status IN 1,2,3) + clase activa NO-TC
 // ════════════════════════════════════════════════════════════════════════════
 
 $panel_candidates = $DB->get_fieldset_sql(
@@ -236,18 +236,25 @@ foreach ($panel_candidates as $uid) {
         continue;
     }
 
-    // Check 2: enrolled in at least one active class?
+    // Check 2: enrolled in at least one active NON-TC class?
+    $tc_join_b  = $tc_fieldid
+        ? "LEFT JOIN {customfield_data} _tcb ON _tcb.instanceid = gc.corecourseid
+                                             AND _tcb.fieldid = $tc_fieldid AND _tcb.value = '1'"
+        : '';
+    $tc_where_b = $tc_fieldid ? "AND _tcb.instanceid IS NULL" : '';
     $has_active_class = $DB->record_exists_sql(
         "SELECT 1 FROM {gmk_course_progre} cp
            JOIN {gmk_class} gc ON gc.id = cp.classid
+           $tc_join_b
           WHERE cp.userid=:uid AND cp.status IN (1,2,3)
-            AND gc.approved=1 AND gc.closed=0 AND gc.enddate>:now",
+            AND gc.approved=1 AND gc.closed=0 AND gc.enddate>:now
+            $tc_where_b",
         ['uid' => $uid, 'now' => $now]
     );
 
     if (!$has_active_class) {
         $panel_inactive_uids[$uid] = true;
-        $panel_uid_reasons[$uid][] = 'Sin matrícula en clase activa (gmk_course_progre)';
+        $panel_uid_reasons[$uid][] = 'Sin matrícula en clase activa no-TC (gmk_course_progre)';
         continue;
     }
 
