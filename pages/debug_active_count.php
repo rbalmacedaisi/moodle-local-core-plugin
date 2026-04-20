@@ -10,6 +10,10 @@ require_once(__DIR__ . '/absence_helpers.php');
 require_login();
 require_capability('moodle/site:config', context_system::instance());
 
+$PAGE->set_url(new moodle_url('/local/grupomakro_core/pages/debug_active_count.php'));
+$PAGE->set_context(context_system::instance());
+$PAGE->set_title('Debug: Conteo estudiantes activos');
+
 $now = time();
 
 echo $OUTPUT->header();
@@ -106,7 +110,7 @@ foreach ($DB->get_records_sql(
 }
 
 // Step 2: TC course IDs (excluded from regular_classes in the dashboard).
-$tc_fieldid = (int)($DB->get_field('customfield_field', 'id', ['shortname' => 'techcollege']) ?: 0);
+$tc_fieldid = (int)($DB->get_field('customfield_field', 'id', ['shortname' => 'tc']) ?: 0);
 $tc_course_ids = [];
 if ($tc_fieldid) {
     foreach ($DB->get_records_sql(
@@ -288,13 +292,13 @@ function dac_user_info(int $uid): array {
 <h2 style="background:#1e293b;color:#fff;margin:0 0 12px">Resumen</h2>
 <p style="font-size:11px;color:#64748b;margin-bottom:10px">
     <b>Método A</b> replica la lógica del <i>absence_dashboard.php</i>: solo clases en planes con estudiantes activos no suspendidos,
-    sin cursos TC (campo <code>techcollege=1</code>), sin docentes.<br>
+    sin cursos TC (campo personalizado <code>tc=1</code>), sin docentes.<br>
     <b>Método B</b> replica el <i>academicpanel.php</i>: usuarios con <code>local_learning_users.userroleid='student'</code>
     que tienen todos sus planes en estado <code>activo</code> y al menos una matrícula en clase activa.<br>
     <?php if ($tc_fieldid): ?>
-    <b>Filtro TC activo:</b> se encontraron <?php echo count($tc_course_ids); ?> cursos TC (campo <code>techcollege</code> ID=<?php echo $tc_fieldid; ?>).
+    <b>Filtro TC activo:</b> se encontraron <?php echo count($tc_course_ids); ?> cursos TC (campo personalizado <code>tc</code>, ID=<?php echo $tc_fieldid; ?>).
     <?php else: ?>
-    <b>Filtro TC:</b> campo <code>techcollege</code> no encontrado — todos los cursos se consideran regulares.
+    <b>Filtro TC:</b> campo personalizado <code>tc</code> no encontrado — todos los cursos se consideran regulares.
     <?php endif; ?>
 </p>
 <table>
