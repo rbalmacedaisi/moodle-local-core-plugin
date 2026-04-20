@@ -159,6 +159,9 @@
 
         async loadDemand(periodId) {
             const res = await this._fetch('local_grupomakro_get_demand_data', { periodid: periodId });
+            console.log("[SchedulerStore] loadDemand raw response:", res);
+            console.log("[SchedulerStore] loadDemand demand_tree:", res.demand_tree);
+            console.log("[SchedulerStore] loadDemand student_list count:", res.student_list ? res.student_list.length : 0);
 
             // demand_tree comes as JSON string
             this.state.demand = typeof res.demand_tree === 'string' ? JSON.parse(res.demand_tree) : res.demand_tree;
@@ -172,6 +175,9 @@
                 res.subjects.forEach(s => subjMap[s.id] = s);
             }
             this.state.subjects = subjMap;
+
+            console.log("[SchedulerStore] loadDemand state.demand set to:", this.state.demand);
+            console.log("[SchedulerStore] loadDemand Object.keys(state.demand).length:", Object.keys(this.state.demand).length);
         },
 
         async saveProjections(periodId, projections) {
