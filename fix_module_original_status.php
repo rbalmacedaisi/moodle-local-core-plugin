@@ -187,7 +187,7 @@ foreach ($previewData as $row) {
         $newProgress->learningplanid = $row->learningplanid;
         $newProgress->status = 2;
         $newProgress->progress = 0;
-        $newProgress->grade = null;
+        $newProgress->grade = 0;  // NOT NULL field - use 0 as default
         $newProgress->credits = 0;
         $newProgress->timecreated = time();
         $newProgress->timemodified = time();
