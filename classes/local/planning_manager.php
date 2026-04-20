@@ -792,13 +792,6 @@ class planning_manager {
             // --- END DEBUG ---
         }
 
-        \gmk_log("GMK_DEBUG get_demand_data periodId={$periodId}:");
-        \gmk_log("  Total students: " . count($students));
-        \gmk_log("  Students ADDED to tree: " . count($debug_students_with_priority));
-        \gmk_log("  Students NOT added (no priority): " . count($debug_students_no_priority));
-        \gmk_log("  First 3 NOT added: " . json_encode(array_slice($debug_students_no_priority, 0, 3)));
-        \gmk_log("  First 3 isPriority=false reasons: " . json_encode(array_slice($debug_ispriority_false_reasons, 0, 3)));
-
         // --- Paso 4: Re-loop para calcular student_count único por bucket ---
         // Tracks [career][shift][levelKey] => [dbId => true] to avoid counting multi-plan students twice
         $bucketStudentsSeen = [];

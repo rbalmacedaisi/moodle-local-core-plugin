@@ -159,9 +159,11 @@
 
         async loadDemand(periodId) {
             const res = await this._fetch('local_grupomakro_get_demand_data', { periodid: periodId });
-            console.log("[SchedulerStore] loadDemand raw response:", res);
+            console.log("[SchedulerStore] loadDemand COMPLETE response:", JSON.stringify(res));
+            console.log("[SchedulerStore] loadDemand keys:", Object.keys(res));
             console.log("[SchedulerStore] loadDemand demand_tree:", res.demand_tree);
             console.log("[SchedulerStore] loadDemand student_list count:", res.student_list ? res.student_list.length : 0);
+            console.log("[SchedulerStore] loadDemand has _debug?:", '_debug' in res, res._debug);
             if (res._debug) {
                 console.log("[SchedulerStore] loadDemand DEBUG:", res._debug);
             }
