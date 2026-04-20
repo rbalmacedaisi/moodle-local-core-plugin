@@ -56,10 +56,10 @@ Vue.component('teacher-student-table', {
                         </v-row>
                         
                         <!-- Filter Dialog -->
-                        <v-dialog v-model="filterDialog" max-width="500px">
+                        <v-dialog v-model="filterDialog" max-width="450px">
                             <v-card>
                                 <v-card-title class="headline" :class="$vuetify.theme.dark ? 'grey darken-3' : 'grey lighten-2'">
-                                    Filtros Avanzados
+                                    Filtros y Exportar
                                 </v-card-title>
                                 <v-card-text class="pt-4">
                                     <v-select
@@ -91,32 +91,20 @@ Vue.component('teacher-student-table', {
                                         :disabled="!filters.planid || filters.planid.length === 0"
                                         :loading="loadingPeriods"
                                     ></v-select>
-                                    <v-select
-                                        v-model="filters.status"
-                                        :items="['Activo', 'Inactivo', 'Suspendido', 'Graduado', 'Egreso']"
-                                        label="Estado Estudiante"
-                                        outlined
-                                        dense
-                                        clearable
-                                    ></v-select>
-                                    <v-switch
-                                        v-model="filters.withGrades"
-                                        label="Incluir Notas en Exportación"
-                                        color="success"
-                                        dense
-                                        hide-details
-                                    ></v-switch>
+                                    <v-radio-group v-model="filters.exportType" label="Tipo de Exportación" row class="mt-2">
+                                        <v-radio label="Asistencia (PDF)" value="attendance" color="error"></v-radio>
+                                        <v-radio label="Notas (Excel)" value="grades" color="success"></v-radio>
+                                    </v-radio-group>
                                 </v-card-text>
-                                <v-divider></v-divider>
-                                <v-divider class="mt-2"></v-divider>
                                 <v-card-actions class="pa-4 flex-column" style="gap:8px">
-                                    <v-btn color="error" block @click="exportPdf" :loading="exportingPdf">
-                                        <v-icon left>mdi-file-pdf-box</v-icon>
-                                        Exportar PDF (Asistencia y Notas)
-                                    </v-btn>
-                                    <v-btn color="success" block @click="exportConsolidatedGrades">
-                                        <v-icon left>mdi-file-excel</v-icon>
-                                        Exportar Excel (Notas Consolidadas)
+                                    <v-btn
+                                        color="primary"
+                                        block
+                                        :loading="exportingPdf"
+                                        @click="filters.exportType === 'attendance' ? exportPdf() : exportGrades()"
+                                    >
+                                        <v-icon left>{{ filters.exportType === 'attendance' ? 'mdi-file-pdf-box' : 'mdi-file-excel' }}</v-icon>
+                                        {{ filters.exportType === 'attendance' ? 'Exportar PDF (Asistencia)' : 'Exportar Excel (Notas)' }}
                                     </v-btn>
                                 </v-card-actions>
                                 <v-card-actions class="pa-4 pt-0">
@@ -300,7 +288,8 @@ Vue.component('teacher-student-table', {
                 planid: [],
                 periodid: [],
                 status: '',
-                withGrades: false
+                withGrades: false,
+                exportType: 'attendance'
             },
             careers: [],
             quarters: [],
@@ -536,18 +525,20 @@ Vue.component('teacher-student-table', {
             link.click();
             document.body.removeChild(link);
 
-            // Re-enable button after a short delay (download starts immediately)
             setTimeout(() => { this.exportingPdf = false; }, 2000);
             this.filterDialog = false;
         },
-        exportConsolidatedGrades() {
+        exportGrades() {
             let url = `${M.cfg.wwwroot}/local/grupomakro_core/pages/export_consolidated_grades.php?`;
             if (this.classId)                                            url += `classid=${this.classId}&`;
             if (this.filters.planid && this.filters.planid.length > 0)  url += `planid=${this.filters.planid.join(',')}&`;
             if (this.filters.periodid && this.filters.periodid.length)  url += `periodid=${this.filters.periodid.join(',')}&`;
             if (this.filters.status)                                     url += `status=${this.filters.status}&`;
-            url += `withgrades=${this.filters.withGrades ? 1 : 0}`;
+            url += `withgrades=1`;
+            this.exportingPdf = true;
             window.open(url, '_blank');
+            setTimeout(() => { this.exportingPdf = false; }, 2000);
+            this.filterDialog = false;
         },
         exportStudents() {
             window.open(window.location.origin + '/local/grupomakro_core/pages/export_students.php', '_blank');
