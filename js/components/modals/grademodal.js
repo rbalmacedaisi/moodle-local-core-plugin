@@ -148,12 +148,12 @@ Vue.component('grademodal', {
                                                             Inscribir
                                                         </v-btn>
                                                         <v-btn
-                                                            v-if="Number(course.courseid || 0) > 0"
+                                                            v-if="Number(course.courseid || 0) > 0 && canEnrollInModule(course)"
                                                             x-small
                                                             :color="moduleStatusMap[getCourseKey(course)] ? 'teal lighten-1' : 'teal darken-2'"
                                                             dark
                                                             :loading="enrollingModuleKey === getCourseKey(course)"
-                                                            :disabled="!!enrollingModuleKey || !!withdrawingCourseKey"
+                                                            :disabled="!!enrollingModuleKey || !!withdrawingCourseKey || !canEnrollInModule(course)"
                                                             @click.stop="enrollInModule(course)"
                                                             class="ml-1"
                                                             title="Inscribir en módulo independiente"
@@ -986,6 +986,10 @@ Vue.component('grademodal', {
                 return false;
             }
             return this.hasActiveClasses(course) && this.hasAllowedStatusForEnroll(course);
+        },
+        canEnrollInModule(course) {
+            const statusLabel = String((course && course.statusLabel) ? course.statusLabel : '').trim().toLowerCase();
+            return statusLabel !== 'cursando' && statusLabel !== 'aprobada';
         },
         async openEnrollDialog(course) {
             if (!this.canEnrollInCourse(course)) {
