@@ -41,7 +41,7 @@ function dac_chip(string $label, string $color = 'grey'): string {
 function dac_llu_status(int $userid): array {
     global $DB;
     $rows = $DB->get_records_sql(
-        "SELECT llu.status, lp.name AS planname
+        "SELECT llu.id, llu.status, lp.name AS planname
            FROM {local_learning_users} llu
            JOIN {local_learning_plans} lp ON lp.id = llu.learningplanid
           WHERE llu.userid = :uid AND llu.userrolename = 'student'",
@@ -73,7 +73,7 @@ function dac_active_classes(int $userid): array {
 function dac_all_class_progre(int $userid): array {
     global $DB;
     return $DB->get_records_sql(
-        "SELECT cp.classid, cp.status AS cp_status, gc.name AS classname, gc.closed, gc.approved, gc.enddate
+        "SELECT cp.id, cp.classid, cp.status AS cp_status, gc.name AS classname, gc.closed, gc.approved, gc.enddate
            FROM {gmk_course_progre} cp
            JOIN {gmk_class} gc ON gc.id = cp.classid
           WHERE cp.userid = :uid",
@@ -172,7 +172,7 @@ foreach ($panel_candidates as $uid) {
 
     // Check 1: all llu rows activo?
     $bad_rows = $DB->get_records_sql(
-        "SELECT llu.status, lp.name AS planname
+        "SELECT llu.id, llu.status, lp.name AS planname
            FROM {local_learning_users} llu
            JOIN {local_learning_plans} lp ON lp.id = llu.learningplanid
           WHERE llu.userid=:uid AND llu.userrolename='student'
