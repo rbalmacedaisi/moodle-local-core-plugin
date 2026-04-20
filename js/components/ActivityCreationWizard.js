@@ -70,22 +70,6 @@ const ActivityCreationWizard = {
                             </v-col>
                         </v-row>
 
-                        <v-row v-if="isAssignment">
-                             <v-col cols="12">
-                                <v-select
-                                    v-model="formData.gradecat"
-                                    :items="gradeCategories"
-                                    item-text="fullname"
-                                    item-value="id"
-                                    label="Categoría de Calificación (Rubro)"
-                                    outlined
-                                    dense
-                                    clearable
-                                    placeholder="Seleccione el rubro al que pertenece esta nota"
-                                ></v-select>
-                             </v-col>
-                        </v-row>
-
                         <!-- Tags Input -->
                         <v-combobox
                             ref="lessonTagInput"
@@ -143,15 +127,6 @@ const ActivityCreationWizard = {
                                 ></v-textarea>
                             </v-col>
                         </v-row>
-                        <!-- Template Option -->
-                        <v-checkbox
-                            v-if="!editMode"
-                            v-model="saveAsTemplate"
-                            label="Guardar como plantilla para futuros cursos"
-                            hide-details
-                            class="mt-0"
-                        ></v-checkbox>
-                        
                         <v-switch
                             v-if="editMode"
                             v-model="formData.visible"
@@ -226,7 +201,6 @@ const ActivityCreationWizard = {
             visible: true,
             valid: false,
             saving: false,
-            saveAsTemplate: false,
             formData: {
                 name: '',
                 intro: '',
@@ -234,7 +208,6 @@ const ActivityCreationWizard = {
                 timeopen: '',
                 timeclose: '',
                 attempts: 1,
-                gradecat: null,
                 tags: '',
                 visible: true,
                 guest: false,
@@ -244,7 +217,6 @@ const ActivityCreationWizard = {
             },
             tagSearchInput: '',
             courseTags: [],
-            gradeCategories: [],
             resourceFiles: [],
             uploadedDrafts: [],    // parallel array: { draftitemid, filename } per resourceFiles entry
             uploadDraftItemId: 0,
@@ -454,8 +426,6 @@ const ActivityCreationWizard = {
                     duedate: duedate,
                     timeopen: timeopen,
                     timeclose: timeclose,
-                    save_as_template: this.saveAsTemplate,
-                    gradecat: this.formData.gradecat,
                     guest: this.formData.guest,
                     forumtopic: this.isForum ? (this.formData.forumtopic || this.formData.name || '') : '',
                     forummessage: this.isForum ? (this.formData.forummessage || this.formData.intro || '') : '',
@@ -514,27 +484,9 @@ const ActivityCreationWizard = {
                         this.existingFiles = act.files;
                     }
 
-                    // Fallback refresh for grade categories if it was assign but labeled assignment etc
-                    if (this.isAssignment && this.gradeCategories.length === 0) {
-                        this.fetchGradeCategories();
-                    }
                 }
             } catch (e) {
                 console.error("Error loading details", e);
-            }
-        },
-        async fetchGradeCategories() {
-            try {
-                const response = await axios.post(window.wsUrl, {
-                    action: 'local_grupomakro_get_course_grade_categories',
-                    args: { classid: this.classId },
-                    ...window.wsStaticParams
-                });
-                if (response.data.status === 'success') {
-                    this.gradeCategories = response.data.categories;
-                }
-            } catch (error) {
-                console.error('Error fetching categories:', error);
             }
         },
         async fetchCourseTags() {

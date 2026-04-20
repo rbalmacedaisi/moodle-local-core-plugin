@@ -392,7 +392,7 @@ const ManageClass = {
                             <v-icon>mdi-file-document-edit</v-icon>
                         </v-btn>
                     </template>
-                    <span>Tarea / Asignaci?n</span>
+                    <span>Tarea / Asignación</span>
                 </v-tooltip>
 
                 <v-tooltip left>
