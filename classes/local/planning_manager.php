@@ -633,6 +633,8 @@ class planning_manager {
         $students = $planningData['students'];
         $tree = [];
 
+        \gmk_log("GMK_DEBUG get_demand_data: periodId={$periodId}, students_count=" . count($students));
+
         // --- Paso 1: Pre-cargar ignorados (status=2) y deferrals del periodo ---
 
         // Mapa courseid => true para subjects marcados como "Omitir Auto"
@@ -672,6 +674,12 @@ class planning_manager {
             }
         }
 
+        // --- DEBUG LOGGING ---
+        $debug_students_with_priority = [];
+        $debug_students_no_priority = [];
+        $debug_ispriority_false_reasons = [];
+        // --- END DEBUG LOGGING ---
+
         // --- Paso 3: Construir árbol de demanda ---
         // Solo estudiantes cuya asignatura es isPriority (del periodo actual),
         // con prereqs cumplidos, no omitida, y no diferida para su cohorte.
@@ -684,6 +692,7 @@ class planning_manager {
             $subLabel   = $stu['currentSubperiodConfig'] ?: '';
             $levelKey   = $subLabel ? "$levelLabel - $subLabel" : $levelLabel;
             $cohortKey  = self::build_cohort_key($career, $shift, $stu);
+            $stuAddedToTree = false;
 
             foreach ($stu['pendingSubjects'] as $subj) {
                 // Prerequisitos no cumplidos — siempre excluir
@@ -704,7 +713,26 @@ class planning_manager {
                 // a) isPriority=true (asignatura del nivel actual según semConfig), O
                 // b) tiene deferral explícito a P-I (targetIdx=0) — el coordinador lo movió a P-I
                 $hasPriorityOrDeferredToP1 = !empty($subj['isPriority']) || ($targetIdx === 0);
+
+                // --- DEBUG ---
+                if (empty($subj['isPriority']) && $targetIdx !== 0) {
+                    $debug_ispriority_false_reasons[] = [
+                        'student' => $stu['name'],
+                        'dbId' => $stu['dbId'],
+                        'subject' => $subj['name'],
+                        'isPriority' => $subj['isPriority'],
+                        'isPreRequisiteMet' => $subj['isPreRequisiteMet'],
+                        'targetIdx' => $targetIdx,
+                        'cohortKey' => $cohortKey,
+                        'levelLabel' => $levelLabel,
+                        'subLabel' => $subLabel,
+                    ];
+                }
+                // --- END DEBUG ---
+
                 if (!$hasPriorityOrDeferredToP1) continue;
+
+                $stuAddedToTree = true;
 
                 // Init Path
                 if (!isset($tree[$career][$shift][$levelKey])) {
@@ -733,7 +761,43 @@ class planning_manager {
                     $tree[$career][$shift][$levelKey]['course_counts'][$courseId]['students'][] = $stu['id'];
                 }
             }
+
+            // --- DEBUG ---
+            if ($stuAddedToTree) {
+                $debug_students_with_priority[] = [
+                    'name' => $stu['name'],
+                    'dbId' => $stu['dbId'],
+                    'career' => $career,
+                    'shift' => $shift,
+                    'levelKey' => $levelKey,
+                    'cohortKey' => $cohortKey,
+                    'pendingCount' => count($stu['pendingSubjects']),
+                ];
+            } else {
+                $debug_students_no_priority[] = [
+                    'name' => $stu['name'],
+                    'dbId' => $stu['dbId'],
+                    'career' => $career,
+                    'shift' => $shift,
+                    'levelKey' => $levelKey,
+                    'cohortKey' => $cohortKey,
+                    'pendingCount' => count($stu['pendingSubjects']),
+                    'firstPending' => !empty($stu['pendingSubjects']) ? [
+                        'name' => $stu['pendingSubjects'][0]['name'],
+                        'isPriority' => $stu['pendingSubjects'][0]['isPriority'],
+                        'isPreRequisiteMet' => $stu['pendingSubjects'][0]['isPreRequisiteMet'],
+                    ] : null,
+                ];
+            }
+            // --- END DEBUG ---
         }
+
+        \gmk_log("GMK_DEBUG get_demand_data periodId={$periodId}:");
+        \gmk_log("  Total students: " . count($students));
+        \gmk_log("  Students ADDED to tree: " . count($debug_students_with_priority));
+        \gmk_log("  Students NOT added (no priority): " . count($debug_students_no_priority));
+        \gmk_log("  First 3 NOT added: " . json_encode(array_slice($debug_students_no_priority, 0, 3)));
+        \gmk_log("  First 3 isPriority=false reasons: " . json_encode(array_slice($debug_ispriority_false_reasons, 0, 3)));
 
         // --- Paso 4: Re-loop para calcular student_count único por bucket ---
         // Tracks [career][shift][levelKey] => [dbId => true] to avoid counting multi-plan students twice
