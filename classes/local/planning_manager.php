@@ -690,8 +690,19 @@ class planning_manager {
             $planId     = $stu['planid'];
             $levelLabel = $stu['currentSemConfig'] ?: 'Sin Nivel';
             $subLabel   = $stu['currentSubperiodConfig'] ?: '';
-            $levelKey   = $subLabel ? "$levelLabel - $subLabel" : $levelLabel;
             $cohortKey  = self::build_cohort_key($career, $shift, $stu);
+
+            // Extraer planningLevel y planningBimestre del cohortKey para consistencia con levelKey
+            // Formato: "Career - Shift - Nivel X - Bimestre Y [entryP]"
+            $planningLevel = $levelLabel;
+            $planningBimestre = $subLabel;
+            if (preg_match('/Nivel\s+(\d+)/', $cohortKey, $m)) {
+                $planningLevel = 'Cuatrimestre ' . $m[1];
+            }
+            if (preg_match('/Bimestre\s+(I|II)/', $cohortKey, $m)) {
+                $planningBimestre = 'BIMESTRE ' . $m[1];
+            }
+            $levelKey = "$planningLevel - $planningBimestre";
             $stuAddedToTree = false;
 
             foreach ($stu['pendingSubjects'] as $subj) {
@@ -801,8 +812,18 @@ class planning_manager {
              $shift      = $stu['shift']  ?: 'Sin Jornada';
              $levelLabel = $stu['currentSemConfig'] ?: 'Sin Nivel';
              $subLabel   = $stu['currentSubperiodConfig'] ?: '';
-             $levelKey   = $subLabel ? "$levelLabel - $subLabel" : $levelLabel;
              $cohortKey  = self::build_cohort_key($career, $shift, $stu);
+
+             // Extraer planningLevel y planningBimestre del cohortKey para consistencia
+             $planningLevel = $levelLabel;
+             $planningBimestre = $subLabel;
+             if (preg_match('/Nivel\s+(\d+)/', $cohortKey, $m)) {
+                 $planningLevel = 'Cuatrimestre ' . $m[1];
+             }
+             if (preg_match('/Bimestre\s+(I|II)/', $cohortKey, $m)) {
+                 $planningBimestre = 'BIMESTRE ' . $m[1];
+             }
+             $levelKey = "$planningLevel - $planningBimestre";
              $dbId       = $stu['dbId'];
 
              foreach ($stu['pendingSubjects'] as $subj) {
