@@ -161,30 +161,7 @@ class planning_manager {
         }
 
         // B. Fetch Subject-Specific Projections (from Matrix)
-        // Use target_period_id from gmk_planning_period_maps to find the correct academicperiodid.
-        // Find the mapping where target_period_id matches the selected periodId (this gives us P-II, P-III, etc.)
-        $targetPeriodId = null;
-        $periodMappings = $DB->get_records('gmk_planning_period_maps', ['base_period_id' => $periodId], 'relative_index ASC');
-        if (!empty($periodMappings)) {
-            // Find the mapping whose target_period_id equals the selected periodId
-            foreach ($periodMappings as $mapping) {
-                if ((int)$mapping->target_period_id === (int)$periodId) {
-                    $targetPeriodId = (int)$mapping->target_period_id;
-                    break;
-                }
-            }
-            // Fallback to first mapping if no exact match found
-            if ($targetPeriodId === null) {
-                $firstMapping = reset($periodMappings);
-                $targetPeriodId = (int)$firstMapping->target_period_id;
-            }
-        }
-        // Fallback to periodId if no mapping exists
-        if ($targetPeriodId === null || $targetPeriodId === 0) {
-            $targetPeriodId = $periodId;
-        }
-        \gmk_log("GMK_DEBUG get_planning_data: periodId={$periodId}, targetPeriodId={$targetPeriodId}");
-        $planningProjections = $DB->get_records('gmk_academic_planning', ['academicperiodid' => $targetPeriodId]);
+        $planningProjections = $DB->get_records('gmk_academic_planning', ['academicperiodid' => $periodId]);
         
         // C. Fetch General Projections (New Entrants)
         $projections = $DB->get_records('gmk_academic_projections', ['academicperiodid' => $periodId]);
