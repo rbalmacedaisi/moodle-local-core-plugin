@@ -41,6 +41,7 @@ if ($classid > 0) {
                 gc.courseid,
                 gc.attendancemoduleid,
                 gc.groupid,
+                gc.gradecategoryid,
                 gc.initdate,
                 gc.enddate,
                 c.fullname        AS coursefullname,
@@ -153,18 +154,42 @@ if (!empty($userids)) {
     }
 }
 
-// ── Total grades (course final grade) ─────────────────────────────────────────
-$grade_map     = [];
-$grade_max_val = 100;
+// ── Total grades ──────────────────────────────────────────────────────────────
+// Use the class-specific grade category total when available (same source as the
+// gradebook table in the teacher dashboard). Fall back to the course-level total.
+$grade_map        = [];
+$grade_max_val    = 100;
+$grade_item_label = 'Nota Total';
 
 $course_id_for_grades = (int)($class->corecourseid ?? $class->courseid ?? 0);
+$classcategoryid      = !empty($class->gradecategoryid) ? (int)$class->gradecategoryid : 0;
+
 if ($course_id_for_grades > 0) {
-    $grade_item = $DB->get_record(
-        'grade_items',
-        ['courseid' => $course_id_for_grades, 'itemtype' => 'course'],
-        '*',
-        IGNORE_MISSING
-    );
+    $grade_item = null;
+
+    // 1st choice: class category total (matches the gradebook table).
+    if ($classcategoryid > 0) {
+        $grade_item = $DB->get_record(
+            'grade_items',
+            ['courseid' => $course_id_for_grades, 'itemtype' => 'category', 'iteminstance' => $classcategoryid],
+            '*',
+            IGNORE_MISSING
+        );
+        if ($grade_item) {
+            $grade_item_label = 'Nota Total (clase)';
+        }
+    }
+
+    // Fallback: course-level aggregated total.
+    if (!$grade_item) {
+        $grade_item = $DB->get_record(
+            'grade_items',
+            ['courseid' => $course_id_for_grades, 'itemtype' => 'course'],
+            '*',
+            IGNORE_MISSING
+        );
+    }
+
     if ($grade_item) {
         $grade_max_val = (float)($grade_item->grademax ?: 100);
         list($guinsql, $guinparams) = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED, 'gu');
@@ -317,15 +342,16 @@ class AttendanceExportPDF extends TCPDF {
 
 $pdf = new AttendanceExportPDF('L', 'mm', 'A4', true, 'UTF-8', false);
 $pdf->hd = [
-    'font'     => $PDF_FONT,
-    'cname'    => $cname,
-    'shift'    => $shift,
-    'teacher'  => $teacher,
-    'schedule' => $schedHtml,
-    'total'    => $total_students,
-    'active'   => $active_students,
-    'taken'    => $taken_count,
-    'avg_pct'  => $avg_pct,
+    'font'        => $PDF_FONT,
+    'cname'       => $cname,
+    'shift'       => $shift,
+    'teacher'     => $teacher,
+    'schedule'    => $schedHtml,
+    'total'       => $total_students,
+    'active'      => $active_students,
+    'taken'       => $taken_count,
+    'avg_pct'     => $avg_pct,
+    'grade_label' => $grade_item_label,
 ];
 $pdf->SetCreator('ISI Moodle');
 $pdf->SetTitle('Asistencia - ' . $cname);
@@ -397,7 +423,7 @@ $drawHeaderRow = function(
     $pdf->Cell($numColW,  7, '#',              'LTB', 0, 'C', true);
     $pdf->Cell($cedColW,  7, 'Cédula',         'LTB', 0, 'C', true);
     $pdf->Cell($nameColW, 7, 'Nombre' . $chunkLabel, 'LTB', 0, 'L', true);
-    $pdf->Cell($noteColW, 7, 'Nota Total',     'LTB', 0, 'C', true);
+    $pdf->Cell($noteColW, 7, $d['grade_label'] ?? 'Nota Total', 'LTB', 0, 'C', true);
 
     foreach ($chunk_sids as $sid) {
         $info = $session_info[$sid] ?? ['date' => '?', 'taken' => false];
