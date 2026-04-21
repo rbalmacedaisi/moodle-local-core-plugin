@@ -718,13 +718,13 @@ class planning_manager {
                 // Ver si este cohorte tiene deferral explícito para esta asignatura
                 $targetIdx = $deferralsByCourse[$courseId][$cohortKey] ?? -1;
 
-                // Excluir si diferida a periodo futuro
-                if ($targetIdx > 0) continue;
+                // Excluir si diferida a periodo futuro (P-III en adelante)
+                if ($targetIdx > 1) continue;
 
                 // Incluir si:
                 // a) isPriority=true (asignatura del nivel actual según semConfig), O
-                // b) tiene deferral explícito a P-I (targetIdx=0) — el coordinador lo movió a P-I
-                $hasPriorityOrDeferredToP1 = !empty($subj['isPriority']) || ($targetIdx === 0);
+                // b) tiene deferral explícito a P-I (targetIdx=0) o P-II (targetIdx=1)
+                $hasPriorityOrDeferredToP1OrP2 = !empty($subj['isPriority']) || ($targetIdx === 0) || ($targetIdx === 1);
 
                 // --- DEBUG ---
                 if (empty($subj['isPriority']) && $targetIdx !== 0) {
@@ -846,10 +846,10 @@ class planning_manager {
 
                  // Mismos filtros que en el Paso 3
                  if (empty($subj['isPreRequisiteMet'])) continue;
-                 if ($targetIdx > 0) continue;
+                 if ($targetIdx > 1) continue;
                  if (!empty($globalIgnoredMap[$courseId])) continue;
-                 $hasPriorityOrDeferredToP1 = !empty($subj['isPriority']) || ($targetIdx === 0);
-                 if (!$hasPriorityOrDeferredToP1) continue;
+                 $hasPriorityOrDeferredToP1OrP2 = !empty($subj['isPriority']) || ($targetIdx === 0) || ($targetIdx === 1);
+                 if (!$hasPriorityOrDeferredToP1OrP2) continue;
 
                  if (isset($tree[$career][$shift][$levelKey])) {
                      // Deduplicar: un estudiante en 2 planes solo cuenta una vez por bucket
