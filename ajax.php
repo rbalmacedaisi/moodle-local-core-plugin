@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 
 define('AJAX_SCRIPT', true);
 
@@ -5100,6 +5100,13 @@ try {
             $periodid = required_param('periodid', PARAM_INT);
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/planning_manager.php');
             $data = \local_grupomakro_core\local\planning_manager::get_demand_data($periodid);
+            $response = ['status' => 'success', 'data' => $data];
+            break;
+
+        case 'local_grupomakro_debug_demand_data':
+            $periodid = required_param('periodid', PARAM_INT);
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/planning_manager.php');
+            $data = \local_grupomakro_core\local\planning_manager::get_debug_demand_data($periodid);
             $response = ['status' => 'success', 'data' => $data];
             break;
 

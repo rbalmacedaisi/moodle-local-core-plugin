@@ -892,6 +892,221 @@ class planning_manager {
     }
 
     /**
+     * Debug version of get_demand_data with detailed logging for each step.
+     * Returns comprehensive information to diagnose why the demand tree is empty.
+     */
+    public static function get_debug_demand_data($periodId) {
+        global $DB;
+
+        $planningData = self::get_planning_data($periodId);
+        $students = $planningData['students'];
+        $tree = [];
+
+        // Build subjects map for display
+        $subjectsMap = [];
+        foreach (($planningData['all_subjects'] ?? []) as $s) {
+            $subjectsMap[$s['id']] = $s['name'];
+        }
+
+        // Step 1: Pre-load ignored and deferrals
+        $globalIgnoredMap = [];
+        $ignoredList = [];
+        if (!empty($planningData['planning_projections'])) {
+            foreach ($planningData['planning_projections'] as $pp) {
+                if ($pp->status == 2) {
+                    $globalIgnoredMap[$pp->courseid] = true;
+                    $ignoredList[] = $pp->courseid;
+                }
+            }
+        }
+
+        $deferralsByCourse = [];
+        $deferralsCount = 0;
+        $rawDeferrals = $DB->get_records('gmk_academic_deferrals', ['academicperiodid' => $periodId]);
+        foreach ($rawDeferrals as $d) {
+            $dCohortKey = "{$d->career} - {$d->shift} - {$d->current_level}";
+            if (!isset($deferralsByCourse[$d->courseid])) {
+                $deferralsByCourse[$d->courseid] = [];
+            }
+            $deferralsByCourse[$d->courseid][$dCohortKey] = (int)$d->target_period_index;
+            $deferralsCount++;
+        }
+
+        // Confirmed subjects
+        $confirmedSubjects = [];
+        if (!empty($planningData['planning_projections'])) {
+            foreach ($planningData['planning_projections'] as $pp) {
+                if ($pp->status == 1) {
+                    $confirmedSubjects[$pp->courseid] = true;
+                }
+            }
+        }
+
+        // Step 3: Build tree
+        $studentsWithPriority = [];
+        $studentsNoPriority = [];
+
+        foreach ($students as $stu) {
+            $career     = $stu['career'] ?: 'General';
+            $shift      = $stu['shift']  ?: 'Sin Jornada';
+            $planId     = $stu['planid'];
+            $levelLabel = $stu['currentSemConfig'] ?: 'Sin Nivel';
+            $subLabel   = $stu['currentSubperiodConfig'] ?: '';
+            $cohortKey  = self::build_cohort_key($career, $shift, $stu);
+
+            // Extract planningLevel and planningBimestre from cohortKey
+            $planningLevel = $levelLabel;
+            $planningBimestre = $subLabel;
+            if (preg_match('/Nivel\s+(\d+)/', $cohortKey, $m)) {
+                $planningLevel = 'Cuatrimestre ' . $m[1];
+            }
+            if (preg_match('/Bimestre\s+(I|II)/', $cohortKey, $m)) {
+                $planningBimestre = 'BIMESTRE ' . $m[1];
+            }
+            $levelKey = "$planningLevel - $planningBimestre";
+
+            $stuPassedFilters = false;
+            $filterReason = 'unknown';
+
+            foreach ($stu['pendingSubjects'] as $subj) {
+                if (empty($subj['isPreRequisiteMet'])) {
+                    $filterReason = 'prereq_not_met';
+                    continue;
+                }
+
+                $courseId = $subj['id'];
+
+                if (!empty($globalIgnoredMap[$courseId])) {
+                    $filterReason = 'course_ignored';
+                    continue;
+                }
+
+                $targetIdx = $deferralsByCourse[$courseId][$cohortKey] ?? -1;
+
+                if ($targetIdx > 0) {
+                    $filterReason = 'deferred_to_future';
+                    continue;
+                }
+
+                $hasPriorityOrDeferredToP1 = !empty($subj['isPriority']) || ($targetIdx === 0);
+                if (!$hasPriorityOrDeferredToP1) {
+                    $filterReason = 'no_priority_match';
+                    continue;
+                }
+
+                // This subject passes all filters
+                $stuPassedFilters = true;
+
+                if (!isset($tree[$career][$shift][$levelKey])) {
+                    $tree[$career][$shift][$levelKey] = [
+                        'semester_name' => $levelKey,
+                        'student_count' => 0,
+                        'course_counts' => []
+                    ];
+                }
+
+                if (!isset($tree[$career][$shift][$levelKey]['course_counts'][$courseId])) {
+                     $tree[$career][$shift][$levelKey]['course_counts'][$courseId] = [
+                         'count' => 0,
+                         'students' => [],
+                         '_studentDbIds' => [],
+                         'plan_map' => []
+                     ];
+                }
+
+                $dbId = $stu['dbId'];
+                if (!in_array($dbId, $tree[$career][$shift][$levelKey]['course_counts'][$courseId]['_studentDbIds'])) {
+                    $tree[$career][$shift][$levelKey]['course_counts'][$courseId]['_studentDbIds'][] = $dbId;
+                    $tree[$career][$shift][$levelKey]['course_counts'][$courseId]['count']++;
+                    $tree[$career][$shift][$levelKey]['course_counts'][$courseId]['students'][] = $stu['id'];
+                }
+            }
+
+            // Record student in appropriate list
+            $studentRecord = [
+                'name' => $stu['name'],
+                'dbId' => $stu['dbId'],
+                'career' => $career,
+                'shift' => $shift,
+                'levelLabel' => $levelLabel,
+                'subLabel' => $subLabel,
+                'levelKey' => $levelKey,
+                'cohortKey' => $cohortKey,
+                'pendingCount' => count($stu['pendingSubjects']),
+                'firstPending' => !empty($stu['pendingSubjects']) ? [
+                    'name' => $stu['pendingSubjects'][0]['name'],
+                    'id' => $stu['pendingSubjects'][0]['id'],
+                    'semester' => $stu['pendingSubjects'][0]['semester'],
+                    'isPriority' => $stu['pendingSubjects'][0]['isPriority'],
+                    'isPreRequisiteMet' => $stu['pendingSubjects'][0]['isPreRequisiteMet'],
+                ] : null,
+            ];
+
+            if ($stuPassedFilters) {
+                $studentRecord['filterReason'] = 'PASSED';
+                $studentsWithPriority[] = $studentRecord;
+            } else {
+                $studentRecord['filterReason'] = $filterReason;
+                $studentsNoPriority[] = $studentRecord;
+            }
+        }
+
+        // Step 4: Re-loop for unique student count
+        $bucketStudentsSeen = [];
+        foreach ($students as $stu) {
+            $career     = $stu['career'] ?: 'General';
+            $shift      = $stu['shift']  ?: 'Sin Jornada';
+            $levelLabel = $stu['currentSemConfig'] ?: 'Sin Nivel';
+            $subLabel   = $stu['currentSubperiodConfig'] ?: '';
+            $cohortKey  = self::build_cohort_key($career, $shift, $stu);
+
+            $planningLevel = $levelLabel;
+            $planningBimestre = $subLabel;
+            if (preg_match('/Nivel\s+(\d+)/', $cohortKey, $m)) {
+                $planningLevel = 'Cuatrimestre ' . $m[1];
+            }
+            if (preg_match('/Bimestre\s+(I|II)/', $cohortKey, $m)) {
+                $planningBimestre = 'BIMESTRE ' . $m[1];
+            }
+            $levelKey = "$planningLevel - $planningBimestre";
+            $dbId = $stu['dbId'];
+
+            foreach ($stu['pendingSubjects'] as $subj) {
+                $courseId = $subj['id'];
+                $targetIdx = $deferralsByCourse[$courseId][$cohortKey] ?? -1;
+
+                if (empty($subj['isPreRequisiteMet'])) continue;
+                if ($targetIdx > 0) continue;
+                if (!empty($globalIgnoredMap[$courseId])) continue;
+                $hasPriorityOrDeferredToP1 = !empty($subj['isPriority']) || ($targetIdx === 0);
+                if (!$hasPriorityOrDeferredToP1) continue;
+
+                if (isset($tree[$career][$shift][$levelKey])) {
+                    if (!isset($bucketStudentsSeen[$career][$shift][$levelKey][$dbId])) {
+                        $bucketStudentsSeen[$career][$shift][$levelKey][$dbId] = true;
+                        $tree[$career][$shift][$levelKey]['student_count']++;
+                    }
+                }
+                break;
+            }
+        }
+
+        return [
+            'total_students' => count($students),
+            'students' => array_slice($students, 0, 200),
+            'subjects_map' => $subjectsMap,
+            'ignored_count' => count($ignoredList),
+            'ignored_map' => $ignoredList,
+            'deferrals_count' => $deferralsCount,
+            'deferrals_by_course' => $deferralsByCourse,
+            'confirmed_subjects_count' => count($confirmedSubjects),
+            'students_with_priority' => array_slice($studentsWithPriority, 0, 200),
+            'students_no_priority' => array_slice($studentsNoPriority, 0, 200),
+            'demand_tree' => $tree,
+        ];
+    }
+
+    /**
      * Build the cohort key exactly as the frontend does in academic_planning.php.
      *
      * Frontend format: "${career} - ${shift} - Nivel ${planningLevel} - Bimestre ${planningBimestre} [${entryP}]"
