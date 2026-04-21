@@ -707,24 +707,25 @@ class planning_manager {
             $stuAddedToTree = false;
 
             foreach ($stu['pendingSubjects'] as $subj) {
-                // Prerequisitos no cumplidos — siempre excluir
-                if (empty($subj['isPreRequisiteMet'])) continue;
+                 // Prerequisitos no cumplidos — siempre excluir
+                 if (empty($subj['isPreRequisiteMet'])) continue;
 
-                $courseId = $subj['id'];
+                 $courseId = $subj['id'];
 
-                // Omitida (status=2) — única exclusión explícita del coordinador
-                if (!empty($globalIgnoredMap[$courseId])) continue;
+                 // Ver si este cohorte tiene deferral explícito para esta asignatura
+                 $targetIdx = $deferralsByCourse[$courseId][$cohortKey] ?? -1;
 
-                // Ver si este cohorte tiene deferral explícito para esta asignatura
-                $targetIdx = $deferralsByCourse[$courseId][$cohortKey] ?? -1;
+                 // Omitida (status=2) — EXCEPTO si tiene deferral a P-I o P-II
+                 // Si el coordinador diferió el curso a P-I o P-II, se incluye aunque esté ignorado
+                 if (!empty($globalIgnoredMap[$courseId]) && !in_array($targetIdx, [0, 1])) continue;
 
-                // Excluir si diferida a periodo futuro (P-III en adelante)
-                if ($targetIdx > 1) continue;
+                 // Excluir si diferida a periodo futuro (P-III en adelante)
+                 if ($targetIdx > 1) continue;
 
-                // Incluir si:
-                // a) isPriority=true (asignatura del nivel actual según semConfig), O
-                // b) tiene deferral explícito a P-I (targetIdx=0) o P-II (targetIdx=1)
-                $hasPriorityOrDeferredToP1OrP2 = !empty($subj['isPriority']) || ($targetIdx === 0) || ($targetIdx === 1);
+                 // Incluir si:
+                 // a) isPriority=true (asignatura del nivel actual según semConfig), O
+                 // b) tiene deferral explícito a P-I (targetIdx=0) o P-II (targetIdx=1)
+                 $hasPriorityOrDeferredToP1OrP2 = !empty($subj['isPriority']) || ($targetIdx === 0) || ($targetIdx === 1);
 
                 // --- DEBUG ---
                 if (empty($subj['isPriority']) && $targetIdx !== 0) {
@@ -846,8 +847,10 @@ class planning_manager {
 
                  // Mismos filtros que en el Paso 3
                  if (empty($subj['isPreRequisiteMet'])) continue;
+                 // Omitida (status=2) — EXCEPTO si tiene deferral a P-I o P-II
+                 if (!empty($globalIgnoredMap[$courseId]) && !in_array($targetIdx, [0, 1])) continue;
+                 // Excluir si diferida a periodo futuro (P-III en adelante)
                  if ($targetIdx > 1) continue;
-                 if (!empty($globalIgnoredMap[$courseId])) continue;
                  $hasPriorityOrDeferredToP1OrP2 = !empty($subj['isPriority']) || ($targetIdx === 0) || ($targetIdx === 1);
                  if (!$hasPriorityOrDeferredToP1OrP2) continue;
 
