@@ -743,7 +743,7 @@ class planning_manager {
                 }
                 // --- END DEBUG ---
 
-                if (!$hasPriorityOrDeferredToP1) continue;
+                if (!$hasPriorityOrDeferredToP1OrP2) continue;
 
                 // DEBUG: log every student that passes all filters
                 $debug_passes_filters[] = [

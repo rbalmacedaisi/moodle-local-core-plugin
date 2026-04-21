@@ -211,315 +211,133 @@ class scheduler extends external_api {
     }
 
     public static function get_demand_data($periodid) {
-        global $DB;
+        global $DB, $CFG;
         $context = \context_system::instance();
         self::validate_context($context);
         require_capability('moodle/site:config', $context);
 
-        // A. Fetch Real Students & their pending subjects
-        // Logic similar to planning::get_demand_analysis but we return flat list + grouped structure
-        
-        // 1. Get Students (Active, Enrolled)
-        // Optimization: We could reuse planning filters, but here we want global demand for the period.
-        // We assume students 'moved' to this period or planning to enroll.
-        // Actually, we should look at 'currentperiodid' relative to their plan.
-        
-        $jornadaField = $DB->get_record('user_info_field', ['shortname' => 'gmkjourney']);
-        $jornadaJoin = $jornadaField ? "LEFT JOIN {user_info_data} uid_j ON uid_j.userid = u.id AND uid_j.fieldid = " . $jornadaField->id : "";
-        $jornadaSelect = $jornadaField ? ", uid_j.data AS jornada" : "";
-        $jornadaGroupBy = $jornadaField ? ", uid_j.data" : "";
+        require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/planning_manager.php');
 
-        $piField = $DB->get_record('user_info_field', ['shortname' => 'gmkperiodoingreso']);
-        $piJoin = $piField ? "LEFT JOIN {user_info_data} uid_pi ON uid_pi.userid = u.id AND uid_pi.fieldid = " . $piField->id : "";
-        $piSelect = $piField ? ", uid_pi.data AS entry_period" : ", '' as entry_period";
-        $piGroupBy = $piField ? ", uid_pi.data" : "";
-
-        $sql = "SELECT llu.id as recordid, u.id, u.idnumber, u.firstname, u.lastname, lp.id as planid, lp.name as planname, 
-                       llu.currentperiodid, p.name as currentperiodname,
-                       llu.currentsubperiodid, sp.name as currentsubperiodname $jornadaSelect $piSelect
-                FROM {user} u
-                JOIN {local_learning_users} llu ON llu.userid = u.id
-                LEFT JOIN {local_learning_plans} lp ON lp.id = llu.learningplanid
-                LEFT JOIN {local_learning_periods} p ON p.id = llu.currentperiodid
-                LEFT JOIN {local_learning_subperiods} sp ON sp.id = llu.currentsubperiodid
-                $jornadaJoin
-                $piJoin
-                WHERE u.deleted = 0 AND u.suspended = 0 AND llu.userrolename = 'student' 
-                  AND llu.status = 'activo'
-                GROUP BY llu.id, u.id, u.idnumber, u.firstname, u.lastname, lp.id, lp.name, 
-                         llu.currentperiodid, p.name, llu.currentsubperiodid, sp.name $jornadaGroupBy $piGroupBy"; 
-
-        $students = $DB->get_records_sql($sql);
-
-        // 2. Pre-fetch Curricula WITH subperiod position
-        $sql = "SELECT lpc.id, lpc.learningplanid, lpc.periodid, lpc.courseid, 
-                       (COALESCE(sp.position + 1, 0)) as subperiod_pos
-                FROM {local_learning_courses} lpc
-                LEFT JOIN {local_learning_subperiods} sp ON sp.id = lpc.subperiodid";
-        $plan_courses = $DB->get_records_sql($sql);
-        
-        $curricula = [];
-        $curricula_subperiods = []; // To lookup subperiod for planning/projections
-        $reverse_curricula = []; // To lookup Moodle ID from Subject ID
-        foreach ($plan_courses as $pc) {
-            $curricula[$pc->learningplanid][$pc->periodid][$pc->courseid] = [
-                'subjectid' => $pc->id,
-                'subperiod_pos' => $pc->subperiod_pos
-            ];
-            $curricula_subperiods[$pc->learningplanid][$pc->courseid] = $pc->subperiod_pos;
-            $reverse_curricula[$pc->id] = $pc->courseid;
-        }
-
-        // 3. Pre-fetch Passed Courses
-        $progress_sql = "SELECT DISTINCT CONCAT(userid, '_', courseid) as id, 1 FROM {gmk_course_progre} WHERE status >= 3";
-        $passed_map = $DB->get_records_sql_menu($progress_sql);
-
-        // 4. Pre-fetch Period Names
-        $period_names = $DB->get_records_menu('local_learning_periods', [], '', 'id, name');
-        
-        // 5. Build Demand
-        $demand = []; 
-        $student_list = [];
-
-        foreach ($students as $stu) {
-            $idToUse = !empty($stu->idnumber) ? $stu->idnumber : (string)$stu->id;
-            
-            if (!isset($curricula[$stu->planid])) continue;
-
-            $career = $stu->planname;
-            $jornada = $stu->jornada ?? 'Sin Jornada';
-            
-            // WAVE LOGIC: If student is in Bimestre II, they project to Next Level Bimestre I
-            $levelId = $stu->currentperiodid;
-            $subName = $stu->currentsubperiodname ?? '';
-            $isBimestre2 = (stripos($subName, 'II') !== false || stripos($subName, '2') !== false);
-            
-            $planningLevelId = $levelId;
-            if ($isBimestre2) {
-                // Find next period in the same plan
-                $nextPeriod = $DB->get_record_sql("SELECT id FROM {local_learning_periods} 
-                                                  WHERE learningplanid = :planid AND id > :curid 
-                                                  ORDER BY id ASC", 
-                                                  ['planid' => $stu->planid, 'curid' => $levelId], 
-                                                  IGNORE_MULTIPLE);
-                if ($nextPeriod) {
-                    $planningLevelId = $nextPeriod->id;
-                }
-            }
-            
-            $pending_count = 0;
-            if (isset($curricula[$stu->planid][$planningLevelId])) {
-                foreach ($curricula[$stu->planid][$planningLevelId] as $cid => $subpos) {
-                     if (!isset($passed_map[$stu->id . '_' . $cid])) {
-                         $pending_count++;
-                         
-                         $semName = $period_names[$planningLevelId] ?? 'Nivel ' . $planningLevelId;
-                         $semNum = self::parse_semester_number($semName);
-                         
-                         if (!isset($demand[$career])) $demand[$career] = [];
-                         if (!isset($demand[$career][$jornada])) $demand[$career][$jornada] = [];
-                         if (!isset($demand[$career][$jornada][$semNum])) {
-                             $demand[$career][$jornada][$semNum] = [
-                                 'semester_name' => $semName,
-                                 'student_count' => 0,
-                                 'course_counts' => []
-                             ];
-                         }
-                         
-                          if (!isset($demand[$career][$jornada][$semNum]['course_counts'][$cid])) {
-                              $resolvedSubjId = $subpos['subjectid'];
-                              if (empty($resolvedSubjId)) {
-                                  // Global fallback lookup if missing in curricular map
-                                  $globalSubj = $DB->get_record('local_learning_courses', ['courseid' => $cid], 'id', IGNORE_MULTIPLE);
-                                  $resolvedSubjId = $globalSubj ? $globalSubj->id : 0;
-                                  if (empty($resolvedSubjId)) {
-                                      gmk_log("WARNING: get_demand_data Part A - No se pudo resolver subjectid para Moodle Course $cid");
-                                  }
-                              }
-
-                              $demand[$career][$jornada][$semNum]['course_counts'][$cid] = [
-                                  'count' => 0,
-                                  'subperiod' => $subpos['subperiod_pos'],
-                                  'subjectid' => $resolvedSubjId,
-                                  'levelid' => $planningLevelId,
-                                  'students' => [],
-                                  'plan_map' => []
-                              ];
-                          }
-                         
-                         if (!isset($demand[$career][$jornada][$semNum]['course_counts'][$cid]['plan_map'][$stu->planid])) {
-                             $demand[$career][$jornada][$semNum]['course_counts'][$cid]['plan_map'][$stu->planid] = [
-                                 'subjectid' => $resolvedSubjId,
-                                 'levelid' => $planningLevelId
-                             ];
-                         }
-
-                         $demand[$career][$jornada][$semNum]['course_counts'][$cid]['count']++;
-                         $demand[$career][$jornada][$semNum]['course_counts'][$cid]['students'][] = $stu->id;
-                     }
-                }
-            }
-            
-            $semName = $period_names[$planningLevelId] ?? 'Nivel ' . $planningLevelId;
-            $semNum = self::parse_semester_number($semName);
-
-            $student_list[] = [
-                'id' => $idToUse,
-                'dbId' => $stu->id,
-                'name' => $stu->firstname . ' ' . $stu->lastname,
-                'career' => $career,
-                'planid' => $stu->planid,
-                'shift' => $jornada,
-                'semester' => $semNum,
-                'entry_period' => $stu->entry_period ?? 'Sin Definir'
-            ];
-
-            if ($pending_count > 0) {
-                $demand[$career][$jornada][$semNum]['student_count']++;
+        // Determine effective planning period.
+        // gmk_academic_planning records are stored with the BASE period used during planning,
+        // not the TARGET period (P-I, P-II, etc.). If the selected $periodid is a target period
+        // mapped from an earlier base period, we use that base period to query planning records.
+        $effectivePeriodId = $periodid;
+        $directCount = $DB->count_records('gmk_academic_planning', ['academicperiodid' => $periodid]);
+        if ($directCount === 0) {
+            $reverseMap = $DB->get_record('gmk_planning_period_maps', ['target_period_id' => $periodid]);
+            if ($reverseMap) {
+                $effectivePeriodId = $reverseMap->base_period_id;
+                gmk_log("get_demand_data: period $periodid es target de base {$effectivePeriodId} (index {$reverseMap->relative_index})");
             }
         }
 
-        // B. Fetch Manual Projections (New Entrants)
-        $projections = $DB->get_records('gmk_academic_projections', ['academicperiodid' => $periodid]);
-        
-        foreach ($projections as $proj) {
-            $career_name = $proj->career;
-            $jornada = $proj->shift;
-            $semNum = 1; 
-            
-            // Try to find the learning plan ID for this career name
-            $lpId = array_search($career_name, $plan_names);
-            if (!$lpId || !isset($curricula[$lpId])) continue;
+        // Use the comprehensive planning_manager demand calculation.
+        $data = \local_grupomakro_core\local\planning_manager::get_demand_data($effectivePeriodId);
 
-            // Find Level 1 for this plan
-            $level1 = $DB->get_record_sql("SELECT id, name FROM {local_learning_periods} WHERE learningplanid = ? ORDER BY id ASC", [$lpId], IGNORE_MULTIPLE);
-            if (!$level1 || !isset($curricula[$lpId][$level1->id])) continue;
+        $demand_tree = $data['demand_tree'];
 
-            if (!isset($demand[$career_name])) $demand[$career_name] = [];
-            if (!isset($demand[$career_name][$jornada])) $demand[$career_name][$jornada] = [];
-            if (!isset($demand[$career_name][$jornada][$semNum])) {
-                $demand[$career_name][$jornada][$semNum] = [
-                    'semester_name' => $level1->name,
-                    'student_count' => 0,
-                    'course_counts' => []
+        // Build curricula map for enriching tree entries with subjectid, levelid, subperiod.
+        // local_learning_courses links Moodle courses to plan periods.
+        $lpc_sql = "SELECT lpc.id as subjectid, lpc.learningplanid, lpc.periodid as levelid,
+                           lpc.courseid as moodleid,
+                           (COALESCE(sp.position + 1, 0)) as subperiod_pos
+                    FROM {local_learning_courses} lpc
+                    LEFT JOIN {local_learning_subperiods} sp ON sp.id = lpc.subperiodid";
+        $lpc_records = $DB->get_records_sql($lpc_sql);
+
+        // Index by [planid][moodleid] -> {subjectid, levelid, subperiod_pos}
+        $curricula_map = [];
+        foreach ($lpc_records as $lpc) {
+            if (!empty($lpc->learningplanid)) {
+                $curricula_map[$lpc->learningplanid][$lpc->moodleid] = [
+                    'subjectid' => (int)$lpc->subjectid,
+                    'levelid'   => (int)$lpc->levelid,
+                    'subperiod' => (int)$lpc->subperiod_pos,
                 ];
             }
-            
-            foreach ($curricula[$lpId][$level1->id] as $moodleId => $info) {
-                if (!isset($demand[$career_name][$jornada][$semNum]['course_counts'][$moodleId])) {
-                    $demand[$career_name][$jornada][$semNum]['course_counts'][$moodleId] = [
-                        'count' => 0,
-                        'subperiod' => $info['subperiod_pos'],
-                        'subjectid' => $info['subjectid'],
-                        'levelid' => $level1->id,
-                        'students' => [],
-                        'plan_map' => []
-                    ];
-                }
-                if (!isset($demand[$career_name][$jornada][$semNum]['course_counts'][$moodleId]['plan_map'][$lpId])) {
-                    $demand[$career_name][$jornada][$semNum]['course_counts'][$moodleId]['plan_map'][$lpId] = [
-                        'subjectid' => $info['subjectid'],
-                        'levelid' => $level1->id
-                    ];
-                }
-                $demand[$career_name][$jornada][$semNum]['course_counts'][$moodleId]['count'] += $proj->count;
-            }
-            $demand[$career_name][$jornada][$semNum]['student_count'] += $proj->count;
         }
 
-        // C. Fetch Planning Selections (from Planning Tab Matrix)
-        $planning = $DB->get_records('gmk_academic_planning', ['academicperiodid' => $periodid]);
-        $plan_names = $DB->get_records_menu('local_learning_plans', [], '', 'id, name');
+        // Enrich demand_tree course_counts with subjectid, levelid, subperiod, plan_map
+        // (planning_manager builds an empty plan_map; we populate it here from curricula).
+        foreach ($demand_tree as $career => &$shifts) {
+            foreach ($shifts as $shift => &$semesters) {
+                foreach ($semesters as $levelKey => &$semData) {
+                    foreach ($semData['course_counts'] as $moodleId => &$courseData) {
+                        if (!isset($courseData['subjectid'])) $courseData['subjectid'] = 0;
+                        if (!isset($courseData['levelid']))   $courseData['levelid']   = 0;
+                        if (!isset($courseData['subperiod'])) $courseData['subperiod'] = 0;
+                        if (!isset($courseData['plan_map']))  $courseData['plan_map']  = [];
 
-        foreach ($planning as $pp) {
-            // SKIP IF STATUS = 2 (OMITIR AUTO)
-            if (($pp->status ?? 0) == 2) {
-                continue;
+                        foreach ($curricula_map as $planId => $planCourses) {
+                            if (isset($planCourses[$moodleId])) {
+                                $info = $planCourses[$moodleId];
+                                // Use first plan found as the primary subjectid/levelid
+                                if (empty($courseData['subjectid'])) {
+                                    $courseData['subjectid'] = $info['subjectid'];
+                                    $courseData['levelid']   = $info['levelid'];
+                                    $courseData['subperiod'] = $info['subperiod'];
+                                }
+                                $courseData['plan_map'][$planId] = [
+                                    'subjectid' => $info['subjectid'],
+                                    'levelid'   => $info['levelid'],
+                                ];
+                            }
+                        }
+                    }
+                    unset($courseData);
+                }
+                unset($semData);
             }
-
-            $career = $plan_names[$pp->learningplanid] ?? 'Plan ' . $pp->learningplanid;
-            $subjId = $pp->courseid; // gmk_academic_planning stores Subject ID
-            $count = $pp->projected_students;
-            
-            // Map Subject ID to Moodle ID
-            $moodleId = $reverse_curricula[$subjId] ?? 0;
-            if (!$moodleId) continue;
-
-            $semName = $period_names[$pp->periodid] ?? '';
-            $semNum = self::parse_semester_number($semName);
-            
-            if (!isset($demand[$career])) $demand[$career] = [];
-
-            // We apply to all shifts or Matutina
-            $shiftsToUpdate = array_keys($demand[$career]);
-            if (empty($shiftsToUpdate)) $shiftsToUpdate = ['Matutina'];
-
-            foreach ($shiftsToUpdate as $jornada) {
-                if (!isset($demand[$career][$jornada])) $demand[$career][$jornada] = [];
-                if (!isset($demand[$career][$jornada][$semNum])) {
-                    $demand[$career][$jornada][$semNum] = [
-                        'semester_name' => $semName ?: ('Nivel ' . $semNum),
-                        'student_count' => 0,
-                        'course_counts' => []
-                    ];
-                }
-                if (!isset($demand[$career][$jornada][$semNum]['course_counts'][$moodleId])) {
-                    $demand[$career][$jornada][$semNum]['course_counts'][$moodleId] = [
-                        'count' => 0,
-                        'subperiod' => $curricula_subperiods[$pp->learningplanid][$moodleId] ?? 0,
-                        'subjectid' => $subjId,
-                        'levelid' => $pp->periodid,
-                        'students' => [],
-                        'plan_map' => []
-                    ];
-                }
-                
-                if (!isset($demand[$career][$jornada][$semNum]['course_counts'][$moodleId]['plan_map'][$pp->learningplanid])) {
-                    $demand[$career][$jornada][$semNum]['course_counts'][$moodleId]['plan_map'][$pp->learningplanid] = [
-                        'subjectid' => $subjId,
-                        'levelid' => $pp->periodid
-                    ];
-                }
-
-                $demand[$career][$jornada][$semNum]['course_counts'][$moodleId]['count'] += $count;
-                if ($count > 0 && $demand[$career][$jornada][$semNum]['student_count'] < $count) {
-                    $demand[$career][$jornada][$semNum]['student_count'] = $count;
-                }
-                
-                if (empty($subjId)) {
-                    gmk_log("WARNING: get_demand_data Part C - subjId es 0 para planning record " . $pp->id);
-                }
-            }
+            unset($semesters);
         }
-        
-        // Final sanity check and demand summary
-        gmk_log("DEBUG: get_demand_data finalizando.");
-        foreach ($demand as $career_name => $shifts) {
-            $c_total = 0;
-            $subj_count = 0;
-            foreach ($shifts as $jornada => $sems) {
-                foreach ($sems as $sem_id => $semData) {
-                    $c_total += $semData['student_count'] ?? 0;
-                    $subj_count += count($semData['course_counts'] ?? []);
-                }
+        unset($shifts);
+
+        // Build student_list in the format expected by the scheduler external API.
+        $student_list = [];
+        foreach ($data['student_list'] as $stu) {
+            $semNum = 0;
+            if (!empty($stu['currentSemConfig']) && preg_match('/(\d+)/', $stu['currentSemConfig'], $m)) {
+                $semNum = (int)$m[1];
             }
-            if ($c_total > 0 || $subj_count > 0) {
-                gmk_log("  -> Career: '$career_name' | Demand Total: $c_total | Subjects with Demand: $subj_count");
-            }
+            $student_list[] = [
+                'id'           => (int)$stu['dbId'],
+                'dbId'         => (int)$stu['dbId'],
+                'name'         => (string)$stu['name'],
+                'career'       => (string)$stu['career'],
+                'shift'        => (string)($stu['shift'] ?: 'Sin Jornada'),
+                'semester'     => $semNum,
+                'entry_period' => (string)($stu['entry_period'] ?? ''),
+            ];
         }
 
-        // Prepare subjects
-        $course_names = $DB->get_records_menu('course', [], '', 'id, fullname');
+        // Build subjects list [{id, name}].
         $subjects = [];
-        foreach ($course_names as $id => $name) {
-            $subjects[] = ['id' => $id, 'name' => $name];
+        foreach ($data['subjects'] as $subj) {
+            $subjects[] = [
+                'id'   => (int)$subj['id'],
+                'name' => (string)$subj['name'],
+            ];
         }
+
+        // Build projections list [{id, career, shift, count}].
+        $projections = [];
+        foreach ($data['projections'] as $proj) {
+            $projections[] = [
+                'id'     => (int)$proj->id,
+                'career' => (string)$proj->career,
+                'shift'  => (string)$proj->shift,
+                'count'  => (int)$proj->count,
+            ];
+        }
+
+        gmk_log("get_demand_data: periodid={$periodid} effectivePeriod={$effectivePeriodId} tree_keys=" . count($demand_tree) . " students=" . count($student_list));
 
         return [
-            'demand_tree' => json_encode($demand),
+            'demand_tree'  => json_encode($demand_tree),
             'student_list' => $student_list,
-            'projections' => array_values($projections),
-            'subjects' => $subjects
+            'projections'  => $projections,
+            'subjects'     => $subjects,
         ];
     }
 
