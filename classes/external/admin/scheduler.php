@@ -220,22 +220,69 @@ class scheduler extends external_api {
 
         // Determine effective planning period.
         // gmk_academic_planning records are stored with the BASE period used during planning,
-        // not the TARGET period (P-I, P-II, etc.). If the selected $periodid is a target period
-        // mapped from an earlier base period, we use that base period to query planning records.
+        // not the TARGET period (P-I, P-II, etc.). We always check the reverse map first
+        // because a target period may also have its own records (as base of a future cycle),
+        // which would cause the old $directCount > 0 guard to skip the reverse lookup.
         $effectivePeriodId = $periodid;
-        $directCount = $DB->count_records('gmk_academic_planning', ['academicperiodid' => $periodid]);
-        if ($directCount === 0) {
-            $reverseMap = $DB->get_record('gmk_planning_period_maps', ['target_period_id' => $periodid]);
-            if ($reverseMap) {
-                $effectivePeriodId = $reverseMap->base_period_id;
-                gmk_log("get_demand_data: period $periodid es target de base {$effectivePeriodId} (index {$reverseMap->relative_index})");
+        $reverseMaps = $DB->get_records('gmk_planning_period_maps', ['target_period_id' => $periodid]);
+        if (!empty($reverseMaps)) {
+            // Pick the base that has the most planning records (most complete planning cycle).
+            $bestBaseId = null;
+            $bestCount  = -1;
+            foreach ($reverseMaps as $rmap) {
+                $cnt = $DB->count_records('gmk_academic_planning', ['academicperiodid' => $rmap->base_period_id]);
+                if ($cnt > $bestCount) {
+                    $bestCount  = $cnt;
+                    $bestBaseId = $rmap->base_period_id;
+                }
             }
+            if ($bestBaseId !== null && $bestCount > 0) {
+                $effectivePeriodId = $bestBaseId;
+                gmk_log("get_demand_data: period $periodid es target, usando base {$effectivePeriodId} (records={$bestCount})");
+            }
+        }
+        if ($effectivePeriodId === $periodid) {
+            gmk_log("get_demand_data: period $periodid sin reverse map válido, usando directo");
         }
 
         // Use the comprehensive planning_manager demand calculation.
         $data = \local_grupomakro_core\local\planning_manager::get_demand_data($effectivePeriodId);
 
         $demand_tree = $data['demand_tree'];
+
+        // Post-processing OMITIDA filter.
+        // Collect all courses with status=2 from every relevant planning cycle:
+        // the effective base period AND the selected period itself (if different).
+        // This guards against edge cases where planning_manager's internal $globalIgnoredMap
+        // may have used a different period than expected.
+        $omittedCourseIds = [];
+        $periodsToCheck = array_unique([$effectivePeriodId, $periodid]);
+        foreach ($periodsToCheck as $chkPeriod) {
+            $omitted = $DB->get_records('gmk_academic_planning', ['academicperiodid' => $chkPeriod, 'status' => 2]);
+            foreach ($omitted as $r) {
+                $omittedCourseIds[(int)$r->courseid] = true;
+            }
+        }
+        if (!empty($omittedCourseIds)) {
+            foreach ($demand_tree as $career => &$shifts) {
+                foreach ($shifts as $shift => &$semesters) {
+                    foreach ($semesters as $levelKey => &$semData) {
+                        foreach (array_keys($semData['course_counts']) as $moodleId) {
+                            if (!empty($omittedCourseIds[(int)$moodleId])) {
+                                unset($semData['course_counts'][(int)$moodleId]);
+                            }
+                        }
+                        // Remove empty semester nodes
+                        if (empty($semData['course_counts'])) {
+                            unset($semesters[$levelKey]);
+                        }
+                    }
+                }
+                unset($semesters, $semData);
+            }
+            unset($shifts);
+            gmk_log("get_demand_data: OMITIDA post-filter applied, omitted_count=" . count($omittedCourseIds));
+        }
 
         // Build curricula map for enriching tree entries with subjectid, levelid, subperiod.
         // local_learning_courses links Moodle courses to plan periods.
