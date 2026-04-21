@@ -678,6 +678,7 @@ class planning_manager {
         $debug_students_with_priority = [];
         $debug_students_no_priority = [];
         $debug_ispriority_false_reasons = [];
+        $debug_passes_filters = [];
         // --- END DEBUG LOGGING ---
 
         // --- Paso 3: Construir árbol de demanda ---
@@ -742,6 +743,19 @@ class planning_manager {
                 // --- END DEBUG ---
 
                 if (!$hasPriorityOrDeferredToP1) continue;
+
+                // DEBUG: log every student that passes all filters
+                $debug_passes_filters[] = [
+                    'student' => $stu['name'],
+                    'dbId' => $stu['dbId'],
+                    'subject' => $subj['name'],
+                    'courseId' => $courseId,
+                    'isPriority' => $subj['isPriority'],
+                    'targetIdx' => $targetIdx,
+                    'cohortKey' => $cohortKey,
+                    'levelKey' => $levelKey,
+                    'tree_key_exists' => isset($tree[$career][$shift][$levelKey]),
+                ];
 
                 $stuAddedToTree = true;
 
@@ -871,6 +885,8 @@ class planning_manager {
                 'not_added' => count($debug_students_no_priority),
                 'first_3_not_added' => array_slice($debug_students_no_priority, 0, 3),
                 'first_3_priority_false' => array_slice($debug_ispriority_false_reasons, 0, 3),
+                'passes_filters_count' => count($debug_passes_filters),
+                'first_3_passes' => array_slice($debug_passes_filters, 0, 3),
             ]
         ];
     }

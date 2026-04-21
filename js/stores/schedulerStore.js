@@ -166,6 +166,8 @@
             console.log("[SchedulerStore] loadDemand has _debug?:", '_debug' in res, res._debug);
             if (res._debug) {
                 console.log("[SchedulerStore] loadDemand DEBUG:");
+                console.log("passes_filters_count:", res._debug.passes_filters_count);
+                console.table(res._debug.first_3_passes);
                 console.table(res._debug.first_3_priority_false);
                 console.log("First 3 not added:", JSON.stringify(res._debug.first_3_not_added, null, 2));
             }
