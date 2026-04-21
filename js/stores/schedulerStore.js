@@ -165,7 +165,9 @@
             console.log("[SchedulerStore] loadDemand student_list count:", res.student_list ? res.student_list.length : 0);
             console.log("[SchedulerStore] loadDemand has _debug?:", '_debug' in res, res._debug);
             if (res._debug) {
-                console.log("[SchedulerStore] loadDemand DEBUG:", res._debug);
+                console.log("[SchedulerStore] loadDemand DEBUG:");
+                console.table(res._debug.first_3_priority_false);
+                console.log("First 3 not added:", JSON.stringify(res._debug.first_3_not_added, null, 2));
             }
 
             // demand_tree comes as JSON string
