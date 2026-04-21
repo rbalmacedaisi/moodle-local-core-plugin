@@ -174,6 +174,10 @@
 
             // demand_tree comes as JSON string
             this.state.demand = typeof res.demand_tree === 'string' ? JSON.parse(res.demand_tree) : res.demand_tree;
+            // Temporary diagnostic for OMITIDA filter debugging
+            if (this.state.demand._omitida_debug) {
+                console.warn("[SchedulerStore] OMITIDA DEBUG:", JSON.stringify(this.state.demand._omitida_debug, null, 2));
+            }
             this.state.students = res.student_list;
             if (this.state.context) this.state.context.students = res.student_list;
             this.state.projections = res.projections;

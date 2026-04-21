@@ -299,6 +299,17 @@ class scheduler extends external_api {
             gmk_log("get_demand_data OMITIDA: no omitted courses found — filter skipped");
         }
 
+        // Temporary debug: embed diagnostic info in demand_tree so it appears in browser console.
+        // Remove after diagnosing the OMITIDA issue.
+        $demand_tree['_omitida_debug'] = [
+            'periodid'          => $periodid,
+            'effectivePeriodId' => $effectivePeriodId,
+            'periodsToCheck'    => $periodsToCheck,
+            'omittedCourseIds'  => array_keys($omittedCourseIds),
+            'reverseMapsCount'  => count($reverseMaps),
+            'removedCount'      => $removedCount ?? 0,
+        ];
+
         // Build curricula map for enriching tree entries with subjectid, levelid, subperiod.
         // local_learning_courses links Moodle courses to plan periods.
         $lpc_sql = "SELECT lpc.id as subjectid, lpc.learningplanid, lpc.periodid as levelid,
