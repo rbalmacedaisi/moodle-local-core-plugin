@@ -251,37 +251,52 @@ class scheduler extends external_api {
         $demand_tree = $data['demand_tree'];
 
         // Post-processing OMITIDA filter.
-        // Collect all courses with status=2 from every relevant planning cycle:
-        // the effective base period AND the selected period itself (if different).
-        // This guards against edge cases where planning_manager's internal $globalIgnoredMap
-        // may have used a different period than expected.
+        // Build OMITIDA map from every planning cycle that could have flagged courses for this period:
+        //   1. The selected period itself (if it was also used as a base)
+        //   2. The resolved effective base period
+        //   3. ALL base periods that mapped this period as a target (covers wrong-$effectivePeriodId cases)
         $omittedCourseIds = [];
-        $periodsToCheck = array_unique([$effectivePeriodId, $periodid]);
+        $periodsToCheck = [$periodid, $effectivePeriodId];
+        foreach ($reverseMaps as $rmap) {
+            $periodsToCheck[] = (int)$rmap->base_period_id;
+        }
+        $periodsToCheck = array_unique($periodsToCheck);
+
+        gmk_log("get_demand_data OMITIDA: periodid={$periodid} effectivePeriod={$effectivePeriodId} periodsToCheck=" . implode(',', $periodsToCheck));
+
         foreach ($periodsToCheck as $chkPeriod) {
             $omitted = $DB->get_records('gmk_academic_planning', ['academicperiodid' => $chkPeriod, 'status' => 2]);
+            if (!empty($omitted)) {
+                gmk_log("get_demand_data OMITIDA: found " . count($omitted) . " omitted records for period {$chkPeriod}");
+            }
             foreach ($omitted as $r) {
                 $omittedCourseIds[(int)$r->courseid] = true;
             }
         }
+
+        gmk_log("get_demand_data OMITIDA: total omitted courseIds=" . count($omittedCourseIds) . " ids=" . implode(',', array_keys($omittedCourseIds)));
+
         if (!empty($omittedCourseIds)) {
+            $removedCount = 0;
             foreach ($demand_tree as $career => &$shifts) {
                 foreach ($shifts as $shift => &$semesters) {
-                    foreach ($semesters as $levelKey => &$semData) {
-                        foreach (array_keys($semData['course_counts']) as $moodleId) {
+                    foreach (array_keys($semesters) as $levelKey) {
+                        foreach (array_keys($semesters[$levelKey]['course_counts']) as $moodleId) {
                             if (!empty($omittedCourseIds[(int)$moodleId])) {
-                                unset($semData['course_counts'][(int)$moodleId]);
+                                unset($semesters[$levelKey]['course_counts'][(int)$moodleId]);
+                                $removedCount++;
                             }
                         }
-                        // Remove empty semester nodes
-                        if (empty($semData['course_counts'])) {
+                        if (empty($semesters[$levelKey]['course_counts'])) {
                             unset($semesters[$levelKey]);
                         }
                     }
                 }
-                unset($semesters, $semData);
             }
-            unset($shifts);
-            gmk_log("get_demand_data: OMITIDA post-filter applied, omitted_count=" . count($omittedCourseIds));
+            unset($shifts, $semesters);
+            gmk_log("get_demand_data OMITIDA: removed {$removedCount} course entries from demand_tree");
+        } else {
+            gmk_log("get_demand_data OMITIDA: no omitted courses found — filter skipped");
         }
 
         // Build curricula map for enriching tree entries with subjectid, levelid, subperiod.
