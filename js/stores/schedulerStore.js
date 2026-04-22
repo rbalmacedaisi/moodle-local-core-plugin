@@ -1297,10 +1297,12 @@
                                 // In the backend, 'userid' is the DB ID, or for external classes, 'id' directly
                                 const userId = s.userid || s.id;
                                 if (userId && !seen.has(userId)) {
+                                    const fullName = [s.firstname, s.lastname].filter(Boolean).join(' ')
+                                        || s.fullname || s.name || `Usuario ${userId}`;
                                     flat.push({
                                         id: s.idnumber || userId,
                                         dbId: userId,
-                                        name: `${s.firstname} ${s.lastname}`,
+                                        name: fullName,
                                         career: s.career || 'N/A'
                                     });
                                     seen.add(userId);

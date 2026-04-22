@@ -420,7 +420,7 @@ window.SchedulerComponents.PlanningBoard = {
                         </div>
 
                         <div class="pt-2 flex flex-col gap-2">
-                              <button @click="viewStudents(selectedClass)" class="w-full py-2 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded text-sm font-bold transition-colors flex items-center justify-center gap-2">
+                              <button @click="editDialog = false; viewStudents(selectedClass)" class="w-full py-2 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded text-sm font-bold transition-colors flex items-center justify-center gap-2">
                                 <i data-lucide="users" class="w-4 h-4"></i> Ver Lista de Alumnos ({{ selectedClass.studentCount || 0 }})
                               </button>
                               <button v-if="!selectedClass.isExternal" @click="publishSingleClass(selectedClass); editDialog = false;" :disabled="publishing" class="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-bold transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
@@ -2452,17 +2452,17 @@ window.SchedulerComponents.PlanningBoard = {
 
             // For external classes, empty local ids, or incomplete local metadata, fetch from backend.
             if (cls.isExternal || !cls.studentIds || cls.studentIds.length === 0 || localIncomplete) {
+                this.studentsDialog = true;
                 const fetched = await window.schedulerStore.fetchClassStudents(cls.id);
                 if (fetched && fetched.length > 0) {
                     this.currentStudents = fetched.map(stu => ({
                         id: stu.id,
                         dbId: stu.dbId || 0,
                         name: stu.name,
-                        career: stu.career || 'N/A',
+                        career: this._findStudentCareer(stu) || stu.career || 'N/A',
                         source: 'assigned',
                         pending: false
                     }));
-                    this.studentsDialog = true;
                     return;
                 }
             }
