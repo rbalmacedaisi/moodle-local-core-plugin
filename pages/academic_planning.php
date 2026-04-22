@@ -474,7 +474,7 @@ echo $OUTPUT->header();
                       <div class="p-5">
                           <h4 class="font-bold text-slate-700 text-sm mb-3 flex items-center gap-2">
                               <span><i data-lucide="check-circle" class="text-green-500 w-4 h-4"></i></span>
-                              Se Abren (P-I)
+                              Se Abren ({{ impactPeriodLabel }})
                               <span class="ml-auto bg-green-100 text-green-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full">{{ searchedStudent.projectedSubjects ? searchedStudent.projectedSubjects.length : 0 }}</span>
                           </h4>
                           <div class="space-y-1.5">
@@ -483,7 +483,7 @@ echo $OUTPUT->header();
                                   <span><i data-lucide="check-circle" class="w-3 h-3 text-green-500 shrink-0"></i></span>
                                   <span class="text-xs text-green-800 font-medium">{{ subj.name }}</span>
                               </div>
-                              <p v-if="!(searchedStudent.projectedSubjects || []).length" class="text-xs text-slate-400 italic">Ninguna materia disponible para P-I.</p>
+                              <p v-if="!(searchedStudent.projectedSubjects || []).length" class="text-xs text-slate-400 italic">Ninguna materia disponible para {{ impactPeriodLabel }}.</p>
                           </div>
                       </div>
 
@@ -544,7 +544,13 @@ echo $OUTPUT->header();
                     Sobrecarga <span class="text-[10px] font-normal opacity-70">({{ analysis.studentList.filter(s => s.status === 'overload').length }})</span>
                 </button>
 
-                <div class="ml-auto flex items-center gap-2">
+                <div class="ml-auto flex items-center gap-2 flex-wrap justify-end">
+                    <div class="flex items-center gap-2">
+                        <label class="text-xs font-bold text-slate-500 uppercase">Período</label>
+                        <select v-model.number="impactPeriodFilter" class="bg-white border border-slate-200 rounded-full px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option v-for="opt in impactPeriodOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                        </select>
+                    </div>
                     <div class="relative w-full md:w-72">
                         <span><i data-lucide="search" class="absolute left-3 top-2.5 text-slate-400 w-4 h-4"></i></span>
                         <input type="text" v-model="searchTerm" placeholder="Buscar por nombre o cédula..." class="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
@@ -563,7 +569,7 @@ echo $OUTPUT->header();
                             <tr class="bg-slate-100 text-slate-600 text-xs uppercase tracking-wider">
                                 <th class="p-4 font-bold border-b">Estudiante</th>
                                 <th class="p-4 font-bold border-b text-center">Estado</th>
-                                <th class="p-4 font-bold border-b w-1/3">Se Abren (Proyección)</th>
+                                <th class="p-4 font-bold border-b w-1/3">Se Abren ({{ impactPeriodLabel }})</th>
                                 <th class="p-4 font-bold border-b w-1/3 bg-red-50 text-red-800 border-l border-red-100">Bloqueadas</th>
                             </tr>
                         </thead>
@@ -1171,6 +1177,7 @@ const app = createApp({
             // Student Filter
             const studentStatusFilter = ref('Todos');
             const searchTerm = ref('');
+            const impactPeriodFilter = ref(0); // 0=P-I ... 5=P-VI
             const periodMappings = ref({});
 
             // Placed courses: Set of corecourseid (Moodle course.id) that have a scheduled draft card
@@ -1437,6 +1444,24 @@ const app = createApp({
 
 
         // --- CORE LOGIC (Ported from React) ---
+        function getNaturalProjectionPeriodIndex(stu, subj) {
+            const stuPlanningLevel = parseInt(stu.planningLevel) || 1;
+            const stuBim = (String(stu.planningBimestre || '').toUpperCase().includes('II')) ? 2 : 1;
+
+            const subjSemester = parseInt(subj.semester) || parseInt(subj.semester_num) || 0;
+            const subjBimRaw = parseInt(subj.bimestre);
+            const subjBim = subjBimRaw === 2 ? 2 : 1;
+            if (subjSemester <= 0) return 0;
+
+            const cohortAbs = ((stuPlanningLevel - 1) * 2) + stuBim;
+            const subjAbs = ((subjSemester - 1) * 2) + subjBim;
+            const idx = subjAbs - cohortAbs;
+
+            if (idx < 0) return 0;
+            if (idx > 5) return 5;
+            return idx;
+        }
+
         const analysis = computed(() => {
             if (!rawData.value || (Array.isArray(rawData.value) && rawData.value.length === 0)) return { subjectList: [], cohortViewList: [], studentList: [] };
 
@@ -1755,19 +1780,21 @@ const app = createApp({
             }
 
             // 5. Build Student Status Lists
-            // A subject is considered "open" for Impact purposes only if it has a placed card
-            // in the draft/published schedule. If no draft data is available, fall back to quorum >= 12.
+            // Impact analysis is period-aware (P-I..P-VI) based on current filter.
             const placed = placedCoursesSet.value;
             const hasDraftData = placed.size > 0;
+            const selectedImpactIdx = parseInt(impactPeriodFilter.value) || 0;
+            const selectedImpactCountKey = 'countP' + (selectedImpactIdx + 1);
             const openSubjectsSet = new Set(
                 subjectsArray
                     .filter(s => {
-                        if (hasDraftData) {
+                        if (hasDraftData && selectedImpactIdx === 0) {
                             // Check if this subject has a placed card (match by id)
                             return placed.has(String(s.id));
                         }
-                        // Fallback: use quorum threshold
-                        return s.isOpen;
+                        // For selected projected period, use the corresponding demand column quorum.
+                        const projectedCount = parseInt(s[selectedImpactCountKey]) || 0;
+                        return projectedCount >= 12;
                     })
                     .map(s => s.name)
             );
@@ -1788,14 +1815,19 @@ const app = createApp({
 
             const studentAnalysisList = Object.values(students).map(stu => {
                 // Exclude subjects intentionally omitted (ignoredSubjects) from impact analysis
-                const priority = (stu.pendingSubjects || []).filter(s => s.isPriority && !ignoredSubjects[s.name]);
-                const projected = priority.filter(s => {
-                     let deferKey = `${s.name}_${stu.cohortKey}`;
-                     let pIndex = deferredGroups[deferKey] || 0;
-                     return openSubjectsSet.has(s.name) && pIndex === 0;
+                const pendingForSelectedPeriod = (stu.pendingSubjects || []).filter(s => {
+                    if (ignoredSubjects[s.name]) return false;
+                    if (!s.isPreRequisiteMet) return false;
+                    const deferKey = `${s.name}_${stu.cohortKey}`;
+                    const hasDeferral = deferredGroups[deferKey] !== undefined;
+                    const deferredIdx = hasDeferral ? parseInt(deferredGroups[deferKey]) : null;
+                    const naturalIdx = getNaturalProjectionPeriodIndex(stu, s);
+                    const effectiveIdx = Number.isInteger(deferredIdx) ? deferredIdx : naturalIdx;
+                    return effectiveIdx === selectedImpactIdx;
                 });
 
-                const missing = priority.filter(s => !openSubjectsSet.has(s.name));
+                const projected = pendingForSelectedPeriod.filter(s => openSubjectsSet.has(s.name));
+                const missing = pendingForSelectedPeriod.filter(s => !openSubjectsSet.has(s.name));
 
                 // isGraduating: student is in the last or second-to-last level of their career
                 const maxLvl = maxSemPerCareer[stu.career] || 99;
@@ -1805,7 +1837,7 @@ const app = createApp({
                 const isGradRisk = isGraduating && missing.length > 0;
 
                 let status = 'normal';
-                if (projected.length === 0 && priority.length > 0) status = 'critical';
+                if (projected.length === 0 && pendingForSelectedPeriod.length > 0) status = 'critical';
                 else if (projected.length === 1 && !(isGraduating && missing.length === 0)) status = 'low';
                 else if (projected.length > 3) status = 'overload';
 
@@ -1891,6 +1923,15 @@ const app = createApp({
              return map[num] || num;
         };
         const getPeriodLabel = (idx) => idx === 0 ? 'P-I' : `P-${toRoman(idx+1)}`;
+        const impactPeriodLabel = computed(() => getPeriodLabel(parseInt(impactPeriodFilter.value) || 0));
+        const impactPeriodOptions = computed(() => {
+            return Array.from({ length: 6 }, (_, idx) => {
+                const mappedPeriodId = periodMappings.value ? periodMappings.value[idx] : null;
+                const mapped = periods.value.find(p => String(p.id) === String(mappedPeriodId));
+                const suffix = mapped && mapped.name ? ` (${mapped.name})` : '';
+                return { value: idx, label: `${getPeriodLabel(idx)}${suffix}` };
+            });
+        });
 
         // -- Graduation Risk Helpers --
 
@@ -2405,6 +2446,7 @@ const app = createApp({
             if (!window.XLSX) { alert("Librería XLSX no cargada."); return; }
             const stu = searchedStudent.value;
             const rows = [];
+            const openCol = `Abre_${impactPeriodLabel.value}`;
 
             // Pending priority subjects
             (stu.pendingSubjects || []).filter(s => s.isPriority).forEach(s => {
@@ -2412,7 +2454,7 @@ const app = createApp({
                     Tipo: 'Pendiente (Prioridad)',
                     Asignatura: s.name,
                     Nivel: s.semester,
-                    Abre_PI: (stu.projectedSubjects || []).some(p => p.name === s.name) ? 'SI' : 'NO',
+                    [openCol]: (stu.projectedSubjects || []).some(p => p.name === s.name) ? 'SI' : 'NO',
                     Bloqueada: (stu.missingSubjects || []).some(m => m.name === s.name) ? 'SI (Quórum)' : 'NO'
                 });
             });
@@ -2423,7 +2465,7 @@ const app = createApp({
                     Tipo: 'Pendiente (Futura)',
                     Asignatura: s.name,
                     Nivel: s.semester,
-                    Abre_PI: 'NO',
+                    [openCol]: 'NO',
                     Bloqueada: 'NO aplica'
                 });
             });
@@ -2435,6 +2477,7 @@ const app = createApp({
             window.XLSX.utils.book_append_sheet(wb, ws, 'Materias');
 
             // Summary sheet
+            const openSummaryCol = `Materias_Abiertas_${impactPeriodLabel.value}`;
             const summaryRows = [{
                 ID: stu.id || stu.dbId,
                 Nombre: stu.name,
@@ -2446,7 +2489,7 @@ const app = createApp({
                 Es_Graduando: stu.isGraduating ? 'SI' : 'NO',
                 Riesgo_Grado: stu.isGradRisk ? 'SI' : 'NO',
                 Materias_Pendientes: (stu.pendingSubjects || []).filter(s => s.isPriority).length,
-                Materias_Abiertas_PI: (stu.projectedSubjects || []).length,
+                [openSummaryCol]: (stu.projectedSubjects || []).length,
                 Materias_Bloqueadas: (stu.missingSubjects || []).length
             }];
             const wsSummary = window.XLSX.utils.json_to_sheet(summaryRows);
@@ -2460,6 +2503,7 @@ const app = createApp({
             if (!window.XLSX) { alert("Librería XLSX no cargada."); return; }
             const list = filteredStudents.value;
             if (!list || list.length === 0) { alert("No hay estudiantes para exportar."); return; }
+            const openSubjectsCol = `Asignaturas_Abiertas_${impactPeriodLabel.value}`;
 
             const rows = list.map(stu => ({
                 ID: stu.id || stu.dbId,
@@ -2474,7 +2518,7 @@ const app = createApp({
                                 stu.status === 'overload' ? 'Sobrecarga' : 'Normal',
                 Es_Graduando: stu.isGraduating ? 'SI' : 'NO',
                 Riesgo_Grado: stu.isGradRisk ? 'SI' : 'NO',
-                Asignaturas_Abiertas_PI: (stu.projectedSubjects || []).map(s => s.name).join('; '),
+                [openSubjectsCol]: (stu.projectedSubjects || []).map(s => s.name).join('; '),
                 Asignaturas_Bloqueadas: (stu.missingSubjects || []).map(s => s.name).join('; '),
                 Total_Abiertas: (stu.projectedSubjects || []).length,
                 Total_Bloqueadas: (stu.missingSubjects || []).length
@@ -2513,6 +2557,16 @@ const app = createApp({
              }
         });
 
+        watch(impactPeriodFilter, () => {
+            if (!searchedStudent.value || !analysis.value || !analysis.value.studentList) return;
+            const key = String(searchedStudent.value.id || searchedStudent.value.dbId || '');
+            if (!key) return;
+            const refreshed = analysis.value.studentList.find(s => String(s.id || s.dbId || '') === key);
+            if (refreshed) {
+                searchedStudent.value = refreshed;
+            }
+        });
+
         // Auto-load scheduler context (loads, holidays, etc.) when config sub-tabs are shown
         watch(configSubTab, (newTab) => {
             if (['loads', 'holidays', 'general'].includes(newTab) && selectedPeriodId.value) {
@@ -2527,7 +2581,7 @@ const app = createApp({
                 selectedCareers, showCareerDropdown, selectedShift, careers, shifts,
                 activeTab,
                 // Tables
-                filteredStudents, studentStatusFilter, searchTerm,
+                filteredStudents, studentStatusFilter, searchTerm, impactPeriodFilter, impactPeriodLabel, impactPeriodOptions,
                 // UI Helpers
                 toRoman, getPeriodLabel, getSuggestionBadgeClass, 
                 getSubjectsForCohortPeriod, getSubjectCount,
