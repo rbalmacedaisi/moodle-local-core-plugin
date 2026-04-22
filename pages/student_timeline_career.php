@@ -18,14 +18,10 @@ $PAGE->set_heading('Línea de Tiempo Estudiantes');
 $PAGE->set_pagelayout('admin');
 
 $token    = get_logged_user_token();
-$wwwroot  = json_encode($CFG->wwwroot);
-$wstoken  = json_encode($token);
 $back_url = json_encode($CFG->wwwroot . '/local/grupomakro_core/pages/student_timeline.php');
-$career_id_json = json_encode($career_id);
 
 echo $OUTPUT->header();
-
-echo <<<EOT
+?>
 <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/@mdi/font@6.x/css/materialdesignicons.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.css" rel="stylesheet">
@@ -47,12 +43,7 @@ echo <<<EOT
 <div id="gmk-career-timeline-app">
   <v-app class="transparent">
     <v-main>
-      <intake-timeline
-        :career-id="careerId"
-        :wwwroot="wwwroot"
-        :ws-token="wstoken"
-        :back-url="backUrl"
-      ></intake-timeline>
+      <intake-timeline :career-id="careerId" :back-url="backUrl"></intake-timeline>
     </v-main>
   </v-app>
 </div>
@@ -60,7 +51,13 @@ echo <<<EOT
 <script src="https://cdn.jsdelivr.net/npm/vue@2.x/dist/vue.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.js"></script>
 <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
-<script src="{$CFG->wwwroot}/local/grupomakro_core/js/components/timeline/intake_timeline.js?v={$assetversion}"></script>
+
+<script>
+  var userToken = <?php echo $token; ?>;
+  var backUrl   = <?php echo $back_url; ?>;
+</script>
+
+<script src="<?php echo $CFG->wwwroot; ?>/local/grupomakro_core/js/components/timeline/intake_timeline.js?v=<?php echo $assetversion; ?>"></script>
 
 <script>
   new Vue({
@@ -68,23 +65,15 @@ echo <<<EOT
     vuetify: new Vuetify({
       theme: {
         themes: {
-          light: {
-            primary:  '#1976D2',
-            success:  '#388E3C',
-            warning:  '#F57C00',
-            error:    '#C62828',
-          }
+          light: { primary: '#1976D2', success: '#388E3C', warning: '#F57C00', error: '#C62828' }
         }
       }
     }),
     data: {
-      careerId: {$career_id_json},
-      wwwroot:  {$wwwroot},
-      wstoken:  {$wstoken},
-      backUrl:  {$back_url},
+      careerId: <?php echo json_encode($career_id); ?>,
+      backUrl:  backUrl,
     },
   });
 </script>
-EOT;
-
+<?php
 echo $OUTPUT->footer();

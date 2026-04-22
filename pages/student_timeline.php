@@ -15,14 +15,12 @@ $PAGE->set_title('Línea de Tiempo Estudiantes');
 $PAGE->set_heading('Línea de Tiempo Estudiantes');
 $PAGE->set_pagelayout('admin');
 
-$token    = get_logged_user_token();
-$wwwroot  = json_encode($CFG->wwwroot);
-$wstoken  = json_encode($token);
+// get_logged_user_token() ya retorna el valor con json_encode aplicado
+$token = get_logged_user_token();
 $career_page_url = json_encode($CFG->wwwroot . '/local/grupomakro_core/pages/student_timeline_career.php');
 
 echo $OUTPUT->header();
-
-echo <<<EOT
+?>
 <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/@mdi/font@6.x/css/materialdesignicons.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.css" rel="stylesheet">
@@ -40,11 +38,7 @@ echo <<<EOT
 <div id="gmk-timeline-app">
   <v-app class="transparent">
     <v-main>
-      <career-cards
-        :wwwroot="wwwroot"
-        :ws-token="wstoken"
-        :base-url="careerPageUrl"
-      ></career-cards>
+      <career-cards :career-page-url="careerPageUrl"></career-cards>
     </v-main>
   </v-app>
 </div>
@@ -52,19 +46,21 @@ echo <<<EOT
 <script src="https://cdn.jsdelivr.net/npm/vue@2.x/dist/vue.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.js"></script>
 <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
-<script src="{$CFG->wwwroot}/local/grupomakro_core/js/components/timeline/career_cards.js?v={$assetversion}"></script>
+
+<script>
+  // Token global — mismo patrón que el resto del plugin
+  var userToken = <?php echo $token; ?>;
+  var careerPageUrl = <?php echo $career_page_url; ?>;
+</script>
+
+<script src="<?php echo $CFG->wwwroot; ?>/local/grupomakro_core/js/components/timeline/career_cards.js?v=<?php echo $assetversion; ?>"></script>
 
 <script>
   new Vue({
     el: '#gmk-timeline-app',
     vuetify: new Vuetify({ theme: { themes: { light: { primary: '#1976D2' } } } }),
-    data: {
-      wwwroot: {$wwwroot},
-      wstoken: {$wstoken},
-      careerPageUrl: {$career_page_url},
-    },
+    data: { careerPageUrl: careerPageUrl },
   });
 </script>
-EOT;
-
+<?php
 echo $OUTPUT->footer();

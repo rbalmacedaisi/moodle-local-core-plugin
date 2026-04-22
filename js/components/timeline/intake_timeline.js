@@ -2,7 +2,6 @@ Vue.component('intake-timeline', {
     template: `
     <v-container fluid class="pa-4">
 
-        <!-- Header con breadcrumb y métricas -->
         <v-row align="center" class="mb-2">
             <v-col cols="auto">
                 <v-btn text small :href="backUrl" class="pl-0">
@@ -19,7 +18,11 @@ Vue.component('intake-timeline', {
             </v-col>
         </v-row>
 
-        <template v-else>
+        <v-alert v-if="errorMsg" type="error" outlined dismissible class="mb-4">
+            {{ errorMsg }}
+        </v-alert>
+
+        <template v-if="!loading">
             <v-row align="center" class="mb-4">
                 <v-col>
                     <h2 class="text-h5 font-weight-bold">
@@ -71,13 +74,13 @@ Vue.component('intake-timeline', {
                     </v-expansion-panel-header>
 
                     <v-expansion-panel-content class="pa-0">
-                        <div class="timeline-scroll-wrap px-4 pb-5 pt-2" style="overflow-x:auto;">
-                            <div class="timeline-row" style="display:flex; align-items:flex-start; gap:0; min-width:max-content;">
+                        <div class="timeline-scroll-wrap px-4 pb-5 pt-2">
+                            <div class="timeline-row">
 
                                 <!-- Stage: CRM/Odoo -->
                                 <div class="stage-wrapper">
                                     <div class="stage-label text-caption text--secondary text-center mb-1">CRM / Odoo</div>
-                                    <v-card outlined class="stage-card crm-card" style="border-color:#1976D2; min-width:120px;">
+                                    <v-card outlined class="stage-card" style="border-color:#1976D2; min-width:120px;">
                                         <v-card-text class="text-center py-3 px-2">
                                             <v-icon color="#1976D2" class="mb-1">mdi-account-group</v-icon>
                                             <div class="text-h6 font-weight-bold" style="color:#1976D2;">
@@ -94,17 +97,17 @@ Vue.component('intake-timeline', {
                                 </div>
 
                                 <!-- Flecha + dropout -->
-                                <div class="arrow-wrapper" style="display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding-bottom:18px;min-width:60px;">
+                                <div class="arrow-wrapper">
                                     <v-chip x-small :color="dropoutColor(dropoutBetween(ip.odoo_count, ip.lxp_count))" dark class="mb-1" style="font-size:10px;">
                                         {{ dropoutBetweenLabel(ip.odoo_count, ip.lxp_count) }}
                                     </v-chip>
                                     <v-icon color="grey">mdi-arrow-right</v-icon>
                                 </div>
 
-                                <!-- Stage: LXP (entrada) -->
+                                <!-- Stage: LXP -->
                                 <div class="stage-wrapper">
                                     <div class="stage-label text-caption text--secondary text-center mb-1">LXP Matrícula</div>
-                                    <v-card outlined class="stage-card lxp-card" style="border-color:#388E3C; min-width:120px;">
+                                    <v-card outlined class="stage-card" style="border-color:#388E3C; min-width:120px;">
                                         <v-card-text class="text-center py-3 px-2">
                                             <v-icon color="#388E3C" class="mb-1">mdi-school</v-icon>
                                             <div class="text-h6 font-weight-bold" style="color:#388E3C;">
@@ -121,55 +124,46 @@ Vue.component('intake-timeline', {
                                 </div>
 
                                 <!-- Flecha -->
-                                <div class="arrow-wrapper" style="display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding-bottom:18px;min-width:40px;">
+                                <div class="arrow-wrapper" style="min-width:40px; padding-bottom:20px;">
                                     <v-icon color="grey">mdi-arrow-right</v-icon>
                                 </div>
 
-                                <!-- LXP Académico: Cuatrimestres -->
+                                <!-- Progreso académico: cuatrimestres -->
                                 <div class="stage-wrapper">
                                     <div class="stage-label text-caption text--secondary text-center mb-1">Progreso Académico</div>
                                     <div style="display:flex; align-items:flex-start; gap:6px;">
 
                                         <template v-for="(period, pIdx) in timelineData.curriculum">
-                                            <!-- Flecha entre cuatrimestres -->
-                                            <div v-if="pIdx > 0" class="arrow-wrapper" style="display:flex;align-items:center;justify-content:center;align-self:center;min-width:20px;">
+                                            <div v-if="pIdx > 0" :key="'arrow-'+period.id" style="display:flex;align-items:center;align-self:center;min-width:20px;">
                                                 <v-icon small color="grey lighten-1">mdi-chevron-right</v-icon>
                                             </div>
 
-                                            <!-- Cuatrimestre card -->
                                             <div :key="period.id">
-                                                <v-card
-                                                    outlined
-                                                    class="quarter-card"
-                                                    :style="{ borderColor: quarterColor(pIdx), minWidth: '120px' }"
-                                                >
+                                                <v-card outlined class="quarter-card" :style="{ borderColor: quarterColor(pIdx), minWidth: '130px' }">
                                                     <v-card-title class="py-2 px-3 text-caption font-weight-bold justify-center"
                                                         :style="{ color: quarterColor(pIdx), background: quarterBg(pIdx) }">
                                                         {{ period.name }}
                                                     </v-card-title>
 
                                                     <v-card-text class="pa-2">
-                                                        <!-- Conteo global del cuatrimestre -->
                                                         <div class="text-center mb-2">
                                                             <div class="text-h6 font-weight-bold" :style="{ color: quarterColor(pIdx) }">
                                                                 {{ getLevelCount(ip, period.id, 'active') }}
                                                             </div>
                                                             <div class="text-caption text--secondary">
-                                                                <v-icon x-small color="success">mdi-check-circle</v-icon> activos
-                                                                &nbsp;
+                                                                <v-icon x-small color="success">mdi-check-circle</v-icon> activos &nbsp;
                                                                 <v-icon x-small color="error">mdi-close-circle</v-icon> {{ getLevelCount(ip, period.id, 'inactive') }}
                                                             </div>
                                                         </div>
 
-                                                        <!-- Bimestres -->
                                                         <div v-if="period.subperiods && period.subperiods.length > 0"
-                                                             style="display:flex; gap:4px; justify-content:center;">
+                                                             style="display:flex; gap:4px; justify-content:center; flex-wrap:nowrap;">
                                                             <v-card
                                                                 v-for="sp in period.subperiods"
                                                                 :key="sp.sp_id"
                                                                 outlined
                                                                 class="bimestre-card text-center pa-1"
-                                                                :style="{ borderColor: quarterColor(pIdx) + '66', minWidth:'72px' }"
+                                                                :style="{ borderColor: quarterColor(pIdx) + '88', minWidth:'68px' }"
                                                             >
                                                                 <div class="text-caption font-weight-medium" :style="{ color: quarterColor(pIdx) }">
                                                                     {{ sp.sp_name }}
@@ -177,30 +171,25 @@ Vue.component('intake-timeline', {
                                                                 <div class="text-subtitle-2 font-weight-bold mt-1" :style="{ color: quarterColor(pIdx) }">
                                                                     {{ getSubLevelCount(ip, sp.sp_id, 'active') || '—' }}
                                                                 </div>
-                                                                <div class="text-caption text--secondary" style="font-size:10px!important">
-                                                                    <span style="color:#4CAF50">✓ {{ getSubLevelCount(ip, sp.sp_id, 'active') || 0 }}</span>
-                                                                    &nbsp;
-                                                                    <span style="color:#F44336">✗ {{ getSubLevelCount(ip, sp.sp_id, 'inactive') || 0 }}</span>
+                                                                <div class="text-caption text--secondary" style="font-size:10px!important;">
+                                                                    <span style="color:#4CAF50">✓{{ getSubLevelCount(ip, sp.sp_id, 'active') || 0 }}</span>
+                                                                    <span style="color:#F44336"> ✗{{ getSubLevelCount(ip, sp.sp_id, 'inactive') || 0 }}</span>
                                                                 </div>
                                                             </v-card>
                                                         </div>
-                                                        <!-- Si no hay bimestres definidos -->
-                                                        <div v-else class="text-caption text--secondary text-center">
-                                                            Sin bimestres
-                                                        </div>
+                                                        <div v-else class="text-caption text--secondary text-center mt-1">Sin bimestres</div>
                                                     </v-card-text>
                                                 </v-card>
                                             </div>
                                         </template>
 
-                                        <!-- Flecha final -->
-                                        <div class="arrow-wrapper" style="display:flex;align-items:center;justify-content:center;align-self:center;min-width:20px;">
+                                        <div style="display:flex;align-items:center;align-self:center;min-width:20px;">
                                             <v-icon small color="grey lighten-1">mdi-chevron-right</v-icon>
                                         </div>
 
                                         <!-- Graduando -->
                                         <div>
-                                            <v-card outlined class="quarter-card text-center" style="border-color:#FFC107; min-width:90px; align-self:center;">
+                                            <v-card outlined class="quarter-card text-center" style="border-color:#FFC107; min-width:90px;">
                                                 <v-card-title class="py-2 px-3 text-caption font-weight-bold justify-center"
                                                     style="color:#F57F17; background:#FFF8E1;">
                                                     Graduando
@@ -220,10 +209,10 @@ Vue.component('intake-timeline', {
                             </div>
                         </div>
 
-                        <!-- Resumen de tasas de deserción por cuatrimestre -->
+                        <!-- Tasas de deserción entre cuatrimestres -->
                         <v-row class="px-4 pb-4" v-if="timelineData.curriculum && timelineData.curriculum.length > 1">
                             <v-col cols="12">
-                                <div class="text-caption text--secondary mb-2 font-weight-medium">Tasa de deserción entre cuatrimestres:</div>
+                                <div class="text-caption text--secondary mb-2 font-weight-medium">Deserción entre cuatrimestres:</div>
                                 <div style="display:flex; gap:8px; flex-wrap:wrap;">
                                     <v-chip
                                         v-for="(rate, rIdx) in getQuarterDropoutRates(ip)"
@@ -243,39 +232,44 @@ Vue.component('intake-timeline', {
 
             <v-alert v-if="!timelineData.intake_periods || timelineData.intake_periods.length === 0"
                 type="info" outlined class="mt-4">
-                No se encontraron periodos de ingreso con datos para esta carrera.
+                No se encontraron periodos de ingreso para esta carrera.
                 Asegúrate de que los estudiantes tengan el campo "Periodo de Ingreso" en su perfil.
             </v-alert>
         </template>
     </v-container>
     `,
     props: {
-        careerId:  { type: [Number, String], default: 0 },
-        wstoken:   { type: String, default: '' },
-        wwwroot:   { type: String, default: '' },
-        backUrl:   { type: String, default: 'student_timeline.php' },
+        careerId: { type: [Number, String], default: 0 },
+        backUrl:  { type: String, default: '' },
     },
     data() {
         return {
             loading: true,
+            errorMsg: '',
             timelineData: { career: null, curriculum: [], intake_periods: [] },
             openPanels: [],
-            quarterColors: ['#388E3C', '#1976D2', '#F57C00', '#7B1FA2', '#0097A7', '#C62828'],
+            quarterColors:   ['#388E3C', '#1976D2', '#F57C00', '#7B1FA2', '#0097A7', '#C62828'],
             quarterBgColors: ['#E8F5E9', '#E3F2FD', '#FFF3E0', '#F3E5F5', '#E0F7FA', '#FFEBEE'],
         };
     },
     computed: {
+        wsUrl() {
+            return window.location.origin + '/webservice/rest/server.php';
+        },
+        token() {
+            return window.userToken;
+        },
         generalDropoutRate() {
-            if (!this.timelineData.intake_periods || this.timelineData.intake_periods.length === 0) return '—';
+            if (!this.timelineData.intake_periods || !this.timelineData.intake_periods.length) return '—';
             let totalCrm = 0, totalActive = 0, valid = 0;
             this.timelineData.intake_periods.forEach(ip => {
                 if (ip.odoo_count != null) {
-                    totalCrm += ip.odoo_count;
+                    totalCrm   += ip.odoo_count;
                     totalActive += ip.lxp_active;
                     valid++;
                 }
             });
-            if (valid === 0 || totalCrm === 0) return '—';
+            if (!valid || !totalCrm) return '—';
             return Math.round(((totalCrm - totalActive) / totalCrm) * 100);
         },
     },
@@ -285,35 +279,36 @@ Vue.component('intake-timeline', {
     methods: {
         async loadTimeline() {
             this.loading = true;
+            this.errorMsg = '';
             try {
-                const res = await axios.post(
-                    this.wwwroot + '/webservice/rest/server.php',
-                    new URLSearchParams({
-                        wstoken: this.wstoken,
+                const response = await window.axios.get(this.wsUrl, {
+                    params: {
+                        wstoken: this.token,
                         wsfunction: 'local_grupomakro_get_student_career_timeline',
                         moodlewsrestformat: 'json',
                         learningplanid: this.careerId,
-                    })
-                );
-                if (res.data && res.data.career) {
-                    this.timelineData = res.data;
-                    // Open all panels by default
-                    this.openPanels = this.timelineData.intake_periods.map((_, i) => i);
+                    }
+                });
+                const data = response.data;
+                if (data && data.exception) {
+                    this.errorMsg = 'Error del servidor: ' + (data.message || data.errorcode);
+                    console.error('[timeline] WS error:', data);
+                    return;
+                }
+                if (data && data.career) {
+                    this.timelineData = data;
+                    this.openPanels = data.intake_periods.map((_, i) => i);
                 }
             } catch (e) {
-                console.error('Error cargando timeline:', e);
+                this.errorMsg = 'Error de conexión al cargar la línea de tiempo.';
+                console.error('[timeline] Error:', e);
             } finally {
                 this.loading = false;
             }
         },
 
-        quarterColor(idx) {
-            return this.quarterColors[idx % this.quarterColors.length];
-        },
-
-        quarterBg(idx) {
-            return this.quarterBgColors[idx % this.quarterBgColors.length];
-        },
+        quarterColor(idx) { return this.quarterColors[idx % this.quarterColors.length]; },
+        quarterBg(idx)    { return this.quarterBgColors[idx % this.quarterBgColors.length]; },
 
         dropoutColor(rate) {
             if (rate == null) return 'grey';
@@ -345,27 +340,19 @@ Vue.component('intake-timeline', {
         },
 
         getGraduating(ip) {
-            if (!this.timelineData.curriculum || this.timelineData.curriculum.length === 0) return '—';
-            const lastPeriod = this.timelineData.curriculum[this.timelineData.curriculum.length - 1];
-            return this.getLevelCount(ip, lastPeriod.id, 'active') || '—';
+            if (!this.timelineData.curriculum || !this.timelineData.curriculum.length) return '—';
+            const last = this.timelineData.curriculum[this.timelineData.curriculum.length - 1];
+            return this.getLevelCount(ip, last.id, 'active') || '—';
         },
 
         getQuarterDropoutRates(ip) {
-            const curriculum = this.timelineData.curriculum;
-            if (!curriculum || curriculum.length < 2) return [];
-            const rates = [];
-            for (let i = 0; i < curriculum.length - 1; i++) {
-                const countA = this.getLevelCount(ip, curriculum[i].id, 'active')
-                             + this.getLevelCount(ip, curriculum[i].id, 'inactive');
-                const countB = this.getLevelCount(ip, curriculum[i + 1].id, 'active')
-                             + this.getLevelCount(ip, curriculum[i + 1].id, 'inactive');
-                if (countA === 0) {
-                    rates.push({ rate: null });
-                } else {
-                    rates.push({ rate: Math.round(((countA - countB) / countA) * 100) });
-                }
-            }
-            return rates;
+            const cur = this.timelineData.curriculum;
+            if (!cur || cur.length < 2) return [];
+            return cur.slice(0, -1).map((period, i) => {
+                const a = this.getLevelCount(ip, period.id, 'active') + this.getLevelCount(ip, period.id, 'inactive');
+                const b = this.getLevelCount(ip, cur[i + 1].id, 'active') + this.getLevelCount(ip, cur[i + 1].id, 'inactive');
+                return { rate: a === 0 ? null : Math.round(((a - b) / a) * 100) };
+            });
         },
     },
 });

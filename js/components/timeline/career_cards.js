@@ -22,6 +22,10 @@ Vue.component('career-cards', {
             </v-col>
         </v-row>
 
+        <v-alert v-if="errorMsg" type="error" outlined dismissible class="mb-4">
+            {{ errorMsg }}
+        </v-alert>
+
         <v-row v-if="loading">
             <v-col cols="12" class="text-center py-10">
                 <v-progress-circular indeterminate color="primary" size="50"></v-progress-circular>
@@ -110,7 +114,7 @@ Vue.component('career-cards', {
                             :color="iconColors[index % iconColors.length]"
                             dark
                             class="rounded-lg"
-                            :href="baseUrl + '?career_id=' + career.id"
+                            :href="careerPageUrl + '?career_id=' + career.id"
                         >
                             <v-icon left small>mdi-chart-timeline-variant</v-icon>
                             Ver Línea de Tiempo
@@ -122,24 +126,23 @@ Vue.component('career-cards', {
     </v-container>
     `,
     props: {
-        baseUrl: { type: String, default: 'student_timeline_career.php' },
-        wstoken: { type: String, default: '' },
-        wwwroot: { type: String, default: '' },
+        careerPageUrl: { type: String, default: '' },
     },
     data() {
         return {
             search: '',
             loading: true,
+            errorMsg: '',
             careers: [],
             iconColors: [
-                '#1976D2', // azul
-                '#388E3C', // verde
-                '#F57C00', // naranja
-                '#7B1FA2', // morado
-                '#0097A7', // cyan
-                '#C62828', // rojo
-                '#5D4037', // café
-                '#455A64', // azul-gris
+                '#1976D2',
+                '#388E3C',
+                '#F57C00',
+                '#7B1FA2',
+                '#0097A7',
+                '#C62828',
+                '#5D4037',
+                '#455A64',
             ],
         };
     },
@@ -149,6 +152,12 @@ Vue.component('career-cards', {
             const q = this.search.toLowerCase();
             return this.careers.filter(c => c.name.toLowerCase().includes(q));
         },
+        wsUrl() {
+            return window.location.origin + '/webservice/rest/server.php';
+        },
+        token() {
+            return window.userToken;
+        },
     },
     created() {
         this.loadCareers();
@@ -156,20 +165,27 @@ Vue.component('career-cards', {
     methods: {
         async loadCareers() {
             this.loading = true;
+            this.errorMsg = '';
             try {
-                const res = await axios.post(
-                    this.wwwroot + '/webservice/rest/server.php',
-                    new URLSearchParams({
-                        wstoken: this.wstoken,
+                const response = await window.axios.get(this.wsUrl, {
+                    params: {
+                        wstoken: this.token,
                         wsfunction: 'local_grupomakro_get_student_timeline_careers',
                         moodlewsrestformat: 'json',
-                    })
-                );
-                if (res.data && res.data.careers) {
-                    this.careers = res.data.careers;
+                    }
+                });
+                const data = response.data;
+                if (data && data.exception) {
+                    this.errorMsg = 'Error del servidor: ' + (data.message || data.errorcode || 'error desconocido');
+                    console.error('[timeline] WS error:', data);
+                    return;
+                }
+                if (data && data.careers) {
+                    this.careers = data.careers;
                 }
             } catch (e) {
-                console.error('Error cargando carreras:', e);
+                this.errorMsg = 'Error de conexión al cargar las carreras.';
+                console.error('[timeline] Error cargando carreras:', e);
             } finally {
                 this.loading = false;
             }
