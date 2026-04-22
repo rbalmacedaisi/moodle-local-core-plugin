@@ -262,6 +262,7 @@ class planning_manager {
                     'name' => $course->fullname,
                     'semester' => $course->semester_num, // Normalized numeric level
                     'semesterName' => $course->semester_name,
+                    'bimestre' => isset($course->bimestre) ? (int)$course->bimestre : 1,
                     'isPriority' => $isPriority,
                     'isPreRequisiteMet' => $isPreRequisiteMet,
                     'isReprobada' => false,  // Ya no incluimos reprobadas
@@ -750,33 +751,25 @@ class planning_manager {
 
                  // Ver si este cohorte tiene deferral explícito para esta asignatura
                  $targetIdx = $deferralsByCourse[$courseId][$cohortKey] ?? -1;
+                 $naturalIdx = self::get_natural_period_index($stu, $subj);
+                 $resolvedIdx = ($targetIdx >= 0) ? $targetIdx : $naturalIdx;
 
                  // Omitida (status=2) — EXCEPTO si tiene deferral a P-I o P-II
                  // Si el coordinador diferió el curso a P-I o P-II, se incluye aunque esté ignorado
                  if (!empty($globalIgnoredMap[$courseId]) && !in_array($targetIdx, [0, 1])) continue;
 
                  // Period-aware filtering: each target period shows only its own students.
-                 if ($selectedRelativeIndex >= 0) {
-                     // Viewing a specific projected period (P-I, P-II, ...).
-                     if ($selectedRelativeIndex === 0) {
-                         // P-I: natural priority students (no deferral) plus explicitly P-I assigned.
-                         // Students deferred to P-II or later are excluded from P-I demand.
-                         if ($targetIdx > 0) continue;
-                         $hasPriorityOrDeferredToP1OrP2 = !empty($subj['isPriority']) || ($targetIdx === 0);
-                     } else {
-                         // P-II or later: only students explicitly deferred to this exact period.
-                         if ($targetIdx !== $selectedRelativeIndex) continue;
-                         $hasPriorityOrDeferredToP1OrP2 = true;
-                     }
-                 } else {
-                     // Base period selected directly (no target mapping): treat as P-I equivalent.
-                     // Students explicitly deferred to P-II or beyond belong to those future periods.
-                     if ($targetIdx > 0) continue;
-                     $hasPriorityOrDeferredToP1OrP2 = !empty($subj['isPriority']) || ($targetIdx === 0);
-                 }
+                $passesPeriodFilter = false;
+                if ($selectedRelativeIndex >= 0) {
+                    $passesPeriodFilter = ($resolvedIdx === $selectedRelativeIndex);
+                } else {
+                    // Base period selected directly (sin mapping target): equivalente a P-I.
+                    $passesPeriodFilter = ($resolvedIdx === 0);
+                }
+                if (!$passesPeriodFilter) continue;
 
                 // --- DEBUG ---
-                if (empty($subj['isPriority']) && $targetIdx !== 0) {
+                if (empty($subj['isPriority']) && $resolvedIdx !== 0) {
                     $debug_ispriority_false_reasons[] = [
                         'student' => $stu['name'],
                         'dbId' => $stu['dbId'],
@@ -784,14 +777,14 @@ class planning_manager {
                         'isPriority' => $subj['isPriority'],
                         'isPreRequisiteMet' => $subj['isPreRequisiteMet'],
                         'targetIdx' => $targetIdx,
+                        'naturalIdx' => $naturalIdx,
+                        'resolvedIdx' => $resolvedIdx,
                         'cohortKey' => $cohortKey,
                         'levelLabel' => $levelLabel,
                         'subLabel' => $subLabel,
                     ];
                 }
                 // --- END DEBUG ---
-
-                if (!$hasPriorityOrDeferredToP1OrP2) continue;
 
                 // DEBUG: log every student that passes all filters
                 $debug_passes_filters[] = [
@@ -801,6 +794,8 @@ class planning_manager {
                     'courseId' => $courseId,
                     'isPriority' => $subj['isPriority'],
                     'targetIdx' => $targetIdx,
+                    'naturalIdx' => $naturalIdx,
+                    'resolvedIdx' => $resolvedIdx,
                     'cohortKey' => $cohortKey,
                     'levelKey' => $levelKey,
                     'tree_key_exists' => isset($tree[$career][$shift][$levelKey]),
@@ -890,25 +885,19 @@ class planning_manager {
              $dbId       = $stu['dbId'];
 
              foreach ($stu['pendingSubjects'] as $subj) {
-                 $courseId  = $subj['id'];
-                 $targetIdx = $deferralsByCourse[$courseId][$cohortKey] ?? -1;
+                $courseId  = $subj['id'];
+                $targetIdx = $deferralsByCourse[$courseId][$cohortKey] ?? -1;
+                $naturalIdx = self::get_natural_period_index($stu, $subj);
+                $resolvedIdx = ($targetIdx >= 0) ? $targetIdx : $naturalIdx;
 
                  // Mismos filtros que en el Paso 3 (period-aware)
                  if (empty($subj['isPreRequisiteMet'])) continue;
                  if (!empty($globalIgnoredMap[$courseId]) && !in_array($targetIdx, [0, 1])) continue;
-                 if ($selectedRelativeIndex >= 0) {
-                     if ($selectedRelativeIndex === 0) {
-                         if ($targetIdx > 0) continue;
-                         $hasPriorityOrDeferredToP1OrP2 = !empty($subj['isPriority']) || ($targetIdx === 0);
-                     } else {
-                         if ($targetIdx !== $selectedRelativeIndex) continue;
-                         $hasPriorityOrDeferredToP1OrP2 = true;
-                     }
-                 } else {
-                     if ($targetIdx > 0) continue;
-                     $hasPriorityOrDeferredToP1OrP2 = !empty($subj['isPriority']) || ($targetIdx === 0);
-                 }
-                 if (!$hasPriorityOrDeferredToP1OrP2) continue;
+                if ($selectedRelativeIndex >= 0) {
+                    if ($resolvedIdx !== $selectedRelativeIndex) continue;
+                } else {
+                    if ($resolvedIdx !== 0) continue;
+                }
 
                  if (isset($tree[$career][$shift][$levelKey])) {
                      // Deduplicar: un estudiante en 2 planes solo cuenta una vez por bucket
@@ -1048,6 +1037,8 @@ class planning_manager {
                 }
 
                 $targetIdx = $deferralsByCourse[$courseId][$cohortKey] ?? -1;
+                $naturalIdx = self::get_natural_period_index($stu, $subj);
+                $resolvedIdx = ($targetIdx >= 0) ? $targetIdx : $naturalIdx;
 
                 if ($targetIdx > 0) {
                     $filterReason = 'deferred_to_future';
@@ -1170,6 +1161,61 @@ class planning_manager {
             'students_no_priority' => array_slice($studentsNoPriority, 0, 200),
             'demand_tree' => $tree,
         ];
+    }
+
+    /**
+     * Returns planning state as [levelNumber, bimesterNumber].
+     * Mirrors the frontend rule in academic_planning.php:
+     * - if student is in Bimestre II, planning starts at next level Bimestre I
+     * - otherwise planning starts at same level Bimestre II
+     */
+    private static function get_student_planning_state($stu) {
+        $levelConfig = $stu['currentSemConfig'] ?? '';
+        $subConfig   = $stu['currentSubperiodConfig'] ?? '';
+
+        $levelNum = self::parse_semester_number($levelConfig);
+        if ($levelNum < 1) {
+            $levelNum = 1;
+        }
+
+        $isBimestre2 = self::is_bimestre_two($subConfig);
+        if ($isBimestre2) {
+            return [$levelNum + 1, 1];
+        }
+        return [$levelNum, 2];
+    }
+
+    /**
+     * Compute natural projection period index for a pending subject.
+     * 0 => P-I, 1 => P-II, ..., 5 => P-VI.
+     */
+    private static function get_natural_period_index($stu, $subj) {
+        if (!empty($subj['isPriority'])) {
+            return 0;
+        }
+
+        list($planningLevel, $planningBimestre) = self::get_student_planning_state($stu);
+
+        $subjectSemester = isset($subj['semester']) ? (int)$subj['semester'] : 0;
+        $subjectBimestre = isset($subj['bimestre']) ? (int)$subj['bimestre'] : 1;
+        if ($subjectSemester <= 0) {
+            return 0;
+        }
+        if ($subjectBimestre !== 2) {
+            $subjectBimestre = 1;
+        }
+
+        $cohortAbs  = (($planningLevel - 1) * 2) + $planningBimestre;
+        $subjectAbs = (($subjectSemester - 1) * 2) + $subjectBimestre;
+        $idx = $subjectAbs - $cohortAbs;
+
+        if ($idx < 0) {
+            return 0;
+        }
+        if ($idx > 5) {
+            return 5;
+        }
+        return $idx;
     }
 
     /**
