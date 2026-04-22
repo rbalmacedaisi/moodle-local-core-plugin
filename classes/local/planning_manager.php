@@ -945,6 +945,13 @@ class planning_manager {
                 'first_3_priority_false' => array_slice($debug_ispriority_false_reasons, 0, 3),
                 'passes_filters_count' => count($debug_passes_filters),
                 'first_3_passes' => array_slice($debug_passes_filters, 0, 3),
+                '_period_filter' => [
+                    'periodId_received'    => $periodId,
+                    'effectivePeriodId'    => $effectivePeriodId,
+                    'selectedRelativeIndex'=> $selectedRelativeIndex,
+                    'deferrals_loaded'     => count($deferralsByCourse),
+                    'ignored_courses'      => count($globalIgnoredMap),
+                ],
             ]
         ];
     }

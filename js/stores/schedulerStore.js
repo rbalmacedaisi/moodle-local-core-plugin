@@ -170,6 +170,11 @@
                 console.table(res._debug.first_3_passes);
                 console.table(res._debug.first_3_priority_false);
                 console.log("First 3 not added:", JSON.stringify(res._debug.first_3_not_added, null, 2));
+                if (res._debug._period_filter) {
+                    console.warn("[SchedulerStore] PERIOD FILTER:", JSON.stringify(res._debug._period_filter, null, 2));
+                } else {
+                    console.warn("[SchedulerStore] PERIOD FILTER: NOT PRESENT (old PHP cached)");
+                }
             }
 
             // demand_tree comes as JSON string
