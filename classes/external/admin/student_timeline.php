@@ -95,13 +95,15 @@ class student_timeline extends external_api {
         }
 
         // 2. Curriculum structure (cuatrimestres + bimestres)
-        $sql_curriculum = "SELECT lper.id, lper.name, lper.position,
+        // local_learning_periods has no 'position' column — order by id (creation order = curriculum order)
+        // local_learning_subperiods does have 'position'
+        $sql_curriculum = "SELECT lper.id, lper.name,
                                   sp.id as sp_id, sp.name as sp_name, sp.position as sp_pos
                            FROM {local_learning_periods} lper
                            LEFT JOIN {local_learning_subperiods} sp
                              ON sp.periodid = lper.id AND sp.learningplanid = lper.learningplanid
                            WHERE lper.learningplanid = :lp_id
-                           ORDER BY lper.position ASC, sp.position ASC";
+                           ORDER BY lper.id ASC, sp.position ASC";
         $curr_rows = $DB->get_records_sql($sql_curriculum, ['lp_id' => $learningplanid]);
 
         $curriculum_map = [];
@@ -111,7 +113,7 @@ class student_timeline extends external_api {
                 $curriculum_map[$pid] = [
                     'id'         => $pid,
                     'name'       => $row->name,
-                    'position'   => (int)($row->position ?? 0),
+                    'position'   => 0, // assigned below after sorting
                     'subperiods' => [],
                 ];
             }
@@ -123,7 +125,12 @@ class student_timeline extends external_api {
                 ];
             }
         }
+        // Assign sequential positions (1-based) by id order
         $curriculum = array_values($curriculum_map);
+        foreach ($curriculum as $i => &$cp) {
+            $cp['position'] = $i + 1;
+        }
+        unset($cp);
 
         // Build quick-lookup: period_id -> position
         $period_positions = [];
