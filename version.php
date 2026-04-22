@@ -24,6 +24,6 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = "local_grupomakro_core";
-$plugin->version   = 20260420001;         // Add original_status column to gmk_module_enrollment for module enrollment flow.
+$plugin->version   = 20260422001;         // Add student timeline page (career funnel by intake period).
 $plugin->requires = 2014051200;
 $plugin->maturity = MATURITY_STABLE;
