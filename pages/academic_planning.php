@@ -755,7 +755,7 @@ echo $OUTPUT->header();
 
           <!-- TAB 6: SCHEDULER MODULE -->
           <div v-if="activeTab === 'scheduler'" class="space-y-6">
-              <scheduler-view></scheduler-view>
+              <scheduler-view :base-period-id="selectedPeriodId"></scheduler-view>
           </div>
         </div> <!-- End of analysis wrapper -->
     </div> <!-- End of loading=false wrapper -->

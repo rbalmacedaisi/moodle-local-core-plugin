@@ -13,6 +13,7 @@
         // State
         state: reactive({
             activePeriod: null,
+            activeBasePeriod: null,
             context: {
                 classrooms: [],
                 holidays: [],
@@ -39,8 +40,9 @@
         /**
          * Initialize/Load Context and Demand for a period
          */
-        async loadAll(periodId) {
+        async loadAll(periodId, basePeriodId = null) {
             this.state.activePeriod = periodId;
+            this.state.activeBasePeriod = basePeriodId;
             this.state.loading = true;
             this.state.error = null;
 
@@ -48,7 +50,7 @@
                 // 1. Load basic context data
                 await Promise.all([
                     this.loadContext(periodId),
-                    this.loadDemand(periodId),
+                    this.loadDemand(periodId, basePeriodId),
                     this.loadPlans(),
                     this.loadInstructors()
                 ]);
@@ -157,8 +159,12 @@
             }
         },
 
-        async loadDemand(periodId) {
-            const res = await this._fetch('local_grupomakro_get_demand_data', { periodid: periodId });
+        async loadDemand(periodId, basePeriodId = null) {
+            const payload = { periodid: periodId };
+            if (basePeriodId !== null && basePeriodId !== undefined && basePeriodId !== 0) {
+                payload.baseperiodid = basePeriodId;
+            }
+            const res = await this._fetch('local_grupomakro_get_demand_data', payload);
             console.log("[SchedulerStore] loadDemand COMPLETE response:", JSON.stringify(res));
             console.log("[SchedulerStore] loadDemand keys:", Object.keys(res));
             console.log("[SchedulerStore] loadDemand demand_tree:", res.demand_tree);
@@ -224,7 +230,7 @@
                 // So I pass `projections` array directly.
 
                 // Reload demand to reflect changes
-                await this.loadDemand(periodId);
+                await this.loadDemand(periodId, this.state.activeBasePeriod);
                 this._reconcileCurrentSchedulesWithDemand();
                 this.state.successMessage = "Proyecciones guardadas";
             } catch (e) {

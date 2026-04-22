@@ -625,44 +625,57 @@ class planning_manager {
      * - projections: Manual projections
      * - subjects: Catalog of subjects
      */
-    public static function get_demand_data($periodId) {
+    public static function get_demand_data($periodId, $basePeriodId = 0) {
         global $DB;
 
-        // gmk_academic_planning records are stored with the BASE period, not a TARGET period
-        // (P-II, P-III, etc.). If the caller passes a target period, resolve it to its base
-        // so that get_planning_data finds the correct planning projections and OMITIDA records.
+        $periodId = (int)$periodId;
+        $basePeriodId = (int)$basePeriodId;
+
+        // Resolve target period against a BASE context to avoid mixing old planning cycles.
+        // Priority:
+        // 1) If caller sends basePeriodId, use mapping base->target from that exact cycle.
+        // 2) If no base is provided, fallback to latest reverse mapping for that target period.
+        // 3) If no mapping exists, treat selected period as base (P-I equivalent).
         $effectivePeriodId = $periodId;
-        $reverseMaps = $DB->get_records('gmk_planning_period_maps', ['target_period_id' => $periodId]);
-        if (!empty($reverseMaps)) {
-            $bestBaseId = null;
-            $bestCount  = -1;
-            foreach ($reverseMaps as $rmap) {
-                $cnt = $DB->count_records('gmk_academic_planning', ['academicperiodid' => $rmap->base_period_id]);
-                if ($cnt > $bestCount) {
-                    $bestCount  = $cnt;
-                    $bestBaseId = $rmap->base_period_id;
+        $selectedRelativeIndex = -1; // -1 => direct/base selection
+
+        $reverseMaps = $DB->get_records(
+            'gmk_planning_period_maps',
+            ['target_period_id' => $periodId],
+            'timemodified DESC, id DESC'
+        );
+
+        if ($basePeriodId > 0) {
+            if ($basePeriodId === $periodId) {
+                $effectivePeriodId = $basePeriodId;
+                $selectedRelativeIndex = -1;
+                \gmk_log("get_demand_data: basePeriodId={$basePeriodId} equals selected period {$periodId} (direct base mode)");
+            } else {
+                $explicitMap = $DB->get_record('gmk_planning_period_maps', [
+                    'base_period_id'   => $basePeriodId,
+                    'target_period_id' => $periodId
+                ], '*', IGNORE_MULTIPLE);
+
+                if ($explicitMap) {
+                    $effectivePeriodId = $basePeriodId;
+                    $selectedRelativeIndex = (int)$explicitMap->relative_index;
+                    \gmk_log("get_demand_data: resolved by explicit base context base={$basePeriodId} target={$periodId} relative={$selectedRelativeIndex}");
+                } else {
+                    // Not mapped in current base context: keep direct mode.
+                    $effectivePeriodId = $periodId;
+                    $selectedRelativeIndex = -1;
+                    \gmk_log("get_demand_data: no explicit mapping for base={$basePeriodId} target={$periodId}; using direct mode");
                 }
             }
-            if ($bestBaseId !== null && $bestCount > 0) {
-                $effectivePeriodId = (int)$bestBaseId;
-                \gmk_log("get_demand_data: period {$periodId} es target, resolviendo a base {$effectivePeriodId} (records={$bestCount})");
-            }
+        } else if (!empty($reverseMaps)) {
+            // Legacy fallback (no base context): choose most recently edited reverse map.
+            $chosenMap = reset($reverseMaps);
+            $effectivePeriodId = (int)$chosenMap->base_period_id;
+            $selectedRelativeIndex = (int)$chosenMap->relative_index;
+            \gmk_log("get_demand_data: fallback reverse map base={$effectivePeriodId} target={$periodId} relative={$selectedRelativeIndex}");
         }
 
-        // Determine which "column" the requested period represents in the planning cycle.
-        // -1 = base/current period selected directly (no target mapping found).
-        //  0 = P-I (first projection period),  1 = P-II, etc.
-        // This drives the period-aware student filtering below.
-        $selectedRelativeIndex = -1;
-        if ($effectivePeriodId !== $periodId) {
-            foreach ($reverseMaps as $rmap) {
-                if ((int)$rmap->base_period_id === $effectivePeriodId) {
-                    $selectedRelativeIndex = (int)$rmap->relative_index;
-                    break;
-                }
-            }
-        }
-        \gmk_log("get_demand_data: selectedRelativeIndex={$selectedRelativeIndex}");
+        \gmk_log("get_demand_data: selectedRelativeIndex={$selectedRelativeIndex}, basePeriodId={$basePeriodId}, effectivePeriodId={$effectivePeriodId}");
 
         // Reuse the Planning Engine to get the raw projection of students/subjects
         $planningData = self::get_planning_data($effectivePeriodId);
@@ -937,6 +950,7 @@ class planning_manager {
                 'first_3_passes' => array_slice($debug_passes_filters, 0, 3),
                 '_period_filter' => [
                     'periodId_received'    => $periodId,
+                    'basePeriodId_received'=> $basePeriodId,
                     'effectivePeriodId'    => $effectivePeriodId,
                     'selectedRelativeIndex'=> $selectedRelativeIndex,
                     'deferrals_loaded'     => count($deferralsByCourse),

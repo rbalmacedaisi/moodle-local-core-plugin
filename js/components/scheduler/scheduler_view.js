@@ -6,6 +6,12 @@
 window.SchedulerComponents = window.SchedulerComponents || {};
 
 window.SchedulerComponents.SchedulerView = {
+    props: {
+        basePeriodId: {
+            type: [Number, String],
+            default: null
+        }
+    },
     template: `
         <div class="space-y-6">
             <!-- Toolbar -->
@@ -215,7 +221,8 @@ window.SchedulerComponents.SchedulerView = {
         async onPeriodChange() {
             if (!this.selectedPeriod) return;
             if (window.schedulerStore) {
-                await window.schedulerStore.loadAll(this.selectedPeriod);
+                const base = this.basePeriodId ? Number(this.basePeriodId) : null;
+                await window.schedulerStore.loadAll(this.selectedPeriod, base);
                 this.activeTab = 0;
             }
         },
@@ -274,6 +281,12 @@ window.SchedulerComponents.SchedulerView = {
         }
     },
     watch: {
+        basePeriodId(newVal, oldVal) {
+            if (newVal === oldVal) return;
+            if (this.selectedPeriod) {
+                this.onPeriodChange();
+            }
+        },
         'storeState.error'(val) {
             if (val) this.showToast(val, 'error');
         },

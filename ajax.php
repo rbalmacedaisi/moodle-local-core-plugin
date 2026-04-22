@@ -5098,8 +5098,9 @@ try {
 
         case 'local_grupomakro_get_demand_data':
             $periodid = required_param('periodid', PARAM_INT);
+            $baseperiodid = optional_param('baseperiodid', 0, PARAM_INT);
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/planning_manager.php');
-            $data = \local_grupomakro_core\local\planning_manager::get_demand_data($periodid);
+            $data = \local_grupomakro_core\local\planning_manager::get_demand_data($periodid, $baseperiodid);
             $response = ['status' => 'success', 'data' => $data];
             break;
 
