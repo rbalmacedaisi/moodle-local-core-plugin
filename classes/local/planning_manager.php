@@ -648,6 +648,21 @@ class planning_manager {
             }
         }
 
+        // Determine which "column" the requested period represents in the planning cycle.
+        // -1 = base/current period selected directly (no target mapping found).
+        //  0 = P-I (first projection period),  1 = P-II, etc.
+        // This drives the period-aware student filtering below.
+        $selectedRelativeIndex = -1;
+        if ($effectivePeriodId !== $periodId) {
+            foreach ($reverseMaps as $rmap) {
+                if ((int)$rmap->base_period_id === $effectivePeriodId) {
+                    $selectedRelativeIndex = (int)$rmap->relative_index;
+                    break;
+                }
+            }
+        }
+        \gmk_log("get_demand_data: selectedRelativeIndex={$selectedRelativeIndex}");
+
         // Reuse the Planning Engine to get the raw projection of students/subjects
         $planningData = self::get_planning_data($effectivePeriodId);
 
@@ -740,13 +755,24 @@ class planning_manager {
                  // Si el coordinador diferió el curso a P-I o P-II, se incluye aunque esté ignorado
                  if (!empty($globalIgnoredMap[$courseId]) && !in_array($targetIdx, [0, 1])) continue;
 
-                 // Excluir si diferida a periodo futuro (P-III en adelante)
-                 if ($targetIdx > 1) continue;
-
-                 // Incluir si:
-                 // a) isPriority=true (asignatura del nivel actual según semConfig), O
-                 // b) tiene deferral explícito a P-I (targetIdx=0) o P-II (targetIdx=1)
-                 $hasPriorityOrDeferredToP1OrP2 = !empty($subj['isPriority']) || ($targetIdx === 0) || ($targetIdx === 1);
+                 // Period-aware filtering: each target period shows only its own students.
+                 if ($selectedRelativeIndex >= 0) {
+                     // Viewing a specific projected period (P-I, P-II, ...).
+                     if ($selectedRelativeIndex === 0) {
+                         // P-I: natural priority students (no deferral) plus explicitly P-I assigned.
+                         // Students deferred to P-II or later are excluded from P-I demand.
+                         if ($targetIdx > 0) continue;
+                         $hasPriorityOrDeferredToP1OrP2 = !empty($subj['isPriority']) || ($targetIdx === 0);
+                     } else {
+                         // P-II or later: only students explicitly deferred to this exact period.
+                         if ($targetIdx !== $selectedRelativeIndex) continue;
+                         $hasPriorityOrDeferredToP1OrP2 = true;
+                     }
+                 } else {
+                     // Base period selected directly (no target mapping): legacy behaviour.
+                     if ($targetIdx > 1) continue;
+                     $hasPriorityOrDeferredToP1OrP2 = !empty($subj['isPriority']) || ($targetIdx === 0) || ($targetIdx === 1);
+                 }
 
                 // --- DEBUG ---
                 if (empty($subj['isPriority']) && $targetIdx !== 0) {
@@ -866,13 +892,21 @@ class planning_manager {
                  $courseId  = $subj['id'];
                  $targetIdx = $deferralsByCourse[$courseId][$cohortKey] ?? -1;
 
-                 // Mismos filtros que en el Paso 3
+                 // Mismos filtros que en el Paso 3 (period-aware)
                  if (empty($subj['isPreRequisiteMet'])) continue;
-                 // Omitida (status=2) — EXCEPTO si tiene deferral a P-I o P-II
                  if (!empty($globalIgnoredMap[$courseId]) && !in_array($targetIdx, [0, 1])) continue;
-                 // Excluir si diferida a periodo futuro (P-III en adelante)
-                 if ($targetIdx > 1) continue;
-                 $hasPriorityOrDeferredToP1OrP2 = !empty($subj['isPriority']) || ($targetIdx === 0) || ($targetIdx === 1);
+                 if ($selectedRelativeIndex >= 0) {
+                     if ($selectedRelativeIndex === 0) {
+                         if ($targetIdx > 0) continue;
+                         $hasPriorityOrDeferredToP1OrP2 = !empty($subj['isPriority']) || ($targetIdx === 0);
+                     } else {
+                         if ($targetIdx !== $selectedRelativeIndex) continue;
+                         $hasPriorityOrDeferredToP1OrP2 = true;
+                     }
+                 } else {
+                     if ($targetIdx > 1) continue;
+                     $hasPriorityOrDeferredToP1OrP2 = !empty($subj['isPriority']) || ($targetIdx === 0) || ($targetIdx === 1);
+                 }
                  if (!$hasPriorityOrDeferredToP1OrP2) continue;
 
                  if (isset($tree[$career][$shift][$levelKey])) {
