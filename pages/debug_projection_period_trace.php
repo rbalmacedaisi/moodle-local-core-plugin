@@ -513,6 +513,136 @@ if (!empty($occurrences)) {
 echo '</tbody></table></div>';
 echo '</div>';
 
+// Cross-check against what the scheduler board consumes (get_generated_schedules).
+$boardRows = [];
+$boardError = '';
+try {
+    $rawBoard = \local_grupomakro_core\external\admin\scheduler::get_generated_schedules($periodid, true);
+    if (!is_array($rawBoard)) {
+        $rawBoard = [];
+    }
+
+    $wantedNorm = dbg_norm((string)$chosenSubject['name']);
+    foreach ($rawBoard as $row) {
+        $coreId = (int)($row['corecourseid'] ?? 0);
+        $linkId = (int)($row['courseid'] ?? 0);
+        $nameNorm = dbg_norm((string)($row['subjectName'] ?? ''));
+        $sameSubject = ($coreId === $subjectid) || ($linkId === $subjectid) || ($wantedNorm !== '' && $nameNorm === $wantedNorm);
+        if (!$sameSubject) {
+            continue;
+        }
+
+        $studentsRaw = isset($row['studentIds']) && is_array($row['studentIds']) ? $row['studentIds'] : [];
+        $hasStudent = in_array((string)$user->id, $studentsRaw, true) || in_array((string)$user->idnumber, $studentsRaw, true);
+
+        $boardRows[] = [
+            'id' => (int)($row['id'] ?? 0),
+            'subject' => (string)($row['subjectName'] ?? ''),
+            'shift' => (string)($row['shift'] ?? ''),
+            'day' => (string)($row['day'] ?? ''),
+            'start' => (string)($row['start'] ?? ''),
+            'end' => (string)($row['end'] ?? ''),
+            'corecourseid' => $coreId,
+            'courseid' => $linkId,
+            'studentcount' => (int)($row['studentCount'] ?? 0),
+            'prereg' => (int)($row['preRegisteredCount'] ?? 0),
+            'queue' => (int)($row['queuedCount'] ?? 0),
+            'enrolled' => (int)($row['enrolledCount'] ?? 0),
+            'pendingenroll' => (int)($row['pendingEnrollmentCount'] ?? 0),
+            'approved' => (int)($row['approved'] ?? 0),
+            'isexternal' => !empty($row['isExternal']) ? 1 : 0,
+            'hasstudent' => $hasStudent ? 1 : 0,
+            'studentsraw' => $studentsRaw
+        ];
+    }
+} catch (Throwable $t) {
+    $boardError = $t->getMessage();
+}
+
+echo '<div class="dbg-card">';
+echo '<h3 class="dbg-sub">Verificacion en fuente del Tablero (scheduler::get_generated_schedules)</h3>';
+if ($boardError !== '') {
+    echo '<div class="dbg-pill bad">Error al obtener datos del tablero: ' . s($boardError) . '</div>';
+} else {
+    echo '<div class="dbg-kv"><div class="dbg-k">Filas de esta asignatura en Tablero</div><div class="dbg-v">' . count($boardRows) . '</div></div>';
+    echo '<div class="dbg-table-wrap"><table class="dbg-table"><thead><tr><th>classid</th><th>subject</th><th>shift</th><th>day</th><th>time</th><th>studentCount</th><th>preReg</th><th>queue</th><th>enrolled</th><th>approved</th><th>external</th><th>estudiante presente</th></tr></thead><tbody>';
+    if (!empty($boardRows)) {
+        foreach ($boardRows as $br) {
+            echo '<tr>';
+            echo '<td>' . (int)$br['id'] . '</td>';
+            echo '<td>' . s($br['subject']) . '</td>';
+            echo '<td>' . s($br['shift']) . '</td>';
+            echo '<td>' . s($br['day']) . '</td>';
+            echo '<td>' . s($br['start']) . ' - ' . s($br['end']) . '</td>';
+            echo '<td>' . (int)$br['studentcount'] . '</td>';
+            echo '<td>' . (int)$br['prereg'] . '</td>';
+            echo '<td>' . (int)$br['queue'] . '</td>';
+            echo '<td>' . (int)$br['enrolled'] . '</td>';
+            echo '<td>' . (int)$br['approved'] . '</td>';
+            echo '<td>' . ($br['isexternal'] ? '<span class="dbg-pill warn">SI</span>' : '<span class="dbg-pill ok">NO</span>') . '</td>';
+            echo '<td>' . ($br['hasstudent'] ? '<span class="dbg-pill bad">SI</span>' : '<span class="dbg-pill ok">NO</span>') . '</td>';
+            echo '</tr>';
+        }
+    } else {
+        echo '<tr><td colspan="12">No hay filas en el tablero para esta asignatura.</td></tr>';
+    }
+    echo '</tbody></table></div>';
+}
+echo '</div>';
+
+// Source-level trace for this specific student in class-level tables.
+$subjectClasses = $DB->get_records_select(
+    'gmk_class',
+    'periodid = :pid AND (corecourseid = :coreid OR courseid = :linkid)',
+    ['pid' => (int)$periodid, 'coreid' => (int)$subjectid, 'linkid' => (int)$subjectid],
+    'id DESC',
+    'id,name,periodid,corecourseid,courseid,groupid,approved'
+);
+
+$sourceTrace = [];
+foreach ($subjectClasses as $cls) {
+    $classid = (int)$cls->id;
+    $inPrereg = $DB->record_exists('gmk_class_pre_registration', ['classid' => $classid, 'userid' => (int)$user->id]);
+    $inQueue = $DB->record_exists('gmk_class_queue', ['classid' => $classid, 'userid' => (int)$user->id]);
+    $inProgre = $DB->record_exists('gmk_course_progre', ['classid' => $classid, 'userid' => (int)$user->id]);
+    $inGroup = false;
+    if (!empty($cls->groupid)) {
+        $inGroup = $DB->record_exists('groups_members', ['groupid' => (int)$cls->groupid, 'userid' => (int)$user->id]);
+    }
+    if ($inPrereg || $inQueue || $inProgre || $inGroup) {
+        $sourceTrace[] = [
+            'classid' => $classid,
+            'subject' => (string)$cls->name,
+            'approved' => (int)$cls->approved,
+            'inprereg' => $inPrereg ? 1 : 0,
+            'inqueue' => $inQueue ? 1 : 0,
+            'inprogre' => $inProgre ? 1 : 0,
+            'ingroup' => $inGroup ? 1 : 0
+        ];
+    }
+}
+
+echo '<div class="dbg-card">';
+echo '<h3 class="dbg-sub">Rastro de fuentes por clase (por que el Tablero lo muestra)</h3>';
+echo '<div class="dbg-table-wrap"><table class="dbg-table"><thead><tr><th>classid</th><th>subject</th><th>approved</th><th>pre_registration</th><th>queue</th><th>course_progre</th><th>groups_members</th></tr></thead><tbody>';
+if (!empty($sourceTrace)) {
+    foreach ($sourceTrace as $sr) {
+        echo '<tr>';
+        echo '<td>' . (int)$sr['classid'] . '</td>';
+        echo '<td>' . s($sr['subject']) . '</td>';
+        echo '<td>' . (int)$sr['approved'] . '</td>';
+        echo '<td>' . ($sr['inprereg'] ? '<span class="dbg-pill bad">SI</span>' : '<span class="dbg-pill ok">NO</span>') . '</td>';
+        echo '<td>' . ($sr['inqueue'] ? '<span class="dbg-pill bad">SI</span>' : '<span class="dbg-pill ok">NO</span>') . '</td>';
+        echo '<td>' . ($sr['inprogre'] ? '<span class="dbg-pill bad">SI</span>' : '<span class="dbg-pill ok">NO</span>') . '</td>';
+        echo '<td>' . ($sr['ingroup'] ? '<span class="dbg-pill bad">SI</span>' : '<span class="dbg-pill ok">NO</span>') . '</td>';
+        echo '</tr>';
+    }
+} else {
+    echo '<tr><td colspan="7">El estudiante no aparece en pre-registro, cola, progreso ni grupo para clases de esta asignatura en el periodo.</td></tr>';
+}
+echo '</tbody></table></div>';
+echo '</div>';
+
 echo '<div class="dbg-card">';
 echo '<h3 class="dbg-sub">Resumen rapido del caso</h3>';
 echo '<div class="dbg-code">';
@@ -523,9 +653,10 @@ echo 'Asignatura: ' . s($chosenSubject['name']) . ' (ID ' . $subjectid . ')' . P
 echo 'Asignatura omitida status=2: ' . ($subjectOmitted ? 'SI' : 'NO') . PHP_EOL;
 echo 'Filas de planning_data del estudiante: ' . count($studentRows) . PHP_EOL;
 echo 'Apariciones de la asignatura en demand_tree: ' . count($occurrences) . PHP_EOL;
+echo 'Filas de la asignatura en datos del Tablero: ' . count($boardRows) . PHP_EOL;
+echo 'Clases donde el estudiante existe en tablas de clase (pre/queue/progre/group): ' . count($sourceTrace) . PHP_EOL;
 echo '</div>';
 echo '</div>';
 
 echo '</div>';
 echo $OUTPUT->footer();
-

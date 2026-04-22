@@ -145,7 +145,7 @@ class student_timeline extends external_api {
                         JOIN {user_info_field} uif ON uif.id = uid.fieldid AND uif.shortname = 'periodo_ingreso'
                         JOIN {local_learning_users} lu ON lu.userid = uid.userid AND lu.learningplanid = :lp_id
                         WHERE uid.data IS NOT NULL AND uid.data != ''
-                        ORDER BY uid.data ASC";
+                        ORDER BY uid.data DESC";
         $intake_rows = $DB->get_records_sql($sql_periods, ['lp_id' => $learningplanid]);
         $intake_periods_list = array_map(fn($r) => $r->intake_period, array_values($intake_rows));
 

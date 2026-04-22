@@ -1017,15 +1017,38 @@
                     continue;
                 }
 
-                // If there are persisted DB classes, keep already assigned students on their
-                // same class and distribute only missing demand students as pending candidates.
+                // If there are persisted DB classes, keep assignment stability between sibling
+                // groups, but always prune students that are no longer part of current demand.
+                // Otherwise stale queue/pre-reg rows from old projections leak into the board
+                // and create false student-overlap conflicts.
                 const persistedItems = items.filter(it => isPersistedSchedule(it));
                 if (persistedItems.length > 0) {
                     const demandStudents = mergeStudentIds(currentDemand.students || []);
                     const itemStudents = items.map(item => mergeStudentIds(item.studentIds || []));
 
+                    const demandSet = new Set();
+                    demandStudents.forEach(rawId => {
+                        const sid = toStudentIdentityKey(rawId);
+                        if (sid) demandSet.add(sid);
+                    });
+
+                    let prunedOutOfDemand = 0;
+                    const prunedItemStudents = itemStudents.map(list => {
+                        const kept = [];
+                        list.forEach(rawId => {
+                            const sid = toStudentIdentityKey(rawId);
+                            if (!sid) return;
+                            if (demandSet.has(sid)) {
+                                kept.push(rawId);
+                            } else {
+                                prunedOutOfDemand++;
+                            }
+                        });
+                        return kept;
+                    });
+
                     const assignedSet = new Set();
-                    itemStudents.forEach(list => {
+                    prunedItemStudents.forEach(list => {
                         list.forEach(rawId => {
                             const sid = toStudentIdentityKey(rawId);
                             if (sid) assignedSet.add(sid);
@@ -1042,15 +1065,19 @@
                     remainingDemand.forEach(rawId => {
                         let target = 0;
                         let minSize = Number.POSITIVE_INFINITY;
-                        for (let i = 0; i < itemStudents.length; i++) {
-                            const size = itemStudents[i].length;
+                        for (let i = 0; i < prunedItemStudents.length; i++) {
+                            const size = prunedItemStudents[i].length;
                             if (size < minSize) {
                                 minSize = size;
                                 target = i;
                             }
                         }
-                        itemStudents[target].push(rawId);
+                        prunedItemStudents[target].push(rawId);
                     });
+
+                    if (prunedOutOfDemand > 0) {
+                        console.log(`DEBUG Reconcile: Pruned ${prunedOutOfDemand} out-of-demand students for "${items[0]?.subjectName || key}" (${key}).`);
+                    }
 
                     const sharedMeta = {
                         career: Array.from(currentDemand.careers).join(', '),
@@ -1063,8 +1090,8 @@
                         result.push(this._withCanonicalSubjectName({
                             ...items[i],
                             ...sharedMeta,
-                            studentIds: itemStudents[i],
-                            studentCount: itemStudents[i].length,
+                            studentIds: prunedItemStudents[i],
+                            studentCount: prunedItemStudents[i].length,
                         }));
                     }
                     coveredKeys.add(key);
