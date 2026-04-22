@@ -245,8 +245,9 @@ class scheduler extends external_api {
             gmk_log("get_demand_data: period $periodid sin reverse map válido, usando directo");
         }
 
-        // Use the comprehensive planning_manager demand calculation.
-        $data = \local_grupomakro_core\local\planning_manager::get_demand_data($effectivePeriodId);
+        // Pass the original $periodid — planning_manager resolves the base period and
+        // relative_index (P-I/P-II) internally, so it needs the user-selected target period.
+        $data = \local_grupomakro_core\local\planning_manager::get_demand_data($periodid);
 
         $demand_tree = $data['demand_tree'];
 
