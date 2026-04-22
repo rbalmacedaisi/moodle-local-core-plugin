@@ -781,9 +781,8 @@ class planning_manager {
                  $naturalIdx = self::get_natural_period_index($stu, $subj);
                  $resolvedIdx = ($targetIdx >= 0) ? $targetIdx : $naturalIdx;
 
-                 // Omitida (status=2) — EXCEPTO si tiene deferral a P-I o P-II
-                 // Si el coordinador diferió el curso a P-I o P-II, se incluye aunque esté ignorado
-                 if (!empty($globalIgnoredMap[$courseId]) && !in_array($targetIdx, [0, 1])) continue;
+                 // Omitida (status=2) => exclusión total de proyección.
+                 if (!empty($globalIgnoredMap[$courseId])) continue;
 
                  // Period-aware filtering: each target period shows only its own students.
                 $passesPeriodFilter = false;
@@ -919,7 +918,7 @@ class planning_manager {
 
                  // Mismos filtros que en el Paso 3 (period-aware)
                  if (empty($subj['isPreRequisiteMet'])) continue;
-                 if (!empty($globalIgnoredMap[$courseId]) && !in_array($targetIdx, [0, 1])) continue;
+                 if (!empty($globalIgnoredMap[$courseId])) continue;
                 if ($selectedRelativeIndex >= 0) {
                     if ($resolvedIdx !== $selectedRelativeIndex) continue;
                 } else {
