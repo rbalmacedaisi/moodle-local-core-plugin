@@ -769,9 +769,10 @@ class planning_manager {
                          $hasPriorityOrDeferredToP1OrP2 = true;
                      }
                  } else {
-                     // Base period selected directly (no target mapping): legacy behaviour.
-                     if ($targetIdx > 1) continue;
-                     $hasPriorityOrDeferredToP1OrP2 = !empty($subj['isPriority']) || ($targetIdx === 0) || ($targetIdx === 1);
+                     // Base period selected directly (no target mapping): treat as P-I equivalent.
+                     // Students explicitly deferred to P-II or beyond belong to those future periods.
+                     if ($targetIdx > 0) continue;
+                     $hasPriorityOrDeferredToP1OrP2 = !empty($subj['isPriority']) || ($targetIdx === 0);
                  }
 
                 // --- DEBUG ---
@@ -904,8 +905,8 @@ class planning_manager {
                          $hasPriorityOrDeferredToP1OrP2 = true;
                      }
                  } else {
-                     if ($targetIdx > 1) continue;
-                     $hasPriorityOrDeferredToP1OrP2 = !empty($subj['isPriority']) || ($targetIdx === 0) || ($targetIdx === 1);
+                     if ($targetIdx > 0) continue;
+                     $hasPriorityOrDeferredToP1OrP2 = !empty($subj['isPriority']) || ($targetIdx === 0);
                  }
                  if (!$hasPriorityOrDeferredToP1OrP2) continue;
 
