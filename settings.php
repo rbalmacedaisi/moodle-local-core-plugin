@@ -64,6 +64,11 @@ if ($hassiteconfig) {
         $emojititle("\u{1F3AF}", get_string('academic_director_panel', 'local_grupomakro_core')),
         new moodle_url('/local/grupomakro_core/pages/academicpanel.php')
     );
+    $studentTimelinePage = new admin_externalpage(
+        'grupomakro_core_student_timeline',
+        $emojititle("\u{1F4CA}", 'Línea de Tiempo Estudiantes'),
+        new moodle_url('/local/grupomakro_core/pages/student_timeline.php')
+    );
     $moduleManagementPage = new admin_externalpage(
         'grupomakro_core_module_management',
         $emojititle("\u{1F4DA}", 'Gestión de Módulos Independientes'),
@@ -229,6 +234,7 @@ if ($hassiteconfig) {
     $ADMIN->add('grupomakrocore_plugin', $schedulesPanelPage);
     $ADMIN->add('grupomakrocore_plugin', $institutionManagementPage);
     $ADMIN->add('grupomakrocore_plugin', $academicDirectorPanelPage);
+    $ADMIN->add('grupomakrocore_plugin', $studentTimelinePage);
     $ADMIN->add('grupomakrocore_plugin', $moduleManagementPage);
     $ADMIN->add('grupomakrocore_plugin', $teachersManagementPage);
     $ADMIN->add('grupomakrocore_plugin', $importUsersPage);

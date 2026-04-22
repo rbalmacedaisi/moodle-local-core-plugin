@@ -911,4 +911,20 @@ $functions = array(
         'ajax'        => true,
         'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
     ],
+    'local_grupomakro_get_student_timeline_careers' => [
+        'classname'   => 'local_grupomakro_core\external\admin\student_timeline',
+        'methodname'  => 'get_careers_list',
+        'description' => 'Returns list of careers with active student counts for the timeline view',
+        'type'        => 'read',
+        'ajax'        => true,
+        'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE],
+    ],
+    'local_grupomakro_get_student_career_timeline' => [
+        'classname'   => 'local_grupomakro_core\external\admin\student_timeline',
+        'methodname'  => 'get_career_timeline',
+        'description' => 'Returns full timeline data for a career grouped by intake period',
+        'type'        => 'read',
+        'ajax'        => true,
+        'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE],
+    ],
 );
