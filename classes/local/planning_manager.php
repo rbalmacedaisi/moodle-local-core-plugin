@@ -627,13 +627,34 @@ class planning_manager {
     public static function get_demand_data($periodId) {
         global $DB;
 
+        // gmk_academic_planning records are stored with the BASE period, not a TARGET period
+        // (P-II, P-III, etc.). If the caller passes a target period, resolve it to its base
+        // so that get_planning_data finds the correct planning projections and OMITIDA records.
+        $effectivePeriodId = $periodId;
+        $reverseMaps = $DB->get_records('gmk_planning_period_maps', ['target_period_id' => $periodId]);
+        if (!empty($reverseMaps)) {
+            $bestBaseId = null;
+            $bestCount  = -1;
+            foreach ($reverseMaps as $rmap) {
+                $cnt = $DB->count_records('gmk_academic_planning', ['academicperiodid' => $rmap->base_period_id]);
+                if ($cnt > $bestCount) {
+                    $bestCount  = $cnt;
+                    $bestBaseId = $rmap->base_period_id;
+                }
+            }
+            if ($bestBaseId !== null && $bestCount > 0) {
+                $effectivePeriodId = (int)$bestBaseId;
+                \gmk_log("get_demand_data: period {$periodId} es target, resolviendo a base {$effectivePeriodId} (records={$bestCount})");
+            }
+        }
+
         // Reuse the Planning Engine to get the raw projection of students/subjects
-        $planningData = self::get_planning_data($periodId);
+        $planningData = self::get_planning_data($effectivePeriodId);
 
         $students = $planningData['students'];
         $tree = [];
 
-        \gmk_log("GMK_DEBUG get_demand_data: periodId={$periodId}, students_count=" . count($students));
+        \gmk_log("GMK_DEBUG get_demand_data: periodId={$periodId} effectivePeriodId={$effectivePeriodId}, students_count=" . count($students));
 
         // --- Paso 1: Pre-cargar ignorados (status=2) y deferrals del periodo ---
 
@@ -649,7 +670,7 @@ class planning_manager {
 
         // Mapa courseid => [ cohortKey => targetPeriodIndex ] para deferrals guardados
         $deferralsByCourse = [];
-        $rawDeferrals = $DB->get_records('gmk_academic_deferrals', ['academicperiodid' => $periodId]);
+        $rawDeferrals = $DB->get_records('gmk_academic_deferrals', ['academicperiodid' => $effectivePeriodId]);
         foreach ($rawDeferrals as $d) {
             $dCohortKey = "{$d->career} - {$d->shift} - {$d->current_level}";
             if (!isset($deferralsByCourse[$d->courseid])) {
