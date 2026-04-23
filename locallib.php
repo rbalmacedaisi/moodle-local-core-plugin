@@ -5683,6 +5683,17 @@ function get_class_events($userId = null, $initDate = null, $endDate = null)
              continue;
         }
 
+        // TEMP DEBUG — remove after diagnosis
+        gmk_log(sprintf(
+            'get_class_events DEBUG event_id=%d module=%s instance=%d name="%s" passed=%s classId=%s',
+            (int)$event->id,
+            (string)($event->modulename ?? '?'),
+            (int)($event->instance ?? 0),
+            substr((string)($event->name ?? ''), 0, 60),
+            $eventComplete ? 'YES' : 'NO',
+            $eventComplete ? (string)($eventComplete->classId ?? '?') : '-'
+        ));
+
         if (!$eventComplete) {
             continue;
         }
