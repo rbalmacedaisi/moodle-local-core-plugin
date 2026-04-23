@@ -2301,6 +2301,25 @@ try {
                 }
             }
 
+            // Build set of BBB instance IDs that have at least one valid (non-deleted) attendance session.
+            // Used below to filter out orphaned BBB events whose attendance session was deleted
+            // but whose BBB module (and calendar event) still exists (e.g. hidden but not deleted).
+            $bbbInstancesWithValidSession = [];
+            if (!empty($classBbbInstanceIds)) {
+                list($bbbValidInSql, $bbbValidParams) = $DB->get_in_or_equal(array_values($classBbbInstanceIds), SQL_PARAMS_NAMED, 'bvld');
+                $validRelRows = $DB->get_records_sql(
+                    "SELECT rel.bbbid
+                       FROM {gmk_bbb_attendance_relation} rel
+                       JOIN {attendance_sessions} asess ON asess.id = rel.attendancesessionid
+                      WHERE rel.classid = :classid
+                        AND rel.bbbid $bbbValidInSql",
+                    array_merge(['classid' => (int)$classid], $bbbValidParams)
+                );
+                foreach ($validRelRows as $vr) {
+                    $bbbInstancesWithValidSession[(int)$vr->bbbid] = true;
+                }
+            }
+
             $formatted_sessions = [];
             foreach ($events as $e) {
                 try {
@@ -2314,6 +2333,12 @@ try {
                             }
                         }
                         if ($isDuplicate) {
+                            continue;
+                        }
+                        // Skip BBB events whose linked attendance session no longer exists.
+                        // This filters orphaned BBB calendar events left behind when the
+                        // attendance session was deleted but the BBB module was only hidden.
+                        if (!isset($bbbInstancesWithValidSession[(int)$e->instance])) {
                             continue;
                         }
                     }
