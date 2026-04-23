@@ -643,6 +643,79 @@ if (!empty($sourceTrace)) {
 echo '</tbody></table></div>';
 echo '</div>';
 
+// Draft trace: the board may show draft-only cards that do not exist in gmk_class yet.
+$draftRows = [];
+$draftBytes = 0;
+$draftDecodeError = '';
+$draftRaw = $DB->get_field('gmk_academic_periods', 'draft_schedules', ['id' => (int)$periodid]);
+if (!empty($draftRaw)) {
+    $draftBytes = strlen($draftRaw);
+    $decodedDraft = json_decode($draftRaw, true);
+    if (is_array($decodedDraft)) {
+        $wantedNorm = dbg_norm((string)$chosenSubject['name']);
+        foreach ($decodedDraft as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            $coreId = (int)($item['corecourseid'] ?? 0);
+            $linkId = (int)($item['courseid'] ?? 0);
+            $nameNorm = dbg_norm((string)($item['subjectName'] ?? ''));
+            $sameSubject = ($coreId === $subjectid) || ($linkId === $subjectid) || ($wantedNorm !== '' && $nameNorm === $wantedNorm);
+            if (!$sameSubject) {
+                continue;
+            }
+
+            $studentsRaw = isset($item['studentIds']) && is_array($item['studentIds']) ? $item['studentIds'] : [];
+            $hasStudent = in_array((string)$user->id, $studentsRaw, true) || in_array((string)$user->idnumber, $studentsRaw, true);
+
+            $draftRows[] = [
+                'id' => (string)($item['id'] ?? ''),
+                'subject' => (string)($item['subjectName'] ?? ''),
+                'shift' => (string)($item['shift'] ?? ''),
+                'day' => (string)($item['day'] ?? ''),
+                'start' => (string)($item['start'] ?? ''),
+                'end' => (string)($item['end'] ?? ''),
+                'studentcount' => (int)($item['studentCount'] ?? 0),
+                'studentids_count' => count($studentsRaw),
+                'hasstudent' => $hasStudent ? 1 : 0,
+                'isexternal' => !empty($item['isExternal']) ? 1 : 0,
+                'studentsraw' => $studentsRaw
+            ];
+        }
+    } else {
+        $draftDecodeError = json_last_error_msg();
+    }
+}
+
+echo '<div class="dbg-card">';
+echo '<h3 class="dbg-sub">Verificacion en borrador del periodo (gmk_academic_periods.draft_schedules)</h3>';
+echo '<div class="dbg-grid">';
+echo '<div class="dbg-kv"><div class="dbg-k">Draft bytes</div><div class="dbg-v">' . (int)$draftBytes . '</div></div>';
+echo '<div class="dbg-kv"><div class="dbg-k">Decode error</div><div class="dbg-v">' . s($draftDecodeError ?: 'none') . '</div></div>';
+echo '<div class="dbg-kv"><div class="dbg-k">Filas de esta asignatura en draft</div><div class="dbg-v">' . count($draftRows) . '</div></div>';
+echo '<div class="dbg-kv"><div class="dbg-k">Filas con estudiante objetivo</div><div class="dbg-v">' . count(array_filter($draftRows, function($r) { return !empty($r['hasstudent']); })) . '</div></div>';
+echo '</div>';
+echo '<div class="dbg-table-wrap"><table class="dbg-table"><thead><tr><th>id</th><th>subject</th><th>shift</th><th>day</th><th>time</th><th>studentCount</th><th>studentIds[]</th><th>external</th><th>estudiante presente</th></tr></thead><tbody>';
+if (!empty($draftRows)) {
+    foreach ($draftRows as $dr) {
+        echo '<tr>';
+        echo '<td>' . s($dr['id']) . '</td>';
+        echo '<td>' . s($dr['subject']) . '</td>';
+        echo '<td>' . s($dr['shift']) . '</td>';
+        echo '<td>' . s($dr['day']) . '</td>';
+        echo '<td>' . s($dr['start']) . ' - ' . s($dr['end']) . '</td>';
+        echo '<td>' . (int)$dr['studentcount'] . '</td>';
+        echo '<td>' . (int)$dr['studentids_count'] . '</td>';
+        echo '<td>' . ($dr['isexternal'] ? '<span class="dbg-pill warn">SI</span>' : '<span class="dbg-pill ok">NO</span>') . '</td>';
+        echo '<td>' . ($dr['hasstudent'] ? '<span class="dbg-pill bad">SI</span>' : '<span class="dbg-pill ok">NO</span>') . '</td>';
+        echo '</tr>';
+    }
+} else {
+    echo '<tr><td colspan="9">No hay filas de esta asignatura en el draft del periodo.</td></tr>';
+}
+echo '</tbody></table></div>';
+echo '</div>';
+
 echo '<div class="dbg-card">';
 echo '<h3 class="dbg-sub">Resumen rapido del caso</h3>';
 echo '<div class="dbg-code">';
@@ -655,6 +728,8 @@ echo 'Filas de planning_data del estudiante: ' . count($studentRows) . PHP_EOL;
 echo 'Apariciones de la asignatura en demand_tree: ' . count($occurrences) . PHP_EOL;
 echo 'Filas de la asignatura en datos del Tablero: ' . count($boardRows) . PHP_EOL;
 echo 'Clases donde el estudiante existe en tablas de clase (pre/queue/progre/group): ' . count($sourceTrace) . PHP_EOL;
+echo 'Filas de la asignatura en draft_schedules: ' . count($draftRows) . PHP_EOL;
+echo 'Filas de draft con estudiante objetivo: ' . count(array_filter($draftRows, function($r) { return !empty($r['hasstudent']); })) . PHP_EOL;
 echo '</div>';
 echo '</div>';
 

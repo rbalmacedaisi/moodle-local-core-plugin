@@ -999,16 +999,23 @@
 
             for (const [key, items] of Object.entries(draftByKey)) {
                 const currentDemand = demandMap[key];
-                const existingStudentsForKey = mergeStudentIds(...items.map(item => item.studentIds || []));
 
                 if (!currentDemand || currentDemand.students.length === 0) {
                     // No demand match — keep placed items, drop unplaced ones
                     for (const item of items) {
                         const isPlaced = (item.day && item.day !== 'N/A') ||
                                          (Array.isArray(item.sessions) && item.sessions.length > 0);
+                        const isPersisted = isPersistedSchedule(item);
                         if (isPlaced) {
                             console.log(`DEBUG Reconcile: Keeping placed "${item.subjectName}" (${key}) — no demand match.`);
-                            result.push(this._withCanonicalSubjectName({ ...item }));
+                            const kept = { ...item };
+                            // Draft-only placed cards can carry stale studentIds from previous
+                            // periods. Keep the card placement, but clear assigned identities.
+                            if (!isPersisted && Array.isArray(kept.studentIds) && kept.studentIds.length > 0) {
+                                console.log(`DEBUG Reconcile: Clearing ${kept.studentIds.length} stale studentIds on non-persisted placed item "${item.subjectName}" (${key}).`);
+                                kept.studentIds = [];
+                            }
+                            result.push(this._withCanonicalSubjectName(kept));
                         } else {
                             console.log(`DEBUG Reconcile: Removing unplaced "${item.subjectName}" (${key}) — no demand.`);
                         }
@@ -1098,9 +1105,10 @@
                     continue;
                 }
 
-                // Distribute current students evenly across all sibling groups for this key.
-                // This preserves subdivisions created by the algorithm for >40-student subjects.
-                const allStudents = mergeStudentIds(currentDemand.students || [], existingStudentsForKey);
+                // Non-persisted draft-only classes must follow current demand strictly.
+                // Do not merge stale draft studentIds here, or old period assignments leak
+                // back into the board after reload.
+                const allStudents = mergeStudentIds(currentDemand.students || []);
                 const numGroups = items.length;
                 const baseSize = Math.floor(allStudents.length / numGroups);
                 const remainder = allStudents.length % numGroups;

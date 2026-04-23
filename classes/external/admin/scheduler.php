@@ -1827,13 +1827,6 @@ class scheduler extends external_api {
                         $count++;
                     }
                 }
-
-                if ($coreCourseId <= 0 && !empty($courseId)) {
-                    $tmpCore = $DB->get_field('local_learning_courses', 'courseid', ['id' => $courseId], IGNORE_MISSING);
-                    if ($tmpCore) {
-                        $coreCourseId = (int)$tmpCore;
-                    }
-                }
                 return $count;
             };
             $validSet = [];
