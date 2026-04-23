@@ -6048,6 +6048,17 @@ function complete_class_event_information($event, &$fetchedClasses)
     ];
 
     $attendanceSessionId = $DB->get_field('attendance_sessions', 'id', ['attendanceid' => $event->instance, 'caleventid' => $event->id]);
+
+    // No matching session → orphaned calendar event (session was deleted).
+    // Without this check, PHP coerces false→0 in the next query, which matches
+    // any gmk_bbb_attendance_relation row with attendancesessionid DEFAULT=0,
+    // causing deleted sessions to appear as phantom events in the dashboard.
+    if (!$attendanceSessionId) {
+        gmk_log(sprintf('[phantom_attendance] FILTER orphaned event_id=%d attendanceid=%d (no matching attendance_sessions row)',
+            (int)$event->id, (int)$event->instance));
+        return false;
+    }
+
     $eventModuleClassRelation = $DB->get_record(
         'gmk_bbb_attendance_relation',
         ['attendanceid' => $event->instance, 'attendancesessionid' => $attendanceSessionId],
