@@ -5683,17 +5683,6 @@ function get_class_events($userId = null, $initDate = null, $endDate = null)
              continue;
         }
 
-        // TEMP DEBUG — remove after diagnosis
-        gmk_log(sprintf(
-            'get_class_events DEBUG event_id=%d module=%s instance=%d name="%s" passed=%s classId=%s',
-            (int)$event->id,
-            (string)($event->modulename ?? '?'),
-            (int)($event->instance ?? 0),
-            substr((string)($event->name ?? ''), 0, 60),
-            $eventComplete ? 'YES' : 'NO',
-            $eventComplete ? (string)($eventComplete->classId ?? '?') : '-'
-        ));
-
         if (!$eventComplete) {
             continue;
         }
@@ -7831,7 +7820,13 @@ function complete_class_event_information_bbb($event, &$fetchedClasses)
     // without deleting the BBB module, leaving an orphaned calendar event.
     // In both cases: remove the stale relation row and filter the event out.
     $attendancesessionid = (int)($relation->attendancesessionid ?? 0);
-    if ($attendancesessionid <= 0 || !$DB->record_exists('attendance_sessions', ['id' => $attendancesessionid])) {
+    $session_exists = ($attendancesessionid > 0) && $DB->record_exists('attendance_sessions', ['id' => $attendancesessionid]);
+    gmk_log(sprintf('[phantom_debug] event_id=%d bbbmoduleid=%d relation_id=%d attendancesessionid=%d session_exists=%s => %s',
+        (int)$event->id, (int)$cm->id, (int)$relation->id, $attendancesessionid,
+        $session_exists ? 'YES' : 'NO',
+        $session_exists ? 'PASS' : 'FILTER'
+    ));
+    if (!$session_exists) {
         $DB->delete_records('gmk_bbb_attendance_relation', ['id' => (int)$relation->id]);
         return false;
     }
