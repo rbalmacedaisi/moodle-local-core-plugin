@@ -7814,6 +7814,17 @@ function complete_class_event_information_bbb($event, &$fetchedClasses)
         return false;
     }
 
+    // If the relation points to an attendance session, verify it still exists.
+    // When only the attendance session is deleted (without deleting the BBB module),
+    // the BBB calendar event persists but the session is no longer valid.
+    // Remove the stale relation row so subsequent requests don't repeat this check.
+    if (!empty($relation->attendancesessionid)) {
+        if (!$DB->record_exists('attendance_sessions', ['id' => (int)$relation->attendancesessionid])) {
+            $DB->delete_records('gmk_bbb_attendance_relation', ['id' => (int)$relation->id]);
+            return false;
+        }
+    }
+
     $eventClassId = (int)$relation->classid;
     $gmkClass = null;
     if (array_key_exists($eventClassId, $fetchedClasses)) {
