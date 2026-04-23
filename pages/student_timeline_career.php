@@ -38,6 +38,8 @@ echo $OUTPUT->header();
   .bimestre-card { border-radius: 6px !important; }
   .v-expansion-panel { border-radius: 8px !important; margin-bottom: 8px !important; }
   .v-expansion-panel::before { box-shadow: none !important; }
+  .clickable-number { cursor: pointer !important; transition: opacity 0.2s; }
+  .clickable-number:hover { opacity: 0.7; text-decoration: underline; }
 </style>
 
 <div id="gmk-career-timeline-app">
@@ -56,6 +58,8 @@ echo $OUTPUT->header();
   var userToken = <?php echo $token; ?>;
   var backUrl   = <?php echo $back_url; ?>;
 </script>
+
+<script src="<?php echo $CFG->wwwroot; ?>/local/grupomakro_core/js/components/modals/studentlistmodal.js?v=<?php echo $assetversion; ?>"></script>
 
 <script src="<?php echo $CFG->wwwroot; ?>/local/grupomakro_core/js/components/timeline/intake_timeline.js?v=<?php echo $assetversion; ?>"></script>
 

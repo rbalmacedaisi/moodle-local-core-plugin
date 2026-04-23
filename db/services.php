@@ -927,4 +927,20 @@ $functions = array(
         'ajax'        => true,
         'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE],
     ],
+    'local_grupomakro_get_students_by_subperiod' => [
+        'classname'   => 'local_grupomakro_core\external\admin\student_timeline',
+        'methodname'  => 'get_students_by_subperiod',
+        'description' => 'Returns list of students in a specific subperiod with phone and actions',
+        'type'        => 'read',
+        'ajax'        => true,
+        'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE],
+    ],
+    'local_grupomakro_reassign_student_intake_period' => [
+        'classname'   => 'local_grupomakro_core\external\admin\student_timeline',
+        'methodname'  => 'reassign_student_intake_period',
+        'description' => 'Reassigns a students intake period (cohort)',
+        'type'        => 'write',
+        'ajax'        => true,
+        'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE],
+    ],
 );

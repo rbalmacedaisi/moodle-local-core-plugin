@@ -375,6 +375,161 @@ class student_timeline extends external_api {
         ]);
     }
 
+    // --- Get Students by Subperiod ---
+
+    public static function get_students_by_subperiod_parameters() {
+        return new external_function_parameters([
+            'learningplanid' => new external_value(PARAM_INT, 'ID del plan de aprendizaje'),
+            'subperiodid' => new external_value(PARAM_INT, 'ID del subperíodo (bimestre)'),
+            'intake_period' => new external_value(PARAM_TEXT, 'Periodo de ingreso (cohorte)'),
+        ]);
+    }
+
+    public static function get_students_by_subperiod($learningplanid, $subperiodid, $intake_period) {
+        global $DB;
+        $context = \context_system::instance();
+        self::validate_context($context);
+        require_capability('moodle/site:config', $context);
+
+        // Get the subperiod info (position)
+        $subperiod = $DB->get_record('local_learning_subperiods', ['id' => $subperiodid], 'id, periodid, position');
+        if (!$subperiod) {
+            return ['students' => [], 'available_periods' => []];
+        }
+
+        // Get students from this intake_period who are at this subperiod position or beyond
+        // A student is "in" a subperiod if their currentsubperiodid >= that subperiod's position
+        // within the same period structure
+        $sql = "SELECT u.id as userid,
+                       u.username,
+                       u.firstname,
+                       u.lastname,
+                       u.email,
+                       p.data as phone,
+                       lu.status,
+                       lu.currentperiodid,
+                       lu.currentsubperiodid,
+                       uid_periodo.data as intake_period
+                FROM {local_learning_users} lu
+                JOIN {user} u ON u.id = lu.userid
+                JOIN {user_info_data} uid_periodo ON uid_periodo.userid = lu.userid
+                JOIN {user_info_field} uif_periodo ON uif_periodo.id = uid_periodo.fieldid
+                   AND uif_periodo.shortname = 'periodo_ingreso'
+                LEFT JOIN {user_info_data} p ON p.userid = u.id
+                LEFT JOIN {user_info_field} pf ON pf.id = p.fieldid AND pf.shortname = 'phone'
+                WHERE lu.learningplanid = :lp_id
+                  AND uid_periodo.data = :intake_period
+                  AND lu.currentsubperiodid = :subperiodid
+                ORDER BY u.lastname, u.firstname";
+
+        $students = $DB->get_records_sql($sql, [
+            'lp_id' => $learningplanid,
+            'intake_period' => $intake_period,
+            'subperiodid' => $subperiodid,
+        ]);
+
+        $result = [];
+        foreach ($students as $s) {
+            $result[] = [
+                'userid' => (int)$s->userid,
+                'username' => $s->username ?? '',
+                'firstname' => $s->firstname,
+                'lastname' => $s->lastname,
+                'fullname' => fullname($s),
+                'email' => $s->email ?? '',
+                'phone' => $s->phone ?? '',
+                'status' => $s->status,
+                'intake_period' => $s->intake_period,
+            ];
+        }
+
+        // Get available intake periods for reassignment dropdown
+        $available_periods = $DB->get_fieldset_sql(
+            "SELECT DISTINCT uid.data as periodo
+             FROM {user_info_data} uid
+             JOIN {user_info_field} uif ON uif.id = uid.fieldid AND uif.shortname = 'periodo_ingreso'
+             WHERE uid.data IS NOT NULL AND uid.data != ''
+             ORDER BY uid.data DESC"
+        );
+
+        return [
+            'students' => $result,
+            'available_periods' => $available_periods,
+        ];
+    }
+
+    public static function get_students_by_subperiod_returns() {
+        return new external_single_structure([
+            'students' => new external_multiple_structure(
+                new external_single_structure([
+                    'userid' => new external_value(PARAM_INT, 'ID usuario'),
+                    'username' => new external_value(PARAM_TEXT, 'Nombre de usuario'),
+                    'firstname' => new external_value(PARAM_TEXT, 'Nombre'),
+                    'lastname' => new external_value(PARAM_TEXT, 'Apellido'),
+                    'fullname' => new external_value(PARAM_TEXT, 'Nombre completo'),
+                    'email' => new external_value(PARAM_TEXT, 'Email'),
+                    'phone' => new external_value(PARAM_TEXT, 'Teléfono'),
+                    'status' => new external_value(PARAM_TEXT, 'Estado'),
+                    'intake_period' => new external_value(PARAM_TEXT, 'Periodo de ingreso actual'),
+                ])
+            ),
+            'available_periods' => new external_multiple_structure(
+                new external_value(PARAM_TEXT, 'Periodo de ingreso')
+            ),
+        ]);
+    }
+
+    // --- Reassign Student Intake Period ---
+
+    public static function reassign_student_intake_period_parameters() {
+        return new external_function_parameters([
+            'userid' => new external_value(PARAM_INT, 'ID del usuario'),
+            'new_intake_period' => new external_value(PARAM_TEXT, 'Nuevo periodo de ingreso'),
+        ]);
+    }
+
+    public static function reassign_student_intake_period($userid, $new_intake_period) {
+        global $DB;
+        $context = \context_system::instance();
+        self::validate_context($context);
+        require_capability('moodle/site:config', $context);
+
+        // Get the field ID for 'periodo_ingreso'
+        $field = $DB->get_record('user_info_field', ['shortname' => 'periodo_ingreso']);
+        if (!$field) {
+            throw new \moodle_exception('Campo periodo_ingreso no encontrado');
+        }
+
+        // Update or insert the user_info_data record
+        $existing = $DB->get_record('user_info_data', [
+            'userid' => $userid,
+            'fieldid' => $field->id
+        ]);
+
+        if ($existing) {
+            $existing->data = $new_intake_period;
+            $existing->datatype = $field->datatype;
+            $DB->update_record('user_info_data', $existing);
+        } else {
+            $newrecord = new \stdClass();
+            $newrecord->userid = $userid;
+            $newrecord->fieldid = $field->id;
+            $newrecord->data = $new_intake_period;
+            $newrecord->datatype = $field->datatype;
+            $DB->insert_record('user_info_data', $newrecord);
+        }
+
+        return ['success' => true, 'userid' => $userid, 'new_intake_period' => $new_intake_period];
+    }
+
+    public static function reassign_student_intake_period_returns() {
+        return new external_single_structure([
+            'success' => new external_value(PARAM_BOOL, 'Éxito'),
+            'userid' => new external_value(PARAM_INT, 'ID usuario'),
+            'new_intake_period' => new external_value(PARAM_TEXT, 'Nuevo periodo'),
+        ]);
+    }
+
     /**
      * Calls Express proxy to get student funnel counts from Odoo.
      * Returns ['odoo_count' => int|null, 'odoo_active' => int|null].

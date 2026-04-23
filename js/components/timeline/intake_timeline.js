@@ -168,7 +168,13 @@ Vue.component('intake-timeline', {
                                                                 <div class="text-caption font-weight-medium" :style="{ color: quarterColor(pIdx) }">
                                                                     {{ sp.sp_name }}
                                                                 </div>
-                                                                <div class="text-subtitle-2 font-weight-bold mt-1" :style="{ color: quarterColor(pIdx) }">
+                                                                <div
+                                                                    class="text-subtitle-2 font-weight-bold mt-1 clickable-number"
+                                                                    :style="{ color: quarterColor(pIdx) }"
+                                                                    @click="openStudentList(ip, sp, period)"
+                                                                    style="cursor:pointer;"
+                                                                    title="Ver estudiantes"
+                                                                >
                                                                     {{ getSubLevelCount(ip, sp.sp_id, 'active') || '—' }}
                                                                 </div>
                                                                 <div class="text-caption text--secondary" style="font-size:10px!important;">
@@ -235,6 +241,16 @@ Vue.component('intake-timeline', {
                 No se encontraron periodos de ingreso para esta carrera.
                 Asegúrate de que los estudiantes tengan el campo "Periodo de Ingreso" en su perfil.
             </v-alert>
+
+            <!-- Student List Modal -->
+            <student-list-modal
+                v-model="showStudentModal"
+                :career-id="careerId"
+                :subperiod-id="selectedSubperiod.sp_id"
+                :subperiod-name="selectedSubperiod.sp_name"
+                :intake-period="selectedIntakePeriod"
+                @close="closeStudentModal"
+            ></student-list-modal>
         </template>
     </v-container>
     `,
@@ -250,6 +266,10 @@ Vue.component('intake-timeline', {
             openPanels: [],
             quarterColors:   ['#388E3C', '#1976D2', '#F57C00', '#7B1FA2', '#0097A7', '#C62828'],
             quarterBgColors: ['#E8F5E9', '#E3F2FD', '#FFF3E0', '#F3E5F5', '#E0F7FA', '#FFEBEE'],
+            // Student modal state
+            showStudentModal: false,
+            selectedSubperiod: { sp_id: 0, sp_name: '' },
+            selectedIntakePeriod: '',
         };
     },
     computed: {
@@ -353,6 +373,17 @@ Vue.component('intake-timeline', {
                 const b = this.getLevelCount(ip, cur[i + 1].id, 'active') + this.getLevelCount(ip, cur[i + 1].id, 'inactive');
                 return { rate: a === 0 ? null : Math.round(((a - b) / a) * 100) };
             });
+        },
+
+        openStudentList(ip, sp, period) {
+            this.selectedSubperiod = { sp_id: sp.sp_id, sp_name: sp.sp_name };
+            this.selectedIntakePeriod = ip.period;
+            this.showStudentModal = true;
+        },
+
+        closeStudentModal() {
+            this.showStudentModal = false;
+            // Optionally reload timeline data after modal closes
         },
     },
 });
