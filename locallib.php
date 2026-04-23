@@ -7814,15 +7814,15 @@ function complete_class_event_information_bbb($event, &$fetchedClasses)
         return false;
     }
 
-    // If the relation points to an attendance session, verify it still exists.
-    // When only the attendance session is deleted (without deleting the BBB module),
-    // the BBB calendar event persists but the session is no longer valid.
-    // Remove the stale relation row so subsequent requests don't repeat this check.
-    if (!empty($relation->attendancesessionid)) {
-        if (!$DB->record_exists('attendance_sessions', ['id' => (int)$relation->attendancesessionid])) {
-            $DB->delete_records('gmk_bbb_attendance_relation', ['id' => (int)$relation->id]);
-            return false;
-        }
+    // Verify the linked attendance session still exists.
+    // attendancesessionid = 0 means incomplete/legacy relation.
+    // attendancesessionid > 0 but session missing means the attendance session was deleted
+    // without deleting the BBB module, leaving an orphaned calendar event.
+    // In both cases: remove the stale relation row and filter the event out.
+    $attendancesessionid = (int)($relation->attendancesessionid ?? 0);
+    if ($attendancesessionid <= 0 || !$DB->record_exists('attendance_sessions', ['id' => $attendancesessionid])) {
+        $DB->delete_records('gmk_bbb_attendance_relation', ['id' => (int)$relation->id]);
+        return false;
     }
 
     $eventClassId = (int)$relation->classid;
