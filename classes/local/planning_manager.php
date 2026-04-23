@@ -1471,11 +1471,11 @@ class planning_manager {
         global $DB;
 
         $periodId = (int)$periodId;
-        if (!self::runtime_table_exists('gmk_academic_student_deferrals')) {
+        if (!self::runtime_table_exists('gmk_student_deferrals')) {
             return [];
         }
 
-        $records = $DB->get_records('gmk_academic_student_deferrals', ['academicperiodid' => $periodId]);
+        $records = $DB->get_records('gmk_student_deferrals', ['academicperiodid' => $periodId]);
         $map = [];
         foreach ($records as $r) {
             $courseId = (int)$r->courseid;
@@ -1620,8 +1620,8 @@ class planning_manager {
 
         list($effectivePeriodId, $selectedRelativeIndex) = self::resolve_effective_period_for_target($periodId);
 
-        if (!self::runtime_table_exists('gmk_academic_student_deferrals')) {
-            throw new \moodle_exception('dbtablemissing', 'error', '', 'gmk_academic_student_deferrals');
+        if (!self::runtime_table_exists('gmk_student_deferrals')) {
+            throw new \moodle_exception('dbtablemissing', 'error', '', 'gmk_student_deferrals');
         }
 
         // Best-effort metadata for traceability.
@@ -1648,7 +1648,7 @@ class planning_manager {
             break;
         }
 
-        $existing = $DB->get_record('gmk_academic_student_deferrals', [
+        $existing = $DB->get_record('gmk_student_deferrals', [
             'academicperiodid' => $effectivePeriodId,
             'userid' => $userid,
             'courseid' => $courseId
@@ -1661,7 +1661,7 @@ class planning_manager {
             $existing->current_level = $metaLevel;
             $existing->timemodified = time();
             $existing->usermodified = $USER->id;
-            $DB->update_record('gmk_academic_student_deferrals', $existing);
+            $DB->update_record('gmk_student_deferrals', $existing);
             $recordId = (int)$existing->id;
         } else {
             $record = new \stdClass();
@@ -1675,7 +1675,7 @@ class planning_manager {
             $record->usermodified = $USER->id;
             $record->timecreated = time();
             $record->timemodified = time();
-            $recordId = (int)$DB->insert_record('gmk_academic_student_deferrals', $record);
+            $recordId = (int)$DB->insert_record('gmk_student_deferrals', $record);
         }
 
         return [

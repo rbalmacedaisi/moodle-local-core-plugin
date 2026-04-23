@@ -678,7 +678,7 @@
         <INDEX NAME="academicperiod_idx" UNIQUE="false" FIELDS="academicperiodid"/>
       </INDEXES>
     </TABLE>
-    <TABLE NAME="gmk_academic_student_deferrals" COMMENT="Per-student subject projection movements">
+    <TABLE NAME="gmk_student_deferrals" COMMENT="Per-student subject projection movements">
       <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
         <FIELD NAME="academicperiodid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
