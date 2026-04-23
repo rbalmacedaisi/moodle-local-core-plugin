@@ -24,6 +24,6 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = "local_grupomakro_core";
-$plugin->version   = 20260422001;         // Add student timeline page (career funnel by intake period).
+$plugin->version   = 20260423001;         // Add per-student projection period moves from planning board.
 $plugin->requires = 2014051200;
 $plugin->maturity = MATURITY_STABLE;

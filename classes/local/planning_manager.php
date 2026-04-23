@@ -308,6 +308,7 @@ class planning_manager {
             'projections' => array_values($projections),
             'planning_projections' => array_values($planningProjections),
             'deferrals' => self::get_deferrals($periodId),
+            'student_deferrals' => self::get_student_deferrals($periodId),
             'period_mappings' => $mapArray
         ];
     }
@@ -722,6 +723,9 @@ class planning_manager {
             $deferralsByCourse[$d->courseid][$dCohortKey] = (int)$d->target_period_index;
         }
 
+        // Student-specific deferrals override cohort deferrals for the same subject.
+        $studentDeferralsByCourse = self::get_student_deferrals($effectivePeriodId);
+
         // --- Paso 2: Asignaturas confirmadas para abrir (status=1) y omitidas (status=2) ---
         //
         // $confirmedSubjects: set de courseIds con status=1 guardados por el coordinador.
@@ -777,7 +781,10 @@ class planning_manager {
                  $courseId = $subj['id'];
 
                  // Ver si este cohorte tiene deferral explícito para esta asignatura
-                 $targetIdx = $deferralsByCourse[$courseId][$cohortKey] ?? -1;
+                 $studentTargetIdx = $studentDeferralsByCourse[$courseId][$stu['dbId']] ?? null;
+                 $targetIdx = ($studentTargetIdx !== null)
+                    ? (int)$studentTargetIdx
+                    : ($deferralsByCourse[$courseId][$cohortKey] ?? -1);
                  $naturalIdx = self::get_natural_period_index($stu, $subj);
                  $resolvedIdx = ($targetIdx >= 0) ? $targetIdx : $naturalIdx;
 
@@ -912,7 +919,10 @@ class planning_manager {
 
              foreach ($stu['pendingSubjects'] as $subj) {
                 $courseId  = $subj['id'];
-                $targetIdx = $deferralsByCourse[$courseId][$cohortKey] ?? -1;
+                $studentTargetIdx = $studentDeferralsByCourse[$courseId][$stu['dbId']] ?? null;
+                $targetIdx = ($studentTargetIdx !== null)
+                    ? (int)$studentTargetIdx
+                    : ($deferralsByCourse[$courseId][$cohortKey] ?? -1);
                 $naturalIdx = self::get_natural_period_index($stu, $subj);
                 $resolvedIdx = ($targetIdx >= 0) ? $targetIdx : $naturalIdx;
 
@@ -967,6 +977,7 @@ class planning_manager {
                     'effectivePeriodId'    => $effectivePeriodId,
                     'selectedRelativeIndex'=> $selectedRelativeIndex,
                     'deferrals_loaded'     => count($deferralsByCourse),
+                    'student_deferrals_loaded' => count($studentDeferralsByCourse),
                     'ignored_courses'      => count($globalIgnoredMap),
                 ],
             ]
@@ -1371,5 +1382,309 @@ class planning_manager {
                 $DB->insert_record('gmk_academic_deferrals', $record);
             }
         }
+    }
+
+    /**
+     * Resolve effective planning base for a scheduler-selected target period.
+     * Returns: [effectivePeriodId, selectedRelativeIndex]
+     */
+    private static function resolve_effective_period_for_target($periodId) {
+        global $DB;
+
+        $periodId = (int)$periodId;
+        $effectivePeriodId = $periodId;
+        $selectedRelativeIndex = -1; // -1 => direct/base selection
+
+        $reverseMaps = $DB->get_records(
+            'gmk_planning_period_maps',
+            ['target_period_id' => $periodId],
+            'timemodified DESC, id DESC'
+        );
+
+        if (!empty($reverseMaps)) {
+            $periodOrder = [];
+            $orderedPeriods = $DB->get_records('gmk_academic_periods', null, 'startdate ASC, id ASC', 'id,startdate');
+            $ord = 0;
+            foreach ($orderedPeriods as $ap) {
+                $periodOrder[(int)$ap->id] = $ord++;
+            }
+
+            $chosenMap = null;
+            $bestScore = PHP_INT_MAX;
+            foreach ($reverseMaps as $rmap) {
+                $baseId = (int)$rmap->base_period_id;
+                $relIdx = (int)$rmap->relative_index;
+                $score = 500;
+
+                if (isset($periodOrder[$baseId]) && isset($periodOrder[$periodId])) {
+                    $delta = $periodOrder[$periodId] - $periodOrder[$baseId];
+                    $expected = $relIdx + 1;
+                    if ($delta <= 0) {
+                        $score = 1000 + abs($delta - $expected);
+                    } else {
+                        $score = abs($delta - $expected);
+                    }
+                }
+
+                if ($chosenMap === null || $score < $bestScore) {
+                    $chosenMap = $rmap;
+                    $bestScore = $score;
+                }
+            }
+
+            if ($chosenMap) {
+                $effectivePeriodId = (int)$chosenMap->base_period_id;
+                $selectedRelativeIndex = (int)$chosenMap->relative_index;
+            }
+        }
+
+        return [$effectivePeriodId, $selectedRelativeIndex];
+    }
+
+    /**
+     * Label helper: 0 => P-I, 1 => P-II, ...
+     */
+    private static function projection_period_label($idx) {
+        $romans = [1 => 'I', 2 => 'II', 3 => 'III', 4 => 'IV', 5 => 'V', 6 => 'VI'];
+        $n = ((int)$idx) + 1;
+        return 'P-' . ($romans[$n] ?? (string)$n);
+    }
+
+    /**
+     * Runtime-safe table existence check (without xmldb classes).
+     */
+    private static function runtime_table_exists($tablename) {
+        global $DB;
+        try {
+            $DB->get_columns($tablename, false);
+            return true;
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
+    /**
+     * Fetch student-specific deferrals for a period.
+     * Returns map: [courseid][userid] = target_period_index
+     */
+    public static function get_student_deferrals($periodId) {
+        global $DB;
+
+        $periodId = (int)$periodId;
+        if (!self::runtime_table_exists('gmk_academic_student_deferrals')) {
+            return [];
+        }
+
+        $records = $DB->get_records('gmk_academic_student_deferrals', ['academicperiodid' => $periodId]);
+        $map = [];
+        foreach ($records as $r) {
+            $courseId = (int)$r->courseid;
+            $userId = (int)$r->userid;
+            if (!isset($map[$courseId])) $map[$courseId] = [];
+            $map[$courseId][$userId] = (int)$r->target_period_index;
+        }
+        return $map;
+    }
+
+    /**
+     * Get per-period projection distribution (P-I..P-VI) for a specific subject.
+     * Optionally filtered by career and/or shift.
+     */
+    public static function get_subject_projection_distribution($periodId, $courseId, $career = '', $shift = '') {
+        global $DB;
+
+        $periodId = (int)$periodId;
+        $courseId = (int)$courseId;
+        $career = trim((string)$career);
+        $shift = trim((string)$shift);
+
+        list($effectivePeriodId, $selectedRelativeIndex) = self::resolve_effective_period_for_target($periodId);
+        $planningData = self::get_planning_data($effectivePeriodId);
+        $students = $planningData['students'] ?? [];
+
+        $globalIgnoredMap = [];
+        if (!empty($planningData['planning_projections'])) {
+            foreach ($planningData['planning_projections'] as $pp) {
+                if ((int)$pp->status === 2) {
+                    $globalIgnoredMap[(int)$pp->courseid] = true;
+                }
+            }
+        }
+
+        $deferralsByCourse = [];
+        $rawDeferrals = $DB->get_records('gmk_academic_deferrals', ['academicperiodid' => $effectivePeriodId]);
+        foreach ($rawDeferrals as $d) {
+            $dCohortKey = "{$d->career} - {$d->shift} - {$d->current_level}";
+            if (!isset($deferralsByCourse[$d->courseid])) {
+                $deferralsByCourse[$d->courseid] = [];
+            }
+            $deferralsByCourse[$d->courseid][$dCohortKey] = (int)$d->target_period_index;
+        }
+        $studentDeferralsByCourse = self::get_student_deferrals($effectivePeriodId);
+
+        $counts = [0, 0, 0, 0, 0, 0];
+        $seenByPeriod = [];
+        $studentPeriodIndexMap = [];
+
+        $matchToken = static function($a, $b) {
+            return core_text::strtolower(trim((string)$a)) === core_text::strtolower(trim((string)$b));
+        };
+
+        foreach ($students as $stu) {
+            $stuCareer = (string)($stu['career'] ?? '');
+            $stuShift = (string)($stu['shift'] ?? '');
+
+            if ($career !== '' && !$matchToken($stuCareer, $career)) continue;
+            if ($shift !== '' && !$matchToken($stuShift, $shift)) continue;
+
+            $cohortKey = self::build_cohort_key($stuCareer ?: 'General', $stuShift ?: 'Sin Jornada', $stu);
+            $dbId = (int)($stu['dbId'] ?? 0);
+            if ($dbId <= 0) continue;
+
+            foreach (($stu['pendingSubjects'] ?? []) as $subj) {
+                if ((int)($subj['id'] ?? 0) !== $courseId) continue;
+                if (empty($subj['isPreRequisiteMet'])) continue;
+                if (!empty($globalIgnoredMap[$courseId])) continue;
+
+                $studentTargetIdx = $studentDeferralsByCourse[$courseId][$dbId] ?? null;
+                $targetIdx = ($studentTargetIdx !== null)
+                    ? (int)$studentTargetIdx
+                    : ($deferralsByCourse[$courseId][$cohortKey] ?? -1);
+                $naturalIdx = self::get_natural_period_index($stu, $subj);
+                $resolvedIdx = ($targetIdx >= 0) ? $targetIdx : $naturalIdx;
+                $resolvedIdx = max(0, min(5, (int)$resolvedIdx));
+
+                if (!isset($seenByPeriod[$resolvedIdx][$dbId])) {
+                    if (!isset($seenByPeriod[$resolvedIdx])) $seenByPeriod[$resolvedIdx] = [];
+                    $seenByPeriod[$resolvedIdx][$dbId] = true;
+                    $counts[$resolvedIdx]++;
+                }
+                if (!isset($studentPeriodIndexMap[$dbId]) || $resolvedIdx < $studentPeriodIndexMap[$dbId]) {
+                    $studentPeriodIndexMap[$dbId] = $resolvedIdx;
+                }
+            }
+        }
+
+        $periodNames = $DB->get_records_menu('gmk_academic_periods', [], '', 'id,name');
+        $mappings = $DB->get_records('gmk_planning_period_maps', ['base_period_id' => $effectivePeriodId]);
+        $mappedByIndex = [];
+        foreach ($mappings as $m) {
+            $mappedByIndex[(int)$m->relative_index] = (int)$m->target_period_id;
+        }
+
+        $options = [];
+        for ($idx = 0; $idx <= 5; $idx++) {
+            $mappedPeriodId = $mappedByIndex[$idx] ?? 0;
+            $mappedPeriodName = '';
+            if (!empty($mappedPeriodId) && isset($periodNames[$mappedPeriodId])) {
+                $mappedPeriodName = (string)$periodNames[$mappedPeriodId];
+            }
+            $label = self::projection_period_label($idx);
+            if ($mappedPeriodName !== '') {
+                $label .= " ({$mappedPeriodName})";
+            }
+            $options[] = [
+                'index' => $idx,
+                'label' => $label,
+                'count' => (int)$counts[$idx],
+                'mapped_period_id' => (int)$mappedPeriodId,
+                'mapped_period_name' => $mappedPeriodName
+            ];
+        }
+
+        return [
+            'effective_period_id' => $effectivePeriodId,
+            'selected_relative_index' => $selectedRelativeIndex,
+            'courseid' => $courseId,
+            'career_filter' => $career,
+            'shift_filter' => $shift,
+            'options' => $options,
+            'student_period_index_map' => $studentPeriodIndexMap
+        ];
+    }
+
+    /**
+     * Save/update a student-specific projection deferral for a subject.
+     */
+    public static function move_student_subject_period($periodId, $userid, $courseId, $targetPeriodIndex) {
+        global $DB, $USER;
+
+        $periodId = (int)$periodId;
+        $userid = (int)$userid;
+        $courseId = (int)$courseId;
+        $targetPeriodIndex = max(0, min(5, (int)$targetPeriodIndex));
+
+        if ($userid <= 0 || $courseId <= 0 || $periodId <= 0) {
+            throw new \moodle_exception('invalidparameter', 'error');
+        }
+
+        list($effectivePeriodId, $selectedRelativeIndex) = self::resolve_effective_period_for_target($periodId);
+
+        if (!self::runtime_table_exists('gmk_academic_student_deferrals')) {
+            throw new \moodle_exception('dbtablemissing', 'error', '', 'gmk_academic_student_deferrals');
+        }
+
+        // Best-effort metadata for traceability.
+        $metaCareer = '';
+        $metaShift = '';
+        $metaLevel = '';
+        $planningData = self::get_planning_data($effectivePeriodId);
+        foreach (($planningData['students'] ?? []) as $stu) {
+            if ((int)($stu['dbId'] ?? 0) !== $userid) continue;
+            $hasSubject = false;
+            foreach (($stu['pendingSubjects'] ?? []) as $subj) {
+                if ((int)($subj['id'] ?? 0) === $courseId) {
+                    $hasSubject = true;
+                    break;
+                }
+            }
+            if (!$hasSubject) continue;
+
+            $metaCareer = (string)($stu['career'] ?? '');
+            $metaShift = (string)($stu['shift'] ?? '');
+            $cohortKey = self::build_cohort_key($metaCareer ?: 'General', $metaShift ?: 'Sin Jornada', $stu);
+            $parts = explode(' - ', $cohortKey, 3);
+            $metaLevel = isset($parts[2]) ? trim($parts[2]) : ((string)($stu['currentSemConfig'] ?? ''));
+            break;
+        }
+
+        $existing = $DB->get_record('gmk_academic_student_deferrals', [
+            'academicperiodid' => $effectivePeriodId,
+            'userid' => $userid,
+            'courseid' => $courseId
+        ]);
+
+        if ($existing) {
+            $existing->target_period_index = $targetPeriodIndex;
+            $existing->career = $metaCareer;
+            $existing->shift = $metaShift;
+            $existing->current_level = $metaLevel;
+            $existing->timemodified = time();
+            $existing->usermodified = $USER->id;
+            $DB->update_record('gmk_academic_student_deferrals', $existing);
+            $recordId = (int)$existing->id;
+        } else {
+            $record = new \stdClass();
+            $record->academicperiodid = $effectivePeriodId;
+            $record->userid = $userid;
+            $record->courseid = $courseId;
+            $record->career = $metaCareer;
+            $record->shift = $metaShift;
+            $record->current_level = $metaLevel;
+            $record->target_period_index = $targetPeriodIndex;
+            $record->usermodified = $USER->id;
+            $record->timecreated = time();
+            $record->timemodified = time();
+            $recordId = (int)$DB->insert_record('gmk_academic_student_deferrals', $record);
+        }
+
+        return [
+            'id' => $recordId,
+            'effective_period_id' => $effectivePeriodId,
+            'selected_relative_index' => $selectedRelativeIndex,
+            'userid' => $userid,
+            'courseid' => $courseId,
+            'target_period_index' => $targetPeriodIndex
+        ];
     }
 }

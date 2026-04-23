@@ -5104,6 +5104,32 @@ try {
             $response = ['status' => 'success', 'data' => $data];
             break;
 
+        case 'local_grupomakro_get_subject_projection_distribution':
+            $periodid = required_param('periodid', PARAM_INT);
+            $courseid = required_param('courseid', PARAM_INT);
+            $career = optional_param('career', '', PARAM_RAW_TRIMMED);
+            $shift = optional_param('shift', '', PARAM_RAW_TRIMMED);
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/planning_manager.php');
+            $data = \local_grupomakro_core\local\planning_manager::get_subject_projection_distribution($periodid, $courseid, $career, $shift);
+            $response = ['status' => 'success', 'data' => $data];
+            break;
+
+        case 'local_grupomakro_move_student_subject_period':
+            $periodid = required_param('periodid', PARAM_INT);
+            $userid = required_param('userid', PARAM_INT);
+            $courseid = required_param('courseid', PARAM_INT);
+            $targetperiodindex = required_param('target_period_index', PARAM_INT);
+            $career = optional_param('career', '', PARAM_RAW_TRIMMED);
+            $shift = optional_param('shift', '', PARAM_RAW_TRIMMED);
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/planning_manager.php');
+            $move = \local_grupomakro_core\local\planning_manager::move_student_subject_period($periodid, $userid, $courseid, $targetperiodindex);
+            $distribution = \local_grupomakro_core\local\planning_manager::get_subject_projection_distribution($periodid, $courseid, $career, $shift);
+            $response = ['status' => 'success', 'data' => [
+                'move' => $move,
+                'distribution' => $distribution
+            ]];
+            break;
+
         case 'local_grupomakro_debug_demand_data':
             $periodid = required_param('periodid', PARAM_INT);
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/planning_manager.php');

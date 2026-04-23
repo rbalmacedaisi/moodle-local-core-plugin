@@ -1156,6 +1156,8 @@ const app = createApp({
             const isOrderLocked = ref(false);
             const deferredGroups = reactive({}); // { SubjectName_CohortKey: PeriodIndex (0-5) }
             const deferralVersion = ref(0); // Increment to force computed recalculation
+            const studentDeferredGroups = reactive({}); // { CourseId_DbUserId: PeriodIndex (0-5) }
+            const studentDeferralVersion = ref(0); // Increment to force computed recalculation
             const ignoredSubjects = reactive({}); // { SubjectName: Boolean }
             
             // Popover
@@ -1427,6 +1429,17 @@ const app = createApp({
                                 }
                             });
                         }
+
+                        Object.keys(studentDeferredGroups).forEach(key => delete studentDeferredGroups[key]);
+                        if (res.student_deferrals) {
+                            Object.entries(res.student_deferrals).forEach(([courseId, users]) => {
+                                if (!users || typeof users !== 'object') return;
+                                Object.entries(users).forEach(([dbUserId, targetIdx]) => {
+                                    studentDeferredGroups[`${courseId}_${dbUserId}`] = targetIdx;
+                                });
+                            });
+                        }
+                        studentDeferralVersion.value++;
                    }
              } catch (e) {
                  console.error("Vue Planning App: fetchData() FAILED", e);
@@ -1470,6 +1483,7 @@ const app = createApp({
 
             // Force dependency on deferral changes (Vue 3 reactive proxy may not track new dynamic keys)
             const _dv = deferralVersion.value;
+            const _sdv = studentDeferralVersion.value;
 
             // Filter Source Data
             if (selectedCareers.value.length > 0) filtered = filtered.filter(s => selectedCareers.value.includes(s.career));
@@ -1644,7 +1658,14 @@ const app = createApp({
                          
                          // Check Deferral of Cohort
                          let deferKey = `${subj.name}_${stu.cohortKey}`;
-                         let deferral = deferredGroups[deferKey] || 0; // 0 = P-I
+                         let studentDefKey = `${subj.id}_${stu.dbId || stu.id}`;
+                         let hasStudentDef = studentDeferredGroups[studentDefKey] !== undefined;
+                         let deferral = hasStudentDef
+                            ? parseInt(studentDeferredGroups[studentDefKey])
+                            : (deferredGroups[deferKey] !== undefined ? parseInt(deferredGroups[deferKey]) : 0); // 0 = P-I
+                         if (!Number.isInteger(deferral) || isNaN(deferral)) deferral = 0;
+                         if (deferral < 0) deferral = 0;
+                         if (deferral > 5) deferral = 5;
                          
                          let pKey = 'countP' + (deferral + 1);
                          let gKey = 'groupsP' + (deferral + 1);
