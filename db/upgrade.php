@@ -2008,11 +2008,13 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20260420001, 'local', 'grupomakro_core');
     }
 
-    if ($oldversion < 20260423001) {
-        // Define table gmk_academic_student_deferrals to be created.
-        $table = new xmldb_table('gmk_academic_student_deferrals');
+    if ($oldversion < 20260423002) {
+        // Define table gmk_student_deferrals to be created.
+        // NOTE: Table name shortened from gmk_academic_student_deferrals (33 chars)
+        // to gmk_student_deferrals (22 chars) to comply with Moodle's 28-char limit.
+        $table = new xmldb_table('gmk_student_deferrals');
 
-        // Adding fields to table gmk_academic_student_deferrals.
+        // Adding fields to table gmk_student_deferrals.
         $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
         $table->add_field('academicperiodid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
         $table->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
@@ -2025,22 +2027,22 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
         $table->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
 
-        // Adding keys to table gmk_academic_student_deferrals.
+        // Adding keys to table gmk_student_deferrals.
         $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
         $table->add_key('usermodified', XMLDB_KEY_FOREIGN, ['usermodified'], 'user', ['id']);
 
-        // Adding indexes to table gmk_academic_student_deferrals.
+        // Adding indexes to table gmk_student_deferrals.
         $table->add_index('uniq_period_user_course', XMLDB_INDEX_UNIQUE, ['academicperiodid', 'userid', 'courseid']);
         $table->add_index('academicperiod_idx', XMLDB_INDEX_NOTUNIQUE, ['academicperiodid']);
         $table->add_index('courseid_idx', XMLDB_INDEX_NOTUNIQUE, ['courseid']);
         $table->add_index('userid_idx', XMLDB_INDEX_NOTUNIQUE, ['userid']);
 
-        // Conditionally launch create table for gmk_academic_student_deferrals.
+        // Conditionally launch create table for gmk_student_deferrals.
         if (!$dbman->table_exists($table)) {
             $dbman->create_table($table);
         }
 
-        upgrade_plugin_savepoint(true, 20260423001, 'local', 'grupomakro_core');
+        upgrade_plugin_savepoint(true, 20260423002, 'local', 'grupomakro_core');
     }
 
     return true;
