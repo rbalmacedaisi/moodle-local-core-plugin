@@ -139,6 +139,21 @@ class student_timeline extends external_api {
         }
         $max_period_pos = count($curriculum);
 
+        // Build subperiod lookup: sp_id -> [period_id, period_position, sp_position]
+        // This is needed for cumulative subperiod counting
+        $subperiod_positions = [];
+        foreach ($curriculum as $cp) {
+            if (!empty($cp['subperiods'])) {
+                foreach ($cp['subperiods'] as $sp) {
+                    $subperiod_positions[$sp['sp_id']] = [
+                        'period_id'        => $cp['id'],
+                        'period_position'  => $cp['position'],
+                        'sp_position'     => $sp['sp_pos'],
+                    ];
+                }
+            }
+        }
+
         // 3. Intake periods available for this career
         $sql_periods = "SELECT DISTINCT uid.data as intake_period
                         FROM {user_info_data} uid
@@ -212,14 +227,43 @@ class student_timeline extends external_api {
                 }
 
                 $cspid = (int)($s->currentsubperiodid ?? 0);
-                if ($cspid > 0) {
-                    if (!isset($sublevel_counts[$cspid])) {
-                        $sublevel_counts[$cspid] = ['active' => 0, 'inactive' => 0];
-                    }
-                    if ($is_active) {
-                        $sublevel_counts[$cspid]['active']++;
-                    } else {
-                        $sublevel_counts[$cspid]['inactive']++;
+                // FIXED: Cumulative subperiod counting
+                // If student is in subperiod X, they count as active/inactive in ALL
+                // subperiods up to and including X within their current period
+                if ($cspid > 0 && isset($subperiod_positions[$cspid])) {
+                    $sp_info = $subperiod_positions[$cspid];
+                    $student_period_pos = $sp_info['period_position'];
+                    $student_sp_pos = $sp_info['sp_position'];
+
+                    // Count in all subperiods of ALL periods up to student's current period
+                    // AND all subperiods within the current period up to student's current subperiod
+                    foreach ($curriculum as $cp) {
+                        if ($cp['position'] > $student_period_pos) {
+                            continue; // Student hasn't reached this period yet
+                        }
+                        if (!empty($cp['subperiods'])) {
+                            foreach ($cp['subperiods'] as $sp) {
+                                // Within current period: only count up to student's subperiod
+                                // Within earlier periods: count all subperiods
+                                $count_this_sp = false;
+                                if ($cp['position'] < $student_period_pos) {
+                                    $count_this_sp = true; // Earlier period, count all
+                                } else if ($cp['position'] === $student_period_pos) {
+                                    $count_this_sp = ($sp['sp_pos'] <= $student_sp_pos);
+                                }
+
+                                if ($count_this_sp) {
+                                    if (!isset($sublevel_counts[$sp['sp_id']])) {
+                                        $sublevel_counts[$sp['sp_id']] = ['active' => 0, 'inactive' => 0];
+                                    }
+                                    if ($is_active) {
+                                        $sublevel_counts[$sp['sp_id']]['active']++;
+                                    } else {
+                                        $sublevel_counts[$sp['sp_id']]['inactive']++;
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
