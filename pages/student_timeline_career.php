@@ -177,12 +177,14 @@ echo $OUTPUT->header();
           @lp-selected="selectedLearningPlanId = $event">
         </intake-timeline>
         
-        <courses-panel 
+        <subjects-panel 
           v-if="selectedLearningPlanId"
           :learning-plan-id="selectedLearningPlanId"
-          :visible="showCoursesPanel"
-          @close="showCoursesPanel = false">
-        </courses-panel>
+          :cohort="selectedCohort"
+          :jornada="selectedJornada"
+          :visible="showSubjectsPanel"
+          @close="showSubjectsPanel = false">
+        </subjects-panel>
       </div>
     </v-main>
   </v-app>
@@ -198,7 +200,7 @@ echo $OUTPUT->header();
 </script>
 
 <script src="<?php echo $CFG->wwwroot; ?>/local/grupomakro_core/js/components/modals/studentlistmodal.js?v=<?php echo $assetversion; ?>"></script>
-<script src="<?php echo $CFG->wwwroot; ?>/local/grupomakro_core/js/components/panels/coursespanel.js?v=<?php echo $assetversion; ?>"></script>
+<script src="<?php echo $CFG->wwwroot; ?>/local/grupomakro_core/js/components/panels/subjectspanel.js?v=<?php echo $assetversion; ?>"></script>
 <script src="<?php echo $CFG->wwwroot; ?>/local/grupomakro_core/js/components/timeline/intake_timeline.js?v=<?php echo $assetversion; ?>"></script>
 
 <script>
@@ -214,8 +216,10 @@ echo $OUTPUT->header();
     data: {
       careerId: <?php echo json_encode($career_id); ?>,
       backUrl:  backUrl,
-      showCoursesPanel: false,
+      showSubjectsPanel: false,
       selectedLearningPlanId: null,
+      selectedJornada: 'ALL',
+      selectedCohort: 2026
     },
   });
 </script>

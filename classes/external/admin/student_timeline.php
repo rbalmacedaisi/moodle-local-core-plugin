@@ -659,4 +659,370 @@ class student_timeline extends external_api {
             'odoo_active' => isset($data['odoo_active']) ? (int)$data['odoo_active'] : null,
         ];
     }
+
+    /**
+     * Get courses with projections and semaphore status per cohort/jornada.
+     * Returns courses that can be dragged to timeline blocks.
+     *
+     * @param int $learningplanid
+     * @param int $cohort (intake period year, e.g. 2020)
+     * @param string $jornada ('Diurna', 'Nocturna', 'Sabatina', or 'ALL')
+     * @return array courses with status
+     */
+    public static function get_courses_with_projections($learningplanid, $cohort, $jornada = 'ALL') {
+        global $DB;
+        $context = \context_system::instance();
+        self::validate_context($context);
+        require_capability('moodle/site:config', $context);
+
+        // Get all courses for this learning plan
+        $sql = "SELECT lc.id, lc.courseid, lc.isrequired, lc.position, lc.credits,
+                       lc.periodid, lc.subperiodid,
+                       c.fullname, c.shortname,
+                       sp.name as subperiod_name, sp.position as subperiod_position,
+                       lper.name as period_name
+                FROM {local_learning_courses} lc
+                JOIN {course} c ON c.id = lc.courseid
+                LEFT JOIN {local_learning_subperiods} sp ON sp.id = lc.subperiodid
+                LEFT JOIN {local_learning_periods} lper ON lper.id = lc.periodid
+                WHERE lc.learningplanid = :lp_id
+                ORDER BY lc.position ASC";
+
+        $courses = $DB->get_records_sql($sql, ['lp_id' => $learningplanid]);
+
+        // Get jornada filter for students
+        $jornada_filter = ($jornada != 'ALL') ? "AND uid_jornada.data = :jornada" : "";
+        $jornada_param = ($jornada != 'ALL') ? ['jornada' => $jornada] : [];
+
+        // Get intake period string pattern (e.g., '2020%' for cohort 2020)
+        $intake_pattern = $cohort . '%';
+
+        $result = [];
+        foreach ($courses as $c) {
+            // Count students by status for this course
+            // A student is "approved" if they have a grade >= 7 in any grade item for this course
+            // A student is "failed" if they have a grade < 7
+            // A student is "pending" if they're in the group but have no grade
+
+            // First get students in groups for this course that match the cohort/jornada
+            $students_sql = "
+                SELECT DISTINCT gm.userid, g.id as groupid
+                FROM {groups_members} gm
+                JOIN {groups} g ON g.id = gm.groupid
+                JOIN {course} c2 ON c2.id = g.courseid
+                JOIN {local_learning_users} llu ON llu.userid = gm.userid AND llu.learningplanid = :lp_id1
+                LEFT JOIN {user_info_data} uid_jornada ON uid_jornada.userid = gm.userid 
+                    AND uid_jornada.fieldid = (SELECT id FROM {user_info_field} WHERE shortname = 'gmkjourney' LIMIT 1)
+                LEFT JOIN {user_info_data} uid_intake ON uid_intake.userid = gm.userid 
+                    AND uid_intake.fieldid = (SELECT id FROM {user_info_field} WHERE shortname = 'periodo_ingreso' LIMIT 1)
+                WHERE c2.id = :course_id 
+                  AND llu.learningplanid = :lp_id2
+                  AND uid_intake.data LIKE :intake_pattern
+                  $jornada_filter
+            ";
+
+            $params = array_merge([
+                'lp_id1' => $learningplanid,
+                'lp_id2' => $learningplanid,
+                'course_id' => $c->courseid,
+                'intake_pattern' => $intake_pattern
+            ], $jornada_param);
+
+            $students = $DB->get_records_sql($students_sql, $params);
+            $total_students = count($students);
+
+            $approved_count = 0;
+            $failed_count = 0;
+            $pending_count = 0;
+
+            if ($total_students > 0) {
+                $student_ids = array_keys($students);
+
+                // Check grades for these students in this course
+                // Get all grade items for this course
+                $grade_items = $DB->get_records('grade_items', ['courseid' => $c->courseid]);
+                $item_ids = array_keys($grade_items);
+
+                if (!empty($item_ids)) {
+                    // Get final grades for students in this course
+                    // Use AVG of finalgrade to determine overall performance
+                    // If AVG >= 7, approved; if AVG < 7, failed; if no grades, pending
+                    foreach ($student_ids as $userid) {
+                        // Check if user has any grade in this course
+                        $user_grades = $DB->get_records_sql(
+                            "SELECT gg.finalgrade, gg.rawgrade
+                             FROM {grade_grades} gg
+                             WHERE gg.userid = :userid 
+                               AND gg.itemid IN (" . implode(',', $item_ids) . ")",
+                            ['userid' => $userid]
+                        );
+
+                        if (empty($user_grades)) {
+                            $pending_count++;
+                        } else {
+                            // Calculate average grade
+                            $grades = array_filter(array_map(function($g) {
+                                return $g->finalgrade ?? $g->rawgrade;
+                            }, $user_grades), function($g) { return $g !== null; });
+
+                            if (empty($grades)) {
+                                $pending_count++;
+                            } else {
+                                $avg = array_sum($grades) / count($grades);
+                                if ($avg >= 7) {
+                                    $approved_count++;
+                                } else {
+                                    $failed_count++;
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    // No grade items means all are pending
+                    $pending_count = $total_students;
+                }
+            }
+
+            // Determine semaphore color
+            if ($total_students == 0) {
+                $semaphore = 'blue'; // No students yet
+            } elseif ($approved_count > 0 && $failed_count == 0 && $pending_count == 0) {
+                $semaphore = 'green'; // All approved
+            } elseif ($failed_count > 0 && $pending_count == 0) {
+                $semaphore = 'red'; // Has failures, no pending
+            } elseif ($approved_count > 0 && $failed_count > 0) {
+                $semaphore = 'orange'; // Mixed
+            } else {
+                $semaphore = 'blue'; // All pending or no data
+            }
+
+            // Check if this course has projections for this jornada
+            $projections = $DB->get_records('gmk_course_projections', [
+                'learning_courses_id' => $c->id,
+                'jornada' => $jornada == 'ALL' ? null : $jornada
+            ]);
+
+            $result[] = [
+                'id' => (int)$c->id,
+                'courseid' => (int)$c->courseid,
+                'fullname' => $c->fullname ?? '',
+                'shortname' => $c->shortname ?? '',
+                'isrequired' => (bool)$c->isrequired,
+                'position' => (int)$c->position,
+                'credits' => (int)$c->credits,
+                'periodid' => (int)$c->periodid,
+                'period_name' => $c->period_name ?? '',
+                'subperiodid' => (int)$c->subperiodid,
+                'subperiod_name' => $c->subperiod_name ?? '',
+                'subperiod_position' => (int)($c->subperiod_position ?? 0),
+                'status' => [
+                    'semaphore' => $semaphore,
+                    'approved_count' => $approved_count,
+                    'pending_count' => $pending_count,
+                    'failed_count' => $failed_count,
+                    'total_students' => $total_students
+                ],
+                'projections' => array_values(array_map(function($p) {
+                    return [
+                        'subperiodid' => (int)$p->subperiodid,
+                        'jornada' => $p->jornada,
+                        'status' => (int)$p->status,
+                        'projected_opening_date' => $p->projected_opening_date ? (int)$p->projected_opening_date : null
+                    ];
+                }, $projections))
+            ];
+        }
+
+        return ['courses' => $result];
+    }
+
+    /**
+     * Returns definition of get_courses_with_projections().
+     */
+    public static function get_courses_with_projections_parameters() {
+        return new external_function_parameters([
+            'learningplanid' => new external_value(PARAM_INT, 'Learning plan ID'),
+            'cohort' => new external_value(PARAM_INT, 'Cohort year (e.g. 2020)'),
+            'jornada' => new external_value(PARAM_TEXT, 'Jornada filter (Diurna/Nocturna/Sabatina/ALL)', false, 'ALL')
+        ]);
+    }
+
+    /**
+     * Returns definition of get_courses_with_projections() response.
+     */
+    public static function get_courses_with_projections_returns() {
+        return new external_single_structure([
+            'courses' => new external_multiple_structure(
+                new external_single_structure([
+                    'id' => new external_value(PARAM_INT, 'ID'),
+                    'courseid' => new external_value(PARAM_INT, 'Course ID'),
+                    'fullname' => new external_value(PARAM_TEXT, 'Full name'),
+                    'shortname' => new external_value(PARAM_TEXT, 'Short name'),
+                    'isrequired' => new external_value(PARAM_BOOL, 'Is required'),
+                    'position' => new external_value(PARAM_INT, 'Position'),
+                    'credits' => new external_value(PARAM_INT, 'Credits'),
+                    'periodid' => new external_value(PARAM_INT, 'Period ID'),
+                    'period_name' => new external_value(PARAM_TEXT, 'Period name'),
+                    'subperiodid' => new external_value(PARAM_INT, 'Subperiod ID'),
+                    'subperiod_name' => new external_value(PARAM_TEXT, 'Subperiod name'),
+                    'subperiod_position' => new external_value(PARAM_INT, 'Subperiod position'),
+                    'status' => new external_single_structure([
+                        'semaphore' => new external_value(PARAM_TEXT, 'green/orange/blue/red'),
+                        'approved_count' => new external_value(PARAM_INT, 'Approved students'),
+                        'pending_count' => new external_value(PARAM_INT, 'Pending students'),
+                        'failed_count' => new external_value(PARAM_INT, 'Failed students'),
+                        'total_students' => new external_value(PARAM_INT, 'Total students'),
+                    ]),
+                    'projections' => new external_multiple_structure(
+                        new external_single_structure([
+                            'subperiodid' => new external_value(PARAM_INT, 'Subperiod ID'),
+                            'jornada' => new external_value(PARAM_TEXT, 'Jornada'),
+                            'status' => new external_value(PARAM_INT, 'Status'),
+                            'projected_opening_date' => new external_value(PARAM_INT, 'Opening date', false, null)
+                        ])
+                    )
+                ])
+            )
+        ]);
+    }
+
+    /**
+     * Save or update a course projection (drag-drop result).
+     *
+     * @param int $learning_courses_id
+     * @param int $subperiodid
+     * @param string $jornada
+     * @param int|null $projected_opening_date
+     * @param string|null $notes
+     * @return array success message
+     */
+    public static function save_course_projection($learning_courses_id, $subperiodid, $jornada, $projected_opening_date = null, $notes = null) {
+        global $DB, $USER;
+        $context = \context_system::instance();
+        self::validate_context($context);
+        require_capability('moodle/site:config', $context);
+
+        // Check if record already exists
+        $existing = $DB->get_record('gmk_course_projections', [
+            'learning_courses_id' => $learning_courses_id,
+            'subperiodid' => $subperiodid,
+            'jornada' => $jornada
+        ]);
+
+        $now = time();
+
+        if ($existing) {
+            // Update existing
+            $existing->subperiodid = $subperiodid;
+            $existing->jornada = $jornada;
+            if ($projected_opening_date !== null) {
+                $existing->projected_opening_date = $projected_opening_date;
+            }
+            if ($notes !== null) {
+                $existing->notes = $notes;
+            }
+            $existing->timemodified = $now;
+            $existing->usermodified = (int)$USER->id;
+
+            $DB->update_record('gmk_course_projections', $existing);
+            $id = $existing->id;
+            $action = 'updated';
+        } else {
+            // Create new
+            $record = new \stdClass();
+            $record->learning_courses_id = $learning_courses_id;
+            $record->subperiodid = $subperiodid;
+            $record->jornada = $jornada;
+            $record->projected_opening_date = $projected_opening_date;
+            $record->status = 0; // planned
+            $record->notes = $notes;
+            $record->usermodified = (int)$USER->id;
+            $record->timecreated = $now;
+            $record->timemodified = $now;
+
+            $id = $DB->insert_record('gmk_course_projections', $record);
+            $action = 'created';
+        }
+
+        return [
+            'success' => true,
+            'id' => $id,
+            'action' => $action,
+            'message' => "Proyección $action exitosamente"
+        ];
+    }
+
+    /**
+     * Returns definition of save_course_projection().
+     */
+    public static function save_course_projection_parameters() {
+        return new external_function_parameters([
+            'learning_courses_id' => new external_value(PARAM_INT, 'Local learning courses ID'),
+            'subperiodid' => new external_value(PARAM_INT, 'Target subperiod ID'),
+            'jornada' => new external_value(PARAM_TEXT, 'Jornada (Diurna/Nocturna/Sabatina)'),
+            'projected_opening_date' => new external_value(PARAM_INT, 'Opening timestamp', false, null),
+            'notes' => new external_value(PARAM_TEXT, 'Notes', false, null)
+        ]);
+    }
+
+    /**
+     * Returns definition of save_course_projection() response.
+     */
+    public static function save_course_projection_returns() {
+        return new external_single_structure([
+            'success' => new external_value(PARAM_BOOL, 'Success'),
+            'id' => new external_value(PARAM_INT, 'Projection ID'),
+            'action' => new external_value(PARAM_TEXT, 'Action taken'),
+            'message' => new external_value(PARAM_TEXT, 'Message')
+        ]);
+    }
+
+    /**
+     * Delete a course projection.
+     *
+     * @param int $learning_courses_id
+     * @param int $subperiodid
+     * @param string $jornada
+     * @return array success message
+     */
+    public static function delete_course_projection($learning_courses_id, $subperiodid, $jornada) {
+        global $DB;
+        $context = \context_system::instance();
+        self::validate_context($context);
+        require_capability('moodle/site:config', $context);
+
+        $deleted = $DB->delete_records('gmk_course_projections', [
+            'learning_courses_id' => $learning_courses_id,
+            'subperiodid' => $subperiodid,
+            'jornada' => $jornada
+        ]);
+
+        return [
+            'success' => $deleted > 0,
+            'deleted_count' => $deleted,
+            'message' => $deleted > 0 ? 'Proyección eliminada' : 'No se encontró la proyección'
+        ];
+    }
+
+    /**
+     * Returns definition of delete_course_projection().
+     */
+    public static function delete_course_projection_parameters() {
+        return new external_function_parameters([
+            'learning_courses_id' => new external_value(PARAM_INT, 'Local learning courses ID'),
+            'subperiodid' => new external_value(PARAM_INT, 'Subperiod ID'),
+            'jornada' => new external_value(PARAM_TEXT, 'Jornada')
+        ]);
+    }
+
+    /**
+     * Returns definition of delete_course_projection() response.
+     */
+    public static function delete_course_projection_returns() {
+        return new external_single_structure([
+            'success' => new external_value(PARAM_BOOL, 'Success'),
+            'deleted_count' => new external_value(PARAM_INT, 'Number of deleted records'),
+            'message' => new external_value(PARAM_TEXT, 'Message')
+        ]);
+    }
 }
