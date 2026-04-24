@@ -2074,7 +2074,7 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         // La combinación learning_courses_id + subperiodid + jornada debe ser única
         $table->add_index('idx_lc_sp_jornada', XMLDB_INDEX_UNIQUE, ['learning_courses_id', 'subperiodid', 'jornada']);
         $table->add_index('idx_jornada', XMLDB_INDEX_NOTUNIQUE, ['jornada']);
-        $table->add_index('idx_subperiodid', XMLDB_INDEX_NOTUNIQUE, ['subperiodid']);
+        // Nota: No agregamos índice para subperiodid porque ya existe como parte de la FK
 
         // Conditionally launch create table for gmk_course_projections.
         if (!$dbman->table_exists($table)) {
