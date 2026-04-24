@@ -1,60 +1,61 @@
-define([], function() {
+// Courses Panel Component
+define(['jquery', 'core/ajax'], function($, Ajax) {
     return {
         template: 
-        '<div class="courses-panel" v-if="visible">' +
-        '  <div class="panel-header">' +
-        '    <h3>Asignaturas</h3>' +
-        '    <button class="btn-close-panel" @click="$emit(\'close\')">×</button>' +
-        '  </div>' +
-        '  <div class="panel-search">' +
-        '    <input type="text" v-model="searchQuery" placeholder="Buscar asignatura..." class="search-input" />' +
-        '  </div>' +
-        '  <div class="panel-content">' +
-        '    <div v-if="loading" class="loading-state">' +
-        '      <v-progress-circular indeterminate color="primary"></v-progress-circular>' +
-        '    </div>' +
-        '    <div v-else-if="error" class="error-state">{{ error }}</div>' +
-        '    <div v-else class="courses-container">' +
-        '      <div v-for="course in filteredCourses" :key="course.id" ' +
-        '           class="course-card"' +
-        '           :class="{ required: course.isrequired, dragging: isDragging(course) }"' +
-        '           draggable="true"' +
-        '           @dragstart="onDragStart($event, course)"' +
-        '           @dragend="onDragEnd($event)">' +
-        '        <div class="course-card-header">' +
-        '          <span class="course-position">{{ course.position }}</span>' +
-        '          <span class="course-name" :title="course.fullname">{{ course.fullname }}</span>' +
-        '          <span v-if="course.isrequired" class="required-badge">Req</span>' +
-        '        </div>' +
-        '        <div class="course-card-meta">' +
-        '          <span class="meta-item">{{ course.period_name }}</span>' +
-        '          <span class="meta-sep">·</span>' +
-        '          <span class="meta-item">{{ course.subperiod_name }}</span>' +
-        '        </div>' +
-        '        <div class="course-card-stats">' +
-        '          <div class="stat-item">' +
-        '            <v-icon small>mdi-account-group</v-icon>' +
-        '            <span class="stat-num">{{ course.enrolled_count }}</span>' +
-        '            <span class="stat-label">inscritos</span>' +
-        '          </div>' +
-        '          <div class="stat-item pending" :class="{ active: course.pending_count > 0 }">' +
-        '            <v-icon small>mdi-clock-alert</v-icon>' +
-        '            <span class="stat-num">{{ course.pending_count }}</span>' +
-        '            <span class="stat-label">pendientes</span>' +
-        '          </div>' +
-        '          <div class="stat-item credits" v-if="course.credits">' +
-        '            <v-icon small>mdi-school</v-icon>' +
-        '            <span class="stat-num">{{ course.credits }}</span>' +
-        '            <span class="stat-label">créd</span>' +
-        '          </div>' +
-        '        </div>' +
-        '      </div>' +
-        '      <div v-if="filteredCourses.length === 0 && !loading" class="no-courses">' +
-        '        No hay asignaturas' +
-        '      </div>' +
-        '    </div>' +
-        '  </div>' +
-        '</div>',
+        '<div class="courses-panel" v-if="visible">\
+          <div class="panel-header">\
+            <h3>Asignaturas</h3>\
+            <button class="btn-close-panel" @click="$emit(\'close\')">×</button>\
+          </div>\
+          <div class="panel-search">\
+            <input type="text" v-model="searchQuery" placeholder="Buscar asignatura..." class="search-input" />\
+          </div>\
+          <div class="panel-content">\
+            <div v-if="loading" class="loading-state">\
+              <v-progress-circular indeterminate color="primary"></v-progress-circular>\
+            </div>\
+            <div v-else-if="error" class="error-state">{{ error }}</div>\
+            <div v-else class="courses-container">\
+              <div v-for="course in filteredCourses" :key="course.id" \
+                   class="course-card"\
+                   :class="{ required: course.isrequired, dragging: isDragging(course) }"\
+                   draggable="true"\
+                   @dragstart="onDragStart($event, course)"\
+                   @dragend="onDragEnd($event)">\
+                <div class="course-card-header">\
+                  <span class="course-position">{{ course.position }}</span>\
+                  <span class="course-name" :title="course.fullname">{{ course.fullname }}</span>\
+                  <span v-if="course.isrequired" class="required-badge">Req</span>\
+                </div>\
+                <div class="course-card-meta">\
+                  <span class="meta-item">{{ course.period_name }}</span>\
+                  <span class="meta-sep">·</span>\
+                  <span class="meta-item">{{ course.subperiod_name }}</span>\
+                </div>\
+                <div class="course-card-stats">\
+                  <div class="stat-item">\
+                    <v-icon small>mdi-account-group</v-icon>\
+                    <span class="stat-num">{{ course.enrolled_count }}</span>\
+                    <span class="stat-label">inscritos</span>\
+                  </div>\
+                  <div class="stat-item pending" :class="{ active: course.pending_count > 0 }">\
+                    <v-icon small>mdi-clock-alert</v-icon>\
+                    <span class="stat-num">{{ course.pending_count }}</span>\
+                    <span class="stat-label">pendientes</span>\
+                  </div>\
+                  <div class="stat-item credits" v-if="course.credits">\
+                    <v-icon small>mdi-school</v-icon>\
+                    <span class="stat-num">{{ course.credits }}</span>\
+                    <span class="stat-label">créd</span>\
+                  </div>\
+                </div>\
+              </div>\
+              <div v-if="filteredCourses.length === 0 && !loading" class="no-courses">\
+                No hay asignaturas\
+              </div>\
+            </div>\
+          </div>\
+        </div>',
         
         props: {
             learningPlanId: {
@@ -113,23 +114,21 @@ define([], function() {
                 this.loading = true;
                 this.error = null;
                 
-                require(['jquery', 'core/ajax'], function($, Ajax) {
-                    Ajax.call([{
-                        methodname: 'local_grupomakro_get_courses_by_learning_plan',
-                        args: {
-                            learningplanid: self.learningPlanId
-                        },
-                        done: function(response) {
-                            self.courses = response.courses || [];
-                            self.loading = false;
-                        },
-                        fail: function(ex) {
-                            self.error = 'Error cargando asignaturas';
-                            self.loading = false;
-                            console.error('Error loading courses:', ex);
-                        }
-                    }]);
-                });
+                Ajax.call([{
+                    methodname: 'local_grupomakro_get_courses_by_learning_plan',
+                    args: {
+                        learningplanid: self.learningPlanId
+                    },
+                    done: function(response) {
+                        self.courses = response.courses || [];
+                        self.loading = false;
+                    },
+                    fail: function(ex) {
+                        self.error = 'Error cargando asignaturas';
+                        self.loading = false;
+                        console.error('Error loading courses:', ex);
+                    }
+                }]);
             },
             
             isDragging: function(course) {
@@ -160,4 +159,11 @@ define([], function() {
             }
         }
     };
+});
+
+// Register the component
+Vue.component('courses-panel', function(resolve) {
+    require(['local_grupomakro_core/components/panels/coursespanel'], function(module) {
+        resolve(module);
+    });
 });
