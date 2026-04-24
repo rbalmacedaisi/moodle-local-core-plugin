@@ -549,7 +549,7 @@ class student_timeline extends external_api {
                        lc.periodid, lc.subperiodid,
                        c.fullname, c.shortname,
                        sp.name as subperiod_name, sp.position as subperiod_position,
-                       lper.name as period_name, lper.position as period_position
+                       lper.name as period_name
                 FROM {local_learning_courses} lc
                 JOIN {course} c ON c.id = lc.courseid
                 LEFT JOIN {local_learning_subperiods} sp ON sp.id = lc.subperiodid
@@ -591,7 +591,6 @@ class student_timeline extends external_api {
                 'credits' => (int)$c->credits,
                 'periodid' => (int)$c->periodid,
                 'period_name' => $c->period_name ?? '',
-                'period_position' => (int)($c->period_position ?? 0),
                 'subperiodid' => (int)$c->subperiodid,
                 'subperiod_name' => $c->subperiod_name ?? '',
                 'subperiod_position' => (int)($c->subperiod_position ?? 0),
