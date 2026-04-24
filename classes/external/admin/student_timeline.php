@@ -530,6 +530,103 @@ class student_timeline extends external_api {
         ]);
     }
 
+    // --- Get Courses by Learning Plan with pending student counts ---
+
+    public static function get_courses_by_learning_plan_parameters() {
+        return new external_function_parameters([
+            'learningplanid' => new external_value(PARAM_INT, 'ID del plan de aprendizaje'),
+        ]);
+    }
+
+    public static function get_courses_by_learning_plan($learningplanid) {
+        global $DB;
+        $context = \context_system::instance();
+        self::validate_context($context);
+        require_capability('moodle/site:config', $context);
+
+        // Get all courses for this learning plan
+        $sql = "SELECT lc.id, lc.courseid, lc.isrequired, lc.position, lc.credits,
+                       lc.periodid, lc.subperiodid,
+                       c.fullname, c.shortname,
+                       sp.name as subperiod_name, sp.position as subperiod_position,
+                       lper.name as period_name, lper.position as period_position
+                FROM {local_learning_courses} lc
+                JOIN {course} c ON c.id = lc.courseid
+                LEFT JOIN {local_learning_subperiods} sp ON sp.id = lc.subperiodid
+                LEFT JOIN {local_learning_periods} lper ON lper.id = lc.periodid
+                WHERE lc.learningplanid = :lp_id
+                ORDER BY lc.position ASC";
+
+        $courses = $DB->get_records_sql($sql, ['lp_id' => $learningplanid]);
+
+        // Get student counts per course (enrolled in groups)
+        $result = [];
+        foreach ($courses as $c) {
+            // Count students enrolled in this course's groups
+            $enrolled_count = $DB->count_records_sql(
+                "SELECT COUNT(DISTINCT gm.userid)
+                 FROM {groups_members} gm
+                 JOIN {groups} g ON g.id = gm.groupid
+                 WHERE g.courseid = ?",
+                [$c->courseid]
+            );
+
+            // Count students in this LP who should be in this course but aren't enrolled
+            // A student needs this course if: their currentsubperiodid >= this course's subperiodid
+            $pending_count = $DB->count_records_sql(
+                "SELECT COUNT(DISTINCT lu.userid)
+                 FROM {local_learning_users} lu
+                 WHERE lu.learningplanid = :lp_id
+                   AND lu.currentsubperiodid < :sp_id",
+                ['lp_id' => $learningplanid, 'sp_id' => $c->subperiodid]
+            );
+
+            $result[] = [
+                'id' => (int)$c->id,
+                'courseid' => (int)$c->courseid,
+                'fullname' => $c->fullname ?? '',
+                'shortname' => $c->shortname ?? '',
+                'isrequired' => (bool)$c->isrequired,
+                'position' => (int)$c->position,
+                'credits' => (int)$c->credits,
+                'periodid' => (int)$c->periodid,
+                'period_name' => $c->period_name ?? '',
+                'period_position' => (int)($c->period_position ?? 0),
+                'subperiodid' => (int)$c->subperiodid,
+                'subperiod_name' => $c->subperiod_name ?? '',
+                'subperiod_position' => (int)($c->subperiod_position ?? 0),
+                'enrolled_count' => $enrolled_count,
+                'pending_count' => $pending_count,
+            ];
+        }
+
+        return ['courses' => $result];
+    }
+
+    public static function get_courses_by_learning_plan_returns() {
+        return new external_single_structure([
+            'courses' => new external_multiple_structure(
+                new external_single_structure([
+                    'id' => new external_value(PARAM_INT, 'ID local_learning_courses'),
+                    'courseid' => new external_value(PARAM_INT, 'ID del curso Moodle'),
+                    'fullname' => new external_value(PARAM_TEXT, 'Nombre completo'),
+                    'shortname' => new external_value(PARAM_TEXT, 'Nombre corto'),
+                    'isrequired' => new external_value(PARAM_BOOL, 'Es requerido'),
+                    'position' => new external_value(PARAM_INT, 'Posición'),
+                    'credits' => new external_value(PARAM_INT, 'Créditos'),
+                    'periodid' => new external_value(PARAM_INT, 'ID periodo'),
+                    'period_name' => new external_value(PARAM_TEXT, 'Nombre del periodo'),
+                    'period_position' => new external_value(PARAM_INT, 'Posición del periodo'),
+                    'subperiodid' => new external_value(PARAM_INT, 'ID subperiodo'),
+                    'subperiod_name' => new external_value(PARAM_TEXT, 'Nombre del bimestre'),
+                    'subperiod_position' => new external_value(PARAM_INT, 'Posición del bimestre'),
+                    'enrolled_count' => new external_value(PARAM_INT, 'Estudiantes inscritos'),
+                    'pending_count' => new external_value(PARAM_INT, 'Estudiantes pendientes'),
+                ])
+            ),
+        ]);
+    }
+
     /**
      * Calls Express proxy to get student funnel counts from Odoo.
      * Returns ['odoo_count' => int|null, 'odoo_active' => int|null].

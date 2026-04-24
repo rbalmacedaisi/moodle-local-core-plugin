@@ -40,12 +40,150 @@ echo $OUTPUT->header();
   .v-expansion-panel::before { box-shadow: none !important; }
   .clickable-number { cursor: pointer !important; transition: opacity 0.2s; }
   .clickable-number:hover { opacity: 0.7; text-decoration: underline; }
+  
+  /* Courses Panel */
+  .courses-panel-wrapper {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 380px;
+    height: 100vh;
+    z-index: 1600;
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+    box-shadow: -2px 0 10px rgba(0,0,0,0.15);
+    transition: transform 0.3s ease;
+  }
+  .courses-panel-wrapper.hidden-panel {
+    transform: translateX(100%);
+  }
+  .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px;
+    border-bottom: 1px solid #e0e0e0;
+    background: #1976D2;
+    color: white;
+  }
+  .panel-header h3 { margin: 0; font-size: 18px; font-weight: 500; }
+  .btn-close-panel {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 24px;
+    cursor: pointer;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    line-height: 1;
+  }
+  .btn-close-panel:hover { opacity: 0.7; }
+  .panel-search { padding: 12px 16px; border-bottom: 1px solid #e0e0e0; }
+  .search-input {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 14px;
+  }
+  .search-input:focus { outline: none; border-color: #1976D2; }
+  .panel-content { flex: 1; overflow-y: auto; padding: 12px; }
+  .loading-state { display: flex; justify-content: center; padding: 40px; }
+  .error-state { color: #C62828; padding: 16px; text-align: center; }
+  .no-courses { color: #666; text-align: center; padding: 40px; }
+  
+  /* Course Cards */
+  .course-card {
+    background: #fafafa;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 10px;
+    cursor: grab;
+    transition: all 0.2s;
+  }
+  .course-card:hover {
+    border-color: #1976D2;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  }
+  .course-card.required { border-left: 3px solid #1976D2; }
+  .course-card.dragging { opacity: 0.5; }
+  .course-card.is-dragging { opacity: 0.5; }
+  
+  .course-card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  .course-position {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    background: #1976D2;
+    color: white;
+    border-radius: 50%;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .course-name {
+    flex: 1;
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .required-badge {
+    font-size: 10px;
+    background: #388E3C;
+    color: white;
+    padding: 2px 6px;
+    border-radius: 3px;
+  }
+  .course-card-meta {
+    font-size: 12px;
+    color: #666;
+    margin-bottom: 8px;
+  }
+  .meta-sep { margin: 0 4px; }
+  .course-card-stats { display: flex; gap: 16px; }
+  .stat-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    color: #666;
+  }
+  .stat-item .v-icon { font-size: 16px; }
+  .stat-num { font-weight: 600; }
+  .stat-label { color: #999; }
+  .stat-item.pending.active { color: #F57C00; }
+  .stat-item.pending.active .v-icon { color: #F57C00; }
 </style>
 
 <div id="gmk-career-timeline-app">
   <v-app class="transparent">
     <v-main>
-      <intake-timeline :career-id="careerId" :back-url="backUrl"></intake-timeline>
+      <div class="timeline-layout">
+        <intake-timeline 
+          :career-id="careerId" 
+          :back-url="backUrl"
+          @toggle-courses="showCoursesPanel = !showCoursesPanel"
+          @lp-selected="selectedLearningPlanId = $event">
+        </intake-timeline>
+        
+        <courses-panel 
+          v-if="selectedLearningPlanId"
+          :learning-plan-id="selectedLearningPlanId"
+          :visible="showCoursesPanel"
+          @close="showCoursesPanel = false">
+        </courses-panel>
+      </div>
     </v-main>
   </v-app>
 </div>
@@ -60,7 +198,7 @@ echo $OUTPUT->header();
 </script>
 
 <script src="<?php echo $CFG->wwwroot; ?>/local/grupomakro_core/js/components/modals/studentlistmodal.js?v=<?php echo $assetversion; ?>"></script>
-
+<script src="<?php echo $CFG->wwwroot; ?>/local/grupomakro_core/js/components/panels/coursespanel.js?v=<?php echo $assetversion; ?>"></script>
 <script src="<?php echo $CFG->wwwroot; ?>/local/grupomakro_core/js/components/timeline/intake_timeline.js?v=<?php echo $assetversion; ?>"></script>
 
 <script>
@@ -76,6 +214,8 @@ echo $OUTPUT->header();
     data: {
       careerId: <?php echo json_encode($career_id); ?>,
       backUrl:  backUrl,
+      showCoursesPanel: false,
+      selectedLearningPlanId: null,
     },
   });
 </script>

@@ -33,7 +33,11 @@ Vue.component('intake-timeline', {
                         Progreso por periodo de ingreso — {{ timelineData.intake_periods ? timelineData.intake_periods.length : 0 }} cohorte(s)
                     </p>
                 </v-col>
-                <v-col cols="auto">
+                <v-col cols="auto" class="d-flex align-center gap-2">
+                    <v-btn color="primary" outlined @click="$emit('toggle-courses')">
+                        <v-icon left>mdi-book-open-variant</v-icon>
+                        Asignaturas
+                    </v-btn>
                     <v-chip color="error" outlined>
                         <v-icon left small>mdi-account-arrow-right</v-icon>
                         Deserción total: {{ generalDropoutRate }}%
@@ -318,6 +322,8 @@ Vue.component('intake-timeline', {
                 if (data && data.career) {
                     this.timelineData = data;
                     this.openPanels = data.intake_periods.map((_, i) => i);
+                    // Emit selected learning plan ID for courses panel
+                    this.$emit('lp-selected', this.careerId);
                 }
             } catch (e) {
                 this.errorMsg = 'Error de conexión al cargar la línea de tiempo.';

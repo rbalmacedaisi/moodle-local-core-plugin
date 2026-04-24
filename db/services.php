@@ -943,4 +943,12 @@ $functions = array(
         'ajax'        => true,
         'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE],
     ],
+    'local_grupomakro_get_courses_by_learning_plan' => [
+        'classname'   => 'local_grupomakro_core\external\admin\student_timeline',
+        'methodname'  => 'get_courses_by_learning_plan',
+        'description' => 'Get courses for a learning plan with pending student counts',
+        'type'        => 'read',
+        'ajax'        => true,
+        'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE],
+    ],
 );
