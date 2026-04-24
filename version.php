@@ -24,6 +24,6 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = "local_grupomakro_core";
-$plugin->version   = 20260423002;         // Fix table name gmk_student_deferrals (was gmk_academic_student_deferrals, 33 chars > 28 limit).
+$plugin->version   = 20260424001;         // FASE 4: Tabla gmk_course_projections para proyecciones por jornada.
 $plugin->requires = 2014051200;
 $plugin->maturity = MATURITY_STABLE;

@@ -2045,6 +2045,46 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20260423002, 'local', 'grupomakro_core');
     }
 
+    // 20260424001 - FASE 4: Crear tabla gmk_course_projections para proyecciones de asignaturas por jornada
+    if ($oldversion < 20260424001) {
+        // Define table gmk_course_projections to be created.
+        // Esta tabla almacena la proyección de una asignatura para un subperiodo específico y jornada.
+        // Permite hacer drag-drop desde el panel de asignaturas hacia los bloques de bimestre.
+        $table = new xmldb_table('gmk_course_projections');
+
+        // Adding fields to table gmk_course_projections.
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('learning_courses_id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);  // FK a local_learning_courses.id
+        $table->add_field('subperiodid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);          // FK a local_learning_subperiods.id
+        $table->add_field('jornada', XMLDB_TYPE_CHAR, '20', null, XMLDB_NOTNULL, null, null);                 // Diurna, Nocturna, Sabatina
+        $table->add_field('projected_opening_date', XMLDB_TYPE_INTEGER, '10', null, null, null, null);        // timestamp opcional
+        $table->add_field('status', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0');               // 0=planned, 1=confirmed, 2=cancelled
+        $table->add_field('notes', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $table->add_field('usermodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+
+        // Adding keys to table gmk_course_projections.
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('fk_learning_courses', XMLDB_KEY_FOREIGN, ['learning_courses_id'], 'local_learning_courses', ['id']);
+        $table->add_key('fk_subperiod', XMLDB_KEY_FOREIGN, ['subperiodid'], 'local_learning_subperiods', ['id']);
+        $table->add_key('usermodified', XMLDB_KEY_FOREIGN, ['usermodified'], 'user', ['id']);
+
+        // Adding indexes to table gmk_course_projections.
+        // La combinación learning_courses_id + subperiodid + jornada debe ser única
+        $table->add_index('idx_lc_sp_jornada', XMLDB_INDEX_UNIQUE, ['learning_courses_id', 'subperiodid', 'jornada']);
+        $table->add_index('idx_jornada', XMLDB_INDEX_NOTUNIQUE, ['jornada']);
+        $table->add_index('idx_subperiodid', XMLDB_INDEX_NOTUNIQUE, ['subperiodid']);
+
+        // Conditionally launch create table for gmk_course_projections.
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // Grupomakro_core savepoint reached.
+        upgrade_plugin_savepoint(true, 20260424001, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 
