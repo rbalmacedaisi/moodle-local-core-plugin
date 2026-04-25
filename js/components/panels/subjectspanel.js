@@ -73,21 +73,7 @@ Vue.component('subjects-panel', {
     computed: {
         panelTitle: function() {
             return 'Asignaturas' + (this.cohort ? ' - ' + this.cohort : '');
-        }
-    },
-    
-    data: function() {
-        return {
-            courses: [],
-            loading: false,
-            error: null,
-            draggedCourseData: null,
-            searchQuery: '',
-            activeFilter: ''
-        };
-    },
-    
-    computed: {
+        },
         filteredCourses: function() {
             var self = this;
             var courses = this.courses;
