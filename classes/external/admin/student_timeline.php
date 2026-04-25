@@ -692,7 +692,14 @@ class student_timeline extends external_api {
 
         // Get jornada filter for students
         $jornada_filter = ($jornada != 'ALL') ? "AND uid_jornada.data = :jornada" : "";
-        $jornada_param = ($jornada != 'ALL') ? ['jornada' => $jornada] : [];
+        // Jornada filter - use ? placeholder for consistency with other params
+        if ($jornada != 'ALL') {
+            $jornada_filter = "AND uid_jornada.data = ?";
+            $jornada_param = [$jornada];
+        } else {
+            $jornada_filter = "";
+            $jornada_param = [];
+        }
 
         // Get intake period string pattern
         // If cohort is just a year (e.g., "2026"), use LIKE for partial match
