@@ -3,7 +3,7 @@ Vue.component('subjects-panel', {
     template: 
     '<div class="subjects-panel" v-if="visible">' +
     '  <div class="panel-header">' +
-    '    <h3>Asignaturas' + (cohort ? ' - ' + cohort : '') + '</h3>' +
+    '    <h3>{{ panelTitle }}</h3>' +
     '    <span class="badge-count">{{ filteredCourses.length }}</span>' +
     '    <button class="btn-close-panel" @click="$emit(\'close\')">×</button>' +
     '  </div>' +
@@ -68,6 +68,12 @@ Vue.component('subjects-panel', {
         cohort: { type: String, default: '2026' },
         jornada: { type: String, default: 'ALL' },
         visible: { type: Boolean, default: false }
+    },
+    
+    computed: {
+        panelTitle: function() {
+            return 'Asignaturas' + (this.cohort ? ' - ' + this.cohort : '');
+        }
     },
     
     data: function() {
