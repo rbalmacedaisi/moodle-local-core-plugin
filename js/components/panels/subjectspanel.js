@@ -117,6 +117,12 @@ Vue.component('subjects-panel', {
             if (this.visible) {
                 this.loadCourses();
             }
+        },
+        cohort: function() {
+            if (this.visible) {
+                this.courses = [];  // Clear old courses
+                this.loadCourses();
+            }
         }
     },
     
