@@ -34,10 +34,6 @@ Vue.component('intake-timeline', {
                     </p>
                 </v-col>
                 <v-col cols="auto" class="d-flex align-center gap-2">
-                    <v-btn color="primary" outlined @click="openSubjectsPanel">
-                        <v-icon left>mdi-book-open-variant</v-icon>
-                        Asignaturas
-                    </v-btn>
                     <v-chip color="error" outlined>
                         <v-icon left small>mdi-account-arrow-right</v-icon>
                         Deserción total: {{ generalDropoutRate }}%
@@ -62,6 +58,12 @@ Vue.component('intake-timeline', {
                                 <span class="text--secondary text-caption ml-3">
                                     {{ ip.lxp_active }} activos / {{ ip.lxp_count }} matriculados
                                 </span>
+                            </v-col>
+                            <v-col cols="auto">
+                                <v-btn x-small color="primary" outlined @click="openSubjectsPanel(ip.period)">
+                                    <v-icon left small>mdi-book-open-variant</v-icon>
+                                    Asignaturas
+                                </v-btn>
                             </v-col>
                             <v-col cols="auto" class="mr-6">
                                 <v-chip
@@ -339,10 +341,10 @@ Vue.component('intake-timeline', {
             }
         },
 
-        openSubjectsPanel() {
+        openSubjectsPanel(period) {
             // Emit both learning plan ID and selected cohort
             this.$emit('toggle-courses');
-            this.$emit('cohort-selected', this.selectedCohortForPanel || '2026');
+            this.$emit('cohort-selected', period || this.selectedCohortForPanel || '2026');
         },
 
         quarterColor(idx) { return this.quarterColors[idx % this.quarterColors.length]; },
