@@ -96,6 +96,17 @@ Vue.component('subjects-panel', {
         }
     },
     
+    data: function() {
+        return {
+            courses: [],
+            loading: false,
+            error: null,
+            draggedCourseData: null,
+            searchQuery: '',
+            activeFilter: ''
+        };
+    },
+    
     watch: {
         visible: function(newVal) {
             if (newVal && !(this.courses && this.courses.length)) {
