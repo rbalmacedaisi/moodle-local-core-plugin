@@ -164,6 +164,24 @@ echo $OUTPUT->header();
   .stat-label { color: #999; }
   .stat-item.pending.active { color: #F57C00; }
   .stat-item.pending.active .v-icon { color: #F57C00; }
+  
+  /* Subjects Panel - Fixed sidebar */
+  .subjects-panel-wrapper {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 380px;
+    height: 100vh;
+    z-index: 1600;
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+    box-shadow: -2px 0 10px rgba(0,0,0,0.15);
+    transition: transform 0.3s ease;
+  }
+  .subjects-panel-wrapper.hidden-panel {
+    transform: translateX(100%);
+  }
 </style>
 
 <div id="gmk-career-timeline-app">
@@ -177,14 +195,18 @@ echo $OUTPUT->header();
           @lp-selected="selectedLearningPlanId = $event">
         </intake-timeline>
         
-        <subjects-panel 
+        <div 
           v-if="selectedLearningPlanId || showSubjectsPanel"
-          :learning-plan-id="selectedLearningPlanId || 2"
-          :cohort="selectedCohort"
-          :jornada="selectedJornada"
-          :visible="showSubjectsPanel"
-          @close="showSubjectsPanel = false">
-        </subjects-panel>
+          class="subjects-panel-wrapper"
+          :class="{ 'hidden-panel': !showSubjectsPanel }">
+          <subjects-panel 
+            :learning-plan-id="selectedLearningPlanId || 2"
+            :cohort="selectedCohort"
+            :jornada="selectedJornada"
+            :visible="showSubjectsPanel"
+            @close="showSubjectsPanel = false">
+          </subjects-panel>
+        </div>
       </div>
     </v-main>
   </v-app>
