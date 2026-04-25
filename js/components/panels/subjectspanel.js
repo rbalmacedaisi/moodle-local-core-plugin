@@ -65,7 +65,7 @@ Vue.component('subjects-panel', {
     
     props: {
         learningPlanId: { type: Number, required: true },
-        cohort: { type: Number, default: 2026 },
+        cohort: { type: String, default: '2026' },
         jornada: { type: String, default: 'ALL' },
         visible: { type: Boolean, default: false }
     },

@@ -274,6 +274,8 @@ Vue.component('intake-timeline', {
             showStudentModal: false,
             selectedSubperiod: { sp_id: 0, sp_name: '' },
             selectedIntakePeriod: '',
+            // Cohort selection for subjects panel
+            selectedCohortForPanel: '2026',
         };
     },
     computed: {
@@ -324,6 +326,10 @@ Vue.component('intake-timeline', {
                     this.openPanels = data.intake_periods.map((_, i) => i);
                     // Emit selected learning plan ID for courses panel
                     this.$emit('lp-selected', this.careerId);
+                    // Set first cohort as selected for subjects panel
+                    if (data.intake_periods && data.intake_periods.length > 0) {
+                        this.selectedCohortForPanel = data.intake_periods[0].period;
+                    }
                 }
             } catch (e) {
                 this.errorMsg = 'Error de conexión al cargar la línea de tiempo.';
@@ -331,6 +337,12 @@ Vue.component('intake-timeline', {
             } finally {
                 this.loading = false;
             }
+        },
+
+        openSubjectsPanel() {
+            // Emit both learning plan ID and selected cohort
+            this.$emit('toggle-courses');
+            this.$emit('cohort-selected', this.selectedCohortForPanel || '2026');
         },
 
         quarterColor(idx) { return this.quarterColors[idx % this.quarterColors.length]; },
