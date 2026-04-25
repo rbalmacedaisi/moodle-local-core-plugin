@@ -76,7 +76,7 @@ Vue.component('subjects-panel', {
         },
         filteredCourses: function() {
             var self = this;
-            var courses = this.courses;
+            var courses = this.courses || [];
             
             if (this.searchQuery) {
                 var q = this.searchQuery.toLowerCase();
@@ -98,7 +98,7 @@ Vue.component('subjects-panel', {
     
     watch: {
         visible: function(newVal) {
-            if (newVal && !this.courses.length) {
+            if (newVal && !(this.courses && this.courses.length)) {
                 this.loadCourses();
             }
         },
