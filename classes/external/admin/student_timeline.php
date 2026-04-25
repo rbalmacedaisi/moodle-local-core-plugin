@@ -694,93 +694,91 @@ class student_timeline extends external_api {
         $jornada_filter = ($jornada != 'ALL') ? "AND uid_jornada.data = :jornada" : "";
         $jornada_param = ($jornada != 'ALL') ? ['jornada' => $jornada] : [];
 
-        // Get intake period string pattern (e.g., '2020%' for cohort 2020)
-        $intake_pattern = $cohort . '%';
+        // Get intake period string pattern
+        // If cohort is just a year (e.g., "2026"), use LIKE for partial match
+        // If cohort includes suffix (e.g., "2026-I"), use exact match
+        if (preg_match('/^\d{4}$/', $cohort)) {
+            $intake_pattern = $cohort . '%';
+            $intake_operator = 'LIKE';
+        } else {
+            $intake_pattern = $cohort;
+            $intake_operator = '=';
+        }
 
         $result = [];
         foreach ($courses as $c) {
-            // Count students by status for this course
-            // A student is "approved" if they have a grade >= 7 in any grade item for this course
+            // Count students by status for this specific course
+            // A student is "approved" if they have a grade >= 7 in grade_grades for this course
             // A student is "failed" if they have a grade < 7
-            // A student is "pending" if they're in the group but have no grade
-
-            // First get students in groups for this course that match the cohort/jornada
-            $students_sql = "
-                SELECT DISTINCT gm.userid, g.id as groupid
-                FROM {groups_members} gm
-                JOIN {groups} g ON g.id = gm.groupid
-                JOIN {course} c2 ON c2.id = g.courseid
-                JOIN {local_learning_users} llu ON llu.userid = gm.userid AND llu.learningplanid = :lp_id1
-                LEFT JOIN {user_info_data} uid_jornada ON uid_jornada.userid = gm.userid 
-                    AND uid_jornada.fieldid = (SELECT id FROM {user_info_field} WHERE shortname = 'gmkjourney' LIMIT 1)
-                LEFT JOIN {user_info_data} uid_intake ON uid_intake.userid = gm.userid 
-                    AND uid_intake.fieldid = (SELECT id FROM {user_info_field} WHERE shortname = 'periodo_ingreso' LIMIT 1)
-                WHERE c2.id = :course_id 
-                  AND llu.learningplanid = :lp_id2
-                  AND uid_intake.data LIKE :intake_pattern
-                  $jornada_filter
-            ";
-
-            $params = array_merge([
-                'lp_id1' => $learningplanid,
-                'lp_id2' => $learningplanid,
-                'course_id' => $c->courseid,
-                'intake_pattern' => $intake_pattern
-            ], $jornada_param);
-
-            $students = $DB->get_records_sql($students_sql, $params);
-            $total_students = count($students);
+            // A student is "pending" if they are enrolled in the course but have no grade yet
+            // Students from the cohort who are NOT enrolled in this course are NOT counted
 
             $approved_count = 0;
             $failed_count = 0;
             $pending_count = 0;
+            $total_students = 0;
 
-            if ($total_students > 0) {
-                $student_ids = array_keys($students);
+            // Get all grade items for this course
+            $grade_items = $DB->get_records('grade_items', ['courseid' => $c->courseid]);
+            $item_ids = array_keys($grade_items);
 
-                // Check grades for these students in this course
-                // Get all grade items for this course
-                $grade_items = $DB->get_records('grade_items', ['courseid' => $c->courseid]);
-                $item_ids = array_keys($grade_items);
+            if (!empty($item_ids)) {
+                $item_placeholders = implode(',', array_fill(0, count($item_ids), '?'));
 
-                if (!empty($item_ids)) {
-                    // Get final grades for students in this course
-                    // Use AVG of finalgrade to determine overall performance
-                    // If AVG >= 7, approved; if AVG < 7, failed; if no grades, pending
-                    foreach ($student_ids as $userid) {
-                        // Check if user has any grade in this course
-                        $user_grades = $DB->get_records_sql(
-                            "SELECT gg.finalgrade, gg.rawgrade
-                             FROM {grade_grades} gg
-                             WHERE gg.userid = :userid 
-                               AND gg.itemid IN (" . implode(',', $item_ids) . ")",
-                            ['userid' => $userid]
-                        );
+                // Get students with grades in this course who match cohort/jornada
+                // This ensures we only count students actually enrolled in this course
+                $graded_students_sql = "
+                    SELECT gg.userid, AVG(COALESCE(gg.finalgrade, gg.rawgrade)) as avg_grade
+                    FROM {grade_grades} gg
+                    JOIN {local_learning_users} llu ON llu.userid = gg.userid
+                    JOIN {user_info_data} uid_intake ON uid_intake.userid = gg.userid
+                        AND uid_intake.fieldid = (SELECT id FROM {user_info_field} WHERE shortname = 'periodo_ingreso' LIMIT 1)
+                    LEFT JOIN {user_info_data} uid_jornada ON uid_jornada.userid = gg.userid
+                        AND uid_jornada.fieldid = (SELECT id FROM {user_info_field} WHERE shortname = 'gmkjourney' LIMIT 1)
+                    WHERE gg.itemid IN ($item_placeholders)
+                      AND llu.learningplanid = ?
+                      AND uid_intake.data $intake_operator ?
+                      $jornada_filter
+                    GROUP BY gg.userid
+                ";
 
-                        if (empty($user_grades)) {
-                            $pending_count++;
-                        } else {
-                            // Calculate average grade
-                            $grades = array_filter(array_map(function($g) {
-                                return $g->finalgrade ?? $g->rawgrade;
-                            }, $user_grades), function($g) { return $g !== null; });
+                $sql_params = array_merge($item_ids, [$learningplanid, $intake_pattern], $jornada_param);
+                $graded_students = $DB->get_records_sql($graded_students_sql, $sql_params);
 
-                            if (empty($grades)) {
-                                $pending_count++;
-                            } else {
-                                $avg = array_sum($grades) / count($grades);
-                                if ($avg >= 7) {
-                                    $approved_count++;
-                                } else {
-                                    $failed_count++;
-                                }
-                            }
-                        }
+                foreach ($graded_students as $gs) {
+                    $total_students++;
+                    if ($gs->avg_grade >= 7) {
+                        $approved_count++;
+                    } else {
+                        $failed_count++;
                     }
-                } else {
-                    // No grade items means all are pending
-                    $pending_count = $total_students;
                 }
+
+                // Get students enrolled in this course via user_enrolments but WITHOUT grades (pending)
+                $enrolled_no_grade_sql = "
+                    SELECT COUNT(DISTINCT ue.userid) as cnt
+                    FROM {user_enrolments} ue
+                    JOIN {enrol} e ON e.id = ue.enrolid
+                    JOIN {local_learning_users} llu ON llu.userid = ue.userid
+                    JOIN {user_info_data} uid_intake ON uid_intake.userid = ue.userid
+                        AND uid_intake.fieldid = (SELECT id FROM {user_info_field} WHERE shortname = 'periodo_ingreso' LIMIT 1)
+                    LEFT JOIN {user_info_data} uid_jornada ON uid_jornada.userid = ue.userid
+                        AND uid_jornada.fieldid = (SELECT id FROM {user_info_field} WHERE shortname = 'gmkjourney' LIMIT 1)
+                    WHERE e.courseid = ?
+                      AND llu.learningplanid = ?
+                      AND uid_intake.data $intake_operator ?
+                      $jornada_filter
+                      AND ue.userid NOT IN (
+                          SELECT DISTINCT gg2.userid 
+                          FROM {grade_grades} gg2 
+                          WHERE gg2.itemid IN ($item_placeholders)
+                      )
+                ";
+
+                $enroll_params = array_merge([$c->courseid, $learningplanid, $intake_pattern], $jornada_param, $item_ids);
+                $pending_result = $DB->get_record_sql($enrolled_no_grade_sql, $enroll_params);
+                $pending_count = $pending_result ? (int)$pending_result->cnt : 0;
+                $total_students += $pending_count;
             }
 
             // Determine semaphore color
@@ -842,7 +840,7 @@ class student_timeline extends external_api {
     public static function get_courses_with_projections_parameters() {
         return new external_function_parameters([
             'learningplanid' => new external_value(PARAM_INT, 'Learning plan ID'),
-            'cohort' => new external_value(PARAM_INT, 'Cohort year (e.g. 2020)'),
+            'cohort' => new external_value(PARAM_TEXT, 'Cohort period (e.g. 2026-I, 2025-II)'),
             'jornada' => new external_value(PARAM_TEXT, 'Jornada filter (Diurna/Nocturna/Sabatina/ALL)', false, 'ALL')
         ]);
     }

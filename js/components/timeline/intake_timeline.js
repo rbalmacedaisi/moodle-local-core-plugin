@@ -34,7 +34,7 @@ Vue.component('intake-timeline', {
                     </p>
                 </v-col>
                 <v-col cols="auto" class="d-flex align-center gap-2">
-                    <v-btn color="primary" outlined @click="$emit('toggle-courses')">
+                    <v-btn color="primary" outlined @click="openSubjectsPanel">
                         <v-icon left>mdi-book-open-variant</v-icon>
                         Asignaturas
                     </v-btn>
