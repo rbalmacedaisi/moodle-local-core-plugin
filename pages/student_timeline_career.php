@@ -173,7 +173,7 @@ echo $OUTPUT->header();
         <intake-timeline 
           :career-id="careerId" 
           :back-url="backUrl"
-          @toggle-courses="showCoursesPanel = !showCoursesPanel"
+          @toggle-courses="showSubjectsPanel = !showSubjectsPanel"
           @lp-selected="selectedLearningPlanId = $event">
         </intake-timeline>
         
