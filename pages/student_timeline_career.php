@@ -178,8 +178,8 @@ echo $OUTPUT->header();
         </intake-timeline>
         
         <subjects-panel 
-          v-if="selectedLearningPlanId"
-          :learning-plan-id="selectedLearningPlanId"
+          v-if="selectedLearningPlanId || showSubjectsPanel"
+          :learning-plan-id="selectedLearningPlanId || 2"
           :cohort="selectedCohort"
           :jornada="selectedJornada"
           :visible="showSubjectsPanel"
