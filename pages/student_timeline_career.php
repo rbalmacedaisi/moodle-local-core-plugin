@@ -242,7 +242,7 @@ echo $OUTPUT->header();
       showSubjectsPanel: false,
       selectedLearningPlanId: null,
       selectedJornada: 'ALL',
-      selectedCohort: 2026
+      selectedCohort: '2026'
     },
   });
 </script>
