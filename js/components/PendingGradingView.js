@@ -232,14 +232,13 @@ Vue.component('pending-grading-view', {
         closeGrader() {
             this.showGrader = false;
             this.selectedTask = null;
+            // Always re-fetch after closing so the list reflects the backend state.
+            this.fetchTasks();
         },
         onGradeSaved(taskId) {
-            // Remove the graded task from the list locally to avoid reload
+            // Optimistic local removal for immediate feedback while the grader
+            // is still open navigating to the next task.
             this.tasks = this.tasks.filter(t => t.id !== taskId);
-
-            // If the quick grader moves to next task automatically, 
-            // the QuickGrader component handles the selection update.
-            // But we need to sync our list state if we want the background list to update.
         }
     }
 });

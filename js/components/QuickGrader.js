@@ -671,13 +671,28 @@ const QuickGrader = {
                             this.grade = this.currentQuestion.currentgrade || '';
                             this.feedback = '';
                         } else {
-                            // Finish attempt review
-                            this.$emit('grade-saved', this.currentTask.id);
-                            this.loadNext();
+                            // Capture next task BEFORE emitting grade-saved, so the parent's
+                            // optimistic filter doesn't affect allTasks before loadNext reads it.
+                            const savedId   = this.currentTask.id;
+                            const nextIdx   = this.currentIndex + 1;
+                            const nextTask  = this.allTasks[nextIdx] || null;
+                            this.$emit('grade-saved', savedId);
+                            if (nextTask) {
+                                this.$emit('update:task', nextTask);
+                            } else {
+                                this.close();
+                            }
                         }
                     } else {
-                        this.$emit('grade-saved', this.currentTask.id);
-                        this.loadNext();
+                        const savedId   = this.currentTask.id;
+                        const nextIdx   = this.currentIndex + 1;
+                        const nextTask  = this.allTasks[nextIdx] || null;
+                        this.$emit('grade-saved', savedId);
+                        if (nextTask) {
+                            this.$emit('update:task', nextTask);
+                        } else {
+                            this.close();
+                        }
                     }
                 } else {
                     this.saveError = response.data.message || 'Error desconocido del servidor.';
