@@ -38,18 +38,23 @@ Vue.component('subjects-panel', {
     '          <span v-if="getSemaphore(course) === \'green\'" class="stat approved">' +
     '            <v-icon small color="green">mdi-check-circle</v-icon>' +
     '            {{ course.status.approved_count }}' +
+    '            <span class="stat-label">Aprob</span>' +
     '          </span>' +
     '          <span v-else-if="getSemaphore(course) === \'red\'" class="stat failed">' +
     '            <v-icon small color="red">mdi-close-circle</v-icon>' +
     '            {{ course.status.failed_count }}' +
+    '            <span class="stat-label">Reprob</span>' +
     '          </span>' +
     '          <span v-else-if="getSemaphore(course) === \'orange\'" class="stat mixed">' +
-    '            <v-icon small color="orange">mdi-alert-circle</v-icon>' +
-    '            {{ course.status.approved_count }}/{{ course.status.failed_count }}' +
+    '            <v-icon small color="green">mdi-check-circle</v-icon>' +
+    '            {{ course.status.approved_count }}' +
+    '            <v-icon small color="red" class="ml-1">mdi-close-circle</v-icon>' +
+    '            {{ course.status.failed_count }}' +
     '          </span>' +
     '          <span v-else class="stat pending">' +
     '            <v-icon small color="blue">mdi-clock-outline</v-icon>' +
     '            {{ course.status.pending_count || \'-\' }}' +
+    '            <span class="stat-label">Pend</span>' +
     '          </span>' +
     '        </div>' +
     '        <div class="drag-handle">' +
