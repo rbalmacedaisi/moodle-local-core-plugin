@@ -146,8 +146,8 @@ class get_student_gradebook extends external_api
                     continue;
                 }
 
-                // Skip category totals with no grade (e.g. "Total Revalida grade")
-                if ($gi->itemtype === 'category' && is_null($gi->finalgrade)) {
+                // Skip all category total items — we compute a weighted total in the frontend.
+                if ($gi->itemtype === 'category') {
                     continue;
                 }
 
