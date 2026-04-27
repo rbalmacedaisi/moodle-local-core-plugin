@@ -92,9 +92,11 @@ class get_student_gradebook extends external_api
 
             // ── 3. Fetch grade categories ─────────────────────────────────────
             $categories = $DB->get_records('grade_categories', ['courseid' => $courseId], 'id ASC');
-            $catMap = [];
+            $catMap    = [];
+            $catAggMap = [];
             foreach ($categories as $cat) {
-                $catMap[$cat->id] = $cat->fullname;
+                $catMap[$cat->id]    = $cat->fullname;
+                $catAggMap[$cat->id] = (int)$cat->aggregation;
             }
 
             // ── 4. Build flat list of items, skipping irrelevant BBB items ─────
@@ -162,19 +164,58 @@ class get_student_gradebook extends external_api
                 // Determine label: use itemname for activities, or a friendly fallback
                 $label = $gi->itemname ?: ucfirst($gi->itemmodule ?: $gi->itemtype);
 
+                // WEIGHTED_MEAN2 (10) / WEIGHTED_MEAN (2): raw weight in aggregationcoef.
+                // NATURAL (13): fraction 0-1 in aggregationcoef2.
+                $itemCatAgg = $catAggMap[$gi->categoryid] ?? 13;
+                $rawWeight  = ($itemCatAgg === 10 || $itemCatAgg === 2)
+                    ? (float)$gi->aggregationcoef
+                    : (float)$gi->aggregationcoef2;
+
                 $items[] = [
                     'id'           => (int) $gi->id,
                     'category'     => $categoryName === '?' ? 'General' : $categoryName,
+                    '_categoryid'  => $itemCatId,
+                    '_cagg'        => $itemCatAgg,
+                    '_raw_weight'  => $rawWeight,
                     'name'         => $label,
                     'module'       => $gi->itemmodule ?: $gi->itemtype,
-                    'grade'        => $gradeFormatted,       // null = sin calificar
+                    'grade'        => $gradeFormatted,
                     'grade_max'    => (float) $gi->grademax,
-                    'grade_pct'    => $gradePercent,         // % sobre grademax
+                    'grade_pct'    => $gradePercent,
                     'feedback'     => $gi->feedback ?: '',
+                    'weight_pct'   => 0,
+                    'weighted_contribution' => null,
                 ];
             }
 
-            // ── 5. Group by category ──────────────────────────────────────────
+            // ── 5. Compute weight_pct / weighted_contribution ─────────────────
+            // For WEIGHTED_MEAN2/2: normalize within category.
+            // For NATURAL (13): aggregationcoef2 is already 0-1.
+            $catRawSums = [];
+            foreach ($items as $item) {
+                $cagg = $item['_cagg'];
+                $cid  = $item['_categoryid'];
+                if ($cagg === 10 || $cagg === 2) {
+                    $catRawSums[$cid] = ($catRawSums[$cid] ?? 0.0) + $item['_raw_weight'];
+                }
+            }
+            foreach ($items as &$item) {
+                $cagg = $item['_cagg'];
+                $cid  = $item['_categoryid'];
+                if ($cagg === 10 || $cagg === 2) {
+                    $sum = $catRawSums[$cid] ?? 0;
+                    $item['weight_pct'] = $sum > 0 ? round(($item['_raw_weight'] / $sum) * 100, 1) : 0;
+                } else {
+                    $item['weight_pct'] = round($item['_raw_weight'] * 100, 1);
+                }
+                if (!is_null($item['grade']) && $item['grade_max'] > 0 && $item['weight_pct'] > 0) {
+                    $item['weighted_contribution'] = round(($item['grade'] / $item['grade_max']) * $item['weight_pct'], 1);
+                }
+                unset($item['_categoryid'], $item['_cagg'], $item['_raw_weight']);
+            }
+            unset($item);
+
+            // ── 6. Group by category ──────────────────────────────────────────
             $grouped = [];
             foreach ($items as $item) {
                 $grouped[$item['category']][] = $item;

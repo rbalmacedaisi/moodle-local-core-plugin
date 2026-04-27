@@ -2536,7 +2536,15 @@ try {
             // 2. Fetch Grade Items (Columns)
             require_once($CFG->libdir . '/gradelib.php');
             $grade_items = \grade_item::fetch_all(['courseid' => $courseid]);
-            
+
+            // Map categoryid → aggregation type so we read the correct weight field.
+            // WEIGHTED_MEAN2 (10) uses aggregationcoef; NATURAL (13) uses aggregationcoef2.
+            $categoryaggmap_grades = [];
+            $catrows_grades = $DB->get_records('grade_categories', ['courseid' => $courseid], '', 'id,aggregation');
+            foreach ($catrows_grades as $crow) {
+                $categoryaggmap_grades[(int)$crow->id] = (int)$crow->aggregation;
+            }
+
             $columns = [];
             $item_ids = [];
 
@@ -2584,16 +2592,47 @@ try {
                     continue;
                 }
                 
+                $cagg_item = (int)($categoryaggmap_grades[(int)$gi->categoryid] ?? 13);
+                // WEIGHTED_MEAN2 (10) and WEIGHTED_MEAN (2) store explicit weights in aggregationcoef.
+                // NATURAL (13) stores a 0-1 fraction in aggregationcoef2.
+                $raw_weight = ($cagg_item === 10 || $cagg_item === 2) ? (float)$gi->aggregationcoef : (float)$gi->aggregationcoef2;
+
                 $columns[] = [
                     'id' => $gi->id,
                     'title' => $gi->itemname ?: ($gi->itemtype === 'course' ? "Total del Curso" : $gi->itemtype),
                     'max_grade' => (float)$gi->grademax % 1 === 0 ? (int)$gi->grademax : round($gi->grademax, 1),
-                    'weight' => $gi->aggregationcoef,
+                    'weight' => $raw_weight,
+                    'weight_pct' => 0,
                     'is_total' => $is_total,
-                    'itemtype' => $gi->itemtype
+                    'itemtype' => $gi->itemtype,
+                    '_categoryid' => (int)$gi->categoryid,
+                    '_cagg' => $cagg_item
                 ];
                 $item_ids[] = (int)$gi->id;
             }
+
+            // Compute weight_pct per column.
+            // For WEIGHTED_MEAN2/2: normalize within category (sum of raw weights = 100 %).
+            // For NATURAL (13): aggregationcoef2 is already a 0-1 fraction.
+            $catWeightSums = [];
+            foreach ($columns as $col) {
+                if ($col['is_total']) continue;
+                if ($col['_cagg'] === 10 || $col['_cagg'] === 2) {
+                    $catWeightSums[$col['_categoryid']] = ($catWeightSums[$col['_categoryid']] ?? 0.0) + $col['weight'];
+                }
+            }
+            foreach ($columns as &$col) {
+                if ($col['is_total']) {
+                    $col['weight_pct'] = 100;
+                } elseif ($col['_cagg'] === 10 || $col['_cagg'] === 2) {
+                    $sum = $catWeightSums[$col['_categoryid']] ?? 0;
+                    $col['weight_pct'] = $sum > 0 ? round(($col['weight'] / $sum) * 100, 1) : 0;
+                } else {
+                    $col['weight_pct'] = round($col['weight'] * 100, 1);
+                }
+                unset($col['_categoryid'], $col['_cagg']);
+            }
+            unset($col);
 
             if (empty($item_ids)) {
                 $grades_data = [];

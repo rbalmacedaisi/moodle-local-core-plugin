@@ -46,6 +46,9 @@ Vue.component('grades-grid', {
                                         <div class="caption font-weight-regular opacity-70 mt-1">
                                             ({{ col.max_grade }})
                                         </div>
+                                        <div v-if="!col.is_total && col.weight_pct > 0" class="caption blue--text font-weight-medium mt-1">
+                                            {{ col.weight_pct }}%
+                                        </div>
                                     </div>
                                 </th>
                             </tr>
