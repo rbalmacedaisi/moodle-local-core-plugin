@@ -154,9 +154,10 @@ if (!empty($userids)) {
     }
 }
 
-// ── Total grades ──────────────────────────────────────────────────────────────
-// Use the class-specific grade category total when available (same source as the
-// gradebook table in the teacher dashboard). Fall back to the course-level total.
+// ── Total grades (ponderadas) ─────────────────────────────────────────────────
+// Compute weighted total ourselves — same logic as the gradebook table in the
+// teacher dashboard. Missing grades count as 0 (unlike Moodle's native aggregation
+// which may exclude empty grades and renormalize, inflating the total).
 $grade_map        = [];
 $grade_max_val    = 100;
 $grade_item_label = 'Nota Total';
@@ -164,32 +165,80 @@ $grade_item_label = 'Nota Total';
 $course_id_for_grades = (int)($class->corecourseid ?? $class->courseid ?? 0);
 $classcategoryid      = !empty($class->gradecategoryid) ? (int)$class->gradecategoryid : 0;
 
-if ($course_id_for_grades > 0) {
-    $grade_item = null;
+if ($course_id_for_grades > 0 && $classcategoryid > 0 && !empty($userids)) {
+    // Category aggregation type: WEIGHTED_MEAN2(10)/WEIGHTED_MEAN(2) use aggregationcoef,
+    // NATURAL(13) uses aggregationcoef2 (0-1 fraction).
+    $cagg = (int)($DB->get_field('grade_categories', 'aggregation', ['id' => $classcategoryid]) ?? 13);
 
-    // 1st choice: class category total (matches the gradebook table).
-    if ($classcategoryid > 0) {
-        $grade_item = $DB->get_record(
-            'grade_items',
-            ['courseid' => $course_id_for_grades, 'itemtype' => 'category', 'iteminstance' => $classcategoryid],
-            '*',
-            IGNORE_MISSING
+    // Fetch all scoreable grade items belonging to the class category.
+    $grade_items_in_cat = $DB->get_records_sql(
+        "SELECT gi.id, gi.grademax, gi.aggregationcoef, gi.aggregationcoef2
+           FROM {grade_items} gi
+          WHERE gi.courseid = :courseid
+            AND gi.categoryid = :catid
+            AND gi.itemtype != 'category'",
+        ['courseid' => $course_id_for_grades, 'catid' => $classcategoryid]
+    );
+
+    if (!empty($grade_items_in_cat)) {
+        // Compute weight_pct per item.
+        if ($cagg === 10 || $cagg === 2) {
+            $sumW = 0.0;
+            foreach ($grade_items_in_cat as $gi) { $sumW += (float)$gi->aggregationcoef; }
+            foreach ($grade_items_in_cat as &$gi) {
+                $gi->weight_pct = $sumW > 0 ? ((float)$gi->aggregationcoef / $sumW) * 100 : 0;
+            }
+            unset($gi);
+        } else {
+            foreach ($grade_items_in_cat as &$gi) {
+                $gi->weight_pct = (float)$gi->aggregationcoef2 * 100;
+            }
+            unset($gi);
+        }
+
+        // Bulk-fetch grades for all students and all items in the category.
+        $item_ids_for_grades = array_keys($grade_items_in_cat);
+        list($giinsql, $giparams) = $DB->get_in_or_equal($item_ids_for_grades, SQL_PARAMS_NAMED, 'gi');
+        list($guinsql, $guparams) = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED, 'gu');
+        $grade_rows = $DB->get_records_sql(
+            "SELECT userid, itemid, finalgrade
+               FROM {grade_grades}
+              WHERE itemid $giinsql AND userid $guinsql",
+            array_merge($giparams, $guparams)
         );
-        if ($grade_item) {
-            $grade_item_label = 'Nota Total (clase)';
+
+        // Build raw grades map: userid → itemid → finalgrade.
+        $raw_grades_map = [];
+        foreach ($grade_rows as $gr) {
+            $raw_grades_map[(int)$gr->userid][(int)$gr->itemid] = $gr->finalgrade;
+        }
+
+        // Compute weighted total per student (missing grades = 0, null if not graded at all).
+        foreach ($userids as $uid) {
+            $total   = 0.0;
+            $has_any = false;
+            foreach ($grade_items_in_cat as $gi) {
+                $raw = $raw_grades_map[$uid][$gi->id] ?? null;
+                if ($raw !== null) {
+                    $has_any = true;
+                    $grade   = (float)$raw;
+                } else {
+                    $grade = 0.0;
+                }
+                $max    = (float)($gi->grademax ?: 100);
+                $total += ($grade / $max) * $gi->weight_pct;
+            }
+            $grade_map[$uid] = $has_any ? round($total, 1) : null;
         }
     }
-
-    // Fallback: course-level aggregated total.
-    if (!$grade_item) {
-        $grade_item = $DB->get_record(
-            'grade_items',
-            ['courseid' => $course_id_for_grades, 'itemtype' => 'course'],
-            '*',
-            IGNORE_MISSING
-        );
-    }
-
+} else if ($course_id_for_grades > 0 && !empty($userids)) {
+    // Fallback when no class category: use Moodle's course-level total.
+    $grade_item = $DB->get_record(
+        'grade_items',
+        ['courseid' => $course_id_for_grades, 'itemtype' => 'course'],
+        '*',
+        IGNORE_MISSING
+    );
     if ($grade_item) {
         $grade_max_val = (float)($grade_item->grademax ?: 100);
         list($guinsql, $guinparams) = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED, 'gu');
