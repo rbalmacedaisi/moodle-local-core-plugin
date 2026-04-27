@@ -7376,7 +7376,7 @@ function local_grupomakro_create_express_activity($classid, $type, $name, $intro
             gmk_log("WARNING: assign gradebook preflight fallo courseid={$course->id}: " . $repairerr->getMessage());
         }
     } else if ($type === 'quiz') {
-        $moduleinfo->grade = 10; // Default max grade
+        $moduleinfo->grade = 100;
         $moduleinfo->timeopen = !empty($extra['timeopen']) ? $extra['timeopen'] : 0;
         $moduleinfo->timeclose = !empty($extra['timeclose']) ? $extra['timeclose'] : 0;
         $moduleinfo->timelimit = !empty($extra['timelimit']) ? intval($extra['timelimit']) : 0; // seconds
