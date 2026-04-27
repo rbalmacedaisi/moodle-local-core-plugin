@@ -417,10 +417,10 @@ const ActivityCreationWizard = {
                         .map(function(d) { return parseInt(d.draftitemid, 10) || 0; })
                         .filter(function(v) { return v > 0; })
                 ));
-                const duedate = this.parseDatetimeLocalToTimestamp(this.formData.duedate);
-                const allowsubmissionsfromdate = this.parseDatetimeLocalToTimestamp(this.formData.allowsubmissionsfromdate);
-                const timeopen = this.parseDatetimeLocalToTimestamp(this.formData.timeopen);
-                const timeclose = this.parseDatetimeLocalToTimestamp(this.formData.timeclose);
+                const duedate = this.parseDatetimeLocalToTimestamp(this.formData.duedate) || 0;
+                const allowsubmissionsfromdate = this.parseDatetimeLocalToTimestamp(this.formData.allowsubmissionsfromdate) || 0;
+                const timeopen = this.parseDatetimeLocalToTimestamp(this.formData.timeopen) || 0;
+                const timeclose = this.parseDatetimeLocalToTimestamp(this.formData.timeclose) || 0;
                 const args = this.editMode ? {
                     cmid: this.editData.id,
                     name: this.formData.name,
