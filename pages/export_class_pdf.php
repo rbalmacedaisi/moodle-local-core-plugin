@@ -201,7 +201,7 @@ if ($course_id_for_grades > 0 && $classcategoryid > 0 && !empty($userids)) {
         list($giinsql, $giparams) = $DB->get_in_or_equal($item_ids_for_grades, SQL_PARAMS_NAMED, 'gi');
         list($guinsql, $guparams) = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED, 'gu');
         $grade_rows = $DB->get_records_sql(
-            "SELECT userid, itemid, finalgrade
+            "SELECT id, userid, itemid, finalgrade
                FROM {grade_grades}
               WHERE itemid $giinsql AND userid $guinsql",
             array_merge($giparams, $guparams)
