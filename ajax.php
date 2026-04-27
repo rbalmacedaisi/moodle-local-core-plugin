@@ -4787,6 +4787,7 @@ try {
                 'visible' => (bool)$cm->visible,
                 'tags' => array_values($tagNames),
                 'duedate' => isset($module_instance->duedate) ? (int)$module_instance->duedate : 0,
+                'allowsubmissionsfromdate' => isset($module_instance->allowsubmissionsfromdate) ? (int)$module_instance->allowsubmissionsfromdate : 0,
                 'timeopen' => isset($module_instance->timeopen) ? (int)$module_instance->timeopen : 0,
                 'timeclose' => isset($module_instance->timeclose) ? (int)$module_instance->timeclose : 0,
                 'attempts' => isset($module_instance->attempts) ? (int)$module_instance->attempts : 0,
@@ -4911,6 +4912,7 @@ try {
             
             // New optional params
             $duedate = optional_param('duedate', null, PARAM_INT);
+            $allowsubmissionsfromdate = optional_param('allowsubmissionsfromdate', null, PARAM_INT);
             $timeopen = optional_param('timeopen', null, PARAM_INT);
             $timeclose = optional_param('timeclose', null, PARAM_INT);
             $attempts = optional_param('attempts', null, PARAM_INT);
@@ -4936,6 +4938,9 @@ try {
             // Specific fields
             if ($cm->modname === 'assign' && $duedate !== null) {
                 $module_record->duedate = $duedate;
+            }
+            if ($cm->modname === 'assign' && $allowsubmissionsfromdate !== null) {
+                $module_record->allowsubmissionsfromdate = $allowsubmissionsfromdate;
             }
             if ($cm->modname === 'quiz') {
                 if ($timeopen !== null) $module_record->timeopen = $timeopen;

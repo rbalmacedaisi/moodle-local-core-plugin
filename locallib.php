@@ -7349,6 +7349,7 @@ function local_grupomakro_create_express_activity($classid, $type, $name, $intro
     } else if ($type === 'assign') {
         $moduleinfo->grade = 100;
         $moduleinfo->duedate = !empty($extra['duedate']) ? $extra['duedate'] : 0;
+        $moduleinfo->allowsubmissionsfromdate = !empty($extra['allowsubmissionsfromdate']) ? $extra['allowsubmissionsfromdate'] : 0;
         $moduleinfo->assignsubmission_file_enabled = 1;
         $moduleinfo->assignsubmission_onlinetext_enabled = 1;
         // Keep assign defaults conservative and explicitly non-null.

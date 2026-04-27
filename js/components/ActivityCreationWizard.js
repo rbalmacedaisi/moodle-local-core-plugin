@@ -38,13 +38,27 @@ const ActivityCreationWizard = {
                         ></v-textarea>
 
                         <v-row v-if="isAssignment">
-                            <v-col cols="12">
+                            <v-col cols="12" sm="6">
+                                <v-text-field
+                                    v-model="formData.allowsubmissionsfromdate"
+                                    label="Disponible desde"
+                                    type="datetime-local"
+                                    outlined
+                                    dense
+                                    hint="Fecha desde la que los estudiantes pueden enviar"
+                                    persistent-hint
+                                    :rules="[v => !v || !formData.duedate || v <= formData.duedate || 'Debe ser anterior a la fecha de entrega']"
+                                ></v-text-field>
+                            </v-col>
+                            <v-col cols="12" sm="6">
                                 <v-text-field
                                     v-model="formData.duedate"
                                     label="Fecha de entrega"
                                     type="datetime-local"
                                     outlined
                                     dense
+                                    hint="Fecha límite para enviar"
+                                    persistent-hint
                                 ></v-text-field>
                             </v-col>
                         </v-row>
@@ -205,6 +219,7 @@ const ActivityCreationWizard = {
                 name: '',
                 intro: '',
                 duedate: '',
+                allowsubmissionsfromdate: '',
                 timeopen: '',
                 timeclose: '',
                 attempts: 1,
@@ -403,6 +418,7 @@ const ActivityCreationWizard = {
                         .filter(function(v) { return v > 0; })
                 ));
                 const duedate = this.parseDatetimeLocalToTimestamp(this.formData.duedate);
+                const allowsubmissionsfromdate = this.parseDatetimeLocalToTimestamp(this.formData.allowsubmissionsfromdate);
                 const timeopen = this.parseDatetimeLocalToTimestamp(this.formData.timeopen);
                 const timeclose = this.parseDatetimeLocalToTimestamp(this.formData.timeclose);
                 const args = this.editMode ? {
@@ -412,6 +428,7 @@ const ActivityCreationWizard = {
                     tags: normalizedTag,
                     visible: this.formData.visible ? 1 : 0,
                     duedate: duedate,
+                    allowsubmissionsfromdate: allowsubmissionsfromdate,
                     timeopen: timeopen,
                     timeclose: timeclose,
                     attempts: this.formData.attempts,
@@ -424,6 +441,7 @@ const ActivityCreationWizard = {
                     intro: this.formData.intro || '',
                     tags: normalizedTag,
                     duedate: duedate,
+                    allowsubmissionsfromdate: allowsubmissionsfromdate,
                     timeopen: timeopen,
                     timeclose: timeclose,
                     guest: this.formData.guest,
@@ -476,6 +494,7 @@ const ActivityCreationWizard = {
                     this.tagSearchInput = this.formData.tags;
                     this.formData.visible = act.visible;
                     this.formData.duedate = this.formatTimestampForDatetimeLocal(act.duedate);
+                    this.formData.allowsubmissionsfromdate = this.formatTimestampForDatetimeLocal(act.allowsubmissionsfromdate);
                     this.formData.timeopen = this.formatTimestampForDatetimeLocal(act.timeopen);
                     this.formData.timeclose = this.formatTimestampForDatetimeLocal(act.timeclose);
                     this.formData.attempts = act.attempts || 1;

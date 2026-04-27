@@ -23,6 +23,7 @@ class create_express_activity extends external_api {
                 'name' => new external_value(PARAM_TEXT, 'The name of the activity', VALUE_REQUIRED),
                 'intro' => new external_value(PARAM_RAW, 'The description of the activity', VALUE_DEFAULT, ''),
                 'duedate' => new external_value(PARAM_INT, 'The due date for assignments', VALUE_DEFAULT, 0),
+                'allowsubmissionsfromdate' => new external_value(PARAM_INT, 'Allow submissions from date for assignments', VALUE_DEFAULT, 0),
                 'save_as_template' => new external_value(PARAM_BOOL, 'Whether to save as a template', VALUE_DEFAULT, false),
                 'gradecat' => new external_value(PARAM_INT, 'The grade category ID (rubric)', VALUE_DEFAULT, 0),
                 'tags' => new external_multiple_structure(
@@ -50,7 +51,8 @@ class create_express_activity extends external_api {
         $name,
         $intro,
         $duedate,
-        $save_as_template,
+        $allowsubmissionsfromdate = 0,
+        $save_as_template = false,
         $tags = [],
         $gradecat = 0,
         $guest = false,
@@ -69,6 +71,7 @@ class create_express_activity extends external_api {
             'name' => $name,
             'intro' => $intro,
             'duedate' => $duedate,
+            'allowsubmissionsfromdate' => $allowsubmissionsfromdate,
             'save_as_template' => $save_as_template,
             'gradecat' => $gradecat,
             'tags' => $tags,
@@ -92,6 +95,7 @@ class create_express_activity extends external_api {
 
         $extra = [
             'duedate' => $params['duedate'],
+            'allowsubmissionsfromdate' => $params['allowsubmissionsfromdate'],
             'save_as_template' => $params['save_as_template'],
             'gradecat' => $params['gradecat'],
             'guest' => $params['guest'],
