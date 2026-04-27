@@ -4314,6 +4314,7 @@ try {
             $name = required_param('name', PARAM_TEXT);
             $intro = optional_param('intro', '', PARAM_RAW);
             $duedate = optional_param('duedate', 0, PARAM_INT);
+            $allowsubmissionsfromdate = optional_param('allowsubmissionsfromdate', 0, PARAM_INT);
             $save_as_template = optional_param('save_as_template', false, PARAM_BOOL);
             $gradecat = optional_param('gradecat', 0, PARAM_INT);
             $guest = optional_param('guest', false, PARAM_BOOL);
@@ -4340,6 +4341,7 @@ try {
                     $name,
                     $intro,
                     $duedate,
+                    $allowsubmissionsfromdate,
                     $save_as_template,
                     [],
                     $gradecat,
