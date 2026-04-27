@@ -297,7 +297,8 @@ const ActivityCreationWizard = {
             this.$emit('close');
         },
         parseDatetimeLocalToTimestamp(value) {
-            if (!value || typeof value !== 'string') {
+            // Handle empty, null, undefined, or non-string values
+            if (!value || typeof value !== 'string' || value.length === 0) {
                 return 0;
             }
 
