@@ -71,7 +71,7 @@ Vue.component('grades-grid', {
                                     :class="{
                                         'grade-total': col.is_total,
                                         'grade-course-total': col.itemtype === 'course',
-                                        'red--text font-weight-bold': !isEditing(student.id, col.id) && isFailing(student.grades[col.id], col.max_grade),
+                                        'red--text font-weight-bold': !isEditing(student.id, col.id) && isFailing(col.is_total ? weightedTotals[student.id] : student.grades[col.id], col.max_grade),
                                         'grade-editable': isManualEditable(student, col)
                                     }"
                                     @click="isManualEditable(student, col) ? startEdit(student, col) : null">
@@ -99,6 +99,9 @@ Vue.component('grades-grid', {
                                     </template>
 
                                     <!-- Normal display -->
+                                    <template v-else-if="col.is_total">
+                                        {{ weightedTotals[student.id] !== undefined ? formatGrade(weightedTotals[student.id]) : '-' }}
+                                    </template>
                                     <template v-else>
                                         {{ formatGrade(student.grades[col.id]) }}
                                         <v-icon v-if="isManualEditable(student, col)" x-small class="grade-edit-icon ml-1" color="grey lighten-1">mdi-pencil</v-icon>
@@ -153,6 +156,23 @@ Vue.component('grades-grid', {
                 width: totalWidth + 'px',
                 minWidth: '100%'
             };
+        },
+        // Compute weighted total per student based on ponderaciones.
+        // Missing grades count as 0 (unlike Moodle which may exclude them and renormalize).
+        weightedTotals() {
+            const gradeableCols = this.columns.filter(c => !c.is_total && c.weight_pct > 0);
+            const totals = {};
+            this.students.forEach(student => {
+                let sum = 0;
+                gradeableCols.forEach(col => {
+                    const raw = student.grades[col.id];
+                    const grade = (raw === '-' || raw === null || raw === undefined) ? 0 : parseFloat(raw);
+                    const max   = parseFloat(col.max_grade) || 100;
+                    sum += (grade / max) * col.weight_pct;
+                });
+                totals[student.id] = Math.round(sum * 10) / 10;
+            });
+            return totals;
         }
     },
     created() {
