@@ -104,9 +104,23 @@ const ManageClass = {
                                                     <v-icon left x-small>mdi-video</v-icon>
                                                     Entrar
                                                 </v-btn>
-                                                
+
+                                                <!-- Recording Button -->
+                                                <v-btn
+                                                    v-if="session.attendance && session.attendance.recording_url"
+                                                    small
+                                                    depressed
+                                                    color="deep-purple darken-1"
+                                                    class="rounded-lg white--text ml-2"
+                                                    :href="session.attendance.recording_url"
+                                                    target="_blank"
+                                                >
+                                                    <v-icon left x-small>mdi-play-circle-outline</v-icon>
+                                                    Ver Grabaci&oacute;n
+                                                </v-btn>
+
                                                 <v-spacer></v-spacer>
-                                                
+
                                                 <!-- Attendance QR Button -->
                                                 <v-btn
                                                     v-if="session.attendance && session.attendance.has_qr"

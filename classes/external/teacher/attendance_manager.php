@@ -294,6 +294,7 @@ class attendance_manager extends external_api {
 
         // Load BBB mapping by attendance session so all modalities can use the same "Entrar" flow.
         $bbbBySessionId = [];
+        $recordingUrlByInstance = [];
         $hasguestlogin = false;
         if (!empty($sessions)) {
             $sessionids = array_keys($sessions);
@@ -377,6 +378,36 @@ class attendance_manager extends external_api {
                     $bbbBySessionId[$sid] = $meta;
                 }
             }
+
+            // Build a map of BBB instance ID -> recording URL for past sessions.
+            $allInstanceIds = [];
+            foreach ($bbbmetaByCmid as $meta) {
+                if (!empty($meta['instance'])) {
+                    $allInstanceIds[] = (int)$meta['instance'];
+                }
+            }
+            foreach ($bbbmetaByInstance as $iid => $meta) {
+                $allInstanceIds[] = (int)$iid;
+            }
+            $allInstanceIds = array_values(array_unique(array_filter($allInstanceIds)));
+
+            if (!empty($allInstanceIds)) {
+                list($instinsql, $instparams) = $DB->get_in_or_equal($allInstanceIds, SQL_PARAMS_NAMED, 'rinst');
+                // Keyed by id so all rows are returned; ORDER BY timecreated DESC means the
+                // first occurrence per bigbluebuttonbnid is the most recent recording.
+                $recsql = "SELECT id, bigbluebuttonbnid, recordingid
+                             FROM {bigbluebuttonbn_recordings}
+                            WHERE bigbluebuttonbnid $instinsql
+                              AND status IN (2, 3)
+                         ORDER BY timecreated DESC";
+                $recrows = $DB->get_records_sql($recsql, $instparams);
+                foreach ($recrows as $rec) {
+                    $iid = (int)$rec->bigbluebuttonbnid;
+                    if (!isset($recordingUrlByInstance[$iid])) {
+                        $recordingUrlByInstance[$iid] = 'https://bbb.isi.edu.pa/playback/presentation/2.3/' . $rec->recordingid;
+                    }
+                }
+            }
         }
         
         // Format for frontend
@@ -397,6 +428,7 @@ class attendance_manager extends external_api {
             $item->join_url = '';
             $item->guest_url = '';
             $item->bbb_cmid = 0;
+            $item->recording_url = '';
             $bbbmeta = $bbbBySessionId[(int)$s->id] ?? null;
             if ($bbbmeta && !empty($bbbmeta['cmid'])) {
                 $item->bbb_cmid = (int)$bbbmeta['cmid'];
@@ -404,8 +436,11 @@ class attendance_manager extends external_api {
                 if ($hasguestlogin && !empty($bbbmeta['guest'])) {
                     $item->guest_url = $CFG->wwwroot . '/mod/bigbluebuttonbn/guest_login.php?id=' . (int)$bbbmeta['cmid'];
                 }
+                if (!empty($bbbmeta['instance']) && isset($recordingUrlByInstance[(int)$bbbmeta['instance']])) {
+                    $item->recording_url = $recordingUrlByInstance[(int)$bbbmeta['instance']];
+                }
             }
-             
+
             $result[] = $item;
         }
 
