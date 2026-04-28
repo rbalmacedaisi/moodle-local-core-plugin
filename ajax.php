@@ -4820,12 +4820,14 @@ try {
             // Determine intro/description field (usually 'intro')
             $intro = isset($module_instance->intro) ? $module_instance->intro : '';
             
+            $cm_vis = $DB->get_record('course_modules', ['id' => $cm->id], 'id,visible,visibleold', MUST_EXIST);
             $activity_data = [
                 'id' => $cm->id,
                 'name' => $cm->name,
                 'modname' => $cm->modname,
                 'intro' => $intro,
-                'visible' => (bool)$cm->visible,
+                'visible' => (bool)$cm_vis->visible,
+                'visibleold' => (bool)$cm_vis->visibleold,
                 'tags' => array_values($tagNames),
                 'duedate' => isset($module_instance->duedate) ? (int)$module_instance->duedate : 0,
                 'allowsubmissionsfromdate' => isset($module_instance->allowsubmissionsfromdate) ? (int)$module_instance->allowsubmissionsfromdate : 0,
@@ -4949,8 +4951,15 @@ try {
             if (!empty($tags)) {
                 $tags = [reset($tags)];
             }
-            $visible = required_param('visible', PARAM_BOOL);
-            
+            // visible is optional — if not sent, keep the module's current intended visibility.
+            // We use visibleold when available because section-hiding cascades set visible=0
+            // on modules temporarily; visibleold preserves the intended state. This prevents
+            // the edit form from permanently hiding a module when it was only section-hidden.
+            $cm_row = $DB->get_record('course_modules', ['id' => $cmid], 'id,visible,visibleold', MUST_EXIST);
+            $intended_visible = ($cm_row->visible || $cm_row->visibleold) ? 1 : 0;
+            $visible_raw = isset($_POST['visible']) ? optional_param('visible', $intended_visible, PARAM_BOOL) : null;
+            $visible = ($visible_raw !== null) ? (bool)$visible_raw : (bool)$intended_visible;
+
             // New optional params
             $duedate = optional_param('duedate', null, PARAM_INT);
             $allowsubmissionsfromdate = optional_param('allowsubmissionsfromdate', null, PARAM_INT);

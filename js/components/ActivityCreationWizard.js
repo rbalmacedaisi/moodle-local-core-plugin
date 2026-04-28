@@ -146,6 +146,8 @@ const ActivityCreationWizard = {
                             v-model="formData.visible"
                             label="Visible para estudiantes"
                             color="success"
+                            :disabled="loadingDetails"
+                            :loading="loadingDetails"
                         ></v-switch>
 
                         <!-- Archivos adjuntos -->
@@ -230,6 +232,7 @@ const ActivityCreationWizard = {
                 forummessage: '',
                 forumcreateinitial: true
             },
+            loadingDetails: false,
             tagSearchInput: '',
             courseTags: [],
             resourceFiles: [],
@@ -479,6 +482,7 @@ const ActivityCreationWizard = {
             }
         },
         async fetchActivityDetails(cmid) {
+            this.loadingDetails = true;
             try {
                 const response = await axios.post(window.wsUrl, {
                     action: 'local_grupomakro_get_activity_details',
@@ -493,7 +497,9 @@ const ActivityCreationWizard = {
                         (act.tags && act.tags.length > 0) ? act.tags[0] : ''
                     );
                     this.tagSearchInput = this.formData.tags;
-                    this.formData.visible = act.visible;
+                    // Use visibleold (intended state) if available; fall back to visible.
+                    // This avoids showing visible=false when the module was hidden by section cascade.
+                    this.formData.visible = act.visibleold != null ? !!act.visibleold : !!act.visible;
                     this.formData.duedate = this.formatTimestampForDatetimeLocal(act.duedate);
                     this.formData.allowsubmissionsfromdate = this.formatTimestampForDatetimeLocal(act.allowsubmissionsfromdate);
                     this.formData.timeopen = this.formatTimestampForDatetimeLocal(act.timeopen);
@@ -503,10 +509,11 @@ const ActivityCreationWizard = {
                     if (act.files && act.files.length > 0) {
                         this.existingFiles = act.files;
                     }
-
                 }
             } catch (e) {
                 console.error("Error loading details", e);
+            } finally {
+                this.loadingDetails = false;
             }
         },
         async fetchCourseTags() {
