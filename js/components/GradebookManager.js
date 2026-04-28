@@ -32,8 +32,8 @@ const GradebookManager = {
 
                 <div class="d-flex align-center pa-2 white elevation-1">
                      <div class="subtitle-2 ml-2 grey--text">
-                        Total Ponderación: 
-                        <span :class="totalWeight === 100 ? 'success--text' : 'error--text'" class="font-weight-bold ml-1">
+                        Total Ponderación:
+                        <span :class="totalWeight === 100 ? 'success--text' : 'warning--text'" class="font-weight-bold ml-1">
                             {{ totalWeight.toFixed(2) }}%
                         </span>
                      </div>
@@ -45,8 +45,8 @@ const GradebookManager = {
                 </div>
 
                 <v-card-text class="pa-4 flex-grow-1 overflow-y-auto" style="height: 500px;">
-                    <v-alert v-if="Math.abs(totalWeight - 100) > 0.01" type="error" text outlined class="mb-4" dense>
-                        <strong>Atención:</strong> La suma de las ponderaciones es {{ totalWeight.toFixed(2) }}%. Debe ser 100%.
+                    <v-alert v-if="Math.abs(totalWeight - 100) > 0.01" type="warning" text outlined class="mb-4" dense>
+                        <strong>Atención:</strong> La suma de las ponderaciones es {{ totalWeight.toFixed(2) }}%. Puedes guardar de todas formas; ajusta los porcentajes cuando tengas todas las actividades creadas.
                     </v-alert>
 
                     <v-card outlined class="mb-4">
@@ -124,6 +124,7 @@ const GradebookManager = {
                                                     outlined
                                                     hide-details
                                                     style="max-width: 80px;"
+                                                    :disabled="item.is_locked"
                                                     @input="onPercentageInput(item)"
                                                 ></v-text-field>
                                                 <span class="ml-1 grey--text">%</span>
@@ -350,45 +351,88 @@ const GradebookManager = {
             }
         },
         calculateTotal() {
-            const sumWeights = this.items.reduce((sum, item) => sum + (parseFloat(item.weight) || 0), 0);
+            const lockedItems   = this.items.filter(i => i.is_locked);
+            const unlockedItems = this.items.filter(i => !i.is_locked);
 
-            if (sumWeights <= 0) {
-                this.items.forEach(item => { item.percentage = 0; });
-                this.totalWeight = 0;
-                return;
-            }
+            if (lockedItems.length === 0) {
+                // No locked items: classic normalization — all items share 100%
+                const sumWeights = unlockedItems.reduce((sum, i) => sum + (parseFloat(i.weight) || 0), 0);
 
-            let runningTotal = 0;
-            let lastUnlockedWeightyIndex = -1;
+                if (sumWeights <= 0) {
+                    this.items.forEach(item => { item.percentage = 0; });
+                    this.totalWeight = 0;
+                    return;
+                }
 
-            this.items.forEach((item, index) => {
-                const weight = parseFloat(item.weight) || 0;
-                if (weight > 0) {
-                    item.percentage = parseFloat(((weight / sumWeights) * 100).toFixed(2));
-                    runningTotal += item.percentage;
-                    if (!item.is_locked) {
-                        lastUnlockedWeightyIndex = index;
+                let runningTotal = 0;
+                let lastWeightyItem = null;
+
+                unlockedItems.forEach(item => {
+                    const w = parseFloat(item.weight) || 0;
+                    if (w > 0) {
+                        item.percentage = parseFloat(((w / sumWeights) * 100).toFixed(2));
+                        runningTotal += item.percentage;
+                        lastWeightyItem = item;
+                    } else {
+                        item.percentage = 0;
+                    }
+                });
+
+                // Fix floating-point rounding on the last non-zero item
+                if (lastWeightyItem && Math.abs(runningTotal - 100) > 0.001) {
+                    lastWeightyItem.percentage = parseFloat((lastWeightyItem.percentage + (100 - runningTotal)).toFixed(2));
+                }
+
+                this.totalWeight = 100;
+            } else {
+                // Locked items exist: their percentages are NEVER changed here.
+                // Distribute the remaining budget proportionally among unlocked items.
+                const lockedSum = lockedItems.reduce((sum, i) => sum + (parseFloat(i.percentage) || 0), 0);
+                const budget    = parseFloat((100 - lockedSum).toFixed(2));
+
+                const unlockedWeightSum = unlockedItems.reduce((sum, i) => sum + (parseFloat(i.weight) || 0), 0);
+
+                if (budget > 0 && unlockedWeightSum > 0) {
+                    let runningTotal = 0;
+                    let lastWeightyItem = null;
+
+                    unlockedItems.forEach(item => {
+                        const w = parseFloat(item.weight) || 0;
+                        if (w > 0) {
+                            item.percentage = parseFloat(((w / unlockedWeightSum) * budget).toFixed(2));
+                            runningTotal += item.percentage;
+                            lastWeightyItem = item;
+                        } else {
+                            item.percentage = 0;
+                        }
+                    });
+
+                    // Fix rounding on the last unlocked item with weight
+                    if (lastWeightyItem && Math.abs(runningTotal - budget) > 0.001) {
+                        lastWeightyItem.percentage = parseFloat((lastWeightyItem.percentage + (budget - runningTotal)).toFixed(2));
                     }
                 } else {
-                    item.percentage = 0;
+                    // Locked items consume 100% (or more), or no unlocked item has a weight yet
+                    unlockedItems.forEach(item => { item.percentage = 0; });
                 }
-            });
 
-            // Adjust rounding diff (e.g. 99.99 -> 100.00) but ONLY on an UNLOCKED item
-            if (lastUnlockedWeightyIndex !== -1 && runningTotal !== 100) {
-                const diff = parseFloat((100 - runningTotal).toFixed(2));
-                this.items[lastUnlockedWeightyIndex].percentage = parseFloat((this.items[lastUnlockedWeightyIndex].percentage + diff).toFixed(2));
+                // Actual total may differ from 100 — that's shown as a warning
+                this.totalWeight = parseFloat(
+                    this.items.reduce((sum, i) => sum + (parseFloat(i.percentage) || 0), 0).toFixed(2)
+                );
             }
-
-            this.totalWeight = 100;
         },
         onPercentageInput(item) {
             const newPercentage = parseFloat(item.percentage) || 0;
-            // The item being edited is effectively "temporarily locked" for this calculation
-            const others = this.items.filter(i => i.id !== item.id && !i.is_locked);
-            const lockedOthers = this.items.filter(i => i.id !== item.id && i.is_locked);
 
-            const lockedSum = lockedOthers.reduce((sum, i) => sum + (parseFloat(i.percentage) || 0), 0);
+            // Sync weight so calculateTotal() can use it for proportional distribution
+            item.weight = newPercentage;
+
+            const others       = this.items.filter(i => i.id !== item.id && !i.is_locked);
+            const lockedOthers = this.items.filter(i => i.id !== item.id && i.is_locked);
+            const lockedSum    = lockedOthers.reduce((sum, i) => sum + (parseFloat(i.percentage) || 0), 0);
+
+            // Budget left for the other (passive) unlocked items
             const targetRemainingWeight = 100 - newPercentage - lockedSum;
 
             if (others.length > 0 && targetRemainingWeight >= 0) {
@@ -400,21 +444,19 @@ const GradebookManager = {
                         o.weight = parseFloat(((parseFloat(o.weight) || 0) * scale).toFixed(2));
                     });
                 } else {
-                    // Distribute equally if all others were 0
-                    const equalShare = targetRemainingWeight / others.length;
-                    others.forEach(o => {
-                        o.weight = parseFloat(equalShare.toFixed(2));
-                    });
+                    const equalShare = others.length > 0 ? targetRemainingWeight / others.length : 0;
+                    others.forEach(o => { o.weight = parseFloat(equalShare.toFixed(2)); });
                 }
-            } else if (targetRemainingWeight < 0) {
-                // If sum exceeds 100 due to locked items, we might need to alert or revert
-                // For now, we allow it but calculateTotal will show total > 100
+
+                // Recalculate percentages properly (locked items won't be touched)
+                this.calculateTotal();
+            } else {
+                // Budget negative (locked items + this item exceed 100%) or no other unlocked items.
+                // Don't normalize; just reflect the new total so the warning appears.
+                this.totalWeight = parseFloat(
+                    this.items.reduce((sum, i) => sum + (parseFloat(i.percentage) || 0), 0).toFixed(2)
+                );
             }
-
-            // Force current item weight to match percentage
-            item.weight = newPercentage;
-
-            this.calculateTotal();
         },
         async saveWeights() {
             this.saving = true;
