@@ -184,16 +184,29 @@ const ManageClass = {
                                         <v-expansion-panel-content :class="$vuetify.theme.dark ? '' : 'white'">
                                             <v-list two-line>
                                                 <template v-for="(activity, i) in group">
-                                                    <v-list-item :key="activity.id">
-                                                        <v-list-item-avatar>
+                                                    <v-list-item :key="activity.id" :class="activity.visible === false ? 'grey lighten-4' : ''">
+                                                        <v-list-item-avatar :style="activity.visible === false ? 'opacity:0.45' : ''">
                                                             <v-img :src="activity.modicon"></v-img>
                                                         </v-list-item-avatar>
                                                         <v-list-item-content>
-                                                            <v-list-item-title class="font-weight-medium">{{ activity.name }}</v-list-item-title>
+                                                            <v-list-item-title class="font-weight-medium" :class="activity.visible === false ? 'grey--text' : ''">
+                                                                {{ activity.name }}
+                                                                <v-chip x-small color="orange" dark class="ml-1" v-if="activity.visible === false">
+                                                                    <v-icon x-small left>mdi-eye-off-outline</v-icon>Oculta
+                                                                </v-chip>
+                                                            </v-list-item-title>
                                                             <v-list-item-subtitle class="text-caption grey--text">{{ activity.modname }}</v-list-item-subtitle>
                                                         </v-list-item-content>
                                                         <v-list-item-action class="d-flex flex-row">
-                                                            <v-tooltip bottom v-if="activity.modname === 'quiz'">
+                                                            <v-tooltip bottom v-if="activity.visible === false">
+                                                                <template v-slot:activator="{ on, attrs }">
+                                                                    <v-btn icon small color="orange" class="mr-2" :loading="!!activity._toggling" @click.stop="restoreActivityVisibility(activity)" v-bind="attrs" v-on="on">
+                                                                        <v-icon>mdi-eye-outline</v-icon>
+                                                                    </v-btn>
+                                                                </template>
+                                                                <span>Hacer visible</span>
+                                                            </v-tooltip>
+                                                            <v-tooltip bottom v-if="activity.modname === 'quiz' && activity.visible !== false">
                                                                 <template v-slot:activator="{ on, attrs }">
                                                                     <v-btn icon small color="primary" class="mr-2" @click.stop="openQuizQuestions(activity)" v-bind="attrs" v-on="on">
                                                                         <v-icon>mdi-format-list-checks</v-icon>
@@ -201,7 +214,7 @@ const ManageClass = {
                                                                 </template>
                                                                 <span>Gestionar Preguntas</span>
                                                             </v-tooltip>
-                                                            <v-tooltip bottom v-if="activity.modname === 'forum'">
+                                                            <v-tooltip bottom v-if="activity.modname === 'forum' && activity.visible !== false">
                                                                 <template v-slot:activator="{ on, attrs }">
                                                                     <v-btn icon small color="indigo" class="mr-2" @click.stop="openForumActivity(activity)" v-bind="attrs" v-on="on">
                                                                         <v-icon>mdi-forum-outline</v-icon>
@@ -1319,6 +1332,32 @@ const ManageClass = {
         canDeleteActivity(activity) {
             if (!activity || !activity.modname) return false;
             return activity.modname !== 'attendance' && activity.modname !== 'bigbluebuttonbn';
+        },
+        async restoreActivityVisibility(activity) {
+            this.$set(activity, '_toggling', true);
+            try {
+                const response = await axios.post(window.wsUrl, {
+                    action: 'local_grupomakro_update_activity',
+                    args: {
+                        cmid: activity.id,
+                        name: activity.name,
+                        intro: '',
+                        tags: '',
+                        visible: 1,
+                    },
+                    ...window.wsStaticParams
+                });
+                if (response.data && response.data.status === 'success') {
+                    this.$set(activity, 'visible', true);
+                } else {
+                    alert('No se pudo restaurar la visibilidad: ' + (response.data && response.data.message || 'Error desconocido'));
+                }
+            } catch (e) {
+                console.error('[GMK] restoreActivityVisibility error', e);
+                alert('Error de conexión al restaurar visibilidad.');
+            } finally {
+                this.$set(activity, '_toggling', false);
+            }
         },
         async deleteActivity(activity) {
             if (!this.canDeleteActivity(activity)) {

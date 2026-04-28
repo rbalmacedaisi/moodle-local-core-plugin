@@ -3195,14 +3195,12 @@ try {
             $activities = [];
 
             foreach ($cms as $cm) {
-                // Use $cm->visible instead of $cm->uservisible because the instructor may not be
-                // enrolled in the Moodle course (enrollment is managed via gmk_class, not mdl_enrol).
-                // This is a management endpoint â€” the teacher should see all published activities.
-                if (!$cm->visible) continue;
-                // Exclude label
+                // Exclude label -- no grading or content to manage
                 if ($cm->modname === 'label') continue;
+                // Management endpoint: show ALL activities including hidden ones so the teacher
+                // can see and restore accidentally-hidden activities without leaving the plugin.
 
-                // Attendance and BBB are "default" activities ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â always placed in General (no tags)
+                // Attendance and BBB are default activities -- always placed in General (no tags)
                 $is_general = ($cm->modname === 'attendance' || $cm->modname === 'bigbluebuttonbn');
 
                 if ($is_general) {
@@ -3213,13 +3211,14 @@ try {
                 }
 
                 $activities[] = [
-                    'id' => $cm->id,
-                    'name' => $cm->name,
-                    'modname' => $cm->modname,
-                    'modicon' => $cm->get_icon_url()->out(),
-                    'url' => $cm->url ? $cm->url->out(false) : '',
-                    'tags' => array_values($tagNames),
-                    'is_general' => $is_general
+                    'id'         => $cm->id,
+                    'name'       => $cm->name,
+                    'modname'    => $cm->modname,
+                    'modicon'    => $cm->get_icon_url()->out(),
+                    'url'        => $cm->url ? $cm->url->out(false) : '',
+                    'tags'       => array_values($tagNames),
+                    'is_general' => $is_general,
+                    'visible'    => (bool)$cm->visible,
                 ];
             }
             
