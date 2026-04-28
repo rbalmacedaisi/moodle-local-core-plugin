@@ -76,6 +76,8 @@ class get_quiz_attempt_data extends external_api {
                 $qitem->currentgrade = $qa->get_mark() !== null ? (float)$qa->get_mark() : 0.0;
                 $qitem->state = (string)$state;
                 $qitem->needsgrading = $state->is_finished() && !$state->is_graded();
+                // Return the most recent manual comment so QuickGrader can pre-populate it.
+                $qitem->currentcomment = (string)($qa->get_manual_comment()[0] ?? '');
                 
                 // Render question HTML
                 // We wrap it in a try-catch because question rendering can be fragile
@@ -117,7 +119,8 @@ class get_quiz_attempt_data extends external_api {
                             'currentgrade' => new external_value(PARAM_FLOAT, 'Current Grade', VALUE_OPTIONAL),
                             'state' => new external_value(PARAM_TEXT, 'State'),
                             'needsgrading' => new external_value(PARAM_BOOL, 'Needs Grading?'),
-                            'html' => new external_value(PARAM_RAW, 'Rendered Question HTML')
+                            'html' => new external_value(PARAM_RAW, 'Rendered Question HTML'),
+                            'currentcomment' => new external_value(PARAM_RAW, 'Existing manual comment', VALUE_DEFAULT, '')
                         )
                     )
                 )

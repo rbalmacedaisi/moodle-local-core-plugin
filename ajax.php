@@ -758,7 +758,7 @@ try {
                 ];
             }
 
-            // Fetch the latest saved grade for this student/assignment so the UI can pre-populate it.
+            // Fetch the latest saved grade and feedback for this student/assignment.
             $_ag = $DB->get_record(
                 'assign_grades',
                 ['assignment' => (int)$assignmentid, 'userid' => (int)$studentid],
@@ -768,6 +768,20 @@ try {
             $_currentgrade = ($_ag && $_ag->grade !== null && (float)$_ag->grade >= 0)
                 ? (float)$_ag->grade
                 : null;
+            // Read existing feedback comment from assignfeedback_comments so QuickGrader
+            // can pre-populate the feedback field when re-opening a graded submission.
+            $_currentfeedback = '';
+            if ($_ag) {
+                $_fbrec = $DB->get_record(
+                    'assignfeedback_comments',
+                    ['assignment' => (int)$assignmentid, 'grade' => (int)$_ag->id],
+                    'commenttext',
+                    IGNORE_MISSING
+                );
+                if ($_fbrec) {
+                    $_currentfeedback = strip_tags((string)$_fbrec->commenttext);
+                }
+            }
 
             $response = [
                 'status' => 'success',
@@ -780,7 +794,8 @@ try {
                     'submissiontexthtml' => (string)$selectedpayload['submissiontexthtml'],
                     'submissiontextplain' => (string)$selectedpayload['submissiontextplain'],
                     'files' => (array)$selectedpayload['files'],
-                    'currentgrade' => $_currentgrade,
+                    'currentgrade'    => $_currentgrade,
+                    'currentfeedback' => $_currentfeedback,
                     'debug' => [
                         'selectionstrategy' => (string)$selectionstrategy,
                         'requestedsubmissionid' => (int)$submissionid,

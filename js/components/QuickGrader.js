@@ -332,7 +332,7 @@ const QuickGrader = {
                 const q = this.quizData.questions[newIdx];
                 // Use != null so that a 0-point auto-graded answer shows "0" and not ""
                 this.grade = (q.currentgrade != null) ? q.currentgrade : '';
-                this.feedback = '';
+                this.feedback = q.currentcomment || '';
             }
         }
     },
@@ -465,10 +465,10 @@ const QuickGrader = {
                         const firstNeeds = this.quizData.questions.findIndex(q => q.needsgrading);
                         const firstIdx = firstNeeds !== -1 ? firstNeeds : 0;
                         this.selectedSlotIndex = firstIdx;
-                        // Pre-populate grade — watcher may not fire if index was already 0
+                        // Pre-populate grade and comment — watcher may not fire if index was already 0
                         const q = this.quizData.questions[firstIdx];
                         this.grade = (q && q.currentgrade != null) ? q.currentgrade : '';
-                        this.feedback = '';
+                        this.feedback = (q && q.currentcomment) ? q.currentcomment : '';
                     }
                 } else {
                     this.quizError = response.data.message || "Error al cargar datos del cuestionario.";
@@ -507,9 +507,12 @@ const QuickGrader = {
                         submissiontextplain: detail.submissiontextplain || '',
                         files: Array.isArray(detail.files) ? detail.files : []
                     });
-                    // Pre-populate grade if Moodle already has one saved for this submission
+                    // Pre-populate grade and feedback if Moodle already has them saved.
                     if (detail.currentgrade != null) {
                         this.grade = detail.currentgrade;
+                    }
+                    if (detail.currentfeedback) {
+                        this.feedback = detail.currentfeedback;
                     }
                 } else {
                     console.warn('[GMK] assign detail not loaded', response.data);

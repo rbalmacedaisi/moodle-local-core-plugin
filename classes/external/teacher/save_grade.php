@@ -85,6 +85,27 @@ class save_grade extends external_api {
         require_once($CFG->dirroot . '/mod/assign/lib.php');
         assign_update_grades($assignment_record, $params['studentid']);
 
+        // 5. Write feedback to grade_grades.feedback so the student gradebook shows it.
+        // Moodle's assign API stores feedback in assignfeedback_comments, not grade_grades,
+        // so we must propagate it manually.
+        if ($params['feedback'] !== '') {
+            $gradeitem = $DB->get_record_sql(
+                "SELECT id FROM {grade_items}
+                  WHERE itemtype = 'mod' AND itemmodule = 'assign'
+                    AND iteminstance = :assignid AND courseid = :courseid",
+                ['assignid' => $params['assignmentid'], 'courseid' => $assignment_record->course]
+            );
+            if ($gradeitem) {
+                $DB->execute(
+                    "UPDATE {grade_grades}
+                        SET feedback = :fb, feedbackformat = :fmt
+                      WHERE itemid = :itemid AND userid = :userid",
+                    ['fb' => $params['feedback'], 'fmt' => FORMAT_HTML,
+                     'itemid' => $gradeitem->id, 'userid' => $params['studentid']]
+                );
+            }
+        }
+
         return array(
             'status'  => 'success',
             'message' => 'Calificación guardada correctamente',

@@ -76,7 +76,29 @@ class save_quiz_grading extends external_api {
             // Pass no $attempts so quiz_save_best_grade fetches fresh records from DB
             // (avoids using the stale attempt object that still has old sumgrades).
             quiz_save_best_grade($attemptobj->get_quiz(), $attemptobj->get_userid());
-            
+
+            // Write comment to grade_grades.feedback so the student gradebook shows it.
+            // quiz_save_best_grade updates finalgrade but does not propagate per-question
+            // manual comments to grade_grades.feedback, so we set it explicitly.
+            if ($params['comment'] !== '') {
+                $quiz = $attemptobj->get_quiz();
+                $gradeitem = $DB->get_record_sql(
+                    "SELECT id FROM {grade_items}
+                      WHERE itemtype = 'mod' AND itemmodule = 'quiz'
+                        AND iteminstance = :quizid AND courseid = :courseid",
+                    ['quizid' => $quiz->id, 'courseid' => $quiz->course]
+                );
+                if ($gradeitem) {
+                    $DB->execute(
+                        "UPDATE {grade_grades}
+                            SET feedback = :fb, feedbackformat = :fmt
+                          WHERE itemid = :itemid AND userid = :userid",
+                        ['fb' => $params['comment'], 'fmt' => FORMAT_HTML,
+                         'itemid' => $gradeitem->id, 'userid' => $attemptobj->get_userid()]
+                    );
+                }
+            }
+
             return array(
                 'status' => 'success',
                 'message' => 'Calificación guardada correctamente'
