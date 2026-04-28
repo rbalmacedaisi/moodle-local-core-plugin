@@ -8291,7 +8291,7 @@ function gmk_get_pending_grading_items($userid, $classid = 0, $status = 'pending
 
     $sql_quiz = "SELECT quiza.id as submissionid, quiza.userid, quiza.quiz as itemid, quiza.timefinish as submissiontime,
                         q.name as itemname, q.course as courseid, q.timeclose as duedate,
-                        c.fullname as coursename, 
+                        c.fullname as coursename,
                         u.firstname, u.lastname, u.email, u.picture, u.imagealt,
                         u.firstnamephonetic, u.lastnamephonetic, u.middlename, u.alternatename
                  FROM {quiz_attempts} quiza
@@ -8299,13 +8299,20 @@ function gmk_get_pending_grading_items($userid, $classid = 0, $status = 'pending
                  JOIN {course} c ON c.id = q.course
                  JOIN {user} u ON u.id = quiza.userid
                  WHERE quiza.state = 'finished'
+                   AND quiza.attempt = (
+                       SELECT MAX(inner_qa.attempt)
+                       FROM {quiz_attempts} inner_qa
+                       WHERE inner_qa.quiz = quiza.quiz
+                         AND inner_qa.userid = quiza.userid
+                         AND inner_qa.state = 'finished'
+                   )
                    AND $quiz_needsgrading_condition (
-                       SELECT 1 FROM {question_attempts} qa 
+                       SELECT 1 FROM {question_attempts} qa
                        JOIN {question_attempt_steps} qas ON qas.questionattemptid = qa.id
-                       WHERE qa.questionusageid = quiza.uniqueid 
+                       WHERE qa.questionusageid = quiza.uniqueid
                          AND qas.sequencenumber = (
-                             SELECT MAX(inner_qas.sequencenumber) 
-                             FROM {question_attempt_steps} inner_qas 
+                             SELECT MAX(inner_qas.sequencenumber)
+                             FROM {question_attempt_steps} inner_qas
                              WHERE inner_qas.questionattemptid = qa.id
                          )
                          AND qas.state = 'needsgrading'
