@@ -3409,14 +3409,22 @@ try {
                     $details['questiontext'] = $text;
                 }
 
-                // For truefalse: derive correctAnswer ('1'=True, '0'=False) from the answer with fraction=1.
+                // For truefalse: derive correctAnswer ('1'=True, '0'=False).
+                // Primary: use options->trueanswer (the ID of the 'True' answer) and check its fraction.
+                // Raw answers are keyed by answer ID when returned by load_question_data.
                 if ($qdata->qtype === 'truefalse') {
                     $details['correctAnswer'] = '1'; // default
-                    foreach ($raw_answers as $_ans) {
-                        if ((float)($_ans->fraction ?? 0) >= 1.0) {
-                            $_ans_text = strtolower(trim((string)($_ans->answer ?? '')));
-                            $details['correctAnswer'] = ($_ans_text === 'true') ? '1' : '0';
-                            break;
+                    if (isset($qdata->options->trueanswer) && isset($raw_answers[$qdata->options->trueanswer])) {
+                        $true_ans = $raw_answers[$qdata->options->trueanswer];
+                        $details['correctAnswer'] = ((float)($true_ans->fraction ?? 0) >= 1.0) ? '1' : '0';
+                    } else {
+                        // Fallback: scan for the answer with fraction=1 and check its text
+                        foreach ($raw_answers as $_ans) {
+                            if ((float)($_ans->fraction ?? 0) >= 1.0) {
+                                $_ans_text = strtolower(trim((string)($_ans->answer ?? $_ans->text ?? '')));
+                                $details['correctAnswer'] = ($_ans_text === 'true') ? '1' : '0';
+                                break;
+                            }
                         }
                     }
                 }
