@@ -36,7 +36,6 @@ class save_grade extends external_api {
     public static function execute($assignmentid, $studentid, $grade, $feedback = '') {
         global $DB, $USER;
 
-        // Log incoming request
         self::log_error("INCOMING REQUEST", [
             'assignmentid' => $assignmentid,
             'studentid' => $studentid,
@@ -78,7 +77,6 @@ class save_grade extends external_api {
 
             $assign = new \assign($context_module, $cm, $course);
 
-            // 2. Prepare grade data with all required fields.
             $data = new stdClass();
             $data->grade            = $params['grade'];
             $data->attemptnumber    = -1;
@@ -102,22 +100,31 @@ class save_grade extends external_api {
                 'grade' => $params['grade']
             ]);
 
-            // 3. Save via Moodle assign API.
             $assign->save_grade($params['studentid'], $data);
 
             self::log_error("save_grade completed successfully");
 
-            // 4. Explicitly push the grade to the Moodle gradebook.
-            self::log_error("STEP 4: before require_once assign/lib.php");
-            require_once($CFG->dirroot . '/mod/assign/lib.php');
-            self::log_error("STEP 4: after require_once");
+            // 4. Push to gradebook - use @ to suppress errors if function doesn't exist
+            self::log_error("STEP 4: about to load assign/lib.php");
+            
+            $libfile = $CFG->dirroot . '/mod/assign/lib.php';
+            if (file_exists($libfile)) {
+                self::log_error("STEP 4: lib.php exists, including...");
+                // Use @include to prevent fatal errors from stopping execution
+                $includeresult = @include_once($libfile);
+                self::log_error("STEP 4: include_once result: " . ($includeresult ? 'loaded' : 'already loaded or failed'));
+            } else {
+                self::log_error("STEP 4: ERROR - lib.php does NOT exist at: " . $libfile);
+            }
 
-            self::log_error("STEP 4: before assign_update_grades", [
-                'assignment_record_id' => $assignment_record->id,
-                'studentid' => $params['studentid']
-            ]);
-            assign_update_grades($assignment_record, $params['studentid']);
-            self::log_error("STEP 4: after assign_update_grades");
+            // Check if function exists before calling
+            if (function_exists('assign_update_grades')) {
+                self::log_error("STEP 4: assign_update_grades function exists, calling it...");
+                assign_update_grades($assignment_record, $params['studentid']);
+                self::log_error("STEP 4: assign_update_grades completed");
+            } else {
+                self::log_error("STEP 4: ERROR - assign_update_grades function does NOT exist after including lib.php");
+            }
 
             // 5. Write feedback to grade_grades.feedback
             if ($params['feedback'] !== '') {
@@ -154,8 +161,7 @@ class save_grade extends external_api {
                 'message' => $e->getMessage(),
                 'code' => $e->getCode(),
                 'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString()
+                'line' => $e->getLine()
             ]);
             throw $e;
         }
