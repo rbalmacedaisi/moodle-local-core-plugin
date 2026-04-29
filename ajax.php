@@ -768,18 +768,28 @@ try {
             $_currentgrade = ($_ag && $_ag->grade !== null && (float)$_ag->grade >= 0)
                 ? (float)$_ag->grade
                 : null;
-            // Read existing feedback comment from assignfeedback_comments so QuickGrader
-            // can pre-populate the feedback field when re-opening a graded submission.
+            // Read existing feedback comment from grade_grades for UI display.
+            // Primary source: grade_grades.feedback (always populated by save_grade)
             $_currentfeedback = '';
             if ($_ag) {
-                $_fbrec = $DB->get_record(
-                    'assignfeedback_comments',
-                    ['assignment' => (int)$assignmentid, 'grade' => (int)$_ag->id],
-                    'commenttext',
+                // Get gradeitem for this assignment to find the grade_grades record
+                $gradeitem = $DB->get_record_sql(
+                    "SELECT id FROM {grade_items}
+                      WHERE itemtype = 'mod' AND itemmodule = 'assign'
+                        AND iteminstance = :assignid AND courseid = :courseid",
+                    ['assignid' => (int)$assignmentid, 'courseid' => (int)$course->id],
                     IGNORE_MISSING
                 );
-                if ($_fbrec) {
-                    $_currentfeedback = strip_tags((string)$_fbrec->commenttext);
+                if ($gradeitem) {
+                    $gg = $DB->get_record(
+                        'grade_grades',
+                        ['itemid' => $gradeitem->id, 'userid' => (int)$studentid],
+                        'feedback',
+                        IGNORE_MISSING
+                    );
+                    if ($gg && !empty($gg->feedback)) {
+                        $_currentfeedback = strip_tags((string)$gg->feedback);
+                    }
                 }
             }
 
