@@ -25,91 +25,140 @@ class save_grade extends external_api {
         );
     }
 
+    private static function log_error($message, $context = []) {
+        $logfile = '/var/www/html/moodle/local/grupomakro_core/save_grade_error.log';
+        $timestamp = date('Y-m-d H:i:s');
+        $context_str = !empty($context) ? json_encode($context) : '';
+        $log_entry = "[{$timestamp}] {$message} {$context_str}\n";
+        @file_put_contents($logfile, $log_entry, FILE_APPEND);
+    }
+
     public static function execute($assignmentid, $studentid, $grade, $feedback = '') {
         global $DB, $USER;
 
-        $params = self::validate_parameters(self::execute_parameters(), array(
+        // Log incoming request
+        self::log_error("INCOMING REQUEST", [
             'assignmentid' => $assignmentid,
             'studentid' => $studentid,
             'grade' => $grade,
-            'feedback' => $feedback
-        ));
-        
-        $context = \context_system::instance(); // Or module context
-        // self::validate_context($context); // Ideally validate module context
+            'feedback_length' => strlen($feedback ?? '')
+        ]);
 
-        // 1. Load the assignment
-        $cm = get_coursemodule_from_instance('assign', $params['assignmentid']);
-        if (!$cm) {
-            throw new \moodle_exception('invalidcoursemodule');
-        }
-        $context_module = \context_module::instance($cm->id);
-        self::validate_context($context_module);
-        
-        require_capability('mod/assign:grade', $context_module);
+        try {
+            $params = self::validate_parameters(self::execute_parameters(), array(
+                'assignmentid' => $assignmentid,
+                'studentid' => $studentid,
+                'grade' => $grade,
+                'feedback' => $feedback ?? ''
+            ));
+            
+            self::log_error("params validated", $params);
 
-        $assignment_record = $DB->get_record('assign', array('id' => $params['assignmentid']), '*', MUST_EXIST);
-        $course = $DB->get_record('course', array('id' => $assignment_record->course), '*', MUST_EXIST);
-
-        $assign = new \assign($context_module, $cm, $course);
-
-        // 2. Prepare grade data with all required fields.
-        $data = new stdClass();
-        $data->grade            = $params['grade'];
-        $data->attemptnumber    = -1;   // -1 = current (latest) attempt
-        $data->applytoall       = 0;    // not a team/group submission
-        $data->addattempt       = 0;    // do not add a new attempt
-        $data->sendstudentnotifications = false;
-
-        // If the assignment uses marking workflow, set state to 'released' so the
-        // grade becomes immediately visible to the student.
-        if (!empty($assignment_record->markingworkflow)) {
-            $data->workflowstate = ASSIGN_MARKING_WORKFLOW_STATE_RELEASED;
-        } else {
-            $data->workflowstate = '';
-        }
-
-        // Feedback comments plugin data.
-        $data->assignfeedbackcomments_editor = [
-            'text'   => $params['feedback'],
-            'format' => FORMAT_HTML,
-        ];
-
-        // 3. Save via Moodle assign API.
-        $assign->save_grade($params['studentid'], $data);
-
-        // 4. Explicitly push the grade to the Moodle gradebook.
-        // save_grade() calls update_grade() internally, but in some AJAX / workflow
-        // scenarios the gradebook entry is not flushed.  Calling assign_update_grades()
-        // here guarantees the grade_grades table is updated and the student sees it.
-        require_once($CFG->dirroot . '/mod/assign/lib.php');
-        assign_update_grades($assignment_record, $params['studentid']);
-
-        // 5. Write feedback to grade_grades.feedback so the student gradebook shows it.
-        // Moodle's assign API stores feedback in assignfeedback_comments, not grade_grades,
-        // so we must propagate it manually.
-        if ($params['feedback'] !== '') {
-            $gradeitem = $DB->get_record_sql(
-                "SELECT id FROM {grade_items}
-                  WHERE itemtype = 'mod' AND itemmodule = 'assign'
-                    AND iteminstance = :assignid AND courseid = :courseid",
-                ['assignid' => $params['assignmentid'], 'courseid' => $assignment_record->course]
-            );
-            if ($gradeitem) {
-                $DB->execute(
-                    "UPDATE {grade_grades}
-                        SET feedback = :fb, feedbackformat = :fmt
-                      WHERE itemid = :itemid AND userid = :userid",
-                    ['fb' => $params['feedback'], 'fmt' => FORMAT_HTML,
-                     'itemid' => $gradeitem->id, 'userid' => $params['studentid']]
-                );
+            $context = \context_system::instance();
+            $cm = get_coursemodule_from_instance('assign', $params['assignmentid']);
+            if (!$cm) {
+                throw new \moodle_exception('invalidcoursemodule');
             }
-        }
+            
+            self::log_error("cm loaded", ['cm_id' => $cm->id, 'cm_instance' => $cm->instance]);
 
-        return array(
-            'status'  => 'success',
-            'message' => 'Calificación guardada correctamente',
-        );
+            $context_module = \context_module::instance($cm->id);
+            self::validate_context($context_module);
+            
+            require_capability('mod/assign:grade', $context_module);
+
+            $assignment_record = $DB->get_record('assign', array('id' => $params['assignmentid']), '*', MUST_EXIST);
+            $course = $DB->get_record('course', array('id' => $assignment_record->course), '*', MUST_EXIST);
+
+            self::log_error("assignment loaded", [
+                'assignment_id' => $assignment_record->id,
+                'course' => $assignment_record->course,
+                'markingworkflow' => $assignment_record->markingworkflow ?? 'none'
+            ]);
+
+            $assign = new \assign($context_module, $cm, $course);
+
+            // 2. Prepare grade data with all required fields.
+            $data = new stdClass();
+            $data->grade            = $params['grade'];
+            $data->attemptnumber    = -1;
+            $data->applytoall       = 0;
+            $data->addattempt       = 0;
+            $data->sendstudentnotifications = false;
+
+            if (!empty($assignment_record->markingworkflow)) {
+                $data->workflowstate = ASSIGN_MARKING_WORKFLOW_STATE_RELEASED;
+            } else {
+                $data->workflowstate = '';
+            }
+
+            $data->assignfeedbackcomments_editor = [
+                'text'   => $params['feedback'],
+                'format' => FORMAT_HTML,
+            ];
+
+            self::log_error("about to call save_grade", [
+                'studentid' => $params['studentid'],
+                'grade' => $params['grade']
+            ]);
+
+            // 3. Save via Moodle assign API.
+            $assign->save_grade($params['studentid'], $data);
+
+            self::log_error("save_grade completed successfully");
+
+            // 4. Explicitly push the grade to the Moodle gradebook.
+            self::log_error("STEP 4: before require_once assign/lib.php");
+            require_once($CFG->dirroot . '/mod/assign/lib.php');
+            self::log_error("STEP 4: after require_once");
+
+            self::log_error("STEP 4: before assign_update_grades", [
+                'assignment_record_id' => $assignment_record->id,
+                'studentid' => $params['studentid']
+            ]);
+            assign_update_grades($assignment_record, $params['studentid']);
+            self::log_error("STEP 4: after assign_update_grades");
+
+            // 5. Write feedback to grade_grades.feedback
+            if ($params['feedback'] !== '') {
+                $gradeitem = $DB->get_record_sql(
+                    "SELECT id FROM {grade_items}
+                      WHERE itemtype = 'mod' AND itemmodule = 'assign'
+                        AND iteminstance = :assignid AND courseid = :courseid",
+                    ['assignid' => $params['assignmentid'], 'courseid' => $assignment_record->course]
+                );
+                
+                self::log_error("gradeitem query result", ['found' => !empty($gradeitem), 'gradeitem_id' => $gradeitem->id ?? null]);
+                
+                if ($gradeitem) {
+                    $result = $DB->execute(
+                        "UPDATE {grade_grades}
+                            SET feedback = :fb, feedbackformat = :fmt
+                          WHERE itemid = :itemid AND userid = :userid",
+                        ['fb' => $params['feedback'], 'fmt' => FORMAT_HTML,
+                         'itemid' => $gradeitem->id, 'userid' => $params['studentid']]
+                    );
+                    self::log_error("feedback update result", ['affected' => $result]);
+                }
+            }
+
+            self::log_error("SUCCESS - All operations completed");
+
+            return array(
+                'status'  => 'success',
+                'message' => 'Calificación guardada correctamente',
+            );
+
+        } catch (\Exception $e) {
+            self::log_error("EXCEPTION CAUGHT", [
+                'message' => $e->getMessage(),
+                'code' => $e->getCode(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            throw $e;
+        }
     }
 
     public static function execute_returns() {
