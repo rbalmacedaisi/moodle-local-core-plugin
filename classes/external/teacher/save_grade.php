@@ -90,6 +90,7 @@ class save_grade extends external_api {
                 $data->workflowstate = '';
             }
 
+            // Feedback comments plugin data - save_grade handles writing to assignfeedback_comments
             $data->assignfeedbackcomments_editor = [
                 'text'   => $params['feedback'],
                 'format' => FORMAT_HTML,
@@ -100,44 +101,10 @@ class save_grade extends external_api {
                 'grade' => $params['grade']
             ]);
 
+            // save_grade already saves feedback to assignfeedback_comments table
             $assign->save_grade($params['studentid'], $data);
 
-            self::log_error("save_grade completed successfully");
-
-            // NOTE: assign_update_grades is already called internally by save_grade.
-            // DO NOT call it again here as it may cause issues.
-            self::log_error("skipping assign_update_grades call - let save_grade handle it");
-
-            // 5. Sync feedback to grade_grades for UI display.
-            if ($params['feedback'] !== '') {
-                $gradeitem = $DB->get_record_sql(
-                    "SELECT id FROM {grade_items}
-                      WHERE itemtype = 'mod' AND itemmodule = 'assign'
-                        AND iteminstance = :assignid AND courseid = :courseid",
-                    ['assignid' => $params['assignmentid'], 'courseid' => $assignment_record->course]
-                );
-                
-                self::log_error("gradeitem query result", ['found' => !empty($gradeitem), 'gradeitem_id' => $gradeitem->id ?? null]);
-                
-                if ($gradeitem) {
-                    $current = $DB->get_record('grade_grades', [
-                        'itemid' => $gradeitem->id,
-                        'userid' => $params['studentid']
-                    ]);
-                    
-                    self::log_error("current grade_grades record", [
-                        'exists' => !empty($current),
-                        'current_feedback_length' => $current ? strlen($current->feedback ?? '') : 0
-                    ]);
-                    
-                    if ($current) {
-                        $DB->set_field('grade_grades', 'feedback', $params['feedback'], ['id' => $current->id]);
-                        $DB->set_field('grade_grades', 'feedbackformat', FORMAT_HTML, ['id' => $current->id]);
-                        self::log_error("grade_grades feedback updated via set_field");
-                    }
-                }
-            }
-
+            self::log_error("save_grade completed successfully - feedback is now in assignfeedback_comments");
             self::log_error("SUCCESS - All operations completed");
 
             return array(
