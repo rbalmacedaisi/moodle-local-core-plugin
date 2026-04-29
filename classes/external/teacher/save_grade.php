@@ -90,7 +90,6 @@ class save_grade extends external_api {
                 $data->workflowstate = '';
             }
 
-            // Feedback comments plugin data.
             $data->assignfeedbackcomments_editor = [
                 'text'   => $params['feedback'],
                 'format' => FORMAT_HTML,
@@ -101,22 +100,16 @@ class save_grade extends external_api {
                 'grade' => $params['grade']
             ]);
 
-            // 3. Save via Moodle assign API.
             $assign->save_grade($params['studentid'], $data);
 
             self::log_error("save_grade completed successfully");
 
-            // 4. Explicitly push the grade to the Moodle gradebook.
-            require_once($CFG->dirroot . '/mod/assign/lib.php');
-            assign_update_grades($assignment_record, $params['studentid']);
+            // NOTE: assign_update_grades is already called internally by save_grade.
+            // DO NOT call it again here as it may cause issues.
+            self::log_error("skipping assign_update_grades call - let save_grade handle it");
 
-            self::log_error("assign_update_grades completed");
-
-            // 5. Verify the feedback was saved and sync if needed.
-            // The assign API saves feedback to assignfeedback_comments plugin table.
-            // We need to ensure grade_grades.feedback is also synced for the gradebook UI.
+            // 5. Sync feedback to grade_grades for UI display.
             if ($params['feedback'] !== '') {
-                // Get the gradeitem for this assignment
                 $gradeitem = $DB->get_record_sql(
                     "SELECT id FROM {grade_items}
                       WHERE itemtype = 'mod' AND itemmodule = 'assign'
@@ -127,7 +120,6 @@ class save_grade extends external_api {
                 self::log_error("gradeitem query result", ['found' => !empty($gradeitem), 'gradeitem_id' => $gradeitem->id ?? null]);
                 
                 if ($gradeitem) {
-                    // Check current feedback in grade_grades
                     $current = $DB->get_record('grade_grades', [
                         'itemid' => $gradeitem->id,
                         'userid' => $params['studentid']
@@ -138,7 +130,6 @@ class save_grade extends external_api {
                         'current_feedback_length' => $current ? strlen($current->feedback ?? '') : 0
                     ]);
                     
-                    // Update grade_grades with the feedback for UI display
                     if ($current) {
                         $DB->set_field('grade_grades', 'feedback', $params['feedback'], ['id' => $current->id]);
                         $DB->set_field('grade_grades', 'feedbackformat', FORMAT_HTML, ['id' => $current->id]);
