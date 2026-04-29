@@ -104,7 +104,31 @@ class save_grade extends external_api {
             // save_grade already saves feedback to assignfeedback_comments table
             $assign->save_grade($params['studentid'], $data);
 
-            self::log_error("save_grade completed successfully - feedback is now in assignfeedback_comments");
+            self::log_error("save_grade completed successfully");
+
+            // Also write feedback directly to grade_grades.feedback for UI display
+            // (assignfeedback_comments plugin may be disabled)
+            if ($params['feedback'] !== '') {
+                $gradeitem = $DB->get_record_sql(
+                    "SELECT id FROM {grade_items}
+                      WHERE itemtype = 'mod' AND itemmodule = 'assign'
+                        AND iteminstance = :assignid AND courseid = :courseid",
+                    ['assignid' => $params['assignmentid'], 'courseid' => $assignment_record->course],
+                    IGNORE_MISSING
+                );
+                if ($gradeitem) {
+                    $current = $DB->get_record('grade_grades', [
+                        'itemid' => $gradeitem->id,
+                        'userid' => $params['studentid']
+                    ], 'id', IGNORE_MISSING);
+                    if ($current) {
+                        $DB->set_field('grade_grades', 'feedback', $params['feedback'], ['id' => $current->id]);
+                        $DB->set_field('grade_grades', 'feedbackformat', FORMAT_HTML, ['id' => $current->id]);
+                        self::log_error("feedback written to grade_grades");
+                    }
+                }
+            }
+
             self::log_error("SUCCESS - All operations completed");
 
             return array(
