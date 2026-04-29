@@ -215,6 +215,18 @@ class enroll_student extends external_api {
                 'plan_id' => $plan->id
             ];
 
+        } catch (\coding_exception $e) {
+            // Moodle throws coding_exception when a component's version.php is missing.
+            // Log the full trace so we know exactly which component is the culprit.
+            $trace = $e->getTraceAsString();
+            $detail = $e->getMessage() . ' | Trace: ' . substr($trace, 0, 800);
+            file_put_contents($logfile, $logmsg . " - ERROR: CODING EXCEPTION (version.php?) " . $detail . "\n", FILE_APPEND);
+            return [
+                'status' => 'error',
+                'message' => 'Moodle component error: ' . $e->getMessage() . ' (check odoo_sync_debug.log for the component name)',
+                'learning_user_id' => 0,
+                'plan_id' => 0
+            ];
         } catch (moodle_exception $e) {
             if ($e->errorcode == 'learninguserexist') {
                 file_put_contents($logfile, $logmsg . " - WARNING: learninguserexist\n", FILE_APPEND);
@@ -233,7 +245,8 @@ class enroll_student extends external_api {
                 'plan_id' => 0
             ];
         } catch (\Throwable $e) {
-            file_put_contents($logfile, $logmsg . " - ERROR: FATAL THROWABLE " . $e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine() . "\n", FILE_APPEND);
+            $trace = $e->getTraceAsString();
+            file_put_contents($logfile, $logmsg . " - ERROR: FATAL THROWABLE " . $e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine() . ' | Trace: ' . substr($trace, 0, 800) . "\n", FILE_APPEND);
             return [
                 'status' => 'error',
                 'message' => 'PHP Fatal Error: ' . $e->getMessage(),
