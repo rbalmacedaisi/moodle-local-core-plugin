@@ -61,8 +61,9 @@ function fp_sessions_in_month($year, $month, $dow, $init, $end, $excl) {
 }
 
 // ── Filters ────────────────────────────────────────────────────────────────────
-$filter_periodid = optional_param('periodid', 0, PARAM_INT);
-$filter_planid   = optional_param('planid',   0, PARAM_INT);
+$filter_periodid  = optional_param('periodid',      0, PARAM_INT);
+$filter_planid    = optional_param('planid',         0, PARAM_INT);
+$include_draft    = optional_param('include_draft',  0, PARAM_INT);
 
 // ── Dropdown data ──────────────────────────────────────────────────────────────
 $allPeriods = [];
@@ -89,26 +90,54 @@ if ($filter_periodid > 0) {
         $wp['planid'] = $filter_planid;
     }
 
-    try {
-        $rows = $DB->get_records_sql("
-            SELECT s.id AS schedid,
-                   gc.id AS classid, gc.name AS classname,
-                   gc.instructorid, gc.initdate, gc.enddate, gc.approved,
-                   u.firstname, u.lastname,
-                   c.fullname AS coursefullname,
-                   s.day, s.start_time, s.end_time,
-                   COALESCE(s.excluded_dates, '') AS excluded_dates
-              FROM {gmk_class} gc
-              JOIN {course} c ON c.id = gc.corecourseid
-              JOIN {user}   u ON u.id = gc.instructorid
-              JOIN {gmk_class_schedules} s ON s.classid = gc.id
-             WHERE gc.periodid = :periodid
-               AND gc.closed = 0
-               $we
-             ORDER BY u.lastname ASC, u.firstname ASC, gc.name ASC",
-            $wp
-        );
-    } catch (Exception $e) { $rows = []; }
+    if ($include_draft) {
+        // Borradores: approved=0, LEFT JOIN en instructor para incluir sin docente
+        try {
+            $rows = $DB->get_records_sql("
+                SELECT s.id AS schedid,
+                       gc.id AS classid, gc.name AS classname,
+                       COALESCE(gc.instructorid, 0) AS instructorid,
+                       gc.initdate, gc.enddate, gc.approved,
+                       COALESCE(u.firstname, '') AS firstname,
+                       COALESCE(u.lastname,  '') AS lastname,
+                       c.fullname AS coursefullname,
+                       s.day, s.start_time, s.end_time,
+                       COALESCE(s.excluded_dates, '') AS excluded_dates
+                  FROM {gmk_class} gc
+                  JOIN {course} c ON c.id = gc.corecourseid
+                  LEFT JOIN {user} u ON u.id = gc.instructorid AND gc.instructorid > 0
+                  JOIN {gmk_class_schedules} s ON s.classid = gc.id
+                 WHERE gc.periodid = :periodid
+                   AND gc.closed = 0
+                   AND gc.approved = 0
+                   $we
+                 ORDER BY u.lastname ASC, u.firstname ASC, gc.name ASC",
+                $wp
+            );
+        } catch (Exception $e) { $rows = []; }
+    } else {
+        // Activos: INNER JOIN en instructor (comportamiento original)
+        try {
+            $rows = $DB->get_records_sql("
+                SELECT s.id AS schedid,
+                       gc.id AS classid, gc.name AS classname,
+                       gc.instructorid, gc.initdate, gc.enddate, gc.approved,
+                       u.firstname, u.lastname,
+                       c.fullname AS coursefullname,
+                       s.day, s.start_time, s.end_time,
+                       COALESCE(s.excluded_dates, '') AS excluded_dates
+                  FROM {gmk_class} gc
+                  JOIN {course} c ON c.id = gc.corecourseid
+                  JOIN {user}   u ON u.id = gc.instructorid
+                  JOIN {gmk_class_schedules} s ON s.classid = gc.id
+                 WHERE gc.periodid = :periodid
+                   AND gc.closed = 0
+                   $we
+                 ORDER BY u.lastname ASC, u.firstname ASC, gc.name ASC",
+                $wp
+            );
+        } catch (Exception $e) { $rows = []; }
+    }
 
     if (!empty($rows)) {
         // Determine date range
@@ -128,11 +157,15 @@ if ($filter_periodid > 0) {
         }
 
         foreach ($rows as $r) {
-            $iid = (int)$r->instructorid;
+            $iid  = (int)$r->instructorid;
+            $name = ($iid > 0)
+                ? trim($r->firstname . ' ' . $r->lastname)
+                : 'Sin docente asignado';
             if (!isset($teacherMeta[$iid])) {
                 $teacherMeta[$iid] = [
-                    'name'    => trim($r->firstname . ' ' . $r->lastname),
-                    'classes' => [],
+                    'name'       => $name,
+                    'no_teacher' => ($iid === 0),
+                    'classes'    => [],
                 ];
                 foreach ($allMonths as $mk) { $teacherHours[$iid][$mk] = 0.0; }
             }
@@ -254,6 +287,13 @@ echo $OUTPUT->header();
         </select>
     </div>
     <div>
+        <label>Origen de datos</label>
+        <select name="include_draft" style="min-width:220px">
+            <option value="0" <?php echo ($include_draft === 0 ? 'selected' : ''); ?>>Cursos activos (en ejecución)</option>
+            <option value="1" <?php echo ($include_draft === 1 ? 'selected' : ''); ?>>Borradores — planificación académica</option>
+        </select>
+    </div>
+    <div>
         <button type="submit" class="btn btn-primary" style="font-size:13px">Cargar Datos</button>
         <a href="<?php echo (new moodle_url('/local/grupomakro_core/pages/financial_planning.php'))->out(false); ?>"
            class="btn btn-secondary" style="margin-left:6px;font-size:13px">Limpiar</a>
@@ -263,8 +303,21 @@ echo $OUTPUT->header();
 <?php if ($filter_periodid === 0): ?>
 <div class="fp-noperiod">Selecciona un período académico para ver la proyección financiera.</div>
 <?php elseif (empty($teacherMeta)): ?>
-<div class="fp-nodata">No se encontraron clases activas para el período seleccionado.</div>
+<div class="fp-nodata">
+    <?php if ($include_draft): ?>
+    No se encontraron clases en borrador con horarios asignados para el período seleccionado.
+    <?php else: ?>
+    No se encontraron clases activas para el período seleccionado.
+    <?php endif; ?>
+</div>
 <?php else: ?>
+
+<?php if ($include_draft): ?>
+<div style="background:#fff3cd;border-left:4px solid #ffc107;border-radius:4px;padding:12px 16px;margin-bottom:12px;font-size:13px;color:#856404">
+    <strong>⚠ Modo borrador:</strong> Visualizando cursos planificados (no publicados aún) del período <strong><?php echo fp_h($periodLabel); ?></strong>.
+    Los cursos sin docente asignado aparecen agrupados como <em>"Sin docente asignado"</em> con tarifa predeterminada de $18/hora.
+</div>
+<?php endif; ?>
 
 <!-- ── Config: default rate + teacher table ─────────────────────────────────── -->
 <div class="fp-section">
@@ -276,7 +329,7 @@ echo $OUTPUT->header();
     <div class="fp-section-body">
         <div class="fp-rate-banner">
             <label for="fp-default-rate">💵 Tarifa hora docente (USD):</label>
-            <input type="number" id="fp-default-rate" min="0" step="0.5" value="15">
+            <input type="number" id="fp-default-rate" min="0" step="0.5" value="18">
             <span class="fp-rate-note">Valor por defecto aplicado a todos los docentes. Puedes personalizar por docente abajo.</span>
         </div>
         <div style="overflow-x:auto">
@@ -292,16 +345,22 @@ echo $OUTPUT->header();
             </thead>
             <tbody>
             <?php foreach ($teacherMeta as $iid => $tm):
-                $totalHours = array_sum($teacherHours[$iid] ?? []);
+                $totalHours   = array_sum($teacherHours[$iid] ?? []);
+                $isNoTeacher  = !empty($tm['no_teacher']);
+                $rowStyle     = $isNoTeacher ? ' style="background:#fff3e0"' : '';
+                $nameStyle    = 'font-weight:600' . ($isNoTeacher ? ';color:#e65100' : '');
             ?>
-            <tr id="fp-trow-<?php echo $iid; ?>" data-iid="<?php echo $iid; ?>">
-                <td style="font-weight:600"><?php echo fp_h($tm['name']); ?></td>
+            <tr id="fp-trow-<?php echo $iid; ?>" data-iid="<?php echo $iid; ?>"<?php echo $rowStyle; ?>>
+                <td style="<?php echo $nameStyle; ?>">
+                    <?php if ($isNoTeacher): ?>⚠ <?php endif; ?>
+                    <?php echo fp_h($tm['name']); ?>
+                </td>
                 <td class="fp-class-list"><?php echo fp_h(implode(', ', array_unique($tm['classes']))); ?></td>
                 <td style="text-align:right"><?php echo number_format($totalHours, 1); ?> h</td>
                 <td style="text-align:right">
                     <input type="number" class="fp-rate-input fp-teacher-rate"
                            data-iid="<?php echo $iid; ?>"
-                           min="0" step="0.5" value="15"
+                           min="0" step="0.5" value="18"
                            title="Tarifa para <?php echo fp_h($tm['name']); ?>">
                 </td>
                 <td style="text-align:center">
@@ -387,7 +446,7 @@ echo $OUTPUT->header();
 
     // ── Init teacher rates from DOM ───────────────────────────────────────────
     function initState() {
-        const defaultRate = parseFloat(document.getElementById('fp-default-rate').value) || 15;
+        const defaultRate = parseFloat(document.getElementById('fp-default-rate').value) || 18;
         document.querySelectorAll('.fp-teacher-rate').forEach(inp => {
             const iid = inp.dataset.iid;
             teacherRates[iid] = parseFloat(inp.value) || defaultRate;
@@ -574,7 +633,7 @@ echo $OUTPUT->header();
 
     // ── Event: default rate change → propagate to non-customized teachers ─────
     document.getElementById('fp-default-rate').addEventListener('input', function() {
-        const rate = parseFloat(this.value) || 0;
+        const rate = parseFloat(this.value) || 18;
         document.querySelectorAll('.fp-teacher-rate').forEach(inp => {
             const iid = inp.dataset.iid;
             // Only update if user hasn't customized this teacher's rate
@@ -646,7 +705,7 @@ echo $OUTPUT->header();
     }
 
     document.getElementById('fp-add-teacher').addEventListener('click', function() {
-        additionalCosts.push({ id: ++extraIdCounter, type: 'teacher', name: '', hours: 0, rate: 15 });
+        additionalCosts.push({ id: ++extraIdCounter, type: 'teacher', name: '', hours: 0, rate: 18 });
         renderExtraList();
         updateAll();
     });
