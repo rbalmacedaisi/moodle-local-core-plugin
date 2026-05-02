@@ -83,42 +83,113 @@ if ($filter_periodid > 0) {
         if ($per) { $periodLabel = $per->name; }
     } catch (Exception $e) {}
 
-    $wp = ['periodid' => $filter_periodid];
-    $we = '';
-    if ($filter_planid > 0) {
-        $we = ' AND gc.learningplanid = :planid';
-        $wp['planid'] = $filter_planid;
-    }
-
     if ($include_draft) {
-        // Borradores: approved=0, LEFT JOINs para incluir sin docente y sin horario nuevo
-        // También trae campos legacy (classdays/inittime/endtime) como fallback
+        // ── MODO BORRADOR ─────────────────────────────────────────────────────
+        // Los borradores se almacenan como JSON en gmk_academic_periods.draft_schedules
+        $draftJson  = '';
         try {
-            $rows = $DB->get_records_sql("
-                SELECT COALESCE(s.id, 0) AS schedid,
-                       gc.id AS classid, gc.name AS classname,
-                       COALESCE(gc.instructorid, 0) AS instructorid,
-                       gc.initdate, gc.enddate, gc.approved,
-                       gc.classdays, gc.inittime, gc.endtime,
-                       COALESCE(u.firstname, '') AS firstname,
-                       COALESCE(u.lastname,  '') AS lastname,
-                       c.fullname AS coursefullname,
-                       s.day, s.start_time, s.end_time,
-                       COALESCE(s.excluded_dates, '') AS excluded_dates
-                  FROM {gmk_class} gc
-                  JOIN {course} c ON c.id = gc.corecourseid
-                  LEFT JOIN {user} u ON u.id = gc.instructorid AND gc.instructorid > 0
-                  LEFT JOIN {gmk_class_schedules} s ON s.classid = gc.id
-                 WHERE gc.periodid = :periodid
-                   AND gc.closed = 0
-                   AND gc.approved = 0
-                   $we
-                 ORDER BY u.lastname ASC, u.firstname ASC, gc.name ASC",
-                $wp
-            );
-        } catch (Exception $e) { $rows = []; }
+            $draftJson = $DB->get_field('gmk_academic_periods', 'draft_schedules', ['id' => $filter_periodid]) ?: '';
+        } catch (Exception $e) {}
+
+        $draftItems = [];
+        if ($draftJson) {
+            $decoded = json_decode($draftJson, true);
+            if (is_array($decoded)) { $draftItems = $decoded; }
+        }
+
+        // Rango de meses desde las fechas del período
+        if (isset($per) && $per && !empty($per->startdate) && !empty($per->enddate)) {
+            $cur = mktime(0, 0, 0, (int)date('n', $per->startdate), 1, (int)date('Y', $per->startdate));
+            $lim = mktime(0, 0, 0, (int)date('n', $per->enddate),   1, (int)date('Y', $per->enddate));
+            while ($cur <= $lim) {
+                $allMonths[] = date('Y-m', $cur);
+                $cur = strtotime('+1 month', $cur);
+            }
+        }
+
+        $periodInit = (isset($per) && $per) ? (int)$per->startdate : 0;
+        $periodEnd  = (isset($per) && $per) ? (int)$per->enddate   : 0;
+
+        foreach ($draftItems as $item) {
+            // Filtro por carrera (learningplanid)
+            if ($filter_planid > 0 && (int)($item['learningplanid'] ?? 0) !== $filter_planid) {
+                continue;
+            }
+
+            $iid  = (int)($item['instructorId'] ?? 0);
+            $name = ($iid > 0)
+                ? trim(($item['teacherName'] ?? '') ?: 'Docente #' . $iid)
+                : 'Sin docente asignado';
+            $courseName = (string)($item['subjectName'] ?? 'Curso sin nombre');
+
+            if (!isset($teacherMeta[$iid])) {
+                $teacherMeta[$iid] = [
+                    'name'       => $name,
+                    'no_teacher' => ($iid === 0),
+                    'classes'    => [],
+                ];
+                foreach ($allMonths as $mk) { $teacherHours[$iid][$mk] = 0.0; }
+            }
+
+            // Clave única por ítem: usar corecourseid + subperiodo para distinguir secciones
+            $classKey = ($item['corecourseid'] ?? 0) . '_' . ($item['subperiod'] ?? 0) . '_' . ($item['id'] ?? '');
+            $teacherMeta[$iid]['classes'][$classKey] = $courseName;
+
+            // Construir array de sesiones
+            $sessions = [];
+            if (!empty($item['sessions']) && is_array($item['sessions'])) {
+                $sessions = $item['sessions'];
+            } elseif (!empty($item['day'])) {
+                // Si no hay sessions[], construir desde campos top-level
+                $sessions = [[
+                    'day'            => $item['day'],
+                    'start'          => $item['start'] ?? '',
+                    'end'            => $item['end']   ?? '',
+                    'excluded_dates' => [],
+                    'assignedDates'  => $item['assignedDates'] ?? null,
+                ]];
+            }
+
+            foreach ($sessions as $sess) {
+                $excl = is_array($sess['excluded_dates'] ?? null) ? array_values($sess['excluded_dates']) : [];
+
+                if (!empty($sess['assignedDates']) && is_array($sess['assignedDates'])) {
+                    // Fechas específicas asignadas: contar horas por fecha
+                    $dur = fp_duration_hours((string)($sess['start'] ?? ''), (string)($sess['end'] ?? ''));
+                    if ($dur > 0) {
+                        foreach ($sess['assignedDates'] as $dateStr) {
+                            $ts = is_string($dateStr) ? strtotime($dateStr) : 0;
+                            if ($ts > 0) {
+                                $mk = date('Y-m', $ts);
+                                if (isset($teacherHours[$iid][$mk])) {
+                                    $teacherHours[$iid][$mk] += $dur;
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    // Cálculo regular por día de semana
+                    $dow = fp_day_to_dow(fp_normalize_day((string)($sess['day'] ?? '')));
+                    $dur = fp_duration_hours((string)($sess['start'] ?? ''), (string)($sess['end'] ?? ''));
+                    if ($dow < 0 || $dur <= 0) { continue; }
+                    foreach ($allMonths as $mk) {
+                        [$y, $m] = explode('-', $mk);
+                        $cnt = fp_sessions_in_month((int)$y, (int)$m, $dow, $periodInit, $periodEnd, $excl);
+                        $teacherHours[$iid][$mk] += $cnt * $dur;
+                    }
+                }
+            }
+        }
+
     } else {
-        // Activos: INNER JOIN en instructor (comportamiento original)
+        // ── MODO ACTIVO (comportamiento original) ─────────────────────────────
+        $wp = ['periodid' => $filter_periodid];
+        $we = '';
+        if ($filter_planid > 0) {
+            $we = ' AND gc.learningplanid = :planid';
+            $wp['planid'] = $filter_planid;
+        }
+
         try {
             $rows = $DB->get_records_sql("
                 SELECT s.id AS schedid,
@@ -139,94 +210,55 @@ if ($filter_periodid > 0) {
                 $wp
             );
         } catch (Exception $e) { $rows = []; }
-    }
 
-    if (!empty($rows)) {
-        // Determine date range
-        $minTs = PHP_INT_MAX; $maxTs = 0;
-        foreach ($rows as $r) {
-            if ((int)$r->initdate > 0) { $minTs = min($minTs, (int)$r->initdate); }
-            if ((int)$r->enddate  > 0) { $maxTs = max($maxTs, (int)$r->enddate); }
-        }
-
-        if ($maxTs > 0 && $minTs < PHP_INT_MAX) {
-            $cur = mktime(0, 0, 0, (int)date('n', $minTs), 1, (int)date('Y', $minTs));
-            $lim = mktime(0, 0, 0, (int)date('n', $maxTs), 1, (int)date('Y', $maxTs));
-            while ($cur <= $lim) {
-                $allMonths[] = date('Y-m', $cur);
-                $cur = strtotime('+1 month', $cur);
+        if (!empty($rows)) {
+            $minTs = PHP_INT_MAX; $maxTs = 0;
+            foreach ($rows as $r) {
+                if ((int)$r->initdate > 0) { $minTs = min($minTs, (int)$r->initdate); }
+                if ((int)$r->enddate  > 0) { $maxTs = max($maxTs, (int)$r->enddate); }
             }
-        } elseif ($include_draft && isset($per) && $per && !empty($per->startdate) && !empty($per->enddate)) {
-            // Fallback: borradores sin fechas en gmk_class → usar rango del período
-            $cur = mktime(0, 0, 0, (int)date('n', $per->startdate), 1, (int)date('Y', $per->startdate));
-            $lim = mktime(0, 0, 0, (int)date('n', $per->enddate),   1, (int)date('Y', $per->enddate));
-            while ($cur <= $lim) {
-                $allMonths[] = date('Y-m', $cur);
-                $cur = strtotime('+1 month', $cur);
-            }
-        }
-
-        foreach ($rows as $r) {
-            $iid  = (int)$r->instructorid;
-            $name = ($iid > 0)
-                ? trim($r->firstname . ' ' . $r->lastname)
-                : 'Sin docente asignado';
-            if (!isset($teacherMeta[$iid])) {
-                $teacherMeta[$iid] = [
-                    'name'       => $name,
-                    'no_teacher' => ($iid === 0),
-                    'classes'    => [],
-                ];
-                foreach ($allMonths as $mk) { $teacherHours[$iid][$mk] = 0.0; }
-            }
-            $teacherMeta[$iid]['classes'][(int)$r->classid] = $r->coursefullname;
-
-            $excl = [];
-            if (!empty($r->excluded_dates)) {
-                $dec = json_decode($r->excluded_dates, true);
-                if (is_array($dec)) { $excl = array_values($dec); }
+            if ($maxTs > 0 && $minTs < PHP_INT_MAX) {
+                $cur = mktime(0, 0, 0, (int)date('n', $minTs), 1, (int)date('Y', $minTs));
+                $lim = mktime(0, 0, 0, (int)date('n', $maxTs), 1, (int)date('Y', $maxTs));
+                while ($cur <= $lim) {
+                    $allMonths[] = date('Y-m', $cur);
+                    $cur = strtotime('+1 month', $cur);
+                }
             }
 
-            // Determinar fechas de inicio/fin: usar las de la clase o el rango del período como fallback
-            $classInit = ((int)($r->initdate ?? 0) > 0) ? (int)$r->initdate : (isset($per) ? (int)$per->startdate : 0);
-            $classEnd  = ((int)($r->enddate  ?? 0) > 0) ? (int)$r->enddate  : (isset($per) ? (int)$per->enddate   : 0);
+            foreach ($rows as $r) {
+                $iid = (int)$r->instructorid;
+                if (!isset($teacherMeta[$iid])) {
+                    $teacherMeta[$iid] = [
+                        'name'       => trim($r->firstname . ' ' . $r->lastname),
+                        'no_teacher' => false,
+                        'classes'    => [],
+                    ];
+                    foreach ($allMonths as $mk) { $teacherHours[$iid][$mk] = 0.0; }
+                }
+                $teacherMeta[$iid]['classes'][(int)$r->classid] = $r->coursefullname;
 
-            if (!empty($r->day)) {
-                // Formato nuevo: horario desde gmk_class_schedules
+                $excl = [];
+                if ($r->excluded_dates) {
+                    $dec = json_decode($r->excluded_dates, true);
+                    if (is_array($dec)) { $excl = array_values($dec); }
+                }
                 $dow = fp_day_to_dow(fp_normalize_day($r->day));
                 $dur = fp_duration_hours($r->start_time, $r->end_time);
                 if ($dow < 0 || $dur <= 0) { continue; }
                 foreach ($allMonths as $mk) {
                     [$y, $m] = explode('-', $mk);
-                    $sess = fp_sessions_in_month((int)$y, (int)$m, $dow, $classInit, $classEnd, $excl);
+                    $sess = fp_sessions_in_month((int)$y, (int)$m, $dow, (int)$r->initdate, (int)$r->enddate, $excl);
                     $teacherHours[$iid][$mk] += $sess * $dur;
                 }
-            } elseif ($include_draft && !empty($r->classdays) && !empty($r->inittime) && $r->inittime !== '00:00') {
-                // Formato legacy: bitmask classdays + inittime/endtime en gmk_class
-                $legacyParts = explode('/', (string)$r->classdays);
-                $dayNames    = ['Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado', 'Domingo'];
-                $legacyDur   = fp_duration_hours((string)($r->inittime ?? ''), (string)($r->endtime ?? ''));
-                if ($legacyDur > 0) {
-                    foreach ($legacyParts as $idx => $val) {
-                        if ($val == '1' && isset($dayNames[$idx])) {
-                            $ldow = fp_day_to_dow($dayNames[$idx]);
-                            foreach ($allMonths as $mk) {
-                                [$y, $m] = explode('-', $mk);
-                                $sess = fp_sessions_in_month((int)$y, (int)$m, $ldow, $classInit, $classEnd, $excl);
-                                $teacherHours[$iid][$mk] += $sess * $legacyDur;
-                            }
-                        }
-                    }
-                }
             }
-            // Si no hay info de horario: el docente/curso queda registrado con 0 horas
         }
-
-        foreach ($teacherMeta as &$tm) {
-            $tm['classes'] = array_unique(array_values($tm['classes']));
-        }
-        unset($tm);
     }
+
+    foreach ($teacherMeta as &$tm) {
+        $tm['classes'] = array_unique(array_values($tm['classes']));
+    }
+    unset($tm);
 }
 
 echo $OUTPUT->header();
