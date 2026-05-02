@@ -91,13 +91,15 @@ if ($filter_periodid > 0) {
     }
 
     if ($include_draft) {
-        // Borradores: approved=0, LEFT JOIN en instructor para incluir sin docente
+        // Borradores: approved=0, LEFT JOINs para incluir sin docente y sin horario nuevo
+        // También trae campos legacy (classdays/inittime/endtime) como fallback
         try {
             $rows = $DB->get_records_sql("
-                SELECT s.id AS schedid,
+                SELECT COALESCE(s.id, 0) AS schedid,
                        gc.id AS classid, gc.name AS classname,
                        COALESCE(gc.instructorid, 0) AS instructorid,
                        gc.initdate, gc.enddate, gc.approved,
+                       gc.classdays, gc.inittime, gc.endtime,
                        COALESCE(u.firstname, '') AS firstname,
                        COALESCE(u.lastname,  '') AS lastname,
                        c.fullname AS coursefullname,
@@ -106,7 +108,7 @@ if ($filter_periodid > 0) {
                   FROM {gmk_class} gc
                   JOIN {course} c ON c.id = gc.corecourseid
                   LEFT JOIN {user} u ON u.id = gc.instructorid AND gc.instructorid > 0
-                  JOIN {gmk_class_schedules} s ON s.classid = gc.id
+                  LEFT JOIN {gmk_class_schedules} s ON s.classid = gc.id
                  WHERE gc.periodid = :periodid
                    AND gc.closed = 0
                    AND gc.approved = 0
@@ -154,6 +156,14 @@ if ($filter_periodid > 0) {
                 $allMonths[] = date('Y-m', $cur);
                 $cur = strtotime('+1 month', $cur);
             }
+        } elseif ($include_draft && isset($per) && $per && !empty($per->startdate) && !empty($per->enddate)) {
+            // Fallback: borradores sin fechas en gmk_class → usar rango del período
+            $cur = mktime(0, 0, 0, (int)date('n', $per->startdate), 1, (int)date('Y', $per->startdate));
+            $lim = mktime(0, 0, 0, (int)date('n', $per->enddate),   1, (int)date('Y', $per->enddate));
+            while ($cur <= $lim) {
+                $allMonths[] = date('Y-m', $cur);
+                $cur = strtotime('+1 month', $cur);
+            }
         }
 
         foreach ($rows as $r) {
@@ -172,20 +182,44 @@ if ($filter_periodid > 0) {
             $teacherMeta[$iid]['classes'][(int)$r->classid] = $r->coursefullname;
 
             $excl = [];
-            if ($r->excluded_dates) {
+            if (!empty($r->excluded_dates)) {
                 $dec = json_decode($r->excluded_dates, true);
                 if (is_array($dec)) { $excl = array_values($dec); }
             }
 
-            $dow = fp_day_to_dow(fp_normalize_day($r->day));
-            $dur = fp_duration_hours($r->start_time, $r->end_time);
-            if ($dow < 0 || $dur <= 0) { continue; }
+            // Determinar fechas de inicio/fin: usar las de la clase o el rango del período como fallback
+            $classInit = ((int)($r->initdate ?? 0) > 0) ? (int)$r->initdate : (isset($per) ? (int)$per->startdate : 0);
+            $classEnd  = ((int)($r->enddate  ?? 0) > 0) ? (int)$r->enddate  : (isset($per) ? (int)$per->enddate   : 0);
 
-            foreach ($allMonths as $mk) {
-                [$y, $m] = explode('-', $mk);
-                $sess = fp_sessions_in_month((int)$y, (int)$m, $dow, (int)$r->initdate, (int)$r->enddate, $excl);
-                $teacherHours[$iid][$mk] += $sess * $dur;
+            if (!empty($r->day)) {
+                // Formato nuevo: horario desde gmk_class_schedules
+                $dow = fp_day_to_dow(fp_normalize_day($r->day));
+                $dur = fp_duration_hours($r->start_time, $r->end_time);
+                if ($dow < 0 || $dur <= 0) { continue; }
+                foreach ($allMonths as $mk) {
+                    [$y, $m] = explode('-', $mk);
+                    $sess = fp_sessions_in_month((int)$y, (int)$m, $dow, $classInit, $classEnd, $excl);
+                    $teacherHours[$iid][$mk] += $sess * $dur;
+                }
+            } elseif ($include_draft && !empty($r->classdays) && !empty($r->inittime) && $r->inittime !== '00:00') {
+                // Formato legacy: bitmask classdays + inittime/endtime en gmk_class
+                $legacyParts = explode('/', (string)$r->classdays);
+                $dayNames    = ['Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado', 'Domingo'];
+                $legacyDur   = fp_duration_hours((string)($r->inittime ?? ''), (string)($r->endtime ?? ''));
+                if ($legacyDur > 0) {
+                    foreach ($legacyParts as $idx => $val) {
+                        if ($val == '1' && isset($dayNames[$idx])) {
+                            $ldow = fp_day_to_dow($dayNames[$idx]);
+                            foreach ($allMonths as $mk) {
+                                [$y, $m] = explode('-', $mk);
+                                $sess = fp_sessions_in_month((int)$y, (int)$m, $ldow, $classInit, $classEnd, $excl);
+                                $teacherHours[$iid][$mk] += $sess * $legacyDur;
+                            }
+                        }
+                    }
+                }
             }
+            // Si no hay info de horario: el docente/curso queda registrado con 0 horas
         }
 
         foreach ($teacherMeta as &$tm) {
