@@ -107,8 +107,10 @@ if ($filter_periodid > 0) {
             }
         }
 
-        $periodInit = (isset($per) && $per) ? (int)$per->startdate : 0;
-        $periodEnd  = (isset($per) && $per) ? (int)$per->enddate   : 0;
+        $periodInit      = (isset($per) && $per) ? (int)$per->startdate : 0;
+        $periodEnd       = (isset($per) && $per) ? (int)$per->enddate   : 0;
+        $noTeacherIdMap  = [];   // career_name => negative int id
+        $noTeacherCtr    = -1;
 
         foreach ($draftItems as $item) {
             // Filtro por carrera (learningplanid)
@@ -116,16 +118,24 @@ if ($filter_periodid > 0) {
                 continue;
             }
 
-            $iid  = (int)($item['instructorId'] ?? 0);
-            $name = ($iid > 0)
-                ? trim(($item['teacherName'] ?? '') ?: 'Docente #' . $iid)
-                : 'Sin docente asignado';
+            $iid = (int)($item['instructorId'] ?? 0);
+            if ($iid > 0) {
+                $name = trim(($item['teacherName'] ?? '') ?: 'Docente #' . $iid);
+            } else {
+                // Sin docente: crear un ID virtual negativo único por carrera
+                $career = (string)($item['career'] ?? 'Sin carrera asignada');
+                if (!isset($noTeacherIdMap[$career])) {
+                    $noTeacherIdMap[$career] = $noTeacherCtr--;
+                }
+                $iid  = $noTeacherIdMap[$career];
+                $name = 'Sin docente — ' . $career;
+            }
             $courseName = (string)($item['subjectName'] ?? 'Curso sin nombre');
 
             if (!isset($teacherMeta[$iid])) {
                 $teacherMeta[$iid] = [
                     'name'       => $name,
-                    'no_teacher' => ($iid === 0),
+                    'no_teacher' => ($iid <= 0),   // IDs negativos = sin docente por carrera
                     'classes'    => [],
                 ];
                 foreach ($allMonths as $mk) { $teacherHours[$iid][$mk] = 0.0; }
