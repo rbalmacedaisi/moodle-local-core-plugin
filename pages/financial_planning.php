@@ -60,10 +60,99 @@ function fp_sessions_in_month($year, $month, $dow, $init, $end, $excl) {
     return $n;
 }
 
+function fp_compute_comparison_period($DB, $periodid, $use_draft, $planid_filter) {
+    $result = ['label' => '', 'months' => [], 'hours_by_month' => []];
+    try {
+        $per = $DB->get_record('gmk_academic_periods', ['id' => $periodid]);
+        if (!$per) { return null; }
+        $result['label'] = $per->name;
+    } catch (Exception $e) { return null; }
+
+    if (!empty($per->startdate) && !empty($per->enddate)) {
+        $cur = mktime(0, 0, 0, (int)date('n', $per->startdate), 1, (int)date('Y', $per->startdate));
+        $lim = mktime(0, 0, 0, (int)date('n', $per->enddate),   1, (int)date('Y', $per->enddate));
+        while ($cur <= $lim) {
+            $mk = date('Y-m', $cur);
+            $result['months'][] = $mk;
+            $result['hours_by_month'][$mk] = 0.0;
+            $cur = strtotime('+1 month', $cur);
+        }
+    }
+    if (empty($result['months'])) { return $result; }
+    $periodInit = (int)$per->startdate;
+    $periodEnd  = (int)$per->enddate;
+
+    if ($use_draft) {
+        $draftJson = '';
+        try { $draftJson = $DB->get_field('gmk_academic_periods', 'draft_schedules', ['id' => $periodid]) ?: ''; } catch (Exception $e) {}
+        $items = $draftJson ? (json_decode($draftJson, true) ?: []) : [];
+        foreach ($items as $item) {
+            if ($planid_filter > 0 && (int)($item['learningplanid'] ?? 0) !== $planid_filter) { continue; }
+            $sessions = !empty($item['sessions']) && is_array($item['sessions']) ? $item['sessions'] : [];
+            if (empty($sessions) && !empty($item['day'])) {
+                $sessions = [['day' => $item['day'], 'start' => $item['start'] ?? '',
+                              'end' => $item['end'] ?? '', 'excluded_dates' => [],
+                              'assignedDates' => $item['assignedDates'] ?? null]];
+            }
+            foreach ($sessions as $sess) {
+                $excl = is_array($sess['excluded_dates'] ?? null) ? array_values($sess['excluded_dates']) : [];
+                $dur  = fp_duration_hours((string)($sess['start'] ?? ''), (string)($sess['end'] ?? ''));
+                if ($dur <= 0) { continue; }
+                if (!empty($sess['assignedDates']) && is_array($sess['assignedDates'])) {
+                    foreach ($sess['assignedDates'] as $dateStr) {
+                        $ts = is_string($dateStr) ? strtotime($dateStr) : 0;
+                        if ($ts > 0) {
+                            $mk = date('Y-m', $ts);
+                            if (isset($result['hours_by_month'][$mk])) { $result['hours_by_month'][$mk] += $dur; }
+                        }
+                    }
+                } else {
+                    $dow = fp_day_to_dow(fp_normalize_day((string)($sess['day'] ?? '')));
+                    if ($dow < 0) { continue; }
+                    foreach ($result['months'] as $mk) {
+                        [$y, $m] = explode('-', $mk);
+                        $cnt = fp_sessions_in_month((int)$y, (int)$m, $dow, $periodInit, $periodEnd, $excl);
+                        $result['hours_by_month'][$mk] += $cnt * $dur;
+                    }
+                }
+            }
+        }
+    } else {
+        $wp = ['periodid' => $periodid];
+        $we = '';
+        if ($planid_filter > 0) { $we = ' AND gc.learningplanid = :planid'; $wp['planid'] = $planid_filter; }
+        $rows = [];
+        try {
+            $rows = $DB->get_records_sql(
+                "SELECT s.id, gc.initdate, gc.enddate, s.day, s.start_time, s.end_time,
+                        COALESCE(s.excluded_dates,'') AS excluded_dates
+                   FROM {gmk_class} gc
+                   JOIN {gmk_class_schedules} s ON s.classid = gc.id
+                  WHERE gc.periodid = :periodid AND gc.closed = 0 $we", $wp);
+        } catch (Exception $e) {}
+        foreach ($rows as $r) {
+            $excl = [];
+            if ($r->excluded_dates) { $dec = json_decode($r->excluded_dates, true); if (is_array($dec)) { $excl = array_values($dec); } }
+            $dow = fp_day_to_dow(fp_normalize_day($r->day));
+            $dur = fp_duration_hours($r->start_time, $r->end_time);
+            if ($dow < 0 || $dur <= 0) { continue; }
+            foreach ($result['months'] as $mk) {
+                [$y, $m] = explode('-', $mk);
+                $cnt = fp_sessions_in_month((int)$y, (int)$m, $dow, (int)$r->initdate, (int)$r->enddate, $excl);
+                $result['hours_by_month'][$mk] += $cnt * $dur;
+            }
+        }
+    }
+    return $result;
+}
+
 // ── Filters ────────────────────────────────────────────────────────────────────
 $filter_periodid  = optional_param('periodid',      0, PARAM_INT);
 $filter_planid    = optional_param('planid',         0, PARAM_INT);
 $include_draft    = optional_param('include_draft',  0, PARAM_INT);
+
+// ── Comparison parameters ──────────────────────────────────────────────────────
+$cmp_rate = max(0.0, (float)(optional_param('cmp_rate', '18', PARAM_TEXT) ?: 18));
 
 // ── Dropdown data ──────────────────────────────────────────────────────────────
 $allPeriods = [];
@@ -72,10 +161,22 @@ $allPlans = [];
 try { $allPlans = $DB->get_records('local_learning_plans', null, 'name ASC', 'id, name'); } catch (Exception $e) {}
 
 // ── Data computation ───────────────────────────────────────────────────────────
-$teacherHours = [];  // [iid][month_key] = float hours
-$teacherMeta  = [];  // [iid] = {name, classes[]}
-$allMonths    = [];
-$periodLabel  = '';
+$teacherHours  = [];  // [iid][month_key] = float hours
+$teacherMeta   = [];  // [iid] = {name, classes[]}
+$allMonths     = [];
+$periodLabel   = '';
+$subjectDetail = [];  // [subjKey] = {name, career, learningplanid, iid, months:[mk=>hrs]}
+
+// Load comparison data
+$cmpData = [];
+for ($ci = 1; $ci <= 3; $ci++) {
+    $cpid = optional_param('cmp_p' . $ci, 0, PARAM_INT);
+    $csrc = optional_param('cmp_s' . $ci, 0, PARAM_INT);
+    if ($cpid > 0) {
+        $d = fp_compute_comparison_period($DB, $cpid, (bool)$csrc, 0);
+        if ($d) { $d['slot'] = $ci; $d['src'] = $csrc; $cmpData[$ci] = $d; }
+    }
+}
 
 if ($filter_periodid > 0) {
     try {
@@ -131,6 +232,16 @@ if ($filter_periodid > 0) {
                 $name = 'Sin docente — ' . $career;
             }
             $courseName = (string)($item['subjectName'] ?? 'Curso sin nombre');
+            $subjKey = 'c' . (int)($item['corecourseid'] ?? 0) . '_lp' . (int)($item['learningplanid'] ?? 0);
+            if (!isset($subjectDetail[$subjKey])) {
+                $subjectDetail[$subjKey] = [
+                    'name'          => $courseName,
+                    'career'        => (string)($item['career'] ?? 'Sin carrera'),
+                    'learningplanid'=> (int)($item['learningplanid'] ?? 0),
+                    'iid'           => $iid,
+                    'months'        => array_fill_keys($allMonths, 0.0),
+                ];
+            }
 
             if (!isset($teacherMeta[$iid])) {
                 $teacherMeta[$iid] = [
@@ -173,6 +284,9 @@ if ($filter_periodid > 0) {
                                 $mk = date('Y-m', $ts);
                                 if (isset($teacherHours[$iid][$mk])) {
                                     $teacherHours[$iid][$mk] += $dur;
+                                    if (isset($subjectDetail[$subjKey]['months'][$mk])) {
+                                        $subjectDetail[$subjKey]['months'][$mk] += $dur;
+                                    }
                                 }
                             }
                         }
@@ -186,6 +300,7 @@ if ($filter_periodid > 0) {
                         [$y, $m] = explode('-', $mk);
                         $cnt = fp_sessions_in_month((int)$y, (int)$m, $dow, $periodInit, $periodEnd, $excl);
                         $teacherHours[$iid][$mk] += $cnt * $dur;
+                        $subjectDetail[$subjKey]['months'][$mk] += $cnt * $dur;
                     }
                 }
             }
@@ -204,6 +319,8 @@ if ($filter_periodid > 0) {
             $rows = $DB->get_records_sql("
                 SELECT s.id AS schedid,
                        gc.id AS classid, gc.name AS classname,
+                       gc.corecourseid, gc.learningplanid,
+                       COALESCE(gc.career_label, '') AS career_label,
                        gc.instructorid, gc.initdate, gc.enddate, gc.approved,
                        u.firstname, u.lastname,
                        c.fullname AS coursefullname,
@@ -248,6 +365,17 @@ if ($filter_periodid > 0) {
                 }
                 $teacherMeta[$iid]['classes'][(int)$r->classid] = $r->coursefullname;
 
+                $subjKey = 'c' . (int)$r->corecourseid . '_lp' . (int)$r->learningplanid;
+                if (!isset($subjectDetail[$subjKey])) {
+                    $subjectDetail[$subjKey] = [
+                        'name'          => $r->coursefullname,
+                        'career'        => (string)$r->career_label,
+                        'learningplanid'=> (int)$r->learningplanid,
+                        'iid'           => $iid,
+                        'months'        => array_fill_keys($allMonths, 0.0),
+                    ];
+                }
+
                 $excl = [];
                 if ($r->excluded_dates) {
                     $dec = json_decode($r->excluded_dates, true);
@@ -260,6 +388,7 @@ if ($filter_periodid > 0) {
                     [$y, $m] = explode('-', $mk);
                     $sess = fp_sessions_in_month((int)$y, (int)$m, $dow, (int)$r->initdate, (int)$r->enddate, $excl);
                     $teacherHours[$iid][$mk] += $sess * $dur;
+                    $subjectDetail[$subjKey]['months'][$mk] += $sess * $dur;
                 }
             }
         }
@@ -330,6 +459,52 @@ echo $OUTPUT->header();
 /* ── No data ─────────────────────────────────────────────────────────────────── */
 .fp-nodata{background:#fff8e1;border-left:4px solid #ffc107;border-radius:4px;padding:16px 20px;margin:20px 0;color:#6d4c00;font-weight:600}
 .fp-noperiod{background:#e8f5e9;border-left:4px solid #4caf50;border-radius:4px;padding:16px 20px;margin:20px 0;color:#2e7d32;font-weight:600}
+/* ── Analytics: subject table ────────────────────────────────────────────────── */
+.fp-subj-table{width:100%;border-collapse:collapse;font-size:12px;min-width:600px}
+.fp-subj-table th{background:#37474f;color:#fff;padding:7px 10px;text-align:right;font-size:11px;font-weight:700;white-space:nowrap}
+.fp-subj-table th.fp-th-l{text-align:left}
+.fp-subj-table td{padding:6px 10px;border-bottom:1px solid #f0f4f8;text-align:right;white-space:nowrap}
+.fp-subj-table td.fp-td-l{text-align:left;font-weight:600;color:#37474f}
+.fp-subj-table tr:hover td{background:#f5f8ff}
+.fp-subj-total-row td{background:#e8f5e9!important;font-weight:800;border-top:2px solid #4caf50;color:#2e7d32}
+.fp-career-tag{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#e3f2fd;color:#1565c0;white-space:nowrap;vertical-align:middle}
+.fp-analytics-filter{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-bottom:14px}
+.fp-analytics-filter label{font-size:11px;font-weight:700;color:#495057;display:block;margin-bottom:3px;text-transform:uppercase}
+.fp-analytics-filter select{padding:5px 8px;border:1px solid #ced4da;border-radius:4px;font-size:13px;background:#fff}
+.fp-toggle-btn{background:none;border:1px solid #90a4ae;color:#546e7a;border-radius:4px;padding:2px 10px;font-size:10px;cursor:pointer;font-weight:700;transition:all .15s}
+.fp-toggle-btn:hover{background:#eceff1;border-color:#546e7a}
+/* ── Analytics: career accordion ────────────────────────────────────────────── */
+.fp-career-list{display:flex;flex-direction:column;gap:8px}
+.fp-career-item{border:1px solid #dee2e6;border-radius:8px;overflow:hidden}
+.fp-career-header{display:flex;align-items:center;gap:12px;padding:10px 16px;background:#f0f4f8;cursor:pointer;user-select:none}
+.fp-career-header:hover{background:#e3eaf2}
+.fp-career-name{font-weight:700;font-size:13px;color:#1a237e;flex:1}
+.fp-career-meta{font-size:12px;color:#546e7a}
+.fp-career-cost-badge{font-size:14px;font-weight:800;color:#2e7d32}
+.fp-career-chevron{font-size:12px;transition:transform .2s;color:#90a4ae}
+.fp-career-header.is-open .fp-career-chevron{transform:rotate(180deg)}
+.fp-career-body{display:none;padding:14px 16px;overflow-x:auto;border-top:1px solid #dee2e6}
+.fp-career-body.is-open{display:block}
+.fp-career-chart-wrap{height:160px;position:relative;margin-bottom:14px}
+/* ── Comparison section ──────────────────────────────────────────────────────── */
+.fp-cmp-slots{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-bottom:14px}
+.fp-cmp-slot{background:#f8f9fa;border:1px solid #dee2e6;border-radius:8px;padding:12px}
+.fp-cmp-slot-title{font-size:11px;font-weight:700;color:#37474f;text-transform:uppercase;margin-bottom:8px}
+.fp-cmp-slot select,.fp-cmp-slot input[type=text]{width:100%;padding:5px 8px;border:1px solid #ced4da;border-radius:4px;font-size:12px;box-sizing:border-box;margin-top:4px}
+.fp-cmp-slot label{font-size:11px;color:#6c757d;display:block;margin-top:6px}
+.fp-cmp-rate-row{display:flex;align-items:center;gap:10px;margin-bottom:14px;background:#e8f5e9;border-radius:6px;padding:10px 14px;flex-wrap:wrap}
+.fp-cmp-rate-row label{font-size:12px;font-weight:700;color:#2e7d32;margin:0}
+.fp-cmp-rate-row input{width:90px;padding:4px 8px;border:1px solid #a5d6a7;border-radius:4px;font-size:13px;font-weight:700;text-align:right}
+.fp-cmp-chart-wrap{height:300px;position:relative;margin-bottom:16px}
+.fp-cmp-table{width:100%;border-collapse:collapse;font-size:12px;min-width:500px}
+.fp-cmp-table th{background:#1a237e;color:#fff;padding:7px 10px;font-size:11px;font-weight:700;text-align:right}
+.fp-cmp-table th:first-child{text-align:left}
+.fp-cmp-table td{padding:6px 10px;border-bottom:1px solid #f0f4f8;text-align:right;white-space:nowrap}
+.fp-cmp-table td:first-child{text-align:left;font-weight:600;color:#37474f}
+.fp-cmp-total-row td{background:#e8f5e9;font-weight:800;color:#2e7d32;border-top:2px solid #4caf50}
+.fp-src-badge{display:inline-block;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:700}
+.fp-src-active{background:#e8f5e9;color:#2e7d32}
+.fp-src-draft{background:#fff3cd;color:#856404}
 </style>
 
 <div class="fp-wrap">
@@ -483,16 +658,169 @@ echo $OUTPUT->header();
     </div>
 </div>
 
+<!-- ── Subject analytics ──────────────────────────────────────────────────────── -->
+<div class="fp-section">
+    <div class="fp-section-header">📚 Costos por Asignatura
+        <span style="font-size:11px;font-weight:400;opacity:.8;margin-left:8px">— calculado con las tarifas configuradas arriba</span>
+    </div>
+    <div class="fp-section-body">
+        <div class="fp-analytics-filter">
+            <div>
+                <label>Filtrar por carrera</label>
+                <select id="fp-subj-career-filter">
+                    <option value="">— Todas las carreras —</option>
+                    <?php
+                    $careerOptionsMap = [];
+                    foreach ($subjectDetail as $sd) {
+                        $lpid = $sd['learningplanid'];
+                        if (!isset($careerOptionsMap[$lpid])) {
+                            $careerOptionsMap[$lpid] = $sd['career'];
+                        }
+                    }
+                    foreach ($careerOptionsMap as $lpid => $cname): ?>
+                    <option value="<?php echo (int)$lpid; ?>"><?php echo fp_h($cname); ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div style="align-self:flex-end">
+                <button class="fp-toggle-btn" id="fp-subj-toggle-months">Ver meses</button>
+            </div>
+        </div>
+        <div style="overflow-x:auto">
+            <div id="fp-subj-wrap"></div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Career analytics ───────────────────────────────────────────────────────── -->
+<div class="fp-section">
+    <div class="fp-section-header">🎓 Costos por Carrera
+        <span style="font-size:11px;font-weight:400;opacity:.8;margin-left:8px">— desglose por mes, expandible</span>
+    </div>
+    <div class="fp-section-body">
+        <div id="fp-career-wrap" class="fp-career-list"></div>
+    </div>
+</div>
+
 <?php endif; ?>
+
+<!-- ── Comparison section (always visible to select periods) ──────────────────── -->
+<div class="fp-section" style="margin-top:20px">
+    <div class="fp-section-header">🔄 Comparativa Multi-Período
+        <span style="font-size:11px;font-weight:400;opacity:.8;margin-left:8px">— compara hasta 3 períodos independientemente</span>
+    </div>
+    <div class="fp-section-body">
+        <form method="get" id="fp-cmp-form">
+            <?php if ($filter_periodid > 0): ?>
+            <input type="hidden" name="periodid" value="<?php echo (int)$filter_periodid; ?>">
+            <input type="hidden" name="include_draft" value="<?php echo (int)$include_draft; ?>">
+            <input type="hidden" name="planid" value="<?php echo (int)$filter_planid; ?>">
+            <?php endif; ?>
+            <div class="fp-cmp-rate-row">
+                <label>💵 Tarifa hora (USD) para comparación:</label>
+                <input type="number" name="cmp_rate" id="fp-cmp-rate-input"
+                       min="0" step="0.5" value="<?php echo number_format($cmp_rate, 2, '.', ''); ?>">
+                <span style="font-size:11px;color:#388e3c">Se aplica a todos los docentes de los períodos comparados.</span>
+            </div>
+            <div class="fp-cmp-slots">
+            <?php for ($ci = 1; $ci <= 3; $ci++):
+                $selPid = (int)(optional_param('cmp_p' . $ci, 0, PARAM_INT));
+                $selSrc = (int)(optional_param('cmp_s' . $ci, 0, PARAM_INT));
+            ?>
+            <div class="fp-cmp-slot">
+                <div class="fp-cmp-slot-title">Período <?php echo $ci; ?></div>
+                <select name="cmp_p<?php echo $ci; ?>">
+                    <option value="0">— No comparar —</option>
+                    <?php foreach ($allPeriods as $p): ?>
+                    <option value="<?php echo (int)$p->id; ?>" <?php echo ((int)$p->id === $selPid ? 'selected' : ''); ?>>
+                        <?php echo fp_h($p->name); ?>
+                    </option>
+                    <?php endforeach; ?>
+                </select>
+                <label>Origen de datos</label>
+                <select name="cmp_s<?php echo $ci; ?>">
+                    <option value="0" <?php echo ($selSrc === 0 ? 'selected' : ''); ?>>Cursos activos</option>
+                    <option value="1" <?php echo ($selSrc === 1 ? 'selected' : ''); ?>>Borradores — planificación</option>
+                </select>
+            </div>
+            <?php endfor; ?>
+            </div>
+            <button type="submit" class="btn btn-primary" style="font-size:13px">Generar Comparativa</button>
+            <a href="<?php echo (new moodle_url('/local/grupomakro_core/pages/financial_planning.php',
+                array_filter(['periodid'=>$filter_periodid,'include_draft'=>$include_draft,'planid'=>$filter_planid])))->out(false); ?>"
+               class="btn btn-secondary" style="margin-left:8px;font-size:13px">Limpiar comparativa</a>
+        </form>
+
+        <?php if (!empty($cmpData)): ?>
+        <hr style="margin:16px 0;border-color:#dee2e6">
+        <div style="overflow-x:auto">
+            <div class="fp-cmp-chart-wrap"><canvas id="fp-cmp-chart"></canvas></div>
+        </div>
+        <div style="overflow-x:auto;margin-top:10px">
+            <?php
+            // Compute all unique months across all comparison periods
+            $cmpAllMonths = [];
+            foreach ($cmpData as $cd) {
+                foreach ($cd['months'] as $mk) {
+                    if (!in_array($mk, $cmpAllMonths)) { $cmpAllMonths[] = $mk; }
+                }
+            }
+            sort($cmpAllMonths);
+            $cmpMonthNames = ['01'=>'Ene','02'=>'Feb','03'=>'Mar','04'=>'Abr','05'=>'May','06'=>'Jun',
+                              '07'=>'Jul','08'=>'Ago','09'=>'Sep','10'=>'Oct','11'=>'Nov','12'=>'Dic'];
+            function fp_cmp_month_label($mk) {
+                global $cmpMonthNames;
+                [$y, $m] = explode('-', $mk);
+                return ($cmpMonthNames[$m] ?? $m) . ' ' . substr($y, 2);
+            }
+            ?>
+            <table class="fp-cmp-table">
+                <thead>
+                    <tr>
+                        <th style="text-align:left">Período</th>
+                        <th>Fuente</th>
+                        <?php foreach ($cmpAllMonths as $mk): ?>
+                        <th><?php echo fp_h(fp_cmp_month_label($mk)); ?></th>
+                        <?php endforeach; ?>
+                        <th>TOTAL HORAS</th>
+                        <th>COSTO ESTIMADO</th>
+                    </tr>
+                </thead>
+                <tbody>
+                <?php foreach ($cmpData as $cd):
+                    $totalHrs = array_sum($cd['hours_by_month']);
+                    $srcLabel = $cd['src'] ? 'Borrador' : 'Activo';
+                    $srcClass = $cd['src'] ? 'fp-src-draft' : 'fp-src-active';
+                ?>
+                <tr>
+                    <td><?php echo fp_h($cd['label']); ?></td>
+                    <td style="text-align:left"><span class="fp-src-badge <?php echo $srcClass; ?>"><?php echo $srcLabel; ?></span></td>
+                    <?php foreach ($cmpAllMonths as $mk):
+                        $h = $cd['hours_by_month'][$mk] ?? 0;
+                    ?>
+                    <td><?php echo number_format($h, 1); ?>h</td>
+                    <?php endforeach; ?>
+                    <td style="font-weight:700"><?php echo number_format($totalHrs, 1); ?>h</td>
+                    <td style="font-weight:700;color:#1565C0">$<?php echo number_format($totalHrs * $cmp_rate, 2); ?></td>
+                </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+        <?php endif; ?>
+    </div>
+</div>
+
 </div>
 
 <?php if (!empty($teacherMeta)): ?>
 <script>
 (function() {
     // ── Raw data from PHP ────────────────────────────────────────────────────
-    const TEACHER_HOURS = <?php echo json_encode($teacherHours, JSON_PRETTY_PRINT); ?>;
-    const TEACHER_META  = <?php echo json_encode($teacherMeta,  JSON_PRETTY_PRINT); ?>;
-    const ALL_MONTHS    = <?php echo json_encode($allMonths,    JSON_PRETTY_PRINT); ?>;
+    const TEACHER_HOURS  = <?php echo json_encode($teacherHours,  JSON_PRETTY_PRINT); ?>;
+    const TEACHER_META   = <?php echo json_encode($teacherMeta,   JSON_PRETTY_PRINT); ?>;
+    const ALL_MONTHS     = <?php echo json_encode($allMonths,     JSON_PRETTY_PRINT); ?>;
+    const SUBJECT_DETAIL = <?php echo json_encode($subjectDetail, JSON_PRETTY_PRINT); ?>;
 
     // ── State ─────────────────────────────────────────────────────────────────
     const teacherRates    = {};   // iid → rate
@@ -700,11 +1028,191 @@ echo $OUTPUT->header();
 
     function escH(v) { return String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
+    // ── Compute subject costs (rates may change at runtime) ───────────────────
+    function computeSubjectCosts() {
+        const result = {};
+        let subjectCareerFilter = '';
+        const filterEl = document.getElementById('fp-subj-career-filter');
+        if (filterEl) { subjectCareerFilter = filterEl.value; }
+
+        for (const key in SUBJECT_DETAIL) {
+            const subj = SUBJECT_DETAIL[key];
+            if (subjectCareerFilter && String(subj.learningplanid) !== String(subjectCareerFilter)) { continue; }
+            const iid  = String(subj.iid);
+            if (teacherExcluded[iid]) { continue; }
+            const rate = teacherRates[iid] || 0;
+            const monthCosts = {};
+            let total = 0;
+            ALL_MONTHS.forEach(mk => {
+                const hrs  = (subj.months || {})[mk] || 0;
+                const cost = hrs * rate;
+                monthCosts[mk] = cost;
+                total += cost;
+            });
+            result[key] = { name: subj.name, career: subj.career, learningplanid: subj.learningplanid, iid, monthCosts, total };
+        }
+        return result;
+    }
+
+    let subjShowMonths = false;
+
+    function renderSubjectTable() {
+        const subjectCosts = computeSubjectCosts();
+        const wrap = document.getElementById('fp-subj-wrap');
+        if (!wrap) { return; }
+        const keys = Object.keys(subjectCosts).sort((a, b) => {
+            const ca = subjectCosts[a].career, cb = subjectCosts[b].career;
+            return ca !== cb ? ca.localeCompare(cb) : subjectCosts[a].name.localeCompare(subjectCosts[b].name);
+        });
+        if (!keys.length) { wrap.innerHTML = '<p style="color:#6c757d;font-size:13px">Sin datos para mostrar.</p>'; return; }
+
+        let html = '<table class="fp-subj-table"><thead><tr>';
+        html += '<th class="fp-th-l">Asignatura</th><th class="fp-th-l">Carrera</th>';
+        if (subjShowMonths) { ALL_MONTHS.forEach(mk => { html += '<th>' + escH(shortMonthLabel(mk)) + '</th>'; }); }
+        html += '<th>Total</th></tr></thead><tbody>';
+
+        let grandTotal = 0;
+        const monthTotals = {};
+        if (subjShowMonths) { ALL_MONTHS.forEach(mk => { monthTotals[mk] = 0; }); }
+
+        keys.forEach(key => {
+            const s = subjectCosts[key];
+            html += '<tr><td class="fp-td-l">' + escH(s.name) + '</td>';
+            html += '<td class="fp-td-l"><span class="fp-career-tag">' + escH(s.career) + '</span></td>';
+            if (subjShowMonths) {
+                ALL_MONTHS.forEach(mk => {
+                    monthTotals[mk] = (monthTotals[mk] || 0) + (s.monthCosts[mk] || 0);
+                    html += '<td>' + fmt(s.monthCosts[mk] || 0) + '</td>';
+                });
+            }
+            html += '<td style="font-weight:700;color:#1565C0">' + fmt(s.total) + '</td></tr>';
+            grandTotal += s.total;
+        });
+
+        html += '<tr class="fp-subj-total-row"><td colspan="2">TOTAL PERÍODO</td>';
+        if (subjShowMonths) { ALL_MONTHS.forEach(mk => { html += '<td>' + fmt(monthTotals[mk] || 0) + '</td>'; }); }
+        html += '<td>' + fmt(grandTotal) + '</td></tr>';
+        html += '</tbody></table>';
+        wrap.innerHTML = html;
+    }
+
+    // ── Career accordion ──────────────────────────────────────────────────────
+    const careerCharts = {};
+
+    function computeCareerCosts() {
+        const subjectCosts = computeSubjectCosts();
+        const careers = {};
+        for (const key in subjectCosts) {
+            const s = subjectCosts[key];
+            const ckey = 'lp' + s.learningplanid;
+            if (!careers[ckey]) {
+                careers[ckey] = { name: s.career, learningplanid: s.learningplanid, subjects: [], monthCosts: {}, total: 0 };
+                ALL_MONTHS.forEach(mk => { careers[ckey].monthCosts[mk] = 0; });
+            }
+            careers[ckey].subjects.push(s);
+            ALL_MONTHS.forEach(mk => {
+                careers[ckey].monthCosts[mk] += s.monthCosts[mk] || 0;
+                careers[ckey].total += s.monthCosts[mk] || 0;
+            });
+        }
+        return careers;
+    }
+
+    function renderCareerAccordion() {
+        const wrap = document.getElementById('fp-career-wrap');
+        if (!wrap) { return; }
+        const careers = computeCareerCosts();
+        const ckeys = Object.keys(careers).sort((a, b) => careers[a].name.localeCompare(careers[b].name));
+        if (!ckeys.length) { wrap.innerHTML = '<p style="color:#6c757d;font-size:13px">Sin datos para mostrar.</p>'; return; }
+
+        wrap.innerHTML = '';
+        ckeys.forEach(ckey => {
+            const career = careers[ckey];
+            const item = document.createElement('div');
+            item.className = 'fp-career-item';
+            item.dataset.ckey = ckey;
+
+                item.innerHTML =
+                '<div class="fp-career-header" onclick="fpToggleCareer(this)">' +
+                  '<span class="fp-career-name">' + escH(career.name || 'Sin carrera') + '</span>' +
+                  '<span class="fp-career-meta">' + career.subjects.length + ' asignaturas</span>' +
+                  '<span class="fp-career-cost-badge">' + fmt(career.total) + '</span>' +
+                  '<span class="fp-career-chevron">▼</span>' +
+                '</div>' +
+                '<div class="fp-career-body" id="fp-cb-' + ckey + '">' +
+                  '<div class="fp-career-chart-wrap"><canvas id="fp-cc-' + ckey + '"></canvas></div>' +
+                  buildCareerSubjTable(career) +
+                '</div>';
+            wrap.appendChild(item);
+        });
+    }
+
+    function buildCareerSubjTable(career) {
+        let html = '<table class="fp-subj-table" style="margin-top:10px"><thead><tr>';
+        html += '<th class="fp-th-l">Asignatura</th>';
+        ALL_MONTHS.forEach(mk => { html += '<th>' + escH(shortMonthLabel(mk)) + '</th>'; });
+        html += '<th>Total</th></tr></thead><tbody>';
+        career.subjects.forEach(s => {
+            html += '<tr><td class="fp-td-l">' + escH(s.name) + '</td>';
+            ALL_MONTHS.forEach(mk => { html += '<td>' + fmt(s.monthCosts[mk] || 0) + '</td>'; });
+            html += '<td style="font-weight:700;color:#1565C0">' + fmt(s.total) + '</td></tr>';
+        });
+        html += '<tr class="fp-subj-total-row"><td>TOTAL</td>';
+        ALL_MONTHS.forEach(mk => { html += '<td>' + fmt(career.monthCosts[mk] || 0) + '</td>'; });
+        html += '<td>' + fmt(career.total) + '</td></tr>';
+        html += '</tbody></table>';
+        return html;
+    }
+
+    window.fpToggleCareer = function(header) {
+        const isOpen = header.classList.toggle('is-open');
+        const body   = header.nextElementSibling;
+        body.classList.toggle('is-open', isOpen);
+        if (isOpen) {
+            const ckey    = header.closest('.fp-career-item').dataset.ckey;
+            const careers = computeCareerCosts();
+            const career  = careers[ckey];
+            if (!career) { return; }
+            const canvasId = 'fp-cc-' + ckey;
+            if (careerCharts[ckey]) { careerCharts[ckey].destroy(); }
+            const ctx = document.getElementById(canvasId);
+            if (!ctx) { return; }
+            const COLORS = ['#1976D2','#388E3C','#7B1FA2','#F57C00','#C62828','#00838F','#5D4037','#AD1457'];
+            const datasets = career.subjects.map((s, i) => ({
+                label: s.name,
+                data: ALL_MONTHS.map(mk => parseFloat((s.monthCosts[mk] || 0).toFixed(2))),
+                backgroundColor: COLORS[i % COLORS.length],
+                stack: 'stack',
+            }));
+            careerCharts[ckey] = new Chart(ctx, {
+                type: 'bar',
+                data: { labels: ALL_MONTHS.map(shortMonthLabel), datasets },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom', labels: { font: { size: 10 }, boxWidth: 12 } } },
+                    scales: {
+                        x: { stacked: true, ticks: { font: { size: 10 } } },
+                        y: { stacked: true, ticks: { callback: v => '$' + Number(v).toLocaleString(), font: { size: 10 } } }
+                    }
+                }
+            });
+        }
+    };
+
+    function shortMonthLabel(mk) {
+        const mn = { '01':'Ene','02':'Feb','03':'Mar','04':'Abr','05':'May','06':'Jun',
+                     '07':'Jul','08':'Ago','09':'Sep','10':'Oct','11':'Nov','12':'Dic' };
+        const [y, m] = mk.split('-');
+        return (mn[m] || m) + ' ' + y.slice(2);
+    }
+
     // ── updateAll ─────────────────────────────────────────────────────────────
     function updateAll() {
         const costs = computeCosts();
         renderChart(costs);
         renderSummary(costs);
+        renderSubjectTable();
+        renderCareerAccordion();
     }
 
     // ── Event: default rate change → propagate to non-customized teachers ─────
@@ -823,9 +1331,81 @@ echo $OUTPUT->header();
         updateAll();
     });
 
+    // ── Subject analytics events ──────────────────────────────────────────────
+    const subjCareerFilter = document.getElementById('fp-subj-career-filter');
+    if (subjCareerFilter) {
+        subjCareerFilter.addEventListener('change', function() {
+            renderSubjectTable();
+            renderCareerAccordion();
+        });
+    }
+    const subjToggleBtn = document.getElementById('fp-subj-toggle-months');
+    if (subjToggleBtn) {
+        subjToggleBtn.addEventListener('click', function() {
+            subjShowMonths = !subjShowMonths;
+            this.textContent = subjShowMonths ? 'Ocultar meses' : 'Ver meses';
+            renderSubjectTable();
+        });
+    }
+
     // ── Init ──────────────────────────────────────────────────────────────────
     initState();
     updateAll();
+})();
+</script>
+<?php endif; ?>
+
+<?php if (!empty($cmpData)): ?>
+<script>
+(function() {
+    const CMP_DATA   = <?php echo json_encode(array_values($cmpData), JSON_PRETTY_PRINT); ?>;
+    const CMP_RATE   = <?php echo (float)$cmp_rate; ?>;
+    const CMP_MONTHS = <?php
+        $cmpAllMks = [];
+        foreach ($cmpData as $cd) {
+            foreach ($cd['months'] as $mk) {
+                if (!in_array($mk, $cmpAllMks)) { $cmpAllMks[] = $mk; }
+            }
+        }
+        sort($cmpAllMks);
+        echo json_encode($cmpAllMks);
+    ?>;
+    const MN = {'01':'Ene','02':'Feb','03':'Mar','04':'Abr','05':'May','06':'Jun',
+                '07':'Jul','08':'Ago','09':'Sep','10':'Oct','11':'Nov','12':'Dic'};
+    function ml(mk) { const [y,m]=mk.split('-'); return (MN[m]||m)+' '+y.slice(2); }
+
+    const COLORS = ['#1976D2','#388E3C','#F57C00'];
+    const datasets = CMP_DATA.map((cd, i) => ({
+        label: cd.label + (cd.src ? ' (borrador)' : ' (activo)'),
+        data: CMP_MONTHS.map(mk => parseFloat(((cd.hours_by_month[mk]||0)*CMP_RATE).toFixed(2))),
+        backgroundColor: COLORS[i % COLORS.length],
+        borderColor: COLORS[i % COLORS.length],
+        borderWidth: 2,
+    }));
+
+    const ctx = document.getElementById('fp-cmp-chart');
+    if (ctx) {
+        new Chart(ctx, {
+            type: 'bar',
+            data: { labels: CMP_MONTHS.map(ml), datasets },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom', labels: { font: { size: 11 }, boxWidth: 14 } },
+                    tooltip: {
+                        callbacks: {
+                            label: c => ' ' + c.dataset.label + ': $' + parseFloat(c.parsed.y).toLocaleString('en-US',{minimumFractionDigits:2})
+                        }
+                    }
+                },
+                scales: {
+                    x: { ticks: { font: { size: 11 } } },
+                    y: { ticks: { callback: v => '$'+Number(v).toLocaleString(), font: { size: 11 } },
+                         title: { display: true, text: 'USD', font: { size: 11 } } }
+                }
+            }
+        });
+    }
 })();
 </script>
 <?php endif; ?>
