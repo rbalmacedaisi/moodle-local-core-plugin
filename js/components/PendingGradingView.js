@@ -100,7 +100,7 @@ Vue.component('pending-grading-view', {
                                 </v-icon>
                                 {{ item.assignmentname }}
                             </div>
-                            <v-chip x-small color="orange darken-1" dark class="mt-1" v-if="item.submissionstatus === 'new'">
+                            <v-chip x-small color="orange darken-1" dark class="mt-1" v-if="item.submissionstatus === 'reopened'">
                                 <v-icon x-small left>mdi-lock-open-variant-outline</v-icon>Reabierta
                             </v-chip>
                             <div class="caption grey--text" v-if="!classId">

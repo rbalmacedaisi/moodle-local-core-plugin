@@ -29,7 +29,7 @@ const QuickGrader = {
                         <v-card v-if="currentTask.modname === 'assign'" class="mx-auto" max-width="900" min-height="100%">
                             <v-card-title>Entrega de Tarea</v-card-title>
                             <v-card-subtitle>
-                                <template v-if="currentTask.submissionstatus === 'new'">
+                                <template v-if="currentTask.submissionstatus === 'reopened'">
                                     <v-icon small color="orange darken-1">mdi-lock-open-variant-outline</v-icon>
                                     <span class="orange--text text--darken-1 font-weight-medium ml-1">Reabierta — esperando nueva entrega del estudiante</span>
                                 </template>
@@ -316,7 +316,7 @@ const QuickGrader = {
                     this.currentTask = val;
                     this.resetForm();
                     // If submission was already reopened, disable the reopen button accordingly.
-                    if (val.submissionstatus === 'new') {
+                    if (val.submissionstatus === 'reopened') {
                         this.reopenSuccess = 'El reenvío ya está habilitado. Esperando nueva entrega del estudiante.';
                     }
                     if (val.modname === 'quiz') {
