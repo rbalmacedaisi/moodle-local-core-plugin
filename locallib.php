@@ -3448,7 +3448,16 @@ function replace_attendance_session($moduleId, $sessionIdToBeRemoved, $sessionDa
 
     $attendanceSession = create_attendance_session_object($class, $sessionDate, $classDurationInSeconds);
 
-    return $attendance->add_sessions([$attendanceSession]);
+    $attendance->add_sessions([$attendanceSession]);
+
+    // Return the new session ID so callers can update gmk_bbb_attendance_relation.
+    $newSession = $DB->get_record_sql(
+        "SELECT id FROM {attendance_sessions}
+          WHERE attendanceid = :attid AND sessdate = :sd AND groupid = :gid
+          ORDER BY id DESC LIMIT 1",
+        ['attid' => (int)$attendanceRecord->id, 'sd' => (int)$sessionDate, 'gid' => (int)($class->groupid ?? 0)]
+    );
+    return $newSession ? (int)$newSession->id : null;
 }
 
 function list_classes($filters)
@@ -5519,25 +5528,55 @@ function reschedule_class_activity($params)
 
     // If the class type is 0 (presencial), just replace the session on the attendance module
     if ($classInfo->type === '0') {
-        $attendanceSessionRescheduled = replace_attendance_session($params['moduleId'], $params['sessionId'], $initTimestamp, $classDurationInSeconds, $classInfo);
+        $oldSessionId = $params['sessionId'];
+        $newAttendanceSessionId = replace_attendance_session($params['moduleId'], $oldSessionId, $initTimestamp, $classDurationInSeconds, $classInfo);
+
+        // Update gmk_bbb_attendance_relation so the new session ID is tracked.
+        if ($newAttendanceSessionId) {
+            $oldRelation = $DB->get_record('gmk_bbb_attendance_relation', ['attendancesessionid' => (int)$oldSessionId]);
+            if ($oldRelation) {
+                $oldRelation->attendancesessionid = $newAttendanceSessionId;
+                $DB->update_record('gmk_bbb_attendance_relation', $oldRelation);
+            }
+        }
     }
 
     // If the class type is 1 (virtual), we need to replace the big blue button module
     else if ($classInfo->type === '1') {
-        course_delete_module($params['moduleId']);
+        $oldBbbModuleId = $params['moduleId'];
+        $oldRelation = $DB->get_record('gmk_bbb_attendance_relation', ['bbbmoduleid' => (int)$oldBbbModuleId]);
+
+        course_delete_module($oldBbbModuleId);
         $bigBluebuttonActivityRescheduled = create_big_blue_button_activity($classInfo, $initTimestamp, $endTimestamp, $BBBmoduleId, $classSectionNumber);
+
+        // Update relation with new BBB IDs so the calendar event is visible again.
+        if ($bigBluebuttonActivityRescheduled) {
+            if ($oldRelation) {
+                $oldRelation->bbbmoduleid = (int)$bigBluebuttonActivityRescheduled->coursemodule;
+                $oldRelation->bbbid       = (int)$bigBluebuttonActivityRescheduled->instance;
+                $DB->update_record('gmk_bbb_attendance_relation', $oldRelation);
+            } else {
+                $newRelation = new stdClass();
+                $newRelation->bbbmoduleid       = (int)$bigBluebuttonActivityRescheduled->coursemodule;
+                $newRelation->bbbid             = (int)$bigBluebuttonActivityRescheduled->instance;
+                $newRelation->classid           = (int)$classInfo->id;
+                $newRelation->attendancesessionid = 0;
+                $newRelation->attendancemoduleid  = 0;
+                $newRelation->attendanceid        = 0;
+                $newRelation->sectionid           = (int)$classInfo->coursesectionid;
+                $DB->insert_record('gmk_bbb_attendance_relation', $newRelation);
+            }
+        }
     }
     // If the class type is 2 (mixta), we need to reschedule both big blue button activity and attendance session
     else if ($classInfo->type === '2') {
 
-        // print_object($moduleInfo->id);
-        // die;
         if ($moduleActivity === 'bigbluebuttonbn') {
             $bigBlueButtonInstanceModuleId = $moduleInfo->id;
             $bigBlueButtonActivityInfo =  $DB->get_record('bigbluebuttonbn', ['id' => $moduleInfo->instance]);
             $bigBlueButtonActivityInitTS = $bigBlueButtonActivityInfo->openingtime;
 
-            // If the reschedule was triggered from the big blue button activity, we must search the attendance session that begins with the same timestamp 
+            // If the reschedule was triggered from the big blue button activity, we must search the attendance session that begins with the same timestamp
             $classAttendanceModule = $DB->get_record('course_modules', ['section' => $classInfo->coursesectionid, 'module' => $attendanceModuleId]);
             $classAttendanceModuleId = $classAttendanceModule->id;
             $classAttendanceSessionId = $DB->get_record('attendance_sessions', ['attendanceid' => $classAttendanceModule->instance, 'sessdate' => $bigBlueButtonActivityInitTS])->id;
@@ -5545,7 +5584,7 @@ function reschedule_class_activity($params)
             $classAttendanceModuleId = $moduleInfo->id;
             $classAttendanceSessionId = $params['sessionId'];
 
-            // If the reschedule was triggered from the attendance session, we must search the big bluebutton activity that begins with the same timestamp 
+            // If the reschedule was triggered from the attendance session, we must search the big bluebutton activity that begins with the same timestamp
             $classAttendanceSessionInitTS = $DB->get_record('attendance_sessions', ['id' => $classAttendanceSessionId])->sessdate;
             $bigBlueButtonActivityInfo = null;
             $bigBlueButtonActivityItems = $DB->get_records('bigbluebuttonbn', ['openingtime' => $classAttendanceSessionInitTS, 'name' => $classInfo->name . '-' . $classInfo->id . '-' . $classAttendanceSessionInitTS]);
@@ -5559,14 +5598,42 @@ function reschedule_class_activity($params)
             $bigBlueButtonInstanceModuleId = $DB->get_record('course_modules', ['instance' => $bigBlueButtonActivityInfo->id, 'module' => $bigBlueButtonModuleId])->id;
         }
 
-        //With the ids required to do the reschedule setted, lets use the methods to reschedute them
+        // Capture old relation before modifying anything.
+        $oldRelation = $DB->get_record('gmk_bbb_attendance_relation', ['attendancesessionid' => (int)$classAttendanceSessionId]);
+        if (!$oldRelation) {
+            $oldRelation = $DB->get_record('gmk_bbb_attendance_relation', ['bbbmoduleid' => (int)$bigBlueButtonInstanceModuleId]);
+        }
 
-        //For attendance
-        $attendanceSessionRescheduled = replace_attendance_session($classAttendanceModuleId, $classAttendanceSessionId, $initTimestamp, $classDurationInSeconds, $classInfo);
+        //For attendance — returns the new session ID
+        $newAttendanceSessionId = replace_attendance_session($classAttendanceModuleId, $classAttendanceSessionId, $initTimestamp, $classDurationInSeconds, $classInfo);
 
-        //For BBB
+        //For BBB — returns new coursemodule and instance IDs
         course_delete_module($bigBlueButtonInstanceModuleId);
         $bigBluebuttonActivityRescheduled = create_big_blue_button_activity($classInfo, $initTimestamp, $endTimestamp, $BBBmoduleId, $classSectionNumber);
+
+        // Update gmk_bbb_attendance_relation with the new IDs so students can see the session.
+        // Without this, complete_class_event_information[_bbb] filters the event and the session
+        // becomes invisible in the student calendar.
+        if ($newAttendanceSessionId && $bigBluebuttonActivityRescheduled) {
+            if ($oldRelation) {
+                $oldRelation->attendancesessionid = (int)$newAttendanceSessionId;
+                $oldRelation->bbbmoduleid         = (int)$bigBluebuttonActivityRescheduled->coursemodule;
+                $oldRelation->bbbid               = (int)$bigBluebuttonActivityRescheduled->instance;
+                $DB->update_record('gmk_bbb_attendance_relation', $oldRelation);
+            } else {
+                // No pre-existing relation (legacy or first reschedule on a class without one).
+                $attendanceInstance = $DB->get_field('course_modules', 'instance', ['id' => (int)$classAttendanceModuleId]);
+                $newRelation = new stdClass();
+                $newRelation->attendancesessionid = (int)$newAttendanceSessionId;
+                $newRelation->bbbmoduleid         = (int)$bigBluebuttonActivityRescheduled->coursemodule;
+                $newRelation->bbbid               = (int)$bigBluebuttonActivityRescheduled->instance;
+                $newRelation->classid             = (int)$classInfo->id;
+                $newRelation->attendancemoduleid  = (int)$classAttendanceModuleId;
+                $newRelation->attendanceid        = (int)$attendanceInstance;
+                $newRelation->sectionid           = (int)$classInfo->coursesectionid;
+                $DB->insert_record('gmk_bbb_attendance_relation', $newRelation);
+            }
+        }
     }
     return true;
 }
