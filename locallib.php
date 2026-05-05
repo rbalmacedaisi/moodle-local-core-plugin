@@ -5454,8 +5454,8 @@ function check_reschedule_conflicts($params)
     $incomingWeekDay = $weekdays[date('l', strtotime($params['date']))];
     $incomingTimeRangeTS = convert_time_range_to_timestamp_range([$params['initTime'], $params['endTime']]);
 
-    $instructorEvents = get_teacher_disponibility_calendar($instructorUserId)[$instructorUserId];
-    $incomingDayAvailableTime = $instructorEvents->daysFree[$params['date']];
+    $instructorEvents = get_teacher_disponibility_calendar($instructorUserId);
+    $incomingDayAvailableTime = $instructorEvents->daysFree[$params['date']] ?? [];
 
     $foundedAvailableRange = false;
     for ($i = 0; $i < count($incomingDayAvailableTime); $i += 2) {
