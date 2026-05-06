@@ -3425,7 +3425,7 @@ function create_class_grade_category($class)
     return $catId;
 }
 
-function replace_attendance_session($moduleId, $sessionIdToBeRemoved, $sessionDate, $classDurationInSeconds, $class)
+function replace_attendance_session($moduleId, $sessionIdToBeRemoved, $sessionDate, $classDurationInSeconds, $class, $BBBCourseModuleInfo = null)
 {
 
     global $DB;
@@ -3440,36 +3440,16 @@ function replace_attendance_session($moduleId, $sessionIdToBeRemoved, $sessionDa
     $context = \context_module::instance($attendanceCourseModule->id);
     $attendance = new \mod_attendance_structure($attendanceRecord, $attendanceCourseModule, $class->course, $context);
 
-    // Snapshot the highest existing session ID before making any changes.
-    // We use this later to identify the newly inserted session regardless of
-    // sessdate/groupid rounding or attendance plugin internals.
-    $maxIdBefore = (int)$DB->get_field_sql(
-        "SELECT COALESCE(MAX(id), 0) FROM {attendance_sessions} WHERE attendanceid = :attid",
-        ['attid' => (int)$attendanceRecord->id]
-    );
-
     $attendance->delete_sessions([$sessionIdToBeRemoved]);
 
-    $attendanceSession = create_attendance_session_object($class, $sessionDate, $classDurationInSeconds);
-    $attendance->add_sessions([$attendanceSession]);
+    // Pass BBBCourseModuleInfo so the session description includes the BBB link,
+    // exactly as create_class_activities does during the publish flow.
+    $attendanceSession = create_attendance_session_object($class, $sessionDate, $classDurationInSeconds, $BBBCourseModuleInfo);
 
-    // Find the session that was just inserted — it will have the highest ID for this attendance.
-    // Fallback to sessdate+groupid match only if no newer row exists (e.g. concurrent inserts).
-    $newSession = $DB->get_record_sql(
-        "SELECT id FROM {attendance_sessions}
-          WHERE attendanceid = :attid AND id > :minid
-          ORDER BY id DESC LIMIT 1",
-        ['attid' => (int)$attendanceRecord->id, 'minid' => $maxIdBefore]
-    );
-    if (!$newSession) {
-        $newSession = $DB->get_record_sql(
-            "SELECT id FROM {attendance_sessions}
-              WHERE attendanceid = :attid AND sessdate = :sd AND groupid = :gid
-              ORDER BY id DESC LIMIT 1",
-            ['attid' => (int)$attendanceRecord->id, 'sd' => (int)$sessionDate, 'gid' => (int)($class->groupid ?? 0)]
-        );
-    }
-    return $newSession ? (int)$newSession->id : null;
+    // Use add_session (singular) — same as the publish flow in create_class_activities.
+    // It returns the new session ID directly, unlike add_sessions() which returns nothing.
+    $newSessionId = $attendance->add_session($attendanceSession);
+    return $newSessionId ? (int)$newSessionId : null;
 }
 
 function list_classes($filters)
@@ -5561,15 +5541,17 @@ function reschedule_class_activity($params)
                 $attendanceCmId = $attCm ? (int)$attCm->id : 0;
             }
 
-            // Replace attendance session first (before deleting BBB so nothing is half-done).
+            // Mirror the publish flow in create_class_activities:
+            // 1. Create the new BBB module FIRST so we can pass its info to the attendance session.
+            // 2. Delete the old BBB module.
+            // 3. Replace the attendance session WITH the new BBB info (description links them).
+            $bigBluebuttonActivityRescheduled = create_big_blue_button_activity($classInfo, $initTimestamp, $endTimestamp, $BBBmoduleId, $classSectionNumber);
+            course_delete_module($oldBbbModuleId);
+
             $newAttendanceSessionId = null;
             if ($attendanceCmId) {
-                $newAttendanceSessionId = replace_attendance_session($attendanceCmId, $oldSessionId, $initTimestamp, $classDurationInSeconds, $classInfo);
+                $newAttendanceSessionId = replace_attendance_session($attendanceCmId, $oldSessionId, $initTimestamp, $classDurationInSeconds, $classInfo, $bigBluebuttonActivityRescheduled);
             }
-
-            // Replace BBB module.
-            course_delete_module($oldBbbModuleId);
-            $bigBluebuttonActivityRescheduled = create_big_blue_button_activity($classInfo, $initTimestamp, $endTimestamp, $BBBmoduleId, $classSectionNumber);
 
             // Resolve the attendance instance ID (needed by complete_class_event_information
             // which looks up gmk_bbb_attendance_relation by attendanceid + attendancesessionid).
