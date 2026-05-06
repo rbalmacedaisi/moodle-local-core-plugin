@@ -951,4 +951,20 @@ $functions = array(
         'ajax'        => true,
         'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE],
     ],
+    'local_grupomakro_get_lp_students' => [
+        'classname'   => 'local_grupomakro_core\external\lp\get_lp_students',
+        'methodname'  => 'execute',
+        'description' => 'Get students enrolled in a learning plan, filtered by plan/period/subperiod',
+        'type'        => 'read',
+        'ajax'        => true,
+        'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE],
+    ],
+    'local_grupomakro_bulk_enroll' => [
+        'classname'   => 'local_grupomakro_core\external\lp\bulk_enroll',
+        'methodname'  => 'execute',
+        'description' => 'Bulk enroll a list of students into a target learning plan',
+        'type'        => 'write',
+        'ajax'        => true,
+        'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE],
+    ],
 );
