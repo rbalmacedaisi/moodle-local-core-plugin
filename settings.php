@@ -227,6 +227,11 @@ if ($hassiteconfig) {
         $emojititle("\u{1F4EC}", 'Bandeja Solicitudes de Cartas'),
         new moodle_url('/local/grupomakro_core/pages/letterrequests.php')
     );
+    $bulkEnrollPage = new admin_externalpage(
+        'grupomakro_core_bulk_enroll',
+        $emojititle("\u{1F4CB}", 'Matrícula Masiva a Plan'),
+        new moodle_url('/local/grupomakro_core/pages/bulk_enroll.php')
+    );
     $ADMIN->add('grupomakrocore_plugin', $classManagementPage);
     $ADMIN->add('grupomakrocore_plugin', $classSchedulesPage);
     $ADMIN->add('grupomakrocore_plugin', $availabilityPanelPage);
@@ -258,6 +263,7 @@ if ($hassiteconfig) {
     $ADMIN->add('grupomakrocore_plugin', $absenceDashboardPage);
     $ADMIN->add('grupomakrocore_plugin', $letterTypesPage);
     $ADMIN->add('grupomakrocore_plugin', $letterRequestsPage);
+    $ADMIN->add('grupomakrocore_plugin', $bulkEnrollPage);
     $ADMIN->add('grupomakrocore_plugin', $financialPlanningPage);
     $ADMIN->add('grupomakrocore_plugin', $debugStudentActivityVisibilityPage);
     $ADMIN->add('grupomakrocore_plugin', $debugBbbTeacherJoinPage);

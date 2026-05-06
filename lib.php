@@ -93,6 +93,8 @@ function local_grupomakro_core_extend_navigation(global_navigation $navigation) 
             '|/local/grupomakro_core/pages/manage_courses.php';
         $CFG->custommenuitems .= PHP_EOL . '-🎥 Gestor de Sesiones Virtuales' .
             '|/local/grupomakro_core/pages/manage_meetings.php';
+        $CFG->custommenuitems .= PHP_EOL . '-📋 Matrícula Masiva a Plan' .
+            '|/local/grupomakro_core/pages/bulk_enroll.php';
     }
 
     // 2. Redirection logic
