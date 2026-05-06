@@ -3440,23 +3440,35 @@ function replace_attendance_session($moduleId, $sessionIdToBeRemoved, $sessionDa
     $context = \context_module::instance($attendanceCourseModule->id);
     $attendance = new \mod_attendance_structure($attendanceRecord, $attendanceCourseModule, $class->course, $context);
 
-    //Remove the attendance session that will be reschedule
+    // Snapshot the highest existing session ID before making any changes.
+    // We use this later to identify the newly inserted session regardless of
+    // sessdate/groupid rounding or attendance plugin internals.
+    $maxIdBefore = (int)$DB->get_field_sql(
+        "SELECT COALESCE(MAX(id), 0) FROM {attendance_sessions} WHERE attendanceid = :attid",
+        ['attid' => (int)$attendanceRecord->id]
+    );
 
     $attendance->delete_sessions([$sessionIdToBeRemoved]);
 
-    //Create the new attendance session with the new values
-
     $attendanceSession = create_attendance_session_object($class, $sessionDate, $classDurationInSeconds);
-
     $attendance->add_sessions([$attendanceSession]);
 
-    // Return the new session ID so callers can update gmk_bbb_attendance_relation.
+    // Find the session that was just inserted — it will have the highest ID for this attendance.
+    // Fallback to sessdate+groupid match only if no newer row exists (e.g. concurrent inserts).
     $newSession = $DB->get_record_sql(
         "SELECT id FROM {attendance_sessions}
-          WHERE attendanceid = :attid AND sessdate = :sd AND groupid = :gid
+          WHERE attendanceid = :attid AND id > :minid
           ORDER BY id DESC LIMIT 1",
-        ['attid' => (int)$attendanceRecord->id, 'sd' => (int)$sessionDate, 'gid' => (int)($class->groupid ?? 0)]
+        ['attid' => (int)$attendanceRecord->id, 'minid' => $maxIdBefore]
     );
+    if (!$newSession) {
+        $newSession = $DB->get_record_sql(
+            "SELECT id FROM {attendance_sessions}
+              WHERE attendanceid = :attid AND sessdate = :sd AND groupid = :gid
+              ORDER BY id DESC LIMIT 1",
+            ['attid' => (int)$attendanceRecord->id, 'sd' => (int)$sessionDate, 'gid' => (int)($class->groupid ?? 0)]
+        );
+    }
     return $newSession ? (int)$newSession->id : null;
 }
 
@@ -5559,21 +5571,32 @@ function reschedule_class_activity($params)
             course_delete_module($oldBbbModuleId);
             $bigBluebuttonActivityRescheduled = create_big_blue_button_activity($classInfo, $initTimestamp, $endTimestamp, $BBBmoduleId, $classSectionNumber);
 
+            // Resolve the attendance instance ID (needed by complete_class_event_information
+            // which looks up gmk_bbb_attendance_relation by attendanceid + attendancesessionid).
+            $attendanceInstance = $attendanceCmId
+                ? (int)$DB->get_field('course_modules', 'instance', ['id' => $attendanceCmId])
+                : 0;
+
             // Update or recreate the relation with the new IDs.
             if ($bigBluebuttonActivityRescheduled) {
                 if ($bbbRelation) {
                     if ($newAttendanceSessionId) {
                         $bbbRelation->attendancesessionid = $newAttendanceSessionId;
                     }
-                    $bbbRelation->bbbmoduleid = (int)$bigBluebuttonActivityRescheduled->coursemodule;
-                    $bbbRelation->bbbid       = (int)$bigBluebuttonActivityRescheduled->instance;
+                    $bbbRelation->bbbmoduleid        = (int)$bigBluebuttonActivityRescheduled->coursemodule;
+                    $bbbRelation->bbbid              = (int)$bigBluebuttonActivityRescheduled->instance;
+                    // Always repair attendanceid/attendancemoduleid in case they were 0
+                    // (e.g. relation was originally created for a virtual-only class).
+                    if ($attendanceCmId) {
+                        $bbbRelation->attendancemoduleid = $attendanceCmId;
+                        $bbbRelation->attendanceid       = $attendanceInstance;
+                    }
                     $DB->update_record('gmk_bbb_attendance_relation', $bbbRelation);
                 } else {
-                    $attendanceInstance = $attendanceCmId ? (int)$DB->get_field('course_modules', 'instance', ['id' => $attendanceCmId]) : 0;
                     $newRelation = new stdClass();
-                    $newRelation->classid           = (int)$classInfo->id;
-                    $newRelation->bbbmoduleid       = (int)$bigBluebuttonActivityRescheduled->coursemodule;
-                    $newRelation->bbbid             = (int)$bigBluebuttonActivityRescheduled->instance;
+                    $newRelation->classid             = (int)$classInfo->id;
+                    $newRelation->bbbmoduleid         = (int)$bigBluebuttonActivityRescheduled->coursemodule;
+                    $newRelation->bbbid               = (int)$bigBluebuttonActivityRescheduled->instance;
                     $newRelation->attendancesessionid = $newAttendanceSessionId ? $newAttendanceSessionId : 0;
                     $newRelation->attendancemoduleid  = $attendanceCmId;
                     $newRelation->attendanceid        = $attendanceInstance;
