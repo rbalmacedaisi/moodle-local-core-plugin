@@ -738,10 +738,10 @@ window.Vue.component('classschedule', {
         editEvent(event) {
             console.log(event)
             let url = window.location.origin + '/local/grupomakro_core/pages/editclass.php?class_id=' + event.classId
-            if (event.moduleId != null && event.moduleId !== undefined && String(event.moduleId) !== 'undefined') {
+            if (event.moduleId && parseInt(event.moduleId) > 0) {
                 url += '&moduleId=' + event.moduleId
             }
-            if (event.sessionId != null && event.sessionId !== undefined && String(event.sessionId) !== 'undefined') {
+            if (event.sessionId && parseInt(event.sessionId) > 0) {
                 url += '&sessionId=' + event.sessionId
             }
             window.location = url

@@ -7992,6 +7992,8 @@ function complete_class_event_information_bbb($event, &$fetchedClasses)
         $event->timeRange = ($gmkClass->inithourformatted ?? '') . ' - ' . ($gmkClass->endhourformatted ?? '');
     }
     $event->bigBlueButtonActivityUrl = $CFG->wwwroot . '/mod/bigbluebuttonbn/view.php?id=' . (int)$event->cmid;
+    $event->moduleId  = !empty($relation->attendancemoduleid)  ? (int)$relation->attendancemoduleid  : 0;
+    $event->sessionId = !empty($relation->attendancesessionid) ? (int)$relation->attendancesessionid : 0;
     $event->start = date('Y-m-d H:i:s', (int)$event->timestart);
     $event->end = date('Y-m-d H:i:s', (int)$event->timestart + (int)$event->timeduration);
 
