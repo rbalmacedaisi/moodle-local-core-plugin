@@ -5529,14 +5529,34 @@ function reschedule_class_activity($params)
     // If the class type is 0 (presencial), just replace the session on the attendance module
     if ($classInfo->type === '0') {
         $oldSessionId = $params['sessionId'];
-        $newAttendanceSessionId = replace_attendance_session($params['moduleId'], $oldSessionId, $initTimestamp, $classDurationInSeconds, $classInfo);
 
-        // Update gmk_bbb_attendance_relation so the new session ID is tracked.
-        if ($newAttendanceSessionId) {
-            $oldRelation = $DB->get_record('gmk_bbb_attendance_relation', ['attendancesessionid' => (int)$oldSessionId]);
-            if ($oldRelation) {
-                $oldRelation->attendancesessionid = $newAttendanceSessionId;
-                $DB->update_record('gmk_bbb_attendance_relation', $oldRelation);
+        // When the reschedule is triggered from a BBB calendar event, $params['moduleId'] holds
+        // the BBB CM ID — resolve the actual attendance CM ID from the relation table.
+        if ($moduleActivity === 'bigbluebuttonbn') {
+            $bbbRelation = $DB->get_record('gmk_bbb_attendance_relation', ['bbbmoduleid' => (int)$params['moduleId']]);
+            if ($bbbRelation && !empty($bbbRelation->attendancemoduleid)) {
+                $attendanceCmId = (int)$bbbRelation->attendancemoduleid;
+                if (empty($oldSessionId) && !empty($bbbRelation->attendancesessionid)) {
+                    $oldSessionId = (int)$bbbRelation->attendancesessionid;
+                }
+            } else {
+                $attCm = $DB->get_record('course_modules', ['section' => $classInfo->coursesectionid, 'module' => $attendanceModuleId]);
+                $attendanceCmId = $attCm ? (int)$attCm->id : 0;
+            }
+        } else {
+            $attendanceCmId = (int)$params['moduleId'];
+        }
+
+        if ($attendanceCmId) {
+            $newAttendanceSessionId = replace_attendance_session($attendanceCmId, $oldSessionId, $initTimestamp, $classDurationInSeconds, $classInfo);
+
+            // Update gmk_bbb_attendance_relation so the new session ID is tracked.
+            if ($newAttendanceSessionId) {
+                $oldRelation = $DB->get_record('gmk_bbb_attendance_relation', ['attendancesessionid' => (int)$oldSessionId]);
+                if ($oldRelation) {
+                    $oldRelation->attendancesessionid = $newAttendanceSessionId;
+                    $DB->update_record('gmk_bbb_attendance_relation', $oldRelation);
+                }
             }
         }
     }
