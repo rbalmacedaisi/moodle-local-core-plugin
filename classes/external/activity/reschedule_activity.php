@@ -98,8 +98,9 @@ class reschedule_activity extends external_api {
             return ['status' => $activityRescheduled, 'message'=>'ok'];
             
         }
-        catch (Exception $e) {
-            return ['status' => -1, 'message' => $e->getMessage()];
+        catch (\Throwable $e) {
+            $detail = get_class($e) . ': ' . $e->getMessage() . ' in ' . basename($e->getFile()) . ':' . $e->getLine();
+            return ['status' => -1, 'message' => $detail];
         }
         
     }
