@@ -7992,7 +7992,9 @@ function complete_class_event_information_bbb($event, &$fetchedClasses)
         $event->timeRange = ($gmkClass->inithourformatted ?? '') . ' - ' . ($gmkClass->endhourformatted ?? '');
     }
     $event->bigBlueButtonActivityUrl = $CFG->wwwroot . '/mod/bigbluebuttonbn/view.php?id=' . (int)$event->cmid;
-    $event->moduleId  = !empty($relation->attendancemoduleid)  ? (int)$relation->attendancemoduleid  : 0;
+    // moduleId = BBB course-module ID so reschedule_class_activity can delete/replace the correct module.
+    // sessionId = linked attendance session, needed for type-2 mixta reschedule path.
+    $event->moduleId  = (int)$event->cmid;
     $event->sessionId = !empty($relation->attendancesessionid) ? (int)$relation->attendancesessionid : 0;
     $event->start = date('Y-m-d H:i:s', (int)$event->timestart);
     $event->end = date('Y-m-d H:i:s', (int)$event->timestart + (int)$event->timeduration);
