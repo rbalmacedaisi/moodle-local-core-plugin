@@ -54,6 +54,18 @@ echo $OUTPUT->header();
     <v-main>
       <v-container fluid class="px-4">
 
+        <!-- Alerta global de error/info -->
+        <v-alert
+          v-if="alert.show"
+          :type="alert.type"
+          dismissible
+          prominent
+          class="mb-3"
+          @input="alert.show = false"
+        >
+          {{ alert.text }}
+        </v-alert>
+
         <v-row>
           <!-- ═══════════════════ ORIGEN ═══════════════════ -->
           <v-col cols="12" md="5">
@@ -281,13 +293,6 @@ echo $OUTPUT->header();
           </v-col>
         </v-row>
 
-        <!-- Snackbar de error global -->
-        <v-snackbar v-model="snackbar.show" :color="snackbar.color" top timeout="5000">
-          {{ snackbar.text }}
-          <template v-slot:action="{ attrs }">
-            <v-btn text v-bind="attrs" @click="snackbar.show = false">Cerrar</v-btn>
-          </template>
-        </v-snackbar>
 
       </v-container>
     </v-main>
@@ -325,7 +330,7 @@ new Vue({
     skippedCount: 0,
     errorCount: 0,
 
-    snackbar: { show: false, text: '', color: 'error' },
+    alert: { show: false, text: '', type: 'error' },
   }),
 
   computed: {
@@ -459,8 +464,9 @@ new Vue({
       }
     },
 
-    notify(text, color = 'error') {
-      this.snackbar = { show: true, text, color };
+    notify(text, type = 'error') {
+      this.alert = { show: true, text, type };
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     },
   },
 });
