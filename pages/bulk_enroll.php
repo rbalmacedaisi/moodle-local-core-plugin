@@ -14,8 +14,9 @@ $PAGE->set_title('Matrícula masiva a plan de aprendizaje');
 $PAGE->set_heading('Matrícula masiva a plan de aprendizaje');
 $PAGE->set_pagelayout('base');
 
-$token      = get_logged_user_token();
-$wsUrl      = $CFG->wwwroot . '/webservice/rest/server.php';
+// get_logged_user_token() already returns json_encode()'d value — do NOT re-encode.
+$token  = get_logged_user_token();
+$wsUrl  = $CFG->wwwroot . '/webservice/rest/server.php';
 
 // Load all plans with their periods and subperiods for the dropdowns.
 $plans = $DB->get_records('local_learning_plans', null, 'name ASC', 'id, name, shortname, hasperiod');
@@ -40,8 +41,7 @@ foreach ($plans as $plan) {
 }
 
 $plansJson = json_encode($planData);
-$tokenJson  = json_encode($token);
-$wsUrlJson  = json_encode($wsUrl);
+$wsUrlJson = json_encode($wsUrl);
 
 echo $OUTPUT->header();
 ?>
@@ -299,7 +299,7 @@ echo $OUTPUT->header();
 <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
 
 <script>
-const _TOKEN  = <?= $tokenJson ?>;
+const _TOKEN  = <?= $token ?>;
 const _WSURL  = <?= $wsUrlJson ?>;
 const _PLANS  = <?= $plansJson ?>;
 
@@ -395,6 +395,7 @@ new Vue({
           periodid:    this.src.periodId    || 0,
           subperiodid: this.src.subperiodId || 0,
         }});
+        if (data.exception) throw new Error(data.message || data.exception);
         if (data.status === -1) throw new Error(data.message || 'Error al obtener estudiantes.');
         this.students = JSON.parse(data.students || '[]');
       } catch (e) {
@@ -421,7 +422,7 @@ new Vue({
         this.selected.forEach((uid, i) => params.append(`userids[${i}]`, uid));
 
         const { data } = await axios.post(_WSURL, params);
-        if (data.exception) throw new Error(data.message || 'Error en el servidor.');
+        if (data.exception) throw new Error(data.message || data.exception);
         this.results       = JSON.parse(data.results || '[]');
         this.enrolledCount = data.enrolled || 0;
         this.skippedCount  = data.skipped  || 0;
