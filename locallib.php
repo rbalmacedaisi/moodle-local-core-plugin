@@ -5465,18 +5465,19 @@ function check_reschedule_conflicts($params)
 
     $groupMembers = $DB->get_records('groups_members', array('groupid' => $classInfo->groupid));
 
+    // Only fetch events on the proposed date — fetching the full year for every
+    // student is O(students × events) and causes PHP timeouts on large groups.
+    $proposedDate = $params['date'];
+
     foreach ($groupMembers as $key => $groupMember) {
         if ($groupMember->userid == $instructorUserId) {
             unset($groupMembers[$key]);
             continue;
         }
-        $studentEvents = get_class_events($groupMember->userid);
+        $studentEvents = get_class_events($groupMember->userid, $proposedDate, $proposedDate);
         foreach ($studentEvents as $studentEvent) {
             $eventStart = explode(' ', $studentEvent->start);
-            $eventEnd = explode(' ', $studentEvent->end);
-            // if ($eventStart[0] === $date) {
-            //     continue;
-            // }
+            $eventEnd   = explode(' ', $studentEvent->end);
             $eventTimeRangeTS = convert_time_range_to_timestamp_range([$eventStart[1], $eventEnd[1]]);
 
             if (($incomingTimeRangeTS['initTS'] >= $eventTimeRangeTS['initTS'] && $incomingTimeRangeTS['endTS'] <= $eventTimeRangeTS['endTS'])
