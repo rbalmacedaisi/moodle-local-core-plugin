@@ -737,8 +737,14 @@ window.Vue.component('classschedule', {
         },
         editEvent(event) {
             console.log(event)
-            window.location = window.location.origin + '/local/grupomakro_core/pages/editclass.php?class_id='
-                + event.classId + '&moduleId=' + event.moduleId + '&sessionId=' + event.sessionId
+            let url = window.location.origin + '/local/grupomakro_core/pages/editclass.php?class_id=' + event.classId
+            if (event.moduleId != null && event.moduleId !== undefined && String(event.moduleId) !== 'undefined') {
+                url += '&moduleId=' + event.moduleId
+            }
+            if (event.sessionId != null && event.sessionId !== undefined && String(event.sessionId) !== 'undefined') {
+                url += '&sessionId=' + event.sessionId
+            }
+            window.location = url
         },
         formatDate(date) {
             const year = date.getFullYear();

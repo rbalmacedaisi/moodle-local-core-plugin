@@ -55,10 +55,17 @@ $id = optional_param('class_id', null, PARAM_INT);
 if (!$id) {
     redirect(new moodle_url('/local/grupomakro_core/pages/classmanagement.php'), 'ID de clase no proporcionado', 3);
 }
-$moduleId = optional_param('moduleId',null, PARAM_TEXT);
-$sessionId = optional_param('sessionId',null, PARAM_TEXT);
-$proposedDate = optional_param('proposedDate',null, PARAM_TEXT);
-$proposedHour = optional_param('proposedHour',null, PARAM_TEXT);
+$moduleId = optional_param('moduleId', null, PARAM_TEXT);
+$sessionId = optional_param('sessionId', null, PARAM_TEXT);
+$proposedDate = optional_param('proposedDate', null, PARAM_TEXT);
+$proposedHour = optional_param('proposedHour', null, PARAM_TEXT);
+// Sanitize: reject 'undefined' string or non-numeric values sent from JS
+if ($moduleId !== null && (!ctype_digit((string)$moduleId) || (int)$moduleId <= 0)) {
+    $moduleId = null;
+}
+if ($sessionId !== null && (!ctype_digit((string)$sessionId) || (int)$sessionId <= 0)) {
+    $sessionId = null;
+}
 $reschedulingActivity = !!$moduleId;
 
 $activityInitDate = null;
