@@ -84,12 +84,13 @@ class check_reschedule_conflicts extends external_api {
 
         try{
             $rescheduleConflicts = check_reschedule_conflicts($params);
-            
+
             return ['status' => 1, 'message'=>json_encode($rescheduleConflicts['conflicts'])];
-            
+
         }
-        catch (Exception $e) {
-            return ['status' => -1, 'message' => $e->getMessage()];
+        catch (\Throwable $e) {
+            $detail = get_class($e) . ': ' . $e->getMessage() . ' in ' . basename($e->getFile()) . ':' . $e->getLine();
+            return ['status' => -1, 'message' => $detail];
         }
     }
 

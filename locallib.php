@@ -6347,6 +6347,9 @@ function get_teacher_disponibility_calendar($instructorId, $initDate = null, $en
 
     foreach ($gmkTeacherDisponibilityTableDayHeaders as $dayHeader => $day) {
         $dayAvailabilities = json_decode($teacherDisponibilityRecord->{$dayHeader});
+        if (!is_array($dayAvailabilities)) {
+            $dayAvailabilities = $dayAvailabilities instanceof \stdClass ? array_values((array) $dayAvailabilities) : [];
+        }
         $dayDisponibilityHours = $dayAvailabilities;
         if (empty($dayDisponibilityHours)) {
             continue;
@@ -7173,6 +7176,9 @@ function check_if_time_range_is_contained($rangeArray, $inputRange)
 
 function substract_timerange_from_teacher_disponibility($rangeArray, $inputRange)
 {
+    if (!is_array($rangeArray)) {
+        $rangeArray = array_values((array) $rangeArray);
+    }
     foreach ($rangeArray as $rangeIndex => $range) {
         if ($range->st <= $inputRange->st && $inputRange->et <= $range->et) {
             // input range is fully contained within the current range
