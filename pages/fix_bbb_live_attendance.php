@@ -87,6 +87,17 @@ if ($action === 'process' && ($classid > 0 || $sessionid > 0)) {
             echo '<p class="red">Errors: ' . implode(', ', $results['errors']) . '</p>';
         }
         echo '</div>';
+
+        if (!empty($results['details'])) {
+            echo '<div class="info-box" style="margin-top: 20px; text-align: left;">';
+            echo '<h4>Detalle del proceso:</h4>';
+            echo '<pre style="font-size: 12px; text-align: left;">';
+            foreach ($results['details'] as $detail) {
+                echo htmlspecialchars($detail) . "\n";
+            }
+            echo '</pre>';
+            echo '</div>';
+        }
     } else {
         echo '<div class="error-box">';
         echo '<h3>✗ Error en el proceso</h3>';
@@ -234,7 +245,7 @@ function process_bbb_live_attendance($classId, $sessionId) {
 function process_single_session($rel) {
     global $DB;
 
-    $result = ['marked' => 0, 'already' => 0, 'error' => null];
+    $result = ['marked' => 0, 'already' => 0, 'error' => null, 'details' => []];
 
     $session = $DB->get_record('attendance_sessions', ['id' => $rel->attendancesessionid], 'id, sessdate, duration, lasttaken, attendanceid');
     if (!$session) {
@@ -242,9 +253,12 @@ function process_single_session($rel) {
         return $result;
     }
 
+    $result['details'][] = "Session {$session->id}: sessdate=" . date('Y-m-d H:i', $session->sessdate) . ", duration={$session->duration}, lasttaken={$session->lasttaken}, attendanceid={$session->attendanceid}";
+
     if ((int)$session->lasttaken === 0) {
         $DB->set_field('attendance_sessions', 'lasttaken', time(), ['id' => $session->id]);
         $DB->set_field('attendance_sessions', 'lasttakenby', $rel->instructorid, ['id' => $session->id]);
+        $result['details'][] = "Started attendance session (lasttaken set)";
     }
 
     $cm = get_coursemodule_from_id('bigbluebuttonbn', $rel->bbbmoduleid);
@@ -253,6 +267,8 @@ function process_single_session($rel) {
         return $result;
     }
 
+    $result['details'][] = "BBB cmid={$cm->id}, instance={$cm->instance}";
+
     $bbbInstance = $DB->get_record('bigbluebuttonbn', ['id' => $cm->instance], 'id');
     if (!$bbbInstance) {
         $result['error'] = "BBB instance not found";
@@ -260,21 +276,33 @@ function process_single_session($rel) {
     }
 
     $sessStart = $session->sessdate;
+    $sessEnd = $sessStart + (int)$session->duration;
+    $result['details'][] = "Querying BBB logs for bbbid={$bbbInstance->id}, time > " . date('Y-m-d H:i', $sessStart - 300) . " (sessdate=" . date('Y-m-d H:i', $sessStart) . ")";
 
-    $sql = "SELECT DISTINCT bl.userid
+    $sql = "SELECT DISTINCT bl.userid, bl.log, bl.timecreated
               FROM {bigbluebuttonbn_logs} bl
              WHERE bl.bigbluebuttonbnid = :bbbid
                AND bl.log IN ('join', 'meeting_start')
                AND bl.timecreated > :sessstart
+               AND bl.timecreated < :sessend
              ORDER BY bl.timecreated";
 
     $joinedUsers = $DB->get_records_sql($sql, [
         'bbbid' => $bbbInstance->id,
-        'sessstart' => $sessStart - 300
+        'sessstart' => $sessStart - 300,
+        'sessend' => $sessEnd + 3600
     ]);
+
+    $result['details'][] = "Found " . count($joinedUsers) . " BBB connections";
 
     if (empty($joinedUsers)) {
         return $result;
+    }
+
+    $allStatuses = $DB->get_records('attendance_statuses', ['attendanceid' => $session->attendanceid], 'id ASC');
+    $result['details'][] = "Attendance statuses for {$session->attendanceid}: " . count($allStatuses) . " found";
+    foreach ($allStatuses as $st) {
+        $result['details'][] = "  Status id={$st->id}, setnumber={$st->setnumber}, setunmarked={$st->setunmarked}, deleted={$st->deleted}";
     }
 
     $presentStatusId = (int)$DB->get_field_sql(
@@ -289,6 +317,8 @@ function process_single_session($rel) {
         return $result;
     }
 
+    $result['details'][] = "Using present statusid=$presentStatusId";
+
     $now = time();
 
     foreach ($joinedUsers as $joinedUser) {
@@ -301,6 +331,7 @@ function process_single_session($rel) {
 
         if ($existingLog) {
             $result['already']++;
+            $result['details'][] = "Student $studentId already has attendance log";
             continue;
         }
 
@@ -314,6 +345,7 @@ function process_single_session($rel) {
 
         $DB->insert_record('attendance_log', $log);
         $result['marked']++;
+        $result['details'][] = "Marked student $studentId as present";
     }
 
     return $result;
