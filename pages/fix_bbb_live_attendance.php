@@ -98,27 +98,33 @@ if ($action === 'process' && ($classid > 0 || $sessionid > 0)) {
 
 } else {
     $classes = $DB->get_records_sql(
-        "SELECT DISTINCT c.id, c.name, c.inittime, c.endtime,
-                r.bbbmoduleid, r.attendancesessionid, r.attendanceid
+        "SELECT c.id, c.name, c.inittime, c.endtime,
+                MAX(r.bbbmoduleid) AS bbbmoduleid,
+                MAX(r.attendancesessionid) AS attendancesessionid,
+                MAX(r.attendanceid) AS attendanceid
            FROM {gmk_class} c
            JOIN {gmk_bbb_attendance_relation} r ON r.classid = c.id
           WHERE c.closed = 0
             AND r.bbbmoduleid > 0
             AND r.attendancesessionid > 0
             AND c.instructorid = :userid
+          GROUP BY c.id, c.name, c.inittime, c.endtime
           ORDER BY c.name",
         ['userid' => $USER->id]
     );
 
     if (empty($classes)) {
         $classes = $DB->get_records_sql(
-            "SELECT DISTINCT c.id, c.name, c.inittime, c.endtime,
-                    r.bbbmoduleid, r.attendancesessionid, r.attendanceid
+            "SELECT c.id, c.name, c.inittime, c.endtime,
+                    MAX(r.bbbmoduleid) AS bbbmoduleid,
+                    MAX(r.attendancesessionid) AS attendancesessionid,
+                    MAX(r.attendanceid) AS attendanceid
                FROM {gmk_class} c
                JOIN {gmk_bbb_attendance_relation} r ON r.classid = c.id
               WHERE c.closed = 0
                 AND r.bbbmoduleid > 0
                 AND r.attendancesessionid > 0
+              GROUP BY c.id, c.name, c.inittime, c.endtime
               ORDER BY c.name"
         );
     }
