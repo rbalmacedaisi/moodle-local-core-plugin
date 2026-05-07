@@ -128,21 +128,48 @@ class get_student_course_pensum_activities extends external_api
                     $activityInfo = new \stdClass();
                     $activityInfo->name = $moduleRecord->name;
                     $activityInfo->completed = $completion->get_grade_completion($module, $userId);
-                    
+
                     $gradeItems = grade_get_grades($courseId, 'mod', $moduleType, $moduleRecord->instance, $userId);
                     $activityGrade = '-';
                     $hasGrade = false;
                     if (!empty($gradeItems->items[0]->grades[$userId])) {
                         $gradeObj = $gradeItems->items[0]->grades[$userId];
                         $activityGrade = $gradeObj->str_grade;
-                        // Consider completed if it has a numerical grade value
                         if (isset($gradeObj->grade) && !is_null($gradeObj->grade)) {
                             $hasGrade = true;
                         }
                     }
-                    
+
+                    // Resolve weight from grade_items table.
+                    $gi = $DB->get_record_sql(
+                        "SELECT gi.aggregationcoef, gi.aggregationcoef2, gc.aggregation
+                           FROM {grade_items} gi
+                           LEFT JOIN {grade_categories} gc ON gc.id = gi.categoryid
+                          WHERE gi.courseid = :courseid
+                            AND gi.itemtype = 'mod'
+                            AND gi.itemmodule = :modname
+                            AND gi.iteminstance = :instance
+                            AND gi.itemnumber = 0",
+                        ['courseid' => (int)$courseId, 'modname' => $moduleType, 'instance' => (int)$moduleRecord->instance]
+                    );
+                    $weightVal = null;
+                    if ($gi) {
+                        $agg = (int)$gi->aggregation;
+                        if ($agg === 10) {
+                            // Weighted mean: aggregationcoef is the weight value directly.
+                            $w = (float)$gi->aggregationcoef;
+                            $weightVal = $w > 0 ? $w : null;
+                        } else {
+                            // Simple weighted mean (11), natural (13), or other:
+                            // aggregationcoef2 stores the fractional weight (0–1).
+                            $w2 = (float)$gi->aggregationcoef2;
+                            $weightVal = $w2 > 0 ? round($w2 * 100, 2) : null;
+                        }
+                    }
+
                     $activityInfo->grade = $activityGrade === '-' ? 'Sin calificar' : $activityGrade;
                     $activityInfo->completed = ($activityInfo->completed || $hasGrade);
+                    $activityInfo->weight = $weightVal;
                     $activities[] = $activityInfo;
                 }
             }

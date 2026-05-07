@@ -1154,6 +1154,17 @@ Vue.component('grademodal', {
                 const margin = 14;
                 const contentW = pageW - margin * 2;
 
+                // Truncate text to fit in maxWidth, adding ellipsis if needed.
+                const truncate = (text, maxWidth) => {
+                    const s = String(text || '');
+                    if (doc.getTextWidth(s) <= maxWidth) return s;
+                    let t = s;
+                    while (t.length > 1 && doc.getTextWidth(t + '…') > maxWidth) {
+                        t = t.slice(0, -1);
+                    }
+                    return t + '…';
+                };
+
                 let logoImage = null;
                 let logoRatio = 1;
                 const logoUrl = this.getSchedulePdfLogoUrl();
@@ -1166,7 +1177,7 @@ Vue.component('grademodal', {
                     } catch (e) { /* skip */ }
                 }
 
-                // Header bar
+                // ── Header bar ────────────────────────────────────────────────
                 doc.setFillColor(69, 39, 160);
                 doc.roundedRect(margin, 10, contentW, 16, 2, 2, 'F');
                 doc.setTextColor(255, 255, 255);
@@ -1186,6 +1197,7 @@ Vue.component('grademodal', {
                 doc.setFontSize(8.5);
                 doc.text('Generado: ' + new Date().toLocaleString('es-PA'), headerX, 24);
 
+                // ── Student info ──────────────────────────────────────────────
                 doc.setTextColor(0, 0, 0);
                 doc.setFont('helvetica', 'bold');
                 doc.setFontSize(9);
@@ -1199,21 +1211,32 @@ Vue.component('grademodal', {
 
                 let y = 40;
 
-                const actColName = contentW * 0.54;
-                const actColStatus = contentW * 0.22;
-                const actColGrade = contentW * 0.24;
+                // ── Course row column widths ───────────────────────────────────
+                // Col 1: course name | Col 2: status | Col 3: grade
+                const crC1 = contentW * 0.55;
+                const crC2 = contentW * 0.27;
+                const crC3 = contentW * 0.18;
 
-                const drawPageHeaderIfNeeded = () => {
-                    if (y > pageH - 22) {
+                // ── Activity row column widths (inside indented block) ─────────
+                const indentL = margin + 4;
+                const indentW = contentW - 4;
+                // Col 1: activity name | Col 2: ponderación | Col 3: estado | Col 4: nota
+                const acC1 = indentW * 0.44;
+                const acC2 = indentW * 0.14;
+                const acC3 = indentW * 0.22;
+                const acC4 = indentW * 0.20;
+
+                const ensureSpace = (needed) => {
+                    if (y + needed > pageH - 12) {
                         doc.addPage();
                         y = margin;
                     }
                 };
 
                 for (const career of this.careersList) {
-                    drawPageHeaderIfNeeded();
+                    ensureSpace(20);
 
-                    // Career header
+                    // ── Career header ─────────────────────────────────────────
                     doc.setFillColor(69, 39, 160);
                     doc.rect(margin, y, contentW, 7, 'F');
                     doc.setTextColor(255, 255, 255);
@@ -1224,9 +1247,9 @@ Vue.component('grademodal', {
 
                     const periods = career.periods || {};
                     for (const [periodName, courses] of Object.entries(periods)) {
-                        drawPageHeaderIfNeeded();
+                        ensureSpace(16);
 
-                        // Period sub-header
+                        // ── Period sub-header ─────────────────────────────────
                         doc.setFillColor(237, 231, 246);
                         doc.rect(margin, y, contentW, 6, 'F');
                         doc.setTextColor(69, 39, 160);
@@ -1236,82 +1259,108 @@ Vue.component('grademodal', {
                         y += 6;
 
                         for (const course of (courses || [])) {
-                            drawPageHeaderIfNeeded();
+                            // Skip courses with no grade unless they are Reprobada.
+                            const rawGrade = String(course.grade || '').trim();
+                            const hasGrade = rawGrade !== '' && rawGrade !== '-' && rawGrade !== '--';
+                            const isReprobada = (String(course.statusLabel || '')).toLowerCase() === 'reprobada';
+                            if (!hasGrade && !isReprobada) continue;
+
+                            ensureSpace(14);
 
                             // Fetch activities for this course
                             const activities = await this.fetchActivitiesForCourse(Number(course.courseid || 0));
 
-                            // Course row (coloured by status)
+                            // ── Course row: Name | Status | Grade ─────────────
+                            const courseRowH = 7;
                             doc.setFillColor(232, 240, 254);
-                            doc.rect(margin, y, contentW, 6.5, 'F');
+                            doc.rect(margin, y, contentW, courseRowH, 'F');
+
+                            // Course name (truncated to one line)
                             doc.setTextColor(20, 30, 80);
                             doc.setFont('helvetica', 'bold');
                             doc.setFontSize(8.5);
-                            const courseNameLines = doc.splitTextToSize(String(course.coursename || ''), actColName + actColStatus - 3);
-                            const courseRowH = Math.max(6.5, courseNameLines.length * 4.2);
-                            doc.text(courseNameLines, margin + 2, y + 4.5);
+                            doc.text(truncate(course.coursename || '', crC1 - 3), margin + 2, y + 4.8);
 
-                            // Overall grade on the right
+                            // Status label
+                            doc.setFont('helvetica', 'normal');
+                            doc.setFontSize(7.5);
+                            doc.setTextColor(70, 70, 100);
+                            doc.text(truncate(course.statusLabel || '', crC2 - 2), margin + crC1 + 2, y + 4.8);
+
+                            // Grade (coloured)
                             const cgv = parseFloat(course.grade);
                             if (!isNaN(cgv)) {
                                 doc.setTextColor(cgv >= 70 ? 27 : 183, cgv >= 70 ? 94 : 28, cgv >= 70 ? 32 : 28);
                             } else {
                                 doc.setTextColor(80, 80, 80);
                             }
-                            doc.setFontSize(9);
-                            doc.text(String(course.grade || '--'), margin + actColName + actColStatus + 2, y + 4.5);
-                            doc.setTextColor(80, 80, 120);
-                            doc.setFontSize(7.5);
-                            doc.text('(' + String(course.statusLabel || '') + ')', margin + actColName + actColStatus + 2, y + 9);
+                            doc.setFont('helvetica', 'bold');
+                            doc.setFontSize(8.5);
+                            doc.text(rawGrade || '--', margin + crC1 + crC2 + 2, y + 4.8);
                             y += courseRowH;
 
-                            // Activities sub-table
+                            // ── Activities sub-table ──────────────────────────
                             if (activities.length > 0) {
-                                // Activity table header (indented slightly)
-                                const indentL = margin + 4;
-                                const indentW = contentW - 4;
+                                ensureSpace(10);
+
+                                // Activity table header
                                 doc.setFillColor(207, 216, 220);
                                 doc.rect(indentL, y, indentW, 5, 'F');
                                 doc.setTextColor(40, 40, 40);
                                 doc.setFont('helvetica', 'bold');
                                 doc.setFontSize(7);
-                                doc.text('Actividad', indentL + 2, y + 3.5);
-                                doc.text('Estado', indentL + actColName - 4 + 2, y + 3.5);
-                                doc.text('Nota', indentL + actColName - 4 + actColStatus + 2, y + 3.5);
+                                doc.text('Actividad',    indentL + 2,                     y + 3.5);
+                                doc.text('Ponderación',  indentL + acC1 + 2,              y + 3.5);
+                                doc.text('Estado',       indentL + acC1 + acC2 + 2,       y + 3.5);
+                                doc.text('Nota',         indentL + acC1 + acC2 + acC3 + 2, y + 3.5);
                                 y += 5;
 
+                                const actRowH = 5;
                                 doc.setFont('helvetica', 'normal');
                                 activities.forEach((act, idx) => {
-                                    drawPageHeaderIfNeeded();
+                                    ensureSpace(actRowH + 2);
                                     if (idx % 2 === 0) {
                                         doc.setFillColor(250, 250, 252);
-                                        doc.rect(indentL, y, indentW, 5, 'F');
+                                        doc.rect(indentL, y, indentW, actRowH, 'F');
                                     }
-                                    const aLines = doc.splitTextToSize(String(act.name || ''), actColName - 4 - 3);
-                                    const arh = Math.max(5, aLines.length * 3.8);
                                     doc.setTextColor(40, 40, 40);
                                     doc.setFontSize(7.5);
-                                    doc.text(aLines, indentL + 2, y + 3.5);
-                                    doc.text(act.completed ? 'Completado' : 'Pendiente', indentL + actColName - 4 + 2, y + 3.5);
+
+                                    // Activity name — single line, truncated
+                                    doc.text(truncate(act.name || '', acC1 - 3), indentL + 2, y + 3.5);
+
+                                    // Ponderación
+                                    const wStr = (act.weight != null && act.weight !== undefined)
+                                        ? (Number(act.weight).toFixed(2) + '%')
+                                        : '--';
+                                    doc.text(wStr, indentL + acC1 + 2, y + 3.5);
+
+                                    // Estado
+                                    doc.text(act.completed ? 'Completado' : 'Pendiente',
+                                        indentL + acC1 + acC2 + 2, y + 3.5);
+
+                                    // Nota (coloured)
                                     const agv = parseFloat(act.grade);
                                     if (!isNaN(agv)) {
                                         doc.setTextColor(agv >= 70 ? 27 : 183, agv >= 70 ? 94 : 28, agv >= 70 ? 32 : 28);
                                     } else {
                                         doc.setTextColor(100, 100, 100);
                                     }
-                                    doc.text(String(act.grade || 'Sin calificar'), indentL + actColName - 4 + actColStatus + 2, y + 3.5);
+                                    doc.text(String(act.grade || 'Sin calificar'),
+                                        indentL + acC1 + acC2 + acC3 + 2, y + 3.5);
+
                                     doc.setTextColor(40, 40, 40);
                                     doc.setDrawColor(230, 230, 230);
-                                    doc.line(indentL, y + arh, indentL + indentW, y + arh);
-                                    y += arh;
+                                    doc.line(indentL, y + actRowH, indentL + indentW, y + actRowH);
+                                    y += actRowH;
                                 });
                             }
 
-                            y += 2; // spacing between courses
+                            y += 2;
                         }
-                        y += 4; // spacing between periods
+                        y += 4;
                     }
-                    y += 6; // spacing between careers
+                    y += 5;
                 }
 
                 const token = this.sanitizeFileToken(this.studentName);
