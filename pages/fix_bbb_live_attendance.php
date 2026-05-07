@@ -311,7 +311,7 @@ function process_single_session($rel) {
 
     $presentStatusId = (int)$DB->get_field_sql(
         "SELECT id FROM {attendance_statuses}
-          WHERE attendanceid = :aid AND setnumber = 0 AND deleted = 0 AND setunmarked = 0
+          WHERE attendanceid = :aid AND setnumber = 0 AND deleted = 0 AND (setunmarked = 0 OR setunmarked = '' OR setunmarked IS NULL)
           ORDER BY id ASC LIMIT 1",
         ['aid' => $session->attendanceid]
     );
