@@ -98,7 +98,7 @@ if ($action === 'process' && ($classid > 0 || $sessionid > 0)) {
 
 } else {
     $classes = $DB->get_records_sql(
-        "SELECT c.id, c.name, c.inittime, c.endtime,
+        "SELECT DISTINCT c.id, c.name, c.inittime, c.endtime,
                 r.bbbmoduleid, r.attendancesessionid, r.attendanceid
            FROM {gmk_class} c
            JOIN {gmk_bbb_attendance_relation} r ON r.classid = c.id
@@ -112,7 +112,7 @@ if ($action === 'process' && ($classid > 0 || $sessionid > 0)) {
 
     if (empty($classes)) {
         $classes = $DB->get_records_sql(
-            "SELECT c.id, c.name, c.inittime, c.endtime,
+            "SELECT DISTINCT c.id, c.name, c.inittime, c.endtime,
                     r.bbbmoduleid, r.attendancesessionid, r.attendanceid
                FROM {gmk_class} c
                JOIN {gmk_bbb_attendance_relation} r ON r.classid = c.id
