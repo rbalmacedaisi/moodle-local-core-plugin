@@ -27,6 +27,7 @@ $filter_category = optional_param('category', 0, PARAM_INT);
 $filter_visible = optional_param('visible', -1, PARAM_INT); // -1 all, 1 yes, 0 no
 $filter_plan = optional_param('plan', 0, PARAM_INT);
 $filter_schedule_status = optional_param('schedulestatus', -1, PARAM_INT); // -1 All, 1 Active, 0 Inactive
+$filter_period          = optional_param('period', 0, PARAM_INT);
 $action = optional_param('action', '', PARAM_ALPHA);
 $page = optional_param('page', 0, PARAM_INT);
 $perpage = 20;
@@ -66,6 +67,17 @@ if ($filter_plan > 0) {
     $where[] = "EXISTS (SELECT 1 FROM {local_learning_courses} llc WHERE llc.courseid = c.id AND llc.learningplanid = :planid)";
     $params['planid'] = $filter_plan;
     $pagingurl->param('plan', $filter_plan);
+}
+
+// Filter by Academic Period (classes whose initdate falls within the period)
+if ($filter_period > 0) {
+    $fp = $DB->get_record('gmk_academic_periods', ['id' => $filter_period]);
+    if ($fp) {
+        $where[]         = "EXISTS (SELECT 1 FROM {gmk_class} gc2 WHERE gc2.corecourseid = c.id AND gc2.initdate >= :fp_start AND gc2.initdate <= :fp_end)";
+        $params['fp_start'] = (int)$fp->startdate;
+        $params['fp_end']   = (int)$fp->enddate;
+        $pagingurl->param('period', $filter_period);
+    }
 }
 
 // Filter by Schedule Status
@@ -321,6 +333,18 @@ foreach($plans as $id => $name) {
 echo '   </select>';
 echo ' </div>';
 
+// Academic Period Filter
+$academic_periods = $DB->get_records('gmk_academic_periods', null, 'startdate DESC', 'id, name, status');
+echo ' <div class="col-md-2 mb-2">';
+echo '   <select name="period" class="form-control border-0"><option value="0">-- Periodo Académico --</option>';
+foreach ($academic_periods as $ap) {
+    $sel    = ($filter_period == $ap->id) ? 'selected' : '';
+    $badge  = $ap->status == 1 ? ' ●' : '';
+    echo "<option value='{$ap->id}' $sel>" . htmlspecialchars($ap->name) . $badge . "</option>";
+}
+echo '   </select>';
+echo ' </div>';
+
 // Schedule Status Filter
 echo ' <div class="col-md-2 mb-2">';
 echo '   <select name="schedulestatus" class="form-control border-0">';
@@ -448,7 +472,8 @@ echo '</div>'; // card-material
 // Inject JS Data safely
 echo '<script>
 window.gmkCourseData = ' . json_encode($jsCourseData) . ';
-console.log("GMK: Course Data Loaded", window.gmkCourseData);
+window.gmkAjaxUrl    = ' . json_encode($CFG->wwwroot . '/local/grupomakro_core/ajax.php') . ';
+window.gmkSesskey    = ' . json_encode(sesskey()) . ';
 </script>';
 
 // Load External JS for Modals

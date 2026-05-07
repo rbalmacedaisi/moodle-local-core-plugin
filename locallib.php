@@ -7399,6 +7399,289 @@ function toggle_class_grade_lock($classId, $locked) {
 }
 
 /**
+ * Returns dashboard stats for a single class (attendance, students, grades, BBB).
+ */
+function gmk_get_class_dashboard_stats(int $classId): array {
+    global $DB;
+
+    $class = $DB->get_record('gmk_class', ['id' => $classId]);
+    if (!$class) {
+        return [];
+    }
+    $now = time();
+
+    // ── 1. Attendance ────────────────────────────────────────────────────────
+    $att = ['total_past' => 0, 'pending' => 0, 'complete' => 0];
+    if (!empty($class->attendancemoduleid)) {
+        $attid = (int)$DB->get_field('course_modules', 'instance',
+            ['id' => (int)$class->attendancemoduleid]);
+        if ($attid) {
+            $att['total_past'] = (int)$DB->count_records_select('attendance_sessions',
+                'attendanceid = :a AND sessdate + duration < :n',
+                ['a' => $attid, 'n' => $now]);
+            $att['pending'] = (int)$DB->count_records_select('attendance_sessions',
+                'attendanceid = :a AND sessdate + duration < :n AND automarkcompleted < 2',
+                ['a' => $attid, 'n' => $now]);
+            $att['complete'] = $att['total_past'] - $att['pending'];
+        }
+    }
+
+    // ── 2. Students ──────────────────────────────────────────────────────────
+    $students = ['total' => 0, 'approved' => 0, 'failed' => 0, 'in_progress' => 0, 'list' => []];
+    if (!empty($class->groupid)) {
+        $statusMap = [0 => 'No disponible', 1 => 'Disponible', 2 => 'Cursando',
+                      3 => 'Completado', 4 => 'Aprobada', 5 => 'Reprobada',
+                      6 => 'Pend. Reválida', 7 => 'Revalidando'];
+        $rows = $DB->get_records_sql(
+            "SELECT u.id, u.firstname, u.lastname, u.idnumber,
+                    COALESCE(gcp.status,   0)   AS status,
+                    COALESCE(gcp.grade,    0.0) AS grade,
+                    COALESCE(gcp.progress, 0.0) AS progress
+               FROM {groups_members} gm
+               JOIN {user} u ON u.id = gm.userid AND u.deleted = 0
+               LEFT JOIN {gmk_course_progre} gcp
+                      ON gcp.userid = gm.userid AND gcp.courseid = :cid
+              WHERE gm.groupid = :gid
+              ORDER BY u.lastname, u.firstname",
+            ['gid' => $class->groupid, 'cid' => $class->corecourseid]
+        );
+        foreach ($rows as $r) {
+            $st = (int)$r->status;
+            $students['total']++;
+            if ($st === 4) $students['approved']++;
+            if ($st === 5) $students['failed']++;
+            if ($st === 2) $students['in_progress']++;
+            $students['list'][] = [
+                'id'           => (int)$r->id,
+                'name'         => trim($r->firstname . ' ' . $r->lastname),
+                'idnumber'     => $r->idnumber ?: '—',
+                'status'       => $st,
+                'status_label' => $statusMap[$st] ?? '—',
+                'grade'        => round((float)$r->grade, 2),
+                'progress'     => round((float)$r->progress, 1),
+            ];
+        }
+    }
+
+    // ── 3. Grade weights (aggregation = 10 → aggregationcoef = weight) ───────
+    $grades = ['total_weight' => 0.0, 'is_100' => false, 'item_count' => 0, 'items' => []];
+    if (!empty($class->gradecategoryid)) {
+        $gitems = $DB->get_records_sql(
+            "SELECT gi.id, gi.itemname, gi.grademax, gi.aggregationcoef,
+                    gi.itemmodule, gi.itemtype,
+                    AVG(gg.finalgrade)                                  AS avg_raw,
+                    COUNT(CASE WHEN gg.finalgrade IS NOT NULL THEN 1 END) AS graded_count
+               FROM {grade_items} gi
+               LEFT JOIN {grade_grades} gg ON gg.itemid = gi.id
+              WHERE gi.categoryid = :cat
+                AND gi.itemtype IN ('mod','manual')
+                AND gi.itemnumber = 0
+           GROUP BY gi.id, gi.itemname, gi.grademax, gi.aggregationcoef,
+                    gi.itemmodule, gi.itemtype
+           ORDER BY gi.sortorder",
+            ['cat' => $class->gradecategoryid]
+        );
+        $wsum = 0.0;
+        foreach ($gitems as $gi) {
+            $w    = (float)$gi->aggregationcoef;
+            $wsum += $w;
+            $gmax = max((float)$gi->grademax, 1.0);
+            $avgPct = $gi->avg_raw !== null
+                ? round((float)$gi->avg_raw / $gmax * 100, 1)
+                : null;
+            $grades['items'][] = [
+                'id'           => (int)$gi->id,
+                'name'         => $gi->itemname ?: ($gi->itemmodule ?: 'Item manual'),
+                'grademax'     => (float)$gi->grademax,
+                'weight'       => $w,
+                'module'       => $gi->itemmodule ?: 'manual',
+                'avg_pct'      => $avgPct,
+                'graded_count' => (int)$gi->graded_count,
+            ];
+        }
+        $grades['total_weight'] = round($wsum, 2);
+        $grades['is_100']       = count($gitems) > 0 && abs($wsum - 100.0) < 0.5;
+        $grades['item_count']   = count($gitems);
+    }
+
+    // ── 4. BBB recordings ────────────────────────────────────────────────────
+    $bbb = ['total' => 0, 'with_recordings' => 0];
+    if (!empty($class->coursesectionid)) {
+        try {
+            $bbbmodid = (int)$DB->get_field('modules', 'id', ['name' => 'bigbluebuttonbn']);
+            if ($bbbmodid) {
+                $bbbcms = $DB->get_records_sql(
+                    "SELECT cm.id, bbb.id AS bbbid
+                       FROM {course_modules} cm
+                       JOIN {bigbluebuttonbn} bbb ON bbb.id = cm.instance
+                      WHERE cm.section = :sec AND cm.module = :mod
+                        AND cm.deletioninprogress = 0",
+                    ['sec' => $class->coursesectionid, 'mod' => $bbbmodid]
+                );
+                $bbb['total'] = count($bbbcms);
+                foreach ($bbbcms as $row) {
+                    if ($DB->record_exists('bigbluebuttonbn_recordings',
+                            ['bigbluebuttonbnid' => $row->bbbid])) {
+                        $bbb['with_recordings']++;
+                    }
+                }
+            }
+        } catch (Throwable $e) {
+            // BBB recordings table may not exist in all installations.
+        }
+    }
+
+    return [
+        'classid'    => $classId,
+        'attendance' => $att,
+        'students'   => $students,
+        'grades'     => $grades,
+        'bbb'        => $bbb,
+    ];
+}
+
+/**
+ * Validates pre-conditions and closes a class, recalculating student statuses.
+ *
+ * Validations:
+ *  - Grade weights must sum to 100 %
+ *  - No past attendance sessions with automarkcompleted < 2
+ *
+ * On success:
+ *  - Updates gmk_course_progre.status (4=Aprobada, 5=Reprobada, 6=Pend. Reválida)
+ *  - Sets gmk_class.closed = 1
+ *  - Locks the grade category
+ *
+ * @return array ['ok' => bool, 'error' => string|null, 'summary' => array]
+ */
+function gmk_close_class_with_grade_recalc(int $classId): array {
+    global $DB, $CFG, $USER;
+    require_once($CFG->libdir . '/gradelib.php');
+    if (!class_exists('local_grupomakro_progress_manager')) {
+        require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/progress_manager.php');
+    }
+
+    $class = $DB->get_record('gmk_class', ['id' => $classId], '*', MUST_EXIST);
+    $now   = time();
+
+    // ── Validate: grade weights ──────────────────────────────────────────────
+    if (empty($class->gradecategoryid)) {
+        return ['ok' => false, 'error' => 'La clase no tiene categoría de calificaciones configurada.'];
+    }
+    $gitems = $DB->get_records_select('grade_items',
+        "categoryid = :cat AND itemtype IN ('mod','manual') AND itemnumber = 0",
+        ['cat' => $class->gradecategoryid], '', 'id, aggregationcoef');
+    if (empty($gitems)) {
+        return ['ok' => false, 'error' => 'No hay actividades calificables en esta clase.'];
+    }
+    $wsum = array_sum(array_column((array)$gitems, 'aggregationcoef'));
+    if (abs($wsum - 100.0) > 0.5) {
+        return ['ok' => false,
+                'error' => "Las ponderaciones suman {$wsum}% — deben sumar exactamente 100%."];
+    }
+
+    // ── Validate: attendance ─────────────────────────────────────────────────
+    if (!empty($class->attendancemoduleid)) {
+        $attid = (int)$DB->get_field('course_modules', 'instance',
+            ['id' => (int)$class->attendancemoduleid]);
+        if ($attid) {
+            $pending = (int)$DB->count_records_select('attendance_sessions',
+                'attendanceid = :a AND sessdate + duration < :n AND automarkcompleted < 2',
+                ['a' => $attid, 'n' => $now]);
+            if ($pending > 0) {
+                return ['ok' => false,
+                        'error' => "Hay {$pending} sesión(es) de asistencia sin registrar."];
+            }
+        }
+    }
+
+    // ── Require group ────────────────────────────────────────────────────────
+    if (empty($class->groupid)) {
+        return ['ok' => false, 'error' => 'La clase no tiene grupo asignado.'];
+    }
+
+    // ── Fetch course-level grade item ────────────────────────────────────────
+    $courseGI = $DB->get_record('grade_items',
+        ['courseid' => $class->corecourseid, 'itemtype' => 'course'], 'id, grademax');
+    $grademax = $courseGI ? max((float)$courseGI->grademax, 1.0) : 100.0;
+
+    // ── Iterate students and recalculate ─────────────────────────────────────
+    $groupStudents = $DB->get_records_sql(
+        "SELECT gm.userid,
+                gcp.id           AS progreid,
+                gcp.practicalhours,
+                gcp.progress
+           FROM {groups_members} gm
+           JOIN {user} u ON u.id = gm.userid AND u.deleted = 0
+           LEFT JOIN {gmk_course_progre} gcp
+                  ON gcp.userid = gm.userid AND gcp.courseid = :cid
+          WHERE gm.groupid = :gid",
+        ['gid' => $class->groupid, 'cid' => $class->corecourseid]
+    );
+
+    $summary     = ['approved' => 0, 'failed' => 0, 'revalid' => 0, 'no_grade' => 0];
+    $revalidList = [];
+
+    foreach ($groupStudents as $stu) {
+        // Get the real numeric grade from the Moodle gradebook.
+        $realGrade = null;
+        if ($courseGI) {
+            $gg = $DB->get_record('grade_grades',
+                ['itemid' => $courseGI->id, 'userid' => $stu->userid], 'finalgrade');
+            if ($gg && $gg->finalgrade !== null) {
+                $realGrade = round((float)$gg->finalgrade / $grademax * 100, 2);
+            }
+        }
+        if ($realGrade === null) {
+            $summary['no_grade']++;
+            continue;
+        }
+
+        $practicalhours = (int)($stu->practicalhours ?? 0);
+        if ($realGrade >= 71) {
+            $newStatus = 4; // Aprobada
+            $summary['approved']++;
+        } elseif ($practicalhours === 0 && $realGrade >= 60.0) {
+            $newStatus = 6; // Pendiente Reválida
+            $summary['revalid']++;
+            $revalidList[] = $stu;
+        } else {
+            $newStatus = 5; // Reprobada
+            $summary['failed']++;
+        }
+
+        if (!empty($stu->progreid)) {
+            $newProgress = max((float)($stu->progress ?? 0), 100.0);
+            $DB->execute(
+                "UPDATE {gmk_course_progre}
+                    SET status = :s, grade = :g, progress = :p
+                  WHERE id = :id",
+                ['s' => $newStatus, 'g' => $realGrade, 'p' => $newProgress, 'id' => $stu->progreid]
+            );
+        }
+    }
+
+    // Send revalidation messages (non-fatal).
+    foreach ($revalidList as $stu) {
+        try {
+            if (!empty($stu->progreid)) {
+                local_grupomakro_progress_manager::send_revalidation_message(
+                    $class->corecourseid, $stu->userid, $stu->progreid);
+            }
+        } catch (Throwable $e) {
+            // ignore
+        }
+    }
+
+    // ── Close class + lock grade category ────────────────────────────────────
+    $DB->execute("UPDATE {gmk_class} SET closed = 1, timemodified = :t WHERE id = :id",
+        ['t' => $now, 'id' => $classId]);
+    toggle_class_grade_lock($classId, true);
+
+    return ['ok' => true, 'error' => null, 'summary' => $summary];
+}
+
+/**
  * Ensures assign moduleinfo contains non-null defaults for required columns.
  *
  * Some forks/versions are strict on NOT NULL assign fields and can fail with:

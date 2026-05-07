@@ -1,291 +1,517 @@
-require(["jquery", "core/modal_factory", "core/modal_events"], function ($, ModalFactory, ModalEvents) {
-    console.log("GMK: AMD Modules Loaded");
+/**
+ * manage_courses.js — Rich class management dashboard.
+ * Lazy-loads per-class stats (attendance, students, weights, activities, BBB)
+ * and enforces validation before closing a class.
+ */
+require(["jquery", "core/modal_factory", "core/modal_events"],
+function ($, ModalFactory, ModalEvents) {
 
-    $(document).ready(function () {
-        console.log("GMK: Document Ready");
+    // ── Cache ──────────────────────────────────────────────────────────────
+    var gmkStats = {}; // classId → stats object
 
-        // Plans Modal
-        $(document).on("click", ".view-plans-btn", function (e) {
-            e.preventDefault();
-            console.log("GMK: Plans Clicked");
-
-            var btn = $(this);
-            var courseId = btn.data("courseid");
-            var courseName = btn.data("coursename");
-
-            // Fetch data from global object
-            var data = (window.gmkCourseData && window.gmkCourseData[courseId]) ? window.gmkCourseData[courseId] : null;
-            var plans = data ? data.plans : [];
-            console.log("GMK: Plans Data", plans);
-
-            ModalFactory.create({
-                type: ModalFactory.types.DEFAULT,
-                title: "Planes de Aprendizaje",
-                body: "Cargando...",
-            }).then(function (modal) {
-                var bodyHtml = "<div class='modal-mimic-title'>" + courseName + "</div>";
-                bodyHtml += "<div class='modlist'><span class='modlist-header'>Planes Asociados</span><ul class='modules-item-list'>";
-
-                if (plans && plans.length > 0) {
-                    $.each(plans, function (i, plan) {
-                        bodyHtml += "<li class='item-list'>" +
-                            "<div class='custom-avatar'><i class='mdi mdi-notebook-multiple'></i></div>" +
-                            "<div class='list-item-info'>" +
-                            "<div class='list-item-info-text'><p>" + plan.name + "</p></div>" +
-                            "</div>" +
-                            "</li>";
-                    });
-                } else {
-                    bodyHtml += "<li class='item-list'><i class='mdi mdi-alert-circle-outline mr-2'></i> Ningún plan asociado</li>";
-                }
-                bodyHtml += "</ul></div>";
-
-                modal.setBody(bodyHtml);
-                modal.show();
-            }).fail(function (ex) {
-                console.error("GMK: Modal Create Failed", ex);
-            });
+    // ── Helpers ───────────────────────────────────────────────────────────
+    function ajaxGet(action, params) {
+        return $.ajax({
+            url: window.gmkAjaxUrl,
+            method: 'GET',
+            data: $.extend({ action: action, sesskey: window.gmkSesskey }, params)
         });
+    }
 
-        // Schedules Modal
-        $(document).on("click", ".view-schedules-btn", function (e) {
-            e.preventDefault();
-            console.log("GMK: Schedules Clicked");
-
-            var btn = $(this);
-            var courseId = btn.data("courseid");
-            var courseName = btn.data("coursename");
-
-            // Fetch data from global object
-            var data = (window.gmkCourseData && window.gmkCourseData[courseId]) ? window.gmkCourseData[courseId] : null;
-            var schedules = data ? data.schedules : [];
-            console.log("GMK: Schedules Data", schedules);
-
-            ModalFactory.create({
-                type: ModalFactory.types.DEFAULT,
-                title: "Horarios del Curso",
-                body: "Cargando...",
-                large: true
-            }).then(function (modal) {
-                var bodyHtml = "<div class='modal-mimic-title'>" + courseName + "</div>";
-                bodyHtml += "<div class='modlist'><span class='modlist-header'>Listado de Horarios</span><ul class='modules-item-list'>";
-
-                if (schedules && schedules.length > 0) {
-                    $.each(schedules, function (i, sch) {
-                        var isClosed = sch.closed == 1;
-                        var statusBadge = isClosed
-                            ? "<span class='badge badge-danger ml-2'>CERRADO</span>"
-                            : "<span class='badge badge-success ml-2'>ABIERTO</span>";
-
-                        var iconClass = isClosed ? "mdi mdi-lock" : "mdi mdi-calendar-clock";
-                        var avatarClass = isClosed ? "custom-avatar" : "custom-avatar blue-avatar";
-
-                        // Date formatting
-                        var dateRange = "";
-                        if (sch.initdate > 0 && sch.enddate > 0) {
-                            var d1 = new Date(sch.initdate * 1000).toLocaleDateString();
-                            var d2 = new Date(sch.enddate * 1000).toLocaleDateString();
-                            dateRange = " | " + d1 + " - " + d2;
-                        }
-
-                        var actionBtn = "";
-                        if (isClosed) {
-                            actionBtn = "<button class='btn btn-sm btn-outline-primary reopen-schedule-btn' data-id='" + sch.id + "'><i class='mdi mdi-lock-open-variant'></i> Re-abrir</button>";
-                        } else {
-                            actionBtn = "<button class='btn btn-sm btn-outline-danger close-schedule-btn' data-id='" + sch.id + "'><i class='mdi mdi-lock'></i> Cerrar</button>";
-                        }
-
-                        if (sch.approved == 1) {
-                            actionBtn += " <button class='btn btn-sm btn-outline-warning revert-schedule-btn' data-id='" + sch.id + "'><i class='mdi mdi-undo'></i> Revertir</button>";
-                            // Manual Enrollment Button
-                            if (!isClosed) {
-                                actionBtn += " <button class='btn btn-sm btn-outline-info enroll-student-btn' data-id='" + sch.id + "' data-name='" + sch.name + "'><i class='mdi mdi-account-plus'></i> Inscribir</button>";
-                            }
-                        }
-
-                        bodyHtml += "<li class='item-list' style='" + (isClosed ? "opacity:0.8; background:#f9f9f9;" : "") + "'>" +
-                            "<div class='" + avatarClass + "'><i class='" + iconClass + "'></i></div>" +
-                            "<div class='list-item-info'>" +
-                            "<div class='list-item-info-text'>" +
-                            "<p>" + sch.name + statusBadge + "</p>" +
-                            "<span class='list-item-subtext'>Horario: " + sch.inithourformatted + " - " + sch.endhourformatted + dateRange + "</span>" +
-                            "</div>" +
-                            "</div>" +
-                            "<div class='list-item-actions pl-2'>" + actionBtn + "</div>" +
-                            "</li>";
-                    });
-                } else {
-                    bodyHtml += "<li class='item-list'><i class='mdi mdi-alert-circle-outline mr-2'></i> No hay horarios registrados</li>";
-                }
-                bodyHtml += "</ul></div>";
-
-                modal.setBody(bodyHtml);
-                modal.show();
-            }).fail(function (ex) {
-                console.error("GMK: Modal Create Failed", ex);
+    function loadStats(classId) {
+        if (gmkStats[classId]) {
+            return $.Deferred().resolve(gmkStats[classId]).promise();
+        }
+        return ajaxGet('local_grupomakro_get_class_stats', { classId: classId })
+            .then(function (r) {
+                var s = (r && r.data) ? r.data : null;
+                if (s) { gmkStats[classId] = s; }
+                return s;
             });
+    }
+
+    // ── Sub-modal (stacked on top of any existing modal) ──────────────────
+    function showSubModal(title, bodyHtml) {
+        var id = 'gmk-sub-modal-overlay';
+        $('#' + id).remove();
+        var overlay = $(
+            '<div id="' + id + '" style="position:fixed;top:0;left:0;width:100%;height:100%;' +
+            'z-index:9999;background:rgba(0,0,0,.55);display:flex;align-items:center;' +
+            'justify-content:center;padding:16px;">' +
+            '<div class="gmk-sub-modal-box" style="background:#fff;border-radius:8px;' +
+            'max-width:720px;width:100%;max-height:85vh;display:flex;flex-direction:column;">' +
+            '<div class="gmk-sub-header" style="padding:16px 20px;border-bottom:1px solid #eee;' +
+            'font-weight:600;font-size:1rem;display:flex;justify-content:space-between;align-items:center;">' +
+            '<span>' + title + '</span>' +
+            '<button class="btn btn-sm btn-light gmk-sub-close" style="font-size:18px;line-height:1;">&times;</button>' +
+            '</div>' +
+            '<div class="gmk-sub-body" style="padding:16px 20px;overflow-y:auto;flex:1;">' +
+            bodyHtml + '</div></div></div>'
+        );
+        $('body').append(overlay);
+        overlay.on('click', '.gmk-sub-close', function () { overlay.remove(); });
+        overlay.on('click', function (e) { if ($(e.target).is(overlay)) { overlay.remove(); } });
+    }
+
+    // ── Stat pills ────────────────────────────────────────────────────────
+    function buildStatsRow(classId, stats) {
+        if (!stats) {
+            return '<div class="gmk-stats-row mt-1"><small class="text-muted">Sin datos.</small></div>';
+        }
+
+        var a = stats.attendance;
+        var s = stats.students;
+        var g = stats.grades;
+        var b = stats.bbb;
+
+        var pills = '';
+
+        // Attendance
+        var attOk  = a.pending === 0;
+        var attCls = attOk ? 'gmk-pill-ok' : 'gmk-pill-danger';
+        var attTxt = attOk
+            ? (a.total_past + ' ses.')
+            : (a.pending + ' pendiente' + (a.pending > 1 ? 's' : ''));
+        pills += '<span class="gmk-pill ' + attCls + '" title="Sesiones de asistencia — ' +
+                 a.complete + '/' + a.total_past + ' registradas">' +
+                 '<i class="mdi mdi-clipboard-check-outline"></i> ' + attTxt + '</span>';
+
+        // Students (clickable)
+        var stuTxt = s.total + ' est.' +
+                     (s.total > 0 ? ' <span style="color:#28a745">✓' + s.approved + '</span>' +
+                     ' <span style="color:#dc3545">✗' + s.failed + '</span>' : '');
+        pills += '<span class="gmk-pill gmk-pill-info gmk-pill-click" ' +
+                 'data-action="students" data-classid="' + classId + '" ' +
+                 'title="Ver listado de estudiantes">' +
+                 '<i class="mdi mdi-account-group"></i> ' + stuTxt + '</span>';
+
+        // Grade weights (clickable)
+        var wOk  = g.is_100;
+        var wCls = wOk ? 'gmk-pill-ok' : 'gmk-pill-warning';
+        pills += '<span class="gmk-pill ' + wCls + ' gmk-pill-click" ' +
+                 'data-action="grades" data-classid="' + classId + '" ' +
+                 'title="Ver ponderaciones">' +
+                 '<i class="mdi mdi-scale-balance"></i> ' + g.total_weight + '%</span>';
+
+        // Activities
+        pills += '<span class="gmk-pill gmk-pill-neutral" title="Actividades calificables">' +
+                 '<i class="mdi mdi-book-open-page-variant"></i> ' + g.item_count + ' act.</span>';
+
+        // BBB recordings
+        var bbbTxt = b.with_recordings + '/' + b.total + ' grab.';
+        var bbbCls = (b.total > 0 && b.with_recordings < b.total) ? 'gmk-pill-warning' : 'gmk-pill-neutral';
+        pills += '<span class="gmk-pill ' + bbbCls + '" title="Sesiones BBB grabadas">' +
+                 '<i class="mdi mdi-video"></i> ' + bbbTxt + '</span>';
+
+        return '<div class="gmk-stats-row mt-2">' + pills + '</div>';
+    }
+
+    // ── Student list sub-modal ────────────────────────────────────────────
+    function openStudentModal(list, className) {
+        var statusColors = { 4: '#28a745', 5: '#dc3545', 6: '#fd7e14', 2: '#007bff',
+                             1: '#6c757d', 0: '#aaa', 3: '#17a2b8', 7: '#6f42c1' };
+        var html = '<table style="width:100%;border-collapse:collapse;font-size:13px;">' +
+            '<thead><tr style="background:#343a40;color:#fff;">' +
+            '<th style="padding:8px 10px;">Estudiante</th>' +
+            '<th style="padding:8px 10px;">ID / Cédula</th>' +
+            '<th style="padding:8px 10px;">Estado</th>' +
+            '<th style="padding:8px 10px;text-align:right;">Nota</th>' +
+            '<th style="padding:8px 10px;text-align:right;">Progreso</th>' +
+            '</tr></thead><tbody>';
+
+        if (list.length === 0) {
+            html += '<tr><td colspan="5" style="padding:12px;text-align:center;color:#999;">Sin estudiantes.</td></tr>';
+        }
+        list.forEach(function (st, i) {
+            var bg  = i % 2 === 0 ? '#fff' : '#f8f9fa';
+            var col = statusColors[st.status] || '#6c757d';
+            html += '<tr style="background:' + bg + ';">' +
+                '<td style="padding:7px 10px;">' + htmlEsc(st.name) + '</td>' +
+                '<td style="padding:7px 10px;color:#666;">' + htmlEsc(st.idnumber) + '</td>' +
+                '<td style="padding:7px 10px;">' +
+                '<span style="background:' + col + ';color:#fff;padding:2px 8px;border-radius:4px;' +
+                'font-size:11px;">' + htmlEsc(st.status_label) + '</span></td>' +
+                '<td style="padding:7px 10px;text-align:right;font-weight:600;">' +
+                (st.grade > 0 ? st.grade : '—') + '</td>' +
+                '<td style="padding:7px 10px;text-align:right;">' + st.progress + '%</td>' +
+                '</tr>';
         });
+        html += '</tbody></table>';
+        showSubModal('Estudiantes — ' + (className || ''), html);
+    }
 
-        // Re-open / Close Actions
-        $(document).on("click", ".reopen-schedule-btn, .close-schedule-btn", function (e) {
-            e.preventDefault();
-            var btn = $(this);
-            var classId = btn.data("id");
-            var isOpenAction = btn.hasClass("reopen-schedule-btn");
-            var actionText = isOpenAction ? "Re-abrir" : "Cerrar";
+    // ── Grade weights sub-modal ───────────────────────────────────────────
+    function openGradeModal(items, totalWeight, className) {
+        var isOk     = Math.abs(totalWeight - 100) < 0.5;
+        var headerBg = isOk ? '#28a745' : '#ffc107';
+        var headerFg = isOk ? '#fff' : '#333';
 
-            if (!confirm("¿Está seguro que desea " + actionText + " este horario?")) return;
+        var html = '<div style="background:' + headerBg + ';color:' + headerFg + ';' +
+            'padding:10px 14px;border-radius:6px;margin-bottom:12px;font-weight:600;">' +
+            'Total ponderación: ' + totalWeight + '%' +
+            (isOk ? ' ✓' : ' ⚠ Debe ser 100%') + '</div>' +
+            '<table style="width:100%;border-collapse:collapse;font-size:13px;">' +
+            '<thead><tr style="background:#343a40;color:#fff;">' +
+            '<th style="padding:8px 10px;">Actividad</th>' +
+            '<th style="padding:8px 10px;">Tipo</th>' +
+            '<th style="padding:8px 10px;text-align:right;">Peso %</th>' +
+            '<th style="padding:8px 10px;text-align:right;">Nota máx.</th>' +
+            '<th style="padding:8px 10px;text-align:right;">Prom. est.</th>' +
+            '<th style="padding:8px 10px;text-align:right;">Calificados</th>' +
+            '</tr></thead><tbody>';
 
-            // Call External Function
-            require(['core/ajax'], function (ajax) {
-                var promises = ajax.call([{
-                    methodname: 'local_grupomakro_toggle_class_status',
-                    args: { classId: classId, open: isOpenAction }
-                }]);
-
-                promises[0].done(function (response) {
-                    location.reload(); // Reload to reflect changes
-                }).fail(function (ex) {
-                    alert("Error: " + ex.message);
-                });
-            });
+        if (items.length === 0) {
+            html += '<tr><td colspan="6" style="padding:12px;text-align:center;color:#999;">Sin actividades.</td></tr>';
+        }
+        items.forEach(function (it, i) {
+            var bg = i % 2 === 0 ? '#fff' : '#f8f9fa';
+            html += '<tr style="background:' + bg + ';">' +
+                '<td style="padding:7px 10px;">' + htmlEsc(it.name) + '</td>' +
+                '<td style="padding:7px 10px;color:#666;">' + htmlEsc(it.module) + '</td>' +
+                '<td style="padding:7px 10px;text-align:right;font-weight:600;">' + it.weight + '%</td>' +
+                '<td style="padding:7px 10px;text-align:right;">' + it.grademax + '</td>' +
+                '<td style="padding:7px 10px;text-align:right;">' +
+                (it.avg_pct !== null ? it.avg_pct + '%' : '—') + '</td>' +
+                '<td style="padding:7px 10px;text-align:right;">' + it.graded_count + '</td>' +
+                '</tr>';
         });
+        html += '</tbody></table>';
+        showSubModal('Ponderaciones — ' + (className || ''), html);
+    }
 
-        // Revert Approval Action
-        $(document).on("click", ".revert-schedule-btn", function (e) {
-            e.preventDefault();
-            var btn = $(this);
-            var classId = btn.data("id");
+    function htmlEsc(str) {
+        return String(str || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
 
-            if (!confirm("¿Está seguro que desea REVERTIR la aprobación de este horario?\nEsto eliminará el grupo asociado y devolverá a los estudiantes a pre-inscripción.")) return;
+    // ── Build HTML for one class item ─────────────────────────────────────
+    function buildClassHtml(sch) {
+        var isClosed = sch.closed == 1;
+        var badge    = isClosed
+            ? '<span class="badge badge-danger ml-2">CERRADO</span>'
+            : '<span class="badge badge-success ml-2">ABIERTO</span>';
+        var icon     = isClosed ? 'mdi-lock' : 'mdi-calendar-clock';
+        var avatarCls = isClosed ? 'custom-avatar' : 'custom-avatar blue-avatar';
 
-            require(['core/ajax'], function (ajax) {
-                var promises = ajax.call([{
-                    methodname: 'local_grupomakro_revert_approval',
-                    args: { classId: classId }
-                }]);
+        var dateRange = '';
+        if (sch.initdate > 0 && sch.enddate > 0) {
+            dateRange = ' &nbsp;|&nbsp; ' +
+                new Date(sch.initdate * 1000).toLocaleDateString() + ' → ' +
+                new Date(sch.enddate  * 1000).toLocaleDateString();
+        }
 
-                promises[0].done(function (response) {
-                    if (response.status === 'ok') {
-                        location.reload();
-                    } else {
-                        alert(response.message);
+        var actions = '';
+        if (isClosed) {
+            actions += '<button class="btn btn-sm btn-outline-primary reopen-schedule-btn" ' +
+                       'data-id="' + sch.id + '">' +
+                       '<i class="mdi mdi-lock-open-variant"></i> Re-abrir</button> ';
+        } else {
+            actions += '<button class="btn btn-sm btn-outline-danger close-class-btn" ' +
+                       'data-id="' + sch.id + '">' +
+                       '<i class="mdi mdi-lock"></i> Cerrar</button> ';
+        }
+        if (sch.approved == 1) {
+            actions += '<button class="btn btn-sm btn-outline-warning revert-schedule-btn" ' +
+                       'data-id="' + sch.id + '">' +
+                       '<i class="mdi mdi-undo"></i> Revertir</button> ';
+            if (!isClosed) {
+                actions += '<button class="btn btn-sm btn-outline-info enroll-student-btn" ' +
+                           'data-id="' + sch.id + '" data-name="' + htmlEsc(sch.name) + '">' +
+                           '<i class="mdi mdi-account-plus"></i> Inscribir</button>';
+            }
+        }
+
+        return '<li class="item-list" data-classid="' + sch.id + '" ' +
+               'style="' + (isClosed ? 'opacity:.85;background:#f9f9f9;' : '') + '">' +
+               '<div class="' + avatarCls + '"><i class="mdi ' + icon + '"></i></div>' +
+               '<div class="list-item-info" style="flex:1;">' +
+               '<div class="list-item-info-text">' +
+               '<p style="margin:0;">' + htmlEsc(sch.name) + badge + '</p>' +
+               '<span class="list-item-subtext">' +
+               sch.inithourformatted + ' – ' + sch.endhourformatted + dateRange +
+               '</span></div>' +
+               '<div id="gmk-stats-' + sch.id + '" class="gmk-stats-placeholder">' +
+               '<small class="text-muted"><i class="mdi mdi-loading mdi-spin"></i> Cargando…</small>' +
+               '</div>' +
+               '</div>' +
+               '<div class="list-item-actions pl-2" style="white-space:nowrap;">' + actions + '</div>' +
+               '</li>';
+    }
+
+    // ── Open schedules modal ──────────────────────────────────────────────
+    function openSchedulesModal(courseId, courseName) {
+        var data      = (window.gmkCourseData && window.gmkCourseData[courseId])
+            ? window.gmkCourseData[courseId] : null;
+        var schedules = data ? data.schedules : [];
+
+        var bodyHtml = '<div class="modal-mimic-title">' + htmlEsc(courseName) + '</div>' +
+            '<ul class="modules-item-list">';
+
+        if (schedules.length > 0) {
+            schedules.forEach(function (sch) { bodyHtml += buildClassHtml(sch); });
+        } else {
+            bodyHtml += '<li class="item-list">' +
+                '<i class="mdi mdi-alert-circle-outline mr-2"></i> No hay horarios registrados.</li>';
+        }
+        bodyHtml += '</ul>';
+
+        ModalFactory.create({
+            type: ModalFactory.types.DEFAULT,
+            title: 'Horarios del Curso',
+            body: bodyHtml,
+            large: true
+        }).then(function (modal) {
+            modal.show();
+            // Lazy-load stats for every class in this modal
+            schedules.forEach(function (sch) {
+                loadStats(sch.id).then(function (stats) {
+                    var placeholder = $('#gmk-stats-' + sch.id);
+                    if (placeholder.length) {
+                        placeholder.html(buildStatsRow(sch.id, stats));
                     }
-                }).fail(function (ex) {
-                    alert("Error: " + ex.message);
                 });
             });
         });
+    }
 
-        // Manual Enrollment Action
-        $(document).on("click", ".enroll-student-btn", function (e) {
-            e.preventDefault();
-            var btn = $(this);
-            var classId = btn.data("id");
-            var className = btn.data("name");
+    // ── Inline enrollment modal (unchanged logic, new style) ──────────────
+    function openEnrollModal(classId, className) {
+        var bodyHtml =
+            '<div class="form-group">' +
+            '<label>Buscar usuario (nombre o email)</label>' +
+            '<div class="input-group">' +
+            '<input type="text" class="form-control" id="gmk-enroll-input" placeholder="Mínimo 3 caracteres…">' +
+            '<div class="input-group-append">' +
+            '<button class="btn btn-primary" id="gmk-enroll-search" data-classid="' + classId + '">Buscar</button>' +
+            '</div></div></div>' +
+            '<div id="gmk-enroll-results" style="max-height:220px;overflow-y:auto;margin-top:8px;"></div>';
 
-            ModalFactory.create({
-                type: ModalFactory.types.DEFAULT,
-                title: "Inscribir Estudiante - " + className,
-                body: "Cargando...",
-            }).then(function (modal) {
-                var bodyHtml = "<div>" +
-                    "<div class='form-group'>" +
-                    "<label>Buscar Usuario (Nombre, Email)</label>" +
-                    "<div class='input-group'>" +
-                    "<input type='text' class='form-control' id='user_search_input' placeholder='Min 3 caracteres...'>" +
-                    "<div class='input-group-append'>" +
-                    "<button class='btn btn-primary' id='user_search_btn'>Buscar</button>" +
-                    "</div>" +
-                    "</div>" +
-                    "</div>" +
-                    "<div id='user_search_results' style='max-height: 200px; overflow-y: auto;' class='mt-2'></div>" +
-                    "</div>";
-
-                modal.setBody(bodyHtml);
-                modal.show();
-
-                // Bind Search Event inside Modal RE-BINDING needed dynamically usually, but document.on works if selectors are unique enough or scoped
-                // Let's store classId in the search button data for easy access
-                setTimeout(function () {
-                    $('#user_search_btn').data('classid', classId);
-                }, 100);
-
-            }).fail(function (ex) {
-                console.error("GMK: Modal Create Failed", ex);
-            });
+        ModalFactory.create({
+            type: ModalFactory.types.DEFAULT,
+            title: 'Inscribir estudiante — ' + htmlEsc(className),
+            body: bodyHtml
+        }).then(function (modal) {
+            modal.show();
+            setTimeout(function () {
+                $('#gmk-enroll-search').data('classid', classId);
+            }, 80);
         });
+    }
 
-        // User Search Logic
-        $(document).on("click", "#user_search_btn", function (e) {
-            e.preventDefault();
-            var btn = $(this);
-            var query = $('#user_search_input').val();
-            var resultsDiv = $('#user_search_results');
-            var classId = btn.data('classid');
+    // ── Close class with server-side validation ───────────────────────────
+    function closeClass(classId) {
+        var stats = gmkStats[classId];
 
-            if (query.length < 3) {
-                alert("Ingrese al menos 3 caracteres.");
+        // Client-side pre-flight (fast feedback if stats already loaded)
+        if (stats) {
+            if (stats.attendance.pending > 0) {
+                alert('No se puede cerrar: hay ' + stats.attendance.pending +
+                      ' sesión(es) de asistencia sin registrar.');
                 return;
             }
+            if (!stats.grades.is_100) {
+                alert('No se puede cerrar: las ponderaciones suman ' +
+                      stats.grades.total_weight + '% (debe ser 100%).');
+                return;
+            }
+        }
 
-            resultsDiv.html('<div class="text-center"><i class="fa fa-spinner fa-spin"></i> Buscando...</div>');
+        if (!confirm('¿Cerrar esta clase y calcular las calificaciones finales?\n' +
+                     'Esta acción bloqueará el libro de calificaciones.')) {
+            return;
+        }
 
-            require(['core/ajax'], function (ajax) {
-                var promises = ajax.call([{
-                    methodname: 'local_grupomakro_search_users',
-                    args: { query: query }
-                }]);
+        ajaxGet('local_grupomakro_close_class_period', { classId: classId })
+            .done(function (r) {
+                if (r && r.data && r.data.ok) {
+                    var sm = r.data.summary;
+                    var msg = '✓ Clase cerrada correctamente.\n\n' +
+                              '✅ Aprobados:    ' + sm.approved + '\n' +
+                              '❌ Reprobados:   ' + sm.failed;
+                    if (sm.revalid  > 0) { msg += '\n⚠  Pend. reválida: ' + sm.revalid; }
+                    if (sm.no_grade > 0) { msg += '\n—  Sin nota:       ' + sm.no_grade; }
+                    alert(msg);
+                    location.reload();
+                } else {
+                    alert('No se pudo cerrar: ' + ((r && r.data && r.data.error) || 'Error desconocido'));
+                }
+            })
+            .fail(function (xhr) {
+                alert('Error de sistema: ' + (xhr.responseJSON && xhr.responseJSON.message
+                    ? xhr.responseJSON.message : xhr.statusText));
+            });
+    }
 
-                promises[0].done(function (users) {
-                    var html = "<ul class='list-group'>";
-                    if (users.length > 0) {
-                        $.each(users, function (i, u) {
-                            html += "<li class='list-group-item d-flex justify-content-between align-items-center'>" +
-                                "<div><strong>" + u.fullname + "</strong><br><small>" + u.email + "</small></div>" +
-                                "<button class='btn btn-sm btn-success perform-enroll-btn' data-userid='" + u.id + "' data-classid='" + classId + "'>Inscribir</button>" +
-                                "</li>";
-                        });
-                    } else {
-                        html += "<li class='list-group-item'>No se encontraron usuarios.</li>";
-                    }
-                    html += "</ul>";
-                    resultsDiv.html(html);
-                }).fail(function (ex) {
-                    resultsDiv.html('<span class="text-danger">Error: ' + ex.message + '</span>');
+    // ── CSS injected once ──────────────────────────────────────────────────
+    $('head').append('<style>' +
+        '.gmk-stats-row { display:flex; flex-wrap:wrap; gap:6px; }' +
+        '.gmk-pill { display:inline-flex; align-items:center; gap:4px; padding:3px 10px;' +
+        '  border-radius:12px; font-size:12px; font-weight:500; line-height:1.4; }' +
+        '.gmk-pill i { font-size:13px; }' +
+        '.gmk-pill-ok      { background:#d4edda; color:#155724; }' +
+        '.gmk-pill-danger  { background:#f8d7da; color:#721c24; }' +
+        '.gmk-pill-warning { background:#fff3cd; color:#856404; }' +
+        '.gmk-pill-info    { background:#d1ecf1; color:#0c5460; }' +
+        '.gmk-pill-neutral { background:#e2e3e5; color:#383d41; }' +
+        '.gmk-pill-click   { cursor:pointer; }' +
+        '.gmk-pill-click:hover { filter:brightness(.92); }' +
+        '</style>');
+
+    // ── Document-level event handlers ──────────────────────────────────────
+    $(document).ready(function () {
+
+        // Open schedules modal
+        $(document).on('click', '.view-schedules-btn', function (e) {
+            e.preventDefault();
+            openSchedulesModal($(this).data('courseid'), $(this).data('coursename'));
+        });
+
+        // Open plans modal (unchanged)
+        $(document).on('click', '.view-plans-btn', function (e) {
+            e.preventDefault();
+            var courseId   = $(this).data('courseid');
+            var courseName = $(this).data('coursename');
+            var plans = (window.gmkCourseData && window.gmkCourseData[courseId])
+                ? window.gmkCourseData[courseId].plans : [];
+
+            var bodyHtml = '<div class="modal-mimic-title">' + htmlEsc(courseName) + '</div>' +
+                '<ul class="modules-item-list">';
+            if (plans.length > 0) {
+                plans.forEach(function (p) {
+                    bodyHtml += '<li class="item-list">' +
+                        '<div class="custom-avatar"><i class="mdi mdi-notebook-multiple"></i></div>' +
+                        '<div class="list-item-info"><div class="list-item-info-text">' +
+                        '<p>' + htmlEsc(p.name) + '</p></div></div></li>';
                 });
+            } else {
+                bodyHtml += '<li class="item-list">Sin planes asociados.</li>';
+            }
+            bodyHtml += '</ul>';
+
+            ModalFactory.create({
+                type: ModalFactory.types.DEFAULT,
+                title: 'Planes de Aprendizaje',
+                body: bodyHtml
+            }).then(function (m) { m.show(); });
+        });
+
+        // Close class
+        $(document).on('click', '.close-class-btn', function (e) {
+            e.preventDefault();
+            closeClass(parseInt($(this).data('id')));
+        });
+
+        // Reopen class
+        $(document).on('click', '.reopen-schedule-btn', function (e) {
+            e.preventDefault();
+            var classId = $(this).data('id');
+            if (!confirm('¿Re-abrir este horario?')) { return; }
+            require(['core/ajax'], function (Ajax) {
+                Ajax.call([{
+                    methodname: 'local_grupomakro_toggle_class_status',
+                    args: { classId: classId, open: true }
+                }])[0].then(function () { location.reload(); })
+                       .fail(function (ex) { alert('Error: ' + ex.message); });
             });
         });
 
-        // Perform Enrollment
-        $(document).on("click", ".perform-enroll-btn", function (e) {
+        // Revert approval
+        $(document).on('click', '.revert-schedule-btn', function (e) {
             e.preventDefault();
-            var btn = $(this);
-            var userId = btn.data('userid');
-            var classId = btn.data('classid'); // Passed from search button
+            var classId = $(this).data('id');
+            if (!confirm('¿Revertir aprobación? Se eliminará el grupo y los estudiantes volverán a pre-inscripción.')) { return; }
+            require(['core/ajax'], function (Ajax) {
+                Ajax.call([{
+                    methodname: 'local_grupomakro_revert_approval',
+                    args: { classId: classId }
+                }])[0].then(function (r) {
+                    if (r.status === 'ok') { location.reload(); }
+                    else { alert(r.message); }
+                }).fail(function (ex) { alert('Error: ' + ex.message); });
+            });
+        });
 
-            btn.prop('disabled', true).text('Inscribiendo...');
+        // Open enroll modal
+        $(document).on('click', '.enroll-student-btn', function (e) {
+            e.preventDefault();
+            openEnrollModal($(this).data('id'), $(this).data('name'));
+        });
 
-            require(['core/ajax'], function (ajax) {
-                var promises = ajax.call([{
+        // Student search
+        $(document).on('click', '#gmk-enroll-search', function (e) {
+            e.preventDefault();
+            var q       = $('#gmk-enroll-input').val();
+            var classId = $(this).data('classid');
+            var results = $('#gmk-enroll-results');
+            if (q.length < 3) { alert('Ingrese al menos 3 caracteres.'); return; }
+            results.html('<div class="text-center"><i class="mdi mdi-loading mdi-spin"></i> Buscando…</div>');
+            require(['core/ajax'], function (Ajax) {
+                Ajax.call([{
+                    methodname: 'local_grupomakro_search_users',
+                    args: { query: q }
+                }])[0].then(function (users) {
+                    var html = '<ul class="list-group">';
+                    if (users.length > 0) {
+                        users.forEach(function (u) {
+                            html += '<li class="list-group-item d-flex justify-content-between align-items-center">' +
+                                '<div><strong>' + htmlEsc(u.fullname) + '</strong><br>' +
+                                '<small>' + htmlEsc(u.email) + '</small></div>' +
+                                '<button class="btn btn-sm btn-success perform-enroll-btn" ' +
+                                'data-userid="' + u.id + '" data-classid="' + classId + '">Inscribir</button>' +
+                                '</li>';
+                        });
+                    } else {
+                        html += '<li class="list-group-item">Sin resultados.</li>';
+                    }
+                    results.html(html + '</ul>');
+                }).fail(function (ex) { results.html('<span class="text-danger">Error: ' + ex.message + '</span>'); });
+            });
+        });
+
+        // Perform enrollment
+        $(document).on('click', '.perform-enroll-btn', function (e) {
+            e.preventDefault();
+            var btn     = $(this);
+            var userId  = btn.data('userid');
+            var classId = btn.data('classid');
+            btn.prop('disabled', true).text('Inscribiendo…');
+            require(['core/ajax'], function (Ajax) {
+                Ajax.call([{
                     methodname: 'local_grupomakro_manual_enroll',
                     args: { classId: classId, userId: userId }
-                }]);
-
-                promises[0].done(function (response) {
-                    if (response.status === 'ok') {
-                        btn.removeClass('btn-success').addClass('btn-secondary').text('Inscrito');
-                        alert("Usuario inscrito correctamente.");
+                }])[0].then(function (r) {
+                    if (r.status === 'ok') {
+                        btn.removeClass('btn-success').addClass('btn-secondary').text('Inscrito ✓');
                     } else {
-                        btn.prop('disabled', false).text('Inscribir'); // Reset
-                        alert("Error: " + response.message);
+                        btn.prop('disabled', false).text('Inscribir');
+                        alert('Error: ' + r.message);
                     }
                 }).fail(function (ex) {
                     btn.prop('disabled', false).text('Inscribir');
-                    alert("Error de sistema: " + ex.message);
+                    alert('Error: ' + ex.message);
                 });
             });
         });
 
+        // Stat pill clicks → sub-modals
+        $(document).on('click', '.gmk-pill-click', function (e) {
+            e.stopPropagation();
+            var action  = $(this).data('action');
+            var classId = $(this).data('classid');
+            var stats   = gmkStats[classId];
+            if (!stats) { return; }
+
+            // Find the class name from the DOM
+            var className = $(this).closest('li.item-list').find('p').first().text().trim();
+
+            if (action === 'students') {
+                openStudentModal(stats.students.list, className);
+            } else if (action === 'grades') {
+                openGradeModal(stats.grades.items, stats.grades.total_weight, className);
+            }
+        });
     });
 });

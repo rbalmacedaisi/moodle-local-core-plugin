@@ -1800,6 +1800,22 @@ try {
             $response = ['status' => 'success', 'data' => $result];
             break;
 
+        case 'local_grupomakro_get_class_stats':
+            require_sesskey();
+            require_capability('moodle/site:config', $context);
+            $classid = required_param('classId', PARAM_INT);
+            $stats   = gmk_get_class_dashboard_stats($classid);
+            $response = ['status' => 'success', 'data' => $stats];
+            break;
+
+        case 'local_grupomakro_close_class_period':
+            require_sesskey();
+            require_capability('moodle/site:config', $context);
+            $classid = required_param('classId', PARAM_INT);
+            $result  = gmk_close_class_with_grade_recalc($classid);
+            $response = ['status' => 'success', 'data' => $result];
+            break;
+
         case 'local_grupomakro_fix_attendance_setunmarked':
             require_sesskey();
             require_capability('moodle/site:config', $context);
