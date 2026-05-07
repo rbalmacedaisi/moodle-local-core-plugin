@@ -132,7 +132,7 @@ function ($, ModalFactory, ModalEvents) {
                 '<span style="background:' + col + ';color:#fff;padding:2px 8px;border-radius:4px;' +
                 'font-size:11px;">' + htmlEsc(st.status_label) + '</span></td>' +
                 '<td style="padding:7px 10px;text-align:right;font-weight:600;">' +
-                (st.grade > 0 ? st.grade : '—') + '</td>' +
+                (st.grade !== null && st.grade !== undefined ? st.grade : '—') + '</td>' +
                 '<td style="padding:7px 10px;text-align:right;">' + st.progress + '%</td>' +
                 '</tr>';
         });

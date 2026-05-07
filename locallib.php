@@ -7434,100 +7434,37 @@ function gmk_count_pending_attendance_sessions(int $attendanceId, int $groupId, 
  *
  * Returns null if there are no gradable items in the section or none have grades.
  */
-function gmk_compute_student_class_grade(int $classId, int $userId): ?float {
+/**
+ * Returns the Moodle-aggregated category-level grade for a student in a class.
+ * Uses the same source as the academic panel: grade_grades for the grade_item
+ * with itemtype='category' and iteminstance = gmk_class.gradecategoryid.
+ * Returns null if Moodle has not yet computed the aggregated grade.
+ */
+function gmk_get_student_class_grade(int $classId, int $userId): ?float {
     global $DB;
 
-    $class = $DB->get_record('gmk_class', ['id' => $classId]);
-    if (!$class || empty($class->coursesectionid) || empty($class->corecourseid)) {
+    $class = $DB->get_record('gmk_class', ['id' => $classId], 'id, gradecategoryid, corecourseid');
+    if (!$class || empty($class->gradecategoryid) || empty($class->corecourseid)) {
         return null;
     }
 
-    $now = time();
-
-    // Fetch all gradable modules in the class section with their grade_items in one query.
-    $gradedModules = $DB->get_records_sql(
-        "SELECT cm.id AS cmid, cm.instance, m.name AS modname,
-                gi.id AS giid, gi.grademax, gi.aggregationcoef, gi.aggregationcoef2,
-                gi.categoryid
-           FROM {course_modules} cm
-           JOIN {modules} m            ON m.id = cm.module
-           JOIN {grade_items} gi       ON gi.itemmodule = m.name
-                                      AND gi.iteminstance = cm.instance
-                                      AND gi.courseid = :cid
-                                      AND gi.itemtype = 'mod'
-                                      AND gi.itemnumber = 0
-          WHERE cm.section = :secid
-            AND cm.deletioninprogress = 0
-            AND m.name <> 'bigbluebuttonbn'
-            AND gi.grademax > 0",
-        ['cid' => $class->corecourseid, 'secid' => $class->coursesectionid]
+    $row = $DB->get_record_sql(
+        "SELECT COALESCE(gg.finalgrade, gg.rawgrade) AS grade
+           FROM {grade_items} gi
+           JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = :uid
+          WHERE gi.itemtype = 'category'
+            AND gi.iteminstance = :catid
+            AND gi.courseid = :cid",
+        ['uid' => $userId,
+         'catid' => (int)$class->gradecategoryid,
+         'cid'  => (int)$class->corecourseid]
     );
 
-    if (empty($gradedModules)) {
+    if (!$row || $row->grade === null) {
         return null;
     }
 
-    // Batch-load category aggregation types to avoid N+1 queries.
-    $catIds = array_unique(array_column((array)$gradedModules, 'categoryid'));
-    $catAggs = [];
-    if ($catIds) {
-        foreach ($DB->get_records_list('grade_categories', 'id', $catIds, '', 'id,aggregation') as $c) {
-            $catAggs[(int)$c->id] = (int)$c->aggregation;
-        }
-    }
-
-    $weightedSum = 0.0;
-    $totalWeight = 0.0;
-    $hasAnyGrade = false;
-
-    foreach ($gradedModules as $mod) {
-        $catAgg = $catAggs[(int)$mod->categoryid] ?? 13;
-        // Types 10 (WEIGHTED_MEAN2) and 2 (WEIGHTED_MEAN) use aggregationcoef as the weight.
-        $weight = ($catAgg === 10 || $catAgg === 2)
-            ? (float)$mod->aggregationcoef
-            : (float)$mod->aggregationcoef2;
-        if ($weight <= 0) {
-            continue;
-        }
-
-        $scorePct = null;
-        if ($mod->modname === 'attendance') {
-            $attRow = $DB->get_record_sql(
-                "SELECT COUNT(s.id) AS total,
-                        SUM(CASE WHEN al.id IS NOT NULL AND ast.grade > 0 THEN 1
-                                 ELSE 0 END) AS present
-                   FROM {attendance_sessions} s
-                   LEFT JOIN {attendance_log}      al  ON al.sessionid = s.id
-                                                      AND al.studentid = :uid
-                   LEFT JOIN {attendance_statuses} ast ON ast.id = al.statusid
-                  WHERE s.attendanceid = :attid
-                    AND s.sessdate + s.duration < :now",
-                ['uid' => $userId, 'attid' => (int)$mod->instance, 'now' => $now]
-            );
-            if ($attRow && (int)$attRow->total > 0) {
-                $scorePct = (float)$attRow->present / (float)$attRow->total * 100.0;
-            }
-        } else {
-            $gg = $DB->get_record('grade_grades',
-                ['itemid' => (int)$mod->giid, 'userid' => $userId], 'finalgrade');
-            if ($gg && $gg->finalgrade !== null) {
-                $scorePct = (float)$gg->finalgrade / (float)$mod->grademax * 100.0;
-            }
-        }
-
-        // Ungraded items contribute 0 to the weighted sum but their weight is still counted.
-        if ($scorePct !== null) {
-            $weightedSum += $scorePct * $weight;
-            $hasAnyGrade  = true;
-        }
-        $totalWeight += $weight;
-    }
-
-    if (!$hasAnyGrade || $totalWeight <= 0) {
-        return null;
-    }
-
-    return round($weightedSum / $totalWeight, 2);
+    return round((float)$row->grade, 2);
 }
 
 /**
@@ -7583,15 +7520,43 @@ function gmk_get_class_dashboard_stats(int $classId): array {
     $statusMap = [0 => 'No disponible', 1 => 'Disponible', 2 => 'Cursando',
                   3 => 'Completado', 4 => 'Aprobada', 5 => 'Reprobada',
                   6 => 'Pend. Reválida', 7 => 'Revalidando'];
-    $rows = $DB->get_records_sql(
-        "SELECT u.id, u.firstname, u.lastname, u.idnumber,
-                gcp.status, gcp.grade, gcp.progress
-           FROM {gmk_course_progre} gcp
-           JOIN {user} u ON u.id = gcp.userid AND u.deleted = 0
-          WHERE gcp.classid = :classid
-          ORDER BY u.lastname, u.firstname",
-        ['classid' => $classId]
-    );
+
+    // Resolve the category-level grade_item id once (same source as academic panel).
+    $catItemId = null;
+    if (!empty($class->gradecategoryid) && !empty($class->corecourseid)) {
+        $catItemId = $DB->get_field_sql(
+            "SELECT id FROM {grade_items}
+              WHERE itemtype = 'category'
+                AND iteminstance = :catid
+                AND courseid = :cid",
+            ['catid' => (int)$class->gradecategoryid, 'cid' => (int)$class->corecourseid]
+        );
+    }
+
+    if ($catItemId) {
+        $rows = $DB->get_records_sql(
+            "SELECT u.id, u.firstname, u.lastname, u.idnumber,
+                    gcp.status, gcp.progress,
+                    COALESCE(gg.finalgrade, gg.rawgrade) AS live_grade
+               FROM {gmk_course_progre} gcp
+               JOIN {user} u ON u.id = gcp.userid AND u.deleted = 0
+               LEFT JOIN {grade_grades} gg ON gg.userid = gcp.userid AND gg.itemid = :giid
+              WHERE gcp.classid = :classid
+              ORDER BY u.lastname, u.firstname",
+            ['giid' => $catItemId, 'classid' => $classId]
+        );
+    } else {
+        $rows = $DB->get_records_sql(
+            "SELECT u.id, u.firstname, u.lastname, u.idnumber,
+                    gcp.status, gcp.progress, NULL AS live_grade
+               FROM {gmk_course_progre} gcp
+               JOIN {user} u ON u.id = gcp.userid AND u.deleted = 0
+              WHERE gcp.classid = :classid
+              ORDER BY u.lastname, u.firstname",
+            ['classid' => $classId]
+        );
+    }
+
     foreach ($rows as $r) {
         $st = (int)$r->status;
         $students['total']++;
@@ -7604,7 +7569,7 @@ function gmk_get_class_dashboard_stats(int $classId): array {
             'idnumber'     => $r->idnumber ?: '—',
             'status'       => $st,
             'status_label' => $statusMap[$st] ?? '—',
-            'grade'        => round((float)$r->grade, 2),
+            'grade'        => $r->live_grade !== null ? round((float)$r->live_grade, 2) : null,
             'progress'     => round((float)$r->progress, 1),
         ];
     }
@@ -7766,7 +7731,7 @@ function gmk_close_class_with_grade_recalc(int $classId): array {
     $summary     = ['approved' => 0, 'failed' => 0, 'revalid' => 0, 'no_grade' => 0];
 
     foreach ($students as $stu) {
-        $realGrade = gmk_compute_student_class_grade($classId, (int)$stu->userid);
+        $realGrade = gmk_get_student_class_grade($classId, (int)$stu->userid);
 
         if ($realGrade === null) {
             $summary['no_grade']++;
