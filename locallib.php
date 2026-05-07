@@ -7399,6 +7399,158 @@ function toggle_class_grade_lock($classId, $locked) {
 }
 
 /**
+ * Counts past attendance sessions where at least one student in the group has no log entry.
+ * More accurate than automarkcompleted < 2, which produces false positives for manual attendance.
+ */
+function gmk_count_pending_attendance_sessions(int $attendanceId, int $groupId, int $before): int {
+    global $DB;
+    if ($attendanceId <= 0 || $groupId <= 0) {
+        return 0;
+    }
+    return (int)$DB->count_records_sql(
+        "SELECT COUNT(s.id)
+           FROM {attendance_sessions} s
+          WHERE s.attendanceid = :attid
+            AND s.sessdate + s.duration < :now
+            AND EXISTS (
+                SELECT 1 FROM {groups_members} gm
+                 WHERE gm.groupid = :gid
+                   AND NOT EXISTS (
+                       SELECT 1 FROM {attendance_log} al
+                        WHERE al.sessionid = s.id AND al.studentid = gm.userid
+                   )
+            )",
+        ['attid' => $attendanceId, 'now' => $before, 'gid' => $groupId]
+    );
+}
+
+/**
+ * Computes the real weighted class grade for a student (0-100 scale).
+ *
+ * Navigates course_modules in the class section directly (no get_fast_modinfo).
+ * Attendance grade is computed from session logs (not from grade_grades, which is always 100%
+ * for absent students). All other items use grade_grades.finalgrade / grademax * 100.
+ * Items with no grade count as 0 in the weighted average (correct for period closure).
+ *
+ * Returns null if there are no gradable items in the section or none have grades.
+ */
+function gmk_compute_student_class_grade(int $classId, int $userId): ?float {
+    global $DB;
+
+    $class = $DB->get_record('gmk_class', ['id' => $classId]);
+    if (!$class || empty($class->coursesectionid) || empty($class->corecourseid)) {
+        return null;
+    }
+
+    $now = time();
+
+    // Fetch all gradable modules in the class section with their grade_items in one query.
+    $gradedModules = $DB->get_records_sql(
+        "SELECT cm.id AS cmid, cm.instance, m.name AS modname,
+                gi.id AS giid, gi.grademax, gi.aggregationcoef, gi.aggregationcoef2,
+                gi.categoryid
+           FROM {course_modules} cm
+           JOIN {modules} m            ON m.id = cm.module
+           JOIN {grade_items} gi       ON gi.itemmodule = m.name
+                                      AND gi.iteminstance = cm.instance
+                                      AND gi.courseid = :cid
+                                      AND gi.itemtype = 'mod'
+                                      AND gi.itemnumber = 0
+          WHERE cm.section = :secid
+            AND cm.deletioninprogress = 0
+            AND m.name <> 'bigbluebuttonbn'
+            AND gi.grademax > 0",
+        ['cid' => $class->corecourseid, 'secid' => $class->coursesectionid]
+    );
+
+    if (empty($gradedModules)) {
+        return null;
+    }
+
+    // Batch-load category aggregation types to avoid N+1 queries.
+    $catIds = array_unique(array_column((array)$gradedModules, 'categoryid'));
+    $catAggs = [];
+    if ($catIds) {
+        foreach ($DB->get_records_list('grade_categories', 'id', $catIds, '', 'id,aggregation') as $c) {
+            $catAggs[(int)$c->id] = (int)$c->aggregation;
+        }
+    }
+
+    $weightedSum = 0.0;
+    $totalWeight = 0.0;
+    $hasAnyGrade = false;
+
+    foreach ($gradedModules as $mod) {
+        $catAgg = $catAggs[(int)$mod->categoryid] ?? 13;
+        // Types 10 (WEIGHTED_MEAN2) and 2 (WEIGHTED_MEAN) use aggregationcoef as the weight.
+        $weight = ($catAgg === 10 || $catAgg === 2)
+            ? (float)$mod->aggregationcoef
+            : (float)$mod->aggregationcoef2;
+        if ($weight <= 0) {
+            continue;
+        }
+
+        $scorePct = null;
+        if ($mod->modname === 'attendance') {
+            $attRow = $DB->get_record_sql(
+                "SELECT COUNT(s.id) AS total,
+                        SUM(CASE WHEN al.id IS NOT NULL AND ast.grade > 0 THEN 1
+                                 ELSE 0 END) AS present
+                   FROM {attendance_sessions} s
+                   LEFT JOIN {attendance_log}      al  ON al.sessionid = s.id
+                                                      AND al.studentid = :uid
+                   LEFT JOIN {attendance_statuses} ast ON ast.id = al.statusid
+                  WHERE s.attendanceid = :attid
+                    AND s.sessdate + s.duration < :now",
+                ['uid' => $userId, 'attid' => (int)$mod->instance, 'now' => $now]
+            );
+            if ($attRow && (int)$attRow->total > 0) {
+                $scorePct = (float)$attRow->present / (float)$attRow->total * 100.0;
+            }
+        } else {
+            $gg = $DB->get_record('grade_grades',
+                ['itemid' => (int)$mod->giid, 'userid' => $userId], 'finalgrade');
+            if ($gg && $gg->finalgrade !== null) {
+                $scorePct = (float)$gg->finalgrade / (float)$mod->grademax * 100.0;
+            }
+        }
+
+        // Ungraded items contribute 0 to the weighted sum but their weight is still counted.
+        if ($scorePct !== null) {
+            $weightedSum += $scorePct * $weight;
+            $hasAnyGrade  = true;
+        }
+        $totalWeight += $weight;
+    }
+
+    if (!$hasAnyGrade || $totalWeight <= 0) {
+        return null;
+    }
+
+    return round($weightedSum / $totalWeight, 2);
+}
+
+/**
+ * Canonical business-rule classifier for a student's final course status.
+ * Identical to the logic in progress_manager::close_class_grades_and_open_revalids().
+ * MUST be kept in sync with that function if institutional thresholds change.
+ *
+ * @return int  COURSE_APPROVED | COURSE_FAILED | COURSE_PENDING_REVALID
+ */
+function gmk_classify_student_grade(float $grade, float $progress, int $practicalHours): int {
+    if ($progress < 75.0) {
+        return COURSE_FAILED;
+    }
+    if ($grade > 70.4) {
+        return COURSE_APPROVED;
+    }
+    if ($practicalHours === 0 && $grade >= 60.0 && $grade <= 70.4) {
+        return COURSE_PENDING_REVALID;
+    }
+    return COURSE_FAILED;
+}
+
+/**
  * Returns dashboard stats for a single class (attendance, students, grades, BBB).
  */
 function gmk_get_class_dashboard_stats(int $classId): array {
@@ -7410,7 +7562,7 @@ function gmk_get_class_dashboard_stats(int $classId): array {
     }
     $now = time();
 
-    // ── 1. Attendance ────────────────────────────────────────────────────────
+    // ── 1. Attendance (log-based — avoids false positives from automarkcompleted) ──
     $att = ['total_past' => 0, 'pending' => 0, 'complete' => 0];
     if (!empty($class->attendancemoduleid)) {
         $attid = (int)$DB->get_field('course_modules', 'instance',
@@ -7419,67 +7571,64 @@ function gmk_get_class_dashboard_stats(int $classId): array {
             $att['total_past'] = (int)$DB->count_records_select('attendance_sessions',
                 'attendanceid = :a AND sessdate + duration < :n',
                 ['a' => $attid, 'n' => $now]);
-            $att['pending'] = (int)$DB->count_records_select('attendance_sessions',
-                'attendanceid = :a AND sessdate + duration < :n AND automarkcompleted < 2',
-                ['a' => $attid, 'n' => $now]);
+            $att['pending'] = !empty($class->groupid)
+                ? gmk_count_pending_attendance_sessions($attid, (int)$class->groupid, $now)
+                : 0;
             $att['complete'] = $att['total_past'] - $att['pending'];
         }
     }
 
-    // ── 2. Students ──────────────────────────────────────────────────────────
+    // ── 2. Students (from gmk_course_progre with classid for accuracy) ───────
     $students = ['total' => 0, 'approved' => 0, 'failed' => 0, 'in_progress' => 0, 'list' => []];
-    if (!empty($class->groupid)) {
-        $statusMap = [0 => 'No disponible', 1 => 'Disponible', 2 => 'Cursando',
-                      3 => 'Completado', 4 => 'Aprobada', 5 => 'Reprobada',
-                      6 => 'Pend. Reválida', 7 => 'Revalidando'];
-        $rows = $DB->get_records_sql(
-            "SELECT u.id, u.firstname, u.lastname, u.idnumber,
-                    COALESCE(gcp.status,   0)   AS status,
-                    COALESCE(gcp.grade,    0.0) AS grade,
-                    COALESCE(gcp.progress, 0.0) AS progress
-               FROM {groups_members} gm
-               JOIN {user} u ON u.id = gm.userid AND u.deleted = 0
-               LEFT JOIN {gmk_course_progre} gcp
-                      ON gcp.userid = gm.userid AND gcp.courseid = :cid
-              WHERE gm.groupid = :gid
-              ORDER BY u.lastname, u.firstname",
-            ['gid' => $class->groupid, 'cid' => $class->corecourseid]
-        );
-        foreach ($rows as $r) {
-            $st = (int)$r->status;
-            $students['total']++;
-            if ($st === 4) $students['approved']++;
-            if ($st === 5) $students['failed']++;
-            if ($st === 2) $students['in_progress']++;
-            $students['list'][] = [
-                'id'           => (int)$r->id,
-                'name'         => trim($r->firstname . ' ' . $r->lastname),
-                'idnumber'     => $r->idnumber ?: '—',
-                'status'       => $st,
-                'status_label' => $statusMap[$st] ?? '—',
-                'grade'        => round((float)$r->grade, 2),
-                'progress'     => round((float)$r->progress, 1),
-            ];
-        }
+    $statusMap = [0 => 'No disponible', 1 => 'Disponible', 2 => 'Cursando',
+                  3 => 'Completado', 4 => 'Aprobada', 5 => 'Reprobada',
+                  6 => 'Pend. Reválida', 7 => 'Revalidando'];
+    $rows = $DB->get_records_sql(
+        "SELECT u.id, u.firstname, u.lastname, u.idnumber,
+                gcp.status, gcp.grade, gcp.progress
+           FROM {gmk_course_progre} gcp
+           JOIN {user} u ON u.id = gcp.userid AND u.deleted = 0
+          WHERE gcp.classid = :classid
+          ORDER BY u.lastname, u.firstname",
+        ['classid' => $classId]
+    );
+    foreach ($rows as $r) {
+        $st = (int)$r->status;
+        $students['total']++;
+        if ($st === 4) $students['approved']++;
+        if ($st === 5) $students['failed']++;
+        if ($st === 2) $students['in_progress']++;
+        $students['list'][] = [
+            'id'           => (int)$r->id,
+            'name'         => trim($r->firstname . ' ' . $r->lastname),
+            'idnumber'     => $r->idnumber ?: '—',
+            'status'       => $st,
+            'status_label' => $statusMap[$st] ?? '—',
+            'grade'        => round((float)$r->grade, 2),
+            'progress'     => round((float)$r->progress, 1),
+        ];
     }
 
-    // ── 3. Grade weights (aggregation = 10 → aggregationcoef = weight) ───────
+    // ── 3. Grade weights — averages filtered to this class's group only ───────
     $grades = ['total_weight' => 0.0, 'is_100' => false, 'item_count' => 0, 'items' => []];
     if (!empty($class->gradecategoryid)) {
+        $gid = (int)($class->groupid ?? 0);
         $gitems = $DB->get_records_sql(
             "SELECT gi.id, gi.itemname, gi.grademax, gi.aggregationcoef,
                     gi.itemmodule, gi.itemtype,
-                    AVG(gg.finalgrade)                                  AS avg_raw,
+                    AVG(gg.finalgrade) AS avg_raw,
                     COUNT(CASE WHEN gg.finalgrade IS NOT NULL THEN 1 END) AS graded_count
                FROM {grade_items} gi
-               LEFT JOIN {grade_grades} gg ON gg.itemid = gi.id
+               LEFT JOIN {groups_members} gm_f ON gm_f.groupid = :gid
+               LEFT JOIN {grade_grades}   gg   ON gg.itemid = gi.id
+                                               AND gg.userid = gm_f.userid
               WHERE gi.categoryid = :cat
                 AND gi.itemtype IN ('mod','manual')
                 AND gi.itemnumber = 0
            GROUP BY gi.id, gi.itemname, gi.grademax, gi.aggregationcoef,
                     gi.itemmodule, gi.itemtype
            ORDER BY gi.sortorder",
-            ['cat' => $class->gradecategoryid]
+            ['cat' => $class->gradecategoryid, 'gid' => $gid]
         );
         $wsum = 0.0;
         foreach ($gitems as $gi) {
@@ -7564,7 +7713,7 @@ function gmk_close_class_with_grade_recalc(int $classId): array {
     $class = $DB->get_record('gmk_class', ['id' => $classId], '*', MUST_EXIST);
     $now   = time();
 
-    // ── Validate: grade weights ──────────────────────────────────────────────
+    // ── 1. Validate: grade category and weights ──────────────────────────────
     if (empty($class->gradecategoryid)) {
         return ['ok' => false, 'error' => 'La clase no tiene categoría de calificaciones configurada.'];
     }
@@ -7580,103 +7729,116 @@ function gmk_close_class_with_grade_recalc(int $classId): array {
                 'error' => "Las ponderaciones suman {$wsum}% — deben sumar exactamente 100%."];
     }
 
-    // ── Validate: attendance ─────────────────────────────────────────────────
-    if (!empty($class->attendancemoduleid)) {
+    // ── 2. Validate: no pending attendance (log-based, not automarkcompleted) ─
+    if (!empty($class->attendancemoduleid) && !empty($class->groupid)) {
         $attid = (int)$DB->get_field('course_modules', 'instance',
             ['id' => (int)$class->attendancemoduleid]);
         if ($attid) {
-            $pending = (int)$DB->count_records_select('attendance_sessions',
-                'attendanceid = :a AND sessdate + duration < :n AND automarkcompleted < 2',
-                ['a' => $attid, 'n' => $now]);
+            $pending = gmk_count_pending_attendance_sessions($attid, (int)$class->groupid, $now);
             if ($pending > 0) {
                 return ['ok' => false,
-                        'error' => "Hay {$pending} sesión(es) de asistencia sin registrar."];
+                        'error' => "Hay {$pending} sesión(es) de asistencia sin registrar para algunos estudiantes."];
             }
         }
     }
 
-    // ── Require group ────────────────────────────────────────────────────────
+    // ── 3. Validate: group exists ────────────────────────────────────────────
     if (empty($class->groupid)) {
         return ['ok' => false, 'error' => 'La clase no tiene grupo asignado.'];
     }
 
-    // ── Fetch course-level grade item ────────────────────────────────────────
-    $courseGI = $DB->get_record('grade_items',
-        ['courseid' => $class->corecourseid, 'itemtype' => 'course'], 'id, grademax');
-    $grademax = $courseGI ? max((float)$courseGI->grademax, 1.0) : 100.0;
-
-    // ── Iterate students and recalculate ─────────────────────────────────────
-    $groupStudents = $DB->get_records_sql(
-        "SELECT gm.userid,
-                gcp.id           AS progreid,
-                gcp.practicalhours,
-                gcp.progress
-           FROM {groups_members} gm
-           JOIN {user} u ON u.id = gm.userid AND u.deleted = 0
-           LEFT JOIN {gmk_course_progre} gcp
-                  ON gcp.userid = gm.userid AND gcp.courseid = :cid
-          WHERE gm.groupid = :gid",
-        ['gid' => $class->groupid, 'cid' => $class->corecourseid]
+    // ── 4. Fetch enrolled students from gmk_course_progre (classid-scoped, CURSANDO only) ─
+    $students = $DB->get_records_sql(
+        "SELECT gcp.id AS progreid, gcp.userid, gcp.practicalhours, gcp.progress
+           FROM {gmk_course_progre} gcp
+           JOIN {user} u ON u.id = gcp.userid AND u.deleted = 0
+          WHERE gcp.classid = :classid
+            AND gcp.status  = :inprogress",
+        ['classid' => $classId, 'inprogress' => COURSE_IN_PROGRESS]
     );
+    if (empty($students)) {
+        return ['ok' => false, 'error' => 'No hay estudiantes en estado "Cursando" en esta clase.'];
+    }
 
-    $summary     = ['approved' => 0, 'failed' => 0, 'revalid' => 0, 'no_grade' => 0];
+    // ── 5. Compute grades and build the update plan ──────────────────────────
+    $updates     = [];
     $revalidList = [];
+    $summary     = ['approved' => 0, 'failed' => 0, 'revalid' => 0, 'no_grade' => 0];
 
-    foreach ($groupStudents as $stu) {
-        // Get the real numeric grade from the Moodle gradebook.
-        $realGrade = null;
-        if ($courseGI) {
-            $gg = $DB->get_record('grade_grades',
-                ['itemid' => $courseGI->id, 'userid' => $stu->userid], 'finalgrade');
-            if ($gg && $gg->finalgrade !== null) {
-                $realGrade = round((float)$gg->finalgrade / $grademax * 100, 2);
-            }
-        }
+    foreach ($students as $stu) {
+        $realGrade = gmk_compute_student_class_grade($classId, (int)$stu->userid);
+
         if ($realGrade === null) {
             $summary['no_grade']++;
             continue;
         }
 
-        $practicalhours = (int)($stu->practicalhours ?? 0);
-        if ($realGrade >= 71) {
-            $newStatus = 4; // Aprobada
-            $summary['approved']++;
-        } elseif ($practicalhours === 0 && $realGrade >= 60.0) {
-            $newStatus = 6; // Pendiente Reválida
-            $summary['revalid']++;
-            $revalidList[] = $stu;
-        } else {
-            $newStatus = 5; // Reprobada
-            $summary['failed']++;
+        $newStatus = gmk_classify_student_grade(
+            $realGrade,
+            (float)($stu->progress ?? 0),
+            (int)($stu->practicalhours ?? 0)
+        );
+
+        switch ($newStatus) {
+            case COURSE_APPROVED:        $summary['approved']++; break;
+            case COURSE_PENDING_REVALID: $summary['revalid']++;  $revalidList[] = $stu; break;
+            default:                     $summary['failed']++;
         }
 
-        if (!empty($stu->progreid)) {
-            $newProgress = max((float)($stu->progress ?? 0), 100.0);
+        $updates[] = [
+            'id'       => (int)$stu->progreid,
+            'status'   => $newStatus,
+            'grade'    => $realGrade,
+            'progress' => max((float)($stu->progress ?? 0), 100.0),
+        ];
+    }
+
+    // ── 6. Persist all changes in a single atomic transaction ────────────────
+    $transaction = $DB->start_delegated_transaction();
+    try {
+        foreach ($updates as $upd) {
             $DB->execute(
                 "UPDATE {gmk_course_progre}
-                    SET status = :s, grade = :g, progress = :p
+                    SET status = :s, grade = :g, progress = :p, timemodified = :t
                   WHERE id = :id",
-                ['s' => $newStatus, 'g' => $realGrade, 'p' => $newProgress, 'id' => $stu->progreid]
+                ['s' => $upd['status'], 'g' => $upd['grade'],
+                 'p' => $upd['progress'], 't' => $now, 'id' => $upd['id']]
             );
         }
+
+        $DB->execute("UPDATE {gmk_class} SET closed = 1, timemodified = :t WHERE id = :id",
+            ['t' => $now, 'id' => $classId]);
+
+        // Audit log — preserves the grade state at closure time.
+        $DB->insert_record('gmk_class_closure_log', (object)[
+            'classid'    => $classId,
+            'closedby'   => (int)($USER->id ?? 0),
+            'timeclosed' => $now,
+            'approved'   => $summary['approved'],
+            'failed'     => $summary['failed'],
+            'revalid'    => $summary['revalid'],
+            'no_grade'   => $summary['no_grade'],
+            'notes'      => null,
+        ]);
+
+        $transaction->allow_commit();
+    } catch (Throwable $e) {
+        $transaction->rollback($e);
+        return ['ok' => false, 'error' => 'Error de base de datos al cerrar la clase: ' . $e->getMessage()];
     }
 
-    // Send revalidation messages (non-fatal).
+    // ── 7. Post-commit: lock grade category (non-critical, outside transaction) ─
+    toggle_class_grade_lock($classId, true);
+
+    // ── 8. Post-commit: send revalidation messages (non-reversible, outside transaction) ─
     foreach ($revalidList as $stu) {
         try {
-            if (!empty($stu->progreid)) {
-                local_grupomakro_progress_manager::send_revalidation_message(
-                    $class->corecourseid, $stu->userid, $stu->progreid);
-            }
+            local_grupomakro_progress_manager::send_revalidation_message(
+                $class->corecourseid, (int)$stu->userid, (int)$stu->progreid);
         } catch (Throwable $e) {
-            // ignore
+            // Non-fatal — the grade update already committed.
         }
     }
-
-    // ── Close class + lock grade category ────────────────────────────────────
-    $DB->execute("UPDATE {gmk_class} SET closed = 1, timemodified = :t WHERE id = :id",
-        ['t' => $now, 'id' => $classId]);
-    toggle_class_grade_lock($classId, true);
 
     return ['ok' => true, 'error' => null, 'summary' => $summary];
 }

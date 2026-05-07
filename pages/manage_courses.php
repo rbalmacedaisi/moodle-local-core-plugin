@@ -354,9 +354,15 @@ echo '     <option value="0" '.($filter_schedule_status==0?'selected':'').'>Sin 
 echo '   </select>';
 echo ' </div>';
 
-echo ' <div class="col-md-3 mb-2 d-flex justify-content-end">';
+echo ' <div class="col-md-3 mb-2 d-flex justify-content-end align-items-start flex-wrap gap-2">';
 echo '   <button type="submit" class="btn btn-secondary mr-2">Filtrar</button>';
-echo '   <button type="submit" name="action" value="export" class="btn btn-success"><i class="mdi mdi-file-excel"></i> Excel</button>';
+echo '   <button type="submit" name="action" value="export" class="btn btn-success mr-2"><i class="mdi mdi-file-excel"></i> Excel</button>';
+if ($filter_period > 0 && isset($fp) && $fp) {
+    $fp_name_js = htmlspecialchars($fp->name, ENT_QUOTES);
+    echo '   <button type="button" id="gmk-close-period-btn" class="btn btn-danger" ' .
+         'data-periodid="' . (int)$filter_period . '" data-periodname="' . $fp_name_js . '">' .
+         '<i class="mdi mdi-lock-check"></i> Cerrar período</button>';
+}
 echo ' </div>';
 echo '</form>';
 

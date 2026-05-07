@@ -360,6 +360,62 @@ function ($, ModalFactory, ModalEvents) {
         '.gmk-pill-click:hover { filter:brightness(.92); }' +
         '</style>');
 
+    // ── Period close — calls local_grupomakro_close_period and shows result table ──
+    function closePeriod(periodId, periodName) {
+        if (!confirm('¿Cerrar TODAS las clases activas del período "' + periodName + '"?\n\n' +
+                     'Se recalcularán las notas finales y se actualizarán los estados académicos.\n' +
+                     'Esta acción es reversible solo clase por clase mediante el botón Re-abrir.')) {
+            return;
+        }
+
+        var btnEl = $('#gmk-close-period-btn');
+        btnEl.prop('disabled', true).html('<i class="mdi mdi-loading mdi-spin"></i> Cerrando…');
+
+        ajaxGet('local_grupomakro_close_period', { periodId: periodId })
+            .done(function (r) {
+                btnEl.prop('disabled', false).html('<i class="mdi mdi-lock-check"></i> Cerrar período');
+                if (!r || !r.data) {
+                    alert('Respuesta inesperada del servidor.');
+                    return;
+                }
+                var d = r.data;
+                var rows = '';
+                (d.results || []).forEach(function (res) {
+                    var icon    = res.ok ? '✓' : '✗';
+                    var iconCls = res.ok ? 'color:#28a745' : 'color:#dc3545';
+                    var detail  = res.ok
+                        ? ('✓' + res.summary.approved + ' &nbsp;✗' + res.summary.failed +
+                           (res.summary.revalid > 0 ? ' &nbsp;⚠' + res.summary.revalid : '') +
+                           (res.summary.no_grade > 0 ? ' &nbsp;—' + res.summary.no_grade : ''))
+                        : ('<span style="color:#dc3545">' + htmlEsc(res.error || '—') + '</span>');
+                    rows += '<tr style="background:' + (rows === '' ? '#fff' : '#f8f9fa') + ';">' +
+                        '<td style="padding:7px 10px;font-weight:500;">' + htmlEsc(res.name) + '</td>' +
+                        '<td style="padding:7px 10px;text-align:center;' + iconCls + ';font-weight:700;">' + icon + '</td>' +
+                        '<td style="padding:7px 10px;font-size:12px;">' + detail + '</td>' +
+                        '</tr>';
+                });
+
+                var bodyHtml =
+                    '<div style="background:#e9ecef;padding:10px 14px;border-radius:6px;margin-bottom:14px;">' +
+                    'Período: <strong>' + htmlEsc(d.period_name) + '</strong> &nbsp;|&nbsp; ' +
+                    d.total + ' clase(s) procesada(s)</div>' +
+                    '<table style="width:100%;border-collapse:collapse;font-size:13px;">' +
+                    '<thead><tr style="background:#343a40;color:#fff;">' +
+                    '<th style="padding:8px 10px;">Clase</th>' +
+                    '<th style="padding:8px 10px;text-align:center;">Estado</th>' +
+                    '<th style="padding:8px 10px;">Detalle</th>' +
+                    '</tr></thead><tbody>' + (rows || '<tr><td colspan="3" style="padding:12px;text-align:center;color:#999;">No se encontraron clases activas en este período.</td></tr>') +
+                    '</tbody></table>';
+                showSubModal('Resultado — Cierre de período', bodyHtml);
+                // Reload after closing the sub-modal so the table reflects the new closed state.
+                $('#gmk-sub-modal-overlay').on('click', '.gmk-sub-close', function () { location.reload(); });
+            })
+            .fail(function (xhr) {
+                btnEl.prop('disabled', false).html('<i class="mdi mdi-lock-check"></i> Cerrar período');
+                alert('Error: ' + (xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : xhr.statusText));
+            });
+    }
+
     // ── Document-level event handlers ──────────────────────────────────────
     $(document).ready(function () {
 
@@ -404,17 +460,53 @@ function ($, ModalFactory, ModalEvents) {
             closeClass(parseInt($(this).data('id')));
         });
 
-        // Reopen class
+        // Reopen class — show modal with 2 options
         $(document).on('click', '.reopen-schedule-btn', function (e) {
             e.preventDefault();
-            var classId = $(this).data('id');
-            if (!confirm('¿Re-abrir este horario?')) { return; }
-            require(['core/ajax'], function (Ajax) {
-                Ajax.call([{
-                    methodname: 'local_grupomakro_toggle_class_status',
-                    args: { classId: classId, open: true }
-                }])[0].then(function () { location.reload(); })
-                       .fail(function (ex) { alert('Error: ' + ex.message); });
+            var classId   = parseInt($(this).data('id'));
+            var className = $(this).closest('li.item-list').find('p').first().text().replace(/CERRADO|ABIERTO/g, '').trim();
+
+            var bodyHtml =
+                '<p style="color:#555;margin-bottom:16px;">Selecciona cómo deseas reabrir la clase <strong>' + htmlEsc(className) + '</strong>:</p>' +
+                '<div style="border:1px solid #dee2e6;border-radius:6px;padding:14px 16px;margin-bottom:10px;cursor:pointer;" id="gmk-reopen-full">' +
+                '<label style="cursor:pointer;display:flex;gap:10px;align-items:flex-start;">' +
+                '<input type="radio" name="gmk_reopen_mode" value="full" style="margin-top:3px;">' +
+                '<div><strong>Reabrir para corrección completa</strong><br>' +
+                '<small style="color:#666;">Desbloquea el libro de calificaciones <em>y</em> revierte el estado académico ' +
+                'de todos los estudiantes a "Cursando". Usa esta opción si necesitas recalcular notas y volver a cerrar.</small></div>' +
+                '</label></div>' +
+                '<div style="border:1px solid #dee2e6;border-radius:6px;padding:14px 16px;cursor:pointer;" id="gmk-reopen-grades">' +
+                '<label style="cursor:pointer;display:flex;gap:10px;align-items:flex-start;">' +
+                '<input type="radio" name="gmk_reopen_mode" value="grades" style="margin-top:3px;">' +
+                '<div><strong>Reabrir solo el libro de calificaciones</strong><br>' +
+                '<small style="color:#666;">Desbloquea el gradebook de Moodle únicamente. Los estados de los estudiantes ' +
+                '(Aprobado / Reprobado) <strong>NO se revierten</strong>. Usa esta opción para corregir un peso o una calificación puntual.</small></div>' +
+                '</label></div>' +
+                '<div style="margin-top:16px;text-align:right;">' +
+                '<button class="btn btn-secondary btn-sm mr-2 gmk-reopen-cancel">Cancelar</button>' +
+                '<button class="btn btn-primary btn-sm gmk-reopen-confirm">Confirmar reapertura</button></div>';
+
+            showSubModal('Reabrir clase', bodyHtml);
+
+            // Allow clicking the card to select the radio.
+            $(document).on('click', '#gmk-reopen-full, #gmk-reopen-grades', function () {
+                $(this).find('input[type=radio]').prop('checked', true);
+            });
+            $(document).on('click', '.gmk-reopen-cancel', function () {
+                $('#gmk-sub-modal-overlay').remove();
+            });
+            $(document).on('click', '.gmk-reopen-confirm', function () {
+                var mode = $('input[name=gmk_reopen_mode]:checked').val();
+                if (!mode) { alert('Selecciona una opción.'); return; }
+                var revertStates = mode === 'full';
+                $('#gmk-sub-modal-overlay').remove();
+                require(['core/ajax'], function (Ajax) {
+                    Ajax.call([{
+                        methodname: 'local_grupomakro_toggle_class_status',
+                        args: { classId: classId, open: true, revert_states: revertStates }
+                    }])[0].then(function () { location.reload(); })
+                           .fail(function (ex) { alert('Error: ' + ex.message); });
+                });
             });
         });
 
@@ -494,6 +586,12 @@ function ($, ModalFactory, ModalEvents) {
                     alert('Error: ' + ex.message);
                 });
             });
+        });
+
+        // Period close button
+        $(document).on('click', '#gmk-close-period-btn', function (e) {
+            e.preventDefault();
+            closePeriod($(this).data('periodid'), $(this).data('periodname'));
         });
 
         // Stat pill clicks → sub-modals

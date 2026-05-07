@@ -1828,6 +1828,43 @@ try {
             $response = ['status' => 'success', 'fixed' => $fixed];
             break;
 
+        case 'local_grupomakro_close_period':
+            require_sesskey();
+            require_capability('moodle/site:config', $context);
+            $periodid = required_param('periodId', PARAM_INT);
+            $fp = $DB->get_record('gmk_academic_periods', ['id' => $periodid]);
+            if (!$fp) {
+                $response = ['status' => 'error', 'message' => 'Período académico no encontrado.'];
+                break;
+            }
+            // Find all open (non-closed, approved) classes whose initdate falls within the period.
+            $openClasses = $DB->get_records_sql(
+                "SELECT id, name FROM {gmk_class}
+                  WHERE closed = 0
+                    AND approved = 1
+                    AND initdate >= :fp_start
+                    AND initdate <= :fp_end
+                  ORDER BY id ASC",
+                ['fp_start' => (int)$fp->startdate, 'fp_end' => (int)$fp->enddate]
+            );
+            $results = [];
+            foreach ($openClasses as $cl) {
+                $r = gmk_close_class_with_grade_recalc((int)$cl->id);
+                $results[] = [
+                    'classid'  => (int)$cl->id,
+                    'name'     => $cl->name,
+                    'ok'       => (bool)$r['ok'],
+                    'error'    => $r['error'] ?? null,
+                    'summary'  => $r['summary'] ?? null,
+                ];
+            }
+            $response = ['status' => 'success', 'data' => [
+                'period_name' => $fp->name,
+                'total'       => count($openClasses),
+                'results'     => $results,
+            ]];
+            break;
+
         case 'local_grupomakro_get_course_activities_for_student':
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/student/get_student_course_pensum_activities.php');
             $userid   = required_param('userId',   PARAM_INT);

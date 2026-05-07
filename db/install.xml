@@ -754,5 +754,24 @@
         <INDEX NAME="userid_classid" UNIQUE="false" FIELDS="userid, classid"/>
       </INDEXES>
     </TABLE>
+    <TABLE NAME="gmk_class_closure_log" COMMENT="Audit log for class closures — records who closed, when, and the grade summary at closure time">
+      <FIELDS>
+        <FIELD NAME="id"         TYPE="int"  LENGTH="10" NOTNULL="true"  SEQUENCE="true"/>
+        <FIELD NAME="classid"    TYPE="int"  LENGTH="10" NOTNULL="true"  DEFAULT="0"    SEQUENCE="false"/>
+        <FIELD NAME="closedby"   TYPE="int"  LENGTH="10" NOTNULL="true"  DEFAULT="0"    SEQUENCE="false" COMMENT="userid of the admin who triggered the close"/>
+        <FIELD NAME="timeclosed" TYPE="int"  LENGTH="10" NOTNULL="true"  DEFAULT="0"    SEQUENCE="false"/>
+        <FIELD NAME="approved"   TYPE="int"  LENGTH="10" NOTNULL="true"  DEFAULT="0"    SEQUENCE="false"/>
+        <FIELD NAME="failed"     TYPE="int"  LENGTH="10" NOTNULL="true"  DEFAULT="0"    SEQUENCE="false"/>
+        <FIELD NAME="revalid"    TYPE="int"  LENGTH="10" NOTNULL="true"  DEFAULT="0"    SEQUENCE="false"/>
+        <FIELD NAME="no_grade"   TYPE="int"  LENGTH="10" NOTNULL="true"  DEFAULT="0"    SEQUENCE="false"/>
+        <FIELD NAME="notes"      TYPE="text"             NOTNULL="false"                SEQUENCE="false" COMMENT="Optional notes or error context"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="classid_idx" UNIQUE="false" FIELDS="classid"/>
+      </INDEXES>
+    </TABLE>
   </TABLES>
 </XMLDB>
