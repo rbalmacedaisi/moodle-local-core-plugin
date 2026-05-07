@@ -1787,6 +1787,14 @@ try {
             ];
             break;
 
+        case 'local_grupomakro_get_course_activities_for_student':
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/student/get_student_course_pensum_activities.php');
+            $userid   = required_param('userId',   PARAM_INT);
+            $courseid = required_param('courseId', PARAM_INT);
+            $result   = \local_grupomakro_core\external\student\get_student_course_pensum_activities::execute($userid, $courseid);
+            $response = ['status' => 'success', 'data' => $result];
+            break;
+
         case 'local_grupomakro_get_student_schedule_pdf_data':
             require_sesskey();
             require_capability('moodle/site:config', $context);

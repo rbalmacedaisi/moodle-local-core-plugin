@@ -190,11 +190,22 @@ Vue.component('grademodal', {
                         color="teal darken-2"
                         text
                         :loading="exportingGradesPdf"
-                        :disabled="exportingGradesPdf"
+                        :disabled="exportingGradesPdf || exportingDetailedGradesPdf"
                         @click="downloadGradesPdf"
                       >
                         <v-icon left>mdi-file-table-box</v-icon>
                         Exportar notas PDF
+                      </v-btn>
+                      <v-btn
+                        v-if="canExportDetailedPdf"
+                        color="deep-purple darken-1"
+                        text
+                        :loading="exportingDetailedGradesPdf"
+                        :disabled="exportingDetailedGradesPdf || exportingGradesPdf"
+                        @click="downloadDetailedGradesPdf"
+                      >
+                        <v-icon left>mdi-file-chart</v-icon>
+                        Detalle completo PDF
                       </v-btn>
                       <v-spacer></v-spacer>
                       <v-btn color="primary" text font-weight-bold @click="close">
@@ -315,6 +326,7 @@ Vue.component('grademodal', {
             withdrawingCourseKey: null,
             exportingSchedulePdf: false,
             exportingGradesPdf: false,
+            exportingDetailedGradesPdf: false,
             enrollingModuleKey: null,
             moduleStatusMap: {}
         };
@@ -1108,6 +1120,210 @@ Vue.component('grademodal', {
                 this.exportingGradesPdf = false;
             }
         },
+        async fetchActivitiesForCourse(courseid) {
+            if (!courseid || courseid <= 0) return [];
+            try {
+                const url = window.wsUrl || (window.location.origin + '/local/grupomakro_core/ajax.php');
+                const response = await window.axios.get(url, {
+                    params: {
+                        action: 'local_grupomakro_get_course_activities_for_student',
+                        sesskey: M.cfg.sesskey,
+                        userId: this.dataStudent.id,
+                        courseId: courseid,
+                    }
+                });
+                const payload = response && response.data ? response.data : {};
+                if (payload.status === 'success' && payload.data) {
+                    const raw = payload.data.activities;
+                    return typeof raw === 'string' ? JSON.parse(raw) : (raw || []);
+                }
+            } catch (e) {
+                console.warn('fetchActivitiesForCourse error for courseid=' + courseid, e);
+            }
+            return [];
+        },
+        async downloadDetailedGradesPdf() {
+            if (this.exportingDetailedGradesPdf) return;
+            this.exportingDetailedGradesPdf = true;
+            try {
+                await this.ensurePdfLibrary();
+                const jsPDF = (window.jspdf && window.jspdf.jsPDF) ? window.jspdf.jsPDF : window.jsPDF;
+                const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+                const pageW = doc.internal.pageSize.getWidth();
+                const pageH = doc.internal.pageSize.getHeight();
+                const margin = 14;
+                const contentW = pageW - margin * 2;
+
+                let logoImage = null;
+                let logoRatio = 1;
+                const logoUrl = this.getSchedulePdfLogoUrl();
+                if (logoUrl) {
+                    try {
+                        logoImage = await this.loadImageForPdf(logoUrl);
+                        if (logoImage && logoImage.naturalWidth > 0) {
+                            logoRatio = logoImage.naturalWidth / logoImage.naturalHeight;
+                        }
+                    } catch (e) { /* skip */ }
+                }
+
+                // Header bar
+                doc.setFillColor(69, 39, 160);
+                doc.roundedRect(margin, 10, contentW, 16, 2, 2, 'F');
+                doc.setTextColor(255, 255, 255);
+                let headerX = margin + 3;
+                if (logoImage) {
+                    const logoH = 12;
+                    const logoW = Math.max(10, Math.min(30, logoH * logoRatio));
+                    try {
+                        doc.addImage(logoImage, 'PNG', margin + 2, 12, logoW, logoH);
+                        headerX = margin + logoW + 5;
+                    } catch (e) { /* skip */ }
+                }
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(13);
+                doc.text('Detalle Completo de Notas', headerX, 18.5);
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(8.5);
+                doc.text('Generado: ' + new Date().toLocaleString('es-PA'), headerX, 24);
+
+                doc.setTextColor(0, 0, 0);
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(9);
+                doc.text('Estudiante:', margin, 34);
+                doc.setFont('helvetica', 'normal');
+                doc.text(this.studentName, margin + 22, 34);
+                doc.setFont('helvetica', 'bold');
+                doc.text('Email:', margin + 105, 34);
+                doc.setFont('helvetica', 'normal');
+                doc.text(this.studentEmail, margin + 116, 34);
+
+                let y = 40;
+
+                const actColName = contentW * 0.54;
+                const actColStatus = contentW * 0.22;
+                const actColGrade = contentW * 0.24;
+
+                const drawPageHeaderIfNeeded = () => {
+                    if (y > pageH - 22) {
+                        doc.addPage();
+                        y = margin;
+                    }
+                };
+
+                for (const career of this.careersList) {
+                    drawPageHeaderIfNeeded();
+
+                    // Career header
+                    doc.setFillColor(69, 39, 160);
+                    doc.rect(margin, y, contentW, 7, 'F');
+                    doc.setTextColor(255, 255, 255);
+                    doc.setFont('helvetica', 'bold');
+                    doc.setFontSize(10);
+                    doc.text(String(career.career || ''), margin + 2, y + 5);
+                    y += 9;
+
+                    const periods = career.periods || {};
+                    for (const [periodName, courses] of Object.entries(periods)) {
+                        drawPageHeaderIfNeeded();
+
+                        // Period sub-header
+                        doc.setFillColor(237, 231, 246);
+                        doc.rect(margin, y, contentW, 6, 'F');
+                        doc.setTextColor(69, 39, 160);
+                        doc.setFont('helvetica', 'bold');
+                        doc.setFontSize(8.5);
+                        doc.text(String(periodName || ''), margin + 3, y + 4.2);
+                        y += 6;
+
+                        for (const course of (courses || [])) {
+                            drawPageHeaderIfNeeded();
+
+                            // Fetch activities for this course
+                            const activities = await this.fetchActivitiesForCourse(Number(course.courseid || 0));
+
+                            // Course row (coloured by status)
+                            doc.setFillColor(232, 240, 254);
+                            doc.rect(margin, y, contentW, 6.5, 'F');
+                            doc.setTextColor(20, 30, 80);
+                            doc.setFont('helvetica', 'bold');
+                            doc.setFontSize(8.5);
+                            const courseNameLines = doc.splitTextToSize(String(course.coursename || ''), actColName + actColStatus - 3);
+                            const courseRowH = Math.max(6.5, courseNameLines.length * 4.2);
+                            doc.text(courseNameLines, margin + 2, y + 4.5);
+
+                            // Overall grade on the right
+                            const cgv = parseFloat(course.grade);
+                            if (!isNaN(cgv)) {
+                                doc.setTextColor(cgv >= 70 ? 27 : 183, cgv >= 70 ? 94 : 28, cgv >= 70 ? 32 : 28);
+                            } else {
+                                doc.setTextColor(80, 80, 80);
+                            }
+                            doc.setFontSize(9);
+                            doc.text(String(course.grade || '--'), margin + actColName + actColStatus + 2, y + 4.5);
+                            doc.setTextColor(80, 80, 120);
+                            doc.setFontSize(7.5);
+                            doc.text('(' + String(course.statusLabel || '') + ')', margin + actColName + actColStatus + 2, y + 9);
+                            y += courseRowH;
+
+                            // Activities sub-table
+                            if (activities.length > 0) {
+                                // Activity table header (indented slightly)
+                                const indentL = margin + 4;
+                                const indentW = contentW - 4;
+                                doc.setFillColor(207, 216, 220);
+                                doc.rect(indentL, y, indentW, 5, 'F');
+                                doc.setTextColor(40, 40, 40);
+                                doc.setFont('helvetica', 'bold');
+                                doc.setFontSize(7);
+                                doc.text('Actividad', indentL + 2, y + 3.5);
+                                doc.text('Estado', indentL + actColName - 4 + 2, y + 3.5);
+                                doc.text('Nota', indentL + actColName - 4 + actColStatus + 2, y + 3.5);
+                                y += 5;
+
+                                doc.setFont('helvetica', 'normal');
+                                activities.forEach((act, idx) => {
+                                    drawPageHeaderIfNeeded();
+                                    if (idx % 2 === 0) {
+                                        doc.setFillColor(250, 250, 252);
+                                        doc.rect(indentL, y, indentW, 5, 'F');
+                                    }
+                                    const aLines = doc.splitTextToSize(String(act.name || ''), actColName - 4 - 3);
+                                    const arh = Math.max(5, aLines.length * 3.8);
+                                    doc.setTextColor(40, 40, 40);
+                                    doc.setFontSize(7.5);
+                                    doc.text(aLines, indentL + 2, y + 3.5);
+                                    doc.text(act.completed ? 'Completado' : 'Pendiente', indentL + actColName - 4 + 2, y + 3.5);
+                                    const agv = parseFloat(act.grade);
+                                    if (!isNaN(agv)) {
+                                        doc.setTextColor(agv >= 70 ? 27 : 183, agv >= 70 ? 94 : 28, agv >= 70 ? 32 : 28);
+                                    } else {
+                                        doc.setTextColor(100, 100, 100);
+                                    }
+                                    doc.text(String(act.grade || 'Sin calificar'), indentL + actColName - 4 + actColStatus + 2, y + 3.5);
+                                    doc.setTextColor(40, 40, 40);
+                                    doc.setDrawColor(230, 230, 230);
+                                    doc.line(indentL, y + arh, indentL + indentW, y + arh);
+                                    y += arh;
+                                });
+                            }
+
+                            y += 2; // spacing between courses
+                        }
+                        y += 4; // spacing between periods
+                    }
+                    y += 6; // spacing between careers
+                }
+
+                const token = this.sanitizeFileToken(this.studentName);
+                const dateToken = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+                doc.save(`notas_detalle_${token}_${dateToken}.pdf`);
+            } catch (error) {
+                console.error('Error generating detailed grades PDF:', error);
+                this.showMessage('error', 'Error al generar el PDF de detalle de notas.');
+            } finally {
+                this.exportingDetailedGradesPdf = false;
+            }
+        },
         async getpensum() {
             const careersList = this.careersList;
             this.loadingPensum = true;
@@ -1459,6 +1675,9 @@ Vue.component('grademodal', {
                 return !this.loadingActivities && this.courseActivities.length > 0;
             }
             return !this.loadingPensum && this.careersList.length > 0;
+        },
+        canExportDetailedPdf() {
+            return !this.classId && !this.loadingPensum && this.careersList.length > 0;
         },
         selectedCourseName() {
             return this.selectedCourse && this.selectedCourse.coursename ? this.selectedCourse.coursename : '--';
