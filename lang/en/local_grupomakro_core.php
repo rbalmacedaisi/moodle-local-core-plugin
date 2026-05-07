@@ -573,3 +573,6 @@ $string['academic_level'] = 'Academic Level';
 
 ////BBB Live Attendance
 $string['fix_bbb_live_attendance'] = 'Fix BBB Live Attendance';
+
+////Capabilities
+$string['grupomakro_core:manage_classes'] = 'Manage classes';

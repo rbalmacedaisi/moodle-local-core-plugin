@@ -572,3 +572,6 @@ $string['academic_level'] = 'Nivel Académico';
 
 ////BBB Live Attendance
 $string['fix_bbb_live_attendance'] = 'Corregir Asistencia BBB en Vivo';
+
+////Capabilities
+$string['grupomakro_core:manage_classes'] = 'Gestionar clases';
