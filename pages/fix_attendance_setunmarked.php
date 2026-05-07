@@ -181,10 +181,13 @@ if ($action === '') {
     echo "<div class='info-box'>";
     echo "<h3>Próximos pasos</h3>";
     echo "<ol>";
-    echo "<li>El cron <strong>auto_mark</strong> corre automáticamente (tarea programada de Moodle). Al cierre de cada sesión de asistencia, marcará ausentes a quienes no registraron asistencia.</li>";
-    echo "<li>Para sesiones ya cerradas sin registro de ausentes, es necesario re-ejecutar el automark manualmente o registrar la asistencia de forma retroactiva.</li>";
-    echo "<li>Verifique en el <a href='debug_attendance_api.php'>Debug de Asistencia</a> que los estados de una clase de muestra tienen el flag correcto.</li>";
+    echo "<li>El cron <strong>auto_mark</strong> ya puede marcar ausentes en las próximas sesiones que cierren.</li>";
+    echo "<li><strong>Para sesiones ya cerradas</strong> sin registro de ausentes, ejecute la herramienta de corrección retroactiva:</li>";
     echo "</ol>";
+    echo "<div style='text-align:center;margin:16px 0;'>";
+    echo "<a href='fix_attendance_missing_logs.php' class='btn btn-primary' style='background:#28a745;'>Corregir ausencias retroactivas →</a>";
+    echo "</div>";
+    echo "<p style='font-size:13px;color:#555;'>Esa herramienta inserta registros de ausencia para todos los estudiantes sin log en sesiones pasadas y recalcula las notas.</p>";
     echo "</div>";
 
     echo "<div style='text-align:center;margin:30px 0;'>";
