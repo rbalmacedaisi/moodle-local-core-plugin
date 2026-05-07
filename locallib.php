@@ -3288,6 +3288,59 @@ function gmk_recover_big_blue_button_activity($class, $initDateTS, $BBBmoduleId,
     return $existing;
 }
 
+/**
+ * Sets setunmarked = 1 on the lowest-grade (absent) status of an attendance instance.
+ * This is required for ATTENDANCE_AUTOMARK_CLOSE to work: the cron uses this flag to
+ * know which status to assign to students who did not self-mark via QR when a session closes.
+ * Without it the cron exits silently ("nounmarkedstatusset") and all students keep showing 100%
+ * because attendance_log never gets absent rows and Moodle's grade formula uses only logged
+ * sessions as the denominator.
+ *
+ * @param int $attendanceid  The id of the {attendance} record (instance, not cm id).
+ */
+function gmk_attendance_ensure_setunmarked(int $attendanceid): void {
+    global $DB;
+
+    // Get all non-deleted statuses for statusset 0 (the default set used by newly created sessions).
+    $statuses = $DB->get_records_select(
+        'attendance_statuses',
+        'attendanceid = :aid AND deleted = 0 AND setnumber = 0',
+        ['aid' => $attendanceid],
+        'grade ASC, id ASC'
+    );
+    if (empty($statuses)) {
+        return;
+    }
+
+    // The absent status = lowest grade. If there is a tie at 0 prefer the one whose
+    // acronym is 'A' (standard Moodle default), otherwise just take the first one.
+    $absentStatus = null;
+    foreach ($statuses as $s) {
+        if ($absentStatus === null || (float)$s->grade < (float)$absentStatus->grade) {
+            $absentStatus = $s;
+        } elseif ((float)$s->grade === (float)$absentStatus->grade
+                  && strtoupper(trim($s->acronym)) === 'A') {
+            $absentStatus = $s;
+        }
+    }
+
+    // Nothing to do if already correct.
+    if ($absentStatus && (int)$absentStatus->setunmarked === 1) {
+        return;
+    }
+
+    // Clear any existing setunmarked flag for this statusset, then set it on the absent status.
+    $DB->set_field_select(
+        'attendance_statuses',
+        'setunmarked', 0,
+        'attendanceid = :aid AND deleted = 0 AND setnumber = 0',
+        ['aid' => $attendanceid]
+    );
+    if ($absentStatus) {
+        $DB->set_field('attendance_statuses', 'setunmarked', 1, ['id' => $absentStatus->id]);
+    }
+}
+
 function create_attendance_activity($class, $classSectionNumber)
 {
 
@@ -3317,6 +3370,24 @@ function create_attendance_activity($class, $classSectionNumber)
     } finally {
         $CFG->messaging = $prevMsg;
     }
+
+    // Ensure the lowest-grade status (absent) is marked as "setunmarked = 1" so the
+    // auto_mark cron (ATTENDANCE_AUTOMARK_CLOSE) assigns it to students who did not
+    // scan QR when a session closes. Without this, the cron exits silently and absent
+    // sessions are never entered in attendance_log, causing the grade formula
+    // (which uses only logged sessions as denominator) to always return 100%.
+    if (!empty($attendanceActivityInfo->coursemodule)) {
+        try {
+            $attendanceInstance = $DB->get_field('course_modules', 'instance',
+                ['id' => (int)$attendanceActivityInfo->coursemodule]);
+            if ($attendanceInstance) {
+                gmk_attendance_ensure_setunmarked((int)$attendanceInstance);
+            }
+        } catch (Exception $e) {
+            // Non-fatal — grade accuracy depends on this but class creation must not fail.
+        }
+    }
+
     return $attendanceActivityInfo;
 }
 

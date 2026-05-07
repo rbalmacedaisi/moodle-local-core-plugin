@@ -1800,6 +1800,18 @@ try {
             $response = ['status' => 'success', 'data' => $result];
             break;
 
+        case 'local_grupomakro_fix_attendance_setunmarked':
+            require_sesskey();
+            require_capability('moodle/site:config', $context);
+            $attendances = $DB->get_records('attendance', [], '', 'id');
+            $fixed = 0;
+            foreach ($attendances as $att) {
+                gmk_attendance_ensure_setunmarked((int)$att->id);
+                $fixed++;
+            }
+            $response = ['status' => 'success', 'fixed' => $fixed];
+            break;
+
         case 'local_grupomakro_get_course_activities_for_student':
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/student/get_student_course_pensum_activities.php');
             $userid   = required_param('userId',   PARAM_INT);
