@@ -128,7 +128,7 @@ Vue.component('grademodal', {
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                <tr v-for="(course, courseIndex) in courses" :key="courseIndex" class="course-row" @click="gradebook(course)" style="cursor: pointer;">
+                                                <tr v-for="(course, courseIndex) in courses" :key="courseIndex" class="course-row" @click="navigateToGradeReport(course)" style="cursor: pointer;">
                                                     <td class="py-2">
                                                         <div class="text-body-2 font-weight-medium text-wrap pr-2" style="line-height: 1.2;">
                                                             {{ course.coursename }}
@@ -365,7 +365,7 @@ Vue.component('grademodal', {
             if (isNaN(val)) return 'grey--text';
             return val >= 70 ? 'success--text' : 'error--text';
         },
-        gradebook(item) {
+        navigateToGradeReport(item) {
             const gradebookUrl = `/grade/report/grader/index.php?id=${item.courseid}`;
             window.location = gradebookUrl;
         },

@@ -36,167 +36,122 @@ class get_student_gradebook extends external_api
             'userId'   => $userId,
             'courseId' => $courseId,
         ]);
-        $userId   = $params['userId'];
-        $courseId = $params['courseId'];
+        $userId   = (int)$params['userId'];
+        $courseId = (int)$params['courseId'];
 
         try {
-            // ── 1. Find the student's class section ids in this course ────────
-            $userGroups = $DB->get_records_sql(
-                'SELECT gm.groupid FROM {groups_members} gm
-                 JOIN {groups} g ON g.id = gm.groupid
-                 WHERE gm.userid = :uid AND g.courseid = :cid',
-                ['uid' => $userId, 'cid' => $courseId]
-            );
-            $groupIds = array_column($userGroups, 'groupid');
+            // ── 1. Section-based discovery (same proven logic as get_student_course_pensum_activities)
+            $coursemod          = get_fast_modinfo($courseId, $userId);
+            $userGroups         = $coursemod->get_groups();
+            $gradableActivities = grade_get_gradable_activities($courseId);
 
-            // All classes in this course — build maps of section/category ownership
-            $allClasses = $DB->get_records('gmk_class', ['corecourseid' => $courseId],
-                '', 'id,groupid,gradecategoryid,attendancemoduleid,coursesectionid');
-
-            // All grade category ids that belong to ANY class in this course
-            $allClassCategoryIds = [];
-            // Map: coursesection id → class (for section-based filtering)
-            $allClassSectionIds  = [];
-            foreach ($allClasses as $c) {
-                if ($c->gradecategoryid)  $allClassCategoryIds[] = (int)$c->gradecategoryid;
-                if ($c->coursesectionid)  $allClassSectionIds[]  = (int)$c->coursesectionid;
-            }
-            $allClassCategoryIds = array_unique(array_filter($allClassCategoryIds));
-            $allClassSectionIds  = array_unique(array_filter($allClassSectionIds));
-
-            // Grade category ids, section ids and attendance module ids of the student's classes
-            $studentCategoryIds  = [];
-            $studentSectionIds   = [];
-            $attendanceModuleIds = [];
-            if (!empty($groupIds)) {
-                foreach ($allClasses as $c) {
-                    if (!in_array((int)$c->groupid, array_map('intval', $groupIds))) continue;
-                    if ($c->attendancemoduleid) $attendanceModuleIds[] = (int)$c->attendancemoduleid;
-                    if ($c->gradecategoryid)    $studentCategoryIds[]  = (int)$c->gradecategoryid;
-                    if ($c->coursesectionid)    $studentSectionIds[]   = (int)$c->coursesectionid;
-                }
-            }
-
-            // ── 2. Fetch all grade items for this course ──────────────────────
-            $gradeItems = $DB->get_records_sql(
-                "SELECT gi.id, gi.categoryid, gi.itemname, gi.itemtype, gi.itemmodule,
-                        gi.iteminstance, gi.grademax, gi.aggregationcoef, gi.aggregationcoef2,
-                        gi.weightoverride, gi.sortorder,
-                        gg.finalgrade, gg.feedback
-                 FROM {grade_items} gi
-                 LEFT JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = :uid
-                 WHERE gi.courseid = :cid AND gi.itemtype != 'course'
-                 ORDER BY gi.sortorder ASC",
-                ['uid' => $userId, 'cid' => $courseId]
-            );
-
-            // ── 3. Fetch grade categories ─────────────────────────────────────
+            // ── 2. Grade categories for grouping and weight computation ────────
             $categories = $DB->get_records('grade_categories', ['courseid' => $courseId], 'id ASC');
             $catMap    = [];
             $catAggMap = [];
             foreach ($categories as $cat) {
-                $catMap[$cat->id]    = $cat->fullname;
+                $catMap[$cat->id]    = trim($cat->fullname) ?: 'General';
                 $catAggMap[$cat->id] = (int)$cat->aggregation;
             }
 
-            // ── 4. Build flat list of items, skipping irrelevant BBB items ─────
-            $items = [];
-            foreach ($gradeItems as $gi) {
-                // Skip items that belong to another group's grade category.
-                // "Global" items (categoryid not owned by any class) are always shown.
-                // If the student has a known category, only show items in their category
-                // or in global categories (not owned by any other class either).
-                $itemCatId = (int)$gi->categoryid;
-                if (!empty($allClassCategoryIds)) {
-                    // For regular items: filter by their categoryid
-                    $belongsToAClass = in_array($itemCatId, $allClassCategoryIds);
-                    if ($belongsToAClass && !in_array($itemCatId, $studentCategoryIds)) {
-                        continue; // Belongs to a different group's category
-                    }
-                    // For category-total items (itemtype='category'): their categoryid is 0,
-                    // but iteminstance = the grade_category.id they represent.
-                    if ($gi->itemtype === 'category') {
-                        $representsCatId = (int)$gi->iteminstance;
-                        $representsAClass = in_array($representsCatId, $allClassCategoryIds);
-                        if ($representsAClass && !in_array($representsCatId, $studentCategoryIds)) {
-                            continue; // Total of a different group's category
-                        }
-                    }
-                }
+            // ── 3. Walk the student's class sections and collect grade items ───
+            $items          = [];
+            $seenGradeItemIds = [];
 
-                // If the student has no group but the course has classes with groups,
-                // hide all mod items — they all belong to specific group sections.
-                // Only manual items (migrated grades) and category totals are relevant.
-                if ($gi->itemtype === 'mod' && empty($studentCategoryIds) && !empty($allClassCategoryIds)) {
+            foreach ($userGroups as $userGroup) {
+                $groupClassSection = $DB->get_field('gmk_class', 'coursesectionid', ['groupid' => $userGroup]);
+                if (!$groupClassSection) {
                     continue;
                 }
 
-                // Skip attendance items that don't belong to the student's class
-                if ($gi->itemmodule === 'attendance') {
-                    // Find the course module for this attendance instance
-                    $cm = $DB->get_field('course_modules', 'id',
-                        ['course' => $courseId, 'module' => $DB->get_field('modules','id',['name'=>'attendance']), 'instance' => $gi->iteminstance]);
-                    if ($cm && !in_array((int)$cm, $attendanceModuleIds)) {
-                        continue; // Belongs to another section
+                try {
+                    $section = $coursemod->get_section_info_by_id($groupClassSection);
+                    if (!$section) continue;
+                    $sectionNumber = $section->__get('section');
+                } catch (Exception $secEx) {
+                    continue;
+                }
+
+                if (!isset($coursemod->get_sections()[$sectionNumber])) {
+                    continue;
+                }
+
+                foreach ($coursemod->get_sections()[$sectionNumber] as $sectionModule) {
+                    $module       = $coursemod->get_cm($sectionModule);
+                    $moduleRecord = $module->get_course_module_record(true);
+                    $moduleType   = $moduleRecord->modname;
+
+                    if ($moduleType === 'bigbluebuttonbn'
+                            || !array_key_exists($moduleRecord->id, $gradableActivities)) {
+                        continue;
                     }
+
+                    // Fetch the grade_item record for this module
+                    $gi = $DB->get_record_sql(
+                        "SELECT gi.id, gi.categoryid, gi.itemname, gi.grademax,
+                                gi.aggregationcoef, gi.aggregationcoef2, gi.sortorder,
+                                gg.finalgrade, gg.feedback
+                           FROM {grade_items} gi
+                           LEFT JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = :uid
+                          WHERE gi.courseid = :cid
+                            AND gi.itemtype = 'mod'
+                            AND gi.itemmodule = :modname
+                            AND gi.iteminstance = :instance
+                            AND gi.itemnumber = 0",
+                        ['uid'      => $userId,
+                         'cid'      => $courseId,
+                         'modname'  => $moduleType,
+                         'instance' => (int)$moduleRecord->instance]
+                    );
+
+                    if (!$gi || in_array((int)$gi->id, $seenGradeItemIds)) {
+                        continue;
+                    }
+                    $seenGradeItemIds[] = (int)$gi->id;
+
+                    $gradeFormatted = null;
+                    $gradePercent   = null;
+                    if (!is_null($gi->finalgrade) && $gi->grademax > 0) {
+                        $gradeFormatted = round((float)$gi->finalgrade, 2);
+                        $gradePercent   = round(((float)$gi->finalgrade / (float)$gi->grademax) * 100, 1);
+                    }
+
+                    $itemCatId    = (int)$gi->categoryid;
+                    $categoryName = isset($catMap[$itemCatId]) ? $catMap[$itemCatId] : 'General';
+                    $itemCatAgg   = $catAggMap[$itemCatId] ?? 13;
+                    $rawWeight    = ($itemCatAgg === 10 || $itemCatAgg === 2)
+                        ? (float)$gi->aggregationcoef
+                        : (float)$gi->aggregationcoef2;
+
+                    $label = $gi->itemname ?: $moduleRecord->name;
+
+                    $items[] = [
+                        'id'           => (int)$gi->id,
+                        'category'     => $categoryName === '?' ? 'General' : $categoryName,
+                        '_categoryid'  => $itemCatId,
+                        '_cagg'        => $itemCatAgg,
+                        '_raw_weight'  => $rawWeight,
+                        '_sortorder'   => (int)($gi->sortorder ?? 0),
+                        'name'         => $label,
+                        'module'       => $moduleType,
+                        'grade'        => $gradeFormatted,
+                        'grade_max'    => (float)$gi->grademax,
+                        'grade_pct'    => $gradePercent,
+                        'feedback'     => $gi->feedback ?: '',
+                        'weight_pct'   => 0,
+                        'weighted_contribution' => null,
+                    ];
                 }
-
-                // Skip BBB items entirely (sessions, not grades)
-                if ($gi->itemmodule === 'bigbluebuttonbn') {
-                    continue;
-                }
-
-                // Skip all category total items — we compute a weighted total in the frontend.
-                if ($gi->itemtype === 'category') {
-                    continue;
-                }
-
-                // Format grade
-                $gradeFormatted = null;
-                $gradePercent   = null;
-                if (!is_null($gi->finalgrade) && $gi->grademax > 0) {
-                    $gradeFormatted = round($gi->finalgrade, 2);
-                    $gradePercent   = round(($gi->finalgrade / $gi->grademax) * 100, 1);
-                }
-
-                $categoryName = isset($catMap[$gi->categoryid]) ? $catMap[$gi->categoryid] : 'General';
-
-                // Determine label: use itemname for activities, or a friendly fallback
-                $label = $gi->itemname ?: ucfirst($gi->itemmodule ?: $gi->itemtype);
-
-                // WEIGHTED_MEAN2 (10) / WEIGHTED_MEAN (2): raw weight in aggregationcoef.
-                // NATURAL (13): fraction 0-1 in aggregationcoef2.
-                $itemCatAgg = $catAggMap[$gi->categoryid] ?? 13;
-                $rawWeight  = ($itemCatAgg === 10 || $itemCatAgg === 2)
-                    ? (float)$gi->aggregationcoef
-                    : (float)$gi->aggregationcoef2;
-
-                $items[] = [
-                    'id'           => (int) $gi->id,
-                    'category'     => $categoryName === '?' ? 'General' : $categoryName,
-                    '_categoryid'  => $itemCatId,
-                    '_cagg'        => $itemCatAgg,
-                    '_raw_weight'  => $rawWeight,
-                    'name'         => $label,
-                    'module'       => $gi->itemmodule ?: $gi->itemtype,
-                    'grade'        => $gradeFormatted,
-                    'grade_max'    => (float) $gi->grademax,
-                    'grade_pct'    => $gradePercent,
-                    'feedback'     => $gi->feedback ?: '',
-                    'weight_pct'   => 0,
-                    'weighted_contribution' => null,
-                ];
             }
 
-            // ── 5. Compute weight_pct / weighted_contribution ─────────────────
-            // For WEIGHTED_MEAN2/2: normalize within category.
-            // For NATURAL (13): aggregationcoef2 is already 0-1.
+            // Sort by sortorder so items appear in the same order as in the gradebook
+            usort($items, fn($a, $b) => $a['_sortorder'] <=> $b['_sortorder']);
+
+            // ── 4. Compute weight_pct / weighted_contribution ─────────────────
             $catRawSums = [];
             foreach ($items as $item) {
-                $cagg = $item['_cagg'];
-                $cid  = $item['_categoryid'];
-                if ($cagg === 10 || $cagg === 2) {
-                    $catRawSums[$cid] = ($catRawSums[$cid] ?? 0.0) + $item['_raw_weight'];
+                if ($item['_cagg'] === 10 || $item['_cagg'] === 2) {
+                    $catRawSums[$item['_categoryid']] = ($catRawSums[$item['_categoryid']] ?? 0.0) + $item['_raw_weight'];
                 }
             }
             foreach ($items as &$item) {
@@ -211,7 +166,7 @@ class get_student_gradebook extends external_api
                 if (!is_null($item['grade']) && $item['grade_max'] > 0 && $item['weight_pct'] > 0) {
                     $item['weighted_contribution'] = round(($item['grade'] / $item['grade_max']) * $item['weight_pct'], 1);
                 }
-                unset($item['_categoryid'], $item['_cagg'], $item['_raw_weight']);
+                unset($item['_categoryid'], $item['_cagg'], $item['_raw_weight'], $item['_sortorder']);
             }
             unset($item);
 
