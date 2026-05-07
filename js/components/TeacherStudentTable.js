@@ -94,17 +94,18 @@ Vue.component('teacher-student-table', {
                                     <v-radio-group v-model="filters.exportType" label="Tipo de Exportación" row class="mt-2">
                                         <v-radio label="Asistencia (PDF)" value="attendance" color="error"></v-radio>
                                         <v-radio label="Notas (Excel)" value="grades" color="success"></v-radio>
+                                        <v-radio label="Notas (PDF)" value="gradesPdf" color="teal"></v-radio>
                                     </v-radio-group>
                                 </v-card-text>
                                 <v-card-actions class="pa-4 flex-column" style="gap:8px">
                                     <v-btn
                                         color="primary"
                                         block
-                                        :loading="exportingPdf"
-                                        @click="filters.exportType === 'attendance' ? exportPdf() : exportGrades()"
+                                        :loading="exportingPdf || exportingGradesPdf"
+                                        @click="filters.exportType === 'attendance' ? exportPdf() : (filters.exportType === 'grades' ? exportGrades() : exportGradesPdf())"
                                     >
-                                        <v-icon left>{{ filters.exportType === 'attendance' ? 'mdi-file-pdf-box' : 'mdi-file-excel' }}</v-icon>
-                                        {{ filters.exportType === 'attendance' ? 'Exportar PDF (Asistencia)' : 'Exportar Excel (Notas)' }}
+                                        <v-icon left>{{ filters.exportType === 'attendance' ? 'mdi-file-pdf-box' : (filters.exportType === 'grades' ? 'mdi-file-excel' : 'mdi-file-table-box') }}</v-icon>
+                                        {{ filters.exportType === 'attendance' ? 'Exportar PDF (Asistencia)' : (filters.exportType === 'grades' ? 'Exportar Excel (Notas)' : 'Exportar PDF (Notas)') }}
                                     </v-btn>
                                 </v-card-actions>
                                 <v-card-actions class="pa-4 pt-0">
@@ -298,6 +299,7 @@ Vue.component('teacher-student-table', {
             quarterFilter: '',
             filterDialog: false,
             exportingPdf: false,
+            exportingGradesPdf: false,
             studentsGrades: false,
             studentGradeSelected: {},
             showAttendanceModal: false,
@@ -539,6 +541,167 @@ Vue.component('teacher-student-table', {
             window.open(url, '_blank');
             setTimeout(() => { this.exportingPdf = false; }, 2000);
             this.filterDialog = false;
+        },
+        loadExternalScript(src) {
+            return new Promise((resolve, reject) => {
+                const selector = `script[data-gmk-src="${src}"]`;
+                const existing = document.querySelector(selector);
+                if (existing) {
+                    if (existing.getAttribute('data-loaded') === '1') { resolve(); return; }
+                    existing.addEventListener('load', () => resolve(), { once: true });
+                    existing.addEventListener('error', () => reject(new Error('Script load error: ' + src)), { once: true });
+                    return;
+                }
+                let originalDefine = null;
+                if (typeof window.define === 'function' && window.define.amd) {
+                    originalDefine = window.define;
+                    window.define = undefined;
+                }
+                const script = document.createElement('script');
+                script.src = src;
+                script.async = true;
+                script.setAttribute('data-gmk-src', src);
+                script.addEventListener('load', () => {
+                    script.setAttribute('data-loaded', '1');
+                    if (originalDefine) window.define = originalDefine;
+                    resolve();
+                }, { once: true });
+                script.addEventListener('error', () => {
+                    if (originalDefine) window.define = originalDefine;
+                    script.remove();
+                    reject(new Error('Script load error: ' + src));
+                }, { once: true });
+                document.head.appendChild(script);
+            });
+        },
+        async ensurePdfLibrary() {
+            if ((window.jspdf && window.jspdf.jsPDF) || window.jsPDF) return;
+            const sources = [
+                'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js',
+                'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
+            ];
+            for (const src of sources) {
+                try {
+                    await this.loadExternalScript(src);
+                    if ((window.jspdf && window.jspdf.jsPDF) || window.jsPDF) return;
+                } catch (e) { /* try next */ }
+            }
+            throw new Error('No se pudo inicializar jsPDF.');
+        },
+        async exportGradesPdf() {
+            if (this.exportingGradesPdf) return;
+            this.exportingGradesPdf = true;
+            try {
+                const url = window.wsUrl || (window.location.origin + '/local/grupomakro_core/ajax.php');
+                const params = new URLSearchParams();
+                params.append('action', 'local_grupomakro_get_student_info');
+                params.append('sesskey', M.cfg.sesskey);
+                params.append('page', 1);
+                params.append('resultsperpage', 5000);
+                params.append('search', this.options.search || '');
+                params.append('planid', Array.isArray(this.filters.planid) ? this.filters.planid.join(',') : '');
+                params.append('periodid', Array.isArray(this.filters.periodid) ? this.filters.periodid.join(',') : '');
+                params.append('status', this.filters.status || '');
+                params.append('classid', this.classId || 0);
+
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: params
+                });
+                const res = await response.json();
+
+                let students = [];
+                if (res.status === 'success' && res.data) {
+                    let dataUsers = res.data.dataUsers;
+                    if (typeof dataUsers === 'string') {
+                        try { dataUsers = JSON.parse(dataUsers); } catch (e) { dataUsers = []; }
+                    }
+                    if (Array.isArray(dataUsers)) {
+                        students = dataUsers.map(e => ({
+                            name: e.nameuser || '--',
+                            documentnumber: e.documentnumber || '--',
+                            currentgrade: e.currentgrade || '--',
+                            status: e.status || '--',
+                        }));
+                    }
+                }
+
+                if (!students.length) {
+                    alert('No hay estudiantes para exportar.');
+                    return;
+                }
+
+                await this.ensurePdfLibrary();
+                const jsPDF = (window.jspdf && window.jspdf.jsPDF) ? window.jspdf.jsPDF : window.jsPDF;
+                const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+                const pageW = doc.internal.pageSize.getWidth();
+                const pageH = doc.internal.pageSize.getHeight();
+                const margin = 14;
+                const contentW = pageW - margin * 2;
+
+                doc.setFillColor(25, 118, 210);
+                doc.roundedRect(margin, 10, contentW, 16, 2, 2, 'F');
+                doc.setTextColor(255, 255, 255);
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(13);
+                doc.text('Reporte de Notas — Clase', margin + 3, 18.5);
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(8.5);
+                doc.text('Generado: ' + new Date().toLocaleString('es-PA') + '   Total: ' + students.length + ' estudiantes', margin + 3, 24);
+
+                let y = 32;
+                const c1 = contentW * 0.42;
+                const c2 = contentW * 0.22;
+                const c3 = contentW * 0.18;
+
+                doc.setFillColor(207, 226, 255);
+                doc.rect(margin, y, contentW, 7, 'F');
+                doc.setTextColor(20, 20, 60);
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(8.5);
+                doc.text('Nombre', margin + 2, y + 5);
+                doc.text('Identificación', margin + c1 + 2, y + 5);
+                doc.text('Nota Actual', margin + c1 + c2 + 2, y + 5);
+                doc.text('Estado', margin + c1 + c2 + c3 + 2, y + 5);
+                y += 7;
+
+                doc.setFont('helvetica', 'normal');
+                students.forEach((student, idx) => {
+                    if (y > pageH - 20) { doc.addPage(); y = margin; }
+                    if (idx % 2 === 0) {
+                        doc.setFillColor(248, 249, 250);
+                        doc.rect(margin, y, contentW, 6, 'F');
+                    }
+                    const nameLines = doc.splitTextToSize(String(student.name), c1 - 3);
+                    const rh = Math.max(6, nameLines.length * 4);
+                    doc.setTextColor(30, 30, 30);
+                    doc.setFontSize(8);
+                    doc.text(nameLines, margin + 2, y + 4);
+                    doc.text(String(student.documentnumber), margin + c1 + 2, y + 4);
+                    const gv = parseFloat(student.currentgrade);
+                    if (!isNaN(gv)) {
+                        doc.setTextColor(gv >= 70 ? 27 : 183, gv >= 70 ? 94 : 28, gv >= 70 ? 32 : 28);
+                    } else {
+                        doc.setTextColor(80, 80, 80);
+                    }
+                    doc.text(String(student.currentgrade), margin + c1 + c2 + 2, y + 4);
+                    doc.setTextColor(30, 30, 30);
+                    doc.text(String(student.status), margin + c1 + c2 + c3 + 2, y + 4);
+                    doc.setDrawColor(220, 220, 220);
+                    doc.line(margin, y + rh, margin + contentW, y + rh);
+                    y += rh;
+                });
+
+                const dateToken = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+                doc.save(`notas_clase_${dateToken}.pdf`);
+                this.filterDialog = false;
+            } catch (error) {
+                console.error('Error generating grades PDF:', error);
+                alert('Error al generar el PDF de notas.');
+            } finally {
+                this.exportingGradesPdf = false;
+            }
         },
         exportStudents() {
             window.open(window.location.origin + '/local/grupomakro_core/pages/export_students.php', '_blank');

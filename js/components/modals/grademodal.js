@@ -185,6 +185,17 @@ Vue.component('grademodal', {
                         <v-icon left>mdi-file-pdf-box</v-icon>
                         Descargar horario PDF
                       </v-btn>
+                      <v-btn
+                        v-if="canExportGradesPdf"
+                        color="teal darken-2"
+                        text
+                        :loading="exportingGradesPdf"
+                        :disabled="exportingGradesPdf"
+                        @click="downloadGradesPdf"
+                      >
+                        <v-icon left>mdi-file-table-box</v-icon>
+                        Exportar notas PDF
+                      </v-btn>
                       <v-spacer></v-spacer>
                       <v-btn color="primary" text font-weight-bold @click="close">
                         <v-icon left>mdi-check</v-icon>
@@ -303,6 +314,7 @@ Vue.component('grademodal', {
             selectedCourse: null,
             withdrawingCourseKey: null,
             exportingSchedulePdf: false,
+            exportingGradesPdf: false,
             enrollingModuleKey: null,
             moduleStatusMap: {}
         };
@@ -915,6 +927,187 @@ Vue.component('grademodal', {
                 this.exportingSchedulePdf = false;
             }
         },
+        async downloadGradesPdf() {
+            if (this.exportingGradesPdf) return;
+            this.exportingGradesPdf = true;
+            try {
+                await this.ensurePdfLibrary();
+                const jsPDF = (window.jspdf && window.jspdf.jsPDF) ? window.jspdf.jsPDF : window.jsPDF;
+                const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+                const pageW = doc.internal.pageSize.getWidth();
+                const pageH = doc.internal.pageSize.getHeight();
+                const margin = 14;
+                const contentW = pageW - margin * 2;
+
+                let logoImage = null;
+                let logoRatio = 1;
+                const logoUrl = this.getSchedulePdfLogoUrl();
+                if (logoUrl) {
+                    try {
+                        logoImage = await this.loadImageForPdf(logoUrl);
+                        if (logoImage && logoImage.naturalWidth > 0) {
+                            logoRatio = logoImage.naturalWidth / logoImage.naturalHeight;
+                        }
+                    } catch (e) { /* skip */ }
+                }
+
+                doc.setFillColor(25, 118, 210);
+                doc.roundedRect(margin, 10, contentW, 16, 2, 2, 'F');
+                doc.setTextColor(255, 255, 255);
+                let headerX = margin + 3;
+                if (logoImage) {
+                    const logoH = 12;
+                    const logoW = Math.max(10, Math.min(30, logoH * logoRatio));
+                    try {
+                        doc.addImage(logoImage, 'PNG', margin + 2, 12, logoW, logoH);
+                        headerX = margin + logoW + 5;
+                    } catch (e) { /* skip */ }
+                }
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(13);
+                doc.text('Reporte de Notas', headerX, 18.5);
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(8.5);
+                doc.text('Generado: ' + new Date().toLocaleString('es-PA'), headerX, 24);
+
+                doc.setTextColor(0, 0, 0);
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(9);
+                doc.text('Estudiante:', margin, 34);
+                doc.setFont('helvetica', 'normal');
+                doc.text(this.studentName, margin + 22, 34);
+                doc.setFont('helvetica', 'bold');
+                doc.text('Email:', margin + 105, 34);
+                doc.setFont('helvetica', 'normal');
+                doc.text(this.studentEmail, margin + 116, 34);
+
+                let y = 40;
+
+                if (this.classId) {
+                    // Teacher context: export course activities
+                    doc.setFillColor(21, 101, 192);
+                    doc.rect(margin, y, contentW, 7, 'F');
+                    doc.setTextColor(255, 255, 255);
+                    doc.setFont('helvetica', 'bold');
+                    doc.setFontSize(9);
+                    doc.text('Actividades del Curso', margin + 2, y + 5);
+                    y += 9;
+
+                    const c1 = contentW * 0.60;
+                    const c2 = contentW * 0.22;
+
+                    doc.setFillColor(207, 226, 255);
+                    doc.rect(margin, y, contentW, 6, 'F');
+                    doc.setTextColor(30, 30, 30);
+                    doc.setFont('helvetica', 'bold');
+                    doc.setFontSize(8);
+                    doc.text('Actividad', margin + 2, y + 4.2);
+                    doc.text('Estado', margin + c1 + 2, y + 4.2);
+                    doc.text('Nota', margin + c1 + c2 + 2, y + 4.2);
+                    y += 6;
+
+                    doc.setFont('helvetica', 'normal');
+                    this.courseActivities.forEach((act, idx) => {
+                        if (y > pageH - 20) { doc.addPage(); y = margin; }
+                        if (idx % 2 === 0) {
+                            doc.setFillColor(248, 249, 250);
+                            doc.rect(margin, y, contentW, 6, 'F');
+                        }
+                        const lines = doc.splitTextToSize(String(act.name || ''), c1 - 3);
+                        const rh = Math.max(6, lines.length * 4.2);
+                        doc.setTextColor(30, 30, 30);
+                        doc.setFontSize(8);
+                        doc.text(lines, margin + 2, y + 4);
+                        doc.text(act.completed ? 'Completado' : 'Pendiente', margin + c1 + 2, y + 4);
+                        const gv = parseFloat(act.grade);
+                        if (!isNaN(gv)) {
+                            doc.setTextColor(gv >= 70 ? 27 : 183, gv >= 70 ? 94 : 28, gv >= 70 ? 32 : 28);
+                        } else {
+                            doc.setTextColor(100, 100, 100);
+                        }
+                        doc.text(String(act.grade != null ? act.grade : '--'), margin + c1 + c2 + 2, y + 4);
+                        doc.setTextColor(30, 30, 30);
+                        doc.setDrawColor(220, 220, 220);
+                        doc.line(margin, y + rh, margin + contentW, y + rh);
+                        y += rh;
+                    });
+                } else {
+                    // Academic panel context: export full pensum (all careers/periods/courses)
+                    for (const career of this.careersList) {
+                        if (y > pageH - 30) { doc.addPage(); y = margin; }
+                        doc.setFillColor(25, 118, 210);
+                        doc.rect(margin, y, contentW, 7, 'F');
+                        doc.setTextColor(255, 255, 255);
+                        doc.setFont('helvetica', 'bold');
+                        doc.setFontSize(10);
+                        doc.text(String(career.career || ''), margin + 2, y + 5);
+                        y += 9;
+
+                        const periods = career.periods || {};
+                        for (const [periodName, courses] of Object.entries(periods)) {
+                            if (y > pageH - 25) { doc.addPage(); y = margin; }
+                            doc.setFillColor(232, 240, 254);
+                            doc.rect(margin, y, contentW, 6, 'F');
+                            doc.setTextColor(25, 60, 130);
+                            doc.setFont('helvetica', 'bold');
+                            doc.setFontSize(8.5);
+                            doc.text(String(periodName || ''), margin + 3, y + 4.2);
+                            y += 6;
+
+                            const c1 = contentW * 0.55;
+                            const c2 = contentW * 0.25;
+
+                            doc.setFillColor(207, 216, 220);
+                            doc.rect(margin, y, contentW, 5.5, 'F');
+                            doc.setTextColor(40, 40, 40);
+                            doc.setFont('helvetica', 'bold');
+                            doc.setFontSize(7.5);
+                            doc.text('Asignatura', margin + 2, y + 3.8);
+                            doc.text('Estado', margin + c1 + 2, y + 3.8);
+                            doc.text('Nota', margin + c1 + c2 + 2, y + 3.8);
+                            y += 5.5;
+
+                            doc.setFont('helvetica', 'normal');
+                            (courses || []).forEach((course, idx) => {
+                                if (y > pageH - 15) { doc.addPage(); y = margin; }
+                                if (idx % 2 === 0) {
+                                    doc.setFillColor(248, 249, 250);
+                                    doc.rect(margin, y, contentW, 5.5, 'F');
+                                }
+                                const lines = doc.splitTextToSize(String(course.coursename || ''), c1 - 3);
+                                const rh = Math.max(5.5, lines.length * 4);
+                                doc.setTextColor(40, 40, 40);
+                                doc.setFontSize(8);
+                                doc.text(lines, margin + 2, y + 4);
+                                doc.text(String(course.statusLabel || ''), margin + c1 + 2, y + 4);
+                                const gv = parseFloat(course.grade);
+                                if (!isNaN(gv)) {
+                                    doc.setTextColor(gv >= 70 ? 27 : 183, gv >= 70 ? 94 : 28, gv >= 70 ? 32 : 28);
+                                } else {
+                                    doc.setTextColor(100, 100, 100);
+                                }
+                                doc.text(String(course.grade != null ? course.grade : '--'), margin + c1 + c2 + 2, y + 4);
+                                doc.setTextColor(40, 40, 40);
+                                doc.setDrawColor(220, 220, 220);
+                                doc.line(margin, y + rh, margin + contentW, y + rh);
+                                y += rh;
+                            });
+                            y += 3;
+                        }
+                        y += 5;
+                    }
+                }
+
+                const token = this.sanitizeFileToken(this.studentName);
+                const dateToken = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+                doc.save(`notas_${token}_${dateToken}.pdf`);
+            } catch (error) {
+                console.error('Error generating grades PDF:', error);
+                this.showMessage('error', 'Error al generar el PDF de notas.');
+            } finally {
+                this.exportingGradesPdf = false;
+            }
+        },
         async getpensum() {
             const careersList = this.careersList;
             this.loadingPensum = true;
@@ -1260,6 +1453,12 @@ Vue.component('grademodal', {
         },
         showSchedulePdfButton() {
             return !this.classId;
+        },
+        canExportGradesPdf() {
+            if (this.classId) {
+                return !this.loadingActivities && this.courseActivities.length > 0;
+            }
+            return !this.loadingPensum && this.careersList.length > 0;
         },
         selectedCourseName() {
             return this.selectedCourse && this.selectedCourse.coursename ? this.selectedCourse.coursename : '--';
