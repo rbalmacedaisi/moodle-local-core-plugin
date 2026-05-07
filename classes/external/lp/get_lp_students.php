@@ -1,7 +1,10 @@
 <?php
+namespace local_grupomakro_core\external\lp;
+
 defined('MOODLE_INTERNAL') || die();
 
-namespace local_grupomakro_core\external\lp;
+global $CFG;
+require_once($CFG->libdir . '/externallib.php');
 
 use external_api;
 use external_function_parameters;
@@ -27,8 +30,11 @@ class get_lp_students extends external_api {
             'subperiodid' => $subperiodid,
         ]);
 
+        $context = \context_system::instance();
+        self::validate_context($context);
+
         try {
-            $where  = ['llu.userrolename = :role'];
+            $where     = ['llu.userrolename = :role'];
             $sqlparams = ['role' => 'student'];
 
             if ($params['planid'] > 0) {
@@ -45,21 +51,21 @@ class get_lp_students extends external_api {
             }
 
             $sql = "SELECT
-                        llu.id          AS lluid,
+                        llu.id                 AS lluid,
                         llu.userid,
-                        llu.learningplanid AS planid,
+                        llu.learningplanid     AS planid,
                         llu.currentperiodid    AS periodid,
                         llu.currentsubperiodid AS subperiodid,
                         llu.groupname,
                         u.firstname,
                         u.lastname,
                         u.email,
-                        llp.name        AS planname,
-                        llper.name      AS periodname,
-                        llsp.name       AS subperiodname
+                        llp.name               AS planname,
+                        llper.name             AS periodname,
+                        llsp.name              AS subperiodname
                     FROM {local_learning_users} llu
-                    JOIN {user} u          ON u.id  = llu.userid AND u.deleted = 0
-                    JOIN {local_learning_plans} llp ON llp.id = llu.learningplanid
+                    JOIN {user} u                    ON u.id    = llu.userid         AND u.deleted = 0
+                    JOIN {local_learning_plans} llp  ON llp.id  = llu.learningplanid
                     LEFT JOIN {local_learning_periods}    llper ON llper.id = llu.currentperiodid
                     LEFT JOIN {local_learning_subperiods} llsp  ON llsp.id  = llu.currentsubperiodid
                     WHERE " . implode(' AND ', $where) . "
@@ -84,7 +90,7 @@ class get_lp_students extends external_api {
                 ];
             }, $rows));
 
-            return ['status' => 1, 'students' => json_encode($students)];
+            return ['status' => 1, 'students' => json_encode($students), 'message' => ''];
         } catch (\Throwable $e) {
             return ['status' => -1, 'students' => '[]', 'message' => $e->getMessage()];
         }

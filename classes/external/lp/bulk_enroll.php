@@ -1,17 +1,19 @@
 <?php
+namespace local_grupomakro_core\external\lp;
+
 defined('MOODLE_INTERNAL') || die();
 
-namespace local_grupomakro_core\external\lp;
+global $CFG;
+require_once($CFG->libdir . '/externallib.php');
+require_once($CFG->dirroot . '/local/sc_learningplans/libs/userlib.php');
+require_once($CFG->dirroot . '/local/sc_learningplans/libs/plan_deplib.php');
+require_once($CFG->dirroot . '/local/sc_learningplans/classes/event/learningplanuser_added.php');
 
 use external_api;
 use external_function_parameters;
 use external_multiple_structure;
 use external_single_structure;
 use external_value;
-
-require_once($CFG->dirroot . '/local/sc_learningplans/libs/userlib.php');
-require_once($CFG->dirroot . '/local/sc_learningplans/libs/plan_deplib.php');
-require_once($CFG->dirroot . '/local/sc_learningplans/classes/event/learningplanuser_added.php');
 
 class bulk_enroll extends external_api {
 
@@ -37,20 +39,23 @@ class bulk_enroll extends external_api {
             'groupname'    => $groupname,
         ]);
 
+        $context = \context_system::instance();
+        self::validate_context($context);
+
         $plan = $DB->get_record('local_learning_plans', ['id' => $params['targetplanid']]);
         if (!$plan) {
             return ['results' => json_encode([]), 'enrolled' => 0, 'skipped' => 0, 'errors' => 0,
                     'message' => 'Plan de aprendizaje no encontrado.'];
         }
 
-        $studentRoleId = $DB->get_field('role', 'id', ['shortname' => 'student']);
+        $studentRoleId   = $DB->get_field('role', 'id', ['shortname' => 'student']);
         $currentPeriodId = $params['periodid'] > 0 ? $params['periodid'] : null;
-        $group = !empty($params['groupname']) ? $params['groupname'] : null;
+        $group           = !empty($params['groupname']) ? $params['groupname'] : null;
 
-        $results   = [];
-        $enrolled  = 0;
-        $skipped   = 0;
-        $errors    = 0;
+        $results  = [];
+        $enrolled = 0;
+        $skipped  = 0;
+        $errors   = 0;
 
         foreach (array_unique($params['userids']) as $userid) {
             $user = $DB->get_record('user', ['id' => $userid, 'deleted' => 0]);
@@ -62,7 +67,6 @@ class bulk_enroll extends external_api {
             }
             $fullname = trim($user->firstname . ' ' . $user->lastname);
 
-            // Skip if already enrolled.
             $existing = $DB->get_record('local_learning_users', [
                 'learningplanid' => $params['targetplanid'],
                 'userid'         => $userid,
@@ -75,7 +79,6 @@ class bulk_enroll extends external_api {
             }
 
             try {
-                // Create the local_learning_users record.
                 $record = new \stdClass();
                 $record->learningplanid  = (int)$params['targetplanid'];
                 $record->userid          = (int)$userid;
@@ -88,21 +91,15 @@ class bulk_enroll extends external_api {
                 $record->timemodified    = time();
                 $record->id = $DB->insert_record('local_learning_users', $record);
 
-                // Enrol in courses (same as add_learning_user).
                 enrol_user_in_learningplan_courses($params['targetplanid'], $userid, $studentRoleId, $group);
-
-                // Trigger dependencies.
                 sc_learningplan_trigger_dependencies($params['targetplanid'], $userid, $studentRoleId, $group);
-
-                // Send enrolment email if configured.
                 send_email_user_enroled($params['targetplanid'], $userid, $studentRoleId);
 
-                // Fire event.
                 $event = \local_sc_learningplans\event\learningplanuser_added::create([
-                    'context'      => \context_system::instance(),
-                    'objectid'     => $record->id,
-                    'relateduserid'=> $userid,
-                    'other'        => ['learningPlanId' => $params['targetplanid'], 'roleId' => $studentRoleId],
+                    'context'       => \context_system::instance(),
+                    'objectid'      => $record->id,
+                    'relateduserid' => $userid,
+                    'other'         => ['learningPlanId' => $params['targetplanid'], 'roleId' => $studentRoleId],
                 ]);
                 $event->trigger();
 
@@ -116,7 +113,6 @@ class bulk_enroll extends external_api {
             }
         }
 
-        // Update usercount on the plan.
         if ($enrolled > 0) {
             $plan->usercount = (int)$plan->usercount + $enrolled;
             $DB->update_record('local_learning_plans', $plan);
