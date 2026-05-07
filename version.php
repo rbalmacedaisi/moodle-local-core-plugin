@@ -24,6 +24,6 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = "local_grupomakro_core";
-$plugin->version   = 20260506001;         // WS: local_grupomakro_get_lp_students, local_grupomakro_bulk_enroll.
+$plugin->version   = 20260507001;         // BBB live attendance: auto-mark and manual fix tool.
 $plugin->requires = 2014051200;
 $plugin->maturity = MATURITY_STABLE;
