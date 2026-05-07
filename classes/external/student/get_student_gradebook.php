@@ -111,7 +111,30 @@ class get_student_gradebook extends external_api
 
                     $gradeFormatted = null;
                     $gradePercent   = null;
-                    if (!is_null($gi->finalgrade) && $gi->grademax > 0) {
+
+                    if ($moduleType === 'attendance') {
+                        // Compute attendance grade directly: sessions without a log = absent.
+                        // Moodle's grade_grades only counts sessions that have a log entry as
+                        // the denominator, so absent students always get 100 % there.
+                        $attRow = $DB->get_record_sql(
+                            "SELECT COUNT(s.id)                                                    AS total,
+                                    SUM(CASE WHEN al.id IS NOT NULL AND ast.grade > 0 THEN 1
+                                             ELSE 0 END)                                           AS present
+                               FROM {attendance_sessions} s
+                               LEFT JOIN {attendance_log}      al  ON al.sessionid = s.id
+                                                                   AND al.studentid = :uid
+                               LEFT JOIN {attendance_statuses} ast ON ast.id = al.statusid
+                              WHERE s.attendanceid = :attid
+                                AND s.sessdate + s.duration < :now",
+                            ['uid'   => $userId,
+                             'attid' => (int)$moduleRecord->instance,
+                             'now'   => time()]
+                        );
+                        if ($attRow && (int)$attRow->total > 0 && $gi->grademax > 0) {
+                            $gradePercent   = round(((int)$attRow->present / (int)$attRow->total) * 100, 1);
+                            $gradeFormatted = round($gradePercent * (float)$gi->grademax / 100, 2);
+                        }
+                    } elseif (!is_null($gi->finalgrade) && $gi->grademax > 0) {
                         $gradeFormatted = round((float)$gi->finalgrade, 2);
                         $gradePercent   = round(((float)$gi->finalgrade / (float)$gi->grademax) * 100, 1);
                     }
