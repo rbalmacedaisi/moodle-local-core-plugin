@@ -190,7 +190,8 @@ function process_bbb_live_attendance($classId, $sessionId) {
         'sessions_processed' => 0,
         'students_marked' => 0,
         'already_marked' => 0,
-        'errors' => []
+        'errors' => [],
+        'details' => []
     ];
 
     try {
@@ -225,6 +226,9 @@ function process_bbb_live_attendance($classId, $sessionId) {
             $results['already_marked'] += $processResult['already'];
             if (!empty($processResult['error'])) {
                 $results['errors'][] = $processResult['error'];
+            }
+            if (!empty($processResult['details'])) {
+                $results['details'] = array_merge($results['details'], $processResult['details']);
             }
         }
 
