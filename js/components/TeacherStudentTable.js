@@ -593,36 +593,37 @@ Vue.component('teacher-student-table', {
             this.exportingGradesPdf = true;
             try {
                 const url = window.wsUrl || (window.location.origin + '/local/grupomakro_core/ajax.php');
+
+                // ── 1. Fetch all students ─────────────────────────────────────
                 const params = new URLSearchParams();
                 params.append('action', 'local_grupomakro_get_student_info');
                 params.append('sesskey', M.cfg.sesskey);
                 params.append('page', 1);
-                params.append('resultsperpage', 5000);
+                params.append('resultsperpage', 500);
                 params.append('search', this.options.search || '');
                 params.append('planid', Array.isArray(this.filters.planid) ? this.filters.planid.join(',') : '');
                 params.append('periodid', Array.isArray(this.filters.periodid) ? this.filters.periodid.join(',') : '');
                 params.append('status', this.filters.status || '');
                 params.append('classid', this.classId || 0);
 
-                const response = await fetch(url, {
+                const res = await fetch(url, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: params
+                    body: params,
                 });
-                const res = await response.json();
+                const resJson = await res.json();
 
                 let students = [];
-                if (res.status === 'success' && res.data) {
-                    let dataUsers = res.data.dataUsers;
+                if (resJson.status === 'success' && resJson.data) {
+                    let dataUsers = resJson.data.dataUsers;
                     if (typeof dataUsers === 'string') {
-                        try { dataUsers = JSON.parse(dataUsers); } catch (e) { dataUsers = []; }
+                        try { dataUsers = JSON.parse(dataUsers); } catch(e) { dataUsers = []; }
                     }
                     if (Array.isArray(dataUsers)) {
                         students = dataUsers.map(e => ({
+                            id: e.userid,
                             name: e.nameuser || '--',
                             documentnumber: e.documentnumber || '--',
-                            currentgrade: e.currentgrade || '--',
-                            status: e.status || '--',
                         }));
                     }
                 }
@@ -632,73 +633,266 @@ Vue.component('teacher-student-table', {
                     return;
                 }
 
-                await this.ensurePdfLibrary();
-                const jsPDF = (window.jspdf && window.jspdf.jsPDF) ? window.jspdf.jsPDF : window.jsPDF;
-                const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-                const pageW = doc.internal.pageSize.getWidth();
-                const pageH = doc.internal.pageSize.getHeight();
-                const margin = 14;
-                const contentW = pageW - margin * 2;
+                // ── 2. Fetch each student's gradebook (parallel batches of 5) ─
+                const fetchGb = async (userId) => {
+                    try {
+                        const r = await window.axios.get(url, { params: {
+                            action: 'local_grupomakro_get_student_gradebook',
+                            sesskey: M.cfg.sesskey,
+                            userId: userId,
+                            classId: this.classId,
+                        }});
+                        const payload = r && r.data ? r.data : {};
+                        if (payload.status === 'success' && payload.data) {
+                            const raw = payload.data.gradebook;
+                            return {
+                                gradebook: typeof raw === 'string' ? JSON.parse(raw) : (raw || []),
+                                courseGrade: payload.data.course_grade != null ? Number(payload.data.course_grade) : null,
+                            };
+                        }
+                    } catch(e) { /* ignore */ }
+                    return { gradebook: [], courseGrade: null };
+                };
 
-                doc.setFillColor(25, 118, 210);
-                doc.roundedRect(margin, 10, contentW, 16, 2, 2, 'F');
-                doc.setTextColor(255, 255, 255);
-                doc.setFont('helvetica', 'bold');
-                doc.setFontSize(13);
-                doc.text('Reporte de Notas — Clase', margin + 3, 18.5);
-                doc.setFont('helvetica', 'normal');
-                doc.setFontSize(8.5);
-                doc.text('Generado: ' + new Date().toLocaleString('es-PA') + '   Total: ' + students.length + ' estudiantes', margin + 3, 24);
+                const BATCH = 5;
+                const gbResults = new Array(students.length);
+                for (let i = 0; i < students.length; i += BATCH) {
+                    const slice = students.slice(i, i + BATCH);
+                    const r = await Promise.all(slice.map(s => fetchGb(s.id)));
+                    r.forEach((v, j) => { gbResults[i + j] = v; });
+                }
 
-                let y = 32;
-                const c1 = contentW * 0.42;
-                const c2 = contentW * 0.22;
-                const c3 = contentW * 0.18;
-
-                doc.setFillColor(207, 226, 255);
-                doc.rect(margin, y, contentW, 7, 'F');
-                doc.setTextColor(20, 20, 60);
-                doc.setFont('helvetica', 'bold');
-                doc.setFontSize(8.5);
-                doc.text('Nombre', margin + 2, y + 5);
-                doc.text('Identificación', margin + c1 + 2, y + 5);
-                doc.text('Nota Actual', margin + c1 + c2 + 2, y + 5);
-                doc.text('Estado', margin + c1 + c2 + c3 + 2, y + 5);
-                y += 7;
-
-                doc.setFont('helvetica', 'normal');
-                students.forEach((student, idx) => {
-                    if (y > pageH - 20) { doc.addPage(); y = margin; }
-                    if (idx % 2 === 0) {
-                        doc.setFillColor(248, 249, 250);
-                        doc.rect(margin, y, contentW, 6, 'F');
+                // ── 3. Discover activity columns from the first non-empty gradebook ──
+                const allCols = []; // { id, name, weight_pct, category }
+                for (const gbr of gbResults) {
+                    if (gbr && gbr.gradebook && gbr.gradebook.length > 0) {
+                        for (const catGroup of gbr.gradebook) {
+                            for (const item of (catGroup.items || [])) {
+                                allCols.push({
+                                    id: item.id,
+                                    name: item.name,
+                                    weight_pct: item.weight_pct,
+                                    category: catGroup.category,
+                                });
+                            }
+                        }
+                        break;
                     }
-                    const nameLines = doc.splitTextToSize(String(student.name), c1 - 3);
-                    const rh = Math.max(6, nameLines.length * 4);
-                    doc.setTextColor(30, 30, 30);
-                    doc.setFontSize(8);
-                    doc.text(nameLines, margin + 2, y + 4);
-                    doc.text(String(student.documentnumber), margin + c1 + 2, y + 4);
-                    const gv = parseFloat(student.currentgrade);
-                    if (!isNaN(gv)) {
-                        doc.setTextColor(gv >= 70 ? 27 : 183, gv >= 70 ? 94 : 28, gv >= 70 ? 32 : 28);
-                    } else {
-                        doc.setTextColor(80, 80, 80);
+                }
+
+                // ── 4. Build grade lookup: studentId → { gradeMap, courseGrade } ─
+                const lookup = {};
+                students.forEach((s, i) => {
+                    const gbr = gbResults[i] || { gradebook: [], courseGrade: null };
+                    const gmap = {};
+                    for (const catGroup of (gbr.gradebook || [])) {
+                        for (const item of (catGroup.items || [])) {
+                            gmap[item.id] = item.grade;
+                        }
                     }
-                    doc.text(String(student.currentgrade), margin + c1 + c2 + 2, y + 4);
-                    doc.setTextColor(30, 30, 30);
-                    doc.text(String(student.status), margin + c1 + c2 + c3 + 2, y + 4);
-                    doc.setDrawColor(220, 220, 220);
-                    doc.line(margin, y + rh, margin + contentW, y + rh);
-                    y += rh;
+                    lookup[s.id] = { gmap, courseGrade: gbr.courseGrade };
                 });
 
+                // ── 5. Generate PDF ───────────────────────────────────────────
+                await this.ensurePdfLibrary();
+                const jsPDF = (window.jspdf && window.jspdf.jsPDF) ? window.jspdf.jsPDF : window.jsPDF;
+                const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+                const pageW = doc.internal.pageSize.getWidth();   // 297
+                const pageH = doc.internal.pageSize.getHeight();  // 210
+                const ML = 8;
+                const contentW = pageW - ML * 2;
+
+                const colName  = 52;
+                const colId    = 26;
+                const colFinal = 20;
+                const actAreaW = contentW - colName - colId - colFinal;
+                const actColW  = allCols.length > 0
+                    ? Math.max(13, Math.min(32, actAreaW / allCols.length))
+                    : 20;
+                const colsPerGroup = Math.max(1, Math.floor(actAreaW / actColW));
+                const numGroups    = allCols.length > 0 ? Math.ceil(allCols.length / colsPerGroup) : 1;
+
+                const trunc = (text, maxW) => {
+                    const s = String(text || '');
+                    if (doc.getTextWidth(s) <= maxW) return s;
+                    let t = s;
+                    while (t.length > 1 && doc.getTextWidth(t + '…') > maxW) t = t.slice(0, -1);
+                    return t + '…';
+                };
+
+                // ── Column header renderer (category row + name/weight row) ──
+                const drawColHeaders = (grpCols, yStart) => {
+                    let y = yStart;
+                    const actStartX = ML + colName + colId;
+
+                    // Category grouping row (5mm tall)
+                    doc.setFillColor(38, 50, 56);
+                    doc.rect(ML, y, colName + colId, 5, 'F');
+
+                    // Compute category spans
+                    const catSpans = [];
+                    let spanCat = grpCols.length > 0 ? grpCols[0].category : '';
+                    let spanFrom = 0;
+                    grpCols.forEach((col, idx) => {
+                        if (col.category !== spanCat) {
+                            catSpans.push({ cat: spanCat, from: spanFrom, to: idx - 1 });
+                            spanCat = col.category;
+                            spanFrom = idx;
+                        }
+                    });
+                    if (grpCols.length > 0) catSpans.push({ cat: spanCat, from: spanFrom, to: grpCols.length - 1 });
+
+                    catSpans.forEach(span => {
+                        const sx = actStartX + span.from * actColW;
+                        const sw = (span.to - span.from + 1) * actColW;
+                        doc.setFillColor(69, 90, 100);
+                        doc.rect(sx, y, sw, 5, 'F');
+                        doc.setTextColor(255, 255, 255);
+                        doc.setFont('helvetica', 'bold');
+                        doc.setFontSize(6);
+                        doc.text(trunc(span.cat, sw - 2), sx + 1, y + 3.6);
+                        doc.setDrawColor(100, 130, 140);
+                        doc.line(sx, y, sx, y + 5);
+                    });
+                    // Final grade category cell
+                    doc.setFillColor(13, 71, 161);
+                    doc.rect(actStartX + grpCols.length * actColW, y, colFinal, 5, 'F');
+                    y += 5;
+
+                    // Name + weight sub-header row (8mm tall)
+                    const subH = 8;
+                    doc.setFillColor(55, 71, 79);
+                    doc.rect(ML, y, colName, subH, 'F');
+                    doc.setFillColor(69, 90, 100);
+                    doc.rect(ML + colName, y, colId, subH, 'F');
+                    doc.setTextColor(255, 255, 255);
+                    doc.setFont('helvetica', 'bold');
+                    doc.setFontSize(7.5);
+                    doc.text('Estudiante', ML + 2, y + 5.5);
+                    doc.text('Identificación', ML + colName + 2, y + 5.5);
+
+                    let x = actStartX;
+                    grpCols.forEach((col, idx) => {
+                        const alt = idx % 2 === 0;
+                        doc.setFillColor(alt ? 84 : 96, alt ? 110 : 125, alt ? 122 : 138);
+                        doc.rect(x, y, actColW, subH, 'F');
+                        doc.setTextColor(255, 255, 255);
+                        doc.setFont('helvetica', 'bold');
+                        doc.setFontSize(6);
+                        doc.text(trunc(col.name, actColW - 2), x + 1, y + 3.5);
+                        doc.setFont('helvetica', 'normal');
+                        doc.setFontSize(5.5);
+                        doc.text(col.weight_pct > 0 ? col.weight_pct.toFixed(1) + '%' : '--', x + 1, y + 7);
+                        doc.setDrawColor(100, 120, 130);
+                        doc.line(x, y, x, y + subH);
+                        x += actColW;
+                    });
+                    doc.setFillColor(21, 101, 192);
+                    doc.rect(x, y, colFinal, subH, 'F');
+                    doc.setTextColor(255, 255, 255);
+                    doc.setFont('helvetica', 'bold');
+                    doc.setFontSize(7.5);
+                    doc.text('Final', x + 2, y + 5.5);
+
+                    return y + subH; // return next y
+                };
+
+                // ── One page-group per activity column chunk ──────────────────
+                for (let grpIdx = 0; grpIdx < numGroups; grpIdx++) {
+                    if (grpIdx > 0) doc.addPage();
+
+                    const grpCols = allCols.slice(grpIdx * colsPerGroup, (grpIdx + 1) * colsPerGroup);
+
+                    // Header bar
+                    doc.setFillColor(13, 71, 161);
+                    doc.roundedRect(ML, 5, contentW, 13, 2, 2, 'F');
+                    doc.setTextColor(255, 255, 255);
+                    doc.setFont('helvetica', 'bold');
+                    doc.setFontSize(11);
+                    doc.text('Libro de Calificaciones', ML + 3, 11.5);
+                    doc.setFont('helvetica', 'normal');
+                    doc.setFontSize(7.5);
+                    const grpLabel = numGroups > 1 ? `  [Bloque ${grpIdx + 1}/${numGroups}]` : '';
+                    doc.text(
+                        `Generado: ${new Date().toLocaleString('es-PA')} — ${students.length} estudiantes${grpLabel}`,
+                        ML + 3, 16.5
+                    );
+
+                    let y = drawColHeaders(grpCols, 21);
+
+                    // ── Student rows ──────────────────────────────────────────
+                    const rowH = 6;
+                    students.forEach((student, sIdx) => {
+                        if (y + rowH > pageH - ML) {
+                            doc.addPage();
+                            y = ML;
+                            y = drawColHeaders(grpCols, y);
+                        }
+
+                        if (sIdx % 2 === 0) {
+                            doc.setFillColor(245, 247, 250);
+                            doc.rect(ML, y, contentW, rowH, 'F');
+                        }
+
+                        const sd = lookup[student.id] || { gmap: {}, courseGrade: null };
+                        let x = ML;
+
+                        doc.setTextColor(20, 20, 20);
+                        doc.setFont('helvetica', 'normal');
+                        doc.setFontSize(7);
+                        doc.text(trunc(student.name, colName - 3), x + 2, y + 4);
+                        x += colName;
+                        doc.text(trunc(student.documentnumber, colId - 2), x + 1, y + 4);
+                        x += colId;
+
+                        grpCols.forEach(col => {
+                            const grade = sd.gmap[col.id];
+                            const gv = (grade !== null && grade !== undefined) ? parseFloat(grade) : NaN;
+                            doc.setFontSize(7);
+                            if (!isNaN(gv)) {
+                                doc.setTextColor(gv >= 70 ? 27 : 183, gv >= 70 ? 94 : 28, gv >= 70 ? 32 : 28);
+                                doc.setFont('helvetica', 'bold');
+                                doc.text(String(grade), x + actColW / 2, y + 4, { align: 'center' });
+                            } else {
+                                doc.setTextColor(180, 180, 180);
+                                doc.setFont('helvetica', 'normal');
+                                doc.text('--', x + actColW / 2, y + 4, { align: 'center' });
+                            }
+                            doc.setDrawColor(200, 210, 215);
+                            doc.line(x, y, x, y + rowH);
+                            x += actColW;
+                        });
+
+                        // Final grade cell
+                        const fg = sd.courseGrade;
+                        if (fg !== null && fg !== undefined) {
+                            const fgv = parseFloat(fg);
+                            doc.setTextColor(fgv >= 70 ? 27 : 183, fgv >= 70 ? 94 : 28, fgv >= 70 ? 32 : 28);
+                            doc.setFont('helvetica', 'bold');
+                            doc.setFontSize(8);
+                            doc.text(fgv.toFixed(1), x + colFinal / 2, y + 4, { align: 'center' });
+                        } else {
+                            doc.setTextColor(180, 180, 180);
+                            doc.setFont('helvetica', 'normal');
+                            doc.setFontSize(7);
+                            doc.text('--', x + colFinal / 2, y + 4, { align: 'center' });
+                        }
+
+                        doc.setTextColor(20, 20, 20);
+                        doc.setFont('helvetica', 'normal');
+                        doc.setFontSize(7);
+                        doc.setDrawColor(210, 215, 220);
+                        doc.line(ML, y + rowH, ML + contentW, y + rowH);
+                        y += rowH;
+                    });
+                }
+
                 const dateToken = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-                doc.save(`notas_clase_${dateToken}.pdf`);
+                doc.save(`libro_calificaciones_${dateToken}.pdf`);
                 this.filterDialog = false;
-            } catch (error) {
-                console.error('Error generating grades PDF:', error);
-                alert('Error al generar el PDF de notas.');
+            } catch(error) {
+                console.error('Error generating gradebook PDF:', error);
+                alert('Error al generar el PDF de calificaciones.');
             } finally {
                 this.exportingGradesPdf = false;
             }
