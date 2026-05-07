@@ -89,6 +89,10 @@ $observers = array(
     array(
         'eventname' => 'core\event\user_loggedin',
         'callback' => '\local_grupomakro_core\event\user_login_handler::user_loggedin',
-    )
+    ),
+    array(
+        'eventname' => 'mod_bigbluebuttonbn\event\meeting_joined',
+        'callback' => 'local_grupomakro_core_observer::bbb_meeting_joined',
+    ),
 );
 

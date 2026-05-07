@@ -570,3 +570,6 @@ $string['back'] = 'Back';
 $string['close'] = 'Close';
 $string['not_add_schedules'] = 'There are currently no classes available. Please create a new class to assign to users who do not have schedules.';
 $string['academic_level'] = 'Academic Level';
+
+////BBB Live Attendance
+$string['fix_bbb_live_attendance'] = 'Fix BBB Live Attendance';

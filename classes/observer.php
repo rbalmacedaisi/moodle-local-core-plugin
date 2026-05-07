@@ -479,5 +479,207 @@ class local_grupomakro_core_observer
         
         file_put_contents($log_file, $log_msg . " - NO REDIRECT (Standard Moodle Behavior)\n", FILE_APPEND);
     }
+
+    /**
+     * Automatically starts attendance when a teacher joins a BBB meeting.
+     * Also marks present students who already joined the session.
+     *
+     * @param \mod_bigbluebuttonbn\event\meeting_joined $event
+     */
+    public static function bbb_meeting_joined(\mod_bigbluebuttonbn\event\meeting_joined $event) {
+        global $DB;
+
+        try {
+            $eventData = $event->get_data();
+            $userId = (int)($eventData['userid'] ?? 0);
+            $cmId = (int)($eventData['contextinstanceid'] ?? 0);
+
+            if ($userId <= 0 || $cmId <= 0) {
+                return true;
+            }
+
+            $relation = $DB->get_record('gmk_bbb_attendance_relation', ['bbbmoduleid' => $cmId]);
+            if (!$relation) {
+                return true;
+            }
+
+            $classId = (int)($relation->classid ?? 0);
+            $attendanceSessionId = (int)($relation->attendancesessionid ?? 0);
+
+            if ($classId <= 0 || $attendanceSessionId <= 0) {
+                return true;
+            }
+
+            $isTeacher = self::user_is_teacher_for_class($userId, $classId);
+            if (!$isTeacher) {
+                return true;
+            }
+
+            self::ensure_attendance_session_started($attendanceSessionId, $userId);
+
+            self::mark_bbb_joined_students_to_attendance($classId, $attendanceSessionId, $cmId);
+
+            gmk_log("INFO: bbb_meeting_joined: teacher=$userId class=$classId session=$attendanceSessionId started attendance");
+
+            return true;
+        } catch (\Throwable $e) {
+            gmk_log("WARNING: bbb_meeting_joined failed: " . $e->getMessage());
+            return true;
+        }
+    }
+
+    /**
+     * Check if user is a teacher for the given class.
+     *
+     * @param int $userId
+     * @param int $classId
+     * @return bool
+     */
+    private static function user_is_teacher_for_class(int $userId, int $classId): bool {
+        global $DB;
+
+        $class = $DB->get_record('gmk_class', ['id' => $classId], 'instructorid, groupid, corecourseid');
+        if (!$class) {
+            return false;
+        }
+
+        if (!empty($class->instructorid) && (int)$class->instructorid === $userId) {
+            return true;
+        }
+
+        if (!empty($class->groupid)) {
+            $teacherRole = $DB->get_record('role', ['shortname' => 'teacher'], 'id');
+            $editingTeacherRole = $DB->get_record('role', ['shortname' => 'editingteacher'], 'id');
+
+            $roleId = null;
+            if ($teacherRole) {
+                $roleId = (int)$teacherRole->id;
+            } else if ($editingTeacherRole) {
+                $roleId = (int)$editingTeacherRole->id;
+            }
+
+            if ($roleId !== null && !empty($class->corecourseid)) {
+                $context = \context_course::instance((int)$class->corecourseid);
+                $isMember = $DB->get_record('role_assignments', [
+                    'userid' => $userId,
+                    'roleid' => $roleId,
+                    'contextid' => $context->id
+                ]);
+                if ($isMember) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Ensure attendance session is started (set lasttaken if not already).
+     *
+     * @param int $sessionId
+     * @param int $userId
+     */
+    private static function ensure_attendance_session_started(int $sessionId, int $userId): void {
+        global $DB;
+
+        $session = $DB->get_record('attendance_sessions', ['id' => $sessionId], 'lasttaken');
+        if (!$session) {
+            return;
+        }
+
+        if ((int)$session->lasttaken === 0) {
+            $DB->set_field('attendance_sessions', 'lasttaken', time(), ['id' => $sessionId]);
+            $DB->set_field('attendance_sessions', 'lasttakenby', $userId, ['id' => $sessionId]);
+            gmk_log("INFO: Started attendance session $sessionId by teacher $userId");
+        }
+    }
+
+    /**
+     * Mark students who joined via BBB logs as present in attendance.
+     *
+     * @param int $classId
+     * @param int $attendanceSessionId
+     * @param int $bbbModuleId
+     */
+    private static function mark_bbb_joined_students_to_attendance(int $classId, int $attendanceSessionId, int $bbbModuleId): void {
+        global $DB;
+
+        $cm = get_coursemodule_from_id('bigbluebuttonbn', $bbbModuleId);
+        if (!$cm) {
+            return;
+        }
+
+        $bbbInstance = $DB->get_record('bigbluebuttonbn', ['id' => $cm->instance], 'id');
+        if (!$bbbInstance) {
+            return;
+        }
+
+        $session = $DB->get_record('attendance_sessions', ['id' => $attendanceSessionId], 'sessdate, duration, attendanceid');
+        if (!$session) {
+            return;
+        }
+
+        $sessStart = $session->sessdate;
+
+        $sql = "SELECT DISTINCT bl.userid
+                  FROM {bigbluebuttonbn_logs} bl
+                 WHERE bl.bigbluebuttonbnid = :bbbid
+                   AND bl.log IN ('join', 'meeting_start')
+                   AND bl.timecreated > :sessstart
+                 ORDER BY bl.timecreated";
+
+        $joinedUsers = $DB->get_records_sql($sql, [
+            'bbbid' => $bbbInstance->id,
+            'sessstart' => $sessStart - 300
+        ]);
+
+        if (empty($joinedUsers)) {
+            return;
+        }
+
+        $presentStatusId = (int)$DB->get_field_sql(
+            "SELECT id FROM {attendance_statuses}
+              WHERE attendanceid = :aid AND setnumber = 0 AND deleted = 0 AND setunmarked = 0
+              ORDER BY id ASC LIMIT 1",
+            ['aid' => $session->attendanceid]
+        );
+
+        if ($presentStatusId <= 0) {
+            gmk_log("WARNING: No present status found for attendance {$session->attendanceid}");
+            return;
+        }
+
+        $now = time();
+        $inserted = 0;
+
+        foreach ($joinedUsers as $joinedUser) {
+            $studentId = (int)$joinedUser->userid;
+
+            $existingLog = $DB->get_record('attendance_log', [
+                'sessionid' => $attendanceSessionId,
+                'studentid' => $studentId
+            ], 'id');
+
+            if ($existingLog) {
+                continue;
+            }
+
+            $log = new \stdClass();
+            $log->sessionid = $attendanceSessionId;
+            $log->studentid = $studentId;
+            $log->statusid = $presentStatusId;
+            $log->timetaken = $now;
+            $log->remarks = 'auto-marked: BBB live attendance';
+            $log->statusset = '0';
+
+            $DB->insert_record('attendance_log', $log);
+            $inserted++;
+        }
+
+        if ($inserted > 0) {
+            gmk_log("INFO: Marked $inserted BBB-joined students present in session $attendanceSessionId");
+        }
+    }
 }
 

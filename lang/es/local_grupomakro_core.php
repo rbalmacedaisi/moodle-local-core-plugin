@@ -569,3 +569,6 @@ $string['close'] = 'Cerrar';
 $string['not_add_schedules'] = 'Actualmente no hay clases disponibles. Por favor, cree una nueva clase para asignar a los usuarios que no tienen horarios.';
 $string['errorproxy'] = 'Error al conectar con el proxy de Odoo: {$a}';
 $string['academic_level'] = 'Nivel Académico';
+
+////BBB Live Attendance
+$string['fix_bbb_live_attendance'] = 'Corregir Asistencia BBB en Vivo';
