@@ -154,9 +154,17 @@ class get_student_info extends external_api {
         $gradeSelect = "";
         $gradeJoin = "";
         if (!empty($params['classid'])) {
-            $gradeSelect = ", cp.grade as currentgrade";
-            $gradeJoin = " LEFT JOIN {gmk_course_progre} cp ON (cp.userid = u.id AND cp.classid = :classid_join) ";
-            $sqlParams['classid_join'] = $params['classid'];
+            $livecourseid = $DB->get_field('gmk_class', 'corecourseid', ['id' => (int)$params['classid']]);
+            if ($livecourseid) {
+                $gradeJoin   = " LEFT JOIN {grade_items} gi_crs ON (gi_crs.courseid = :gi_crs_courseid AND gi_crs.itemtype = 'course')"
+                             . " LEFT JOIN {grade_grades} gg_crs ON (gg_crs.itemid = gi_crs.id AND gg_crs.userid = u.id) ";
+                $gradeSelect = ", CASE WHEN gi_crs.grademax > 0 THEN ROUND((gg_crs.finalgrade / gi_crs.grademax) * 100, 2) ELSE NULL END AS currentgrade";
+                $sqlParams['gi_crs_courseid'] = $livecourseid;
+            } else {
+                $gradeJoin   = " LEFT JOIN {gmk_course_progre} cp ON (cp.userid = u.id AND cp.classid = :classid_join) ";
+                $gradeSelect = ", cp.grade as currentgrade";
+                $sqlParams['classid_join'] = $params['classid'];
+            }
         }
 
         $query = "
@@ -524,9 +532,17 @@ class get_student_info extends external_api {
         $gradejoin = '';
         $gradeselect = '';
         if (!empty($params['classid'])) {
-            $gradejoin = "LEFT JOIN {gmk_course_progre} cp ON (cp.userid = u.id AND cp.classid = :classid_join)";
-            $gradeselect = ", cp.grade AS currentgrade";
-            $sqlparams['classid_join'] = (int)$params['classid'];
+            $livecourseid2 = $DB->get_field('gmk_class', 'corecourseid', ['id' => (int)$params['classid']]);
+            if ($livecourseid2) {
+                $gradejoin   = "LEFT JOIN {grade_items} gi_crs2 ON (gi_crs2.courseid = :gi_crs2_courseid AND gi_crs2.itemtype = 'course')"
+                             . " LEFT JOIN {grade_grades} gg_crs2 ON (gg_crs2.itemid = gi_crs2.id AND gg_crs2.userid = u.id)";
+                $gradeselect = ", CASE WHEN gi_crs2.grademax > 0 THEN ROUND((gg_crs2.finalgrade / gi_crs2.grademax) * 100, 2) ELSE NULL END AS currentgrade";
+                $sqlparams['gi_crs2_courseid'] = $livecourseid2;
+            } else {
+                $gradejoin   = "LEFT JOIN {gmk_course_progre} cp ON (cp.userid = u.id AND cp.classid = :classid_join)";
+                $gradeselect = ", cp.grade AS currentgrade";
+                $sqlparams['classid_join'] = (int)$params['classid'];
+            }
         }
 
         $subperiodjoin = '';

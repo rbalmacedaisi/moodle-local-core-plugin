@@ -26,43 +26,58 @@ Vue.component('grademodal', {
                             </div>
                         </div>
 
-                        <div v-if="classId && (loadingActivities || courseActivities.length > 0)" class="mb-6">
-                            <div class="d-flex align-center mb-2 px-2 py-1 blue darken-4 rounded white--text">
+                        <div v-if="classId && (loadingGradebook || gradebook.length > 0)" class="mb-4">
+                            <div class="d-flex align-center mb-3 px-2 py-1 blue darken-4 rounded white--text">
                                 <v-icon small color="white" class="mr-2">mdi-book-open-variant</v-icon>
-                                <span class="font-weight-bold text-subtitle-1">
-                                    Detalle del Curso Actual
-                                </span>
+                                <span class="font-weight-bold text-subtitle-1">Libro de Calificaciones</span>
                             </div>
 
-                            <div v-if="loadingActivities" class="text-center py-4">
+                            <div v-if="loadingGradebook" class="text-center py-4">
                                 <v-progress-circular indeterminate color="primary"></v-progress-circular>
-                                <div class="caption grey--text mt-2">Cargando actividades...</div>
+                                <div class="caption grey--text mt-2">Cargando calificaciones...</div>
                             </div>
 
-                            <v-simple-table v-else dense class="elevation-1 rounded mb-4">
-                                <template v-slot:default>
-                                    <thead>
-                                        <tr class="blue-grey lighten-5">
-                                            <th class="text-left py-2" style="width: 70%">Actividad</th>
-                                            <th class="text-center py-2">Estado</th>
-                                            <th class="text-right py-2">Calificacion</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <tr v-for="(act, idx) in courseActivities" :key="idx">
-                                            <td class="text-body-2 py-2">{{ act.name }}</td>
-                                            <td class="text-center py-2">
-                                                <v-chip x-small :color="act.completed ? 'success' : 'grey'" dark label>
-                                                    {{ act.completed ? 'Completado' : 'Pendiente' }}
-                                                </v-chip>
-                                            </td>
-                                            <td class="text-right font-weight-bold py-2" :class="getGradeColor(act.grade)">
-                                                {{ act.grade }}
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </template>
-                            </v-simple-table>
+                            <template v-else>
+                                <div v-for="(catGroup, gIdx) in gradebook" :key="gIdx" class="mb-3">
+                                    <div class="d-flex align-center px-2 py-1 blue-grey lighten-4 rounded mb-1">
+                                        <v-icon x-small color="blue-grey darken-2" class="mr-1">mdi-folder-outline</v-icon>
+                                        <span class="text-caption font-weight-bold text-uppercase blue-grey--text text--darken-2">
+                                            {{ catGroup.category }}
+                                        </span>
+                                    </div>
+                                    <v-simple-table dense class="elevation-1 rounded">
+                                        <template v-slot:default>
+                                            <thead>
+                                                <tr class="blue-grey lighten-5">
+                                                    <th class="text-left py-2" style="width:58%">Actividad</th>
+                                                    <th class="text-right py-2">Ponderación</th>
+                                                    <th class="text-right py-2">Nota</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr v-for="(item, idx) in catGroup.items" :key="idx">
+                                                    <td class="text-body-2 py-2">{{ item.name }}</td>
+                                                    <td class="text-right py-2 caption grey--text">
+                                                        {{ item.weight_pct > 0 ? item.weight_pct.toFixed(1) + '%' : '--' }}
+                                                    </td>
+                                                    <td class="text-right font-weight-bold py-2"
+                                                        :class="item.grade !== null ? getGradeColor(item.grade_pct) : 'grey--text'">
+                                                        {{ item.grade !== null ? item.grade : 'Sin calificar' }}
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </template>
+                                    </v-simple-table>
+                                </div>
+
+                                <div class="d-flex justify-end align-center mt-2 pa-2 rounded blue darken-4">
+                                    <span class="white--text text-body-2 mr-3 font-weight-medium">Nota Final:</span>
+                                    <span class="text-h6 font-weight-bold"
+                                          :class="gradebookCourseGrade !== null ? (gradebookCourseGrade >= 70 ? 'light-green--text text--lighten-3' : 'red--text text--lighten-3') : 'white--text'">
+                                        {{ gradebookCourseGrade !== null ? gradebookCourseGrade.toFixed(2) : '--' }}
+                                    </span>
+                                </div>
+                            </template>
                         </div>
 
                         <div class="grade-content" v-if="!classId">
@@ -314,8 +329,9 @@ Vue.component('grademodal', {
     data() {
         return {
             dialog: false,
-            courseActivities: [],
-            loadingActivities: false,
+            gradebook: [],
+            gradebookCourseGrade: null,
+            loadingGradebook: false,
             loadingPensum: false,
             enrollDialog: false,
             loadingEnrollClasses: false,
@@ -338,7 +354,7 @@ Vue.component('grademodal', {
     created() {
         this.dialog = true;
         if (this.classId) {
-            this.fetchCourseActivities();
+            this.fetchGradebook();
         } else {
             this.getpensum();
         }
@@ -358,28 +374,31 @@ Vue.component('grademodal', {
             this.dialog = false;
             this.$emit('close-dialog');
         },
-        async fetchCourseActivities() {
-            this.loadingActivities = true;
+        async fetchGradebook() {
+            this.loadingGradebook = true;
+            this.gradebook = [];
+            this.gradebookCourseGrade = null;
             try {
                 const url = window.wsUrl || (window.location.origin + '/local/grupomakro_core/ajax.php');
-                const params = {
-                    action: 'local_grupomakro_get_student_course_pensum_activities',
-                    sesskey: M.cfg.sesskey,
-                    userId: this.dataStudent.id,
-                    classId: this.classId
-                };
-
-                const response = await window.axios.get(url, { params });
-                if (response.data && response.data.status === 'success' && response.data.data) {
-                    const activitiesJson = response.data.data.activities;
-                    this.courseActivities = typeof activitiesJson === 'string'
-                        ? JSON.parse(activitiesJson)
-                        : (activitiesJson || []);
+                const response = await window.axios.get(url, {
+                    params: {
+                        action: 'local_grupomakro_get_student_gradebook',
+                        sesskey: M.cfg.sesskey,
+                        userId: this.dataStudent.id,
+                        classId: this.classId,
+                    }
+                });
+                const payload = response && response.data ? response.data : {};
+                if (payload.status === 'success' && payload.data) {
+                    const raw = payload.data.gradebook;
+                    this.gradebook = typeof raw === 'string' ? JSON.parse(raw) : (raw || []);
+                    const cg = payload.data.course_grade;
+                    this.gradebookCourseGrade = (cg !== null && cg !== undefined) ? Number(cg) : null;
                 }
             } catch (error) {
-                console.error('Error fetching course activities:', error);
+                console.error('Error fetching gradebook:', error);
             } finally {
-                this.loadingActivities = false;
+                this.loadingGradebook = false;
             }
         },
         loadExternalScript(src, options = {}) {
@@ -996,53 +1015,77 @@ Vue.component('grademodal', {
                 let y = 40;
 
                 if (this.classId) {
-                    // Teacher context: export course activities
+                    // Teacher context: export gradebook (by category)
+                    const gb1 = contentW * 0.58;
+                    const gb2 = contentW * 0.18;
+                    const gb3 = contentW * 0.24;
+
+                    for (const catGroup of this.gradebook) {
+                        if (y > pageH - 25) { doc.addPage(); y = margin; }
+
+                        // Category header
+                        doc.setFillColor(84, 110, 122);
+                        doc.rect(margin, y, contentW, 6, 'F');
+                        doc.setTextColor(255, 255, 255);
+                        doc.setFont('helvetica', 'bold');
+                        doc.setFontSize(8);
+                        doc.text(String(catGroup.category || ''), margin + 2, y + 4.2);
+                        y += 6;
+
+                        // Column headers
+                        doc.setFillColor(207, 226, 255);
+                        doc.rect(margin, y, contentW, 5.5, 'F');
+                        doc.setTextColor(20, 20, 60);
+                        doc.setFontSize(7.5);
+                        doc.text('Actividad',    margin + 2,          y + 3.8);
+                        doc.text('Ponderación',  margin + gb1 + 2,    y + 3.8);
+                        doc.text('Nota',         margin + gb1 + gb2 + 2, y + 3.8);
+                        y += 5.5;
+
+                        doc.setFont('helvetica', 'normal');
+                        (catGroup.items || []).forEach((item, idx) => {
+                            if (y > pageH - 15) { doc.addPage(); y = margin; }
+                            if (idx % 2 === 0) {
+                                doc.setFillColor(248, 249, 250);
+                                doc.rect(margin, y, contentW, 5.5, 'F');
+                            }
+                            const lines = doc.splitTextToSize(String(item.name || ''), gb1 - 3);
+                            const rh = Math.max(5.5, lines.length * 4);
+                            doc.setTextColor(30, 30, 30);
+                            doc.setFontSize(8);
+                            doc.text(lines, margin + 2, y + 4);
+                            doc.text(item.weight_pct > 0 ? item.weight_pct.toFixed(1) + '%' : '--',
+                                margin + gb1 + 2, y + 4);
+                            const gv = parseFloat(item.grade);
+                            if (!isNaN(gv)) {
+                                doc.setTextColor(gv >= 70 ? 27 : 183, gv >= 70 ? 94 : 28, gv >= 70 ? 32 : 28);
+                            } else {
+                                doc.setTextColor(100, 100, 100);
+                            }
+                            doc.text(item.grade !== null ? String(item.grade) : 'Sin calificar',
+                                margin + gb1 + gb2 + 2, y + 4);
+                            doc.setTextColor(30, 30, 30);
+                            doc.setDrawColor(220, 220, 220);
+                            doc.line(margin, y + rh, margin + contentW, y + rh);
+                            y += rh;
+                        });
+                        y += 3;
+                    }
+
+                    // Final grade row
+                    if (y > pageH - 14) { doc.addPage(); y = margin; }
                     doc.setFillColor(21, 101, 192);
-                    doc.rect(margin, y, contentW, 7, 'F');
+                    doc.rect(margin, y, contentW, 8, 'F');
                     doc.setTextColor(255, 255, 255);
                     doc.setFont('helvetica', 'bold');
                     doc.setFontSize(9);
-                    doc.text('Actividades del Curso', margin + 2, y + 5);
-                    y += 9;
-
-                    const c1 = contentW * 0.60;
-                    const c2 = contentW * 0.22;
-
-                    doc.setFillColor(207, 226, 255);
-                    doc.rect(margin, y, contentW, 6, 'F');
-                    doc.setTextColor(30, 30, 30);
-                    doc.setFont('helvetica', 'bold');
-                    doc.setFontSize(8);
-                    doc.text('Actividad', margin + 2, y + 4.2);
-                    doc.text('Estado', margin + c1 + 2, y + 4.2);
-                    doc.text('Nota', margin + c1 + c2 + 2, y + 4.2);
-                    y += 6;
-
-                    doc.setFont('helvetica', 'normal');
-                    this.courseActivities.forEach((act, idx) => {
-                        if (y > pageH - 20) { doc.addPage(); y = margin; }
-                        if (idx % 2 === 0) {
-                            doc.setFillColor(248, 249, 250);
-                            doc.rect(margin, y, contentW, 6, 'F');
-                        }
-                        const lines = doc.splitTextToSize(String(act.name || ''), c1 - 3);
-                        const rh = Math.max(6, lines.length * 4.2);
-                        doc.setTextColor(30, 30, 30);
-                        doc.setFontSize(8);
-                        doc.text(lines, margin + 2, y + 4);
-                        doc.text(act.completed ? 'Completado' : 'Pendiente', margin + c1 + 2, y + 4);
-                        const gv = parseFloat(act.grade);
-                        if (!isNaN(gv)) {
-                            doc.setTextColor(gv >= 70 ? 27 : 183, gv >= 70 ? 94 : 28, gv >= 70 ? 32 : 28);
-                        } else {
-                            doc.setTextColor(100, 100, 100);
-                        }
-                        doc.text(String(act.grade != null ? act.grade : '--'), margin + c1 + c2 + 2, y + 4);
-                        doc.setTextColor(30, 30, 30);
-                        doc.setDrawColor(220, 220, 220);
-                        doc.line(margin, y + rh, margin + contentW, y + rh);
-                        y += rh;
-                    });
+                    doc.text('Nota Final:', margin + 2, y + 5.5);
+                    const finalGv = this.gradebookCourseGrade;
+                    if (finalGv !== null) {
+                        doc.setTextColor(finalGv >= 70 ? 144 : 255, finalGv >= 70 ? 238 : 100, finalGv >= 70 ? 144 : 100);
+                    }
+                    doc.text(finalGv !== null ? finalGv.toFixed(2) : '--', margin + gb1 + gb2 + 2, y + 5.5);
+                    y += 10;
                 } else {
                     // Academic panel context: export full pensum (all careers/periods/courses)
                     for (const career of this.careersList) {
@@ -1721,7 +1764,7 @@ Vue.component('grademodal', {
         },
         canExportGradesPdf() {
             if (this.classId) {
-                return !this.loadingActivities && this.courseActivities.length > 0;
+                return !this.loadingGradebook && this.gradebook.length > 0;
             }
             return !this.loadingPensum && this.careersList.length > 0;
         },

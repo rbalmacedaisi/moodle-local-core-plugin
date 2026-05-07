@@ -229,17 +229,30 @@ class get_student_gradebook extends external_api
                 ];
             }
 
-            return ['status' => 1, 'gradebook' => json_encode($result)];
+            // ── 7. Official Moodle course-level final grade ───────────────────
+            $courseGrade = null;
+            $courseTotalGi = $DB->get_record('grade_items',
+                ['courseid' => $courseId, 'itemtype' => 'course'], 'id,grademax');
+            if ($courseTotalGi && $courseTotalGi->grademax > 0) {
+                $gg = $DB->get_record('grade_grades',
+                    ['itemid' => $courseTotalGi->id, 'userid' => $userId], 'finalgrade');
+                if ($gg && $gg->finalgrade !== null) {
+                    $courseGrade = round(($gg->finalgrade / $courseTotalGi->grademax) * 100, 2);
+                }
+            }
+
+            return ['status' => 1, 'gradebook' => json_encode($result), 'course_grade' => $courseGrade];
         } catch (Exception $e) {
-            return ['status' => -1, 'gradebook' => json_encode([])];
+            return ['status' => -1, 'gradebook' => json_encode([]), 'course_grade' => null];
         }
     }
 
     public static function execute_returns(): external_description
     {
         return new external_single_structure([
-            'status'    => new external_value(PARAM_INT, '1 ok, -1 error', VALUE_DEFAULT, 1),
-            'gradebook' => new external_value(PARAM_RAW, 'JSON gradebook grouped by category', VALUE_DEFAULT, '[]'),
+            'status'      => new external_value(PARAM_INT,   '1 ok, -1 error',                       VALUE_DEFAULT, 1),
+            'gradebook'   => new external_value(PARAM_RAW,   'JSON gradebook grouped by category',   VALUE_DEFAULT, '[]'),
+            'course_grade'=> new external_value(PARAM_FLOAT, 'Official Moodle final grade 0-100',    VALUE_DEFAULT, null, NULL_ALLOWED),
         ]);
     }
 }

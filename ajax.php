@@ -1787,6 +1787,19 @@ try {
             ];
             break;
 
+        case 'local_grupomakro_get_student_gradebook':
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/student/get_student_gradebook.php');
+            $userid   = required_param('userId',  PARAM_INT);
+            $classid  = required_param('classId', PARAM_INT);
+            $courseid = $DB->get_field('gmk_class', 'corecourseid', ['id' => $classid]);
+            if (!$courseid) {
+                $response = ['status' => 'error', 'message' => 'Clase no encontrada o sin curso vinculado.'];
+                break;
+            }
+            $result   = \local_grupomakro_core\external\student\get_student_gradebook::execute($userid, $courseid);
+            $response = ['status' => 'success', 'data' => $result];
+            break;
+
         case 'local_grupomakro_get_course_activities_for_student':
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/student/get_student_course_pensum_activities.php');
             $userid   = required_param('userId',   PARAM_INT);
