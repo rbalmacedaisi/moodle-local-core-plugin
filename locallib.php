@@ -7441,11 +7441,21 @@ function gmk_count_pending_attendance_sessions(int $attendanceId, int $groupId, 
  * for the grade_item with itemtype='course' in the class's Moodle course.
  */
 function gmk_get_student_class_grade(int $classId, int $userId): ?float {
-    global $DB;
+    global $CFG, $DB;
 
     $class = $DB->get_record('gmk_class', ['id' => $classId], 'id, corecourseid');
     if (!$class || empty($class->corecourseid)) {
         return null;
+    }
+
+    // grade_grades for itemtype='course' is only updated when Moodle's gradebook
+    // triggers grade_regrade_final_grades(). Replicate that here when stale.
+    require_once($CFG->libdir . '/gradelib.php');
+    $needsUpdate = (int)$DB->get_field_select('grade_items', 'needsupdate',
+        "courseid = :cid AND itemtype = 'course'",
+        ['cid' => (int)$class->corecourseid]);
+    if ($needsUpdate) {
+        grade_regrade_final_grades((int)$class->corecourseid);
     }
 
     $row = $DB->get_record_sql(
@@ -7490,7 +7500,7 @@ function gmk_classify_student_grade(float $grade, float $progress, int $practica
  * Returns dashboard stats for a single class (attendance, students, grades, BBB).
  */
 function gmk_get_class_dashboard_stats(int $classId): array {
-    global $DB;
+    global $CFG, $DB;
 
     $class = $DB->get_record('gmk_class', ['id' => $classId]);
     if (!$class) {
@@ -7529,11 +7539,20 @@ function gmk_get_class_dashboard_stats(int $classId): array {
         ['classid' => $classId]
     );
 
-    // ── Batch-fetch grades using the same source as the teacher's gradebook modal ──
-    // Teacher sees: grade_grades.finalgrade / grade_items.grademax * 100
-    // for the grade_item with itemtype='course' (Moodle course total).
+    // ── Batch-fetch grades from course-level grade_grades ────────────────────────
+    // grade_grades for itemtype='course' is only updated when Moodle's gradebook
+    // calls grade_regrade_final_grades(). Replicate that here when stale so the
+    // value matches what teachers see in the native Libro de Calificaciones.
     $gradeByUserId = [];
     if (!empty($rows) && !empty($class->corecourseid)) {
+        require_once($CFG->libdir . '/gradelib.php');
+        $needsUpdate = (int)$DB->get_field_select('grade_items', 'needsupdate',
+            "courseid = :cid AND itemtype = 'course'",
+            ['cid' => (int)$class->corecourseid]);
+        if ($needsUpdate) {
+            grade_regrade_final_grades((int)$class->corecourseid);
+        }
+
         $courseGi = $DB->get_record('grade_items',
             ['courseid' => (int)$class->corecourseid, 'itemtype' => 'course'],
             'id, grademax');
