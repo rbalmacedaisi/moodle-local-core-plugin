@@ -75,12 +75,12 @@ if ($withgrades) {
         SELECT u.id as userid, u.firstname, u.lastname, u.email, u.idnumber,
                lp.name as career, per.name as periodname,
                COALESCE(c.fullname, c.shortname, cp.coursename, '(Sin curso activo)') as coursename,
-               CASE WHEN cp.status = 2 AND gi.grademax > 0 AND gg.finalgrade IS NOT NULL
+               CASE WHEN gi.grademax > 0 AND gg.finalgrade IS NOT NULL
                     THEN ROUND((gg.finalgrade / gi.grademax) * 100, 2)
                     ELSE cp.grade
                END AS grade,
                cp.status as coursestatus, fs.status as financial_status,
-               cp.courseid, gg.feedback
+               cp.courseid, cp.practicalhours, gg.feedback
         FROM {user} u
         JOIN {local_learning_users} lpu ON lpu.userid = u.id
         JOIN {local_learning_plans} lp ON lp.id = lpu.learningplanid
@@ -147,10 +147,27 @@ if ($withgrades) {
         $row->career = $cp->career;
         $row->period = $cp->periodname;
         $row->course = $cp->coursename;
-        $row->grade = ($cp->grade !== null) ? number_format($cp->grade, 2) : '--';
+        $gradeVal = ($cp->grade !== null) ? (float)$cp->grade : null;
+        $row->grade = ($gradeVal !== null) ? number_format($gradeVal, 2) : '--';
         $row->student_status = $currentStudentStatus;
         $row->financial_status = $cp->financial_status ?: 'Pendiente';
-        $row->course_status = $statusLabels[$cp->coursestatus] ?? '--';
+
+        // For closed courses re-derive the status from the grade shown so they
+        // are always consistent (the stored cp.status may reflect old rules).
+        $storedStatus = (int)$cp->coursestatus;
+        if ($gradeVal !== null && $storedStatus >= 3) {
+            $practHours = (int)($cp->practicalhours ?? 0);
+            if ($gradeVal > 70.4) {
+                $derivedStatus = 4; // Aprobada
+            } elseif ($practHours === 0 && $gradeVal >= 60.0) {
+                $derivedStatus = 6; // Pend. Reválida
+            } else {
+                $derivedStatus = 5; // Reprobada
+            }
+            $row->course_status = $statusLabels[$derivedStatus] ?? '--';
+        } else {
+            $row->course_status = $statusLabels[$storedStatus] ?? '--';
+        }
         $row->feedback = $cp->feedback ?: '';
         $data[] = $row;
     }
