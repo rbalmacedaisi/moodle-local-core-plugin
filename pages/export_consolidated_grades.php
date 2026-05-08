@@ -88,7 +88,8 @@ if ($withgrades) {
         LEFT JOIN {gmk_course_progre} cp ON (cp.userid = u.id AND cp.learningplanid = lp.id)
         LEFT JOIN {course} c ON c.id = cp.courseid
         LEFT JOIN {gmk_financial_status} fs ON (fs.userid = u.id)
-        LEFT JOIN {grade_items} gi ON (gi.courseid = c.id AND gi.itemtype = 'course')
+        LEFT JOIN {gmk_class} cls ON cls.id = cp.classid
+        LEFT JOIN {grade_items} gi ON (gi.courseid = cls.corecourseid AND gi.itemtype = 'course')
         LEFT JOIN {grade_grades} gg ON (gg.itemid = gi.id AND gg.userid = u.id)
         $whereClause
         ORDER BY lp.name, per.id, u.firstname";
