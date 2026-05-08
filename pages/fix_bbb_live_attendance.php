@@ -355,11 +355,15 @@ function process_single_session($rel) {
     }
 
     $totalProcessed = $result['marked'] + $result['already'];
+    $result['details'][] = "DEBUG: marked={$result['marked']}, already={$result['already']}, totalProcessed=$totalProcessed, processedStudents count=" . count($processedStudents);
     if (!empty($processedStudents) && $totalProcessed > 0) {
         $att = $DB->get_record('attendance', ['id' => $session->attendanceid], 'id, grade');
+        $result['details'][] = "DEBUG: att id={$att->id}, grade={$att->grade}, processedStudents=" . json_encode($processedStudents);
         if ($att && $att->grade > 0) {
             attendance_update_users_grades_by_id($att->id, $att->grade, $processedStudents);
             $result['details'][] = "Recalculated grades for $totalProcessed students (att id={$att->id}, grade={$att->grade})";
+        } else {
+            $result['details'][] = "DEBUG: attendance not recalculated - att null or grade=0";
         }
     }
 
