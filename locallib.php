@@ -7435,94 +7435,35 @@ function gmk_count_pending_attendance_sessions(int $attendanceId, int $groupId, 
  * Returns null if there are no gradable items in the section or none have grades.
  */
 /**
- * Computes a student's current grade for a class from individual activity grades.
- * Uses grade_items in the class's grade category rather than the lazy category
- * aggregate in grade_grades (which is only updated when the gradebook is visited).
- * Attendance is computed directly from session logs to avoid Moodle's inflation bug.
+ * Returns the final grade for a student in a class, using the same source as
+ * the teacher's "Libro de Calificaciones" gradebook modal:
+ * grade_grades.finalgrade / grade_items.grademax * 100
+ * for the grade_item with itemtype='course' in the class's Moodle course.
  */
 function gmk_get_student_class_grade(int $classId, int $userId): ?float {
     global $DB;
 
-    $class = $DB->get_record('gmk_class', ['id' => $classId],
-        'id, gradecategoryid, corecourseid, attendancemoduleid');
-    if (!$class || empty($class->gradecategoryid) || empty($class->corecourseid)) {
+    $class = $DB->get_record('gmk_class', ['id' => $classId], 'id, corecourseid');
+    if (!$class || empty($class->corecourseid)) {
         return null;
     }
 
-    $now = time();
-
-    $gitems = $DB->get_records_sql(
-        "SELECT gi.id AS giid, gi.itemmodule, gi.iteminstance, gi.grademax,
-                gi.aggregationcoef, gi.aggregationcoef2, gc.aggregation AS catagg
+    $row = $DB->get_record_sql(
+        "SELECT CASE WHEN gi.grademax > 0
+                     THEN ROUND((gg.finalgrade / gi.grademax) * 100, 2)
+                     ELSE NULL END AS grade
            FROM {grade_items} gi
-           JOIN {grade_categories} gc ON gc.id = gi.categoryid
-          WHERE gi.categoryid = :catid
-            AND gi.courseid   = :cid
-            AND gi.itemtype  IN ('mod', 'manual')
-            AND gi.itemnumber = 0
-            AND gi.grademax   > 0",
-        ['catid' => (int)$class->gradecategoryid, 'cid' => (int)$class->corecourseid]
+           LEFT JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = :uid
+          WHERE gi.courseid  = :cid
+            AND gi.itemtype  = 'course'",
+        ['uid' => $userId, 'cid' => (int)$class->corecourseid]
     );
 
-    if (empty($gitems)) {
+    if (!$row || $row->grade === null) {
         return null;
     }
 
-    $attInstance = !empty($class->attendancemoduleid)
-        ? (int)$DB->get_field('course_modules', 'instance', ['id' => (int)$class->attendancemoduleid])
-        : null;
-
-    $weightedSum  = 0.0;
-    $totalWeight  = 0.0;
-    $hasAnyGrade  = false;
-
-    foreach ($gitems as $gi) {
-        $catAgg = (int)$gi->catagg;
-        $weight = ($catAgg === 10 || $catAgg === 2)
-            ? (float)$gi->aggregationcoef
-            : (float)$gi->aggregationcoef2;
-        if ($weight <= 0) {
-            continue;
-        }
-
-        $scorePct = null;
-
-        if ($gi->itemmodule === 'attendance'
-                && $attInstance !== null
-                && (int)$gi->iteminstance === $attInstance) {
-            $attRow = $DB->get_record_sql(
-                "SELECT COUNT(s.id) AS total,
-                        SUM(CASE WHEN al.id IS NOT NULL AND ast.grade > 0 THEN 1 ELSE 0 END) AS present
-                   FROM {attendance_sessions} s
-                   LEFT JOIN {attendance_log}      al  ON al.sessionid = s.id AND al.studentid = :uid
-                   LEFT JOIN {attendance_statuses} ast ON ast.id = al.statusid
-                  WHERE s.attendanceid = :attid
-                    AND s.sessdate + s.duration < :now",
-                ['uid' => $userId, 'attid' => $attInstance, 'now' => $now]
-            );
-            if ($attRow && (int)$attRow->total > 0) {
-                $scorePct = (float)$attRow->present / (float)$attRow->total * 100.0;
-            }
-        } else {
-            $gg = $DB->get_record('grade_grades',
-                ['itemid' => (int)$gi->giid, 'userid' => $userId], 'finalgrade');
-            if ($gg && $gg->finalgrade !== null) {
-                $scorePct = (float)$gg->finalgrade / (float)$gi->grademax * 100.0;
-            }
-        }
-
-        if ($scorePct !== null) {
-            $weightedSum += $scorePct * $weight;
-            $hasAnyGrade  = true;
-        }
-        $totalWeight += $weight;
-    }
-
-    if (!$hasAnyGrade || $totalWeight <= 0) {
-        return null;
-    }
-
-    return round($weightedSum / $totalWeight, 2);
+    return (float)$row->grade;
 }
 
 /**
@@ -7588,125 +7529,26 @@ function gmk_get_class_dashboard_stats(int $classId): array {
         ['classid' => $classId]
     );
 
-    // ── Batch-compute grades from individual grade_items (always current) ────
-    // Grade_grades for category aggregates updates lazily (only when gradebook
-    // is visited). Per-item grade_grades update immediately when teachers grade.
+    // ── Batch-fetch grades using the same source as the teacher's gradebook modal ──
+    // Teacher sees: grade_grades.finalgrade / grade_items.grademax * 100
+    // for the grade_item with itemtype='course' (Moodle course total).
     $gradeByUserId = [];
-    if (!empty($rows) && !empty($class->gradecategoryid) && !empty($class->corecourseid)) {
-        $gradeGitems = $DB->get_records_sql(
-            "SELECT gi.id AS giid, gi.itemmodule, gi.iteminstance, gi.grademax,
-                    gi.aggregationcoef, gi.aggregationcoef2, gc.aggregation AS catagg
-               FROM {grade_items} gi
-               JOIN {grade_categories} gc ON gc.id = gi.categoryid
-              WHERE gi.categoryid = :catid
-                AND gi.courseid   = :cid
-                AND gi.itemtype  IN ('mod', 'manual')
-                AND gi.itemnumber = 0
-                AND gi.grademax   > 0",
-            ['catid' => (int)$class->gradecategoryid, 'cid' => (int)$class->corecourseid]
-        );
-
-        if (!empty($gradeGitems)) {
-            $userIds    = array_map(fn($r) => (int)$r->id, $rows);
-            $catAgg     = (int)(reset($gradeGitems)->catagg);
-
-            // Identify the attendance grade_item (if any).
-            $attInstance = !empty($class->attendancemoduleid)
-                ? (int)$DB->get_field('course_modules', 'instance',
-                    ['id' => (int)$class->attendancemoduleid])
-                : null;
-            $attGiid = null;
-            foreach ($gradeGitems as $gi) {
-                if ($gi->itemmodule === 'attendance'
-                        && $attInstance !== null
-                        && (int)$gi->iteminstance === $attInstance) {
-                    $attGiid = (int)$gi->giid;
-                    break;
-                }
-            }
-
-            // Fetch non-attendance grade_grades in one query.
-            $nonAttIds = [];
-            foreach ($gradeGitems as $gi) {
-                if ((int)$gi->giid !== $attGiid) {
-                    $nonAttIds[] = (int)$gi->giid;
-                }
-            }
-            $ggByUserItem = [];
-            if (!empty($nonAttIds)) {
-                list($itemSql, $itemP) = $DB->get_in_or_equal($nonAttIds, SQL_PARAMS_NAMED, 'i');
-                list($userSql, $userP) = $DB->get_in_or_equal($userIds,   SQL_PARAMS_NAMED, 'u');
-                foreach ($DB->get_records_sql(
-                    "SELECT gg.userid, gg.itemid, gg.finalgrade
-                       FROM {grade_grades} gg
-                      WHERE gg.itemid $itemSql AND gg.userid $userSql",
-                    $itemP + $userP
-                ) as $gg) {
-                    $ggByUserItem[(int)$gg->userid][(int)$gg->itemid] = $gg->finalgrade;
-                }
-            }
-
-            // Fetch attendance: total past sessions (one value) + present per student.
-            $attTotalSessions = 0;
-            $attPctByUser     = [];
-            if ($attGiid !== null && $attInstance !== null) {
-                $attTotalSessions = (int)$DB->get_field_sql(
-                    "SELECT COUNT(id) FROM {attendance_sessions}
-                      WHERE attendanceid = :a AND sessdate + duration < :n",
-                    ['a' => $attInstance, 'n' => $now]
-                );
-                if ($attTotalSessions > 0) {
-                    list($userSql, $userP) = $DB->get_in_or_equal($userIds, SQL_PARAMS_NAMED, 'u');
-                    foreach ($DB->get_records_sql(
-                        "SELECT al.studentid, COUNT(s.id) AS present
-                           FROM {attendance_sessions} s
-                           JOIN {attendance_log}      al  ON al.sessionid = s.id
-                                                         AND al.studentid $userSql
-                           JOIN {attendance_statuses} ast ON ast.id = al.statusid
-                          WHERE s.attendanceid = :a
-                            AND s.sessdate + s.duration < :n
-                            AND ast.grade > 0
-                       GROUP BY al.studentid",
-                        array_merge($userP, ['a' => $attInstance, 'n' => $now])
-                    ) as $row) {
-                        $attPctByUser[(int)$row->studentid] =
-                            (float)$row->present / $attTotalSessions * 100.0;
-                    }
-                }
-            }
-
-            // Compute weighted grade per student.
-            foreach ($userIds as $uid) {
-                $wsum  = 0.0;
-                $wtot  = 0.0;
-                $hasG  = false;
-                foreach ($gradeGitems as $gi) {
-                    $w = ($catAgg === 10 || $catAgg === 2)
-                        ? (float)$gi->aggregationcoef
-                        : (float)$gi->aggregationcoef2;
-                    if ($w <= 0) {
-                        continue;
-                    }
-                    $pct = null;
-                    if ((int)$gi->giid === $attGiid) {
-                        if ($attTotalSessions > 0) {
-                            $pct = $attPctByUser[$uid] ?? 0.0;
-                            $hasG = true;
-                        }
-                    } else {
-                        $fg = $ggByUserItem[$uid][(int)$gi->giid] ?? null;
-                        if ($fg !== null) {
-                            $pct  = (float)$fg / (float)$gi->grademax * 100.0;
-                            $hasG = true;
-                        }
-                    }
-                    if ($pct !== null) {
-                        $wsum += $pct * $w;
-                    }
-                    $wtot += $w;
-                }
-                if ($hasG && $wtot > 0) {
-                    $gradeByUserId[$uid] = round($wsum / $wtot, 2);
+    if (!empty($rows) && !empty($class->corecourseid)) {
+        $courseGi = $DB->get_record('grade_items',
+            ['courseid' => (int)$class->corecourseid, 'itemtype' => 'course'],
+            'id, grademax');
+        if ($courseGi && (float)$courseGi->grademax > 0) {
+            $userIds = array_keys($rows); // rows indexed by u.id
+            list($userSql, $userP) = $DB->get_in_or_equal($userIds, SQL_PARAMS_NAMED, 'u');
+            foreach ($DB->get_records_sql(
+                "SELECT gg.userid, gg.finalgrade
+                   FROM {grade_grades} gg
+                  WHERE gg.itemid = :iid AND gg.userid $userSql",
+                array_merge(['iid' => (int)$courseGi->id], $userP)
+            ) as $gg) {
+                if ($gg->finalgrade !== null) {
+                    $gradeByUserId[(int)$gg->userid] =
+                        round((float)$gg->finalgrade / (float)$courseGi->grademax * 100, 2);
                 }
             }
         }
