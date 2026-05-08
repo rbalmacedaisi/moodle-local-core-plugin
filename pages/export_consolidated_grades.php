@@ -45,14 +45,13 @@ $sqlParams = [];
 
 if ($withgrades) {
     // --- MODE 1: Course-based (Granular with grades) ---
-    // We base the query on local_learning_users to ensure even those without progress/class appear
     $sqlConditions = ["u.deleted = 0", "lpu.userrolename = 'student'"];
-    
+
     if (!empty($planid)) {
         $planids = array_filter(explode(',', $planid), 'is_numeric');
         if (!empty($planids)) {
             list($insql, $inparams) = $DB->get_in_or_equal($planids, SQL_PARAMS_NAMED, 'plan');
-            $sqlConditions[] = "lpu.learningplanid $insql";
+            $sqlConditions[] = "cp.learningplanid $insql";
             $sqlParams = array_merge($sqlParams, $inparams);
         }
     }
@@ -60,7 +59,7 @@ if ($withgrades) {
         $periodidArray = array_filter(explode(',', $periodid), 'is_numeric');
         if (!empty($periodidArray)) {
             list($insql, $inparams) = $DB->get_in_or_equal($periodidArray, SQL_PARAMS_NAMED, 'period');
-            $sqlConditions[] = "lpu.currentperiodid $insql";
+            $sqlConditions[] = "cp.periodid $insql";
             $sqlParams = array_merge($sqlParams, $inparams);
         }
     }
@@ -74,36 +73,22 @@ if ($withgrades) {
     $query = "
         SELECT u.id as userid, u.firstname, u.lastname, u.email, u.idnumber,
                lp.name as career, per.name as periodname,
-               COALESCE(c.fullname, c.shortname, cp.coursename, '(Sin curso activo)') as coursename,
-               CASE WHEN COALESCE(gg.finalgrade, gg.rawgrade) BETWEEN 0 AND 100
-                    THEN ROUND(COALESCE(gg.finalgrade, gg.rawgrade), 2)
-                    ELSE cp.grade
-               END AS grade,
-               cp.status as coursestatus, fs.status as financial_status,
-               cp.courseid, cp.practicalhours, gg.feedback
-        FROM {user} u
-        JOIN {local_learning_users} lpu ON lpu.userid = u.id
-        JOIN {local_learning_plans} lp ON lp.id = lpu.learningplanid
-        LEFT JOIN {local_learning_periods} per ON per.id = lpu.currentperiodid
-        LEFT JOIN {gmk_course_progre} cp ON (cp.userid = u.id AND cp.learningplanid = lp.id)
-        LEFT JOIN {course} c ON c.id = cp.courseid
+               COALESCE(cp.coursename, '(Sin curso activo)') as coursename,
+               cp.grade, cp.status as coursestatus, fs.status as financial_status
+        FROM {gmk_course_progre} cp
+        JOIN {user} u ON u.id = cp.userid
+        JOIN {local_learning_users} lpu ON (lpu.userid = u.id AND lpu.learningplanid = cp.learningplanid)
+        JOIN {local_learning_plans} lp ON lp.id = cp.learningplanid
+        LEFT JOIN {local_learning_periods} per ON per.id = cp.periodid
         LEFT JOIN {gmk_financial_status} fs ON (fs.userid = u.id)
-        LEFT JOIN {gmk_class} cls ON (cls.groupid = cp.groupid
-                                      AND cp.groupid > 0
-                                      AND cls.gradecategoryid > 0
-                                      AND cls.corecourseid > 0)
-        LEFT JOIN {grade_items} gi ON (gi.itemtype = 'category'
-                                       AND gi.iteminstance = cls.gradecategoryid
-                                       AND gi.courseid = cls.corecourseid)
-        LEFT JOIN {grade_grades} gg ON (gg.itemid = gi.id AND gg.userid = u.id)
         $whereClause
         ORDER BY lp.name, per.id, u.firstname";
 
     $recordset = $DB->get_recordset_sql($query, $sqlParams);
 
-    $columns = ['id', 'fullname', 'email', 'identification', 'career', 'period', 'course', 'grade', 'student_status', 'financial_status', 'course_status', 'feedback'];
-    $headers = ['ID Moodle', 'Nombre Completo', 'Email', 'Identificación', 'Carrera', 'Cuatrimestre', 'Curso', 'Nota', 'Estado Estudiante', 'Estado Financiero', 'Estado Curso', 'Feedback'];
-    
+    $columns = ['id', 'fullname', 'email', 'identification', 'career', 'period', 'course', 'grade', 'student_status', 'financial_status', 'course_status'];
+    $headers = ['ID Moodle', 'Nombre Completo', 'Email', 'Identificación', 'Carrera', 'Cuatrimestre', 'Curso', 'Nota', 'Estado Estudiante', 'Estado Financiero', 'Estado Curso'];
+
     $data = [];
     $studentStatusCache = [];
 
@@ -117,7 +102,7 @@ if ($withgrades) {
             $studentStatusCache[$cp->userid] = $sStatus;
         }
         $currentStudentStatus = $studentStatusCache[$cp->userid];
-        
+
         // Filter by Status (Exact matching to avoid Inactivo matching Activo)
         if (!empty($status)) {
             if (trim(strtolower($currentStudentStatus)) !== trim(strtolower($status))) {
@@ -132,7 +117,7 @@ if ($withgrades) {
         }
         $finalID = !empty($docNumber) ? $docNumber : $cp->idnumber;
 
-        // Search filter matching JS
+        // Search filter
         if (!empty($search)) {
             $fullName = $cp->firstname . ' ' . $cp->lastname;
             $match = (
@@ -153,28 +138,10 @@ if ($withgrades) {
         $row->career = $cp->career;
         $row->period = $cp->periodname;
         $row->course = $cp->coursename;
-        $gradeVal = ($cp->grade !== null) ? (float)$cp->grade : null;
-        $row->grade = ($gradeVal !== null) ? number_format($gradeVal, 2) : '--';
+        $row->grade = ($cp->grade !== null) ? number_format((float)$cp->grade, 2) : '--';
         $row->student_status = $currentStudentStatus;
         $row->financial_status = $cp->financial_status ?: 'Pendiente';
-
-        // For closed courses re-derive the status from the grade shown so they
-        // are always consistent (the stored cp.status may reflect old rules).
-        $storedStatus = (int)$cp->coursestatus;
-        if ($gradeVal !== null && $storedStatus >= 3) {
-            $practHours = (int)($cp->practicalhours ?? 0);
-            if ($gradeVal > 70.4) {
-                $derivedStatus = 4; // Aprobada
-            } elseif ($practHours === 0 && $gradeVal >= 60.0) {
-                $derivedStatus = 6; // Pend. Reválida
-            } else {
-                $derivedStatus = 5; // Reprobada
-            }
-            $row->course_status = $statusLabels[$derivedStatus] ?? '--';
-        } else {
-            $row->course_status = $statusLabels[$storedStatus] ?? '--';
-        }
-        $row->feedback = $cp->feedback ?: '';
+        $row->course_status = $statusLabels[(int)$cp->coursestatus] ?? '--';
         $data[] = $row;
     }
     $recordset->close();
