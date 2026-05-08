@@ -75,8 +75,8 @@ if ($withgrades) {
         SELECT u.id as userid, u.firstname, u.lastname, u.email, u.idnumber,
                lp.name as career, per.name as periodname,
                COALESCE(c.fullname, c.shortname, cp.coursename, '(Sin curso activo)') as coursename,
-               CASE WHEN gi.grademax > 0 AND gg.finalgrade IS NOT NULL
-                    THEN ROUND((gg.finalgrade / gi.grademax) * 100, 2)
+               CASE WHEN COALESCE(gg.finalgrade, gg.rawgrade) BETWEEN 0 AND 100
+                    THEN ROUND(COALESCE(gg.finalgrade, gg.rawgrade), 2)
                     ELSE cp.grade
                END AS grade,
                cp.status as coursestatus, fs.status as financial_status,
@@ -89,7 +89,9 @@ if ($withgrades) {
         LEFT JOIN {course} c ON c.id = cp.courseid
         LEFT JOIN {gmk_financial_status} fs ON (fs.userid = u.id)
         LEFT JOIN {gmk_class} cls ON cls.id = cp.classid
-        LEFT JOIN {grade_items} gi ON (gi.courseid = cls.corecourseid AND gi.itemtype = 'course')
+        LEFT JOIN {grade_items} gi ON (gi.itemtype = 'category'
+                                       AND gi.iteminstance = cls.gradecategoryid
+                                       AND gi.courseid = cls.corecourseid)
         LEFT JOIN {grade_grades} gg ON (gg.itemid = gi.id AND gg.userid = u.id)
         $whereClause
         ORDER BY lp.name, per.id, u.firstname";
