@@ -302,6 +302,17 @@ function process_single_session($rel) {
 
     $result['details'][] = "Found " . count($joinedUserIds) . " unique BBB connections";
 
+    $setunmarkedStatusId = (int)$DB->get_field_sql(
+        "SELECT id FROM {attendance_statuses}
+          WHERE attendanceid = :aid AND setnumber = 0 AND deleted = 0 AND setunmarked = 1
+          ORDER BY id ASC LIMIT 1",
+        ['aid' => $session->attendanceid]
+    );
+    if ($setunmarkedStatusId <= 0) {
+        $result['error'] = "No setunmarked (absent) status found for attendance {$session->attendanceid}";
+        return $result;
+    }
+
     if (empty($joinedUserIds)) {
         return $result;
     }
@@ -324,9 +335,21 @@ function process_single_session($rel) {
         return $result;
     }
 
-    $result['details'][] = "Using present statusid=$presentStatusId";
+    $result['details'][] = "Using present statusid=$presentStatusId, absent statusid=$setunmarkedStatusId";
 
     $now = time();
+
+    $att = $DB->get_record('attendance', ['id' => $session->attendanceid], 'id, grade, course');
+    $cmAtt = get_coursemodule_from_instance('attendance', $session->attendanceid, $att ? $att->course : 0);
+    if ($cmAtt) {
+        $ctxAtt = \context_module::instance($cmAtt->id);
+        $enrolled = get_enrolled_users($ctxAtt, 'mod/attendance:canbelisted', 0, 'u.id');
+        $enrolledIds = array_keys($enrolled);
+        $result['details'][] = "Enrolled students in attendance: " . count($enrolledIds);
+    } else {
+        $enrolledIds = [];
+        $result['details'][] = "Could not get attendance context, skipping absent marking";
+    }
 
     foreach ($joinedUserIds as $studentId) {
         $studentId = (int)$studentId;
@@ -357,11 +380,39 @@ function process_single_session($rel) {
         $processedStudents[] = $studentId;
     }
 
-    $totalProcessed = $result['marked'] + $result['already'];
-    $result['details'][] = "DEBUG: marked={$result['marked']}, already={$result['already']}, totalProcessed=$totalProcessed, processedStudents count=" . count($processedStudents);
+    $joinedUserIdsFlat = array_map('intval', $joinedUserIds);
+    $absentCount = 0;
+    foreach ($enrolledIds as $uid) {
+        $uid = (int)$uid;
+        if (in_array($uid, $joinedUserIdsFlat, true)) {
+            continue;
+        }
+        $existingLog = $DB->get_record('attendance_log', [
+            'sessionid' => $session->id,
+            'studentid' => $uid
+        ], 'id');
+        if ($existingLog) {
+            continue;
+        }
+        $log = new \stdClass();
+        $log->sessionid = $session->id;
+        $log->studentid = $uid;
+        $log->statusid = $setunmarkedStatusId;
+        $log->timetaken = $now;
+        $log->remarks = 'auto-marked: BBB live attendance fix (absent)';
+        $log->statusset = '0';
+
+        $DB->insert_record('attendance_log', $log);
+        $absentCount++;
+        $processedStudents[] = $uid;
+    }
+    if ($absentCount > 0) {
+        $result['details'][] = "Marked $absentCount students as absent";
+    }
+
+    $totalProcessed = $result['marked'] + $result['already'] + $absentCount;
+    $result['details'][] = "DEBUG: marked={$result['marked']}, already={$result['already']}, absent=$absentCount, totalProcessed=$totalProcessed, processedStudents count=" . count($processedStudents);
     if (!empty($processedStudents) && $totalProcessed > 0) {
-        $att = $DB->get_record('attendance', ['id' => $session->attendanceid], 'id, grade');
-        $result['details'][] = "DEBUG: att id={$att->id}, grade={$att->grade}, processedStudents=" . json_encode($processedStudents);
         if ($att && $att->grade > 0) {
             attendance_update_users_grades_by_id($att->id, $att->grade, $processedStudents);
             $result['details'][] = "Recalculated grades for $totalProcessed students (att id={$att->id}, grade={$att->grade})";
