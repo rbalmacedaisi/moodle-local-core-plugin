@@ -88,7 +88,10 @@ if ($withgrades) {
         LEFT JOIN {gmk_course_progre} cp ON (cp.userid = u.id AND cp.learningplanid = lp.id)
         LEFT JOIN {course} c ON c.id = cp.courseid
         LEFT JOIN {gmk_financial_status} fs ON (fs.userid = u.id)
-        LEFT JOIN {gmk_class} cls ON cls.id = cp.classid
+        LEFT JOIN {gmk_class} cls ON (cls.groupid = cp.groupid
+                                      AND cp.groupid > 0
+                                      AND cls.gradecategoryid > 0
+                                      AND cls.corecourseid > 0)
         LEFT JOIN {grade_items} gi ON (gi.itemtype = 'category'
                                        AND gi.iteminstance = cls.gradecategoryid
                                        AND gi.courseid = cls.corecourseid)
