@@ -504,7 +504,7 @@ function recalc_attendance_grades_by_period($startPeriod, $endPeriod) {
 
     try {
         $classes = $DB->get_records_sql(
-            "SELECT c.id, c.name, c.corecourseid, c.groupid, c.instructorid
+            "SELECT c.id, c.name, c.corecourseid, c.groupid, c.instructorid, c.attendancemoduleid
                FROM {gmk_class} c
               WHERE c.closed = 0
                 AND c.inittime = :startp
