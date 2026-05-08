@@ -349,6 +349,15 @@ function process_single_session($rel) {
         $DB->insert_record('attendance_log', $log);
         $result['marked']++;
         $result['details'][] = "Marked student $studentId as present";
+        $markedStudents[] = $studentId;
+    }
+
+    if (!empty($markedStudents) && $result['marked'] > 0) {
+        $att = $DB->get_record('attendance', ['id' => $session->attendanceid], 'id, grade');
+        if ($att && $att->grade > 0 && !empty($markedStudents)) {
+            attendance_update_users_grades_by_id($att->id, $att->grade, $markedStudents);
+            $result['details'][] = "Recalculated grades for " . count($markedStudents) . " students (att id={$att->id}, grade={$att->grade})";
+        }
     }
 
     return $result;
