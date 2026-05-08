@@ -283,23 +283,22 @@ function process_single_session($rel) {
     $sessEnd = $sessStart + (int)$session->duration;
     $result['details'][] = "Querying BBB logs for bbbid={$bbbInstance->id}, time > " . date('Y-m-d H:i', $sessStart - 300) . " (sessdate=" . date('Y-m-d H:i', $sessStart) . ")";
 
-    $sql = "SELECT DISTINCT bl.userid, bl.log, bl.timecreated
+    $sql = "SELECT DISTINCT bl.userid
               FROM {bigbluebuttonbn_logs} bl
              WHERE bl.bigbluebuttonbnid = :bbbid
                AND bl.log IN ('join', 'meeting_start')
                AND bl.timecreated > :sessstart
-               AND bl.timecreated < :sessend
-             ORDER BY bl.timecreated";
+               AND bl.timecreated < :sessend";
 
-    $joinedUsers = $DB->get_records_sql($sql, [
+    $joinedUserIds = $DB->get_fieldset_sql($sql, [
         'bbbid' => $bbbInstance->id,
         'sessstart' => $sessStart - 300,
         'sessend' => $sessEnd + 3600
     ]);
 
-    $result['details'][] = "Found " . count($joinedUsers) . " BBB connections";
+    $result['details'][] = "Found " . count($joinedUserIds) . " unique BBB connections";
 
-    if (empty($joinedUsers)) {
+    if (empty($joinedUserIds)) {
         return $result;
     }
 
@@ -325,8 +324,8 @@ function process_single_session($rel) {
 
     $now = time();
 
-    foreach ($joinedUsers as $joinedUser) {
-        $studentId = (int)$joinedUser->userid;
+    foreach ($joinedUserIds as $studentId) {
+        $studentId = (int)$studentId;
 
         $existingLog = $DB->get_record('attendance_log', [
             'sessionid' => $session->id,
