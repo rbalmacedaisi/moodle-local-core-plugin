@@ -116,11 +116,10 @@ function ($, ModalFactory, ModalEvents) {
             '<th style="padding:8px 10px;">ID / Cédula</th>' +
             '<th style="padding:8px 10px;">Estado</th>' +
             '<th style="padding:8px 10px;text-align:right;">Nota</th>' +
-            '<th style="padding:8px 10px;text-align:right;">Progreso</th>' +
             '</tr></thead><tbody>';
 
         if (list.length === 0) {
-            html += '<tr><td colspan="5" style="padding:12px;text-align:center;color:#999;">Sin estudiantes.</td></tr>';
+            html += '<tr><td colspan="4" style="padding:12px;text-align:center;color:#999;">Sin estudiantes.</td></tr>';
         }
         list.forEach(function (st, i) {
             var bg  = i % 2 === 0 ? '#fff' : '#f8f9fa';
@@ -133,7 +132,6 @@ function ($, ModalFactory, ModalEvents) {
                 'font-size:11px;">' + htmlEsc(st.status_label) + '</span></td>' +
                 '<td style="padding:7px 10px;text-align:right;font-weight:600;">' +
                 (st.grade !== null && st.grade !== undefined ? st.grade : '—') + '</td>' +
-                '<td style="padding:7px 10px;text-align:right;">' + st.progress + '%</td>' +
                 '</tr>';
         });
         html += '</tbody></table>';
