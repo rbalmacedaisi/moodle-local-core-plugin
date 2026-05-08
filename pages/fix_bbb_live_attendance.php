@@ -250,6 +250,7 @@ function process_single_session($rel) {
     global $DB;
 
     $result = ['marked' => 0, 'already' => 0, 'error' => null, 'details' => []];
+    $processedStudents = [];
 
     $session = $DB->get_record('attendance_sessions', ['id' => $rel->attendancesessionid], 'id, sessdate, duration, lasttaken, attendanceid');
     if (!$session) {
@@ -335,6 +336,7 @@ function process_single_session($rel) {
         if ($existingLog) {
             $result['already']++;
             $result['details'][] = "Student $studentId already has attendance log";
+            $processedStudents[] = $studentId;
             continue;
         }
 
@@ -349,14 +351,15 @@ function process_single_session($rel) {
         $DB->insert_record('attendance_log', $log);
         $result['marked']++;
         $result['details'][] = "Marked student $studentId as present";
-        $markedStudents[] = $studentId;
+        $processedStudents[] = $studentId;
     }
 
-    if (!empty($markedStudents) && $result['marked'] > 0) {
+    $totalProcessed = $result['marked'] + $result['already'];
+    if (!empty($processedStudents) && $totalProcessed > 0) {
         $att = $DB->get_record('attendance', ['id' => $session->attendanceid], 'id, grade');
-        if ($att && $att->grade > 0 && !empty($markedStudents)) {
-            attendance_update_users_grades_by_id($att->id, $att->grade, $markedStudents);
-            $result['details'][] = "Recalculated grades for " . count($markedStudents) . " students (att id={$att->id}, grade={$att->grade})";
+        if ($att && $att->grade > 0) {
+            attendance_update_users_grades_by_id($att->id, $att->grade, $processedStudents);
+            $result['details'][] = "Recalculated grades for $totalProcessed students (att id={$att->id}, grade={$att->grade})";
         }
     }
 
