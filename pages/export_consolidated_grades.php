@@ -75,7 +75,7 @@ if ($withgrades) {
         SELECT u.id as userid, u.firstname, u.lastname, u.email, u.idnumber,
                lp.name as career, per.name as periodname,
                COALESCE(c.fullname, c.shortname, cp.coursename, '(Sin curso activo)') as coursename,
-               CASE WHEN gi.grademax > 0 AND gg.finalgrade IS NOT NULL
+               CASE WHEN cp.status = 2 AND gi.grademax > 0 AND gg.finalgrade IS NOT NULL
                     THEN ROUND((gg.finalgrade / gi.grademax) * 100, 2)
                     ELSE cp.grade
                END AS grade,

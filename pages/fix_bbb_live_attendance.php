@@ -107,6 +107,35 @@ if ($action === 'process' && ($classid > 0 || $sessionid > 0)) {
 
     echo '<p><a href="" class="btn btn-primary">← Volver</a></p>';
 
+} elseif ($action === 'recalc_all') {
+    $period = optional_param('period', '', PARAM_RAW);
+    if (empty($period) || strpos($period, '|') === false) {
+        echo '<div class="error-box"><p>Período inválido.</p></div>';
+        echo '<p><a href="" class="btn btn-primary">← Volver</a></p>';
+    } else {
+        list($startPeriod, $endPeriod) = explode('|', $period);
+        echo '<div class="success-box"><h3>Recalculando notas del período ' . s($startPeriod) . ' - ' . s($endPeriod) . '...</h3></div>';
+        $results = recalc_attendance_grades_by_period($startPeriod, $endPeriod);
+        if ($results['success']) {
+            echo '<div class="success-box">';
+            echo '<h3>✓ Recalculo completado</h3>';
+            echo '<p>Clases procesadas: <strong>' . $results['classes_processed'] . '</strong></p>';
+            echo '<p>Estudiantes recalculados: <strong>' . $results['students_recalculated'] . '</strong></p>';
+            if (!empty($results['errors'])) {
+                foreach ($results['errors'] as $err) {
+                    echo '<p class="red">Error: ' . s($err) . '</p>';
+                }
+            }
+            echo '</div>';
+        } else {
+            echo '<div class="error-box">';
+            echo '<h3>✗ Error</h3>';
+            echo '<p>' . s($results['error'] ?? 'Unknown error') . '</p>';
+            echo '</div>';
+        }
+        echo '<p><a href="" class="btn btn-primary">← Volver</a></p>';
+    }
+
 } else {
     $classes = $DB->get_records_sql(
         "SELECT c.id, c.name, c.inittime, c.endtime,
@@ -168,6 +197,37 @@ if ($action === 'process' && ($classid > 0 || $sessionid > 0)) {
             Este proceso es <strong>aditivo</strong>: solo inserta registros de asistencia para estudiantes
             que no tienen uno existente. <strong>No modifica registros existentes</strong>.
         </p>
+    </div>
+
+    <hr style="margin: 30px 0; border: 1px solid #ccc;">
+
+    <div class="form-group" style="margin-top: 30px;">
+        <h3>Recalcular Notas de Asistencia</h3>
+        <p>Recalcula las notas en el libro de calificaciones para todas las clases del período seleccionado, basándose en los registros de asistencia existentes (presentes y ausentes).</p>
+        <form method="post" action="">
+            <input type="hidden" name="action" value="recalc_all" />
+            <div class="form-group">
+                <label for="period">Período:</label>
+                <select name="period" id="period">
+                    <option value="">-- Seleccionar período --</option>
+                    <?php
+                    $periods = $DB->get_records_sql(
+                        "SELECT DISTINCT c.inittime, c.endtime
+                           FROM {gmk_class} c
+                          WHERE c.closed = 0
+                          ORDER BY c.inittime DESC"
+                    );
+                    foreach ($periods as $p) {
+                        echo '<option value="' . s($p->inittime) . '|' . s($p->endtime) . '">'
+                           . s($p->inittime) . ' - ' . s($p->endtime) . '</option>';
+                    }
+                    ?>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-danger" onclick="return confirm('¿Está seguro? Esto recalculará las notas de asistencia para todas las clases del período.');">
+                Recalcular Todas las Notas de Asistencia
+            </button>
+        </form>
     </div>
 
 <?php
