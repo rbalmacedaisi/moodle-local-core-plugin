@@ -483,3 +483,95 @@ function process_single_session($rel) {
 
     return $result;
 }
+
+/**
+ * Recalculates attendance grades for all classes in a period.
+ * This recalculates existing attendance logs (presents and absences) into the Moodle gradebook.
+ *
+ * @param string $startPeriod Start period (inittime)
+ * @param string $endPeriod   End period (endtime)
+ * @return array
+ */
+function recalc_attendance_grades_by_period($startPeriod, $endPeriod) {
+    global $DB;
+
+    $results = [
+        'success' => true,
+        'classes_processed' => 0,
+        'students_recalculated' => 0,
+        'errors' => []
+    ];
+
+    try {
+        $classes = $DB->get_records_sql(
+            "SELECT c.id, c.name, c.corecourseid, c.groupid, c.instructorid
+               FROM {gmk_class} c
+              WHERE c.closed = 0
+                AND c.inittime = :startp
+                AND c.endtime = :endp
+              ORDER BY c.name",
+            ['startp' => $startPeriod, 'endp' => $endPeriod]
+        );
+
+        if (empty($classes)) {
+            $results['success'] = false;
+            $results['error'] = 'No se encontraron clases para el período especificado.';
+            return $results;
+        }
+
+        foreach ($classes as $class) {
+            $classResult = recalc_class_attendance_grades($class);
+            if ($classResult['error']) {
+                $results['errors'][] = "Clase {$class->name}: {$classResult['error']}";
+            } else {
+                $results['classes_processed']++;
+                $results['students_recalculated'] += $classResult['count'];
+            }
+        }
+
+    } catch (Exception $e) {
+        $results['success'] = false;
+        $results['error'] = $e->getMessage();
+    }
+
+    return $results;
+}
+
+/**
+ * Recalculates attendance grades for a single class.
+ *
+ * @param stdClass $class
+ * @return array
+ */
+function recalc_class_attendance_grades($class) {
+    global $DB;
+
+    $result = ['count' => 0, 'error' => null];
+
+    if (empty($class->corecourseid)) {
+        return ['count' => 0, 'error' => 'Clase sin course'];
+    }
+
+    $cm = get_coursemodule_from_instance('attendance', $class->attendancemoduleid, $class->corecourseid);
+    if (!$cm) {
+        return ['count' => 0, 'error' => 'No se encontró módulo de asistencia'];
+    }
+
+    $ctx = context_module::instance($cm->id);
+    $enrolled = get_enrolled_users($ctx, 'mod/attendance:canbelisted', 0, 'u.id');
+    $enrolledIds = array_keys($enrolled);
+
+    if (empty($enrolledIds)) {
+        return ['count' => 0, 'error' => null];
+    }
+
+    $att = $DB->get_record('attendance', ['id' => $class->attendancemoduleid], 'id, grade, course');
+    if (!$att || $att->grade <= 0) {
+        return ['count' => 0, 'error' => 'Actividad de asistencia sin grade'];
+    }
+
+    attendance_update_users_grades_by_id($att->id, $att->grade, $enrolledIds);
+    $result['count'] = count($enrolledIds);
+
+    return $result;
+}
