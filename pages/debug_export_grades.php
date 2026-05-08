@@ -74,8 +74,6 @@ if (!empty($search)) {
 
 $where = 'WHERE ' . implode(' AND ', $conditions);
 
-$sqlParams['lim'] = $limit;
-
 // ── main query (same as export Mode 1) ───────────────────────────────────────
 $mainRows = $DB->get_records_sql("
     SELECT cp.id AS cpid,
@@ -95,8 +93,7 @@ $mainRows = $DB->get_records_sql("
     LEFT JOIN {local_learning_periods} per ON per.id = cp.periodid
     $where
     ORDER BY lp.name, per.id, u.firstname
-    LIMIT :lim
-", $sqlParams);
+", $sqlParams, 0, $limit);
 
 // ── for each row, fetch the extra grade sources ───────────────────────────────
 $rows = [];
