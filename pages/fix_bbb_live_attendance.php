@@ -260,6 +260,9 @@ function process_single_session($rel) {
 
     $result['details'][] = "Session {$session->id}: sessdate=" . date('Y-m-d H:i', $session->sessdate) . ", duration={$session->duration}, lasttaken={$session->lasttaken}, attendanceid={$session->attendanceid}";
 
+    gmk_attendance_ensure_setunmarked((int)$session->attendanceid);
+    $result['details'][] = "Ensured setunmarked flag is set for attendance {$session->attendanceid}";
+
     if ((int)$session->lasttaken === 0) {
         $DB->set_field('attendance_sessions', 'lasttaken', time(), ['id' => $session->id]);
         $DB->set_field('attendance_sessions', 'lasttakenby', $rel->instructorid, ['id' => $session->id]);
