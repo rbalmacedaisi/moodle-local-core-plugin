@@ -7483,10 +7483,7 @@ function gmk_get_student_class_grade(int $classId, int $userId): ?float {
  *
  * @return int  COURSE_APPROVED | COURSE_FAILED | COURSE_PENDING_REVALID
  */
-function gmk_classify_student_grade(float $grade, float $progress, int $practicalHours): int {
-    if ($progress < 75.0) {
-        return COURSE_FAILED;
-    }
+function gmk_classify_student_grade(float $grade, int $practicalHours): int {
     if ($grade > 70.4) {
         return COURSE_APPROVED;
     }
@@ -7757,7 +7754,6 @@ function gmk_close_class_with_grade_recalc(int $classId): array {
 
         $newStatus = gmk_classify_student_grade(
             $realGrade,
-            (float)($stu->progress ?? 0),
             (int)($stu->practicalhours ?? 0)
         );
 
@@ -7771,7 +7767,7 @@ function gmk_close_class_with_grade_recalc(int $classId): array {
             'id'       => (int)$stu->progreid,
             'status'   => $newStatus,
             'grade'    => $realGrade,
-            'progress' => max((float)($stu->progress ?? 0), 100.0),
+            'progress' => 100.0,
         ];
     }
 
