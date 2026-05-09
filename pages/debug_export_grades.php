@@ -1,16 +1,4 @@
 <?php
-/**
- * Debug page: compare all grade sources used (or candidates) in the Excel export.
- *
- * For each gmk_course_progre record shows:
- *   A) cp.grade              → current export value
- *   B) grade_grades course   → Moodle course-total (itemtype='course')
- *   C) grade_grades category → gmk_class category grade (via groupid → gmk_class.gradecategoryid)
- *   D) gmk_class.corecourseid / gradecategoryid metadata
- *
- * Access: /local/grupomakro_core/pages/debug_export_grades.php
- */
-
 require_once(__DIR__ . '/../../../config.php');
 require_once($CFG->libdir . '/gradelib.php');
 require_login();
@@ -18,313 +6,258 @@ require_capability('moodle/site:config', context_system::instance());
 
 $PAGE->set_url('/local/grupomakro_core/pages/debug_export_grades.php');
 $PAGE->set_context(context_system::instance());
-$PAGE->set_title('Debug Export Grades');
-
-// ── params ──────────────────────────────────────────────────────────────────
-$planid   = optional_param('planid',   '', PARAM_RAW);
-$periodid = optional_param('periodid', '', PARAM_RAW);
-$search   = optional_param('search',   '', PARAM_TEXT);
-$limit    = optional_param('limit',    100, PARAM_INT);
+$PAGE->set_title('Debug Notas Export');
 
 global $DB;
 
-// ── helpers ──────────────────────────────────────────────────────────────────
-function xh($v) { return htmlspecialchars((string)$v, ENT_QUOTES); }
+// ── params ───────────────────────────────────────────────────────────────────
+$planid   = optional_param('planid',   0, PARAM_INT);
+$periodid = optional_param('periodid', 0, PARAM_INT);
+$search   = optional_param('search',   '', PARAM_TEXT);
 
-function fmt_grade($v) {
-    if ($v === null || $v === false || $v === '') return '<span style="color:#999">—</span>';
-    return '<b>' . number_format((float)$v, 2) . '</b>';
-}
+// ── listas para dropdowns ────────────────────────────────────────────────────
+$plans   = $DB->get_records('local_learning_plans',  [], 'name ASC', 'id, name');
+$periods = $DB->get_records('local_learning_periods', [], 'name ASC', 'id, name');
 
-function diff_class($a, $b) {
-    if ($a === null || $b === null) return '';
-    $d = abs((float)$a - (float)$b);
-    if ($d < 0.05) return 'style="background:#d4edda"';   // match
-    if ($d < 5)    return 'style="background:#fff3cd"';   // small diff
-    return 'style="background:#f8d7da"';                  // large diff
-}
-
-// ── build filter ─────────────────────────────────────────────────────────────
-$sqlParams = [];
-$conditions = ['u.deleted = 0', "lpu.userrolename = 'student'"];
-
-if (!empty($planid)) {
-    $ids = array_filter(explode(',', $planid), 'is_numeric');
-    if ($ids) {
-        list($insql, $inp) = $DB->get_in_or_equal($ids, SQL_PARAMS_NAMED, 'plan');
-        $conditions[] = "cp.learningplanid $insql";
-        $sqlParams = array_merge($sqlParams, $inp);
-    }
-}
-if (!empty($periodid)) {
-    $ids = array_filter(explode(',', $periodid), 'is_numeric');
-    if ($ids) {
-        list($insql, $inp) = $DB->get_in_or_equal($ids, SQL_PARAMS_NAMED, 'per');
-        $conditions[] = "cp.periodid $insql";
-        $sqlParams = array_merge($sqlParams, $inp);
-    }
-}
-if (!empty($search)) {
-    $like1 = $DB->sql_like($DB->sql_concat('u.firstname', "' '", 'u.lastname'), ':srch1', false);
-    $like2 = $DB->sql_like('u.email', ':srch2', false);
-    $conditions[] = "($like1 OR $like2)";
-    $sqlParams['srch1'] = '%' . $search . '%';
-    $sqlParams['srch2'] = '%' . $search . '%';
-}
-
-$where = 'WHERE ' . implode(' AND ', $conditions);
-
-// ── main query (same as export Mode 1) ───────────────────────────────────────
-$mainRows = $DB->get_records_sql("
-    SELECT cp.id AS cpid,
-           u.id  AS userid,
-           u.firstname, u.lastname, u.email,
-           lp.name AS career,
-           per.name AS periodname,
-           COALESCE(cp.coursename, '(Sin curso)') AS coursename,
-           cp.grade   AS cp_grade,
-           cp.status  AS cp_status,
-           cp.groupid AS groupid,
-           cp.classid AS classid
-    FROM {gmk_course_progre} cp
-    JOIN {user} u ON u.id = cp.userid
-    JOIN {local_learning_users} lpu ON (lpu.userid = u.id AND lpu.learningplanid = cp.learningplanid)
-    JOIN {local_learning_plans} lp ON lp.id = cp.learningplanid
-    LEFT JOIN {local_learning_periods} per ON per.id = cp.periodid
-    $where
-    ORDER BY lp.name, per.id, u.firstname
-", $sqlParams, 0, $limit);
-
-// ── for each row, fetch the extra grade sources ───────────────────────────────
+// ── query solo si hay al menos un filtro ─────────────────────────────────────
 $rows = [];
-foreach ($mainRows as $r) {
-    $row = (array)$r;
+$ran  = false;
 
-    // ── Source B: course-total from grade_grades (itemtype='course') ─────────
-    $row['b_course_grade']    = null;
-    $row['b_corecourseid']    = null;
-    $row['b_needsupdate']     = null;
+if ($planid || $periodid || !empty($search)) {
+    $ran = true;
+    $sqlParams  = [];
+    $conditions = ['u.deleted = 0', "lpu.userrolename = 'student'"];
 
-    // ── Source C: category grade from gmk_class ──────────────────────────────
-    $row['c_cat_grade']       = null;
-    $row['c_gradecategoryid'] = null;
-    $row['c_corecourseid']    = null;
-    $row['c_classid']         = null;
-
-    // resolve gmk_class via groupid (same JOIN as old broken export)
-    $cls = null;
-    if (!empty($r->groupid) && (int)$r->groupid > 0) {
-        $cls = $DB->get_record_sql(
-            "SELECT id, corecourseid, gradecategoryid
-               FROM {gmk_class}
-              WHERE groupid = :gid AND gradecategoryid > 0 AND corecourseid > 0
-              LIMIT 1",
-            ['gid' => (int)$r->groupid]
-        );
+    if ($planid) {
+        $conditions[]         = 'cp.learningplanid = :planid';
+        $sqlParams['planid']  = $planid;
     }
-    // fallback: via classid
-    if (!$cls && !empty($r->classid) && (int)$r->classid > 0) {
-        $cls = $DB->get_record_sql(
-            "SELECT id, corecourseid, gradecategoryid
-               FROM {gmk_class}
-              WHERE id = :cid AND gradecategoryid > 0 AND corecourseid > 0
-              LIMIT 1",
-            ['cid' => (int)$r->classid]
-        );
+    if ($periodid) {
+        $conditions[]          = 'cp.periodid = :periodid';
+        $sqlParams['periodid'] = $periodid;
+    }
+    if (!empty($search)) {
+        $like1 = $DB->sql_like($DB->sql_concat('u.firstname', "' '", 'u.lastname'), ':srch1', false);
+        $like2 = $DB->sql_like('u.email', ':srch2', false);
+        $conditions[]        = "($like1 OR $like2)";
+        $sqlParams['srch1']  = '%' . $search . '%';
+        $sqlParams['srch2']  = '%' . $search . '%';
     }
 
-    if ($cls) {
-        $row['c_classid']         = $cls->id;
-        $row['c_corecourseid']    = $cls->corecourseid;
-        $row['c_gradecategoryid'] = $cls->gradecategoryid;
+    $where = 'WHERE ' . implode(' AND ', $conditions);
 
-        // Source B: from corecourseid
-        $row['b_corecourseid'] = $cls->corecourseid;
-        $nu = $DB->get_field_select('grade_items', 'needsupdate',
-            "courseid = :cid AND itemtype = 'course'", ['cid' => (int)$cls->corecourseid]);
-        $row['b_needsupdate'] = ($nu !== false) ? (int)$nu : null;
+    $mainRows = $DB->get_records_sql("
+        SELECT cp.id AS cpid,
+               u.id  AS userid,
+               u.firstname, u.lastname, u.email,
+               lp.name AS career,
+               per.name AS periodname,
+               COALESCE(cp.coursename, '(Sin curso)') AS coursename,
+               cp.grade  AS cp_grade,
+               cp.status AS cp_status,
+               cp.groupid, cp.classid
+        FROM {gmk_course_progre} cp
+        JOIN {user} u ON u.id = cp.userid
+        JOIN {local_learning_users} lpu ON (lpu.userid = u.id AND lpu.learningplanid = cp.learningplanid)
+        JOIN {local_learning_plans} lp ON lp.id = cp.learningplanid
+        LEFT JOIN {local_learning_periods} per ON per.id = cp.periodid
+        $where
+        ORDER BY lp.name, per.id, u.firstname
+    ", $sqlParams, 0, 500);
 
-        $bRow = $DB->get_record_sql(
-            "SELECT CASE WHEN gi.grademax > 0
-                         THEN ROUND((gg.finalgrade / gi.grademax) * 100, 2)
-                         ELSE NULL END AS grade
-               FROM {grade_items} gi
-               LEFT JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = :uid
-              WHERE gi.courseid = :cid AND gi.itemtype = 'course'",
-            ['uid' => (int)$r->userid, 'cid' => (int)$cls->corecourseid]
-        );
-        $row['b_course_grade'] = ($bRow && $bRow->grade !== null) ? (float)$bRow->grade : null;
+    $statusLabels = [0=>'No disponible',1=>'Disponible',2=>'Cursando',3=>'Completado',
+                     4=>'Aprobada',5=>'Reprobada',6=>'Pend.Reválida',7=>'Revalidando',99=>'Migración'];
 
-        // Source C: category-level
-        $gi = $DB->get_record_sql(
-            "SELECT gi.id, gi.grademax,
-                    gg.finalgrade, gg.rawgrade
-               FROM {grade_items} gi
-               LEFT JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = :uid
-              WHERE gi.itemtype = 'category'
-                AND gi.iteminstance = :catid
-                AND gi.courseid = :cid",
-            ['uid'   => (int)$r->userid,
-             'catid' => (int)$cls->gradecategoryid,
-             'cid'   => (int)$cls->corecourseid]
-        );
-        if ($gi) {
-            $fg = $gi->finalgrade ?? $gi->rawgrade ?? null;
-            if ($fg !== null && $gi->grademax > 0) {
-                $row['c_cat_grade'] = round((float)$fg / (float)$gi->grademax * 100, 2);
+    foreach ($mainRows as $r) {
+        $row = [
+            'nombre'    => $r->firstname . ' ' . $r->lastname,
+            'email'     => $r->email,
+            'carrera'   => $r->career,
+            'periodo'   => $r->periodname ?? '—',
+            'curso'     => $r->coursename,
+            'estado'    => $statusLabels[$r->cp_status] ?? '?',
+            'A_cp'      => $r->cp_grade !== null ? round((float)$r->cp_grade, 2) : null,
+            'B_moodle'  => null,
+            'C_categ'   => null,
+            'needsupdate' => null,
+        ];
+
+        // resolver gmk_class via groupid o classid
+        $cls = null;
+        if (!empty($r->groupid) && (int)$r->groupid > 0) {
+            $cls = $DB->get_record_sql(
+                "SELECT id, corecourseid, gradecategoryid FROM {gmk_class}
+                  WHERE groupid = :g AND gradecategoryid > 0 AND corecourseid > 0 LIMIT 1",
+                ['g' => (int)$r->groupid]
+            );
+        }
+        if (!$cls && !empty($r->classid) && (int)$r->classid > 0) {
+            $cls = $DB->get_record_sql(
+                "SELECT id, corecourseid, gradecategoryid FROM {gmk_class}
+                  WHERE id = :c AND gradecategoryid > 0 AND corecourseid > 0 LIMIT 1",
+                ['c' => (int)$r->classid]
+            );
+        }
+
+        if ($cls) {
+            $cid = (int)$cls->corecourseid;
+            $uid = (int)$r->userid;
+
+            // B: nota total del curso Moodle
+            $nu = $DB->get_field_select('grade_items', 'needsupdate',
+                "courseid = :c AND itemtype = 'course'", ['c' => $cid]);
+            $row['needsupdate'] = ($nu !== false) ? (int)$nu : null;
+
+            $bRow = $DB->get_record_sql(
+                "SELECT CASE WHEN gi.grademax > 0
+                             THEN ROUND((gg.finalgrade / gi.grademax) * 100, 2)
+                             ELSE NULL END AS grade
+                   FROM {grade_items} gi
+                   LEFT JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = :u
+                  WHERE gi.courseid = :c AND gi.itemtype = 'course'",
+                ['u' => $uid, 'c' => $cid]
+            );
+            $row['B_moodle'] = ($bRow && $bRow->grade !== null) ? (float)$bRow->grade : null;
+
+            // C: nota de la categoría de la clase
+            $gi = $DB->get_record_sql(
+                "SELECT gi.grademax, gg.finalgrade, gg.rawgrade
+                   FROM {grade_items} gi
+                   LEFT JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = :u
+                  WHERE gi.itemtype = 'category' AND gi.iteminstance = :cat AND gi.courseid = :c",
+                ['u' => $uid, 'cat' => (int)$cls->gradecategoryid, 'c' => $cid]
+            );
+            if ($gi) {
+                $fg = $gi->finalgrade ?? $gi->rawgrade ?? null;
+                if ($fg !== null && $gi->grademax > 0) {
+                    $row['C_categ'] = round((float)$fg / (float)$gi->grademax * 100, 2);
+                }
             }
         }
+
+        $rows[] = $row;
     }
-
-    $rows[] = $row;
 }
 
-// ── STATUS LABELS ─────────────────────────────────────────────────────────────
-$statusLabels = [0=>'No disponible',1=>'Disponible',2=>'Cursando',3=>'Completado',
-                 4=>'Aprobada',5=>'Reprobada',6=>'Pend.Reválida',7=>'Revalidando',99=>'Migración'];
+// ── helpers de salida ─────────────────────────────────────────────────────────
+function xh($v) { return htmlspecialchars((string)$v, ENT_QUOTES); }
 
-// ── COUNTS ────────────────────────────────────────────────────────────────────
-$nTotal    = count($rows);
-$nHasCls   = count(array_filter($rows, fn($r) => $r['c_classid'] !== null));
-$nMatch_AB = 0;
-$nMatch_AC = 0;
-foreach ($rows as $r) {
-    if ($r['cp_grade'] !== null && $r['b_course_grade'] !== null && abs((float)$r['cp_grade'] - (float)$r['b_course_grade']) < 0.05) $nMatch_AB++;
-    if ($r['cp_grade'] !== null && $r['c_cat_grade']   !== null && abs((float)$r['cp_grade'] - (float)$r['c_cat_grade'])   < 0.05) $nMatch_AC++;
+function cell($val) {
+    if ($val === null) return '<td style="color:#bbb;text-align:center;">—</td>';
+    return '<td style="text-align:center;font-weight:600;">' . number_format($val, 2) . '</td>';
 }
 
-// ── OUTPUT ────────────────────────────────────────────────────────────────────
+function diff_cell($a, $b) {
+    if ($a === null || $b === null) return '<td style="text-align:center;color:#bbb;">—</td>';
+    $d = abs($a - $b);
+    if ($d < 0.05) return '<td style="text-align:center;background:#d4edda;color:#155724;font-weight:600;">✓ igual</td>';
+    $bg  = $d < 5 ? '#fff3cd' : '#f8d7da';
+    $clr = $d < 5 ? '#856404' : '#721c24';
+    return '<td style="text-align:center;background:' . $bg . ';color:' . $clr . ';font-weight:600;">Δ ' . number_format($d, 2) . '</td>';
+}
+
 echo $OUTPUT->header();
 ?>
 <style>
-body { font-family: sans-serif; font-size: 13px; }
-h2   { color: #1a73e8; }
-.filters { background:#f5f5f5; padding:12px 16px; border-radius:6px; margin-bottom:16px; }
-.filters input, .filters select { padding:4px 8px; margin-right:6px; }
-.filters button { padding:5px 14px; background:#1a73e8; color:#fff; border:none; border-radius:4px; cursor:pointer; }
-table.debug { border-collapse:collapse; font-size:11.5px; width:100%; }
-table.debug th { background:#1a73e8; color:#fff; padding:5px 8px; text-align:left; white-space:nowrap; }
-table.debug td { padding:4px 8px; border-bottom:1px solid #e0e0e0; vertical-align:top; white-space:nowrap; }
-table.debug tr:hover td { background:#f0f4ff; }
-.badge { display:inline-block; padding:1px 6px; border-radius:10px; font-size:10px; font-weight:600; }
-.badge-ok  { background:#d4edda; color:#155724; }
-.badge-warn{ background:#fff3cd; color:#856404; }
-.badge-err { background:#f8d7da; color:#721c24; }
-.stats { display:flex; gap:16px; margin-bottom:14px; flex-wrap:wrap; }
-.stat { background:#f5f5f5; border-radius:6px; padding:8px 16px; text-align:center; min-width:120px; }
-.stat b { display:block; font-size:22px; color:#1a73e8; }
-.legend { background:#fffbea; border:1px solid #ffe082; border-radius:6px; padding:8px 14px; margin-bottom:12px; font-size:12px; }
+h2 { color:#1a73e8; margin-bottom:4px; }
+.filtros { background:#f8f9fa; border:1px solid #dee2e6; border-radius:8px; padding:16px 20px; margin-bottom:20px; display:flex; gap:20px; align-items:flex-end; flex-wrap:wrap; }
+.filtros label { display:block; font-size:12px; font-weight:600; color:#555; margin-bottom:4px; }
+.filtros select, .filtros input { padding:6px 10px; border:1px solid #ccc; border-radius:4px; font-size:13px; }
+.filtros button { padding:7px 20px; background:#1a73e8; color:#fff; border:none; border-radius:4px; font-size:13px; cursor:pointer; font-weight:600; }
+.filtros button:hover { background:#1557b0; }
+table { border-collapse:collapse; width:100%; font-size:12.5px; }
+th { background:#343a40; color:#fff; padding:7px 10px; text-align:left; white-space:nowrap; }
+td { padding:5px 10px; border-bottom:1px solid #e9ecef; vertical-align:middle; }
+tr:hover td { background:#f0f4ff; }
+.tip { font-size:11px; color:#888; }
 </style>
 
-<h2>Debug: Fuentes de Nota — Export vs Gradebook</h2>
+<h2>Debug: Notas del Export</h2>
+<p style="color:#666;margin-top:0;">Compara <b>cp.grade</b> (lo que exporta el Excel) contra las notas vivas de Moodle.</p>
 
-<div class="filters">
-    <form method="get">
-        <b>Plan ID:</b> <input name="planid"   value="<?= xh($planid)   ?>" placeholder="1,2,3" style="width:90px;">
-        <b>Periodo ID:</b> <input name="periodid" value="<?= xh($periodid) ?>" placeholder="5,6" style="width:90px;">
-        <b>Buscar:</b> <input name="search"   value="<?= xh($search)   ?>" placeholder="Nombre o email" style="width:200px;">
-        <b>Límite:</b>
-        <select name="limit">
-            <?php foreach ([50,100,250,500,1000] as $l): ?>
-                <option value="<?= $l ?>" <?= $limit==$l?'selected':'' ?>><?= $l ?></option>
-            <?php endforeach; ?>
-        </select>
+<div class="filtros">
+    <form method="get" style="display:flex;gap:20px;align-items:flex-end;flex-wrap:wrap;">
+        <div>
+            <label>Carrera</label>
+            <select name="planid">
+                <option value="0">— Todas —</option>
+                <?php foreach ($plans as $p): ?>
+                    <option value="<?= $p->id ?>" <?= $planid == $p->id ? 'selected' : '' ?>><?= xh($p->name) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <div>
+            <label>Cuatrimestre</label>
+            <select name="periodid">
+                <option value="0">— Todos —</option>
+                <?php foreach ($periods as $p): ?>
+                    <option value="<?= $p->id ?>" <?= $periodid == $p->id ? 'selected' : '' ?>><?= xh($p->name) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <div>
+            <label>Estudiante</label>
+            <input name="search" value="<?= xh($search) ?>" placeholder="Nombre o email" style="width:200px;">
+        </div>
         <button type="submit">Buscar</button>
     </form>
 </div>
 
-<div class="stats">
-    <div class="stat"><b><?= $nTotal ?></b>Registros</div>
-    <div class="stat"><b><?= $nHasCls ?></b>Con gmk_class</div>
-    <div class="stat"><b><?= $nTotal - $nHasCls ?></b>Sin gmk_class</div>
-    <div class="stat"><b><?= $nMatch_AB ?></b>A = B (cp = curso)</div>
-    <div class="stat"><b><?= $nMatch_AC ?></b>A = C (cp = categ.)</div>
-</div>
+<?php if (!$ran): ?>
+<p style="color:#888;">Selecciona una carrera, cuatrimestre o escribe un nombre para ver resultados.</p>
 
-<div class="legend">
-    <b>Columnas:</b>
-    &nbsp;<span class="badge badge-ok">A</span> <b>cp.grade</b> (lo que exporta actualmente) &nbsp;|&nbsp;
-    <span class="badge badge-warn">B</span> <b>grade_grades itemtype='course'</b> (total Moodle) &nbsp;|&nbsp;
-    <span class="badge badge-err">C</span> <b>grade_grades categoría gmk_class</b> (lo que mostraba el modal) &nbsp;|&nbsp;
-    Fondo <span style="background:#d4edda;padding:1px 6px;">verde</span> = coinciden &nbsp;
-    <span style="background:#fff3cd;padding:1px 6px;">amarillo</span> = diff &lt;5 &nbsp;
-    <span style="background:#f8d7da;padding:1px 6px;">rojo</span> = diff grande
-</div>
+<?php elseif (empty($rows)): ?>
+<p style="color:#888;">Sin resultados.</p>
 
-<?php if (empty($planid) && empty($periodid) && empty($search)): ?>
-<p style="color:#e65100;font-weight:600;">⚠ Especifica al menos un filtro (planid, periodid o búsqueda) para evitar cargar todos los registros.</p>
-<?php else: ?>
+<?php else:
+    $nTotal  = count($rows);
+    $nSinCls = count(array_filter($rows, fn($r) => $r['B_moodle'] === null && $r['C_categ'] === null));
+    $nDifAB  = count(array_filter($rows, fn($r) => $r['A_cp'] !== null && $r['B_moodle'] !== null && abs($r['A_cp'] - $r['B_moodle']) >= 0.05));
+    $nDifAC  = count(array_filter($rows, fn($r) => $r['A_cp'] !== null && $r['C_categ']  !== null && abs($r['A_cp'] - $r['C_categ'])  >= 0.05));
+?>
 
-<p>Mostrando <b><?= $nTotal ?></b> registros (límite: <?= $limit ?>)</p>
+<p><b><?= $nTotal ?></b> registros &nbsp;|&nbsp; <b><?= $nSinCls ?></b> sin clase Moodle &nbsp;|&nbsp;
+   <b style="color:<?= $nDifAB > 0 ? '#c62828' : '#2e7d32' ?>"><?= $nDifAB ?> diferencias A↔B</b> &nbsp;|&nbsp;
+   <b style="color:<?= $nDifAC > 0 ? '#c62828' : '#2e7d32' ?>"><?= $nDifAC ?> diferencias A↔C</b>
+</p>
 
-<div style="overflow-x:auto;">
-<table class="debug">
+<table>
 <thead>
 <tr>
-    <th>#</th>
     <th>Estudiante</th>
     <th>Carrera</th>
-    <th>Periodo</th>
+    <th>Cuatrimestre</th>
     <th>Curso</th>
-    <th>Estado (cp)</th>
-    <th><span class="badge badge-ok">A</span> cp.grade</th>
-    <th><span class="badge badge-warn">B</span> course grade_grades<br><small>needsupdate</small></th>
-    <th><span class="badge badge-err">C</span> categ. grade_grades</th>
+    <th>Estado</th>
+    <th title="cp.grade — lo que sale en el Excel">A — cp.grade<br><span class="tip">(Excel)</span></th>
+    <th title="grade_grades itemtype=course — nota total de Moodle">B — Moodle total<br><span class="tip">(needsupdate)</span></th>
+    <th title="grade_grades de la categoría de la clase">C — Categoría clase<br><span class="tip">(modal)</span></th>
     <th>A vs B</th>
     <th>A vs C</th>
-    <th>B vs C</th>
-    <th>classid / groupid</th>
-    <th>corecourseid</th>
-    <th>gradecategoryid</th>
 </tr>
 </thead>
 <tbody>
-<?php
-$i = 0;
-foreach ($rows as $r):
-    $i++;
-    $stLabel = $statusLabels[$r['cp_status']] ?? ('?'.$r['cp_status']);
-
-    $aVal = ($r['cp_grade'] !== null)    ? (float)$r['cp_grade']    : null;
-    $bVal = ($r['b_course_grade'] !== null) ? (float)$r['b_course_grade'] : null;
-    $cVal = ($r['c_cat_grade'] !== null)  ? (float)$r['c_cat_grade']  : null;
-
-    $diffAB = ($aVal !== null && $bVal !== null) ? abs($aVal - $bVal) : null;
-    $diffAC = ($aVal !== null && $cVal !== null) ? abs($aVal - $cVal) : null;
-    $diffBC = ($bVal !== null && $cVal !== null) ? abs($bVal - $cVal) : null;
-
-    function diff_badge($d) {
-        if ($d === null) return '<span style="color:#999">—</span>';
-        if ($d < 0.05) return '<span class="badge badge-ok">=' . number_format($d,2) . '</span>';
-        if ($d < 5)    return '<span class="badge badge-warn">Δ' . number_format($d,2) . '</span>';
-        return '<span class="badge badge-err">Δ' . number_format($d,2) . '</span>';
-    }
-?>
+<?php foreach ($rows as $r): ?>
 <tr>
-    <td><?= $i ?></td>
-    <td><?= xh($r['firstname'] . ' ' . $r['lastname']) ?><br><small style="color:#666"><?= xh($r['email']) ?></small></td>
-    <td><?= xh($r['career']) ?></td>
-    <td><?= xh($r['periodname'] ?? '—') ?></td>
-    <td><?= xh($r['coursename']) ?></td>
-    <td><?= xh($stLabel) ?></td>
-    <td><?= fmt_grade($aVal) ?></td>
-    <td <?= diff_class($aVal, $bVal) ?>><?= fmt_grade($bVal) ?><br><small><?= $r['b_needsupdate'] !== null ? ('needsupdate='.$r['b_needsupdate']) : '<span style="color:#999">sin gi</span>' ?></small></td>
-    <td <?= diff_class($aVal, $cVal) ?>><?= fmt_grade($cVal) ?></td>
-    <td><?= diff_badge($diffAB) ?></td>
-    <td><?= diff_badge($diffAC) ?></td>
-    <td><?= diff_badge($diffBC) ?></td>
-    <td><small>cls=<?= xh($r['c_classid'] ?? '—') ?> / grp=<?= xh($r['groupid'] ?? '—') ?></small></td>
-    <td><small><?= xh($r['c_corecourseid'] ?? '—') ?></small></td>
-    <td><small><?= xh($r['c_gradecategoryid'] ?? '—') ?></small></td>
+    <td><?= xh($r['nombre']) ?><br><span class="tip"><?= xh($r['email']) ?></span></td>
+    <td><?= xh($r['carrera']) ?></td>
+    <td><?= xh($r['periodo']) ?></td>
+    <td><?= xh($r['curso']) ?></td>
+    <td><?= xh($r['estado']) ?></td>
+    <?= cell($r['A_cp']) ?>
+    <td style="text-align:center;">
+        <?php if ($r['B_moodle'] !== null): ?>
+            <b><?= number_format($r['B_moodle'], 2) ?></b>
+            <?php if ($r['needsupdate']): ?><br><span style="color:#e65100;font-size:10px;">⚠ needsupdate=1</span><?php endif; ?>
+        <?php else: ?><span style="color:#bbb;">—</span><?php endif; ?>
+    </td>
+    <?= cell($r['C_categ']) ?>
+    <?= diff_cell($r['A_cp'], $r['B_moodle']) ?>
+    <?= diff_cell($r['A_cp'], $r['C_categ']) ?>
 </tr>
 <?php endforeach; ?>
 </tbody>
 </table>
-</div>
-
-<?php if ($nTotal === 0): ?>
-<p style="color:#999;font-style:italic;">Sin resultados con los filtros aplicados.</p>
-<?php endif; ?>
 
 <?php endif; ?>
 
