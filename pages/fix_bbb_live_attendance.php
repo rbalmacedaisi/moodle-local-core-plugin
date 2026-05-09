@@ -113,7 +113,7 @@ if ($action === 'process' && ($classid > 0 || $sessionid > 0)) {
         echo '<div class="error-box"><p>Período inválido.</p></div>';
         echo '<p><a href="" class="btn btn-primary">← Volver</a></p>';
     } else {
-        $periodName = $DB->get_field('local_learning_periods', 'name', ['id' => $periodid]) ?: "ID $periodid";
+        $periodName = $DB->get_field('gmk_academic_periods', 'name', ['id' => $periodid]) ?: "ID $periodid";
         echo '<div class="success-box"><h3>Recalculando notas del período ' . s($periodName) . '...</h3></div>';
         $results = recalc_attendance_grades_by_period($periodid);
         if ($results['success']) {
@@ -211,13 +211,7 @@ if ($action === 'process' && ($classid > 0 || $sessionid > 0)) {
                 <select name="periodid" id="periodid">
                     <option value="">-- Seleccionar período --</option>
                     <?php
-                    $periods = $DB->get_records_sql(
-                        "SELECT DISTINCT lp.id, lp.name
-                           FROM {local_learning_periods} lp
-                           JOIN {gmk_class} c ON c.periodid = lp.id
-                          WHERE c.closed = 0
-                          ORDER BY lp.name DESC"
-                    );
+                    $periods = $DB->get_records('gmk_academic_periods', [], 'startdate DESC', 'id, name');
                     foreach ($periods as $p) {
                         echo '<option value="' . (int)$p->id . '">' . s($p->name) . '</option>';
                     }
