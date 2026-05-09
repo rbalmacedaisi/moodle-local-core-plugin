@@ -70,11 +70,42 @@ if ($withgrades) {
     }
 
     $whereClause = "WHERE " . implode(' AND ', $sqlConditions);
+
+    // Grade resolved using the same priority as the pensum/studenttable:
+    //   1) "Nota Final Integrada" grade item  (authoritative migrated/final grade)
+    //   2) Class category grade via student's real group membership
+    //   3) Stored cp.grade as fallback
     $query = "
         SELECT u.id as userid, u.firstname, u.lastname, u.email, u.idnumber,
                lp.name as career, per.name as periodname,
                COALESCE(cp.coursename, '(Sin curso activo)') as coursename,
-               cp.grade, cp.status as coursestatus, fs.status as financial_status
+               COALESCE(
+                   (SELECT gg.finalgrade
+                      FROM {grade_items} gi
+                      JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = u.id
+                     WHERE gi.courseid = cp.courseid
+                       AND gg.finalgrade BETWEEN 0 AND 100
+                       AND (gi.itemname LIKE '%Nota Final Integrada%'
+                            OR gi.itemname LIKE '%Final Integrada%'
+                            OR gi.itemname LIKE '%Nota Final%')
+                     ORDER BY gg.finalgrade DESC
+                     LIMIT 1),
+                   (SELECT gg.finalgrade
+                      FROM {groups_members} gm
+                      JOIN {gmk_class} cls ON cls.groupid = gm.groupid
+                           AND cls.corecourseid = cp.courseid
+                           AND cls.gradecategoryid > 0
+                      JOIN {grade_items} gi ON gi.itemtype = 'category'
+                           AND gi.iteminstance = cls.gradecategoryid
+                           AND gi.courseid = cls.corecourseid
+                      JOIN {grade_grades} gg ON gg.itemid = gi.id
+                           AND gg.userid = u.id
+                           AND gg.finalgrade BETWEEN 0 AND 100
+                     WHERE gm.userid = u.id
+                     LIMIT 1),
+                   cp.grade
+               ) AS grade,
+               cp.status as coursestatus, cp.practicalhours, fs.status as financial_status
         FROM {gmk_course_progre} cp
         JOIN {user} u ON u.id = cp.userid
         JOIN {local_learning_users} lpu ON (lpu.userid = u.id AND lpu.learningplanid = cp.learningplanid)
@@ -138,10 +169,28 @@ if ($withgrades) {
         $row->career = $cp->career;
         $row->period = $cp->periodname;
         $row->course = $cp->coursename;
-        $row->grade = ($cp->grade !== null) ? number_format((float)$cp->grade, 2) : '--';
+
+        $gradeVal = ($cp->grade !== null) ? (float)$cp->grade : null;
+        $row->grade = ($gradeVal !== null) ? number_format($gradeVal, 2) : '--';
         $row->student_status = $currentStudentStatus;
         $row->financial_status = $cp->financial_status ?: 'Pendiente';
-        $row->course_status = $statusLabels[(int)$cp->coursestatus] ?? '--';
+
+        // Re-derive course status from resolved grade (same logic as gmk_classify_student_grade).
+        // Keep stored status for in-progress (2), revalidating (7) and migration-pending (99).
+        $storedStatus = (int)$cp->coursestatus;
+        $practHours   = (int)($cp->practicalhours ?? 0);
+        if ($gradeVal !== null && $gradeVal > 0 && !in_array($storedStatus, [2, 7, 99])) {
+            if ($gradeVal > 70.4) {
+                $row->course_status = 'Aprobada';
+            } elseif ($practHours === 0 && $gradeVal >= 60.0) {
+                $row->course_status = 'Pendiente Revalida';
+            } else {
+                $row->course_status = 'Reprobada';
+            }
+        } else {
+            $row->course_status = $statusLabels[$storedStatus] ?? '--';
+        }
+
         $data[] = $row;
     }
     $recordset->close();
