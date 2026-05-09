@@ -498,8 +498,8 @@ function recalc_attendance_grades_by_period($periodId) {
         $classes = $DB->get_records_sql(
             "SELECT c.id, c.name, c.corecourseid, c.groupid, c.instructorid, c.attendancemoduleid
                FROM {gmk_class} c
-              WHERE c.closed = 0
-                AND c.periodid = :periodid
+              WHERE c.periodid = :periodid
+                AND c.approved = 1
               ORDER BY c.name",
             ['periodid' => (int)$periodId]
         );
@@ -540,12 +540,17 @@ function recalc_class_attendance_grades($class) {
     $result = ['count' => 0, 'error' => null];
 
     if (empty($class->corecourseid)) {
-        return ['count' => 0, 'error' => 'Clase sin course'];
+        return ['count' => 0, 'error' => 'Clase sin corecourseid'];
     }
 
-    $cm = get_coursemodule_from_instance('attendance', $class->attendancemoduleid, $class->corecourseid);
+    if (empty($class->attendancemoduleid)) {
+        return ['count' => 0, 'error' => null]; // Sin módulo de asistencia, saltar silenciosamente
+    }
+
+    // attendancemoduleid es un cmid (course_modules.id), no una instancia de attendance
+    $cm = get_coursemodule_from_id('attendance', (int)$class->attendancemoduleid, (int)$class->corecourseid);
     if (!$cm) {
-        return ['count' => 0, 'error' => 'No se encontró módulo de asistencia'];
+        return ['count' => 0, 'error' => "No se encontró módulo de asistencia (cmid={$class->attendancemoduleid})"];
     }
 
     $ctx = context_module::instance($cm->id);
@@ -556,9 +561,10 @@ function recalc_class_attendance_grades($class) {
         return ['count' => 0, 'error' => null];
     }
 
-    $att = $DB->get_record('attendance', ['id' => $class->attendancemoduleid], 'id, grade, course');
+    // cm->instance es el attendance.id real
+    $att = $DB->get_record('attendance', ['id' => $cm->instance], 'id, grade, course');
     if (!$att || $att->grade <= 0) {
-        return ['count' => 0, 'error' => 'Actividad de asistencia sin grade'];
+        return ['count' => 0, 'error' => "Actividad de asistencia sin grade (instance={$cm->instance})"];
     }
 
     attendance_update_users_grades_by_id($att->id, $att->grade, $enrolledIds);
