@@ -127,6 +127,11 @@ if ($action === 'process' && ($classid > 0 || $sessionid > 0)) {
                 }
             }
             echo '</div>';
+            if (!empty($results['details'])) {
+                echo '<div class="info-box"><h4>Detalle por clase:</h4><pre style="font-size:12px;">';
+                foreach ($results['details'] as $d) echo s($d) . "\n";
+                echo '</pre></div>';
+            }
         } else {
             echo '<div class="error-box">';
             echo '<h3>✗ Error</h3>';
@@ -506,17 +511,21 @@ function recalc_attendance_grades_by_period($periodId) {
 
         if (empty($classes)) {
             $results['success'] = false;
-            $results['error'] = 'No se encontraron clases para el período especificado.';
+            $results['error'] = 'No se encontraron clases aprobadas para el período especificado.';
             return $results;
         }
 
+        $results['details'] = [];
         foreach ($classes as $class) {
             $classResult = recalc_class_attendance_grades($class);
             if ($classResult['error']) {
                 $results['errors'][] = "Clase {$class->name}: {$classResult['error']}";
+                $results['details'][] = "✗ {$class->name}: {$classResult['error']}";
             } else {
                 $results['classes_processed']++;
                 $results['students_recalculated'] += $classResult['count'];
+                $results['details'][] = "✓ {$class->name}: {$classResult['count']} estudiantes recalculados"
+                    . (!empty($classResult['sample']) ? " (muestra: {$classResult['sample']})" : '');
             }
         }
 
@@ -531,44 +540,84 @@ function recalc_attendance_grades_by_period($periodId) {
 /**
  * Recalculates attendance grades for a single class.
  *
+ * Uses direct SQL (same approach as get_student_gradebook.php) instead of
+ * mod_attendance_summary, which only counts sessions with lasttaken != 0 and
+ * produces wrong results when logs were added manually.
+ *
+ * Formula: present_sessions / all_past_sessions * grademax
+ *
  * @param stdClass $class
  * @return array
  */
 function recalc_class_attendance_grades($class) {
-    global $DB;
+    global $DB, $CFG;
+    require_once($CFG->libdir . '/gradelib.php');
 
-    $result = ['count' => 0, 'error' => null];
+    $result = ['count' => 0, 'error' => null, 'sample' => ''];
 
     if (empty($class->corecourseid)) {
         return ['count' => 0, 'error' => 'Clase sin corecourseid'];
     }
-
     if (empty($class->attendancemoduleid)) {
-        return ['count' => 0, 'error' => null]; // Sin módulo de asistencia, saltar silenciosamente
+        return ['count' => 0, 'error' => null];
     }
 
-    // attendancemoduleid es un cmid (course_modules.id), no una instancia de attendance
+    // attendancemoduleid es un cmid (course_modules.id)
     $cm = get_coursemodule_from_id('attendance', (int)$class->attendancemoduleid, (int)$class->corecourseid);
     if (!$cm) {
-        return ['count' => 0, 'error' => "No se encontró módulo de asistencia (cmid={$class->attendancemoduleid})"];
+        return ['count' => 0, 'error' => "cmid={$class->attendancemoduleid} no encontrado"];
     }
 
+    $att = $DB->get_record('attendance', ['id' => $cm->instance], 'id, grade, course');
+    if (!$att || $att->grade <= 0) {
+        return ['count' => 0, 'error' => "Sin grade configurado (instance={$cm->instance})"];
+    }
+
+    // Obtener estudiantes del grupo de esta clase
     $ctx = context_module::instance($cm->id);
-    $enrolled = get_enrolled_users($ctx, 'mod/attendance:canbelisted', 0, 'u.id');
+    $groupid = !empty($class->groupid) ? (int)$class->groupid : 0;
+    $enrolled = get_enrolled_users($ctx, 'mod/attendance:canbelisted', $groupid, 'u.id');
     $enrolledIds = array_keys($enrolled);
 
     if (empty($enrolledIds)) {
         return ['count' => 0, 'error' => null];
     }
 
-    // cm->instance es el attendance.id real
-    $att = $DB->get_record('attendance', ['id' => $cm->instance], 'id, grade, course');
-    if (!$att || $att->grade <= 0) {
-        return ['count' => 0, 'error' => "Actividad de asistencia sin grade (instance={$cm->instance})"];
+    $now  = time();
+    $grades = [];
+    $samples = [];
+
+    foreach ($enrolledIds as $userid) {
+        // Contar TODAS las sesiones pasadas (denominator = presente + ausente)
+        // Misma lógica que get_student_gradebook.php para consistencia con el libro de calificaciones del estudiante
+        $row = $DB->get_record_sql(
+            "SELECT COUNT(s.id) AS total,
+                    SUM(CASE WHEN al.id IS NOT NULL AND ast.grade > 0 THEN 1 ELSE 0 END) AS present
+               FROM {attendance_sessions} s
+               LEFT JOIN {attendance_log}      al  ON al.sessionid = s.id AND al.studentid = :uid
+               LEFT JOIN {attendance_statuses} ast ON ast.id = al.statusid
+              WHERE s.attendanceid = :attid
+                AND s.sessdate + s.duration < :now",
+            ['uid' => $userid, 'attid' => $att->id, 'now' => $now]
+        );
+
+        $grade = new stdClass();
+        $grade->userid = $userid;
+        if ($row && (int)$row->total > 0) {
+            $grade->rawgrade = round(((int)$row->present / (int)$row->total) * (float)$att->grade, 2);
+            if (count($samples) < 2) {
+                $samples[] = "uid{$userid}={$grade->rawgrade}/{$att->grade}({$row->present}/{$row->total})";
+            }
+        } else {
+            $grade->rawgrade = null;
+        }
+        $grades[$userid] = $grade;
     }
 
-    attendance_update_users_grades_by_id($att->id, $att->grade, $enrolledIds);
-    $result['count'] = count($enrolledIds);
+    grade_update('mod/attendance', $att->course, 'mod', 'attendance', $att->id, 0, $grades);
+
+    $result['count']  = count($enrolledIds);
+    $result['sample'] = implode(', ', $samples);
 
     return $result;
 }
