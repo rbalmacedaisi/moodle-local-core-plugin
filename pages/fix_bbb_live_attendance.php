@@ -68,7 +68,7 @@ echo $OUTPUT->header();
     </div>
 
 <?php
-$action = optional_param('action', '', PARAM_ALPHA);
+$action = optional_param('action', '', PARAM_ALPHANUMEXT);
 $classid = optional_param('classid', 0, PARAM_INT);
 $sessionid = optional_param('sessionid', 0, PARAM_INT);
 
