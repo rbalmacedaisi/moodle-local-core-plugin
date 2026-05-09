@@ -108,14 +108,14 @@ if ($action === 'process' && ($classid > 0 || $sessionid > 0)) {
     echo '<p><a href="" class="btn btn-primary">← Volver</a></p>';
 
 } elseif ($action === 'recalc_all') {
-    $period = optional_param('period', '', PARAM_RAW);
-    if (empty($period) || strpos($period, '|') === false) {
+    $periodid = optional_param('periodid', 0, PARAM_INT);
+    if ($periodid <= 0) {
         echo '<div class="error-box"><p>Período inválido.</p></div>';
         echo '<p><a href="" class="btn btn-primary">← Volver</a></p>';
     } else {
-        list($startPeriod, $endPeriod) = explode('|', $period);
-        echo '<div class="success-box"><h3>Recalculando notas del período ' . s($startPeriod) . ' - ' . s($endPeriod) . '...</h3></div>';
-        $results = recalc_attendance_grades_by_period($startPeriod, $endPeriod);
+        $periodName = $DB->get_field('local_learning_periods', 'name', ['id' => $periodid]) ?: "ID $periodid";
+        echo '<div class="success-box"><h3>Recalculando notas del período ' . s($periodName) . '...</h3></div>';
+        $results = recalc_attendance_grades_by_period($periodid);
         if ($results['success']) {
             echo '<div class="success-box">';
             echo '<h3>✓ Recalculo completado</h3>';
@@ -207,19 +207,19 @@ if ($action === 'process' && ($classid > 0 || $sessionid > 0)) {
         <form method="post" action="">
             <input type="hidden" name="action" value="recalc_all" />
             <div class="form-group">
-                <label for="period">Período:</label>
-                <select name="period" id="period">
+                <label for="periodid">Período lectivo:</label>
+                <select name="periodid" id="periodid">
                     <option value="">-- Seleccionar período --</option>
                     <?php
                     $periods = $DB->get_records_sql(
-                        "SELECT DISTINCT c.inittime, c.endtime
-                           FROM {gmk_class} c
+                        "SELECT DISTINCT lp.id, lp.name
+                           FROM {local_learning_periods} lp
+                           JOIN {gmk_class} c ON c.periodid = lp.id
                           WHERE c.closed = 0
-                          ORDER BY c.inittime DESC"
+                          ORDER BY lp.name DESC"
                     );
                     foreach ($periods as $p) {
-                        echo '<option value="' . s($p->inittime) . '|' . s($p->endtime) . '">'
-                           . s($p->inittime) . ' - ' . s($p->endtime) . '</option>';
+                        echo '<option value="' . (int)$p->id . '">' . s($p->name) . '</option>';
                     }
                     ?>
                 </select>
@@ -485,14 +485,12 @@ function process_single_session($rel) {
 }
 
 /**
- * Recalculates attendance grades for all classes in a period.
- * This recalculates existing attendance logs (presents and absences) into the Moodle gradebook.
+ * Recalculates attendance grades for all classes in an academic period.
  *
- * @param string $startPeriod Start period (inittime)
- * @param string $endPeriod   End period (endtime)
+ * @param int $periodId  ID from local_learning_periods (gmk_class.periodid)
  * @return array
  */
-function recalc_attendance_grades_by_period($startPeriod, $endPeriod) {
+function recalc_attendance_grades_by_period($periodId) {
     global $DB;
 
     $results = [
@@ -507,10 +505,9 @@ function recalc_attendance_grades_by_period($startPeriod, $endPeriod) {
             "SELECT c.id, c.name, c.corecourseid, c.groupid, c.instructorid, c.attendancemoduleid
                FROM {gmk_class} c
               WHERE c.closed = 0
-                AND c.inittime = :startp
-                AND c.endtime = :endp
+                AND c.periodid = :periodid
               ORDER BY c.name",
-            ['startp' => $startPeriod, 'endp' => $endPeriod]
+            ['periodid' => (int)$periodId]
         );
 
         if (empty($classes)) {
