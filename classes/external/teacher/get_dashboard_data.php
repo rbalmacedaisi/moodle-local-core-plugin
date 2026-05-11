@@ -39,11 +39,7 @@ class get_dashboard_data extends external_api {
         $sql = "SELECT c.*
                 FROM {gmk_class} c
                 WHERE c.closed = 0
-                  $where_instructor
-                  AND EXISTS (
-                      SELECT 1 FROM {gmk_bbb_attendance_relation} r
-                      WHERE r.classid = c.id
-                  )";
+                  $where_instructor";
 
         $query_params = [];
         if (!$is_admin) {
