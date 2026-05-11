@@ -35,23 +35,17 @@ class get_dashboard_data extends external_api {
         $now = time();
         $is_admin = is_siteadmin($params['userid']);
 
-        // Add buffer to allow recently expired classes (7 days grace period)
-        // This allows classes with active BBB sessions to still appear even if enddate has passed
-        $buffer_days = 7;
-        $now_with_buffer = $now - ($buffer_days * 24 * 60 * 60);
-
         $where_instructor = $is_admin ? "" : " AND c.instructorid = :instructorid";
         $sql = "SELECT c.*
                 FROM {gmk_class} c
                 WHERE c.closed = 0
-                  AND c.enddate >= :now
                   $where_instructor
                   AND EXISTS (
                       SELECT 1 FROM {gmk_bbb_attendance_relation} r
                       WHERE r.classid = c.id
                   )";
 
-        $query_params = ['now' => $now_with_buffer];
+        $query_params = [];
         if (!$is_admin) {
             $query_params['instructorid'] = $params['userid'];
         }
