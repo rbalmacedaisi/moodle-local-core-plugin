@@ -30,15 +30,11 @@ class close_expired_schedules extends scheduled_task {
         // Current timestamp
         $now = time();
 
-        // 1. Find classes that are NOT closed (closed = 0) AND enddate < NOW AND enddate > 0
-        // We ensure enddate > 0 to avoid closing classes with no set enddate if that's a possibility,
-        // though our default is 0. If enddate is 0, it means "no end date" or "not set", so we shouldn't close it?
-        // Let's assume enddate > 0 is required for auto-closure.
+        // Find classes that have been expired for at least 1 week (7-day grace period before auto-closing).
+        $threshold = $now - (7 * DAYSECS);
+        $sql = "SELECT id, corecourseid, gradecategoryid FROM {gmk_class} WHERE closed = 0 AND enddate > 0 AND enddate < :threshold";
 
-        // 1. Find classes that are NOT closed (closed = 0) AND enddate < NOW AND enddate > 0
-        $sql = "SELECT id, corecourseid, gradecategoryid FROM {gmk_class} WHERE closed = 0 AND enddate > 0 AND enddate < :now";
-        
-        $expired_classes = $DB->get_records_sql($sql, ['now' => $now]);
+        $expired_classes = $DB->get_records_sql($sql, ['threshold' => $threshold]);
         $count = count($expired_classes);
 
         if ($count > 0) {

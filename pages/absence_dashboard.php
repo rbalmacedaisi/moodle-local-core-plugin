@@ -1012,11 +1012,9 @@ $class_sel = "SELECT gc.id,
 $filter_params = [];
 $status_cond   = '';
 if ($selected_status === 'active') {
-    $status_cond = "AND gc.closed=0 AND gc.enddate>:now";
-    $filter_params['now'] = $now;
+    $status_cond = "AND gc.closed=0";
 } elseif ($selected_status === 'closed') {
-    $status_cond = "AND (gc.closed=1 OR gc.enddate<=:now_cl)";
-    $filter_params['now_cl'] = $now;
+    $status_cond = "AND gc.closed=1";
 }
 $period_cond = '';
 if ($selected_period > 0) {

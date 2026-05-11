@@ -614,12 +614,11 @@ class get_student_info extends external_api {
                     AND cp_act.status IN (1, 2, 3)
                     AND gc_act.approved = 1
                     AND gc_act.closed   = 0
-                    AND gc_act.enddate  > :now_act
                     $tc_where_sql
              )",
             array_merge(
                 $sqlparams,
-                ['lpu_chk_role' => 'student', 'now_act' => time()],
+                ['lpu_chk_role' => 'student'],
                 $tc_fid ? ['tc_fid_chk' => $tc_fid] : []
             )
         );
