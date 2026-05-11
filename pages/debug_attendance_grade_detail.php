@@ -29,12 +29,12 @@ $search  = optional_param('search', '', PARAM_TEXT);
 
 // ── Dropdowns ─────────────────────────────────────────────────────────────────
 $classes = $DB->get_records_sql("
-    SELECT c.id, c.classname, c.attendancemoduleid, c.corecourseid, c.groupid,
+    SELECT c.id, c.name AS classname, c.attendancemoduleid, c.corecourseid, c.groupid,
            per.name AS periodname
       FROM {gmk_class} c
       LEFT JOIN {gmk_academic_periods} per ON per.id = c.periodid
      WHERE c.attendancemoduleid > 0
-     ORDER BY per.startdate DESC, c.classname ASC
+     ORDER BY per.startdate DESC, c.name ASC
 ");
 
 // ── Main data ─────────────────────────────────────────────────────────────────
