@@ -67,7 +67,9 @@ if ($classid && isset($classes[$classid])) {
 
         // All attendance sessions
         $allSessions = $DB->get_records_sql(
-            "SELECT s.id, s.sessdate, s.duration, s.description
+            "SELECT s.id, s.sessdate, s.duration, s.description,
+                    COALESCE(s.lasttaken, 0) AS lasttaken,
+                    (SELECT COUNT(1) FROM {attendance_log} l WHERE l.sessionid = s.id) AS log_count
                FROM {attendance_sessions} s
               WHERE s.attendanceid = :attid
               ORDER BY s.sessdate ASC",
@@ -119,26 +121,32 @@ if ($classid && isset($classes[$classid])) {
                 }
             }
 
-            $totalPast  = 0;
-            $totalBBB   = 0;
-            $totalNoBBB = 0;
-            $present    = 0;
-            $absent     = 0;
-            $noLog      = 0;
-            $detail     = [];
+            $totalPast   = 0;
+            $totalBBB    = 0;
+            $totalNoBBB  = 0;
+            $totalPhantom = 0;
+            $present     = 0;
+            $absent      = 0;
+            $noLog       = 0;
+            $detail      = [];
 
             foreach ($allSessions as $session) {
-                $isPast  = ($session->sessdate + $session->duration) < $now;
-                $isBBB   = isset($bbbSids[$session->id]);
-                $log     = $logsMap[$session->id] ?? null;
-                $isP     = $log && (int)$log->status_grade > 0;
+                $isPast   = ($session->sessdate + $session->duration) < $now;
+                $isBBB    = isset($bbbSids[$session->id]);
+                $isPhantom = $isPast && (int)$session->log_count === 0 && (int)$session->lasttaken === 0;
+                $log      = $logsMap[$session->id] ?? null;
+                $isP      = $log && (int)$log->status_grade > 0;
 
                 if ($isPast) {
                     $totalPast++;
                     if ($isBBB) $totalBBB++; else $totalNoBBB++;
-                    if ($isP)        $present++;
-                    elseif ($log)    $absent++;
-                    else             $noLog++;
+                    if ($isPhantom) {
+                        $totalPhantom++;
+                    } else {
+                        if ($isP)        $present++;
+                        elseif ($log)    $absent++;
+                        else             $noLog++;
+                    }
                 }
 
                 $detail[] = [
@@ -147,18 +155,22 @@ if ($classid && isset($classes[$classid])) {
                     'description'  => $session->description,
                     'is_past'      => $isPast,
                     'is_bbb'       => $isBBB,
+                    'is_phantom'   => $isPhantom,
+                    'log_count'    => (int)$session->log_count,
                     'log_acronym'  => $log ? ($log->acronym ?? '?') : null,
                     'log_grade'    => $log ? (int)$log->status_grade : null,
                     'status_desc'  => $log ? ($log->status_desc ?? '') : '',
                 ];
             }
 
-            // Grade from our formula (same as get_student_gradebook.php)
+            // Grade from updated formula: denominator = non-phantom past sessions only.
+            // Matches absence_dashboard behavior (only sessions with logs or lasttaken > 0).
             $calcGrade   = null;
             $calcPercent = null;
             $grademax    = $gradeItem ? (float)$gradeItem->grademax : 100.0;
-            if ($totalPast > 0) {
-                $calcPercent = round(($present / $totalPast) * 100, 2);
+            $takenCount  = $present + $absent + $noLog; // phantom excluded
+            if ($takenCount > 0) {
+                $calcPercent = round(($present / $takenCount) * 100, 2);
                 $calcGrade   = round($calcPercent * $grademax / 100, 2);
             }
 
@@ -173,20 +185,21 @@ if ($classid && isset($classes[$classid])) {
             }
 
             $rows[] = [
-                'name'        => $student->firstname . ' ' . $student->lastname,
-                'email'       => $student->email,
-                'total_all'   => count($allSessions),
-                'total_past'  => $totalPast,
-                'total_bbb'   => $totalBBB,
-                'total_nobbb' => $totalNoBBB,
-                'present'     => $present,
-                'absent'      => $absent,
-                'no_log'      => $noLog,
-                'calc_pct'    => $calcPercent,
-                'calc_grade'  => $calcGrade,
-                'stored_grade'=> $storedGrade,
-                'grademax'    => $grademax,
-                'detail'      => $detail,
+                'name'         => $student->firstname . ' ' . $student->lastname,
+                'email'        => $student->email,
+                'total_all'    => count($allSessions),
+                'total_past'   => $totalPast,
+                'total_bbb'    => $totalBBB,
+                'total_nobbb'  => $totalNoBBB,
+                'total_phantom'=> $totalPhantom,
+                'present'      => $present,
+                'absent'       => $absent,
+                'no_log'       => $noLog,
+                'calc_pct'     => $calcPercent,
+                'calc_grade'   => $calcGrade,
+                'stored_grade' => $storedGrade,
+                'grademax'     => $grademax,
+                'detail'       => $detail,
             ];
         }
     }
@@ -238,9 +251,10 @@ details > summary { cursor:pointer; user-select:none; color:#1a73e8; font-size:1
 .sessions-table { font-size:11px; margin-top:6px; border:1px solid #dee2e6; }
 .sessions-table th { background:#6c757d; padding:4px 8px; }
 .sessions-table td { padding:3px 8px; }
-.row-bbb   { background:#e8f4fd; }
-.row-nobbb { background:#ffeaea; }
-.row-fut   { color:#bbb; font-style:italic; }
+.row-bbb     { background:#e8f4fd; }
+.row-nobbb   { background:#ffeaea; }
+.row-phantom { background:#fff3cd; }
+.row-fut     { color:#bbb; font-style:italic; }
 .info-box { background:#e8f4fd; border:1px solid #bee5eb; border-radius:6px; padding:10px 16px; margin-bottom:12px; font-size:13px; }
 .info-box b { color:#0c5460; }
 </style>
@@ -330,11 +344,12 @@ $withNoBBB = array_filter($rows, fn($r) => $r['total_nobbb'] > 0);
     <th class="tc" title="Total sesiones en módulo (pasadas)">Ses. módulo<br><small>pasadas</small></th>
     <th class="tc" title="Sesiones pasadas vinculadas a BBB (visibles en modal)">Ses. BBB<br><small>vinculadas</small></th>
     <th class="tc" title="Sesiones pasadas SIN vínculo BBB — estas cuentan en la nota pero NO aparecen en el modal">Sin BBB<br><small style="color:#e53935">⚠ no visibles</small></th>
+    <th class="tc" title="Sesiones sin ningún log de ningún estudiante y lasttaken=0 — se excluyen del denominador">Phantom<br><small style="color:#e53935">⚠ excluidas</small></th>
     <th class="tc">Presentes</th>
     <th class="tc">Ausentes</th>
     <th class="tc">Sin log</th>
-    <th class="tc" title="present / total_past * 100">% calculado<br><small>(fórmula LXP)</small></th>
-    <th class="tc" title="present / total_past * grademax — valor que escribe el recalc">Nota calc.<br><small>(/<?= $rows[0]['grademax'] ?? 100 ?>)</small></th>
+    <th class="tc" title="present / (past - phantom) * 100 — misma lógica que absence_dashboard">% calculado<br><small>(fórmula corregida)</small></th>
+    <th class="tc" title="present / (past - phantom) * grademax">Nota calc.<br><small>(/<?= $rows[0]['grademax'] ?? 100 ?>)</small></th>
     <th class="tc" title="Valor actual en grade_grades (lo que ve el gradebook)">Nota guardada<br><small>(grade_grades)</small></th>
     <th class="tc">Diferencia</th>
     <th class="tc">Detalle sesiones</th>
@@ -356,6 +371,13 @@ $withNoBBB = array_filter($rows, fn($r) => $r['total_nobbb'] > 0);
     <td class="tc">
         <?php if ($row['total_nobbb'] > 0): ?>
             <b style="color:#e53935;"><?= $row['total_nobbb'] ?></b>
+        <?php else: ?>
+            <span class="dim">0</span>
+        <?php endif; ?>
+    </td>
+    <td class="tc">
+        <?php if ($row['total_phantom'] > 0): ?>
+            <b style="color:#e53935;" title="Sesiones sin logs — excluidas del denominador"><?= $row['total_phantom'] ?></b>
         <?php else: ?>
             <span class="dim">0</span>
         <?php endif; ?>
@@ -384,7 +406,15 @@ $withNoBBB = array_filter($rows, fn($r) => $r['total_nobbb'] > 0);
                 </thead>
                 <tbody>
                 <?php foreach ($row['detail'] as $i => $s):
-                    $trClass = !$s['is_past'] ? 'row-fut' : ($s['is_bbb'] ? 'row-bbb' : 'row-nobbb');
+                    if (!$s['is_past']) {
+                        $trClass = 'row-fut';
+                    } elseif ($s['is_phantom']) {
+                        $trClass = 'row-phantom';
+                    } elseif ($s['is_bbb']) {
+                        $trClass = 'row-bbb';
+                    } else {
+                        $trClass = 'row-nobbb';
+                    }
                 ?>
                 <tr class="<?= $trClass ?>">
                     <td><?= $i + 1 ?></td>
@@ -392,7 +422,9 @@ $withNoBBB = array_filter($rows, fn($r) => $r['total_nobbb'] > 0);
                     <td><?= date('H:i', $s['sessdate']) ?></td>
                     <td class="tc"><?= $s['is_past'] ? '✓' : '—' ?></td>
                     <td class="tc">
-                        <?php if ($s['is_bbb']): ?>
+                        <?php if ($s['is_phantom']): ?>
+                            <span class="tag" style="background:#fff3cd;color:#856404;" title="Sin logs de ningún estudiante — excluida del denominador">⚠ phantom</span>
+                        <?php elseif ($s['is_bbb']): ?>
                             <span class="tag tag-bbb">BBB</span>
                         <?php elseif ($s['is_past']): ?>
                             <span class="tag tag-nobbb">sin BBB</span>

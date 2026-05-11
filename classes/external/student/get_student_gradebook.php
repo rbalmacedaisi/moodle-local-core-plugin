@@ -113,9 +113,10 @@ class get_student_gradebook extends external_api
                     $gradePercent   = null;
 
                     if ($moduleType === 'attendance') {
-                        // Compute attendance grade directly: sessions without a log = absent.
-                        // Moodle's grade_grades only counts sessions that have a log entry as
-                        // the denominator, so absent students always get 100 % there.
+                        // Only count sessions where attendance was actually taken:
+                        // sessions with at least one log entry (any student) OR lasttaken > 0.
+                        // Sessions with no logs at all are "phantom" (class cancelled / teacher
+                        // forgot) — the absence_dashboard hides them for the same reason.
                         $attRow = $DB->get_record_sql(
                             "SELECT COUNT(s.id)                                                    AS total,
                                     SUM(CASE WHEN al.id IS NOT NULL AND ast.grade > 0 THEN 1
@@ -125,7 +126,11 @@ class get_student_gradebook extends external_api
                                                                    AND al.studentid = :uid
                                LEFT JOIN {attendance_statuses} ast ON ast.id = al.statusid
                               WHERE s.attendanceid = :attid
-                                AND s.sessdate + s.duration < :now",
+                                AND s.sessdate + s.duration < :now
+                                AND (
+                                    EXISTS (SELECT 1 FROM {attendance_log} l WHERE l.sessionid = s.id)
+                                    OR COALESCE(s.lasttaken, 0) > 0
+                                )",
                             ['uid'   => $userId,
                              'attid' => (int)$moduleRecord->instance,
                              'now'   => time()]

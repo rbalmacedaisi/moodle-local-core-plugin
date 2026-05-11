@@ -588,8 +588,8 @@ function recalc_class_attendance_grades($class) {
     $samples = [];
 
     foreach ($enrolledIds as $userid) {
-        // Contar TODAS las sesiones pasadas (denominator = presente + ausente)
-        // Misma lógica que get_student_gradebook.php para consistencia con el libro de calificaciones del estudiante
+        // Only count sessions where attendance was actually taken (has any log OR lasttaken > 0).
+        // Sessions with no logs are "phantom" — absence_dashboard also hides them for the same reason.
         $row = $DB->get_record_sql(
             "SELECT COUNT(s.id) AS total,
                     SUM(CASE WHEN al.id IS NOT NULL AND ast.grade > 0 THEN 1 ELSE 0 END) AS present
@@ -597,7 +597,11 @@ function recalc_class_attendance_grades($class) {
                LEFT JOIN {attendance_log}      al  ON al.sessionid = s.id AND al.studentid = :uid
                LEFT JOIN {attendance_statuses} ast ON ast.id = al.statusid
               WHERE s.attendanceid = :attid
-                AND s.sessdate + s.duration < :now",
+                AND s.sessdate + s.duration < :now
+                AND (
+                    EXISTS (SELECT 1 FROM {attendance_log} l WHERE l.sessionid = s.id)
+                    OR COALESCE(s.lasttaken, 0) > 0
+                )",
             ['uid' => $userid, 'attid' => $att->id, 'now' => $now]
         );
 
