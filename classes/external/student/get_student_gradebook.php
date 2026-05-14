@@ -55,18 +55,13 @@ class get_student_gradebook extends external_api
             }
 
             // ── 3. Walk the student's class sections and collect grade items ───
-            $items            = [];
+            $items          = [];
             $seenGradeItemIds = [];
-            $classGradeCatIds = [];
 
             foreach ($userGroups as $userGroup) {
-                $classRec = $DB->get_record('gmk_class', ['groupid' => $userGroup], 'coursesectionid,gradecategoryid');
-                if (!$classRec || !$classRec->coursesectionid) {
+                $groupClassSection = $DB->get_field('gmk_class', 'coursesectionid', ['groupid' => $userGroup]);
+                if (!$groupClassSection) {
                     continue;
-                }
-                $groupClassSection = (int)$classRec->coursesectionid;
-                if ($classRec->gradecategoryid) {
-                    $classGradeCatIds[] = (int)$classRec->gradecategoryid;
                 }
 
                 try {
@@ -167,63 +162,6 @@ class get_student_gradebook extends external_api
                         '_sortorder'   => (int)($gi->sortorder ?? 0),
                         'name'         => $label,
                         'module'       => $moduleType,
-                        'grade'        => $gradeFormatted,
-                        'grade_max'    => (float)$gi->grademax,
-                        'grade_pct'    => $gradePercent,
-                        'feedback'     => $gi->feedback ?: '',
-                        'weight_pct'   => 0,
-                        'weighted_contribution' => null,
-                    ];
-                }
-            }
-
-            // ── 3b. Manual grade items: not linked to any section module.
-            //        Fetched by gmk_class.gradecategoryid for the student's class.
-            //        SQL_PARAMS_NAMED avoids mixing positional/named parameter types.
-            $classGradeCatIds = array_unique($classGradeCatIds);
-            if (!empty($classGradeCatIds)) {
-                list($insql, $inparams) = $DB->get_in_or_equal($classGradeCatIds, SQL_PARAMS_NAMED, 'catid');
-                $manualGis = $DB->get_records_sql(
-                    "SELECT gi.id, gi.categoryid, gi.itemname, gi.grademax,
-                            gi.aggregationcoef, gi.aggregationcoef2, gi.sortorder,
-                            gg.finalgrade, gg.feedback
-                       FROM {grade_items} gi
-                       LEFT JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = :uid
-                      WHERE gi.courseid = :cid
-                        AND gi.itemtype = 'manual'
-                        AND gi.categoryid $insql",
-                    array_merge(['uid' => $userId, 'cid' => $courseId], $inparams)
-                );
-                foreach ($manualGis as $gi) {
-                    if (in_array((int)$gi->id, $seenGradeItemIds)) continue;
-                    // Hide "Nota Final Integrada" sin calificar (igual que el dashboard docente)
-                    if ($gi->itemname && strpos($gi->itemname, 'Nota Final Integrada') !== false
-                            && is_null($gi->finalgrade)) continue;
-                    $seenGradeItemIds[] = (int)$gi->id;
-
-                    $gradeFormatted = null;
-                    $gradePercent   = null;
-                    if (!is_null($gi->finalgrade) && $gi->grademax > 0) {
-                        $gradeFormatted = round((float)$gi->finalgrade, 2);
-                        $gradePercent   = round(((float)$gi->finalgrade / (float)$gi->grademax) * 100, 1);
-                    }
-
-                    $itemCatId    = (int)$gi->categoryid;
-                    $categoryName = isset($catMap[$itemCatId]) ? $catMap[$itemCatId] : 'General';
-                    $itemCatAgg   = $catAggMap[$itemCatId] ?? 13;
-                    $rawWeight    = ($itemCatAgg === 10 || $itemCatAgg === 2)
-                        ? (float)$gi->aggregationcoef
-                        : (float)$gi->aggregationcoef2;
-
-                    $items[] = [
-                        'id'           => (int)$gi->id,
-                        'category'     => $categoryName === '?' ? 'General' : $categoryName,
-                        '_categoryid'  => $itemCatId,
-                        '_cagg'        => $itemCatAgg,
-                        '_raw_weight'  => $rawWeight,
-                        '_sortorder'   => (int)($gi->sortorder ?? 0),
-                        'name'         => $gi->itemname ?: 'Item Manual',
-                        'module'       => 'manual',
                         'grade'        => $gradeFormatted,
                         'grade_max'    => (float)$gi->grademax,
                         'grade_pct'    => $gradePercent,
