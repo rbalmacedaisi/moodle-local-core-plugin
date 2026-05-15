@@ -140,6 +140,52 @@ class get_student_course_pensum_activities extends external_api
                         }
                     }
 
+                    // Override attendance grade with log-based recalculation.
+                    if ($moduleType === 'attendance') {
+                        $att_attid_act = (int)$moduleRecord->instance;
+                        $att_gi_row = $DB->get_record_sql(
+                            "SELECT grademax FROM {grade_items}
+                              WHERE courseid = :cid AND itemtype = 'mod' AND itemmodule = 'attendance'
+                                AND iteminstance = :inst AND itemnumber = 0",
+                            ['cid' => (int)$params['courseId'], 'inst' => $att_attid_act]
+                        );
+                        $att_grademax_act = $att_gi_row ? (float)$att_gi_row->grademax : 0.0;
+                        if ($att_grademax_act > 0) {
+                            $att_now_act = time();
+                            $att_tr_act = $DB->get_record_sql(
+                                "SELECT COUNT(s.id) AS total
+                                   FROM {attendance_sessions} s
+                                  WHERE s.attendanceid = :attid
+                                    AND s.sessdate + s.duration < :now
+                                    AND (
+                                        EXISTS (SELECT 1 FROM {attendance_log} l WHERE l.sessionid = s.id)
+                                        OR COALESCE(s.lasttaken, 0) > 0
+                                    )",
+                                ['attid' => $att_attid_act, 'now' => $att_now_act]
+                            );
+                            $att_total_act = $att_tr_act ? (int)$att_tr_act->total : 0;
+                            if ($att_total_act > 0) {
+                                $att_pr_act = $DB->get_record_sql(
+                                    "SELECT SUM(CASE WHEN ast.grade > 0 THEN 1 ELSE 0 END) AS present
+                                       FROM {attendance_sessions} s
+                                       JOIN {attendance_log} al ON al.sessionid = s.id AND al.studentid = :uid
+                                       LEFT JOIN {attendance_statuses} ast ON ast.id = al.statusid
+                                      WHERE s.attendanceid = :attid2
+                                        AND s.sessdate + s.duration < :now2
+                                        AND (
+                                            EXISTS (SELECT 1 FROM {attendance_log} l2 WHERE l2.sessionid = s.id)
+                                            OR COALESCE(s.lasttaken, 0) > 0
+                                        )",
+                                    ['uid' => (int)$params['userId'], 'attid2' => $att_attid_act, 'now2' => $att_now_act]
+                                );
+                                $present_act  = $att_pr_act ? (int)$att_pr_act->present : 0;
+                                $loggrade_act = round(($present_act / $att_total_act) * $att_grademax_act, 2);
+                                $activityGrade = number_format($loggrade_act, 2);
+                                $hasGrade      = true;
+                            }
+                        }
+                    }
+
                     // Resolve weight from grade_items table.
                     $gi = $DB->get_record_sql(
                         "SELECT gi.aggregationcoef, gi.aggregationcoef2, gc.aggregation
