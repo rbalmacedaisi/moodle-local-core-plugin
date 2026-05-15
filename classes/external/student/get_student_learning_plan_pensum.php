@@ -359,90 +359,157 @@ class get_student_learning_plan_pensum extends external_api
                     );
 
                     if (!empty($classrows)) {
-                        $categoryids = [];
-                        $categorycourseids = [];
+                        $allCatIds      = [];
+                        $allCourseIds   = [];
                         foreach ($classrows as $cr) {
-                            $categoryids[] = (int)$cr->gradecategoryid;
-                            $categorycourseids[] = (int)$cr->corecourseid;
+                            $allCatIds[]    = (int)$cr->gradecategoryid;
+                            $allCourseIds[] = (int)$cr->corecourseid;
                         }
-                        $categoryids = array_values(array_unique($categoryids));
-                        $categorycourseids = array_values(array_unique($categorycourseids));
+                        $allCatIds    = array_values(array_unique($allCatIds));
+                        $allCourseIds = array_values(array_unique($allCourseIds));
 
-                        if (!empty($categoryids) && !empty($categorycourseids)) {
-                            list($catInSql, $catInParams) = $DB->get_in_or_equal($categoryids, SQL_PARAMS_NAMED, 'cat');
-                            list($ccInSql, $ccInParams) = $DB->get_in_or_equal($categorycourseids, SQL_PARAMS_NAMED, 'cc');
-                            $categoryitems = $DB->get_records_sql(
-                                "SELECT gi.id, gi.courseid, gi.iteminstance AS categoryid
+                        if (!empty($allCatIds) && !empty($allCourseIds)) {
+                            list($catInSql2, $catInParams2) = $DB->get_in_or_equal($allCatIds, SQL_PARAMS_NAMED, 'pcat');
+                            list($ccInSql2,  $ccInParams2)  = $DB->get_in_or_equal($allCourseIds, SQL_PARAMS_NAMED, 'pcc');
+
+                            // Aggregation type per category.
+                            $caggByCatId = [];
+                            $caggRows = $DB->get_records_sql(
+                                "SELECT gc.id, gc.aggregation
+                                   FROM {grade_categories} gc
+                                  WHERE gc.id $catInSql2",
+                                $catInParams2
+                            );
+                            foreach ($caggRows as $ctr) {
+                                $caggByCatId[(int)$ctr->id] = (int)$ctr->aggregation;
+                            }
+
+                            // Individual grade items (mod + manual) for all class categories.
+                            $gradeitems = $DB->get_records_sql(
+                                "SELECT gi.id, gi.categoryid, gi.courseid, gi.itemmodule,
+                                        gi.iteminstance, gi.grademax,
+                                        gi.aggregationcoef, gi.aggregationcoef2
                                    FROM {grade_items} gi
-                                  WHERE gi.itemtype = 'category'
-                                    AND gi.iteminstance $catInSql
-                                    AND gi.courseid $ccInSql
-                               ORDER BY gi.id ASC",
-                                $catInParams + $ccInParams
+                                  WHERE gi.courseid $ccInSql2
+                                    AND gi.categoryid $catInSql2
+                                    AND gi.itemtype IN ('mod', 'manual')",
+                                $catInParams2 + $ccInParams2
                             );
 
-                            $itemidbycoursecat = [];
-                            foreach ($categoryitems as $ci) {
-                                $key = ((int)$ci->courseid) . '-' . ((int)$ci->categoryid);
-                                if (!isset($itemidbycoursecat[$key])) {
-                                    $itemidbycoursecat[$key] = (int)$ci->id;
+                            // Compute weight_pct per item (same normalisation as teacher gradebook).
+                            $catRawSums2 = [];
+                            foreach ($gradeitems as $gi) {
+                                $cagg = $caggByCatId[(int)$gi->categoryid] ?? 13;
+                                if ($cagg === 10 || $cagg === 2) {
+                                    $catRawSums2[(int)$gi->categoryid] =
+                                        ($catRawSums2[(int)$gi->categoryid] ?? 0.0) + (float)$gi->aggregationcoef;
+                                }
+                            }
+                            $itemWeightPct2 = [];
+                            foreach ($gradeitems as $gi) {
+                                $cagg   = $caggByCatId[(int)$gi->categoryid] ?? 13;
+                                $raww   = ($cagg === 10 || $cagg === 2) ? (float)$gi->aggregationcoef : (float)$gi->aggregationcoef2;
+                                $catsum = $catRawSums2[(int)$gi->categoryid] ?? 0;
+                                $itemWeightPct2[(int)$gi->id] = ($cagg === 10 || $cagg === 2)
+                                    ? ($catsum > 0 ? ($raww / $catsum) * 100 : 0)
+                                    : $raww * 100;
+                            }
+
+                            // Bulk-fetch grade_grades for all items for this student.
+                            $gradesbyitemid2 = [];
+                            $allItemIds2 = array_values(array_map('intval', array_keys((array)$gradeitems)));
+                            if (!empty($allItemIds2)) {
+                                list($itemInSql2, $itemInParams2) = $DB->get_in_or_equal($allItemIds2, SQL_PARAMS_NAMED, 'pit');
+                                $ggrows2 = $DB->get_records_sql(
+                                    "SELECT gg.itemid, gg.finalgrade
+                                       FROM {grade_grades} gg
+                                      WHERE gg.userid = :puid
+                                        AND gg.itemid $itemInSql2",
+                                    ['puid' => $params['userId']] + $itemInParams2
+                                );
+                                foreach ($ggrows2 as $ggr) {
+                                    if (!is_null($ggr->finalgrade)) {
+                                        $gradesbyitemid2[(int)$ggr->itemid] = (float)$ggr->finalgrade;
+                                    }
+                                }
+
+                                // Override attendance grades with log-based recalculation.
+                                $att_now2 = time();
+                                foreach ($gradeitems as $gi) {
+                                    if (($gi->itemmodule ?? '') !== 'attendance') continue;
+                                    $att_attid2    = (int)$gi->iteminstance;
+                                    $att_grademax2 = (float)$gi->grademax;
+                                    if ($att_attid2 <= 0 || $att_grademax2 <= 0) continue;
+
+                                    $att_tr2 = $DB->get_record_sql(
+                                        "SELECT COUNT(s.id) AS total
+                                           FROM {attendance_sessions} s
+                                          WHERE s.attendanceid = :attid
+                                            AND s.sessdate + s.duration < :now
+                                            AND (
+                                                EXISTS (SELECT 1 FROM {attendance_log} l WHERE l.sessionid = s.id)
+                                                OR COALESCE(s.lasttaken, 0) > 0
+                                            )",
+                                        ['attid' => $att_attid2, 'now' => $att_now2]
+                                    );
+                                    $att_total2 = $att_tr2 ? (int)$att_tr2->total : 0;
+                                    if ($att_total2 <= 0) continue;
+
+                                    $att_pr2 = $DB->get_record_sql(
+                                        "SELECT SUM(CASE WHEN ast.grade > 0 THEN 1 ELSE 0 END) AS present
+                                           FROM {attendance_sessions} s
+                                           JOIN {attendance_log} al ON al.sessionid = s.id AND al.studentid = :uid
+                                           LEFT JOIN {attendance_statuses} ast ON ast.id = al.statusid
+                                          WHERE s.attendanceid = :attid2
+                                            AND s.sessdate + s.duration < :now2
+                                            AND (
+                                                EXISTS (SELECT 1 FROM {attendance_log} l2 WHERE l2.sessionid = s.id)
+                                                OR COALESCE(s.lasttaken, 0) > 0
+                                            )",
+                                        ['uid' => $params['userId'], 'attid2' => $att_attid2, 'now2' => $att_now2]
+                                    );
+                                    $present2 = $att_pr2 ? (int)$att_pr2->present : 0;
+                                    $gradesbyitemid2[(int)$gi->id] = round(($present2 / $att_total2) * $att_grademax2, 2);
                                 }
                             }
 
-                            if (!empty($itemidbycoursecat)) {
-                                $itemids = array_values(array_unique(array_values($itemidbycoursecat)));
-                                list($itemInSql, $itemInParams) = $DB->get_in_or_equal($itemids, SQL_PARAMS_NAMED, 'it');
-                                $gradegraderows = $DB->get_records_sql(
-                                    "SELECT gg.id, gg.itemid, gg.finalgrade, gg.rawgrade
-                                       FROM {grade_grades} gg
-                                      WHERE gg.userid = :userid
-                                        AND gg.itemid $itemInSql
-                                   ORDER BY gg.id ASC",
-                                    ['userid' => $params['userId']] + $itemInParams
-                                );
+                            // Group items by category.
+                            $itemsByCatId2 = [];
+                            foreach ($gradeitems as $gi) {
+                                $itemsByCatId2[(int)$gi->categoryid][] = $gi;
+                            }
 
-                                $gradebyitemid = [];
-                                foreach ($gradegraderows as $ggr) {
-                                    $gradeval = null;
-                                    if (!is_null($ggr->finalgrade)) {
-                                        $gradeval = (float)$ggr->finalgrade;
-                                    } else if (!is_null($ggr->rawgrade)) {
-                                        $gradeval = (float)$ggr->rawgrade;
-                                    }
-                                    if (is_null($gradeval)) {
-                                        continue;
-                                    }
+                            // Compute weighted total per class and store results.
+                            foreach ($classrows as $cr) {
+                                $catid = (int)$cr->gradecategoryid;
+                                $items = $itemsByCatId2[$catid] ?? [];
+                                if (empty($items)) continue;
 
-                                    $itemid = (int)$ggr->itemid;
-                                    // Keep max non-null in case of duplicate grade rows.
-                                    if (!array_key_exists($itemid, $gradebyitemid) || $gradeval > $gradebyitemid[$itemid]) {
-                                        $gradebyitemid[$itemid] = $gradeval;
-                                    }
+                                $total2  = 0.0;
+                                $hasany2 = false;
+                                foreach ($items as $gi) {
+                                    $wpct = $itemWeightPct2[(int)$gi->id] ?? 0;
+                                    if ($wpct <= 0) continue;
+                                    $raw   = $gradesbyitemid2[(int)$gi->id] ?? null;
+                                    $grade = ($raw !== null) ? (float)$raw : 0.0;
+                                    $max   = ((float)$gi->grademax > 0) ? (float)$gi->grademax : 100.0;
+                                    if ($raw !== null) $hasany2 = true;
+                                    $total2 += ($grade / $max) * $wpct;
                                 }
+                                if (!$hasany2) continue;
 
-                                foreach ($classrows as $cr) {
-                                    $key = ((int)$cr->corecourseid) . '-' . ((int)$cr->gradecategoryid);
-                                    if (empty($itemidbycoursecat[$key])) {
-                                        continue;
+                                $resolvedgrade = round($total2, 2);
+                                $classGradeByClassId[(int)$cr->id] = $resolvedgrade;
+                                if (!empty($cr->groupid)) {
+                                    $classGradeByGroupId[(int)$cr->groupid] = $resolvedgrade;
+                                }
+                                $classid = (int)$cr->id;
+                                if (isset($membershipClassCourseByClassId[$classid])) {
+                                    $courseid = (int)$membershipClassCourseByClassId[$classid];
+                                    if (!isset($membershipClassGradesByCourseId[$courseid])) {
+                                        $membershipClassGradesByCourseId[$courseid] = [];
                                     }
-                                    $itemid = (int)$itemidbycoursecat[$key];
-                                    if (!array_key_exists($itemid, $gradebyitemid)) {
-                                        continue;
-                                    }
-
-                                    $resolvedgrade = round((float)$gradebyitemid[$itemid], 2);
-                                    $classGradeByClassId[(int)$cr->id] = $resolvedgrade;
-                                    if (!empty($cr->groupid)) {
-                                        $classGradeByGroupId[(int)$cr->groupid] = $resolvedgrade;
-                                    }
-                                    $classid = (int)$cr->id;
-                                    if (isset($membershipClassCourseByClassId[$classid])) {
-                                        $courseid = (int)$membershipClassCourseByClassId[$classid];
-                                        if (!isset($membershipClassGradesByCourseId[$courseid])) {
-                                            $membershipClassGradesByCourseId[$courseid] = [];
-                                        }
-                                        $membershipClassGradesByCourseId[$courseid][] = $resolvedgrade;
-                                    }
+                                    $membershipClassGradesByCourseId[$courseid][] = $resolvedgrade;
                                 }
                             }
                         }
