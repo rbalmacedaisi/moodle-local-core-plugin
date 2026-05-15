@@ -2658,6 +2658,7 @@ try {
 
             $columns = [];
             $item_ids = [];
+            $attendance_item_map = []; // grade_item_id => ['instance' => attid, 'grademax' => float]
 
             // Sort items so total is at the end
             usort($grade_items, function($a, $b) {
@@ -2720,6 +2721,12 @@ try {
                     '_cagg' => $cagg_item
                 ];
                 $item_ids[] = (int)$gi->id;
+                if (($gi->itemmodule ?? '') === 'attendance') {
+                    $attendance_item_map[(int)$gi->id] = [
+                        'instance' => (int)$gi->iteminstance,
+                        'grademax' => (float)$gi->grademax,
+                    ];
+                }
             }
 
             // Compute weight_pct per column.
@@ -2780,6 +2787,53 @@ try {
                 // Map grades to [userid][itemid]
                 foreach ($all_grades as $g) {
                     $grades_map[$g->userid][$g->itemid] = $g->finalgrade;
+                }
+            }
+
+            // Override attendance grades with log-based recalculation (same formula as student view).
+            // Sessions with no logs and lasttaken=0 are ignored ("phantom" sessions).
+            if (!empty($attendance_item_map) && !empty($userids)) {
+                $att_now = time();
+                foreach ($attendance_item_map as $att_itemid => $attinfo) {
+                    $att_attid    = $attinfo['instance'];
+                    $att_grademax = $attinfo['grademax'];
+                    if ($att_grademax <= 0) continue;
+
+                    $att_totalrow = $DB->get_record_sql(
+                        "SELECT COUNT(s.id) AS total
+                           FROM {attendance_sessions} s
+                          WHERE s.attendanceid = :attid
+                            AND s.sessdate + s.duration < :now
+                            AND (
+                                EXISTS (SELECT 1 FROM {attendance_log} l WHERE l.sessionid = s.id)
+                                OR COALESCE(s.lasttaken, 0) > 0
+                            )",
+                        ['attid' => $att_attid, 'now' => $att_now]
+                    );
+                    $att_total = $att_totalrow ? (int)$att_totalrow->total : 0;
+                    if ($att_total <= 0) continue;
+
+                    list($att_stuinsql, $att_stuparams) = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED, 'attstu');
+                    $att_presentrows = $DB->get_records_sql(
+                        "SELECT al.studentid,
+                                SUM(CASE WHEN ast.grade > 0 THEN 1 ELSE 0 END) AS present
+                           FROM {attendance_sessions} s
+                           JOIN {attendance_log} al ON al.sessionid = s.id AND al.studentid $att_stuinsql
+                           LEFT JOIN {attendance_statuses} ast ON ast.id = al.statusid
+                          WHERE s.attendanceid = :attid2
+                            AND s.sessdate + s.duration < :now2
+                            AND (
+                                EXISTS (SELECT 1 FROM {attendance_log} l2 WHERE l2.sessionid = s.id)
+                                OR COALESCE(s.lasttaken, 0) > 0
+                            )
+                          GROUP BY al.studentid",
+                        array_merge(['attid2' => $att_attid, 'now2' => $att_now], $att_stuparams)
+                    );
+
+                    foreach ($userids as $uid) {
+                        $present = isset($att_presentrows[$uid]) ? (int)$att_presentrows[$uid]->present : 0;
+                        $grades_map[$uid][$att_itemid] = round(($present / $att_total) * $att_grademax, 2);
+                    }
                 }
             }
 
