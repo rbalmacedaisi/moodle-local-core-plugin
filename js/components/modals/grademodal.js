@@ -73,8 +73,8 @@ Vue.component('grademodal', {
                                 <div class="d-flex justify-end align-center mt-2 pa-2 rounded blue darken-4">
                                     <span class="white--text text-body-2 mr-3 font-weight-medium">Nota Final:</span>
                                     <span class="text-h6 font-weight-bold"
-                                          :class="gradebookCourseGrade !== null ? (gradebookCourseGrade >= 70 ? 'light-green--text text--lighten-3' : 'red--text text--lighten-3') : 'white--text'">
-                                        {{ gradebookCourseGrade !== null ? gradebookCourseGrade.toFixed(2) : '--' }}
+                                          :class="gradebookWeightedTotal !== null ? (gradebookWeightedTotal >= 70 ? 'light-green--text text--lighten-3' : 'red--text text--lighten-3') : 'white--text'">
+                                        {{ gradebookWeightedTotal !== null ? gradebookWeightedTotal.toFixed(1) : '--' }}
                                     </span>
                                 </div>
                             </template>
@@ -1080,11 +1080,11 @@ Vue.component('grademodal', {
                     doc.setFont('helvetica', 'bold');
                     doc.setFontSize(9);
                     doc.text('Nota Final:', margin + 2, y + 5.5);
-                    const finalGv = this.gradebookCourseGrade;
+                    const finalGv = this.gradebookWeightedTotal;
                     if (finalGv !== null) {
                         doc.setTextColor(finalGv >= 70 ? 144 : 255, finalGv >= 70 ? 238 : 100, finalGv >= 70 ? 144 : 100);
                     }
-                    doc.text(finalGv !== null ? finalGv.toFixed(2) : '--', margin + gb1 + gb2 + 2, y + 5.5);
+                    doc.text(finalGv !== null ? finalGv.toFixed(1) : '--', margin + gb1 + gb2 + 2, y + 5.5);
                     y += 10;
                 } else {
                     // Academic panel context: export full pensum (all careers/periods/courses)
@@ -1770,6 +1770,18 @@ Vue.component('grademodal', {
         },
         canExportDetailedPdf() {
             return !this.classId && !this.loadingPensum && this.careersList.length > 0;
+        },
+        gradebookWeightedTotal() {
+            const items = this.gradebook.flatMap(g => g.items || []);
+            const gradeable = items.filter(i => i.weight_pct > 0);
+            if (!gradeable.length) return null;
+            let sum = 0;
+            gradeable.forEach(item => {
+                const grade = (item.grade !== null && item.grade !== undefined) ? parseFloat(item.grade) : 0;
+                const max   = (item.grade_max > 0) ? item.grade_max : 100;
+                sum += (grade / max) * item.weight_pct;
+            });
+            return Math.round(sum * 10) / 10;
         },
         selectedCourseName() {
             return this.selectedCourse && this.selectedCourse.coursename ? this.selectedCourse.coursename : '--';
