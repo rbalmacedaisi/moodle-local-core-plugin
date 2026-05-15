@@ -672,6 +672,7 @@ Vue.component('teacher-student-table', {
                                     id: item.id,
                                     name: item.name,
                                     weight_pct: item.weight_pct,
+                                    grade_max: item.grade_max > 0 ? item.grade_max : 100,
                                     category: catGroup.category,
                                 });
                             }
@@ -863,10 +864,19 @@ Vue.component('teacher-student-table', {
                             x += actColW;
                         });
 
-                        // Final grade cell
-                        const fg = sd.courseGrade;
-                        if (fg !== null && fg !== undefined) {
-                            const fgv = parseFloat(fg);
+                        // Final grade cell — weighted total (same formula as teacher gradebook)
+                        const gradeableCols = allCols.filter(c => c.weight_pct > 0);
+                        let fgv = null;
+                        if (gradeableCols.length > 0) {
+                            let wSum = 0;
+                            gradeableCols.forEach(col => {
+                                const raw = sd.gmap[col.id];
+                                const gv  = (raw !== null && raw !== undefined) ? parseFloat(raw) : 0;
+                                wSum += (gv / col.grade_max) * col.weight_pct;
+                            });
+                            fgv = Math.round(wSum * 10) / 10;
+                        }
+                        if (fgv !== null) {
                             doc.setTextColor(fgv >= 70 ? 27 : 183, fgv >= 70 ? 94 : 28, fgv >= 70 ? 32 : 28);
                             doc.setFont('helvetica', 'bold');
                             doc.setFontSize(8);

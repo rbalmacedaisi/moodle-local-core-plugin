@@ -172,7 +172,8 @@ if ($course_id_for_grades > 0 && $classcategoryid > 0 && !empty($userids)) {
 
     // Fetch all scoreable grade items belonging to the class category.
     $grade_items_in_cat = $DB->get_records_sql(
-        "SELECT gi.id, gi.grademax, gi.aggregationcoef, gi.aggregationcoef2
+        "SELECT gi.id, gi.grademax, gi.aggregationcoef, gi.aggregationcoef2,
+                gi.itemmodule, gi.iteminstance
            FROM {grade_items} gi
           WHERE gi.courseid = :courseid
             AND gi.categoryid = :catid
@@ -211,6 +212,50 @@ if ($course_id_for_grades > 0 && $classcategoryid > 0 && !empty($userids)) {
         $raw_grades_map = [];
         foreach ($grade_rows as $gr) {
             $raw_grades_map[(int)$gr->userid][(int)$gr->itemid] = $gr->finalgrade;
+        }
+
+        // Override attendance grades with log-based recalculation (same formula as teacher gradebook).
+        $att_now = time();
+        foreach ($grade_items_in_cat as $gi) {
+            if (($gi->itemmodule ?? '') !== 'attendance') continue;
+            $att_attid    = (int)$gi->iteminstance;
+            $att_grademax = (float)$gi->grademax;
+            if ($att_attid <= 0 || $att_grademax <= 0) continue;
+
+            $att_totalrow = $DB->get_record_sql(
+                "SELECT COUNT(s.id) AS total
+                   FROM {attendance_sessions} s
+                  WHERE s.attendanceid = :attid
+                    AND s.sessdate + s.duration < :now
+                    AND (
+                        EXISTS (SELECT 1 FROM {attendance_log} l WHERE l.sessionid = s.id)
+                        OR COALESCE(s.lasttaken, 0) > 0
+                    )",
+                ['attid' => $att_attid, 'now' => $att_now]
+            );
+            $att_total = $att_totalrow ? (int)$att_totalrow->total : 0;
+            if ($att_total <= 0) continue;
+
+            list($att_stuinsql, $att_stuparams) = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED, 'pdfstu');
+            $att_presentrows = $DB->get_records_sql(
+                "SELECT al.studentid,
+                        SUM(CASE WHEN ast.grade > 0 THEN 1 ELSE 0 END) AS present
+                   FROM {attendance_sessions} s
+                   JOIN {attendance_log} al ON al.sessionid = s.id AND al.studentid $att_stuinsql
+                   LEFT JOIN {attendance_statuses} ast ON ast.id = al.statusid
+                  WHERE s.attendanceid = :attid2
+                    AND s.sessdate + s.duration < :now2
+                    AND (
+                        EXISTS (SELECT 1 FROM {attendance_log} l2 WHERE l2.sessionid = s.id)
+                        OR COALESCE(s.lasttaken, 0) > 0
+                    )
+                  GROUP BY al.studentid",
+                array_merge(['attid2' => $att_attid, 'now2' => $att_now], $att_stuparams)
+            );
+            foreach ($userids as $uid) {
+                $present = isset($att_presentrows[$uid]) ? (int)$att_presentrows[$uid]->present : 0;
+                $raw_grades_map[$uid][(int)$gi->id] = round(($present / $att_total) * $att_grademax, 2);
+            }
         }
 
         // Compute weighted total per student (missing grades = 0, null if not graded at all).
