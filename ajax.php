@@ -2826,7 +2826,7 @@ try {
                     list($att_stuinsql, $att_stuparams) = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED, 'attstu');
                     $att_presentrows = $DB->get_records_sql(
                         "SELECT al.studentid,
-                                SUM(CASE WHEN ast.grade > 0 THEN 1 ELSE 0 END) AS present
+                                COUNT(DISTINCT CASE WHEN ast.grade > 0 THEN s.id END) AS present
                            FROM {attendance_sessions} s
                            JOIN {attendance_log} al ON al.sessionid = s.id AND al.studentid $att_stuinsql
                            LEFT JOIN {attendance_statuses} ast ON ast.id = al.statusid

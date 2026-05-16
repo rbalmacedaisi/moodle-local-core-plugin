@@ -456,7 +456,7 @@ class get_student_learning_plan_pensum extends external_api
                                     if ($att_total2 <= 0) continue;
 
                                     $att_pr2 = $DB->get_record_sql(
-                                        "SELECT SUM(CASE WHEN ast.grade > 0 THEN 1 ELSE 0 END) AS present
+                                        "SELECT COUNT(DISTINCT CASE WHEN ast.grade > 0 THEN s.id END) AS present
                                            FROM {attendance_sessions} s
                                            JOIN {attendance_log} al ON al.sessionid = s.id AND al.studentid = :uid
                                            LEFT JOIN {attendance_statuses} ast ON ast.id = al.statusid
