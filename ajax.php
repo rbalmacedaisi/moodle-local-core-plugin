@@ -2695,8 +2695,18 @@ try {
                     $inclasssection = isset($classmodkeys[$modkey]);
                     $inclasscategory = ($classcategoryid > 0 && (int)$gi->categoryid === $classcategoryid);
                     $insuffix = (!empty($gi->itemname) && preg_match('/-' . preg_quote((string)$classid, '/') . '$/', trim($gi->itemname)));
-                    if ($inclasssection || $inclasscategory || $insuffix) {
-                        $includeitem = true;
+                    if ($classcategoryid > 0) {
+                        // When a class grade category is configured, only include items from that
+                        // category. Accepting items from other categories via inclasssection alone
+                        // causes their weights to be normalised independently, so the grand total
+                        // can exceed 100 (each category independently sums to 100 %).
+                        if ($inclasscategory || $insuffix) {
+                            $includeitem = true;
+                        }
+                    } else {
+                        if ($inclasssection || $inclasscategory || $insuffix) {
+                            $includeitem = true;
+                        }
                     }
                 }
 
