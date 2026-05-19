@@ -631,6 +631,8 @@ Vue.component('grademodal', {
                     instructorname: String(item && item.instructorname ? item.instructorname : ''),
                     classroomname: String(item && item.classroomname ? item.classroomname : 'Sin aula'),
                     enrollmentstatus: String(item && item.enrollmentstatus ? item.enrollmentstatus : 'Relacionado'),
+                    periodid: Number(item && item.periodid ? item.periodid : 0),
+                    periodname: String(item && item.periodname ? item.periodname : ''),
                     dayIndex: dayIndex,
                     startMin: startMin,
                     endMin: endMin,
@@ -810,12 +812,21 @@ Vue.component('grademodal', {
                 doc.setFont('helvetica', 'normal');
                 doc.text(String(student.email || this.studentEmail || '--'), margin + 182, margin + 22);
 
-                const statusColors = {
-                    'Inscrito': [46, 125, 50],
-                    'Pendiente': [245, 124, 0],
-                    'Pre-registrado': [2, 136, 209],
-                    'Relacionado': [97, 97, 97],
-                };
+                const periodPalette = [
+                    [21, 101, 192],
+                    [46, 125, 50],
+                    [230, 81, 0],
+                    [123, 31, 162],
+                    [0, 131, 143],
+                    [183, 28, 28],
+                    [84, 110, 122],
+                ];
+                const uniquePeriods = [...new Set(entries.map((e) => e.periodname).filter(Boolean))].sort();
+                const periodColors = {};
+                uniquePeriods.forEach((pname, i) => {
+                    periodColors[pname] = periodPalette[i % periodPalette.length];
+                });
+                const defaultPeriodColor = [97, 97, 97];
 
                 let minMinutes = 7 * 60;
                 let maxMinutes = 22 * 60;
@@ -884,8 +895,8 @@ Vue.component('grademodal', {
                     }
                     h = Math.min(h, maxH);
 
-                    const status = String(entry.enrollmentstatus || 'Relacionado');
-                    const bg = statusColors[status] || statusColors['Relacionado'];
+                    const pname = String(entry.periodname || '');
+                    const bg = periodColors[pname] || defaultPeriodColor;
                     doc.setFillColor(bg[0], bg[1], bg[2]);
                     doc.setDrawColor(Math.max(0, bg[0] - 35), Math.max(0, bg[1] - 35), Math.max(0, bg[2] - 35));
                     doc.roundedRect(x, y, w, h, 1, 1, 'FD');
@@ -893,6 +904,7 @@ Vue.component('grademodal', {
                     doc.setTextColor(255, 255, 255);
                     doc.setFont('helvetica', 'bold');
                     doc.setFontSize(7);
+                    const status = String(entry.enrollmentstatus || 'Relacionado');
                     const contentLines = [
                         String(entry.subjectname || entry.name || '--'),
                         `${this.formatMinutesLabel(entry.startMin)}-${this.formatMinutesLabel(entry.endMin)} | ${status}`,
@@ -913,18 +925,18 @@ Vue.component('grademodal', {
                 doc.setFont('helvetica', 'bold');
                 doc.setFontSize(8);
                 doc.setTextColor(30, 30, 30);
-                doc.text('Estado:', legendX, legendY);
-                legendX += 14;
+                doc.text('Periodo:', legendX, legendY);
+                legendX += 16;
 
-                Object.keys(statusColors).forEach((label) => {
-                    const color = statusColors[label];
+                Object.keys(periodColors).forEach((label) => {
+                    const color = periodColors[label];
                     doc.setFillColor(color[0], color[1], color[2]);
-                    doc.rect(legendX, legendY - 3.3, 4, 3.2, 'F');
+                    doc.roundedRect(legendX, legendY - 3.3, 4, 3.2, 0.5, 0.5, 'F');
                     doc.setFont('helvetica', 'normal');
                     doc.setFontSize(7.5);
                     doc.setTextColor(30, 30, 30);
                     doc.text(label, legendX + 5.5, legendY - 0.4);
-                    legendX += (18 + (label.length * 1.4));
+                    legendX += (14 + (label.length * 1.8));
                 });
 
                 if (withoutSchedule.length > 0) {
