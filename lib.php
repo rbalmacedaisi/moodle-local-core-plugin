@@ -95,6 +95,8 @@ function local_grupomakro_core_extend_navigation(global_navigation $navigation) 
             '|/local/grupomakro_core/pages/manage_meetings.php';
         $CFG->custommenuitems .= PHP_EOL . '-📋 Matrícula Masiva a Plan' .
             '|/local/grupomakro_core/pages/bulk_enroll.php';
+        $CFG->custommenuitems .= PHP_EOL . '-🔍 Analítica de Solapamientos' .
+            '|/local/grupomakro_core/pages/overlap_analytics.php';
     }
 
     // 2. Redirection logic
