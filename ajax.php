@@ -4650,6 +4650,135 @@ try {
              }
              break;
 
+        case 'local_grupomakro_get_class_attendance_matrix':
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/teacher/attendance_manager.php');
+            require_once($CFG->dirroot . '/local/grupomakro_core/pages/absence_helpers.php');
+            $classid = required_param('classid', PARAM_INT);
+            try {
+                $class = $DB->get_record('gmk_class', ['id' => $classid], '*', MUST_EXIST);
+
+                // Resolve attendance module via existing manager (handles all fallback strategies).
+                $sess_payload = \local_grupomakro_core\external\teacher\attendance_manager::get_sessions($classid);
+                $attendanceid = (int)($sess_payload['attendance_id'] ?? 0);
+
+                if (!$attendanceid) {
+                    $response = ['status' => 'error', 'message' => 'No se encontró módulo de asistencia para esta clase.'];
+                    break;
+                }
+
+                // All session IDs (past + future) within the class window.
+                $all_session_ids = absd_get_class_all_session_ids($class);
+                if (empty($all_session_ids)) {
+                    $response = ['status' => 'success', 'sessions' => [], 'students' => [], 'statuses' => [], 'matrix' => [], 'taken_count' => 0, 'total_count' => 0];
+                    break;
+                }
+
+                // Taken session IDs (has logs or lasttaken > 0).
+                $taken_session_ids = absd_get_taken_session_ids($all_session_ids);
+                $taken_set = array_flip($taken_session_ids);
+                $now_ts = time();
+
+                // Full session rows ordered by date.
+                $session_rows = $DB->get_records_list('attendance_sessions', 'id', $all_session_ids, 'sessdate ASC');
+                $sessions_out = [];
+                foreach ($session_rows as $sr) {
+                    $sid = (int)$sr->id;
+                    $sessdate = (int)$sr->sessdate;
+                    $duration = (int)$sr->duration;
+                    $end_ts = $sessdate + $duration;
+                    $is_taken = isset($taken_set[$sid]);
+                    $is_future = ($sessdate > $now_ts);
+                    $sessions_out[] = [
+                        'id'          => $sid,
+                        'sessdate'    => $sessdate,
+                        'date'        => userdate($sessdate, get_string('strftimedate', 'langconfig')),
+                        'dateshort'   => date('d/m', $sessdate),
+                        'time'        => ($duration > 0)
+                                          ? date('H:i', $sessdate) . ' - ' . date('H:i', $end_ts)
+                                          : date('H:i', $sessdate),
+                        'description' => (string)($sr->description ?? ''),
+                        'taken'       => $is_taken,
+                        'future'      => $is_future,
+                    ];
+                }
+
+                // Enrolled students ordered by lastname.
+                $userids = absd_get_class_enrolled_userids($classid);
+                $students_out = [];
+                if (!empty($userids)) {
+                    $user_rows = $DB->get_records_list('user', 'id', $userids, 'lastname ASC', 'id,firstname,lastname,email');
+                    foreach ($user_rows as $ur) {
+                        $students_out[] = [
+                            'id'       => (int)$ur->id,
+                            'fullname' => trim($ur->firstname . ' ' . $ur->lastname),
+                            'email'    => (string)$ur->email,
+                        ];
+                    }
+                }
+
+                // Attendance statuses for this module.
+                $status_rows = $DB->get_records('attendance_statuses', ['attendanceid' => $attendanceid, 'deleted' => 0], 'grade DESC', 'id,acronym,description,grade');
+                $statuses_out = [];
+                foreach ($status_rows as $st) {
+                    $statuses_out[] = [
+                        'id'          => (int)$st->id,
+                        'acronym'     => (string)$st->acronym,
+                        'description' => (string)$st->description,
+                        'grade'       => (float)$st->grade,
+                    ];
+                }
+
+                // Matrix: [studentid][sessionid] = {acronym, description, grade}.
+                $matrix_out = new stdClass();
+                if (!empty($userids) && !empty($all_session_ids)) {
+                    list($sessinsql, $sessparams) = $DB->get_in_or_equal($all_session_ids, SQL_PARAMS_NAMED, 'mxs');
+                    list($uinsql, $uinparams)     = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED, 'mxu');
+                    $mx_params = array_merge($sessparams, $uinparams);
+
+                    $mx_sql = "SELECT l.studentid, l.sessionid,
+                                      COALESCE(ast.acronym, '-') AS acronym,
+                                      COALESCE(ast.description, 'Sin registrar') AS description,
+                                      COALESCE(ast.grade, 0) AS grade
+                                 FROM {attendance_log} l
+                                 JOIN (
+                                       SELECT studentid, sessionid, MAX(id) AS maxid
+                                         FROM {attendance_log}
+                                        WHERE sessionid $sessinsql
+                                          AND studentid $uinsql
+                                     GROUP BY studentid, sessionid
+                                     ) ll ON ll.maxid = l.id
+                            LEFT JOIN {attendance_statuses} ast ON ast.id = l.statusid";
+
+                    $mx_rs = $DB->get_recordset_sql($mx_sql, $mx_params);
+                    foreach ($mx_rs as $mx_row) {
+                        $uid_key = (string)(int)$mx_row->studentid;
+                        $sid_key = (string)(int)$mx_row->sessionid;
+                        if (!isset($matrix_out->$uid_key)) {
+                            $matrix_out->$uid_key = new stdClass();
+                        }
+                        $matrix_out->$uid_key->$sid_key = [
+                            'acronym'     => (string)$mx_row->acronym,
+                            'description' => (string)$mx_row->description,
+                            'grade'       => (float)$mx_row->grade,
+                        ];
+                    }
+                    $mx_rs->close();
+                }
+
+                $response = [
+                    'status'      => 'success',
+                    'sessions'    => $sessions_out,
+                    'students'    => $students_out,
+                    'statuses'    => $statuses_out,
+                    'matrix'      => $matrix_out,
+                    'taken_count' => count($taken_session_ids),
+                    'total_count' => count($all_session_ids),
+                ];
+            } catch (Exception $e) {
+                $response = ['status' => 'error', 'message' => $e->getMessage()];
+            }
+            break;
+
         case 'local_grupomakro_get_session_qr':
              require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/teacher/attendance_manager.php');
              $sessionid = required_param('sessionid', PARAM_INT);

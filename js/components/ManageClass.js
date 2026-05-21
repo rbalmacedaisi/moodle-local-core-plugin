@@ -381,6 +381,14 @@ const ManageClass = {
                             </v-card>
                         </v-tab-item>
 
+                        <!-- Attendance Matrix Tab -->
+                        <v-tab-item value="attendance">
+                            <attendance-matrix
+                                :class-id="classId"
+                                :active="activeTab === 'attendance'"
+                            ></attendance-matrix>
+                        </v-tab-item>
+
                     </v-tabs-items>
                 </v-col>
             </v-row>
@@ -654,7 +662,8 @@ const ManageClass = {
                 { id: 'tasks', name: 'Por Calificar', icon: 'mdi-clipboard-check' },
                 { id: 'grades', name: 'Calificaciones', icon: 'mdi-grid' },
                 { id: 'content', name: 'Actividades', icon: 'mdi-folder-open' },
-                { id: 'notices', name: 'Avisos', icon: 'mdi-bullhorn' }
+                { id: 'notices', name: 'Avisos', icon: 'mdi-bullhorn' },
+                { id: 'attendance', name: 'Asistencias', icon: 'mdi-calendar-check' }
             ],
             loadedTabs: {
                 timeline: true,
