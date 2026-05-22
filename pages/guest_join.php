@@ -61,7 +61,8 @@ if ($action === 'join' && !empty($username)) {
             'attendeePW' => $bbb->viewerpass,
             'moderatorPW' => $bbb->moderatorpass,
             'welcome' => $bbb->welcome,
-            'record' => 'false',
+            'record' => 'true',
+            'allowStartStopRecording' => 'true',
         ];
         
         // Add optional params
