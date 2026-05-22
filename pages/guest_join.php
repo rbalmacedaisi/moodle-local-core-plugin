@@ -17,9 +17,9 @@ if ($action === 'join' && !empty($username)) {
     $cm = get_coursemodule_from_id('bigbluebuttonbn', $id, 0, false, MUST_EXIST);
     $bbb = $DB->get_record('bigbluebuttonbn', array('id' => $cm->instance), '*', MUST_EXIST);
 
-    $meetingID = $bbb->meetingid; 
-    $password = $bbb->viewerpass;
-    
+    $meetingID = $bbb->meetingid;
+    $password = $bbb->moderatorpass; // Moderator role required to allow screen sharing.
+
     // BBB Server Config
     $bbb_url = trim(get_config('core', 'bigbluebuttonbn_server_url'));
     if (empty($bbb_url)) $bbb_url = trim($CFG->bigbluebuttonbn_server_url ?? '');
