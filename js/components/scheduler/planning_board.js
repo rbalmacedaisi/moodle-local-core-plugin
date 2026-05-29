@@ -2200,15 +2200,17 @@ window.SchedulerComponents.PlanningBoard = {
 
                 let targetClassId = 0;
 
+                const numericClassIds = classids.map(id => Number(id || 0)).filter(id => id > 0);
+                const classidSet = new Set(numericClassIds);
+
                 const currentId = Number(cls.id || 0);
-                if (currentId > 0) {
+                // Only trust cls.id if Phase 1 confirmed it still exists in the DB (i.e. it was updated,
+                // not silently re-created under a new ID after being deleted between sessions).
+                if (currentId > 0 && classidSet.has(currentId)) {
                     targetClassId = currentId;
                 }
 
-                if (!targetClassId && classids.length > 0) {
-                    const numericClassIds = classids
-                        .map(id => Number(id || 0))
-                        .filter(id => id > 0);
+                if (!targetClassId && numericClassIds.length > 0) {
                     const createdIds = numericClassIds.filter(id => !existingInternalIds.has(id));
                     if (createdIds.length === 1) {
                         targetClassId = createdIds[0];

@@ -538,6 +538,10 @@ class local_grupomakro_progress_manager
             $courseProgress->timecreated = time();
             $courseProgress->timemodified = time();
             $courseProgress->usermodified = $USER->id;
+            // Populate coursename from Moodle course table to avoid the 'unnamed' default.
+            $courseProgress->coursename = $DB->get_field('course', 'fullname', ['id' => $coreCourseId]) ?: 'unnamed';
+            // Inherit periodid from the class record when available.
+            $courseProgress->periodid = !empty($class->periodid) ? (int)$class->periodid : 0;
             return $DB->insert_record('gmk_course_progre', $courseProgress);
         }
 
