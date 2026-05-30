@@ -349,7 +349,7 @@ class get_student_learning_plan_pensum extends external_api
                 if (!empty($allcandidateclassids)) {
                     list($classInSql, $classInParams) = $DB->get_in_or_equal($allcandidateclassids, SQL_PARAMS_NAMED, 'clid');
                     $classrows = $DB->get_records_sql(
-                        "SELECT c.id, c.groupid, c.corecourseid, c.gradecategoryid
+                        "SELECT c.id, c.groupid, c.corecourseid, c.gradecategoryid, c.is_module
                            FROM {gmk_class} c
                           WHERE c.id $classInSql
                             AND c.gradecategoryid > 0
@@ -498,7 +498,21 @@ class get_student_learning_plan_pensum extends external_api
                                 }
                                 if (!$hasany2) continue;
 
-                                $resolvedgrade = round($total2, 2);
+                                // For independent modules: rescale to 100% regardless of category weight in course.
+                                if (!empty($cr->is_module)) {
+                                    $activeWeightSum = 0.0;
+                                    foreach ($items as $gi) {
+                                        $wpct2 = $itemWeightPct2[(int)$gi->id] ?? 0;
+                                        if ($wpct2 > 0 && array_key_exists((int)$gi->id, $gradesbyitemid2)) {
+                                            $activeWeightSum += $wpct2;
+                                        }
+                                    }
+                                    if ($activeWeightSum > 0.0 && abs($activeWeightSum - 100.0) > 0.01) {
+                                        $total2 = ($total2 / $activeWeightSum) * 100.0;
+                                    }
+                                }
+
+                                $resolvedgrade = round(min($total2, 100.0), 2);
                                 $classGradeByClassId[(int)$cr->id] = $resolvedgrade;
                                 if (!empty($cr->groupid)) {
                                     $classGradeByGroupId[(int)$cr->groupid] = $resolvedgrade;
