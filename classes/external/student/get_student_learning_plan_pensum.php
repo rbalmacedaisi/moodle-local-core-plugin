@@ -528,6 +528,70 @@ class get_student_learning_plan_pensum extends external_api
                             }
                         }
                     }
+
+                    // Section-based grade lookup for modules: reads the grade item directly from the
+                    // module's course section, bypassing category weight distortion.
+                    // This runs after the weighted calculation so it can override wrong values.
+                    list($modclInSql, $modclInParams) = $DB->get_in_or_equal($allcandidateclassids, SQL_PARAMS_NAMED, 'mdcl');
+                    $moduleClassesForSection = $DB->get_records_sql(
+                        "SELECT c.id, c.corecourseid, c.coursesectionid, c.groupid
+                           FROM {gmk_class} c
+                          WHERE c.id $modclInSql
+                            AND c.is_module = 1
+                            AND c.coursesectionid > 0
+                            AND c.corecourseid > 0",
+                        $modclInParams
+                    );
+                    foreach ($moduleClassesForSection as $mc) {
+                        $mc_sequence = $DB->get_field('course_sections', 'sequence',
+                            ['id' => (int)$mc->coursesectionid]);
+                        if (empty($mc_sequence)) continue;
+                        $mc_cmids = array_values(array_filter(
+                            array_map('intval', explode(',', $mc_sequence))
+                        ));
+                        if (empty($mc_cmids)) continue;
+
+                        list($mc_cminSql, $mc_cminParams) = $DB->get_in_or_equal(
+                            $mc_cmids, SQL_PARAMS_NAMED, 'mcm'
+                        );
+                        $mc_gi = $DB->get_record_sql(
+                            "SELECT gi.id, gi.grademax
+                               FROM {grade_items} gi
+                               JOIN {course_modules} cm ON cm.instance = gi.iteminstance
+                               JOIN {modules} mmod ON mmod.id = cm.module
+                                    AND gi.itemmodule = mmod.name
+                              WHERE cm.id $mc_cminSql
+                                AND gi.courseid = :mc_cid
+                                AND gi.itemtype IN ('mod', 'manual')
+                                AND gi.grademax > 0
+                           ORDER BY gi.id ASC
+                              LIMIT 1",
+                            $mc_cminParams + ['mc_cid' => (int)$mc->corecourseid]
+                        );
+                        if (!$mc_gi) continue;
+
+                        $mc_gg = $DB->get_record('grade_grades',
+                            ['itemid' => (int)$mc_gi->id, 'userid' => (int)$params['userId']]);
+                        if (!$mc_gg || $mc_gg->finalgrade === null) continue;
+
+                        $mc_grade = min(
+                            round(((float)$mc_gg->finalgrade / (float)$mc_gi->grademax) * 100, 2),
+                            100.0
+                        );
+
+                        // Override any previously computed category-weighted value.
+                        $classGradeByClassId[(int)$mc->id] = $mc_grade;
+                        if (!empty($mc->groupid)) {
+                            $classGradeByGroupId[(int)$mc->groupid] = $mc_grade;
+                        }
+                        // Inject into membership map so students whose progre has no classid
+                        // can still resolve through the 1b fallback.
+                        $mc_cid = (int)$mc->corecourseid;
+                        if (!isset($membershipClassGradesByCourseId[$mc_cid])) {
+                            $membershipClassGradesByCourseId[$mc_cid] = [];
+                        }
+                        $membershipClassGradesByCourseId[$mc_cid][] = $mc_grade;
+                    }
                 }
 
                 // Active classes matched by learning course (preferred).

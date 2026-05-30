@@ -1721,7 +1721,52 @@ try {
             } else if ($update_action === 'complete') {
                 $DB->set_field('gmk_module_enrollment', 'status',       'completed', ['id' => $enrollment_id]);
                 $DB->set_field('gmk_module_enrollment', 'timemodified', $now_t,      ['id' => $enrollment_id]);
-                $response = ['status' => 'success', 'data' => ['message' => 'InscripciÃ³n marcada como completada.']];
+
+                // Resolve grade from the single activity in the module's grade category.
+                $mod_class = $DB->get_record('gmk_class', ['id' => $enrollment_rec->classid],
+                    'id, corecourseid, gradecategoryid');
+                $module_grade = null;
+                if ($mod_class && (int)$mod_class->gradecategoryid > 0 && (int)$mod_class->corecourseid > 0) {
+                    $gi = $DB->get_record_sql(
+                        "SELECT gi.id, gi.grademax
+                           FROM {grade_items} gi
+                          WHERE gi.categoryid = :catid
+                            AND gi.courseid   = :cid
+                            AND gi.itemtype  IN ('mod', 'manual')
+                       ORDER BY gi.id ASC
+                          LIMIT 1",
+                        ['catid' => (int)$mod_class->gradecategoryid, 'cid' => (int)$mod_class->corecourseid]
+                    );
+                    if ($gi && (float)$gi->grademax > 0) {
+                        $gg = $DB->get_record('grade_grades',
+                            ['itemid' => (int)$gi->id, 'userid' => (int)$enrollment_rec->userid]);
+                        if ($gg && $gg->finalgrade !== null) {
+                            $module_grade = min(
+                                round(((float)$gg->finalgrade / (float)$gi->grademax) * 100, 2),
+                                100.0
+                            );
+                        }
+                    }
+                }
+
+                // Update gmk_course_progre with the resolved status and grade.
+                $progre = $DB->get_record('gmk_course_progre',
+                    ['userid' => (int)$enrollment_rec->userid, 'classid' => (int)$enrollment_rec->classid],
+                    'id, status');
+                if ($progre && $module_grade !== null) {
+                    $new_status = gmk_classify_student_grade($module_grade, 0);
+                    $DB->execute(
+                        "UPDATE {gmk_course_progre}
+                            SET status = :s, grade = :g, progress = 100, timemodified = :t
+                          WHERE id = :id",
+                        ['s' => $new_status, 'g' => $module_grade, 't' => $now_t, 'id' => $progre->id]
+                    );
+                }
+
+                $grade_msg = $module_grade !== null
+                    ? ' Nota registrada: ' . $module_grade . '/100.'
+                    : ' No se encontró nota calificada para el estudiante.';
+                $response = ['status' => 'success', 'data' => ['message' => 'Inscripción marcada como completada.' . $grade_msg]];
             } else if ($update_action === 'remove') {
                 // Get class info to remove from group
                 $class_rec = $DB->get_record('gmk_class', ['id' => $enrollment_rec->classid], 'id, groupid, corecourseid, learningplanid');
