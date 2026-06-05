@@ -133,6 +133,9 @@ class get_student_learning_plan_pensum extends external_api
             $planClassCategoryGradeByCourseId = [];
             $manualIntegratedGradeByCourseId = [];
             $manualIntegratedGradeByCourseName = [];
+            $moduleClassIds = [];
+            $moduleGroupIds = [];
+            $membershipClassIsModuleByCourseId = [];
 
             if (!empty($userPensumCourses)) {
                 $learningcourseids = [];
@@ -517,6 +520,12 @@ class get_student_learning_plan_pensum extends external_api
                                 if (!empty($cr->groupid)) {
                                     $classGradeByGroupId[(int)$cr->groupid] = $resolvedgrade;
                                 }
+                                if (!empty($cr->is_module)) {
+                                    $moduleClassIds[(int)$cr->id] = true;
+                                    if (!empty($cr->groupid)) {
+                                        $moduleGroupIds[(int)$cr->groupid] = true;
+                                    }
+                                }
                                 $classid = (int)$cr->id;
                                 if (isset($membershipClassCourseByClassId[$classid])) {
                                     $courseid = (int)$membershipClassCourseByClassId[$classid];
@@ -524,6 +533,9 @@ class get_student_learning_plan_pensum extends external_api
                                         $membershipClassGradesByCourseId[$courseid] = [];
                                     }
                                     $membershipClassGradesByCourseId[$courseid][] = $resolvedgrade;
+                                    if (!empty($cr->is_module)) {
+                                        $membershipClassIsModuleByCourseId[$courseid] = true;
+                                    }
                                 }
                             }
                         }
@@ -584,6 +596,11 @@ class get_student_learning_plan_pensum extends external_api
                         if (!empty($mc->groupid)) {
                             $classGradeByGroupId[(int)$mc->groupid] = $mc_grade;
                         }
+                        // All classes in this query have is_module=1 by filter.
+                        $moduleClassIds[(int)$mc->id] = true;
+                        if (!empty($mc->groupid)) {
+                            $moduleGroupIds[(int)$mc->groupid] = true;
+                        }
                         // Inject into membership map so students whose progre has no classid
                         // can still resolve through the 1b fallback.
                         $mc_cid = (int)$mc->corecourseid;
@@ -591,6 +608,7 @@ class get_student_learning_plan_pensum extends external_api
                             $membershipClassGradesByCourseId[$mc_cid] = [];
                         }
                         $membershipClassGradesByCourseId[$mc_cid][] = $mc_grade;
+                        $membershipClassIsModuleByCourseId[$mc_cid] = true;
                     }
                 }
 
@@ -697,6 +715,7 @@ class get_student_learning_plan_pensum extends external_api
                 $userPensumCourse->grade = '-';
                 $coursegrade = null;
                 $gradesource = 'none';
+                $isModuleGrade = false;
 
                 $progressclassid = !empty($userPensumCourse->progressclassid) ? (int)$userPensumCourse->progressclassid : 0;
                 $progressgroupid = !empty($userPensumCourse->progressgroupid) ? (int)$userPensumCourse->progressgroupid : 0;
@@ -728,9 +747,11 @@ class get_student_learning_plan_pensum extends external_api
                 if (is_null($coursegrade) && $progressclassid > 0 && array_key_exists($progressclassid, $classGradeByClassId)) {
                     $coursegrade = (float)$classGradeByClassId[$progressclassid];
                     $gradesource = 'class_category';
+                    $isModuleGrade = !empty($moduleClassIds[$progressclassid]);
                 } else if (is_null($coursegrade) && $progressgroupid > 0 && array_key_exists($progressgroupid, $classGradeByGroupId)) {
                     $coursegrade = (float)$classGradeByGroupId[$progressgroupid];
                     $gradesource = 'group_class_category';
+                    $isModuleGrade = !empty($moduleGroupIds[$progressgroupid]);
                 } else if (is_null($coursegrade)) {
                     // 1b) Fallback by classes where the student is group member in this same course.
                     if (!empty($membershipClassGradesByCourseId[$courseidkey])) {
@@ -740,6 +761,7 @@ class get_student_learning_plan_pensum extends external_api
                         if (!empty($valid)) {
                             $coursegrade = round(max($valid), 2);
                             $gradesource = 'membership_class_category';
+                            $isModuleGrade = !empty($membershipClassIsModuleByCourseId[$courseidkey]);
                         }
                     }
                 }
@@ -792,6 +814,7 @@ class get_student_learning_plan_pensum extends external_api
                     }
                 }
                 $userPensumCourse->gradesource = $gradesource;
+                $userPensumCourse->is_module = $isModuleGrade ? 1 : 0;
 
                 $userPensumCourse->statusLabel = self::STATUS_LABEL[$userPensumCourse->status] ?? 'No disponible';
                 $userPensumCourse->statusColor = self::STATUS_COLOR[$userPensumCourse->status] ?? '#5e35b1';

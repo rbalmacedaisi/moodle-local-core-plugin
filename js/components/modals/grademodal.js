@@ -133,6 +133,9 @@ Vue.component('grademodal', {
                                                         <div class="text-body-2 font-weight-medium text-wrap pr-2" style="line-height: 1.2;">
                                                             {{ course.coursename }}
                                                         </div>
+                                                        <v-chip v-if="course.is_module" x-small color="teal darken-1" dark label class="mt-1" style="height:15px;font-size:10px;letter-spacing:0.3px;">
+                                                            <v-icon style="font-size:10px;" class="mr-1">mdi-book-education-outline</v-icon>Módulo
+                                                        </v-chip>
                                                     </td>
                                                     <td class="text-center">
                                                         <v-chip x-small :color="course.statusColor" dark label class="text-caption font-weight-bold">
@@ -1141,7 +1144,8 @@ Vue.component('grademodal', {
                                     doc.setFillColor(248, 249, 250);
                                     doc.rect(margin, y, contentW, 5.5, 'F');
                                 }
-                                const lines = doc.splitTextToSize(String(course.coursename || ''), c1 - 3);
+                                const courseDisplayName = String(course.coursename || '') + (course.is_module ? ' (M)' : '');
+                                const lines = doc.splitTextToSize(courseDisplayName, c1 - 3);
                                 const rh = Math.max(5.5, lines.length * 4);
                                 doc.setTextColor(40, 40, 40);
                                 doc.setFontSize(8);
@@ -1334,7 +1338,8 @@ Vue.component('grademodal', {
                             doc.setTextColor(20, 30, 80);
                             doc.setFont('helvetica', 'bold');
                             doc.setFontSize(8.5);
-                            doc.text(truncate(course.coursename || '', crC1 - 3), margin + 2, y + 4.8);
+                            const detailCourseName = (course.coursename || '') + (course.is_module ? ' (M)' : '');
+                            doc.text(truncate(detailCourseName, crC1 - 3), margin + 2, y + 4.8);
 
                             // Status label
                             doc.setFont('helvetica', 'normal');
