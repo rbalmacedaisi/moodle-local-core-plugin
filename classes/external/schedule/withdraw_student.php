@@ -107,6 +107,43 @@ class withdraw_student extends external_api {
             $DB->delete_records('gmk_class_pre_registration', ['userid' => $userId, 'classid' => $classId]);
             $DB->delete_records('gmk_class_queue', ['userid' => $userId, 'classid' => $classId]);
 
+            // 5. Module-specific cleanup.
+            if (!empty($class->is_module)) {
+                $moduleEnroll = $DB->get_record('gmk_module_enrollment', ['classid' => $classId, 'userid' => $userId]);
+                if ($moduleEnroll) {
+                    $restoreStatus = (!is_null($moduleEnroll->original_status) && (int)$moduleEnroll->original_status !== 2)
+                        ? (int)$moduleEnroll->original_status
+                        : COURSE_AVAILABLE;
+
+                    // Reset progress rows set to Cursando by enroll_module (classid was not stored there).
+                    $progressToReset = $DB->get_records_select(
+                        'gmk_course_progre',
+                        'userid = :uid AND courseid = :cid AND status = 2 AND classid = 0',
+                        ['uid' => $userId, 'cid' => (int)$class->corecourseid]
+                    );
+                    foreach ($progressToReset as $pr) {
+                        $pr->status = $restoreStatus;
+                        $pr->classid = 0;
+                        $pr->groupid = 0;
+                        $pr->timemodified = time();
+                        $DB->update_record('gmk_course_progre', $pr);
+                    }
+
+                    $DB->delete_records('gmk_module_enrollment', ['id' => (int)$moduleEnroll->id]);
+                }
+
+                // Remove student from the regular class group that enroll_module added them to.
+                $regularGroup = $DB->get_record_sql(
+                    "SELECT groupid FROM {gmk_class}
+                      WHERE corecourseid = :cid AND is_module = 0 AND groupid > 0
+                      ORDER BY id DESC LIMIT 1",
+                    ['cid' => (int)$class->corecourseid]
+                );
+                if ($regularGroup && !empty($regularGroup->groupid) && groups_is_member((int)$regularGroup->groupid, $userId)) {
+                    groups_remove_member((int)$regularGroup->groupid, $userId);
+                }
+            }
+
             return ['status' => 'ok', 'message' => 'Estudiante retirado correctamente de la clase.'];
         }
 

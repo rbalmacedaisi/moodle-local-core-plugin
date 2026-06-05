@@ -1623,7 +1623,10 @@ Vue.component('grademodal', {
         },
         canWithdrawFromCourse(course) {
             const label = String((course && course.statusLabel) ? course.statusLabel : '').trim().toLowerCase();
-            return label === 'cursando' && Number(course && course.progressclassid ? course.progressclassid : 0) > 0;
+            if (label !== 'cursando') return false;
+            if (Number(course && course.progressclassid ? course.progressclassid : 0) > 0) return true;
+            if (Number(course && course.module_classid ? course.module_classid : 0) > 0) return true;
+            return false;
         },
         async enrollInModule(course) {
             const key = this.getCourseKey(course);
@@ -1701,7 +1704,10 @@ Vue.component('grademodal', {
             return String(course && course.progressclassid ? course.progressclassid : 0) + '_' + String(course && course.courseid ? course.courseid : 0);
         },
         async withdrawFromCourse(course) {
-            const classId = Number(course && course.progressclassid ? course.progressclassid : 0);
+            const regularClassId = Number(course && course.progressclassid ? course.progressclassid : 0);
+            const moduleClassId  = Number(course && course.module_classid  ? course.module_classid  : 0);
+            const classId = regularClassId || moduleClassId;
+            const isModuleWithdrawal = !regularClassId && moduleClassId > 0;
             if (!classId || this.withdrawingCourseKey) return;
 
             const courseName = course.coursename || 'esta asignatura';
@@ -1709,12 +1715,16 @@ Vue.component('grademodal', {
 
             const confirmed = await (async () => {
                 if (window.Swal) {
+                    const bodyText = isModuleWithdrawal
+                        ? `<b>${studentName}</b> será <b>retirado del módulo</b> de <b>${courseName}</b>.<br><br>` +
+                          `Se eliminará la inscripción del módulo y el estado volverá a <em>Disponible</em>.`
+                        : `<b>${studentName}</b> será <b>retirado</b> de <b>${courseName}</b>.<br><br>` +
+                          `Se eliminará su inscripción en el grupo, se des-matriculará del curso en Moodle ` +
+                          `y su estado volverá a <em>Disponible</em> para poder inscribirse nuevamente.`;
                     const result = await window.Swal.fire({
                         icon: 'warning',
-                        title: '¿Retirar estudiante?',
-                        html: `<b>${studentName}</b> será <b>retirado</b> de <b>${courseName}</b>.<br><br>` +
-                              `Se eliminará su inscripción en el grupo, se des-matriculará del curso en Moodle ` +
-                              `y su estado volverá a <em>Disponible</em> para poder inscribirse nuevamente.`,
+                        title: isModuleWithdrawal ? '¿Retirar del módulo?' : '¿Retirar estudiante?',
+                        html: bodyText,
                         showCancelButton: true,
                         confirmButtonColor: '#d33',
                         cancelButtonColor: '#6c757d',
@@ -1747,6 +1757,9 @@ Vue.component('grademodal', {
 
                 if (result.status === 'ok') {
                     this.showMessage('success', result.message || 'Estudiante retirado correctamente.');
+                    if (isModuleWithdrawal) {
+                        this.$set(this.moduleStatusMap, this.getCourseKey(course), null);
+                    }
                     // Reload pensum to reflect new status.
                     await this.getpensum();
                 } else {

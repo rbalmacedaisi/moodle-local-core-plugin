@@ -136,6 +136,7 @@ class get_student_learning_plan_pensum extends external_api
             $moduleClassIds = [];
             $moduleGroupIds = [];
             $membershipClassIsModuleByCourseId = [];
+            $activeModuleByCoreCourseId = [];
 
             if (!empty($userPensumCourses)) {
                 $learningcourseids = [];
@@ -694,6 +695,22 @@ class get_student_learning_plan_pensum extends external_api
                     foreach ($coreCountsAnyPlan as $row) {
                         $activeClassCountByCoreCourseAnyPlan[(int)$row->corecourseid] = (int)$row->total;
                     }
+
+                    // Active module enrollments: exposes module_classid to the frontend
+                    // so it can offer the Retirar button for students currently in a module.
+                    list($meinCoreSql, $meinCoreParams) = $DB->get_in_or_equal($corecourseids, SQL_PARAMS_NAMED, 'mecc');
+                    $meRows = $DB->get_records_sql(
+                        "SELECT c.corecourseid, me.classid
+                           FROM {gmk_module_enrollment} me
+                           JOIN {gmk_class} c ON c.id = me.classid
+                          WHERE me.userid = :meuserid
+                            AND me.status = 'active'
+                            AND c.corecourseid $meinCoreSql",
+                        ['meuserid' => (int)$params['userId']] + $meinCoreParams
+                    );
+                    foreach ($meRows as $mer) {
+                        $activeModuleByCoreCourseId[(int)$mer->corecourseid] = (int)$mer->classid;
+                    }
                 }
             }
             
@@ -815,6 +832,7 @@ class get_student_learning_plan_pensum extends external_api
                 }
                 $userPensumCourse->gradesource = $gradesource;
                 $userPensumCourse->is_module = $isModuleGrade ? 1 : 0;
+                $userPensumCourse->module_classid = $activeModuleByCoreCourseId[$courseidkey] ?? 0;
 
                 $userPensumCourse->statusLabel = self::STATUS_LABEL[$userPensumCourse->status] ?? 'No disponible';
                 $userPensumCourse->statusColor = self::STATUS_COLOR[$userPensumCourse->status] ?? '#5e35b1';
