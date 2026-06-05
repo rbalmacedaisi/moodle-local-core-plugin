@@ -7425,6 +7425,106 @@ function gmk_count_pending_attendance_sessions(int $attendanceId, int $groupId, 
 }
 
 /**
+ * Inserts absent (setunmarked) logs for every student in $groupId who has no
+ * attendance_log entry in past sessions of $attendanceId.
+ * Called automatically during class closure so unrecorded sessions don't block the close.
+ *
+ * @param int $attendanceId  attendance.id (not course_modules.id)
+ * @param int $groupId       Moodle group id of the class
+ * @param int $before        Unix timestamp; only sessions ending before this are processed
+ * @return int               Number of absent logs inserted
+ */
+function gmk_mark_pending_sessions_as_absent(int $attendanceId, int $groupId, int $before): int {
+    global $DB;
+    if ($attendanceId <= 0 || $groupId <= 0) {
+        return 0;
+    }
+
+    // Resolve the absent status: prefer setunmarked=1, fall back to lowest grade.
+    $absentStatus = $DB->get_record_select(
+        'attendance_statuses',
+        'attendanceid = :aid AND setunmarked = 1 AND deleted = 0',
+        ['aid' => $attendanceId],
+        'id, setnumber'
+    );
+    if (!$absentStatus) {
+        $absentStatus = $DB->get_record_sql(
+            "SELECT id, setnumber FROM {attendance_statuses}
+              WHERE attendanceid = :aid AND deleted = 0
+              ORDER BY grade ASC, id ASC
+              LIMIT 1",
+            ['aid' => $attendanceId]
+        );
+    }
+    if (!$absentStatus) {
+        return 0;
+    }
+
+    $setnumber  = (int)($absentStatus->setnumber ?? 0);
+    $statusIds  = $DB->get_fieldset_select(
+        'attendance_statuses',
+        'id',
+        'attendanceid = :aid AND deleted = 0 AND setnumber = :sn',
+        ['aid' => $attendanceId, 'sn' => $setnumber]
+    );
+    $statussetStr = implode(',', $statusIds);
+
+    // Past sessions with at least one unrecorded student.
+    $pendingSessions = $DB->get_records_sql(
+        "SELECT s.id
+           FROM {attendance_sessions} s
+          WHERE s.attendanceid = :attid
+            AND s.sessdate + s.duration < :now
+            AND EXISTS (
+                SELECT 1 FROM {groups_members} gm
+                 WHERE gm.groupid = :gid
+                   AND NOT EXISTS (
+                       SELECT 1 FROM {attendance_log} al
+                        WHERE al.sessionid = s.id AND al.studentid = gm.userid
+                   )
+            )",
+        ['attid' => $attendanceId, 'now' => $before, 'gid' => $groupId]
+    );
+
+    if (empty($pendingSessions)) {
+        return 0;
+    }
+
+    $inserted = 0;
+    $now = time();
+    foreach ($pendingSessions as $sess) {
+        $unrecorded = $DB->get_records_sql(
+            "SELECT gm.userid
+               FROM {groups_members} gm
+              WHERE gm.groupid = :gid
+                AND NOT EXISTS (
+                    SELECT 1 FROM {attendance_log} al
+                     WHERE al.sessionid = :sid AND al.studentid = gm.userid
+                )",
+            ['gid' => $groupId, 'sid' => (int)$sess->id]
+        );
+        if (empty($unrecorded)) {
+            continue;
+        }
+        $logs = [];
+        foreach ($unrecorded as $row) {
+            $log            = new \stdClass();
+            $log->sessionid = (int)$sess->id;
+            $log->studentid = (int)$row->userid;
+            $log->statusid  = (int)$absentStatus->id;
+            $log->statusset = $statussetStr;
+            $log->timetaken = $now;
+            $log->takenby   = 0;
+            $log->remarks   = '';
+            $logs[]         = $log;
+        }
+        $DB->insert_records('attendance_log', $logs);
+        $inserted += count($logs);
+    }
+    return $inserted;
+}
+
+/**
  * Computes the real weighted class grade for a student (0-100 scale).
  *
  * Navigates course_modules in the class section directly (no get_fast_modinfo).
@@ -7708,15 +7808,16 @@ function gmk_close_class_with_grade_recalc(int $classId): array {
                 'error' => "Las ponderaciones suman {$wsum}% — deben sumar exactamente 100%."];
     }
 
-    // ── 2. Validate: no pending attendance (log-based, not automarkcompleted) ─
+    // ── 2. Auto-mark unrecorded attendance sessions as absent before close ───
+    // Sessions that ended without any log are marked absent (setunmarked status)
+    // so the close is never blocked by missing attendance records.
     if (!empty($class->attendancemoduleid) && !empty($class->groupid)) {
         $attid = (int)$DB->get_field('course_modules', 'instance',
             ['id' => (int)$class->attendancemoduleid]);
         if ($attid) {
             $pending = gmk_count_pending_attendance_sessions($attid, (int)$class->groupid, $now);
             if ($pending > 0) {
-                return ['ok' => false,
-                        'error' => "Hay {$pending} sesión(es) de asistencia sin registrar para algunos estudiantes."];
+                gmk_mark_pending_sessions_as_absent($attid, (int)$class->groupid, $now);
             }
         }
     }
