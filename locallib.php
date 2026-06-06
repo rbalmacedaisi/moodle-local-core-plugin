@@ -7799,13 +7799,40 @@ function gmk_get_class_dashboard_stats(int $classId): array {
         ['classid' => $classId]
     );
 
-    // Compute grades using the same log-based weighted methodology as grademodal.js
-    // (gradebookWeightedTotal / gmk_batch_weighted_grades). grade_grades for attendance
-    // is intentionally overridden with session-log counts — Moodle's attendance
-    // grade_grades can be stale or inflated regardless of actual presence.
-    $gradeByUserId = !empty($rows)
-        ? gmk_batch_weighted_grades($classId, array_keys($rows))
-        : [];
+    // Compute grades using the same function as grademodal.js (get_student_gradebook)
+    // and the same frontend formula (gradebookWeightedTotal): sum(grade/max * weight_pct).
+    $gradeByUserId = [];
+    if (!empty($rows)) {
+        require_once($CFG->dirroot .
+            '/local/grupomakro_core/classes/external/student/get_student_gradebook.php');
+        foreach ($rows as $r) {
+            $uid      = (int)$r->id;
+            $gbResult = \local_grupomakro_core\external\student\get_student_gradebook
+                ::execute($uid, $classId);
+            if (empty($gbResult['gradebook'])) {
+                continue;
+            }
+            $gbCats = json_decode($gbResult['gradebook'], true) ?: [];
+            $sum      = 0.0;
+            $hasItems = false;
+            foreach ($gbCats as $cat) {
+                foreach ($cat['items'] ?? [] as $item) {
+                    $wpct = (float)($item['weight_pct'] ?? 0);
+                    if ($wpct <= 0) {
+                        continue;
+                    }
+                    $grade = $item['grade'] !== null ? (float)$item['grade'] : 0.0;
+                    $max   = isset($item['grade_max']) && $item['grade_max'] > 0
+                        ? (float)$item['grade_max'] : 100.0;
+                    $sum += ($grade / $max) * $wpct;
+                    $hasItems = true;
+                }
+            }
+            if ($hasItems) {
+                $gradeByUserId[$uid] = round($sum * 10) / 10;
+            }
+        }
+    }
 
     foreach ($rows as $r) {
         $uid = (int)$r->id;
