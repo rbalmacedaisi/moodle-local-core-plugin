@@ -7575,45 +7575,168 @@ function gmk_mark_pending_sessions_as_absent(int $attendanceId, int $groupId, in
  * Returns null if there are no gradable items in the section or none have grades.
  */
 /**
- * Returns the final grade for a student in a class, using the same source as
- * the teacher's "Libro de Calificaciones" gradebook modal:
- * grade_grades.finalgrade / grade_items.grademax * 100
- * for the grade_item with itemtype='course' in the class's Moodle course.
+ * Batch-computes weighted grades for multiple students in a class.
+ *
+ * Uses log-based attendance (same as get_student_gradebook.php) instead of
+ * grade_grades for attendance items. Moodle's grade_grades for attendance can
+ * be stale or wrong (absent students without a log entry retain their old grade,
+ * so grade_regrade_final_grades() would produce incorrect high values for them).
+ *
+ * @param int   $classId  gmk_class.id
+ * @param int[] $userIds  User IDs to compute grades for
+ * @return float[]        Map of userId => grade 0-100; absent from result = no grade
+ */
+function gmk_batch_weighted_grades(int $classId, array $userIds): array {
+    global $DB;
+    if (empty($userIds)) {
+        return [];
+    }
+
+    $class = $DB->get_record('gmk_class', ['id' => $classId],
+        'id, corecourseid, gradecategoryid');
+    if (!$class || empty($class->gradecategoryid) || empty($class->corecourseid)) {
+        return [];
+    }
+
+    $catId = (int)$class->gradecategoryid;
+
+    // Aggregation method of the grade category.
+    $cagg = (int)($DB->get_field('grade_categories', 'aggregation', ['id' => $catId]) ?? 13);
+
+    // All gradable items in this category.
+    $gitems = $DB->get_records_sql(
+        "SELECT gi.id, gi.itemmodule, gi.iteminstance, gi.grademax,
+                gi.aggregationcoef, gi.aggregationcoef2
+           FROM {grade_items} gi
+          WHERE gi.categoryid = :cat
+            AND gi.itemtype IN ('mod', 'manual')
+            AND gi.grademax > 0",
+        ['cat' => $catId]
+    );
+    if (empty($gitems)) {
+        return [];
+    }
+
+    // Weight per item (same normalisation as get_student_gradebook.php).
+    $rawWeightSum = 0.0;
+    if ($cagg === 10 || $cagg === 2) {
+        foreach ($gitems as $gi) {
+            $rawWeightSum += (float)$gi->aggregationcoef;
+        }
+    }
+    $weightPctById = [];
+    foreach ($gitems as $gi) {
+        $gid = (int)$gi->id;
+        if ($cagg === 10 || $cagg === 2) {
+            $weightPctById[$gid] = $rawWeightSum > 0
+                ? ((float)$gi->aggregationcoef / $rawWeightSum) * 100
+                : 0.0;
+        } else {
+            $weightPctById[$gid] = (float)$gi->aggregationcoef2 * 100;
+        }
+    }
+
+    // Batch-read grade_grades for all items × all users.
+    $itemIds = array_map('intval', array_keys((array)$gitems));
+    list($itemInSql, $itemInParams) = $DB->get_in_or_equal($itemIds, SQL_PARAMS_NAMED, 'bgii');
+    list($userInSql, $userInParams) = $DB->get_in_or_equal($userIds, SQL_PARAMS_NAMED, 'buid');
+
+    $gradeByUserItem = []; // [userid][itemid] = finalgrade
+    foreach ($DB->get_records_sql(
+        "SELECT gg.userid, gg.itemid, gg.finalgrade
+           FROM {grade_grades} gg
+          WHERE gg.itemid $itemInSql AND gg.userid $userInSql AND gg.finalgrade IS NOT NULL",
+        $itemInParams + $userInParams
+    ) as $gg) {
+        $gradeByUserItem[(int)$gg->userid][(int)$gg->itemid] = (float)$gg->finalgrade;
+    }
+
+    // Override attendance grades with log-based calculation.
+    $attNow = time();
+    foreach ($gitems as $gi) {
+        if (($gi->itemmodule ?? '') !== 'attendance') {
+            continue;
+        }
+        $attid = (int)$gi->iteminstance;
+        $gmax  = (float)$gi->grademax;
+        if ($attid <= 0 || $gmax <= 0) {
+            continue;
+        }
+
+        $attTotal = (int)$DB->count_records_sql(
+            "SELECT COUNT(s.id)
+               FROM {attendance_sessions} s
+              WHERE s.attendanceid = :attid
+                AND s.sessdate + s.duration < :now
+                AND (EXISTS (SELECT 1 FROM {attendance_log} l WHERE l.sessionid = s.id)
+                     OR COALESCE(s.lasttaken, 0) > 0)",
+            ['attid' => $attid, 'now' => $attNow]
+        );
+        if ($attTotal <= 0) {
+            continue;
+        }
+
+        $presentRows = $DB->get_records_sql(
+            "SELECT al.studentid,
+                    COUNT(DISTINCT CASE WHEN ast.grade > 0 THEN s.id END) AS present
+               FROM {attendance_sessions} s
+               JOIN {attendance_log} al
+                    ON al.sessionid = s.id AND al.studentid $userInSql
+               LEFT JOIN {attendance_statuses} ast ON ast.id = al.statusid
+              WHERE s.attendanceid = :batt
+                AND s.sessdate + s.duration < :bnow
+                AND (EXISTS (SELECT 1 FROM {attendance_log} l2 WHERE l2.sessionid = s.id)
+                     OR COALESCE(s.lasttaken, 0) > 0)
+           GROUP BY al.studentid",
+            array_merge($userInParams, ['batt' => $attid, 'bnow' => $attNow])
+        );
+
+        $giId = (int)$gi->id;
+        foreach ($presentRows as $pr) {
+            $gradeByUserItem[(int)$pr->studentid][$giId] =
+                round(((int)$pr->present / $attTotal) * $gmax, 2);
+        }
+        // Students with no attendance log at all count as 0 present.
+        foreach ($userIds as $uid) {
+            if (!isset($gradeByUserItem[$uid][$giId])) {
+                $gradeByUserItem[$uid][$giId] = 0.0;
+            }
+        }
+    }
+
+    // Weighted total per student.
+    $result = [];
+    foreach ($userIds as $uid) {
+        $total  = 0.0;
+        $hasAny = false;
+        foreach ($gitems as $gi) {
+            $gid  = (int)$gi->id;
+            $wpct = $weightPctById[$gid] ?? 0.0;
+            if ($wpct <= 0.0) {
+                continue;
+            }
+            $raw   = $gradeByUserItem[$uid][$gid] ?? null;
+            $grade = ($raw !== null) ? (float)$raw : 0.0;
+            $gmax  = ((float)$gi->grademax > 0) ? (float)$gi->grademax : 100.0;
+            if ($raw !== null) {
+                $hasAny = true;
+            }
+            $total += ($grade / $gmax) * $wpct;
+        }
+        if ($hasAny) {
+            $result[$uid] = round(min($total, 100.0), 2);
+        }
+    }
+    return $result;
+}
+
+/**
+ * Returns the final grade for a student in a class using log-based attendance.
+ * Delegates to gmk_batch_weighted_grades for a single student.
  */
 function gmk_get_student_class_grade(int $classId, int $userId): ?float {
-    global $CFG, $DB;
-
-    $class = $DB->get_record('gmk_class', ['id' => $classId], 'id, corecourseid');
-    if (!$class || empty($class->corecourseid)) {
-        return null;
-    }
-
-    // grade_grades for itemtype='course' is only updated when Moodle's gradebook
-    // triggers grade_regrade_final_grades(). Replicate that here when stale.
-    require_once($CFG->libdir . '/gradelib.php');
-    $needsUpdate = (int)$DB->get_field_select('grade_items', 'needsupdate',
-        "courseid = :cid AND itemtype = 'course'",
-        ['cid' => (int)$class->corecourseid]);
-    if ($needsUpdate) {
-        grade_regrade_final_grades((int)$class->corecourseid);
-    }
-
-    $row = $DB->get_record_sql(
-        "SELECT CASE WHEN gi.grademax > 0
-                     THEN ROUND((gg.finalgrade / gi.grademax) * 100, 2)
-                     ELSE NULL END AS grade
-           FROM {grade_items} gi
-           LEFT JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = :uid
-          WHERE gi.courseid  = :cid
-            AND gi.itemtype  = 'course'",
-        ['uid' => $userId, 'cid' => (int)$class->corecourseid]
-    );
-
-    if (!$row || $row->grade === null) {
-        return null;
-    }
-
-    return (float)$row->grade;
+    $grades = gmk_batch_weighted_grades($classId, [$userId]);
+    return isset($grades[$userId]) ? $grades[$userId] : null;
 }
 
 /**
@@ -7676,39 +7799,11 @@ function gmk_get_class_dashboard_stats(int $classId): array {
         ['classid' => $classId]
     );
 
-    // ── Batch-fetch grades from course-level grade_grades ────────────────────────
-    // grade_grades for itemtype='course' is only updated when Moodle's gradebook
-    // calls grade_regrade_final_grades(). Replicate that here when stale so the
-    // value matches what teachers see in the native Libro de Calificaciones.
-    $gradeByUserId = [];
-    if (!empty($rows) && !empty($class->corecourseid)) {
-        require_once($CFG->libdir . '/gradelib.php');
-        $needsUpdate = (int)$DB->get_field_select('grade_items', 'needsupdate',
-            "courseid = :cid AND itemtype = 'course'",
-            ['cid' => (int)$class->corecourseid]);
-        if ($needsUpdate) {
-            grade_regrade_final_grades((int)$class->corecourseid);
-        }
-
-        $courseGi = $DB->get_record('grade_items',
-            ['courseid' => (int)$class->corecourseid, 'itemtype' => 'course'],
-            'id, grademax');
-        if ($courseGi && (float)$courseGi->grademax > 0) {
-            $userIds = array_keys($rows); // rows indexed by u.id
-            list($userSql, $userP) = $DB->get_in_or_equal($userIds, SQL_PARAMS_NAMED, 'u');
-            foreach ($DB->get_records_sql(
-                "SELECT gg.userid, gg.finalgrade
-                   FROM {grade_grades} gg
-                  WHERE gg.itemid = :iid AND gg.userid $userSql",
-                array_merge(['iid' => (int)$courseGi->id], $userP)
-            ) as $gg) {
-                if ($gg->finalgrade !== null) {
-                    $gradeByUserId[(int)$gg->userid] =
-                        round((float)$gg->finalgrade / (float)$courseGi->grademax * 100, 2);
-                }
-            }
-        }
-    }
+    // Batch-compute grades using log-based attendance (avoids grade_regrade_final_grades
+    // which incorrectly inflates attendance grades for absent students).
+    $gradeByUserId = !empty($rows)
+        ? gmk_batch_weighted_grades($classId, array_keys($rows))
+        : [];
 
     foreach ($rows as $r) {
         $uid = (int)$r->id;

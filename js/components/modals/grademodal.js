@@ -1813,12 +1813,11 @@ Vue.component('grademodal', {
             });
             return Math.round(sum * 10) / 10;
         },
-        // Nota final que se muestra: usa la nota oficial de Moodle (igual fuente que
-        // studenttable.js), con fallback al cálculo ponderado si Moodle aún no la calculó.
+        // Nota final que se muestra: usa el cálculo ponderado con asistencia log-based
+        // (igual metodología que gmk_batch_weighted_grades en el backend).
+        // gradebookCourseGrade (Moodle course total) se evita porque puede ser incorrecto
+        // cuando grade_regrade_final_grades() infla la nota de asistencia de ausentes.
         gradebookFinalGrade() {
-            if (this.gradebookCourseGrade !== null && this.gradebookCourseGrade !== undefined) {
-                return Math.round(this.gradebookCourseGrade * 10) / 10;
-            }
             return this.gradebookWeightedTotal;
         },
         selectedCourseName() {
