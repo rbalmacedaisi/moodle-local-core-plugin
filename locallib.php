@@ -7402,11 +7402,28 @@ function toggle_class_grade_lock($classId, $locked) {
  * Counts past attendance sessions where at least one student in the group has no log entry.
  * More accurate than automarkcompleted < 2, which produces false positives for manual attendance.
  */
-function gmk_count_pending_attendance_sessions(int $attendanceId, int $groupId, int $before): int {
+/**
+ * @param int $classId  When > 0, only students with gmk_course_progre.classid = $classId
+ *                      are considered. This excludes ghost group members (module students
+ *                      added for section visibility, or students from other classes).
+ */
+function gmk_count_pending_attendance_sessions(int $attendanceId, int $groupId, int $before, int $classId = 0): int {
     global $DB;
     if ($attendanceId <= 0 || $groupId <= 0) {
         return 0;
     }
+
+    // When classId is provided, restrict to students enrolled (any status) in that class.
+    $classFilter = $classId > 0
+        ? "AND EXISTS (SELECT 1 FROM {gmk_course_progre} gcp2
+                        WHERE gcp2.userid = gm.userid AND gcp2.classid = :classid1)"
+        : '';
+
+    $params = ['attid' => $attendanceId, 'now' => $before, 'gid' => $groupId];
+    if ($classId > 0) {
+        $params['classid1'] = $classId;
+    }
+
     return (int)$DB->count_records_sql(
         "SELECT COUNT(s.id)
            FROM {attendance_sessions} s
@@ -7415,12 +7432,13 @@ function gmk_count_pending_attendance_sessions(int $attendanceId, int $groupId, 
             AND EXISTS (
                 SELECT 1 FROM {groups_members} gm
                  WHERE gm.groupid = :gid
+                   $classFilter
                    AND NOT EXISTS (
                        SELECT 1 FROM {attendance_log} al
                         WHERE al.sessionid = s.id AND al.studentid = gm.userid
                    )
             )",
-        ['attid' => $attendanceId, 'now' => $before, 'gid' => $groupId]
+        $params
     );
 }
 
@@ -7432,9 +7450,10 @@ function gmk_count_pending_attendance_sessions(int $attendanceId, int $groupId, 
  * @param int $attendanceId  attendance.id (not course_modules.id)
  * @param int $groupId       Moodle group id of the class
  * @param int $before        Unix timestamp; only sessions ending before this are processed
+ * @param int $classId       When > 0, only process students enrolled in this gmk_class.id
  * @return int               Number of absent logs inserted
  */
-function gmk_mark_pending_sessions_as_absent(int $attendanceId, int $groupId, int $before): int {
+function gmk_mark_pending_sessions_as_absent(int $attendanceId, int $groupId, int $before, int $classId = 0): int {
     global $DB;
     if ($attendanceId <= 0 || $groupId <= 0) {
         return 0;
@@ -7460,8 +7479,8 @@ function gmk_mark_pending_sessions_as_absent(int $attendanceId, int $groupId, in
         return 0;
     }
 
-    $setnumber  = (int)($absentStatus->setnumber ?? 0);
-    $statusIds  = $DB->get_fieldset_select(
+    $setnumber    = (int)($absentStatus->setnumber ?? 0);
+    $statusIds    = $DB->get_fieldset_select(
         'attendance_statuses',
         'id',
         'attendanceid = :aid AND deleted = 0 AND setnumber = :sn',
@@ -7469,7 +7488,22 @@ function gmk_mark_pending_sessions_as_absent(int $attendanceId, int $groupId, in
     );
     $statussetStr = implode(',', $statusIds);
 
-    // Past sessions with at least one unrecorded student.
+    // Restrict to enrolled students when classId is provided.
+    $classFilter2 = $classId > 0
+        ? "AND EXISTS (SELECT 1 FROM {gmk_course_progre} gcp2
+                        WHERE gcp2.userid = gm.userid AND gcp2.classid = :classid2)"
+        : '';
+    $classFilter3 = $classId > 0
+        ? "AND EXISTS (SELECT 1 FROM {gmk_course_progre} gcp3
+                        WHERE gcp3.userid = gm.userid AND gcp3.classid = :classid3)"
+        : '';
+
+    $sessParams = ['attid' => $attendanceId, 'now' => $before, 'gid' => $groupId];
+    if ($classId > 0) {
+        $sessParams['classid2'] = $classId;
+    }
+
+    // Past sessions with at least one unrecorded enrolled student.
     $pendingSessions = $DB->get_records_sql(
         "SELECT s.id
            FROM {attendance_sessions} s
@@ -7478,12 +7512,13 @@ function gmk_mark_pending_sessions_as_absent(int $attendanceId, int $groupId, in
             AND EXISTS (
                 SELECT 1 FROM {groups_members} gm
                  WHERE gm.groupid = :gid
+                   $classFilter2
                    AND NOT EXISTS (
                        SELECT 1 FROM {attendance_log} al
                         WHERE al.sessionid = s.id AND al.studentid = gm.userid
                    )
             )",
-        ['attid' => $attendanceId, 'now' => $before, 'gid' => $groupId]
+        $sessParams
     );
 
     if (empty($pendingSessions)) {
@@ -7493,15 +7528,20 @@ function gmk_mark_pending_sessions_as_absent(int $attendanceId, int $groupId, in
     $inserted = 0;
     $now = time();
     foreach ($pendingSessions as $sess) {
+        $unrecordedParams = ['gid' => $groupId, 'sid' => (int)$sess->id];
+        if ($classId > 0) {
+            $unrecordedParams['classid3'] = $classId;
+        }
         $unrecorded = $DB->get_records_sql(
             "SELECT gm.userid
                FROM {groups_members} gm
               WHERE gm.groupid = :gid
+                $classFilter3
                 AND NOT EXISTS (
                     SELECT 1 FROM {attendance_log} al
                      WHERE al.sessionid = :sid AND al.studentid = gm.userid
                 )",
-            ['gid' => $groupId, 'sid' => (int)$sess->id]
+            $unrecordedParams
         );
         if (empty($unrecorded)) {
             continue;
@@ -7615,7 +7655,7 @@ function gmk_get_class_dashboard_stats(int $classId): array {
                 'attendanceid = :a AND sessdate + duration < :n',
                 ['a' => $attid, 'n' => $now]);
             $att['pending'] = !empty($class->groupid)
-                ? gmk_count_pending_attendance_sessions($attid, (int)$class->groupid, $now)
+                ? gmk_count_pending_attendance_sessions($attid, (int)$class->groupid, $now, (int)$class->id)
                 : 0;
             $att['complete'] = $att['total_past'] - $att['pending'];
         }
@@ -7815,9 +7855,9 @@ function gmk_close_class_with_grade_recalc(int $classId): array {
         $attid = (int)$DB->get_field('course_modules', 'instance',
             ['id' => (int)$class->attendancemoduleid]);
         if ($attid) {
-            $pending = gmk_count_pending_attendance_sessions($attid, (int)$class->groupid, $now);
+            $pending = gmk_count_pending_attendance_sessions($attid, (int)$class->groupid, $now, (int)$class->id);
             if ($pending > 0) {
-                gmk_mark_pending_sessions_as_absent($attid, (int)$class->groupid, $now);
+                gmk_mark_pending_sessions_as_absent($attid, (int)$class->groupid, $now, (int)$class->id);
             }
         }
     }
