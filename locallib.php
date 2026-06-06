@@ -7802,13 +7802,14 @@ function gmk_get_class_dashboard_stats(int $classId): array {
     // Compute grades using the same function as grademodal.js (get_student_gradebook)
     // and the same frontend formula (gradebookWeightedTotal): sum(grade/max * weight_pct).
     $gradeByUserId = [];
-    if (!empty($rows)) {
+    if (!empty($rows) && !empty($class->corecourseid)) {
         require_once($CFG->dirroot .
             '/local/grupomakro_core/classes/external/student/get_student_gradebook.php');
+        $corecourseid = (int)$class->corecourseid;
         foreach ($rows as $r) {
             $uid      = (int)$r->id;
             $gbResult = \local_grupomakro_core\external\student\get_student_gradebook
-                ::execute($uid, $classId);
+                ::execute($uid, $corecourseid);
             if (empty($gbResult['gradebook'])) {
                 continue;
             }
