@@ -299,49 +299,223 @@ function ($, ModalFactory, ModalEvents) {
         });
     }
 
-    // ── Close class with server-side validation ───────────────────────────
+    // ── Close class — progress modal + background mode ────────────────────
+    var GMK_CLOSE_STEPS = [
+        'Verificando ponderaciones y configuración',
+        'Registrando inasistencias pendientes como ausentes',
+        'Calculando calificaciones finales de cada estudiante',
+        'Generando registro de cierre'
+    ];
+
+    function gmkEsc(s) {
+        return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;')
+                              .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function gmkUpdateStep(i, state) {
+        var el = $('#gmk-step-' + i);
+        if (!el.length) { return; }
+        var icons = {
+            pending: '<i class="mdi mdi-circle-outline" style="color:#ccc;"></i>',
+            active:  '<i class="mdi mdi-loading mdi-spin" style="color:#1976d2;"></i>',
+            done:    '<i class="mdi mdi-check-circle" style="color:#28a745;"></i>',
+            error:   '<i class="mdi mdi-close-circle" style="color:#dc3545;"></i>'
+        };
+        el.find('.gmk-close-step-icon').html(icons[state] || icons.pending);
+        var c = state === 'active' ? '#1565c0' : state === 'done' ? '#28a745' :
+                state === 'error' ? '#dc3545' : '#aaa';
+        el.find('.gmk-close-step-label').css({ color: c, fontWeight: state === 'active' ? '600' : '400' });
+    }
+
+    function gmkSetProgress(pct) {
+        $('#gmk-close-progress').css('width', Math.min(pct, 100) + '%');
+    }
+
+    function gmkShowFloatBadge(state, html) {
+        var badge = $('#gmk-close-float');
+        if (!badge.length) { badge = $('<div id="gmk-close-float"></div>'); $('body').append(badge); }
+        var bg = { running: '#1565c0', success: '#2e7d32', error: '#c62828' }[state] || '#1565c0';
+        badge.css('background', bg).html(html);
+        if (state !== 'running') {
+            badge.off('click').on('click', function () { badge.fadeOut(300, function () { badge.remove(); }); });
+            setTimeout(function () { badge.fadeOut(500, function () { badge.remove(); }); }, 9000);
+        }
+    }
+
+    function gmkCloseModalHtml() {
+        var steps = '';
+        GMK_CLOSE_STEPS.forEach(function (lbl, i) {
+            steps += '<div class="gmk-close-step" id="gmk-step-' + i + '">' +
+                     '<span class="gmk-close-step-icon"><i class="mdi mdi-circle-outline" style="color:#ccc;"></i></span>' +
+                     '<span class="gmk-close-step-label" style="color:#aaa;">' + gmkEsc(lbl) + '</span></div>';
+        });
+        return '<div id="gmk-close-overlay" style="position:fixed;top:0;left:0;width:100%;height:100%;' +
+            'z-index:10001;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;padding:16px;">' +
+            '<div style="background:#fff;border-radius:12px;padding:28px 30px;max-width:480px;width:100%;' +
+            'box-shadow:0 8px 40px rgba(0,0,0,.3);">' +
+            // Header
+            '<div style="display:flex;align-items:center;gap:12px;margin-bottom:22px;">' +
+            '<div style="width:42px;height:42px;border-radius:50%;background:#e3f2fd;display:flex;' +
+            'align-items:center;justify-content:center;flex-shrink:0;">' +
+            '<i class="mdi mdi-lock-clock" style="font-size:22px;color:#1976d2;"></i></div>' +
+            '<div><div style="font-weight:700;font-size:1.05rem;">Cerrando clase</div>' +
+            '<div style="font-size:12px;color:#888;margin-top:2px;">Esto puede tardar unos segundos — puede continuar navegando</div></div></div>' +
+            // Steps
+            '<div id="gmk-close-steps" style="margin-bottom:18px;">' + steps + '</div>' +
+            // Progress bar
+            '<div style="background:#e9ecef;border-radius:4px;height:6px;margin-bottom:20px;overflow:hidden;">' +
+            '<div id="gmk-close-progress" style="background:#1976d2;height:6px;border-radius:4px;' +
+            'width:0%;transition:width .6s ease;"></div></div>' +
+            // Result area
+            '<div id="gmk-close-result" style="display:none;margin-bottom:16px;"></div>' +
+            // Buttons
+            '<div id="gmk-close-btns" style="display:flex;gap:8px;justify-content:flex-end;">' +
+            '<button id="gmk-close-bg-btn" class="btn btn-sm btn-outline-secondary">' +
+            '<i class="mdi mdi-arrow-collapse-down"></i> Segundo plano</button>' +
+            '</div></div></div>';
+    }
+
     function closeClass(classId) {
         var stats = gmkStats[classId];
 
-        // Client-side pre-flight (fast feedback if stats already loaded)
-        if (stats) {
-            if (stats.attendance.pending > 0) {
-                if (!confirm('Hay ' + stats.attendance.pending + ' sesión(es) con estudiantes sin registro de asistencia.\n' +
-                             'Al cerrar, esas sesiones se marcarán automáticamente como inasistencia.\n\n' +
-                             '¿Desea continuar?')) {
-                    return;
-                }
-            }
-            if (!stats.grades.is_100) {
-                alert('No se puede cerrar: las ponderaciones suman ' +
-                      stats.grades.total_weight + '% (debe ser 100%).');
-                return;
-            }
+        // Pre-flight: ponderaciones
+        if (stats && !stats.grades.is_100) {
+            alert('No se puede cerrar: las ponderaciones suman ' +
+                  stats.grades.total_weight + '% (debe ser 100%).');
+            return;
         }
 
-        if (!confirm('¿Cerrar esta clase y calcular las calificaciones finales?\n' +
+        // Pre-flight: asistencia pendiente — aviso, no bloqueo
+        var pendingMsg = '';
+        if (stats && stats.attendance.pending > 0) {
+            pendingMsg = 'Hay ' + stats.attendance.pending + ' sesión(es) con estudiantes sin registro.\n' +
+                         'Se marcarán automáticamente como inasistencia.\n\n';
+        }
+
+        if (!confirm(pendingMsg + '¿Cerrar esta clase y calcular las calificaciones finales?\n' +
                      'Esta acción bloqueará el libro de calificaciones.')) {
             return;
         }
 
-        ajaxGet('local_grupomakro_close_class_period', { classId: classId })
-            .done(function (r) {
-                if (r && r.data && r.data.ok) {
-                    var sm = r.data.summary;
-                    var msg = '✓ Clase cerrada correctamente.\n\n' +
-                              '✅ Aprobados:    ' + sm.approved + '\n' +
-                              '❌ Reprobados:   ' + sm.failed;
-                    if (sm.revalid  > 0) { msg += '\n⚠  Pend. reválida: ' + sm.revalid; }
-                    if (sm.no_grade > 0) { msg += '\n—  Sin nota:       ' + sm.no_grade; }
-                    alert(msg);
-                    location.reload();
+        // Show progress modal
+        var modal = $(gmkCloseModalHtml());
+        $('body').append(modal);
+        GMK_CLOSE_STEPS.forEach(function (_, i) { gmkUpdateStep(i, 'pending'); });
+        gmkUpdateStep(0, 'active');
+        gmkSetProgress(5);
+
+        var isBackground = false;
+        var requestDone  = false;
+        var lastResult   = null;
+
+        // Simulate step advancement while request runs
+        var stepDelays = [2800, 5400, 8000];
+        var stepTimers = stepDelays.map(function (ms, idx) {
+            return setTimeout(function () {
+                if (requestDone) { return; }
+                gmkUpdateStep(idx, 'done');
+                gmkUpdateStep(idx + 1, 'active');
+                gmkSetProgress(10 + (idx + 1) * 22);
+            }, ms);
+        });
+
+        // Slow progress-bar crawl
+        var crawlTimer = setInterval(function () {
+            var bar = document.getElementById('gmk-close-progress');
+            if (!bar) { clearInterval(crawlTimer); return; }
+            var cur = parseFloat(bar.style.width) || 0;
+            if (cur < 88) { gmkSetProgress(cur + 0.3); }
+        }, 350);
+
+        // Background button
+        modal.on('click', '#gmk-close-bg-btn', function () {
+            isBackground = true;
+            $('#gmk-close-overlay').remove();
+            gmkShowFloatBadge('running',
+                '<i class="mdi mdi-loading mdi-spin"></i> Cerrando clase...');
+            if (requestDone) { applyResult(lastResult); }
+        });
+
+        function applyResult(r) {
+            stepTimers.forEach(clearTimeout);
+            clearInterval(crawlTimer);
+            requestDone = true;
+            lastResult  = r;
+
+            var ok = r && r.data && r.data.ok;
+            var sm = ok ? (r.data.summary || {}) : null;
+
+            if (isBackground) {
+                if (ok) {
+                    gmkShowFloatBadge('success',
+                        '<i class="mdi mdi-check-circle" style="font-size:20px;"></i>' +
+                        '<div><div style="font-weight:700;">Clase cerrada</div>' +
+                        '<div style="font-size:12px;opacity:.9;">✅ ' + (sm.approved || 0) +
+                        ' aprobados &nbsp;❌ ' + (sm.failed || 0) + ' reprobados</div></div>');
+                    setTimeout(function () { location.reload(); }, 5000);
                 } else {
-                    alert('No se pudo cerrar: ' + ((r && r.data && r.data.error) || 'Error desconocido'));
+                    gmkShowFloatBadge('error',
+                        '<i class="mdi mdi-alert-circle" style="font-size:20px;"></i>' +
+                        '<div><div style="font-weight:700;">Error al cerrar</div>' +
+                        '<div style="font-size:12px;opacity:.9;">' +
+                        gmkEsc((r && r.data && r.data.error) || 'Error desconocido') + '</div></div>');
                 }
-            })
+                return;
+            }
+
+            // Update modal with result
+            GMK_CLOSE_STEPS.forEach(function (_, i) {
+                gmkUpdateStep(i, ok ? 'done' : (i === 0 ? 'error' : 'pending'));
+            });
+            gmkSetProgress(ok ? 100 : 25);
+            $('#gmk-close-bg-btn').hide();
+
+            var resultHtml;
+            if (ok) {
+                var cards = [
+                    { n: sm.approved || 0, lbl: 'Aprobados',      color: '#28a745' },
+                    { n: sm.failed   || 0, lbl: 'Reprobados',     color: '#dc3545' }
+                ];
+                if (sm.revalid  > 0) { cards.push({ n: sm.revalid,  lbl: 'Pend. reválida', color: '#856404' }); }
+                if (sm.no_grade > 0) { cards.push({ n: sm.no_grade, lbl: 'Sin nota',        color: '#6c757d' }); }
+                var cardHtml = cards.map(function (c) {
+                    return '<div style="text-align:center;background:#fff;border-radius:8px;padding:12px 10px;min-width:90px;">' +
+                           '<div style="font-size:26px;font-weight:700;color:' + c.color + ';">' + c.n + '</div>' +
+                           '<div style="font-size:11px;color:#555;">' + c.lbl + '</div></div>';
+                }).join('');
+                resultHtml =
+                    '<div style="background:#f0fff4;border:1px solid #b7dfbd;border-radius:10px;padding:16px 18px;">' +
+                    '<div style="font-weight:700;color:#155724;font-size:15px;margin-bottom:12px;">' +
+                    '✓ Clase cerrada correctamente</div>' +
+                    '<div style="display:flex;flex-wrap:wrap;gap:8px;">' + cardHtml + '</div></div>';
+            } else {
+                resultHtml =
+                    '<div style="background:#fff5f5;border:1px solid #f5c6cb;border-radius:10px;padding:16px 18px;">' +
+                    '<div style="font-weight:700;color:#721c24;margin-bottom:6px;">✗ No se pudo cerrar la clase</div>' +
+                    '<div style="font-size:13px;color:#721c24;">' +
+                    gmkEsc((r && r.data && r.data.error) || 'Error desconocido') + '</div></div>';
+            }
+
+            $('#gmk-close-result').html(resultHtml).show();
+            $('#gmk-close-btns').append(
+                '<button id="gmk-close-done-btn" class="btn btn-sm ' +
+                (ok ? 'btn-success' : 'btn-secondary') + '">' +
+                (ok ? '<i class="mdi mdi-check"></i> Entendido' : '<i class="mdi mdi-close"></i> Cerrar') +
+                '</button>'
+            );
+            modal.on('click', '#gmk-close-done-btn', function () {
+                $('#gmk-close-overlay').remove();
+                if (ok) { location.reload(); }
+            });
+        }
+
+        ajaxGet('local_grupomakro_close_class_period', { classId: classId })
+            .done(function (r) { applyResult(r); })
             .fail(function (xhr) {
-                alert('Error de sistema: ' + (xhr.responseJSON && xhr.responseJSON.message
-                    ? xhr.responseJSON.message : xhr.statusText));
+                applyResult({ data: {
+                    ok: false,
+                    error: (xhr.responseJSON && xhr.responseJSON.message) || xhr.statusText || 'Error de red'
+                }});
             });
     }
 
@@ -358,6 +532,14 @@ function ($, ModalFactory, ModalEvents) {
         '.gmk-pill-neutral { background:#e2e3e5; color:#383d41; }' +
         '.gmk-pill-click   { cursor:pointer; }' +
         '.gmk-pill-click:hover { filter:brightness(.92); }' +
+        // Close-progress modal
+        '.gmk-close-step{display:flex;align-items:center;gap:10px;margin:6px 0;font-size:13.5px;}' +
+        '.gmk-close-step-icon{width:22px;text-align:center;flex-shrink:0;font-size:16px;}' +
+        '.gmk-close-step-label{transition:color .3s;}' +
+        '#gmk-close-float{position:fixed;bottom:24px;right:24px;z-index:10002;border-radius:12px;' +
+        'padding:14px 18px;box-shadow:0 4px 20px rgba(0,0,0,.35);font-size:13.5px;font-weight:500;' +
+        'display:flex;align-items:center;gap:10px;min-width:220px;color:#fff;cursor:pointer;}' +
+        '#gmk-close-float:hover{filter:brightness(.93);}' +
         '</style>');
 
     // ── Period close — calls local_grupomakro_close_period and shows result table ──
