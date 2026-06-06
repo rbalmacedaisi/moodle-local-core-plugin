@@ -73,8 +73,8 @@ Vue.component('grademodal', {
                                 <div class="d-flex justify-end align-center mt-2 pa-2 rounded blue darken-4">
                                     <span class="white--text text-body-2 mr-3 font-weight-medium">Nota Final:</span>
                                     <span class="text-h6 font-weight-bold"
-                                          :class="gradebookWeightedTotal !== null ? (gradebookWeightedTotal >= 70 ? 'light-green--text text--lighten-3' : 'red--text text--lighten-3') : 'white--text'">
-                                        {{ gradebookWeightedTotal !== null ? gradebookWeightedTotal.toFixed(1) : '--' }}
+                                          :class="gradebookFinalGrade !== null ? (gradebookFinalGrade >= 70 ? 'light-green--text text--lighten-3' : 'red--text text--lighten-3') : 'white--text'">
+                                        {{ gradebookFinalGrade !== null ? gradebookFinalGrade.toFixed(1) : '--' }}
                                     </span>
                                 </div>
                             </template>
@@ -1095,7 +1095,7 @@ Vue.component('grademodal', {
                     doc.setFont('helvetica', 'bold');
                     doc.setFontSize(9);
                     doc.text('Nota Final:', margin + 2, y + 5.5);
-                    const finalGv = this.gradebookWeightedTotal;
+                    const finalGv = this.gradebookFinalGrade;
                     if (finalGv !== null) {
                         doc.setTextColor(finalGv >= 70 ? 144 : 255, finalGv >= 70 ? 238 : 100, finalGv >= 70 ? 144 : 100);
                     }
@@ -1812,6 +1812,14 @@ Vue.component('grademodal', {
                 sum += (grade / max) * item.weight_pct;
             });
             return Math.round(sum * 10) / 10;
+        },
+        // Nota final que se muestra: usa la nota oficial de Moodle (igual fuente que
+        // studenttable.js), con fallback al cálculo ponderado si Moodle aún no la calculó.
+        gradebookFinalGrade() {
+            if (this.gradebookCourseGrade !== null && this.gradebookCourseGrade !== undefined) {
+                return Math.round(this.gradebookCourseGrade * 10) / 10;
+            }
+            return this.gradebookWeightedTotal;
         },
         selectedCourseName() {
             return this.selectedCourse && this.selectedCourse.coursename ? this.selectedCourse.coursename : '--';
