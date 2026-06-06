@@ -7799,11 +7799,31 @@ function gmk_get_class_dashboard_stats(int $classId): array {
         ['classid' => $classId]
     );
 
-    // Batch-compute grades using log-based attendance (avoids grade_regrade_final_grades
-    // which incorrectly inflates attendance grades for absent students).
-    $gradeByUserId = !empty($rows)
-        ? gmk_batch_weighted_grades($classId, array_keys($rows))
-        : [];
+    // Batch-read grades from grade_grades course total — same source as get_student_info.php
+    // (studenttable). grade_regrade_final_grades() is intentionally NOT called here because
+    // Moodle's regrade inflates attendance for absent students who have no log entry.
+    $gradeByUserId = [];
+    if (!empty($rows) && !empty($class->corecourseid)) {
+        $courseGi = $DB->get_record('grade_items',
+            ['courseid' => (int)$class->corecourseid, 'itemtype' => 'course'],
+            'id, grademax');
+        if ($courseGi && (float)$courseGi->grademax > 0) {
+            $dashUserIds = array_keys($rows);
+            list($dashUserSql, $dashUserP) = $DB->get_in_or_equal(
+                $dashUserIds, SQL_PARAMS_NAMED, 'dsu'
+            );
+            foreach ($DB->get_records_sql(
+                "SELECT gg.userid, gg.finalgrade
+                   FROM {grade_grades} gg
+                  WHERE gg.itemid = :diid AND gg.userid $dashUserSql
+                    AND gg.finalgrade IS NOT NULL",
+                array_merge(['diid' => (int)$courseGi->id], $dashUserP)
+            ) as $gg) {
+                $gradeByUserId[(int)$gg->userid] =
+                    round((float)$gg->finalgrade / (float)$courseGi->grademax * 100, 2);
+            }
+        }
+    }
 
     foreach ($rows as $r) {
         $uid = (int)$r->id;
