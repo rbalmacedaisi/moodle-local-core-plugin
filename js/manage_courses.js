@@ -306,9 +306,11 @@ function ($, ModalFactory, ModalEvents) {
         // Client-side pre-flight (fast feedback if stats already loaded)
         if (stats) {
             if (stats.attendance.pending > 0) {
-                alert('No se puede cerrar: hay ' + stats.attendance.pending +
-                      ' sesión(es) de asistencia sin registrar.');
-                return;
+                if (!confirm('Hay ' + stats.attendance.pending + ' sesión(es) con estudiantes sin registro de asistencia.\n' +
+                             'Al cerrar, esas sesiones se marcarán automáticamente como inasistencia.\n\n' +
+                             '¿Desea continuar?')) {
+                    return;
+                }
             }
             if (!stats.grades.is_100) {
                 alert('No se puede cerrar: las ponderaciones suman ' +
