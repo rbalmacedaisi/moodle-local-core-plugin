@@ -5659,16 +5659,23 @@ function reschedule_class_activity($params)
                 }
             }
         } else {
-            // --- standard presencial: triggered from attendance event → replace session only ---
+            // --- presencial triggered from attendance event → replace session only ---
+            // A presencial class can still have a BBB room linked per session. If we recreate
+            // the attendance session without the BBB info, create_attendance_session_object()
+            // falls back to the default "Sesión de clase presencial." description and the
+            // "bbbModule:" auto-link disappears. Recover the BBB module from the existing
+            // relation and pass it through so the description (and the relation) stay intact.
             $attendanceCmId = (int)$params['moduleId'];
             if ($attendanceCmId) {
-                $newAttendanceSessionId = replace_attendance_session($attendanceCmId, $oldSessionId, $initTimestamp, $classDurationInSeconds, $classInfo);
-                if ($newAttendanceSessionId) {
-                    $oldRelation = $DB->get_record('gmk_bbb_attendance_relation', ['attendancesessionid' => (int)$oldSessionId]);
-                    if ($oldRelation) {
-                        $oldRelation->attendancesessionid = $newAttendanceSessionId;
-                        $DB->update_record('gmk_bbb_attendance_relation', $oldRelation);
-                    }
+                $oldRelation = $DB->get_record('gmk_bbb_attendance_relation', ['attendancesessionid' => (int)$oldSessionId]);
+                $bbbModuleInfo = null;
+                if ($oldRelation && !empty($oldRelation->bbbmoduleid)) {
+                    $bbbModuleInfo = get_coursemodule_from_id('bigbluebuttonbn', (int)$oldRelation->bbbmoduleid, 0, false, IGNORE_MISSING) ?: null;
+                }
+                $newAttendanceSessionId = replace_attendance_session($attendanceCmId, $oldSessionId, $initTimestamp, $classDurationInSeconds, $classInfo, $bbbModuleInfo);
+                if ($newAttendanceSessionId && $oldRelation) {
+                    $oldRelation->attendancesessionid = $newAttendanceSessionId;
+                    $DB->update_record('gmk_bbb_attendance_relation', $oldRelation);
                 }
             }
         }
