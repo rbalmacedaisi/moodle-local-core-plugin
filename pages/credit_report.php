@@ -80,6 +80,31 @@ $filebase = 'informe_creditos_' . $safename . '_' . date('Ymd');
  */
 function cr_logo_binary(array $areas): ?array {
     global $CFG;
+
+    // 1) Primary source: the same logo the "Reporte de Notas" uses (academicpanel.php):
+    //    the theme 'logo' setting served from the theme's pix/static directory on disk.
+    try {
+        $theme = \theme_config::load($CFG->theme);
+        if (!empty($theme->settings->logo)) {
+            $path = $CFG->dirroot . '/theme/' . $CFG->theme . '/pix/static/' . basename($theme->settings->logo);
+            if (is_readable($path)) {
+                $content = file_get_contents($path);
+                $info = @getimagesizefromstring($content);
+                if ($info) {
+                    return [
+                        'data' => $content,
+                        'mime' => $info['mime'],
+                        'w'    => (int)$info[0],
+                        'h'    => (int)$info[1],
+                    ];
+                }
+            }
+        }
+    } catch (\Throwable $e) {
+        // Fall through to the file-storage lookup below.
+    }
+
+    // 2) Fallback: theme / core_admin file storage areas.
     $fs = get_file_storage();
     $ctxid = \context_system::instance()->id;
     $components = ['theme_' . $CFG->theme, 'core_admin'];
