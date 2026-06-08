@@ -38,12 +38,27 @@ Vue.component('grademodal', {
                         </div>
 
                         <div v-if="!classId && creditView" class="mb-2">
-                            <div class="d-flex align-center mb-3">
-                                <span class="text-caption grey--text text--darken-1 mr-2">Alcance:</span>
-                                <v-btn-toggle v-model="creditScope" mandatory dense>
-                                    <v-btn small value="all">Todas</v-btn>
-                                    <v-btn small value="enrolled">Solo cursadas</v-btn>
-                                </v-btn-toggle>
+                            <div class="d-flex align-center flex-wrap mb-3" style="gap: 16px;">
+                                <div class="d-flex align-center">
+                                    <span class="text-caption grey--text text--darken-1 mr-2">Alcance:</span>
+                                    <v-btn-toggle v-model="creditScope" mandatory dense>
+                                        <v-btn small value="all">Todas</v-btn>
+                                        <v-btn small value="enrolled">Solo cursadas</v-btn>
+                                    </v-btn-toggle>
+                                </div>
+                                <div v-if="creditPlanOptions.length > 2" class="d-flex align-center">
+                                    <span class="text-caption grey--text text--darken-1 mr-2">Plan:</span>
+                                    <v-select
+                                        v-model="creditPlanId"
+                                        :items="creditPlanOptions"
+                                        item-text="text"
+                                        item-value="value"
+                                        dense
+                                        hide-details
+                                        outlined
+                                        style="max-width: 280px;"
+                                    ></v-select>
+                                </div>
                             </div>
 
                             <div v-if="loadingCreditReport" class="text-center py-4">
@@ -458,7 +473,8 @@ Vue.component('grademodal', {
             creditView: false,
             loadingCreditReport: false,
             creditReport: null,
-            creditScope: 'all'
+            creditScope: 'all',
+            creditPlanId: 0
         };
     },
     watch: {
@@ -468,6 +484,11 @@ Vue.component('grademodal', {
             }
         },
         creditScope() {
+            if (this.creditView) {
+                this.fetchCreditReport();
+            }
+        },
+        creditPlanId() {
             if (this.creditView) {
                 this.fetchCreditReport();
             }
@@ -507,6 +528,7 @@ Vue.component('grademodal', {
                         sesskey: M.cfg.sesskey,
                         userId: Number(this.dataStudent.id),
                         scope: this.creditScope,
+                        planId: Number(this.creditPlanId) || 0,
                     }
                 });
                 const payload = response && response.data ? response.data : {};
@@ -528,6 +550,7 @@ Vue.component('grademodal', {
             const params = new URLSearchParams({
                 userId: String(this.dataStudent.id),
                 scope: this.creditScope,
+                planId: String(Number(this.creditPlanId) || 0),
                 format: format === 'xlsx' ? 'xlsx' : 'pdf',
                 sesskey: M.cfg.sesskey,
             });
@@ -1947,6 +1970,18 @@ Vue.component('grademodal', {
                 ? (this.dataStudent.carrers || this.dataStudent.careers)
                 : [];
             return Array.isArray(list) ? list : [];
+        },
+        creditPlanOptions() {
+            const opts = [{ text: 'Todos los planes', value: 0 }];
+            const seen = {};
+            this.careersList.forEach((c) => {
+                const pid = c && c.planid ? Number(c.planid) : 0;
+                if (pid > 0 && !seen[pid]) {
+                    seen[pid] = true;
+                    opts.push({ text: c.career || ('Plan ' + pid), value: pid });
+                }
+            });
+            return opts;
         },
         studentName() {
             return (this.dataStudent && this.dataStudent.name) ? this.dataStudent.name : '--';

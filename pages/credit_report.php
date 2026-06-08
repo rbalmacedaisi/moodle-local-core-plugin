@@ -181,10 +181,14 @@ function cr_render_pdf(array $data, array $design, string $scopelabel, string $f
     $bandw   = $pagew - ($margin * 2);
     $bandh   = 18;
     $rgb     = [hexdec(substr($design['header_bg'], 0, 2)), hexdec(substr($design['header_bg'], 2, 2)), hexdec(substr($design['header_bg'], 4, 2))];
-    $pdf->SetFillColor($rgb[0], $rgb[1], $rgb[2]);
-    $pdf->RoundedRect($margin, $margin, $bandw, $bandh, 2, '1111', 'F');
+    // White header band with a blue border (logo and text are dark/blue on white).
+    $pdf->SetFillColor(255, 255, 255);
+    $pdf->SetDrawColor($rgb[0], $rgb[1], $rgb[2]);
+    $pdf->SetLineWidth(0.6);
+    $pdf->RoundedRect($margin, $margin, $bandw, $bandh, 2, '1111', 'DF');
+    $pdf->SetLineWidth(0.2);
 
-    $logo  = cr_logo_binary(['logodark', 'logo', 'logocompact']);
+    $logo  = cr_logo_binary(['logo', 'logodark', 'logocompact']);
     $textx = $margin + 4;
     if ($logo && !empty($logo['data'])) {
         $logoh = 13;
@@ -196,11 +200,12 @@ function cr_render_pdf(array $data, array $design, string $scopelabel, string $f
             $textx = $margin + 4;
         }
     }
-    $pdf->SetTextColor(255, 255, 255);
+    $pdf->SetTextColor($rgb[0], $rgb[1], $rgb[2]);
     $pdf->SetFont('helvetica', 'B', 15);
     $pdf->SetXY($textx, $margin + 3);
     $pdf->Cell($bandw - ($textx - $margin) - 2, 8, 'Instituto Superior ISI — Informe de Créditos', 0, 2, 'L');
     $pdf->SetFont('helvetica', '', 8);
+    $pdf->SetTextColor(90, 90, 90);
     $pdf->SetX($textx);
     $pdf->Cell($bandw - ($textx - $margin) - 2, 5, 'Generado: ' . $data['generatedat'] . '  |  Alcance: ' . $scopelabel, 0, 0, 'L');
     $pdf->SetTextColor(0, 0, 0);
@@ -308,9 +313,8 @@ function cr_render_xlsx(array $data, array $design, string $scopelabel, string $
     $student = $data['student'];
     $r = 1;
 
-    // Logo sits ON the blue title bar: the theme logo has light text, so it must
-    // sit on a dark background to be legible (same as the grades report PDF).
-    $logo = cr_logo_binary(['logodark', 'logo', 'logocompact']);
+    // Logo on the white header (the ISI logo from pix/static is dark/coloured).
+    $logo = cr_logo_binary(['logo', 'logodark', 'logocompact']);
     $haslogo = false;
     if ($logo && !empty($logo['data'])) {
         $gd = @imagecreatefromstring($logo['data']);
@@ -345,11 +349,12 @@ function cr_render_xlsx(array $data, array $design, string $scopelabel, string $
             ->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color('FF' . $design['border']));
     };
 
-    // Title bar (logo overlaps the left side, so indent the title text).
+    // Header: white background with a blue border (logo + text are dark/blue on white).
+    $headerstart = $r;
     $sheet->mergeCells("A{$r}:D{$r}");
     $sheet->setCellValue("A{$r}", 'Instituto Superior ISI — Informe de Créditos');
-    $fill("A{$r}:D{$r}", $design['header_bg']);
-    $fontcolor("A{$r}:D{$r}", 'FFFFFF', true);
+    $fill("A{$r}:D{$r}", 'FFFFFF');
+    $fontcolor("A{$r}:D{$r}", $design['header_bg'], true);
     $sheet->getStyle("A{$r}")->getFont()->setSize(14);
     $sheet->getStyle("A{$r}")->getAlignment()->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
     if ($haslogo) {
@@ -359,8 +364,12 @@ function cr_render_xlsx(array $data, array $design, string $scopelabel, string $
     $r++;
     $sheet->mergeCells("A{$r}:D{$r}");
     $sheet->setCellValue("A{$r}", 'Generado: ' . $data['generatedat'] . '  |  Alcance: ' . $scopelabel);
-    $fill("A{$r}:D{$r}", $design['header_bg']);
-    $fontcolor("A{$r}:D{$r}", 'FFFFFF');
+    $fill("A{$r}:D{$r}", 'FFFFFF');
+    $fontcolor("A{$r}:D{$r}", '5A5A5A');
+    // Blue outline around the whole header block.
+    $sheet->getStyle("A{$headerstart}:D{$r}")->getBorders()->getOutline()
+        ->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_MEDIUM)
+        ->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color('FF' . $design['header_bg']));
     $r += 2;
 
     // Student info.
