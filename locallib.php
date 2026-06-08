@@ -5659,23 +5659,72 @@ function reschedule_class_activity($params)
                 }
             }
         } else {
-            // --- presencial triggered from attendance event → replace session only ---
-            // A presencial class can still have a BBB room linked per session. If we recreate
-            // the attendance session without the BBB info, create_attendance_session_object()
-            // falls back to the default "Sesión de clase presencial." description and the
-            // "bbbModule:" auto-link disappears. Recover the BBB module from the existing
-            // relation and pass it through so the description (and the relation) stay intact.
+            // --- presencial triggered from attendance event ---
+            // A presencial class can still have a BBB room linked per session. The old code only
+            // replaced the attendance session, leaving the BBB module at its original time: it then
+            // showed up as a duplicated session in schedules.php and the recreated attendance
+            // session lost its "bbbModule:" description link. We now mirror the BBB-triggered branch:
+            // recreate the BBB at the new time, delete the old one, and pass the new BBB info to the
+            // attendance session so description + relation stay consistent.
             $attendanceCmId = (int)$params['moduleId'];
             if ($attendanceCmId) {
                 $oldRelation = $DB->get_record('gmk_bbb_attendance_relation', ['attendancesessionid' => (int)$oldSessionId]);
+                $oldBbbModuleId = ($oldRelation && !empty($oldRelation->bbbmoduleid)) ? (int)$oldRelation->bbbmoduleid : 0;
+
+                // Capture relation metadata before any deletion: the course_module_deleted observer
+                // removes relation rows referencing the deleted BBB cm.
+                $relAttendanceCmId = $oldRelation ? (int)$oldRelation->attendancemoduleid : 0;
+                $relAttendanceId   = $oldRelation ? (int)$oldRelation->attendanceid : 0;
+                $relSectionId      = $oldRelation ? (int)$oldRelation->sectionid : (int)$classInfo->coursesectionid;
+
+                // Recreate the linked BBB room at the new time (create first, then delete old).
                 $bbbModuleInfo = null;
-                if ($oldRelation && !empty($oldRelation->bbbmoduleid)) {
-                    $bbbModuleInfo = get_coursemodule_from_id('bigbluebuttonbn', (int)$oldRelation->bbbmoduleid, 0, false, IGNORE_MISSING) ?: null;
+                if ($oldBbbModuleId > 0) {
+                    $bbbModuleInfo = create_big_blue_button_activity($classInfo, $initTimestamp, $endTimestamp, $BBBmoduleId, $classSectionNumber);
+                    course_delete_module($oldBbbModuleId);
                 }
+
                 $newAttendanceSessionId = replace_attendance_session($attendanceCmId, $oldSessionId, $initTimestamp, $classDurationInSeconds, $classInfo, $bbbModuleInfo);
-                if ($newAttendanceSessionId && $oldRelation) {
-                    $oldRelation->attendancesessionid = $newAttendanceSessionId;
-                    $DB->update_record('gmk_bbb_attendance_relation', $oldRelation);
+
+                // Re-link the relation with the new session (and new BBB cm if recreated).
+                if ($newAttendanceSessionId) {
+                    $relation = $DB->get_record('gmk_bbb_attendance_relation', ['attendancesessionid' => (int)$oldSessionId]);
+                    if (!$relation && $bbbModuleInfo) {
+                        $relation = $DB->get_record('gmk_bbb_attendance_relation', ['bbbmoduleid' => (int)$bbbModuleInfo->coursemodule]);
+                    }
+                    if ($relation) {
+                        $relation->attendancesessionid = (int)$newAttendanceSessionId;
+                        if ($bbbModuleInfo) {
+                            $relation->bbbmoduleid = (int)$bbbModuleInfo->coursemodule;
+                            $relation->bbbid       = (int)$bbbModuleInfo->instance;
+                        }
+                        $DB->update_record('gmk_bbb_attendance_relation', $relation);
+                    } else if ($oldRelation) {
+                        // Old row was removed by the course_module_deleted observer: recreate it.
+                        $newRelation = new stdClass();
+                        $newRelation->classid             = (int)$classInfo->id;
+                        $newRelation->attendancesessionid = (int)$newAttendanceSessionId;
+                        $newRelation->bbbmoduleid         = $bbbModuleInfo ? (int)$bbbModuleInfo->coursemodule : null;
+                        $newRelation->bbbid               = $bbbModuleInfo ? (int)$bbbModuleInfo->instance : null;
+                        $newRelation->attendancemoduleid  = $relAttendanceCmId ?: $attendanceCmId;
+                        $newRelation->attendanceid        = $relAttendanceId ?: (int)$DB->get_field('course_modules', 'instance', ['id' => $attendanceCmId]);
+                        $newRelation->sectionid           = $relSectionId;
+                        $DB->insert_record('gmk_bbb_attendance_relation', $newRelation);
+                    }
+
+                    // Keep gmk_class.bbbmoduleids in sync after swapping the BBB cm (the observer
+                    // recomputed it during course_delete_module, before the new cm was linked).
+                    if ($bbbModuleInfo) {
+                        $relRows = $DB->get_records('gmk_bbb_attendance_relation', ['classid' => (int)$classInfo->id], '', 'bbbmoduleid');
+                        $cmids = [];
+                        foreach ($relRows as $r) {
+                            $bbcmid = (int)($r->bbbmoduleid ?? 0);
+                            if ($bbcmid > 0) {
+                                $cmids[$bbcmid] = $bbcmid;
+                            }
+                        }
+                        $DB->set_field('gmk_class', 'bbbmoduleids', empty($cmids) ? null : implode(',', array_values($cmids)), ['id' => (int)$classInfo->id]);
+                    }
                 }
             }
         }
