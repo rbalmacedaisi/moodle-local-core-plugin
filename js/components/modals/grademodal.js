@@ -26,6 +26,93 @@ Vue.component('grademodal', {
                             </div>
                         </div>
 
+                        <div v-if="!classId" class="d-flex justify-center mb-4">
+                            <v-btn-toggle v-model="creditView" mandatory dense color="primary">
+                                <v-btn :value="false" small>
+                                    <v-icon left small>mdi-book-open-page-variant</v-icon>Pensum
+                                </v-btn>
+                                <v-btn :value="true" small>
+                                    <v-icon left small>mdi-counter</v-icon>Créditos
+                                </v-btn>
+                            </v-btn-toggle>
+                        </div>
+
+                        <div v-if="!classId && creditView" class="mb-2">
+                            <div class="d-flex align-center mb-3">
+                                <span class="text-caption grey--text text--darken-1 mr-2">Alcance:</span>
+                                <v-btn-toggle v-model="creditScope" mandatory dense>
+                                    <v-btn small value="all">Todas</v-btn>
+                                    <v-btn small value="enrolled">Solo cursadas</v-btn>
+                                </v-btn-toggle>
+                            </div>
+
+                            <div v-if="loadingCreditReport" class="text-center py-4">
+                                <v-progress-circular indeterminate color="primary"></v-progress-circular>
+                                <div class="caption grey--text mt-2">Cargando informe de créditos...</div>
+                            </div>
+
+                            <template v-else>
+                                <div v-if="!creditReport || !creditReport.careers || creditReport.careers.length === 0" class="text-center py-6 grey--text">
+                                    <v-icon large color="grey lighten-2">mdi-database-off</v-icon>
+                                    <div class="mt-2 text-body-2 font-italic">No hay asignaturas para mostrar con el alcance seleccionado.</div>
+                                </div>
+
+                                <div v-for="(career, ci) in (creditReport ? creditReport.careers : [])" :key="ci" class="mb-6">
+                                    <div class="d-flex align-center mb-2 px-2 py-1 blue darken-4 rounded white--text">
+                                        <v-icon small color="white" class="mr-2">mdi-school</v-icon>
+                                        <span class="font-weight-bold text-subtitle-1">{{ career.career }}</span>
+                                    </div>
+
+                                    <div v-for="(cuatri, qi) in career.cuatrimestres" :key="qi" class="mb-4 ml-1">
+                                        <div class="d-flex align-center px-2 py-1 blue lighten-5 rounded mb-1">
+                                            <span class="text-subtitle-2 font-weight-bold blue--text text--darken-3">{{ cuatri.name }}</span>
+                                            <v-spacer></v-spacer>
+                                            <span class="text-caption blue--text text--darken-3 font-weight-medium">Créditos: {{ cuatri.subtotal.approved }} / {{ cuatri.subtotal.total }}</span>
+                                        </div>
+                                        <v-simple-table dense class="elevation-1 rounded">
+                                            <template v-slot:default>
+                                                <thead>
+                                                    <tr class="blue-grey lighten-5">
+                                                        <th class="text-left py-2" style="width:55%">Asignatura</th>
+                                                        <th class="text-center py-2">Créditos</th>
+                                                        <th class="text-center py-2">Estado</th>
+                                                        <th class="text-right py-2">Nota</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <tr v-for="(course, idx) in cuatri.courses" :key="idx">
+                                                        <td class="text-body-2 py-2">
+                                                            {{ course.coursename }}
+                                                            <v-chip v-if="course.is_module" x-small color="teal darken-1" dark label class="ml-1" style="height:14px;font-size:9px;">M</v-chip>
+                                                        </td>
+                                                        <td class="text-center font-weight-medium">{{ course.credits }}</td>
+                                                        <td class="text-center">
+                                                            <v-chip x-small :color="course.statusColor" dark label class="font-weight-bold">{{ course.statusLabel }}</v-chip>
+                                                        </td>
+                                                        <td class="text-right font-weight-bold" :class="getGradeColor(course.grade)">{{ formatGrade(course.grade) }}</td>
+                                                    </tr>
+                                                    <tr class="grey lighten-3">
+                                                        <td class="text-right font-weight-bold py-1">Subtotal cuatrimestre</td>
+                                                        <td class="text-center font-weight-bold py-1">{{ cuatri.subtotal.total }}</td>
+                                                        <td class="text-center font-weight-bold py-1" colspan="2">Aprobados: {{ cuatri.subtotal.approved }}</td>
+                                                    </tr>
+                                                </tbody>
+                                            </template>
+                                        </v-simple-table>
+                                    </div>
+
+                                    <div class="d-flex flex-wrap align-center mt-2 pa-2 rounded blue darken-3 white--text">
+                                        <span class="text-caption font-weight-bold mr-3">RESUMEN</span>
+                                        <span class="text-caption mr-3">Aprobados: <b>{{ career.summary.approved }}</b></span>
+                                        <span class="text-caption mr-3">En curso: <b>{{ career.summary.incourse }}</b></span>
+                                        <span class="text-caption mr-3">Pendientes: <b>{{ career.summary.pending }}</b></span>
+                                        <span class="text-caption mr-3">Total: <b>{{ career.summary.total }}</b></span>
+                                        <span class="text-caption">Avance: <b>{{ career.summary.pct }}%</b></span>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+
                         <div v-if="classId && (loadingGradebook || gradebook.length > 0)" class="mb-4">
                             <div class="d-flex align-center mb-3 px-2 py-1 blue darken-4 rounded white--text">
                                 <v-icon small color="white" class="mr-2">mdi-book-open-variant</v-icon>
@@ -80,7 +167,7 @@ Vue.component('grademodal', {
                             </template>
                         </div>
 
-                        <div class="grade-content" v-if="!classId">
+                        <div class="grade-content" v-if="!classId && !creditView">
                             <div v-if="loadingPensum" class="text-center py-4">
                                 <v-progress-circular indeterminate color="primary"></v-progress-circular>
                                 <div class="caption grey--text mt-2">Cargando pensum...</div>
@@ -193,7 +280,27 @@ Vue.component('grademodal', {
 
                     <v-card-actions class="pa-3">
                       <v-btn
-                        v-if="showSchedulePdfButton"
+                        v-if="!classId && creditView"
+                        color="blue darken-3"
+                        text
+                        :disabled="loadingCreditReport"
+                        @click="downloadCreditReport('pdf')"
+                      >
+                        <v-icon left>mdi-file-pdf-box</v-icon>
+                        Créditos PDF
+                      </v-btn>
+                      <v-btn
+                        v-if="!classId && creditView"
+                        color="green darken-2"
+                        text
+                        :disabled="loadingCreditReport"
+                        @click="downloadCreditReport('xlsx')"
+                      >
+                        <v-icon left>mdi-file-excel-box</v-icon>
+                        Créditos Excel
+                      </v-btn>
+                      <v-btn
+                        v-if="showSchedulePdfButton && !creditView"
                         color="secondary"
                         text
                         :loading="exportingSchedulePdf"
@@ -204,7 +311,7 @@ Vue.component('grademodal', {
                         Descargar horario PDF
                       </v-btn>
                       <v-btn
-                        v-if="canExportGradesPdf"
+                        v-if="canExportGradesPdf && !creditView"
                         color="teal darken-2"
                         text
                         :loading="exportingGradesPdf"
@@ -215,7 +322,7 @@ Vue.component('grademodal', {
                         Exportar notas PDF
                       </v-btn>
                       <v-btn
-                        v-if="canExportDetailedPdf"
+                        v-if="canExportDetailedPdf && !creditView"
                         color="deep-purple darken-1"
                         text
                         :loading="exportingDetailedGradesPdf"
@@ -347,8 +454,24 @@ Vue.component('grademodal', {
             exportingGradesPdf: false,
             exportingDetailedGradesPdf: false,
             enrollingModuleKey: null,
-            moduleStatusMap: {}
+            moduleStatusMap: {},
+            creditView: false,
+            loadingCreditReport: false,
+            creditReport: null,
+            creditScope: 'all'
         };
+    },
+    watch: {
+        creditView(val) {
+            if (val && !this.creditReport && !this.loadingCreditReport) {
+                this.fetchCreditReport();
+            }
+        },
+        creditScope() {
+            if (this.creditView) {
+                this.fetchCreditReport();
+            }
+        }
     },
     props: {
         dataStudent: Object,
@@ -367,6 +490,48 @@ Vue.component('grademodal', {
             const val = parseFloat(grade);
             if (isNaN(val)) return 'grey--text';
             return val >= 70 ? 'success--text' : 'error--text';
+        },
+        formatGrade(grade) {
+            const raw = String(grade == null ? '' : grade).trim();
+            if (raw === '' || raw === '-' || raw === '--') return '--';
+            return raw;
+        },
+        async fetchCreditReport() {
+            if (!this.dataStudent || !this.dataStudent.id) return;
+            this.loadingCreditReport = true;
+            try {
+                const url = window.wsUrl || (window.location.origin + '/local/grupomakro_core/ajax.php');
+                const response = await window.axios.get(url, {
+                    params: {
+                        action: 'local_grupomakro_get_credit_report',
+                        sesskey: M.cfg.sesskey,
+                        userId: Number(this.dataStudent.id),
+                        scope: this.creditScope,
+                    }
+                });
+                const payload = response && response.data ? response.data : {};
+                if (payload.status === 'success' && payload.data) {
+                    this.creditReport = payload.data;
+                } else {
+                    this.creditReport = { careers: [] };
+                }
+            } catch (error) {
+                console.error('Error fetching credit report:', error);
+                this.creditReport = { careers: [] };
+            } finally {
+                this.loadingCreditReport = false;
+            }
+        },
+        downloadCreditReport(format) {
+            if (!this.dataStudent || !this.dataStudent.id) return;
+            const base = window.location.origin + '/local/grupomakro_core/pages/credit_report.php';
+            const params = new URLSearchParams({
+                userId: String(this.dataStudent.id),
+                scope: this.creditScope,
+                format: format === 'xlsx' ? 'xlsx' : 'pdf',
+                sesskey: M.cfg.sesskey,
+            });
+            window.open(base + '?' + params.toString(), '_blank');
         },
         navigateToGradeReport(item) {
             const gradebookUrl = `/grade/report/grader/index.php?id=${item.courseid}`;

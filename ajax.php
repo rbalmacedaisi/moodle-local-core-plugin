@@ -1853,6 +1853,17 @@ try {
             $response = ['status' => 'success', 'data' => $stats];
             break;
 
+        case 'local_grupomakro_get_credit_report':
+            require_sesskey();
+            require_capability('moodle/site:config', $context);
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/credit_report.php');
+            $userid = required_param('userId', PARAM_INT);
+            $planid = optional_param('planId', 0, PARAM_INT);
+            $scope  = optional_param('scope', 'all', PARAM_ALPHA);
+            $report = \local_grupomakro_core\local\credit_report::build($userid, $planid, $scope);
+            $response = ['status' => 'success', 'data' => $report];
+            break;
+
         case 'local_grupomakro_close_class_period':
             require_sesskey();
             require_capability('moodle/site:config', $context);
