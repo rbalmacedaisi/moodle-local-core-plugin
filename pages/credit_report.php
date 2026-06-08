@@ -70,6 +70,40 @@ $safename = trim($safename, '_') ?: 'estudiante';
 $filebase = 'informe_creditos_' . $safename . '_' . date('Ymd');
 
 /**
+ * Resolve the site/theme logo as raw image data for server-side embedding.
+ *
+ * Tries the given fileareas in order, in the active theme component first
+ * (where this install actually stores its logo) and core_admin as fallback.
+ *
+ * @param string[] $areas Filearea preference order (e.g. ['logodark','logo']).
+ * @return array|null ['data'=>string, 'mime'=>string, 'w'=>int, 'h'=>int] or null when none.
+ */
+function cr_logo_binary(array $areas): ?array {
+    global $CFG;
+    $fs = get_file_storage();
+    $ctxid = \context_system::instance()->id;
+    $components = ['theme_' . $CFG->theme, 'core_admin'];
+    foreach ($areas as $area) {
+        foreach ($components as $comp) {
+            $files = $fs->get_area_files($ctxid, $comp, $area, false, 'itemid', false);
+            foreach ($files as $f) {
+                if ($f->is_valid_image()) {
+                    $content = $f->get_content();
+                    $info = @getimagesizefromstring($content);
+                    return [
+                        'data' => $content,
+                        'mime' => $info ? $info['mime'] : 'image/png',
+                        'w'    => $info ? (int)$info[0] : 0,
+                        'h'    => $info ? (int)$info[1] : 0,
+                    ];
+                }
+            }
+        }
+    }
+    return null;
+}
+
+/**
  * Colour (hex, no #) for a numeric grade.
  */
 function cr_grade_color(string $grade, array $design): string {
@@ -108,7 +142,8 @@ function cr_render_pdf(array $data, array $design, string $scopelabel, string $f
     $pdf->SetTitle('Informe de Créditos - ' . $student['name']);
     $pdf->setPrintHeader(false);
     $pdf->setPrintFooter(false);
-    $pdf->SetMargins(12, 12, 12);
+    $margin = 12;
+    $pdf->SetMargins($margin, $margin, $margin);
     $pdf->SetAutoPageBreak(true, 14);
     $pdf->AddPage();
 
@@ -116,14 +151,38 @@ function cr_render_pdf(array $data, array $design, string $scopelabel, string $f
         return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
     };
 
-    // Header bar + student info.
-    $html  = '<table cellpadding="6" cellspacing="0"><tr>';
-    $html .= '<td bgcolor="#' . $design['header_bg'] . '" width="100%">';
-    $html .= '<span style="color:#FFFFFF;font-size:15px;font-weight:bold;">Instituto Superior ISI &mdash; Informe de Créditos</span><br/>';
-    $html .= '<span style="color:#FFFFFF;font-size:8px;">Generado: ' . $e($data['generatedat']) . ' &nbsp;|&nbsp; Alcance: ' . $e($scopelabel) . '</span>';
-    $html .= '</td></tr></table>';
+    // ── Header band drawn manually so the logo can sit inside the coloured bar ──
+    $pagew   = $pdf->getPageWidth();
+    $bandw   = $pagew - ($margin * 2);
+    $bandh   = 18;
+    $rgb     = [hexdec(substr($design['header_bg'], 0, 2)), hexdec(substr($design['header_bg'], 2, 2)), hexdec(substr($design['header_bg'], 4, 2))];
+    $pdf->SetFillColor($rgb[0], $rgb[1], $rgb[2]);
+    $pdf->RoundedRect($margin, $margin, $bandw, $bandh, 2, '1111', 'F');
 
-    $html .= '<table cellpadding="3" cellspacing="0" style="font-size:9px;"><tr>';
+    $logo  = cr_logo_binary(['logodark', 'logo', 'logocompact']);
+    $textx = $margin + 4;
+    if ($logo && !empty($logo['data'])) {
+        $logoh = 13;
+        $logow = ($logo['h'] > 0) ? min(40, $logoh * ($logo['w'] / max(1, $logo['h']))) : 26;
+        try {
+            $pdf->Image('@' . $logo['data'], $margin + 3, $margin + 2.5, $logow, $logoh, '', '', '', true, 300, '', false, false, 0, false, false, false);
+            $textx = $margin + 3 + $logow + 4;
+        } catch (\Throwable $ex) {
+            $textx = $margin + 4;
+        }
+    }
+    $pdf->SetTextColor(255, 255, 255);
+    $pdf->SetFont('helvetica', 'B', 15);
+    $pdf->SetXY($textx, $margin + 3);
+    $pdf->Cell($bandw - ($textx - $margin) - 2, 8, 'Instituto Superior ISI — Informe de Créditos', 0, 2, 'L');
+    $pdf->SetFont('helvetica', '', 8);
+    $pdf->SetX($textx);
+    $pdf->Cell($bandw - ($textx - $margin) - 2, 5, 'Generado: ' . $data['generatedat'] . '  |  Alcance: ' . $scopelabel, 0, 0, 'L');
+    $pdf->SetTextColor(0, 0, 0);
+    $pdf->SetY($margin + $bandh + 4);
+
+    // Student info + report body.
+    $html  = '<table cellpadding="3" cellspacing="0" style="font-size:9px;"><tr>';
     $html .= '<td width="55%"><b>Estudiante:</b> ' . $e($student['name']) . '</td>';
     $html .= '<td width="45%"><b>Identificación:</b> ' . $e($student['identification']) . '</td>';
     $html .= '</tr><tr>';
@@ -209,6 +268,9 @@ function cr_render_pdf(array $data, array $design, string $scopelabel, string $f
  * @param string $filebase
  */
 function cr_render_xlsx(array $data, array $design, string $scopelabel, string $filebase): void {
+    global $CFG;
+    require_once($CFG->libdir . '/phpspreadsheet/vendor/autoload.php');
+
     $ss = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
     $sheet = $ss->getActiveSheet();
     $sheet->setTitle('Créditos');
@@ -220,6 +282,25 @@ function cr_render_xlsx(array $data, array $design, string $scopelabel, string $
 
     $student = $data['student'];
     $r = 1;
+
+    // Logo above the title bar (floats over its own row so it never overlaps text).
+    $logo = cr_logo_binary(['logo', 'logodark', 'logocompact']);
+    if ($logo && !empty($logo['data'])) {
+        $gd = @imagecreatefromstring($logo['data']);
+        if ($gd !== false) {
+            $drawing = new \PhpOffice\PhpSpreadsheet\Worksheet\MemoryDrawing();
+            $drawing->setImageResource($gd);
+            $drawing->setRenderingFunction(\PhpOffice\PhpSpreadsheet\Worksheet\MemoryDrawing::RENDERING_DEFAULT);
+            $drawing->setMimeType(\PhpOffice\PhpSpreadsheet\Worksheet\MemoryDrawing::MIMETYPE_DEFAULT);
+            $drawing->setCoordinates('A1');
+            $drawing->setOffsetX(4);
+            $drawing->setOffsetY(4);
+            $drawing->setHeight(40);
+            $drawing->setWorksheet($sheet);
+            $sheet->getRowDimension(1)->setRowHeight(36);
+            $r = 2;
+        }
+    }
 
     $fill = function ($cells, $hex) use ($sheet) {
         $sheet->getStyle($cells)->getFill()
