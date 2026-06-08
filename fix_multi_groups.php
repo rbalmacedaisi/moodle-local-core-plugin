@@ -48,7 +48,17 @@ $sql_candidatos = "
     ORDER BY u.lastname, u.firstname, c.shortname
 ";
 
-$candidatos = $DB->get_records_sql($sql_candidatos);
+// Usamos get_recordset_sql y construimos array con clave unica userid+courseid
+// para evitar que get_records_sql colapse filas por userid duplicado.
+$candidatos = [];
+$rs = $DB->get_recordset_sql($sql_candidatos);
+foreach ($rs as $r) {
+    $r = (object) $r;
+    $key = $r->userid . '_' . $r->courseid;
+    $candidatos[$key] = $r;
+}
+$rs->close();
+
 echo "  -> " . count($candidatos) . " candidatos con multi-grupo\n\n";
 
 // --- 2) Defensa contra docentes ----------------------------------------------
