@@ -283,8 +283,10 @@ function cr_render_xlsx(array $data, array $design, string $scopelabel, string $
     $student = $data['student'];
     $r = 1;
 
-    // Logo above the title bar (floats over its own row so it never overlaps text).
-    $logo = cr_logo_binary(['logo', 'logodark', 'logocompact']);
+    // Logo sits ON the blue title bar: the theme logo has light text, so it must
+    // sit on a dark background to be legible (same as the grades report PDF).
+    $logo = cr_logo_binary(['logodark', 'logo', 'logocompact']);
+    $haslogo = false;
     if ($logo && !empty($logo['data'])) {
         $gd = @imagecreatefromstring($logo['data']);
         if ($gd !== false) {
@@ -293,12 +295,11 @@ function cr_render_xlsx(array $data, array $design, string $scopelabel, string $
             $drawing->setRenderingFunction(\PhpOffice\PhpSpreadsheet\Worksheet\MemoryDrawing::RENDERING_DEFAULT);
             $drawing->setMimeType(\PhpOffice\PhpSpreadsheet\Worksheet\MemoryDrawing::MIMETYPE_DEFAULT);
             $drawing->setCoordinates('A1');
-            $drawing->setOffsetX(4);
-            $drawing->setOffsetY(4);
-            $drawing->setHeight(40);
+            $drawing->setOffsetX(6);
+            $drawing->setOffsetY(5);
+            $drawing->setHeight(26);
             $drawing->setWorksheet($sheet);
-            $sheet->getRowDimension(1)->setRowHeight(36);
-            $r = 2;
+            $haslogo = true;
         }
     }
 
@@ -319,13 +320,17 @@ function cr_render_xlsx(array $data, array $design, string $scopelabel, string $
             ->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color('FF' . $design['border']));
     };
 
-    // Title bar.
+    // Title bar (logo overlaps the left side, so indent the title text).
     $sheet->mergeCells("A{$r}:D{$r}");
     $sheet->setCellValue("A{$r}", 'Instituto Superior ISI — Informe de Créditos');
     $fill("A{$r}:D{$r}", $design['header_bg']);
     $fontcolor("A{$r}:D{$r}", 'FFFFFF', true);
     $sheet->getStyle("A{$r}")->getFont()->setSize(14);
-    $sheet->getRowDimension($r)->setRowHeight(24);
+    $sheet->getStyle("A{$r}")->getAlignment()->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+    if ($haslogo) {
+        $sheet->getStyle("A{$r}")->getAlignment()->setIndent(6);
+    }
+    $sheet->getRowDimension($r)->setRowHeight(30);
     $r++;
     $sheet->mergeCells("A{$r}:D{$r}");
     $sheet->setCellValue("A{$r}", 'Generado: ' . $data['generatedat'] . '  |  Alcance: ' . $scopelabel);
