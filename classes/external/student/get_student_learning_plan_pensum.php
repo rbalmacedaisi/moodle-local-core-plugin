@@ -211,6 +211,31 @@ class get_student_learning_plan_pensum extends external_api
                         $membershipClassCourseByClassId[$cid] = (int)$mclass->corecourseid;
                     }
 
+                    // Cross-plan MODULE classes: a subject taken as an independent module is shared by
+                    // corecourse across every plan that contains it. The plan-scoped query above misses
+                    // the module when the rendered plan differs from the one the module class was created
+                    // under (e.g. a student with the same subject in two careers — the module belongs to
+                    // plan A but we are rendering plan B). Fetch module classes by corecourse + membership
+                    // without the plan filter so their grade is visible in every plan.
+                    $modulemembershipclasses = $DB->get_records_sql(
+                        "SELECT c.id, c.corecourseid
+                           FROM {gmk_class} c
+                           JOIN {groups_members} gm ON gm.groupid = c.groupid
+                          WHERE gm.userid = :userid
+                            AND c.is_module = 1
+                            AND c.gradecategoryid > 0
+                            AND c.corecourseid $courseInSql
+                       ORDER BY c.id ASC",
+                        ['userid' => $params['userId']] + $courseInParams
+                    );
+                    foreach ($modulemembershipclasses as $mclass) {
+                        $cid = (int)$mclass->id;
+                        if (!in_array($cid, $membershipclassids, true)) {
+                            $membershipclassids[] = $cid;
+                        }
+                        $membershipClassCourseByClassId[$cid] = (int)$mclass->corecourseid;
+                    }
+
                     // Broad fallback: category totals from any class category in this plan+course.
                     $plancategorygrades = $DB->get_records_sql(
                         "SELECT c.corecourseid,
