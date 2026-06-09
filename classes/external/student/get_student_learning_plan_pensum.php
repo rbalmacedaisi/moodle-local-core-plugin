@@ -738,8 +738,33 @@ class get_student_learning_plan_pensum extends external_api
                 $progressgroupid = !empty($userPensumCourse->progressgroupid) ? (int)$userPensumCourse->progressgroupid : 0;
                 $courseidkey = (int)$userPensumCourse->courseid;
 
-                // 0) Highest priority: explicit "Nota Final Integrada" (final academic grade).
-                if (array_key_exists($courseidkey, $manualIntegratedGradeByCourseId)) {
+                // -1) Top priority: an independent MODULE grade for this course. A student who took
+                // the subject as a module must be graded by the module, which wins over the manual
+                // "Nota Final Integrada" (the integrated item can carry a stale/lower value while the
+                // module was actually passed). This same backend feeds both the student LXP pensum and
+                // the teacher/admin grades modal (studenttable), so the rule applies consistently.
+                $moduleGradeCandidate = null;
+                if ($progressclassid > 0 && !empty($moduleClassIds[$progressclassid]) && array_key_exists($progressclassid, $classGradeByClassId)) {
+                    $moduleGradeCandidate = (float)$classGradeByClassId[$progressclassid];
+                } else if ($progressgroupid > 0 && !empty($moduleGroupIds[$progressgroupid]) && array_key_exists($progressgroupid, $classGradeByGroupId)) {
+                    $moduleGradeCandidate = (float)$classGradeByGroupId[$progressgroupid];
+                } else if (!empty($membershipClassIsModuleByCourseId[$courseidkey]) && !empty($membershipClassGradesByCourseId[$courseidkey])) {
+                    $valid = array_values(array_filter(array_map('floatval', $membershipClassGradesByCourseId[$courseidkey]), function($v) {
+                        return ($v >= 0 && $v <= 100);
+                    }));
+                    if (!empty($valid)) {
+                        $moduleGradeCandidate = round(max($valid), 2);
+                    }
+                }
+                if (!is_null($moduleGradeCandidate) && $moduleGradeCandidate >= 0 && $moduleGradeCandidate <= 100) {
+                    $coursegrade = $moduleGradeCandidate;
+                    $gradesource = 'module_priority';
+                    $isModuleGrade = true;
+                }
+
+                // 0) Next: explicit "Nota Final Integrada" (final academic grade) — only when there is
+                // no module grade above.
+                if (is_null($coursegrade) && array_key_exists($courseidkey, $manualIntegratedGradeByCourseId)) {
                     $candidate = (float)$manualIntegratedGradeByCourseId[$courseidkey];
                     if ($candidate >= 0 && $candidate <= 100) {
                         $coursegrade = $candidate;
