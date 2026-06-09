@@ -45,7 +45,7 @@ class revalida_manager {
     const REVALID_REF_PREFIX = 'REVALID_REQ:';
 
     /** @var float A revalidation exam grade strictly above this passes (canonical rule). */
-    const PASS_THRESHOLD = 70.4;
+    const PASS_THRESHOLD = 70.9;
 
     /** @var float Consolidated final course grade when the revalidation is passed. */
     const PASS_FINAL_GRADE = 71.0;
