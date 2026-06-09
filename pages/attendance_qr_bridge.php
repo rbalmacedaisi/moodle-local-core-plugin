@@ -695,15 +695,32 @@ $course = $DB->get_record('course', ['id' => (int)$cm->course], '*', MUST_EXIST)
 $GLOBALS['GMK_QR_DEBUG_SESSION'] = $session;
 $GLOBALS['GMK_QR_DEBUG_ATTENDANCE'] = $attendance;
 
-require_login($course, true, $cm);
-
 $target = gmk_qr_resolve_target_data($attendance, $session, $cm, $course);
+
+// The student must be actively enrolled in the course BEFORE Moodle's
+// require_login($course, ...) runs: otherwise require_login() would bounce an
+// unenrolled student into the Moodle UI (enrolment page). Instead, send them to
+// the controlled LXP result page with a clear "not enrolled in this group" message.
+$coursecontext = context_course::instance((int)$course->id);
+if (!is_siteadmin() && !is_enrolled($coursecontext, $USER, '', true)) {
+    gmk_qr_finish(
+        'error',
+        'not_enrolled',
+        'No te encuentras matriculado en este grupo. Dirigete a la Direccion Academica para revisar tu asignacion de grupos.',
+        $target,
+        $sessionid,
+        (int)$USER->id,
+        ['courseid' => (int)$course->id]
+    );
+}
+
+require_login($course, true, $cm);
 
 if (!empty($session->groupid) && !groups_is_member((int)$session->groupid, $USER->id)) {
     gmk_qr_finish(
         'error',
         'group_mismatch',
-        'No perteneces al grupo de esta sesion.',
+        'No te encuentras matriculado en este grupo. Dirigete a la Direccion Academica para revisar tu asignacion de grupos.',
         $target,
         $sessionid,
         (int)$USER->id,
