@@ -2108,6 +2108,44 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20260507001, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20260609001) {
+        // Create gmk_revalidations table for teacher-driven revalidation management.
+        $table = new xmldb_table('gmk_revalidations');
+        $table->add_field('id',             XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('classid',        XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('userid',         XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('corecourseid',   XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('learningplanid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('progreid',       XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('originalgrade',  XMLDB_TYPE_NUMBER,  '5, 2', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('revalidgrade',   XMLDB_TYPE_NUMBER,  '5, 2', null, null,          null, null);
+        $table->add_field('result',         XMLDB_TYPE_CHAR,    '20', null, XMLDB_NOTNULL, null, 'pending');
+        $table->add_field('bbbcmid',        XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('sessionstart',   XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('sessionend',     XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('invoice_extref', XMLDB_TYPE_CHAR,    '64', null, null,          null, null);
+        $table->add_field('invoice_id',     XMLDB_TYPE_CHAR,    '32', null, null,          null, null);
+        $table->add_field('invoice_number', XMLDB_TYPE_CHAR,    '64', null, null,          null, null);
+        $table->add_field('payment_link',   XMLDB_TYPE_CHAR,    '1333', null, null,        null, null);
+        $table->add_field('payment_state',  XMLDB_TYPE_CHAR,    '20', null, XMLDB_NOTNULL, null, 'unpaid');
+        $table->add_field('paidat',         XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('status',         XMLDB_TYPE_CHAR,    '20', null, XMLDB_NOTNULL, null, 'scheduled');
+        $table->add_field('createdby',      XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timecreated',    XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timemodified',   XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_index('class_user_uix', XMLDB_INDEX_UNIQUE, ['classid', 'userid']);
+        $table->add_index('userid_idx', XMLDB_INDEX_NOTUNIQUE, ['userid']);
+        $table->add_index('invoice_extref_idx', XMLDB_INDEX_NOTUNIQUE, ['invoice_extref']);
+
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        upgrade_plugin_savepoint(true, 20260609001, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

@@ -413,6 +413,30 @@ if ($hassiteconfig) {
             PARAM_INT
         ));
 
+        // ── Revalidations (reválida) ────────────────────────────────────────
+        $settingspage->add(new admin_setting_configtext(
+            'local_grupomakro_core/revalida_default_odoo_product_id',
+            'Producto Odoo para reválidas',
+            'ID de producto en Odoo a facturar al programar una reválida.',
+            '0',
+            PARAM_INT
+        ));
+
+        $settingspage->add(new admin_setting_configtext(
+            'local_grupomakro_core/revalida_cost',
+            'Costo de reválida',
+            'Monto a facturar por reválida (si el producto Odoo no fija el precio).',
+            '0',
+            PARAM_FLOAT
+        ));
+
+        $settingspage->add(new admin_setting_configpasswordunmask(
+            'local_grupomakro_core/revalida_webhook_token',
+            'Token webhook de pago de reválidas',
+            'Token compartido para validar el webhook de pago de reválidas (si vacío, usa el de cartas).',
+            ''
+        ));
+
         // Add the "tuitionfee" setting, which is an text field.
         $settingspage->add(new admin_setting_configtext(
             'local_grupomakro_core/tuitionfee',

@@ -773,5 +773,39 @@
         <INDEX NAME="classid_idx" UNIQUE="false" FIELDS="classid"/>
       </INDEXES>
     </TABLE>
+    <TABLE NAME="gmk_revalidations" COMMENT="Teacher-driven revalidations: scheduled BBB session, Odoo invoice and resolved grade per student/class">
+      <FIELDS>
+        <FIELD NAME="id"             TYPE="int"    LENGTH="10"  NOTNULL="true"  SEQUENCE="true"/>
+        <FIELD NAME="classid"        TYPE="int"    LENGTH="10"  NOTNULL="true"  DEFAULT="0"  SEQUENCE="false"/>
+        <FIELD NAME="userid"         TYPE="int"    LENGTH="10"  NOTNULL="true"  DEFAULT="0"  SEQUENCE="false"/>
+        <FIELD NAME="corecourseid"   TYPE="int"    LENGTH="10"  NOTNULL="true"  DEFAULT="0"  SEQUENCE="false"/>
+        <FIELD NAME="learningplanid" TYPE="int"    LENGTH="10"  NOTNULL="true"  DEFAULT="0"  SEQUENCE="false"/>
+        <FIELD NAME="progreid"       TYPE="int"    LENGTH="10"  NOTNULL="true"  DEFAULT="0"  SEQUENCE="false" COMMENT="gmk_course_progre.id"/>
+        <FIELD NAME="originalgrade"  TYPE="number" LENGTH="5"   NOTNULL="true"  DEFAULT="0.0" SEQUENCE="false" DECIMALS="2" COMMENT="Final course grade before revalidation"/>
+        <FIELD NAME="revalidgrade"   TYPE="number" LENGTH="5"   NOTNULL="false"              SEQUENCE="false" DECIMALS="2" COMMENT="Grade the teacher enters for the revalidation exam"/>
+        <FIELD NAME="result"         TYPE="char"   LENGTH="20"  NOTNULL="true"  DEFAULT="pending" SEQUENCE="false" COMMENT="pending|approved|failed"/>
+        <FIELD NAME="bbbcmid"        TYPE="int"    LENGTH="10"  NOTNULL="true"  DEFAULT="0"  SEQUENCE="false" COMMENT="course_module id of the revalidation BBB session"/>
+        <FIELD NAME="sessionstart"   TYPE="int"    LENGTH="10"  NOTNULL="true"  DEFAULT="0"  SEQUENCE="false"/>
+        <FIELD NAME="sessionend"     TYPE="int"    LENGTH="10"  NOTNULL="true"  DEFAULT="0"  SEQUENCE="false"/>
+        <FIELD NAME="invoice_extref" TYPE="char"   LENGTH="64"  NOTNULL="false"              SEQUENCE="false" COMMENT="External request ref sent to Odoo (REVALID_REQ:&lt;id&gt;)"/>
+        <FIELD NAME="invoice_id"     TYPE="char"   LENGTH="32"  NOTNULL="false"              SEQUENCE="false" COMMENT="Odoo account.move id"/>
+        <FIELD NAME="invoice_number" TYPE="char"   LENGTH="64"  NOTNULL="false"              SEQUENCE="false" COMMENT="Odoo invoice consecutive (name)"/>
+        <FIELD NAME="payment_link"   TYPE="char"   LENGTH="1333" NOTNULL="false"             SEQUENCE="false"/>
+        <FIELD NAME="payment_state"  TYPE="char"   LENGTH="20"  NOTNULL="true"  DEFAULT="unpaid" SEQUENCE="false" COMMENT="unpaid|paid"/>
+        <FIELD NAME="paidat"         TYPE="int"    LENGTH="10"  NOTNULL="true"  DEFAULT="0"  SEQUENCE="false"/>
+        <FIELD NAME="status"         TYPE="char"   LENGTH="20"  NOTNULL="true"  DEFAULT="scheduled" SEQUENCE="false" COMMENT="scheduled|graded|consolidated"/>
+        <FIELD NAME="createdby"      TYPE="int"    LENGTH="10"  NOTNULL="true"  DEFAULT="0"  SEQUENCE="false"/>
+        <FIELD NAME="timecreated"    TYPE="int"    LENGTH="10"  NOTNULL="true"  DEFAULT="0"  SEQUENCE="false"/>
+        <FIELD NAME="timemodified"   TYPE="int"    LENGTH="10"  NOTNULL="true"  DEFAULT="0"  SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="class_user_uix" UNIQUE="true" FIELDS="classid, userid"/>
+        <INDEX NAME="userid_idx" UNIQUE="false" FIELDS="userid"/>
+        <INDEX NAME="invoice_extref_idx" UNIQUE="false" FIELDS="invoice_extref"/>
+      </INDEXES>
+    </TABLE>
   </TABLES>
 </XMLDB>

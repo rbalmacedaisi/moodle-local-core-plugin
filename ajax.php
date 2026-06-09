@@ -2903,6 +2903,25 @@ try {
                 }
             }
 
+            // ── Revalidation enrichment (eligibility + existing records) ──────────
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/revalida_manager.php');
+            $revalida_records = \local_grupomakro_core\local\revalida_manager::get_for_class((int)$classid);
+            $revalida_practical = [];
+            if (!empty($userids)) {
+                list($rpinsql, $rpparams) = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED, 'rp');
+                $rprows = $DB->get_records_sql(
+                    "SELECT userid, MAX(practicalhours) AS ph
+                       FROM {gmk_course_progre}
+                      WHERE classid = :cid AND userid $rpinsql
+                   GROUP BY userid",
+                    array_merge(['cid' => (int)$classid], $rpparams)
+                );
+                foreach ($rprows as $rpr) {
+                    $revalida_practical[(int)$rpr->userid] = (int)$rpr->ph;
+                }
+            }
+            $revalida_grades = !empty($userids) ? gmk_batch_weighted_grades((int)$classid, $userids) : [];
+
             $grades_data = [];
             foreach ($students as $student) {
                 $studentfullname = trim(($student->fullname ?? '') !== '' ? $student->fullname : (($student->firstname ?? '') . ' ' . ($student->lastname ?? '')));
@@ -2917,6 +2936,32 @@ try {
                     $val = isset($grades_map[$student->id][$iid]) ? $grades_map[$student->id][$iid] : '-';
                     $student_row['grades'][$iid] = $val;
                 }
+
+                $rv_uid = (int)$student->id;
+                $rv_grade = isset($revalida_grades[$rv_uid]) ? (float)$revalida_grades[$rv_uid] : null;
+                $rv_ph = $revalida_practical[$rv_uid] ?? 0;
+                $student_row['final_grade'] = $rv_grade;
+                $student_row['practicalhours'] = (int)$rv_ph;
+                $student_row['revalid_eligible'] = ($rv_grade !== null)
+                    && \local_grupomakro_core\local\revalida_manager::is_eligible($rv_grade, (int)$rv_ph);
+                if (isset($revalida_records[$rv_uid])) {
+                    $rvr = $revalida_records[$rv_uid];
+                    $student_row['revalidation'] = [
+                        'id' => (int)$rvr->id,
+                        'status' => (string)$rvr->status,
+                        'result' => (string)$rvr->result,
+                        'revalidgrade' => ($rvr->revalidgrade !== null) ? (float)$rvr->revalidgrade : null,
+                        'originalgrade' => (float)$rvr->originalgrade,
+                        'payment_state' => (string)$rvr->payment_state,
+                        'payment_link' => (string)$rvr->payment_link,
+                        'invoice_number' => (string)$rvr->invoice_number,
+                        'sessionstart' => (int)$rvr->sessionstart,
+                        'bbb_url' => (string)($rvr->bbb_url ?? ''),
+                    ];
+                } else {
+                    $student_row['revalidation'] = null;
+                }
+
                 $grades_data[] = $student_row;
             }
 
@@ -2951,6 +2996,48 @@ try {
             if ($result === false) throw new Exception("No se pudo guardar la calificaciÃ³n.");
 
             $response = ['status' => 'success', 'message' => 'Nota guardada.'];
+            break;
+
+        case 'local_grupomakro_schedule_revalidations':
+            require_sesskey();
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/revalida_manager.php');
+            $classid = required_param('classId', PARAM_INT);
+            $useridsraw = required_param('userIds', PARAM_SEQUENCE);
+            $class = $DB->get_record('gmk_class', ['id' => $classid], '*', MUST_EXIST);
+            require_capability('moodle/grade:edit', context_course::instance((int)$class->corecourseid));
+            $userids = array_values(array_filter(array_map('intval', explode(',', $useridsraw))));
+            $result = \local_grupomakro_core\local\revalida_manager::schedule($classid, $userids, (int)$USER->id);
+            $response = ['status' => $result['ok'] ? 'success' : 'error', 'data' => $result, 'message' => $result['error']];
+            break;
+
+        case 'local_grupomakro_save_revalid_grade':
+            require_sesskey();
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/revalida_manager.php');
+            $revalidationid = required_param('revalidationId', PARAM_INT);
+            $grade = required_param('grade', PARAM_FLOAT);
+            $rev = $DB->get_record('gmk_revalidations', ['id' => $revalidationid], '*', MUST_EXIST);
+            require_capability('moodle/grade:edit', context_course::instance((int)$rev->corecourseid));
+            $result = \local_grupomakro_core\local\revalida_manager::save_grade($revalidationid, (float)$grade, (int)$USER->id);
+            $response = ['status' => $result['ok'] ? 'success' : 'error', 'data' => $result, 'message' => $result['error']];
+            break;
+
+        case 'local_grupomakro_verify_revalid_payment':
+            require_sesskey();
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/revalida_manager.php');
+            $revalidationid = required_param('revalidationId', PARAM_INT);
+            $rev = $DB->get_record('gmk_revalidations', ['id' => $revalidationid], '*', MUST_EXIST);
+            require_capability('moodle/grade:edit', context_course::instance((int)$rev->corecourseid));
+            $paid = \local_grupomakro_core\local\revalida_manager::verify_payment($rev);
+            $response = ['status' => 'success', 'data' => ['paid' => $paid]];
+            break;
+
+        case 'local_grupomakro_get_revalidations_for_user':
+            require_sesskey();
+            require_capability('moodle/site:config', $context);
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/revalida_manager.php');
+            $userid = required_param('userId', PARAM_INT);
+            $records = \local_grupomakro_core\local\revalida_manager::get_for_user($userid);
+            $response = ['status' => 'success', 'data' => array_values($records)];
             break;
 
         case 'local_grupomakro_get_gradebook_structure':

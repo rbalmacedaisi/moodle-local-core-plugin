@@ -54,14 +54,25 @@ Vue.component('grades-grid', {
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="student in students" :key="student.id">
-                                <td class="sticky-col">
+                            <tr v-for="student in students" :key="student.id"
+                                :class="{ 'revalida-row': isRevalidHighlighted(student) }">
+                                <td class="sticky-col" :class="{ 'revalida-sticky': isRevalidHighlighted(student) }">
                                     <div class="d-flex align-center">
                                         <v-avatar size="30" color="primary lighten-4" class="mr-3">
                                             <span class="primary--text font-weight-bold text-caption">{{ student.fullname.charAt(0) }}</span>
                                         </v-avatar>
                                         <div style="line-height: 1.2">
-                                            <div class="text-body-2 font-weight-medium">{{ student.fullname }}</div>
+                                            <div class="text-body-2 font-weight-medium">
+                                                {{ student.fullname }}
+                                                <v-chip v-if="student.revalidation" x-small label
+                                                    :color="revalidChipColor(student.revalidation)" class="ml-1 white--text">
+                                                    {{ revalidChipLabel(student.revalidation) }}
+                                                </v-chip>
+                                                <v-chip v-else-if="student.revalid_eligible" x-small label color="amber darken-2"
+                                                    class="ml-1 white--text" title="Elegible a reválida">
+                                                    Reválida
+                                                </v-chip>
+                                            </div>
                                             <div class="text-caption grey--text">{{ student.email }}</div>
                                         </div>
                                     </div>
@@ -112,7 +123,137 @@ Vue.component('grades-grid', {
                     </table>
                 </div>
             </v-card-text>
-            
+
+            <!-- ── Gestión de Reválidas ───────────────────────────────────── -->
+            <template v-if="!loading && !error && revalidaStudents.length > 0">
+                <v-divider></v-divider>
+                <v-card-text class="pa-4">
+                    <div class="d-flex align-center mb-3">
+                        <v-icon left color="amber darken-2">mdi-school-outline</v-icon>
+                        <span class="text-subtitle-1 font-weight-bold">Gestión de Reválidas</span>
+                        <v-spacer></v-spacer>
+                        <v-chip small label outlined :color="weightsComplete ? 'green' : 'orange'">
+                            Ponderaciones: {{ totalWeight }}%
+                        </v-chip>
+                    </div>
+
+                    <v-alert v-if="!weightsComplete" type="warning" dense text class="mb-3">
+                        Las ponderaciones deben sumar 100% (actual: {{ totalWeight }}%) antes de poder programar reválidas.
+                    </v-alert>
+
+                    <v-simple-table dense class="revalida-table">
+                        <template v-slot:default>
+                            <thead>
+                                <tr>
+                                    <th style="width:36px"></th>
+                                    <th class="text-left">Estudiante</th>
+                                    <th class="text-center">Nota final</th>
+                                    <th class="text-left">Estado</th>
+                                    <th class="text-left">Sesión / Factura</th>
+                                    <th class="text-center" style="width:200px">Nota reválida</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="student in revalidaStudents" :key="'rv-' + student.id">
+                                    <td>
+                                        <v-checkbox
+                                            v-if="!student.revalidation"
+                                            v-model="selectedRevalids"
+                                            :value="student.id"
+                                            :disabled="!weightsComplete || schedulingRevalids"
+                                            hide-details dense class="ma-0 pa-0"
+                                        ></v-checkbox>
+                                        <v-icon v-else small color="green">mdi-check-circle</v-icon>
+                                    </td>
+                                    <td>
+                                        <div class="text-body-2 font-weight-medium">{{ student.fullname }}</div>
+                                        <div class="text-caption grey--text">{{ student.email }}</div>
+                                    </td>
+                                    <td class="text-center">{{ formatGrade(student.final_grade) }}</td>
+                                    <td>
+                                        <template v-if="student.revalidation">
+                                            <v-chip x-small label :color="revalidChipColor(student.revalidation)" class="white--text">
+                                                {{ revalidChipLabel(student.revalidation) }}
+                                            </v-chip>
+                                            <v-chip x-small label class="ml-1"
+                                                :color="student.revalidation.payment_state === 'paid' ? 'green lighten-4' : 'red lighten-4'">
+                                                {{ student.revalidation.payment_state === 'paid' ? 'Pagada' : 'Sin pagar' }}
+                                            </v-chip>
+                                        </template>
+                                        <span v-else class="text-caption grey--text">Sin programar</span>
+                                    </td>
+                                    <td>
+                                        <template v-if="student.revalidation">
+                                            <div class="text-caption">
+                                                <v-icon x-small>mdi-calendar-clock</v-icon>
+                                                {{ formatRevalidDate(student.revalidation.sessionstart) }}
+                                            </div>
+                                            <div class="text-caption">
+                                                <a v-if="student.revalidation.bbb_url" :href="student.revalidation.bbb_url" target="_blank">
+                                                    <v-icon x-small color="blue">mdi-video</v-icon> Sesión BBB
+                                                </a>
+                                            </div>
+                                            <div class="text-caption">
+                                                <a v-if="student.revalidation.payment_link" :href="student.revalidation.payment_link" target="_blank">
+                                                    <v-icon x-small color="blue">mdi-receipt</v-icon>
+                                                    Factura {{ student.revalidation.invoice_number || '' }}
+                                                </a>
+                                                <v-btn v-if="student.revalidation.payment_state !== 'paid'" x-small text color="primary"
+                                                    :loading="!!verifyingPayment[student.revalidation.id]"
+                                                    @click="verifyRevalidPayment(student)">
+                                                    Verificar pago
+                                                </v-btn>
+                                            </div>
+                                        </template>
+                                        <span v-else class="text-caption grey--text">—</span>
+                                    </td>
+                                    <td class="text-center">
+                                        <template v-if="student.revalidation && student.revalidation.result === 'pending'">
+                                            <div class="d-flex align-center justify-center" style="gap:4px">
+                                                <input
+                                                    type="number" min="0" max="100" step="0.1"
+                                                    class="grade-inline-input"
+                                                    :disabled="student.revalidation.payment_state !== 'paid' || !!savingRevalidGrade[student.revalidation.id]"
+                                                    v-model.number="revalidGradeInputs[student.revalidation.id]"
+                                                />
+                                                <v-btn x-small icon color="primary"
+                                                    :loading="!!savingRevalidGrade[student.revalidation.id]"
+                                                    :disabled="student.revalidation.payment_state !== 'paid'"
+                                                    @click="saveRevalidGrade(student)">
+                                                    <v-icon small>mdi-content-save</v-icon>
+                                                </v-btn>
+                                            </div>
+                                            <div v-if="student.revalidation.payment_state !== 'paid'" class="text-caption red--text mt-1">
+                                                Requiere pago
+                                            </div>
+                                        </template>
+                                        <template v-else-if="student.revalidation">
+                                            <span class="font-weight-bold"
+                                                :class="student.revalidation.result === 'approved' ? 'green--text' : 'red--text'">
+                                                {{ formatGrade(student.revalidation.revalidgrade) }}
+                                                ({{ student.revalidation.result === 'approved' ? '71 · Aprobada' : 'Reprobada' }})
+                                            </span>
+                                        </template>
+                                        <span v-else class="text-caption grey--text">—</span>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </template>
+                    </v-simple-table>
+
+                    <div class="d-flex mt-3">
+                        <v-spacer></v-spacer>
+                        <v-btn color="amber darken-2" class="white--text rounded-lg" elevation="0"
+                            :disabled="selectedRevalids.length === 0 || !weightsComplete"
+                            :loading="schedulingRevalids"
+                            @click="scheduleSelectedRevalids">
+                            <v-icon left small>mdi-calendar-plus</v-icon>
+                            Programar reválidas ({{ selectedRevalids.length }})
+                        </v-btn>
+                    </div>
+                </v-card-text>
+            </template>
+
             <!-- Gradebook Manager Modal -->
             <gradebook-manager
                 v-if="showGradebookManager"
@@ -138,6 +279,11 @@ Vue.component('grades-grid', {
             editingCell: null,   // { studentId, colId }
             editingValue: '',
             savingCell: null,    // { studentId, colId }
+            selectedRevalids: [],          // array of studentId selected for scheduling
+            schedulingRevalids: false,
+            revalidGradeInputs: {},        // { revalidationId: value }
+            savingRevalidGrade: {},        // { revalidationId: bool }
+            verifyingPayment: {},          // { revalidationId: bool }
         };
     },
     directives: {
@@ -173,6 +319,19 @@ Vue.component('grades-grid', {
                 totals[student.id] = Math.round(sum * 10) / 10;
             });
             return totals;
+        },
+        // Sum of column weights (used to gate revalida scheduling: must be 100%).
+        totalWeight() {
+            return this.columns
+                .filter(c => !c.is_total && c.weight_pct > 0)
+                .reduce((acc, c) => acc + parseFloat(c.weight_pct || 0), 0);
+        },
+        weightsComplete() {
+            return Math.round(this.totalWeight) === 100;
+        },
+        // Students eligible for revalida OR already having a revalida record.
+        revalidaStudents() {
+            return this.students.filter(s => s.revalid_eligible || s.revalidation);
         }
     },
     created() {
@@ -337,6 +496,23 @@ Vue.component('grades-grid', {
                 }
                 .theme--dark.gradebook-card tbody tr:hover td {
                     background-color: rgba(255,255,255,0.05);
+                }
+                .gradebook-card tbody tr.revalida-row td {
+                    background-color: #fff8e1;
+                }
+                .gradebook-card tbody tr.revalida-row td.revalida-sticky {
+                    background-color: #fff3cd;
+                    box-shadow: inset 3px 0 0 #f9a825, 2px 0 5px rgba(0,0,0,0.05);
+                }
+                .theme--dark.gradebook-card tbody tr.revalida-row td {
+                    background-color: rgba(249, 168, 37, 0.12);
+                }
+                .theme--dark.gradebook-card tbody tr.revalida-row td.revalida-sticky {
+                    background-color: rgba(249, 168, 37, 0.2);
+                    box-shadow: inset 3px 0 0 #f9a825, 2px 0 5px rgba(0,0,0,0.05);
+                }
+                .revalida-table .grade-inline-input {
+                    width: 64px;
                 }
             `;
             document.head.appendChild(style);
@@ -507,6 +683,121 @@ Vue.component('grades-grid', {
                 alert('No se pudo guardar la nota: ' + err.message);
             } finally {
                 this.savingCell = null;
+            }
+        },
+
+        // ── Reválidas ────────────────────────────────────────────────────
+        isRevalidHighlighted(student) {
+            return !!(student.revalid_eligible || student.revalidation);
+        },
+        revalidChipColor(rev) {
+            if (!rev) return 'grey';
+            if (rev.result === 'approved') return 'green';
+            if (rev.result === 'failed') return 'red';
+            return 'amber darken-2'; // pending
+        },
+        revalidChipLabel(rev) {
+            if (!rev) return '';
+            if (rev.result === 'approved') return 'Aprobó reválida';
+            if (rev.result === 'failed') return 'Reprobó reválida';
+            return 'Reválida programada';
+        },
+        formatRevalidDate(ts) {
+            if (!ts) return '—';
+            const d = new Date(ts * 1000);
+            if (isNaN(d.getTime())) return '—';
+            return d.toLocaleString('es-PA', {
+                weekday: 'short', day: '2-digit', month: 'short',
+                hour: '2-digit', minute: '2-digit'
+            });
+        },
+        async scheduleSelectedRevalids() {
+            if (this.selectedRevalids.length === 0 || !this.weightsComplete) return;
+            const count = this.selectedRevalids.length;
+            if (!confirm(`Se programará la reválida para ${count} estudiante(s): se creará una sesión BBB la semana siguiente y la factura de reválida en Odoo. ¿Continuar?`)) {
+                return;
+            }
+            this.schedulingRevalids = true;
+            try {
+                const response = await axios.post(window.wsUrl, {
+                    action: 'local_grupomakro_schedule_revalidations',
+                    args: { classId: this.classId, userIds: this.selectedRevalids.join(',') },
+                    sesskey: window.Y.config.sesskey
+                });
+                if (response.data && response.data.status === 'success') {
+                    this.selectedRevalids = [];
+                    await this.fetchGrades();
+                } else {
+                    throw new Error(response.data?.message || 'No se pudieron programar las reválidas');
+                }
+            } catch (err) {
+                console.error('[GradesGrid] Error programando reválidas:', err);
+                alert('Error al programar reválidas: ' + err.message);
+            } finally {
+                this.schedulingRevalids = false;
+            }
+        },
+        async verifyRevalidPayment(student) {
+            const rev = student.revalidation;
+            if (!rev) return;
+            this.$set(this.verifyingPayment, rev.id, true);
+            try {
+                const response = await axios.post(window.wsUrl, {
+                    action: 'local_grupomakro_verify_revalid_payment',
+                    args: { revalidationId: rev.id },
+                    sesskey: window.Y.config.sesskey
+                });
+                if (response.data && response.data.status === 'success') {
+                    const paid = !!(response.data.data && response.data.data.paid);
+                    if (paid) {
+                        this.$set(rev, 'payment_state', 'paid');
+                    } else {
+                        alert('La factura aún no figura como pagada en Odoo.');
+                    }
+                } else {
+                    throw new Error(response.data?.message || 'No se pudo verificar el pago');
+                }
+            } catch (err) {
+                console.error('[GradesGrid] Error verificando pago:', err);
+                alert('Error al verificar el pago: ' + err.message);
+            } finally {
+                this.$set(this.verifyingPayment, rev.id, false);
+            }
+        },
+        async saveRevalidGrade(student) {
+            const rev = student.revalidation;
+            if (!rev) return;
+            if (rev.payment_state !== 'paid') {
+                alert('No se puede registrar la nota: la factura de reválida no está pagada.');
+                return;
+            }
+            const value = this.revalidGradeInputs[rev.id];
+            if (value === '' || value === null || value === undefined || isNaN(parseFloat(value))) {
+                alert('Ingrese una nota válida.');
+                return;
+            }
+            const numVal = parseFloat(value);
+            if (numVal < 0 || numVal > 100) {
+                alert('La nota debe estar entre 0 y 100.');
+                return;
+            }
+            this.$set(this.savingRevalidGrade, rev.id, true);
+            try {
+                const response = await axios.post(window.wsUrl, {
+                    action: 'local_grupomakro_save_revalid_grade',
+                    args: { revalidationId: rev.id, grade: numVal },
+                    sesskey: window.Y.config.sesskey
+                });
+                if (response.data && response.data.status === 'success') {
+                    await this.fetchGrades();
+                } else {
+                    throw new Error(response.data?.message || 'No se pudo guardar la nota de reválida');
+                }
+            } catch (err) {
+                console.error('[GradesGrid] Error guardando nota de reválida:', err);
+                alert('Error al guardar la nota de reválida: ' + err.message);
+            } finally {
+                this.$set(this.savingRevalidGrade, rev.id, false);
             }
         }
     }

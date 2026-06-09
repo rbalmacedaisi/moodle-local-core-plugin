@@ -238,6 +238,12 @@ Vue.component('grademodal', {
                                                         <v-chip v-if="course.is_module" x-small color="teal darken-1" dark label class="mt-1" style="height:15px;font-size:10px;letter-spacing:0.3px;">
                                                             <v-icon style="font-size:10px;" class="mr-1">mdi-book-education-outline</v-icon>Módulo
                                                         </v-chip>
+                                                        <v-chip v-if="revalidationFor(course)" x-small dark label
+                                                            :color="revalidChipColor(revalidationFor(course))"
+                                                            class="mt-1 ml-1" style="height:15px;font-size:10px;letter-spacing:0.3px;"
+                                                            :title="revalidTooltip(revalidationFor(course))">
+                                                            <v-icon style="font-size:10px;" class="mr-1">mdi-school-outline</v-icon>{{ revalidChipLabel(revalidationFor(course)) }}
+                                                        </v-chip>
                                                     </td>
                                                     <td class="text-center">
                                                         <v-chip x-small :color="course.statusColor" dark label class="text-caption font-weight-bold">
@@ -474,7 +480,8 @@ Vue.component('grademodal', {
             loadingCreditReport: false,
             creditReport: null,
             creditScope: 'all',
-            creditPlanId: 0
+            creditPlanId: 0,
+            revalidations: {}   // keyed by corecourseid
         };
     },
     watch: {
@@ -505,6 +512,7 @@ Vue.component('grademodal', {
         } else {
             this.getpensum();
         }
+        this.fetchRevalidations();
     },
     methods: {
         getGradeColor(grade) {
@@ -516,6 +524,52 @@ Vue.component('grademodal', {
             const raw = String(grade == null ? '' : grade).trim();
             if (raw === '' || raw === '-' || raw === '--') return '--';
             return raw;
+        },
+        async fetchRevalidations() {
+            if (!this.dataStudent || !this.dataStudent.id) return;
+            try {
+                const url = window.wsUrl || (window.location.origin + '/local/grupomakro_core/ajax.php');
+                const response = await window.axios.get(url, {
+                    params: {
+                        action: 'local_grupomakro_get_revalidations_for_user',
+                        sesskey: M.cfg.sesskey,
+                        userId: Number(this.dataStudent.id),
+                    }
+                });
+                const payload = response && response.data ? response.data : {};
+                if (payload.status === 'success' && Array.isArray(payload.data)) {
+                    const map = {};
+                    payload.data.forEach(r => { map[Number(r.corecourseid)] = r; });
+                    this.revalidations = map;
+                }
+            } catch (error) {
+                // Director-only data (requires site:config). Silently ignore for other roles.
+                console.debug('fetchRevalidations skipped:', error && error.message);
+            }
+        },
+        revalidationFor(course) {
+            const cid = Number(course && course.courseid ? course.courseid : 0);
+            return cid && this.revalidations[cid] ? this.revalidations[cid] : null;
+        },
+        revalidChipColor(rev) {
+            if (!rev) return 'grey';
+            if (rev.result === 'approved') return 'green';
+            if (rev.result === 'failed') return 'red';
+            return 'amber darken-2';
+        },
+        revalidChipLabel(rev) {
+            if (!rev) return '';
+            if (rev.result === 'approved') return 'Aprobó reválida (71)';
+            if (rev.result === 'failed') return 'Reprobó reválida';
+            return 'Reválida programada';
+        },
+        revalidTooltip(rev) {
+            if (!rev) return '';
+            const orig = (rev.originalgrade != null) ? Number(rev.originalgrade).toFixed(1) : '--';
+            const rg = (rev.revalidgrade != null) ? Number(rev.revalidgrade).toFixed(1) : '--';
+            const pay = rev.payment_state === 'paid' ? 'Factura pagada' : 'Factura sin pagar';
+            return `Nota original: ${orig} · Nota reválida: ${rg} · ${pay}`
+                + (rev.invoice_number ? ` · Factura ${rev.invoice_number}` : '');
         },
         async fetchCreditReport() {
             if (!this.dataStudent || !this.dataStudent.id) return;

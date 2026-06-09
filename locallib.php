@@ -8062,27 +8062,64 @@ function gmk_close_class_with_grade_recalc(int $classId): array {
     }
 
     // ── 5. Compute grades and build the update plan ──────────────────────────
+    // Teacher-driven revalidations: the close is DEFINITIVE and no longer emits
+    // status 6 (Pendiente Reválida). Eligible students that the teacher did not
+    // schedule are closed as Reprobada. Students with a consolidated revalida
+    // record have their result respected (approved → 71, failed → original).
+    require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/revalida_manager.php');
+    $revalidaRecords = \local_grupomakro_core\local\revalida_manager::get_for_class($classId);
+    $passFinalGrade  = \local_grupomakro_core\local\revalida_manager::PASS_FINAL_GRADE;
+
     $updates     = [];
     $revalidList = [];
     $summary     = ['approved' => 0, 'failed' => 0, 'revalid' => 0, 'no_grade' => 0];
 
     foreach ($students as $stu) {
-        $realGrade = gmk_get_student_class_grade($classId, (int)$stu->userid);
+        $uid       = (int)$stu->userid;
+        $realGrade = gmk_get_student_class_grade($classId, $uid);
 
         if ($realGrade === null) {
             $summary['no_grade']++;
             continue;
         }
 
+        // Consolidated revalida takes precedence over the raw classification.
+        if (isset($revalidaRecords[$uid])) {
+            $rev = $revalidaRecords[$uid];
+            $summary['revalid']++;
+            if ((string)$rev->result === 'approved') {
+                $newStatus  = COURSE_APPROVED;
+                $finalGrade = (float)$passFinalGrade;
+                $summary['approved']++;
+            } else {
+                // failed or still pending → keep original grade, Reprobada.
+                // (If pending, the grade can still be entered later via save_grade.)
+                $newStatus  = COURSE_FAILED;
+                $finalGrade = (float)$rev->originalgrade;
+                $summary['failed']++;
+            }
+            $updates[] = [
+                'id'       => (int)$stu->progreid,
+                'status'   => $newStatus,
+                'grade'    => $finalGrade,
+                'progress' => 100.0,
+            ];
+            continue;
+        }
+
+        // No revalida record: classify, but remap eligible-but-unselected to Reprobada.
         $newStatus = gmk_classify_student_grade(
             $realGrade,
             (int)($stu->practicalhours ?? 0)
         );
+        if ($newStatus === COURSE_PENDING_REVALID) {
+            $newStatus = COURSE_FAILED;
+        }
 
-        switch ($newStatus) {
-            case COURSE_APPROVED:        $summary['approved']++; break;
-            case COURSE_PENDING_REVALID: $summary['revalid']++;  $revalidList[] = $stu; break;
-            default:                     $summary['failed']++;
+        if ($newStatus === COURSE_APPROVED) {
+            $summary['approved']++;
+        } else {
+            $summary['failed']++;
         }
 
         $updates[] = [

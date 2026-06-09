@@ -24,6 +24,6 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = "local_grupomakro_core";
-$plugin->version   = 20260507001;         // BBB live attendance: auto-mark and manual fix tool.
+$plugin->version   = 20260609001;         // Teacher-driven revalidations (gmk_revalidations: BBB session + Odoo invoice + grade).
 $plugin->requires = 2014051200;
 $plugin->maturity = MATURITY_STABLE;
