@@ -2920,7 +2920,32 @@ try {
                     $revalida_practical[(int)$rpr->userid] = (int)$rpr->ph;
                 }
             }
-            $revalida_grades = !empty($userids) ? gmk_batch_weighted_grades((int)$classid, $userids) : [];
+            // Compute the eligibility grade EXACTLY as the teacher's gradebook total
+            // (frontend weightedTotals): reuse the same $columns (weight_pct, max_grade)
+            // and $grades_map (incl. the log-based attendance override above), missing = 0,
+            // rounded to 1 decimal. This guarantees the number marked for revalida matches
+            // what the teacher sees in the gradebook.
+            $revalida_gradeable_cols = array_filter($columns, function ($c) {
+                return empty($c['is_total']) && (float)($c['weight_pct'] ?? 0) > 0;
+            });
+            $revalida_grades = [];
+            foreach ($userids as $guid) {
+                $has = false;
+                $sum = 0.0;
+                foreach ($revalida_gradeable_cols as $col) {
+                    $raw = $grades_map[$guid][$col['id']] ?? null;
+                    if ($raw !== null && $raw !== '-') {
+                        $has = true;
+                    }
+                    $grade = ($raw === null || $raw === '-') ? 0.0 : (float)$raw;
+                    $max = (float)($col['max_grade'] ?? 0);
+                    if ($max <= 0) {
+                        $max = 100.0;
+                    }
+                    $sum += ($grade / $max) * (float)$col['weight_pct'];
+                }
+                $revalida_grades[$guid] = $has ? round($sum * 10) / 10 : null;
+            }
 
             $grades_data = [];
             foreach ($students as $student) {

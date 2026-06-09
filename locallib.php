@@ -7698,8 +7698,11 @@ function gmk_batch_weighted_grades(int $classId, array $userIds): array {
     list($userInSql, $userInParams) = $DB->get_in_or_equal($userIds, SQL_PARAMS_NAMED, 'buid');
 
     $gradeByUserItem = []; // [userid][itemid] = finalgrade
+    // NOTE: gg.id must be the first column so get_records_sql keys by a UNIQUE value.
+    // Keying by userid (non-unique: one row per item) silently collapses each student
+    // to a single item, producing grossly wrong weighted totals.
     foreach ($DB->get_records_sql(
-        "SELECT gg.userid, gg.itemid, gg.finalgrade
+        "SELECT gg.id, gg.userid, gg.itemid, gg.finalgrade
            FROM {grade_grades} gg
           WHERE gg.itemid $itemInSql AND gg.userid $userInSql AND gg.finalgrade IS NOT NULL",
         $itemInParams + $userInParams
