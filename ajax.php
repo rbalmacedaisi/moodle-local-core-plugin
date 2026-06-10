@@ -5464,8 +5464,16 @@ try {
             // Ask the BBB server directly for the recordings of this meeting and upsert the local
             // cache, so newly processed recordings show up without waiting for the scheduled task.
             // Mirrors mod_bigbluebuttonbn\task\upgrade_recordings_task discovery logic.
-            $meetingid = $bbbinstance->get_meeting_id();
-            $fetched = \mod_bigbluebuttonbn\local\proxy\recording_proxy::fetch_recording_by_meeting_id([$meetingid]);
+            //
+            // IMPORTANT: our custom guest_join.php opens the BBB meeting using the bare meetingid
+            // (the GUID stored in bigbluebuttonbn.meetingid), NOT the standard mod_bigbluebuttonbn
+            // format "{meetingid}-{courseid}-{instanceid}[{groupid}]". So recordings are stored
+            // under the bare GUID. We query BOTH ids to cover guest meetings and standard ones.
+            $meetingids = array_values(array_unique(array_filter([
+                (string)$bbbinstance->get_instance_var('meetingid'), // bare GUID (custom guest_join flow)
+                $bbbinstance->get_meeting_id(),                       // standard mod_bigbluebuttonbn format
+            ])));
+            $fetched = \mod_bigbluebuttonbn\local\proxy\recording_proxy::fetch_recording_by_meeting_id($meetingids);
 
             $created = 0;
             $updated = 0;
