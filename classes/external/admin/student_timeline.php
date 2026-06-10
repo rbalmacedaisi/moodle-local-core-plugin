@@ -223,60 +223,32 @@ class student_timeline extends external_api {
 
                 $cpid = (int)($s->currentperiodid ?? 0);
                 if ($cpid > 0) {
-                    // Count in all cuatrimestres up to and including current position
-                    $cur_pos = $period_positions[$cpid] ?? 0;
-                    foreach ($curriculum as $cp) {
-                        if ($cp['position'] <= $cur_pos) {
-                            if (!isset($levels[$cp['id']])) {
-                                $levels[$cp['id']] = ['active' => 0, 'inactive' => 0];
-                            }
-                            if ($is_active) {
-                                $levels[$cp['id']]['active']++;
-                            } else {
-                                $levels[$cp['id']]['inactive']++;
-                            }
-                        }
+                    // DIRECT counting: a student counts ONLY in their current period (no
+                    // accumulation across earlier periods). The dropout is shown separately
+                    // as a derived metric, not by re-counting students in past periods.
+                    if (!isset($levels[$cpid])) {
+                        $levels[$cpid] = ['active' => 0, 'inactive' => 0];
+                    }
+                    if ($is_active) {
+                        $levels[$cpid]['active']++;
+                    } else {
+                        $levels[$cpid]['inactive']++;
                     }
                 }
 
                 $cspid = (int)($s->currentsubperiodid ?? 0);
-                // FIXED: Cumulative subperiod counting
-                // If student is in subperiod X, they count as active/inactive in ALL
-                // subperiods up to and including X within their current period
-                if ($cspid > 0 && isset($subperiod_positions[$cspid])) {
-                    $sp_info = $subperiod_positions[$cspid];
-                    $student_period_pos = $sp_info['period_position'];
-                    $student_sp_pos = $sp_info['sp_position'];
-
-                    // Count in all subperiods of ALL periods up to student's current period
-                    // AND all subperiods within the current period up to student's current subperiod
-                    foreach ($curriculum as $cp) {
-                        if ($cp['position'] > $student_period_pos) {
-                            continue; // Student hasn't reached this period yet
-                        }
-                        if (!empty($cp['subperiods'])) {
-                            foreach ($cp['subperiods'] as $sp) {
-                                // Within current period: only count up to student's subperiod
-                                // Within earlier periods: count all subperiods
-                                $count_this_sp = false;
-                                if ($cp['position'] < $student_period_pos) {
-                                    $count_this_sp = true; // Earlier period, count all
-                                } else if ($cp['position'] === $student_period_pos) {
-                                    $count_this_sp = ($sp['sp_pos'] <= $student_sp_pos);
-                                }
-
-                                if ($count_this_sp) {
-                                    if (!isset($sublevel_counts[$sp['sp_id']])) {
-                                        $sublevel_counts[$sp['sp_id']] = ['active' => 0, 'inactive' => 0];
-                                    }
-                                    if ($is_active) {
-                                        $sublevel_counts[$sp['sp_id']]['active']++;
-                                    } else {
-                                        $sublevel_counts[$sp['sp_id']]['inactive']++;
-                                    }
-                                }
-                            }
-                        }
+                // DIRECT counting: a student counts ONLY in their actual subperiod
+                // (no accumulation). This is consistent with the student list filtered
+                // by currentsubperiodid, so what the timeline shows equals what the
+                // user sees when clicking a bimestre.
+                if ($cspid > 0) {
+                    if (!isset($sublevel_counts[$cspid])) {
+                        $sublevel_counts[$cspid] = ['active' => 0, 'inactive' => 0];
+                    }
+                    if ($is_active) {
+                        $sublevel_counts[$cspid]['active']++;
+                    } else {
+                        $sublevel_counts[$cspid]['inactive']++;
                     }
                 }
             }
