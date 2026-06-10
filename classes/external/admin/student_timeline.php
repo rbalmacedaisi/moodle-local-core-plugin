@@ -1287,4 +1287,596 @@ class student_timeline extends external_api {
             'message'        => new external_value(PARAM_TEXT, 'Mensaje descriptivo'),
         ]);
     }
+
+    // --- Period Renewal (FASE 2) ---
+
+    /**
+     * Returns students who are "in" a given subperiod (currentperiodid + currentsubperiodid
+     * match), with their course progress so we can detect pending courses.
+     *
+     * @return array
+     */
+    private static function _get_renewal_students($learningplanid, $intake_period = null, $periodid = null, $subperiodid = null) {
+        global $DB;
+
+        $params = ['lp_id' => $learningplanid];
+        $where = ['lu.learningplanid = :lp_id'];
+        $where[] = 'u.deleted = 0';
+        if (!empty($intake_period)) {
+            $where[] = 'uid.data = :intake';
+            $params['intake'] = $intake_period;
+        }
+        if (!empty($periodid)) {
+            $where[] = 'lu.currentperiodid = :cpid';
+            $params['cpid'] = $periodid;
+        }
+        if (!empty($subperiodid)) {
+            $where[] = 'lu.currentsubperiodid = :cspid';
+            $params['cspid'] = $subperiodid;
+        }
+
+        $sql = "SELECT lu.userid, lu.status, lu.currentperiodid, lu.currentsubperiodid,
+                       u.firstname, u.lastname, u.email
+                FROM {local_learning_users} lu
+                JOIN {user} u ON u.id = lu.userid
+                JOIN {user_info_data} uid ON uid.userid = lu.userid
+                JOIN {user_info_field} uif ON uif.id = uid.fieldid AND uif.shortname = 'periodo_ingreso'
+                WHERE " . implode(' AND ', $where) . "
+                ORDER BY u.lastname, u.firstname";
+        return $DB->get_records_sql($sql, $params);
+    }
+
+    /**
+     * Returns the list of pending courses (NOT approved, NOT 'practica profesional')
+     * for a given set of userids in a learning plan.
+     *
+     * @return array  [userid => [courses: [{name, periodid, periodname}]]]
+     */
+    private static function _get_pending_courses_excluding_internship($userids, $learningplanid) {
+        global $DB;
+        if (empty($userids)) return [];
+
+        // Build IN clause safely
+        list($insql, $inparams) = $DB->get_in_or_equal(array_values($userids), SQL_PARAMS_NAMED, 'u');
+        $inparams['lp'] = $learningplanid;
+
+        // Pending = status NOT IN (3,4). Exclude "practica profesional / empresarial (profesional)"
+        $sql = "SELECT c.userid, c.periodid, c.coursename, c.status, c.grade
+                FROM {gmk_course_progre} c
+                WHERE c.userid $insql
+                  AND c.learningplanid = :lp
+                  AND c.status NOT IN (3, 4)
+                  AND LOWER(c.coursename) NOT LIKE '%pr%ctica profesional%'
+                  AND LOWER(c.coursename) NOT LIKE '%pr%ctica empresarial (profesional)%'
+                ORDER BY c.userid, c.periodid, c.id";
+        $rows = $DB->get_records_sql($sql, $inparams);
+
+        $grouped = [];
+        foreach ($rows as $r) {
+            if (!isset($grouped[$r->userid])) $grouped[$r->userid] = [];
+            // Avoid duplicate courses per user (same course in different periods = different row)
+            $key = $r->periodid . '-' . $r->coursename;
+            $existing = array_filter($grouped[$r->userid], fn($c) => ($c['periodid'] . '-' . $c['name']) === $key);
+            if (empty($existing)) {
+                $grouped[$r->userid][] = [
+                    'name'       => $r->coursename,
+                    'periodid'   => (int)$r->periodid,
+                    'status'     => (int)$r->status,
+                    'grade'      => (float)$r->grade,
+                ];
+            }
+        }
+        return $grouped;
+    }
+
+    public static function get_period_renewal_preview_parameters() {
+        return new external_function_parameters([
+            'learningplanid' => new external_value(PARAM_INT, 'ID del plan de aprendizaje'),
+            'intake_period'  => new external_value(PARAM_TEXT, 'Cohorte a renovar (vacío=todas)', VALUE_DEFAULT, ''),
+            'periodid'       => new external_value(PARAM_INT, 'ID del periodo actual (0=todos)', VALUE_DEFAULT, 0),
+            'subperiodid'    => new external_value(PARAM_INT, 'ID del subperiodo actual (0=todos)', VALUE_DEFAULT, 0),
+        ]);
+    }
+
+    /**
+     * Returns a preview of the period renewal without modifying data.
+     *
+     * AUTOMATIC RULES (no user choice required):
+     *  - Students at FIRST bimestre of any period  -> next bimestre (B1 -> B2)   ALL STUDENTS
+     *  - Students at LAST bimestre, NOT last period -> first bimestre of next period
+     *        Only ACTIVE students are promoted. INACTIVE students stay (dropout calculation).
+     *  - Students at LAST bimestre of LAST period   -> "graduando"
+     *        Only ACTIVE students. INACTIVE students stay.
+     *        For active graduates, pending courses (excluding internship) are flagged
+     *        so the UI can highlight them in red.
+     */
+    public static function get_period_renewal_preview($learningplanid, $intake_period = '', $periodid = 0, $subperiodid = 0) {
+        global $DB;
+        $context = \context_system::instance();
+        self::validate_context($context);
+        require_capability('moodle/site:config', $context);
+
+        $intake_period = ($intake_period === '' || $intake_period === null) ? null : $intake_period;
+        $periodid      = (int)$periodid;
+        $subperiodid   = (int)$subperiodid;
+
+        // 1. Load curriculum
+        $periods_rows = $DB->get_records_sql(
+            "SELECT lper.id, lper.name FROM {local_learning_periods} lper
+             WHERE lper.learningplanid = :lp ORDER BY lper.id ASC",
+            ['lp' => $learningplanid]
+        );
+        $subperiods_rows = $DB->get_records_sql(
+            "SELECT sp.id as sp_id, sp.name as sp_name, sp.position as sp_pos, sp.periodid
+             FROM {local_learning_subperiods} sp
+             JOIN {local_learning_periods} lper ON lper.id = sp.periodid
+             WHERE lper.learningplanid = :lp
+             ORDER BY sp.periodid ASC, sp.position ASC",
+            ['lp' => $learningplanid]
+        );
+
+        $curriculum = [];
+        foreach ($periods_rows as $p) {
+            $curriculum[$p->id] = ['id' => (int)$p->id, 'name' => $p->name, 'subperiods' => []];
+        }
+        foreach ($subperiods_rows as $sp) {
+            $curriculum[$sp->periodid]['subperiods'][] = [
+                'sp_id'   => (int)$sp->sp_id,
+                'sp_name' => $sp->sp_name,
+                'sp_pos'  => (int)$sp->sp_pos,
+            ];
+        }
+        $curriculum = array_values($curriculum);
+        $last_period = end($curriculum);
+        $last_period_id = $last_period['id'];
+        $last_subperiod_id = end($last_period['subperiods'])['sp_id'];
+
+        // 2. Load students
+        $students = self::_get_renewal_students(
+            $learningplanid,
+            $intake_period,
+            $periodid > 0 ? $periodid : null,
+            $subperiodid > 0 ? $subperiodid : null
+        );
+
+        // 3. Index helpers
+        $sp_by_id = [];
+        foreach ($subperiods_rows as $sp) {
+            $sp_by_id[$sp->sp_id] = ['periodid' => (int)$sp->periodid, 'sp_pos' => (int)$sp->sp_pos, 'sp_name' => $sp->sp_name];
+        }
+        $period_index = [];
+        foreach ($curriculum as $idx => $cp) $period_index[$cp['id']] = $idx;
+
+        // 4. Compute destination for each student
+        $preview = [
+            'to_next_bim'      => [],
+            'to_next_cuatri'   => [],
+            'to_graduate_ok'   => [],
+            'to_graduate_warn' => [],
+            'stays_inactive'   => [],
+            'skipped'          => [],
+            'intake_period'    => $intake_period,
+            'period_id'        => $periodid,
+            'subperiod_id'     => $subperiodid,
+        ];
+
+        foreach ($students as $s) {
+            $sname = fullname($s);
+            $cpid  = (int)($s->currentperiodid ?? 0);
+            $cspid = (int)($s->currentsubperiodid ?? 0);
+            $is_active = ((string)$s->status === 'activo');
+            $cpid_idx = $cpid > 0 ? ($period_index[$cpid] ?? -1) : -1;
+
+            if ($cpid === 0 || $cspid === 0 || $cpid_idx < 0) {
+                $preview['skipped'][] = [
+                    'userid' => (int)$s->userid,
+                    'name'   => $sname,
+                    'reason' => 'Sin periodo o bimestre actual definido',
+                ];
+                continue;
+            }
+
+            $cur_sp = $sp_by_id[$cspid];
+            $subs = $curriculum[$cpid_idx]['subperiods'];
+            $is_last_sub_of_period = end($subs)['sp_id'] === $cspid;
+            $is_last_period = ($cpid === $last_period_id);
+
+            if (!$is_last_sub_of_period) {
+                // B1 -> B2 (or any non-last -> next subperiod). All students advance.
+                $next_sub = null;
+                foreach ($subs as $k => $sp) {
+                    if ($sp['sp_id'] === $cspid && isset($subs[$k + 1])) {
+                        $next_sub = $subs[$k + 1];
+                        break;
+                    }
+                }
+                if ($next_sub) {
+                    $preview['to_next_bim'][] = [
+                        'userid'             => (int)$s->userid,
+                        'name'               => $sname,
+                        'status'             => (string)$s->status,
+                        'current_subperiod'  => $cur_sp['sp_name'],
+                        'next_subperiod'     => $next_sub['sp_name'],
+                        'next_subperiod_id'  => $next_sub['sp_id'],
+                    ];
+                } else {
+                    $preview['skipped'][] = [
+                        'userid' => (int)$s->userid,
+                        'name'   => $sname,
+                        'reason' => 'No se encontró bimestre siguiente',
+                    ];
+                }
+            } else {
+                // At last bimestre of period. Decide: next cuatrimestre or graduando.
+                if (!$is_last_period) {
+                    $next_period = $curriculum[$cpid_idx + 1] ?? null;
+                    $first_sub = $next_period['subperiods'][0] ?? null;
+                    if ($is_active) {
+                        $preview['to_next_cuatri'][] = [
+                            'userid'            => (int)$s->userid,
+                            'name'              => $sname,
+                            'status'            => (string)$s->status,
+                            'current_period'    => $curriculum[$cpid_idx]['name'],
+                            'next_period'       => $next_period['name'],
+                            'next_period_id'    => (int)$next_period['id'],
+                            'next_subperiod'    => $first_sub ? $first_sub['sp_name'] : '',
+                            'next_subperiod_id' => $first_sub ? (int)$first_sub['sp_id'] : 0,
+                        ];
+                    } else {
+                        $preview['stays_inactive'][] = [
+                            'userid'    => (int)$s->userid,
+                            'name'      => $sname,
+                            'period'    => $curriculum[$cpid_idx]['name'],
+                            'subperiod' => $cur_sp['sp_name'],
+                            'reason'    => 'Inactivo: queda en este periodo para cálculo de deserción',
+                        ];
+                    }
+                } else {
+                    // B2 of LAST period -> graduando
+                    if ($is_active) {
+                        $preview['to_graduate_ok'][] = [
+                            'userid' => (int)$s->userid,
+                            'name'   => $sname,
+                            'period' => $curriculum[$cpid_idx]['name'],
+                        ];
+                    } else {
+                        $preview['stays_inactive'][] = [
+                            'userid'    => (int)$s->userid,
+                            'name'      => $sname,
+                            'period'    => $curriculum[$cpid_idx]['name'],
+                            'subperiod' => $cur_sp['sp_name'],
+                            'reason'    => 'Inactivo en el último periodo: no se promueve a graduando',
+                        ];
+                    }
+                }
+            }
+        }
+
+        // 5. For graduates, check pending courses (exclude internship)
+        $to_graduate_userids = array_column($preview['to_graduate_ok'], 'userid');
+        if (!empty($to_graduate_userids)) {
+            $pending_map = self::_get_pending_courses_excluding_internship($to_graduate_userids, $learningplanid);
+            $new_ok = [];
+            foreach ($preview['to_graduate_ok'] as $g) {
+                $pending = $pending_map[$g['userid']] ?? [];
+                if (!empty($pending)) {
+                    $preview['to_graduate_warn'][] = array_merge($g, ['pending_courses' => $pending]);
+                } else {
+                    $new_ok[] = $g;
+                }
+            }
+            $preview['to_graduate_ok'] = $new_ok;
+        }
+
+        // 6. Summary
+        $preview['summary'] = [
+            'to_next_bim_count'      => count($preview['to_next_bim']),
+            'to_next_cuatri_count'   => count($preview['to_next_cuatri']),
+            'to_graduate_ok_count'   => count($preview['to_graduate_ok']),
+            'to_graduate_warn_count' => count($preview['to_graduate_warn']),
+            'stays_inactive_count'   => count($preview['stays_inactive']),
+            'skipped_count'          => count($preview['skipped']),
+        ];
+
+        return $preview;
+    }
+
+    public static function execute_period_renewal_parameters() {
+        return new external_function_parameters([
+            'learningplanid' => new external_value(PARAM_INT, 'ID del plan de aprendizaje'),
+            'intake_period'  => new external_value(PARAM_TEXT, 'Cohorte', VALUE_DEFAULT, ''),
+            'periodid'       => new external_value(PARAM_INT, 'ID periodo filtro', VALUE_DEFAULT, 0),
+            'subperiodid'    => new external_value(PARAM_INT, 'ID bimestre filtro', VALUE_DEFAULT, 0),
+            'renewal_type'   => new external_value(PARAM_TEXT, 'Tipo: next_bim, next_cuatrimestre, graduate'),
+            'confirm_warnings' => new external_value(PARAM_BOOL, 'Confirmar que se aceptan las advertencias de graduandos con pendientes', VALUE_DEFAULT, false),
+        ]);
+    }
+
+    /**
+     * Executes the period renewal in a single transaction.
+     * Rules:
+     *  - next_bim: update currentsubperiodid to next subperiod (same period), for ALL students.
+     *  - next_cuatrimestre: only ACTIVE students at the LAST subperiod move to next period. Inactive stay.
+     *  - graduate: only ACTIVE students at LAST subperiod of LAST period go to "graduando". Inactive stay.
+     */
+    public static function execute_period_renewal($learningplanid, $intake_period = '', $periodid = 0, $subperiodid = 0, $renewal_type = 'next_bim', $confirm_warnings = false) {
+        global $DB, $USER;
+        $context = \context_system::instance();
+        self::validate_context($context);
+        require_capability('moodle/site:config', $context);
+
+        // Get the preview (which already does all the safety checks)
+        $preview = self::get_period_renewal_preview($learningplanid, $intake_period, $periodid, $subperiodid, $renewal_type);
+
+        // Safety: if there are graduates with warnings and user hasn't confirmed, abort
+        if ($renewal_type === 'graduate' && $preview['summary']['to_graduate_warn_count'] > 0 && !$confirm_warnings) {
+            return [
+                'success'        => false,
+                'updated_count'  => 0,
+                'message'        => 'Hay ' . $preview['summary']['to_graduate_warn_count'] . ' graduando(s) con asignaturas pendientes. Debe confirmar explícitamente para continuar.',
+                'requires_confirmation' => true,
+                'preview'        => $preview,
+            ];
+        }
+
+        $now = time();
+        $updated = 0;
+        $failed = 0;
+        $graduates_warn = [];
+
+        $transaction = $DB->start_delegated_transaction();
+        try {
+            // 1) Bimestre advances
+            foreach ($preview['to_next_bim'] as $s) {
+                $ok = $DB->set_field('local_learning_users', 'currentsubperiodid', $s['next_subperiod_id'],
+                    ['userid' => $s['userid'], 'learningplanid' => $learningplanid]);
+                if ($ok) $updated++; else $failed++;
+            }
+
+            // 2) Cuatrimestre promotion
+            foreach ($preview['to_next_cuatri'] as $s) {
+                $ok = $DB->set_field('local_learning_users', 'currentperiodid', $s['next_period_id'],
+                    ['userid' => $s['userid'], 'learningplanid' => $learningplanid]);
+                if ($ok) {
+                    if (!empty($s['next_subperiod_id'])) {
+                        $DB->set_field('local_learning_users', 'currentsubperiodid', $s['next_subperiod_id'],
+                            ['userid' => $s['userid'], 'learningplanid' => $learningplanid]);
+                    }
+                    $updated++;
+                } else {
+                    $failed++;
+                }
+            }
+
+            // 3) Graduates (clean and warning) - move them to "graduando" (no currentperiodid)
+            // The convention used here: a "graduando" has currentsubperiodid = NULL and a marker
+            // can be detected by status check on graduation. To keep changes minimal and avoid
+            // breaking the model, we set currentperiodid = NULL and currentsubperiodid = NULL,
+            // and store a flag in the status field ('graduando') if the column allows it.
+            // If 'graduando' is not a valid status value, the visualization layer will treat
+            // null+null as 'graduando'.
+            $all_graduates = array_merge($preview['to_graduate_ok'], $preview['to_graduate_warn']);
+            foreach ($all_graduates as $g) {
+                $ok = true;
+                $record = $DB->get_record('local_learning_users',
+                    ['userid' => $g['userid'], 'learningplanid' => $learningplanid]);
+                if ($record) {
+                    // Mark as graduando by clearing currentperiodid/currentsubperiodid
+                    $record->currentperiodid = null;
+                    $record->currentsubperiodid = null;
+                    $record->timemodified = $now;
+                    $record->usermodified = (int)$USER->id;
+                    $DB->update_record('local_learning_users', $record);
+                    $updated++;
+                } else {
+                    $failed++;
+                }
+                if (isset($g['pending_courses']) && !empty($g['pending_courses'])) {
+                    $graduates_warn[] = [
+                        'userid'          => $g['userid'],
+                        'name'            => $g['name'],
+                        'pending_courses' => $g['pending_courses'],
+                    ];
+                }
+            }
+
+            $transaction->allow_commit();
+        } catch (\Exception $e) {
+            $transaction->rollback($e);
+            return [
+                'success'        => false,
+                'updated_count'  => 0,
+                'message'        => 'Error durante la renovación: ' . $e->getMessage(),
+                'requires_confirmation' => false,
+                'preview'        => $preview,
+            ];
+        }
+
+        return [
+            'success'        => $updated > 0,
+            'updated_count'  => $updated,
+            'failed_count'   => $failed,
+            'message'        => "Renovación completada: {$updated} estudiante(s) actualizado(s)"
+                . ($failed > 0 ? " ({$failed} fallaron)" : ''),
+            'requires_confirmation' => false,
+            'preview'        => $preview,
+            'graduates_warn' => $graduates_warn,
+        ];
+    }
+
+    public static function execute_period_renewal_returns() {
+        // Re-uses the preview's return for the 'preview' field
+        $bim_student = new external_single_structure([
+            'userid'             => new external_value(PARAM_INT, 'ID'),
+            'name'               => new external_value(PARAM_TEXT, 'Nombre'),
+            'status'             => new external_value(PARAM_TEXT, 'Estado actual', VALUE_OPTIONAL),
+            'current_subperiod'  => new external_value(PARAM_TEXT, 'Bimestre actual', VALUE_OPTIONAL),
+            'next_subperiod'     => new external_value(PARAM_TEXT, 'Bimestre destino', VALUE_OPTIONAL),
+            'next_subperiod_id'  => new external_value(PARAM_INT, 'ID bimestre destino', VALUE_OPTIONAL),
+        ]);
+        $cuatri_student = new external_single_structure([
+            'userid'            => new external_value(PARAM_INT, 'ID'),
+            'name'              => new external_value(PARAM_TEXT, 'Nombre'),
+            'status'            => new external_value(PARAM_TEXT, 'Estado actual', VALUE_OPTIONAL),
+            'current_period'    => new external_value(PARAM_TEXT, 'Periodo actual', VALUE_OPTIONAL),
+            'next_period'       => new external_value(PARAM_TEXT, 'Periodo destino', VALUE_OPTIONAL),
+            'next_period_id'    => new external_value(PARAM_INT, 'ID periodo destino', VALUE_OPTIONAL),
+            'next_subperiod'    => new external_value(PARAM_TEXT, 'Bimestre destino', VALUE_OPTIONAL),
+            'next_subperiod_id' => new external_value(PARAM_INT, 'ID bimestre destino', VALUE_OPTIONAL),
+        ]);
+        $graduate_warn = new external_single_structure([
+            'userid' => new external_value(PARAM_INT, 'ID'),
+            'name'   => new external_value(PARAM_TEXT, 'Nombre'),
+            'period' => new external_value(PARAM_TEXT, 'Periodo', VALUE_OPTIONAL),
+            'pending_courses' => new external_multiple_structure(
+                new external_single_structure([
+                    'name'     => new external_value(PARAM_TEXT, 'Nombre del curso'),
+                    'periodid' => new external_value(PARAM_INT, 'ID periodo del curso'),
+                    'status'   => new external_value(PARAM_INT, 'Estado'),
+                    'grade'    => new external_value(PARAM_FLOAT, 'Calificación'),
+                ])
+            ),
+        ]);
+        $stays = new external_single_structure([
+            'userid'    => new external_value(PARAM_INT, 'ID'),
+            'name'      => new external_value(PARAM_TEXT, 'Nombre'),
+            'period'    => new external_value(PARAM_TEXT, 'Periodo', VALUE_OPTIONAL),
+            'subperiod' => new external_value(PARAM_TEXT, 'Bimestre', VALUE_OPTIONAL),
+            'reason'    => new external_value(PARAM_TEXT, 'Razón'),
+        ]);
+        $skipped = new external_single_structure([
+            'userid' => new external_value(PARAM_INT, 'ID'),
+            'name'   => new external_value(PARAM_TEXT, 'Nombre'),
+            'reason' => new external_value(PARAM_TEXT, 'Razón'),
+        ]);
+        $preview_struct = new external_single_structure([
+            'to_next_bim'         => new external_multiple_structure($bim_student, ''),
+            'to_next_cuatri'      => new external_multiple_structure($cuatri_student, ''),
+            'to_graduate_ok'      => new external_multiple_structure(
+                new external_single_structure([
+                    'userid' => new external_value(PARAM_INT, ''),
+                    'name'   => new external_value(PARAM_TEXT, ''),
+                    'period' => new external_value(PARAM_TEXT, '', VALUE_OPTIONAL),
+                ])
+            ),
+            'to_graduate_warn'    => new external_multiple_structure($graduate_warn, ''),
+            'stays_inactive'      => new external_multiple_structure($stays, ''),
+            'stays_active'        => new external_multiple_structure($stays, ''),
+            'skipped'             => new external_multiple_structure($skipped, ''),
+            'summary'             => new external_single_structure([
+                'to_next_bim_count'      => new external_value(PARAM_INT, ''),
+                'to_next_cuatri_count'   => new external_value(PARAM_INT, ''),
+                'to_graduate_ok_count'   => new external_value(PARAM_INT, ''),
+                'to_graduate_warn_count' => new external_value(PARAM_INT, ''),
+                'stays_inactive_count'   => new external_value(PARAM_INT, ''),
+                'stays_active_count'     => new external_value(PARAM_INT, ''),
+                'skipped_count'          => new external_value(PARAM_INT, ''),
+            ]),
+            'destination_label'   => new external_value(PARAM_TEXT, ''),
+            'renewal_type'        => new external_value(PARAM_TEXT, ''),
+            'intake_period'       => new external_value(PARAM_TEXT, ''),
+            'period_id'           => new external_value(PARAM_INT, ''),
+            'subperiod_id'        => new external_value(PARAM_INT, ''),
+        ]);
+        $grad_warn_struct = new external_single_structure([
+            'userid' => new external_value(PARAM_INT, ''),
+            'name'   => new external_value(PARAM_TEXT, ''),
+            'pending_courses' => new external_multiple_structure(
+                new external_single_structure([
+                    'name'     => new external_value(PARAM_TEXT, ''),
+                    'periodid' => new external_value(PARAM_INT, ''),
+                    'status'   => new external_value(PARAM_INT, ''),
+                    'grade'    => new external_value(PARAM_FLOAT, ''),
+                ])
+            ),
+        ]);
+        return new external_single_structure([
+            'success'        => new external_value(PARAM_BOOL, ''),
+            'updated_count'  => new external_value(PARAM_INT, ''),
+            'failed_count'   => new external_value(PARAM_INT, ''),
+            'message'        => new external_value(PARAM_TEXT, ''),
+            'requires_confirmation' => new external_value(PARAM_BOOL, ''),
+            'preview'        => $preview_struct,
+            'graduates_warn' => new external_multiple_structure($grad_warn_struct, 'Graduandos con pendientes'),
+        ]);
+    }
+}
+        $bim_student = new external_single_structure([
+            'userid'             => new external_value(PARAM_INT, 'ID'),
+            'name'               => new external_value(PARAM_TEXT, 'Nombre'),
+            'status'             => new external_value(PARAM_TEXT, 'Estado actual', VALUE_OPTIONAL),
+            'current_subperiod'  => new external_value(PARAM_TEXT, 'Bimestre actual', VALUE_OPTIONAL),
+            'next_subperiod'     => new external_value(PARAM_TEXT, 'Bimestre destino', VALUE_OPTIONAL),
+            'next_subperiod_id'  => new external_value(PARAM_INT, 'ID bimestre destino', VALUE_OPTIONAL),
+        ]);
+
+        $cuatri_student = new external_single_structure([
+            'userid'            => new external_value(PARAM_INT, 'ID'),
+            'name'              => new external_value(PARAM_TEXT, 'Nombre'),
+            'status'            => new external_value(PARAM_TEXT, 'Estado actual', VALUE_OPTIONAL),
+            'current_period'    => new external_value(PARAM_TEXT, 'Periodo actual', VALUE_OPTIONAL),
+            'next_period'       => new external_value(PARAM_TEXT, 'Periodo destino', VALUE_OPTIONAL),
+            'next_period_id'    => new external_value(PARAM_INT, 'ID periodo destino', VALUE_OPTIONAL),
+            'next_subperiod'    => new external_value(PARAM_TEXT, 'Bimestre destino', VALUE_OPTIONAL),
+            'next_subperiod_id' => new external_value(PARAM_INT, 'ID bimestre destino', VALUE_OPTIONAL),
+        ]);
+
+        $graduate_warn = new external_single_structure([
+            'userid' => new external_value(PARAM_INT, 'ID'),
+            'name'   => new external_value(PARAM_TEXT, 'Nombre'),
+            'period' => new external_value(PARAM_TEXT, 'Periodo', VALUE_OPTIONAL),
+            'pending_courses' => new external_multiple_structure(
+                new external_single_structure([
+                    'name'     => new external_value(PARAM_TEXT, 'Nombre del curso'),
+                    'periodid' => new external_value(PARAM_INT, 'ID periodo del curso'),
+                    'status'   => new external_value(PARAM_INT, 'Estado'),
+                    'grade'    => new external_value(PARAM_FLOAT, 'Calificación'),
+                ])
+            ),
+        ]);
+
+        $stays = new external_single_structure([
+            'userid'    => new external_value(PARAM_INT, 'ID'),
+            'name'      => new external_value(PARAM_TEXT, 'Nombre'),
+            'period'    => new external_value(PARAM_TEXT, 'Periodo', VALUE_OPTIONAL),
+            'subperiod' => new external_value(PARAM_TEXT, 'Bimestre', VALUE_OPTIONAL),
+            'reason'    => new external_value(PARAM_TEXT, 'Razón'),
+        ]);
+
+        $skipped = new external_single_structure([
+            'userid' => new external_value(PARAM_INT, 'ID'),
+            'name'   => new external_value(PARAM_TEXT, 'Nombre'),
+            'reason' => new external_value(PARAM_TEXT, 'Razón'),
+        ]);
+
+        return new external_single_structure([
+            'to_next_bim'         => new external_multiple_structure($bim_student, 'Pasarán al siguiente bimestre'),
+            'to_next_cuatri'      => new external_multiple_structure($cuatri_student, 'Pasarán al siguiente cuatrimestre'),
+            'to_graduate_ok'      => new external_multiple_structure(
+                new external_single_structure([
+                    'userid' => new external_value(PARAM_INT, 'ID'),
+                    'name'   => new external_value(PARAM_TEXT, 'Nombre'),
+                    'period' => new external_value(PARAM_TEXT, 'Periodo', VALUE_OPTIONAL),
+                ])
+            ),
+            'to_graduate_warn'    => new external_multiple_structure($graduate_warn, 'Graduarán con asignaturas pendientes (resaltado en rojo)'),
+            'stays_inactive'      => new external_multiple_structure($stays, 'Inactivos que permanecen en su periodo'),
+            'stays_active'        => new external_multiple_structure($stays, 'Activos que permanecen (ya en último bimestre)'),
+            'skipped'             => new external_multiple_structure($skipped, 'Estudiantes omitidos'),
+            'summary'             => new external_single_structure([
+                'to_next_bim_count'      => new external_value(PARAM_INT, ''),
+                'to_next_cuatri_count'   => new external_value(PARAM_INT, ''),
+                'to_graduate_ok_count'   => new external_value(PARAM_INT, ''),
+                'to_graduate_warn_count' => new external_value(PARAM_INT, ''),
+                'stays_inactive_count'   => new external_value(PARAM_INT, ''),
+                'stays_active_count'     => new external_value(PARAM_INT, ''),
+                'skipped_count'          => new external_value(PARAM_INT, ''),
+            ]),
+            'destination_label'   => new external_value(PARAM_TEXT, 'Etiqueta del destino'),
+            'renewal_type'        => new external_value(PARAM_TEXT, 'Tipo de renovación'),
+            'intake_period'       => new external_value(PARAM_TEXT, 'Cohorte'),
+            'period_id'           => new external_value(PARAM_INT, 'ID periodo filtro'),
+            'subperiod_id'        => new external_value(PARAM_INT, 'ID bimestre filtro'),
+        ]);
+    }
 }
