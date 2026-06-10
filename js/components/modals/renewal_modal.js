@@ -156,14 +156,16 @@ Vue.component('renewal-modal', {
     <v-dialog :value="true" persistent max-width="920" scrollable>
     <v-card class="tl-modal tl-renewal-modal" tile>
             <!-- HEADER -->
-            <div class="tl-modal-header">
-                <div class="tl-modal-header-titles">
-                    <div class="tl-modal-eyebrow">FASE 2 · Renovación de periodo</div>
-                    <h2 class="tl-modal-title">
-                        <v-icon color="#10B981" size="22">mdi-calendar-refresh-outline</v-icon>
-                        Renovar periodo · cohorte {{ cohort || '(todas)' }}
-                    </h2>
-                    <div class="tl-modal-subtitle">{{ careerName }}</div>
+            <div class="tl-modal-head">
+                <div class="tl-modal-head-info tl-modal-header-titles">
+                    <div>
+                        <div class="tl-modal-eyebrow">FASE 2 · Renovación de periodo</div>
+                        <h2 class="tl-modal-title">
+                            <v-icon color="#10B981" size="22">mdi-calendar-refresh-outline</v-icon>
+                            Renovar periodo · cohorte {{ cohort || '(todas)' }}
+                        </h2>
+                        <div class="tl-modal-subtitle">{{ careerName }}</div>
+                    </div>
                 </div>
                 <button class="tl-modal-close" @click="closeModal" aria-label="Cerrar">
                     <v-icon size="20" color="#64748B">mdi-close</v-icon>
@@ -386,7 +388,7 @@ Vue.component('renewal-modal', {
             </div>
 
             <!-- FOOTER -->
-            <div class="tl-modal-footer">
+            <div class="tl-modal-foot">
                 <button class="tl-btn tl-btn-ghost" @click="closeModal" :disabled="executing">Cancelar</button>
                 <button
                     class="tl-btn tl-btn-primary"

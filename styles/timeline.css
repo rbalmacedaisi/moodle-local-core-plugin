@@ -2131,3 +2131,107 @@
     .tl-renewal-row { flex-direction: column; align-items: flex-start; gap: 6px; }
     .tl-renewal-row-name { flex: none; }
 }
+
+/* =========================================================
+   RENEWAL MODAL — Header sub-containers, body & native buttons
+   (Fix estilos FASE 2 · sesión anterior)
+   ========================================================= */
+
+/* Header: eyebrow + subtitle (solo los usa el modal de renovación) */
+.tl-modal-eyebrow {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--tl-success);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+}
+
+.tl-modal-subtitle {
+    font-size: 13px;
+    color: var(--tl-text-muted);
+    margin-top: 4px;
+    font-weight: 400;
+}
+
+/* Body del modal (padding + scroll si el contenido excede la altura) */
+.tl-modal-body {
+    padding: 20px 24px;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+}
+
+/* Renewal modal: footer con los botones alineados a la derecha */
+.tl-renewal-modal .tl-modal-foot {
+    justify-content: flex-end;
+    gap: 10px;
+    background: var(--tl-surface);
+    padding: 14px 24px;
+}
+
+/* ---------- Botones base (clases para <button> nativo) ---------- */
+.tl-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    padding: 9px 18px;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    line-height: 1.2;
+    white-space: nowrap;
+    text-decoration: none;
+    transition: background var(--tl-dur) var(--tl-ease),
+                color var(--tl-dur) var(--tl-ease),
+                border-color var(--tl-dur) var(--tl-ease),
+                box-shadow var(--tl-dur) var(--tl-ease),
+                transform var(--tl-dur) var(--tl-ease);
+}
+
+.tl-btn:disabled,
+.tl-btn[disabled] {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.tl-btn-ghost {
+    background: transparent;
+    color: var(--tl-text-secondary);
+    border-color: var(--tl-border);
+}
+
+.tl-btn-ghost:hover:not(:disabled) {
+    background: var(--tl-muted-soft);
+    color: var(--tl-text);
+    border-color: var(--tl-border-strong);
+}
+
+/* tl-btn-primary: completar la versión para <button> nativo.
+   Solo aplicamos color/background/hover cuando la clase se combina con .tl-btn
+   (los usos existentes con <v-btn> siguen funcionando con sus colores propios). */
+.tl-btn.tl-btn-primary,
+button.tl-btn.tl-btn-primary {
+    background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+    color: white;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
+}
+
+.tl-btn.tl-btn-primary:hover:not(:disabled),
+button.tl-btn.tl-btn-primary:hover:not(:disabled) {
+    background: linear-gradient(135deg, #059669 0%, #047857 100%);
+    box-shadow: 0 6px 16px rgba(16, 185, 129, 0.35);
+    transform: translateY(-1px);
+}
+
+.tl-btn.tl-btn-primary:active:not(:disabled),
+button.tl-btn.tl-btn-primary:active:not(:disabled) {
+    transform: translateY(0);
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.30);
+}
