@@ -18,6 +18,16 @@
  * Endpoints Moodle:
  *   - local_grupomakro_get_period_renewal_preview
  *   - local_grupomakro_execute_period_renewal
+ *
+ * API:
+ *   <renewal-modal
+ *     v-if="showModal"
+ *     :cohort="'2026'"
+ *     :learning-plan-id="2"
+ *     :career-name="'Lic. en Enfermería'"
+ *     @close="close"
+ *     @done="onDone">
+ *   </renewal-modal>
  */
 
 Vue.component('renewal-modal', {
@@ -45,7 +55,7 @@ Vue.component('renewal-modal', {
         };
     },
     computed: {
-        summary() { return this.preview ? this.preview.summary : null; },
+        summary() { return this.preview && this.preview.summary ? this.preview.summary : null; },
         hasAnyAction() {
             if (!this.summary) return false;
             return (this.summary.to_next_bim_count + this.summary.to_next_cuatri_count +
@@ -53,6 +63,12 @@ Vue.component('renewal-modal', {
         },
         hasWarnings() {
             return this.summary && this.summary.to_graduate_warn_count > 0;
+        },
+        isEmpty() {
+            if (!this.summary) return false;
+            return !this.hasAnyAction &&
+                   this.summary.stays_inactive_count === 0 &&
+                   this.summary.skipped_count === 0;
         },
     },
     watch: {
@@ -69,29 +85,33 @@ Vue.component('renewal-modal', {
             this.loading = true;
             this.error = '';
             try {
-                const cfg = window.M.cfg || {};
-                const ssoToken = cfg.sesskey || '';
-                const url = `${cfg.wwwroot}/webservice/rest/server.php`;
-                const params = new URLSearchParams();
-                params.append('wstoken', ssoToken);
-                params.append('wsfunction', 'local_grupomakro_get_period_renewal_preview');
-                params.append('moodlewsrestformat', 'json');
-                params.append('learningplanid[0]', this.learningPlanId);
+                const args = { learningplanid: this.learningPlanId };
                 if (this.cohort) {
-                    params.append('intake_period[0]', this.cohort);
+                    args.intake_period = this.cohort;
                 }
-
-                const resp = await fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: params,
-                    credentials: 'same-origin',
+                const resp = await axios.post(M.cfg.wwwroot + '/lib/ajax/service.php', [{
+                    index: 0,
+                    methodname: 'local_grupomakro_get_period_renewal_preview',
+                    args: args,
+                }], {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': userToken,
+                    },
                 });
-                const data = await resp.json();
-                if (data && data.exception) {
-                    this.error = data.message || 'Error al obtener la vista previa';
+                if (resp.data && resp.data[0]) {
+                    const data = resp.data[0];
+                    if (data.error) {
+                        this.error = data.error || data.exception ? (data.message || 'Error al obtener la vista previa') : 'Error al obtener la vista previa';
+                    } else if (data.data) {
+                        this.preview = data.data;
+                    } else if (data.exception) {
+                        this.error = data.message || 'Error al obtener la vista previa';
+                    } else {
+                        this.preview = data;
+                    }
                 } else {
-                    this.preview = data;
+                    this.error = 'Respuesta vacía del servidor';
                 }
             } catch (e) {
                 this.error = 'Error de red: ' + (e.message || e);
@@ -110,35 +130,41 @@ Vue.component('renewal-modal', {
             this.executing = true;
             this.error = '';
             try {
-                const cfg = window.M.cfg || {};
-                const ssoToken = cfg.sesskey || '';
-                const url = `${cfg.wwwroot}/webservice/rest/server.php`;
-                const params = new URLSearchParams();
-                params.append('wstoken', ssoToken);
-                params.append('wsfunction', 'local_grupomakro_execute_period_renewal');
-                params.append('moodlewsrestformat', 'json');
-                params.append('learningplanid[0]', this.learningPlanId);
+                const args = { learningplanid: this.learningPlanId };
                 if (this.cohort) {
-                    params.append('intake_period[0]', this.cohort);
+                    args.intake_period = this.cohort;
                 }
                 if (this.confirmWarnings) {
-                    params.append('confirm_warnings[0]', '1');
+                    args.confirm_warnings = true;
                 }
-
-                const resp = await fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: params,
-                    credentials: 'same-origin',
+                const resp = await axios.post(M.cfg.wwwroot + '/lib/ajax/service.php', [{
+                    index: 0,
+                    methodname: 'local_grupomakro_execute_period_renewal',
+                    args: args,
+                }], {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': userToken,
+                    },
                 });
-                const data = await resp.json();
-                if (data && data.exception) {
-                    this.error = data.message || 'Error al ejecutar la renovación';
-                } else if (data.requires_confirmation) {
-                    this.requiresConfirm = true;
-                    this.error = data.message || 'Debe confirmar las advertencias';
+                if (resp.data && resp.data[0]) {
+                    const data = resp.data[0];
+                    if (data.error) {
+                        this.error = data.message || data.error;
+                    } else if (data.data) {
+                        if (data.data.requires_confirmation) {
+                            this.requiresConfirm = true;
+                            this.error = data.data.message || 'Debe confirmar las advertencias';
+                        } else {
+                            this.$emit('done', data.data);
+                        }
+                    } else if (data.exception) {
+                        this.error = data.message || 'Error al ejecutar la renovación';
+                    } else {
+                        this.$emit('done', data);
+                    }
                 } else {
-                    this.$emit('done', data);
+                    this.error = 'Respuesta vacía del servidor';
                 }
             } catch (e) {
                 this.error = 'Error de red: ' + (e.message || e);
@@ -153,8 +179,8 @@ Vue.component('renewal-modal', {
         },
     },
     template: `
-    <div class="tl-modal-overlay" @click.self="closeModal">
-        <div class="tl-modal tl-renewal-modal" role="dialog" aria-modal="true">
+    <v-dialog :value="true" persistent max-width="920" scrollable>
+    <v-card class="tl-modal tl-renewal-modal" tile>
             <!-- HEADER -->
             <div class="tl-modal-header">
                 <div class="tl-modal-header-titles">
@@ -185,11 +211,7 @@ Vue.component('renewal-modal', {
                 </div>
 
                 <!-- NO DATA -->
-                <div v-if="!loading && !error && preview && !hasAnyAction && summary
-                            && summary.to_next_bim_count + summary.to_next_cuatri_count +
-                               summary.to_graduate_ok_count + summary.to_graduate_warn_count === 0
-                            && summary.stays_inactive_count === 0 && summary.skipped_count === 0"
-                     class="tl-modal-empty">
+                <div v-if="!loading && !error && isEmpty" class="tl-modal-empty">
                     <v-icon size="48" color="#94A3B8">mdi-account-off-outline</v-icon>
                     <h3>Sin estudiantes para renovar</h3>
                     <p>No se encontraron estudiantes activos en esta cohorte que requieran promoción.</p>
@@ -401,7 +423,7 @@ Vue.component('renewal-modal', {
                     {{ executing ? 'Renovando…' : 'Confirmar y renovar' }}
                 </button>
             </div>
-        </div>
-    </div>
+    </v-card>
+    </v-dialog>
     `
 });
