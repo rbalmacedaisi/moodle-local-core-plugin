@@ -144,6 +144,13 @@ Vue.component('intake-timeline', {
                         >
                             <v-icon size="16" color="#6366F1">mdi-book-open-variant</v-icon>
                         </button>
+                        <button
+                            class="tl-btn-icon tl-btn-reassign"
+                            @click.stop="openBulkReassign(ip)"
+                            title="Reclasificar cohorte"
+                        >
+                            <v-icon size="16" color="#F59E0B">mdi-account-multiple-convert</v-icon>
+                        </button>
                         <button class="tl-btn-icon tl-chevron" :class="{ 'tl-chevron-open': openPanels.includes(idx) }">
                             <v-icon size="18" color="#64748B">mdi-chevron-down</v-icon>
                         </button>
@@ -292,6 +299,24 @@ Vue.component('intake-timeline', {
             :intake-period="selectedIntakePeriod"
             @close="closeStudentModal"
         ></student-list-modal>
+
+        <!-- BULK REASSIGN MODAL -->
+        <bulk-reassign-modal
+            v-if="showBulkReassign"
+            :cohort="bulkReassignCohort"
+            :learning-plan-id="careerId"
+            :career-name="timelineData.career ? timelineData.career.name : 'Carrera'"
+            @close="closeBulkReassign"
+            @done="onBulkReassignDone"
+        ></bulk-reassign-modal>
+
+        <!-- BULK REASSIGN TOAST -->
+        <transition name="tl-fade">
+            <div v-if="toast" :class="['tl-toast', 'tl-toast-' + toast.type]">
+                <v-icon size="18" dark>{{ toast.type === 'success' ? 'mdi-check-circle' : 'mdi-alert-circle' }}</v-icon>
+                <span>{{ toast.msg }}</span>
+            </div>
+        </transition>
     </div>
     `,
     props: {
@@ -310,6 +335,10 @@ Vue.component('intake-timeline', {
             selectedSubperiod: { sp_id: 0, sp_name: '' },
             selectedIntakePeriod: '',
             selectedCohortForPanel: '2026',
+            // Bulk reassign (FASE 1)
+            showBulkReassign: false,
+            bulkReassignCohort: '',
+            toast: null,
         };
     },
     computed: {
@@ -433,6 +462,23 @@ Vue.component('intake-timeline', {
         },
         closeStudentModal() {
             this.showStudentModal = false;
+        },
+        openBulkReassign(ip) {
+            this.bulkReassignCohort = ip.period;
+            this.showBulkReassign = true;
+        },
+        closeBulkReassign() {
+            this.showBulkReassign = false;
+        },
+        onBulkReassignDone(payload) {
+            this.showBulkReassign = false;
+            this.showToast('success', payload.message || 'Estudiantes reasignados correctamente');
+            // Reload timeline to reflect new counts
+            this.loadTimeline();
+        },
+        showToast(type, msg) {
+            this.toast = { type, msg };
+            setTimeout(() => { this.toast = null; }, 4500);
         },
     },
 });

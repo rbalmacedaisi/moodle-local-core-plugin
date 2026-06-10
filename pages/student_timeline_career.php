@@ -62,6 +62,7 @@ echo $OUTPUT->header();
 </script>
 
 <script src="<?php echo $CFG->wwwroot; ?>/local/grupomakro_core/js/components/modals/studentlistmodal.js?v=<?php echo $assetversion; ?>"></script>
+<script src="<?php echo $CFG->wwwroot; ?>/local/grupomakro_core/js/components/modals/bulk_reassign_modal.js?v=<?php echo $assetversion; ?>"></script>
 <script src="<?php echo $CFG->wwwroot; ?>/local/grupomakro_core/js/components/panels/subjectspanel.js?v=<?php echo $assetversion; ?>"></script>
 <script src="<?php echo $CFG->wwwroot; ?>/local/grupomakro_core/js/components/timeline/intake_timeline.js?v=<?php echo $assetversion; ?>"></script>
 

@@ -1036,4 +1036,270 @@ class student_timeline extends external_api {
             'message' => new external_value(PARAM_TEXT, 'Message')
         ]);
     }
+
+    // --- Get ALL Students by Intake Period (for bulk reassignment) ---
+
+    public static function get_students_by_intake_period_parameters() {
+        return new external_function_parameters([
+            'learningplanid' => new external_value(PARAM_INT, 'ID del plan de aprendizaje'),
+            'intake_period'  => new external_value(PARAM_TEXT, 'Periodo de ingreso (cohorte)'),
+        ]);
+    }
+
+    /**
+     * Returns all students in a given intake period (cohort) for a learning plan,
+     * grouped by subperiod. Used for bulk reassignment.
+     *
+     * @param int $learningplanid
+     * @param string $intake_period
+     * @return array ['groups' => [...], 'available_periods' => [...], 'total' => int]
+     */
+    public static function get_students_by_intake_period($learningplanid, $intake_period) {
+        global $DB;
+        $context = \context_system::instance();
+        self::validate_context($context);
+        require_capability('moodle/site:config', $context);
+
+        // Get all subperiods for the learning plan with their period info
+        $sql_subperiods = "SELECT sp.id as sp_id, sp.name as sp_name, sp.position as sp_pos,
+                                  lper.id as period_id, lper.name as period_name
+                           FROM {local_learning_subperiods} sp
+                           JOIN {local_learning_periods} lper ON lper.id = sp.periodid
+                           WHERE sp.learningplanid = :lp_id
+                           ORDER BY lper.id ASC, sp.position ASC";
+        $subperiods = $DB->get_records_sql($sql_subperiods, ['lp_id' => $learningplanid]);
+
+        // Get all students in the cohort
+        $sql_students = "SELECT u.id as userid, u.username, u.firstname, u.lastname, u.email,
+                                lu.status, lu.currentperiodid, lu.currentsubperiodid,
+                                uid_periodo.data as intake_period,
+                                p.data as phone
+                         FROM {local_learning_users} lu
+                         JOIN {user} u ON u.id = lu.userid
+                         JOIN {user_info_data} uid_periodo ON uid_periodo.userid = lu.userid
+                         JOIN {user_info_field} uif_periodo ON uif_periodo.id = uid_periodo.fieldid
+                            AND uif_periodo.shortname = 'periodo_ingreso'
+                         LEFT JOIN {user_info_data} p ON p.userid = u.id
+                         LEFT JOIN {user_info_field} pf ON pf.id = p.fieldid AND pf.shortname = 'phone'
+                         WHERE lu.learningplanid = :lp_id
+                           AND uid_periodo.data = :intake_period
+                         ORDER BY u.lastname, u.firstname";
+
+        $rows = $DB->get_records_sql($sql_students, [
+            'lp_id' => $learningplanid,
+            'intake_period' => $intake_period,
+        ]);
+
+        // Group students by subperiod
+        $groups_map = [];
+        $unassigned = [];
+
+        foreach ($rows as $s) {
+            $item = [
+                'userid'        => (int)$s->userid,
+                'username'      => $s->username ?? '',
+                'firstname'     => $s->firstname,
+                'lastname'      => $s->lastname,
+                'fullname'      => fullname($s),
+                'email'         => $s->email ?? '',
+                'phone'         => $s->phone ?? '',
+                'status'        => $s->status,
+                'intake_period' => $s->intake_period,
+                'currentperiodid'    => (int)($s->currentperiodid ?? 0),
+                'currentsubperiodid' => (int)($s->currentsubperiodid ?? 0),
+            ];
+            $cspid = (int)($s->currentsubperiodid ?? 0);
+            if ($cspid > 0 && isset($subperiods[$cspid])) {
+                $sp = $subperiods[$cspid];
+                $key = $sp->period_id . '-' . $sp->sp_id;
+                if (!isset($groups_map[$key])) {
+                    $groups_map[$key] = [
+                        'period_id'   => (int)$sp->period_id,
+                        'period_name' => $sp->period_name,
+                        'subperiod_id'   => (int)$sp->sp_id,
+                        'subperiod_name' => $sp->sp_name,
+                        'subperiod_pos'  => (int)$sp->sp_pos,
+                        'students'       => [],
+                    ];
+                }
+                $groups_map[$key]['students'][] = $item;
+            } else {
+                $unassigned[] = $item;
+            }
+        }
+
+        if (!empty($unassigned)) {
+            $groups_map['unassigned'] = [
+                'period_id'      => 0,
+                'period_name'    => 'Sin bimestre asignado',
+                'subperiod_id'   => 0,
+                'subperiod_name' => '—',
+                'subperiod_pos'  => 0,
+                'students'       => $unassigned,
+            ];
+        }
+
+        // Sort groups by period_id, then subperiod_pos
+        $groups = array_values($groups_map);
+        usort($groups, function($a, $b) {
+            if ($a['period_id'] !== $b['period_id']) {
+                return $a['period_id'] - $b['period_id'];
+            }
+            return $a['subperiod_pos'] - $b['subperiod_pos'];
+        });
+
+        // Available periods (for destination dropdown)
+        $available_periods = $DB->get_fieldset_sql(
+            "SELECT DISTINCT uid.data as periodo
+             FROM {user_info_data} uid
+             JOIN {user_info_field} uif ON uif.id = uid.fieldid AND uif.shortname = 'periodo_ingreso'
+             WHERE uid.data IS NOT NULL AND uid.data != ''
+             ORDER BY uid.data DESC"
+        );
+
+        return [
+            'groups'            => $groups,
+            'available_periods' => $available_periods,
+            'total'             => count($rows),
+        ];
+    }
+
+    public static function get_students_by_intake_period_returns() {
+        $student_struct = new external_single_structure([
+            'userid'             => new external_value(PARAM_INT, 'ID usuario'),
+            'username'           => new external_value(PARAM_TEXT, 'Identificación'),
+            'firstname'          => new external_value(PARAM_TEXT, 'Nombre'),
+            'lastname'           => new external_value(PARAM_TEXT, 'Apellido'),
+            'fullname'           => new external_value(PARAM_TEXT, 'Nombre completo'),
+            'email'              => new external_value(PARAM_TEXT, 'Email'),
+            'phone'              => new external_value(PARAM_TEXT, 'Teléfono'),
+            'status'             => new external_value(PARAM_TEXT, 'Estado'),
+            'intake_period'      => new external_value(PARAM_TEXT, 'Periodo de ingreso'),
+            'currentperiodid'    => new external_value(PARAM_INT, 'ID periodo actual'),
+            'currentsubperiodid' => new external_value(PARAM_INT, 'ID subperiodo actual'),
+        ]);
+
+        $group_struct = new external_single_structure([
+            'period_id'      => new external_value(PARAM_INT, 'ID periodo'),
+            'period_name'    => new external_value(PARAM_TEXT, 'Nombre periodo'),
+            'subperiod_id'   => new external_value(PARAM_INT, 'ID subperiodo'),
+            'subperiod_name' => new external_value(PARAM_TEXT, 'Nombre subperiodo'),
+            'subperiod_pos'  => new external_value(PARAM_INT, 'Posición subperiodo'),
+            'students'       => new external_multiple_structure($student_struct, 'Estudiantes del grupo'),
+        ]);
+
+        return new external_single_structure([
+            'groups'            => new external_multiple_structure($group_struct, 'Grupos por bimestre'),
+            'available_periods' => new external_multiple_structure(
+                new external_value(PARAM_TEXT, 'Periodo de ingreso')
+            ),
+            'total'             => new external_value(PARAM_INT, 'Total de estudiantes'),
+        ]);
+    }
+
+    // --- Bulk Reassign Students Intake Period ---
+
+    public static function bulk_reassign_students_intake_period_parameters() {
+        return new external_function_parameters([
+            'userids'           => new external_multiple_structure(
+                new external_value(PARAM_INT, 'ID de usuario'),
+                'IDs de los estudiantes a reasignar'
+            ),
+            'new_intake_period' => new external_value(PARAM_TEXT, 'Nuevo periodo de ingreso'),
+        ]);
+    }
+
+    /**
+     * Reassigns the intake period of multiple students at once.
+     * Used for cohort reclassification (moving groups between cohorts).
+     *
+     * @param array $userids
+     * @param string $new_intake_period
+     * @return array success result with count of updated students
+     */
+    public static function bulk_reassign_students_intake_period($userids, $new_intake_period) {
+        global $DB, $USER;
+        $context = \context_system::instance();
+        self::validate_context($context);
+        require_capability('moodle/site:config', $context);
+
+        $parameters = self::validate_parameters(
+            self::bulk_reassign_students_intake_period_parameters(),
+            ['userids' => $userids, 'new_intake_period' => $new_intake_period]
+        );
+
+        if (empty($parameters['userids'])) {
+            return [
+                'success'        => false,
+                'updated_count'  => 0,
+                'failed_count'   => 0,
+                'failed_userids' => [],
+                'message'        => 'No se proporcionaron estudiantes para reasignar',
+            ];
+        }
+
+        $field = $DB->get_record('user_info_field', ['shortname' => 'periodo_ingreso']);
+        if (!$field) {
+            throw new \moodle_exception('Campo periodo_ingreso no encontrado');
+        }
+
+        $updated = 0;
+        $failed = [];
+        $now = time();
+
+        foreach ($parameters['userids'] as $userid) {
+            $userid = (int)$userid;
+            if ($userid <= 0) continue;
+
+            // Verify user exists
+            if (!$DB->record_exists('user', ['id' => $userid, 'deleted' => 0])) {
+                $failed[] = $userid;
+                continue;
+            }
+
+            try {
+                $existing = $DB->get_record('user_info_data', [
+                    'userid'  => $userid,
+                    'fieldid' => $field->id,
+                ]);
+
+                if ($existing) {
+                    $existing->data = $parameters['new_intake_period'];
+                    $DB->update_record('user_info_data', $existing);
+                } else {
+                    $new = new \stdClass();
+                    $new->userid   = $userid;
+                    $new->fieldid  = $field->id;
+                    $new->data     = $parameters['new_intake_period'];
+                    $new->datatype = $field->datatype;
+                    $DB->insert_record('user_info_data', $new);
+                }
+                $updated++;
+            } catch (\Exception $e) {
+                $failed[] = $userid;
+                debugging('[bulk_reassign] Error userid=' . $userid . ': ' . $e->getMessage(), DEBUG_DEVELOPER);
+            }
+        }
+
+        return [
+            'success'        => $updated > 0,
+            'updated_count'  => $updated,
+            'failed_count'   => count($failed),
+            'failed_userids' => $failed,
+            'message'        => "{$updated} estudiante(s) reasignado(s) a {$parameters['new_intake_period']}"
+                . (count($failed) > 0 ? " ({count($failed)} fallaron)" : ''),
+        ];
+    }
+
+    public static function bulk_reassign_students_intake_period_returns() {
+        return new external_single_structure([
+            'success'        => new external_value(PARAM_BOOL, 'Operación exitosa'),
+            'updated_count'  => new external_value(PARAM_INT, 'Cantidad de estudiantes actualizados'),
+            'failed_count'   => new external_value(PARAM_INT, 'Cantidad de fallos'),
+            'failed_userids' => new external_multiple_structure(
+                new external_value(PARAM_INT, 'ID usuario fallido')
+            ),
+            'message'        => new external_value(PARAM_TEXT, 'Mensaje descriptivo'),
+        ]);
+    }
 }

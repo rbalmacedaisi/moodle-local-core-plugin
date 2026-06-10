@@ -975,6 +975,22 @@ $functions = array(
         'ajax'        => true,
         'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE],
     ],
+    'local_grupomakro_get_students_by_intake_period' => [
+        'classname'   => 'local_grupomakro_core\external\admin\student_timeline',
+        'methodname'  => 'get_students_by_intake_period',
+        'description' => 'Returns all students in a given intake period (cohort) grouped by subperiod for bulk reassignment',
+        'type'        => 'read',
+        'ajax'        => true,
+        'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE],
+    ],
+    'local_grupomakro_bulk_reassign_students_intake_period' => [
+        'classname'   => 'local_grupomakro_core\external\admin\student_timeline',
+        'methodname'  => 'bulk_reassign_students_intake_period',
+        'description' => 'Bulk reassigns the intake period of multiple students at once (cohort reclassification)',
+        'type'        => 'write',
+        'ajax'        => true,
+        'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE],
+    ],
     'local_grupomakro_get_lp_students' => [
         'classname'   => 'local_grupomakro_core\external\lp\get_lp_students',
         'methodname'  => 'execute',

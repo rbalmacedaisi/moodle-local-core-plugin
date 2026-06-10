@@ -24,6 +24,6 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = "local_grupomakro_core";
-$plugin->version   = 20260610001;         // FASE 0: Registrar 3 funciones externas de student_timeline (get_courses_with_projections, save_course_projection, delete_course_projection) y fix bug jornada=ALL.
+$plugin->version   = 20260610002;         // FASE 1: Reclasificación masiva. Nuevos endpoints: get_students_by_intake_period (lista de cohorte agrupada por bimestre) y bulk_reassign_students_intake_period (reasignacion masiva).
 $plugin->requires = 2014051200;
 $plugin->maturity = MATURITY_STABLE;
