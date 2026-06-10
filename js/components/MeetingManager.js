@@ -79,11 +79,15 @@ const MeetingManager = {
                     <v-card-title class="indigo white--text">
                         <v-icon left dark>mdi-play-box-multiple</v-icon>
                         Grabaciones — {{ recordingsMeetingName }}
+                        <v-spacer></v-spacer>
+                        <v-btn small text dark :loading="recordingsSyncing" @click="loadRecordings(true)">
+                            <v-icon left small>mdi-sync</v-icon> Sincronizar
+                        </v-btn>
                     </v-card-title>
                     <v-card-text class="pt-4">
                         <div v-if="recordingsLoading" class="text-center py-6">
                             <v-progress-circular indeterminate color="indigo"></v-progress-circular>
-                            <div class="caption grey--text mt-2">Cargando grabaciones...</div>
+                            <div class="caption grey--text mt-2">{{ recordingsSyncing ? 'Sincronizando con el servidor...' : 'Cargando grabaciones...' }}</div>
                         </div>
                         <div v-else-if="recordings.length === 0" class="text-center py-6 grey--text">
                             <v-icon size="48" color="grey lighten-1">mdi-video-off-outline</v-icon>
@@ -144,8 +148,10 @@ const MeetingManager = {
             createDialog: false,
             recordingsDialog: false,
             recordingsLoading: false,
+            recordingsSyncing: false,
             recordings: [],
             recordingsMeetingName: '',
+            recordingsCmid: null,
             valid: false,
             saving: false,
             newMeeting: {
@@ -177,13 +183,29 @@ const MeetingManager = {
         },
         async openRecordings(item) {
             this.recordingsMeetingName = item.name;
+            this.recordingsCmid = item.cmid;
             this.recordings = [];
             this.recordingsDialog = true;
+            // Auto-sync with the BBB server on open so newly processed recordings appear.
+            await this.loadRecordings(true);
+        },
+        async loadRecordings(sync) {
+            if (!this.recordingsCmid) return;
             this.recordingsLoading = true;
+            if (sync) this.recordingsSyncing = true;
             try {
+                if (sync) {
+                    // Pull fresh recordings from the BBB server into the local cache.
+                    await axios.post(window.wsUrl, {
+                        action: 'local_grupomakro_sync_meeting_recordings',
+                        cmid: this.recordingsCmid,
+                        ...window.wsStaticParams
+                    });
+                    this.recordingsSyncing = false;
+                }
                 const response = await axios.post(window.wsUrl, {
                     action: 'local_grupomakro_get_meeting_recordings',
-                    cmid: item.cmid,
+                    cmid: this.recordingsCmid,
                     ...window.wsStaticParams
                 });
                 if (response.data.status === 'success') {
@@ -196,6 +218,7 @@ const MeetingManager = {
                 this.showSnackbar('Error al cargar grabaciones', 'error');
             } finally {
                 this.recordingsLoading = false;
+                this.recordingsSyncing = false;
             }
         },
         formatDate(timestamp) {
