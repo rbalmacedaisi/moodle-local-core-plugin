@@ -95,35 +95,48 @@ class student_timeline extends external_api {
         }
 
         // 2. Curriculum structure (cuatrimestres + bimestres)
+        // FIX: previously used a LEFT JOIN that produced duplicate 'id' columns (one row per
+        // subperiod), which caused $DB->get_records_sql() to keep only the LAST row per period,
+        // dropping BIMESTRE 1 and keeping only BIMESTRE 2. Now we query periods and subperiods
+        // separately and merge in PHP.
         // local_learning_periods has no 'position' column — order by id (creation order = curriculum order)
         // local_learning_subperiods does have 'position'
-        $sql_curriculum = "SELECT lper.id, lper.name,
-                                  sp.id as sp_id, sp.name as sp_name, sp.position as sp_pos
-                           FROM {local_learning_periods} lper
-                           LEFT JOIN {local_learning_subperiods} sp
-                             ON sp.periodid = lper.id AND sp.learningplanid = lper.learningplanid
-                           WHERE lper.learningplanid = :lp_id
-                           ORDER BY lper.id ASC, sp.position ASC";
-        $curr_rows = $DB->get_records_sql($sql_curriculum, ['lp_id' => $learningplanid]);
+        $periods_rows = $DB->get_records_sql(
+            "SELECT lper.id, lper.name
+             FROM {local_learning_periods} lper
+             WHERE lper.learningplanid = :lp_id
+             ORDER BY lper.id ASC",
+            ['lp_id' => $learningplanid]
+        );
+
+        $subperiods_rows = $DB->get_records_sql(
+            "SELECT sp.id as sp_id, sp.name as sp_name, sp.position as sp_pos, sp.periodid
+             FROM {local_learning_subperiods} sp
+             JOIN {local_learning_periods} lper ON lper.id = sp.periodid
+             WHERE lper.learningplanid = :lp_id
+             ORDER BY sp.periodid ASC, sp.position ASC",
+            ['lp_id' => $learningplanid]
+        );
+
+        // Index subperiods by periodid
+        $subs_by_period = [];
+        foreach ($subperiods_rows as $sp) {
+            $subs_by_period[(int)$sp->periodid][] = [
+                'sp_id'   => (int)$sp->sp_id,
+                'sp_name' => $sp->sp_name,
+                'sp_pos'  => (int)($sp->sp_pos ?? 0),
+            ];
+        }
 
         $curriculum_map = [];
-        foreach ($curr_rows as $row) {
+        foreach ($periods_rows as $row) {
             $pid = (int)$row->id;
-            if (!isset($curriculum_map[$pid])) {
-                $curriculum_map[$pid] = [
-                    'id'         => $pid,
-                    'name'       => $row->name,
-                    'position'   => 0, // assigned below after sorting
-                    'subperiods' => [],
-                ];
-            }
-            if (!empty($row->sp_id)) {
-                $curriculum_map[$pid]['subperiods'][] = [
-                    'sp_id'   => (int)$row->sp_id,
-                    'sp_name' => $row->sp_name,
-                    'sp_pos'  => (int)($row->sp_pos ?? 0),
-                ];
-            }
+            $curriculum_map[$pid] = [
+                'id'         => $pid,
+                'name'       => $row->name,
+                'position'   => 0, // assigned below after sorting
+                'subperiods' => $subs_by_period[$pid] ?? [],
+            ];
         }
         // Assign sequential positions (1-based) by id order
         $curriculum = array_values($curriculum_map);
