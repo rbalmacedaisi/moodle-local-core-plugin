@@ -24,6 +24,6 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = "local_grupomakro_core";
-$plugin->version   = 20260610002;         // FASE 1: Reclasificación masiva. Nuevos endpoints: get_students_by_intake_period (lista de cohorte agrupada por bimestre) y bulk_reassign_students_intake_period (reasignacion masiva).
+$plugin->version   = 20260610003;         // FASE 2: Proceso de renovacion de periodo (B1->B2, B2->C[n+1]B1, B2 del ultimo C->graduando). Endpoints: get_period_renewal_preview y execute_period_renewal. Inactivos quedan en su periodo para calculo de desercion.
 $plugin->requires = 2014051200;
 $plugin->maturity = MATURITY_STABLE;

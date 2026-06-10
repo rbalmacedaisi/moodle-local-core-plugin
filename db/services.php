@@ -991,6 +991,22 @@ $functions = array(
         'ajax'        => true,
         'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE],
     ],
+    'local_grupomakro_get_period_renewal_preview' => [
+        'classname'   => 'local_grupomakro_core\external\admin\student_timeline',
+        'methodname'  => 'get_period_renewal_preview',
+        'description' => 'Preview of automatic period renewal (B1->B2, B2->nextCuatri/graduando). Inactive stay.',
+        'type'        => 'read',
+        'ajax'        => true,
+        'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE],
+    ],
+    'local_grupomakro_execute_period_renewal' => [
+        'classname'   => 'local_grupomakro_core\external\admin\student_timeline',
+        'methodname'  => 'execute_period_renewal',
+        'description' => 'Executes the period renewal in a single transaction (auto: next bim, next cuatri, graduando)',
+        'type'        => 'write',
+        'ajax'        => true,
+        'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE],
+    ],
     'local_grupomakro_get_lp_students' => [
         'classname'   => 'local_grupomakro_core\external\lp\get_lp_students',
         'methodname'  => 'execute',
