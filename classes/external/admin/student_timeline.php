@@ -1587,29 +1587,29 @@ class student_timeline extends external_api {
             'intake_period'  => new external_value(PARAM_TEXT, 'Cohorte', VALUE_DEFAULT, ''),
             'periodid'       => new external_value(PARAM_INT, 'ID periodo filtro', VALUE_DEFAULT, 0),
             'subperiodid'    => new external_value(PARAM_INT, 'ID bimestre filtro', VALUE_DEFAULT, 0),
-            'renewal_type'   => new external_value(PARAM_TEXT, 'Tipo: next_bim, next_cuatrimestre, graduate'),
-            'confirm_warnings' => new external_value(PARAM_BOOL, 'Confirmar que se aceptan las advertencias de graduandos con pendientes', VALUE_DEFAULT, false),
+            'confirm_warnings' => new external_value(PARAM_BOOL, 'Confirmar advertencia de graduandos con pendientes', VALUE_DEFAULT, false),
         ]);
     }
 
     /**
      * Executes the period renewal in a single transaction.
-     * Rules:
-     *  - next_bim: update currentsubperiodid to next subperiod (same period), for ALL students.
-     *  - next_cuatrimestre: only ACTIVE students at the LAST subperiod move to next period. Inactive stay.
-     *  - graduate: only ACTIVE students at LAST subperiod of LAST period go to "graduando". Inactive stay.
+     * Same automatic rules as the preview endpoint:
+     *  - All students at non-last bimestre -> next bimestre (same period).
+     *  - Only ACTIVE students at last bimestre of a non-last period -> first bimestre of next period.
+     *  - Only ACTIVE students at last bimestre of LAST period -> "graduando" (null period+subperiod).
+     *  - INACTIVE students always stay (dropout calculation).
      */
-    public static function execute_period_renewal($learningplanid, $intake_period = '', $periodid = 0, $subperiodid = 0, $renewal_type = 'next_bim', $confirm_warnings = false) {
+    public static function execute_period_renewal($learningplanid, $intake_period = '', $periodid = 0, $subperiodid = 0, $confirm_warnings = false) {
         global $DB, $USER;
         $context = \context_system::instance();
         self::validate_context($context);
         require_capability('moodle/site:config', $context);
 
         // Get the preview (which already does all the safety checks)
-        $preview = self::get_period_renewal_preview($learningplanid, $intake_period, $periodid, $subperiodid, $renewal_type);
+        $preview = self::get_period_renewal_preview($learningplanid, $intake_period, $periodid, $subperiodid);
 
         // Safety: if there are graduates with warnings and user hasn't confirmed, abort
-        if ($renewal_type === 'graduate' && $preview['summary']['to_graduate_warn_count'] > 0 && !$confirm_warnings) {
+        if ($preview['summary']['to_graduate_warn_count'] > 0 && !$confirm_warnings) {
             return [
                 'success'        => false,
                 'updated_count'  => 0,
@@ -1626,44 +1626,20 @@ class student_timeline extends external_api {
 
         $transaction = $DB->start_delegated_transaction();
         try {
-            // 1) Bimestre advances
+            // 1) Bimestre advances (all students)
             foreach ($preview['to_next_bim'] as $s) {
                 $ok = $DB->set_field('local_learning_users', 'currentsubperiodid', $s['next_subperiod_id'],
                     ['userid' => $s['userid'], 'learningplanid' => $learningplanid]);
                 if ($ok) $updated++; else $failed++;
             }
 
-            // 2) Cuatrimestre promotion
+            // 2) Cuatrimestre promotion (active only)
             foreach ($preview['to_next_cuatri'] as $s) {
-                $ok = $DB->set_field('local_learning_users', 'currentperiodid', $s['next_period_id'],
-                    ['userid' => $s['userid'], 'learningplanid' => $learningplanid]);
-                if ($ok) {
-                    if (!empty($s['next_subperiod_id'])) {
-                        $DB->set_field('local_learning_users', 'currentsubperiodid', $s['next_subperiod_id'],
-                            ['userid' => $s['userid'], 'learningplanid' => $learningplanid]);
-                    }
-                    $updated++;
-                } else {
-                    $failed++;
-                }
-            }
-
-            // 3) Graduates (clean and warning) - move them to "graduando" (no currentperiodid)
-            // The convention used here: a "graduando" has currentsubperiodid = NULL and a marker
-            // can be detected by status check on graduation. To keep changes minimal and avoid
-            // breaking the model, we set currentperiodid = NULL and currentsubperiodid = NULL,
-            // and store a flag in the status field ('graduando') if the column allows it.
-            // If 'graduando' is not a valid status value, the visualization layer will treat
-            // null+null as 'graduando'.
-            $all_graduates = array_merge($preview['to_graduate_ok'], $preview['to_graduate_warn']);
-            foreach ($all_graduates as $g) {
-                $ok = true;
                 $record = $DB->get_record('local_learning_users',
-                    ['userid' => $g['userid'], 'learningplanid' => $learningplanid]);
+                    ['userid' => $s['userid'], 'learningplanid' => $learningplanid]);
                 if ($record) {
-                    // Mark as graduando by clearing currentperiodid/currentsubperiodid
-                    $record->currentperiodid = null;
-                    $record->currentsubperiodid = null;
+                    $record->currentperiodid = $s['next_period_id'];
+                    $record->currentsubperiodid = $s['next_subperiod_id'];
                     $record->timemodified = $now;
                     $record->usermodified = (int)$USER->id;
                     $DB->update_record('local_learning_users', $record);
@@ -1671,12 +1647,29 @@ class student_timeline extends external_api {
                 } else {
                     $failed++;
                 }
-                if (isset($g['pending_courses']) && !empty($g['pending_courses'])) {
-                    $graduates_warn[] = [
-                        'userid'          => $g['userid'],
-                        'name'            => $g['name'],
-                        'pending_courses' => $g['pending_courses'],
-                    ];
+            }
+
+            // 3) Graduates (clean and warning) -> "graduando" (clear currentperiodid/currentsubperiodid)
+            $all_graduates = array_merge($preview['to_graduate_ok'], $preview['to_graduate_warn']);
+            foreach ($all_graduates as $g) {
+                $record = $DB->get_record('local_learning_users',
+                    ['userid' => $g['userid'], 'learningplanid' => $learningplanid]);
+                if ($record) {
+                    $record->currentperiodid = null;
+                    $record->currentsubperiodid = null;
+                    $record->timemodified = $now;
+                    $record->usermodified = (int)$USER->id;
+                    $DB->update_record('local_learning_users', $record);
+                    $updated++;
+                    if (isset($g['pending_courses']) && !empty($g['pending_courses'])) {
+                        $graduates_warn[] = [
+                            'userid'          => $g['userid'],
+                            'name'            => $g['name'],
+                            'pending_courses' => $g['pending_courses'],
+                        ];
+                    }
+                } else {
+                    $failed++;
                 }
             }
 
@@ -1761,7 +1754,6 @@ class student_timeline extends external_api {
             ),
             'to_graduate_warn'    => new external_multiple_structure($graduate_warn, ''),
             'stays_inactive'      => new external_multiple_structure($stays, ''),
-            'stays_active'        => new external_multiple_structure($stays, ''),
             'skipped'             => new external_multiple_structure($skipped, ''),
             'summary'             => new external_single_structure([
                 'to_next_bim_count'      => new external_value(PARAM_INT, ''),
@@ -1769,11 +1761,8 @@ class student_timeline extends external_api {
                 'to_graduate_ok_count'   => new external_value(PARAM_INT, ''),
                 'to_graduate_warn_count' => new external_value(PARAM_INT, ''),
                 'stays_inactive_count'   => new external_value(PARAM_INT, ''),
-                'stays_active_count'     => new external_value(PARAM_INT, ''),
                 'skipped_count'          => new external_value(PARAM_INT, ''),
             ]),
-            'destination_label'   => new external_value(PARAM_TEXT, ''),
-            'renewal_type'        => new external_value(PARAM_TEXT, ''),
             'intake_period'       => new external_value(PARAM_TEXT, ''),
             'period_id'           => new external_value(PARAM_INT, ''),
             'subperiod_id'        => new external_value(PARAM_INT, ''),
@@ -1800,7 +1789,8 @@ class student_timeline extends external_api {
             'graduates_warn' => new external_multiple_structure($grad_warn_struct, 'Graduandos con pendientes'),
         ]);
     }
-}
+
+    public static function get_period_renewal_preview_returns() {
         $bim_student = new external_single_structure([
             'userid'             => new external_value(PARAM_INT, 'ID'),
             'name'               => new external_value(PARAM_TEXT, 'Nombre'),
@@ -1861,7 +1851,6 @@ class student_timeline extends external_api {
             ),
             'to_graduate_warn'    => new external_multiple_structure($graduate_warn, 'Graduarán con asignaturas pendientes (resaltado en rojo)'),
             'stays_inactive'      => new external_multiple_structure($stays, 'Inactivos que permanecen en su periodo'),
-            'stays_active'        => new external_multiple_structure($stays, 'Activos que permanecen (ya en último bimestre)'),
             'skipped'             => new external_multiple_structure($skipped, 'Estudiantes omitidos'),
             'summary'             => new external_single_structure([
                 'to_next_bim_count'      => new external_value(PARAM_INT, ''),
@@ -1869,11 +1858,8 @@ class student_timeline extends external_api {
                 'to_graduate_ok_count'   => new external_value(PARAM_INT, ''),
                 'to_graduate_warn_count' => new external_value(PARAM_INT, ''),
                 'stays_inactive_count'   => new external_value(PARAM_INT, ''),
-                'stays_active_count'     => new external_value(PARAM_INT, ''),
                 'skipped_count'          => new external_value(PARAM_INT, ''),
             ]),
-            'destination_label'   => new external_value(PARAM_TEXT, 'Etiqueta del destino'),
-            'renewal_type'        => new external_value(PARAM_TEXT, 'Tipo de renovación'),
             'intake_period'       => new external_value(PARAM_TEXT, 'Cohorte'),
             'period_id'           => new external_value(PARAM_INT, 'ID periodo filtro'),
             'subperiod_id'        => new external_value(PARAM_INT, 'ID bimestre filtro'),
