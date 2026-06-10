@@ -62,7 +62,14 @@ if ($action === 'join' && !empty($username)) {
             'moderatorPW' => $bbb->moderatorpass,
             'welcome' => $bbb->welcome,
             'record' => 'true',
-            'allowStartStopRecording' => 'true',
+            // Auto-start the recording and hide the manual start/stop button.
+            // The manual record toggle was being double-fired by the client (two
+            // RecordStatusEvent marks ~30-70ms apart for the same user), which made the
+            // recording processor compute a ~0s playback even though ~100min of audio was
+            // captured. Auto-start produces a single, clean record segment per meeting and
+            // removes the toggle entirely, so the double-fire can no longer happen.
+            'autoStartRecording' => 'true',
+            'allowStartStopRecording' => 'false',
         ];
         
         // Add optional params
