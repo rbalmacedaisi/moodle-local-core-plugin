@@ -5384,6 +5384,73 @@ try {
             $response = ['status' => 'success', 'meetings' => $result];
             break;
 
+        case 'local_grupomakro_get_meeting_recordings':
+            require_capability('moodle/site:config', context_system::instance());
+            $cmid = required_param('cmid', PARAM_INT);
+
+            // Reuse mod_bigbluebuttonbn's own recording API so meetingID resolution,
+            // BBB credentials and the access-controlled playback proxy are handled for us.
+            $bbbinstance = \mod_bigbluebuttonbn\instance::get_from_cmid($cmid);
+            if (!$bbbinstance) {
+                $response = ['status' => 'error', 'message' => 'Reunión no encontrada'];
+                break;
+            }
+
+            $meetingname = (string)$DB->get_field('bigbluebuttonbn', 'name',
+                ['id' => $bbbinstance->get_instance_id()]);
+
+            $recordings = \mod_bigbluebuttonbn\recording::get_recordings_for_instance($bbbinstance);
+            $reclist = [];
+            foreach ($recordings as $rec) {
+                $playbacks = [];
+                $length = 0;
+                $rawplaybacks = $rec->get('playbacks');
+                if (!empty($rawplaybacks)) {
+                    foreach ($rawplaybacks as $pb) {
+                        // Skip protected/restricted playbacks (same rule as recording_data).
+                        if (array_key_exists('restricted', $pb) && strtolower((string)$pb['restricted']) === 'true') {
+                            continue;
+                        }
+                        $pburl = $pb['url'] ?? null;
+                        $playbacks[] = [
+                            'type' => $pb['type'] ?? 'presentation',
+                            'url'  => ($pburl instanceof \moodle_url) ? $pburl->out(false) : (string)$pburl,
+                        ];
+                        if (!$length && !empty($pb['length'])) {
+                            $length = (int)$pb['length'];
+                        }
+                    }
+                }
+
+                // Only expose recordings that actually have a playback to watch.
+                if (empty($playbacks)) {
+                    continue;
+                }
+
+                $name = trim((string)$rec->get('name'));
+                if ($name === '') {
+                    $name = $meetingname !== '' ? $meetingname : 'Grabación';
+                }
+
+                $starttime = $rec->get('starttime');
+                $reclist[] = [
+                    'id'        => (int)$rec->get('id'),
+                    'name'      => $name,
+                    'date'      => !is_null($starttime) ? (float)$starttime : 0,
+                    'duration'  => $length,
+                    'published' => (bool)$rec->get('published'),
+                    'playbacks' => $playbacks,
+                ];
+            }
+
+            // Newest first.
+            usort($reclist, function ($a, $b) {
+                return $b['date'] <=> $a['date'];
+            });
+
+            $response = ['status' => 'success', 'recordings' => $reclist];
+            break;
+
         case 'local_grupomakro_delete_guest_meeting':
             require_capability('moodle/site:config', context_system::instance());
             $cmid = required_param('cmid', PARAM_INT);

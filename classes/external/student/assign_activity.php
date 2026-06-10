@@ -261,7 +261,10 @@ class assign_activity extends external_api {
             }
 
             $cansubmit = (has_capability('mod/assign:submit', $cmcontext) || is_siteadmin()) ? 1 : 0;
-            $submissionsopen = ($cansubmit && $assign->submissions_open((int)$USER->id)) ? 1 : 0;
+            // Due date is a hard cutoff: once it passes, submissions are closed
+            // even if Moodle would otherwise allow late submissions.
+            $duedatepassed = self::due_date_has_passed($assign, $assignrecord, (int)$USER->id);
+            $submissionsopen = ($cansubmit && $assign->submissions_open((int)$USER->id) && !$duedatepassed) ? 1 : 0;
             $assignmentintro = self::resolve_assignment_intro($assignrecord, $cm, $cmcontext);
 
             $payload = [
@@ -341,6 +344,36 @@ class assign_activity extends external_api {
         ]);
     }
 
+    /**
+     * Institutional rule: the due date ("fecha límite de entrega") is a HARD cutoff.
+     *
+     * Moodle's $assign->submissions_open() only blocks at the cutoff date and lets
+     * students submit late (after the due date) by default. Here the due date itself
+     * closes submissions. A per-user extension (extensionduedate) granted by the
+     * teacher is respected and extends the effective deadline.
+     *
+     * @param \assign   $assign
+     * @param \stdClass $assignrecord
+     * @param int       $userid
+     * @return bool true when the (extended) due date has passed.
+     */
+    protected static function due_date_has_passed($assign, $assignrecord, int $userid): bool {
+        $duedate = (int)$assignrecord->duedate;
+        if ($duedate <= 0) {
+            return false; // No due date configured → this rule does not apply.
+        }
+        $effective = $duedate;
+        try {
+            $flags = $assign->get_user_flags($userid, false);
+            if ($flags && !empty($flags->extensionduedate)) {
+                $effective = max($effective, (int)$flags->extensionduedate);
+            }
+        } catch (\Throwable $e) {
+            // If flags can't be read, fall back to the plain due date.
+        }
+        return time() > $effective;
+    }
+
     public static function submit_activity($courseId, $moduleId, $comment = '', $draftItemId = 0, $textDraftItemId = 0) {
         global $USER, $DB;
 
@@ -370,6 +403,16 @@ class assign_activity extends external_api {
                     'status' => -1,
                     'message' => 'Submissions are closed for this assignment.',
                     'errorCode' => 'submissions_closed',
+                    'submissionData' => json_encode([]),
+                ];
+            }
+
+            // Due date is a hard cutoff (institutional rule): block late submissions.
+            if (self::due_date_has_passed($assign, $assignrecord, (int)$USER->id)) {
+                return [
+                    'status' => -1,
+                    'message' => 'La fecha límite de entrega ya venció. No se permiten más envíos.',
+                    'errorCode' => 'duedate_passed',
                     'submissionData' => json_encode([]),
                 ];
             }

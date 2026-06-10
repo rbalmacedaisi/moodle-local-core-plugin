@@ -30,7 +30,10 @@ const MeetingManager = {
                             </v-btn>
                         </template>
                          <template v-slot:item.actions="{ item }">
-                            <v-btn icon small color="red" @click="deleteMeeting(item)">
+                            <v-btn icon small color="indigo" title="Ver grabaciones" @click="openRecordings(item)">
+                                <v-icon>mdi-play-box-multiple</v-icon>
+                            </v-btn>
+                            <v-btn icon small color="red" title="Eliminar sesión" @click="deleteMeeting(item)">
                                 <v-icon>mdi-delete</v-icon>
                             </v-btn>
                         </template>
@@ -70,6 +73,56 @@ const MeetingManager = {
                 </v-card>
             </v-dialog>
 
+            <!-- Recordings Dialog -->
+            <v-dialog v-model="recordingsDialog" max-width="720px">
+                <v-card>
+                    <v-card-title class="indigo white--text">
+                        <v-icon left dark>mdi-play-box-multiple</v-icon>
+                        Grabaciones — {{ recordingsMeetingName }}
+                    </v-card-title>
+                    <v-card-text class="pt-4">
+                        <div v-if="recordingsLoading" class="text-center py-6">
+                            <v-progress-circular indeterminate color="indigo"></v-progress-circular>
+                            <div class="caption grey--text mt-2">Cargando grabaciones...</div>
+                        </div>
+                        <div v-else-if="recordings.length === 0" class="text-center py-6 grey--text">
+                            <v-icon size="48" color="grey lighten-1">mdi-video-off-outline</v-icon>
+                            <div class="mt-2">No hay grabaciones disponibles para esta sesión.</div>
+                            <div class="caption">Las grabaciones aparecen luego de finalizar la reunión y ser procesadas por el servidor.</div>
+                        </div>
+                        <v-list v-else two-line>
+                            <v-list-item v-for="rec in recordings" :key="rec.id">
+                                <v-list-item-content>
+                                    <v-list-item-title>{{ rec.name }}</v-list-item-title>
+                                    <v-list-item-subtitle>
+                                        {{ formatDate(rec.date) }}
+                                        <span v-if="rec.duration"> · {{ rec.duration }} min</span>
+                                        <v-chip v-if="!rec.published" x-small color="orange" dark class="ml-2">No publicada</v-chip>
+                                    </v-list-item-subtitle>
+                                </v-list-item-content>
+                                <v-list-item-action>
+                                    <div>
+                                        <v-btn
+                                            v-for="pb in rec.playbacks"
+                                            :key="pb.type"
+                                            small text color="indigo"
+                                            :href="pb.url" target="_blank" rel="noopener"
+                                            class="ml-1"
+                                        >
+                                            <v-icon left small>mdi-play-circle</v-icon> Ver {{ playbackLabel(pb.type) }}
+                                        </v-btn>
+                                    </div>
+                                </v-list-item-action>
+                            </v-list-item>
+                        </v-list>
+                    </v-card-text>
+                    <v-card-actions>
+                        <v-spacer></v-spacer>
+                        <v-btn text @click="recordingsDialog = false">Cerrar</v-btn>
+                    </v-card-actions>
+                </v-card>
+            </v-dialog>
+
              <v-snackbar v-model="snackbar" :timeout="3000" :color="snackbarColor">
                 {{ snackbarText }}
                 <template v-slot:action="{ attrs }">
@@ -89,6 +142,10 @@ const MeetingManager = {
                 { text: 'Acciones', value: 'actions', sortable: false, align: 'end' }
             ],
             createDialog: false,
+            recordingsDialog: false,
+            recordingsLoading: false,
+            recordings: [],
+            recordingsMeetingName: '',
             valid: false,
             saving: false,
             newMeeting: {
@@ -106,6 +163,40 @@ const MeetingManager = {
     methods: {
         openCreateDialog() {
             this.createDialog = true;
+        },
+        playbackLabel(type) {
+            const labels = {
+                presentation: '',
+                video: '(video)',
+                podcast: '(audio)',
+                screenshare: '(pantalla)',
+                notes: '(notas)',
+                statistics: '(estadísticas)'
+            };
+            return labels[type] !== undefined ? labels[type] : '(' + type + ')';
+        },
+        async openRecordings(item) {
+            this.recordingsMeetingName = item.name;
+            this.recordings = [];
+            this.recordingsDialog = true;
+            this.recordingsLoading = true;
+            try {
+                const response = await axios.post(window.wsUrl, {
+                    action: 'local_grupomakro_get_meeting_recordings',
+                    cmid: item.cmid,
+                    ...window.wsStaticParams
+                });
+                if (response.data.status === 'success') {
+                    this.recordings = response.data.recordings || [];
+                } else {
+                    this.showSnackbar(response.data.message || 'No se pudieron cargar las grabaciones', 'error');
+                }
+            } catch (error) {
+                console.error('Error fetching recordings', error);
+                this.showSnackbar('Error al cargar grabaciones', 'error');
+            } finally {
+                this.recordingsLoading = false;
+            }
         },
         formatDate(timestamp) {
             if (!timestamp) return '-';
