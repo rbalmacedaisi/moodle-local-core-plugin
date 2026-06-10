@@ -496,6 +496,19 @@ Vue.component('intake-timeline', {
             // Reload timeline to reflect new counts
             this.loadTimeline();
         },
+        openRenewModal(ip) {
+            this.renewalCohort = ip.period;
+            this.showRenewal = true;
+        },
+        closeRenewal() {
+            this.showRenewal = false;
+        },
+        onRenewalDone(payload) {
+            this.showRenewal = false;
+            this.showToast('success', payload.message || 'Renovación de periodo completada');
+            // Reload timeline to reflect new period/subperiod distribution
+            this.loadTimeline();
+        },
         showToast(type, msg) {
             this.toast = { type, msg };
             setTimeout(() => { this.toast = null; }, 4500);
