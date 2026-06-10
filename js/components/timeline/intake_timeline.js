@@ -1,264 +1,298 @@
 Vue.component('intake-timeline', {
     template: `
-    <v-container fluid class="pa-4">
+    <div class="tl-page">
+        <!-- HEADER -->
+        <div class="tl-subheader">
+            <a :href="backUrl" class="tl-back-btn">
+                <v-icon size="16" color="#6366F1">mdi-arrow-left</v-icon>
+                <span>Carreras</span>
+            </a>
+            <div class="tl-subheader-title" v-if="timelineData.career">
+                <h2>{{ timelineData.career.name }}</h2>
+                <span class="tl-subheader-meta">
+                    {{ timelineData.intake_periods ? timelineData.intake_periods.length : 0 }} cohorte(s) •
+                    <strong>{{ totalLxpActive }}</strong> activos de <strong>{{ totalLxpCount }}</strong> matriculados
+                </span>
+            </div>
+        </div>
 
-        <v-row align="center" class="mb-2">
-            <v-col cols="auto">
-                <v-btn text small :href="backUrl" class="pl-0">
-                    <v-icon left>mdi-arrow-left</v-icon>
-                    Carreras
-                </v-btn>
-            </v-col>
-        </v-row>
+        <!-- KPI BAR -->
+        <div v-if="!loading && timelineData.intake_periods && timelineData.intake_periods.length" class="tl-kpi-bar">
+            <div class="tl-kpi">
+                <div class="tl-kpi-icon" style="background: #EEF2FF; color: #6366F1;">
+                    <v-icon size="20">mdi-account-group</v-icon>
+                </div>
+                <div class="tl-kpi-body">
+                    <div class="tl-kpi-num">{{ totalLxpActive }}</div>
+                    <div class="tl-kpi-lbl">Estudiantes activos</div>
+                </div>
+            </div>
+            <div class="tl-kpi">
+                <div class="tl-kpi-icon" style="background: #FEF3C7; color: #F59E0B;">
+                    <v-icon size="20">mdi-account-arrow-right</v-icon>
+                </div>
+                <div class="tl-kpi-body">
+                    <div class="tl-kpi-num">{{ generalDropoutRate }}%</div>
+                    <div class="tl-kpi-lbl">Deserción total</div>
+                </div>
+            </div>
+            <div class="tl-kpi">
+                <div class="tl-kpi-icon" style="background: #D1FAE5; color: #10B981;">
+                    <v-icon size="20">mdi-school-outline</v-icon>
+                </div>
+                <div class="tl-kpi-body">
+                    <div class="tl-kpi-num">{{ totalGraduating }}</div>
+                    <div class="tl-kpi-lbl">Próximos graduandos</div>
+                </div>
+            </div>
+            <div class="tl-kpi">
+                <div class="tl-kpi-icon" style="background: #DBEAFE; color: #3B82F6;">
+                    <v-icon size="20">mdi-database</v-icon>
+                </div>
+                <div class="tl-kpi-body">
+                    <div class="tl-kpi-num">{{ totalOdooCount }}</div>
+                    <div class="tl-kpi-lbl">CRM (Odoo)</div>
+                </div>
+            </div>
+        </div>
 
-        <v-row v-if="loading">
-            <v-col cols="12" class="text-center py-10">
-                <v-progress-circular indeterminate color="primary" size="50"></v-progress-circular>
-                <p class="mt-4 text--secondary">Cargando línea de tiempo...</p>
-            </v-col>
-        </v-row>
-
-        <v-alert v-if="errorMsg" type="error" outlined dismissible class="mb-4">
-            {{ errorMsg }}
+        <!-- ERROR -->
+        <v-alert v-if="errorMsg" type="error" outlined class="tl-alert mb-4" border="left">
+            <div class="d-flex align-center">
+                <v-icon left color="error">mdi-alert-circle</v-icon>
+                {{ errorMsg }}
+            </div>
         </v-alert>
 
-        <template v-if="!loading">
-            <v-row align="center" class="mb-4">
-                <v-col>
-                    <h2 class="text-h5 font-weight-bold">
-                        <v-icon large class="mr-2" color="primary">mdi-chart-timeline-variant</v-icon>
-                        {{ timelineData.career ? timelineData.career.name : '' }}
-                    </h2>
-                    <p class="text--secondary mb-0 mt-1">
-                        Progreso por periodo de ingreso — {{ timelineData.intake_periods ? timelineData.intake_periods.length : 0 }} cohorte(s)
-                    </p>
-                </v-col>
-                <v-col cols="auto" class="d-flex align-center gap-2">
-                    <v-chip color="error" outlined>
-                        <v-icon left small>mdi-account-arrow-right</v-icon>
-                        Deserción total: {{ generalDropoutRate }}%
-                    </v-chip>
-                </v-col>
-            </v-row>
+        <!-- LOADING -->
+        <div v-if="loading" class="tl-skel-stack">
+            <div v-for="n in 3" :key="n" class="tl-skel-cohort">
+                <div class="tl-skel" style="height: 24px; width: 30%; margin-bottom: 12px;"></div>
+                <div class="tl-skel" style="height: 80px; width: 100%; border-radius: 8px;"></div>
+            </div>
+        </div>
 
-            <v-expansion-panels v-model="openPanels" multiple accordion>
-                <v-expansion-panel
-                    v-for="(ip, idx) in timelineData.intake_periods"
-                    :key="ip.period"
-                    class="mb-3"
-                    style="border-radius:8px; overflow:hidden;"
-                >
-                    <v-expansion-panel-header class="py-3">
-                        <v-row align="center" no-gutters>
-                            <v-col cols="auto" class="mr-3">
-                                <v-icon color="primary">mdi-calendar-account</v-icon>
-                            </v-col>
-                            <v-col>
-                                <span class="font-weight-bold text-subtitle-1">Cohorte {{ ip.period }}</span>
-                                <span class="text--secondary text-caption ml-3">
-                                    {{ ip.lxp_active }} activos / {{ ip.lxp_count }} matriculados
+        <!-- EMPTY -->
+        <div v-else-if="!timelineData.intake_periods || timelineData.intake_periods.length === 0" class="tl-empty">
+            <div class="tl-empty-icon">
+                <v-icon size="64" color="#CBD5E1">mdi-account-clock-outline</v-icon>
+            </div>
+            <h3 class="tl-empty-title">No hay periodos de ingreso</h3>
+            <p class="tl-empty-sub">Verifica que los estudiantes tengan el campo "Periodo de Ingreso" definido en su perfil.</p>
+        </div>
+
+        <!-- COHORT LIST -->
+        <div v-else class="tl-cohorts">
+            <div
+                v-for="(ip, idx) in timelineData.intake_periods"
+                :key="ip.period"
+                class="tl-cohort"
+                :class="{ 'tl-cohort-open': openPanels.includes(idx) }"
+            >
+                <!-- COHORT HEADER (always visible) -->
+                <div class="tl-cohort-head" @click="togglePanel(idx)">
+                    <div class="tl-cohort-id">
+                        <div class="tl-cohort-num">{{ idx + 1 }}</div>
+                        <div>
+                            <div class="tl-cohort-period">Cohorte {{ ip.period }}</div>
+                            <div class="tl-cohort-sub">
+                                <span class="tl-cohort-pill tl-cohort-pill-active">
+                                    <v-icon size="12" color="#10B981">mdi-check-circle</v-icon>
+                                    {{ ip.lxp_active }} activos
                                 </span>
-                            </v-col>
-                            <v-col cols="auto">
-                                <v-btn x-small color="primary" outlined @click="openSubjectsPanel(ip.period)">
-                                    <v-icon left small>mdi-book-open-variant</v-icon>
-                                    Asignaturas
-                                </v-btn>
-                            </v-col>
-                            <v-col cols="auto" class="mr-6">
-                                <v-chip
-                                    x-small
-                                    :color="dropoutColor(ip.dropout_rate)"
-                                    dark
-                                    class="ml-2"
-                                >
-                                    <v-icon x-small left>mdi-trending-down</v-icon>
-                                    {{ ip.dropout_rate != null ? ip.dropout_rate + '% deserción' : 'Sin dato Odoo' }}
-                                </v-chip>
-                            </v-col>
-                        </v-row>
-                    </v-expansion-panel-header>
-
-                    <v-expansion-panel-content class="pa-0">
-                        <div class="timeline-scroll-wrap px-4 pb-5 pt-2">
-                            <div class="timeline-row">
-
-                                <!-- Stage: CRM/Odoo -->
-                                <div class="stage-wrapper">
-                                    <div class="stage-label text-caption text--secondary text-center mb-1">CRM / Odoo</div>
-                                    <v-card outlined class="stage-card" style="border-color:#1976D2; min-width:120px;">
-                                        <v-card-text class="text-center py-3 px-2">
-                                            <v-icon color="#1976D2" class="mb-1">mdi-account-group</v-icon>
-                                            <div class="text-h6 font-weight-bold" style="color:#1976D2;">
-                                                {{ ip.odoo_count != null ? ip.odoo_count : '—' }}
-                                            </div>
-                                            <div class="text-caption text--secondary">Total</div>
-                                            <v-divider class="my-1"></v-divider>
-                                            <div class="d-flex justify-space-between text-caption mt-1">
-                                                <span><v-icon x-small color="success">mdi-check-circle</v-icon> {{ ip.odoo_active != null ? ip.odoo_active : '—' }}</span>
-                                                <span><v-icon x-small color="error">mdi-close-circle</v-icon> {{ ip.odoo_count != null && ip.odoo_active != null ? (ip.odoo_count - ip.odoo_active) : '—' }}</span>
-                                            </div>
-                                        </v-card-text>
-                                    </v-card>
-                                </div>
-
-                                <!-- Flecha + dropout -->
-                                <div class="arrow-wrapper">
-                                    <v-chip x-small :color="dropoutColor(dropoutBetween(ip.odoo_count, ip.lxp_count))" dark class="mb-1" style="font-size:10px;">
-                                        {{ dropoutBetweenLabel(ip.odoo_count, ip.lxp_count) }}
-                                    </v-chip>
-                                    <v-icon color="grey">mdi-arrow-right</v-icon>
-                                </div>
-
-                                <!-- Stage: LXP -->
-                                <div class="stage-wrapper">
-                                    <div class="stage-label text-caption text--secondary text-center mb-1">LXP Matrícula</div>
-                                    <v-card outlined class="stage-card" style="border-color:#388E3C; min-width:120px;">
-                                        <v-card-text class="text-center py-3 px-2">
-                                            <v-icon color="#388E3C" class="mb-1">mdi-school</v-icon>
-                                            <div class="text-h6 font-weight-bold" style="color:#388E3C;">
-                                                {{ ip.lxp_count }}
-                                            </div>
-                                            <div class="text-caption text--secondary">Total</div>
-                                            <v-divider class="my-1"></v-divider>
-                                            <div class="d-flex justify-space-between text-caption mt-1">
-                                                <span><v-icon x-small color="success">mdi-check-circle</v-icon> {{ ip.lxp_active }}</span>
-                                                <span><v-icon x-small color="error">mdi-close-circle</v-icon> {{ ip.lxp_count - ip.lxp_active }}</span>
-                                            </div>
-                                        </v-card-text>
-                                    </v-card>
-                                </div>
-
-                                <!-- Flecha -->
-                                <div class="arrow-wrapper" style="min-width:40px; padding-bottom:20px;">
-                                    <v-icon color="grey">mdi-arrow-right</v-icon>
-                                </div>
-
-                                <!-- Progreso académico: cuatrimestres -->
-                                <div class="stage-wrapper">
-                                    <div class="stage-label text-caption text--secondary text-center mb-1">Progreso Académico</div>
-                                    <div style="display:flex; align-items:flex-start; gap:6px;">
-
-                                        <template v-for="(period, pIdx) in timelineData.curriculum">
-                                            <div v-if="pIdx > 0" :key="'arrow-'+period.id" style="display:flex;align-items:center;align-self:center;min-width:20px;">
-                                                <v-icon small color="grey lighten-1">mdi-chevron-right</v-icon>
-                                            </div>
-
-                                            <div :key="period.id">
-                                                <v-card outlined class="quarter-card" :style="{ borderColor: quarterColor(pIdx), minWidth: '130px' }">
-                                                    <v-card-title class="py-2 px-3 text-caption font-weight-bold justify-center"
-                                                        :style="{ color: quarterColor(pIdx), background: quarterBg(pIdx) }">
-                                                        {{ period.name }}
-                                                    </v-card-title>
-
-                                                    <v-card-text class="pa-2">
-                                                        <div class="text-center mb-2">
-                                                            <div class="text-h6 font-weight-bold" :style="{ color: quarterColor(pIdx) }">
-                                                                {{ getLevelCount(ip, period.id, 'active') }}
-                                                            </div>
-                                                            <div class="text-caption text--secondary">
-                                                                <v-icon x-small color="success">mdi-check-circle</v-icon> activos &nbsp;
-                                                                <v-icon x-small color="error">mdi-close-circle</v-icon> {{ getLevelCount(ip, period.id, 'inactive') }}
-                                                            </div>
-                                                        </div>
-
-                                                        <div v-if="period.subperiods && period.subperiods.length > 0"
-                                                             style="display:flex; gap:4px; justify-content:center; flex-wrap:nowrap;">
-                                                            <v-card
-                                                                v-for="sp in period.subperiods"
-                                                                :key="sp.sp_id"
-                                                                outlined
-                                                                class="bimestre-card text-center pa-1"
-                                                                :style="{ borderColor: quarterColor(pIdx) + '88', minWidth:'68px' }"
-                                                            >
-                                                                <div class="text-caption font-weight-medium" :style="{ color: quarterColor(pIdx) }">
-                                                                    {{ sp.sp_name }}
-                                                                </div>
-                                                                <div
-                                                                    class="text-subtitle-2 font-weight-bold mt-1 clickable-number"
-                                                                    :style="{ color: quarterColor(pIdx) }"
-                                                                    @click="openStudentList(ip, sp, period)"
-                                                                    style="cursor:pointer;"
-                                                                    title="Ver estudiantes"
-                                                                >
-                                                                    {{ getSubLevelCount(ip, sp.sp_id, 'active') || '—' }}
-                                                                </div>
-                                                                <div class="text-caption text--secondary" style="font-size:10px!important;">
-                                                                    <span style="color:#4CAF50">✓{{ getSubLevelCount(ip, sp.sp_id, 'active') || 0 }}</span>
-                                                                    <span style="color:#F44336"> ✗{{ getSubLevelCount(ip, sp.sp_id, 'inactive') || 0 }}</span>
-                                                                </div>
-                                                            </v-card>
-                                                        </div>
-                                                        <div v-else class="text-caption text--secondary text-center mt-1">Sin bimestres</div>
-                                                    </v-card-text>
-                                                </v-card>
-                                            </div>
-                                        </template>
-
-                                        <div style="display:flex;align-items:center;align-self:center;min-width:20px;">
-                                            <v-icon small color="grey lighten-1">mdi-chevron-right</v-icon>
-                                        </div>
-
-                                        <!-- Graduando -->
-                                        <div>
-                                            <v-card outlined class="quarter-card text-center" style="border-color:#FFC107; min-width:90px;">
-                                                <v-card-title class="py-2 px-3 text-caption font-weight-bold justify-center"
-                                                    style="color:#F57F17; background:#FFF8E1;">
-                                                    Graduando
-                                                </v-card-title>
-                                                <v-card-text class="pa-2 text-center">
-                                                    <v-icon color="amber darken-2" class="mb-1">mdi-school-outline</v-icon>
-                                                    <div class="text-h6 font-weight-bold amber--text text--darken-2">
-                                                        {{ getGraduating(ip) }}
-                                                    </div>
-                                                </v-card-text>
-                                            </v-card>
-                                        </div>
-
-                                    </div>
-                                </div>
-
+                                <span class="tl-cohort-pill">
+                                    {{ ip.lxp_count }} matriculados
+                                </span>
                             </div>
                         </div>
+                    </div>
+                    <div class="tl-cohort-funnel">
+                        <div class="tl-funnel-stage">
+                            <v-icon size="14" color="#6366F1">mdi-database</v-icon>
+                            <span class="tl-funnel-num">{{ ip.odoo_count != null ? ip.odoo_count : '—' }}</span>
+                            <span class="tl-funnel-lbl">CRM</span>
+                        </div>
+                        <div class="tl-funnel-arrow">
+                            <v-icon size="14" color="#CBD5E1">mdi-arrow-right</v-icon>
+                        </div>
+                        <div class="tl-funnel-stage">
+                            <v-icon size="14" color="#6366F1">mdi-school</v-icon>
+                            <span class="tl-funnel-num">{{ ip.lxp_count }}</span>
+                            <span class="tl-funnel-lbl">LXP</span>
+                        </div>
+                        <div class="tl-funnel-arrow">
+                            <v-icon size="14" color="#CBD5E1">mdi-arrow-right</v-icon>
+                        </div>
+                        <div class="tl-funnel-stage">
+                            <v-icon size="14" color="#10B981">mdi-check-circle</v-icon>
+                            <span class="tl-funnel-num">{{ ip.lxp_active }}</span>
+                            <span class="tl-funnel-lbl">Activos</span>
+                        </div>
+                    </div>
+                    <div class="tl-cohort-actions">
+                        <span
+                            class="tl-cohort-badge"
+                            :class="'tl-badge-' + dropoutClass(ip.dropout_rate)"
+                        >
+                            {{ ip.dropout_rate != null ? ip.dropout_rate + '%' : '—' }}
+                            <span class="tl-badge-lbl">deserción</span>
+                        </span>
+                        <button
+                            class="tl-btn-icon"
+                            @click.stop="openSubjectsPanel(ip.period)"
+                            title="Asignaturas"
+                        >
+                            <v-icon size="16" color="#6366F1">mdi-book-open-variant</v-icon>
+                        </button>
+                        <button class="tl-btn-icon tl-chevron" :class="{ 'tl-chevron-open': openPanels.includes(idx) }">
+                            <v-icon size="18" color="#64748B">mdi-chevron-down</v-icon>
+                        </button>
+                    </div>
+                </div>
 
-                        <!-- Tasas de deserción entre cuatrimestres -->
-                        <v-row class="px-4 pb-4" v-if="timelineData.curriculum && timelineData.curriculum.length > 1">
-                            <v-col cols="12">
-                                <div class="text-caption text--secondary mb-2 font-weight-medium">Deserción entre cuatrimestres:</div>
-                                <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                                    <v-chip
-                                        v-for="(rate, rIdx) in getQuarterDropoutRates(ip)"
-                                        :key="rIdx"
-                                        x-small
-                                        :color="dropoutColor(rate.rate)"
-                                        dark
-                                    >
-                                        Q{{ rIdx + 1 }}→Q{{ rIdx + 2 }}: {{ rate.rate != null ? rate.rate + '%' : '—' }}
-                                    </v-chip>
+                <!-- COHORT BODY (collapsible) -->
+                <div v-show="openPanels.includes(idx)" class="tl-cohort-body">
+                    <!-- FUNNEL VISUAL -->
+                    <div class="tl-funnel-bar">
+                        <div class="tl-funnel-bar-step" style="background: #6366F1;">
+                            <v-icon size="14" color="white">mdi-database</v-icon>
+                            <span>CRM/Odoo</span>
+                            <strong>{{ ip.odoo_count != null ? ip.odoo_count : '—' }}</strong>
+                        </div>
+                        <div class="tl-funnel-bar-arrow">
+                            <v-icon size="14" color="#94A3B8">mdi-arrow-right</v-icon>
+                        </div>
+                        <div class="tl-funnel-bar-step" style="background: #3B82F6;">
+                            <v-icon size="14" color="white">mdi-school</v-icon>
+                            <span>Matriculados</span>
+                            <strong>{{ ip.lxp_count }}</strong>
+                        </div>
+                        <div class="tl-funnel-bar-arrow">
+                            <v-icon size="14" color="#94A3B8">mdi-arrow-right</v-icon>
+                        </div>
+                        <div class="tl-funnel-bar-step tl-funnel-bar-step-active" style="background: #10B981;">
+                            <v-icon size="14" color="white">mdi-check-circle</v-icon>
+                            <span>Activos</span>
+                            <strong>{{ ip.lxp_active }}</strong>
+                        </div>
+                    </div>
+
+                    <!-- PROGRESO ACADÉMICO -->
+                    <div class="tl-section-title">
+                        <v-icon size="14" color="#64748B">mdi-progress-clock</v-icon>
+                        <span>Progreso Académico por Cuatrimestre</span>
+                    </div>
+
+                    <div class="tl-quarter-strip">
+                        <template v-for="(period, pIdx) in timelineData.curriculum">
+                            <div
+                                v-if="pIdx > 0"
+                                :key="'arrow-'+period.id"
+                                class="tl-quarter-arrow"
+                            >
+                                <v-icon size="14" color="#CBD5E1">mdi-chevron-right</v-icon>
+                            </div>
+
+                            <div :key="period.id" class="tl-quarter">
+                                <div
+                                    class="tl-quarter-head"
+                                    :style="{ background: quarterBg(pIdx), color: quarterColor(pIdx) }"
+                                >
+                                    <span class="tl-quarter-name">{{ period.name }}</span>
                                 </div>
-                            </v-col>
-                        </v-row>
-                    </v-expansion-panel-content>
-                </v-expansion-panel>
-            </v-expansion-panels>
+                                <div class="tl-quarter-body">
+                                    <div class="tl-quarter-count">
+                                        <span class="tl-quarter-num" :style="{ color: quarterColor(pIdx) }">
+                                            {{ getLevelCount(ip, period.id, 'active') }}
+                                        </span>
+                                        <span class="tl-quarter-lbl">activos</span>
+                                    </div>
+                                    <div class="tl-quarter-sub">
+                                        <span class="tl-quarter-sub-item">
+                                            <v-icon size="10" color="#10B981">mdi-check-circle</v-icon>
+                                            {{ getLevelCount(ip, period.id, 'active') }}
+                                        </span>
+                                        <span class="tl-quarter-sub-item">
+                                            <v-icon size="10" color="#EF4444">mdi-close-circle</v-icon>
+                                            {{ getLevelCount(ip, period.id, 'inactive') }}
+                                        </span>
+                                    </div>
+                                    <div v-if="period.subperiods && period.subperiods.length > 0" class="tl-bims">
+                                        <div
+                                            v-for="sp in period.subperiods"
+                                            :key="sp.sp_id"
+                                            class="tl-bim"
+                                            :style="{ borderColor: quarterColor(pIdx) + '44' }"
+                                            @click="openStudentList(ip, sp, period)"
+                                            :title="'Ver estudiantes de ' + sp.sp_name"
+                                        >
+                                            <div class="tl-bim-name" :style="{ color: quarterColor(pIdx) }">
+                                                {{ sp.sp_name }}
+                                            </div>
+                                            <div class="tl-bim-num" :style="{ color: quarterColor(pIdx) }">
+                                                {{ getSubLevelCount(ip, sp.sp_id, 'active') || '—' }}
+                                            </div>
+                                            <div class="tl-bim-sub">
+                                                <span style="color: #10B981;">{{ getSubLevelCount(ip, sp.sp_id, 'active') || 0 }}</span>
+                                                <span style="color: #94A3B8;">/</span>
+                                                <span style="color: #EF4444;">{{ getSubLevelCount(ip, sp.sp_id, 'inactive') || 0 }}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div v-else class="tl-bim-empty">Sin bimestres</div>
+                                </div>
+                            </div>
+                        </template>
 
-            <v-alert v-if="!timelineData.intake_periods || timelineData.intake_periods.length === 0"
-                type="info" outlined class="mt-4">
-                No se encontraron periodos de ingreso para esta carrera.
-                Asegúrate de que los estudiantes tengan el campo "Periodo de Ingreso" en su perfil.
-            </v-alert>
+                        <div class="tl-quarter-arrow">
+                            <v-icon size="14" color="#CBD5E1">mdi-chevron-right</v-icon>
+                        </div>
 
-            <!-- Student List Modal -->
-            <student-list-modal
-                v-model="showStudentModal"
-                :career-id="careerId"
-                :subperiod-id="selectedSubperiod.sp_id"
-                :subperiod-name="selectedSubperiod.sp_name"
-                :intake-period="selectedIntakePeriod"
-                @close="closeStudentModal"
-            ></student-list-modal>
-        </template>
-    </v-container>
+                        <div class="tl-quarter tl-quarter-grad">
+                            <div class="tl-quarter-head" style="background: #FEF3C7; color: #B45309;">
+                                <span class="tl-quarter-name">Graduando</span>
+                            </div>
+                            <div class="tl-quarter-body">
+                                <v-icon size="22" color="#F59E0B">mdi-school-outline</v-icon>
+                                <div class="tl-quarter-count">
+                                    <span class="tl-quarter-num" style="color: #B45309;">{{ getGraduating(ip) }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- DESERCIÓN ENTRE CUATRIMESTRES -->
+                    <div v-if="timelineData.curriculum && timelineData.curriculum.length > 1" class="tl-section mt-4">
+                        <div class="tl-section-title">
+                            <v-icon size="14" color="#64748B">mdi-trending-down</v-icon>
+                            <span>Deserción entre Cuatrimestres</span>
+                        </div>
+                        <div class="tl-dropoffs">
+                            <div
+                                v-for="(rate, rIdx) in getQuarterDropoutRates(ip)"
+                                :key="rIdx"
+                                class="tl-dropoff"
+                                :class="'tl-dropoff-' + dropoutClass(rate.rate)"
+                            >
+                                <span class="tl-dropoff-label">Q{{ rIdx + 1 }} → Q{{ rIdx + 2 }}</span>
+                                <span class="tl-dropoff-num">{{ rate.rate != null ? rate.rate + '%' : '—' }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL -->
+        <student-list-modal
+            v-model="showStudentModal"
+            :career-id="careerId"
+            :subperiod-id="selectedSubperiod.sp_id"
+            :subperiod-name="selectedSubperiod.sp_name"
+            :intake-period="selectedIntakePeriod"
+            @close="closeStudentModal"
+        ></student-list-modal>
+    </div>
     `,
     props: {
         careerId: { type: [Number, String], default: 0 },
@@ -270,23 +304,17 @@ Vue.component('intake-timeline', {
             errorMsg: '',
             timelineData: { career: null, curriculum: [], intake_periods: [] },
             openPanels: [],
-            quarterColors:   ['#388E3C', '#1976D2', '#F57C00', '#7B1FA2', '#0097A7', '#C62828'],
-            quarterBgColors: ['#E8F5E9', '#E3F2FD', '#FFF3E0', '#F3E5F5', '#E0F7FA', '#FFEBEE'],
-            // Student modal state
+            quarterColors:   ['#10B981', '#3B82F6', '#F59E0B', '#8B5CF6', '#06B6D4', '#EF4444'],
+            quarterBgColors: ['#D1FAE5', '#DBEAFE', '#FEF3C7', '#EDE9FE', '#CFFAFE', '#FEE2E2'],
             showStudentModal: false,
             selectedSubperiod: { sp_id: 0, sp_name: '' },
             selectedIntakePeriod: '',
-            // Cohort selection for subjects panel
             selectedCohortForPanel: '2026',
         };
     },
     computed: {
-        wsUrl() {
-            return window.location.origin + '/webservice/rest/server.php';
-        },
-        token() {
-            return window.userToken;
-        },
+        wsUrl() { return window.location.origin + '/webservice/rest/server.php'; },
+        token() { return window.userToken; },
         generalDropoutRate() {
             if (!this.timelineData.intake_periods || !this.timelineData.intake_periods.length) return '—';
             let totalCrm = 0, totalActive = 0, valid = 0;
@@ -300,11 +328,32 @@ Vue.component('intake-timeline', {
             if (!valid || !totalCrm) return '—';
             return Math.round(((totalCrm - totalActive) / totalCrm) * 100);
         },
+        totalLxpActive() {
+            return (this.timelineData.intake_periods || []).reduce((s, ip) => s + (ip.lxp_active || 0), 0);
+        },
+        totalLxpCount() {
+            return (this.timelineData.intake_periods || []).reduce((s, ip) => s + (ip.lxp_count || 0), 0);
+        },
+        totalOdooCount() {
+            return (this.timelineData.intake_periods || []).reduce((s, ip) => s + (ip.odoo_count || 0), 0);
+        },
+        totalGraduating() {
+            if (!this.timelineData.curriculum || !this.timelineData.curriculum.length) return 0;
+            const last = this.timelineData.curriculum[this.timelineData.curriculum.length - 1];
+            return (this.timelineData.intake_periods || []).reduce((s, ip) => {
+                return s + this.getLevelCount(ip, last.id, 'active');
+            }, 0);
+        },
     },
     created() {
         this.loadTimeline();
     },
     methods: {
+        togglePanel(idx) {
+            const i = this.openPanels.indexOf(idx);
+            if (i === -1) this.openPanels.push(idx);
+            else this.openPanels.splice(i, 1);
+        },
         async loadTimeline() {
             this.loading = true;
             this.errorMsg = '';
@@ -319,16 +368,13 @@ Vue.component('intake-timeline', {
                 });
                 const data = response.data;
                 if (data && data.exception) {
-                    this.errorMsg = 'Error del servidor: ' + (data.message || data.errorcode);
-                    console.error('[timeline] WS error:', data);
+                    this.errorMsg = data.message || data.errorcode || 'Error desconocido';
                     return;
                 }
                 if (data && data.career) {
                     this.timelineData = data;
                     this.openPanels = data.intake_periods.map((_, i) => i);
-                    // Emit selected learning plan ID for courses panel
                     this.$emit('lp-selected', this.careerId);
-                    // Set first cohort as selected for subjects panel
                     if (data.intake_periods && data.intake_periods.length > 0) {
                         this.selectedCohortForPanel = data.intake_periods[0].period;
                     }
@@ -340,51 +386,37 @@ Vue.component('intake-timeline', {
                 this.loading = false;
             }
         },
-
         openSubjectsPanel(period) {
-            // Emit both learning plan ID and selected cohort
             this.$emit('toggle-courses');
             this.$emit('cohort-selected', period || this.selectedCohortForPanel || '2026');
         },
-
         quarterColor(idx) { return this.quarterColors[idx % this.quarterColors.length]; },
         quarterBg(idx)    { return this.quarterBgColors[idx % this.quarterBgColors.length]; },
-
-        dropoutColor(rate) {
-            if (rate == null) return 'grey';
+        dropoutClass(rate) {
+            if (rate == null) return 'muted';
             if (rate >= 20) return 'error';
             if (rate >= 10) return 'warning';
             return 'success';
         },
-
-        dropoutBetween(countA, countB) {
-            if (countA == null || countA === 0) return null;
-            return Math.round(((countA - countB) / countA) * 100);
+        dropoutColor(rate) {
+            const c = this.dropoutClass(rate);
+            return c === 'error' ? '#EF4444' : c === 'warning' ? '#F59E0B' : c === 'success' ? '#10B981' : '#94A3B8';
         },
-
-        dropoutBetweenLabel(countA, countB) {
-            const r = this.dropoutBetween(countA, countB);
-            return r != null ? '-' + r + '%' : '—';
-        },
-
         getLevelCount(ip, periodId, type) {
             if (!ip.levels) return 0;
             const found = ip.levels.find(l => l.period_id === periodId);
             return found ? (found[type] || 0) : 0;
         },
-
         getSubLevelCount(ip, subperiodId, type) {
             if (!ip.sublevel_counts) return 0;
             const found = ip.sublevel_counts.find(s => s.subperiod_id === subperiodId);
             return found ? (found[type] || 0) : 0;
         },
-
         getGraduating(ip) {
             if (!this.timelineData.curriculum || !this.timelineData.curriculum.length) return '—';
             const last = this.timelineData.curriculum[this.timelineData.curriculum.length - 1];
             return this.getLevelCount(ip, last.id, 'active') || '—';
         },
-
         getQuarterDropoutRates(ip) {
             const cur = this.timelineData.curriculum;
             if (!cur || cur.length < 2) return [];
@@ -394,16 +426,13 @@ Vue.component('intake-timeline', {
                 return { rate: a === 0 ? null : Math.round(((a - b) / a) * 100) };
             });
         },
-
         openStudentList(ip, sp, period) {
             this.selectedSubperiod = { sp_id: sp.sp_id, sp_name: sp.sp_name };
             this.selectedIntakePeriod = ip.period;
             this.showStudentModal = true;
         },
-
         closeStudentModal() {
             this.showStudentModal = false;
-            // Optionally reload timeline data after modal closes
         },
     },
 });

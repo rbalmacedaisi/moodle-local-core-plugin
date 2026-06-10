@@ -1,129 +1,162 @@
 Vue.component('career-cards', {
     template: `
-    <v-container fluid class="pa-4">
-        <v-row align="center" class="mb-4">
-            <v-col cols="12" md="6">
-                <h2 class="text-h5 font-weight-bold">
-                    <v-icon large class="mr-2" color="primary">mdi-chart-timeline-variant</v-icon>
-                    Línea de Tiempo Estudiantes
-                </h2>
-                <p class="text--secondary mb-0 mt-1">Progreso académico por carrera y periodo de ingreso</p>
-            </v-col>
-            <v-col cols="12" md="6">
-                <v-text-field
-                    v-model="search"
-                    append-icon="mdi-magnify"
-                    label="Buscar carrera..."
-                    hide-details
-                    outlined
-                    dense
-                    clearable
-                ></v-text-field>
-            </v-col>
-        </v-row>
+    <div class="tl-page">
+        <!-- HERO HEADER -->
+        <div class="tl-hero">
+            <div class="tl-hero-inner">
+                <div class="tl-hero-icon">
+                    <v-icon size="32" color="white">mdi-chart-timeline-variant-shimmer</v-icon>
+                </div>
+                <div class="tl-hero-text">
+                    <h1 class="tl-hero-title">Línea de Tiempo de Estudiantes</h1>
+                    <p class="tl-hero-sub">Visualiza, reclasifica y planifica el ciclo de vida académico de cada cohorte</p>
+                </div>
+                <div class="tl-hero-stats" v-if="!loading && careers.length > 0">
+                    <div class="tl-hero-stat">
+                        <div class="tl-hero-stat-num">{{ careers.length }}</div>
+                        <div class="tl-hero-stat-lbl">Carreras</div>
+                    </div>
+                    <div class="tl-hero-stat">
+                        <div class="tl-hero-stat-num">{{ totalStudents }}</div>
+                        <div class="tl-hero-stat-lbl">Estudiantes</div>
+                    </div>
+                    <div class="tl-hero-stat">
+                        <div class="tl-hero-stat-num">{{ avgRetention }}%</div>
+                        <div class="tl-hero-stat-lbl">Retención</div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
-        <v-alert v-if="errorMsg" type="error" outlined dismissible class="mb-4">
-            {{ errorMsg }}
+        <!-- TOOLBAR -->
+        <div class="tl-toolbar">
+            <div class="tl-search">
+                <v-icon size="18" color="#94A3B8">mdi-magnify</v-icon>
+                <input
+                    v-model="search"
+                    type="text"
+                    placeholder="Buscar carrera por nombre..."
+                    class="tl-search-input"
+                />
+                <button v-if="search" class="tl-search-clear" @click="search = ''">
+                    <v-icon size="16" color="#94A3B8">mdi-close-circle</v-icon>
+                </button>
+            </div>
+            <div class="tl-toolbar-actions">
+                <v-btn
+                    small
+                    depressed
+                    color="#6366F1"
+                    dark
+                    class="tl-btn-primary"
+                    @click="loadCareers"
+                    :loading="loading"
+                >
+                    <v-icon left size="16">mdi-refresh</v-icon>
+                    Actualizar
+                </v-btn>
+            </div>
+        </div>
+
+        <!-- ERROR -->
+        <v-alert v-if="errorMsg" type="error" outlined class="tl-alert mb-4" border="left">
+            <div class="d-flex align-center">
+                <v-icon left color="error">mdi-alert-circle</v-icon>
+                {{ errorMsg }}
+            </div>
         </v-alert>
 
-        <v-row v-if="loading">
-            <v-col cols="12" class="text-center py-10">
-                <v-progress-circular indeterminate color="primary" size="50"></v-progress-circular>
-                <p class="mt-4 text--secondary">Cargando carreras...</p>
-            </v-col>
-        </v-row>
+        <!-- LOADING SKELETON -->
+        <div v-if="loading" class="tl-grid">
+            <div v-for="n in 6" :key="n" class="tl-card tl-card-skeleton">
+                <div class="tl-skel" style="height: 80px; border-radius: 12px 12px 0 0;"></div>
+                <div class="pa-4">
+                    <div class="tl-skel mb-2" style="height: 18px; width: 70%;"></div>
+                    <div class="tl-skel mb-3" style="height: 12px; width: 50%;"></div>
+                    <div class="tl-skel mb-2" style="height: 32px; width: 100%;"></div>
+                    <div class="tl-skel" style="height: 36px; width: 100%; border-radius: 8px;"></div>
+                </div>
+            </div>
+        </div>
 
-        <v-row v-else-if="filteredCareers.length === 0">
-            <v-col cols="12" class="text-center py-10">
-                <v-icon x-large color="grey lighten-2">mdi-school-outline</v-icon>
-                <p class="mt-4 text--secondary">No se encontraron carreras.</p>
-            </v-col>
-        </v-row>
+        <!-- EMPTY -->
+        <div v-else-if="filteredCareers.length === 0" class="tl-empty">
+            <div class="tl-empty-icon">
+                <v-icon size="64" color="#CBD5E1">mdi-school-outline</v-icon>
+            </div>
+            <h3 class="tl-empty-title">{{ search ? 'Sin resultados' : 'Sin carreras registradas' }}</h3>
+            <p class="tl-empty-sub">{{ search ? 'Intenta con otro término de búsqueda' : 'Cuando registres carreras aparecerán aquí' }}</p>
+        </div>
 
-        <v-row v-else>
-            <v-col
+        <!-- GRID -->
+        <div v-else class="tl-grid">
+            <div
                 v-for="(career, index) in filteredCareers"
                 :key="career.id"
-                cols="12" sm="6" md="4"
+                class="tl-card"
+                :style="{ '--accent': palette[index % palette.length] }"
             >
-                <v-card
-                    outlined
-                    hover
-                    class="career-card pa-2"
-                    style="border-radius: 12px; transition: box-shadow .2s;"
-                >
-                    <v-card-text class="pb-0">
-                        <v-row align="center" no-gutters>
-                            <v-col cols="auto" class="mr-3">
-                                <div
-                                    class="career-icon-wrap"
-                                    :style="{ background: iconColors[index % iconColors.length] }"
-                                >
-                                    <v-icon size="28" color="white">mdi-school</v-icon>
-                                </div>
-                            </v-col>
-                            <v-col>
-                                <div class="text-subtitle-1 font-weight-bold text--primary" style="line-height:1.3">
-                                    {{ career.name }}
-                                </div>
-                                <div class="text-caption text--secondary mt-1">
-                                    <v-chip x-small color="primary" outlined class="mr-1">
-                                        {{ career.periodcount }} cuatrimestres
-                                    </v-chip>
-                                    <v-chip x-small outlined class="mr-1">
-                                        {{ career.coursecount }} cursos
-                                    </v-chip>
-                                </div>
-                            </v-col>
-                        </v-row>
-
-                        <v-divider class="my-3"></v-divider>
-
-                        <v-row no-gutters class="text-center mb-2">
-                            <v-col cols="6">
-                                <div class="text-h5 font-weight-bold" :style="{ color: iconColors[index % iconColors.length] }">
-                                    {{ career.active_count }}
-                                </div>
-                                <div class="text-caption text--secondary">Activos</div>
-                            </v-col>
-                            <v-col cols="6">
-                                <div class="text-h5 font-weight-bold grey--text text--darken-1">
-                                    {{ career.total_enrolled }}
-                                </div>
-                                <div class="text-caption text--secondary">Total matriculados</div>
-                            </v-col>
-                        </v-row>
-
-                        <v-progress-linear
-                            :value="career.total_enrolled > 0 ? (career.active_count / career.total_enrolled) * 100 : 0"
-                            :color="iconColors[index % iconColors.length]"
-                            background-color="grey lighten-3"
-                            rounded
-                            height="6"
-                            class="mb-2"
-                        ></v-progress-linear>
-                        <div class="text-caption text--secondary text-right mb-1">
-                            {{ career.total_enrolled > 0 ? Math.round((career.active_count / career.total_enrolled) * 100) : 0 }}% retención
+                <div class="tl-card-accent"></div>
+                <div class="tl-card-body">
+                    <div class="tl-card-head">
+                        <div class="tl-card-icon">
+                            <v-icon size="22" color="white">mdi-school</v-icon>
                         </div>
-                    </v-card-text>
+                        <div class="tl-card-title-wrap">
+                            <h3 class="tl-card-title">{{ career.name }}</h3>
+                            <div class="tl-card-meta">
+                                <span class="tl-meta-chip">
+                                    <v-icon size="12" color="#6366F1">mdi-calendar-multiple</v-icon>
+                                    {{ career.periodcount }} cuatrimestres
+                                </span>
+                                <span class="tl-meta-chip">
+                                    <v-icon size="12" color="#6366F1">mdi-book-open-variant</v-icon>
+                                    {{ career.coursecount }} cursos
+                                </span>
+                            </div>
+                        </div>
+                    </div>
 
-                    <v-card-actions class="pt-0 px-4 pb-3">
-                        <v-btn
-                            block
-                            depressed
-                            :color="iconColors[index % iconColors.length]"
-                            dark
-                            class="rounded-lg"
-                            :href="careerPageUrl + '?career_id=' + career.id"
-                        >
-                            <v-icon left small>mdi-chart-timeline-variant</v-icon>
-                            Ver Línea de Tiempo
-                        </v-btn>
-                    </v-card-actions>
-                </v-card>
-            </v-col>
-        </v-row>
-    </v-container>
+                    <div class="tl-card-stats">
+                        <div class="tl-stat">
+                            <div class="tl-stat-num tl-stat-active">{{ career.active_count }}</div>
+                            <div class="tl-stat-lbl">Activos</div>
+                        </div>
+                        <div class="tl-stat-divider"></div>
+                        <div class="tl-stat">
+                            <div class="tl-stat-num tl-stat-total">{{ career.total_enrolled }}</div>
+                            <div class="tl-stat-lbl">Total</div>
+                        </div>
+                        <div class="tl-stat-divider"></div>
+                        <div class="tl-stat">
+                            <div class="tl-stat-num" :class="retentionClass(career)">
+                                {{ career.total_enrolled > 0 ? Math.round((career.active_count / career.total_enrolled) * 100) : 0 }}%
+                            </div>
+                            <div class="tl-stat-lbl">Retención</div>
+                        </div>
+                    </div>
+
+                    <div class="tl-progress">
+                        <div
+                            class="tl-progress-fill"
+                            :style="{
+                                width: (career.total_enrolled > 0 ? (career.active_count / career.total_enrolled) * 100 : 0) + '%',
+                                background: retentionGradient(career)
+                            }"
+                        ></div>
+                    </div>
+                </div>
+
+                <a
+                    :href="careerPageUrl + '?career_id=' + career.id"
+                    class="tl-card-action"
+                >
+                    <span>Ver línea de tiempo</span>
+                    <v-icon size="16">mdi-arrow-right</v-icon>
+                </a>
+            </div>
+        </div>
+    </div>
     `,
     props: {
         careerPageUrl: { type: String, default: '' },
@@ -134,15 +167,15 @@ Vue.component('career-cards', {
             loading: true,
             errorMsg: '',
             careers: [],
-            iconColors: [
-                '#1976D2',
-                '#388E3C',
-                '#F57C00',
-                '#7B1FA2',
-                '#0097A7',
-                '#C62828',
-                '#5D4037',
-                '#455A64',
+            palette: [
+                '#6366F1', // indigo
+                '#8B5CF6', // violet
+                '#EC4899', // pink
+                '#F59E0B', // amber
+                '#10B981', // emerald
+                '#06B6D4', // cyan
+                '#F43F5E', // rose
+                '#3B82F6', // blue
             ],
         };
     },
@@ -151,6 +184,16 @@ Vue.component('career-cards', {
             if (!this.search) return this.careers;
             const q = this.search.toLowerCase();
             return this.careers.filter(c => c.name.toLowerCase().includes(q));
+        },
+        totalStudents() {
+            return this.careers.reduce((sum, c) => sum + (c.active_count || 0), 0);
+        },
+        avgRetention() {
+            if (!this.careers.length) return 0;
+            const total = this.careers.reduce((sum, c) => {
+                return sum + (c.total_enrolled > 0 ? (c.active_count / c.total_enrolled) * 100 : 0);
+            }, 0);
+            return Math.round(total / this.careers.length);
         },
         wsUrl() {
             return window.location.origin + '/webservice/rest/server.php';
@@ -176,8 +219,7 @@ Vue.component('career-cards', {
                 });
                 const data = response.data;
                 if (data && data.exception) {
-                    this.errorMsg = 'Error del servidor: ' + (data.message || data.errorcode || 'error desconocido');
-                    console.error('[timeline] WS error:', data);
+                    this.errorMsg = data.message || data.errorcode || 'Error desconocido';
                     return;
                 }
                 if (data && data.careers) {
@@ -185,10 +227,24 @@ Vue.component('career-cards', {
                 }
             } catch (e) {
                 this.errorMsg = 'Error de conexión al cargar las carreras.';
-                console.error('[timeline] Error cargando carreras:', e);
+                console.error('[timeline] Error:', e);
             } finally {
                 this.loading = false;
             }
+        },
+        retentionClass(career) {
+            if (career.total_enrolled === 0) return 'tl-stat-muted';
+            const pct = (career.active_count / career.total_enrolled) * 100;
+            if (pct >= 70) return 'tl-stat-success';
+            if (pct >= 40) return 'tl-stat-warning';
+            return 'tl-stat-error';
+        },
+        retentionGradient(career) {
+            if (career.total_enrolled === 0) return '#CBD5E1';
+            const pct = (career.active_count / career.total_enrolled) * 100;
+            if (pct >= 70) return 'linear-gradient(90deg, #10B981 0%, #34D399 100%)';
+            if (pct >= 40) return 'linear-gradient(90deg, #F59E0B 0%, #FBBF24 100%)';
+            return 'linear-gradient(90deg, #EF4444 0%, #F87171 100%)';
         },
     },
 });

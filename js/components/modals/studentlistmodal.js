@@ -1,143 +1,185 @@
 Vue.component('student-list-modal', {
     template: `
-        <v-dialog v-model="dialogVisible" max-width="900" persistent>
-            <v-card class="rounded-lg">
-                <v-card-title class="headline primary white--text d-flex align-center py-3 px-4">
-                    <v-icon left color="white">mdi-account-group</v-icon>
-                    <span>Estudiantes - {{ subperiodName }}</span>
-                    <v-spacer></v-spacer>
-                    <v-btn icon dark @click="close">
-                        <v-icon>mdi-close</v-icon>
-                    </v-btn>
-                </v-card-title>
+    <v-dialog v-model="dialogVisible" max-width="980" persistent>
+        <v-card class="tl-modal">
+            <!-- HEADER -->
+            <div class="tl-modal-head">
+                <div class="tl-modal-head-info">
+                    <div class="tl-modal-avatar">
+                        <v-icon size="20" color="white">mdi-account-group</v-icon>
+                    </div>
+                    <div>
+                        <h3 class="tl-modal-title">Estudiantes del Bimestre</h3>
+                        <div class="tl-modal-sub">
+                            <span class="tl-modal-chip">
+                                <v-icon size="11" color="#6366F1">mdi-calendar-blank</v-icon>
+                                {{ subperiodName }}
+                            </span>
+                            <span class="tl-modal-chip">
+                                <v-icon size="11" color="#6366F1">mdi-flag-variant</v-icon>
+                                Cohorte {{ intakePeriod }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                <button class="tl-modal-close" @click="close" title="Cerrar">
+                    <v-icon size="18" color="#64748B">mdi-close</v-icon>
+                </button>
+            </div>
 
-                <v-card-text class="pa-0">
-                    <v-progress-linear
-                        v-if="loading"
-                        indeterminate
-                        color="primary"
-                    ></v-progress-linear>
+            <!-- KPI ROW -->
+            <div class="tl-modal-kpis" v-if="!loading && students.length > 0">
+                <div class="tl-modal-kpi">
+                    <v-icon size="14" color="#6366F1">mdi-account-multiple</v-icon>
+                    <span class="tl-modal-kpi-num">{{ students.length }}</span>
+                    <span class="tl-modal-kpi-lbl">Total</span>
+                </div>
+                <div class="tl-modal-kpi">
+                    <v-icon size="14" color="#10B981">mdi-check-circle</v-icon>
+                    <span class="tl-modal-kpi-num">{{ activeCount }}</span>
+                    <span class="tl-modal-kpi-lbl">Activos</span>
+                </div>
+                <div class="tl-modal-kpi">
+                    <v-icon size="14" color="#EF4444">mdi-close-circle</v-icon>
+                    <span class="tl-modal-kpi-num">{{ students.length - activeCount }}</span>
+                    <span class="tl-modal-kpi-lbl">Inactivos</span>
+                </div>
+            </div>
 
-                    <v-alert v-if="errorMsg" type="error" outlined dismissible class="ma-4">
-                        {{ errorMsg }}
-                    </v-alert>
+            <!-- TOOLBAR -->
+            <div class="tl-modal-toolbar">
+                <div class="tl-modal-search">
+                    <v-icon size="14" color="#94A3B8">mdi-magnify</v-icon>
+                    <input
+                        v-model="search"
+                        type="text"
+                        placeholder="Buscar por nombre, identificación o email..."
+                        class="tl-modal-search-input"
+                    />
+                </div>
+            </div>
 
-                    <v-alert v-if="!loading && students.length === 0" type="info" outlined class="ma-4">
-                        No hay estudiantes en este bimestre.
-                    </v-alert>
+            <!-- PROGRESS -->
+            <v-progress-linear v-if="loading" indeterminate color="#6366F1" class="tl-modal-progress"></v-progress-linear>
 
-                    <v-data-table
-                        v-if="!loading && students.length > 0"
-                        :headers="headers"
-                        :items="students"
-                        :search="search"
-                        class="elevation-1"
-                        dense
-                    >
-                        <template v-slot:top>
-                            <v-row align="center" class="px-4 py-2">
-                                <v-col cols="12" sm="4">
-                                    <v-text-field
-                                        v-model="search"
-                                        append-icon="mdi-magnify"
-                                        label="Buscar estudiante..."
-                                        hide-details
-                                        outlined
-                                        dense
-                                        clearable
-                                    ></v-text-field>
-                                </v-col>
-                                <v-col cols="12" sm="8" class="text-right">
-                                    <span class="text-caption grey--text">
-                                        {{ students.length }} estudiante(s)
-                                    </span>
-                                </v-col>
-                            </v-row>
-                        </template>
+            <!-- ALERTS -->
+            <v-alert v-if="errorMsg" type="error" outlined class="ma-4 tl-alert" border="left">
+                {{ errorMsg }}
+            </v-alert>
+            <v-alert v-if="!loading && students.length === 0" type="info" outlined class="ma-4" border="left">
+                No hay estudiantes en este bimestre.
+            </v-alert>
 
-                        <template v-slot:item.username="{ item }">
-                            <div class="font-weight-bold">{{ item.username }}</div>
-                        </template>
+            <!-- TABLE -->
+            <div v-if="!loading && students.length > 0" class="tl-modal-table-wrap">
+                <table class="tl-modal-table">
+                    <thead>
+                        <tr>
+                            <th class="tl-th-id">ID</th>
+                            <th>Estudiante</th>
+                            <th>Contacto</th>
+                            <th class="tl-th-center">Estado</th>
+                            <th class="tl-th-center">Cohorte</th>
+                            <th class="tl-th-center">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="s in filteredStudents" :key="s.userid" class="tl-modal-row">
+                            <td>
+                                <span class="tl-modal-id">{{ s.username }}</span>
+                            </td>
+                            <td>
+                                <div class="tl-modal-student">
+                                    <div class="tl-modal-avatar-sm">
+                                        {{ initials(s.firstname, s.lastname) }}
+                                    </div>
+                                    <div>
+                                        <div class="tl-modal-student-name">{{ s.firstname }} {{ s.lastname }}</div>
+                                        <div class="tl-modal-student-sub">{{ s.fullname }}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="tl-modal-contact">
+                                    <div v-if="s.email" class="tl-modal-contact-item">
+                                        <v-icon size="11" color="#94A3B8">mdi-email-outline</v-icon>
+                                        {{ s.email }}
+                                    </div>
+                                    <div v-if="s.phone" class="tl-modal-contact-item">
+                                        <v-icon size="11" color="#94A3B8">mdi-phone-outline</v-icon>
+                                        {{ s.phone }}
+                                    </div>
+                                    <div v-if="!s.email && !s.phone" class="tl-modal-contact-empty">—</div>
+                                </div>
+                            </td>
+                            <td class="tl-td-center">
+                                <span class="tl-status-pill" :class="'tl-status-' + (s.status === 'activo' ? 'ok' : 'off')">
+                                    <span class="tl-status-dot"></span>
+                                    {{ s.status }}
+                                </span>
+                            </td>
+                            <td class="tl-td-center">
+                                <span class="tl-cohort-pill">{{ s.intake_period }}</span>
+                            </td>
+                            <td class="tl-td-center">
+                                <v-menu offset-y>
+                                    <template v-slot:activator="{ on, attrs }">
+                                        <button
+                                            class="tl-btn-action"
+                                            v-bind="attrs"
+                                            v-on="on"
+                                        >
+                                            <v-icon left size="14" color="#6366F1">mdi-swap-horizontal</v-icon>
+                                            Reasignar
+                                            <v-icon right size="12" color="#94A3B8">mdi-chevron-down</v-icon>
+                                        </button>
+                                    </template>
+                                    <v-list dense class="tl-reassign-list">
+                                        <v-list-item
+                                            v-for="period in availablePeriods"
+                                            :key="period"
+                                            @click="reassignPeriod(s, period)"
+                                            :disabled="period === s.intake_period"
+                                            :class="{ 'tl-reassign-current': period === s.intake_period }"
+                                        >
+                                            <v-list-item-title class="d-flex align-center">
+                                                <v-icon
+                                                    left
+                                                    size="14"
+                                                    :color="period === s.intake_period ? '#10B981' : '#6366F1'"
+                                                >
+                                                    {{ period === s.intake_period ? 'mdi-check-circle' : 'mdi-calendar-arrow-right' }}
+                                                </v-icon>
+                                                <span>{{ period }}</span>
+                                                <span v-if="period === s.intake_period" class="tl-reassign-current-tag">Actual</span>
+                                            </v-list-item-title>
+                                        </v-list-item>
+                                    </v-list>
+                                </v-menu>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
 
-                        <template v-slot:item.fullname="{ item }">
-                            <div>{{ item.firstname }} {{ item.lastname }}</div>
-                        </template>
+            <!-- FOOTER -->
+            <div class="tl-modal-foot">
+                <span class="tl-modal-foot-info">
+                    <v-icon size="12" color="#94A3B8">mdi-information-outline</v-icon>
+                    Mostrando {{ filteredStudents.length }} de {{ students.length }} estudiantes
+                </span>
+                <button class="tl-btn-secondary" @click="close">Cerrar</button>
+            </div>
+        </v-card>
 
-                        <template v-slot:item.phone="{ item }">
-                            <span v-if="item.phone">{{ item.phone }}</span>
-                            <span v-else class="grey--text">—</span>
-                        </template>
-
-                        <template v-slot:item.status="{ item }">
-                            <v-chip
-                                x-small
-                                :color="item.status === 'activo' ? 'success' : 'error'"
-                                dark
-                                label
-                            >
-                                {{ item.status }}
-                            </v-chip>
-                        </template>
-
-                        <template v-slot:item.actions="{ item }">
-                            <v-menu>
-                                <template v-slot:activator="{ on, attrs }">
-                                    <v-btn
-                                        small
-                                        color="primary"
-                                        dark
-                                        v-bind="attrs"
-                                        v-on="on"
-                                    >
-                                        <v-icon left small>mdi-swap-horizontal</v-icon>
-                                        Reasignar
-                                        <v-icon right small>mdi-chevron-down</v-icon>
-                                    </v-btn>
-                                </template>
-                                <v-list dense>
-                                    <v-list-item
-                                        v-for="period in availablePeriods"
-                                        :key="period"
-                                        @click="reassignPeriod(item, period)"
-                                        :disabled="period === item.intake_period"
-                                    >
-                                        <v-list-item-title>
-                                            <v-icon left small>mdi-calendar-arrow-right</v-icon>
-                                            {{ period }}
-                                            <v-chip v-if="period === item.intake_period" x-small color="success" class="ml-2" dark>Actual</v-chip>
-                                        </v-list-item-title>
-                                    </v-list-item>
-                                </v-list>
-                            </v-menu>
-                        </template>
-                    </v-data-table>
-                </v-card-text>
-
-                <v-divider></v-divider>
-
-                <v-card-actions class="pa-3 grey lighten-5">
-                    <v-spacer></v-spacer>
-                    <v-btn color="grey darken-1" text @click="close" class="font-weight-bold">
-                        Cerrar
-                    </v-btn>
-                </v-card-actions>
-            </v-card>
-
-            <!-- Snackbar for success/error messages -->
-            <v-snackbar
-                v-model="snackbar.show"
-                :color="snackbar.color"
-                :timeout="3000"
-                rounded="pill"
-            >
-                {{ snackbar.text }}
-                <template v-slot:action="{ attrs }">
-                    <v-btn icon v-bind="attrs" @click="snackbar.show = false">
-                        <v-icon>mdi-close</v-icon>
-                    </v-btn>
-                </template>
-            </v-snackbar>
-        </v-dialog>
+        <!-- TOAST -->
+        <transition name="tl-fade">
+        <div v-if="snackbar.show" class="tl-toast" :class="'tl-toast-' + snackbar.color">
+            <v-icon size="16" color="white">{{ snackbar.color === 'success' ? 'mdi-check-circle' : 'mdi-alert-circle' }}</v-icon>
+            <span>{{ snackbar.text }}</span>
+        </div>
+        </transition>
+    </v-dialog>
     `,
     props: {
         value: { type: Boolean, default: false },
@@ -148,45 +190,36 @@ Vue.component('student-list-modal', {
     },
     data() {
         return {
-            dialog: true,
             loading: false,
             errorMsg: '',
             students: [],
             availablePeriods: [],
             search: '',
-            snackbar: {
-                show: false,
-                text: '',
-                color: 'success',
-            },
-            headers: [
-                { text: 'Identificación', value: 'username', align: 'start', sortable: true },
-                { text: 'Nombre', value: 'fullname', sortable: true },
-                { text: 'Teléfono', value: 'phone', sortable: false },
-                { text: 'Estado', value: 'status', sortable: true },
-                { text: 'Periodo Ingreso', value: 'intake_period', sortable: true },
-                { text: 'Acciones', value: 'actions', sortable: false, align: 'center' },
-            ],
+            snackbar: { show: false, text: '', color: 'success' },
         };
     },
     computed: {
         dialogVisible: {
             get() { return this.value; },
-            set(val) { this.$emit('input', val); }
+            set(v) { this.$emit('input', v); },
         },
-        wsUrl() {
-            return window.location.origin + '/webservice/rest/server.php';
-        },
-        token() {
-            return window.userToken;
+        wsUrl() { return window.location.origin + '/webservice/rest/server.php'; },
+        token() { return window.userToken; },
+        activeCount() { return this.students.filter(s => s.status === 'activo').length; },
+        filteredStudents() {
+            if (!this.search) return this.students;
+            const q = this.search.toLowerCase();
+            return this.students.filter(s =>
+                (s.firstname || '').toLowerCase().includes(q) ||
+                (s.lastname || '').toLowerCase().includes(q) ||
+                (s.username || '').toLowerCase().includes(q) ||
+                (s.email || '').toLowerCase().includes(q) ||
+                (s.fullname || '').toLowerCase().includes(q)
+            );
         },
     },
     watch: {
-        value(val) {
-            if (val) {
-                this.loadStudents();
-            }
-        }
+        value(v) { if (v) this.loadStudents(); },
     },
     methods: {
         async loadStudents() {
@@ -205,7 +238,7 @@ Vue.component('student-list-modal', {
                 });
                 const data = response.data;
                 if (data && data.exception) {
-                    this.errorMsg = 'Error del servidor: ' + (data.message || data.errorcode);
+                    this.errorMsg = data.message || data.errorcode || 'Error del servidor';
                     return;
                 }
                 this.students = data.students || [];
@@ -217,10 +250,8 @@ Vue.component('student-list-modal', {
                 this.loading = false;
             }
         },
-
         async reassignPeriod(student, newPeriod) {
             if (student.intake_period === newPeriod) return;
-
             try {
                 const response = await window.axios.post(this.wsUrl, null, {
                     params: {
@@ -237,10 +268,7 @@ Vue.component('student-list-modal', {
                     return;
                 }
                 if (data.success) {
-                    this.showSnackbar(`Estudiante reasignado a ${newPeriod}`, 'success');
-                    // Update local student data
-                    student.intake_period = newPeriod;
-                    // Reload to get fresh data
+                    this.showSnackbar(`${student.firstname} ${student.lastname} → ${newPeriod}`, 'success');
                     await this.loadStudents();
                 }
             } catch (e) {
@@ -248,16 +276,20 @@ Vue.component('student-list-modal', {
                 console.error('[studentlistmodal] Reassign error:', e);
             }
         },
-
         showSnackbar(text, color) {
             this.snackbar.text = text;
             this.snackbar.color = color;
             this.snackbar.show = true;
+            setTimeout(() => { this.snackbar.show = false; }, 3500);
         },
-
+        initials(first, last) {
+            const f = (first || '').trim().charAt(0);
+            const l = (last  || '').trim().charAt(0);
+            return (f + l).toUpperCase() || '?';
+        },
         close() {
             this.$emit('input', false);
             this.$emit('close');
-        }
+        },
     },
 });

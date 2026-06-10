@@ -5451,6 +5451,52 @@ try {
             $response = ['status' => 'success', 'recordings' => $reclist];
             break;
 
+        case 'local_grupomakro_sync_meeting_recordings':
+            require_capability('moodle/site:config', context_system::instance());
+            $cmid = required_param('cmid', PARAM_INT);
+
+            $bbbinstance = \mod_bigbluebuttonbn\instance::get_from_cmid($cmid);
+            if (!$bbbinstance) {
+                $response = ['status' => 'error', 'message' => 'Reunión no encontrada'];
+                break;
+            }
+
+            // Ask the BBB server directly for the recordings of this meeting and upsert the local
+            // cache, so newly processed recordings show up without waiting for the scheduled task.
+            // Mirrors mod_bigbluebuttonbn\task\upgrade_recordings_task discovery logic.
+            $meetingid = $bbbinstance->get_meeting_id();
+            $fetched = \mod_bigbluebuttonbn\local\proxy\recording_proxy::fetch_recording_by_meeting_id([$meetingid]);
+
+            $created = 0;
+            $updated = 0;
+            foreach ($fetched as $recordingid => $metadata) {
+                $existing = $DB->get_record('bigbluebuttonbn_recordings', [
+                    'recordingid' => $recordingid,
+                    'bigbluebuttonbnid' => $bbbinstance->get_instance_id(),
+                ]);
+                if ($existing) {
+                    // Make sure it is flagged as processed so it becomes visible.
+                    if ((int)$existing->status !== \mod_bigbluebuttonbn\recording::RECORDING_STATUS_PROCESSED) {
+                        $DB->set_field('bigbluebuttonbn_recordings', 'status',
+                            \mod_bigbluebuttonbn\recording::RECORDING_STATUS_PROCESSED, ['id' => $existing->id]);
+                        $updated++;
+                    }
+                    continue;
+                }
+                $rec = new \mod_bigbluebuttonbn\recording(0, (object)[
+                    'courseid' => $bbbinstance->get_course_id(),
+                    'bigbluebuttonbnid' => $bbbinstance->get_instance_id(),
+                    'groupid' => $bbbinstance->get_group_id(),
+                    'recordingid' => $recordingid,
+                    'status' => \mod_bigbluebuttonbn\recording::RECORDING_STATUS_PROCESSED,
+                ], is_array($metadata) ? $metadata : null);
+                $rec->create();
+                $created++;
+            }
+
+            $response = ['status' => 'success', 'created' => $created, 'updated' => $updated];
+            break;
+
         case 'local_grupomakro_delete_guest_meeting':
             require_capability('moodle/site:config', context_system::instance());
             $cmid = required_param('cmid', PARAM_INT);

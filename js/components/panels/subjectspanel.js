@@ -1,182 +1,268 @@
-// Subjects Panel - Compact course list with semaphore for Timeline Planning
+// Subjects Panel - Modern, clean, drag-friendly subject board
 Vue.component('subjects-panel', {
-    template: 
-    '<div class="subjects-panel" v-if="visible">' +
-    '  <div class="panel-header">' +
-    '    <h3>{{ panelTitle }}</h3>' +
-    '    <span class="badge-count">{{ filteredCourses.length }}</span>' +
-    '    <button class="btn-close-panel" @click="$emit(\'close\')">×</button>' +
-    '  </div>' +
-    '  <div class="panel-search">' +
-    '    <input type="text" v-model="searchQuery" placeholder="Buscar..." class="search-input" />' +
-    '  </div>' +
-    '  <div class="semaphore-filter">' +
-    '    <button v-for="s in ['+']" :key="s" class="sem-btn" :class="activeFilter === s ? \'active\' : \'\'" @click="activeFilter = activeFilter === s ? \'\' : s">' +
-    '      <span class="sem-dot" :class="s"></span>' +
-    '    </button>' +
-    '  </div>' +
-    '  <div class="panel-content">' +
-    '    <div v-if="loading" class="loading-state">' +
-    '      <v-progress-circular indeterminate color="primary" size="20"></v-progress-circular>' +
-    '    </div>' +
-    '    <div v-else-if="error" class="error-state">{{ error }}</div>' +
-    '    <div v-else class="subjects-list">' +
-    '      <div v-for="course in filteredCourses" :key="course.id" ' +
-    '           class="subject-row"' +
-    '           :class="{ required: course.isrequired, dragging: isDragging(course), \'has-projection\': hasProjection(course) }"' +
-    '           draggable="true"' +
-    '           @dragstart="onDragStart($event, course)"' +
-    '           @dragend="onDragEnd($event)">' +
-    '        <div class="sem-indicator" :class="getSemaphore(course)">' +
-    '          <span class="sem-dot"></span>' +
-    '        </div>' +
-    '        <div class="subject-info">' +
-    '          <span class="subject-name" :title="course.fullname">{{ course.fullname }}</span>' +
-    '          <span class="subject-meta">{{ course.subperiod_name || \'Sin bimestre\' }}</span>' +
-    '        </div>' +
-    '        <div class="subject-stats">' +
-    '          <span v-if="getSemaphore(course) === \'green\'" class="stat approved">' +
-    '            <v-icon small color="green">mdi-check-circle</v-icon>' +
-    '            {{ course.status.approved_count }}' +
-    '            <span class="stat-label">Aprob</span>' +
-    '          </span>' +
-    '          <span v-else-if="getSemaphore(course) === \'red\'" class="stat failed">' +
-    '            <v-icon small color="red">mdi-close-circle</v-icon>' +
-    '            {{ course.status.failed_count }}' +
-    '            <span class="stat-label">Reprob</span>' +
-    '          </span>' +
-    '          <span v-else-if="getSemaphore(course) === \'orange\'" class="stat mixed">' +
-    '            <v-icon small color="green">mdi-check-circle</v-icon>' +
-    '            {{ course.status.approved_count }}' +
-    '            <v-icon small color="red" class="ml-1">mdi-close-circle</v-icon>' +
-    '            {{ course.status.failed_count }}' +
-    '          </span>' +
-    '          <span v-else class="stat pending">' +
-    '            <v-icon small color="blue">mdi-clock-outline</v-icon>' +
-    '            {{ course.status.pending_count || \'-\' }}' +
-    '            <span class="stat-label">Pend</span>' +
-    '          </span>' +
-    '        </div>' +
-    '        <div class="drag-handle">' +
-    '          <v-icon small>mdi-drag-vertical</v-icon>' +
-    '        </div>' +
-    '      </div>' +
-    '      <div v-if="filteredCourses.length === 0 && !loading" class="no-data">' +
-    '        Sin asignaturas' +
-    '      </div>' +
-    '    </div>' +
-    '  </div>' +
-    '</div>',
-    
+    template: `
+    <transition name="tl-slide">
+    <aside v-if="visible" class="tl-panel">
+        <!-- HEADER -->
+        <header class="tl-panel-head">
+            <div class="tl-panel-head-top">
+                <div>
+                    <h3 class="tl-panel-title">
+                        <v-icon size="18" color="white">mdi-book-open-variant</v-icon>
+                        Tablero de Asignaturas
+                    </h3>
+                    <div class="tl-panel-sub">
+                        Cohorte <strong>{{ cohort }}</strong>
+                        <span v-if="jornada && jornada !== 'ALL'"> • {{ jornada }}</span>
+                    </div>
+                </div>
+                <button class="tl-panel-close" @click="$emit('close')" title="Cerrar">
+                    <v-icon size="18" color="white">mdi-close</v-icon>
+                </button>
+            </div>
+
+            <!-- KPI ROW -->
+            <div class="tl-panel-kpis">
+                <div class="tl-panel-kpi">
+                    <div class="tl-panel-kpi-num">{{ counts.total }}</div>
+                    <div class="tl-panel-kpi-lbl">Total</div>
+                </div>
+                <div class="tl-panel-kpi tl-panel-kpi-success">
+                    <v-icon size="12" color="#10B981">mdi-check-circle</v-icon>
+                    <div class="tl-panel-kpi-num">{{ counts.green }}</div>
+                </div>
+                <div class="tl-panel-kpi tl-panel-kpi-warning">
+                    <v-icon size="12" color="#F59E0B">mdi-alert</v-icon>
+                    <div class="tl-panel-kpi-num">{{ counts.orange }}</div>
+                </div>
+                <div class="tl-panel-kpi tl-panel-kpi-error">
+                    <v-icon size="12" color="#EF4444">mdi-close-circle</v-icon>
+                    <div class="tl-panel-kpi-num">{{ counts.red }}</div>
+                </div>
+                <div class="tl-panel-kpi tl-panel-kpi-info">
+                    <v-icon size="12" color="#3B82F6">mdi-clock-outline</v-icon>
+                    <div class="tl-panel-kpi-num">{{ counts.blue }}</div>
+                </div>
+            </div>
+        </header>
+
+        <!-- SEARCH + FILTERS -->
+        <div class="tl-panel-toolbar">
+            <div class="tl-panel-search">
+                <v-icon size="14" color="#94A3B8">mdi-magnify</v-icon>
+                <input
+                    v-model="searchQuery"
+                    type="text"
+                    placeholder="Buscar asignatura..."
+                    class="tl-panel-search-input"
+                />
+                <button v-if="searchQuery" class="tl-panel-search-clear" @click="searchQuery = ''">
+                    <v-icon size="12" color="#94A3B8">mdi-close</v-icon>
+                </button>
+            </div>
+            <div class="tl-panel-filters">
+                <button
+                    v-for="s in filters"
+                    :key="s.key"
+                    class="tl-filter-btn"
+                    :class="['tl-filter-' + s.key, { 'tl-filter-active': activeFilter === s.key }]"
+                    @click="activeFilter = activeFilter === s.key ? '' : s.key"
+                    :title="s.title"
+                >
+                    <span class="tl-filter-dot" :class="'tl-dot-' + s.key"></span>
+                </button>
+            </div>
+        </div>
+
+        <!-- CONTENT -->
+        <div class="tl-panel-content" v-if="!loading && !error">
+            <div v-if="filteredCourses.length === 0" class="tl-panel-empty">
+                <v-icon size="40" color="#CBD5E1">mdi-book-off-outline</v-icon>
+                <p>Sin asignaturas</p>
+            </div>
+            <div
+                v-for="course in filteredCourses"
+                :key="course.id"
+                class="tl-subj"
+                :class="{
+                    'tl-subj-required': course.isrequired,
+                    'tl-subj-dragging': isDragging(course),
+                    'tl-subj-projected': hasProjection(course)
+                }"
+                draggable="true"
+                @dragstart="onDragStart($event, course)"
+                @dragend="onDragEnd($event)"
+            >
+                <!-- Semaphore dot -->
+                <div class="tl-subj-sem" :class="'tl-sem-' + getSemaphore(course)">
+                    <span class="tl-subj-sem-dot"></span>
+                </div>
+
+                <!-- Body -->
+                <div class="tl-subj-body">
+                    <div class="tl-subj-name-row">
+                        <span class="tl-subj-name" :title="course.fullname">{{ course.fullname }}</span>
+                        <span v-if="course.isrequired" class="tl-subj-badge">REQ</span>
+                        <span v-if="hasProjection(course)" class="tl-subj-badge tl-subj-badge-proj" title="Tiene proyección">
+                            <v-icon size="9" color="white">mdi-calendar-check</v-icon>
+                        </span>
+                    </div>
+                    <div class="tl-subj-meta">
+                        <span class="tl-subj-meta-item">
+                            <v-icon size="10" color="#94A3B8">mdi-counter</v-icon>
+                            {{ course.position || '—' }}
+                        </span>
+                        <span class="tl-subj-meta-item" v-if="course.credits">
+                            <v-icon size="10" color="#94A3B8">mdi-star-outline</v-icon>
+                            {{ course.credits }} cr
+                        </span>
+                        <span class="tl-subj-meta-item" v-if="course.subperiod_name">
+                            <v-icon size="10" color="#94A3B8">mdi-calendar-blank-outline</v-icon>
+                            {{ course.subperiod_name }}
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Stats pill -->
+                <div class="tl-subj-stats" :class="'tl-stats-' + getSemaphore(course)">
+                    <template v-if="getSemaphore(course) === 'green'">
+                        <v-icon size="11" color="#10B981">mdi-check-circle</v-icon>
+                        <span class="tl-subj-stats-num">{{ course.status.approved_count }}</span>
+                    </template>
+                    <template v-else-if="getSemaphore(course) === 'red'">
+                        <v-icon size="11" color="#EF4444">mdi-close-circle</v-icon>
+                        <span class="tl-subj-stats-num">{{ course.status.failed_count }}</span>
+                    </template>
+                    <template v-else-if="getSemaphore(course) === 'orange'">
+                        <v-icon size="11" color="#10B981">mdi-check</v-icon>
+                        <span class="tl-subj-stats-num" style="color:#10B981;">{{ course.status.approved_count }}</span>
+                        <v-icon size="11" color="#EF4444" class="ml-1">mdi-close</v-icon>
+                        <span class="tl-subj-stats-num" style="color:#EF4444;">{{ course.status.failed_count }}</span>
+                    </template>
+                    <template v-else>
+                        <v-icon size="11" color="#3B82F6">mdi-clock-outline</v-icon>
+                        <span class="tl-subj-stats-num">{{ course.status.pending_count || 0 }}</span>
+                    </template>
+                </div>
+
+                <!-- Drag handle -->
+                <div class="tl-subj-handle">
+                    <v-icon size="14" color="#CBD5E1">mdi-drag-vertical</v-icon>
+                </div>
+            </div>
+        </div>
+
+        <!-- LOADING -->
+        <div v-else-if="loading" class="tl-panel-content">
+            <div v-for="n in 5" :key="n" class="tl-subj-skel">
+                <div class="tl-skel" style="width: 8px; height: 32px; border-radius: 4px;"></div>
+                <div class="flex-grow-1">
+                    <div class="tl-skel mb-1" style="height: 14px; width: 80%;"></div>
+                    <div class="tl-skel" style="height: 10px; width: 50%;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ERROR -->
+        <div v-else class="tl-panel-error">
+            <v-icon size="32" color="#EF4444">mdi-alert-circle-outline</v-icon>
+            <p>{{ error }}</p>
+            <button class="tl-btn-secondary" @click="loadCourses">Reintentar</button>
+        </div>
+    </aside>
+    </transition>
+    `,
     props: {
         learningPlanId: { type: Number, required: true },
         cohort: { type: String, default: '2026' },
         jornada: { type: String, default: 'ALL' },
-        visible: { type: Boolean, default: false }
+        visible: { type: Boolean, default: false },
     },
-    
-    computed: {
-        panelTitle: function() {
-            return 'Asignaturas' + (this.cohort ? ' - ' + this.cohort : '');
-        },
-        filteredCourses: function() {
-            var self = this;
-            var courses = this.courses || [];
-            
-            if (this.searchQuery) {
-                var q = this.searchQuery.toLowerCase();
-                courses = courses.filter(function(c) {
-                    return c.fullname.toLowerCase().indexOf(q) !== -1 ||
-                           (c.shortname && c.shortname.toLowerCase().indexOf(q) !== -1);
-                });
-            }
-            
-            if (this.activeFilter) {
-                courses = courses.filter(function(c) {
-                    return self.getSemaphore(c) === self.activeFilter;
-                });
-            }
-            
-            return courses;
-        }
-    },
-    
-    data: function() {
+    data() {
         return {
             courses: [],
             loading: false,
             error: null,
             draggedCourseData: null,
             searchQuery: '',
-            activeFilter: ''
+            activeFilter: '',
+            filters: [
+                { key: 'green',  title: 'Aprobadas' },
+                { key: 'orange', title: 'Mixtas' },
+                { key: 'red',    title: 'Reprobadas' },
+                { key: 'blue',   title: 'Pendientes' },
+            ],
         };
     },
-    
-    watch: {
-        visible: function(newVal) {
-            if (newVal && !(this.courses && this.courses.length)) {
-                this.loadCourses();
+    computed: {
+        filteredCourses() {
+            let courses = this.courses || [];
+            if (this.searchQuery) {
+                const q = this.searchQuery.toLowerCase();
+                courses = courses.filter(c =>
+                    (c.fullname || '').toLowerCase().includes(q) ||
+                    (c.shortname || '').toLowerCase().includes(q)
+                );
             }
+            if (this.activeFilter) {
+                courses = courses.filter(c => this.getSemaphore(c) === this.activeFilter);
+            }
+            return courses;
         },
-        jornada: function() {
-            if (this.visible) {
-                this.loadCourses();
-            }
+        counts() {
+            const c = { total: 0, green: 0, orange: 0, red: 0, blue: 0 };
+            (this.courses || []).forEach(course => {
+                c.total++;
+                c[this.getSemaphore(course)]++;
+            });
+            return c;
         },
-        cohort: function() {
-            if (this.visible) {
-                this.courses = [];  // Clear old courses
-                this.loadCourses();
-            }
-        }
     },
-    
+    watch: {
+        visible(v) { if (v && !(this.courses && this.courses.length)) this.loadCourses(); },
+        jornada()  { if (this.visible) this.loadCourses(); },
+        cohort()   { if (this.visible) { this.courses = []; this.loadCourses(); } },
+    },
     methods: {
-        loadCourses: function() {
-            var self = this;
+        loadCourses() {
             this.loading = true;
             this.error = null;
-            
-            var wsUrl = window.location.origin + '/webservice/rest/server.php';
-            var token = window.userToken;
-            var params = 'wstoken=' + token + 
-                         '&wsfunction=local_grupomakro_get_courses_with_projections' +
-                         '&moodlewsrestformat=json' +
-                         '&learningplanid=' + this.learningPlanId +
-                         '&cohort=' + this.cohort +
-                         '&jornada=' + (this.jornada || 'ALL');
-            
+            const wsUrl = window.location.origin + '/webservice/rest/server.php';
+            const params =
+                'wstoken=' + window.userToken +
+                '&wsfunction=local_grupomakro_get_courses_with_projections' +
+                '&moodlewsrestformat=json' +
+                '&learningplanid=' + this.learningPlanId +
+                '&cohort=' + encodeURIComponent(this.cohort) +
+                '&jornada=' + encodeURIComponent(this.jornada || 'ALL');
+
             fetch(wsUrl + '?' + params)
-                .then(function(response) { return response.json(); })
-                .then(function(data) {
+                .then(r => r.json())
+                .then(data => {
                     if (data.exception) {
-                        self.error = 'Error: ' + (data.message || 'Error desconocido');
-                        self.loading = false;
+                        this.error = data.message || 'Error desconocido';
+                        this.loading = false;
                         return;
                     }
-                    self.courses = data.courses || [];
-                    self.loading = false;
+                    this.courses = data.courses || [];
+                    this.loading = false;
                 })
-                .catch(function(err) {
-                    self.error = 'Error de conexión';
-                    self.loading = false;
+                .catch(err => {
+                    this.error = 'Error de conexión al cargar asignaturas.';
+                    this.loading = false;
                     console.error('Error loading courses:', err);
                 });
         },
-        
-        getSemaphore: function(course) {
+        getSemaphore(course) {
             return course.status ? course.status.semaphore : 'blue';
         },
-        
-        hasProjection: function(course) {
+        hasProjection(course) {
             return course.projections && course.projections.length > 0;
         },
-        
-        isDragging: function(course) {
+        isDragging(course) {
             return this.draggedCourseData && this.draggedCourseData.id === course.id;
         },
-        
-        onDragStart: function(event, course) {
+        onDragStart(event, course) {
             this.draggedCourseData = course;
             event.dataTransfer.effectAllowed = 'move';
             event.dataTransfer.setData('application/json', JSON.stringify({
@@ -186,18 +272,14 @@ Vue.component('subjects-panel', {
                 position: course.position,
                 subperiodid: course.subperiodid,
                 subperiod_name: course.subperiod_name,
-                periodid: course.periodid
+                periodid: course.periodid,
             }));
-            $(event.target).addClass('is-dragging');
+            event.target.classList.add('tl-subj-dragging-active');
         },
-        
-        onDragEnd: function(event) {
-            $(event.target).removeClass('is-dragging');
+        onDragEnd(event) {
+            event.target.classList.remove('tl-subj-dragging-active');
             this.draggedCourseData = null;
         },
-        
-        refresh: function() {
-            this.loadCourses();
-        }
-    }
+        refresh() { this.loadCourses(); },
+    },
 });
