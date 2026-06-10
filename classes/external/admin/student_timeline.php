@@ -690,9 +690,7 @@ class student_timeline extends external_api {
 
         $courses = $DB->get_records_sql($sql, ['lp_id' => $learningplanid]);
 
-        // Get jornada filter for students
-        $jornada_filter = ($jornada != 'ALL') ? "AND uid_jornada.data = :jornada" : "";
-        // Jornada filter - use ? placeholder for consistency with other params
+        // Get jornada filter for students (use ? placeholder for consistency with other params)
         if ($jornada != 'ALL') {
             $jornada_filter = "AND uid_jornada.data = ?";
             $jornada_param = [$jornada];
@@ -801,11 +799,19 @@ class student_timeline extends external_api {
                 $semaphore = 'blue'; // All pending or no data
             }
 
-            // Check if this course has projections for this jornada
-            $projections = $DB->get_records('gmk_course_projections', [
-                'learning_courses_id' => $c->id,
-                'jornada' => $jornada == 'ALL' ? null : $jornada
-            ]);
+            // Check if this course has projections for this jornada.
+            // When jornada is 'ALL' we omit the jornada filter entirely (column is NOT NULL,
+            // so passing null would generate invalid SQL). Otherwise filter by the exact jornada.
+            if ($jornada == 'ALL') {
+                $projections = $DB->get_records('gmk_course_projections', [
+                    'learning_courses_id' => $c->id,
+                ]);
+            } else {
+                $projections = $DB->get_records('gmk_course_projections', [
+                    'learning_courses_id' => $c->id,
+                    'jornada' => $jornada,
+                ]);
+            }
 
             $result[] = [
                 'id' => (int)$c->id,

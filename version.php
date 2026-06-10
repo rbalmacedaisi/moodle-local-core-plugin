@@ -24,6 +24,6 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = "local_grupomakro_core";
-$plugin->version   = 20260609001;         // Teacher-driven revalidations (gmk_revalidations: BBB session + Odoo invoice + grade).
+$plugin->version   = 20260610001;         // FASE 0: Registrar 3 funciones externas de student_timeline (get_courses_with_projections, save_course_projection, delete_course_projection) y fix bug jornada=ALL.
 $plugin->requires = 2014051200;
 $plugin->maturity = MATURITY_STABLE;
