@@ -85,33 +85,21 @@ Vue.component('renewal-modal', {
             this.loading = true;
             this.error = '';
             try {
-                const args = { learningplanid: this.learningPlanId };
+                const params = {
+                    wstoken: userToken,
+                    wsfunction: 'local_grupomakro_get_period_renewal_preview',
+                    moodlewsrestformat: 'json',
+                    learningplanid: this.learningPlanId,
+                };
                 if (this.cohort) {
-                    args.intake_period = this.cohort;
+                    params['intake_period'] = this.cohort;
                 }
-                const resp = await axios.post(M.cfg.wwwroot + '/lib/ajax/service.php', [{
-                    index: 0,
-                    methodname: 'local_grupomakro_get_period_renewal_preview',
-                    args: args,
-                }], {
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-Token': userToken,
-                    },
-                });
-                if (resp.data && resp.data[0]) {
-                    const data = resp.data[0];
-                    if (data.error) {
-                        this.error = data.error || data.exception ? (data.message || 'Error al obtener la vista previa') : 'Error al obtener la vista previa';
-                    } else if (data.data) {
-                        this.preview = data.data;
-                    } else if (data.exception) {
-                        this.error = data.message || 'Error al obtener la vista previa';
-                    } else {
-                        this.preview = data;
-                    }
+                const resp = await axios.get(M.cfg.wwwroot + '/webservice/rest/server.php', { params });
+                const data = resp.data;
+                if (data && data.exception) {
+                    this.error = data.message || 'Error al obtener la vista previa';
                 } else {
-                    this.error = 'Respuesta vacía del servidor';
+                    this.preview = data;
                 }
             } catch (e) {
                 this.error = 'Error de red: ' + (e.message || e);
@@ -130,41 +118,27 @@ Vue.component('renewal-modal', {
             this.executing = true;
             this.error = '';
             try {
-                const args = { learningplanid: this.learningPlanId };
+                const params = {
+                    wstoken: userToken,
+                    wsfunction: 'local_grupomakro_execute_period_renewal',
+                    moodlewsrestformat: 'json',
+                    learningplanid: this.learningPlanId,
+                };
                 if (this.cohort) {
-                    args.intake_period = this.cohort;
+                    params['intake_period'] = this.cohort;
                 }
                 if (this.confirmWarnings) {
-                    args.confirm_warnings = true;
+                    params['confirm_warnings'] = 1;
                 }
-                const resp = await axios.post(M.cfg.wwwroot + '/lib/ajax/service.php', [{
-                    index: 0,
-                    methodname: 'local_grupomakro_execute_period_renewal',
-                    args: args,
-                }], {
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-Token': userToken,
-                    },
-                });
-                if (resp.data && resp.data[0]) {
-                    const data = resp.data[0];
-                    if (data.error) {
-                        this.error = data.message || data.error;
-                    } else if (data.data) {
-                        if (data.data.requires_confirmation) {
-                            this.requiresConfirm = true;
-                            this.error = data.data.message || 'Debe confirmar las advertencias';
-                        } else {
-                            this.$emit('done', data.data);
-                        }
-                    } else if (data.exception) {
-                        this.error = data.message || 'Error al ejecutar la renovación';
-                    } else {
-                        this.$emit('done', data);
-                    }
+                const resp = await axios.get(M.cfg.wwwroot + '/webservice/rest/server.php', { params });
+                const data = resp.data;
+                if (data && data.exception) {
+                    this.error = data.message || 'Error al ejecutar la renovación';
+                } else if (data && data.requires_confirmation) {
+                    this.requiresConfirm = true;
+                    this.error = data.message || 'Debe confirmar las advertencias';
                 } else {
-                    this.error = 'Respuesta vacía del servidor';
+                    this.$emit('done', data);
                 }
             } catch (e) {
                 this.error = 'Error de red: ' + (e.message || e);
