@@ -151,6 +151,13 @@ Vue.component('intake-timeline', {
                         >
                             <v-icon size="16" color="#F59E0B">mdi-account-multiple-convert</v-icon>
                         </button>
+                        <button
+                            class="tl-btn-icon tl-btn-renew"
+                            @click.stop="openRenewModal(ip)"
+                            title="Renovar periodo (B1→B2 / B2→C[n+1]B1 / B2 último C→graduando)"
+                        >
+                            <v-icon size="16" color="#10B981">mdi-calendar-refresh-outline</v-icon>
+                        </button>
                         <button class="tl-btn-icon tl-chevron" :class="{ 'tl-chevron-open': openPanels.includes(idx) }">
                             <v-icon size="18" color="#64748B">mdi-chevron-down</v-icon>
                         </button>
@@ -310,6 +317,16 @@ Vue.component('intake-timeline', {
             @done="onBulkReassignDone"
         ></bulk-reassign-modal>
 
+        <!-- PERIOD RENEWAL MODAL (FASE 2) -->
+        <renewal-modal
+            v-if="showRenewal"
+            :cohort="renewalCohort"
+            :learning-plan-id="careerId"
+            :career-name="timelineData.career ? timelineData.career.name : 'Carrera'"
+            @close="closeRenewal"
+            @done="onRenewalDone"
+        ></renewal-modal>
+
         <!-- BULK REASSIGN TOAST -->
         <transition name="tl-fade">
             <div v-if="toast" :class="['tl-toast', 'tl-toast-' + toast.type]">
@@ -338,6 +355,9 @@ Vue.component('intake-timeline', {
             // Bulk reassign (FASE 1)
             showBulkReassign: false,
             bulkReassignCohort: '',
+            // Period renewal (FASE 2)
+            showRenewal: false,
+            renewalCohort: '',
             toast: null,
         };
     },
