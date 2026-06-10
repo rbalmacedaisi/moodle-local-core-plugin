@@ -7806,10 +7806,10 @@ function gmk_get_student_class_grade(int $classId, int $userId): ?float {
  * @return int  COURSE_APPROVED | COURSE_FAILED | COURSE_PENDING_REVALID
  */
 function gmk_classify_student_grade(float $grade, int $practicalHours): int {
-    if ($grade > 70.4) {
+    if ($grade > 70.9) {
         return COURSE_APPROVED;
     }
-    if ($practicalHours === 0 && $grade >= 60.0 && $grade <= 70.4) {
+    if ($practicalHours === 0 && $grade >= 60.0 && $grade <= 70.9) {
         return COURSE_PENDING_REVALID;
     }
     return COURSE_FAILED;

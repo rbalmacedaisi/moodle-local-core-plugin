@@ -271,14 +271,14 @@ class local_grupomakro_progress_manager
 
         $studentPensumProgress = $DB->get_records('gmk_course_progre', ['status' => COURSE_IN_PROGRESS], '', 'id,userid,courseid,progress,grade,practicalhours, teoricalhours, status');
         foreach ($studentPensumProgress as $studentCourse) {
-            if ($studentCourse->progress >= 75 && $studentCourse->grade > 70.4) {
+            if ($studentCourse->progress >= 75 && $studentCourse->grade > 70.9) {
                 $studentCourse->status = COURSE_APPROVED;
-            } else if ($studentCourse->progress >= 75 && $studentCourse->practicalhours == 0 && $studentCourse->grade >= 60 && $studentCourse->grade <= 70.4) {
+            } else if ($studentCourse->progress >= 75 && $studentCourse->practicalhours == 0 && $studentCourse->grade >= 60 && $studentCourse->grade <= 70.9) {
                 $studentCourse->status = COURSE_PENDING_REVALID;
                 self::send_revalidation_message($studentCourse->courseid, $studentCourse->userid, $studentCourse->id);
             } else if ($studentCourse->progress >= 75 && $studentCourse->practicalhours == 0 && $studentCourse->grade <= 60) {
                 $studentCourse->status = COURSE_FAILED;
-            } else if ($studentCourse->progress >= 75 && $studentCourse->practicalhours > 0 && $studentCourse->grade <= 70.4) {
+            } else if ($studentCourse->progress >= 75 && $studentCourse->practicalhours > 0 && $studentCourse->grade <= 70.9) {
                 $studentCourse->status = COURSE_FAILED;
             } else if ($studentCourse->progress < 75) {
                 $studentCourse->status = COURSE_FAILED;

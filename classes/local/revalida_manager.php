@@ -53,7 +53,7 @@ class revalida_manager {
     /**
      * Whether a student is eligible to take a revalidation, using the existing
      * institutional rule: theoretical subject (no practical hours) and final
-     * grade in the 60.0–70.4 window.
+     * grade in the 60.0–70.9 window.
      *
      * @param float $grade
      * @param int   $practicalhours

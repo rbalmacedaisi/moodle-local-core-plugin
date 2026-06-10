@@ -180,7 +180,7 @@ if ($withgrades) {
         $storedStatus = (int)$cp->coursestatus;
         $practHours   = (int)($cp->practicalhours ?? 0);
         if ($gradeVal !== null && $gradeVal > 0 && !in_array($storedStatus, [2, 7, 99])) {
-            if ($gradeVal > 70.4) {
+            if ($gradeVal > 70.9) {
                 $row->course_status = 'Aprobada';
             } elseif ($practHours === 0 && $gradeVal >= 60.0) {
                 $row->course_status = 'Pendiente Revalida';
