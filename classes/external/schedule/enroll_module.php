@@ -223,7 +223,7 @@ class enroll_module {
             $newProgress->learningplanid = $learningPlanId;
             $newProgress->status = 2;
             $newProgress->progress = 0;
-            $newProgress->grade = null;
+            $newProgress->grade = 0; // Column is NOT NULL (DEFAULT 0.0); a fresh record has no grade yet.
             $newProgress->credits = 0;
             $newProgress->timecreated = $now;
             $newProgress->timemodified = $now;

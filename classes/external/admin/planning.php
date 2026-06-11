@@ -100,12 +100,26 @@ class planning extends external_api {
         $demand = [];
         $student_list = []; // NEW: For Impact Analysis
         
-        // Pre-fetch all passed courses for these students to avoid N+1
-        // ... (existing code for progress_sql) ...
-        $progress_sql = "SELECT DISTINCT CONCAT(userid, '_', courseid) as id, 1 
-                         FROM {gmk_course_progre} 
-                         WHERE grade >= 71";
-        $passed_map = $DB->get_records_sql_menu($progress_sql);
+        // Compute passed courses using the SAME logic as the Academic Director modal
+        // (grademodal.js / get_student_gradebook). This keeps the planning report
+        // consistent with the director panel — both must agree on what counts as
+        // "approved" (weighted grade > 70.9).
+        //
+        // Reference: locallib.php:7861 ("Compute grades using the same function as
+        // grademodal.js (get_student_gradebook) and the same frontend formula
+        // (gradebookWeightedTotal): sum(grade/max * weight_pct)"). Threshold per
+        // gmk_classify_student_grade(): grade > 70.9.
+        //
+        // Note: gmk_course_progre.grade is NOT used because it can be stale (the
+        // grade in Moodle's grade_grades may have been updated after the last sync).
+        // Computing on the fly from gradebook avoids that divergence.
+        //
+        // Performance: O(students × courses_per_student) calls, cached per
+        // (userid, courseid) to avoid recomputing the same course for the same
+        // student. Typical run: 50-200 students × 25 courses.
+        require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/student/get_student_gradebook.php');
+        $passed_map = []; // [userid_courseid] => 1 si está aprobado
+        $_stu_grade_cache = []; // [userid][courseid] => float grade (or null si no hay datos)
         
         // Build Demand
         foreach ($students as $stu) {
@@ -135,11 +149,47 @@ class planning extends external_api {
                 $perName = $period_names[$perId] ?? 'Periodo ' . $perId;
                 
                 foreach ($courseIds as $cid) {
-                    $key = $stu->uniqid . '_' . $cid; // OLD key was u.id, check if passed uses u.id
-                    // passed_map keys are "userid_courseid". Correct.
                     $passKey = $stu->id . '_' . $cid;
-                    
+
                     if (!isset($passed_map[$passKey])) {
+                        // Calcular nota con la misma fórmula que el modal del director
+                        // académico (ver bloque de inicialización de $passed_map arriba).
+                        if (!isset($_stu_grade_cache[$stu->id][$cid])) {
+                            $gbResult = \local_grupomakro_core\external\student\get_student_gradebook
+                                ::execute((int)$stu->id, (int)$cid);
+                            $gbCats = json_decode($gbResult['gradebook'] ?? '[]', true) ?: [];
+
+                            $sum = 0.0;
+                            $hasItems = false;
+                            foreach ($gbCats as $cat) {
+                                foreach ($cat['items'] ?? [] as $item) {
+                                    $wpct = (float)($item['weight_pct'] ?? 0);
+                                    if ($wpct <= 0) {
+                                        continue;
+                                    }
+                                    $grade = $item['grade'] !== null ? (float)$item['grade'] : 0.0;
+                                    $max = isset($item['grade_max']) && $item['grade_max'] > 0
+                                        ? (float)$item['grade_max'] : 100.0;
+                                    $sum += ($grade / $max) * $wpct;
+                                    $hasItems = true;
+                                }
+                            }
+                            $_stu_grade_cache[$stu->id][$cid] = $hasItems
+                                ? round($sum * 10) / 10
+                                : null;
+                        }
+
+                        // Umbral canónico (gmk_classify_student_grade):
+                        //   > 70.9 → Aprobada
+                        //   60.0-70.9 + 0 practical hours → Pend. Reválida
+                        //   < 60.0 → Reprobada
+                        // En este contexto de planning no tenemos practical hours por
+                        // curso, así que usamos el umbral directo > 70.9 (Aprobada).
+                        $courseGrade = $_stu_grade_cache[$stu->id][$cid];
+                        if ($courseGrade !== null && $courseGrade > 70.9) {
+                            $passed_map[$passKey] = 1;
+                            continue; // no es pendiente, saltar al siguiente curso
+                        }
                         // PENDING!
                         
                         // 1. Aggregate
