@@ -1369,6 +1369,81 @@ class student_timeline extends external_api {
         return $grouped;
     }
 
+    /**
+     * Create or refresh a persistent academic alert for a student.
+     *
+     * Policy: if an alert of the same (userid, learningplanid, type) exists
+     * with status='active', refresh its detail_json / messagetext and bump
+     * timemodified. Otherwise insert a new alert. Resolved/acknowledged
+     * alerts are left untouched so the historical trail is preserved.
+     *
+     * @param int    $userid          Student id.
+     * @param int    $learningplanid  Learning plan id.
+     * @param string $type            Alert type (e.g. 'finished_cycle_with_pending').
+     * @param array  $pendingCourses  Structured list of pending courses.
+     * @param int    $now             Current timestamp.
+     * @param int    $usermodified    Acting user id.
+     * @return int The id of the alert (new or refreshed). 0 on failure.
+     */
+    private static function _create_or_update_academic_alert(
+        int $userid,
+        int $learningplanid,
+        string $type,
+        array $pendingCourses,
+        int $now,
+        int $usermodified
+    ): int {
+        global $DB;
+
+        $detail = [
+            'pending_courses' => array_values($pendingCourses),
+            'detected_at'     => $now,
+        ];
+        $detailJson = json_encode($detail, JSON_UNESCAPED_UNICODE);
+        $courseCount = count($pendingCourses);
+        $messageText = "El estudiante finalizó su ciclo académico con {$courseCount} asignatura(s) pendiente(s) (carga no realizada o reprobada).";
+
+        $existing = $DB->get_record('gmk_academic_alerts', [
+            'userid'         => $userid,
+            'learningplanid' => $learningplanid,
+            'type'           => $type,
+            'status'         => 'active',
+        ]);
+
+        if ($existing) {
+            $existing->detail_json      = $detailJson;
+            $existing->messagetext      = $messageText;
+            $existing->timemodified     = $now;
+            $existing->usermodified     = $usermodified;
+            try {
+                $DB->update_record('gmk_academic_alerts', $existing);
+                return (int)$existing->id;
+            } catch (\Exception $e) {
+                \gmk_log('Failed to refresh academic alert id=' . $existing->id . ': ' . $e->getMessage());
+                return 0;
+            }
+        }
+
+        $record = (object)[
+            'userid'           => $userid,
+            'learningplanid'   => $learningplanid,
+            'type'             => $type,
+            'detail_json'      => $detailJson,
+            'messagetext'      => $messageText,
+            'status'           => 'active',
+            'timecreated'      => $now,
+            'timeacknowledged' => null,
+            'usermodified'     => $usermodified,
+            'timemodified'     => $now,
+        ];
+        try {
+            return (int)$DB->insert_record('gmk_academic_alerts', $record);
+        } catch (\Exception $e) {
+            \gmk_log('Failed to create academic alert for user=' . $userid . ': ' . $e->getMessage());
+            return 0;
+        }
+    }
+
     public static function get_period_renewal_preview_parameters() {
         return new external_function_parameters([
             'learningplanid' => new external_value(PARAM_INT, 'ID del plan de aprendizaje'),
@@ -1649,28 +1724,65 @@ class student_timeline extends external_api {
                 }
             }
 
-            // 3) Graduates (clean and warning) -> "graduando" (clear currentperiodid/currentsubperiodid)
-            $all_graduates = array_merge($preview['to_graduate_ok'], $preview['to_graduate_warn']);
-            foreach ($all_graduates as $g) {
+            // 3a) Clean graduates (no pending courses) -> status = 'egresado'.
+            //     currentperiodid / currentsubperiodid are PRESERVED on purpose:
+            //     the student must stay anchored to the last period they actually
+            //     took, as required by the academic record.
+            foreach ($preview['to_graduate_ok'] as $g) {
                 $record = $DB->get_record('local_learning_users',
                     ['userid' => $g['userid'], 'learningplanid' => $learningplanid]);
                 if ($record) {
-                    $record->currentperiodid = null;
-                    $record->currentsubperiodid = null;
+                    $record->status = 'egresado';
+                    // DO NOT touch currentperiodid / currentsubperiodid.
                     $record->timemodified = $now;
                     $record->usermodified = (int)$USER->id;
                     $DB->update_record('local_learning_users', $record);
                     $updated++;
-                    if (isset($g['pending_courses']) && !empty($g['pending_courses'])) {
-                        $graduates_warn[] = [
-                            'userid'          => $g['userid'],
-                            'name'            => $g['name'],
-                            'pending_courses' => $g['pending_courses'],
-                        ];
-                    }
                 } else {
                     $failed++;
                 }
+            }
+
+            // 3b) Graduates with pending courses -> stay 'activo' (period +
+            //     subperiod preserved too) and generate a persistent academic
+            //     alert so the admin can review the case. The pending courses
+            //     may be a missing grade load or a failed subject; the alert
+            //     captures both possibilities in detail_json.
+            $generated_alerts = [];
+            foreach ($preview['to_graduate_warn'] as $g) {
+                $record = $DB->get_record('local_learning_users',
+                    ['userid' => $g['userid'], 'learningplanid' => $learningplanid]);
+                if (!$record) {
+                    $failed++;
+                    continue;
+                }
+                // status / currentperiodid / currentsubperiodid left untouched.
+                $record->timemodified = $now;
+                $record->usermodified = (int)$USER->id;
+                $DB->update_record('local_learning_users', $record);
+
+                $pendingCourses = $g['pending_courses'] ?? [];
+                $alertId = self::_create_or_update_academic_alert(
+                    (int)$g['userid'],
+                    (int)$learningplanid,
+                    'finished_cycle_with_pending',
+                    $pendingCourses,
+                    $now,
+                    (int)$USER->id
+                );
+
+                $graduates_warn[] = [
+                    'userid'          => (int)$g['userid'],
+                    'name'            => $g['name'],
+                    'pending_courses' => $pendingCourses,
+                ];
+                $generated_alerts[] = [
+                    'userid'          => (int)$g['userid'],
+                    'name'            => $g['name'],
+                    'alert_id'        => (int)$alertId,
+                    'pending_courses' => $pendingCourses,
+                ];
+                $updated++;
             }
 
             $transaction->allow_commit();
@@ -1694,6 +1806,7 @@ class student_timeline extends external_api {
             'requires_confirmation' => false,
             'preview'        => $preview,
             'graduates_warn' => $graduates_warn,
+            'generated_alerts' => $generated_alerts ?? [],
         ];
     }
 
@@ -1779,6 +1892,19 @@ class student_timeline extends external_api {
                 ])
             ),
         ]);
+        $generated_alerts_struct = new external_single_structure([
+            'userid' => new external_value(PARAM_INT, ''),
+            'name'   => new external_value(PARAM_TEXT, ''),
+            'alert_id' => new external_value(PARAM_INT, 'ID de la alerta en gmk_academic_alerts'),
+            'pending_courses' => new external_multiple_structure(
+                new external_single_structure([
+                    'name'     => new external_value(PARAM_TEXT, ''),
+                    'periodid' => new external_value(PARAM_INT, ''),
+                    'status'   => new external_value(PARAM_INT, ''),
+                    'grade'    => new external_value(PARAM_FLOAT, ''),
+                ])
+            ),
+        ]);
         return new external_single_structure([
             'success'        => new external_value(PARAM_BOOL, ''),
             'updated_count'  => new external_value(PARAM_INT, ''),
@@ -1787,6 +1913,7 @@ class student_timeline extends external_api {
             'requires_confirmation' => new external_value(PARAM_BOOL, ''),
             'preview'        => $preview_struct,
             'graduates_warn' => new external_multiple_structure($grad_warn_struct, 'Graduandos con pendientes'),
+            'generated_alerts' => new external_multiple_structure($generated_alerts_struct, 'Alertas académicas persistentes generadas en esta corrida (estudiantes que finalizaron ciclo con pendientes)'),
         ]);
     }
 

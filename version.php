@@ -24,6 +24,6 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = "local_grupomakro_core";
-$plugin->version   = 20260610003;         // FASE 2: Proceso de renovacion de periodo (B1->B2, B2->C[n+1]B1, B2 del ultimo C->graduando). Endpoints: get_period_renewal_preview y execute_period_renewal. Inactivos quedan en su periodo para calculo de desercion.
+$plugin->version   = 20260611001;         // FASE 2 (continuacion): Al graduando limpio se le setea status='egresado' preservando currentperiodid y currentsubperiodid (ultimo cursado). Los graduandos con asignaturas pendientes quedan activos y se les genera una alerta persistente en gmk_academic_alerts.
 $plugin->requires = 2014051200;
 $plugin->maturity = MATURITY_STABLE;

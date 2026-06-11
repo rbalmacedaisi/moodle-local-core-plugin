@@ -807,5 +807,29 @@
         <INDEX NAME="invoice_extref_idx" UNIQUE="false" FIELDS="invoice_extref"/>
       </INDEXES>
     </TABLE>
+    <TABLE NAME="gmk_academic_alerts" COMMENT="Persistent academic alerts for students in critical states (e.g. finished cycle with pending courses)">
+      <FIELDS>
+        <FIELD NAME="id"              TYPE="int"    LENGTH="20"  NOTNULL="true"  SEQUENCE="true"/>
+        <FIELD NAME="userid"          TYPE="int"    LENGTH="20"  NOTNULL="true"  DEFAULT="0"  SEQUENCE="false"/>
+        <FIELD NAME="learningplanid"  TYPE="int"    LENGTH="20"  NOTNULL="false"             SEQUENCE="false"/>
+        <FIELD NAME="type"            TYPE="char"   LENGTH="64"  NOTNULL="true"  DEFAULT="finished_cycle_with_pending" SEQUENCE="false" COMMENT="finished_cycle_with_pending|..."/>
+        <FIELD NAME="detail_json"     TYPE="text"   LENGTH="long" NOTNULL="false"            SEQUENCE="false" COMMENT="JSON payload describing the alert context (pending courses, etc.)"/>
+        <FIELD NAME="messagetext"     TYPE="text"   LENGTH="long" NOTNULL="false"            SEQUENCE="false" COMMENT="Human readable message describing the alert"/>
+        <FIELD NAME="status"          TYPE="char"   LENGTH="20"  NOTNULL="true"  DEFAULT="active" SEQUENCE="false" COMMENT="active|acknowledged|resolved"/>
+        <FIELD NAME="timecreated"     TYPE="int"    LENGTH="20"  NOTNULL="true"  DEFAULT="0"  SEQUENCE="false"/>
+        <FIELD NAME="timeacknowledged" TYPE="int"   LENGTH="20"  NOTNULL="false"             SEQUENCE="false"/>
+        <FIELD NAME="usermodified"    TYPE="int"    LENGTH="20"  NOTNULL="false"             SEQUENCE="false"/>
+        <FIELD NAME="timemodified"    TYPE="int"    LENGTH="20"  NOTNULL="false"             SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="userid_idx"  UNIQUE="false" FIELDS="userid"/>
+        <INDEX NAME="status_idx"  UNIQUE="false" FIELDS="status"/>
+        <INDEX NAME="type_idx"    UNIQUE="false" FIELDS="type"/>
+        <INDEX NAME="userplan_type_idx" UNIQUE="false" FIELDS="userid, learningplanid, type"/>
+      </INDEXES>
+    </TABLE>
   </TABLES>
 </XMLDB>

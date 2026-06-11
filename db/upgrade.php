@@ -2146,6 +2146,35 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20260609001, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20260611001) {
+        // Create gmk_academic_alerts table for persistent academic alerts
+        // (e.g. students who finished their cycle but still have pending courses).
+        $table = new xmldb_table('gmk_academic_alerts');
+        $table->add_field('id',               XMLDB_TYPE_INTEGER, '20',  null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('userid',           XMLDB_TYPE_INTEGER, '20',  null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('learningplanid',   XMLDB_TYPE_INTEGER, '20',  null, null,          null, null);
+        $table->add_field('type',             XMLDB_TYPE_CHAR,    '64',  null, XMLDB_NOTNULL, null, 'finished_cycle_with_pending');
+        $table->add_field('detail_json',      XMLDB_TYPE_TEXT,    'long', null, null,         null, null);
+        $table->add_field('messagetext',      XMLDB_TYPE_TEXT,    'long', null, null,         null, null);
+        $table->add_field('status',           XMLDB_TYPE_CHAR,    '20',  null, XMLDB_NOTNULL, null, 'active');
+        $table->add_field('timecreated',      XMLDB_TYPE_INTEGER, '20',  null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timeacknowledged', XMLDB_TYPE_INTEGER, '20',  null, null,          null, null);
+        $table->add_field('usermodified',     XMLDB_TYPE_INTEGER, '20',  null, null,          null, null);
+        $table->add_field('timemodified',     XMLDB_TYPE_INTEGER, '20',  null, null,          null, null);
+
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_index('userid_idx',       XMLDB_INDEX_NOTUNIQUE, ['userid']);
+        $table->add_index('status_idx',       XMLDB_INDEX_NOTUNIQUE, ['status']);
+        $table->add_index('type_idx',         XMLDB_INDEX_NOTUNIQUE, ['type']);
+        $table->add_index('userplan_type_idx', XMLDB_INDEX_NOTUNIQUE, ['userid', 'learningplanid', 'type']);
+
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        upgrade_plugin_savepoint(true, 20260611001, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 
