@@ -43,13 +43,18 @@ class poll_bbb_attendance extends scheduled_task {
     }
 
     public function execute() {
-        global $DB;
+        global $DB, $CFG;
 
         $now = time();
 
+        // BBB server/secret may live as config.php overrides ($CFG->bigbluebuttonbn_*)
+        // or as plugin config; prefer the $CFG overrides used by this install.
         $bbbcfg    = get_config('bigbluebuttonbn');
-        $serverurl = isset($bbbcfg->server_url) ? rtrim((string)$bbbcfg->server_url, '/') . '/' : '';
-        $secret    = isset($bbbcfg->shared_secret) ? (string)$bbbcfg->shared_secret : '';
+        $serverurl = !empty($CFG->bigbluebuttonbn_server_url) ? (string)$CFG->bigbluebuttonbn_server_url
+            : (!empty($bbbcfg->server_url) ? (string)$bbbcfg->server_url : '');
+        $secret    = !empty($CFG->bigbluebuttonbn_shared_secret) ? (string)$CFG->bigbluebuttonbn_shared_secret
+            : (!empty($bbbcfg->shared_secret) ? (string)$bbbcfg->shared_secret : '');
+        $serverurl = $serverurl !== '' ? rtrim($serverurl, '/') . '/' : '';
         if ($serverurl === '' || $secret === '') {
             mtrace('poll_bbb_attendance: BBB server_url/shared_secret not configured. Skipping.');
             return;
