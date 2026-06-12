@@ -45,6 +45,8 @@ class poll_bbb_attendance extends scheduled_task {
     public function execute() {
         global $DB, $CFG;
 
+        require_once($CFG->libdir . '/filelib.php'); // Moodle \curl class.
+
         $now = time();
 
         // BBB server/secret may live as config.php overrides ($CFG->bigbluebuttonbn_*)
