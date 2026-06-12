@@ -77,4 +77,24 @@ $tasks = [
         'month' => '*',
         'dayofweek' => '*',
     ],
+    [
+        // Samples live BBB meetings every 2 minutes to accumulate per-student presence time.
+        'classname' => 'local_grupomakro_core\task\poll_bbb_attendance',
+        'blocking' => 0,
+        'minute' => '*/2',
+        'hour' => '*',
+        'day' => '*',
+        'month' => '*',
+        'dayofweek' => '*',
+    ],
+    [
+        // Marks attendance (70% permanence) once a virtual session ends. Runs every 5 minutes.
+        'classname' => 'local_grupomakro_core\task\reconcile_bbb_attendance',
+        'blocking' => 0,
+        'minute' => '*/5',
+        'hour' => '*',
+        'day' => '*',
+        'month' => '*',
+        'dayofweek' => '*',
+    ],
 ];

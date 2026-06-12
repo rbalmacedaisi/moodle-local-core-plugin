@@ -2175,6 +2175,36 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20260611001, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20260612001) {
+        // Create gmk_bbb_presence table: accumulates per-student presence time in BBB
+        // virtual sessions for the 70%-permanence auto-attendance.
+        $table = new xmldb_table('gmk_bbb_presence');
+        $table->add_field('id',                  XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('attendancesessionid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('classid',             XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('bbbid',               XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('userid',              XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('ismoderator',         XMLDB_TYPE_INTEGER, '1',  null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('present_seconds',     XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('sample_count',        XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('first_seen',          XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('last_seen',           XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('reconciled',          XMLDB_TYPE_INTEGER, '1',  null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timecreated',         XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timemodified',        XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_index('session_user_uix', XMLDB_INDEX_UNIQUE, ['attendancesessionid', 'userid']);
+        $table->add_index('reconcile_idx',     XMLDB_INDEX_NOTUNIQUE, ['reconciled', 'last_seen']);
+        $table->add_index('classid_idx',       XMLDB_INDEX_NOTUNIQUE, ['classid']);
+
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        upgrade_plugin_savepoint(true, 20260612001, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

@@ -24,6 +24,6 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = "local_grupomakro_core";
-$plugin->version   = 20260611001;         // FASE 2 (continuacion): Al graduando limpio se le setea status='egresado' preservando currentperiodid y currentsubperiodid (ultimo cursado). Los graduandos con asignaturas pendientes quedan activos y se les genera una alerta persistente en gmk_academic_alerts.
+$plugin->version   = 20260612001;         // Asistencia virtual por 70% de permanencia: tabla gmk_bbb_presence + tareas poll_bbb_attendance (muestreo getMeetings) y reconcile_bbb_attendance (marcado escalonado P/R/FI).
 $plugin->requires = 2014051200;
 $plugin->maturity = MATURITY_STABLE;
