@@ -364,7 +364,7 @@ code.sbbb-tiny { font-size:11px; word-break:break-all; }
                     return '<span class="current">' . ($p + 1) . '</span>';
                 }
                 $url = clone $baseurl;
-                $url->param('page', $p);
+                $url->params(['page' => $p]);
                 return '<a href="' . $url->out() . '">' . ($p + 1) . '</a>';
             };
             // First / Prev
@@ -372,7 +372,7 @@ code.sbbb-tiny { font-size:11px; word-break:break-all; }
                 ? '<a href="' . (clone $baseurl)->out() . '">&laquo;&laquo; Primera</a>'
                 : '<span class="disabled">&laquo;&laquo; Primera</span>';
             echo $page > 0
-                ? '<a href="' . (clone $baseurl)->param('page', $page - 1)->out() . '">&laquo; Anterior</a>'
+                ? '<a href="' . (clone $baseurl)->params(['page' => $page - 1])->out() . '">&laquo; Anterior</a>'
                 : '<span class="disabled">&laquo; Anterior</span>';
             // Pages around current
             $start = max(0, $page - 2);
@@ -382,10 +382,10 @@ code.sbbb-tiny { font-size:11px; word-break:break-all; }
             }
             // Next / Last
             echo $page < $total_pages - 1
-                ? '<a href="' . (clone $baseurl)->param('page', $page + 1)->out() . '">Siguiente &raquo;</a>'
+                ? '<a href="' . (clone $baseurl)->params(['page' => $page + 1])->out() . '">Siguiente &raquo;</a>'
                 : '<span class="disabled">Siguiente &raquo;</span>';
             echo $page < $total_pages - 1
-                ? '<a href="' . (clone $baseurl)->param('page', $total_pages - 1)->out() . '">Última &raquo;&raquo;</a>'
+                ? '<a href="' . (clone $baseurl)->params(['page' => $total_pages - 1])->out() . '">Última &raquo;&raquo;</a>'
                 : '<span class="disabled">Última &raquo;&raquo;</span>';
             ?>
         </div>
