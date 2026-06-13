@@ -71,6 +71,11 @@ foreach ($classes as &$class) {
     $shiftvalue = isset($class->shift) ? trim((string)$class->shift) : '';
     $class->shiftvalue = $shiftvalue;
     $class->shiftdisplay = ($shiftvalue !== '') ? $shiftvalue : 'Sin jornada';
+    // Direct link to the Moodle group, when one is associated with the class.
+    $gid = isset($class->groupid) ? (int)$class->groupid : 0;
+    $class->groupurl = $gid > 0
+        ? (new moodle_url('/group/overview.php', ['id' => $gid]))->out()
+        : '';
 }
 unset($class);
 

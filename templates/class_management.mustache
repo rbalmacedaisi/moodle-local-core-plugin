@@ -118,7 +118,16 @@
                                 <td class="text-center align-middle">
                                     <input type="checkbox" class="class-checkbox" value="{{id}}">
                                 </td>
-                                <td class="align-middle font-weight-bold">{{name}}</td>
+                                <td class="align-middle font-weight-bold">
+                                    {{#groupurl}}
+                                    <a href="{{groupurl}}" target="_blank" rel="noopener" title="Ir al grupo de Moodle" class="text-decoration-none">
+                                        {{name}} <i class="fa fa-external-link text-muted ml-1" style="font-size:11px"></i>
+                                    </a>
+                                    {{/groupurl}}
+                                    {{^groupurl}}
+                                    {{name}}
+                                    {{/groupurl}}
+                                </td>
                                 <td class="align-middle">
                                     <div class="d-flex align-items-center">
                                         <img src="{{instructorProfileImage}}" class="rounded-circle mr-2" style="width:32px; height:32px; object-fit:cover;">
@@ -182,7 +191,16 @@
                         <div class="v-alert__border v-alert__border--top"></div>
                         <div class="card-body position-relative pb-2">
                             {{! Class name }}
-                            <h6 class="card-title">{{name}}</h6>
+                            <h6 class="card-title">
+                                {{#groupurl}}
+                                <a href="{{groupurl}}" target="_blank" rel="noopener" title="Ir al grupo de Moodle" class="text-decoration-none text-dark">
+                                    {{name}} <i class="fa fa-external-link text-muted ml-1" style="font-size:12px"></i>
+                                </a>
+                                {{/groupurl}}
+                                {{^groupurl}}
+                                {{name}}
+                                {{/groupurl}}
+                            </h6>
                             
                             {{! Class instructors }}
                             <div class="d-flex mb-2">
