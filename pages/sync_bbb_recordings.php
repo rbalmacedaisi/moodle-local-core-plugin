@@ -355,24 +355,28 @@ code.sbbb-tiny { font-size:11px; word-break:break-all; }
 
         <div class="sbbb-pager-nav">
             <?php
-            $baseurl = new moodle_url('/local/grupomakro_core/pages/sync_bbb_recordings.php', ['perpage' => $perpage]);
-            $render_link = function($p) use ($baseurl, $page, $total_pages) {
+            // Build a URL for a given page index (0-based). Includes perpage.
+            $pager_url = function($p) use ($perpage) {
+                return (new moodle_url(
+                    '/local/grupomakro_core/pages/sync_bbb_recordings.php',
+                    ['perpage' => $perpage, 'page' => $p]
+                ))->out();
+            };
+            $render_link = function($p) use ($page, $total_pages, $pager_url) {
                 if ($p < 0 || $p >= $total_pages) {
                     return '<span class="disabled">&laquo;</span>';
                 }
                 if ($p === $page) {
                     return '<span class="current">' . ($p + 1) . '</span>';
                 }
-                $url = clone $baseurl;
-                $url->params(['page' => $p]);
-                return '<a href="' . $url->out() . '">' . ($p + 1) . '</a>';
+                return '<a href="' . $pager_url($p) . '">' . ($p + 1) . '</a>';
             };
             // First / Prev
             echo $page > 0
-                ? '<a href="' . (clone $baseurl)->out() . '">&laquo;&laquo; Primera</a>'
+                ? '<a href="' . $pager_url(0) . '">&laquo;&laquo; Primera</a>'
                 : '<span class="disabled">&laquo;&laquo; Primera</span>';
             echo $page > 0
-                ? '<a href="' . (clone $baseurl)->params(['page' => $page - 1])->out() . '">&laquo; Anterior</a>'
+                ? '<a href="' . $pager_url($page - 1) . '">&laquo; Anterior</a>'
                 : '<span class="disabled">&laquo; Anterior</span>';
             // Pages around current
             $start = max(0, $page - 2);
@@ -382,10 +386,10 @@ code.sbbb-tiny { font-size:11px; word-break:break-all; }
             }
             // Next / Last
             echo $page < $total_pages - 1
-                ? '<a href="' . (clone $baseurl)->params(['page' => $page + 1])->out() . '">Siguiente &raquo;</a>'
+                ? '<a href="' . $pager_url($page + 1) . '">Siguiente &raquo;</a>'
                 : '<span class="disabled">Siguiente &raquo;</span>';
             echo $page < $total_pages - 1
-                ? '<a href="' . (clone $baseurl)->params(['page' => $total_pages - 1])->out() . '">Última &raquo;&raquo;</a>'
+                ? '<a href="' . $pager_url($total_pages - 1) . '">Última &raquo;&raquo;</a>'
                 : '<span class="disabled">Última &raquo;&raquo;</span>';
             ?>
         </div>
