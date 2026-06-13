@@ -70,58 +70,33 @@ function sbbb_last_run(string $classname): string {
     return $last ? userdate((int)$last, get_string('strftimedatetimeshort', 'core_langconfig')) : 'Nunca';
 }
 
-// Pre-cache editingteacher names per group (preferred) and per course (fallback).
-// Returns an associative array keyed by 'g<groupid>' or 'c<courseid>'.
-function sbbb_teacher_names_for_groups_and_courses(array $groupids, array $courseids): array {
+// Pre-cache course-level editingteacher names as a fallback when a recording is
+// not linked to a gmk_class row (the plugin's "class" table that stores the
+// teacher of a specific class/group via gmk_class.instructorid).
+function sbbb_teacher_names_for_courses(array $courseids): array {
     global $DB;
+    if (empty($courseids)) {
+        return [];
+    }
+    list($insql, $inparams) = $DB->get_in_or_equal($courseids, SQL_PARAMS_NAMED, 'cid');
+    $sql = "SELECT ctx.instanceid AS courseid, u.id, u.firstname, u.lastname
+              FROM {user} u
+              JOIN {role_assignments} ra ON ra.userid = u.id
+              JOIN {context} ctx ON ctx.id = ra.contextid
+              JOIN {role} r ON r.id = ra.roleid
+             WHERE ctx.contextlevel = :ctxlvl
+               AND r.shortname = :rname
+               AND u.deleted = 0
+               AND u.suspended = 0
+               AND ctx.instanceid $insql
+          ORDER BY ctx.instanceid, u.lastname, u.firstname";
+    $params = ['ctxlvl' => CONTEXT_COURSE, 'rname' => 'editingteacher'] + $inparams;
     $out = [];
-
-    // Group-level editingteacher assignments (only meaningful when the BBB recording
-    // belongs to a specific group of a course).
-    if (!empty($groupids)) {
-        list($insql, $inparams) = $DB->get_in_or_equal($groupids, SQL_PARAMS_NAMED, 'gid');
-        $sql = "SELECT ctx.instanceid AS groupid, u.id, u.firstname, u.lastname
-                  FROM {user} u
-                  JOIN {role_assignments} ra ON ra.userid = u.id
-                  JOIN {context} ctx ON ctx.id = ra.contextid
-                  JOIN {role} r ON r.id = ra.roleid
-                 WHERE ctx.contextlevel = :ctxlvl
-                   AND r.shortname = :rname
-                   AND u.deleted = 0
-                   AND u.suspended = 0
-                   AND ctx.instanceid $insql
-              ORDER BY ctx.instanceid, u.lastname, u.firstname";
-        $params = ['ctxlvl' => CONTEXT_GROUP, 'rname' => 'editingteacher'] + $inparams;
-        $rs = $DB->get_recordset_sql($sql, $params);
-        foreach ($rs as $r) {
-            $out['g' . (int)$r->groupid][] = trim($r->firstname . ' ' . $r->lastname);
-        }
-        $rs->close();
+    $rs = $DB->get_recordset_sql($sql, $params);
+    foreach ($rs as $r) {
+        $out[(int)$r->courseid][] = trim($r->firstname . ' ' . $r->lastname);
     }
-
-    // Course-level editingteacher assignments (used as fallback when a recording
-    // has no specific group, or when the group has no teacher assigned).
-    if (!empty($courseids)) {
-        list($insql, $inparams) = $DB->get_in_or_equal($courseids, SQL_PARAMS_NAMED, 'cid');
-        $sql = "SELECT ctx.instanceid AS courseid, u.id, u.firstname, u.lastname
-                  FROM {user} u
-                  JOIN {role_assignments} ra ON ra.userid = u.id
-                  JOIN {context} ctx ON ctx.id = ra.contextid
-                  JOIN {role} r ON r.id = ra.roleid
-                 WHERE ctx.contextlevel = :ctxlvl
-                   AND r.shortname = :rname
-                   AND u.deleted = 0
-                   AND u.suspended = 0
-                   AND ctx.instanceid $insql
-              ORDER BY ctx.instanceid, u.lastname, u.firstname";
-        $params = ['ctxlvl' => CONTEXT_COURSE, 'rname' => 'editingteacher'] + $inparams;
-        $rs = $DB->get_recordset_sql($sql, $params);
-        foreach ($rs as $r) {
-            $out['c' . (int)$r->courseid][] = trim($r->firstname . ' ' . $r->lastname);
-        }
-        $rs->close();
-    }
-
+    $rs->close();
     return $out;
 }
 
@@ -141,28 +116,30 @@ $total = $DB->count_records_sql(
 
 $recordings = $DB->get_records_sql(
     "SELECT r.id, r.bigbluebuttonbnid, r.recordingid, r.status, r.timecreated, r.timemodified,
-            r.groupid, b.name AS bbbname, b.course AS courseid, c.fullname AS coursename
+            r.groupid, b.name AS bbbname, b.course AS courseid, c.fullname AS coursename,
+            gc.instructorid AS classinstructorid,
+            CONCAT(u.firstname, ' ', u.lastname) AS classteachername
        FROM {bigbluebuttonbn_recordings} r
   LEFT JOIN {bigbluebuttonbn} b ON b.id = r.bigbluebuttonbnid
   LEFT JOIN {course} c ON c.id = b.course
+  LEFT JOIN {gmk_bbb_attendance_relation} rel ON rel.bbbid = b.id
+  LEFT JOIN {gmk_class} gc ON gc.id = rel.classid
+  LEFT JOIN {user} u ON u.id = gc.instructorid
    ORDER BY r.timecreated DESC",
     [],
     $offset,
     $perpage
 );
 
-// Pre-cache teachers per group and per course for the current page.
-$groupids = [];
+// Pre-cache course-level editingteacher names as fallback for recordings without
+// a linked gmk_class row.
 $courseids = [];
 foreach ($recordings as $r) {
-    if (!empty($r->groupid)) {
-        $groupids[(int)$r->groupid] = true;
-    }
     if (!empty($r->courseid)) {
         $courseids[(int)$r->courseid] = true;
     }
 }
-$teacher_data = sbbb_teacher_names_for_groups_and_courses(array_keys($groupids), array_keys($courseids));
+$course_teacher_data = sbbb_teacher_names_for_courses(array_keys($courseids));
 
 $pending_last   = sbbb_last_run('mod_bigbluebuttonbn\task\check_pending_recordings');
 $dismissed_last = sbbb_last_run('mod_bigbluebuttonbn\task\check_dismissed_recordings');
@@ -332,13 +309,13 @@ code.sbbb-tiny { font-size:11px; word-break:break-all; }
         <?php foreach ($recordings as $rec):
             $info = $status_labels[(int)$rec->status] ?? ['label' => 'UNKNOWN(' . (int)$rec->status . ')', 'cls' => 'secondary'];
             $valid = in_array((int)$rec->status, [2, 3]);
-            // Prefer group-level teacher; fall back to course-level teacher.
+            // Prefer the gmk_class instructor (specific group/teacher for this class).
+            // Fall back to course-level editingteacher if no gmk_class linked.
             $teachers = [];
-            if (!empty($rec->groupid)) {
-                $teachers = $teacher_data['g' . (int)$rec->groupid] ?? [];
-            }
-            if (empty($teachers) && !empty($rec->courseid)) {
-                $teachers = $teacher_data['c' . (int)$rec->courseid] ?? [];
+            if (!empty($rec->classteachername)) {
+                $teachers = [trim((string)$rec->classteachername)];
+            } else if (!empty($rec->courseid)) {
+                $teachers = $course_teacher_data[(int)$rec->courseid] ?? [];
             }
         ?>
             <tr>
