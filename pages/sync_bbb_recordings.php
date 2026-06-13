@@ -70,26 +70,86 @@ function sbbb_last_run(string $classname): string {
     return $last ? userdate((int)$last, get_string('strftimedatetimeshort', 'core_langconfig')) : 'Nunca';
 }
 
+// Pre-cache editingteacher names per course to avoid N+1 queries.
+function sbbb_teacher_names_for_courses(array $courseids): array {
+    global $DB;
+    if (empty($courseids)) {
+        return [];
+    }
+    list($insql, $inparams) = $DB->get_in_or_equal(array_values($courseids), SQL_PARAMS_NAMED, 'cid');
+    $sql = "SELECT ctx.instanceid AS courseid, u.id, u.firstname, u.lastname
+              FROM {user} u
+              JOIN {role_assignments} ra ON ra.userid = u.id
+              JOIN {context} ctx ON ctx.id = ra.contextid
+              JOIN {role} r ON r.id = ra.roleid
+             WHERE ctx.contextlevel = :ctxlvl
+               AND r.shortname = :rname
+               AND u.deleted = 0
+               AND u.suspended = 0
+               AND ctx.instanceid $insql
+          ORDER BY u.lastname, u.firstname";
+    $params = ['ctxlvl' => CONTEXT_COURSE, 'rname' => 'editingteacher'] + $inparams;
+    $rows = $DB->get_records_sql($sql, $params);
+    $out = [];
+    foreach ($rows as $r) {
+        $out[$r->courseid][] = trim($r->firstname . ' ' . $r->lastname);
+    }
+    return $out;
+}
+
+// Pagination params.
+$perpage = optional_param('perpage', 50, PARAM_INT);
+$perpage = max(10, min(200, $perpage));
+$page    = optional_param('page', 0, PARAM_INT);
+$page    = max(0, $page);
+$offset  = $page * $perpage;
+
+// Count total recordings (for pagination).
+$total = $DB->count_records_sql(
+    "SELECT COUNT(1)
+       FROM {bigbluebuttonbn_recordings} r
+  LEFT JOIN {bigbluebuttonbn} b ON b.id = r.bigbluebuttonbnid"
+);
+
 $recordings = $DB->get_records_sql(
     "SELECT r.id, r.bigbluebuttonbnid, r.recordingid, r.status, r.timecreated, r.timemodified,
-            b.name AS bbbname, c.fullname AS coursename
+            b.name AS bbbname, b.course AS courseid, c.fullname AS coursename
        FROM {bigbluebuttonbn_recordings} r
   LEFT JOIN {bigbluebuttonbn} b ON b.id = r.bigbluebuttonbnid
   LEFT JOIN {course} c ON c.id = b.course
-   ORDER BY r.timecreated DESC
-      LIMIT 200"
+   ORDER BY r.timecreated DESC",
+    [],
+    $offset,
+    $perpage
 );
+
+// Pre-cache teacher names for all courses in the current page.
+$courseids = [];
+foreach ($recordings as $r) {
+    if (!empty($r->courseid)) {
+        $courseids[$r->courseid] = true;
+    }
+}
+$teacher_names = sbbb_teacher_names_for_courses(array_keys($courseids));
 
 $pending_last   = sbbb_last_run('mod_bigbluebuttonbn\task\check_pending_recordings');
 $dismissed_last = sbbb_last_run('mod_bigbluebuttonbn\task\check_dismissed_recordings');
 
+// Global counts (NOT just the current page).
+$global_counts = $DB->get_records_sql(
+    "SELECT status, COUNT(1) AS c FROM {bigbluebuttonbn_recordings} GROUP BY status"
+);
 $counts = array_fill(0, 6, 0);
-foreach ($recordings as $r) {
-    $s = (int)$r->status;
+foreach ($global_counts as $row) {
+    $s = (int)$row->status;
     if (isset($counts[$s])) {
-        $counts[$s]++;
+        $counts[$s] = (int)$row->c;
     }
 }
+
+$total_pages = ($perpage > 0) ? (int)ceil($total / $perpage) : 1;
+$showing_from = ($total === 0) ? 0 : ($offset + 1);
+$showing_to   = min($offset + $perpage, $total);
 
 echo $OUTPUT->header();
 ?>
@@ -119,6 +179,17 @@ pre.sbbb-log { background:#111827; color:#d1fae5; padding:12px; border-radius:6p
 .sbbb-stat .num { font-size:22px; font-weight:700; }
 .sbbb-stat .lbl { font-size:11px; color:#6b7280; }
 code.sbbb-tiny { font-size:11px; word-break:break-all; }
+.sbbb-pager { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-top:14px; padding-top:14px; border-top:1px solid #e5e7eb; }
+.sbbb-pager-info { font-size:12px; color:#6b7280; }
+.sbbb-pager-nav { display:flex; gap:4px; align-items:center; flex-wrap:wrap; }
+.sbbb-pager-nav a, .sbbb-pager-nav span { display:inline-block; padding:6px 10px; font-size:12px; border-radius:4px; border:1px solid #dee2e6; text-decoration:none; color:#374151; background:#fff; }
+.sbbb-pager-nav a:hover { background:#f3f4f6; border-color:#9ca3af; }
+.sbbb-pager-nav .current { background:#2563eb; color:#fff; border-color:#2563eb; font-weight:600; }
+.sbbb-pager-nav .disabled { color:#d1d5db; pointer-events:none; }
+.sbbb-perpage { display:inline-flex; align-items:center; gap:6px; font-size:12px; color:#6b7280; }
+.sbbb-perpage select { font-size:12px; padding:4px 6px; border:1px solid #dee2e6; border-radius:4px; background:#fff; }
+.sbbb-teacher { font-size:12px; color:#374151; }
+.sbbb-teacher small { color:#9ca3af; }
 </style>
 
 <div class="sbbb-wrap">
@@ -206,7 +277,7 @@ code.sbbb-tiny { font-size:11px; word-break:break-all; }
 
 <!-- Recordings table -->
 <div class="sbbb-card">
-    <h4>&#128250; Grabaciones en base de datos (últimas 200)</h4>
+    <h4>&#128250; Grabaciones en base de datos (total: <?php echo (int)$total; ?>)</h4>
     <?php if (empty($recordings)): ?>
         <p style="color:#6b7280">No hay grabaciones registradas en la base de datos.</p>
     <?php else: ?>
@@ -217,6 +288,7 @@ code.sbbb-tiny { font-size:11px; word-break:break-all; }
                 <th>ID</th>
                 <th>Instancia BBB</th>
                 <th>Curso</th>
+                <th>Docente(s)</th>
                 <th>Recording ID</th>
                 <th>Estado</th>
                 <th>Creado</th>
@@ -228,6 +300,7 @@ code.sbbb-tiny { font-size:11px; word-break:break-all; }
         <?php foreach ($recordings as $rec):
             $info = $status_labels[(int)$rec->status] ?? ['label' => 'UNKNOWN(' . (int)$rec->status . ')', 'cls' => 'secondary'];
             $valid = in_array((int)$rec->status, [2, 3]);
+            $teachers = $teacher_names[(int)$rec->courseid] ?? [];
         ?>
             <tr>
                 <td><?php echo (int)$rec->id; ?></td>
@@ -236,6 +309,13 @@ code.sbbb-tiny { font-size:11px; word-break:break-all; }
                     <small style="color:#9ca3af">id=<?php echo (int)$rec->bigbluebuttonbnid; ?></small>
                 </td>
                 <td><small><?php echo s($rec->coursename ?? '—'); ?></small></td>
+                <td class="sbbb-teacher">
+                    <?php if (!empty($teachers)): ?>
+                        <?php echo s(implode(', ', $teachers)); ?>
+                    <?php else: ?>
+                        <small>—</small>
+                    <?php endif; ?>
+                </td>
                 <td>
                     <code class="sbbb-tiny"><?php echo s(substr((string)$rec->recordingid, 0, 30) . (strlen((string)$rec->recordingid) > 30 ? '…' : '')); ?></code>
                 </td>
@@ -254,6 +334,60 @@ code.sbbb-tiny { font-size:11px; word-break:break-all; }
         <?php endforeach; ?>
         </tbody>
     </table>
+    </div>
+
+    <!-- Paginación -->
+    <div class="sbbb-pager">
+        <div class="sbbb-pager-info">
+            Mostrando <strong><?php echo $showing_from; ?>–<?php echo $showing_to; ?></strong>
+            de <strong><?php echo (int)$total; ?></strong> grabaciones
+        </div>
+
+        <form method="get" class="sbbb-perpage">
+            <label for="perpage">Por página:</label>
+            <select name="perpage" id="perpage" onchange="this.form.submit()">
+                <?php foreach ([25, 50, 100, 200] as $opt): ?>
+                    <option value="<?php echo $opt; ?>" <?php echo ($perpage === $opt) ? 'selected' : ''; ?>><?php echo $opt; ?></option>
+                <?php endforeach; ?>
+            </select>
+        </form>
+
+        <div class="sbbb-pager-nav">
+            <?php
+            $baseurl = new moodle_url('/local/grupomakro_core/pages/sync_bbb_recordings.php', ['perpage' => $perpage]);
+            $render_link = function($p) use ($baseurl, $page, $total_pages) {
+                if ($p < 0 || $p >= $total_pages) {
+                    return '<span class="disabled">&laquo;</span>';
+                }
+                if ($p === $page) {
+                    return '<span class="current">' . ($p + 1) . '</span>';
+                }
+                $url = clone $baseurl;
+                $url->param('page', $p);
+                return '<a href="' . $url->out() . '">' . ($p + 1) . '</a>';
+            };
+            // First / Prev
+            echo $page > 0
+                ? '<a href="' . (clone $baseurl)->out() . '">&laquo;&laquo; Primera</a>'
+                : '<span class="disabled">&laquo;&laquo; Primera</span>';
+            echo $page > 0
+                ? '<a href="' . (clone $baseurl)->param('page', $page - 1)->out() . '">&laquo; Anterior</a>'
+                : '<span class="disabled">&laquo; Anterior</span>';
+            // Pages around current
+            $start = max(0, $page - 2);
+            $end   = min($total_pages - 1, $page + 2);
+            for ($p = $start; $p <= $end; $p++) {
+                echo $render_link($p);
+            }
+            // Next / Last
+            echo $page < $total_pages - 1
+                ? '<a href="' . (clone $baseurl)->param('page', $page + 1)->out() . '">Siguiente &raquo;</a>'
+                : '<span class="disabled">Siguiente &raquo;</span>';
+            echo $page < $total_pages - 1
+                ? '<a href="' . (clone $baseurl)->param('page', $total_pages - 1)->out() . '">Última &raquo;&raquo;</a>'
+                : '<span class="disabled">Última &raquo;&raquo;</span>';
+            ?>
+        </div>
     </div>
     <?php endif; ?>
 </div>
