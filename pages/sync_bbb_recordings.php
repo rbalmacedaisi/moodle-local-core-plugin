@@ -87,13 +87,14 @@ function sbbb_teacher_names_for_courses(array $courseids): array {
                AND u.deleted = 0
                AND u.suspended = 0
                AND ctx.instanceid $insql
-          ORDER BY u.lastname, u.firstname";
+          ORDER BY ctx.instanceid, u.lastname, u.firstname";
     $params = ['ctxlvl' => CONTEXT_COURSE, 'rname' => 'editingteacher'] + $inparams;
-    $rows = $DB->get_records_sql($sql, $params);
     $out = [];
-    foreach ($rows as $r) {
-        $out[$r->courseid][] = trim($r->firstname . ' ' . $r->lastname);
+    $rs = $DB->get_recordset_sql($sql, $params);
+    foreach ($rs as $r) {
+        $out[(int)$r->courseid][] = trim($r->firstname . ' ' . $r->lastname);
     }
+    $rs->close();
     return $out;
 }
 
