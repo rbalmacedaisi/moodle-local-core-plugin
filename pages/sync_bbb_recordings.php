@@ -70,31 +70,58 @@ function sbbb_last_run(string $classname): string {
     return $last ? userdate((int)$last, get_string('strftimedatetimeshort', 'core_langconfig')) : 'Nunca';
 }
 
-// Pre-cache editingteacher names per course to avoid N+1 queries.
-function sbbb_teacher_names_for_courses(array $courseids): array {
+// Pre-cache editingteacher names per group (preferred) and per course (fallback).
+// Returns an associative array keyed by 'g<groupid>' or 'c<courseid>'.
+function sbbb_teacher_names_for_groups_and_courses(array $groupids, array $courseids): array {
     global $DB;
-    if (empty($courseids)) {
-        return [];
-    }
-    list($insql, $inparams) = $DB->get_in_or_equal(array_values($courseids), SQL_PARAMS_NAMED, 'cid');
-    $sql = "SELECT ctx.instanceid AS courseid, u.id, u.firstname, u.lastname
-              FROM {user} u
-              JOIN {role_assignments} ra ON ra.userid = u.id
-              JOIN {context} ctx ON ctx.id = ra.contextid
-              JOIN {role} r ON r.id = ra.roleid
-             WHERE ctx.contextlevel = :ctxlvl
-               AND r.shortname = :rname
-               AND u.deleted = 0
-               AND u.suspended = 0
-               AND ctx.instanceid $insql
-          ORDER BY ctx.instanceid, u.lastname, u.firstname";
-    $params = ['ctxlvl' => CONTEXT_COURSE, 'rname' => 'editingteacher'] + $inparams;
     $out = [];
-    $rs = $DB->get_recordset_sql($sql, $params);
-    foreach ($rs as $r) {
-        $out[(int)$r->courseid][] = trim($r->firstname . ' ' . $r->lastname);
+
+    // Group-level editingteacher assignments (only meaningful when the BBB recording
+    // belongs to a specific group of a course).
+    if (!empty($groupids)) {
+        list($insql, $inparams) = $DB->get_in_or_equal($groupids, SQL_PARAMS_NAMED, 'gid');
+        $sql = "SELECT ctx.instanceid AS groupid, u.id, u.firstname, u.lastname
+                  FROM {user} u
+                  JOIN {role_assignments} ra ON ra.userid = u.id
+                  JOIN {context} ctx ON ctx.id = ra.contextid
+                  JOIN {role} r ON r.id = ra.roleid
+                 WHERE ctx.contextlevel = :ctxlvl
+                   AND r.shortname = :rname
+                   AND u.deleted = 0
+                   AND u.suspended = 0
+                   AND ctx.instanceid $insql
+              ORDER BY ctx.instanceid, u.lastname, u.firstname";
+        $params = ['ctxlvl' => CONTEXT_GROUP, 'rname' => 'editingteacher'] + $inparams;
+        $rs = $DB->get_recordset_sql($sql, $params);
+        foreach ($rs as $r) {
+            $out['g' . (int)$r->groupid][] = trim($r->firstname . ' ' . $r->lastname);
+        }
+        $rs->close();
     }
-    $rs->close();
+
+    // Course-level editingteacher assignments (used as fallback when a recording
+    // has no specific group, or when the group has no teacher assigned).
+    if (!empty($courseids)) {
+        list($insql, $inparams) = $DB->get_in_or_equal($courseids, SQL_PARAMS_NAMED, 'cid');
+        $sql = "SELECT ctx.instanceid AS courseid, u.id, u.firstname, u.lastname
+                  FROM {user} u
+                  JOIN {role_assignments} ra ON ra.userid = u.id
+                  JOIN {context} ctx ON ctx.id = ra.contextid
+                  JOIN {role} r ON r.id = ra.roleid
+                 WHERE ctx.contextlevel = :ctxlvl
+                   AND r.shortname = :rname
+                   AND u.deleted = 0
+                   AND u.suspended = 0
+                   AND ctx.instanceid $insql
+              ORDER BY ctx.instanceid, u.lastname, u.firstname";
+        $params = ['ctxlvl' => CONTEXT_COURSE, 'rname' => 'editingteacher'] + $inparams;
+        $rs = $DB->get_recordset_sql($sql, $params);
+        foreach ($rs as $r) {
+            $out['c' . (int)$r->courseid][] = trim($r->firstname . ' ' . $r->lastname);
+        }
+        $rs->close();
+    }
+
     return $out;
 }
 
@@ -114,7 +141,7 @@ $total = $DB->count_records_sql(
 
 $recordings = $DB->get_records_sql(
     "SELECT r.id, r.bigbluebuttonbnid, r.recordingid, r.status, r.timecreated, r.timemodified,
-            b.name AS bbbname, b.course AS courseid, c.fullname AS coursename
+            r.groupid, b.name AS bbbname, b.course AS courseid, c.fullname AS coursename
        FROM {bigbluebuttonbn_recordings} r
   LEFT JOIN {bigbluebuttonbn} b ON b.id = r.bigbluebuttonbnid
   LEFT JOIN {course} c ON c.id = b.course
@@ -124,14 +151,18 @@ $recordings = $DB->get_records_sql(
     $perpage
 );
 
-// Pre-cache teacher names for all courses in the current page.
+// Pre-cache teachers per group and per course for the current page.
+$groupids = [];
 $courseids = [];
 foreach ($recordings as $r) {
+    if (!empty($r->groupid)) {
+        $groupids[(int)$r->groupid] = true;
+    }
     if (!empty($r->courseid)) {
-        $courseids[$r->courseid] = true;
+        $courseids[(int)$r->courseid] = true;
     }
 }
-$teacher_names = sbbb_teacher_names_for_courses(array_keys($courseids));
+$teacher_data = sbbb_teacher_names_for_groups_and_courses(array_keys($groupids), array_keys($courseids));
 
 $pending_last   = sbbb_last_run('mod_bigbluebuttonbn\task\check_pending_recordings');
 $dismissed_last = sbbb_last_run('mod_bigbluebuttonbn\task\check_dismissed_recordings');
@@ -301,7 +332,14 @@ code.sbbb-tiny { font-size:11px; word-break:break-all; }
         <?php foreach ($recordings as $rec):
             $info = $status_labels[(int)$rec->status] ?? ['label' => 'UNKNOWN(' . (int)$rec->status . ')', 'cls' => 'secondary'];
             $valid = in_array((int)$rec->status, [2, 3]);
-            $teachers = $teacher_names[(int)$rec->courseid] ?? [];
+            // Prefer group-level teacher; fall back to course-level teacher.
+            $teachers = [];
+            if (!empty($rec->groupid)) {
+                $teachers = $teacher_data['g' . (int)$rec->groupid] ?? [];
+            }
+            if (empty($teachers) && !empty($rec->courseid)) {
+                $teachers = $teacher_data['c' . (int)$rec->courseid] ?? [];
+            }
         ?>
             <tr>
                 <td><?php echo (int)$rec->id; ?></td>
