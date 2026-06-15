@@ -2830,6 +2830,9 @@ function create_class_activities($class, $updating = false, $forceRebuildDates =
     //         $classroomsReservations = createClassroomReservations($newClass);
     //     }
     $attendanceStructure = null;
+    // Dates of attendance sessions that already have recorded logs; preserved across an
+    // update so a reschedule/regeneration can never wipe taken attendance.
+    $preserveddates = [];
 
     $class->course = get_course($class->corecourseid);
     if (!empty($class->corecourseid)) {
@@ -2937,6 +2940,29 @@ function create_class_activities($class, $updating = false, $forceRebuildDates =
         ], '', 'id');
         foreach ($fallbackSessions as $fallbackSession) {
             $attendanceSessionIdsToBeDeleted[(int)$fallbackSession->id] = (int)$fallbackSession->id;
+        }
+
+        // DATA-LOSS GUARD: never delete attendance sessions that already have recorded
+        // attendance (logs). Preserve them and skip recreating those dates below, so a
+        // reschedule/regeneration can never wipe taken attendance again.
+        if (!empty($attendanceSessionIdsToBeDeleted)) {
+            list($pinsql, $pinparams) = $DB->get_in_or_equal(
+                array_values($attendanceSessionIdsToBeDeleted), SQL_PARAMS_NAMED, 'psd');
+            $loggedsessions = $DB->get_records_sql(
+                "SELECT DISTINCT s.id, s.sessdate
+                   FROM {attendance_sessions} s
+                   JOIN {attendance_log} l ON l.sessionid = s.id
+                  WHERE s.id $pinsql",
+                $pinparams
+            );
+            foreach ($loggedsessions as $ls) {
+                unset($attendanceSessionIdsToBeDeleted[(int)$ls->id]); // keep it
+                $preserveddates[date('Y-m-d', (int)$ls->sessdate)] = (int)$ls->id;
+            }
+            if (!empty($preserveddates)) {
+                gmk_log("INFO: create_class_activities class {$class->id} preserved "
+                    . count($preserveddates) . " attendance session(s) with recorded logs (no data loss).");
+            }
         }
 
         if (!empty($attendanceSessionIdsToBeDeleted)) {
@@ -3156,7 +3182,8 @@ function create_class_activities($class, $updating = false, $forceRebuildDates =
         while ($currentDateTS < $endDateTS) {
             $day     = $classDaysList[date('l', $currentDateTS)];
             $dateStr = date('Y-m-d', $currentDateTS);
-            if ($day === '1' && !isset($holidaySet[$dateStr])) {
+            // Skip dates whose attendance session was preserved (has recorded logs) to avoid duplicates.
+            if ($day === '1' && !isset($holidaySet[$dateStr]) && !isset($preserveddates[$dateStr])) {
                 $BBBCourseModuleInfo = null;
                 $activityEndTS = $currentDateTS + (int)$class->classduration;
                 try {
