@@ -5749,7 +5749,7 @@ try {
             $instructorId = optional_param('instructorId', null, PARAM_TEXT);
             $initTime = optional_param('initTime', null, PARAM_TEXT);
             $endTime = optional_param('endTime', null, PARAM_TEXT);
-            
+
             $result = \local_grupomakro_core\external\disponibility\get_teachers_disponibility::execute($instructorId, $initTime, $endTime);
             if (isset($result['status']) && $result['status'] == 1) {
                 // Return decoded json array
@@ -5758,6 +5758,32 @@ try {
             } else {
                 $response = ['status' => 'error', 'message' => isset($result['message']) ? $result['message'] : 'Error loading disponibility'];
             }
+            break;
+
+        case 'local_grupomakro_get_instructors_with_disponibility':
+            if (!is_siteadmin()) {
+                $response = ['status' => 'error', 'message' => 'forbidden'];
+                break;
+            }
+            $cache = \cache::make('local_grupomakro_core', 'instructors_with_disp');
+            $cached = $cache->get('all');
+            if ($cached !== false) {
+                $response = ['status' => 'success', 'data' => $cached, 'cached' => true];
+                break;
+            }
+            $instructors = grupomakro_core_list_instructors_with_disponibility_flag();
+            $items = array_values(array_filter(array_map(function ($instructor) {
+                if (empty($instructor->hasDisponibility)) {
+                    return null;
+                }
+                return [
+                    'id'    => (int)$instructor->id,
+                    'text'  => $instructor->fullname,
+                    'value' => $instructor->fullname,
+                ];
+            }, $instructors)));
+            $cache->set('all', $items);
+            $response = ['status' => 'success', 'data' => $items, 'cached' => false];
             break;
 
         case 'local_grupomakro_save_scheduler_config':

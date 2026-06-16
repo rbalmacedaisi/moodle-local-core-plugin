@@ -530,7 +530,7 @@ window.Vue.component('classschedule', {
 
             weekdays: [1, 2, 3, 4, 5, 6, 0],
             events: [],
-            instructors: window.instructors,
+            instructors: [],
             coursesWithCreatedClasses: window.coursesWithCreatedClasses,
             isAdmin: window.userRole === 'admin',
             userId: window.userId,
@@ -558,6 +558,7 @@ window.Vue.component('classschedule', {
         this.$refs.calendar.checkChange();
         this.ready = true
         this.getEvents();
+        this.fetchInstructors();
         this.scrollToTime()
         this.updateTime()
     },
@@ -623,6 +624,24 @@ window.Vue.component('classschedule', {
                 this.fetchingEvents = false;
             }
             return;
+        },
+        async fetchInstructors() {
+            if (!this.isAdmin) {
+                return;
+            }
+            try {
+                const url = window.location.origin + '/local/grupomakro_core/ajax.php';
+                const { data } = await window.axios.get(url, {
+                    params: {
+                        action: 'local_grupomakro_get_instructors_with_disponibility',
+                    },
+                });
+                if (data && data.status === 'success' && Array.isArray(data.data)) {
+                    this.instructors = data.data;
+                }
+            } catch (error) {
+                console.error('fetchInstructors failed', error);
+            }
         },
         // This method updates the calendar view to display a specific day.
         viewDay({ date }) {

@@ -60,32 +60,27 @@ if (!$userRole) {
 $classInstructorFilter = $userRole === 'teacher' ? ['instructorid' => $USER->id] : [];
 
 $coursesWithCreatedClasses = [];
-foreach (list_classes($classInstructorFilter) as $class) {
-  if (array_key_exists($class->corecourseid, $coursesWithCreatedClasses)) {
-    continue;
-  }
-  $course = new stdClass();
-  $course->id = $class->corecourseid;
-  $course->text = $class->coreCourseName;
-  $course->value = $class->corecourseid;
-  $coursesWithCreatedClasses[$course->id] = $course;
+$classRows = $DB->get_records('gmk_class', $classInstructorFilter, '', 'DISTINCT corecourseid');
+$coreCourseIds = array_values(array_unique(array_filter(array_map(
+    fn($row) => (int)($row->corecourseid ?? 0),
+    $classRows
+))));
+if (!empty($coreCourseIds)) {
+    list($insql, $inparams) = $DB->get_in_or_equal($coreCourseIds, SQL_PARAMS_NAMED, 'cid');
+    $coreCourses = $DB->get_records_sql(
+        "SELECT id, fullname FROM {course} WHERE id $insql ORDER BY fullname",
+        $inparams
+    );
+    foreach ($coreCourses as $coreCourse) {
+        $coursesWithCreatedClasses[(int)$coreCourse->id] = (object)[
+            'id'    => (int)$coreCourse->id,
+            'text'  => $coreCourse->fullname,
+            'value' => (int)$coreCourse->id,
+        ];
+    }
 }
 
-//Get the list of Instructors if the user is an admin
 $instructors = null;
-if (is_siteadmin()) {
-  //Get the instructors who have an availability created
-  $instructors = array_values(array_filter(array_map(function ($instructor) {
-    if (!$instructor->hasDisponibility) {
-      return null;
-    }
-    $instructorItem = new stdClass();
-    $instructorItem->id = $instructor->id;
-    $instructorItem->text = $instructor->fullname;
-    $instructorItem->value = $instructor->fullname;
-    return $instructorItem;
-  }, grupomakro_core_list_instructors_with_disponibility_flag())));
-}
 
 //Get the reschedule causes
 $rescheduleCauses = $DB->get_records('gmk_reschedule_causes');

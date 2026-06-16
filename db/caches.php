@@ -12,4 +12,10 @@ $definitions = [
         'simpledata' => true,
         'ttl' => 3600, // 1 hour maximum for a break
     ],
+    'instructors_with_disp' => [
+        'mode' => cache_store::MODE_APPLICATION,
+        'simplekeys' => true,
+        'simpledata' => true,
+        'ttl' => 300, // 5 minutes: instructors with disponibility, low churn
+    ],
 ];
