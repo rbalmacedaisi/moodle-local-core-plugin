@@ -3063,6 +3063,10 @@ function create_class_activities($class, $updating = false, $forceRebuildDates =
     $BBBModuleId = gmk_get_module_id_by_name('bigbluebuttonbn');
     $BBBCourseModulesInfo = [];
     $attendanceSessions = [];
+    // Preserved-date BBB relations: for dates whose attendance session was kept (has logs),
+    // we still create a BBB module and link it to the EXISTING session — so a re-run never
+    // breaks the BBB<->attendance link nor duplicates the session. Items: {sessionid, bbb}.
+    $preservedBBBRelations = [];
 
     // Build holiday set for fast lookup (YYYY-MM-DD strings).
     $holidaySet = [];
@@ -3166,6 +3170,14 @@ function create_class_activities($class, $updating = false, $forceRebuildDates =
                         $BBBCourseModuleInfo = null;
                     }
                 }
+                if (isset($preserveddates[$dateStr])) {
+                    // Attendance for this date was preserved (has logs). Do NOT create a new
+                    // session (would duplicate); link the BBB module to the existing session.
+                    if ($BBBCourseModuleInfo) {
+                        $preservedBBBRelations[] = ['sessionid' => (int)$preserveddates[$dateStr], 'bbb' => $BBBCourseModuleInfo];
+                    }
+                    continue;
+                }
                 $attendanceSessions[] = create_attendance_session_object($class, $sessionDateTS, $sessionDuration, $BBBCourseModuleInfo);
             }
         }
@@ -3182,8 +3194,7 @@ function create_class_activities($class, $updating = false, $forceRebuildDates =
         while ($currentDateTS < $endDateTS) {
             $day     = $classDaysList[date('l', $currentDateTS)];
             $dateStr = date('Y-m-d', $currentDateTS);
-            // Skip dates whose attendance session was preserved (has recorded logs) to avoid duplicates.
-            if ($day === '1' && !isset($holidaySet[$dateStr]) && !isset($preserveddates[$dateStr])) {
+            if ($day === '1' && !isset($holidaySet[$dateStr])) {
                 $BBBCourseModuleInfo = null;
                 $activityEndTS = $currentDateTS + (int)$class->classduration;
                 try {
@@ -3201,7 +3212,14 @@ function create_class_activities($class, $updating = false, $forceRebuildDates =
                         $BBBCourseModuleInfo = null;
                     }
                 }
-                $attendanceSessions[] = create_attendance_session_object($class, $currentDateTS, (int)$class->classduration, $BBBCourseModuleInfo);
+                if (isset($preserveddates[$dateStr])) {
+                    // Attendance preserved (has logs): keep the existing session, only (re)link a BBB module.
+                    if ($BBBCourseModuleInfo) {
+                        $preservedBBBRelations[] = ['sessionid' => (int)$preserveddates[$dateStr], 'bbb' => $BBBCourseModuleInfo];
+                    }
+                } else {
+                    $attendanceSessions[] = create_attendance_session_object($class, $currentDateTS, (int)$class->classduration, $BBBCourseModuleInfo);
+                }
             }
             $dateTime = new DateTime('@' . $currentDateTS);
             $dateTime->modify('+1 day');
@@ -3226,6 +3244,24 @@ function create_class_activities($class, $updating = false, $forceRebuildDates =
         $classAttendanceBBBRelation->sectionid = $class->coursesectionid;
         $DB->insert_record('gmk_bbb_attendance_relation', $classAttendanceBBBRelation);
     }
+
+    // Preserved dates: their attendance session was kept (not recreated). Link the freshly
+    // created BBB module to that EXISTING session so the BBB<->attendance relation survives.
+    foreach ($preservedBBBRelations as $pr) {
+        if (empty($pr['bbb'])) {
+            continue;
+        }
+        $rel = new stdClass();
+        $rel->attendancesessionid = $pr['sessionid'];
+        $rel->bbbmoduleid         = $pr['bbb']->coursemodule;
+        $rel->bbbid               = $pr['bbb']->instance;
+        $rel->classid             = $class->id;
+        $rel->attendancemoduleid  = $attendanceStructure->cmid;
+        $rel->attendanceid        = $attendanceStructure->id;
+        $rel->sectionid           = $class->coursesectionid;
+        $DB->insert_record('gmk_bbb_attendance_relation', $rel);
+    }
+
     $DB->update_record('gmk_class', $class);
 
     if (!empty($class->corecourseid)) {
