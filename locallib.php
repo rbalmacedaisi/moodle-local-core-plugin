@@ -5653,6 +5653,28 @@ function reschedule_class_activity($params)
 
     $BBBmoduleId = $DB->get_record('modules', ['name' => 'bigbluebuttonbn'])->id;
 
+    // Capture the OLD session date (Y-m-d) BEFORE replacing anything, so at the end we can also
+    // update the planning layer (gmk_class_schedules.assigned_dates). The student schedule view
+    // reads that table, so it must be kept in sync with the rescheduled session — otherwise the
+    // teacher (attendance view) sees the new date but students keep seeing the original one.
+    $oldSessionDateStr = null;
+    if (!empty($params['sessionId'])) {
+        $oldsd = $DB->get_field('attendance_sessions', 'sessdate', ['id' => (int)$params['sessionId']]);
+        if ($oldsd) {
+            $oldSessionDateStr = date('Y-m-d', (int)$oldsd);
+        }
+    }
+    if ($oldSessionDateStr === null && !empty($params['moduleId'])) {
+        $modrec = $DB->get_record('course_modules', ['id' => (int)$params['moduleId']], 'module,instance');
+        if ($modrec && (int)$modrec->module === (int)$bigBlueButtonModuleId) {
+            $oldot = $DB->get_field('bigbluebuttonbn', 'openingtime', ['id' => (int)$modrec->instance]);
+            if ($oldot) {
+                $oldSessionDateStr = date('Y-m-d', (int)$oldot);
+            }
+        }
+    }
+    $newSessionDateStr = date('Y-m-d', $initTimestamp);
+
     // If the class type is 0 (presencial), just replace the session on the attendance module.
     // Exception: when triggered from a BBB calendar event the class has a linked BBB activity
     // (e.g. migrated from type '2'). In that case we must also replace the BBB module so the
@@ -5887,7 +5909,45 @@ function reschedule_class_activity($params)
             }
         }
     }
+    // Sync the planning layer (gmk_class_schedules.assigned_dates) so the student schedule view
+    // reflects the new date too. Without this, only the execution layer (attendance + BBB +
+    // relation) is updated and students keep seeing the original date.
+    if (!empty($oldSessionDateStr) && !empty($newSessionDateStr) && $oldSessionDateStr !== $newSessionDateStr) {
+        gmk_sync_schedule_dates_after_reschedule((int)$params['classId'], $oldSessionDateStr, $newSessionDateStr);
+    }
+
     return true;
+}
+
+/**
+ * Replaces a rescheduled date inside gmk_class_schedules.assigned_dates for a class so the planning
+ * layer (what the student schedule view reads) stays in sync with the rescheduled session.
+ *
+ * @param int    $classid
+ * @param string $olddate Y-m-d of the original session date
+ * @param string $newdate Y-m-d of the new session date
+ */
+function gmk_sync_schedule_dates_after_reschedule(int $classid, string $olddate, string $newdate): void {
+    global $DB;
+    foreach ($DB->get_records('gmk_class_schedules', ['classid' => $classid]) as $row) {
+        if (empty($row->assigned_dates)) {
+            continue;
+        }
+        $dates = json_decode($row->assigned_dates, true);
+        if (!is_array($dates)) {
+            continue;
+        }
+        $idx = array_search($olddate, $dates, true);
+        if ($idx === false) {
+            continue; // old date not present in this schedule row
+        }
+        $dates[$idx] = $newdate;
+        $dates = array_values(array_unique($dates));
+        sort($dates);
+        $row->assigned_dates = json_encode($dates);
+        $DB->update_record('gmk_class_schedules', $row);
+        gmk_log("INFO: reschedule synced gmk_class_schedules sched={$row->id} class={$classid} {$olddate}->{$newdate}");
+    }
 }
 
 //Por revisar
