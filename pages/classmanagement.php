@@ -67,17 +67,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'update_shift') {
 }
 
 $classes = array_values(list_classes([]));
+$sectionNumberById = [];
+$sectionIds = array_values(array_unique(array_filter(array_map(
+    fn($c) => (int)($c->coursesectionid ?? 0),
+    $classes
+))));
+if (!empty($sectionIds)) {
+    list($insql, $inparams) = $DB->get_in_or_equal($sectionIds, SQL_PARAMS_NAMED, 'sid');
+    $sectionNumberById = $DB->get_records_sql_menu(
+        "SELECT id, section FROM {course_sections} WHERE id $insql",
+        $inparams
+    );
+}
 foreach ($classes as &$class) {
     $shiftvalue = isset($class->shift) ? trim((string)$class->shift) : '';
     $class->shiftvalue = $shiftvalue;
     $class->shiftdisplay = ($shiftvalue !== '') ? $shiftvalue : 'Sin jornada';
-    // Direct link to the Moodle group overview, scoped to the class's course.
-    // /group/overview.php expects id=COURSEID and group=GROUPID; passing the
-    // groupid as id previously produced an "invalidcourse" error.
-    $gid = isset($class->groupid) ? (int)$class->groupid : 0;
+    // Direct link to the course section that hosts the class's group activities
+    // (attendance + BBB). course/view.php expects id=COURSEID and section=SECTION_NUMBER
+    // (the position in the course, not the section id).
     $cid = isset($class->corecourseid) ? (int)$class->corecourseid : 0;
-    $class->groupurl = ($gid > 0 && $cid > 0)
-        ? (new moodle_url('/group/overview.php', ['id' => $cid, 'group' => $gid]))->out()
+    $sid = isset($class->coursesectionid) ? (int)$class->coursesectionid : 0;
+    $secnum = ($sid > 0 && isset($sectionNumberById[$sid])) ? (int)$sectionNumberById[$sid] : 0;
+    $class->groupurl = ($cid > 0 && $secnum > 0)
+        ? (new moodle_url('/course/view.php', ['id' => $cid, 'section' => $secnum]))->out()
         : '';
 }
 unset($class);
