@@ -82,6 +82,16 @@ class get_data_by_courses extends external_api
                     if (isset($module->tags)) {
                         unset($module->tags);
                     }
+                    // Authoritative session date for the client: openingtime is the source of truth
+                    // (the timestamp encoded in the module name can drift if a reschedule updates
+                    // openingtime in place without renaming the module). Session start = openingtime + 600.
+                    $bbbinstid = (int)($module->instance ?? 0);
+                    if ($bbbinstid > 0) {
+                        $bbbot = $DB->get_field('bigbluebuttonbn', 'openingtime', ['id' => $bbbinstid]);
+                        if (!empty($bbbot)) {
+                            $module->bbbSessionTs = (int)$bbbot + 600;
+                        }
+                    }
                     continue;
                 }
 
