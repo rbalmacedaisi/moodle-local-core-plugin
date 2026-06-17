@@ -161,6 +161,53 @@ class get_data_by_courses extends external_api
     }
 
     /**
+     * Filters the course teachers to only the instructor(s) of the student's OWN class for this
+     * course. The base service returns every teacher enrolled in the (shared) core course — i.e.
+     * all teachers of the learning plan. Here we keep only the teacher of the class the student is
+     * actually enrolled in (gmk_course_progre.classid -> gmk_class.instructorid), matched by email
+     * (the teacher payload has no userid). If it cannot be resolved, the list is left unchanged.
+     *
+     * @param object $courseData
+     * @param int $courseid
+     * @param int $userid
+     * @return void
+     */
+    private static function normalize_teachers_payload(object &$courseData, int $courseid, int $userid): void {
+        global $DB;
+        if (empty($courseData->teachers) || !is_array($courseData->teachers)) {
+            return;
+        }
+        $instructorids = $DB->get_fieldset_sql(
+            "SELECT DISTINCT c.instructorid
+               FROM {gmk_course_progre} p
+               JOIN {gmk_class} c ON c.id = p.classid
+              WHERE p.userid = :u AND p.courseid = :cc AND c.instructorid > 0",
+            ['u' => $userid, 'cc' => $courseid]
+        );
+        if (empty($instructorids)) {
+            return; // student has no class here — leave the teacher list unchanged
+        }
+        list($insql, $inparams) = $DB->get_in_or_equal($instructorids, SQL_PARAMS_NAMED, 'ins');
+        $emails = $DB->get_fieldset_sql("SELECT email FROM {user} WHERE id $insql", $inparams);
+        $emailset = [];
+        foreach ($emails as $em) {
+            $emailset[strtolower(trim((string)$em))] = true;
+        }
+        $filtered = [];
+        foreach ($courseData->teachers as $t) {
+            $em = isset($t->email) ? strtolower(trim((string)$t->email)) : '';
+            if ($em !== '' && isset($emailset[$em])) {
+                $filtered[] = $t;
+            }
+        }
+        // Only apply the filter if it matched at least one teacher, to avoid hiding the teacher
+        // entirely if emails don't line up for some reason.
+        if (!empty($filtered)) {
+            $courseData->teachers = array_values($filtered);
+        }
+    }
+
+    /**
      * Describes parameters of the {@see self::execute()} method.
      *
      * @return external_function_parameters
@@ -193,6 +240,7 @@ class get_data_by_courses extends external_api
                 throw new Exception('No se pudo decodificar la data del curso.');
             }
             self::normalize_activities_payload($courseData, (int)$params['courseid']);
+            self::normalize_teachers_payload($courseData, (int)$params['courseid'], (int)$params['userid']);
 
             $courseProgre = $DB->get_record('gmk_course_progre', ['courseid' => $params['courseid'], 'userid' => $params['userid']], 'progress,credits');
             if ($courseProgre) {
