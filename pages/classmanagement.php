@@ -67,18 +67,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'update_shift') {
 }
 
 $classes = array_values(list_classes([]));
+$sectionNumberById = [];
+$sectionIds = array_values(array_unique(array_filter(array_map(
+    fn($c) => (int)($c->coursesectionid ?? 0),
+    $classes
+))));
+if (!empty($sectionIds)) {
+    list($insql, $inparams) = $DB->get_in_or_equal($sectionIds, SQL_PARAMS_NAMED, 'sid');
+    $sectionNumberById = $DB->get_records_sql_menu(
+        "SELECT id, section FROM {course_sections} WHERE id $insql",
+        $inparams
+    );
+}
+$courseCache = [];
 foreach ($classes as &$class) {
     $shiftvalue = isset($class->shift) ? trim((string)$class->shift) : '';
     $class->shiftvalue = $shiftvalue;
     $class->shiftdisplay = ($shiftvalue !== '') ? $shiftvalue : 'Sin jornada';
     // Direct link to the course section that hosts the class's group activities
-    // (attendance + BBB). In Moodle 4.0+ the dedicated section page is
-    // /course/section.php?id=SECTIONID; the legacy ?section=NUMBER on
-    // /course/view.php no longer scrolls to the section in the new UI.
+    // (attendance + BBB). Use Moodle's course_get_url() so the URL matches
+    // whatever the course format / user display preference expects
+    // (anchor #section-N for single-page, ?section=N for multipage).
+    $cid = isset($class->corecourseid) ? (int)$class->corecourseid : 0;
     $sid = isset($class->coursesectionid) ? (int)$class->coursesectionid : 0;
-    $class->groupurl = $sid > 0
-        ? (new moodle_url('/course/section.php', ['id' => $sid]))->out()
-        : '';
+    if ($cid > 0 && $sid > 0 && isset($sectionNumberById[$sid])) {
+        if (!isset($courseCache[$cid])) {
+            $courseCache[$cid] = $DB->get_record('course', ['id' => $cid], '*', IGNORE_MISSING);
+        }
+        $course = $courseCache[$cid];
+        $class->groupurl = $course
+            ? course_get_url($course, $sectionNumberById[$sid])->out()
+            : '';
+    } else {
+        $class->groupurl = '';
+    }
 }
 unset($class);
 
