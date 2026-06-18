@@ -2205,6 +2205,131 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20260612001, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20260618001) {
+        // Diploma templates: visual layout for graduation certificates.
+        $table = new xmldb_table('gmk_diploma_template');
+        $table->add_field('id',                  XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('name',                XMLDB_TYPE_CHAR,    '255', null, XMLDB_NOTNULL, null, '');
+        $table->add_field('description',         XMLDB_TYPE_TEXT,    'long', null, null, null, null);
+        $table->add_field('orientation',         XMLDB_TYPE_CHAR,    '20',  null, XMLDB_NOTNULL, null, 'landscape');
+        $table->add_field('width_mm',            XMLDB_TYPE_NUMBER,  '6, 2', null, XMLDB_NOTNULL, null, '297');
+        $table->add_field('height_mm',           XMLDB_TYPE_NUMBER,  '6, 2', null, XMLDB_NOTNULL, null, '210');
+        $table->add_field('background_fileid',   XMLDB_TYPE_INTEGER, '10',  null, null, null, '0');
+        $table->add_field('background_filename', XMLDB_TYPE_CHAR,    '255', null, null, null, '');
+        $table->add_field('background_mimetype', XMLDB_TYPE_CHAR,    '100', null, null, null, '');
+        $table->add_field('active',              XMLDB_TYPE_INTEGER, '1',   null, XMLDB_NOTNULL, null, '1');
+        $table->add_field('usermodified',        XMLDB_TYPE_INTEGER, '10',  null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timecreated',         XMLDB_TYPE_INTEGER, '10',  null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timemodified',        XMLDB_TYPE_INTEGER, '10',  null, XMLDB_NOTNULL, null, '0');
+
+        $table->add_key('primary',        XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('usermodifiedfk', XMLDB_KEY_FOREIGN, ['usermodified'], 'user', ['id']);
+        $table->add_index('active_idx', XMLDB_INDEX_NOTUNIQUE, ['active']);
+        $table->add_index('name_idx',   XMLDB_INDEX_NOTUNIQUE, ['name']);
+
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // Layout fields/variables positioned inside a diploma template.
+        $table = new xmldb_table('gmk_diploma_tpl_field');
+        $table->add_field('id',            XMLDB_TYPE_INTEGER, '10',     null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('templateid',    XMLDB_TYPE_INTEGER, '10',     null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('field_type',    XMLDB_TYPE_CHAR,    '20',     null, XMLDB_NOTNULL, null, 'variable');
+        $table->add_field('variable_code', XMLDB_TYPE_CHAR,    '50',     null, null, null, '');
+        $table->add_field('custom_text',   XMLDB_TYPE_TEXT,    'medium', null, null, null, null);
+        $table->add_field('static_text',   XMLDB_TYPE_TEXT,    'medium', null, null, null, null);
+        $table->add_field('x_mm',          XMLDB_TYPE_NUMBER,  '7, 2',   null, XMLDB_NOTNULL, null, '20');
+        $table->add_field('y_mm',          XMLDB_TYPE_NUMBER,  '7, 2',   null, XMLDB_NOTNULL, null, '20');
+        $table->add_field('width_mm',      XMLDB_TYPE_NUMBER,  '7, 2',   null, XMLDB_NOTNULL, null, '80');
+        $table->add_field('height_mm',     XMLDB_TYPE_NUMBER,  '7, 2',   null, XMLDB_NOTNULL, null, '12');
+        $table->add_field('rotation',      XMLDB_TYPE_NUMBER,  '6, 2',   null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('font_family',   XMLDB_TYPE_CHAR,    '80',     null, XMLDB_NOTNULL, null, 'helvetica');
+        $table->add_field('font_size',     XMLDB_TYPE_NUMBER,  '5, 2',   null, XMLDB_NOTNULL, null, '14');
+        $table->add_field('font_weight',   XMLDB_TYPE_CHAR,    '20',     null, XMLDB_NOTNULL, null, 'normal');
+        $table->add_field('font_color',    XMLDB_TYPE_CHAR,    '15',     null, XMLDB_NOTNULL, null, '#000000');
+        $table->add_field('align',         XMLDB_TYPE_CHAR,    '10',     null, XMLDB_NOTNULL, null, 'center');
+        $table->add_field('line_height',   XMLDB_TYPE_NUMBER,  '4, 2',   null, XMLDB_NOTNULL, null, '1.2');
+        $table->add_field('z_index',       XMLDB_TYPE_INTEGER, '10',     null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('usermodified',  XMLDB_TYPE_INTEGER, '10',     null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timecreated',   XMLDB_TYPE_INTEGER, '10',     null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timemodified',  XMLDB_TYPE_INTEGER, '10',     null, XMLDB_NOTNULL, null, '0');
+
+        $table->add_key('primary',         XMLDB_KEY_PRIMARY,  ['id']);
+        $table->add_key('templatefk',      XMLDB_KEY_FOREIGN,  ['templateid'],   'gmk_diploma_template', ['id']);
+        $table->add_key('usermodifiedfk',  XMLDB_KEY_FOREIGN,  ['usermodified'], 'user', ['id']);
+        $table->add_index('template_idx',   XMLDB_INDEX_NOTUNIQUE, ['templateid']);
+        $table->add_index('zindex_idx',     XMLDB_INDEX_NOTUNIQUE, ['templateid', 'z_index']);
+
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // Generated diploma records (one per student per template issuance).
+        $table = new xmldb_table('gmk_diploma_generation');
+        $table->add_field('id',                 XMLDB_TYPE_INTEGER, '10',   null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('templateid',         XMLDB_TYPE_INTEGER, '10',   null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('userid',             XMLDB_TYPE_INTEGER, '10',   null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('learningplanid',     XMLDB_TYPE_INTEGER, '10',   null, null, null, '0');
+        $table->add_field('diploma_number',     XMLDB_TYPE_CHAR,    '64',   null, XMLDB_NOTNULL, null, '');
+        $table->add_field('version',            XMLDB_TYPE_INTEGER, '10',   null, XMLDB_NOTNULL, null, '1');
+        $table->add_field('status',             XMLDB_TYPE_CHAR,    '20',   null, XMLDB_NOTNULL, null, 'generated');
+        $table->add_field('verification_token', XMLDB_TYPE_CHAR,    '64',   null, XMLDB_NOTNULL, null, '');
+        $table->add_field('verification_url',   XMLDB_TYPE_CHAR,    '255',  null, XMLDB_NOTNULL, null, '');
+        $table->add_field('snapshot_json',      XMLDB_TYPE_TEXT,    'long', null, null, null, null);
+        $table->add_field('issued_by',          XMLDB_TYPE_INTEGER, '10',   null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('issued_at',          XMLDB_TYPE_INTEGER, '10',   null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('revoked_by',         XMLDB_TYPE_INTEGER, '10',   null, null, null, '0');
+        $table->add_field('revoked_at',         XMLDB_TYPE_INTEGER, '10',   null, null, null, '0');
+        $table->add_field('revoke_reason',      XMLDB_TYPE_TEXT,    'medium', null, null, null, null);
+        $table->add_field('usermodified',       XMLDB_TYPE_INTEGER, '10',   null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timecreated',        XMLDB_TYPE_INTEGER, '10',   null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timemodified',       XMLDB_TYPE_INTEGER, '10',   null, XMLDB_NOTNULL, null, '0');
+
+        $table->add_key('primary',         XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('templatefk',      XMLDB_KEY_FOREIGN, ['templateid'],  'gmk_diploma_template', ['id']);
+        $table->add_key('userfk',          XMLDB_KEY_FOREIGN, ['userid'],      'user', ['id']);
+        $table->add_key('issuedfk',        XMLDB_KEY_FOREIGN, ['issued_by'],   'user', ['id']);
+        $table->add_key('revokedfk',       XMLDB_KEY_FOREIGN, ['revoked_by'],  'user', ['id']);
+        $table->add_key('usermodifiedfk',  XMLDB_KEY_FOREIGN, ['usermodified'], 'user', ['id']);
+        $table->add_index('token_uix',         XMLDB_INDEX_UNIQUE,   ['verification_token']);
+        $table->add_index('user_template_idx', XMLDB_INDEX_NOTUNIQUE, ['userid', 'templateid']);
+        $table->add_index('user_plan_idx',     XMLDB_INDEX_NOTUNIQUE, ['userid', 'learningplanid']);
+        $table->add_index('status_idx',        XMLDB_INDEX_NOTUNIQUE, ['status']);
+        $table->add_index('template_idx',      XMLDB_INDEX_NOTUNIQUE, ['templateid']);
+        $table->add_index('issued_at_idx',     XMLDB_INDEX_NOTUNIQUE, ['issued_at']);
+
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // File storage metadata for generated diploma PDFs.
+        $table = new xmldb_table('gmk_diploma_document');
+        $table->add_field('id',            XMLDB_TYPE_INTEGER, '10',   null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('generationid',  XMLDB_TYPE_INTEGER, '10',   null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('fileitemid',    XMLDB_TYPE_INTEGER, '10',   null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('filename',      XMLDB_TYPE_CHAR,    '255',  null, XMLDB_NOTNULL, null, '');
+        $table->add_field('mimetype',      XMLDB_TYPE_CHAR,    '100',  null, XMLDB_NOTNULL, null, 'application/pdf');
+        $table->add_field('version',       XMLDB_TYPE_INTEGER, '10',   null, XMLDB_NOTNULL, null, '1');
+        $table->add_field('filesize',      XMLDB_TYPE_INTEGER, '10',   null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('contenthash',   XMLDB_TYPE_CHAR,    '64',   null, null, null, '');
+        $table->add_field('usermodified',  XMLDB_TYPE_INTEGER, '10',   null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timecreated',   XMLDB_TYPE_INTEGER, '10',   null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timemodified',  XMLDB_TYPE_INTEGER, '10',   null, XMLDB_NOTNULL, null, '0');
+
+        $table->add_key('primary',         XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('generationfk',    XMLDB_KEY_FOREIGN, ['generationid'],  'gmk_diploma_generation', ['id']);
+        $table->add_key('usermodifiedfk',  XMLDB_KEY_FOREIGN, ['usermodified'], 'user', ['id']);
+        $table->add_index('generation_idx', XMLDB_INDEX_NOTUNIQUE, ['generationid']);
+        $table->add_index('version_idx',    XMLDB_INDEX_NOTUNIQUE, ['generationid', 'version']);
+
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        upgrade_plugin_savepoint(true, 20260618001, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

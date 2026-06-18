@@ -1,0 +1,635 @@
+/* global Vue, axios, Swal, strings */
+(function () {
+    'use strict';
+
+    const FONT_OPTIONS = [
+        { text: 'Helvetica (sans)', value: 'helvetica' },
+        { text: 'Times (serif)', value: 'times' },
+        { text: 'Courier (mono)', value: 'courier' },
+        { text: 'DejaVu Sans', value: 'dejavusans' },
+        { text: 'DejaVu Serif', value: 'dejavuserif' },
+        { text: 'Open Sans', value: 'opensans' },
+        { text: 'Roboto', value: 'roboto' },
+        { text: 'Montserrat', value: 'montserrat' },
+        { text: 'Lato', value: 'lato' },
+        { text: 'Poppins', value: 'poppins' },
+        { text: 'Oswald', value: 'oswald' },
+        { text: 'Raleway', value: 'raleway' },
+        { text: 'Noto Sans', value: 'notosans' },
+        { text: 'Lora', value: 'lora' },
+        { text: 'Merriweather', value: 'merriweather' },
+        { text: 'Playfair Display', value: 'playfairdisplay' },
+        { text: 'PT Serif', value: 'ptsernif' },
+        { text: 'PT Sans', value: 'ptsans' },
+        { text: 'Verdana', value: 'verdana' },
+        { text: 'Tahoma', value: 'tahoma' },
+        { text: 'Georgia', value: 'georgia' },
+        { text: 'Garamond', value: 'garamond' },
+        { text: 'Palatino', value: 'palatino' },
+        { text: 'Dancing Script', value: 'dancingscript' },
+        { text: 'Pacifico', value: 'pacifico' },
+        { text: 'Great Vibes', value: 'greatvibes' }
+    ];
+
+    const TYPE_OPTIONS = [
+        { text: 'Variable del estudiante', value: 'variable' },
+        { text: 'Texto personalizado', value: 'custom' },
+        { text: 'Texto estático', value: 'static' },
+        { text: 'Código QR', value: 'qr' }
+    ];
+
+    function getCsrfToken() {
+        if (typeof window.M !== 'undefined' && window.M.cfg && window.M.cfg.sesskey) {
+            return window.M.cfg.sesskey;
+        }
+        const meta = document.querySelector('input[name="sesskey"]');
+        return meta ? meta.value : '';
+    }
+
+    function axiosInstance() {
+        const inst = axios.create({
+            baseURL: (window.location.origin || '') + '/local/grupomakro_core/ajax.php',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        inst.interceptors.request.use((cfg) => {
+            cfg.headers['X-Requested-With'] = 'XMLHttpRequest';
+            return cfg;
+        });
+        return inst;
+    }
+
+    Vue.component('diplomatemplates', {
+        template: `
+            <v-container fluid style="max-width: 100% !important;" class="pa-0">
+                <v-row class="ma-0">
+                    <v-col cols="12" class="py-2">
+                        <div class="d-flex align-center" style="gap: 12px;">
+                            <h2 class="mb-0">{{ strings.diploma_templates || 'Plantillas de Diplomas' }}</h2>
+                            <v-spacer></v-spacer>
+                            <v-btn color="primary" dark @click="newTemplate">
+                                <v-icon left>mdi-plus</v-icon>
+                                {{ strings.new_template || 'Nueva plantilla' }}
+                            </v-btn>
+                        </div>
+                    </v-col>
+                </v-row>
+
+                <v-row class="ma-0">
+                    <!-- Left column: template list -->
+                    <v-col cols="12" md="3" class="py-1">
+                        <v-card outlined>
+                            <v-list dense>
+                                <v-list-item v-if="loadingTemplates">
+                                    <v-list-item-content>
+                                        <v-progress-circular indeterminate size="20" width="2"></v-progress-circular>
+                                    </v-list-item-content>
+                                </v-list-item>
+                                <v-list-item v-else-if="!templates.length">
+                                    <v-list-item-content>
+                                        <span class="grey--text">{{ strings.no_templates }}</span>
+                                    </v-list-item-content>
+                                </v-list-item>
+                                <v-list-item
+                                    v-for="t in templates"
+                                    :key="t.id"
+                                    @click="loadTemplate(t)"
+                                    :class="{'v-list-item--active': selected && selected.id === t.id}"
+                                    two-line
+                                >
+                                    <v-list-item-content>
+                                        <v-list-item-title>{{ t.name }}</v-list-item-title>
+                                        <v-list-item-subtitle>
+                                            {{ t.width_mm }} × {{ t.height_mm }} mm • {{ t.active ? strings.active : strings.inactive }}
+                                        </v-list-item-subtitle>
+                                    </v-list-item-content>
+                                    <v-list-item-action>
+                                        <v-btn icon small @click.stop="duplicate(t)">
+                                            <v-icon small>mdi-content-copy</v-icon>
+                                        </v-btn>
+                                        <v-btn icon small @click.stop="confirmDelete(t)">
+                                            <v-icon small color="error">mdi-delete</v-icon>
+                                        </v-btn>
+                                    </v-list-item-action>
+                                </v-list-item>
+                            </v-list>
+                        </v-card>
+                    </v-col>
+
+                    <!-- Right column: editor -->
+                    <v-col cols="12" md="9" class="py-1">
+                        <v-card v-if="!selected" outlined class="pa-6 text-center grey--text">
+                            <v-icon size="48" color="grey lighten-1">mdi-file-document-outline</v-icon>
+                            <p class="mt-3 mb-0">{{ strings.no_templates }}</p>
+                        </v-card>
+
+                        <div v-else>
+                            <!-- Meta header -->
+                            <v-card outlined class="pa-3 mb-3">
+                                <v-row dense>
+                                    <v-col cols="12" md="4">
+                                        <v-text-field v-model="selected.name" :label="strings.template_name" outlined dense hide-details></v-text-field>
+                                    </v-col>
+                                    <v-col cols="12" md="4">
+                                        <v-select v-model="selected.orientation" :items="[{text: strings.orient_landscape, value: 'landscape'},{text: strings.orient_portrait, value: 'portrait'}]" :label="strings.orientation" outlined dense hide-details @change="onOrientationChange"></v-select>
+                                    </v-col>
+                                    <v-col cols="12" md="2">
+                                        <v-switch v-model="activeSwitch" :label="strings.active" color="primary" hide-details></v-switch>
+                                    </v-col>
+                                    <v-col cols="12" md="2" class="d-flex align-center justify-end">
+                                        <v-btn color="primary" @click="saveTemplate" :loading="saving" small>
+                                            <v-icon left small>mdi-content-save</v-icon>
+                                            {{ strings.save_template }}
+                                        </v-btn>
+                                    </v-col>
+                                </v-row>
+                            </v-card>
+
+                            <!-- Background upload -->
+                            <v-card outlined class="pa-3 mb-3">
+                                <div class="d-flex align-center" style="gap: 12px; flex-wrap: wrap;">
+                                    <div>
+                                        <strong>{{ strings.background }}</strong>
+                                        <div class="grey--text" style="font-size: 12px;">{{ strings.background_help }}</div>
+                                    </div>
+                                    <v-spacer></v-spacer>
+                                    <input ref="bgInput" type="file" accept="image/*" style="display:none" @change="onBgSelected" />
+                                    <v-btn small color="primary" outlined @click="$refs.bgInput.click()">
+                                        <v-icon left small>mdi-upload</v-icon>
+                                        {{ selected.background_filename ? strings.replace_background : strings.upload_background }}
+                                    </v-btn>
+                                    <span v-if="selected.background_filename" class="grey--text">{{ selected.background_filename }}</span>
+                                    <span v-else class="grey--text">{{ strings.no_background }}</span>
+                                </div>
+                            </v-card>
+
+                            <!-- Canvas + sidebar -->
+                            <v-row dense>
+                                <v-col cols="12" md="8">
+                                    <div class="dpl-canvas-wrap">
+                                        <div class="dpl-canvas"
+                                             ref="canvas"
+                                             :style="canvasStyle"
+                                             @mousedown.self="canvasMouseDown"
+                                             @click.self="selectedFieldId = null">
+                                            <div
+                                                v-for="f in selected.fields"
+                                                :key="f.localId"
+                                                :data-fid="f.localId"
+                                                class="dpl-field"
+                                                :class="{'selected': selectedFieldId === f.localId}"
+                                                :style="fieldStyle(f)"
+                                                @mousedown.stop="startDrag($event, f)"
+                                                @click.stop="selectField(f.localId)"
+                                            >
+                                                <span class="label">
+                                                    {{ fieldShortLabel(f) }}
+                                                    <span class="del" @mousedown.stop @click.stop="removeField(f.localId)">×</span>
+                                                </span>
+                                                <span class="dpl-handle tl" @mousedown.stop="startResize($event, f, 'tl')"></span>
+                                                <span class="dpl-handle tr" @mousedown.stop="startResize($event, f, 'tr')"></span>
+                                                <span class="dpl-handle bl" @mousedown.stop="startResize($event, f, 'bl')"></span>
+                                                <span class="dpl-handle br" @mousedown.stop="startResize($event, f, 'br')"></span>
+                                                <span class="dpl-handle rotate" @mousedown.stop="startRotate($event, f)"></span>
+                                                <div class="dpl-field-content" :style="contentStyle(f)">
+                                                    <span v-if="f.field_type === 'qr'" class="dpl-field-qr">QR</span>
+                                                    <span v-else>{{ fieldPreview(f) }}</span>
+                                                </div>
+                                            </div>
+                                            <div v-if="!selected.fields.length" class="dpl-empty">
+                                                {{ strings.no_fields }}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </v-col>
+                                <v-col cols="12" md="4">
+                                    <v-card outlined class="pa-3 mb-2">
+                                        <strong>{{ strings.add_element }}</strong>
+                                        <v-btn-toggle v-model="addType" mandatory dense color="primary" class="mt-2 d-flex flex-wrap" style="gap: 4px;">
+                                            <v-btn small :value="'variable'" @click="addElement('variable')">{{ strings.type_variable }}</v-btn>
+                                            <v-btn small :value="'custom'" @click="addElement('custom')">{{ strings.type_custom }}</v-btn>
+                                            <v-btn small :value="'static'" @click="addElement('static')">{{ strings.type_static }}</v-btn>
+                                            <v-btn small :value="'qr'" @click="addElement('qr')">{{ strings.type_qr }}</v-btn>
+                                        </v-btn-toggle>
+                                    </v-card>
+
+                                    <v-card v-if="currentField" outlined class="pa-3">
+                                        <v-select v-if="currentField.field_type === 'variable'" v-model="currentField.variable_code" :items="variableItems" :label="strings.variable" outlined dense></v-select>
+                                        <v-textarea v-if="currentField.field_type === 'custom'" v-model="currentField.custom_text" :label="strings.custom_text" outlined dense rows="3" :hint="strings.custom_hint || 'Usa {{variable_code}} para insertar valores'" persistent-hint></v-textarea>
+                                        <v-text-field v-if="currentField.field_type === 'static'" v-model="currentField.static_text" :label="strings.static_text" outlined dense></v-text-field>
+
+                                        <v-row dense class="mt-1">
+                                            <v-col cols="6">
+                                                <v-text-field type="number" v-model.number="currentField.x_mm" :label="strings.position_x" outlined dense suffix="mm"></v-text-field>
+                                            </v-col>
+                                            <v-col cols="6">
+                                                <v-text-field type="number" v-model.number="currentField.y_mm" :label="strings.position_y" outlined dense suffix="mm"></v-text-field>
+                                            </v-col>
+                                            <v-col cols="6">
+                                                <v-text-field type="number" v-model.number="currentField.width_mm" :label="strings.size_width" outlined dense suffix="mm"></v-text-field>
+                                            </v-col>
+                                            <v-col cols="6">
+                                                <v-text-field type="number" v-model.number="currentField.height_mm" :label="strings.size_height" outlined dense suffix="mm"></v-text-field>
+                                            </v-col>
+                                            <v-col cols="6">
+                                                <v-text-field type="number" v-model.number="currentField.rotation" :label="strings.rotation" outlined dense :suffix="strings.rotation_deg"></v-text-field>
+                                            </v-col>
+                                            <v-col cols="6">
+                                                <v-text-field type="number" v-model.number="currentField.z_index" :label="strings.z_index" outlined dense></v-text-field>
+                                            </v-col>
+                                        </v-row>
+
+                                        <template v-if="currentField.field_type !== 'qr'">
+                                            <v-select v-model="currentField.font_family" :items="fontItems" :label="strings.font" outlined dense></v-select>
+                                            <v-row dense>
+                                                <v-col cols="6">
+                                                    <v-text-field type="number" v-model.number="currentField.font_size" :label="strings.font_size" outlined dense suffix="pt"></v-text-field>
+                                                </v-col>
+                                                <v-col cols="6">
+                                                    <v-select v-model="currentField.font_weight" :items="[{text: strings.weight_normal, value: 'normal'},{text: strings.weight_bold, value: 'bold'}]" :label="strings.font_weight" outlined dense></v-select>
+                                                </v-col>
+                                                <v-col cols="6">
+                                                    <v-text-field type="color" v-model="currentField.font_color" :label="strings.font_color" outlined dense></v-text-field>
+                                                </v-col>
+                                                <v-col cols="6">
+                                                    <v-select v-model="currentField.align" :items="[{text: strings.align_left, value: 'left'},{text: strings.align_center, value: 'center'},{text: strings.align_right, value: 'right'}]" :label="strings.align" outlined dense></v-select>
+                                                </v-col>
+                                                <v-col cols="12">
+                                                    <v-text-field type="number" step="0.1" v-model.number="currentField.line_height" :label="strings.line_height" outlined dense></v-text-field>
+                                                </v-col>
+                                            </v-row>
+                                        </template>
+                                    </v-card>
+                                </v-col>
+                            </v-row>
+                        </div>
+                    </v-col>
+                </v-row>
+            </v-container>
+        `,
+        data() {
+            return {
+                http: axiosInstance(),
+                loadingTemplates: false,
+                saving: false,
+                templates: [],
+                selected: null,
+                selectedFieldId: null,
+                dragState: null,
+                addType: 'variable',
+                variableItems: [],
+                fontItems: FONT_OPTIONS,
+                typeItems: TYPE_OPTIONS,
+                nextLocalId: 1,
+                pixelRatio: 4 // CSS px per mm (zoom for canvas)
+            };
+        },
+        computed: {
+            strings() {
+                return window.strings || {};
+            },
+            currentField() {
+                if (!this.selected || !this.selectedFieldId) {
+                    return null;
+                }
+                return this.selected.fields.find(f => f.localId === this.selectedFieldId) || null;
+            },
+            activeSwitch: {
+                get() {
+                    return !!(this.selected && this.selected.active);
+                },
+                set(v) {
+                    if (this.selected) {
+                        this.selected.active = v ? 1 : 0;
+                    }
+                }
+            },
+            canvasStyle() {
+                if (!this.selected) {
+                    return {};
+                }
+                return {
+                    width: (this.selected.width_mm * this.pixelRatio) + 'px',
+                    height: (this.selected.height_mm * this.pixelRatio) + 'px',
+                    backgroundImage: this.selected.background_url ? 'url("' + this.selected.background_url + '")' : 'none'
+                };
+            }
+        },
+        watch: {
+            selected: {
+                handler(t) {
+                    if (t && t.fields) {
+                        // Ensure each field has a localId and computed pixel sizes (mm * ratio).
+                        t.fields.forEach(f => {
+                            if (!f.localId) {
+                                f.localId = this.nextLocalId++;
+                            }
+                        });
+                    }
+                },
+                deep: true
+            }
+        },
+        mounted() {
+            this.loadTemplates();
+            this.loadVariables();
+        },
+        methods: {
+            async loadTemplates() {
+                this.loadingTemplates = true;
+                try {
+                    const res = await this.http.post('/', { action: 'local_grupomakro_diploma_list_templates' });
+                    if (res.data && res.data.status === 'success') {
+                        this.templates = res.data.templates || [];
+                    } else {
+                        throw new Error((res.data && res.data.message) || 'Error');
+                    }
+                } catch (e) {
+                    this.notifyError(e.message || e);
+                } finally {
+                    this.loadingTemplates = false;
+                }
+            },
+            async loadVariables() {
+                try {
+                    const res = await this.http.post('/', { action: 'local_grupomakro_diploma_list_variables' });
+                    if (res.data && res.data.status === 'success') {
+                        this.variableItems = (res.data.variables || []).map(v => ({ text: v.label, value: v.code }));
+                    }
+                } catch (e) { /* non-fatal */ }
+            },
+            newTemplate() {
+                this.selected = {
+                    id: 0,
+                    name: this.strings.new_template || 'Nueva plantilla',
+                    description: '',
+                    orientation: 'landscape',
+                    width_mm: 297,
+                    height_mm: 210,
+                    active: 1,
+                    background_url: '',
+                    background_filename: '',
+                    background_mimetype: '',
+                    fields: []
+                };
+                this.selectedFieldId = null;
+            },
+            async loadTemplate(t) {
+                try {
+                    const res = await this.http.post('/', { action: 'local_grupomakro_diploma_get_template', id: t.id });
+                    if (res.data && res.data.status === 'success') {
+                        const data = res.data.template;
+                        data.fields = (data.fields || []).map(f => ({ ...f, localId: this.nextLocalId++ }));
+                        this.selected = data;
+                        this.selectedFieldId = null;
+                    } else {
+                        throw new Error((res.data && res.data.message) || 'Error');
+                    }
+                } catch (e) {
+                    this.notifyError(e.message || e);
+                }
+            },
+            async duplicate(t) {
+                try {
+                    const res = await this.http.post('/', { action: 'local_grupomakro_diploma_duplicate_template', id: t.id });
+                    if (res.data && res.data.status === 'success') {
+                        this.notifyOk(res.data.message);
+                        await this.loadTemplates();
+                    } else {
+                        throw new Error((res.data && res.data.message) || 'Error');
+                    }
+                } catch (e) { this.notifyError(e.message || e); }
+            },
+            confirmDelete(t) {
+                Swal.fire({
+                    title: this.strings.delete_template,
+                    text: this.strings.delete_confirm,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonText: this.strings.delete_template,
+                    cancelButtonText: this.strings.cancel
+                }).then(r => {
+                    if (r.isConfirmed) this.deleteTemplate(t);
+                });
+            },
+            async deleteTemplate(t) {
+                try {
+                    const res = await this.http.post('/', { action: 'local_grupomakro_diploma_delete_template', id: t.id });
+                    if (res.data && res.data.status === 'success') {
+                        this.notifyOk(res.data.message);
+                        if (this.selected && this.selected.id === t.id) {
+                            this.selected = null;
+                        }
+                        await this.loadTemplates();
+                    } else {
+                        throw new Error((res.data && res.data.message) || 'Error');
+                    }
+                } catch (e) { this.notifyError(e.message || e); }
+            },
+            async saveTemplate() {
+                if (!this.selected) return;
+                this.saving = true;
+                try {
+                    const payload = JSON.parse(JSON.stringify(this.selected));
+                    // Drop transient keys before sending.
+                    payload.fields = (payload.fields || []).map(f => {
+                        const c = { ...f };
+                        delete c.localId;
+                        return c;
+                    });
+                    delete payload.background_url;
+                    const res = await this.http.post('/', {
+                        action: 'local_grupomakro_diploma_save_template',
+                        payload: JSON.stringify(payload)
+                    });
+                    if (res.data && res.data.status === 'success') {
+                        const tpl = res.data.template;
+                        tpl.fields = (tpl.fields || []).map(f => ({ ...f, localId: this.nextLocalId++ }));
+                        this.selected = tpl;
+                        this.notifyOk(res.data.message || this.strings.save_ok);
+                        await this.loadTemplates();
+                    } else {
+                        throw new Error((res.data && res.data.message) || 'Error');
+                    }
+                } catch (e) {
+                    this.notifyError(e.message || e);
+                } finally {
+                    this.saving = false;
+                }
+            },
+            onOrientationChange() {
+                if (!this.selected) return;
+                if (this.selected.orientation === 'portrait') {
+                    this.selected.width_mm = 210;
+                    this.selected.height_mm = 297;
+                } else {
+                    this.selected.width_mm = 297;
+                    this.selected.height_mm = 210;
+                }
+            },
+            async onBgSelected(e) {
+                const file = e.target.files && e.target.files[0];
+                if (!file || !this.selected || !this.selected.id) {
+                    this.notifyError('Guarde primero la plantilla antes de subir el fondo.');
+                    return;
+                }
+                const fd = new FormData();
+                fd.append('file', file);
+                fd.append('action', 'local_grupomakro_diploma_upload_background');
+                fd.append('id', this.selected.id);
+                try {
+                    const res = await this.http.post('/', fd, {
+                        headers: { 'Content-Type': 'multipart/form-data' }
+                    });
+                    if (res.data && res.data.status === 'success') {
+                        const bg = res.data.background;
+                        this.selected.background_url = bg.url + '?v=' + Date.now();
+                        this.selected.background_filename = bg.filename;
+                        this.selected.background_mimetype = bg.mimetype;
+                        this.notifyOk('Imagen de fondo actualizada');
+                    } else {
+                        throw new Error((res.data && res.data.message) || 'Error');
+                    }
+                } catch (err) { this.notifyError(err.message || err); }
+                finally { e.target.value = ''; }
+            },
+            addElement(type) {
+                if (!this.selected) {
+                    this.newTemplate();
+                }
+                const f = {
+                    localId: this.nextLocalId++,
+                    templateid: this.selected.id || 0,
+                    field_type: type,
+                    variable_code: type === 'variable' ? 'fullname' : '',
+                    custom_text: type === 'custom' ? '{{fullname}}' : '',
+                    static_text: type === 'static' ? 'Texto fijo' : '',
+                    x_mm: 30,
+                    y_mm: 30 + (this.selected.fields.length * 18),
+                    width_mm: type === 'qr' ? 30 : 80,
+                    height_mm: type === 'qr' ? 30 : 14,
+                    rotation: 0,
+                    font_family: 'helvetica',
+                    font_size: 14,
+                    font_weight: 'normal',
+                    font_color: '#000000',
+                    align: 'center',
+                    line_height: 1.2,
+                    z_index: this.selected.fields.length
+                };
+                this.selected.fields.push(f);
+                this.selectedFieldId = f.localId;
+            },
+            removeField(localId) {
+                if (!this.selected) return;
+                this.selected.fields = this.selected.fields.filter(f => f.localId !== localId);
+                if (this.selectedFieldId === localId) this.selectedFieldId = null;
+            },
+            selectField(localId) { this.selectedFieldId = localId; },
+            fieldStyle(f) {
+                return {
+                    left: (f.x_mm * this.pixelRatio) + 'px',
+                    top: (f.y_mm * this.pixelRatio) + 'px',
+                    width: (f.width_mm * this.pixelRatio) + 'px',
+                    height: (f.height_mm * this.pixelRatio) + 'px',
+                    transform: f.rotation ? 'rotate(' + f.rotation + 'deg)' : ''
+                };
+            },
+            contentStyle(f) {
+                return {
+                    fontFamily: f.font_family || 'helvetica',
+                    fontSize: (f.font_size * this.pixelRatio * 0.35) + 'px',
+                    fontWeight: f.font_weight || 'normal',
+                    color: f.font_color || '#000',
+                    textAlign: f.align || 'center',
+                    lineHeight: (f.line_height || 1.2)
+                };
+            },
+            fieldShortLabel(f) {
+                if (f.field_type === 'variable') return 'VAR: ' + (f.variable_code || '?');
+                if (f.field_type === 'custom') return 'TXT: ' + ((f.custom_text || '').slice(0, 18));
+                if (f.field_type === 'static') return 'FIX: ' + ((f.static_text || '').slice(0, 18));
+                if (f.field_type === 'qr') return 'QR';
+                return '?';
+            },
+            fieldPreview(f) {
+                if (f.field_type === 'variable') {
+                    const v = (this.variableItems.find(v => v.value === f.variable_code) || {}).text || f.variable_code;
+                    return '[' + v + ']';
+                }
+                if (f.field_type === 'custom') return f.custom_text || '';
+                if (f.field_type === 'static') return f.static_text || '';
+                return '';
+            },
+            canvasMouseDown() { this.selectedFieldId = null; },
+            startDrag(e, f) {
+                if (e.target.classList.contains('dpl-handle')) return;
+                this.selectField(f.localId);
+                const startX = e.clientX, startY = e.clientY;
+                const ox = f.x_mm, oy = f.y_mm;
+                const ratio = this.pixelRatio;
+                this.dragState = { kind: 'move', f, startX, startY, ox, oy, ratio };
+                window.addEventListener('mousemove', this.onDrag);
+                window.addEventListener('mouseup', this.endDrag);
+                e.preventDefault();
+            },
+            startResize(e, f, corner) {
+                this.selectField(f.localId);
+                const startX = e.clientX, startY = e.clientY;
+                const ow = f.width_mm, oh = f.height_mm;
+                const ratio = this.pixelRatio;
+                this.dragState = { kind: 'resize', f, startX, startY, ow, oh, ratio, corner };
+                window.addEventListener('mousemove', this.onDrag);
+                window.addEventListener('mouseup', this.endDrag);
+                e.preventDefault();
+            },
+            startRotate(e, f) {
+                this.selectField(f.localId);
+                // Compute angle from element center to mouse.
+                const rect = e.target.parentElement.getBoundingClientRect();
+                const cx = rect.left + rect.width / 2;
+                const cy = rect.top + rect.height / 2;
+                const startAngle = Math.atan2(e.clientY - cy, e.clientX - cx) * 180 / Math.PI;
+                const initial = f.rotation || 0;
+                this.dragState = { kind: 'rotate', f, cx, cy, startAngle, initial };
+                window.addEventListener('mousemove', this.onDrag);
+                window.addEventListener('mouseup', this.endDrag);
+                e.preventDefault();
+            },
+            onDrag(e) {
+                if (!this.dragState) return;
+                const s = this.dragState;
+                if (s.kind === 'move') {
+                    const dx = (e.clientX - s.startX) / s.ratio;
+                    const dy = (e.clientY - s.startY) / s.ratio;
+                    s.f.x_mm = Math.max(0, +(s.ox + dx).toFixed(2));
+                    s.f.y_mm = Math.max(0, +(s.oy + dy).toFixed(2));
+                } else if (s.kind === 'resize') {
+                    const dx = (e.clientX - s.startX) / s.ratio;
+                    const dy = (e.clientY - s.startY) / s.ratio;
+                    let nw = s.ow, nh = s.oh;
+                    if (s.corner === 'br') { nw = s.ow + dx; nh = s.oh + dy; }
+                    if (s.corner === 'tr') { nw = s.ow + dx; nh = s.oh - dy; s.f.y_mm = Math.max(0, +(s.f.y_mm + dy).toFixed(2)); }
+                    if (s.corner === 'bl') { nw = s.ow - dx; nh = s.oh + dy; s.f.x_mm = Math.max(0, +(s.f.x_mm + dx).toFixed(2)); }
+                    if (s.corner === 'tl') { nw = s.ow - dx; nh = s.oh - dy; s.f.x_mm = Math.max(0, +(s.f.x_mm + dx).toFixed(2)); s.f.y_mm = Math.max(0, +(s.f.y_mm + dy).toFixed(2)); }
+                    s.f.width_mm = Math.max(5, +nw.toFixed(2));
+                    s.f.height_mm = Math.max(5, +nh.toFixed(2));
+                } else if (s.kind === 'rotate') {
+                    const current = Math.atan2(e.clientY - s.cy, e.clientX - s.cx) * 180 / Math.PI;
+                    const delta = current - s.startAngle;
+                    s.f.rotation = Math.round((s.initial + delta) * 10) / 10;
+                }
+            },
+            endDrag() {
+                window.removeEventListener('mousemove', this.onDrag);
+                window.removeEventListener('mouseup', this.endDrag);
+                this.dragState = null;
+            },
+            notifyOk(msg) {
+                Swal.fire({ toast: true, icon: 'success', title: msg || 'OK', position: 'top-end', showConfirmButton: false, timer: 2400 });
+            },
+            notifyError(msg) {
+                Swal.fire({ icon: 'error', title: 'Error', text: String(msg || '') });
+            }
+        }
+    });
+})();

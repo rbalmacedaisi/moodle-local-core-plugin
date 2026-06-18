@@ -97,6 +97,10 @@ function local_grupomakro_core_extend_navigation(global_navigation $navigation) 
             '|/local/grupomakro_core/pages/bulk_enroll.php';
         $CFG->custommenuitems .= PHP_EOL . '-🔍 Analítica de Solapamientos' .
             '|/local/grupomakro_core/pages/overlap_analytics.php';
+        $CFG->custommenuitems .= PHP_EOL . '-🎓 ' . get_string('diploma_generation', 'local_grupomakro_core') .
+            '|/local/grupomakro_core/pages/diplomageneration.php';
+        $CFG->custommenuitems .= PHP_EOL . '-🖼️ ' . get_string('diploma_templates', 'local_grupomakro_core') .
+            '|/local/grupomakro_core/pages/diplomatemplates.php';
     }
 
     // 2. Redirection logic

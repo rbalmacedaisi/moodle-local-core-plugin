@@ -238,6 +238,18 @@ if ($hassiteconfig) {
         $emojititle("\u{1F4CB}", 'Matrícula Masiva a Plan'),
         new moodle_url('/local/grupomakro_core/pages/bulk_enroll.php')
     );
+    $diplomaGenerationPage = new admin_externalpage(
+        'grupomakro_core_diploma_generation',
+        $emojititle("\u{1F393}", get_string('diploma_generation', 'local_grupomakro_core')),
+        new moodle_url('/local/grupomakro_core/pages/diplomageneration.php'),
+        'local/grupomakro_core:viewdiplomas'
+    );
+    $diplomaTemplatesPage = new admin_externalpage(
+        'grupomakro_core_diploma_templates',
+        $emojititle("\u{1F3A8}", get_string('diploma_templates', 'local_grupomakro_core')),
+        new moodle_url('/local/grupomakro_core/pages/diplomatemplates.php'),
+        'local/grupomakro_core:managediplomas'
+    );
     $ADMIN->add('grupomakrocore_plugin', $classManagementPage);
     $ADMIN->add('grupomakrocore_plugin', $classSchedulesPage);
     $ADMIN->add('grupomakrocore_plugin', $availabilityPanelPage);
@@ -270,6 +282,8 @@ if ($hassiteconfig) {
     $ADMIN->add('grupomakrocore_plugin', $letterTypesPage);
     $ADMIN->add('grupomakrocore_plugin', $letterRequestsPage);
     $ADMIN->add('grupomakrocore_plugin', $bulkEnrollPage);
+    $ADMIN->add('grupomakrocore_plugin', $diplomaGenerationPage);
+    $ADMIN->add('grupomakrocore_plugin', $diplomaTemplatesPage);
     $ADMIN->add('grupomakrocore_plugin', $financialPlanningPage);
     $ADMIN->add('grupomakrocore_plugin', $debugStudentActivityVisibilityPage);
     $ADMIN->add('grupomakrocore_plugin', $debugBbbTeacherJoinPage);

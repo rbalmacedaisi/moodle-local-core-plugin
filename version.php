@@ -24,6 +24,6 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = "local_grupomakro_core";
-$plugin->version   = 20260612001;         // Asistencia virtual por 70% de permanencia: tabla gmk_bbb_presence + tareas poll_bbb_attendance (muestreo getMeetings) y reconcile_bbb_attendance (marcado escalonado P/R/FI).
+$plugin->version   = 20260618001;         // Módulo de Diplomas: editor canvas (drag/resize/rotate), generación masiva por carrera, PDF + QR de verificación pública (gmk_diploma_template + tpl_field + generation + document).
 $plugin->requires = 2014051200;
 $plugin->maturity = MATURITY_STABLE;

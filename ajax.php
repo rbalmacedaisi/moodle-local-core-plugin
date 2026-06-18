@@ -7361,6 +7361,12 @@ try {
             break;
 
         default:
+            if (strpos($action, 'local_grupomakro_diploma_') === 0) {
+                require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/diploma/dispatcher.php');
+                $sub = substr($action, strlen('local_grupomakro_diploma_'));
+                $response = \local_grupomakro_core\external\diploma\dispatcher::dispatch($sub);
+                break;
+            }
             $response['message'] = 'Action not found: ' . $action;
             break;
     }
