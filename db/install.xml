@@ -859,14 +859,14 @@
     <TABLE NAME="gmk_diploma_template" COMMENT="Diploma templates: visual layout for graduation certificates.">
       <FIELDS>
         <FIELD NAME="id"                   TYPE="int"      LENGTH="10"  NOTNULL="true" SEQUENCE="true"/>
-        <FIELD NAME="name"                 TYPE="char"     LENGTH="255" NOTNULL="true" DEFAULT="" SEQUENCE="false"/>
+        <FIELD NAME="name"                 TYPE="char"     LENGTH="255" NOTNULL="true" SEQUENCE="false"/>
         <FIELD NAME="description"          TYPE="text"     LENGTH="long"                 SEQUENCE="false"/>
         <FIELD NAME="orientation"          TYPE="char"     LENGTH="20"  NOTNULL="true" DEFAULT="landscape" SEQUENCE="false"/>
         <FIELD NAME="width_mm"             TYPE="number"   LENGTH="6,2" NOTNULL="true" DEFAULT="297" SEQUENCE="false"/>
         <FIELD NAME="height_mm"            TYPE="number"   LENGTH="6,2" NOTNULL="true" DEFAULT="210" SEQUENCE="false"/>
         <FIELD NAME="background_fileid"    TYPE="int"      LENGTH="10"                  DEFAULT="0" SEQUENCE="false"/>
-        <FIELD NAME="background_filename"  TYPE="char"     LENGTH="255"                 DEFAULT="" SEQUENCE="false"/>
-        <FIELD NAME="background_mimetype"  TYPE="char"     LENGTH="100"                 DEFAULT="" SEQUENCE="false"/>
+        <FIELD NAME="background_filename"  TYPE="char"     LENGTH="255"                 SEQUENCE="false"/>
+        <FIELD NAME="background_mimetype"  TYPE="char"     LENGTH="100"                 SEQUENCE="false"/>
         <FIELD NAME="active"               TYPE="int"      LENGTH="1"   NOTNULL="true" DEFAULT="1" SEQUENCE="false"/>
         <FIELD NAME="usermodified"         TYPE="int"      LENGTH="10"  NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="timecreated"          TYPE="int"      LENGTH="10"  NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
@@ -886,7 +886,7 @@
         <FIELD NAME="id"            TYPE="int"    LENGTH="10"   NOTNULL="true" SEQUENCE="true"/>
         <FIELD NAME="templateid"    TYPE="int"    LENGTH="10"   NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="field_type"    TYPE="char"   LENGTH="20"   NOTNULL="true" DEFAULT="variable" SEQUENCE="false"/>
-        <FIELD NAME="variable_code" TYPE="char"   LENGTH="50"                   DEFAULT="" SEQUENCE="false"/>
+        <FIELD NAME="variable_code" TYPE="char"   LENGTH="50"                   SEQUENCE="false"/>
         <FIELD NAME="custom_text"   TYPE="text"   LENGTH="medium"               SEQUENCE="false"/>
         <FIELD NAME="static_text"   TYPE="text"   LENGTH="medium"               SEQUENCE="false"/>
         <FIELD NAME="x_mm"          TYPE="number" LENGTH="7,2"  NOTNULL="true" DEFAULT="20" SEQUENCE="false"/>
@@ -911,7 +911,6 @@
         <KEY NAME="usermodifiedfk" TYPE="foreign" FIELDS="usermodified" REFTABLE="user" REFFIELDS="id"/>
       </KEYS>
       <INDEXES>
-        <INDEX NAME="template_idx"   UNIQUE="false" FIELDS="templateid"/>
         <INDEX NAME="zindex_idx"     UNIQUE="false" FIELDS="templateid, z_index"/>
       </INDEXES>
     </TABLE>
@@ -921,11 +920,11 @@
         <FIELD NAME="templateid"          TYPE="int"    LENGTH="10"   NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="userid"              TYPE="int"    LENGTH="10"   NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="learningplanid"      TYPE="int"    LENGTH="10"                   DEFAULT="0" SEQUENCE="false"/>
-        <FIELD NAME="diploma_number"      TYPE="char"   LENGTH="64"   NOTNULL="true" DEFAULT="" SEQUENCE="false"/>
+        <FIELD NAME="diploma_number"      TYPE="char"   LENGTH="64"   NOTNULL="true" SEQUENCE="false"/>
         <FIELD NAME="version"             TYPE="int"    LENGTH="10"   NOTNULL="true" DEFAULT="1" SEQUENCE="false"/>
         <FIELD NAME="status"              TYPE="char"   LENGTH="20"   NOTNULL="true" DEFAULT="generated" SEQUENCE="false"/>
-        <FIELD NAME="verification_token"  TYPE="char"   LENGTH="64"   NOTNULL="true" DEFAULT="" SEQUENCE="false"/>
-        <FIELD NAME="verification_url"    TYPE="char"   LENGTH="255"  NOTNULL="true" DEFAULT="" SEQUENCE="false"/>
+        <FIELD NAME="verification_token"  TYPE="char"   LENGTH="64"   NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="verification_url"    TYPE="char"   LENGTH="255"  NOTNULL="true" SEQUENCE="false"/>
         <FIELD NAME="snapshot_json"       TYPE="text"   LENGTH="long"                  SEQUENCE="false"/>
         <FIELD NAME="issued_by"           TYPE="int"    LENGTH="10"   NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="issued_at"           TYPE="int"    LENGTH="10"   NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
@@ -945,12 +944,11 @@
         <KEY NAME="usermodifiedfk" TYPE="foreign" FIELDS="usermodified" REFTABLE="user" REFFIELDS="id"/>
       </KEYS>
       <INDEXES>
-        <INDEX NAME="token_uix"        UNIQUE="true"  FIELDS="verification_token"/>
+        <INDEX NAME="token_uix"         UNIQUE="true"  FIELDS="verification_token"/>
         <INDEX NAME="user_template_idx" UNIQUE="false" FIELDS="userid, templateid"/>
-        <INDEX NAME="user_plan_idx"    UNIQUE="false" FIELDS="userid, learningplanid"/>
-        <INDEX NAME="status_idx"       UNIQUE="false" FIELDS="status"/>
-        <INDEX NAME="template_idx"     UNIQUE="false" FIELDS="templateid"/>
-        <INDEX NAME="issued_at_idx"    UNIQUE="false" FIELDS="issued_at"/>
+        <INDEX NAME="user_plan_idx"     UNIQUE="false" FIELDS="userid, learningplanid"/>
+        <INDEX NAME="status_idx"        UNIQUE="false" FIELDS="status"/>
+        <INDEX NAME="issued_at_idx"     UNIQUE="false" FIELDS="issued_at"/>
       </INDEXES>
     </TABLE>
     <TABLE NAME="gmk_diploma_document" COMMENT="File storage metadata for generated diploma PDFs.">
@@ -958,11 +956,11 @@
         <FIELD NAME="id"             TYPE="int"    LENGTH="10"   NOTNULL="true" SEQUENCE="true"/>
         <FIELD NAME="generationid"   TYPE="int"    LENGTH="10"   NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="fileitemid"     TYPE="int"    LENGTH="10"   NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
-        <FIELD NAME="filename"       TYPE="char"   LENGTH="255"  NOTNULL="true" DEFAULT="" SEQUENCE="false"/>
+        <FIELD NAME="filename"       TYPE="char"   LENGTH="255"  NOTNULL="true" SEQUENCE="false"/>
         <FIELD NAME="mimetype"       TYPE="char"   LENGTH="100"  NOTNULL="true" DEFAULT="application/pdf" SEQUENCE="false"/>
         <FIELD NAME="version"        TYPE="int"    LENGTH="10"   NOTNULL="true" DEFAULT="1" SEQUENCE="false"/>
         <FIELD NAME="filesize"       TYPE="int"    LENGTH="10"   NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
-        <FIELD NAME="contenthash"    TYPE="char"   LENGTH="64"                   DEFAULT="" SEQUENCE="false"/>
+        <FIELD NAME="contenthash"    TYPE="char"   LENGTH="64"                   SEQUENCE="false"/>
         <FIELD NAME="usermodified"   TYPE="int"    LENGTH="10"   NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="timecreated"    TYPE="int"    LENGTH="10"   NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="timemodified"   TYPE="int"    LENGTH="10"   NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
@@ -973,7 +971,6 @@
         <KEY NAME="usermodifiedfk" TYPE="foreign" FIELDS="usermodified"  REFTABLE="user" REFFIELDS="id"/>
       </KEYS>
       <INDEXES>
-        <INDEX NAME="generation_idx" UNIQUE="false" FIELDS="generationid"/>
         <INDEX NAME="version_idx"    UNIQUE="false" FIELDS="generationid, version"/>
       </INDEXES>
     </TABLE>
