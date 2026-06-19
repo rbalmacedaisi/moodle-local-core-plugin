@@ -154,7 +154,7 @@ echo $OUTPUT->header();
             </div>
             <?php endif; ?>
             <div class="item">
-                <div class="k"><?php echo get_string('diploma_verify_templatename', 'local_grupomakro_core') ?: get_string('diploma_template_used', 'local_grupomakro_core'); ?></div>
+                <div class="k"><?php echo get_string('diploma_template_used', 'local_grupomakro_core'); ?></div>
                 <div class="v"><?php echo s($row['templatename']); ?></div>
             </div>
         </div>
