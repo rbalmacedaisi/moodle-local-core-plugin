@@ -113,7 +113,7 @@ function local_grupomakro_core_extend_navigation(global_navigation $navigation) 
     try {
         $is_home = $PAGE->url->compare(new moodle_url('/'), URL_MATCH_BASE);
         $is_dashboard = $PAGE->url->compare(new moodle_url('/my/'), URL_MATCH_BASE);
-        
+
         if ($is_home || $is_dashboard) {
             $dummy = null;
             local_grupomakro_core_user_home_redirect($dummy);
@@ -121,4 +121,74 @@ function local_grupomakro_core_extend_navigation(global_navigation $navigation) 
     } catch (Exception $e) {
         // Avoid crashing the whole site if URL comparison fails in certain contexts
     }
+}
+
+/**
+ * Serves plugin files stored under our component (diploma backgrounds and
+ * generated diploma PDFs). Without this callback Moodle rejects every
+ * /pluginfile.php request hitting our component, even when the file exists.
+ *
+ * @param stdClass $course Course object (unused here, file is in SYSTEM).
+ * @param cm_info $cm Course-module object (unused).
+ * @param context $context Context the file is being requested from.
+ * @param string $filearea File area name.
+ * @param array $args Remaining URL parts.
+ * @param bool $forcedownload Whether the user agent requested a download.
+ * @param array $options Extra options (headers etc.).
+ * @return bool True if file served, false to fall through to next plugin.
+ */
+function local_grupomakro_core_pluginfile($course, $cm, $context, $filearea, array $args, $forcedownload, array $options = []) {
+    global $USER;
+
+    // All our files live in the system context.
+    if ($context->contextlevel !== CONTEXT_SYSTEM) {
+        return false;
+    }
+
+    // File areas served by this plugin and their required capability.
+    $areas = [
+        'diploma_background' => 'local/grupomakro_core:managediplomas',
+        'diploma_document'   => 'local/grupomakro_core:viewdiplomas',
+    ];
+    if (!isset($areas[$filearea])) {
+        return false;
+    }
+    $requiredcap = $areas[$filearea];
+
+    // Must be logged in and authorised.
+    if (!isloggedin() || isguestuser()) {
+        // Public verification pages render diploma previews for unauthenticated
+        // visitors via a controlled entry point (diploma_verify.php). The QR code
+        // image is also public: allow it without login.
+        $allowpublic = ($filearea === 'diploma_document' && !empty($args[0]) && strpos((string)$args[0], 'public') === 0);
+        // The background is NEVER public (template art is admin-only).
+        if ($filearea === 'diploma_background' || !$allowpublic) {
+            return false;
+        }
+    }
+
+    // The system context has no per-course capability; just require system cap.
+    require_capability($requiredcap, context_system::instance());
+
+    $itemid = array_shift($args); // The template/generation id is part of the URL.
+    $filename = array_pop($args); // The filename is the last path component.
+    $filepath = $args ? '/' . implode('/', $args) . '/' : '/';
+
+    $fs = get_file_storage();
+    $file = $fs->get_file($context->id, 'local_grupomakro_core', $filearea, (int)$itemid, $filepath, $filename);
+    if (!$file) {
+        // Try without strict itemid match (e.g. background file id was renamed).
+        $file = $fs->get_file_by_id((int)$itemid);
+        if (!$file || $file->get_component() !== 'local_grupomakro_core' || $file->get_filearea() !== $filearea) {
+            return false;
+        }
+    }
+
+    // Final permission check using the file's real context (still SYSTEM for us).
+    if (!$file->is_visible()) {
+        require_capability($requiredcap, $context);
+    }
+
+    send_stored_file($file, 0, 0, $forcedownload, $options);
+    return true;
 }
