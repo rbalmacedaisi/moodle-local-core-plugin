@@ -9692,3 +9692,58 @@ function gmk_get_module_fileinfo(string $modname): ?array {
     return $map[$modname] ?? null;
 }
 
+/**
+ * Sanitizes a "ratio" admin setting into a normalized float in [0, 1].
+ *
+ * Why this exists: admin_setting_configtext with PARAM_FLOAT was rejecting
+ * valid decimals (e.g. "0,70" sent from locales using comma as decimal
+ * separator, or just the strict regex match failing in some Moodle versions).
+ * The fix is to store the raw string and normalize here. This helper:
+ *
+ *  - Accepts ".", "," and locale-style "0,70" / "0.70"
+ *  - Treats values strictly greater than 1 (and <= 100) as percentages
+ *    (e.g. "70" -> 0.70). Values > 100 are kept as-is and clamped downstream.
+ *  - Clamps to the [0, 1] range
+ *  - Falls back to the supplied default when the value cannot be parsed
+ *
+ * @param mixed $raw Raw stored value (string|int|float|null).
+ * @param float $default Fallback used when value is empty/invalid.
+ * @return float Normalized ratio in [0, 1].
+ */
+function local_grupomakro_core_bbb_ratio($raw, float $default): float {
+    if ($raw === null || $raw === '') {
+        return $default;
+    }
+    // Normalize decimal separator: turn "0,70" or " 0.70 " into "0.70".
+    $s = trim((string)$raw);
+    // Strip thousands separators if the user typed something like "1.234,56".
+    // Heuristic: if there's both "." and ",", the rightmost one is the decimal.
+    if (strpos($s, ',') !== false && strpos($s, '.') !== false) {
+        $s = str_replace('.', '', $s);
+        $s = str_replace(',', '.', $s);
+    } else {
+        // Only one kind of separator; treat "," as decimal separator too.
+        $s = str_replace(',', '.', $s);
+    }
+    // Reject anything that isn't a number.
+    if (!is_numeric($s)) {
+        return $default;
+    }
+    $value = (float)$s;
+    // Heuristic: a value in (1, 100] is almost certainly an admin typing a
+    // percentage without the decimal (e.g. "70" for 70%). Anything > 100 is
+    // either a typo or already meant as a fraction we cannot repair, so we
+    // let the clamp handle it.
+    if ($value > 1.0 && $value <= 100.0) {
+        $value = $value / 100.0;
+    }
+    // Clamp to a sane range. A ratio cannot be negative; 1 means full duration.
+    if ($value < 0.0) {
+        $value = 0.0;
+    }
+    if ($value > 1.0) {
+        $value = 1.0;
+    }
+    return $value;
+}
+

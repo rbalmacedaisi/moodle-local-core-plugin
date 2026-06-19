@@ -49,13 +49,22 @@ class reconcile_bbb_attendance extends scheduled_task {
 
         $now = time();
 
-        $presentratio = (float)get_config('local_grupomakro_core', 'bbb_attendance_present_ratio');
-        if ($presentratio <= 0) {
-            $presentratio = 0.70;
-        }
-        $lateratio = (float)get_config('local_grupomakro_core', 'bbb_attendance_late_ratio');
-        if ($lateratio <= 0) {
-            $lateratio = 0.40;
+        // Read ratios via the locale-safe sanitizer in locallib.php. The previous
+        // direct cast broke for values like "0,70" sent from locales that use
+        // comma as decimal separator.
+        $presentratio = local_grupomakro_core_bbb_ratio(
+            get_config('local_grupomakro_core', 'bbb_attendance_present_ratio'),
+            0.70
+        );
+        $lateratio = local_grupomakro_core_bbb_ratio(
+            get_config('local_grupomakro_core', 'bbb_attendance_late_ratio'),
+            0.40
+        );
+
+        // Enforce ordering: late threshold must be strictly below the present
+        // threshold, otherwise no student would ever be marked "late".
+        if ($lateratio >= $presentratio) {
+            $lateratio = max(0.0, $presentratio - 0.10);
         }
 
         // Sessions ready to reconcile: unreconciled rows whose last sample is past the grace window.

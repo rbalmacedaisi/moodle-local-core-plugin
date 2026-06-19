@@ -452,20 +452,24 @@ if ($hassiteconfig) {
         ));
 
         // Asistencia virtual automática (BBB) por % de permanencia.
+        // Usamos PARAM_RAW para no romper con locales que envían coma decimal; el
+        // helper local_grupomakro_core_bbb_ratio() normaliza el valor al leerlo.
         $settingspage->add(new admin_setting_configtext(
             'local_grupomakro_core/bbb_attendance_present_ratio',
             'Asistencia BBB: umbral Presente',
-            'Fracción mínima de la duración de la clase virtual para marcar Presente (ej. 0.70 = 70%).',
+            'Fracción mínima de la duración de la clase virtual para marcar Presente (ej. 0.70 = 70%). ' .
+            'Use punto como separador decimal. Si ingresa un número mayor que 1 (ej. 70), se interpretará como porcentaje (0.70).',
             '0.70',
-            PARAM_FLOAT
+            PARAM_RAW
         ));
 
         $settingspage->add(new admin_setting_configtext(
             'local_grupomakro_core/bbb_attendance_late_ratio',
             'Asistencia BBB: umbral Retraso',
-            'Fracción mínima para marcar Retraso (por debajo del umbral de Presente). Debajo de este valor se marca Falta. Ej. 0.40 = 40%.',
+            'Fracción mínima para marcar Retraso (por debajo del umbral de Presente). Debajo de este valor se marca Falta. Ej. 0.40 = 40%. ' .
+            'Use punto como separador decimal. Si ingresa un número mayor que 1 (ej. 40), se interpretará como porcentaje (0.40).',
             '0.40',
-            PARAM_FLOAT
+            PARAM_RAW
         ));
 
         // Add the "tuitionfee" setting, which is an text field.
