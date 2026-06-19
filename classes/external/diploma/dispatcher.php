@@ -86,15 +86,38 @@ final class dispatcher {
             case 'upload_background':
                 require_capability($capmanage, context_system::instance());
                 $id = required_param('id', PARAM_INT);
-                if (empty($_FILES['file']) || !is_uploaded_file($_FILES['file']['tmp_name'])) {
+                $b64 = optional_param('contentbase64', '', PARAM_RAW);
+                $filename = (string)optional_param('filename', 'background.png', PARAM_FILE);
+                $mimetype = (string)optional_param('mimetype', 'image/png', PARAM_TEXT);
+                if ($b64 === '') {
                     throw new moodle_exception('diploma_no_file', 'local_grupomakro_core');
                 }
-                $content = file_get_contents($_FILES['file']['tmp_name']);
+                // Validate base64 + decode.
+                $bin = base64_decode($b64, true);
+                if ($bin === false || $bin === '') {
+                    throw new moodle_exception('diploma_no_file', 'local_grupomakro_core');
+                }
+                if (strlen($bin) > 10 * 1024 * 1024) {
+                    throw new moodle_exception('diploma_too_large', 'local_grupomakro_core');
+                }
+                // Sanitize the mime type — accept only known image types.
+                $allowedmimes = [
+                    'image/png'  => 'png',
+                    'image/jpeg' => 'jpg',
+                    'image/jpg'  => 'jpg',
+                    'image/webp' => 'webp',
+                    'image/gif'  => 'gif',
+                    'image/svg+xml' => 'svg',
+                ];
+                if (!isset($allowedmimes[$mimetype])) {
+                    // Fall back to PNG if mime unknown.
+                    $mimetype = 'image/png';
+                }
                 $result = $manager::save_background(
                     $id,
-                    (string)$_FILES['file']['name'],
-                    (string)($_FILES['file']['type'] ?: 'application/octet-stream'),
-                    $content,
+                    $filename !== '' ? $filename : ('background.' . $allowedmimes[$mimetype]),
+                    $mimetype,
+                    $bin,
                     $USER->id
                 );
                 return ['status' => 'success', 'background' => $result];

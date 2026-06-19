@@ -715,3 +715,5 @@ $string['diploma_certified_career_suffix'] = '.';
 $string['diploma_cap:manage'] = 'Manage diplomas and templates';
 $string['diploma_cap:view'] = 'View generated diplomas';
 $string['diploma_cap:verify'] = 'Verify diplomas publicly';
+$string['diploma_no_file'] = 'No image was received. Please try again.';
+$string['diploma_too_large'] = 'The image exceeds the maximum allowed size (10 MB).';

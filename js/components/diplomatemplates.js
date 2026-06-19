@@ -472,28 +472,25 @@
                     this.notifyError('Guarde primero la plantilla antes de subir el fondo.');
                     return;
                 }
-                if (file.size > 20 * 1024 * 1024) {
-                    this.notifyError('La imagen supera 20 MB. Use una versión optimizada.');
+                if (file.size > 5 * 1024 * 1024) {
+                    this.notifyError('La imagen supera 5 MB. Use una versión optimizada.');
                     e.target.value = '';
                     return;
                 }
-                const fd = new FormData();
-                fd.append('file', file);
-                fd.append('action', 'local_grupomakro_diploma_upload_background');
-                fd.append('id', this.selected.id);
-                // Send the Moodle session key for CSRF protection.
+                // Read the file as base64 inside a JSON payload. This avoids
+                // all the multipart/boundary/CORS pitfalls that plagued the
+                // original FormData approach (axios vs PHP disagreement on
+                // the boundary in the Content-Type header).
                 try {
-                    var sesskey = (window.M && window.M.cfg && window.M.cfg.sesskey) || '';
-                    var sessinput = document.querySelector('input[name="sesskey"]');
-                    if (!sesskey && sessinput) { sesskey = sessinput.value; }
-                    if (sesskey) { fd.append('sesskey', sesskey); }
-                } catch (skerr) { /* sesskey is best-effort */ }
-                try {
-                    // IMPORTANT: do NOT set Content-Type manually here. axios will
-                    // build the correct `multipart/form-data; boundary=...` header
-                    // itself; overriding it without a boundary breaks $_FILES on
-                    // the server side.
-                    const res = await this.http.post('/', fd);
+                    const dataUrl = await this.readFileAsDataUrl(file);
+                    const base64 = dataUrl.split(',')[1] || '';
+                    const res = await this.http.post('/', {
+                        action: 'local_grupomakro_diploma_upload_background',
+                        id: this.selected.id,
+                        filename: file.name,
+                        mimetype: file.type || 'image/png',
+                        contentbase64: base64
+                    });
                     if (res.data && res.data.status === 'success') {
                         const bg = res.data.background;
                         this.selected.background_url = bg.url + '?v=' + Date.now();
@@ -506,7 +503,6 @@
                         throw new Error(msg);
                     }
                 } catch (err) {
-                    // Try to surface the server response body if axios captured one.
                     var servermsg = '';
                     if (err && err.response && err.response.data) {
                         try { servermsg = JSON.stringify(err.response.data); } catch (e) {}
@@ -514,6 +510,14 @@
                     console.error('[diplomatemplates] upload threw', err, servermsg);
                     this.notifyError((err && err.message) || err || 'Error de red');
                 } finally { e.target.value = ''; }
+            },
+            readFileAsDataUrl(file) {
+                return new Promise((resolve, reject) => {
+                    var r = new FileReader();
+                    r.onload = function () { resolve(r.result); };
+                    r.onerror = function () { reject(r.error || new Error('FileReader error')); };
+                    r.readAsDataURL(file);
+                });
             },
             addElement(type) {
                 if (!this.selected) {
