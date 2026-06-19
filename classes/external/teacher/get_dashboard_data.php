@@ -258,16 +258,19 @@ class get_dashboard_data extends external_api {
         global $DB;
         $now = time();
         
-        // Query next session from Moodle events linked to this class
-        $sql = "SELECT e.timestart 
-                FROM {event} e
-                JOIN {attendance_sessions} asess ON asess.caleventid = e.id
+        // Read the next upcoming session directly from the attendance sessions linked to this
+        // class. We deliberately DO NOT join the Moodle calendar {event} table: some sessions are
+        // created without a calendar event (caleventid = 0), which previously made them invisible
+        // here (and in the upcoming-sessions panel, which derives from next_session) even though
+        // they exist and show in the attendance/calendar views. Using sessdate makes this robust.
+        $sql = "SELECT asess.sessdate
+                FROM {attendance_sessions} asess
                 JOIN {gmk_bbb_attendance_relation} rel ON rel.attendancesessionid = asess.id
-                WHERE rel.classid = :classid AND e.timestart >= :now
-                ORDER BY e.timestart ASC";
-        
+                WHERE rel.classid = :classid AND asess.sessdate >= :now
+                ORDER BY asess.sessdate ASC";
+
         $session = $DB->get_record_sql($sql, ['classid' => $classid, 'now' => $now], IGNORE_MULTIPLE);
-        return $session ? (int)$session->timestart : null;
+        return $session ? (int)$session->sessdate : null;
     }
 
     public static function execute_returns() {
