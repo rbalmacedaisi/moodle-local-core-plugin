@@ -447,4 +447,25 @@
             }
         }
     });
+
+    // Mount the Vue app on the #gmk-app element emitted by diplomageneration.php.
+    // The component is registered above so <diplomageneration> resolves once mounted.
+    function mountDiplomaGeneration() {
+        var root = document.getElementById('gmk-app');
+        if (!root) { return; }
+        if (root.__vue_app__) { return; }
+        var app = new Vue({
+            el: root,
+            vuetify: new Vuetify({ theme: { dark: false } })
+        });
+        root.__vue_app__ = app;
+        if (window.console && console.log) {
+            console.log('[grupomakro_core] diplomageneration mounted');
+        }
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', mountDiplomaGeneration);
+    } else {
+        mountDiplomaGeneration();
+    }
 })();

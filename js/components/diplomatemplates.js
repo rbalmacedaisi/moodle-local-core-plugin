@@ -632,4 +632,27 @@
             }
         }
     });
+
+    // Mount the Vue app on the #gmk-app element emitted by diplomatemplates.php.
+    // This must run after the component is registered so <diplomatemplates>
+    // resolves to the registered component definition.
+    function mountDiplomaTemplates() {
+        var root = document.getElementById('gmk-app');
+        if (!root) { return; }
+        // Avoid double-mount (HMR / navigation edge cases).
+        if (root.__vue_app__) { return; }
+        var app = new Vue({
+            el: root,
+            vuetify: new Vuetify({ theme: { dark: false } })
+        });
+        root.__vue_app__ = app;
+        if (window.console && console.log) {
+            console.log('[grupomakro_core] diplomatemplates mounted');
+        }
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', mountDiplomaTemplates);
+    } else {
+        mountDiplomaTemplates();
+    }
 })();
