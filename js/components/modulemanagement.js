@@ -47,6 +47,14 @@ Vue.component('modulemanagement', {
             // Update enrollment loading map { enrollmentid: true }
             updatingMap: {},
             deletingModuleId: null,
+
+            // Grade entry dialog (shown when marking completed without an existing grade
+            // or when the module has more than one activity)
+            gradeDialog:        false,
+            gradeEnrollment:    null,
+            gradeActivities:    [],   // [{ itemid, name, grade, weight }]
+            loadingGrade:       false,
+            savingGrade:        false,
         };
     },
 
@@ -56,6 +64,42 @@ Vue.component('modulemanagement', {
             return all.concat(
                 this.periods.map(p => ({ id: p.id, label: p.code || p.name }))
             );
+        },
+
+        // Grade dialog helpers
+        gradeIsSingle() {
+            return this.gradeActivities.length === 1;
+        },
+        gradeWeightSum() {
+            return this.gradeActivities.reduce((s, a) => s + (Number(a.weight) || 0), 0);
+        },
+        gradeWeightValid() {
+            // Single activity ignores weights; multiple must sum to ~100%.
+            if (this.gradeIsSingle) return true;
+            return Math.abs(this.gradeWeightSum - 100) < 0.01;
+        },
+        gradeAllFilled() {
+            return this.gradeActivities.every(a =>
+                a.grade !== null && a.grade !== '' && Number(a.grade) >= 0 && Number(a.grade) <= 100
+            );
+        },
+        gradeFinalPreview() {
+            if (!this.gradeActivities.length) return null;
+            if (this.gradeIsSingle) {
+                const g = Number(this.gradeActivities[0].grade);
+                return isNaN(g) ? null : Math.round(g * 100) / 100;
+            }
+            let sumW = 0, sumGW = 0;
+            for (const a of this.gradeActivities) {
+                const g = Number(a.grade), w = Number(a.weight) || 0;
+                if (isNaN(g)) continue;
+                sumW += w; sumGW += g * w;
+            }
+            if (sumW <= 0) return null;
+            return Math.round((sumGW / sumW) * 100) / 100;
+        },
+        gradeCanSave() {
+            return this.gradeAllFilled && this.gradeWeightValid && this.gradeActivities.length > 0;
         },
     },
 
@@ -258,25 +302,94 @@ Vue.component('modulemanagement', {
         },
 
         async markCompleted(enrollment) {
-            const confirmed = await window.Swal.fire({
-                title:             'Marcar como completado',
-                html:              `¿Marcar a <b>${enrollment._fullname}</b> como completado en este módulo?`,
-                icon:              'question',
-                showCancelButton:  true,
-                confirmButtonText: 'Sí, completado',
-                cancelButtonText:  'Cancelar',
-                confirmButtonColor:'#4CAF50',
-            });
-            if (!confirmed.isConfirmed) return;
-
+            // Load the module's gradable activities to decide the flow.
             this.$set(this.updatingMap, enrollment.id, true);
+            let activities = [];
             try {
                 const res = await window.axios.get(ajaxUrl, { params: {
+                    action:       'local_grupomakro_get_module_activities',
+                    sesskey,
+                    enrollmentId: enrollment.id,
+                }});
+                activities = ((res.data || {}).data || {}).activities || [];
+            } catch (e) {
+                console.error('Error loading module activities:', e);
+                this.$delete(this.updatingMap, enrollment.id);
+                this.showMessage('error', 'No se pudieron cargar las actividades del módulo.');
+                return;
+            }
+            this.$delete(this.updatingMap, enrollment.id);
+
+            // Single activity already graded → confirm and complete directly.
+            if (activities.length === 1 && activities[0].current_grade !== null) {
+                const confirmed = await window.Swal.fire({
+                    title:             'Marcar como completado',
+                    html:              `¿Marcar a <b>${enrollment._fullname}</b> como completado en este módulo?<br>` +
+                                       `<small class="grey--text">Nota actual: <b>${activities[0].current_grade}/100</b></small>`,
+                    icon:              'question',
+                    showCancelButton:  true,
+                    confirmButtonText: 'Sí, completado',
+                    cancelButtonText:  'Cancelar',
+                    confirmButtonColor:'#4CAF50',
+                });
+                if (!confirmed.isConfirmed) return;
+                await this._sendComplete(enrollment, null);
+                return;
+            }
+
+            // No gradable activities configured.
+            if (activities.length === 0) {
+                this.showMessage('error', 'El módulo no tiene actividades calificables configuradas.');
+                return;
+            }
+
+            // Single activity without a grade, or multiple activities → open grade dialog.
+            const equalW = Math.round((100 / activities.length) * 100) / 100;
+            this.gradeEnrollment = enrollment;
+            this.gradeActivities = activities.map(a => ({
+                itemid: a.itemid,
+                name:   a.name,
+                grade:  a.current_grade !== null ? a.current_grade : '',
+                weight: equalW,
+            }));
+            // Absorb rounding drift on the last item so weights sum to exactly 100%.
+            if (this.gradeActivities.length > 1) {
+                const last = this.gradeActivities.length - 1;
+                const drift = 100 - this.gradeActivities.reduce((s, a) => s + a.weight, 0);
+                this.gradeActivities[last].weight =
+                    Math.round((this.gradeActivities[last].weight + drift) * 100) / 100;
+            }
+            this.gradeDialog = true;
+        },
+
+        async confirmGrades() {
+            if (!this.gradeCanSave || !this.gradeEnrollment) return;
+            this.savingGrade = true;
+            const payload = this.gradeActivities.map(a => ({
+                itemid: a.itemid,
+                grade:  Number(a.grade),
+                weight: this.gradeIsSingle ? 100 : (Number(a.weight) || 0),
+            }));
+            const ok = await this._sendComplete(this.gradeEnrollment, payload);
+            this.savingGrade = false;
+            if (ok) {
+                this.gradeDialog     = false;
+                this.gradeEnrollment = null;
+                this.gradeActivities = [];
+            }
+        },
+
+        async _sendComplete(enrollment, gradesPayload) {
+            this.$set(this.updatingMap, enrollment.id, true);
+            try {
+                const params = {
                     action:       'local_grupomakro_update_module_enrollment',
                     sesskey,
                     enrollmentId: enrollment.id,
                     updateAction: 'complete',
-                }});
+                };
+                if (gradesPayload) params.grades = JSON.stringify(gradesPayload);
+                const res = await window.axios.get(ajaxUrl, { params });
                 const payload = res.data || {};
                 if (payload.status === 'success') {
                     const idx = this.students.findIndex(s => s.id === enrollment.id);
@@ -291,13 +404,15 @@ Vue.component('modulemanagement', {
                             enrolled_count: Math.max(0, (this.modules[mIdx].enrolled_count || 1) - 1),
                         });
                     }
-                    this.showMessage('success', 'Inscripción marcada como completada.');
-                } else {
-                    this.showMessage('error', ((payload.data || payload).message) || 'No se pudo actualizar.');
+                    this.showMessage('success', ((payload.data || {}).message) || 'Inscripción marcada como completada.');
+                    return true;
                 }
+                this.showMessage('error', ((payload.data || payload).message) || 'No se pudo actualizar.');
+                return false;
             } catch (e) {
                 console.error('Error marking complete:', e);
                 this.showMessage('error', 'Error al actualizar la inscripción.');
+                return false;
             } finally {
                 this.$delete(this.updatingMap, enrollment.id);
             }
@@ -565,6 +680,89 @@ Vue.component('modulemanagement', {
         <v-btn text @click="extendDialog = false" :disabled="savingExtend">Cancelar</v-btn>
         <v-btn color="orange darken-2" dark :loading="savingExtend" @click="confirmExtend">
           Extender plazo
+        </v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
+
+  <!-- ── Grade entry dialog ─────────────────────────────────────────────── -->
+  <v-dialog v-model="gradeDialog" max-width="640" persistent scrollable>
+    <v-card>
+      <v-card-title class="green darken-2 white--text">
+        <v-icon left dark>mdi-check-circle-outline</v-icon>
+        Calificar y completar
+        <v-spacer></v-spacer>
+        <v-btn icon dark @click="gradeDialog = false" :disabled="savingGrade"><v-icon>mdi-close</v-icon></v-btn>
+      </v-card-title>
+
+      <v-card-text class="pt-4">
+        <div class="mb-3" v-if="gradeEnrollment">
+          Estudiante: <strong>{{ gradeEnrollment._fullname }}</strong>
+        </div>
+        <div class="text-caption grey--text mb-2" v-if="gradeIsSingle">
+          Ingrese la nota (0–100) de la actividad. Se guardará en el libro de calificaciones.
+        </div>
+        <div class="text-caption grey--text mb-2" v-else>
+          Ingrese la nota (0–100) y la ponderación (%) de cada actividad. Las ponderaciones deben sumar 100%.
+        </div>
+
+        <v-simple-table dense>
+          <template v-slot:default>
+            <thead>
+              <tr>
+                <th class="text-left">Actividad</th>
+                <th class="text-center" style="width:120px">Nota (0–100)</th>
+                <th class="text-center" style="width:130px" v-if="!gradeIsSingle">Ponderación (%)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(a, i) in gradeActivities" :key="a.itemid">
+                <td>{{ a.name }}</td>
+                <td class="text-center">
+                  <v-text-field
+                    v-model.number="a.grade"
+                    type="number" min="0" max="100" step="0.01"
+                    dense outlined hide-details class="centered-input"
+                  ></v-text-field>
+                </td>
+                <td class="text-center" v-if="!gradeIsSingle">
+                  <v-text-field
+                    v-model.number="a.weight"
+                    type="number" min="0" max="100" step="0.01"
+                    dense outlined hide-details suffix="%" class="centered-input"
+                  ></v-text-field>
+                </td>
+              </tr>
+            </tbody>
+          </template>
+        </v-simple-table>
+
+        <v-row class="mt-3" align="center" no-gutters v-if="!gradeIsSingle">
+          <v-col>
+            <span class="text-caption">Suma ponderaciones:
+              <strong :class="gradeWeightValid ? 'green--text' : 'red--text'">
+                {{ gradeWeightSum.toFixed(2) }}%
+              </strong>
+            </span>
+          </v-col>
+        </v-row>
+
+        <v-alert v-if="!gradeWeightValid && !gradeIsSingle" dense outlined type="warning" class="mt-2 mb-0">
+          Las ponderaciones deben sumar 100%.
+        </v-alert>
+
+        <div class="mt-3">
+          <v-chip color="green darken-2" dark label>
+            Nota final: <strong class="ml-1">{{ gradeFinalPreview !== null ? gradeFinalPreview : '—' }}/100</strong>
+          </v-chip>
+        </div>
+      </v-card-text>
+
+      <v-card-actions>
+        <v-spacer></v-spacer>
+        <v-btn text @click="gradeDialog = false" :disabled="savingGrade">Cancelar</v-btn>
+        <v-btn color="green darken-2" dark :loading="savingGrade" :disabled="!gradeCanSave" @click="confirmGrades">
+          Guardar y completar
         </v-btn>
       </v-card-actions>
     </v-card>

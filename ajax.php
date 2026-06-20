@@ -1684,6 +1684,60 @@ try {
             $response = ['status' => 'success', 'data' => array_values($module_students)];
             break;
 
+        case 'local_grupomakro_get_module_activities':
+            // Returns the gradable activities of a module (course/grade category) with the
+            // student's current grade normalized to 0-100. Used to decide whether the grading
+            // dialog must be shown when marking the enrollment as completed.
+            require_capability('moodle/site:config', $context);
+            require_once($CFG->libdir . '/gradelib.php');
+            $enrollment_id = required_param('enrollmentId', PARAM_INT);
+            $enr = $DB->get_record('gmk_module_enrollment', ['id' => $enrollment_id], '*', MUST_EXIST);
+            $mclass = $DB->get_record('gmk_class', ['id' => $enr->classid],
+                'id, corecourseid, gradecategoryid', MUST_EXIST);
+
+            $activities = [];
+            if ((int)$mclass->corecourseid > 0) {
+                $act_params = ['cid' => (int)$mclass->corecourseid];
+                $cat_sql = '';
+                if ((int)$mclass->gradecategoryid > 0) {
+                    $cat_sql = ' AND gi.categoryid = :catid';
+                    $act_params['catid'] = (int)$mclass->gradecategoryid;
+                }
+                $items = $DB->get_records_sql(
+                    "SELECT gi.id, gi.itemname, gi.itemtype, gi.itemmodule, gi.iteminstance,
+                            gi.grademax, gi.grademin
+                       FROM {grade_items} gi
+                      WHERE gi.courseid = :cid
+                        AND gi.itemtype IN ('mod', 'manual')
+                        $cat_sql
+                   ORDER BY gi.sortorder ASC, gi.id ASC",
+                    $act_params
+                );
+                foreach ($items as $it) {
+                    $name = trim((string)$it->itemname);
+                    if ($name === '' && $it->itemtype === 'mod' && !empty($it->itemmodule)) {
+                        $name = (string)$DB->get_field($it->itemmodule, 'name',
+                            ['id' => (int)$it->iteminstance]);
+                    }
+                    $current = null;
+                    if ((float)$it->grademax > 0) {
+                        $gg = $DB->get_record('grade_grades',
+                            ['itemid' => (int)$it->id, 'userid' => (int)$enr->userid], 'finalgrade');
+                        if ($gg && $gg->finalgrade !== null) {
+                            $current = min(round(((float)$gg->finalgrade / (float)$it->grademax) * 100, 2), 100.0);
+                        }
+                    }
+                    $activities[] = [
+                        'itemid'        => (int)$it->id,
+                        'name'          => ($name !== '' ? $name : 'Actividad'),
+                        'grademax'      => (float)$it->grademax,
+                        'current_grade' => $current,
+                    ];
+                }
+            }
+            $response = ['status' => 'success', 'data' => ['activities' => $activities]];
+            break;
+
         case 'local_grupomakro_delete_module':
             require_sesskey();
             require_capability('moodle/site:config', $context);
@@ -1719,14 +1773,64 @@ try {
                     'message' => 'Plazo extendido. Nueva fecha lÃ­mite: ' . $due_fmt,
                 ]];
             } else if ($update_action === 'complete') {
+                require_once($CFG->libdir . '/gradelib.php');
                 $DB->set_field('gmk_module_enrollment', 'status',       'completed', ['id' => $enrollment_id]);
                 $DB->set_field('gmk_module_enrollment', 'timemodified', $now_t,      ['id' => $enrollment_id]);
 
-                // Resolve grade from the single activity in the module's grade category.
                 $mod_class = $DB->get_record('gmk_class', ['id' => $enrollment_rec->classid],
                     'id, corecourseid, gradecategoryid');
                 $module_grade = null;
-                if ($mod_class && (int)$mod_class->gradecategoryid > 0 && (int)$mod_class->corecourseid > 0) {
+
+                // ── Manual entry path ──────────────────────────────────────────────
+                // The admin may submit grades (0-100) and weights for the module's
+                // activities. Each grade is written back to its grade_item as a manual
+                // override, and the weighted average (on a 0-100 scale) becomes the
+                // module's final grade.
+                $grades_raw = optional_param('grades', '', PARAM_RAW);
+                $grades_in  = $grades_raw !== '' ? json_decode($grades_raw, true) : null;
+
+                if ($mod_class && (int)$mod_class->corecourseid > 0
+                        && is_array($grades_in) && count($grades_in) > 0) {
+                    // Restrict writable items to this module's course (+category when set).
+                    $allow_params = ['cid' => (int)$mod_class->corecourseid];
+                    $allow_cat_sql = '';
+                    if ((int)$mod_class->gradecategoryid > 0) {
+                        $allow_cat_sql = ' AND categoryid = :catid';
+                        $allow_params['catid'] = (int)$mod_class->gradecategoryid;
+                    }
+                    $allowed_items = $DB->get_records_sql(
+                        "SELECT id FROM {grade_items}
+                          WHERE courseid = :cid AND itemtype IN ('mod', 'manual') $allow_cat_sql",
+                        $allow_params
+                    );
+
+                    $sum_w = 0.0; $sum_gw = 0.0;
+                    foreach ($grades_in as $g) {
+                        $itemid = isset($g['itemid']) ? (int)$g['itemid'] : 0;
+                        if ($itemid <= 0 || !isset($allowed_items[$itemid]) || !isset($g['grade'])) {
+                            continue;
+                        }
+                        $gval = (float)$g['grade'];
+                        $gval = max(0.0, min(100.0, $gval));
+                        $wval = isset($g['weight']) ? max(0.0, (float)$g['weight']) : 0.0;
+
+                        $gi = \grade_item::fetch(['id' => $itemid]);
+                        if ($gi && (float)$gi->grademax > 0) {
+                            $finalg = ($gval / 100.0) * (float)$gi->grademax;
+                            $gi->update_final_grade((int)$enrollment_rec->userid, $finalg, 'manual', '', FORMAT_MOODLE);
+                        }
+                        $sum_w  += $wval;
+                        $sum_gw += $gval * $wval;
+                    }
+                    if ($sum_w > 0) {
+                        $module_grade = min(round($sum_gw / $sum_w, 2), 100.0);
+                    }
+                }
+
+                // ── Auto-resolve fallback ──────────────────────────────────────────
+                // No grades submitted: resolve from the single activity in the category.
+                if ($module_grade === null && $mod_class
+                        && (int)$mod_class->gradecategoryid > 0 && (int)$mod_class->corecourseid > 0) {
                     $gi = $DB->get_record_sql(
                         "SELECT gi.id, gi.grademax
                            FROM {grade_items} gi
