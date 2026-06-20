@@ -5580,19 +5580,27 @@ function check_reschedule_conflicts($params)
     $incomingWeekDay = $weekdays[date('l', strtotime($params['date']))];
     $incomingTimeRangeTS = convert_time_range_to_timestamp_range([$params['initTime'], $params['endTime']]);
 
-    $instructorEvents = get_teacher_disponibility_calendar($instructorUserId);
-    $incomingDayAvailableTime = $instructorEvents->daysFree[$params['date']] ?? [];
+    // Only validate instructor availability if there IS an instructor assigned AND they have a
+    // disponibility record configured. Otherwise get_teacher_disponibility_calendar() throws a
+    // MUST_EXIST exception (e.g. classes with no instructor -> userid=0, or teachers who never set
+    // their availability), which aborted the whole reschedule. In those cases there is no instructor
+    // constraint to check, so we skip it and still run the student conflict check below.
+    if (!empty($instructorUserId)
+            && $DB->record_exists('gmk_teacher_disponibility', ['userid' => $instructorUserId])) {
+        $instructorEvents = get_teacher_disponibility_calendar($instructorUserId);
+        $incomingDayAvailableTime = $instructorEvents->daysFree[$params['date']] ?? [];
 
-    $foundedAvailableRange = false;
-    for ($i = 0; $i < count($incomingDayAvailableTime); $i += 2) {
-        $freeTimeRangeTS = convert_time_range_to_timestamp_range([$incomingDayAvailableTime[$i], $incomingDayAvailableTime[$i + 1]]);
-        if ($incomingTimeRangeTS['initTS'] >= $freeTimeRangeTS['initTS'] && $incomingTimeRangeTS['endTS'] <= $freeTimeRangeTS['endTS']) {
-            $foundedAvailableRange = true;
-            break;
+        $foundedAvailableRange = false;
+        for ($i = 0; $i < count($incomingDayAvailableTime); $i += 2) {
+            $freeTimeRangeTS = convert_time_range_to_timestamp_range([$incomingDayAvailableTime[$i], $incomingDayAvailableTime[$i + 1]]);
+            if ($incomingTimeRangeTS['initTS'] >= $freeTimeRangeTS['initTS'] && $incomingTimeRangeTS['endTS'] <= $freeTimeRangeTS['endTS']) {
+                $foundedAvailableRange = true;
+                break;
+            }
         }
-    }
-    if (!$foundedAvailableRange) {
-        $errors[] = "El instructor no esta disponible el día " . $incomingWeekDay . " en el horario " . $params['initTime'] . " - " . $params['endTime'] . '.';
+        if (!$foundedAvailableRange) {
+            $errors[] = "El instructor no esta disponible el día " . $incomingWeekDay . " en el horario " . $params['initTime'] . " - " . $params['endTime'] . '.';
+        }
     }
 
     //Check the group members and count how many students are in conflict with the new date and time
