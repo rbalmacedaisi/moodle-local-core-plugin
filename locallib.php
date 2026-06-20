@@ -9003,14 +9003,29 @@ function complete_class_event_information_bbb($event, &$fetchedClasses)
     $event->instructorid = $gmkClass->instructorid ?? 0;
     $defaultduration = (int)($event->timeduration ?? 0);
     $fallbackclassduration = !empty($gmkClass->classduration) ? (int)$gmkClass->classduration : 0;
-    list($resolvedstart, $resolvedduration) = gmk_resolve_bbb_event_schedule(
-        (int)$event->instance,
-        (int)$event->timestart,
-        $defaultduration,
-        $fallbackclassduration
-    );
-    $event->timestart = $resolvedstart;
-    $event->timeduration = $resolvedduration;
+    // Prefer the linked attendance session's REAL start time (class start) over the BBB
+    // openingtime. The BBB calendar event is created at openingtime (class start - 10 min) and is
+    // course-level (groupid 0); the attendance event carries the real time but is group-scoped to
+    // the student group. So when the viewer is not a member of that group (e.g. a teacher),
+    // calendar_get_events returns this BBB event but not the attendance one, the dedup cannot drop
+    // it, and the schedule would show the 10-min-early opening instead of the real class time.
+    // Using the session's sessdate keeps teacher, student, session list and dashboard consistent.
+    $linkedsession = $DB->get_record('attendance_sessions', ['id' => $attendancesessionid], 'sessdate, duration', IGNORE_MISSING);
+    if ($linkedsession && !empty($linkedsession->sessdate)) {
+        $event->timestart = (int)$linkedsession->sessdate;
+        $event->timeduration = !empty($linkedsession->duration)
+            ? (int)$linkedsession->duration
+            : ($fallbackclassduration ?: $defaultduration);
+    } else {
+        list($resolvedstart, $resolvedduration) = gmk_resolve_bbb_event_schedule(
+            (int)$event->instance,
+            (int)$event->timestart,
+            $defaultduration,
+            $fallbackclassduration
+        );
+        $event->timestart = $resolvedstart;
+        $event->timeduration = $resolvedduration;
+    }
     $event->timeRange = gmk_build_event_time_range((int)$event->timestart, (int)$event->timeduration);
     $event->classDaysES = $gmkClass->selectedDaysES ?? [];
     $event->classDaysEN = $gmkClass->selectedDaysEN ?? [];
