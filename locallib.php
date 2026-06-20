@@ -6818,8 +6818,25 @@ function getActivityInfo($moduleId, $sessionId = null)
     if ($moduleInfo->module === $bigBlueButtonModuleId) {
 
         $activityInfo = $DB->get_record('bigbluebuttonbn', array('id' => $moduleInfo->instance), '*', MUST_EXIST);
-        $activityInitTS = $activityInfo->openingtime;
-        $activityEndTS = $activityInfo->closingtime;
+        // Prefer the linked attendance session's REAL time over the BBB openingtime. The BBB room
+        // opens 10 min before class (openingtime = start - 600s), so using it here made editclass
+        // pre-fill the reschedule form with the 10-min-early time instead of the real class start.
+        $linkedsess = $DB->get_record_sql(
+            "SELECT s.sessdate, s.duration
+               FROM {gmk_bbb_attendance_relation} r
+               JOIN {attendance_sessions} s ON s.id = r.attendancesessionid
+              WHERE (r.bbbmoduleid = :cmid OR r.bbbid = :bbbid) AND r.attendancesessionid > 0
+           ORDER BY r.id DESC",
+            ['cmid' => (int)$moduleId, 'bbbid' => (int)$moduleInfo->instance],
+            IGNORE_MULTIPLE
+        );
+        if ($linkedsess && !empty($linkedsess->sessdate)) {
+            $activityInitTS = (int)$linkedsess->sessdate;
+            $activityEndTS = (int)$linkedsess->sessdate + (int)$linkedsess->duration;
+        } else {
+            $activityInitTS = $activityInfo->openingtime;
+            $activityEndTS = $activityInfo->closingtime;
+        }
     } else if ($moduleInfo->module === $attendanceModuleId) {
         $sessionInfo = $DB->get_record('attendance_sessions', array('id' => $sessionId), '*', MUST_EXIST);
         $activityInitTS = $sessionInfo->sessdate;
