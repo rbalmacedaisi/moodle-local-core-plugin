@@ -5896,28 +5896,62 @@ function reschedule_class_activity($params)
         if ($moduleActivity === 'bigbluebuttonbn') {
             $bigBlueButtonInstanceModuleId = $moduleInfo->id;
             $bigBlueButtonActivityInfo =  $DB->get_record('bigbluebuttonbn', ['id' => $moduleInfo->instance]);
-            $bigBlueButtonActivityInitTS = $bigBlueButtonActivityInfo->openingtime;
 
-            // If the reschedule was triggered from the big blue button activity, we must search the attendance session that begins with the same timestamp
             $classAttendanceModule = $DB->get_record('course_modules', ['section' => $classInfo->coursesectionid, 'module' => $attendanceModuleId]);
             $classAttendanceModuleId = $classAttendanceModule->id;
-            $classAttendanceSessionId = $DB->get_record('attendance_sessions', ['attendanceid' => $classAttendanceModule->instance, 'sessdate' => $bigBlueButtonActivityInitTS])->id;
+
+            // Resolve the linked attendance session. BBB opens -600s before session (see
+            // create_big_blue_button_activity line 3286), so openingtime != sessdate — the
+            // legacy query 'sessdate = openingtime' never matched and left $classAttendanceSessionId
+            // null, which caused attendance duplication on reschedule. Prefer the explicit
+            // sessionId passed by the caller; otherwise look up by the BBB name pattern
+            // (which encodes sessdate, not openingtime).
+            $classAttendanceSessionId = null;
+            if (!empty($params['sessionId']) && ctype_digit((string)$params['sessionId'])) {
+                $candidate = $DB->get_record('attendance_sessions', ['id' => (int)$params['sessionId']], 'id, attendanceid, sessdate');
+                if ($candidate && (int)$candidate->attendanceid === (int)$classAttendanceModule->instance) {
+                    $classAttendanceSessionId = (int)$candidate->id;
+                }
+            }
+            if (empty($classAttendanceSessionId) && preg_match('/-(\d+)$/', $bigBlueButtonActivityInfo->name, $m)) {
+                // BBB name encodes sessdate (e.g. "classname-9571-1782427500").
+                $expectedSessdate = (int)$m[1];
+                $classAttendanceSessionId = $DB->get_field('attendance_sessions', 'id',
+                    ['attendanceid' => $classAttendanceModule->instance, 'sessdate' => $expectedSessdate]);
+            }
+            if (empty($classAttendanceSessionId)) {
+                throw new \moodle_exception('error_reschedule_no_attendance_session',
+                    'local_grupomakro_core',
+                    '', 'BBB cmid=' . $moduleInfo->id . ' (instance=' . $moduleInfo->instance . ')');
+            }
         } else if ($moduleActivity === 'attendance') {
             $classAttendanceModuleId = $moduleInfo->id;
             $classAttendanceSessionId = $params['sessionId'];
 
-            // If the reschedule was triggered from the attendance session, we must search the big bluebutton activity that begins with the same timestamp
             $classAttendanceSessionInitTS = $DB->get_record('attendance_sessions', ['id' => $classAttendanceSessionId])->sessdate;
+
+            // Find the BBB activity. The legacy search used openingtime = sessdate, but BBB
+            // openingtime = sessdate - 600 (see create_big_blue_button_activity line 3286),
+            // so the legacy lookup never matched. Match by name instead (name encodes sessdate).
             $bigBlueButtonActivityInfo = null;
-            $bigBlueButtonActivityItems = $DB->get_records('bigbluebuttonbn', ['openingtime' => $classAttendanceSessionInitTS, 'name' => $classInfo->name . '-' . $classInfo->id . '-' . $classAttendanceSessionInitTS]);
-            foreach ($bigBlueButtonActivityItems as $bigBlueButtonActivityItem) {
-                if (!$bigBlueButtonActivityInfo) {
-                    $bigBlueButtonActivityInfo = $bigBlueButtonActivityItem;
-                    continue;
-                }
-                $bigBlueButtonActivityInfo = $bigBlueButtonActivityItem->timecreated > $bigBlueButtonActivityInfo->timecreated ? $bigBlueButtonActivityItem : $bigBlueButtonActivityInfo;
+            $expectedBbbName = $classInfo->name . '-' . $classInfo->id . '-' . $classAttendanceSessionInitTS;
+            $bigBlueButtonActivityInfo = $DB->get_record('bigbluebuttonbn', ['name' => $expectedBbbName]);
+            if (!$bigBlueButtonActivityInfo) {
+                // Last-resort fallback: any BBB in this section whose name encodes the same sessdate.
+                $bigBlueButtonActivityInfo = $DB->get_record_sql(
+                    "SELECT b.* FROM {bigbluebuttonbn} b
+                     WHERE b.name LIKE ? AND b.name LIKE ?
+                  ORDER BY b.id DESC LIMIT 1",
+                    ['%-' . $classInfo->id . '-' . $classAttendanceSessionInitTS, '%-' . $classAttendanceSessionInitTS]
+                );
             }
-            $bigBlueButtonInstanceModuleId = $DB->get_record('course_modules', ['instance' => $bigBlueButtonActivityInfo->id, 'module' => $bigBlueButtonModuleId])->id;
+            if (!$bigBlueButtonActivityInfo) {
+                throw new \moodle_exception('error_reschedule_no_bbb_activity',
+                    'local_grupomakro_core',
+                    '', 'attendance session id=' . $classAttendanceSessionId . ' (sessdate=' . $classAttendanceSessionInitTS . ')');
+            }
+            $bigBlueButtonInstanceModuleId = $DB->get_record('course_modules',
+                ['instance' => $bigBlueButtonActivityInfo->id, 'module' => $bigBlueButtonModuleId])->id;
         }
 
         // Capture old relation before modifying anything.

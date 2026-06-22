@@ -253,6 +253,8 @@ $string['taskcloseexpiredschedules'] = 'Close expired schedules';
 $string['taskprocessperiodtransition'] = 'Process period transition';
 $string['taskupdatefinancialstatus'] = 'Update financial status';
 $string['error_class_closed_modification'] = 'This class is closed and cannot be modified.';
+$string['error_reschedule_no_attendance_session'] = 'Could not find a matching attendance session for this BBB activity. {$a}';
+$string['error_reschedule_no_bbb_activity'] = 'Could not find a matching BBB activity for this attendance session. {$a}';
 
 // Edit contract page.
 $string['editcontract'] = 'Edit Contract';
