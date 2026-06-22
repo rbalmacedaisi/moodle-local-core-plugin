@@ -45,7 +45,9 @@ class reconcile_bbb_attendance extends scheduled_task {
     }
 
     public function execute() {
-        global $DB;
+        global $DB, $CFG;
+
+        require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 
         $now = time();
 

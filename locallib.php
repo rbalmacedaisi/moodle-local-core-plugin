@@ -3562,7 +3562,7 @@ function create_class_grade_category($class)
 function replace_attendance_session($moduleId, $sessionIdToBeRemoved, $sessionDate, $classDurationInSeconds, $class, $BBBCourseModuleInfo = null)
 {
 
-    global $DB;
+    global $DB, $CFG;
 
     // Check if class is closed
     if (is_class_closed($class->id)) {
@@ -8245,17 +8245,24 @@ function gmk_close_class_with_grade_recalc(int $classId): array {
         return ['ok' => false, 'error' => 'La clase no tiene grupo asignado.'];
     }
 
-    // ── 4. Fetch enrolled students from gmk_course_progre (classid-scoped, CURSANDO only) ─
+    // ── 4. Fetch enrolled students from gmk_course_progre (classid-scoped) ────
+    // Process all non-terminal statuses: IN_PROGRESS (2) and COMPLETED (3) are
+    // both still open to grading. APPROVED (4), FAILED (5), and PENDING_REVALID
+    // (6) are terminal and skipped to avoid double-processing.
     $students = $DB->get_records_sql(
         "SELECT gcp.id AS progreid, gcp.userid, gcp.practicalhours, gcp.progress
            FROM {gmk_course_progre} gcp
            JOIN {user} u ON u.id = gcp.userid AND u.deleted = 0
           WHERE gcp.classid = :classid
-            AND gcp.status  = :inprogress",
-        ['classid' => $classId, 'inprogress' => COURSE_IN_PROGRESS]
+            AND gcp.status NOT IN (:approved, :failed)",
+        [
+            'classid'  => $classId,
+            'approved' => COURSE_APPROVED,
+            'failed'   => COURSE_FAILED,
+        ]
     );
     if (empty($students)) {
-        return ['ok' => false, 'error' => 'No hay estudiantes en estado "Cursando" en esta clase.'];
+        return ['ok' => false, 'error' => 'No hay estudiantes pendientes de calificación en esta clase.'];
     }
 
     // ── 5. Compute grades and build the update plan ──────────────────────────
