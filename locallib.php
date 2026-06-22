@@ -3574,16 +3574,55 @@ function replace_attendance_session($moduleId, $sessionIdToBeRemoved, $sessionDa
     $context = \context_module::instance($attendanceCourseModule->id);
     $attendance = new \mod_attendance_structure($attendanceRecord, $attendanceCourseModule, $class->course, $context);
 
-    $attendance->delete_sessions([$sessionIdToBeRemoved]);
+    // Workaround for mod_attendance >= 2022083108 bug:
+    //   $attendance->delete_sessions() fires mod_attendance\event\session_deleted, whose
+    //   validate_data() requires $this->other['info'], but session_deleted.php does NOT
+    //   declare 'info' in its @property-read array $other PHPDoc. Moodle core then strips
+    //   'info' from $this->other before validation, so the event throws:
+    //     "The event mod_attendance\event\session_deleted must specify info."
+    // To keep reschedule working without patching Moodle core, we replicate the same DB
+    // cleanup that delete_sessions() does (calendar event + attendance_log + session row)
+    // but skip the trigger() call that fires the broken event.
+    if (function_exists('attendance_delete_calendar_events')) {
+        attendance_delete_calendar_events([$sessionIdToBeRemoved]);
+    }
+    $DB->delete_records('attendance_log', ['sessionid' => $sessionIdToBeRemoved]);
+    $DB->delete_records('attendance_sessions', ['id' => $sessionIdToBeRemoved]);
+    gmk_log("INFO: replace_attendance_session safe-deleted session {$sessionIdToBeRemoved} (bypassed mod_attendance session_deleted event bug).");
 
     // Pass BBBCourseModuleInfo so the session description includes the BBB link,
     // exactly as create_class_activities does during the publish flow.
     $attendanceSession = create_attendance_session_object($class, $sessionDate, $classDurationInSeconds, $BBBCourseModuleInfo);
 
-    // Use add_session (singular) — same as the publish flow in create_class_activities.
-    // It returns the new session ID directly, unlike add_sessions() which returns nothing.
-    $newSessionId = $attendance->add_session($attendanceSession);
-    return $newSessionId ? (int)$newSessionId : null;
+    // Workaround (continued): $attendance->add_session() also fires mod_attendance\event\
+    // session_added, which has the same broken validate_data() in mod_attendance >=
+    // 2022083108 (PHPDoc of $other lacks 'info', Moodle core strips it, event throws).
+    // Replicate add_session() DB work without triggering the event.
+    $attendanceSession->attendanceid = $attendanceRecord->id;
+    $attendanceSession->automarkcompleted = 0;
+    if (!isset($attendanceSession->automark)) {
+        $attendanceSession->automark = 0;
+    }
+    if (empty(get_config('attendance', 'enablecalendar'))) {
+        $attendanceSession->calendarevent = 0;
+    }
+    $attendanceSession->id = $DB->insert_record('attendance_sessions', $attendanceSession);
+    $savedDescription = file_save_draft_area_files(
+        $attendanceSession->descriptionitemid,
+        $context->id,
+        'mod_attendance',
+        'session',
+        $attendanceSession->id,
+        ['subdirs' => false, 'maxfiles' => -1, 'maxbytes' => 0],
+        $attendanceSession->description
+    );
+    $DB->set_field('attendance_sessions', 'description', $savedDescription, ['id' => $attendanceSession->id]);
+    $attendanceSession->caleventid = 0;
+    if (function_exists('attendance_create_calendar_event')) {
+        attendance_create_calendar_event($attendanceSession);
+    }
+    gmk_log("INFO: replace_attendance_session safe-inserted session {$attendanceSession->id} (bypassed mod_attendance session_added event bug).");
+    return (int)$attendanceSession->id;
 }
 
 function list_classes($filters)
