@@ -1868,6 +1868,19 @@
     flex-direction: column;
 }
 
+.tl-renewal-target-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+}
+.tl-renewal-target-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--tl-text-secondary);
+}
+
 .tl-modal-loading,
 .tl-modal-error,
 .tl-modal-empty {
@@ -2133,11 +2146,11 @@
 }
 
 /* =========================================================
-   RENEWAL MODAL — Header sub-containers, body & native buttons
-   (Fix estilos FASE 2 · sesión anterior)
+   RENEWAL MODAL ï¿½ Header sub-containers, body & native buttons
+   (Fix estilos FASE 2 ï¿½ sesiï¿½n anterior)
    ========================================================= */
 
-/* Header: eyebrow + subtitle (solo los usa el modal de renovación) */
+/* Header: eyebrow + subtitle (solo los usa el modal de renovaciï¿½n) */
 .tl-modal-eyebrow {
     display: inline-block;
     font-size: 11px;
@@ -2213,7 +2226,7 @@
     border-color: var(--tl-border-strong);
 }
 
-/* tl-btn-primary: completar la versión para <button> nativo.
+/* tl-btn-primary: completar la versiï¿½n para <button> nativo.
    Solo aplicamos color/background/hover cuando la clase se combina con .tl-btn
    (los usos existentes con <v-btn> siguen funcionando con sus colores propios). */
 .tl-btn.tl-btn-primary,

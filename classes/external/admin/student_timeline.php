@@ -1444,6 +1444,180 @@ class student_timeline extends external_api {
         }
     }
 
+    /**
+     * Returns the list of valid target cohorts (periodo_ingreso) for the renewal
+     * destination dropdown and the recommended default based on gmk_academic_periods.
+     *
+     * Strategy:
+     *   - Collect every distinct periodo_ingreso that is in use for any student in
+     *     this learning plan (so the user always sees a sensible list).
+     *   - Suggest the next academic period after `now` from gmk_academic_periods
+     *     (status=1, startdate >= now). If there is none active, fall back to the
+     *     most recent one. Finally, if no academic period is configured, suggest
+     *     the next calendar year.
+     *   - Exclude the current cohort from the suggestion.
+     *
+     * @param int    $learningplanid
+     * @param string $current_intake_period  Current cohort, used to exclude it
+     *                                        from the suggested default.
+     * @return array {available_target_cohorts: [...], suggested_target_cohort: string|null}
+     */
+    private static function _suggest_next_intake_period($learningplanid, $current_intake_period = '') {
+        global $DB;
+
+        // Existing periodo_ingreso values tied to students of this LP.
+        $existing = $DB->get_fieldset_sql(
+            "SELECT DISTINCT uid.data
+             FROM {user_info_data} uid
+             JOIN {user_info_field} uif ON uif.id = uid.fieldid AND uif.shortname = 'periodo_ingreso'
+             JOIN {local_learning_users} lu ON lu.userid = uid.userid AND lu.learningplanid = :lp_id
+             WHERE uid.data IS NOT NULL AND uid.data != ''
+             ORDER BY uid.data DESC",
+            ['lp_id' => $learningplanid]
+        );
+
+        // Academic periods sorted ascending by startdate so the "next" one is
+        // the first whose startdate is >= now.
+        $now = time();
+        $upcoming = $DB->get_records_sql(
+            "SELECT id, name, startdate, enddate, status
+             FROM {gmk_academic_periods}
+             WHERE status = 1 AND startdate >= :now
+             ORDER BY startdate ASC",
+            ['now' => $now]
+        );
+        $recent = [];
+        if (empty($upcoming)) {
+            // Fallback: most recent period regardless of status (institution may
+            // not have any upcoming period configured yet).
+            $recent = $DB->get_records_sql(
+                "SELECT id, name, startdate, enddate, status
+                 FROM {gmk_academic_periods}
+                 ORDER BY startdate DESC",
+                [],
+                0,
+                1
+            );
+        }
+
+        $suggested = null;
+        if (!empty($upcoming)) {
+            $first = reset($upcoming);
+            $suggested = $first->name;
+        } else if (!empty($recent)) {
+            // If the most recent period's startdate is already past, suggest the
+            // next calendar year (e.g. 2026-I -> 2027-I).
+            $last = reset($recent);
+            if (!empty($last->name) && preg_match('/(\d{4})/', $last->name, $m)) {
+                $suggested = preg_replace('/\d{4}/', ((int)$m[1] + 1), $last->name, 1);
+            }
+        }
+        if ($suggested === null && !empty($existing)) {
+            // Last resort: bump the most recent existing cohorte by one year.
+            $top = $existing[0];
+            if (preg_match('/(\d{4})/', $top, $m)) {
+                $suggested = preg_replace('/\d{4}/', ((int)$m[1] + 1), $top, 1);
+            } else {
+                $suggested = $top . ' (nuevo)';
+            }
+        }
+
+        // Build the option list: union of existing cohorts + academic period names
+        // (deduped, sorted desc, current cohort excluded so the user does not
+        // "promote" students to the same cohorte).
+        $options = $existing;
+        foreach ($upcoming as $p) {
+            $options[] = $p->name;
+        }
+        foreach ($recent as $p) {
+            $options[] = $p->name;
+        }
+        $options = array_values(array_unique(array_filter($options, fn($v) => $v !== '' && $v !== null)));
+        rsort($options, SORT_NATURAL | SORT_FLAG_CASE);
+
+        if ($suggested !== null && $suggested === $current_intake_period) {
+            // Never suggest the current cohort as the target.
+            $suggested = null;
+            // Try the next academic period after the current one.
+            foreach ($upcoming as $p) {
+                if ($p->name !== $current_intake_period) {
+                    $suggested = $p->name;
+                    break;
+                }
+            }
+            // Final fallback: derive from existing cohorts.
+            if ($suggested === null) {
+                foreach ($options as $opt) {
+                    if ($opt !== $current_intake_period) {
+                        $suggested = $opt;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Make sure the suggested value is part of the option list so the
+        // <select> can preselect it cleanly.
+        if ($suggested !== null && !in_array($suggested, $options, true)) {
+            array_unshift($options, $suggested);
+        }
+
+        return [
+            'available_target_cohorts' => $options,
+            'suggested_target_cohort'  => $suggested,
+        ];
+    }
+
+    /**
+     * Updates the periodo_ingreso (user_info_data) for a list of userids.
+     * Used during period renewal when students are promoted to the next cuatrimestre.
+     *
+     * @param int[]  $userids
+     * @param string $new_intake_period
+     * @return int  Number of users successfully reassigned.
+     */
+    private static function _bulk_update_intake_period(array $userids, $new_intake_period) {
+        global $DB;
+        if (empty($userids) || $new_intake_period === '' || $new_intake_period === null) {
+            return 0;
+        }
+
+        $field = $DB->get_record('user_info_field', ['shortname' => 'periodo_ingreso']);
+        if (!$field) {
+            return 0;
+        }
+
+        $updated = 0;
+        foreach ($userids as $userid) {
+            $userid = (int)$userid;
+            if ($userid <= 0) continue;
+
+            $existing = $DB->get_record('user_info_data', [
+                'userid'  => $userid,
+                'fieldid' => $field->id,
+            ]);
+            if ($existing) {
+                if ((string)$existing->data === (string)$new_intake_period) {
+                    // No-op: already in the target cohort.
+                    $updated++;
+                    continue;
+                }
+                $existing->data     = (string)$new_intake_period;
+                $existing->datatype = $field->datatype;
+                $DB->update_record('user_info_data', $existing);
+            } else {
+                $new = new \stdClass();
+                $new->userid   = $userid;
+                $new->fieldid  = $field->id;
+                $new->data     = (string)$new_intake_period;
+                $new->datatype = $field->datatype;
+                $DB->insert_record('user_info_data', $new);
+            }
+            $updated++;
+        }
+        return $updated;
+    }
+
     public static function get_period_renewal_preview_parameters() {
         return new external_function_parameters([
             'learningplanid' => new external_value(PARAM_INT, 'ID del plan de aprendizaje'),
@@ -1653,16 +1827,25 @@ class student_timeline extends external_api {
             'skipped_count'          => count($preview['skipped']),
         ];
 
+        // 7. Target cohort options for the renewal UI.
+        //    Only meaningful when there are students that will be promoted to the
+        //    next cuatrimestre, but we always return the list so the modal can
+        //    preselect a sensible default.
+        $targetOptions = self::_suggest_next_intake_period($learningplanid, $intake_period ?? '');
+        $preview['available_target_cohorts'] = $targetOptions['available_target_cohorts'];
+        $preview['suggested_target_cohort']  = $targetOptions['suggested_target_cohort'];
+
         return $preview;
     }
 
     public static function execute_period_renewal_parameters() {
         return new external_function_parameters([
-            'learningplanid' => new external_value(PARAM_INT, 'ID del plan de aprendizaje'),
-            'intake_period'  => new external_value(PARAM_TEXT, 'Cohorte', VALUE_DEFAULT, ''),
-            'periodid'       => new external_value(PARAM_INT, 'ID periodo filtro', VALUE_DEFAULT, 0),
-            'subperiodid'    => new external_value(PARAM_INT, 'ID bimestre filtro', VALUE_DEFAULT, 0),
-            'confirm_warnings' => new external_value(PARAM_BOOL, 'Confirmar advertencia de graduandos con pendientes', VALUE_DEFAULT, false),
+            'learningplanid'      => new external_value(PARAM_INT, 'ID del plan de aprendizaje'),
+            'intake_period'       => new external_value(PARAM_TEXT, 'Cohorte', VALUE_DEFAULT, ''),
+            'periodid'            => new external_value(PARAM_INT, 'ID periodo filtro', VALUE_DEFAULT, 0),
+            'subperiodid'         => new external_value(PARAM_INT, 'ID bimestre filtro', VALUE_DEFAULT, 0),
+            'confirm_warnings'    => new external_value(PARAM_BOOL, 'Confirmar advertencia de graduandos con pendientes', VALUE_DEFAULT, false),
+            'target_intake_period' => new external_value(PARAM_TEXT, 'Nuevo cohorte destino para los estudiantes promovidos al siguiente cuatrimestre (vacío = mantener cohorte actual)', VALUE_DEFAULT, ''),
         ]);
     }
 
@@ -1671,17 +1854,34 @@ class student_timeline extends external_api {
      * Same automatic rules as the preview endpoint:
      *  - All students at non-last bimestre -> next bimestre (same period).
      *  - Only ACTIVE students at last bimestre of a non-last period -> first bimestre of next period.
+     *    When target_intake_period is provided, those students also get their
+     *    periodo_ingreso (user_info_data) updated so the cohort moves forward.
      *  - Only ACTIVE students at last bimestre of LAST period -> "graduando" (null period+subperiod).
      *  - INACTIVE students always stay (dropout calculation).
      */
-    public static function execute_period_renewal($learningplanid, $intake_period = '', $periodid = 0, $subperiodid = 0, $confirm_warnings = false) {
+    public static function execute_period_renewal($learningplanid, $intake_period = '', $periodid = 0, $subperiodid = 0, $confirm_warnings = false, $target_intake_period = '') {
         global $DB, $USER;
         $context = \context_system::instance();
         self::validate_context($context);
         require_capability('moodle/site:config', $context);
 
+        // Normalize target cohort.
+        $target_intake_period = trim((string)$target_intake_period);
+        if ($target_intake_period === '' || $target_intake_period === null) {
+            $target_intake_period = '';
+        }
+
         // Get the preview (which already does all the safety checks)
         $preview = self::get_period_renewal_preview($learningplanid, $intake_period, $periodid, $subperiodid);
+
+        // Resolve the cohort that will be applied to the promoted students.
+        // Priority: explicit target from UI -> suggestion from preview -> no change.
+        $effective_target = $target_intake_period;
+        if ($effective_target === '') {
+            $effective_target = $preview['suggested_target_cohort'] ?? '';
+        }
+        $cohort_changed_for = []; // userids whose periodo_ingreso was updated
+        $cohort_skipped_same = []; // userids already on the target cohort (no-op)
 
         // Safety: if there are graduates with warnings and user hasn't confirmed, abort
         if ($preview['summary']['to_graduate_warn_count'] > 0 && !$confirm_warnings) {
@@ -1709,6 +1909,10 @@ class student_timeline extends external_api {
             }
 
             // 2) Cuatrimestre promotion (active only)
+            //    When an effective target cohort is known, every promoted student
+            //    also gets their periodo_ingreso (user_info_data) updated so the
+            //    cohort moves forward alongside the academic position.
+            $promoted_userids = [];
             foreach ($preview['to_next_cuatri'] as $s) {
                 $record = $DB->get_record('local_learning_users',
                     ['userid' => $s['userid'], 'learningplanid' => $learningplanid]);
@@ -1719,8 +1923,39 @@ class student_timeline extends external_api {
                     $record->usermodified = (int)$USER->id;
                     $DB->update_record('local_learning_users', $record);
                     $updated++;
+                    $promoted_userids[] = (int)$s['userid'];
                 } else {
                     $failed++;
+                }
+            }
+
+            if ($effective_target !== '' && !empty($promoted_userids)) {
+                // Apply the new cohort only to students whose current periodo_ingreso
+                // is different from the target (so we avoid pointless writes).
+                $field = $DB->get_record('user_info_field', ['shortname' => 'periodo_ingreso']);
+                if ($field) {
+                    list($insql, $inparams) = $DB->get_in_or_equal($promoted_userids, SQL_PARAMS_NAMED, 'pu');
+                    $inparams['fieldid'] = $field->id;
+                    $inparams['target']  = $effective_target;
+                    $already_on_target = $DB->get_fieldset_sql(
+                        "SELECT userid FROM {user_info_data}
+                         WHERE fieldid = :fieldid AND data = :target
+                           AND userid $insql",
+                        $inparams
+                    );
+                    $already_set = array_flip(array_map('intval', $already_on_target));
+                    $needs_update = [];
+                    foreach ($promoted_userids as $uid) {
+                        if (isset($already_set[(int)$uid])) {
+                            $cohort_skipped_same[] = (int)$uid;
+                        } else {
+                            $needs_update[] = (int)$uid;
+                        }
+                    }
+                    if (!empty($needs_update)) {
+                        $cohort_changed_count = self::_bulk_update_intake_period($needs_update, $effective_target);
+                        $cohort_changed_for = $needs_update;
+                    }
                 }
             }
 
@@ -1797,16 +2032,32 @@ class student_timeline extends external_api {
             ];
         }
 
+        $cohort_message = '';
+        if ($effective_target !== '' && !empty($promoted_userids)) {
+            $cohort_message = " · Recohorte aplicado: {$effective_target} a "
+                . count($cohort_changed_for) . " estudiante(s) promovido(s)"
+                . (!empty($cohort_skipped_same)
+                    ? " (" . count($cohort_skipped_same) . " ya estaban en ese cohorte)"
+                    : '');
+        } else if ($effective_target === '' && !empty($promoted_userids)) {
+            $cohort_message = ' · Recohorte NO aplicado (sin cohorte destino seleccionado)';
+        }
+
         return [
             'success'        => $updated > 0,
             'updated_count'  => $updated,
             'failed_count'   => $failed,
             'message'        => "Renovación completada: {$updated} estudiante(s) actualizado(s)"
-                . ($failed > 0 ? " ({$failed} fallaron)" : ''),
+                . ($failed > 0 ? " ({$failed} fallaron)" : '')
+                . $cohort_message,
             'requires_confirmation' => false,
             'preview'        => $preview,
             'graduates_warn' => $graduates_warn,
             'generated_alerts' => $generated_alerts ?? [],
+            'effective_target_cohort'   => $effective_target,
+            'cohort_reassigned_count'   => count($cohort_changed_for),
+            'cohort_reassigned_userids' => $cohort_changed_for,
+            'cohort_skipped_userids'    => $cohort_skipped_same,
         ];
     }
 
@@ -1914,6 +2165,23 @@ class student_timeline extends external_api {
             'preview'        => $preview_struct,
             'graduates_warn' => new external_multiple_structure($grad_warn_struct, 'Graduandos con pendientes'),
             'generated_alerts' => new external_multiple_structure($generated_alerts_struct, 'Alertas académicas persistentes generadas en esta corrida (estudiantes que finalizaron ciclo con pendientes)'),
+            'effective_target_cohort' => new external_value(
+                PARAM_TEXT,
+                'Cohorte destino que se aplicó a los estudiantes promovidos al siguiente cuatrimestre (vacío si no se aplicó recohorte)',
+                VALUE_OPTIONAL
+            ),
+            'cohort_reassigned_count' => new external_value(
+                PARAM_INT,
+                'Cantidad de estudiantes a los que se les actualizó periodo_ingreso'
+            ),
+            'cohort_reassigned_userids' => new external_multiple_structure(
+                new external_value(PARAM_INT, 'ID usuario recohortado'),
+                'IDs de usuarios recohortados'
+            ),
+            'cohort_skipped_userids' => new external_multiple_structure(
+                new external_value(PARAM_INT, 'ID usuario ya en cohorte destino'),
+                'IDs de usuarios que ya estaban en el cohorte destino (no-op)'
+            ),
         ]);
     }
 
@@ -1990,6 +2258,15 @@ class student_timeline extends external_api {
             'intake_period'       => new external_value(PARAM_TEXT, 'Cohorte'),
             'period_id'           => new external_value(PARAM_INT, 'ID periodo filtro'),
             'subperiod_id'        => new external_value(PARAM_INT, 'ID bimestre filtro'),
+            'available_target_cohorts' => new external_multiple_structure(
+                new external_value(PARAM_TEXT, 'Cohorte destino disponible'),
+                'Cohortes disponibles como destino para los estudiantes promovidos al siguiente cuatrimestre'
+            ),
+            'suggested_target_cohort'  => new external_value(
+                PARAM_TEXT,
+                'Cohorte destino sugerido por defecto (calculado desde gmk_academic_periods)',
+                VALUE_OPTIONAL
+            ),
         ]);
     }
 }

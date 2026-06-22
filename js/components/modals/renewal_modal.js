@@ -5,6 +5,8 @@
  * Reglas AUTOMÁTICAS (no se pide elegir al usuario):
  *  - Estudiantes en B1 de C[n] -> pasan a B2 de C[n]. TODOS (activos + inactivos).
  *  - Estudiantes en B2 de C[n] (con C[n] != último) -> pasan a B1 de C[n+1]. SOLO ACTIVOS.
+ *    Su cohorte (periodo_ingreso) también se actualiza al cohorte destino elegido
+ *    en el dropdown (sugerido por defecto según gmk_academic_periods).
  *  - Estudiantes en B2 del último C -> graduando (currentperiodid y currentsubperiodid = NULL). SOLO ACTIVOS.
  *  - Inactivos en B2 -> quedan donde están (cálculo de deserción).
  *  - Si un graduando tiene asignaturas pendientes (excluyendo práctica profesional) -> se marca con warning en rojo.
@@ -12,8 +14,9 @@
  * Flujo:
  *  1. Al abrirse, pide al backend get_period_renewal_preview
  *  2. Muestra resumen + 4 listas (siguiente bimestre, siguiente cuatrimestre, graduando OK, graduando con warning, inactivos que se quedan)
- *  3. Botón "Confirmar y ejecutar" llama execute_period_renewal
- *  4. Si hay warnings de graduandos con pendientes, exige confirm_warnings=true
+ *  3. Header muestra dropdown para elegir cohorte destino (preseleccionado al sugerido por fechas)
+ *  4. Botón "Confirmar y ejecutar" llama execute_period_renewal con target_intake_period
+ *  5. Si hay warnings de graduandos con pendientes, exige confirm_warnings=true
  *
  * Endpoints Moodle:
  *   - local_grupomakro_get_period_renewal_preview
@@ -44,6 +47,8 @@ Vue.component('renewal-modal', {
             preview:        null,    // response from get_period_renewal_preview
             requiresConfirm: false,  // if there are graduates with pending courses
             confirmWarnings: false,  // user has ticked the "accept warnings" checkbox
+            availableTargetCohorts: [], // cohorts the user can move promoted students to
+            targetIntakePeriod: '',     // cohort destination chosen by the user
             expandedSections: {
                 next_bim: true,
                 next_cuatri: true,
@@ -69,6 +74,14 @@ Vue.component('renewal-modal', {
             return !this.hasAnyAction &&
                    this.summary.stays_inactive_count === 0 &&
                    this.summary.skipped_count === 0;
+        },
+        hasNextCuatri() {
+            return !!(this.summary && this.summary.to_next_cuatri_count > 0);
+        },
+        willRecohort() {
+            return this.hasNextCuatri
+                && !!this.targetIntakePeriod
+                && this.targetIntakePeriod !== this.cohort;
         },
     },
     watch: {
@@ -100,6 +113,17 @@ Vue.component('renewal-modal', {
                     this.error = data.message || 'Error al obtener la vista previa';
                 } else {
                     this.preview = data;
+                    // Hydrate target cohort selector.
+                    const suggested = data && data.suggested_target_cohort ? data.suggested_target_cohort : '';
+                    this.availableTargetCohorts = Array.isArray(data && data.available_target_cohorts)
+                        ? data.available_target_cohorts
+                        : [];
+                    // Default to the suggested cohort so the user can confirm
+                    // with one click. Fall back to a sensible value if missing.
+                    this.targetIntakePeriod = suggested || '';
+                    if (this.targetIntakePeriod === '' && this.availableTargetCohorts.length > 0) {
+                        this.targetIntakePeriod = this.availableTargetCohorts[0];
+                    }
                 }
             } catch (e) {
                 this.error = 'Error de red: ' + (e.message || e);
@@ -112,7 +136,11 @@ Vue.component('renewal-modal', {
                 this.requiresConfirm = true;
                 return;
             }
-            if (!confirm('¿Confirma la renovación de periodo para esta cohorte? Esta acción no se puede deshacer.')) {
+            const willRecohort = this.hasNextCuatri && this.targetIntakePeriod && this.targetIntakePeriod !== this.cohort;
+            const confirmMsg = willRecohort
+                ? `¿Confirma la renovación de periodo?\n\nLos estudiantes promovidos al siguiente cuatrimestre serán recohortados a: ${this.targetIntakePeriod}\n\nEsta acción no se puede deshacer.`
+                : '¿Confirma la renovación de periodo para esta cohorte? Esta acción no se puede deshacer.';
+            if (!confirm(confirmMsg)) {
                 return;
             }
             this.executing = true;
@@ -129,6 +157,9 @@ Vue.component('renewal-modal', {
                 }
                 if (this.confirmWarnings) {
                     params['confirm_warnings'] = 1;
+                }
+                if (this.hasNextCuatri && this.targetIntakePeriod) {
+                    params['target_intake_period'] = this.targetIntakePeriod;
                 }
                 const resp = await axios.get(M.cfg.wwwroot + '/webservice/rest/server.php', { params });
                 const data = resp.data;
@@ -165,6 +196,27 @@ Vue.component('renewal-modal', {
                             Renovar periodo · cohorte {{ cohort || '(todas)' }}
                         </h2>
                         <div class="tl-modal-subtitle">{{ careerName }}</div>
+                        <div v-if="preview && hasNextCuatri" class="tl-renewal-target-row">
+                            <v-icon size="14" color="#6366F1">mdi-account-arrow-right-outline</v-icon>
+                            <span class="tl-renewal-target-label">Mover promovidos a cohorte:</span>
+                            <select
+                                v-model="targetIntakePeriod"
+                                class="tl-bulk-dest-select"
+                                :disabled="executing || availableTargetCohorts.length === 0">
+                                <option value="" disabled>Seleccione cohorte destino</option>
+                                <option
+                                    v-for="p in availableTargetCohorts"
+                                    :key="p"
+                                    :value="p">{{ p }}</option>
+                            </select>
+                            <span v-if="willRecohort" class="tl-pill tl-pill-green">
+                                <v-icon size="11" color="#065F46">mdi-check</v-icon>
+                                recohorte activo
+                            </span>
+                            <span v-else-if="targetIntakePeriod === cohort" class="tl-pill tl-pill-muted">
+                                sin recohorte (igual al actual)
+                            </span>
+                        </div>
                     </div>
                 </div>
                 <button class="tl-modal-close" @click="closeModal" aria-label="Cerrar">
@@ -203,11 +255,11 @@ Vue.component('renewal-modal', {
                         </div>
                         <div class="tl-renewal-rule">
                             <v-icon size="16" color="#3B82F6">mdi-arrow-right-bold-circle</v-icon>
-                            <span>Estudiantes en <strong>B2</strong> pasan al <strong>siguiente cuatrimestre B1</strong> (solo activos).</span>
+                            <span>Estudiantes en <strong>B2</strong> pasan al <strong>siguiente cuatrimestre B1</strong> (solo activos) y su cohorte se actualiza al seleccionado arriba.</span>
                         </div>
                         <div class="tl-renewal-rule">
                             <v-icon size="16" color="#10B981">mdi-school</v-icon>
-                            <span>Estudiantes en <strong>B2 del último cuatrimestre</strong> pasan a <strong>graduando</strong> (solo activos).</span>
+                            <span>Estudiantes en <strong>B2 del último cuatrimestre</strong> pasan a <strong>graduando</strong> (solo activos, cohorte se conserva).</span>
                         </div>
                         <div class="tl-renewal-rule">
                             <v-icon size="16" color="#F59E0B">mdi-account-clock-outline</v-icon>
@@ -285,6 +337,13 @@ Vue.component('renewal-modal', {
                             <div class="tl-renewal-section-head" @click="toggleSection('next_cuatri')">
                                 <v-icon size="18" color="#6366F1">mdi-skip-forward</v-icon>
                                 <strong>Siguiente cuatrimestre ({{ summary.to_next_cuatri_count }})</strong>
+                                <span v-if="willRecohort" class="tl-pill tl-pill-green" style="margin-left:6px;">
+                                    <v-icon size="11" color="#065F46">mdi-account-arrow-right-outline</v-icon>
+                                    recohorte → {{ targetIntakePeriod }}
+                                </span>
+                                <span v-else-if="hasNextCuatri" class="tl-pill tl-pill-muted" style="margin-left:6px;">
+                                    sin recohorte
+                                </span>
                                 <v-icon size="16" color="#94A3B8">{{ expandedSections.next_cuatri ? 'mdi-chevron-up' : 'mdi-chevron-down' }}</v-icon>
                             </div>
                             <div v-show="expandedSections.next_cuatri" class="tl-renewal-section-body">
@@ -292,6 +351,7 @@ Vue.component('renewal-modal', {
                                     <div class="tl-renewal-row-name">{{ s.name }}</div>
                                     <div class="tl-renewal-row-meta">
                                         <span class="tl-pill tl-pill-indigo">{{ s.current_period }} → {{ s.next_period }} · {{ s.next_subperiod }}</span>
+                                        <span v-if="willRecohort" class="tl-pill tl-pill-muted">cohorte → {{ targetIntakePeriod }}</span>
                                     </div>
                                 </div>
                             </div>
