@@ -7633,6 +7633,7 @@ function gmk_count_pending_attendance_sessions(int $attendanceId, int $groupId, 
            FROM {attendance_sessions} s
           WHERE s.attendanceid = :attid
             AND s.sessdate + s.duration < :now
+            AND s.lasttaken > 0
             AND EXISTS (
                 SELECT 1 FROM {groups_members} gm
                  WHERE gm.groupid = :gid
@@ -7648,7 +7649,9 @@ function gmk_count_pending_attendance_sessions(int $attendanceId, int $groupId, 
 
 /**
  * Inserts absent (setunmarked) logs for every student in $groupId who has no
- * attendance_log entry in past sessions of $attendanceId.
+ * attendance_log entry in past sessions of $attendanceId that were actually
+ * started (lasttaken > 0). Sessions never started by a teacher are left
+ * untouched — they should remain without attendance records.
  * Called automatically during class closure so unrecorded sessions don't block the close.
  *
  * @param int $attendanceId  attendance.id (not course_modules.id)
@@ -7713,6 +7716,7 @@ function gmk_mark_pending_sessions_as_absent(int $attendanceId, int $groupId, in
            FROM {attendance_sessions} s
           WHERE s.attendanceid = :attid
             AND s.sessdate + s.duration < :now
+            AND s.lasttaken > 0
             AND EXISTS (
                 SELECT 1 FROM {groups_members} gm
                  WHERE gm.groupid = :gid
@@ -8181,8 +8185,10 @@ function gmk_close_class_with_grade_recalc(int $classId): array {
     }
 
     // ── 2. Auto-mark unrecorded attendance sessions as absent before close ───
-    // Sessions that ended without any log are marked absent (setunmarked status)
-    // so the close is never blocked by missing attendance records.
+    // Only sessions that were actually started (lasttaken > 0) and ended
+    // without a log for a given student are marked absent (setunmarked status),
+    // so the close is never blocked by missing attendance records. Sessions
+    // never started are intentionally left without any attendance record.
     if (!empty($class->attendancemoduleid) && !empty($class->groupid)) {
         $attid = (int)$DB->get_field('course_modules', 'instance',
             ['id' => (int)$class->attendancemoduleid]);
