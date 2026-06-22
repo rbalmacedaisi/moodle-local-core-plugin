@@ -140,8 +140,18 @@ function local_grupomakro_core_extend_navigation(global_navigation $navigation) 
 function local_grupomakro_core_pluginfile($course, $cm, $context, $filearea, array $args, $forcedownload, array $options = []) {
     global $USER;
 
+    // TEMP DEBUG: log every entry so we can diagnose why the URL returns 404.
+    @error_log('[gmk-diploma pluginfile] called: filearea=' . $filearea
+        . ' ctxid=' . $context->id
+        . ' ctxlvl=' . $context->contextlevel
+        . ' args=' . json_encode($args)
+        . ' loggedin=' . (isloggedin() ? 'yes' : 'no')
+        . ' guest=' . (isguestuser() ? 'yes' : 'no')
+        . ' userid=' . (isset($USER) ? (int)$USER->id : 'null'));
+
     // All our files live in the system context.
     if ($context->contextlevel !== CONTEXT_SYSTEM) {
+        @error_log('[gmk-diploma pluginfile] early return: wrong context level');
         return false;
     }
 
@@ -151,44 +161,46 @@ function local_grupomakro_core_pluginfile($course, $cm, $context, $filearea, arr
         'diploma_document'   => 'local/grupomakro_core:viewdiplomas',
     ];
     if (!isset($areas[$filearea])) {
+        @error_log('[gmk-diploma pluginfile] early return: unknown filearea');
         return false;
     }
     $requiredcap = $areas[$filearea];
 
     // Must be logged in and authorised.
     if (!isloggedin() || isguestuser()) {
-        // Public verification pages render diploma previews for unauthenticated
-        // visitors via a controlled entry point (diploma_verify.php). The QR code
-        // image is also public: allow it without login.
         $allowpublic = ($filearea === 'diploma_document' && !empty($args[0]) && strpos((string)$args[0], 'public') === 0);
-        // The background is NEVER public (template art is admin-only).
         if ($filearea === 'diploma_background' || !$allowpublic) {
+            @error_log('[gmk-diploma pluginfile] early return: not logged in');
             return false;
         }
     }
 
-    // The system context has no per-course capability; just require system cap.
-    require_capability($requiredcap, context_system::instance());
+    try {
+        require_capability($requiredcap, context_system::instance());
+    } catch (Throwable $e) {
+        @error_log('[gmk-diploma pluginfile] capability check failed: ' . $e->getMessage());
+        return false;
+    }
 
-    $itemid = array_shift($args); // The template/generation id is part of the URL.
-    $filename = array_pop($args); // The filename is the last path component.
+    $itemid = array_shift($args);
+    $filename = array_pop($args);
     $filepath = $args ? '/' . implode('/', $args) . '/' : '/';
 
     $fs = get_file_storage();
     $file = $fs->get_file($context->id, 'local_grupomakro_core', $filearea, (int)$itemid, $filepath, $filename);
     if (!$file) {
-        // Try without strict itemid match (e.g. background file id was renamed).
         $file = $fs->get_file_by_id((int)$itemid);
         if (!$file || $file->get_component() !== 'local_grupomakro_core' || $file->get_filearea() !== $filearea) {
+            @error_log('[gmk-diploma pluginfile] file not found in storage');
             return false;
         }
     }
 
-    // Final permission check using the file's real context (still SYSTEM for us).
     if (!$file->is_visible()) {
         require_capability($requiredcap, $context);
     }
 
+    @error_log('[gmk-diploma pluginfile] SUCCESS: serving ' . $file->get_filename());
     send_stored_file($file, 0, 0, $forcedownload, $options);
     return true;
 }
