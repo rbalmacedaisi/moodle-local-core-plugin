@@ -3583,6 +3583,7 @@ function replace_attendance_session($moduleId, $sessionIdToBeRemoved, $sessionDa
     // To keep reschedule working without patching Moodle core, we replicate the same DB
     // cleanup that delete_sessions() does (calendar event + attendance_log + session row)
     // but skip the trigger() call that fires the broken event.
+    require_once($CFG->dirroot . '/mod/attendance/classes/calendar_helpers.php');
     if (function_exists('attendance_delete_calendar_events')) {
         attendance_delete_calendar_events([$sessionIdToBeRemoved]);
     }

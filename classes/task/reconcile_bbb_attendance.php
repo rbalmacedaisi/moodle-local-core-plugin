@@ -120,6 +120,7 @@ class reconcile_bbb_attendance extends scheduled_task {
 
         $rows   = $DB->get_records('gmk_bbb_presence', ['attendancesessionid' => $sessionid]);
         $marked = 0;
+        $overridden = 0;
 
         if ($duration >= self::MIN_MEETING_SECONDS) {
             foreach ($rows as $row) {
@@ -129,10 +130,6 @@ class reconcile_bbb_attendance extends scheduled_task {
                 $uid = (int)$row->userid;
                 if (!empty($members) && !isset($members[$uid])) {
                     continue; // Only students of this class group.
-                }
-                // Respect any existing mark (manual by teacher or already present).
-                if ($DB->record_exists('attendance_log', ['sessionid' => $sessionid, 'studentid' => $uid])) {
-                    continue;
                 }
 
                 $ratio = $duration > 0 ? min(1.0, (int)$row->present_seconds / $duration) : 0.0;
@@ -147,31 +144,65 @@ class reconcile_bbb_attendance extends scheduled_task {
                     continue; // No suitable status (e.g. absent tier missing) — leave for teacher.
                 }
 
+                $remarks = 'auto ' . round($presentratio * 100) . '%: '
+                    . round((int)$row->present_seconds / 60) . 'min/'
+                    . round($duration / 60) . 'min (' . round($ratio * 100) . '%)';
+
+                $existing = $DB->get_record('attendance_log',
+                    ['sessionid' => $sessionid, 'studentid' => $uid]);
+
+                if ($existing) {
+                    // Respect marks made by hand or by the reconcile itself (recognizable
+                    // by their 'auto N%:' remarks), but OVERRIDE marks coming from the
+                    // native mod_attendance absent cron ('sistema registrado automáticamente')
+                    // when the student actually had enough presence to attend.
+                    $isNativeCronMark = (strpos((string)$existing->remarks, 'sistema registrado') !== false);
+                    $isOwnMark         = (strpos((string)$existing->remarks, 'auto ') === 0);
+
+                    if ($isOwnMark) {
+                        continue; // Already handled by this reconcile — no churn.
+                    }
+                    if (!$isNativeCronMark) {
+                        continue; // A manual (teacher) mark — never touch it.
+                    }
+
+                    // Native cron mark + presence >= late threshold → upgrade to P/R.
+                    if ($ratio >= $lateratio) {
+                        $existing->statusid  = $statusid;
+                        $existing->remarks   = $remarks;
+                        $existing->timetaken = $now;
+                        $existing->takenby   = 0;
+                        $DB->update_record('attendance_log', $existing);
+                        $overridden++;
+                    }
+                    continue;
+                }
+
                 $log = new \stdClass();
                 $log->sessionid = $sessionid;
                 $log->studentid = $uid;
                 $log->statusid  = $statusid;
                 $log->timetaken = $now;
-                $log->remarks   = 'auto 70%: ' . round((int)$row->present_seconds / 60) . 'min/'
-                    . round($duration / 60) . 'min (' . round($ratio * 100) . '%)';
+                $log->remarks   = $remarks;
                 $log->statusset = '0';
                 $DB->insert_record('attendance_log', $log);
                 $marked++;
             }
 
-            if ($marked > 0) {
+            if ($marked > 0 || $overridden > 0) {
                 $lasttaken = $DB->get_field('attendance_sessions', 'lasttaken', ['id' => $sessionid]);
                 if (empty($lasttaken)) {
                     $DB->set_field('attendance_sessions', 'lasttaken', $now, ['id' => $sessionid]);
                     $DB->set_field('attendance_sessions', 'lasttakenby', 0, ['id' => $sessionid]);
                 }
             }
+            mtrace("reconcile_bbb_attendance: session=$sessionid duration={$duration}s marked=$marked overridden=$overridden.");
         } else {
             mtrace("reconcile_bbb_attendance: session $sessionid effective duration {$duration}s < min; left for teacher.");
         }
 
         $DB->set_field('gmk_bbb_presence', 'reconciled', 1, ['attendancesessionid' => $sessionid]);
-        mtrace("reconcile_bbb_attendance: session=$sessionid duration={$duration}s marked=$marked.");
+        mtrace("reconcile_bbb_attendance: session=$sessionid duration={$duration}s marked=$marked overridden=$overridden.");
     }
 
     /**
