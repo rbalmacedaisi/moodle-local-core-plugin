@@ -229,7 +229,7 @@
                             <!-- Canvas + sidebar -->
                             <v-row dense>
                                 <v-col cols="12" md="9">
-                                    <div class="dpl-canvas-wrap">
+                                    <div class="dpl-canvas-wrap" ref="canvasWrap">
                                         <div class="dpl-canvas"
                                              ref="canvas"
                                              :style="canvasStyle"
@@ -359,7 +359,12 @@
                 fontItems: FONT_OPTIONS,
                 typeItems: TYPE_OPTIONS,
                 nextLocalId: 1,
-                pixelRatio: 3.2 // CSS px per mm: A4 landscape (297mm) -> 950px, fits most screens without horizontal scroll
+                pixelRatio: 3.2, // CSS px per mm: A4 landscape (297mm) -> 950px
+                // Dynamic scale factor so the canvas always fits the wrap
+                // even on narrow viewports. Mouse coords are divided by
+                // this factor in drag/resize/rotate handlers to keep the
+                // internal mm coordinates correct.
+                canvasScale: 1
             };
         },
         computed: {
@@ -389,10 +394,31 @@
                 return {
                     width: (this.selected.width_mm * this.pixelRatio) + 'px',
                     height: (this.selected.height_mm * this.pixelRatio) + 'px',
-                    backgroundImage: this.selected.background_url ? 'url("' + this.selected.background_url + '")' : 'none'
+                    backgroundImage: this.selected.background_url ? 'url("' + this.selected.background_url + '")' : 'none',
+                    // Dynamic CSS scale so the canvas always fits the
+                    // wrap without scrollbar. The drag/resize/rotate
+                    // handlers divide mouse deltas by this number.
+                    transform: 'scale(' + this.canvasScale + ')',
+                    transformOrigin: '0 0'
                 };
+            },
+            /**
+             * Compute a scale factor that fits the canvas inside the wrap
+             * width. Returns 1 (no scale) when the canvas already fits.
+             */
+            computeCanvasScale() {
+                if (!this.selected || !this.$refs.canvasWrap) {
+                    return 1;
+                }
+                var wrap = this.$refs.canvasWrap;
+                // 16px padding on each side of the wrap.
+                var available = wrap.clientWidth - 32;
+                if (available <= 50) { return 1; }
+                var natural = this.selected.width_mm * this.pixelRatio;
+                if (natural <= 0) { return 1; }
+                if (natural <= available) { return 1; }
+                return available / natural;
             }
-        },
         watch: {
             selected: {
                 handler(t) {
@@ -404,6 +430,10 @@
                             }
                         });
                     }
+                    // Re-fit the canvas if the new template has different
+                    // width_mm/height_mm than the previous one.
+                    var self = this;
+                    this.$nextTick(function () { self.recomputeCanvasScale(); });
                 },
                 deep: true
             }
@@ -411,8 +441,63 @@
         mounted() {
             this.loadTemplates();
             this.loadVariables();
+            this.setupCanvasResizeObserver();
+            // First-pass scale once the layout has settled.
+            var self = this;
+            this.$nextTick(function () { self.recomputeCanvasScale(); });
+        },
+        beforeDestroy() {
+            if (this._canvasResizeObserver) {
+                try { this._canvasResizeObserver.disconnect(); } catch (e) {}
+                this._canvasResizeObserver = null;
+            }
         },
         methods: {
+            setupCanvasResizeObserver() {
+                // Re-scale the canvas whenever the wrap size changes
+                // (window resize, sidebar toggle, etc.).
+                if (typeof ResizeObserver === 'undefined') {
+                    // Fallback: re-scale on every animation frame for
+                    // the first 5s after mount.
+                    var frames = 0;
+                    var self = this;
+                    function tick() {
+                        self.recomputeCanvasScale();
+                        if (++frames < 300) { requestAnimationFrame(tick); }
+                    }
+                    requestAnimationFrame(tick);
+                    return;
+                }
+                if (!this.$refs.canvasWrap) { return; }
+                var self = this;
+                var ro = new ResizeObserver(function () { self.recomputeCanvasScale(); });
+                ro.observe(this.$refs.canvasWrap);
+                // Also observe the wrap's offsetParent so we react to
+                // column reflows (md=8 vs md=9).
+                if (this.$refs.canvasWrap.parentElement) {
+                    ro.observe(this.$refs.canvasWrap.parentElement);
+                }
+                this._canvasResizeObserver = ro;
+            },
+            recomputeCanvasScale() {
+                var next = this.computeCanvasScale();
+                // Snap to 3 decimals to avoid re-rendering on floating noise.
+                next = Math.round(next * 1000) / 1000;
+                if (next !== this.canvasScale) {
+                    this.canvasScale = next;
+                }
+                // Resize the wrap to exactly the scaled canvas so the
+                // wrap does not overflow its parent column. The
+                // canvas itself keeps its natural width/height in CSS
+                // pixels; the CSS transform scales it visually.
+                var wrap = this.$refs.canvasWrap;
+                if (wrap && this.selected) {
+                    var w = this.selected.width_mm * this.pixelRatio * this.canvasScale;
+                    var h = this.selected.height_mm * this.pixelRatio * this.canvasScale;
+                    wrap.style.width = Math.ceil(w) + 'px';
+                    wrap.style.height = Math.ceil(h) + 'px';
+                }
+            },
             async loadTemplates() {
                 this.loadingTemplates = true;
                 try {
@@ -684,7 +769,11 @@
                 this.selectField(f.localId);
                 const startX = e.clientX, startY = e.clientY;
                 const ox = f.x_mm, oy = f.y_mm;
-                const ratio = this.pixelRatio;
+                // ratio converts mm -> CSS px. We also divide by the
+                // current canvasScale so mouse deltas (in viewport px)
+                // are converted back to mm correctly when the canvas
+                // is being visually scaled down to fit the wrap.
+                const ratio = this.pixelRatio / this.canvasScale;
                 this.dragState = { kind: 'move', f, startX, startY, ox, oy, ratio };
                 window.addEventListener('mousemove', this.onDrag);
                 window.addEventListener('mouseup', this.endDrag);
@@ -694,7 +783,7 @@
                 this.selectField(f.localId);
                 const startX = e.clientX, startY = e.clientY;
                 const ow = f.width_mm, oh = f.height_mm;
-                const ratio = this.pixelRatio;
+                const ratio = this.pixelRatio / this.canvasScale;
                 this.dragState = { kind: 'resize', f, startX, startY, ow, oh, ratio, corner };
                 window.addEventListener('mousemove', this.onDrag);
                 window.addEventListener('mouseup', this.endDrag);
