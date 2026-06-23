@@ -5967,6 +5967,17 @@ function reschedule_class_activity($params)
         course_delete_module($bigBlueButtonInstanceModuleId);
         $bigBluebuttonActivityRescheduled = create_big_blue_button_activity($classInfo, $initTimestamp, $endTimestamp, $BBBmoduleId, $classSectionNumber);
 
+        // Patch the new attendance session description to reference the newly-created BBB module.
+        // replace_attendance_session was called BEFORE the BBB existed, so its description
+        // defaulted to "Sesión de clase presencial." (since BBBCourseModuleInfo was null). For
+        // mixed (type 2) classes this leaves the session appearing as presencial and hides the
+        // BBB link from the calendar UI. Update now that the BBB exists.
+        if ($newAttendanceSessionId && $bigBluebuttonActivityRescheduled && $classInfo->type === '2') {
+            $patchedDescription = 'Sesión de asistencia - bbbModule:' . $bigBluebuttonActivityRescheduled->name . '.';
+            $DB->set_field('attendance_sessions', 'description', $patchedDescription, ['id' => (int)$newAttendanceSessionId]);
+            gmk_log("INFO: reschedule patched attendance session {$newAttendanceSessionId} description -> '{$patchedDescription}' for mixed class.");
+        }
+
         // Update gmk_bbb_attendance_relation with the new IDs so students can see the session.
         // Without this, complete_class_event_information[_bbb] filters the event and the session
         // becomes invisible in the student calendar.
@@ -8317,7 +8328,16 @@ function gmk_close_class_with_grade_recalc(int $classId): array {
         $realGrade = gmk_get_student_class_grade($classId, $uid);
 
         if ($realGrade === null) {
+            // Sin nota final: marcar como Reprobado (grade=0) para que no quede
+            // como Cursando. Se sigue contando en no_grade para trazabilidad.
             $summary['no_grade']++;
+            $summary['failed']++;
+            $updates[] = [
+                'id'       => (int)$stu->progreid,
+                'status'   => COURSE_FAILED,
+                'grade'    => 0.0,
+                'progress' => 100.0,
+            ];
             continue;
         }
 
