@@ -228,7 +228,7 @@
 
                             <!-- Canvas + sidebar -->
                             <v-row dense>
-                                <v-col cols="12" md="8">
+                                <v-col cols="12" md="9">
                                     <div class="dpl-canvas-wrap">
                                         <div class="dpl-canvas"
                                              ref="canvas"
@@ -265,7 +265,7 @@
                                         </div>
                                     </div>
                                 </v-col>
-                                <v-col cols="12" md="4">
+                                <v-col cols="12" md="3">
                                     <v-card outlined class="pa-3 mb-2">
                                         <strong>{{ strings.add_element }}</strong>
                                         <v-btn-toggle v-model="addType" mandatory dense color="primary" class="mt-2 d-flex flex-wrap" style="gap: 4px;">
@@ -359,7 +359,7 @@
                 fontItems: FONT_OPTIONS,
                 typeItems: TYPE_OPTIONS,
                 nextLocalId: 1,
-                pixelRatio: 3.5 // CSS px per mm: A4 landscape (297mm) -> 1039px, fits common screens
+                pixelRatio: 3.2 // CSS px per mm: A4 landscape (297mm) -> 950px, fits most screens without horizontal scroll
             };
         },
         computed: {
