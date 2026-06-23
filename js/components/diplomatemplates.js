@@ -70,6 +70,30 @@
     const FONT_BY_VALUE = {};
     FONT_OPTIONS.forEach(function (f) { FONT_BY_VALUE[f.value] = f; });
 
+    // Map CSS font-family -> Google Fonts API family name so we can build
+    // a single <link> that loads every face we offer. The catalog keys
+    // (e.g. "Great Vibes") map 1:1 to the Google Fonts family.
+    function googleFamilyFor(item) {
+        // item.text is the human label; the family stack is already in
+        // item.family. Strip everything except the first quoted font name.
+        var m = /"([^"]+)"/.exec(item.family || '');
+        return m ? m[1] : '';
+    }
+    function buildGoogleFontsHref() {
+        var families = [];
+        var seen = {};
+        FONT_OPTIONS.forEach(function (f) {
+            var name = googleFamilyFor(f);
+            if (!name || seen[name]) return;
+            seen[name] = true;
+            // Request the most useful weights per family. The API accepts
+            // a colon-separated list per family.
+            families.push(name.replace(/ /g, '+') + ':400,500,600,700,900');
+        });
+        return 'https://fonts.googleapis.com/css?family=' + families.join('|') + '&display=swap';
+    }
+    const GOOGLE_FONTS_HREF = buildGoogleFontsHref();
+
 
     const TYPE_OPTIONS = [
         { text: 'Variable del estudiante', value: 'variable' },
@@ -284,7 +308,16 @@
                                                     <span :style="{ fontFamily: fontFamilyCss(data.item) }">{{ data.item.text }}</span>
                                                 </template>
                                                 <template slot="item" slot-scope="data">
-                                                    <span :style="{ fontFamily: fontFamilyCss(data.item), fontSize: '15px', padding: '2px 0' }">{{ data.item.text }}</span>
+                                                    <div :style="{ fontFamily: fontFamilyCss(data.item), padding: '4px 2px', width: '100%' }">
+                                                        <div :style="{ fontSize: '17px', lineHeight: '1.2' }">{{ data.item.text }}</div>
+                                                        <div :style="{ fontSize: '11px', opacity: '0.6', marginTop: '2px', textTransform: 'uppercase', letterSpacing: '1px', fontFamily: 'inherit' }">
+                                                            <span v-if="data.item.tag === 'script'">Script</span>
+                                                            <span v-else-if="data.item.tag === 'serif'">Serif</span>
+                                                            <span v-else-if="data.item.tag === 'mono'">Mono</span>
+                                                            <span v-else>Sans-serif</span>
+                                                            &middot; Diploma-ready
+                                                        </div>
+                                                    </div>
                                                 </template>
                                             </v-select>
                                             <v-row dense>
