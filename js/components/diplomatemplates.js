@@ -419,6 +419,7 @@
                 if (natural <= available) { return 1; }
                 return available / natural;
             }
+        },
         watch: {
             selected: {
                 handler(t) {
