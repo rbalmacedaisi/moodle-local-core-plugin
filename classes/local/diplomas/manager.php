@@ -287,14 +287,8 @@ class manager {
         global $DB, $CFG;
         $bgurl = '';
         if (!empty($row->background_fileid)) {
-            $bgurl = moodle_url::make_pluginfile_url(
-                context_system::instance()->id,
-                'local_grupomakro_core',
-                self::FILEAREA_BACKGROUND,
-                (int)$row->id,
-                '/',
-                (string)$row->background_filename
-            )->out(false);
+            $bgurl = (new moodle_url('/local/grupomakro_core/pages/diploma_image.php',
+                ['id' => (int)$row->id]))->out(false);
         }
         $fields = $DB->get_records('gmk_diploma_tpl_field', ['templateid' => (int)$row->id], 'z_index ASC, id ASC');
         $exportedfields = [];
@@ -572,14 +566,8 @@ class manager {
         $tpl->usermodified = $actorid;
         $DB->update_record('gmk_diploma_template', $tpl);
 
-        $url = moodle_url::make_pluginfile_url(
-            context_system::instance()->id,
-            'local_grupomakro_core',
-            self::FILEAREA_BACKGROUND,
-            $templateid,
-            '/',
-            (string)$stored->get_filename()
-        )->out(false);
+        $url = (new moodle_url('/local/grupomakro_core/pages/diploma_image.php',
+            ['id' => $templateid]))->out(false);
 
         return [
             'fileid' => (int)$stored->get_id(),

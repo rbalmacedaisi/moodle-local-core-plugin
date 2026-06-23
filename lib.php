@@ -140,19 +140,8 @@ function local_grupomakro_core_extend_navigation(global_navigation $navigation) 
 function local_grupomakro_core_pluginfile($course, $cm, $context, $filearea, array $args, $forcedownload, array $options = []) {
     global $USER;
 
-    // TEMP DEBUG: write to a file we control.
-    @file_put_contents('/tmp/gmk_called.log',
-        date('c') . " ENTER filearea=$filearea ctxid=" . $context->id
-        . " ctxlvl=" . $context->contextlevel
-        . " args=" . json_encode($args)
-        . " loggedin=" . (isloggedin() ? '1' : '0')
-        . " userid=" . (isset($USER) ? (int)$USER->id : 'null') . "\n",
-        FILE_APPEND
-    );
-
     // All our files live in the system context.
     if ($context->contextlevel !== CONTEXT_SYSTEM) {
-        @file_put_contents('/tmp/gmk_called.log', "  -> wrong context level\n", FILE_APPEND);
         return false;
     }
 
@@ -162,26 +151,22 @@ function local_grupomakro_core_pluginfile($course, $cm, $context, $filearea, arr
         'diploma_document'   => 'local/grupomakro_core:viewdiplomas',
     ];
     if (!isset($areas[$filearea])) {
-        @file_put_contents('/tmp/gmk_called.log', "  -> unknown filearea\n", FILE_APPEND);
         return false;
     }
     $requiredcap = $areas[$filearea];
 
     // Must be logged in and authorised.
     if (!isloggedin() || isguestuser()) {
+        // The background is admin-only. The generated diploma PDF can be
+        // served to anonymous visitors for the public verification flow
+        // only when the URL contains a 'public' token.
         $allowpublic = ($filearea === 'diploma_document' && !empty($args[0]) && strpos((string)$args[0], 'public') === 0);
         if ($filearea === 'diploma_background' || !$allowpublic) {
-            @file_put_contents('/tmp/gmk_called.log', "  -> not logged in or guest\n", FILE_APPEND);
             return false;
         }
     }
 
-    try {
-        require_capability($requiredcap, context_system::instance());
-    } catch (Throwable $e) {
-        @file_put_contents('/tmp/gmk_called.log', "  -> capability check failed: " . $e->getMessage() . "\n", FILE_APPEND);
-        return false;
-    }
+    require_capability($requiredcap, context_system::instance());
 
     $itemid = array_shift($args);
     $filename = array_pop($args);
@@ -192,7 +177,6 @@ function local_grupomakro_core_pluginfile($course, $cm, $context, $filearea, arr
     if (!$file) {
         $file = $fs->get_file_by_id((int)$itemid);
         if (!$file || $file->get_component() !== 'local_grupomakro_core' || $file->get_filearea() !== $filearea) {
-            @file_put_contents('/tmp/gmk_called.log', "  -> file not found in storage\n", FILE_APPEND);
             return false;
         }
     }
@@ -201,7 +185,6 @@ function local_grupomakro_core_pluginfile($course, $cm, $context, $filearea, arr
         require_capability($requiredcap, $context);
     }
 
-    @file_put_contents('/tmp/gmk_called.log', "  -> SUCCESS: serving " . $file->get_filename() . "\n", FILE_APPEND);
     send_stored_file($file, 0, 0, $forcedownload, $options);
     return true;
 }
