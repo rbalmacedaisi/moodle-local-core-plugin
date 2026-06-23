@@ -111,10 +111,9 @@ $themeToken = get_theme_token();
 
 echo $OUTPUT->header();
 
-echo <<<EOT
 // Single Google Fonts <link> that covers every family used by the editor.
-// Built dynamically from the same catalog the JS uses, so a new entry
-// added there is automatically loaded here too.
+// Mirrors the FONT_OPTIONS catalog in diplomatemplates.js so every font
+// that appears in the dropdown is actually loaded by the browser.
 $diplomaFontFamilies = [
     'Roboto:100,300,400,500,700,900',
     'Montserrat:400,500,600,700',
@@ -162,6 +161,8 @@ $diplomaFontFamilies = [
     'Halimun'
 ];
 echo '<link href="https://fonts.googleapis.com/css?family=' . implode('|', $diplomaFontFamilies) . '&display=swap" rel="stylesheet">' . "\n";
+
+echo <<<EOT
 <link href="https://cdn.jsdelivr.net/npm/@mdi/font@6.x/css/materialdesignicons.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.css" rel="stylesheet">
 <div id="gmk-app">

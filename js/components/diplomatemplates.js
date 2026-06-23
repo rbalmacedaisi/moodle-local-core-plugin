@@ -308,14 +308,13 @@
                                                     <span :style="{ fontFamily: fontFamilyCss(data.item) }">{{ data.item.text }}</span>
                                                 </template>
                                                 <template slot="item" slot-scope="data">
-                                                    <div :style="{ fontFamily: fontFamilyCss(data.item), padding: '4px 2px', width: '100%' }">
-                                                        <div :style="{ fontSize: '17px', lineHeight: '1.2' }">{{ data.item.text }}</div>
-                                                        <div :style="{ fontSize: '11px', opacity: '0.6', marginTop: '2px', textTransform: 'uppercase', letterSpacing: '1px', fontFamily: 'inherit' }">
-                                                            <span v-if="data.item.tag === 'script'">Script</span>
-                                                            <span v-else-if="data.item.tag === 'serif'">Serif</span>
-                                                            <span v-else-if="data.item.tag === 'mono'">Mono</span>
+                                                    <div :style="{ fontFamily: fontFamilyCss(data.item), padding: '6px 2px', width: '100%' }">
+                                                        <div :style="{ fontSize: '24px', lineHeight: '1.1', fontWeight: '700', letterSpacing: data.item.tag === 'script' ? '0' : '1px', textTransform: data.item.tag === 'serif' ? 'uppercase' : 'none' }">{{ data.item.text }}</div>
+                                                        <div :style="{ fontSize: '11px', opacity: '0.55', marginTop: '3px', textTransform: 'uppercase', letterSpacing: '1.5px', fontFamily: 'inherit' }">
+                                                            <span v-if="data.item.tag === 'script'">Calligraphic script</span>
+                                                            <span v-else-if="data.item.tag === 'serif'">Editorial serif</span>
+                                                            <span v-else-if="data.item.tag === 'mono'">Monospace</span>
                                                             <span v-else>Sans-serif</span>
-                                                            &middot; Diploma-ready
                                                         </div>
                                                     </div>
                                                 </template>
