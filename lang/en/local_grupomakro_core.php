@@ -247,6 +247,46 @@ $string['inactiveafter_x_hours_desc'] = '
 <p>For example, if you set this value to 24, then a user will be considered inactive if he/she has not logged in for 24 hours, and that user will be deleted.</p>
 <p><strong>NOTE:</strong> This setting is used to keep the platform clean of users that are not really interested in taking any course or career in the system.</p>';
 
+// Absence alert system (staged per-class notifications).
+$string['enable_absence_alerts'] = 'Enable staged absence alert system';
+$string['enable_absence_alerts_desc'] = 'Replaces the global auto-suspend (3 absences) with a staged system: 1 absence = info chip, 2 = warning popup, 3 = per-class block. The student goes globally inactive only when every cursando class is blocked.';
+$string['enable_absence_blocking'] = 'Enable per-class absence blocking';
+$string['enable_absence_blocking_desc'] = 'When on, students that reach the threshold are blocked from the affected class. Keep this off while deploying mid-period and turn it on at the start of the next academic period. While off, students only see the visual alerts (orange icon, warning popup) without losing access.';
+$string['absence_block_threshold'] = 'Absence block threshold';
+$string['absence_block_threshold_desc'] = 'Number of absences in a single class that triggers the block. Defaults to 3.';
+
+$string['absence_info_subject'] = '{$a}: first absence recorded';
+$string['absence_info_body'] = 'We recorded your first absence in the subject "{$a->coursename}". At the third absence you may lose access to the resources and tracking for this subject. If you have a justification, please visit the academic department to present it.';
+$string['absence_warning_subject'] = '{$a}: second absence recorded';
+$string['absence_warning_body'] = 'The subject "{$a->coursename}" has 2 absences. At the third absence you will lose access to the resources and tracking. If you have a justification for these absences, please visit the academic department to present it.';
+$string['absence_block_subject'] = '{$a}: access restricted due to absences';
+$string['absence_block_body'] = 'Your access to the subject "{$a->coursename}" is restricted because you reached the limit of 3 absences. Please visit the academic area to review your case if you have a justification.';
+
+$string['course_blocked_title'] = 'Access restricted to this subject';
+$string['course_blocked_intro'] = 'Your access to the subject <strong>{$a}</strong> is restricted.';
+$string['course_blocked_reason'] = 'Reason: you reached the limit of {$a} absences in this subject.';
+$string['course_blocked_action'] = 'If you have a justification, please visit the academic area to review your case. Once reviewed and approved, your access will be restored.';
+$string['course_blocked_back'] = 'Back to home';
+
+$string['absence_unblock_class'] = 'Reactivate class';
+$string['absence_unblock_class_confirm'] = 'Confirm the reactivation of this class for the student? This action lifts the absence block, records the audit trail, and where applicable reactivates the student globally.';
+$string['absence_unblock_class_reason'] = 'Reactivation reason';
+$string['absence_unblock_class_success'] = 'The class was reactivated successfully.';
+$string['absence_unblock_class_noop'] = 'The class is not blocked, no changes were made.';
+$string['absence_recompute_class'] = 'Recompute absences';
+$string['absence_recompute_class_success'] = 'State recomputed: {$a->count} absences (level {$a->level}).';
+
+$string['bulk_exempt_legacy_title'] = 'Exempt students with 3+ existing absences';
+$string['bulk_exempt_legacy_desc'] = 'Marks as exempt from the new blocking system every student who already has 3 or more accumulated absences. Recommended when deploying mid-period so that only students who reach the threshold after the deploy are blocked. The action is reversible: the exemption list is cleared at the start of the next period.';
+$string['bulk_exempt_legacy_confirm'] = 'Confirm the bulk exemption? This marks every student with 3 or more accumulated absences as NOT subject to the new blocking. Students will continue seeing the visual alerts (1 and 2 absences) normally. The operation is recorded in the audit log.';
+$string['bulk_exempt_legacy_no_op'] = 'No students required exemption.';
+$string['bulk_exempt_legacy_complete'] = 'Exempted {$a->users} students across {$a->classes} classes. The operation was recorded in the audit log.';
+
+$string['clear_period_exemptions_title'] = 'Clear period exemptions';
+$string['clear_period_exemptions_desc'] = 'Removes every exemption from the new absence blocking system. Run at the start of the next academic period so the rules apply from zero.';
+$string['clear_period_exemptions_confirm'] = 'Confirm the cleanup? This will remove ALL exemptions from the new system. Students that still have 3+ absences will be blocked again by the next cron run.';
+$string['clear_period_exemptions_complete'] = 'Removed {$a} exemptions.';
+
 // Scheduled tasks.
 $string['taskinactiveusers'] = 'Delete inactive users';
 $string['taskcloseexpiredschedules'] = 'Close expired schedules';
