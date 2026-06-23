@@ -280,7 +280,7 @@
                 fontItems: FONT_OPTIONS,
                 typeItems: TYPE_OPTIONS,
                 nextLocalId: 1,
-                pixelRatio: 4 // CSS px per mm (zoom for canvas)
+                pixelRatio: 3.5 // CSS px per mm: A4 landscape (297mm) -> 1039px, fits common screens
             };
         },
         computed: {
