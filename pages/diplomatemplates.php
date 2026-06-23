@@ -112,7 +112,7 @@ $themeToken = get_theme_token();
 echo $OUTPUT->header();
 
 echo <<<EOT
-<link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900|Montserrat:400,500,600,700|Playfair+Display:400,500,600,700|Open+Sans:400,500,600,700|Lora:400,500,600,700|Merriweather:400,500,700|Poppins:400,500,600,700|Oswald:400,500,700|Dancing+Script:400,500,700" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900|Montserrat:400,500,600,700|Playfair+Display:400,500,600,700|Open+Sans:400,500,600,700|Lora:400,500,600,700|Merriweather:400,500,700|Poppins:400,500,600,700|Oswald:400,500,700|Dancing+Script:400,500,700|Cormorant+Garamond:400,500,600,700|EB+Garamond:400,500,600,700|Libre+Baskerville:400,500,600,700|Cinzel:400,500,700|Cinzel+Decorative:400,700,900|Marcellus|Italiana|Bodoni+Moda:400,500,600,700|Abril+Fatface|Garamond|Petit+Formal+Script|Great+Vibes:400,700|Pinyon+Script|Allura:400,700|Tangerine:400,700|Sacramento|Alex+Brush|Pacifico|Parisienne|Mr+De+Haviland|Italianno|Mrs+Saint+Delafield|Bilbo|Rouge+Script|Allison+Script|La+Belle+Aurore|Halimun" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/@mdi/font@6.x/css/materialdesignicons.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.css" rel="stylesheet">
 <div id="gmk-app">

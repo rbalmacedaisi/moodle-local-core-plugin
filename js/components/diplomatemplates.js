@@ -2,34 +2,74 @@
 (function () {
     'use strict';
 
+    /**
+     * Diploma-grade font catalog. Each entry is a curated Google Font (or
+     * core PDF font) suitable for academic certificates. The browser renders
+     * the dropdown in the actual font so the editor can see the look, but
+     * the PDF itself is rendered with the closest TCPDF core font
+     * (see renderer's FONT_MAP). To use the real TTF in the PDF, drop the
+     * .ttf into lib/tcpdf/fonts/ and register it in the renderer's map.
+     *
+     * Grouped by style family so the dropdown reads top-to-bottom from
+     * neutral sans/serif up to the most decorative scripts.
+     */
     const FONT_OPTIONS = [
-        { text: 'Helvetica (sans)', value: 'helvetica' },
-        { text: 'Times (serif)', value: 'times' },
-        { text: 'Courier (mono)', value: 'courier' },
-        { text: 'DejaVu Sans', value: 'dejavusans' },
-        { text: 'DejaVu Serif', value: 'dejavuserif' },
-        { text: 'Open Sans', value: 'opensans' },
-        { text: 'Roboto', value: 'roboto' },
-        { text: 'Montserrat', value: 'montserrat' },
-        { text: 'Lato', value: 'lato' },
-        { text: 'Poppins', value: 'poppins' },
-        { text: 'Oswald', value: 'oswald' },
-        { text: 'Raleway', value: 'raleway' },
-        { text: 'Noto Sans', value: 'notosans' },
-        { text: 'Lora', value: 'lora' },
-        { text: 'Merriweather', value: 'merriweather' },
-        { text: 'Playfair Display', value: 'playfairdisplay' },
-        { text: 'PT Serif', value: 'ptsernif' },
-        { text: 'PT Sans', value: 'ptsans' },
-        { text: 'Verdana', value: 'verdana' },
-        { text: 'Tahoma', value: 'tahoma' },
-        { text: 'Georgia', value: 'georgia' },
-        { text: 'Garamond', value: 'garamond' },
-        { text: 'Palatino', value: 'palatino' },
-        { text: 'Dancing Script', value: 'dancingscript' },
-        { text: 'Pacifico', value: 'pacifico' },
-        { text: 'Great Vibes', value: 'greatvibes' }
+        // Core / safe fallbacks (these ARE rendered exactly as named in TCPDF)
+        { text: 'Helvetica (sans)', value: 'helvetica', family: '"Helvetica Neue", Arial, sans-serif', tag: 'sans' },
+        { text: 'Times (serif)',     value: 'times',     family: '"Times New Roman", Times, serif',         tag: 'serif' },
+        { text: 'Courier (mono)',   value: 'courier',   family: '"Courier New", Courier, monospace',      tag: 'mono' },
+
+        // Neutral workhorses
+        { text: 'Open Sans',      value: 'opensans',      family: '"Open Sans", sans-serif',           tag: 'sans' },
+        { text: 'Roboto',         value: 'roboto',         family: 'Roboto, sans-serif',               tag: 'sans' },
+        { text: 'Lato',           value: 'lato',           family: 'Lato, sans-serif',                 tag: 'sans' },
+        { text: 'Montserrat',     value: 'montserrat',     family: 'Montserrat, sans-serif',           tag: 'sans' },
+        { text: 'Poppins',        value: 'poppins',        family: 'Poppins, sans-serif',              tag: 'sans' },
+        { text: 'Raleway',        value: 'raleway',        family: 'Raleway, sans-serif',              tag: 'sans' },
+        { text: 'Oswald',         value: 'oswald',         family: 'Oswald, sans-serif',               tag: 'sans' },
+
+        // Editorial serifs (formal, diploma-look)
+        { text: 'Playfair Display', value: 'playfairdisplay', family: '"Playfair Display", serif',     tag: 'serif' },
+        { text: 'Cormorant Garamond', value: 'cormorantgaramond', family: '"Cormorant Garamond", serif', tag: 'serif' },
+        { text: 'EB Garamond',    value: 'ebgaramond',     family: '"EB Garamond", serif',            tag: 'serif' },
+        { text: 'Libre Baskerville', value: 'librebaskerville', family: '"Libre Baskerville", serif', tag: 'serif' },
+        { text: 'Lora',           value: 'lora',           family: 'Lora, serif',                    tag: 'serif' },
+        { text: 'Merriweather',   value: 'merriweather',   family: 'Merriweather, serif',            tag: 'serif' },
+        { text: 'Cinzel',         value: 'cinzel',         family: 'Cinzel, serif',                  tag: 'serif' },
+        { text: 'Cinzel Decorative', value: 'cinzeldecorative', family: '"Cinzel Decorative", serif', tag: 'serif' },
+        { text: 'Marcellus',      value: 'marcellus',      family: 'Marcellus, serif',               tag: 'serif' },
+        { text: 'Italiana',       value: 'italiana',       family: 'Italiana, serif',                tag: 'serif' },
+        { text: 'Bodoni Moda',    value: 'bodoni',         family: '"Bodoni Moda", serif',           tag: 'serif' },
+        { text: 'Abril Fatface',  value: 'abrilfatface',   family: '"Abril Fatface", serif',         tag: 'serif' },
+        { text: 'Garamond',       value: 'garamond',       family: 'Garamond, serif',                tag: 'serif' },
+        { text: 'Petit Formal Script', value: 'petitformalscript', family: '"Petit Formal Script", cursive', tag: 'script' },
+
+        // Script / calligraphy (the dramatic look for the recipient name)
+        { text: 'Great Vibes',    value: 'greatvibes',     family: '"Great Vibes", cursive',          tag: 'script' },
+        { text: 'Pinyon Script',  value: 'pinyonscript',   family: '"Pinyon Script", cursive',        tag: 'script' },
+        { text: 'Allura',         value: 'allura',         family: 'Allura, cursive',                tag: 'script' },
+        { text: 'Tangerine',      value: 'tangerine',      family: 'Tangerine, cursive',             tag: 'script' },
+        { text: 'Sacramento',     value: 'sacramento',     family: 'Sacramento, cursive',            tag: 'script' },
+        { text: 'Alex Brush',     value: 'alexbrush',      family: '"Alex Brush", cursive',           tag: 'script' },
+        { text: 'Dancing Script', value: 'dancingscript',  family: '"Dancing Script", cursive',       tag: 'script' },
+        { text: 'Pacifico',       value: 'pacifico',       family: 'Pacifico, cursive',              tag: 'script' },
+        { text: 'Parisienne',     value: 'parisienne',     family: 'Parisienne, cursive',            tag: 'script' },
+        { text: 'Mr De Haviland', value: 'mrdehaviland',   family: '"Mr De Haviland", cursive',      tag: 'script' },
+        { text: 'Italianno',      value: 'italianno',      family: 'Italianno, cursive',             tag: 'script' },
+        { text: 'Mrs Saint Delafield', value: 'mrssaintdelafield', family: '"Mrs Saint Delafield", cursive', tag: 'script' },
+        { text: 'Bilbo',          value: 'bilbo',          family: 'Bilbo, cursive',                 tag: 'script' },
+        { text: 'Rouge Script',   value: 'rougescript',    family: '"Rouge Script", cursive',        tag: 'script' },
+        { text: 'Allison Script', value: 'allisonscript',  family: '"Allison Script", cursive',      tag: 'script' },
+        { text: 'La Belle Aurore', value: 'labelleaurore', family: '"La Belle Aurore", cursive',     tag: 'script' },
+        { text: 'Halimun',        value: 'halimun',        family: 'Halimun, cursive',               tag: 'script' }
     ];
+
+    // Quick lookup so the font-items list view can show each entry in its
+    // own CSS font-family. The dropdown <select> rendered by v-select will
+    // use the same `family` via a custom item slot.
+    const FONT_BY_VALUE = {};
+    FONT_OPTIONS.forEach(function (f) { FONT_BY_VALUE[f.value] = f; });
+
 
     const TYPE_OPTIONS = [
         { text: 'Variable del estudiante', value: 'variable' },
@@ -239,7 +279,14 @@
                                         </v-row>
 
                                         <template v-if="currentField.field_type !== 'qr'">
-                                            <v-select v-model="currentField.font_family" :items="fontItems" :label="strings.font" outlined dense></v-select>
+                                            <v-select v-model="currentField.font_family" :items="fontItems" :label="strings.font" outlined dense>
+                                                <template slot="selection" slot-scope="data">
+                                                    <span :style="{ fontFamily: fontFamilyCss(data.item) }">{{ data.item.text }}</span>
+                                                </template>
+                                                <template slot="item" slot-scope="data">
+                                                    <span :style="{ fontFamily: fontFamilyCss(data.item), fontSize: '15px', padding: '2px 0' }">{{ data.item.text }}</span>
+                                                </template>
+                                            </v-select>
                                             <v-row dense>
                                                 <v-col cols="6">
                                                     <v-text-field type="number" v-model.number="currentField.font_size" :label="strings.font_size" outlined dense suffix="pt"></v-text-field>
@@ -562,8 +609,13 @@
                 };
             },
             contentStyle(f) {
+                // Use the real CSS font-family (resolved from the font
+                // catalog) so the on-canvas preview matches the selected
+                // Google Font. The PDF is still rendered with the closest
+                // TCPDF core font (see renderer FONT_MAP).
+                var item = FONT_BY_VALUE[f.font_family] || { family: 'helvetica, sans-serif' };
                 return {
-                    fontFamily: f.font_family || 'helvetica',
+                    fontFamily: item.family,
                     fontSize: (f.font_size * this.pixelRatio * 0.35) + 'px',
                     fontWeight: f.font_weight || 'normal',
                     color: f.font_color || '#000',
@@ -577,6 +629,13 @@
                 if (f.field_type === 'static') return 'FIX: ' + ((f.static_text || '').slice(0, 18));
                 if (f.field_type === 'qr') return 'QR';
                 return '?';
+            },
+            fontFamilyCss(item) {
+                // Resolve the CSS font-family for a font-select item, falling
+                // back to the configured family and finally to a generic stack.
+                if (!item) return 'serif';
+                if (item.family) return item.family;
+                return 'serif';
             },
             fieldPreview(f) {
                 if (f.field_type === 'variable') {
