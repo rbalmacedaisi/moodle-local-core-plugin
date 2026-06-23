@@ -2327,6 +2327,85 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20260618001, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20260623001) {
+        // Absence alert system: extend gmk_course_progre with class-level access flags
+        // and add the gmk_class_absence_state + gmk_class_absence_history tables.
+
+        $table = new xmldb_table('gmk_course_progre');
+        $field = new xmldb_field('blocked_by_absence', XMLDB_TYPE_INTEGER, '1', null, null, null, '0', 'groupid');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+        $field = new xmldb_field('blocked_by_absence_at', XMLDB_TYPE_INTEGER, '10', null, null, null, '0', 'blocked_by_absence');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+        $index = new xmldb_index('blocked_idx', XMLDB_INDEX_NOTUNIQUE, ['userid', 'classid', 'blocked_by_absence']);
+        if (!$dbman->index_exists($table, $index)) {
+            $dbman->add_index($table, $index);
+        }
+
+        // Per (user, class) absence state.
+        $table = new xmldb_table('gmk_class_absence_state');
+        $table->add_field('id',                 XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('userid',             XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('classid',            XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('courseid',           XMLDB_TYPE_INTEGER, '10', null, null,        null, '0');
+        $table->add_field('absence_count',      XMLDB_TYPE_INTEGER, '4',  null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('last_session_id',    XMLDB_TYPE_INTEGER, '10', null, null,        null, '0');
+        $table->add_field('last_calculated',    XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('alert_level',        XMLDB_TYPE_INTEGER, '1',  null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('info_dismissed_at',  XMLDB_TYPE_INTEGER, '10', null, null,        null, '0');
+        $table->add_field('warning_dismissed_at', XMLDB_TYPE_INTEGER, '10', null, null,      null, '0');
+        $table->add_field('blocked_at',         XMLDB_TYPE_INTEGER, '10', null, null,        null, '0');
+        $table->add_field('unblocked_at',       XMLDB_TYPE_INTEGER, '10', null, null,        null, '0');
+        $table->add_field('block_reason',       XMLDB_TYPE_CHAR,    '255', null, null,       null, null);
+        $table->add_field('usermodified',       XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timecreated',        XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timemodified',       XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('userfk',  XMLDB_KEY_FOREIGN, ['userid'], 'user', ['id']);
+        $table->add_index('userclass_uix', XMLDB_INDEX_UNIQUE,   ['userid', 'classid']);
+        $table->add_index('alert_idx',     XMLDB_INDEX_NOTUNIQUE, ['userid', 'alert_level']);
+        $table->add_index('class_idx',     XMLDB_INDEX_NOTUNIQUE, ['classid', 'alert_level']);
+
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // Append-only audit log of state transitions.
+        $table = new xmldb_table('gmk_class_absence_history');
+        $table->add_field('id',           XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('userid',       XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('classid',      XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('sessionid',    XMLDB_TYPE_INTEGER, '10', null, null,        null, '0');
+        $table->add_field('count_after',  XMLDB_TYPE_INTEGER, '4',  null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('level_after',  XMLDB_TYPE_INTEGER, '1',  null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('action',       XMLDB_TYPE_CHAR,    '32', null, XMLDB_NOTNULL, null, 'recompute');
+        $table->add_field('details',      XMLDB_TYPE_TEXT,    'medium', null, null,    null, null);
+        $table->add_field('timecreated',  XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('userfk',  XMLDB_KEY_FOREIGN, ['userid'], 'user', ['id']);
+        $table->add_index('userclass_idx', XMLDB_INDEX_NOTUNIQUE, ['userid', 'classid']);
+        $table->add_index('time_idx',      XMLDB_INDEX_NOTUNIQUE, ['timecreated']);
+
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        upgrade_plugin_savepoint(true, 20260623001, 'local', 'grupomakro_core');
+    }
+
+    if ($oldversion < 20260701001) {
+        // Mitigación de despliegue a mitad de período: el feature flag de
+        // blocking se introduce como setting separado (enable_absence_blocking)
+        // y se mantiene apagado hasta que se decida activar. No requiere
+        // cambios de esquema; la guarda se aplica en absence_helpers.
+        upgrade_plugin_savepoint(true, 20260701001, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

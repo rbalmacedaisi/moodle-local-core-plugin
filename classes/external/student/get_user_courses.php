@@ -33,6 +33,7 @@ defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 require_once($CFG->dirroot . '/enrol/externallib.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/pages/absence_helpers.php');
 
 /**
  * External function 'local_grupomakro_get_user_courses' implementation.
@@ -91,6 +92,17 @@ class get_user_courses extends external_api
                 } else {
                      $course['credits'] = (int)$DB->get_field('local_learning_courses', 'credits', ['courseid' => $course['id']], IGNORE_MULTIPLE);
                 }
+
+                // Absence alert payload (per-class, max severity).
+                $absence = absd_get_course_absence_for_user((int)$params['userid'], (int)$course['id']);
+                $course['absence'] = $absence === null ? [
+                    'count'             => 0,
+                    'level'             => 0,
+                    'blocked'           => false,
+                    'classid'           => 0,
+                    'info_dismissed'    => false,
+                    'warning_dismissed' => false,
+                ] : $absence;
             }
             return $userCourses;
         } catch (Exception $e) {

@@ -29,6 +29,90 @@ if (optional_param('abs_ajax', 0, PARAM_INT)) {
             $newval = $u->suspended ? 0 : 1;
             $DB->set_field('user', 'suspended', $newval, ['id' => $userid]);
             echo json_encode(['ok' => true, 'suspended' => (bool)$newval]);
+        } elseif ($abs_action === 'unblock_class') {
+            // Manual reactivation: lifts the per-class absence block that
+            // absd_apply_class_block put in place, when the academic area
+            // has reviewed a justified absence case. Records the reason
+            // in the history log for audit purposes.
+            $userid  = required_param('userid', PARAM_INT);
+            $classid = required_param('classid', PARAM_INT);
+            $reason  = trim((string)optional_param('reason', 'manual_unblock', PARAM_TEXT));
+            if ($reason === '') {
+                $reason = 'manual_unblock';
+            }
+
+            $user = $DB->get_record('user', ['id' => $userid, 'deleted' => 0], 'id', MUST_EXIST);
+            $class = $DB->get_record('gmk_class', ['id' => $classid], 'id', MUST_EXIST);
+
+            $state = $DB->get_record('gmk_class_absence_state', [
+                'userid'  => $userid,
+                'classid' => $classid,
+            ]);
+            if (!$state || (int)$state->alert_level < 3 || empty($state->blocked_at) || !empty($state->unblocked_at)) {
+                echo json_encode([
+                    'ok'    => false,
+                    'error' => 'class_not_blocked',
+                ]);
+                exit;
+            }
+
+            $currentuserid = (int)$USER->id;
+            $auditdetail = trim(sprintf(
+                "manual_unblock by user #%d (%s)",
+                $currentuserid,
+                $reason
+            ));
+
+            absd_unblock_class_block($userid, $classid, $auditdetail);
+
+            // After the per-class block is lifted the user may still be
+            // globally inactive (user.suspended or studentstatus=Inactivo)
+            // if the previous auto-inactivation fired. Reverse that when
+            // the student now has at least one non-blocked cursando class
+            // and there is no separate reason to keep them inactive.
+            $global = absd_check_global_inactivity($userid);
+            $globalreactivated = false;
+            if ($global['has_open_class']) {
+                $studentstatus_fieldid = (int)($DB->get_field('user_info_field', 'id', ['shortname' => 'studentstatus']) ?: 0);
+                if ($DB->get_field('user', 'suspended', ['id' => $userid])) {
+                    absd_mark_user_active($userid, $studentstatus_fieldid);
+                    absd_log_history($userid, $classid, 0, 0, 'global_reactivate', 'lifted by manual class unblock');
+                    $globalreactivated = true;
+                }
+            }
+
+            echo json_encode([
+                'ok'                  => true,
+                'userid'              => $userid,
+                'classid'             => $classid,
+                'unblocked'           => true,
+                'reason'              => $auditdetail,
+                'global_reactivated'  => $globalreactivated,
+                'message'             => get_string('absence_unblock_class_success', 'local_grupomakro_core'),
+            ]);
+        } elseif ($abs_action === 'recompute_class') {
+            // Trigger a fresh recompute for a (user, class) pair. Useful
+            // after manually editing attendance logs from the dashboard.
+            $userid  = required_param('userid', PARAM_INT);
+            $classid = required_param('classid', PARAM_INT);
+            $class = $DB->get_record(
+                'gmk_class',
+                ['id' => $classid],
+                'id, courseid, corecourseid, groupid, attendancemoduleid, initdate, enddate',
+                MUST_EXIST
+            );
+            $result = absd_recompute_user_class_state($class, $userid);
+            if (in_array('block', $result['transitions'], true)
+                    && !absd_is_user_exempt($userid, $classid)) {
+                absd_apply_class_block($userid, $classid, 'attendance_threshold_reached (recompute)');
+            }
+            echo json_encode([
+                'ok'           => true,
+                'previous_level' => $result['previous_level'],
+                'current_level'  => $result['current_level'],
+                'current_count'  => $result['current_count'],
+                'transitions'    => $result['transitions'],
+            ]);
         } elseif ($abs_action === 'academic') {
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/student/update_student_status.php');
             $userid = required_param('userid', PARAM_INT);
@@ -144,6 +228,133 @@ if (optional_param('abs_ajax', 0, PARAM_INT)) {
                 ['ok' => true, 'sessions' => $sessionrows],
                 JSON_UNESCAPED_UNICODE | JSON_HEX_TAG
             );
+        } elseif ($abs_action === 'bulk_exempt_3plus') {
+            // Soft-launch helper: marks every student who currently has 3+
+            // absences as globally exempt so the new cron does not lock them
+            // out during the mid-period deploy.
+            $classidparam = optional_param('classid', 0, PARAM_INT);
+            $periodid    = optional_param('periodid', 0, PARAM_INT);
+            $dryrun      = optional_param('dryrun', 0, PARAM_INT) === 1;
+            $threshold   = absd_get_block_threshold();
+            $nowts       = time();
+
+            $classsql = "SELECT id, courseid, corecourseid, groupid, attendancemoduleid, initdate, enddate, learningplanid
+                           FROM {gmk_class}
+                          WHERE approved = 1 AND closed = 0 AND enddate > :now";
+            $classparams = ['now' => $nowts];
+            if ($classidparam > 0) {
+                $classsql .= ' AND id = :cid';
+                $classparams['cid'] = $classidparam;
+            }
+            $classes = $DB->get_records_sql($classsql, $classparams);
+            if ($periodid > 0) {
+                $classes = array_filter($classes, static function($cls) use ($periodid) {
+                    return (int)($cls->learningplanid ?? 0) === (int)$periodid;
+                });
+            }
+
+            $usersaffected = [];
+            $classesaffected = [];
+            $totalchecked = 0;
+            $skippedalreadyexempt = 0;
+            foreach ($classes as $class) {
+                $cid = (int)$class->id;
+                $pastsids  = absd_get_class_past_session_ids($class, $nowts);
+                $takensids = absd_get_taken_session_ids($pastsids);
+                if (empty($takensids)) {
+                    continue;
+                }
+                $enrolled = absd_get_class_enrolled_userids($cid);
+                if (empty($enrolled)) {
+                    continue;
+                }
+                $absencemap = absd_get_student_absences($takensids, $enrolled);
+                foreach ($enrolled as $uid) {
+                    $uid = (int)$uid;
+                    $totalchecked++;
+                    $count = (int)($absencemap[$uid] ?? 0);
+                    if ($count < $threshold) {
+                        continue;
+                    }
+                    if (absd_is_user_exempt($uid, 0)) {
+                        $skippedalreadyexempt++;
+                        continue;
+                    }
+                    $usersaffected[$uid] = true;
+                    $classesaffected[$cid] = true;
+                }
+            }
+
+            $applied = 0;
+            if (!$dryrun && !empty($usersaffected)) {
+                $detail = sprintf(
+                    "bulk_exempt (ajax) at %s (threshold=%d)",
+                    userdate($nowts, get_string('strftimedatetime', 'langconfig')),
+                    $threshold
+                );
+                foreach ($usersaffected as $uid => $_ignored) {
+                    if (absd_mark_user_globally_exempt((int)$uid, $detail)) {
+                        $applied++;
+                    }
+                }
+            }
+
+            echo json_encode([
+                'ok'                      => true,
+                'dryrun'                  => $dryrun,
+                'threshold'               => $threshold,
+                'users_to_exempt'         => count($usersaffected),
+                'users_applied'           => $applied,
+                'classes_affected'        => count($classesaffected),
+                'users_already_exempt'    => $skippedalreadyexempt,
+                'users_checked'           => $totalchecked,
+            ], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG);
+
+        } elseif ($abs_action === 'clear_period_exemptions') {
+            $dryrun = optional_param('dryrun', 0, PARAM_INT) === 1;
+            $currentcount = (int)$DB->count_records_select(
+                'config_plugins',
+                "plugin = ? AND name LIKE ?",
+                ['local_grupomakro_core', 'absence_exempt_%']
+            );
+            $cleared = 0;
+            if (!$dryrun) {
+                $cleared = absd_clear_all_period_exemptions();
+                absd_log_history(0, 0, 0, 0, 'clear_period_exemptions (ajax)', sprintf(
+                    "%s cleared %d entries",
+                    fullname($USER),
+                    $cleared
+                ));
+            }
+            echo json_encode([
+                'ok'           => true,
+                'dryrun'       => $dryrun,
+                'present'      => $currentcount,
+                'cleared'      => $cleared,
+            ], JSON_UNESCAPED_UNICODE);
+
+        } elseif ($abs_action === 'get_user_absence_state') {
+            // Returns the per-class absence state and the unblock action
+            // metadata for a single user, so the dashboard can render the
+            // "reactivar clase" controls and call the unblock_class action.
+            $userid = required_param('userid', PARAM_INT);
+            $DB->get_record('user', ['id' => $userid, 'deleted' => 0], 'id', MUST_EXIST);
+
+            $summary = absd_build_absence_summary($userid);
+            echo json_encode([
+                'ok'                       => true,
+                'userid'                   => $userid,
+                'classes'                  => $summary['classes'],
+                'is_globally_inactive'     => $summary['is_globally_inactive'],
+                'has_any_blocked_class'    => $summary['has_any_blocked_class'],
+                'open_class_count'         => $summary['open_class_count'],
+                'blocked_class_count'      => $summary['blocked_class_count'],
+                'unblock_url'              => (new moodle_url('/local/grupomakro_core/pages/absence_dashboard.php'))->out(false),
+                'unblock_action'           => 'unblock_class',
+                'recompute_url'            => (new moodle_url('/local/grupomakro_core/pages/absence_dashboard.php'))->out(false),
+                'recompute_action'         => 'recompute_class',
+                'sesskey'                  => sesskey(),
+            ], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG);
         } elseif ($abs_action === 'get_students') {
             // Load student details for one class on-demand (avoids embedding large JSON in HTML).
             $classid = required_param('classid', PARAM_INT);
@@ -217,6 +428,28 @@ if (optional_param('abs_ajax', 0, PARAM_INT)) {
 
             // Per-student absences from sessions where attendance was actually taken.
             $student_abs = absd_get_student_absences($takensessionids, $userids);
+
+            // Per-student absence state (alert level, blocked, dismissals).
+            $absence_state_map = [];
+            if (!empty($userids)) {
+                [$_as_insql, $_as_inparams] = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED, 'asu');
+                foreach ($DB->get_recordset_sql(
+                    "SELECT userid, alert_level, absence_count, info_dismissed_at,
+                            warning_dismissed_at, blocked_at, unblocked_at, block_reason
+                       FROM {gmk_class_absence_state}
+                      WHERE classid = :cid AND userid $_as_insql",
+                    array_merge(['cid' => $classid], $_as_inparams)
+                ) as $_asr) {
+                    $absence_state_map[(int)$_asr->userid] = [
+                        'alert_level'       => (int)$_asr->alert_level,
+                        'absence_count'     => (int)$_asr->absence_count,
+                        'info_dismissed'    => !empty($_asr->info_dismissed_at),
+                        'warning_dismissed' => !empty($_asr->warning_dismissed_at),
+                        'blocked'           => !empty($_asr->blocked_at) && empty($_asr->unblocked_at),
+                        'block_reason'      => (string)($_asr->block_reason ?? ''),
+                    ];
+                }
+            }
 
             // Exemption flags.
             $exempt_users = [];
@@ -321,11 +554,24 @@ if (optional_param('abs_ajax', 0, PARAM_INT)) {
                     'last_access'       => (int)($row->lastaccess ?? 0),
                     'financial_status'  => $financial_map[$uid]['status'] ?? 'none',
                     'financial_reason'  => $financial_map[$uid]['reason'] ?? '',
+                    'absence_state'     => $absence_state_map[$uid] ?? [
+                        'alert_level'       => 0,
+                        'absence_count'     => 0,
+                        'info_dismissed'    => false,
+                        'warning_dismissed' => false,
+                        'blocked'           => false,
+                        'block_reason'      => '',
+                    ],
                 ];
             }
             usort($out, fn($a, $b) => $b['absences'] <=> $a['absences']);
-            echo json_encode(['ok' => true, 'students' => $out, 'past_sessions' => $past_sessions],
-                JSON_UNESCAPED_UNICODE | JSON_HEX_TAG);
+            echo json_encode([
+                'ok'            => true,
+                'students'      => $out,
+                'past_sessions' => $past_sessions,
+                'classid'       => (int)$classid,
+                'classname'     => absd_get_class_display_name((int)$classid),
+            ], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG);
         } elseif ($abs_action === 'get_all_students') {
             $classids_raw = required_param('classids', PARAM_TEXT);
             $classids = array_values(array_filter(array_map('intval', explode(',', $classids_raw))));
@@ -409,6 +655,47 @@ if (optional_param('abs_ajax', 0, PARAM_INT)) {
             ) as $_fsr) {
                 $financial_map[(int)$_fsr->userid] = ['status' => trim((string)$_fsr->status), 'reason' => trim((string)$_fsr->reason)];
             }
+
+            // Per-user absence state, aggregated across the classes in the
+            // listing. We keep the worst alert level/block status so the
+            // admin can act on the most critical situation per student.
+            $absence_state_map = [];
+            if (!empty($userids) && !empty($classids)) {
+                [$_au_insql, $_au_inparams] = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED, 'auu');
+                [$_ac_insql2, $_ac_inparams2] = $DB->get_in_or_equal($classids, SQL_PARAMS_NAMED, 'acc');
+                foreach ($DB->get_recordset_sql(
+                    "SELECT userid, classid, alert_level, absence_count, info_dismissed_at,
+                            warning_dismissed_at, blocked_at, unblocked_at, block_reason
+                       FROM {gmk_class_absence_state}
+                      WHERE userid $_au_insql AND classid $_ac_insql2",
+                    array_merge($_au_inparams, $_ac_inparams2)
+                ) as $_asr) {
+                    $uid = (int)$_asr->userid;
+                    $cur = $absence_state_map[$uid] ?? [
+                        'alert_level'       => 0,
+                        'absence_count'     => 0,
+                        'info_dismissed'    => false,
+                        'warning_dismissed' => false,
+                        'blocked'           => false,
+                        'block_reason'      => '',
+                        'classid'           => 0,
+                        'blocked_classids'  => [],
+                    ];
+                    $cur['alert_level']   = max($cur['alert_level'], (int)$_asr->alert_level);
+                    $cur['absence_count'] = max($cur['absence_count'], (int)$_asr->absence_count);
+                    $cur['info_dismissed']    = $cur['info_dismissed']    || !empty($_asr->info_dismissed_at);
+                    $cur['warning_dismissed'] = $cur['warning_dismissed'] || !empty($_asr->warning_dismissed_at);
+                    $isBlocked = !empty($_asr->blocked_at) && empty($_asr->unblocked_at);
+                    if ($isBlocked) {
+                        $cur['blocked'] = true;
+                        $cur['block_reason'] = (string)($_asr->block_reason ?? '');
+                        $cur['blocked_classids'][] = (int)$_asr->classid;
+                    }
+                    $cur['classid'] = (int)$_asr->classid;
+                    $absence_state_map[$uid] = $cur;
+                }
+            }
+
             $out = [];
             foreach ($students_raw as $uid => $row) {
                 $academic_status = strtolower(trim((string)$row->academic_status)) ?: 'activo';
@@ -420,6 +707,16 @@ if (optional_param('abs_ajax', 0, PARAM_INT)) {
                     $v = $custom_pm[$uid][$fid] ?? '';
                     if ($v !== '') $phones[] = ['label' => $pf_names[$fid], 'value' => $v, 'wa' => absd_phone_for_wa($v)];
                 }
+                $absence_state = $absence_state_map[$uid] ?? [
+                    'alert_level'       => 0,
+                    'absence_count'     => 0,
+                    'info_dismissed'    => false,
+                    'warning_dismissed' => false,
+                    'blocked'           => false,
+                    'block_reason'      => '',
+                    'classid'           => 0,
+                    'blocked_classids'  => [],
+                ];
                 $out[] = [
                     'userid'           => $uid,
                     'name'             => mb_convert_encoding(trim($row->firstname . ' ' . $row->lastname), 'UTF-8', 'UTF-8'),
@@ -434,6 +731,7 @@ if (optional_param('abs_ajax', 0, PARAM_INT)) {
                     'last_access'      => (int)($row->lastaccess ?? 0),
                     'financial_status' => $financial_map[$uid]['status'] ?? 'none',
                     'financial_reason' => $financial_map[$uid]['reason'] ?? '',
+                    'absence_state'    => $absence_state,
                 ];
             }
             usort($out, fn($a, $b) => strcmp($a['name'], $b['name']));
@@ -1425,6 +1723,14 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
 }
 .absd-suspend-btn.active   { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
 .absd-suspend-btn.inactive { background: #dcfce7; color: #166534; border-color: #86efac; }
+.absd-unblock-btn {
+    background: #fef3c7; color: #92400e; border: 1.5px solid #fcd34d;
+    border-radius: 5px; padding: 3px 8px; font-size: 10px; font-weight: 700;
+    cursor: pointer; white-space: nowrap; transition: background .15s, transform .1s;
+}
+.absd-unblock-btn:hover    { background: #fde68a; transform: translateY(-1px); }
+.absd-unblock-btn:active   { transform: translateY(0); }
+.absd-unblock-btn:disabled { opacity: .55; cursor: default; }
 .absd-name-link { color:#1a56a4; text-decoration:none; font-weight:700; }
 .absd-name-link:hover { text-decoration:underline; }
 .absd-abs-link {
@@ -1521,6 +1827,16 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
             <button onclick="absdRunAbsenceCheck()" id="absd-run-check-btn"
                 style="background:#dc2626;color:#fff;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;border:none;cursor:pointer">
                 &#9888; Verificar inasistencias
+            </button>
+            <button onclick="absdOpenBulkExemptModal()" id="absd-bulk-exempt-btn"
+                title="Eximir del nuevo sistema a los estudiantes que ya tienen 3+ inasistencias acumuladas (mitigación para deploy a mitad de período)"
+                style="background:#f59e0b;color:#fff;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;border:none;cursor:pointer">
+                &#128737; Eximir 3+ actuales
+            </button>
+            <button onclick="absdOpenClearExemptionsModal()" id="absd-clear-exempt-btn"
+                title="Eliminar todas las exenciones (ejecutar al iniciar el próximo período académico)"
+                style="background:#0e7490;color:#fff;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;border:none;cursor:pointer">
+                &#9851; Limpiar exenciones
             </button>
             <a href="<?php echo (new moodle_url('/local/grupomakro_core/pages/student_population.php'))->out(false); ?>"
                style="background:#475569;color:#fff;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;text-decoration:none">
@@ -1904,6 +2220,92 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
     </div>
 </div>
 
+<!-- ── Unblock class modal (manual reactivation) ─────────────────────── -->
+<div id="absd-unblock-modal" class="absd-modal-overlay" onclick="if(event.target===this)absdCloseUnblockModal()">
+    <div class="absd-modal" style="max-width:500px">
+        <div class="absd-modal-header">
+            <h2>&#128273; Reactivar acceso a la clase</h2>
+            <button class="absd-modal-close" onclick="absdCloseUnblockModal()">&#10005;</button>
+        </div>
+        <div class="absd-modal-body">
+            <p id="absd-unblock-subtitle" style="margin:0 0 12px;font-size:13px;color:#475569"></p>
+            <p style="margin:0 0 14px;font-size:12.5px;background:#fef3c7;border:1px solid #fde68a;border-radius:6px;padding:9px 11px;color:#92400e">
+                &#9888; Esta acción levanta el bloqueo por inasistencias, registra la justificación en el log de auditoría
+                y, si corresponde, reactiva al estudiante a nivel global.
+            </p>
+            <label style="display:block;font-size:12.5px;font-weight:600;color:#334155;margin-bottom:5px">
+                Motivo de la reactivación <span style="color:#dc2626">*</span>
+            </label>
+            <textarea id="absd-unblock-reason" rows="3" style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;resize:vertical;box-sizing:border-box" placeholder="Ej: Justificación médica validada, Resolución #2026-01..."></textarea>
+            <p id="absd-unblock-error" style="color:#dc2626;font-size:12px;margin-top:4px;display:none">&#9888; El motivo es obligatorio.</p>
+            <div id="absd-unblock-result" style="display:none;margin-top:12px;padding:10px 12px;border-radius:6px;font-size:12.5px"></div>
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">
+                <button id="absd-unblock-cancel" onclick="absdCloseUnblockModal()" style="padding:7px 16px;border:1px solid #cbd5e1;border-radius:6px;background:#f8fafc;color:#475569;cursor:pointer;font-size:13px">Cancelar</button>
+                <button id="absd-unblock-confirm" onclick="absdConfirmUnblock()" style="padding:7px 18px;background:#16a34a;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px">&#128273; Confirmar reactivación</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Bulk exempt 3+ modal (soft-launch mitigation) ────────────────── -->
+<div id="absd-bulk-exempt-modal" class="absd-modal-overlay" onclick="if(event.target===this)absdCloseBulkExemptModal()">
+    <div class="absd-modal" style="max-width:520px">
+        <div class="absd-modal-header">
+            <h2>&#128737; Eximir estudiantes con 3+ inasistencias</h2>
+            <button class="absd-modal-close" onclick="absdCloseBulkExemptModal()">&#10005;</button>
+        </div>
+        <div class="absd-modal-body">
+            <p style="margin:0 0 12px;font-size:13px;color:#475569">
+                Marca como exentos del nuevo sistema de bloqueo a todos los estudiantes que ya tengan
+                <strong>3 o más inasistencias acumuladas</strong>. Recomendado al desplegar el sistema a mitad de período,
+                para que solo los estudiantes que lleguen al umbral <em>después</em> del despliegue sean bloqueados.
+            </p>
+            <p style="margin:0 0 12px;font-size:12.5px;background:#fef3c7;border:1px solid #fde68a;border-radius:6px;padding:9px 11px;color:#92400e">
+                &#9888; Los estudiantes exentos seguirán viendo las alertas visuales (1 y 2 inasistencias) normalmente.
+                La exención se registra en el log de auditoría y se elimina con el script
+                <code>clear_period_exemptions.php</code> al iniciar el próximo período.
+            </p>
+            <div id="absd-bulk-exempt-preview" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:10px 12px;font-size:13px;margin-bottom:12px">
+                Cargando vista previa...
+            </div>
+            <div id="absd-bulk-exempt-result" style="display:none;padding:10px 12px;border-radius:6px;font-size:12.5px;margin-bottom:12px"></div>
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px">
+                <button onclick="absdCloseBulkExemptModal()" style="padding:7px 16px;border:1px solid #cbd5e1;border-radius:6px;background:#f8fafc;color:#475569;cursor:pointer;font-size:13px">Cancelar</button>
+                <button id="absd-bulk-exempt-dryrun" onclick="absdRunBulkExempt(true)" style="padding:7px 16px;background:#475569;color:#fff;border:none;border-radius:6px;font-weight:600;cursor:pointer;font-size:13px">Solo vista previa</button>
+                <button id="absd-bulk-exempt-confirm" onclick="absdRunBulkExempt(false)" style="padding:7px 18px;background:#f59e0b;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px">&#128737; Aplicar exención</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Clear period exemptions modal ─────────────────────────────────── -->
+<div id="absd-clear-exempt-modal" class="absd-modal-overlay" onclick="if(event.target===this)absdCloseClearExemptionsModal()">
+    <div class="absd-modal" style="max-width:480px">
+        <div class="absd-modal-header">
+            <h2>&#9851; Limpiar exenciones de período</h2>
+            <button class="absd-modal-close" onclick="absdCloseClearExemptionsModal()">&#10005;</button>
+        </div>
+        <div class="absd-modal-body">
+            <p style="margin:0 0 12px;font-size:13px;color:#475569">
+                Elimina <strong>TODAS</strong> las exenciones del nuevo sistema de bloqueo por inasistencias.
+                Ejecutar al inicio del siguiente período académico para que las reglas apliquen desde cero.
+            </p>
+            <p style="margin:0 0 12px;font-size:12.5px;background:#fee2e2;border:1px solid #fca5a5;border-radius:6px;padding:9px 11px;color:#991b1b">
+                &#9888; Acción destructiva. Después de ejecutarla, los estudiantes con 3+ inasistencias
+                serán bloqueados por el próximo cron.
+            </p>
+            <div id="absd-clear-exempt-preview" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:10px 12px;font-size:13px;margin-bottom:12px">
+                Cargando...
+            </div>
+            <div id="absd-clear-exempt-result" style="display:none;padding:10px 12px;border-radius:6px;font-size:12.5px;margin-bottom:12px"></div>
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px">
+                <button onclick="absdCloseClearExemptionsModal()" style="padding:7px 16px;border:1px solid #cbd5e1;border-radius:6px;background:#f8fafc;color:#475569;cursor:pointer;font-size:13px">Cancelar</button>
+                <button id="absd-clear-exempt-confirm" onclick="absdRunClearExemptions()" style="padding:7px 18px;background:#dc2626;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px">&#9851; Confirmar limpieza</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- ── Absence check confirm modal ───────────────────────────────────── -->
 <div id="absd-check-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;align-items:center;justify-content:center">
     <div style="background:#fff;border-radius:12px;padding:28px 32px;max-width:440px;width:92%;box-shadow:0 8px 32px rgba(0,0,0,.25)">
@@ -2016,6 +2418,48 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
         }).join('');
     }
 
+    /**
+     * Build the per-row absence controls (reactivar / info badge) shown
+     * alongside the absence count.
+     */
+    function renderAbsenceActions(s, fallbackClassId) {
+        var state = s.absence_state || {};
+        if (!state) return '';
+
+        var parts = [];
+
+        // Level 1 / 2 — informational chips (info / warning).
+        if (!state.blocked && state.alert_level >= 1) {
+            var chipColor = state.alert_level >= 2 ? '#dc2626' : '#fb923c';
+            var chipBg    = state.alert_level >= 2 ? '#fee2e2' : '#ffedd5';
+            var chipText  = state.alert_level >= 2 ? '2 inasistencias' : '1 inasistencia';
+            parts.push(
+                '<div style="margin-top:2px;display:inline-block;background:' + chipBg + ';color:' + chipColor + ';' +
+                'border-radius:4px;padding:1px 6px;font-size:9px;font-weight:700;letter-spacing:.2px">' +
+                '\u26A0 ' + chipText + '</div>'
+            );
+        }
+
+        // Blocked by 3+ absences — manual reactivation button.
+        if (state.blocked) {
+            var classid = (state.blocked_classids && state.blocked_classids.length)
+                ? state.blocked_classids[0]
+                : (state.classid || fallbackClassId || 0);
+            var safeName = esc(s.name).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+            parts.push(
+                '<div style="margin-top:3px;display:flex;gap:4px;justify-content:center;flex-wrap:wrap">' +
+                    '<button class="absd-unblock-btn" ' +
+                        'title="Reactivar el acceso a esta clase (justificación validada)" ' +
+                        'onclick="absdOpenUnblockModal(' + s.userid + ',' + classid + ',\'' + safeName + '\',this)">' +
+                        '\uD83D\uDD13 Reactivar' +
+                    '</button>' +
+                '</div>'
+            );
+        }
+
+        return parts.join('');
+    }
+
     function renderTable(students) {
         var tbody = document.getElementById('absdTbody');
 
@@ -2107,7 +2551,8 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
                 '<td>' + (phones || '<span style="color:#94a3b8;font-style:italic">-</span>') + '</td>' +
                 '<td style="text-align:center">' + (currentAllStudents
                     ? '<span style="font-weight:700;color:#374151">' + s.absences + '</span>'
-                    : '<button type="button" class="absd-abs-link ' + absClass + '" data-uid="' + s.userid + '" data-name="' + esc(s.name) + '" onclick="absdOpenSessionsModal(this)">' + s.absences + '</button>') + '</td>' +
+                    : '<button type="button" class="absd-abs-link ' + absClass + '" data-uid="' + s.userid + '" data-name="' + esc(s.name) + '" onclick="absdOpenSessionsModal(this)">' + s.absences + '</button>') +
+                    renderAbsenceActions(s, currentClassId) + '</td>' +
                 '<td>' +
                     '<select class="absd-status-select" data-uid="' + s.userid + '" onchange="absdUpdateUserStatus(this)">' +
                         optionList(userOpts, userStatus) +
@@ -2502,6 +2947,8 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
             if (checkModal && checkModal.style.display === 'flex') { absdCancelCheck(); return; }
             var resultModal = document.getElementById('absd-check-result-modal');
             if (resultModal && resultModal.style.display === 'flex') { absdCloseCheckResult(); return; }
+            var unblockModal = document.getElementById('absd-unblock-modal');
+            if (unblockModal && unblockModal.classList.contains('absd-modal-open')) { absdCloseUnblockModal(); return; }
             var sessionsModal = document.getElementById('absdSessionsModal');
             if (sessionsModal && sessionsModal.classList.contains('absd-modal-open')) {
                 absdCloseSessionsModal();
@@ -2510,6 +2957,287 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
             }
         }
     });
+
+    // ── Reactivar clase (manual unblock) ──────────────────────────────
+    var absdUnblockState = { userid: 0, classid: 0, name: '', triggerBtn: null };
+
+    window.absdOpenUnblockModal = function(userid, classid, name, triggerBtn) {
+        if (!classid) {
+            alert('No se pudo identificar la clase bloqueada para este estudiante.');
+            return;
+        }
+        absdUnblockState.userid = userid;
+        absdUnblockState.classid = classid;
+        absdUnblockState.name = name;
+        absdUnblockState.triggerBtn = triggerBtn || null;
+        var subtitle = document.getElementById('absd-unblock-subtitle');
+        if (subtitle) {
+            subtitle.innerHTML = 'Vas a reactivar el acceso a la clase para <strong>' + esc(name) + '</strong>.';
+        }
+        var reason = document.getElementById('absd-unblock-reason');
+        if (reason) reason.value = '';
+        var err = document.getElementById('absd-unblock-error');
+        if (err) err.style.display = 'none';
+        var res = document.getElementById('absd-unblock-result');
+        if (res) { res.style.display = 'none'; res.innerHTML = ''; }
+        var modal = document.getElementById('absd-unblock-modal');
+        if (modal) modal.classList.add('absd-modal-open');
+        if (reasonEl) reasonEl.focus();
+    };
+
+    window.absdCloseUnblockModal = function() {
+        var modal = document.getElementById('absd-unblock-modal');
+        if (modal) modal.classList.remove('absd-modal-open');
+        absdUnblockState = { userid: 0, classid: 0, name: '', triggerBtn: null };
+    };
+
+    window.absdConfirmUnblock = function() {
+        var userid = absdUnblockState.userid;
+        var classid = absdUnblockState.classid;
+        var reasonEl = document.getElementById('absd-unblock-reason');
+        var reason = (reasonEl ? reasonEl.value : '').trim();
+        var errEl = document.getElementById('absd-unblock-error');
+        if (!userid || !classid) { return; }
+        if (!reason) {
+            if (errEl) errEl.style.display = 'block';
+            if (reasonEl) reasonEl.focus();
+            return;
+        }
+        if (errEl) errEl.style.display = 'none';
+
+        var confirmBtn = document.getElementById('absd-unblock-confirm');
+        var cancelBtn  = document.getElementById('absd-unblock-cancel');
+        if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.textContent = 'Procesando...'; }
+        if (cancelBtn)  { cancelBtn.disabled  = true; }
+
+        var params = new URLSearchParams({
+            abs_ajax: 1,
+            abs_action: 'unblock_class',
+            userid: userid,
+            classid: classid,
+            reason: reason,
+            sesskey: SESSKEY
+        });
+        fetch(AJAX_URL + '?' + params.toString(), { method: 'POST' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var resultBox = document.getElementById('absd-unblock-result');
+                if (!data.ok) {
+                    if (resultBox) {
+                        resultBox.style.display = 'block';
+                        resultBox.style.background = '#fee2e2';
+                        resultBox.style.color = '#991b1b';
+                        resultBox.style.border = '1px solid #fca5a5';
+                        resultBox.innerHTML = '&#9888; ' + esc(data.message || data.error || 'No se pudo reactivar la clase');
+                    }
+                    if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.innerHTML = '&#128273; Confirmar reactivación'; }
+                    if (cancelBtn)  { cancelBtn.disabled  = false; }
+                    return;
+                }
+                if (resultBox) {
+                    resultBox.style.display = 'block';
+                    resultBox.style.background = '#dcfce7';
+                    resultBox.style.color = '#166534';
+                    resultBox.style.border = '1px solid #86efac';
+                    var extra = '';
+                    if (data.global_reactivated) {
+                        extra = '<br><strong>El estudiante también fue reactivado a nivel global.</strong>';
+                    }
+                    resultBox.innerHTML = '&#10003; ' + esc(data.message || 'Clase reactivada correctamente.') + extra;
+                }
+                // Update the local state so the row stops showing the button.
+                var student = currentStudents.find(function(s) { return s.userid === userid; });
+                if (student && student.absence_state) {
+                    student.absence_state.blocked = false;
+                    student.absence_state.alert_level = 0;
+                    if (student.absence_state.blocked_classids) {
+                        student.absence_state.blocked_classids = student.absence_state.blocked_classids.filter(function(x) { return x !== classid; });
+                    }
+                }
+                // Re-render and close after a short delay.
+                setTimeout(function() {
+                    absdCloseUnblockModal();
+                    absdRefreshOpenList();
+                }, 1100);
+            })
+            .catch(function(err) {
+                var resultBox = document.getElementById('absd-unblock-result');
+                if (resultBox) {
+                    resultBox.style.display = 'block';
+                    resultBox.style.background = '#fee2e2';
+                    resultBox.style.color = '#991b1b';
+                    resultBox.style.border = '1px solid #fca5a5';
+                    resultBox.innerHTML = '&#9888; Error de conexión: ' + esc(err.message);
+                }
+                if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.innerHTML = '&#128273; Confirmar reactivación'; }
+                if (cancelBtn)  { cancelBtn.disabled  = false; }
+            });
+    };
+
+    /**
+     * Re-fetch the currently open modal's student list and re-render
+     * it. Used after a reactivation so the React/Vue of the dashboard
+     * (plain DOM here) shows the new state without a full page reload.
+     */
+    window.absdRefreshOpenList = function() {
+        if (currentAllStudents) {
+            absdOpenAllStudentsModal();
+        } else if (currentClassId) {
+            absdOpenModal(currentClassId, document.getElementById('absdModalTitle').textContent.replace(/ - Estudiantes$/, ''));
+        }
+    };
+
+    // ── Bulk exempt 3+ (soft-launch mitigation) ──────────────────────
+    window.absdOpenBulkExemptModal = function() {
+        var modal = document.getElementById('absd-bulk-exempt-modal');
+        if (modal) modal.classList.add('absd-modal-open');
+        var preview = document.getElementById('absd-bulk-exempt-preview');
+        if (preview) preview.innerHTML = 'Cargando vista previa...';
+        var result = document.getElementById('absd-bulk-exempt-result');
+        if (result) { result.style.display = 'none'; result.innerHTML = ''; }
+        absdRunBulkExempt(true);
+    };
+
+    window.absdCloseBulkExemptModal = function() {
+        var modal = document.getElementById('absd-bulk-exempt-modal');
+        if (modal) modal.classList.remove('absd-modal-open');
+    };
+
+    window.absdRunBulkExempt = function(dryrun) {
+        var preview = document.getElementById('absd-bulk-exempt-preview');
+        var result  = document.getElementById('absd-bulk-exempt-result');
+        var confirmBtn = document.getElementById('absd-bulk-exempt-confirm');
+        if (preview) preview.innerHTML = (dryrun ? 'Calculando...' : 'Aplicando...');
+        if (confirmBtn) confirmBtn.disabled = true;
+
+        var params = new URLSearchParams({
+            abs_ajax: 1,
+            abs_action: 'bulk_exempt_3plus',
+            dryrun: dryrun ? 1 : 0,
+            sesskey: SESSKEY
+        });
+        fetch(AJAX_URL + '?' + params.toString(), { method: 'POST' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.ok) {
+                    if (result) {
+                        result.style.display = 'block';
+                        result.style.background = '#fee2e2';
+                        result.style.color = '#991b1b';
+                        result.style.border = '1px solid #fca5a5';
+                        result.innerHTML = '&#9888; Error: ' + esc(data.message || 'No se pudo procesar');
+                    }
+                    if (confirmBtn) confirmBtn.disabled = false;
+                    return;
+                }
+                if (preview) {
+                    var html = '<div style="font-weight:600;margin-bottom:4px">Resultado de la ' +
+                        (dryrun ? 'vista previa' : 'exención') + ':</div>' +
+                        '<div>Estudiantes revisados: <b>' + data.users_checked + '</b></div>' +
+                        '<div>Estudiantes a eximir: <b>' + data.users_to_exempt + '</b></div>' +
+                        '<div>Clases afectadas: <b>' + data.classes_affected + '</b></div>' +
+                        '<div>Ya exentos (omitidos): <b>' + data.users_already_exempt + '</b></div>' +
+                        '<div>Umbral configurado: <b>' + data.threshold + '</b></div>';
+                    if (!dryrun) {
+                        html += '<div style="margin-top:6px;color:#166534"><b>Aplicados: ' + data.users_applied + '</b></div>';
+                    }
+                    preview.innerHTML = html;
+                }
+                if (!dryrun && result) {
+                    result.style.display = 'block';
+                    result.style.background = '#dcfce7';
+                    result.style.color = '#166534';
+                    result.style.border = '1px solid #86efac';
+                    result.innerHTML = '&#10003; Exención masiva aplicada correctamente. ' +
+                        data.users_applied + ' estudiantes fueron marcados como exentos del nuevo sistema.';
+                }
+                if (confirmBtn) confirmBtn.disabled = false;
+            })
+            .catch(function(err) {
+                if (preview) preview.innerHTML = '&#9888; Error de conexión: ' + esc(err.message);
+                if (confirmBtn) confirmBtn.disabled = false;
+            });
+    };
+
+    // ── Clear period exemptions ──────────────────────────────────────
+    window.absdOpenClearExemptionsModal = function() {
+        var modal = document.getElementById('absd-clear-exempt-modal');
+        if (modal) modal.classList.add('absd-modal-open');
+        var preview = document.getElementById('absd-clear-exempt-preview');
+        if (preview) preview.innerHTML = 'Cargando...';
+        var result = document.getElementById('absd-clear-exempt-result');
+        if (result) { result.style.display = 'none'; result.innerHTML = ''; }
+        absdLoadClearExemptionsPreview();
+    };
+
+    window.absdCloseClearExemptionsModal = function() {
+        var modal = document.getElementById('absd-clear-exempt-modal');
+        if (modal) modal.classList.remove('absd-modal-open');
+    };
+
+    window.absdLoadClearExemptionsPreview = function() {
+        var params = new URLSearchParams({
+            abs_ajax: 1,
+            abs_action: 'clear_period_exemptions',
+            dryrun: 1,
+            sesskey: SESSKEY
+        });
+        fetch(AJAX_URL + '?' + params.toString(), { method: 'POST' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var preview = document.getElementById('absd-clear-exempt-preview');
+                if (preview) {
+                    preview.innerHTML = '<div style="font-weight:600;margin-bottom:4px">Vista previa:</div>' +
+                        '<div>Exenciones presentes actualmente: <b>' + data.present + '</b></div>' +
+                        '<div>Se eliminarán: <b>' + data.present + '</b></div>';
+                }
+            })
+            .catch(function() {
+                var preview = document.getElementById('absd-clear-exempt-preview');
+                if (preview) preview.innerHTML = '&#9888; No se pudo cargar la vista previa.';
+            });
+    };
+
+    window.absdRunClearExemptions = function() {
+        var result = document.getElementById('absd-clear-exempt-result');
+        var confirmBtn = document.getElementById('absd-clear-exempt-confirm');
+        if (confirmBtn) confirmBtn.disabled = true;
+
+        var params = new URLSearchParams({
+            abs_ajax: 1,
+            abs_action: 'clear_period_exemptions',
+            dryrun: 0,
+            sesskey: SESSKEY
+        });
+        fetch(AJAX_URL + '?' + params.toString(), { method: 'POST' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.ok) {
+                    if (result) {
+                        result.style.display = 'block';
+                        result.style.background = '#fee2e2';
+                        result.style.color = '#991b1b';
+                        result.style.border = '1px solid #fca5a5';
+                        result.innerHTML = '&#9888; Error: ' + esc(data.message || 'No se pudo limpiar');
+                    }
+                    if (confirmBtn) confirmBtn.disabled = false;
+                    return;
+                }
+                if (result) {
+                    result.style.display = 'block';
+                    result.style.background = '#dcfce7';
+                    result.style.color = '#166534';
+                    result.style.border = '1px solid #86efac';
+                    result.innerHTML = '&#10003; Se eliminaron ' + data.cleared + ' exenciones del sistema.';
+                }
+                if (confirmBtn) confirmBtn.disabled = false;
+                setTimeout(function() { absdCloseClearExemptionsModal(); }, 1500);
+            })
+            .catch(function(err) {
+                if (result) result.innerHTML = '&#9888; Error de conexión: ' + esc(err.message);
+                if (confirmBtn) confirmBtn.disabled = false;
+            });
+    };
 
     // ── Seguimiento / Observaciones ──────────────────────────────────────────
     window.absdOpenObsModal = function(userid, name) {

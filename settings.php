@@ -325,6 +325,34 @@ if ($hassiteconfig) {
             'https://students.isi.edu.pa',
             PARAM_URL
         ));
+
+        // Feature flag: enables the staged per-class absence alert system.
+        // When disabled, the legacy 3-absence auto-suspend cron keeps running.
+        $settingspage->add(new admin_setting_configcheckbox(
+            'local_grupomakro_core/enable_absence_alerts',
+            new lang_string('enable_absence_alerts', 'local_grupomakro_core'),
+            new lang_string('enable_absence_alerts_desc', 'local_grupomakro_core'),
+            0
+        ));
+
+        // Sub-setting: enable the actual class-level block (separate from
+        // the alert UI). Keep off during the soft-launch period so students
+        // mid-period aren't blocked immediately.
+        $settingspage->add(new admin_setting_configcheckbox(
+            'local_grupomakro_core/enable_absence_blocking',
+            new lang_string('enable_absence_blocking', 'local_grupomakro_core'),
+            new lang_string('enable_absence_blocking_desc', 'local_grupomakro_core'),
+            0
+        ));
+
+        // Number of absences that triggers the class block (default 3).
+        $settingspage->add(new admin_setting_configtext(
+            'local_grupomakro_core/absence_block_threshold',
+            new lang_string('absence_block_threshold', 'local_grupomakro_core'),
+            new lang_string('absence_block_threshold_desc', 'local_grupomakro_core'),
+            3,
+            PARAM_INT
+        ));
     }
 
     // Add the page to the settings tree.

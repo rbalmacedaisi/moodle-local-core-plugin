@@ -24,6 +24,6 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = "local_grupomakro_core";
-$plugin->version   = 20260618001;         // Módulo de Diplomas: editor canvas (drag/resize/rotate), generación masiva por carrera, PDF + QR de verificación pública (gmk_diploma_template + tpl_field + generation + document).
+$plugin->version   = 20260701001;         // Mitigación de deploy a mitad de período: split flag enable_absence_blocking + scripts de bulk exempt y clear period exemptions.
 $plugin->requires = 2014051200;
 $plugin->maturity = MATURITY_STABLE;

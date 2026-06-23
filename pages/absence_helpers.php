@@ -630,6 +630,64 @@ function absd_toggle_user_exempt(int $userid, int $classid = 0): bool {
 }
 
 /**
+ * Adds an exemption entry to the per-user absence_exempt config without
+ * touching the existing entries. Used by the bulk-exempt migration so we
+ * can preserve any class-scoped exemptions the admin may have set
+ * manually.
+ *
+ * @param int $userid
+ * @param string|null $reason Optional audit detail.
+ * @return bool True when the exemption was newly added.
+ */
+function absd_mark_user_globally_exempt(int $userid, ?string $reason = null): bool {
+    $configname = 'absence_exempt_' . $userid;
+    $val = get_config('local_grupomakro_core', $configname);
+    $classes = [];
+    if ($val !== false && $val !== '') {
+        if (trim($val) === 'all') {
+            // Already globally exempt.
+            return false;
+        }
+        $decoded = json_decode($val, true);
+        if (is_array($decoded)) {
+            $classes = $decoded;
+        }
+    }
+    $classes[] = 'all';
+    set_config($configname, json_encode(array_values(array_unique($classes))), 'local_grupomakro_core');
+    absd_log_history($userid, 0, 0, 0, 'bulk_exempt_legacy', $reason);
+    return true;
+}
+
+/**
+ * Removes all absence_exempt_<userid> config entries. Used at the start of
+ * a new academic period to clear the bulk-exempt seed.
+ *
+ * @return int Number of entries removed.
+ */
+function absd_clear_all_period_exemptions(): int {
+    global $DB;
+    $count = 0;
+    $rs = $DB->get_recordset_select(
+        'config_plugins',
+        "plugin = ? AND name LIKE ?",
+        ['local_grupomakro_core', 'absence_exempt_%'],
+        'id ASC'
+    );
+    $ids = [];
+    foreach ($rs as $r) {
+        $ids[] = (int)$r->id;
+    }
+    $rs->close();
+    if (!empty($ids)) {
+        [$insql, $inparams] = $DB->get_in_or_equal($ids, SQL_PARAMS_NAMED, 'cex');
+        $DB->delete_records_select('config_plugins', "id $insql", $inparams);
+        $count = count($ids);
+    }
+    return $count;
+}
+
+/**
  * Run the full absence-inactivation check across all active classes.
  * Returns a summary array.
  *
@@ -740,6 +798,647 @@ function absd_run_absence_inactivation_check(): array {
             }
         } catch (Throwable $e) {
             $summary['errors'][] = "Clase {$cid}: " . $e->getMessage();
+        }
+    }
+
+    return $summary;
+}
+
+// ── Staged absence alert system (per-class) ───────────────────────────────────
+
+/**
+ * Returns the threshold that defines the global "inactive" outcome.
+ * Default 3 absences; can be tuned via plugin config.
+ *
+ * @return int
+ */
+function absd_get_block_threshold(): int {
+    $val = (int)get_config('local_grupomakro_core', 'absence_block_threshold');
+    return $val >= 1 ? $val : 3;
+}
+
+/**
+ * Whether the staged alert system is enabled. Defaults to off so that the
+ * existing 3-absence auto-suspend behaviour remains in effect until the
+ * feature flag is flipped on.
+ *
+ * @return bool
+ */
+function absd_is_staged_alerts_enabled(): bool {
+    return (bool)get_config('local_grupomakro_core', 'enable_absence_alerts');
+}
+
+/**
+ * Whether the per-class block action is enabled. This is a sub-setting of
+ * enable_absence_alerts: when alerts are off, blocking is also off. The
+ * soft-launch flow keeps this off so a mid-period deploy never blocks
+ * students who already had 3+ absences before the rollout.
+ *
+ * @return bool
+ */
+function absd_is_blocking_enabled(): bool {
+    if (!absd_is_staged_alerts_enabled()) {
+        return false;
+    }
+    return (bool)get_config('local_grupomakro_core', 'enable_absence_blocking');
+}
+
+/**
+ * Append a row to the absence history audit log.
+ *
+ * @param int $userid
+ * @param int $classid
+ * @param int $countafter
+ * @param int $levelafter
+ * @param string $action
+ * @param string|null $details
+ * @return void
+ */
+function absd_log_history(int $userid, int $classid, int $countafter, int $levelafter, string $action, ?string $details = null): void {
+    global $DB;
+    $rec = new stdClass();
+    $rec->userid      = $userid;
+    $rec->classid     = $classid;
+    $rec->sessionid   = 0;
+    $rec->count_after = $countafter;
+    $rec->level_after = $levelafter;
+    $rec->action      = $action;
+    $rec->details     = $details;
+    $rec->timecreated = time();
+    $DB->insert_record('gmk_class_absence_history', $rec);
+}
+
+/**
+ * Resolve the current (or next) alert level for a given absence count.
+ *  0 = none, 1 = info shown, 2 = warning popup, 3 = blocked.
+ *
+ * @param int $absences
+ * @return int
+ */
+function absd_level_for_count(int $absences): int {
+    if ($absences >= absd_get_block_threshold()) {
+        return 3;
+    }
+    if ($absences === 2) {
+        return 2;
+    }
+    if ($absences === 1) {
+        return 1;
+    }
+    return 0;
+}
+
+/**
+ * Recompute the absence state for a single (class, user) pair. Updates
+ * gmk_class_absence_state with the latest count, level, last_session_id
+ * and last_calculated. Returns the transitions that occurred so callers
+ * can dispatch notifications / apply blocking.
+ *
+ * The function NEVER blocks the class — that responsibility belongs to
+ * absd_apply_class_block so callers (cron, observer, web service) can
+ * decide whether to honour the new state.
+ *
+ * @param stdClass $class  Object with fields id, courseid, corecourseid, groupid, attendancemoduleid, initdate, enddate.
+ * @param int $userid
+ * @return array{
+ *   previous_level:int,
+ *   current_level:int,
+ *   previous_count:int,
+ *   current_count:int,
+ *   transitions:array<int,string>,
+ *   was_blocked:bool
+ * }
+ */
+function absd_recompute_user_class_state(stdClass $class, int $userid): array {
+    global $DB;
+    $nowts = time();
+
+    $pastsessionids  = absd_get_class_past_session_ids($class, $nowts);
+    $takensessionids = absd_get_taken_session_ids($pastsessionids);
+
+    $count = 0;
+    $lastsessionid = 0;
+    if (!empty($takensessionids)) {
+        $absMap = absd_get_student_absences($takensessionids, [$userid]);
+        $count = (int)($absMap[$userid] ?? 0);
+        $lastsessionid = !empty($takensessionids) ? (int)end($takensessionids) : 0;
+    }
+
+    $currentlevel = absd_level_for_count($count);
+
+    $existing = $DB->get_record('gmk_class_absence_state', [
+        'userid'  => $userid,
+        'classid' => (int)$class->id,
+    ]);
+
+    $previouslevel = $existing ? (int)$existing->alert_level : 0;
+    $previouscount = $existing ? (int)$existing->absence_count : 0;
+    $wasblocked    = $existing && !empty($existing->blocked_at) && empty($existing->unblocked_at);
+
+    $transitions = [];
+    if ($previouslevel !== $currentlevel) {
+        if ($currentlevel >= $previouslevel + 1) {
+            // Escalations.
+            for ($l = $previouslevel + 1; $l <= $currentlevel; $l++) {
+                if ($l === 1) { $transitions[] = 'info'; }
+                if ($l === 2) { $transitions[] = 'warning'; }
+                if ($l === 3) { $transitions[] = 'block'; }
+            }
+        } else {
+            // De-escalation (e.g. attendance was corrected). Clear the block if
+            // count dropped back below the threshold.
+            if ($previouslevel === 3 && $currentlevel < 3) {
+                $transitions[] = 'unblock';
+            }
+        }
+    }
+
+    $rec = new stdClass();
+    $rec->userid             = $userid;
+    $rec->classid            = (int)$class->id;
+    $rec->courseid           = (int)($class->courseid ?: ($class->corecourseid ?? 0));
+    $rec->absence_count      = $count;
+    $rec->last_session_id    = $lastsessionid;
+    $rec->last_calculated    = $nowts;
+    $rec->alert_level        = $currentlevel;
+    $rec->usermodified       = $userid;
+    $rec->timemodified       = $nowts;
+
+    if ($existing) {
+        $rec->id = $existing->id;
+        // Do NOT overwrite dismissal timestamps on a recompute — once dismissed,
+        // the user shouldn't see the same alert pop up again until the count
+        // goes back down and back up. The transitions array still reflects
+        // level changes for notification purposes.
+        $rec->info_dismissed_at    = $existing->info_dismissed_at;
+        $rec->warning_dismissed_at = $existing->warning_dismissed_at;
+
+        // If the level has dropped back below 3 we unblock here, mirroring
+        // absd_apply_class_block/unblock_class_block semantics.
+        if ($currentlevel < 3 && $existing->alert_level === 3) {
+            $rec->blocked_at   = $existing->blocked_at;
+            $rec->unblocked_at = $nowts;
+            $rec->block_reason = '';
+        }
+        $DB->update_record('gmk_class_absence_state', $rec);
+    } else {
+        $rec->info_dismissed_at    = 0;
+        $rec->warning_dismissed_at = 0;
+        $rec->blocked_at           = 0;
+        $rec->unblocked_at         = 0;
+        $rec->block_reason         = '';
+        $rec->timecreated          = $nowts;
+        $DB->insert_record('gmk_class_absence_state', $rec);
+    }
+
+    return [
+        'previous_level' => $previouslevel,
+        'current_level'  => $currentlevel,
+        'previous_count' => $previouscount,
+        'current_count'  => $count,
+        'transitions'    => $transitions,
+        'was_blocked'    => $wasblocked,
+    ];
+}
+
+/**
+ * Apply a class-level access block. Marks the gmk_class_absence_state row,
+ * sets the gmk_course_progre flag, and writes a history entry.
+ *
+ * When absd_is_blocking_enabled() is false (soft-launch / alerts-only mode)
+ * the function is a no-op: the per-class block is not applied and no rows
+ * are written. The function still returns so the cron pipeline is not
+ * interrupted, and the recompute will keep emitting alert transitions
+ * (info / warning) that drive the UI without affecting access.
+ *
+ * @param int $userid
+ * @param int $classid
+ * @param string $reason
+ * @return void
+ */
+function absd_apply_class_block(int $userid, int $classid, string $reason = 'attendance_threshold'): void {
+    global $DB;
+    $nowts = time();
+
+    if (!absd_is_blocking_enabled()) {
+        // Soft-launch mode: emit a history row so the admin can see in the
+        // audit log that the recompute would have applied a block.
+        absd_log_history(
+            $userid,
+            $classid,
+            0,
+            3,
+            'block_skipped_blocking_off',
+            'absd_apply_class_block called with enable_absence_blocking=0'
+        );
+        return;
+    }
+
+    $state = $DB->get_record('gmk_class_absence_state', ['userid' => $userid, 'classid' => $classid]);
+    if ($state) {
+        $state->alert_level   = 3;
+        $state->blocked_at    = $nowts;
+        $state->unblocked_at  = 0;
+        $state->block_reason  = $reason;
+        $state->timemodified  = $nowts;
+        $DB->update_record('gmk_class_absence_state', $state);
+    }
+
+    $DB->set_field('gmk_course_progre', 'blocked_by_absence', 1, ['userid' => $userid, 'classid' => $classid]);
+    $DB->set_field('gmk_course_progre', 'blocked_by_absence_at', $nowts, ['userid' => $userid, 'classid' => $classid]);
+
+    absd_log_history($userid, $classid, (int)($state->absence_count ?? 0), 3, 'block', $reason);
+}
+
+/**
+ * Lift a class-level access block. Mirror of absd_apply_class_block.
+ *
+ * @param int $userid
+ * @param int $classid
+ * @param string $reason
+ * @return void
+ */
+function absd_unblock_class_block(int $userid, int $classid, string $reason = 'manual_unblock'): void {
+    global $DB;
+    $nowts = time();
+
+    $state = $DB->get_record('gmk_class_absence_state', ['userid' => $userid, 'classid' => $classid]);
+    if ($state) {
+        $state->unblocked_at = $nowts;
+        $state->block_reason = $reason;
+        $state->timemodified = $nowts;
+        $DB->update_record('gmk_class_absence_state', $state);
+    }
+
+    $DB->set_field('gmk_course_progre', 'blocked_by_absence', 0, ['userid' => $userid, 'classid' => $classid]);
+    $DB->set_field('gmk_course_progre', 'blocked_by_absence_at', 0, ['userid' => $userid, 'classid' => $classid]);
+
+    absd_log_history($userid, $classid, (int)($state->absence_count ?? 0), (int)($state->alert_level ?? 0), 'unblock', $reason);
+}
+
+/**
+ * Mark an alert as dismissed by the student (info or warning). Stores the
+ * timestamp so we don't keep re-prompting them.
+ *
+ * @param int $userid
+ * @param int $classid
+ * @param int $level  1 = info, 2 = warning
+ * @return void
+ */
+function absd_dismiss_user_alert(int $userid, int $classid, int $level): void {
+    global $DB;
+    if (!in_array($level, [1, 2], true)) {
+        return;
+    }
+    $state = $DB->get_record('gmk_class_absence_state', ['userid' => $userid, 'classid' => $classid]);
+    if (!$state) {
+        return;
+    }
+    $nowts = time();
+    $state->timemodified = $nowts;
+    if ($level === 1) {
+        $state->info_dismissed_at = $nowts;
+    } else {
+        $state->warning_dismissed_at = $nowts;
+    }
+    $DB->update_record('gmk_class_absence_state', $state);
+    absd_log_history(
+        $userid,
+        $classid,
+        (int)$state->absence_count,
+        (int)$state->alert_level,
+        $level === 1 ? 'dismiss_info' : 'dismiss_warning'
+    );
+}
+
+/**
+ * Send the appropriate Moodle messages for the given transition set.
+ * Best-effort: failures are swallowed so they don't break the cron.
+ *
+ * @param int $userid
+ * @param int $classid
+ * @param string[] $transitions
+ * @return void
+ */
+function absd_dispatch_alert_notifications(int $userid, int $classid, array $transitions): void {
+    if (empty($transitions)) {
+        return;
+    }
+    try {
+        $class = (object)['id' => $classid];
+        $coursename = absd_get_class_display_name($classid);
+        $user = core_user::get_user($userid);
+        if (!$user) {
+            return;
+        }
+
+        $messageapi = new \core_message\api();
+
+        foreach ($transitions as $t) {
+            $subject = '';
+            $body    = '';
+            if ($t === 'info') {
+                $subject = get_string('absence_info_subject', 'local_grupomakro_core', $coursename);
+                $body    = get_string('absence_info_body', 'local_grupomakro_core', (object)[
+                    'coursename' => $coursename,
+                ]);
+            } else if ($t === 'warning') {
+                $subject = get_string('absence_warning_subject', 'local_grupomakro_core', $coursename);
+                $body    = get_string('absence_warning_body', 'local_grupomakro_core', (object)[
+                    'coursename' => $coursename,
+                ]);
+            } else if ($t === 'block') {
+                $subject = get_string('absence_block_subject', 'local_grupomakro_core', $coursename);
+                $body    = get_string('absence_block_body', 'local_grupomakro_core', (object)[
+                    'coursename' => $coursename,
+                ]);
+            } else {
+                continue;
+            }
+            // Moodle internal message.
+            $messageapi->send_message_to_user($user->id, $user->id, $body, FORMAT_PLAIN);
+        }
+    } catch (Throwable $e) {
+        mtrace('absence notification dispatch failed: ' . $e->getMessage());
+    }
+}
+
+/**
+ * Returns the human-readable name of a class for messaging purposes.
+ *
+ * @param int $classid
+ * @return string
+ */
+function absd_get_class_display_name(int $classid): string {
+    global $DB;
+    $record = $DB->get_record_sql(
+        "SELECT c.fullname
+           FROM {gmk_class} gc
+           JOIN {course}  c ON c.id = COALESCE(gc.courseid, gc.corecourseid)
+          WHERE gc.id = :id",
+        ['id' => $classid],
+        IGNORE_MISSING
+    );
+    if ($record && !empty($record->fullname)) {
+        return (string)$record->fullname;
+    }
+    $class = $DB->get_record('gmk_class', ['id' => $classid], 'name', IGNORE_MISSING);
+    return $class ? (string)$class->name : ('class#' . $classid);
+}
+
+/**
+ * Decide whether the student has any "cursando" (status 1/2/3) class that
+ * is NOT blocked by absence. If none, the user is globally inactive.
+ *
+ * @param int $userid
+ * @return array{has_open_class:bool, open_count:int, blocked_count:int}
+ */
+function absd_check_global_inactivity(int $userid): array {
+    global $DB;
+    $row = $DB->get_record_sql(
+        "SELECT
+            SUM(CASE WHEN COALESCE(gcp.blocked_by_absence, 0) = 0 THEN 1 ELSE 0 END) AS open_count,
+            SUM(CASE WHEN COALESCE(gcp.blocked_by_absence, 0) = 1 THEN 1 ELSE 0 END) AS blocked_count,
+            COUNT(1) AS total
+           FROM {gmk_course_progre} gcp
+           JOIN {gmk_class} gc ON gc.id = gcp.classid
+          WHERE gcp.userid = :uid
+            AND gcp.status IN (1, 2, 3)
+            AND gc.approved = 1
+            AND gc.closed = 0
+            AND gc.enddate > :now",
+        ['uid' => $userid, 'now' => time()]
+    );
+
+    $open     = (int)($row->open_count ?? 0);
+    $blocked  = (int)($row->blocked_count ?? 0);
+    $total    = (int)($row->total ?? 0);
+
+    return [
+        'has_open_class' => $open > 0,
+        'open_count'     => $open,
+        'blocked_count'  => $blocked,
+        'total'          => $total,
+    ];
+}
+
+/**
+ * Build the absence summary payload returned by the web service to the
+ * student LXP. Includes per-class state, alert flags and the global
+ * inactivity flag derived from absd_check_global_inactivity.
+ *
+ * @param int $userid
+ * @return array{classes:array, is_globally_inactive:bool, has_any_blocked_class:bool}
+ */
+function absd_build_absence_summary(int $userid): array {
+    global $DB;
+
+    $sql = "SELECT s.id, s.classid, s.courseid, s.absence_count, s.alert_level,
+                   s.info_dismissed_at, s.warning_dismissed_at,
+                   s.blocked_at, s.unblocked_at, s.block_reason, s.last_calculated,
+                   COALESCE(c.fullname, gc.name) AS coursename,
+                   gc.courseid AS classcourseid,
+                   gc.corecourseid AS classcorecourseid
+              FROM {gmk_class_absence_state} s
+         LEFT JOIN {gmk_class} gc ON gc.id = s.classid
+         LEFT JOIN {course}    c  ON c.id  = COALESCE(gc.courseid, gc.corecourseid)
+             WHERE s.userid = :uid
+          ORDER BY s.alert_level DESC, COALESCE(c.fullname, gc.name) ASC";
+
+    $rows = $DB->get_records_sql($sql, ['uid' => $userid]);
+    $classes = [];
+    $anyblocked = false;
+    foreach ($rows as $r) {
+        $blocked = !empty($r->blocked_at) && empty($r->unblocked_at);
+        if ($blocked) {
+            $anyblocked = true;
+        }
+        $classes[] = [
+            'classid'           => (int)$r->classid,
+            'courseid'          => (int)($r->classcourseid ?: $r->classcorecourseid ?: $r->courseid),
+            'coursename'        => (string)($r->coursename ?? ''),
+            'absence_count'     => (int)$r->absence_count,
+            'alert_level'       => (int)$r->alert_level,
+            'info_dismissed'    => !empty($r->info_dismissed_at),
+            'warning_dismissed' => !empty($r->warning_dismissed_at),
+            'blocked'           => $blocked,
+            'block_reason'      => (string)($r->block_reason ?? ''),
+            'last_calculated'   => (int)$r->last_calculated,
+        ];
+    }
+
+    $global = absd_check_global_inactivity($userid);
+
+    return [
+        'classes'               => $classes,
+        'is_globally_inactive'  => !$global['has_open_class'] && $global['total'] > 0,
+        'has_any_blocked_class' => $anyblocked,
+        'open_class_count'      => $global['open_count'],
+        'blocked_class_count'   => $global['blocked_count'],
+        'is_blocking_enabled'   => absd_is_blocking_enabled(),
+    ];
+}
+
+/**
+ * True when the feature flag is enabled AND the per-class block is in
+ * effect. Used by access guards. When the blocking sub-flag is off (soft
+ * launch) we report false even if the gmk_class_absence_state row says
+ * blocked, so the access guard does not redirect.
+ *
+ * @param int $userid
+ * @param int $classid
+ * @return bool
+ */
+function absd_is_class_blocked(int $userid, int $classid): bool {
+    global $DB;
+    if (!absd_is_staged_alerts_enabled() || !absd_is_blocking_enabled()) {
+        return false;
+    }
+    $row = $DB->get_record('gmk_class_absence_state', [
+        'userid' => $userid, 'classid' => $classid,
+    ]);
+    if (!$row) {
+        return false;
+    }
+    return (int)$row->alert_level === 3 && !empty($row->blocked_at) && empty($row->unblocked_at);
+}
+
+/**
+ * Returns the absence payload for a single course based on the class(es)
+ * that map to that course for the given user. Used by web services that
+ * enrich course listings.
+ *
+ * @param int $userid
+ * @param int $courseid
+ * @return array{count:int, level:int, blocked:bool, classid:int, info_dismissed:bool, warning_dismissed:bool}|null
+ */
+function absd_get_course_absence_for_user(int $userid, int $courseid): ?array {
+    global $DB;
+    $row = $DB->get_record_sql(
+        "SELECT s.classid, s.absence_count, s.alert_level, s.blocked_at, s.unblocked_at,
+                s.info_dismissed_at, s.warning_dismissed_at
+           FROM {gmk_class_absence_state} s
+           JOIN {gmk_class} gc ON gc.id = s.classid
+          WHERE s.userid = :uid
+            AND (gc.courseid = :cid OR gc.corecourseid = :cid2)
+       ORDER BY s.alert_level DESC, s.absence_count DESC
+          LIMIT 1",
+        ['uid' => $userid, 'cid' => $courseid, 'cid2' => $courseid]
+    );
+    if (!$row) {
+        return null;
+    }
+    $blocked = !empty($row->blocked_at) && empty($row->unblocked_at);
+    // Soft-launch guard: don't surface a class as blocked to the LXP when
+    // the blocking sub-flag is off. The state row may still have
+    // blocked_at set if a previous deploy ran with the flag on; we
+    // transparently mask it.
+    if (!absd_is_blocking_enabled()) {
+        $blocked = false;
+    }
+    return [
+        'count'             => (int)$row->absence_count,
+        'level'             => (int)$row->alert_level,
+        'blocked'           => $blocked,
+        'classid'           => (int)$row->classid,
+        'info_dismissed'    => !empty($row->info_dismissed_at),
+        'warning_dismissed' => !empty($row->warning_dismissed_at),
+    ];
+}
+
+/**
+ * Run the full absence check across all active classes using the staged
+ * logic. Used by the cron job and the one-off migration script.
+ *
+ * @return array{
+ *   classes_processed:int,
+ *   users_processed:int,
+ *   classes_blocked:int,
+ *   users_globally_inactive:int,
+ *   errors:string[]
+ * }
+ */
+function absd_run_staged_absence_check(): array {
+    global $DB;
+    $summary = [
+        'classes_processed'      => 0,
+        'users_processed'        => 0,
+        'classes_blocked'        => 0,
+        'users_globally_inactive'=> 0,
+        'errors'                 => [],
+    ];
+    $nowts = time();
+    $studentstatus_fieldid = (int)($DB->get_field('user_info_field', 'id', ['shortname' => 'studentstatus']) ?: 0);
+
+    $classes = $DB->get_records_sql(
+        "SELECT id, courseid, corecourseid, groupid, attendancemoduleid, initdate, enddate
+           FROM {gmk_class}
+          WHERE approved = 1 AND closed = 0 AND enddate > :now",
+        ['now' => $nowts]
+    );
+
+    foreach ($classes as $class) {
+        $cid = (int)$class->id;
+        try {
+            $enrolled = absd_get_class_enrolled_userids($cid);
+            if (empty($enrolled)) {
+                continue;
+            }
+            $summary['classes_processed']++;
+            foreach ($enrolled as $uid) {
+                $uid = (int)$uid;
+                $summary['users_processed']++;
+                $result = absd_recompute_user_class_state($class, $uid);
+                if (in_array('block', $result['transitions'], true)) {
+                    $reason = 'attendance_threshold_reached';
+                    if (absd_is_user_exempt($uid, $cid)) {
+                        $reason .= ' (override-exempt)';
+                    } else {
+                        absd_apply_class_block($uid, $cid, $reason);
+                        $summary['classes_blocked']++;
+                    }
+                }
+                if (!empty($result['transitions'])) {
+                    absd_dispatch_alert_notifications($uid, $cid, $result['transitions']);
+                }
+            }
+        } catch (Throwable $e) {
+            $summary['errors'][] = "Clase {$cid}: " . $e->getMessage();
+        }
+    }
+
+    // Global inactivity roll-up: any user with no non-blocked cursando class
+    // who is not already inactive gets the 3-field inactivation applied.
+    // This is gated on the blocking flag so that during the soft-launch
+    // (alerts-only) phase the global suspension is NOT applied.
+    $candidates = [];
+    if (absd_is_blocking_enabled()) {
+        $candidates = $DB->get_records_sql(
+            "SELECT DISTINCT gcp.userid
+               FROM {gmk_course_progre} gcp
+               JOIN {gmk_class} gc ON gc.id = gcp.classid
+          LEFT JOIN {user} u ON u.id = gcp.userid
+              WHERE gcp.status IN (1, 2, 3)
+                AND gc.approved = 1
+                AND gc.closed = 0
+                AND gc.enddate > :now
+                AND u.deleted = 0
+                AND u.suspended = 0",
+            ['now' => $nowts]
+        );
+    }
+
+    foreach ($candidates as $c) {
+        $uid = (int)$c->userid;
+        $global = absd_check_global_inactivity($uid);
+        if (!$global['has_open_class'] && $global['total'] > 0) {
+            // Verify the user has at least one blocked class to justify the
+            // global inactivation (avoids tagging a user with zero classes).
+            if ($global['blocked_count'] > 0) {
+                absd_mark_user_inactive($uid, $studentstatus_fieldid);
+                $summary['users_globally_inactive']++;
+                absd_log_history($uid, 0, $global['blocked_count'], 3, 'global_inactive');
+            }
         }
     }
 

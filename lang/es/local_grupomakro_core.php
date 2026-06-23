@@ -155,6 +155,24 @@ $cadena['inactivodespués_x_horas_desc'] = '
 // Scheduled tasks.
 $string['taskinactiveusers'] = 'Eliminar usuarios inactivos';
 $string['taskcloseexpiredschedules'] = 'Cerrar horarios vencidos';
+$string['enable_absence_alerts'] = 'Activar sistema escalonado de inasistencias';
+$string['enable_absence_alerts_desc'] = 'Reemplaza el bloqueo global automático (3 inasistencias) por un sistema escalonado: 1 inasistencia = aviso, 2 inasistencias = popup, 3 inasistencias = bloqueo de la clase. El estudiante pasa a inactivo global solo cuando todas sus clases cursando estén bloqueadas.';
+$string['enable_absence_blocking'] = 'Activar bloqueo real de clases por inasistencias';
+$string['enable_absence_blocking_desc'] = 'Cuando está activo, los estudiantes que alcancen el umbral son bloqueados en la clase específica. Mantener desactivado durante el despliegue a mitad de período; activar al iniciar el siguiente período académico. Mientras esté desactivado, los estudiantes solo verán las alertas visuales (icono naranja, popup, banner) sin perder acceso.';
+$string['absence_block_threshold'] = 'Umbral de inasistencias para bloquear';
+$string['absence_block_threshold_desc'] = 'Número de inasistencias en una clase a partir del cual se bloquea el acceso. Por defecto 3.';
+
+// Bulk exempt / clear period exemptions (mid-period deploy mitigation).
+$string['bulk_exempt_legacy_title'] = 'Eximir estudiantes con 3+ inasistencias acumuladas';
+$string['bulk_exempt_legacy_desc'] = 'Marca como exentos del nuevo sistema de bloqueo a todos los estudiantes que ya tengan 3 o más inasistencias acumuladas. Se recomienda ejecutar este script al desplegar el sistema a mitad de período, para que solo los estudiantes que lleguen al umbral después del despliegue sean bloqueados. La acción es reversible: la lista de exentos se limpia al iniciar el siguiente período.';
+$string['bulk_exempt_legacy_confirm'] = '¿Confirmas la exención masiva? Esta acción marca a todos los estudiantes con 3 o más inasistencias acumuladas para que NO sean bloqueados por el nuevo sistema. Los estudiantes seguirán viendo las alertas visuales (1 y 2 inasistencias) normalmente. Se registrará la operación en el log de auditoría.';
+$string['bulk_exempt_legacy_no_op'] = 'No se encontraron estudiantes que requieran exención.';
+$string['bulk_exempt_legacy_complete'] = 'Se eximieron {$a->users} estudiantes en {$a->classes} clases. Se registró la operación en el log de auditoría.';
+
+$string['clear_period_exemptions_title'] = 'Limpiar exenciones de período';
+$string['clear_period_exemptions_desc'] = 'Elimina todas las exenciones del nuevo sistema de bloqueo por inasistencias. Ejecutar al inicio del siguiente período académico para que las reglas apliquen desde cero.';
+$string['clear_period_exemptions_confirm'] = '¿Confirmas la limpieza de exenciones? Esta acción eliminará TODAS las exenciones del nuevo sistema. Los estudiantes que tengan 3+ inasistencias al ejecutar el cron serán bloqueados nuevamente.';
+$string['clear_period_exemptions_complete'] = 'Se eliminaron {$a} exenciones.';
 $string['taskprocessperiodtransition'] = 'Procesar transición de periodo académico';
 $string['taskupdatefinancialstatus'] = 'Actualizar estado financiero de estudiantes (Odoo)';
 $string['error_class_closed_modification'] = 'Esta clase está cerrada y no se puede modificar.';
@@ -225,6 +243,29 @@ $string['grupomakro_core:manageletters'] = 'Gestionar catálogo de cartas';
 $string['grupomakro_core:managerequests'] = 'Gestionar solicitudes de cartas';
 $string['grupomakro_core:viewallletterrequests'] = 'Ver todas las solicitudes de cartas';
 $string['grupomakro_core:viewabsencedashboard'] = 'Ver panel de inasistencias';
+
+// Absence alert system (staged per-class notifications).
+$string['absence_info_subject'] = '{$a}: primera inasistencia registrada';
+$string['absence_info_body'] = 'Hemos registrado tu primera inasistencia en la asignatura «{$a->coursename}». A la tercera inasistencia podrías perder el acceso a los recursos y al seguimiento de la misma. Si tienes una justificación, acércate al departamento académico para presentarla.';
+$string['absence_warning_subject'] = '{$a}: segunda inasistencia registrada';
+$string['absence_warning_body'] = 'La asignatura «{$a->coursename}» cuenta con 2 inasistencias. A la tercera inasistencia perderás el acceso a los recursos y seguimiento de la misma. Si tienes justificación de las inasistencias, acércate al departamento académico para presentar tu justificación.';
+$string['absence_block_subject'] = '{$a}: acceso restringido por inasistencias';
+$string['absence_block_body'] = 'Tu acceso a la asignatura «{$a->coursename}» se encuentra restringido debido a que alcanzaste el límite de 3 inasistencias. Debes acercarte al área académica para revisar tu caso en caso de tener justificación a las faltas.';
+
+$string['course_blocked_title'] = 'Acceso restringido a la asignatura';
+$string['course_blocked_intro'] = 'Tu acceso a la asignatura <strong>{$a}</strong> se encuentra restringido.';
+$string['course_blocked_reason'] = 'Motivo: alcanzaste el límite de {$a} inasistencias en esta asignatura.';
+$string['course_blocked_action'] = 'Si cuentas con una justificación, acércate al área académica para revisar tu caso. Una vez revisado y aprobado, se restablecerá el acceso a la asignatura.';
+$string['course_blocked_back'] = 'Volver al inicio';
+
+// Admin reactivation controls in the absence dashboard.
+$string['absence_unblock_class'] = 'Reactivar clase';
+$string['absence_unblock_class_confirm'] = '¿Confirmas la reactivación de esta clase para el estudiante? Esta acción levanta el bloqueo por inasistencias, lo registra en el log de auditoría y, si corresponde, reactiva al estudiante a nivel global.';
+$string['absence_unblock_class_reason'] = 'Motivo de la reactivación';
+$string['absence_unblock_class_success'] = 'La clase fue reactivada correctamente.';
+$string['absence_unblock_class_noop'] = 'La clase no se encuentra bloqueada, no se realizó ningún cambio.';
+$string['absence_recompute_class'] = 'Recalcular inasistencias';
+$string['absence_recompute_class_success'] = 'Estado recalculado: {$a->count} inasistencias (nivel {$a->level}).';
 
 $string['messageprovider:payment_link'] = 'Notificación de enlace de pago para cartas';
 $string['messageprovider:letter_generated'] = 'Notificación de carta generada';

@@ -5,6 +5,43 @@
 
 defined('MOODLE_INTERNAL') || die();
 
+require_once($CFG->dirroot . '/local/grupomakro_core/pages/absence_helpers.php');
+
+/**
+ * When the staged absence alert system is enabled, intercept direct
+ * access to a course whose class is blocked and redirect to the friendly
+ * "course blocked" page.
+ *
+ * The hook is registered in the navigation extension (extend_navigation_user)
+ * but Moodle calls it for nearly every request, so it works for direct
+ * /course/view.php?id=X URLs and deep links alike.
+ *
+ * @param int $courseid
+ * @return void
+ */
+function local_grupomakro_core_guard_blocked_course(int $courseid): void {
+    global $USER;
+
+    if (!absd_is_staged_alerts_enabled() || !absd_is_blocking_enabled()) {
+        return;
+    }
+    if (!isloggedin() || isguestuser() || is_siteadmin()) {
+        return;
+    }
+    if (empty($USER->id) || empty($courseid)) {
+        return;
+    }
+
+    $payload = absd_get_course_absence_for_user((int)$USER->id, (int)$courseid);
+    if ($payload && $payload['blocked']) {
+        $url = new moodle_url('/local/grupomakro_core/pages/course_blocked.php', [
+            'classid'  => (int)$payload['classid'],
+            'courseid' => (int)$courseid,
+        ]);
+        redirect($url);
+    }
+}
+
 /**
  * Redirect teachers to their dashboard when they access the site home or personal area.
  * This is a catch-all strategy using multiple Moodle hooks.
@@ -117,6 +154,20 @@ function local_grupomakro_core_extend_navigation(global_navigation $navigation) 
         if ($is_home || $is_dashboard) {
             $dummy = null;
             local_grupomakro_core_user_home_redirect($dummy);
+        }
+
+        // Absence guard: block direct access to courses the student is
+        // blocked from due to the staged absence alert system.
+        if (strpos($_SERVER['SCRIPT_NAME'], '/course/view.php') !== false
+                || strpos($_SERVER['SCRIPT_NAME'], '/mod/') === 0
+                || strpos($_SERVER['SCRIPT_NAME'], '/local/grupomakro_core/pages/course_blocked.php') === false) {
+            $courseid = optional_param('id', 0, PARAM_INT);
+            if (!$courseid && !empty($PAGE->context->instanceid) && $PAGE->context->contextlevel == CONTEXT_COURSE) {
+                $courseid = (int)$PAGE->context->instanceid;
+            }
+            if ($courseid > 0) {
+                local_grupomakro_core_guard_blocked_course($courseid);
+            }
         }
     } catch (Exception $e) {
         // Avoid crashing the whole site if URL comparison fails in certain contexts

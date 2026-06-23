@@ -15,7 +15,8 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Scheduled task: mark students with >= 3 absences as inactive.
+ * Scheduled task: run the absence check (legacy global-suspend or staged
+ * per-class alert system, depending on the enable_absence_alerts feature flag).
  *
  * @package    local_grupomakro_core
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -36,6 +37,24 @@ class mark_absent_students_inactive extends \core\task\scheduled_task {
 
         require_once($CFG->dirroot . '/local/grupomakro_core/pages/absence_helpers.php');
 
+        if (absd_is_staged_alerts_enabled()) {
+            $result = absd_run_staged_absence_check();
+
+            mtrace('Staged absence check complete.');
+            mtrace('  Classes processed:        ' . ($result['classes_processed']       ?? 0));
+            mtrace('  Users processed:          ' . ($result['users_processed']         ?? 0));
+            mtrace('  Class blocks applied:     ' . ($result['classes_blocked']         ?? 0));
+            mtrace('  Users globally inactive:  ' . ($result['users_globally_inactive'] ?? 0));
+
+            if (!empty($result['errors'])) {
+                foreach ($result['errors'] as $err) {
+                    mtrace('  ERROR: ' . $err);
+                }
+            }
+            return;
+        }
+
+        // Legacy behaviour: global suspend at 3+ absences.
         $result = absd_run_absence_inactivation_check();
 
         mtrace('Absence inactivation check complete.');

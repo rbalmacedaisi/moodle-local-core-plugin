@@ -203,6 +203,7 @@ class local_grupomakro_core_observer
         }
 
         local_grupomakro_progress_manager::handle_qr_marked_attendance($courseId, $studentId, $attendanceModuleId, $attendanceId, $attendanceSessionId);
+        self::trigger_absence_recompute($courseId, $studentId, $attendanceModuleId, $attendanceSessionId);
     }
 
     public static function attendance_taken(\mod_attendance\event\attendance_taken $event)
@@ -228,6 +229,54 @@ class local_grupomakro_core_observer
             if (!empty($progressRecords)) {
                 local_grupomakro_progress_manager::update_course_progress($courseId, $groupMemberId);
             }
+            self::trigger_absence_recompute($courseId, (int)$groupMemberId, $attendanceModuleId, 0);
+        }
+    }
+
+    /**
+     * Recompute the staged absence state for a (class, user) when the
+     * staged alerts feature flag is on. No-op otherwise.
+     *
+     * @param int $courseid
+     * @param int $userid
+     * @param int $attendancemoduleid
+     * @param int $sessionid
+     * @return void
+     */
+    protected static function trigger_absence_recompute(int $courseid, int $userid, int $attendancemoduleid, int $sessionid): void {
+        global $CFG, $DB;
+        if (!function_exists('absd_is_staged_alerts_enabled') || !absd_is_staged_alerts_enabled()) {
+            return;
+        }
+        require_once($CFG->dirroot . '/local/grupomakro_core/pages/absence_helpers.php');
+
+        $class = $DB->get_record_sql(
+            "SELECT id, courseid, corecourseid, groupid, attendancemoduleid, initdate, enddate
+               FROM {gmk_class}
+              WHERE (courseid = :cid OR corecourseid = :cid2)
+                AND (attendancemoduleid = :amid OR attendancemoduleid = 0)
+                AND approved = 1
+                AND closed = 0
+           ORDER BY (attendancemoduleid = :amid3) DESC, id DESC
+              LIMIT 1",
+            [
+                'cid'  => $courseid,
+                'cid2' => $courseid,
+                'amid' => $attendancemoduleid,
+                'amid3'=> $attendancemoduleid,
+            ]
+        );
+        if (!$class) {
+            return;
+        }
+        $result = absd_recompute_user_class_state($class, $userid);
+        if (in_array('block', $result['transitions'], true)) {
+            if (!absd_is_user_exempt($userid, (int)$class->id)) {
+                absd_apply_class_block($userid, (int)$class->id, 'attendance_threshold_reached');
+            }
+        }
+        if (!empty($result['transitions'])) {
+            absd_dispatch_alert_notifications($userid, (int)$class->id, $result['transitions']);
         }
     }
 
