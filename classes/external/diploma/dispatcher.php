@@ -138,7 +138,27 @@ final class dispatcher {
                 require_capability($capview, context_system::instance());
                 $lpid = optional_param('learningplanid', 0, PARAM_INT);
                 $search = optional_param('search', '', PARAM_TEXT);
-                return ['status' => 'success', 'graduands' => $manager::list_eligible_graduands($lpid ?: null, (string)$search)];
+                $onlyeligible = optional_param('onlyeligible', 0, PARAM_BOOL) ? true : false;
+                return [
+                    'status' => 'success',
+                    'graduands' => $manager::list_graduands_with_eligibility(
+                        $lpid ?: null,
+                        (string)$search,
+                        $onlyeligible,
+                        0,
+                        500
+                    ),
+                ];
+
+            case 'graduand_eligibility_detail':
+                require_capability($capview, context_system::instance());
+                $uid = required_param('userid', PARAM_INT);
+                $lpid = required_param('learningplanid', PARAM_INT);
+                $detail = $manager::get_graduand_eligibility_detail($uid, $lpid);
+                if (!$detail) {
+                    throw new moodle_exception('diploma_student_not_found', 'local_grupomakro_core');
+                }
+                return ['status' => 'success', 'detail' => $detail];
 
             case 'generate_diplomas':
                 require_capability($capmanage, context_system::instance());

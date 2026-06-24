@@ -678,6 +678,201 @@ class manager {
     }
 
     /**
+     * List ALL students enrolled in the system (optionally filtered by plan
+     * and/or search string), including those who have NOT yet met the
+     * graduation requirements. Each entry carries a complete eligibility
+     * breakdown (passed/missing requirements, progress percentage, and a
+     * pre-baked eligibility flag) so the UI can show a popup with the
+     * missing courses and still allow generating the diploma.
+     *
+     * @param int|null $learningplanid Optional plan id filter.
+     * @param string $search Optional search string (matches full name, idnumber,
+     *                        username or document number).
+     * @param bool $onlyeligible If true, returns only fully eligible students.
+     * @param int $limitfrom Pagination offset.
+     * @param int $limitnum Pagination limit (0 = no limit).
+     * @return array<int, array<string, mixed>> List of student rows.
+     */
+    public static function list_graduands_with_eligibility(
+        ?int $learningplanid = null,
+        string $search = '',
+        bool $onlyeligible = false,
+        int $limitfrom = 0,
+        int $limitnum = 200
+    ): array {
+        global $DB;
+
+        $sql = "SELECT lu.userid, lu.learningplanid, lp.name AS planname,
+                       lpcu.currperiodid AS periodid,
+                       lper.name AS periodname,
+                       lpcu.currsubperiodid AS subperiodid,
+                       lsp.name AS subperiodname,
+                       u.firstname, u.lastname, u.idnumber, u.email, u.username
+                  FROM {local_learning_users} lu
+                  JOIN {user} u ON u.id = lu.userid AND u.deleted = 0 AND u.suspended = 0
+                  JOIN {local_learning_plans} lp ON lp.id = lu.learningplanid
+             LEFT JOIN {local_learning_users} lpcu ON lpcu.userid = lu.userid AND lpcu.learningplanid = lu.learningplanid
+             LEFT JOIN {local_learning_periods} lper ON lper.id = lpcu.currperiodid
+             LEFT JOIN {local_learning_subperiods} lsp ON lsp.id = lpcu.currsubperiodid
+                 WHERE lu.userrolename = 'student'";
+        $params = [];
+        if ($learningplanid && $learningplanid > 0) {
+            $sql .= " AND lu.learningplanid = :lp";
+            $params['lp'] = $learningplanid;
+        }
+        if ($search !== '') {
+            $sql .= " AND (LOWER(u.firstname) LIKE :s OR LOWER(u.lastname) LIKE :s
+                       OR LOWER(u.username) LIKE :s OR LOWER(u.idnumber) LIKE :s)";
+            $params['s'] = '%' . core_text::strtolower($search) . '%';
+        }
+        $sql .= " ORDER BY u.lastname ASC, u.firstname ASC";
+        $candidates = $DB->get_records_sql($sql, $params, $limitfrom, $limitnum);
+
+        $out = [];
+        foreach ($candidates as $c) {
+            $user = core_user::get_user($c->userid);
+            if (!$user) {
+                continue;
+            }
+            $eligibility = self::compute_eligibility((int)$c->userid, (int)$c->learningplanid);
+
+            if ($onlyeligible && !$eligibility['is_eligible']) {
+                continue;
+            }
+
+            $out[] = [
+                'user' => [
+                    'id' => (int)$user->id,
+                    'firstname' => $user->firstname,
+                    'lastname' => $user->lastname,
+                    'fullname' => fullname($user),
+                    'idnumber' => $user->idnumber,
+                    'email' => $user->email,
+                    'username' => $user->username,
+                    'documentnumber' => self::resolve_user_custom_field($user->id, 'documentnumber'),
+                ],
+                'plan' => [
+                    'id' => (int)$c->learningplanid,
+                    'name' => (string)$c->planname,
+                    'periodname' => (string)($c->periodname ?? ''),
+                    'subperiodname' => (string)($c->subperiodname ?? ''),
+                ],
+                'eligibility' => $eligibility,
+                'has_diploma' => $eligibility['has_diploma'],
+            ];
+        }
+        return $out;
+    }
+
+    /**
+     * Compute a full eligibility breakdown for one (user, plan) pair.
+     *
+     * @param int $userid
+     * @param int $learningplanid
+     * @return array<string, mixed> See structure below.
+     */
+    public static function compute_eligibility(int $userid, int $learningplanid): array {
+        global $DB;
+
+        // Required courses for the plan.
+        $required = $DB->get_records('local_learning_courses',
+            ['learningplanid' => $learningplanid, 'isrequired' => 1], 'id ASC');
+
+        $requiredcount = count($required);
+        $passednames = [];
+        $missednames = [];
+        $passed = 0;
+
+        foreach ($required as $rc) {
+            $row = $DB->get_record_sql(
+                "SELECT p.status
+                   FROM {gmk_course_progre} p
+                  WHERE p.userid = :uid AND p.courseid = :cid",
+                ['uid' => $userid, 'cid' => $rc->id]
+            );
+            // Status 4 = COURSE_APPROVED (per progress_manager constants).
+            if ($row && (int)$row->status === 4) {
+                $passed++;
+                $passednames[] = (string)$rc->name;
+            } else {
+                $missednames[] = (string)$rc->name;
+            }
+        }
+
+        $has = $DB->record_exists_select(
+            'gmk_diploma_generation',
+            "userid = :u AND learningplanid = :lp AND status = :st",
+            ['u' => $userid, 'lp' => $learningplanid, 'st' => self::STATUS_GENERATED]
+        );
+
+        $is_eligible = ($requiredcount === 0 || $passed >= $requiredcount) && !$has;
+
+        return [
+            'is_eligible' => $is_eligible,
+            'has_diploma' => (bool)$has,
+            'required_count' => $requiredcount,
+            'passed_count' => $passed,
+            'progress_percent' => $requiredcount === 0 ? 100
+                : (int)floor(($passed / $requiredcount) * 100),
+            'passed_requirements' => $passednames,
+            'missing_requirements' => $missednames,
+            'reason' => self::explain_ineligibility($is_eligible, $requiredcount, $passed, $has),
+        ];
+    }
+
+    /**
+     * Build a human-readable reason string for why a student is (or isn't)
+     * eligible. Useful for the popup in the UI.
+     */
+    private static function explain_ineligibility(bool $is_eligible, int $requiredcount, int $passed, bool $has): string {
+        if ($is_eligible) {
+            return 'El estudiante cumple todos los requisitos.';
+        }
+        if ($has) {
+            return 'El estudiante ya tiene un diploma generado para este plan.';
+        }
+        if ($requiredcount === 0) {
+            return 'Plan sin asignaturas obligatorias registradas.';
+        }
+        $missing = $requiredcount - $passed;
+        return "Faltan {$missing} asignatura(s) obligatoria(s) por aprobar.";
+    }
+
+    /**
+     * Same shape as list_graduands_with_eligibility but scoped to one user
+     * for the popup detail view.
+     */
+    public static function get_graduand_eligibility_detail(int $userid, int $learningplanid): ?array {
+        global $DB;
+        $user = core_user::get_user($userid);
+        if (!$user) {
+            return null;
+        }
+        $plan = $DB->get_record('local_learning_plans', ['id' => $learningplanid], 'id, name');
+        if (!$plan) {
+            return null;
+        }
+        $eligibility = self::compute_eligibility($userid, $learningplanid);
+        return [
+            'user' => [
+                'id' => (int)$user->id,
+                'firstname' => $user->firstname,
+                'lastname' => $user->lastname,
+                'fullname' => fullname($user),
+                'idnumber' => $user->idnumber,
+                'email' => $user->email,
+                'username' => $user->username,
+                'documentnumber' => self::resolve_user_custom_field($user->id, 'documentnumber'),
+            ],
+            'plan' => [
+                'id' => (int)$plan->id,
+                'name' => (string)$plan->name,
+            ],
+            'eligibility' => $eligibility,
+        ];
+    }
+
+    /**
      * Returns the count of eligible graduands by learning plan.
      *
      * @return array<int, array{id:int,name:string,count:int}>

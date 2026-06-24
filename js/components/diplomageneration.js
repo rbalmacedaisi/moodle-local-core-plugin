@@ -96,6 +96,23 @@
                             <!-- Graduands table -->
                             <v-col cols="12" class="py-1">
                                 <v-card outlined>
+                                    <v-card-text class="py-2 d-flex align-center" style="gap: 16px;">
+                                        <v-switch
+                                            v-model="onlyEligible"
+                                            color="primary"
+                                            dense
+                                            hide-details
+                                            inset
+                                            @change="loadGraduands"
+                                            label="Solo elegibles (cumplan todos los requisitos)"
+                                        ></v-switch>
+                                        <v-spacer></v-spacer>
+                                        <span class="caption grey--text">
+                                            {{ graduands.length }} estudiante(s) en la lista ·
+                                            clic en una fila para ver el detalle
+                                        </span>
+                                    </v-card-text>
+                                    <v-divider></v-divider>
                                     <v-data-table
                                         v-model="selected"
                                         :headers="graduandHeaders"
@@ -106,9 +123,15 @@
                                         :footer-props="{itemsPerPageOptions: [10,20,50,-1]}"
                                         show-select
                                         no-data-text=""
+                                        @click:row="onGraduandClick"
                                     >
                                         <template slot="no-data">
-                                            <div class="pa-6 text-center grey--text">{{ strings.no_graduands }}</div>
+                                            <div class="pa-6 text-center grey--text">
+                                                <div>{{ strings.no_graduands }}</div>
+                                                <div v-if="!onlyEligible" class="caption mt-2">
+                                                    Prueba desactivando el filtro "Solo elegibles".
+                                                </div>
+                                            </div>
                                         </template>
                                         <template slot="item.student_name" slot-scope="props">
                                             <div class="font-weight-medium">{{ props.item.user.fullname }}</div>
@@ -119,6 +142,15 @@
                                         </template>
                                         <template slot="item.plan.name" slot-scope="props">
                                             <v-chip small color="primary" outlined>{{ props.item.plan.name }}</v-chip>
+                                        </template>
+                                        <template slot="item.eligibility_status" slot-scope="props">
+                                            <span v-if="!props.item.eligibility">
+                                                <v-chip v-if="props.item.eligibility && props.item.eligibility.has_diploma" small color="grey" text-color="white">Ya emitido</v-chip>
+                                                <v-chip v-else-if="props.item.eligibility && props.item.eligibility.is_eligible" small color="green" text-color="white">Apto</v-chip>
+                                                <v-chip v-else small color="orange" text-color="white">
+                                                    {{ props.item.eligibility.passed_count }}/{{ props.item.eligibility.required_count }}
+                                                </v-chip>
+                                            </span>
                                         </template>
                                     </v-data-table>
                                 </v-card>
@@ -186,6 +218,98 @@
                     </v-tab-item>
                 </v-tabs-items>
             </v-container>
+
+            <!-- Eligibility detail popup -->
+            <v-dialog v-model="detailDialog" max-width="640" scrollable>
+                <v-card v-if="detail">
+                    <v-card-title class="d-flex align-center" style="gap: 12px;">
+                        <v-icon :color="detail.eligibility.is_eligible ? 'green' : 'orange'">
+                            {{ detail.eligibility.is_eligible ? 'mdi-check-decagram' : 'mdi-alert-circle' }}
+                        </v-icon>
+                        <span>Detalle de elegibilidad</span>
+                        <v-spacer></v-spacer>
+                        <v-btn icon @click="detailDialog = false"><v-icon>mdi-close</v-icon></v-btn>
+                    </v-card-title>
+                    <v-divider></v-divider>
+                    <v-card-text style="max-height: 60vh;">
+                        <div class="mb-3">
+                            <div class="title">{{ detail.user.fullname }}</div>
+                            <div class="caption grey--text">
+                                {{ detail.user.idnumber || detail.user.username }}
+                                &middot; {{ detail.plan.name }}
+                            </div>
+                        </div>
+
+                        <v-alert
+                            :type="detail.eligibility.is_eligible ? 'success' : 'warning'"
+                            :icon="detail.eligibility.is_eligible ? 'mdi-check-circle' : 'mdi-alert'"
+                            class="mb-4"
+                            border="left"
+                        >
+                            <div class="font-weight-medium">{{ detail.eligibility.reason }}</div>
+                            <div v-if="detail.eligibility.required_count > 0" class="mt-1">
+                                <strong>{{ detail.eligibility.passed_count }}</strong>
+                                de
+                                <strong>{{ detail.eligibility.required_count }}</strong>
+                                asignaturas obligatorias aprobadas
+                                ({{ detail.eligibility.progress_percent }}%)
+                            </div>
+                        </v-alert>
+
+                        <v-progress-linear
+                            v-if="detail.eligibility.required_count > 0"
+                            :value="detail.eligibility.progress_percent"
+                            :color="detail.eligibility.is_eligible ? 'green' : 'orange'"
+                            height="10"
+                            rounded
+                            class="mb-4"
+                        ></v-progress-linear>
+
+                        <div v-if="detail.eligibility.passed_requirements && detail.eligibility.passed_requirements.length" class="mb-3">
+                            <div class="subtitle-2 green--text text--darken-2 mb-1">
+                                <v-icon small color="green" left>mdi-check-circle</v-icon>
+                                Requisitos cumplidos ({{ detail.eligibility.passed_requirements.length }})
+                            </div>
+                            <v-chip
+                                v-for="(name, idx) in detail.eligibility.passed_requirements"
+                                :key="'p_' + idx"
+                                small
+                                color="green"
+                                text-color="white"
+                                class="mr-1 mb-1"
+                            >{{ name }}</v-chip>
+                        </div>
+
+                        <div v-if="detail.eligibility.missing_requirements && detail.eligibility.missing_requirements.length">
+                            <div class="subtitle-2 orange--text text--darken-2 mb-1">
+                                <v-icon small color="orange" left>mdi-close-circle</v-icon>
+                                Requisitos faltantes ({{ detail.eligibility.missing_requirements.length }})
+                            </div>
+                            <v-chip
+                                v-for="(name, idx) in detail.eligibility.missing_requirements"
+                                :key="'m_' + idx"
+                                small
+                                color="orange"
+                                text-color="white"
+                                class="mr-1 mb-1"
+                            >{{ name }}</v-chip>
+                        </div>
+                    </v-card-text>
+                    <v-divider></v-divider>
+                    <v-card-actions>
+                        <v-spacer></v-spacer>
+                        <v-btn text @click="detailDialog = false">{{ strings.close || 'Cerrar' }}</v-btn>
+                        <v-btn
+                            color="primary"
+                            :disabled="detail.eligibility.has_diploma"
+                            @click="selectFromDetail"
+                        >
+                            <v-icon left small>mdi-check</v-icon>
+                            {{ detail.eligibility.has_diploma ? 'Ya emitido' : 'Seleccionar para generar' }}
+                        </v-btn>
+                    </v-card-actions>
+                </v-card>
+            </v-dialog>
         `,
         data() {
             return {
@@ -202,7 +326,19 @@
                 genFilter: { templateid: null, status: '', search: '' },
                 selected: [],
                 selectAll: false,
-                generating: false
+                generating: false,
+                // Toggle: when true, only show students who meet ALL graduation
+                // requirements. When false, show every enrolled student
+                // (with their eligibility status). Default ON so the
+                // table feels familiar; the user can switch it off to
+                // see and select any student for an override generation.
+                onlyEligible: true,
+                // Detail popup: holds the eligibility breakdown for the
+                // student the admin clicked on in the table.
+                detailDialog: false,
+                detailLoading: false,
+                detailError: '',
+                detail: null
             };
         },
         computed: {
@@ -230,7 +366,8 @@
                     { text: this.strings.name || 'Estudiante', value: 'student_name', sortable: true },
                     { text: this.strings.document || 'Documento', value: 'user.documentnumber', sortable: false },
                     { text: this.strings.career || 'Carrera', value: 'plan.name', sortable: true },
-                    { text: 'Periodo', value: 'plan.periodname', sortable: false }
+                    { text: 'Periodo', value: 'plan.periodname', sortable: false },
+                    { text: 'Estado', value: 'eligibility_status', sortable: false, align: 'center', width: 130 }
                 ];
             },
             genHeaders() {
@@ -266,6 +403,62 @@
             goTemplates() {
                 window.location.href = (window.location.origin || '') + '/local/grupomakro_core/pages/diplomatemplates.php';
             },
+            /**
+             * Open the eligibility detail dialog for a graduand row.
+             * Always available (works for eligible AND non-eligible students),
+             * so admins can see WHY a particular student is or is not
+             * eligible without leaving the page.
+             */
+            async onGraduandClick(row) {
+                if (!row || !row.user || !row.plan) { return; }
+                this.detailDialog = true;
+                this.detail = null;
+                this.detailLoading = true;
+                this.detailError = '';
+                try {
+                    const res = await this.http.post('/', {
+                        action: 'local_grupomakro_diploma_graduand_eligibility_detail',
+                        userid: row.user.id,
+                        learningplanid: row.plan.id
+                    });
+                    if (res.data && res.data.status === 'success') {
+                        this.detail = res.data.detail;
+                    } else {
+                        throw new Error((res.data && res.data.message) || 'Error');
+                    }
+                } catch (e) {
+                    this.detailError = (e && e.message) || 'No se pudo cargar el detalle';
+                } finally {
+                    this.detailLoading = false;
+                }
+            },
+            /**
+             * From the detail popup, mark the student as selected in the
+             * main table (and close the popup) so the admin can continue
+             * straight into the "Generate diplomas" flow.
+             */
+            selectFromDetail() {
+                if (!this.detail) { return; }
+                const u = this.detail.user;
+                const p = this.detail.plan;
+                const rowKey = u.id + '_' + p.id;
+                const row = (this.graduands || []).find(g => g.rowKey === rowKey);
+                if (row && !this.selected.find(s => s.rowKey === rowKey)) {
+                    this.selected.push(row);
+                } else if (!row) {
+                    // The student isn't in the current filtered table; add
+                    // a synthetic entry so the rest of the flow can pick
+                    // them up.
+                    this.selected.push({
+                        rowKey: rowKey,
+                        user: u,
+                        plan: p,
+                        eligibility: this.detail.eligibility,
+                        student_name: u.fullname
+                    });
+                }
+                this.detailDialog = false;
+            },
             async loadPlans() {
                 try {
                     const res = await this.http.post('/', { action: 'local_grupomakro_diploma_list_plans' });
@@ -298,7 +491,8 @@
                     const payload = {
                         action: 'local_grupomakro_diploma_list_graduands',
                         learningplanid: this.selectedPlanId || 0,
-                        search: this.search || ''
+                        search: this.search || '',
+                        onlyeligible: this.onlyEligible ? 1 : 0
                     };
                     const res = await this.http.post('/', payload);
                     if (res.data && res.data.status === 'success') {
@@ -339,6 +533,35 @@
                 if (!this.selected.length) {
                     Swal.fire({ icon: 'warning', title: this.strings.no_students_selected });
                     return;
+                }
+                // Warn the admin if any selected student does NOT meet the
+                // graduation requirements. The backend will still accept
+                // the request (override flow), but the admin should
+                // explicitly confirm.
+                const noteligible = (this.selected || []).filter(s => {
+                    return s.eligibility && !s.eligibility.is_eligible;
+                });
+                if (noteligible.length > 0) {
+                    const list = noteligible.slice(0, 5).map(s =>
+                        '• ' + (s.user ? s.user.fullname : '?') +
+                        (s.eligibility && s.eligibility.required_count
+                            ? ' (' + s.eligibility.passed_count + '/' + s.eligibility.required_count + ')'
+                            : '')
+                    ).join('\n');
+                    const more = noteligible.length > 5 ? '\ny ' + (noteligible.length - 5) + ' más…' : '';
+                    const proceed = await Swal.fire({
+                        title: 'Hay ' + noteligible.length + ' estudiante(s) que NO cumplen requisitos',
+                        html: '<div style="text-align:left;">' +
+                              '<p>Los siguientes seleccionados aún no aprueban todas las asignaturas obligatorias:</p>' +
+                              '<pre style="white-space:pre-wrap;font-family:inherit;">' + list + more + '</pre>' +
+                              '<p>¿Deseas generar el diploma de todos modos?</p>' +
+                              '</div>',
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonText: 'Sí, generar de todos modos',
+                        cancelButtonText: 'Cancelar'
+                    });
+                    if (!proceed.isConfirmed) { return; }
                 }
                 const confirm = await Swal.fire({
                     title: (this.strings.generate_for || 'Generar diploma para {n} estudiante(s)').replace('{n}', this.selected.length),
