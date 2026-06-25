@@ -235,6 +235,11 @@
                                              :style="canvasStyle"
                                              @mousedown.self="canvasMouseDown"
                                              @click.self="selectedFieldId = null">
+                                            <img v-if="selected.background_url"
+                                                 class="dpl-canvas-bg"
+                                                 :src="selected.background_url"
+                                                 :key="selected.background_url"
+                                                 alt="" draggable="false" />
                                             <div
                                                 v-for="f in selected.fields"
                                                 :key="f.localId"

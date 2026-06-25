@@ -182,8 +182,9 @@ echo <<<EOT
 <style>
     .theme--light.v-application { background: transparent !important; }
     .dpl-canvas-wrap { position: relative; max-width: 100%; margin: 0 auto; padding: 16px; background: #f4f4f4; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,.08); }
-    .dpl-canvas { position: relative; background: #fff; background-size: contain; background-repeat: no-repeat; background-position: center; box-shadow: 0 0 0 1px #d8d8d8 inset; transform-origin: 0 0; }
-    .dpl-field { position: absolute; border: 1px dashed #1976d2; background: rgba(25,118,210,.06); cursor: move; user-select: none; box-sizing: border-box; }
+    .dpl-canvas { position: relative; background: #fff; box-shadow: 0 0 0 1px #d8d8d8 inset; transform-origin: 0 0; overflow: hidden; }
+    .dpl-canvas-bg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; pointer-events: none; user-select: none; z-index: 0; }
+    .dpl-field { position: absolute; border: 1px dashed #1976d2; background: rgba(25,118,210,.06); cursor: move; user-select: none; box-sizing: border-box; z-index: 2; }
     .dpl-field.selected { border: 2px solid #ff9800; background: rgba(255,152,0,.1); z-index: 9999; }
     .dpl-field .label { position: absolute; top: -22px; left: -1px; background: #1976d2; color: #fff; padding: 1px 6px; font-size: 11px; border-radius: 3px 3px 0 0; pointer-events: none; }
     .dpl-field.selected .label { background: #ff9800; }
