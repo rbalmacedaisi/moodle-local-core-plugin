@@ -913,19 +913,22 @@ function absd_is_user_enrolled_in_class(int $userid, int $classid): bool {
 
 /**
  * Recompute the absence state for a single (class, user) pair. Updates
- * gmk_class_absence_state with the latest count, level, last_session_id
- * and last_calculated. Returns the transitions that occurred so callers
- * can dispatch notifications / apply blocking.
+ * gmk_class_absence_state with the latest count, level, last_session_id,
+ * blocked_at, unblocked_at and dismissal timestamps. Also keeps the
+ * gmk_course_progre.blocked_by_absence flag in sync when blocking is
+ * enabled. Returns the transitions that occurred so callers can dispatch
+ * notifications.
  *
- * The function NEVER blocks the class — that responsibility belongs to
- * absd_apply_class_block so callers (cron, observer, web service) can
- * decide whether to honour the new state.
+ * Handles every direction of level transition correctly:
+ *  - 0/1/2 → 3: block applied (gmk_course_progre set if blocking enabled)
+ *  - 3 → 0/1/2: block lifted (gmk_course_progre cleared if blocking enabled)
+ *  - 0 → 1, 1 → 2, 2 → 0/1: alert level changes (transitions info/warning)
+ *  - any level drop resets info_dismissed_at and warning_dismissed_at so
+ *    the student re-sees the alert if the count climbs back up.
  *
  * When the user is not currently enrolled in the class (status IN 1,2,3
  * in gmk_course_progre), any pre-existing absence_state row is purged
- * (best-effort cleanup) and a no-transition result is returned. This
- * prevents the LXP and dashboard from showing absence alerts for
- * classes the student is no longer taking.
+ * (best-effort cleanup) and a no-transition result is returned.
  *
  * @param stdClass $class  Object with fields id, courseid, corecourseid, groupid, attendancemoduleid, initdate, enddate.
  * @param int $userid
@@ -951,8 +954,6 @@ function absd_recompute_user_class_state(stdClass $class, int $userid): array {
     ];
 
     if (!absd_is_user_enrolled_in_class($userid, (int)$class->id)) {
-        // Not enrolled (anymore): purge any stale row so the LXP stops
-        // showing the alert. Log it for audit.
         $existing = $DB->get_record('gmk_class_absence_state', [
             'userid'  => $userid,
             'classid' => (int)$class->id,
@@ -990,26 +991,78 @@ function absd_recompute_user_class_state(stdClass $class, int $userid): array {
 
     $previouslevel = $existing ? (int)$existing->alert_level : 0;
     $previouscount = $existing ? (int)$existing->absence_count : 0;
-    $wasblocked    = $existing && !empty($existing->blocked_at) && empty($existing->unblocked_at);
+
+    // --- Compute blocked_at / unblocked_at / block_reason ---
+    $blocked_at   = $existing ? (int)$existing->blocked_at   : 0;
+    $unblocked_at = $existing ? (int)$existing->unblocked_at : 0;
+    $block_reason = $existing ? (string)$existing->block_reason : '';
 
     $transitions = [];
-    if ($previouslevel !== $currentlevel) {
-        if ($currentlevel >= $previouslevel + 1) {
-            // Escalations.
-            for ($l = $previouslevel + 1; $l <= $currentlevel; $l++) {
-                if ($l === 1) { $transitions[] = 'info'; }
-                if ($l === 2) { $transitions[] = 'warning'; }
-                if ($l === 3) { $transitions[] = 'block'; }
+    if ($currentlevel === 3) {
+        // Escalation to (or stays at) block.
+        if ($blocked_at === 0 || $unblocked_at !== 0) {
+            // Was never blocked, or was previously unblocked: re-apply block now.
+            $blocked_at   = $nowts;
+            $unblocked_at = 0;
+            $block_reason = 'attendance_threshold_reached';
+            if (!in_array('block', $transitions, true)) {
+                $transitions[] = 'block';
             }
-        } else {
-            // De-escalation (e.g. attendance was corrected). Clear the block if
-            // count dropped back below the threshold.
-            if ($previouslevel === 3 && $currentlevel < 3) {
+        }
+    } else {
+        // Below level 3.
+        if ($blocked_at !== 0 && $unblocked_at === 0) {
+            // Was blocked and is now unblocked (count dropped or attendance corrected).
+            $unblocked_at = $nowts;
+            $block_reason = 'attendance_corrected';
+            if (!in_array('unblock', $transitions, true)) {
                 $transitions[] = 'unblock';
             }
         }
     }
 
+    // Also emit info/warning escalation transitions for level changes
+    // 0→1, 1→2 (and downgrades, although those are silent in the UI).
+    if ($previouslevel !== $currentlevel) {
+        if ($currentlevel > $previouslevel) {
+            for ($l = max(1, $previouslevel + 1); $l <= $currentlevel; $l++) {
+                if ($l === 1 && !in_array('info', $transitions, true))    { $transitions[] = 'info'; }
+                if ($l === 2 && !in_array('warning', $transitions, true)) { $transitions[] = 'warning'; }
+            }
+        } elseif ($currentlevel === 0 && $previouslevel > 0) {
+            // Silent de-escalation all the way back to zero - no UI alert change.
+        }
+    }
+
+    $isblockednow = ($blocked_at !== 0 && $unblocked_at === 0);
+
+    // --- Keep gmk_course_progre in sync with the state row (only when
+    // blocking is enabled; the soft-launch flag suppresses the side-effect).
+    // We write on every recompute (not just on transitions) so that turning
+    // enable_absence_blocking on after a soft-launch period doesn't leave
+    // previously-blocked students without the gmk_course_progre flag set.
+    if (absd_is_blocking_enabled()) {
+        if ($isblockednow) {
+            $DB->set_field('gmk_course_progre', 'blocked_by_absence', 1,    ['userid' => $userid, 'classid' => (int)$class->id]);
+            $DB->set_field('gmk_course_progre', 'blocked_by_absence_at', $blocked_at, ['userid' => $userid, 'classid' => (int)$class->id]);
+        } elseif (in_array('unblock', $transitions, true)) {
+            $DB->set_field('gmk_course_progre', 'blocked_by_absence', 0, ['userid' => $userid, 'classid' => (int)$class->id]);
+            $DB->set_field('gmk_course_progre', 'blocked_by_absence_at', 0, ['userid' => $userid, 'classid' => (int)$class->id]);
+        }
+    }
+
+    // --- Compute dismissal flags ---
+    // Reset whenever the level changes in either direction, so the student
+    // re-sees the alert if the count climbs back up after a correction.
+    if ($existing && $currentlevel !== $previouslevel) {
+        $info_dismissed_at    = 0;
+        $warning_dismissed_at = 0;
+    } else {
+        $info_dismissed_at    = $existing ? (int)$existing->info_dismissed_at    : 0;
+        $warning_dismissed_at = $existing ? (int)$existing->warning_dismissed_at : 0;
+    }
+
+    // --- Persist state row ---
     $rec = new stdClass();
     $rec->userid             = $userid;
     $rec->classid            = (int)$class->id;
@@ -1018,34 +1071,25 @@ function absd_recompute_user_class_state(stdClass $class, int $userid): array {
     $rec->last_session_id    = $lastsessionid;
     $rec->last_calculated    = $nowts;
     $rec->alert_level        = $currentlevel;
+    $rec->info_dismissed_at  = $info_dismissed_at;
+    $rec->warning_dismissed_at = $warning_dismissed_at;
+    $rec->blocked_at         = $blocked_at;
+    $rec->unblocked_at       = $unblocked_at;
+    $rec->block_reason       = $block_reason;
     $rec->usermodified       = $userid;
     $rec->timemodified       = $nowts;
 
     if ($existing) {
         $rec->id = $existing->id;
-        // Do NOT overwrite dismissal timestamps on a recompute — once dismissed,
-        // the user shouldn't see the same alert pop up again until the count
-        // goes back down and back up. The transitions array still reflects
-        // level changes for notification purposes.
-        $rec->info_dismissed_at    = $existing->info_dismissed_at;
-        $rec->warning_dismissed_at = $existing->warning_dismissed_at;
-
-        // If the level has dropped back below 3 we unblock here, mirroring
-        // absd_apply_class_block/unblock_class_block semantics.
-        if ($currentlevel < 3 && $existing->alert_level === 3) {
-            $rec->blocked_at   = $existing->blocked_at;
-            $rec->unblocked_at = $nowts;
-            $rec->block_reason = '';
-        }
         $DB->update_record('gmk_class_absence_state', $rec);
     } else {
-        $rec->info_dismissed_at    = 0;
-        $rec->warning_dismissed_at = 0;
-        $rec->blocked_at           = 0;
-        $rec->unblocked_at         = 0;
-        $rec->block_reason         = '';
-        $rec->timecreated          = $nowts;
+        $rec->timecreated = $nowts;
         $DB->insert_record('gmk_class_absence_state', $rec);
+    }
+
+    // --- Audit transitions ---
+    foreach ($transitions as $t) {
+        absd_log_history($userid, (int)$class->id, $count, $currentlevel, $t);
     }
 
     return [
@@ -1054,7 +1098,7 @@ function absd_recompute_user_class_state(stdClass $class, int $userid): array {
         'previous_count' => $previouscount,
         'current_count'  => $count,
         'transitions'    => $transitions,
-        'was_blocked'    => $wasblocked,
+        'was_blocked'    => $isblockednow,
     ];
 }
 

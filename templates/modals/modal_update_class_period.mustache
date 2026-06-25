@@ -1,0 +1,44 @@
+<div class="modal fade" id="updatePeriodModal" tabindex="-1" role="dialog" aria-labelledby="updatePeriodModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <form method="post" action="{{url}}">
+                <input type="hidden" name="sesskey" value="{{sesskey}}">
+                <input type="hidden" name="action" value="update_class_academic_period">
+                <input type="hidden" name="classid" id="updatePeriodClassId" value="">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="updatePeriodModalTitle">{{#str}}update_class_period, local_grupomakro_core{{/str}}</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-2">
+                        <strong>{{#str}}class_name, local_grupomakro_core{{/str}}:</strong>
+                        <span id="updatePeriodClassName" class="text-muted">-</span>
+                    </p>
+                    <p class="mb-3">
+                        <strong>{{#str}}enrolled_students, local_grupomakro_core{{/str}}:</strong>
+                        <span id="updatePeriodStudentCount" class="text-muted">0</span>
+                    </p>
+                    <div class="form-group">
+                        <label for="updatePeriodSelect"><strong>{{#str}}new_academic_period, local_grupomakro_core{{/str}}</strong></label>
+                        <select name="academicperiodid" id="updatePeriodSelect" class="form-control" required>
+                            <option value="">-- {{#str}}select, local_grupomakro_core{{/str}} --</option>
+                            {{#academicPeriods}}
+                            <option value="{{id}}">{{name}}</option>
+                            {{/academicPeriods}}
+                        </select>
+                    </div>
+                    <div class="alert alert-warning py-2 mb-0 small">
+                        <i class="fa fa-exclamation-triangle mr-1"></i>
+                        {{#str}}update_class_period_warning, local_grupomakro_core{{/str}}
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">{{#str}}cancel, local_grupomakro_core{{/str}}</button>
+                    <button type="submit" class="btn btn-primary btn-sm">{{#str}}update, local_grupomakro_core{{/str}}</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>

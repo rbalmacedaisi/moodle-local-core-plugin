@@ -93,6 +93,12 @@
                 {{#shifterror}}
                 <div class="alert alert-danger shadow-sm" role="alert">{{shifterror}}</div>
                 {{/shifterror}}
+                {{#periodfeedback}}
+                <div class="alert alert-success shadow-sm" role="alert">{{periodfeedback}}</div>
+                {{/periodfeedback}}
+                {{#periormerror}}
+                <div class="alert alert-danger shadow-sm" role="alert">{{periormerror}}</div>
+                {{/periormerror}}
 
                 {{! List View }}
                 <div id="class-list-view" class="d-none">
@@ -163,6 +169,9 @@
                                 <td class="align-middle text-center">
                                     <a data-toggle='tooltip' title="{{#str}} modify, local_grupomakro_core{{/str}}" href="/local/grupomakro_core/pages/editclass.php?class_id={{id}}" class="btn btn-sm btn-light border">
                                         <i class="fa fa-gear text-secondary"></i>
+                                    </a>
+                                    <a data-toggle='tooltip' title="{{#str}}update_class_period, local_grupomakro_core{{/str}}" href="#" class="updatePeriodButton btn btn-sm btn-light border text-info ml-1" data-class-id="{{id}}" data-class-name="{{name}}" data-student-count="{{enroledStudents}}">
+                                        <i class="fa fa-calendar"></i>
                                     </a>
                                     <a title="{{#str}} remove, local_grupomakro_core{{/str}}" data-toggle='modal' class="deleteButton btn btn-sm btn-light border text-danger ml-1" class-id="{{id}}" data-target='#deleteClassModalCenter'>
                                         <i class="fa fa-trash"></i>
@@ -264,7 +273,13 @@
                                     <i class="fa fa-gear mx-1 text-secondary" style="font-size:20px"></i>
                                 </a>
                                 {{! End Edit }}
-                                
+
+                                {{! Update academic period }}
+                                <a data-toggle='tooltip' data-placement='bottom' title="{{#str}}update_class_period, local_grupomakro_core{{/str}}" href="#" class="updatePeriodButton" data-class-id="{{id}}" data-class-name="{{name}}" data-student-count="{{enroledStudents}}">
+                                    <i class="fa fa-calendar mx-1 text-info" style="font-size:20px"></i>
+                                </a>
+                                {{! End Update academic period }}
+
                                 {{! Delete }}
                                 <a data-placement='bottom' title="{{#str}} remove, local_grupomakro_core{{/str}}" data-toggle='modal' class="deleteButton" class-id="{{id}}" data-target='#deleteClassModalCenter'>
                                     <i class="fa fa-trash mx-1" style="font-size:20px"></i>
@@ -285,3 +300,4 @@
     </div>
 </div>
 {{> local_grupomakro_core/modals/modal_delete_class }}
+{{> local_grupomakro_core/modals/modal_update_class_period }}

@@ -612,6 +612,11 @@ $string['back'] = 'Back';
 $string['close'] = 'Close';
 $string['not_add_schedules'] = 'There are currently no classes available. Please create a new class to assign to users who do not have schedules.';
 $string['academic_level'] = 'Academic Level';
+$string['update_class_period'] = 'Update academic period';
+$string['new_academic_period'] = 'New academic period';
+$string['update_class_period_warning'] = 'This will update the academic period of all enrolled students in the class. Cuatrimestre and bimestre are not affected.';
+$string['enrolled_students'] = 'Enrolled students';
+$string['update'] = 'Update';
 
 ////BBB Live Attendance
 $string['fix_bbb_live_attendance'] = 'Fix BBB Live Attendance';

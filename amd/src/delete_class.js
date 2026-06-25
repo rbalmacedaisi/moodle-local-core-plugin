@@ -12,6 +12,7 @@ export const init = () => {
     handleDeleteClass();
     handleBulkDeleteClick();
     handleConfirmDeleteClass();
+    handleUpdatePeriodClass();
 };
 
 const handleViewToggle = () => {
@@ -106,5 +107,28 @@ const handleConfirmDeleteClass = () => {
         }).fail(function (error) {
             window.console.error(error);
         });
+    });
+};
+
+const handleUpdatePeriodClass = () => {
+    // Populate the modal hidden fields from the clicked button's data attributes.
+    // Bootstrap's data-toggle="modal" opens the modal automatically, so we just
+    // need to mirror the class id/name/student count into the form before the
+    // user sees it.
+    $('.updatePeriodButton').on('click', (event) => {
+        event.preventDefault();
+        const btn = event.currentTarget;
+        const classId = btn.getAttribute('data-class-id') || '';
+        const className = btn.getAttribute('data-class-name') || '-';
+        const studentCount = btn.getAttribute('data-student-count') || '0';
+
+        document.getElementById('updatePeriodClassId').value = classId;
+        document.getElementById('updatePeriodClassName').textContent = className;
+        document.getElementById('updatePeriodStudentCount').textContent = studentCount;
+        // Reset the select on each open.
+        const sel = document.getElementById('updatePeriodSelect');
+        if (sel) {
+            sel.value = '';
+        }
     });
 };

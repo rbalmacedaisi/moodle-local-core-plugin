@@ -610,6 +610,11 @@ $string['close'] = 'Cerrar';
 $string['not_add_schedules'] = 'Actualmente no hay clases disponibles. Por favor, cree una nueva clase para asignar a los usuarios que no tienen horarios.';
 $string['errorproxy'] = 'Error al conectar con el proxy de Odoo: {$a}';
 $string['academic_level'] = 'Nivel Académico';
+$string['update_class_period'] = 'Actualizar periodo lectivo';
+$string['new_academic_period'] = 'Nuevo periodo lectivo';
+$string['update_class_period_warning'] = 'Esto actualizará el periodo lectivo de todos los estudiantes matriculados en la clase. El cuatrimestre y bimestre no se ven afectados.';
+$string['enrolled_students'] = 'Estudiantes matriculados';
+$string['update'] = 'Actualizar';
 
 ////BBB Live Attendance
 $string['fix_bbb_live_attendance'] = 'Corregir Asistencia BBB en Vivo';

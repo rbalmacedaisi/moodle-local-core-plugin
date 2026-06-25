@@ -38,6 +38,8 @@ $PAGE->set_pagelayout('base');
 
 $shiftfeedback = '';
 $shifterror = '';
+$periodfeedback = '';
+$periormerror = '';
 
 $action = optional_param('action', '', PARAM_ALPHANUMEXT);
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'update_shift') {
@@ -63,6 +65,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'update_shift') {
         $record->usermodified = (int)$USER->id;
         $DB->update_record('gmk_class', $record);
         $shiftfeedback = 'Jornada actualizada.';
+    }
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'update_class_academic_period') {
+    require_sesskey();
+
+    $classid = required_param('classid', PARAM_INT);
+    $newapid = required_param('academicperiodid', PARAM_INT);
+
+    $class = $DB->get_record('gmk_class', ['id' => $classid], '*', IGNORE_MISSING);
+    $newap = $DB->get_record('gmk_academic_periods', ['id' => $newapid], '*', IGNORE_MISSING);
+    if (!$class) {
+        $periormerror = 'Clase no encontrada.';
+    } else if (!$newap) {
+        $periormerror = 'Periodo lectivo no válido.';
+    } else {
+        $participants = get_class_participants($class);
+        $userids = array_values(array_unique(array_filter(array_map(
+            fn($s) => (int)($s->userid ?? 0),
+            (array)$participants->enroledStudents
+        ))));
+        if (empty($userids)) {
+            $periormerror = 'La clase no tiene estudiantes matriculados.';
+        } else {
+            list($insql, $inparams) = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED, 'uid');
+            $DB->execute(
+                "UPDATE {local_learning_users}
+                    SET academicperiodid = :apid,
+                        timemodified = :now,
+                        usermodified = :userid
+                  WHERE userid $insql",
+                array_merge($inparams, [
+                    'apid'  => (int)$newapid,
+                    'now'   => time(),
+                    'userid' => (int)$USER->id,
+                ])
+            );
+            $periodfeedback = 'Periodo lectivo actualizado para ' . count($userids) . ' estudiante(s).';
+        }
     }
 }
 
@@ -106,6 +147,13 @@ unset($class);
 
 echo $OUTPUT->header();
 
+// Academic periods available to assign to the class's students.
+// Newest first so the current period is at the top of the dropdown.
+$academicPeriods = array_values(array_map(
+    fn($p) => ['id' => (int)$p->id, 'name' => $p->name],
+    $DB->get_records('gmk_academic_periods', null, 'name DESC', 'id, name')
+));
+
 $templatedata = [
     'createurl' => $CFG->wwwroot.'/local/grupomakro_core/pages/createcontract.php',
     'url' => $CFG->wwwroot.'/local/grupomakro_core/pages/contractmanagement.php',
@@ -113,8 +161,11 @@ $templatedata = [
     'createclass_url' => $CFG->wwwroot . '/local/grupomakro_core/pages/createclass.php',
     'sesskey' => sesskey(),
     'shiftfeedback' => $shiftfeedback,
-    'shifterror' => $shifterror
-]; 
+    'shifterror' => $shifterror,
+    'periodfeedback' => $periodfeedback,
+    'periormerror' => $periormerror,
+    'academicPeriods' => $academicPeriods,
+];
 
 echo $OUTPUT->render_from_template('local_grupomakro_core/class_management', $templatedata);
 $PAGE->requires->js_call_amd('local_grupomakro_core/delete_class', 'init', []);
