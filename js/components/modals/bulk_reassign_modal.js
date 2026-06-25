@@ -41,6 +41,11 @@ Vue.component('bulk-reassign-modal', {
         };
     },
     computed: {
+        // The WS endpoint URL. Defined as computed so Vue auto-invokes the
+        // getter when this.wsUrl is accessed (returning the string). If it
+        // were a method, this.wsUrl would return the function reference,
+        // producing the malformed URL ".../function () { [native code] }".
+        wsUrl() { return window.location.origin + '/webservice/rest/server.php'; },
         show() { return true; }, // controlled by v-if
         filteredGroups() {
             const q = this.search.trim().toLowerCase();
@@ -97,7 +102,6 @@ Vue.component('bulk-reassign-modal', {
             const key = (g.period_name + g.subperiod_name).split('').reduce((a, c) => a + c.charCodeAt(0), 0);
             return palette[key % palette.length];
         },
-        wsUrl() { return window.location.origin + '/webservice/rest/server.php'; },
         // Helper: builds a fetch URL with wstoken as a query param. Native
         // URLSearchParams replaces axios's paramsSerializer (which had been
         // throwing "e.indexOf is not a function" from somewhere inside axios).
