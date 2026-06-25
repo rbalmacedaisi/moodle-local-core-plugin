@@ -2406,6 +2406,14 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20260701001, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20260701002) {
+        // Force Moodle to re-register the message providers declared in
+        // db/messages.php (added in this version: absence_info_alert,
+        // absence_warning_alert, absence_block_alert). The actual savepoint
+        // call below triggers the message provider reload.
+        upgrade_plugin_savepoint(true, 20260701002, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

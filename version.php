@@ -24,6 +24,6 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = "local_grupomakro_core";
-$plugin->version   = 20260701001;         // Mitigación de deploy a mitad de período: split flag enable_absence_blocking + scripts de bulk exempt y clear period exemptions.
+$plugin->version   = 20260701002;         // Wire absence alert message providers (absence_info_alert, absence_warning_alert, absence_block_alert) for proper Moodle messaging pipeline.
 $plugin->requires = 2014051200;
 $plugin->maturity = MATURITY_STABLE;
