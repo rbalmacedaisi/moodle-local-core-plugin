@@ -307,10 +307,9 @@ Vue.component('intake-timeline', {
             @close="closeStudentModal"
         ></student-list-modal>
 
-        <!-- BULK REASSIGN MODAL -->
+        <!-- BULK REASSIGN MODAL — reclasifica periodo lectivo (no cohorte) -->
         <bulk-reassign-modal
             v-if="showBulkReassign"
-            :cohort="bulkReassignCohort"
             :learning-plan-id="careerId"
             :career-name="timelineData.career ? timelineData.career.name : 'Carrera'"
             @close="closeBulkReassign"

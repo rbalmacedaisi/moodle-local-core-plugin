@@ -2269,4 +2269,317 @@ class student_timeline extends external_api {
             ),
         ]);
     }
+
+    // --- Get Students By Academic Period (for bulk academic-period reclassification) ---
+
+    public static function get_students_by_academic_period_parameters() {
+        return new external_function_parameters([
+            'learningplanid'  => new external_value(PARAM_INT, 'ID del plan de aprendizaje'),
+            'only_active'     => new external_value(PARAM_BOOL, 'Solo estudiantes activos', VALUE_DEFAULT, true),
+        ]);
+    }
+
+    /**
+     * Returns all students in a learning plan, grouped by their current
+     * academic period (periodo lectivo). Each student includes their
+     * academicperiodid + academicperiodname so the modal can show
+     * "Periodo lectivo: 2025-II" next to each row.
+     *
+     * Designed for the "Reclasificar periodo lectivo" modal: user sees
+     * students grouped by their current periodo lectivo, picks
+     * individuals, and bulk-reassigns them to a different academic
+     * period from the dropdown.
+     *
+     * @param int  $learningplanid
+     * @param bool $only_active  When true, excludes students whose local
+     *                           learning user.status is not 'activo'.
+     * @return array
+     */
+    public static function get_students_by_academic_period($learningplanid, $only_active = true) {
+        global $DB;
+        $context = \context_system::instance();
+        self::validate_context($context);
+        require_capability('moodle/site:config', $context);
+
+        // Active status filter. The DB stores lowercase Spanish values
+        // (activo, suspendido, retirado, egresado). We keep the same
+        // string we read into the student record so the modal's
+        // getStatusClass/getStatusLabel can pick it up.
+        $statusFilter = '';
+        $params = ['lp_id' => $learningplanid];
+        if ($only_active) {
+            $statusFilter = " AND LOWER(lu.status) = 'activo' ";
+        }
+
+        $sql_students = "SELECT u.id as userid, u.username, u.firstname, u.lastname, u.email,
+                                lu.status, lu.academicperiodid, lu.currentperiodid, lu.currentsubperiodid,
+                                uid_periodo.data as intake_period,
+                                p.data as phone,
+                                ap.name as academicperiodname
+                         FROM {local_learning_users} lu
+                         JOIN {user} u ON u.id = lu.userid
+                         LEFT JOIN {user_info_data} uid_periodo
+                                ON uid_periodo.userid = lu.userid
+                         LEFT JOIN {user_info_field} uif_periodo
+                                ON uif_periodo.id = uid_periodo.fieldid
+                                AND uif_periodo.shortname = 'periodo_ingreso'
+                         LEFT JOIN {user_info_data} p
+                                ON p.userid = u.id
+                         LEFT JOIN {user_info_field} pf
+                                ON pf.id = p.fieldid AND pf.shortname = 'phone'
+                         LEFT JOIN {gmk_academic_periods} ap
+                                ON ap.id = lu.academicperiodid
+                         WHERE lu.learningplanid = :lp_id
+                           $statusFilter
+                         ORDER BY u.lastname, u.firstname";
+
+        $rows = $DB->get_records_sql($sql_students, $params);
+
+        // Group by current academic period. Students with NULL
+        // academicperiodid go into a "Sin periodo lectivo" bucket.
+        $groups_map = [];
+        $unassigned = [];
+
+        foreach ($rows as $s) {
+            $apid = (int)($s->academicperiodid ?? 0);
+            $apname = $s->academicperiodname ?: 'Sin periodo lectivo';
+
+            $item = [
+                'userid'             => (int)$s->userid,
+                'username'           => $s->username ?? '',
+                'firstname'          => $s->firstname,
+                'lastname'           => $s->lastname,
+                'fullname'           => fullname($s),
+                'email'              => $s->email ?? '',
+                'phone'              => $s->phone ?? '',
+                'status'             => $s->status,
+                'intake_period'      => $s->intake_period ?? '',
+                'currentperiodid'    => (int)($s->currentperiodid ?? 0),
+                'currentsubperiodid' => (int)($s->currentsubperiodid ?? 0),
+                'academicperiodid'   => $apid,
+                'academicperiodname' => $apname,
+            ];
+
+            if ($apid > 0) {
+                if (!isset($groups_map[$apid])) {
+                    $groups_map[$apid] = [
+                        'period_id'         => $apid,
+                        'period_name'       => $apname,
+                        'period_status'     => 1, // filled below
+                        'students'          => [],
+                    ];
+                }
+                $groups_map[$apid]['students'][] = $item;
+            } else {
+                $unassigned[] = $item;
+            }
+        }
+
+        if (!empty($unassigned)) {
+            $groups_map[0] = [
+                'period_id'     => 0,
+                'period_name'   => 'Sin periodo lectivo',
+                'period_status' => 0,
+                'students'      => $unassigned,
+            ];
+        }
+
+        // Fill period_status (active/inactive) from gmk_academic_periods
+        // for the groups that came from real ap records.
+        if (!empty($groups_map)) {
+            $apids = array_filter(array_keys($groups_map), fn($k) => $k > 0);
+            if (!empty($apids)) {
+                list($insql, $inparams) = $DB->get_in_or_equal($apids, SQL_PARAMS_NAMED, 'apid');
+                $aprecs = $DB->get_records_sql(
+                    "SELECT id, status FROM {gmk_academic_periods} WHERE id $insql",
+                    $inparams
+                );
+                foreach ($aprecs as $ap) {
+                    if (isset($groups_map[(int)$ap->id])) {
+                        $groups_map[(int)$ap->id]['period_status'] = (int)$ap->status;
+                    }
+                }
+            }
+        }
+
+        // Sort by period id desc (most recent first). The "Sin periodo
+        // lectivo" bucket stays at the bottom.
+        $groups = array_values($groups_map);
+        usort($groups, function ($a, $b) {
+            if ($a['period_id'] === 0) return 1;
+            if ($b['period_id'] === 0) return -1;
+            return $b['period_id'] - $a['period_id'];
+        });
+
+        // Available academic periods for the destination dropdown,
+        // sorted newest first. Inactive periods are included so admins
+        // can still see/reassign to them, but marked with status=0.
+        $ap_records = $DB->get_records('gmk_academic_periods', null, 'name DESC', 'id, name, status');
+        $available_periods = array_values(array_map(
+            fn($ap) => [
+                'id'     => (int)$ap->id,
+                'name'   => $ap->name,
+                'status' => (int)$ap->status,
+            ],
+            $ap_records
+        ));
+
+        return [
+            'groups'             => $groups,
+            'available_periods' => $available_periods,
+            'total'              => count($rows),
+        ];
+    }
+
+    public static function get_students_by_academic_period_returns() {
+        $student_struct = new external_single_structure([
+            'userid'             => new external_value(PARAM_INT, 'ID usuario'),
+            'username'           => new external_value(PARAM_TEXT, 'Identificación'),
+            'firstname'          => new external_value(PARAM_TEXT, 'Nombre'),
+            'lastname'           => new external_value(PARAM_TEXT, 'Apellido'),
+            'fullname'           => new external_value(PARAM_TEXT, 'Nombre completo'),
+            'email'              => new external_value(PARAM_TEXT, 'Email'),
+            'phone'              => new external_value(PARAM_TEXT, 'Teléfono'),
+            'status'             => new external_value(PARAM_TEXT, 'Estado'),
+            'intake_period'      => new external_value(PARAM_TEXT, 'Periodo de ingreso'),
+            'currentperiodid'    => new external_value(PARAM_INT, 'ID periodo actual'),
+            'currentsubperiodid' => new external_value(PARAM_INT, 'ID subperiodo actual'),
+            'academicperiodid'   => new external_value(PARAM_INT, 'ID periodo lectivo actual'),
+            'academicperiodname' => new external_value(PARAM_TEXT, 'Nombre periodo lectivo actual'),
+        ]);
+
+        $group_struct = new external_single_structure([
+            'period_id'     => new external_value(PARAM_INT, 'ID periodo lectivo'),
+            'period_name'   => new external_value(PARAM_TEXT, 'Nombre periodo lectivo'),
+            'period_status' => new external_value(PARAM_INT, 'Status del periodo lectivo (1=activo)'),
+            'students'      => new external_multiple_structure($student_struct, 'Estudiantes del grupo'),
+        ]);
+
+        $available_struct = new external_single_structure([
+            'id'     => new external_value(PARAM_INT, 'ID periodo lectivo destino'),
+            'name'   => new external_value(PARAM_TEXT, 'Nombre'),
+            'status' => new external_value(PARAM_INT, '1=activo, 0=cerrado'),
+        ]);
+
+        return new external_single_structure([
+            'groups'             => new external_multiple_structure($group_struct, 'Grupos por periodo lectivo actual'),
+            'available_periods'  => new external_multiple_structure($available_struct, 'Periodos lectivos disponibles como destino'),
+            'total'              => new external_value(PARAM_INT, 'Total de estudiantes'),
+        ]);
+    }
+
+    // --- Bulk Update Students Academic Period ---
+
+    public static function bulk_update_students_academic_period_parameters() {
+        return new external_function_parameters([
+            'userids'                  => new external_multiple_structure(
+                new external_value(PARAM_INT, 'ID de usuario'),
+                'IDs de los estudiantes a reasignar'
+            ),
+            'new_academic_periodid'   => new external_value(PARAM_INT, 'ID del nuevo periodo lectivo'),
+        ]);
+    }
+
+    /**
+     * Bulk-reassigns the academic period (periodo lectivo) of multiple
+     * students at once. Updates local_learning_users.academicperiodid
+     * for each user. Does NOT touch currentperiodid / currentsubperiodid
+     * (cuatrimestre/bimestre stay the same — that's the whole point of
+     * the academic period reclassification).
+     *
+     * @param array $userids
+     * @param int   $new_academic_periodid
+     * @return array success + counts
+     */
+    public static function bulk_update_students_academic_period($userids, $new_academic_periodid) {
+        global $DB, $USER;
+        $context = \context_system::instance();
+        self::validate_context($context);
+        require_capability('moodle/site:config', $context);
+
+        $parameters = self::validate_parameters(
+            self::bulk_update_students_academic_period_parameters(),
+            ['userids' => $userids, 'new_academic_periodid' => $new_academic_periodid]
+        );
+
+        if (empty($parameters['userids'])) {
+            return [
+                'success'        => false,
+                'updated_count'  => 0,
+                'failed_count'   => 0,
+                'failed_userids' => [],
+                'message'        => 'No se proporcionaron estudiantes para reasignar',
+                'new_period_name'=> '',
+            ];
+        }
+
+        // Verify the target academic period exists.
+        $newap = $DB->get_record('gmk_academic_periods', ['id' => (int)$parameters['new_academic_periodid']], '*', MUST_EXIST);
+        $now = time();
+        $updated = 0;
+        $failed = [];
+
+        list($insql, $inparams) = $DB->get_in_or_equal($parameters['userids'], SQL_PARAMS_NAMED, 'uid');
+        try {
+            $DB->execute(
+                "UPDATE {local_learning_users}
+                    SET academicperiodid = :apid,
+                        timemodified     = :now,
+                        usermodified     = :userid
+                  WHERE userid $insql",
+                array_merge($inparams, [
+                    'apid'   => (int)$newap->id,
+                    'now'    => $now,
+                    'userid' => (int)$USER->id,
+                ])
+            );
+            $updated = $DB->count_records_sql(
+                "SELECT COUNT(*) FROM {local_learning_users} WHERE academicperiodid = :apid",
+                ['apid' => (int)$newap->id]
+            );
+            // Approximate: $updated reflects the total rows now at that period,
+            // not just the ones we touched. For per-student failures we do
+            // a fallback verification below.
+        } catch (\Exception $e) {
+            throw new \moodle_exception('Error al actualizar periodo lectivo: ' . $e->getMessage());
+        }
+
+        // Verify each userid was actually updated; flag missing ones.
+        list($insql2, $inparams2) = $DB->get_in_or_equal($parameters['userids'], SQL_PARAMS_NAMED, 'uid');
+        $rows = $DB->get_records_sql(
+            "SELECT userid FROM {local_learning_users}
+              WHERE academicperiodid = :apid AND userid $insql2",
+            array_merge(['apid' => (int)$newap->id], $inparams2)
+        );
+        $success_ids = array_map('intval', array_keys($rows));
+        $failed = array_values(array_diff(
+            array_map('intval', $parameters['userids']),
+            $success_ids
+        ));
+        $updated = count($success_ids);
+
+        return [
+            'success'        => $updated > 0,
+            'updated_count'  => $updated,
+            'failed_count'   => count($failed),
+            'failed_userids' => $failed,
+            'message'        => "{$updated} estudiante(s) reasignado(s) a periodo lectivo «{$newap->name}»"
+                . (count($failed) > 0 ? ' (' . count($failed) . ' fallaron)' : ''),
+            'new_period_name'=> $newap->name,
+        ];
+    }
+
+    public static function bulk_update_students_academic_period_returns() {
+        return new external_single_structure([
+            'success'         => new external_value(PARAM_BOOL, 'true si al menos uno se actualizó'),
+            'updated_count'   => new external_value(PARAM_INT, 'Cuántos se actualizaron'),
+            'failed_count'    => new external_value(PARAM_INT, 'Cuántos fallaron'),
+            'failed_userids'  => new external_multiple_structure(
+                new external_value(PARAM_INT, 'IDs que fallaron'),
+                'IDs que no se pudieron actualizar'
+            ),
+            'message'         => new external_value(PARAM_TEXT, 'Mensaje resumen'),
+            'new_period_name' => new external_value(PARAM_TEXT, 'Nombre del periodo lectivo destino'),
+        ]);
+    }
 }

@@ -991,6 +991,22 @@ $functions = array(
         'ajax'        => true,
         'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE],
     ],
+    'local_grupomakro_get_students_by_academic_period' => [
+        'classname'   => 'local_grupomakro_core\external\admin\student_timeline',
+        'methodname'  => 'get_students_by_academic_period',
+        'description' => 'Returns students in a learning plan grouped by their current academic period (periodo lectivo) for bulk reclassification',
+        'type'        => 'read',
+        'ajax'        => true,
+        'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE],
+    ],
+    'local_grupomakro_bulk_update_students_academic_period' => [
+        'classname'   => 'local_grupomakro_core\external\admin\student_timeline',
+        'methodname'  => 'bulk_update_students_academic_period',
+        'description' => 'Bulk reassigns the academic period (periodo lectivo) of multiple students. Does not touch currentperiodid/currentsubperiodid.',
+        'type'        => 'write',
+        'ajax'        => true,
+        'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE],
+    ],
     'local_grupomakro_get_period_renewal_preview' => [
         'classname'   => 'local_grupomakro_core\external\admin\student_timeline',
         'methodname'  => 'get_period_renewal_preview',

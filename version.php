@@ -24,6 +24,6 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = "local_grupomakro_core";
-$plugin->version   = 20260701002;         // Wire absence alert message providers (absence_info_alert, absence_warning_alert, absence_block_alert) for proper Moodle messaging pipeline.
+$plugin->version   = 20260701003;         // Bulk academic-period reclassification: WS local_grupomakro_get_students_by_academic_period + local_grupomakro_bulk_update_students_academic_period (solo cambia local_learning_users.academicperiodid, sin tocar currentperiodid/currentsubperiodid).
 $plugin->requires = 2014051200;
 $plugin->maturity = MATURITY_STABLE;

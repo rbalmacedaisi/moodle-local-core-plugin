@@ -1,14 +1,17 @@
 /**
- * BULK REASSIGN MODAL
- * Modal para reclasificar múltiples estudiantes entre cohortes (periodo_ingreso)
+ * BULK ACADEMIC PERIOD REASSIGN MODAL
  *
- * Muestra todos los estudiantes de una cohorte agrupados por bimestre,
- * permite seleccionar múltiples y moverlos todos a una cohorte destino.
+ * Reclasifica el PERIODO LECTIVO (academic period, gmk_academic_periods)
+ * de uno o varios estudiantes en lote, sin tocar su cuatrimestre/bimestre
+ * (currentperiodid/currentsubperiodid permanecen iguales).
+ *
+ * Reemplaza la versión anterior que reclasificaba periodo_ingreso
+ * (intake period). El campo destino es ahora un periodo lectivo real
+ * (2024-I, 2024-II, ...) en lugar de una cohorte.
  *
  * API:
  *   <bulk-reassign-modal
  *     v-if="showModal"
- *     :cohort="cohort"                       // ej. '2026'
  *     :learning-plan-id="2"
  *     :career-name="'Lic. en Enfermería'"
  *     @close="showModal = false"
@@ -16,13 +19,12 @@
  *   </bulk-reassign-modal>
  *
  * Endpoints Moodle:
- *   - local_grupomakro_get_students_by_intake_period
- *   - local_grupomakro_bulk_reassign_students_intake_period
+ *   - local_grupomakro_get_students_by_academic_period
+ *   - local_grupomakro_bulk_update_students_academic_period
  */
 
 Vue.component('bulk-reassign-modal', {
     props: {
-        cohort:          { type: String,   required: true },
         learningPlanId:  { type: [String, Number], required: true },
         careerName:      { type: String,   default: 'Carrera' },
     },
@@ -31,13 +33,14 @@ Vue.component('bulk-reassign-modal', {
             loading:        false,
             saving:         false,
             error:          '',
-            groups:         [],     // [{period_name, subperiod_name, students: [...]}]
-            availablePeriods: [],   // ['2024','2025','2026',...]
+            groups:         [],     // [{period_id, period_name, period_status, students: [...]}]
+            availablePeriods: [],   // [{id, name, status}] — academic periods, not cohorts
             total:          0,
             selectedUserIds: new Set(),
             search:         '',
-            destPeriod:     '',
+            destPeriodId:   '',     // academic period id (int) for destination
             expandedGroups: new Set(),
+            onlyActive:     true,   // filtro: solo mostrar estudiantes activos (default ON)
         };
     },
     computed: {
@@ -71,10 +74,13 @@ Vue.component('bulk-reassign-modal', {
         },
         canConfirm() {
             return this.selectedCount > 0
-                && this.destPeriod !== ''
-                && this.destPeriod !== this.cohort
+                && this.destPeriodId !== ''
                 && !this.saving;
         },
+    },
+    watch: {
+        // Refetch whenever the active-only filter changes.
+        onlyActive() { this.fetchStudents(); },
     },
     mounted() {
         this.fetchStudents();
@@ -90,8 +96,6 @@ Vue.component('bulk-reassign-modal', {
         },
         // Status values come from local_learning_users via the WS function
         // and are in Spanish: 'activo', 'suspendido', 'retirado', 'egresado'.
-        // The previous check only matched English 'active', so everything
-        // rendered as "Inactivo" once the modal finally started loading data.
         normalizeStatus(status) {
             const s = String(status == null ? '' : status).toLowerCase().trim();
             if (s === 'active' || s === 'activo' || s === '1' || s === 1) return 'activo';
@@ -117,7 +121,7 @@ Vue.component('bulk-reassign-modal', {
         getGroupColor(g) {
             // Deterministic color from period name
             const palette = ['tl-sem-blue', 'tl-sem-green', 'tl-sem-orange', 'tl-sem-red', 'tl-sem-muted'];
-            const key = (g.period_name + g.subperiod_name).split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+            const key = (g.period_name || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0);
             return palette[key % palette.length];
         },
         // Helper: builds a fetch URL with wstoken as a query param. Native
@@ -132,8 +136,6 @@ Vue.component('bulk-reassign-modal', {
                 for (const key of Object.keys(extraParams)) {
                     const v = extraParams[key];
                     if (Array.isArray(v)) {
-                        // external_multiple_structure expects repeated params:
-                        // userids=1&userids=2 (no [] suffix).
                         for (const item of v) {
                             params.append(key, String(item));
                         }
@@ -153,9 +155,9 @@ Vue.component('bulk-reassign-modal', {
             // Granular try-catch: each step labelled so the error overlay tells
             // us exactly which phase broke ([1] fetch, [2] HTTP, [3] JSON, [4] data).
             try {
-                const url = this.buildWsUrl('local_grupomakro_get_students_by_intake_period', {
+                const url = this.buildWsUrl('local_grupomakro_get_students_by_academic_period', {
                     learningplanid: parseInt(this.learningPlanId, 10),
-                    intake_period:  this.cohort,
+                    only_active: this.onlyActive ? 1 : 0,
                 });
                 resp = await fetch(url, { credentials: 'same-origin' });
             } catch (e) {
@@ -185,15 +187,12 @@ Vue.component('bulk-reassign-modal', {
             }
 
             // Object.freeze() tells Vue 2 NOT to make these properties reactive.
-            // With 76 students × 12 fields = 912 reactive props, freezing
-            // cuts the Vue observer overhead (~10x memory) since we never
-            // mutate the loaded data.
+            // The loaded data is read-only and a large cohort (76+ students ×
+            // 14 fields) would otherwise consume ~10x memory for Vue observers.
             this.groups = Object.freeze(data.groups || []);
-            this.availablePeriods = Object.freeze(
-                (data.available_periods || []).filter(p => p !== this.cohort)
-            );
+            this.availablePeriods = Object.freeze(data.available_periods || []);
             this.total = data.total || 0;
-            // Don't auto-expand: rendering 76 student rows × Vuetify
+            // Don't auto-expand: rendering the student rows × Vuetify
             // components overflows the browser tab. User clicks the
             // group header to expand.
             this.expandedGroups = new Set();
@@ -210,7 +209,7 @@ Vue.component('bulk-reassign-modal', {
         toggleUser(userid) {
             if (this.selectedUserIds.has(userid)) this.selectedUserIds.delete(userid);
             else this.selectedUserIds.add(userid);
-            this.selectedUserIds = new Set(this.selectedUserIds); // trigger reactivity
+            this.selectedUserIds = new Set(this.selectedUserIds);
         },
         toggleGroup(g) {
             const ids = g.students.map(s => s.userid);
@@ -235,7 +234,7 @@ Vue.component('bulk-reassign-modal', {
             this.selectedUserIds = new Set();
         },
         toggleGroupExpanded(g) {
-            const k = g.period_id + '-' + g.subperiod_id;
+            const k = g.period_id;
             if (this.expandedGroups.has(k)) this.expandedGroups.delete(k);
             else this.expandedGroups.add(k);
             this.expandedGroups = new Set(this.expandedGroups);
@@ -248,13 +247,10 @@ Vue.component('bulk-reassign-modal', {
             this.saving = true;
             this.error = '';
             try {
-                // userids is external_multiple_structure(PARAM_INT) — send as
-                // repeated query params: userids=1&userids=2&userids=3
-                // (buildWsUrl handles the array → repeated params conversion).
                 const userids = Array.from(this.selectedUserIds);
-                const url = this.buildWsUrl('local_grupomakro_bulk_reassign_students_intake_period', {
+                const url = this.buildWsUrl('local_grupomakro_bulk_update_students_academic_period', {
                     userids: userids,
-                    new_intake_period: this.destPeriod,
+                    new_academic_periodid: parseInt(this.destPeriodId, 10),
                 });
                 const resp = await fetch(url, {
                     method: 'POST',
@@ -274,9 +270,11 @@ Vue.component('bulk-reassign-modal', {
                 this.$emit('done', {
                     updatedCount: data.updated_count,
                     failedCount:  data.failed_count,
-                    destPeriod:   this.destPeriod,
+                    destPeriod:   data.new_period_name,
                     message:      data.message,
                 });
+                // Refetch so the moved students disappear from the table.
+                this.fetchStudents();
             } catch (e) {
                 this.setError('[1] fetch: ' + (e.message || String(e)), e);
             } finally {
@@ -291,18 +289,18 @@ Vue.component('bulk-reassign-modal', {
         <div class="tl-modal-head">
             <div class="tl-modal-head-info">
                 <div class="tl-modal-avatar">
-                    <v-icon dark size="22">mdi-account-multiple-convert</v-icon>
+                    <v-icon dark size="22">mdi-school</v-icon>
                 </div>
                 <div>
-                    <h3 class="tl-modal-title">Reclasificar cohorte</h3>
+                    <h3 class="tl-modal-title">Reclasificar periodo lectivo</h3>
                     <div class="tl-modal-sub">
                         <span class="tl-modal-chip">
-                            <v-icon size="12" color="#6366F1">mdi-school</v-icon>
+                            <v-icon size="12" color="#6366F1">mdi-book-open-variant</v-icon>
                             {{ careerName }}
                         </span>
-                        <span class="tl-modal-chip" style="background:#FEF3C7;color:#92400E;">
-                            <v-icon size="12" color="#F59E0B">mdi-calendar-multiple</v-icon>
-                            Desde: {{ cohort }}
+                        <span class="tl-modal-chip" style="background:#DBEAFE;color:#1E40AF;">
+                            <v-icon size="12" color="#3B82F6">mdi-account-group</v-icon>
+                            {{ total }} estudiante{{ total !== 1 ? 's' : '' }}
                         </span>
                     </div>
                 </div>
@@ -318,7 +316,7 @@ Vue.component('bulk-reassign-modal', {
                 <v-icon size="18" color="#6366F1">mdi-account-group</v-icon>
                 <div>
                     <div class="tl-modal-kpi-num">{{ total }}</div>
-                    <div class="tl-modal-kpi-lbl">En cohorte</div>
+                    <div class="tl-modal-kpi-lbl">En plan</div>
                 </div>
             </div>
             <div class="tl-modal-kpi">
@@ -339,14 +337,18 @@ Vue.component('bulk-reassign-modal', {
                 <v-icon size="18" color="#475569">mdi-shape</v-icon>
                 <div>
                     <div class="tl-modal-kpi-num">{{ groups.length }}</div>
-                    <div class="tl-modal-kpi-lbl">Bimestres</div>
+                    <div class="tl-modal-kpi-lbl">Periodos</div>
                 </div>
             </div>
         </div>
 
-        <!-- Toolbar (search + select all) -->
+        <!-- Toolbar (filter + select all) -->
         <div class="tl-modal-toolbar">
             <div style="display:flex;align-items:center;gap:10px;">
+                <label class="tl-filter-toggle" style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:6px 10px;border-radius:6px;background:#F0FDF4;border:1px solid #BBF7D0;">
+                    <input type="checkbox" v-model="onlyActive" style="margin:0;" />
+                    <span style="font-size:13px;color:#166534;font-weight:500;">Solo activos</span>
+                </label>
                 <div class="tl-modal-search" style="flex:1;">
                     <v-icon size="16" color="#94A3B8">mdi-magnify</v-icon>
                     <input
@@ -391,7 +393,7 @@ Vue.component('bulk-reassign-modal', {
         <v-card-text class="tl-modal-table-wrap" style="padding:0;">
             <div v-if="loading" style="padding:60px 24px;text-align:center;color:#94A3B8;">
                 <v-progress-circular indeterminate color="#6366F1" size="40" width="3" />
-                <p style="margin:12px 0 0;font-size:13px;">Cargando estudiantes de la cohorte {{ cohort }}...</p>
+                <p style="margin:12px 0 0;font-size:13px;">Cargando estudiantes del plan {{ careerName }}...</p>
             </div>
 
             <div v-else-if="error && groups.length === 0" class="tl-panel-error">
@@ -404,8 +406,12 @@ Vue.component('bulk-reassign-modal', {
                 <div class="tl-empty-icon">
                     <v-icon size="40" color="#94A3B8">mdi-account-off</v-icon>
                 </div>
-                <p class="tl-empty-title">No hay estudiantes en esta cohorte</p>
-                <p class="tl-empty-sub">La cohorte {{ cohort }} no tiene estudiantes matriculados en {{ careerName }}.</p>
+                <p class="tl-empty-title">No hay estudiantes</p>
+                <p class="tl-empty-sub">
+                    {{ onlyActive
+                        ? 'No hay estudiantes activos en este plan. Desactivá el filtro "Solo activos" para ver todos.'
+                        : 'Este plan no tiene estudiantes matriculados.' }}
+                </p>
             </div>
 
             <div v-else>
@@ -415,7 +421,7 @@ Vue.component('bulk-reassign-modal', {
                     {{ error }}
                 </div>
 
-                <div v-for="g in filteredGroups" :key="g.period_id + '-' + g.subperiod_id" class="tl-bulk-group">
+                <div v-for="g in filteredGroups" :key="g.period_id" class="tl-bulk-group">
                     <div class="tl-bulk-group-head" @click="toggleGroupExpanded(g)">
                         <button
                             class="tl-bulk-group-check"
@@ -429,18 +435,18 @@ Vue.component('bulk-reassign-modal', {
                         <div class="tl-bulk-group-title">
                             <div class="tl-bulk-group-name">
                                 <span class="tl-bulk-group-period">{{ g.period_name }}</span>
-                                <span class="tl-bulk-group-sep">·</span>
-                                <span class="tl-bulk-group-subperiod">{{ g.subperiod_name }}</span>
+                                <span v-if="g.period_status === 1" class="tl-badge-active-mini" style="font-size:10px;color:#10B981;font-weight:600;margin-left:6px;">ACTIVO</span>
+                                <span v-else-if="g.period_id !== 0" class="tl-badge-closed-mini" style="font-size:10px;color:#94A3B8;font-weight:600;margin-left:6px;">CERRADO</span>
                             </div>
                             <div class="tl-bulk-group-sub">
                                 {{ g.students.length }} estudiante{{ g.students.length !== 1 ? 's' : '' }}
                             </div>
                         </div>
-                        <v-icon size="18" :style="{ color: '#94A3B8', transform: expandedGroups.has(g.period_id + '-' + g.subperiod_id) ? 'rotate(180deg)' : 'none', transition: 'transform 200ms' }">
+                        <v-icon size="18" :style="{ color: '#94A3B8', transform: expandedGroups.has(g.period_id) ? 'rotate(180deg)' : 'none', transition: 'transform 200ms' }">
                             mdi-chevron-down
                         </v-icon>
                     </div>
-                    <div v-if="expandedGroups.has(g.period_id + '-' + g.subperiod_id)" class="tl-bulk-group-body">
+                    <div v-if="expandedGroups.has(g.period_id)" class="tl-bulk-group-body">
                         <div
                             v-for="s in g.students"
                             :key="s.userid"
@@ -476,10 +482,10 @@ Vue.component('bulk-reassign-modal', {
             </div>
             <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
                 <div class="tl-bulk-dest">
-                    <label class="tl-bulk-dest-lbl">Mover a:</label>
-                    <select v-model="destPeriod" class="tl-bulk-dest-select" :disabled="saving || availablePeriods.length === 0">
-                        <option value="" disabled>Seleccione cohorte</option>
-                        <option v-for="p in availablePeriods" :key="p" :value="p">{{ p }}</option>
+                    <label class="tl-bulk-dest-lbl">Nuevo periodo lectivo:</label>
+                    <select v-model="destPeriodId" class="tl-bulk-dest-select" :disabled="saving || availablePeriods.length === 0">
+                        <option value="" disabled>Seleccione periodo</option>
+                        <option v-for="p in availablePeriods" :key="p.id" :value="p.id">{{ p.name }}{{ p.status === 1 ? ' (Activo)' : ' (Cerrado)' }}</option>
                     </select>
                 </div>
                 <v-btn text small @click="close" :disabled="saving" style="text-transform:none;color:#475569;">Cancelar</v-btn>
@@ -492,7 +498,7 @@ Vue.component('bulk-reassign-modal', {
                     @click="confirm"
                     class="tl-btn-primary"
                     style="text-transform:none;">
-                    <v-icon size="16" left>mdi-account-multiple-arrow-right</v-icon>
+                    <v-icon size="16" left>mdi-calendar-refresh</v-icon>
                     Reclasificar {{ selectedCount > 0 ? '(' + selectedCount + ')' : '' }}
                 </v-btn>
             </div>
