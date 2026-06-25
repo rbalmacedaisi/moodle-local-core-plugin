@@ -57,33 +57,63 @@ class renderer {
         'freeserif' => 'freeserif',
         'freemono' => 'freemono',
         // Google Fonts mapped to the closest core font that ships with tcpdf.
+        // Sans-serif workhorses -> helvetica / freesans (use freesans so
+        // the metrics line up with the editor preview).
         'opensans' => 'freesans',
         'roboto' => 'freesans',
         'montserrat' => 'helvetica',
-        'lora' => 'times',
-        'playfairdisplay' => 'times',
-        'merriweather' => 'times',
-        'ptsans' => 'freesans',
-        'ptserif' => 'freeserif',
         'lato' => 'helvetica',
         'poppins' => 'helvetica',
-        'oswald' => 'helvetica',
         'raleway' => 'helvetica',
+        'oswald' => 'helvetica',
         'notosans' => 'freesans',
-        'notoserif' => 'freeserif',
-        'dancingscript' => 'freeserif',
-        'pacifico' => 'freeserif',
-        'greatvibes' => 'freeserif',
-        'garamond' => 'times',
-        'georgia' => 'times',
+        'ptsans' => 'freesans',
         'verdana' => 'helvetica',
         'tahoma' => 'helvetica',
-        'palatino' => 'times',
         'gillsans' => 'helvetica',
         'segoeui' => 'helvetica',
         'systemui' => 'helvetica',
         'sansserif' => 'helvetica',
+        // Editorial serifs -> times / freeserif.
+        'lora' => 'times',
+        'playfairdisplay' => 'times',
+        'merriweather' => 'times',
+        'notoserif' => 'freeserif',
+        'ptserif' => 'freeserif',
+        'garamond' => 'times',
+        'georgia' => 'times',
+        'palatino' => 'times',
+        'cormorantgaramond' => 'freeserif',
+        'ebgaramond' => 'freeserif',
+        'librebaskerville' => 'times',
+        'cinzel' => 'times',
+        'cinzeldecorative' => 'times',
+        'marcellus' => 'times',
+        'italiana' => 'times',
+        'bodoni' => 'times',
+        'abrilfatface' => 'times',
         'serif' => 'times',
+        // Script / calligraphy -> freeserif (no script face in core tcpdf;
+        // italic freeserif is the closest readable approximation).
+        'dancingscript' => 'freeserif',
+        'pacifico' => 'freeserif',
+        'greatvibes' => 'freeserif',
+        'petitformalscript' => 'freeserif',
+        'pinyonscript' => 'freeserif',
+        'allura' => 'freeserif',
+        'tangerine' => 'freeserif',
+        'sacramento' => 'freeserif',
+        'alexbrush' => 'freeserif',
+        'parisienne' => 'freeserif',
+        'mrdehaviland' => 'freeserif',
+        'italianno' => 'freeserif',
+        'mrssaintdelafield' => 'freeserif',
+        'bilbo' => 'freeserif',
+        'rougescript' => 'freeserif',
+        'allisonscript' => 'freeserif',
+        'labelleaurore' => 'freeserif',
+        'halimun' => 'freeserif',
+        // Monospace.
         'monospace' => 'courier',
     ];
 
@@ -92,7 +122,20 @@ class renderer {
      */
     public static function resolve_tcpdf_font(string $family): string {
         $key = strtolower(preg_replace('/[^a-z0-9]/i', '', $family));
-        return self::FONT_MAP[$key] ?? 'helvetica';
+        if (isset(self::FONT_MAP[$key])) {
+            return self::FONT_MAP[$key];
+        }
+        // Fallback by category heuristic so a typo or unknown face still
+        // produces a readable PDF (serif for serif-ish names, mono for
+        // mono-ish names, sans for everything else).
+        if (str_contains($key, 'mono') || str_contains($key, 'courier') || str_contains($key, 'console')) {
+            return 'courier';
+        }
+        if (str_contains($key, 'script') || str_contains($key, 'hand') || str_contains($key, 'brush')
+            || str_contains($key, 'calli') || str_contains($key, 'vibes') || str_contains($key, 'serif')) {
+            return 'freeserif';
+        }
+        return 'helvetica';
     }
 
     /**
@@ -125,6 +168,32 @@ class renderer {
             default:
                 return 'L';
         }
+    }
+
+    /**
+     * Combine the editor's font-weight (and optional font-style) into a
+     * TCPDF style string. Accepts 'bold' / 'normal' / numeric weights
+     * (300..900) for the weight, plus an optional 'italic' / 'oblique'
+     * style hint. Returns something like '', 'B', 'I', or 'BI'.
+     */
+    public static function normalize_tcpdf_style(string $weight, string $style = ''): string {
+        $w = strtolower(trim($weight));
+        $s = strtolower(trim($style));
+        $bold = false;
+        // Named weights.
+        if (in_array($w, ['bold', 'bolder', 'black', 'heavy'], true)) {
+            $bold = true;
+        }
+        // Numeric weights (CSS): >= 600 counts as bold.
+        if (is_numeric($w) && (int)$w >= 600) {
+            $bold = true;
+        }
+        $italic = in_array($s, ['italic', 'oblique', 'i'], true)
+            || in_array($w, ['italic', 'oblique'], true);
+        $out = '';
+        if ($bold) { $out .= 'B'; }
+        if ($italic) { $out .= 'I'; }
+        return $out;
     }
 
     /**
@@ -222,7 +291,7 @@ class renderer {
         $rotation = (float)$f->rotation;
         $align = self::normalize_tcpdf_align((string)$f->align);
         $family = self::resolve_tcpdf_font((string)$f->font_family);
-        $style = ((string)$f->font_weight) === 'bold' ? 'B' : '';
+        $style = self::normalize_tcpdf_style((string)$f->font_weight, (string)($f->font_style ?? ''));
         $fontsize = (float)$f->font_size;
         $lineheight = max(0.8, (float)$f->line_height);
         $color = manager::normalize_color((string)$f->font_color);
