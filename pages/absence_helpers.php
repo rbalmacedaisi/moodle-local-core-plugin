@@ -340,7 +340,7 @@ function absd_get_class_enrolled_userids(int $classid): array {
         "SELECT DISTINCT userid
            FROM {gmk_course_progre}
           WHERE classid = :classid
-            AND status = 1",
+            AND status = 2",
         ['classid' => $classid]
     );
     return array_values(array_unique(array_filter(array_map('intval', $userids))));
@@ -906,7 +906,7 @@ function absd_is_user_enrolled_in_class(int $userid, int $classid): bool {
     }
     return $DB->record_exists_select(
         'gmk_course_progre',
-        'userid = ? AND classid = ? AND status = 1',
+        'userid = ? AND classid = ? AND status = 2',
         [$userid, $classid]
     );
 }
@@ -926,7 +926,7 @@ function absd_is_user_enrolled_in_class(int $userid, int $classid): bool {
  *  - any level drop resets info_dismissed_at and warning_dismissed_at so
  *    the student re-sees the alert if the count climbs back up.
  *
- * When the user is not currently enrolled in the class (status = 1
+ * When the user is not currently enrolled in the class (status = 2
  * "Cursando" in gmk_course_progre), any pre-existing absence_state row
  * is purged (best-effort cleanup) and a no-transition result is returned.
  *
@@ -1318,7 +1318,7 @@ function absd_check_global_inactivity(int $userid): array {
            FROM {gmk_course_progre} gcp
            JOIN {gmk_class} gc ON gc.id = gcp.classid
           WHERE gcp.userid = :uid
-            AND gcp.status = 1
+            AND gcp.status = 2
             AND gc.approved = 1
             AND gc.closed = 0
             AND gc.enddate > :now",
@@ -1361,7 +1361,7 @@ function absd_build_absence_summary(int $userid): array {
          INNER JOIN {gmk_course_progre} gcp
                  ON gcp.userid = s.userid
                 AND gcp.classid = s.classid
-                AND gcp.status = 1
+                AND gcp.status = 2
           LEFT JOIN {gmk_class} gc ON gc.id = s.classid
           LEFT JOIN {course}    c  ON c.id  = COALESCE(gc.courseid, gc.corecourseid)
               WHERE s.userid = :uid
@@ -1443,7 +1443,7 @@ function absd_get_course_absence_for_user(int $userid, int $courseid): ?array {
      INNER JOIN {gmk_course_progre} gcp
              ON gcp.userid = s.userid
             AND gcp.classid = s.classid
-            AND gcp.status = 1
+            AND gcp.status = 2
            JOIN {gmk_class} gc ON gc.id = s.classid
           WHERE s.userid = :uid
             AND (gc.courseid = :cid OR gc.corecourseid = :cid2)
@@ -1544,7 +1544,7 @@ function absd_run_staged_absence_check(): array {
                FROM {gmk_course_progre} gcp
                JOIN {gmk_class} gc ON gc.id = gcp.classid
           LEFT JOIN {user} u ON u.id = gcp.userid
-              WHERE gcp.status = 1
+              WHERE gcp.status = 2
                 AND gc.approved = 1
                 AND gc.closed = 0
                 AND gc.enddate > :now

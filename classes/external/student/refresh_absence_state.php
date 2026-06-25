@@ -61,7 +61,7 @@ class refresh_absence_state extends external_api {
                FROM {gmk_course_progre} gcp
                JOIN {gmk_class} gc ON gc.id = gcp.classid
               WHERE gcp.userid = :uid
-                AND gcp.status = 1
+                AND gcp.status = 2
                 AND gc.approved = 1
                 AND gc.closed = 0
                 AND gc.enddate > :now",
