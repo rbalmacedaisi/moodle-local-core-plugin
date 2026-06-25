@@ -16,6 +16,7 @@
 
     Vue.component('diplomageneration', {
         template: `
+            <div>
             <v-container fluid style="max-width: 100% !important;" class="pa-0">
                 <v-row class="ma-0">
                     <v-col cols="12" class="py-2">
@@ -345,6 +346,7 @@
                     </v-card-actions>
                 </v-card>
             </v-dialog>
+            </div>
         `,
         data() {
             return {
