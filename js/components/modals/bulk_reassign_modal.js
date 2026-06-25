@@ -31,6 +31,7 @@ Vue.component('bulk-reassign-modal', {
             loading:        false,
             saving:         false,
             error:          '',
+            errorDetail:    '',
             groups:         [],     // [{period_name, subperiod_name, students: [...]}]
             availablePeriods: [],   // ['2024','2025','2026',...]
             total:          0,
@@ -101,6 +102,7 @@ Vue.component('bulk-reassign-modal', {
         async fetchStudents() {
             this.loading = true;
             this.error = '';
+            this.errorDetail = '';
             this.selectedUserIds = new Set();
             try {
                 const resp = await axios.get(this.wsUrl, {
@@ -122,9 +124,26 @@ Vue.component('bulk-reassign-modal', {
                 // expand all groups by default
                 this.expandedGroups = new Set(this.groups.map(g => g.period_id + '-' + g.subperiod_id));
             } catch (e) {
-                this.error = (e.response && e.response.data && e.response.data.message)
-                    || e.message
-                    || 'Error al cargar los estudiantes de la cohorte';
+                // Full diagnostic for debugging. Shows the user the exact cause
+                // instead of just a generic message.
+                var parts = [];
+                parts.push('MSG: ' + (e.message || String(e)));
+                if (e.name) parts.push('NAME: ' + e.name);
+                if (e.code) parts.push('CODE: ' + e.code);
+                if (e.stack) parts.push('STACK:\n' + e.stack);
+                if (e.response) {
+                    parts.push('HTTP_STATUS: ' + e.response.status);
+                    parts.push('RESPONSE_DATA: ' + JSON.stringify(e.response.data));
+                    if (e.response.config) {
+                        parts.push('REQUEST_URL: ' + e.response.config.url);
+                    }
+                }
+                if (e.config && !e.response) {
+                    parts.push('REQUEST_URL: ' + e.config.url);
+                }
+                this.error = e.message || 'Error al cargar los estudiantes de la cohorte';
+                this.errorDetail = parts.join('\n');
+                console.error('[bulk_reassign] fetchStudents error:', e, '\n' + this.errorDetail);
             } finally {
                 this.loading = false;
             }
@@ -319,6 +338,10 @@ Vue.component('bulk-reassign-modal', {
             <div v-else-if="error && groups.length === 0" class="tl-panel-error">
                 <v-icon size="40" color="#EF4444">mdi-alert-circle</v-icon>
                 <p>{{ error }}</p>
+                <details v-if="errorDetail" style="margin-top:8px;text-align:left;">
+                    <summary style="cursor:pointer;color:#6366F1;font-size:12px;">Detalle técnico</summary>
+                    <pre style="font-size:10px;background:#F1F5F9;padding:8px;border-radius:4px;overflow:auto;max-height:200px;white-space:pre-wrap;">{{ errorDetail }}</pre>
+                </details>
                 <button class="tl-btn-secondary" @click="fetchStudents">Reintentar</button>
             </div>
 
