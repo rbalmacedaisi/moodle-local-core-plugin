@@ -932,7 +932,7 @@ public static function list_eligible_graduands(?int $learningplanid = null, stri
      * @param int $actorid
      * @return array Summary with success/errors and IDs.
      */
-    public static function generate_diplomas(int $templateid, array $items, int $actorid): array {
+public static function generate_diplomas(int $templateid, array $items, int $actorid): array {
         global $DB;
         $template = $DB->get_record('gmk_diploma_template', ['id' => $templateid], '*', MUST_EXIST);
         $fields = $DB->get_records('gmk_diploma_tpl_field', ['templateid' => $templateid], 'z_index ASC, id ASC');
@@ -958,7 +958,7 @@ public static function list_eligible_graduands(?int $learningplanid = null, stri
                        JOIN {local_learning_plans} lp ON lp.id = lu.learningplanid
                   LEFT JOIN {local_learning_periods} lp2 ON lp2.id = lu.currentperiodid
                   LEFT JOIN {local_learning_subperiods} lsp ON lsp.id = lu.currentsubperiodid
-                      WHERE lu.userid = :uid AND lu.learningplanid = :lpid AND lu.userrolename = 'student'",
+                       WHERE lu.userid = :uid AND lu.learningplanid = :lpid AND lu.userrolename = 'student'",
                     ['uid' => $userid, 'lpid' => $lpid]
                 );
                 $token = self::generate_verification_token();
@@ -966,6 +966,8 @@ public static function list_eligible_graduands(?int $learningplanid = null, stri
                 $number = self::generate_diploma_number($user, $lp);
                 $now = time();
 
+                // Pre-build the generation record so we can pass it to the
+                // renderer (it needs id/diploma_number for substitution).
                 $generation = (object)[
                     'templateid' => $templateid,
                     'userid' => $userid,
@@ -985,24 +987,30 @@ public static function list_eligible_graduands(?int $learningplanid = null, stri
                     'timecreated' => $now,
                     'timemodified' => $now,
                 ];
-                $genid = $DB->insert_record('gmk_diploma_generation', $generation);
 
-                // Render PDF using renderer.
+                // Render the PDF BEFORE inserting the generation row. If
+                // the renderer throws (missing font, etc.) we skip this
+                // item entirely so we don't leave orphan "generated" rows
+                // with no associated document.
                 $renderer = new renderer();
                 $pdfbytes = $renderer->render_pdf($template, $fields, $user, $lp ?: null, $generation, $verificationurl);
 
-                // Persist file.
+                // Persist file in Moodle's file storage.
                 $fs = get_file_storage();
-                $filename = 'diploma_' . $templateid . '_' . $userid . '_' . $genid . '.pdf';
+                $filename = 'diploma_' . $templateid . '_' . $userid . '_' . ($generation->diploma_number ?? $now) . '.pdf';
                 $filerec = (object)[
                     'contextid' => context_system::instance()->id,
                     'component' => 'local_grupomakro_core',
                     'filearea' => self::FILEAREA_DOCUMENT,
-                    'itemid' => $genid,
+                    'itemid' => 0, // Will be set to the generation id below.
                     'filepath' => '/',
                     'filename' => $filename,
                     'userid' => $actorid,
                 ];
+
+                // Now insert the generation row (after PDF renders OK).
+                $genid = $DB->insert_record('gmk_diploma_generation', $generation);
+                $filerec->itemid = $genid;
                 $stored = $fs->create_file_from_string($filerec, $pdfbytes);
 
                 $docrec = (object)[
@@ -1028,6 +1036,18 @@ public static function list_eligible_graduands(?int $learningplanid = null, stri
                 ];
                 $success++;
             } catch (Throwable $e) {
+                // Log to error log so admins can debug future failures.
+                debugging(
+                    'diploma generate_diplomas failed for user=' . $userid . ' plan=' . $lpid
+                    . ' template=' . $templateid . ': ' . $e->getMessage()
+                    . ' @ ' . $e->getFile() . ':' . $e->getLine(),
+                    DEBUG_NORMAL
+                );
+                error_log(
+                    '[grupomakro_core] diploma generation failed: '
+                    . 'user=' . $userid . ' plan=' . $lpid . ' template=' . $templateid
+                    . ' err=' . $e->getMessage()
+                );
                 $errors++;
             }
         }

@@ -34,40 +34,46 @@ use stdClass;
  */
 class renderer {
     /**
-     * Maps our custom font family names to TCPDF built-in fonts.
-     * TCPDF accepts custom fonts if registered, but for a portable default
-     * we map the most common Google Fonts to TCPDF core fonts.
+     * Maps our custom font family names to TCPDF built-in fonts that are
+     * actually shipped with the bundled tcpdf library on this Moodle
+     * install. The available core fonts in /lib/tcpdf/fonts are:
+     *   helvetica, times, courier, freesans, freeserif, freemono
+     * and their bold/italic variants. Older maps referenced dejavu*
+     * which are NOT present in this distro, causing TCPDF to abort
+     * with "Could not include font definition file".
      *
      * @var array<string,string>
      */
     private const FONT_MAP = [
+        // Direct aliases (case/formatting-normalized keys).
         'helvetica' => 'helvetica',
         'arial' => 'helvetica',
         'times' => 'times',
         'timesnewroman' => 'times',
         'courier' => 'courier',
-        'dejavusans' => 'dejavusans',
-        'dejavuserif' => 'dejavuserif',
+        'dejavusans' => 'freesans',
+        'dejavuserif' => 'freeserif',
         'freesans' => 'freesans',
         'freeserif' => 'freeserif',
         'freemono' => 'freemono',
-        'opensans' => 'dejavusans',
-        'roboto' => 'dejavusans',
+        // Google Fonts mapped to the closest core font that ships with tcpdf.
+        'opensans' => 'freesans',
+        'roboto' => 'freesans',
         'montserrat' => 'helvetica',
         'lora' => 'times',
         'playfairdisplay' => 'times',
         'merriweather' => 'times',
-        'ptsans' => 'dejavusans',
-        'ptsernif' => 'dejavuserif',
+        'ptsans' => 'freesans',
+        'ptserif' => 'freeserif',
         'lato' => 'helvetica',
         'poppins' => 'helvetica',
         'oswald' => 'helvetica',
         'raleway' => 'helvetica',
-        'notosans' => 'dejavusans',
-        'notoserif' => 'dejavuserif',
-        'dancingscript' => 'dejavuserif',
-        'pacifico' => 'dejavuserif',
-        'greatvibes' => 'dejavuserif',
+        'notosans' => 'freesans',
+        'notoserif' => 'freeserif',
+        'dancingscript' => 'freeserif',
+        'pacifico' => 'freeserif',
+        'greatvibes' => 'freeserif',
         'garamond' => 'times',
         'georgia' => 'times',
         'verdana' => 'helvetica',
@@ -75,6 +81,10 @@ class renderer {
         'palatino' => 'times',
         'gillsans' => 'helvetica',
         'segoeui' => 'helvetica',
+        'systemui' => 'helvetica',
+        'sansserif' => 'helvetica',
+        'serif' => 'times',
+        'monospace' => 'courier',
     ];
 
     /**
