@@ -67,6 +67,39 @@ echo $OUTPUT->header();
 <script src="<?php echo $CFG->wwwroot; ?>/local/grupomakro_core/js/components/panels/subjectspanel.js?v=<?php echo $assetversion; ?>"></script>
 <script src="<?php echo $CFG->wwwroot; ?>/local/grupomakro_core/js/components/timeline/intake_timeline.js?v=<?php echo $assetversion; ?>"></script>
 
+<div id="gmk-js-error-overlay" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99999;background:#B91C1C;color:#fff;padding:16px;font-family:monospace;font-size:12px;max-height:50vh;overflow:auto;white-space:pre-wrap;"></div>
+<script>
+  (function () {
+    var overlay = document.getElementById('gmk-js-error-overlay');
+    function show(msg) {
+      overlay.style.display = 'block';
+      overlay.textContent += msg + '\n\n';
+      // Also dump to console so it shows up in DevTools.
+      console.error('[gmk-error-overlay]', msg);
+    }
+    window.addEventListener('error', function (ev) {
+      show('window.error: ' + (ev.message || ev.error) +
+           '\n  at ' + (ev.filename || '?') + ':' + (ev.lineno || '?') + ':' + (ev.colno || '?') +
+           (ev.error && ev.error.stack ? '\n  stack: ' + ev.error.stack : ''));
+    });
+    window.addEventListener('unhandledrejection', function (ev) {
+      var r = ev.reason;
+      show('unhandledrejection: ' + (r && r.message ? r.message : r) +
+           (r && r.stack ? '\n  stack: ' + r.stack : ''));
+    });
+    // Hook Vue's global error handler too.
+    var orig = window.Vue && window.Vue.config && window.Vue.config.errorHandler;
+    if (window.Vue) {
+      window.Vue.config.errorHandler = function (err, vm, info) {
+        show('Vue.error: ' + (err && err.message ? err.message : err) +
+             (info ? '\n  info: ' + info : '') +
+             (err && err.stack ? '\n  stack: ' + err.stack : ''));
+        if (typeof orig === 'function') orig.apply(this, arguments);
+      };
+    }
+  })();
+</script>
+
 <script>
   new Vue({
     el: '#gmk-career-timeline-app',
