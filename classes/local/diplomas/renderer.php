@@ -118,10 +118,80 @@ class renderer {
     ];
 
     /**
+     * Directory holding optional Google Fonts TTF files. Files must be
+     * named "<key>__<OriginalFile>.ttf" where <key> matches the value
+     * saved in the template editor (e.g. 'lato', 'montserrat').
+     *
+     * The directory is created on demand by the bin/download_diploma_fonts
+     * helper which clones google/fonts and copies the relevant families.
+     * It is .gitignore'd so the repo stays light.
+     */
+    public static function custom_font_dir(): string {
+        global $CFG;
+        return $CFG->dirroot . '/local/grupomakro_core/tcpdf_fonts';
+    }
+
+    /**
+     * Look up the TTF file for a given font key inside tcpdf_fonts/ and
+     * register it with TCPDF the first time it is requested. Returns the
+     * registered font name (the value TCPDF expects on SetFont) or null
+     * if no TTF was found.
+     *
+     * Variable fonts (Google Fonts [wght] / [wdth,wght] files) are NOT
+     * supported by TCPDF so they are skipped.
+     *
+     * @param string $key Normalised font key (e.g. 'lato').
+     * @return string|null Registered font name or null.
+     */
+    public static function register_custom_font(string $key): ?string {
+        static $cache = [];
+        if (isset($cache[$key])) {
+            return $cache[$key];
+        }
+        $dir = self::custom_font_dir();
+        if (!is_dir($dir)) {
+            return null;
+        }
+        // Prefer a Regular weight TTF first, then any non-variable TTF.
+        $ttf = null;
+        $candidates = glob($dir . '/' . $key . '__*Regular.ttf') ?: [];
+        if (!$candidates) {
+            $candidates = glob($dir . '/' . $key . '__*.ttf') ?: [];
+        }
+        foreach ($candidates as $cand) {
+            if (strpos($cand, '[wght]') === false && strpos($cand, '[wdth') === false) {
+                $ttf = $cand;
+                break;
+            }
+        }
+        if (!$ttf || !is_readable($ttf)) {
+            return null;
+        }
+        try {
+            $registered = \TCPDF::addTTFfont($ttf, 'TrueTypeUnicode', '', 32);
+            $cache[$key] = $registered;
+            return $registered;
+        } catch (Throwable $e) {
+            debugging('diploma custom font registration failed for ' . $key
+                . ': ' . $e->getMessage(), DEBUG_NORMAL);
+            return null;
+        }
+    }
+
+    /**
      * Map a user-supplied font family to a TCPDF-supported core font.
+     *
+     * If a matching TTF is present in tcpdf_fonts/, that real face is
+     * used (registered with TCPDF). Otherwise we fall back to the
+     * closest bundled core font.
      */
     public static function resolve_tcpdf_font(string $family): string {
         $key = strtolower(preg_replace('/[^a-z0-9]/i', '', $family));
+        // Try the real TTF first.
+        $custom = self::register_custom_font($key);
+        if ($custom) {
+            return $custom;
+        }
         if (isset(self::FONT_MAP[$key])) {
             return self::FONT_MAP[$key];
         }
