@@ -97,26 +97,25 @@ Vue.component('bulk-reassign-modal', {
             const key = (g.period_name + g.subperiod_name).split('').reduce((a, c) => a + c.charCodeAt(0), 0);
             return palette[key % palette.length];
         },
+        wsUrl() { return window.location.origin + '/webservice/rest/server.php'; },
         async fetchStudents() {
             this.loading = true;
             this.error = '';
             this.selectedUserIds = new Set();
             try {
-                const resp = await axios.post(M.cfg.wwwroot + '/lib/ajax/service.php', {
-                    wsfunction: 'local_grupomakro_get_students_by_intake_period',
-                    moodlewsrestformat: 'json',
+                const resp = await axios.get(this.wsUrl, {
                     params: {
+                        wstoken: userToken,
+                        wsfunction: 'local_grupomakro_get_students_by_intake_period',
+                        moodlewsrestformat: 'json',
                         learningplanid: parseInt(this.learningPlanId, 10),
                         intake_period:  this.cohort,
                     },
-                }, {
-                    headers: {
-                        'X-CSRF-Token': userToken,
-                        'Content-Type': 'application/json',
-                    },
                 });
-                if (resp.data && resp.data.error) throw new Error(resp.data.error);
-                const data = (resp.data && resp.data.data) || resp.data;
+                const data = resp.data;
+                if (data && data.exception) {
+                    throw new Error(data.message || data.errorcode || 'Error del servidor');
+                }
                 this.groups = data.groups || [];
                 this.availablePeriods = (data.available_periods || []).filter(p => p !== this.cohort);
                 this.total = data.total || 0;
@@ -171,21 +170,19 @@ Vue.component('bulk-reassign-modal', {
             this.saving = true;
             this.error = '';
             try {
-                const resp = await axios.post(M.cfg.wwwroot + '/lib/ajax/service.php', {
-                    wsfunction: 'local_grupomakro_bulk_reassign_students_intake_period',
-                    moodlewsrestformat: 'json',
+                const resp = await axios.post(this.wsUrl, null, {
                     params: {
-                        userids: Array.from(this.selectedUserIds),
+                        wstoken: userToken,
+                        wsfunction: 'local_grupomakro_bulk_reassign_students_intake_period',
+                        moodlewsrestformat: 'json',
+                        userids: Array.from(this.selectedUserIds).join(','),
                         new_intake_period: this.destPeriod,
                     },
-                }, {
-                    headers: {
-                        'X-CSRF-Token': userToken,
-                        'Content-Type': 'application/json',
-                    },
                 });
-                if (resp.data && resp.data.error) throw new Error(resp.data.error);
-                const data = (resp.data && resp.data.data) || resp.data;
+                const data = resp.data;
+                if (data && data.exception) {
+                    throw new Error(data.message || data.errorcode || 'Error del servidor');
+                }
                 this.$emit('done', {
                     updatedCount: data.updated_count,
                     failedCount:  data.failed_count,
