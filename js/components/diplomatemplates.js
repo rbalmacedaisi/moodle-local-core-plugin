@@ -404,23 +404,6 @@
                     transform: 'scale(' + this.canvasScale + ')',
                     transformOrigin: '0 0'
                 };
-            },
-            /**
-             * Compute a scale factor that fits the canvas inside the wrap
-             * width. Returns 1 (no scale) when the canvas already fits.
-             */
-            computeCanvasScale() {
-                if (!this.selected || !this.$refs.canvasWrap) {
-                    return 1;
-                }
-                var wrap = this.$refs.canvasWrap;
-                // 16px padding on each side of the wrap.
-                var available = wrap.clientWidth - 32;
-                if (available <= 50) { return 1; }
-                var natural = this.selected.width_mm * this.pixelRatio;
-                if (natural <= 0) { return 1; }
-                if (natural <= available) { return 1; }
-                return available / natural;
             }
         },
         watch: {
@@ -516,6 +499,26 @@
                     ro.observe(this.$refs.canvasWrap.parentElement);
                 }
                 this._canvasResizeObserver = ro;
+            },
+            /**
+             * Compute a scale factor that fits the canvas inside the wrap
+             * width. Returns 1 (no scale) when the canvas already fits.
+             * (Was incorrectly placed inside `computed:` previously — Vue
+             * exposed it as the cached value, so calling it as a method
+             * threw 'this.computeCanvasScale is not a function'.)
+             */
+            computeCanvasScale() {
+                if (!this.selected || !this.$refs.canvasWrap) {
+                    return 1;
+                }
+                var wrap = this.$refs.canvasWrap;
+                // 16px padding on each side of the wrap.
+                var available = wrap.clientWidth - 32;
+                if (available <= 50) { return 1; }
+                var natural = this.selected.width_mm * this.pixelRatio;
+                if (natural <= 0) { return 1; }
+                if (natural <= available) { return 1; }
+                return available / natural;
             },
             recomputeCanvasScale() {
                 var next = this.computeCanvasScale();
