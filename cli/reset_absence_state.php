@@ -24,20 +24,25 @@ $keephistory = in_array('--keep-history', $argv, true);
 // Authenticate as the first admin user found (needed for capability checks
 // in helpers that use $USER).
 $admin = $DB->get_record_sql(
-    "SELECT u.id, u.firstname, u.lastname
+    "SELECT u.id, u.firstname, u.lastname, u.username
        FROM {user} u
        JOIN {role_assignments} ra ON ra.userid = u.id
        JOIN {role} r ON r.id = ra.roleid
        JOIN {context} c ON c.id = ra.contextid
-      WHERE r.shortname = 'manager' AND c.contextlevel = :sysctx
-   ORDER BY u.id ASC LIMIT 1",
+      WHERE r.shortname IN ('manager', 'administrator', 'editingteacher', 'coursecreator')
+            AND c.contextlevel = :sysctx
+        AND u.deleted = 0 AND u.suspended = 0
+   ORDER BY (r.shortname = 'administrator') DESC, (r.shortname = 'manager') DESC,
+            u.id ASC
+      LIMIT 1",
     ['sysctx' => CONTEXT_SYSTEM]
 );
 if (!$admin) {
-    // Fallback: any user with the viewabsencedashboard capability.
+    // Fallback: any non-guest, non-deleted user.
     $admin = $DB->get_record_sql(
-        "SELECT u.id, u.firstname, u.lastname
+        "SELECT u.id, u.firstname, u.lastname, u.username
            FROM {user} u
+          WHERE u.id > 1 AND u.deleted = 0 AND u.suspended = 0
        ORDER BY u.id ASC LIMIT 1"
     );
 }
