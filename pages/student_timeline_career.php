@@ -71,32 +71,74 @@ echo $OUTPUT->header();
 <script>
   (function () {
     var overlay = document.getElementById('gmk-js-error-overlay');
-    function show(msg) {
+    function show(tag, msg, extra) {
       overlay.style.display = 'block';
-      overlay.textContent += msg + '\n\n';
-      // Also dump to console so it shows up in DevTools.
-      console.error('[gmk-error-overlay]', msg);
+      var text = '[' + tag + '] ' + msg;
+      if (extra) text += '\n' + extra;
+      overlay.textContent += text + '\n\n';
+      console.error('[gmk-error-overlay]', text);
     }
     window.addEventListener('error', function (ev) {
-      show('window.error: ' + (ev.message || ev.error) +
-           '\n  at ' + (ev.filename || '?') + ':' + (ev.lineno || '?') + ':' + (ev.colno || '?') +
-           (ev.error && ev.error.stack ? '\n  stack: ' + ev.error.stack : ''));
+      show('window.error', (ev.message || (ev.error && ev.error.message) || String(ev.error)),
+        '  at ' + (ev.filename || '?') + ':' + (ev.lineno || '?') + ':' + (ev.colno || '?') +
+        (ev.error && ev.error.stack ? '\n  stack: ' + ev.error.stack : ''));
     });
     window.addEventListener('unhandledrejection', function (ev) {
       var r = ev.reason;
-      show('unhandledrejection: ' + (r && r.message ? r.message : r) +
-           (r && r.stack ? '\n  stack: ' + r.stack : ''));
+      show('unhandledrejection', (r && r.message ? r.message : String(r)),
+        (r && r.stack ? '  stack: ' + r.stack : ''));
     });
-    // Hook Vue's global error handler too.
-    var orig = window.Vue && window.Vue.config && window.Vue.config.errorHandler;
-    if (window.Vue) {
-      window.Vue.config.errorHandler = function (err, vm, info) {
-        show('Vue.error: ' + (err && err.message ? err.message : err) +
-             (info ? '\n  info: ' + info : '') +
-             (err && err.stack ? '\n  stack: ' + err.stack : ''));
-        if (typeof orig === 'function') orig.apply(this, arguments);
-      };
-    }
+    // Patch console.error too — captures Vuetify/Vue warnings that don't throw.
+    var origErr = console.error;
+    console.error = function () {
+      var args = Array.prototype.slice.call(arguments);
+      var msg = args.map(function (a) {
+        if (a instanceof Error) return a.message + (a.stack ? '\n' + a.stack : '');
+        if (typeof a === 'object') { try { return JSON.stringify(a); } catch (e) { return String(a); } }
+        return String(a);
+      }).join(' ');
+      if (msg.indexOf && msg.indexOf('indexOf') !== -1) {
+        show('console.error', msg, '  args: ' + msg.substring(0, 500));
+      }
+      origErr.apply(console, args);
+    };
+    var origWarn = console.warn;
+    console.warn = function () {
+      var args = Array.prototype.slice.call(arguments);
+      var msg = args.map(function (a) {
+        if (a instanceof Error) return a.message + (a.stack ? '\n' + a.stack : '');
+        if (typeof a === 'object') { try { return JSON.stringify(a); } catch (e) { return String(a); } }
+        return String(a);
+      }).join(' ');
+      if (msg.indexOf && msg.indexOf('indexOf') !== -1) {
+        show('console.warn', msg, '  args: ' + msg.substring(0, 500));
+      }
+      origWarn.apply(console, args);
+    };
+    // Hook Vue's global error handler (set up later when Vue loads).
+    document.addEventListener('DOMContentLoaded', function () {
+      var orig = window.Vue && window.Vue.config && window.Vue.config.errorHandler;
+      if (window.Vue) {
+        window.Vue.config.errorHandler = function (err, vm, info) {
+          show('Vue.error', (err && err.message ? err.message : String(err)),
+            '  info: ' + info +
+            (err && err.stack ? '\n  stack: ' + err.stack : '') +
+            (vm && vm.$options && vm.$options._componentTag ? '\n  component: ' + vm.$options._componentTag : ''));
+          if (typeof orig === 'function') orig.apply(this, arguments);
+        };
+        // Also patch Vue's internal warn handler.
+        if (window.Vue.util && window.Vue.util.warn) {
+          var origVueWarn = window.Vue.util.warn;
+          window.Vue.util.warn = function (msg, vm) {
+            if (msg && msg.indexOf && msg.indexOf('indexOf') !== -1) {
+              show('Vue.util.warn', msg,
+                '  vm: ' + (vm && vm.$options && vm.$options._componentTag ? vm.$options._componentTag : '?'));
+            }
+            origVueWarn.apply(this, arguments);
+          };
+        }
+      }
+    });
   })();
 </script>
 
