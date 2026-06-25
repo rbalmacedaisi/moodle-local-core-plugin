@@ -632,7 +632,12 @@
                     });
                     Swal.close();
                     if (res.data && res.data.status === 'success') {
-                        Swal.fire({ icon: 'success', title: this.strings.generation_done || 'Completado', text: res.data.message });
+                        // Use the formatted message from the backend (placeholders
+                        // already replaced via get_string); do NOT use
+                        // this.strings.generation_done as title because it is
+                        // the raw template 'Se generaron {$a->success}...'.
+                        const text = res.data.message || 'Operación completada';
+                        Swal.fire({ icon: 'success', title: 'Completado', text: text });
                         this.selected = [];
                         await this.loadGraduands();
                         await this.loadPlanCounts();
