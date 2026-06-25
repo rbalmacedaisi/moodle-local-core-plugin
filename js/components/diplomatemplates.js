@@ -359,7 +359,10 @@
                 fontItems: FONT_OPTIONS,
                 typeItems: TYPE_OPTIONS,
                 nextLocalId: 1,
-                pixelRatio: 3.2, // CSS px per mm: A4 landscape (297mm) -> 950px
+                // Bumped from 0 -> 1 once document.fonts.ready resolves so
+                // the canvas re-renders with the real Google Font faces.
+                // See waitForFontsThenRefresh() in mounted().
+                fontsReadyTick: 0,
                 // Dynamic scale factor so the canvas always fits the wrap
                 // even on narrow viewports. Mouse coords are divided by
                 // this factor in drag/resize/rotate handlers to keep the
@@ -446,6 +449,13 @@
             // First-pass scale once the layout has settled.
             var self = this;
             this.$nextTick(function () { self.recomputeCanvasScale(); });
+            // Wait for the Google Fonts CSS (loaded via the <link> at the
+            // top of the page) to finish loading BEFORE rendering the
+            // canvas text. Without this, Vue mounts the field divs while
+            // the requested fonts are still pending, so the browser paints
+            // the fallback (Helvetica/Times) and never re-lays the canvas
+            // once the real face arrives.
+            this.waitForFontsThenRefresh();
         },
         beforeDestroy() {
             if (this._canvasResizeObserver) {
@@ -454,6 +464,33 @@
             }
         },
         methods: {
+            /**
+             * Wait for the Google Fonts CSS <link> at the top of the
+             * page to finish loading all the requested families, then
+             * bump fontsReadyTick so the canvas re-renders with the
+             * real faces. Without this, Vue mounts the field divs while
+             * the fonts are still pending and the browser paints the
+             * fallback (Helvetica/Times) without ever re-laying out.
+             */
+            waitForFontsThenRefresh() {
+                if (typeof document === 'undefined' || !document.fonts) {
+                    return;
+                }
+                var self = this;
+                // First pass: resolve the initial promise so we know the
+                // critical fonts are loaded.
+                document.fonts.ready.then(function () {
+                    self.fontsReadyTick++;
+                });
+                // Second pass: also react to any font added later via the
+                // @font-face API (used when admins pick a font we did not
+                // include in the initial Google Fonts URL).
+                if (document.fonts.addEventListener) {
+                    document.fonts.addEventListener('loadingdone', function () {
+                        self.fontsReadyTick++;
+                    });
+                }
+            },
             setupCanvasResizeObserver() {
                 // Re-scale the canvas whenever the wrap size changes
                 // (window resize, sidebar toggle, etc.).
@@ -729,8 +766,14 @@
             contentStyle(f) {
                 // Use the real CSS font-family (resolved from the font
                 // catalog) so the on-canvas preview matches the selected
-                // Google Font. The PDF is still rendered with the closest
-                // TCPDF core font (see renderer FONT_MAP).
+                // Google Font. The PDF now also renders the real face via
+                // TCPDF_FONTS::addTTFfont (see renderer.php).
+                //
+                // Including fontsReadyTick in the returned object keeps the
+                // style reference reactive: when the Google Fonts <link>
+                // finishes loading, the canvas divs get a fresh style
+                // object, Vue re-applies it, and the browser finally paints
+                // the real face instead of the fallback Helvetica/Times.
                 var item = FONT_BY_VALUE[f.font_family] || { family: 'helvetica, sans-serif' };
                 return {
                     fontFamily: item.family,
@@ -738,7 +781,10 @@
                     fontWeight: f.font_weight || 'normal',
                     color: f.font_color || '#000',
                     textAlign: f.align || 'center',
-                    lineHeight: (f.line_height || 1.2)
+                    lineHeight: (f.line_height || 1.2),
+                    // Force reactivity so a fontsReadyTick bump re-applies
+                    // the inline style and the browser re-lays the text.
+                    _fontsTick: this.fontsReadyTick
                 };
             },
             fieldShortLabel(f) {
