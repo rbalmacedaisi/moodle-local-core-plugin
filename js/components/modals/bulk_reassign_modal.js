@@ -98,51 +98,91 @@ Vue.component('bulk-reassign-modal', {
             return palette[key % palette.length];
         },
         wsUrl() { return window.location.origin + '/webservice/rest/server.php'; },
+        // Helper: builds a fetch URL with wstoken as a query param. Native
+        // URLSearchParams replaces axios's paramsSerializer (which had been
+        // throwing "e.indexOf is not a function" from somewhere inside axios).
+        buildWsUrl(wsfunction, extraParams) {
+            const params = new URLSearchParams();
+            params.set('wstoken', userToken);
+            params.set('wsfunction', wsfunction);
+            params.set('moodlewsrestformat', 'json');
+            if (extraParams) {
+                for (const key of Object.keys(extraParams)) {
+                    const v = extraParams[key];
+                    if (Array.isArray(v)) {
+                        // external_multiple_structure expects repeated params:
+                        // userids=1&userids=2 (no [] suffix).
+                        for (const item of v) {
+                            params.append(key, String(item));
+                        }
+                    } else if (v !== undefined && v !== null) {
+                        params.set(key, String(v));
+                    }
+                }
+            }
+            return this.wsUrl + '?' + params.toString();
+        },
         async fetchStudents() {
             this.loading = true;
             this.error = '';
             this.selectedUserIds = new Set();
+
+            let resp, data;
+            // Granular try-catch: each step labelled so the error overlay tells
+            // us exactly which phase broke ([1] fetch, [2] HTTP, [3] JSON, [4] data).
             try {
-                const resp = await axios.get(this.wsUrl, {
-                    params: {
-                        wstoken: userToken,
-                        wsfunction: 'local_grupomakro_get_students_by_intake_period',
-                        moodlewsrestformat: 'json',
-                        learningplanid: parseInt(this.learningPlanId, 10),
-                        intake_period:  this.cohort,
-                    },
+                const url = this.buildWsUrl('local_grupomakro_get_students_by_intake_period', {
+                    learningplanid: parseInt(this.learningPlanId, 10),
+                    intake_period:  this.cohort,
                 });
-                const data = resp.data;
-                if (data && data.exception) {
-                    throw new Error(data.message || data.errorcode || 'Error del servidor');
-                }
-                this.groups = data.groups || [];
-                this.availablePeriods = (data.available_periods || []).filter(p => p !== this.cohort);
-                this.total = data.total || 0;
-                // Don't auto-expand: rendering 76 students × Vuetify components
-                // overflows the browser tab. User clicks a group header to expand.
-                this.expandedGroups = new Set();
+                resp = await fetch(url, { credentials: 'same-origin' });
             } catch (e) {
-                // Keep the user-facing message short. Full diagnostic goes to console
-                // (picked up by the error overlay on the page).
-                this.error = (e.response && e.response.data && e.response.data.message)
-                    || e.message
-                    || 'Error al cargar los estudiantes de la cohorte';
-                console.error('[bulk_reassign] fetchStudents error:', e);
-                if (e.response) {
-                    console.error('[bulk_reassign] HTTP status:', e.response.status);
-                    console.error('[bulk_reassign] response data:', e.response.data);
-                    if (e.response.config) {
-                        console.error('[bulk_reassign] request url:', e.response.config.url);
-                    }
-                } else if (e.config) {
-                    console.error('[bulk_reassign] request url:', e.config.url);
-                }
-                if (e.stack) {
-                    console.error('[bulk_reassign] stack:', e.stack);
-                }
-            } finally {
+                this.setError('[1] fetch: ' + (e.message || String(e)), e);
                 this.loading = false;
+                return;
+            }
+
+            if (!resp.ok) {
+                this.setError('[2] HTTP ' + resp.status + ' ' + resp.statusText);
+                this.loading = false;
+                return;
+            }
+
+            try {
+                data = await resp.json();
+            } catch (e) {
+                this.setError('[3] JSON parse: ' + (e.message || String(e)), e);
+                this.loading = false;
+                return;
+            }
+
+            if (data && data.exception) {
+                this.setError('[4] API: ' + (data.message || data.errorcode || 'exception'));
+                this.loading = false;
+                return;
+            }
+
+            // Object.freeze() tells Vue 2 NOT to make these properties reactive.
+            // With 76 students × 12 fields = 912 reactive props, freezing
+            // cuts the Vue observer overhead (~10x memory) since we never
+            // mutate the loaded data.
+            this.groups = Object.freeze(data.groups || []);
+            this.availablePeriods = Object.freeze(
+                (data.available_periods || []).filter(p => p !== this.cohort)
+            );
+            this.total = data.total || 0;
+            // Don't auto-expand: rendering 76 student rows × Vuetify
+            // components overflows the browser tab. User clicks the
+            // group header to expand.
+            this.expandedGroups = new Set();
+            this.loading = false;
+        },
+        setError(msg, e) {
+            this.error = msg;
+            console.error('[bulk_reassign]', msg);
+            if (e) {
+                console.error('[bulk_reassign] error object:', e);
+                if (e.stack) console.error('[bulk_reassign] stack:', e.stack);
             }
         },
         toggleUser(userid) {
@@ -186,26 +226,28 @@ Vue.component('bulk-reassign-modal', {
             this.saving = true;
             this.error = '';
             try {
-                // userids is external_multiple_structure(PARAM_INT), so we need to
-                // send an actual array. axios serializes arrays as repeated
-                // query params: userids[]=1&userids[]=2&userids[]=3, which
-                // Moodle's REST parser reconstructs into the expected array.
+                // userids is external_multiple_structure(PARAM_INT) — send as
+                // repeated query params: userids=1&userids=2&userids=3
+                // (buildWsUrl handles the array → repeated params conversion).
                 const userids = Array.from(this.selectedUserIds);
-                const resp = await axios.post(this.wsUrl, null, {
-                    params: {
-                        wstoken: userToken,
-                        wsfunction: 'local_grupomakro_bulk_reassign_students_intake_period',
-                        moodlewsrestformat: 'json',
-                        userids: userids,
-                        new_intake_period: this.destPeriod,
-                    },
-                    paramsSerializer: {
-                        indexes: null,  // produces userids=1&userids=2 (no [] suffix)
-                    },
+                const url = this.buildWsUrl('local_grupomakro_bulk_reassign_students_intake_period', {
+                    userids: userids,
+                    new_intake_period: this.destPeriod,
                 });
-                const data = resp.data;
+                const resp = await fetch(url, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                });
+                if (!resp.ok) {
+                    this.setError('[2] HTTP ' + resp.status + ' ' + resp.statusText);
+                    this.saving = false;
+                    return;
+                }
+                const data = await resp.json();
                 if (data && data.exception) {
-                    throw new Error(data.message || data.errorcode || 'Error del servidor');
+                    this.setError('[4] API: ' + (data.message || data.errorcode || 'exception'));
+                    this.saving = false;
+                    return;
                 }
                 this.$emit('done', {
                     updatedCount: data.updated_count,
@@ -214,9 +256,7 @@ Vue.component('bulk-reassign-modal', {
                     message:      data.message,
                 });
             } catch (e) {
-                this.error = (e.response && e.response.data && e.response.data.message)
-                    || e.message
-                    || 'Error al reasignar los estudiantes';
+                this.setError('[1] fetch: ' + (e.message || String(e)), e);
             } finally {
                 this.saving = false;
             }
@@ -378,16 +418,14 @@ Vue.component('bulk-reassign-modal', {
                             mdi-chevron-down
                         </v-icon>
                     </div>
-                    <div v-show="expandedGroups.has(g.period_id + '-' + g.subperiod_id)" class="tl-bulk-group-body">
+                    <div v-if="expandedGroups.has(g.period_id + '-' + g.subperiod_id)" class="tl-bulk-group-body">
                         <div
                             v-for="s in g.students"
                             :key="s.userid"
                             class="tl-bulk-student"
                             :class="{ 'tl-bulk-student-selected': selectedUserIds.has(s.userid) }"
                             @click="toggleUser(s.userid)">
-                            <v-icon size="18" :color="selectedUserIds.has(s.userid) ? '#6366F1' : '#CBD5E1'">
-                                {{ selectedUserIds.has(s.userid) ? 'mdi-checkbox-marked' : 'mdi-checkbox-blank-outline' }}
-                            </v-icon>
+                            <span class="tl-bulk-student-check" :class="{ 'tl-bulk-student-check-on': selectedUserIds.has(s.userid) }">{{ selectedUserIds.has(s.userid) ? '☑' : '☐' }}</span>
                             <div class="tl-modal-avatar-sm">{{ getInitials(s) }}</div>
                             <div class="tl-bulk-student-info">
                                 <div class="tl-modal-student-name">{{ s.fullname }}</div>
