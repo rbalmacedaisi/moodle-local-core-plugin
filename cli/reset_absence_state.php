@@ -15,7 +15,7 @@
  */
 
 define('CLI_SCRIPT', true);
-require(__DIR__ . '/../../config.php');
+require(__DIR__ . '/../../../config.php');
 require_once($CFG->dirroot . '/local/grupomakro_core/pages/absence_helpers.php');
 
 $dryrun      = in_array('--dry-run', $argv, true);
