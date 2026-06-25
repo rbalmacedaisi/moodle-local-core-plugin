@@ -47,8 +47,16 @@ if (!$admin) {
 }
 
 // Pretend the admin is logged in for the duration of this CLI invocation.
-\core\session\manager::login_user($admin->id);
-$USER = get_complete_user_data('id', $admin->id);
+// Moodle 4.x+ signature is login_user(stdClass $user) — fetch the full
+// record and load the user object into $USER so capability checks
+// performed inside the helpers pass.
+$adminobj = core_user::get_user($admin->id);
+if (!$adminobj) {
+    fwrite(STDERR, "Admin user #{$admin->id} not found.\n");
+    exit(1);
+}
+\core\session\manager::login_user($adminobj);
+$USER = $adminobj;
 
 echo "[reset_absence_state] Running as user #{$admin->id} ({$admin->firstname} {$admin->lastname})\n";
 echo "[reset_absence_state] dry_run=" . ($dryrun ? 'yes' : 'no') . "\n";
