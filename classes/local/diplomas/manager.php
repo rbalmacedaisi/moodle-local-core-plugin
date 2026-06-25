@@ -588,28 +588,34 @@ class manager {
      * @param string $search Optional search term (matches user fields).
      * @return array<int, array{user:stdClass,plan:stdClass}>
      */
-    public static function list_eligible_graduands(?int $learningplanid = null, string $search = ''): array {
+public static function list_eligible_graduands(?int $learningplanid = null, string $search = ''): array {
         global $DB;
         // 1) For each (user, plan) pair, verify that every required course is approved.
         $sql = "SELECT lu.userid, lu.learningplanid, lp.name AS planname,
-                       lpcu.currperiodid AS periodid,
+                       lpcu.currentperiodid AS periodid,
                        lper.name AS periodname,
-                       lpcu.currsubperiodid AS subperiodid,
+                       lpcu.currentsubperiodid AS subperiodid,
                        lsp.name AS subperiodname,
                        u.firstname, u.lastname, u.idnumber, u.email, u.username
                   FROM {local_learning_users} lu
                   JOIN {user} u ON u.id = lu.userid AND u.deleted = 0 AND u.suspended = 0
                   JOIN {local_learning_plans} lp ON lp.id = lu.learningplanid
              LEFT JOIN {local_learning_users} lpcu ON lpcu.userid = lu.userid AND lpcu.learningplanid = lu.learningplanid
-             LEFT JOIN {local_learning_periods} lper ON lper.id = lpcu.currperiodid
-             LEFT JOIN {local_learning_subperiods} lsp ON lsp.id = lpcu.currsubperiodid
+             LEFT JOIN {local_learning_periods} lper ON lper.id = lpcu.currentperiodid
+             LEFT JOIN {local_learning_subperiods} lsp ON lsp.id = lpcu.currentsubperiodid
                  WHERE lu.userrolename = 'student'";
         $params = [];
         if ($learningplanid && $learningplanid > 0) {
             $sql .= " AND lu.learningplanid = :lp";
             $params['lp'] = $learningplanid;
         }
-        $candidates = $DB->get_records_sql($sql, $params);
+        // Use recordset so users enrolled in multiple plans are not deduplicated by userid.
+        $rs = $DB->get_recordset_sql($sql, $params);
+        $candidates = [];
+        foreach ($rs as $row) {
+            $candidates[] = $row;
+        }
+        $rs->close();
 
         $out = [];
         foreach ($candidates as $c) {
@@ -620,9 +626,9 @@ class manager {
             }
             $requiredcount = count($required);
             $approved = $DB->count_records_sql(
-                "SELECT COUNT(1)
+                "SELECT COUNT(DISTINCT p.courseid)
                    FROM {gmk_course_progre} p
-                   JOIN {local_learning_courses} lc ON lc.id = p.courseid
+                   JOIN {local_learning_courses} lc ON lc.courseid = p.courseid
                   WHERE p.userid = :userid
                     AND lc.learningplanid = :lp
                     AND lc.isrequired = 1
@@ -703,17 +709,17 @@ class manager {
         global $DB;
 
         $sql = "SELECT lu.userid, lu.learningplanid, lp.name AS planname,
-                       lpcu.currperiodid AS periodid,
+                       lpcu.currentperiodid AS periodid,
                        lper.name AS periodname,
-                       lpcu.currsubperiodid AS subperiodid,
+                       lpcu.currentsubperiodid AS subperiodid,
                        lsp.name AS subperiodname,
                        u.firstname, u.lastname, u.idnumber, u.email, u.username
                   FROM {local_learning_users} lu
                   JOIN {user} u ON u.id = lu.userid AND u.deleted = 0 AND u.suspended = 0
                   JOIN {local_learning_plans} lp ON lp.id = lu.learningplanid
              LEFT JOIN {local_learning_users} lpcu ON lpcu.userid = lu.userid AND lpcu.learningplanid = lu.learningplanid
-             LEFT JOIN {local_learning_periods} lper ON lper.id = lpcu.currperiodid
-             LEFT JOIN {local_learning_subperiods} lsp ON lsp.id = lpcu.currsubperiodid
+             LEFT JOIN {local_learning_periods} lper ON lper.id = lpcu.currentperiodid
+             LEFT JOIN {local_learning_subperiods} lsp ON lsp.id = lpcu.currentsubperiodid
                  WHERE lu.userrolename = 'student'";
         $params = [];
         if ($learningplanid && $learningplanid > 0) {
@@ -726,7 +732,13 @@ class manager {
             $params['s'] = '%' . core_text::strtolower($search) . '%';
         }
         $sql .= " ORDER BY u.lastname ASC, u.firstname ASC";
-        $candidates = $DB->get_records_sql($sql, $params, $limitfrom, $limitnum);
+        // Use recordset so users enrolled in multiple plans are not deduplicated by userid.
+        $rs = $DB->get_recordset_sql($sql, $params, $limitfrom, $limitnum);
+        $candidates = [];
+        foreach ($rs as $row) {
+            $candidates[] = $row;
+        }
+        $rs->close();
 
         $out = [];
         foreach ($candidates as $c) {
@@ -774,9 +786,16 @@ class manager {
     public static function compute_eligibility(int $userid, int $learningplanid): array {
         global $DB;
 
-        // Required courses for the plan.
-        $required = $DB->get_records('local_learning_courses',
-            ['learningplanid' => $learningplanid, 'isrequired' => 1], 'id ASC');
+        // Required courses for the plan. Note: local_learning_courses has no `name` column;
+        // the display name lives in course.fullname.
+        $required = $DB->get_records_sql(
+            "SELECT lc.id, lc.courseid, c.fullname AS coursename
+               FROM {local_learning_courses} lc
+               JOIN {course} c ON c.id = lc.courseid
+              WHERE lc.learningplanid = :lp AND lc.isrequired = 1
+              ORDER BY lc.id ASC",
+            ['lp' => $learningplanid]
+        );
 
         $requiredcount = count($required);
         $passednames = [];
@@ -784,18 +803,20 @@ class manager {
         $passed = 0;
 
         foreach ($required as $rc) {
+            // A user may have multiple rows for the same course (retakes, periods).
+            // Pick the best (latest approved) status with MAX(status).
             $row = $DB->get_record_sql(
-                "SELECT p.status
+                "SELECT MAX(p.status) AS status
                    FROM {gmk_course_progre} p
                   WHERE p.userid = :uid AND p.courseid = :cid",
-                ['uid' => $userid, 'cid' => $rc->id]
+                ['uid' => $userid, 'cid' => $rc->courseid]
             );
             // Status 4 = COURSE_APPROVED (per progress_manager constants).
             if ($row && (int)$row->status === 4) {
                 $passed++;
-                $passednames[] = (string)$rc->name;
+                $passednames[] = (string)$rc->coursename;
             } else {
-                $missednames[] = (string)$rc->name;
+                $missednames[] = (string)$rc->coursename;
             }
         }
 
@@ -929,14 +950,14 @@ class manager {
                 $user = core_user::get_user($userid, '*', MUST_EXIST);
                 $lp = $DB->get_record_sql(
                     "SELECT lp.id AS id, lp.name AS planname,
-                            lu.currperiodid AS periodid,
+                            lu.currentperiodid AS periodid,
                             lp2.name AS periodname,
-                            lu.currsubperiodid AS subperiodid,
+                            lu.currentsubperiodid AS subperiodid,
                             lsp.name AS subperiodname
                        FROM {local_learning_users} lu
                        JOIN {local_learning_plans} lp ON lp.id = lu.learningplanid
-                  LEFT JOIN {local_learning_periods} lp2 ON lp2.id = lu.currperiodid
-                  LEFT JOIN {local_learning_subperiods} lsp ON lsp.id = lu.currsubperiodid
+                  LEFT JOIN {local_learning_periods} lp2 ON lp2.id = lu.currentperiodid
+                  LEFT JOIN {local_learning_subperiods} lsp ON lsp.id = lu.currentsubperiodid
                       WHERE lu.userid = :uid AND lu.learningplanid = :lpid AND lu.userrolename = 'student'",
                     ['uid' => $userid, 'lpid' => $lpid]
                 );
