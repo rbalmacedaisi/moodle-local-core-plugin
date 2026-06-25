@@ -609,7 +609,12 @@ public static function list_eligible_graduands(?int $learningplanid = null, stri
              LEFT JOIN {local_learning_users} lpcu ON lpcu.userid = lu.userid AND lpcu.learningplanid = lu.learningplanid
              LEFT JOIN {local_learning_periods} lper ON lper.id = lpcu.currentperiodid
              LEFT JOIN {local_learning_subperiods} lsp ON lsp.id = lpcu.currentsubperiodid
-                 WHERE lu.userrolename = 'student'";
+                 WHERE lu.userrolename = 'student'
+                   AND EXISTS (
+                       SELECT 1 FROM {local_learning_courses} lcr
+                        WHERE lcr.learningplanid = lu.learningplanid
+                          AND lcr.isrequired = 1
+                   )";
         $params = [];
         if ($learningplanid && $learningplanid > 0) {
             $sql .= " AND lu.learningplanid = :lp";
@@ -733,7 +738,12 @@ public static function list_eligible_graduands(?int $learningplanid = null, stri
              LEFT JOIN {local_learning_users} lpcu ON lpcu.userid = lu.userid AND lpcu.learningplanid = lu.learningplanid
              LEFT JOIN {local_learning_periods} lper ON lper.id = lpcu.currentperiodid
              LEFT JOIN {local_learning_subperiods} lsp ON lsp.id = lpcu.currentsubperiodid
-                 WHERE lu.userrolename = 'student'";
+                 WHERE lu.userrolename = 'student'
+                   AND EXISTS (
+                       SELECT 1 FROM {local_learning_courses} lcr
+                        WHERE lcr.learningplanid = lu.learningplanid
+                          AND lcr.isrequired = 1
+                   )";
         $params = [];
         if ($learningplanid && $learningplanid > 0) {
             $sql .= " AND lu.learningplanid = :lp";
