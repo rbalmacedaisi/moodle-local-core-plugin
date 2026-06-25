@@ -889,6 +889,29 @@ function absd_level_for_count(int $absences): int {
 }
 
 /**
+ * Returns true when the user is currently enrolled in the class with an
+ * active progress status (1 = cursando, 2 = ?, 3 = ?). This is the
+ * canonical predicate for "should this student see absence alerts for
+ * this class?". Centralised here so every code path uses the same
+ * definition.
+ *
+ * @param int $userid
+ * @param int $classid
+ * @return bool
+ */
+function absd_is_user_enrolled_in_class(int $userid, int $classid): bool {
+    global $DB;
+    if ($userid <= 0 || $classid <= 0) {
+        return false;
+    }
+    return $DB->record_exists_select(
+        'gmk_course_progre',
+        'userid = ? AND classid = ? AND status IN (1, 2, 3)',
+        [$userid, $classid]
+    );
+}
+
+/**
  * Recompute the absence state for a single (class, user) pair. Updates
  * gmk_class_absence_state with the latest count, level, last_session_id
  * and last_calculated. Returns the transitions that occurred so callers
@@ -897,6 +920,12 @@ function absd_level_for_count(int $absences): int {
  * The function NEVER blocks the class — that responsibility belongs to
  * absd_apply_class_block so callers (cron, observer, web service) can
  * decide whether to honour the new state.
+ *
+ * When the user is not currently enrolled in the class (status IN 1,2,3
+ * in gmk_course_progre), any pre-existing absence_state row is purged
+ * (best-effort cleanup) and a no-transition result is returned. This
+ * prevents the LXP and dashboard from showing absence alerts for
+ * classes the student is no longer taking.
  *
  * @param stdClass $class  Object with fields id, courseid, corecourseid, groupid, attendancemoduleid, initdate, enddate.
  * @param int $userid
@@ -912,6 +941,34 @@ function absd_level_for_count(int $absences): int {
 function absd_recompute_user_class_state(stdClass $class, int $userid): array {
     global $DB;
     $nowts = time();
+    $empty = [
+        'previous_level' => 0,
+        'current_level'  => 0,
+        'previous_count' => 0,
+        'current_count'  => 0,
+        'transitions'    => [],
+        'was_blocked'    => false,
+    ];
+
+    if (!absd_is_user_enrolled_in_class($userid, (int)$class->id)) {
+        // Not enrolled (anymore): purge any stale row so the LXP stops
+        // showing the alert. Log it for audit.
+        $existing = $DB->get_record('gmk_class_absence_state', [
+            'userid'  => $userid,
+            'classid' => (int)$class->id,
+        ]);
+        if ($existing) {
+            $DB->delete_records('gmk_class_absence_state', ['id' => $existing->id]);
+            absd_log_history(
+                $userid,
+                (int)$class->id,
+                (int)$existing->absence_count,
+                (int)$existing->alert_level,
+                'purged_not_enrolled'
+            );
+        }
+        return $empty;
+    }
 
     $pastsessionids  = absd_get_class_past_session_ids($class, $nowts);
     $takensessionids = absd_get_taken_session_ids($pastsessionids);
@@ -1247,17 +1304,24 @@ function absd_check_global_inactivity(int $userid): array {
 function absd_build_absence_summary(int $userid): array {
     global $DB;
 
+    // INNER JOIN against the active enrollments so stale state rows for
+    // classes the student is no longer taking (status not in 1,2,3) are
+    // never returned to the LXP. This is the LXP-facing filter.
     $sql = "SELECT s.id, s.classid, s.courseid, s.absence_count, s.alert_level,
                    s.info_dismissed_at, s.warning_dismissed_at,
                    s.blocked_at, s.unblocked_at, s.block_reason, s.last_calculated,
                    COALESCE(c.fullname, gc.name) AS coursename,
                    gc.courseid AS classcourseid,
                    gc.corecourseid AS classcorecourseid
-              FROM {gmk_class_absence_state} s
-         LEFT JOIN {gmk_class} gc ON gc.id = s.classid
-         LEFT JOIN {course}    c  ON c.id  = COALESCE(gc.courseid, gc.corecourseid)
-             WHERE s.userid = :uid
-          ORDER BY s.alert_level DESC, COALESCE(c.fullname, gc.name) ASC";
+               FROM {gmk_class_absence_state} s
+         INNER JOIN {gmk_course_progre} gcp
+                 ON gcp.userid = s.userid
+                AND gcp.classid = s.classid
+                AND gcp.status IN (1, 2, 3)
+          LEFT JOIN {gmk_class} gc ON gc.id = s.classid
+          LEFT JOIN {course}    c  ON c.id  = COALESCE(gc.courseid, gc.corecourseid)
+              WHERE s.userid = :uid
+           ORDER BY s.alert_level DESC, COALESCE(c.fullname, gc.name) ASC";
 
     $rows = $DB->get_records_sql($sql, ['uid' => $userid]);
     $classes = [];
@@ -1332,6 +1396,10 @@ function absd_get_course_absence_for_user(int $userid, int $courseid): ?array {
         "SELECT s.classid, s.absence_count, s.alert_level, s.blocked_at, s.unblocked_at,
                 s.info_dismissed_at, s.warning_dismissed_at
            FROM {gmk_class_absence_state} s
+     INNER JOIN {gmk_course_progre} gcp
+             ON gcp.userid = s.userid
+            AND gcp.classid = s.classid
+            AND gcp.status IN (1, 2, 3)
            JOIN {gmk_class} gc ON gc.id = s.classid
           WHERE s.userid = :uid
             AND (gc.courseid = :cid OR gc.corecourseid = :cid2)
