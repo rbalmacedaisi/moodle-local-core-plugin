@@ -926,9 +926,9 @@ function absd_is_user_enrolled_in_class(int $userid, int $classid): bool {
  *  - any level drop resets info_dismissed_at and warning_dismissed_at so
  *    the student re-sees the alert if the count climbs back up.
  *
- * When the user is not currently enrolled in the class (status IN 1,2,3
- * in gmk_course_progre), any pre-existing absence_state row is purged
- * (best-effort cleanup) and a no-transition result is returned.
+ * When the user is not currently enrolled in the class (status = 1
+ * "Cursando" in gmk_course_progre), any pre-existing absence_state row
+ * is purged (best-effort cleanup) and a no-transition result is returned.
  *
  * @param stdClass $class  Object with fields id, courseid, corecourseid, groupid, attendancemoduleid, initdate, enddate.
  * @param int $userid
