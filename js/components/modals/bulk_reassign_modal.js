@@ -88,12 +88,30 @@ Vue.component('bulk-reassign-modal', {
             if (s.fullname) return s.fullname.substring(0, 2).toUpperCase();
             return 'ST';
         },
+        // Status values come from local_learning_users via the WS function
+        // and are in Spanish: 'activo', 'suspendido', 'retirado', 'egresado'.
+        // The previous check only matched English 'active', so everything
+        // rendered as "Inactivo" once the modal finally started loading data.
+        normalizeStatus(status) {
+            const s = String(status == null ? '' : status).toLowerCase().trim();
+            if (s === 'active' || s === 'activo' || s === '1' || s === 1) return 'activo';
+            if (s === 'suspendido' || s === 'suspended') return 'suspendido';
+            if (s === 'retirado' || s === 'withdrawn' || s === 'retired') return 'retirado';
+            if (s === 'egresado' || s === 'graduated') return 'egresado';
+            return s || 'desconocido';
+        },
         getStatusClass(status) {
-            if (status === 'active' || status === '1' || status === 1) return 'tl-status-ok';
+            const n = this.normalizeStatus(status);
+            if (n === 'activo') return 'tl-status-ok';
+            if (n === 'suspendido') return 'tl-status-warn';
             return 'tl-status-off';
         },
         getStatusLabel(status) {
-            if (status === 'active' || status === '1' || status === 1) return 'Activo';
+            const n = this.normalizeStatus(status);
+            if (n === 'activo') return 'Activo';
+            if (n === 'suspendido') return 'Suspendido';
+            if (n === 'retirado') return 'Retirado';
+            if (n === 'egresado') return 'Egresado';
             return 'Inactivo';
         },
         getGroupColor(g) {
