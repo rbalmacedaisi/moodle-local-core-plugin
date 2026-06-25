@@ -995,7 +995,7 @@ public static function generate_diplomas(int $templateid, array $items, int $act
                 $renderer = new renderer();
                 $pdfbytes = $renderer->render_pdf($template, $fields, $user, $lp ?: null, $generation, $verificationurl);
 
-                // Persist file in Moodle's file storage.
+// Persist file in Moodle's file storage.
                 $fs = get_file_storage();
                 $filename = 'diploma_' . $templateid . '_' . $userid . '_' . ($generation->diploma_number ?? $now) . '.pdf';
                 $filerec = (object)[
@@ -1013,9 +1013,17 @@ public static function generate_diplomas(int $templateid, array $items, int $act
                 $filerec->itemid = $genid;
                 $stored = $fs->create_file_from_string($filerec, $pdfbytes);
 
+                // IMPORTANT: gmk_diploma_document.fileitemid must hold the
+                // Moodle file_storage id of the just-created file (the value
+                // returned by $stored->get_id()), NOT the generation id.
+                // Storing the generation id here causes get_file_by_id() to
+                // resolve to whatever file happens to have that id in the
+                // global files table, which is wrong (it was returning a
+                // cross.png asset instead of the diploma PDF).
+                $fileitemid = (int)$stored->get_id();
                 $docrec = (object)[
                     'generationid' => $genid,
-                    'fileitemid' => $genid,
+                    'fileitemid' => $fileitemid,
                     'filename' => $filename,
                     'mimetype' => 'application/pdf',
                     'version' => 1,
