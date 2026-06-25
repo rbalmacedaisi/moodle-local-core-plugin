@@ -653,30 +653,45 @@
                 }
             },
             async downloadOne(item) {
+                // Show a Swal loader while the browser downloads the PDF.
+                // We use a direct redirect to pages/diploma_image.php?gen=X
+                // so the browser handles the streaming natively (no base64
+                // roundtrip through JSON), which is much faster than the
+                // previous AJAX+atob+Blob approach.
+                let swalShown = false;
                 try {
-                    const res = await this.http.post('/', {
-                        action: 'local_grupomakro_diploma_download_generation',
-                        id: item.id
+                    Swal.fire({
+                        title: 'Preparando diploma…',
+                        html: 'El archivo PDF se está descargando.',
+                        allowOutsideClick: false,
+                        allowEscapeKey: false,
+                        didOpen: () => {
+                            swalShown = true;
+                            Swal.showLoading();
+                        }
                     });
-                    if (res.data && res.data.status === 'success') {
-                        const doc = res.data.document;
-                        const binary = atob(doc.contentbase64);
-                        const len = binary.length;
-                        const bytes = new Uint8Array(len);
-                        for (let i = 0; i < len; i++) { bytes[i] = binary.charCodeAt(i); }
-                        const blob = new Blob([bytes], { type: doc.mimetype });
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = doc.filename || ('diploma_' + item.id + '.pdf');
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                        URL.revokeObjectURL(url);
-                    } else {
-                        throw new Error((res.data && res.data.message) || 'Error');
-                    }
+                    // Build the URL with sesskey for CSRF.
+                    const sesskey = (window.M && window.M.cfg && window.M.cfg.sesskey) || '';
+                    const url = (window.location.origin || '') +
+                        '/local/grupomakro_core/pages/diploma_image.php' +
+                        '?gen=' + encodeURIComponent(item.id) +
+                        '&download=1' +
+                        (sesskey ? '&sesskey=' + encodeURIComponent(sesskey) : '');
+                    // Trigger the download. Using a hidden iframe avoids
+                    // navigating the page away.
+                    const iframe = document.createElement('iframe');
+                    iframe.style.display = 'none';
+                    iframe.src = url;
+                    document.body.appendChild(iframe);
+                    // Close the loader shortly after the iframe starts
+                    // loading (the browser keeps the download in the
+                    // background even after we close it).
+                    setTimeout(() => {
+                        if (swalShown) { Swal.close(); swalShown = false; }
+                        try { document.body.removeChild(iframe); } catch (e) { /* noop */ }
+                    }, 1500);
                 } catch (e) {
+                    if (swalShown) { Swal.close(); }
                     Swal.fire({ icon: 'error', title: 'Error', text: e.message || e });
                 }
             },
