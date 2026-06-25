@@ -75,6 +75,8 @@ $strings->document = get_string('diploma_var_documentnumber', $plugin_name);
 $strings->career = get_string('careers', $plugin_name);
 $strings->selected_count = get_string('diploma_selected_count', $plugin_name);
 $strings->eligible_count = get_string('diploma_eligible_count', $plugin_name);
+$strings->cancel = get_string('cancel', $plugin_name);
+$strings->generate_for = get_string('diploma_generate_for', $plugin_name);
 $strings = json_encode($strings);
 
 $token = get_logged_user_token();
