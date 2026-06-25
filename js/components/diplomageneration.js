@@ -123,7 +123,6 @@
                                         :footer-props="{itemsPerPageOptions: [10,20,50,-1]}"
                                         show-select
                                         no-data-text=""
-                                        @click:row="onGraduandClick"
                                     >
                                         <template slot="no-data">
                                             <div class="pa-6 text-center grey--text">
@@ -144,13 +143,25 @@
                                             <v-chip small color="primary" outlined>{{ props.item.plan.name }}</v-chip>
                                         </template>
                                         <template slot="item.eligibility_status" slot-scope="props">
-                                            <span v-if="!props.item.eligibility">
+                                            <span>
                                                 <v-chip v-if="props.item.eligibility && props.item.eligibility.has_diploma" small color="grey" text-color="white">Ya emitido</v-chip>
                                                 <v-chip v-else-if="props.item.eligibility && props.item.eligibility.is_eligible" small color="green" text-color="white">Apto</v-chip>
                                                 <v-chip v-else small color="orange" text-color="white">
                                                     {{ props.item.eligibility.passed_count }}/{{ props.item.eligibility.required_count }}
                                                 </v-chip>
                                             </span>
+                                        </template>
+                                        <template slot="item.actions" slot-scope="props">
+                                            <v-btn
+                                                small
+                                                color="primary"
+                                                outlined
+                                                :loading="detailLoading && detailUserId === props.item.user.id && detailPlanId === props.item.plan.id"
+                                                @click.stop="onGraduandClick(props.item)"
+                                            >
+                                                <v-icon left small>mdi-clipboard-check-outline</v-icon>
+                                                Ver detalle
+                                            </v-btn>
                                         </template>
                                     </v-data-table>
                                 </v-card>
@@ -219,7 +230,7 @@
                 </v-tabs-items>
             </v-container>
 
-            <!-- Eligibility detail popup -->
+            <!-- Eligibility detail popup (checklist of pending / completed requirements) -->
             <v-dialog v-model="detailDialog" max-width="640" scrollable>
                 <v-card v-if="detail">
                     <v-card-title class="d-flex align-center" style="gap: 12px;">
@@ -265,35 +276,59 @@
                             class="mb-4"
                         ></v-progress-linear>
 
-                        <div v-if="detail.eligibility.passed_requirements && detail.eligibility.passed_requirements.length" class="mb-3">
-                            <div class="subtitle-2 green--text text--darken-2 mb-1">
-                                <v-icon small color="green" left>mdi-check-circle</v-icon>
-                                Requisitos cumplidos ({{ detail.eligibility.passed_requirements.length }})
+                        <!-- Checklist of passed requirements -->
+                        <div v-if="detail.eligibility.passed_requirements && detail.eligibility.passed_requirements.length" class="mb-4">
+                            <div class="subtitle-2 green--text text--darken-2 mb-2 d-flex align-center" style="gap: 6px;">
+                                <v-icon color="green">mdi-check-circle</v-icon>
+                                <span>Cumplidas ({{ detail.eligibility.passed_requirements.length }})</span>
                             </div>
-                            <v-chip
-                                v-for="(name, idx) in detail.eligibility.passed_requirements"
-                                :key="'p_' + idx"
-                                small
-                                color="green"
-                                text-color="white"
-                                class="mr-1 mb-1"
-                            >{{ name }}</v-chip>
+                            <v-list dense class="dpl-checklist dpl-checklist-passed">
+                                <v-list-item
+                                    v-for="(name, idx) in detail.eligibility.passed_requirements"
+                                    :key="'p_' + idx"
+                                    class="dpl-checklist-item"
+                                >
+                                    <v-list-item-icon class="mr-2">
+                                        <v-icon color="green">mdi-check-bold</v-icon>
+                                    </v-list-item-icon>
+                                    <v-list-item-content>
+                                        <v-list-item-title class="text--primary">{{ name }}</v-list-item-title>
+                                    </v-list-item-content>
+                                </v-list-item>
+                            </v-list>
                         </div>
 
+                        <!-- Checklist of pending requirements -->
                         <div v-if="detail.eligibility.missing_requirements && detail.eligibility.missing_requirements.length">
-                            <div class="subtitle-2 orange--text text--darken-2 mb-1">
-                                <v-icon small color="orange" left>mdi-close-circle</v-icon>
-                                Requisitos faltantes ({{ detail.eligibility.missing_requirements.length }})
+                            <div class="subtitle-2 orange--text text--darken-2 mb-2 d-flex align-center" style="gap: 6px;">
+                                <v-icon color="orange">mdi-close-circle</v-icon>
+                                <span>Pendientes ({{ detail.eligibility.missing_requirements.length }})</span>
                             </div>
-                            <v-chip
-                                v-for="(name, idx) in detail.eligibility.missing_requirements"
-                                :key="'m_' + idx"
-                                small
-                                color="orange"
-                                text-color="white"
-                                class="mr-1 mb-1"
-                            >{{ name }}</v-chip>
+                            <v-list dense class="dpl-checklist dpl-checklist-pending">
+                                <v-list-item
+                                    v-for="(name, idx) in detail.eligibility.missing_requirements"
+                                    :key="'m_' + idx"
+                                    class="dpl-checklist-item"
+                                >
+                                    <v-list-item-icon class="mr-2">
+                                        <v-icon color="orange">mdi-circle-outline</v-icon>
+                                    </v-list-item-icon>
+                                    <v-list-item-content>
+                                        <v-list-item-title class="text--primary">{{ name }}</v-list-item-title>
+                                    </v-list-item-content>
+                                </v-list-item>
+                            </v-list>
                         </div>
+
+                        <v-alert
+                            v-if="detail.eligibility.required_count === 0"
+                            type="info"
+                            icon="mdi-information"
+                            class="mt-3"
+                            border="left"
+                        >
+                            Este plan no tiene asignaturas obligatorias definidas, por lo que el estudiante se considera apto automáticamente.
+                        </v-alert>
                     </v-card-text>
                     <v-divider></v-divider>
                     <v-card-actions>
@@ -338,7 +373,9 @@
                 detailDialog: false,
                 detailLoading: false,
                 detailError: '',
-                detail: null
+                detail: null,
+                detailUserId: 0,
+                detailPlanId: 0
             };
         },
         computed: {
@@ -367,7 +404,8 @@
                     { text: this.strings.document || 'Documento', value: 'user.documentnumber', sortable: false },
                     { text: this.strings.career || 'Carrera', value: 'plan.name', sortable: true },
                     { text: 'Periodo', value: 'plan.periodname', sortable: false },
-                    { text: 'Estado', value: 'eligibility_status', sortable: false, align: 'center', width: 130 }
+                    { text: 'Estado', value: 'eligibility_status', sortable: false, align: 'center', width: 130 },
+                    { text: 'Acciones', value: 'actions', sortable: false, align: 'end', width: 160 }
                 ];
             },
             genHeaders() {
@@ -414,6 +452,8 @@
                 this.detailDialog = true;
                 this.detail = null;
                 this.detailLoading = true;
+                this.detailUserId = row.user.id;
+                this.detailPlanId = row.plan.id;
                 this.detailError = '';
                 try {
                     const res = await this.http.post('/', {
@@ -430,6 +470,8 @@
                     this.detailError = (e && e.message) || 'No se pudo cargar el detalle';
                 } finally {
                     this.detailLoading = false;
+                    this.detailUserId = 0;
+                    this.detailPlanId = 0;
                 }
             },
             /**

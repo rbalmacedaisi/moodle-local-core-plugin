@@ -106,6 +106,21 @@ echo <<<EOT
     .dpl-card-summary:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,.1); }
     .dpl-career-card.danger { border-left: 4px solid #f44336; }
     .dpl-career-card.success { border-left: 4px solid #4caf50; }
+
+    /* Eligibility checklist styles */
+    .dpl-checklist {
+        background: transparent !important;
+        padding: 0 !important;
+    }
+    .dpl-checklist .v-list-item {
+        min-height: 36px !important;
+        padding: 4px 8px !important;
+        border-bottom: 1px solid rgba(0,0,0,.05);
+    }
+    .dpl-checklist .v-list-item:last-child { border-bottom: none; }
+    .dpl-checklist-passed .v-list-item { background: rgba(76, 175, 80, .05); }
+    .dpl-checklist-pending .v-list-item { background: rgba(255, 152, 0, .04); }
+    .dpl-checklist .v-list-item__icon { min-width: 28px !important; }
 </style>
 
 <script>
