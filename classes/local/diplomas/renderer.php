@@ -96,6 +96,27 @@ class renderer {
     }
 
     /**
+     * Map a friendly alignment token (left/center/right/justify or the
+     * TCPDF single-letter codes) to the single-letter code TCPDF expects
+     * on MultiCell / writeHTML etc. Anything unrecognised falls back to
+     * 'L' so the renderer never throws an undefined-index notice on
+     * legacy rows that might have an empty align column.
+     *
+     * @param string $align
+     * @return string One of 'L', 'C', 'R', 'J'.
+     */
+    public static function normalize_tcpdf_align(string $align): string {
+        $a = strtolower(trim($align));
+        return match ($a) {
+            'l', 'left' => 'L',
+            'c', 'center', 'centre' => 'C',
+            'r', 'right' => 'R',
+            'j', 'justify', 'justified' => 'J',
+            default => 'L',
+        };
+    }
+
+    /**
      * Renders a diploma PDF for the given template, fields and user context.
      *
      * @param stdClass $template Template row.
@@ -188,7 +209,7 @@ class renderer {
         $w = max(5.0, (float)$f->width_mm);
         $h = max(5.0, (float)$f->height_mm);
         $rotation = (float)$f->rotation;
-        $align = (string)$f->align;
+        $align = self::normalize_tcpdf_align((string)$f->align);
         $family = self::resolve_tcpdf_font((string)$f->font_family);
         $style = ((string)$f->font_weight) === 'bold' ? 'B' : '';
         $fontsize = (float)$f->font_size;
