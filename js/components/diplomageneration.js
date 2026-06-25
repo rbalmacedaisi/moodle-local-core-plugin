@@ -608,7 +608,14 @@
                     if (!proceed.isConfirmed) { return; }
                 }
                 const confirm = await Swal.fire({
-                    title: (this.strings.generate_for || 'Generar diploma para {n} estudiante(s)').replace('{n}', this.selected.length),
+                    // Build the title by interpolating the count into the
+                    // lang string ourselves. The lang string template uses
+                    // the Moodle placeholder {$a} which is NOT substituted
+                    // by get_string() when called without args from PHP, so
+                    // we do it here with a plain string replace.
+                    title: (this.strings.generate_for || 'Generar diploma para {n} estudiante(s)')
+                        .replace('{$a}', this.selected.length)
+                        .replace('{n}', this.selected.length),
                     icon: 'question',
                     showCancelButton: true,
                     confirmButtonText: this.strings.generate_selected,
