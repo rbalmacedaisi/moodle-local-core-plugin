@@ -119,8 +119,9 @@ Vue.component('bulk-reassign-modal', {
                 this.groups = data.groups || [];
                 this.availablePeriods = (data.available_periods || []).filter(p => p !== this.cohort);
                 this.total = data.total || 0;
-                // expand all groups by default
-                this.expandedGroups = new Set(this.groups.map(g => g.period_id + '-' + g.subperiod_id));
+                // Don't auto-expand: rendering 76 students × Vuetify components
+                // overflows the browser tab. User clicks a group header to expand.
+                this.expandedGroups = new Set();
             } catch (e) {
                 // Keep the user-facing message short. Full diagnostic goes to console
                 // (picked up by the error overlay on the page).
