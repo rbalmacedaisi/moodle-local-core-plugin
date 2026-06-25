@@ -107,13 +107,24 @@ class renderer {
      */
     public static function normalize_tcpdf_align(string $align): string {
         $a = strtolower(trim($align));
-        return match ($a) {
-            'l', 'left' => 'L',
-            'c', 'center', 'centre' => 'C',
-            'r', 'right' => 'R',
-            'j', 'justify', 'justified' => 'J',
-            default => 'L',
-        };
+        switch ($a) {
+            case 'l':
+            case 'left':
+                return 'L';
+            case 'c':
+            case 'center':
+            case 'centre':
+                return 'C';
+            case 'r':
+            case 'right':
+                return 'R';
+            case 'j':
+            case 'justify':
+            case 'justified':
+                return 'J';
+            default:
+                return 'L';
+        }
     }
 
     /**
