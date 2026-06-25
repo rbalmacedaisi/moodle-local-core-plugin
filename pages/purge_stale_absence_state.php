@@ -30,7 +30,7 @@ $PAGE->set_pagelayout('admin');
 
 echo $OUTPUT->header();
 echo '<h2>Limpieza de estados de inasistencia huérfanos</h2>';
-echo '<p>Elimina filas de <code>gmk_class_absence_state</code> cuyo (userid, classid) ya no está matriculado activamente (status IN 1,2,3 en <code>gmk_course_progre</code>).</p>';
+echo '<p>Elimina filas de <code>gmk_class_absence_state</code> cuyo (userid, classid) ya no está matriculado activamente (status = 1 "Cursando" en <code>gmk_course_progre</code>).</p>';
 
 // Find stale rows.
 $sql = "SELECT s.id, s.userid, s.classid, s.absence_count, s.alert_level
@@ -38,7 +38,7 @@ $sql = "SELECT s.id, s.userid, s.classid, s.absence_count, s.alert_level
      LEFT JOIN {gmk_course_progre} gcp
             ON gcp.userid  = s.userid
            AND gcp.classid = s.classid
-           AND gcp.status IN (1, 2, 3)
+           AND gcp.status = 1
          WHERE gcp.id IS NULL";
 $rows = $DB->get_records_sql($sql);
 $count = count($rows);

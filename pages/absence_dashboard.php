@@ -157,7 +157,7 @@ if (optional_param('abs_ajax', 0, PARAM_INT)) {
 
             $isenrolled = $DB->record_exists_select(
                 'gmk_course_progre',
-                'classid = :classid AND userid = :userid AND status IN (1,2,3)',
+                'classid = :classid AND userid = :userid AND status = 1',
                 ['classid' => $classid, 'userid' => $userid]
             );
             if (!$isenrolled) {
@@ -375,7 +375,7 @@ if (optional_param('abs_ajax', 0, PARAM_INT)) {
                    JOIN {user} u ON u.id = gcp.userid AND u.deleted = 0
               LEFT JOIN {local_learning_users} llu ON llu.userid = gcp.userid
                         AND llu.learningplanid = :planid AND llu.userroleid = 5
-                  WHERE gcp.classid = :classid AND gcp.status IN (1,2,3)
+                  WHERE gcp.classid = :classid AND gcp.status = 1
                   ORDER BY u.lastname, u.firstname",
                 ['classid' => $classid, 'planid' => $class->learningplanid]
             );
@@ -597,7 +597,7 @@ if (optional_param('abs_ajax', 0, PARAM_INT)) {
                        JOIN {user} u ON u.id = gcp.userid AND u.deleted = 0
                   LEFT JOIN {local_learning_users} llu ON llu.userid = gcp.userid
                             AND llu.learningplanid = :planid AND llu.userroleid = 5
-                      WHERE gcp.classid = :classid AND gcp.status IN (1,2,3)",
+                      WHERE gcp.classid = :classid AND gcp.status = 1",
                     ['classid' => $classid, 'planid' => $cls->learningplanid]
                 );
                 $class_uids = [];
@@ -1127,7 +1127,7 @@ function absd_get_class_past_session_ids(stdClass $class, int $nowts): array {
 }
 
 /**
- * Returns enrolled user ids for a class (active statuses only).
+ * Returns enrolled user ids for a class (Cursando only, status = 1).
  *
  * @param int $classid
  * @return int[]
@@ -1138,7 +1138,7 @@ function absd_get_class_enrolled_userids(int $classid): array {
         "SELECT DISTINCT userid
            FROM {gmk_course_progre}
           WHERE classid = :classid
-            AND status IN (1,2,3)",
+            AND status = 1",
         ['classid' => $classid]
     );
     return array_values(array_unique(array_filter(array_map('intval', $userids))));
@@ -1304,7 +1304,7 @@ $class_sel = "SELECT gc.id,
    FROM {gmk_class} gc
    LEFT JOIN {course} c              ON c.id    = gc.corecourseid
    LEFT JOIN {user} u                ON u.id    = gc.instructorid
-   LEFT JOIN {gmk_course_progre} gcp ON gcp.classid = gc.id AND gcp.status IN (1,2,3)";
+   LEFT JOIN {gmk_course_progre} gcp ON gcp.classid = gc.id AND gcp.status = 1";
 
 // Build dynamic WHERE conditions for status and period filters.
 $filter_params = [];
@@ -1462,7 +1462,7 @@ $class_cedula_map = [];
 if (!empty($all_ids)) {
     [$_cm_insql, $_cm_inparams] = $DB->get_in_or_equal($all_ids, SQL_PARAMS_NAMED, 'cedc');
     $_cm_rs = $DB->get_recordset_sql(
-        "SELECT classid, userid FROM {gmk_course_progre} WHERE classid $_cm_insql AND status IN (1,2,3)",
+        "SELECT classid, userid FROM {gmk_course_progre} WHERE classid $_cm_insql AND status = 1",
         $_cm_inparams
     );
     $_cm_class_uids = [];
