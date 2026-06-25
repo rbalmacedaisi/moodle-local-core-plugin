@@ -168,7 +168,7 @@ class renderer {
             return null;
         }
         try {
-            $registered = \TCPDF::addTTFfont($ttf, 'TrueTypeUnicode', '', 32);
+            $registered = \TCPDF_FONTS::addTTFfont($ttf, 'TrueTypeUnicode');
             $cache[$key] = $registered;
             return $registered;
         } catch (Throwable $e) {
