@@ -1115,6 +1115,12 @@ function absd_dismiss_user_alert(int $userid, int $classid, int $level): void {
  * Send the appropriate Moodle messages for the given transition set.
  * Best-effort: failures are swallowed so they don't break the cron.
  *
+ * Uses message_send() (the standard Moodle messaging API) so the configured
+ * processors (popup, email, airnotifier) handle delivery according to each
+ * user's notification preferences. Three message providers are declared in
+ * db/messages.php so each transition type is independently togglable by
+ * the user in their messaging preferences.
+ *
  * @param int $userid
  * @param int $classid
  * @param string[] $transitions
@@ -1125,38 +1131,46 @@ function absd_dispatch_alert_notifications(int $userid, int $classid, array $tra
         return;
     }
     try {
-        $class = (object)['id' => $classid];
-        $coursename = absd_get_class_display_name($classid);
         $user = core_user::get_user($userid);
-        if (!$user) {
+        if (!$user || $user->deleted) {
             return;
         }
+        $coursename = absd_get_class_display_name($classid);
 
-        $messageapi = new \core_message\api();
+        // Map transition token -> message provider / strings.
+        $providermap = [
+            'info'    => ['absence_info_alert',    'absence_info_subject',    'absence_info_body'],
+            'warning' => ['absence_warning_alert', 'absence_warning_subject', 'absence_warning_body'],
+            'block'   => ['absence_block_alert',   'absence_block_subject',   'absence_block_body'],
+        ];
 
         foreach ($transitions as $t) {
-            $subject = '';
-            $body    = '';
-            if ($t === 'info') {
-                $subject = get_string('absence_info_subject', 'local_grupomakro_core', $coursename);
-                $body    = get_string('absence_info_body', 'local_grupomakro_core', (object)[
-                    'coursename' => $coursename,
-                ]);
-            } else if ($t === 'warning') {
-                $subject = get_string('absence_warning_subject', 'local_grupomakro_core', $coursename);
-                $body    = get_string('absence_warning_body', 'local_grupomakro_core', (object)[
-                    'coursename' => $coursename,
-                ]);
-            } else if ($t === 'block') {
-                $subject = get_string('absence_block_subject', 'local_grupomakro_core', $coursename);
-                $body    = get_string('absence_block_body', 'local_grupomakro_core', (object)[
-                    'coursename' => $coursename,
-                ]);
-            } else {
+            if (!isset($providermap[$t])) {
                 continue;
             }
-            // Moodle internal message.
-            $messageapi->send_message_to_user($user->id, $user->id, $body, FORMAT_PLAIN);
+            [$provider, $subjectkey, $bodykey] = $providermap[$t];
+
+            // Subject contains the course name (Moodle templating).
+            $subject = get_string($subjectkey, 'local_grupomakro_core', $coursename);
+            // Body uses the same templating key for consistency with the LXP.
+            $bodyplain = get_string($bodykey, 'local_grupomakro_core', (object)['coursename' => $coursename]);
+            $bodyhtml  = '<p>' . s($bodyplain) . '</p>';
+
+            $message = new \core\message\message();
+            $message->component = 'local_grupomakro_core';
+            $message->name = $provider;
+            $message->userfrom = core_user::get_noreply_user();
+            $message->userto = $user;
+            $message->subject = $subject;
+            $message->fullmessage = $bodyplain;
+            $message->fullmessageformat = FORMAT_PLAIN;
+            $message->fullmessagehtml = $bodyhtml;
+            $message->smallmessage = $subject;
+            $message->notification = 1; // Force-popup + email per user preferences.
+            $message->contexturl = (new moodle_url('/'))->out(false);
+            $message->contexturlname = get_string('course');
+
+            message_send($message);
         }
     } catch (Throwable $e) {
         mtrace('absence notification dispatch failed: ' . $e->getMessage());
