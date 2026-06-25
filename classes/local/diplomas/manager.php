@@ -1189,6 +1189,55 @@ public static function generate_diplomas(int $templateid, array $items, int $act
     }
 
     /**
+     * Hard-delete a generation record plus its associated document row
+     * and the underlying PDF in Moodle's file_storage. Unlike
+     * revoke_generation, this removes the row entirely so it no longer
+     * appears in the generated-diplomas list.
+     *
+     * @param int $generationid
+     * @return array{generation_deleted:bool, document_deleted:bool, file_deleted:bool}
+     */
+    public static function delete_generation(int $generationid): array {
+        global $DB;
+        $gen = $DB->get_record('gmk_diploma_generation', ['id' => $generationid], '*', MUST_EXIST);
+        $result = [
+            'generation_deleted' => false,
+            'document_deleted' => false,
+            'file_deleted' => false,
+        ];
+
+        // Remove the document row + file first so we don't leave the
+        // generation pointing at a deleted file.
+        $docs = $DB->get_records('gmk_diploma_document', ['generationid' => $generationid]);
+        $fs = get_file_storage();
+        foreach ($docs as $doc) {
+            $file = $fs->get_file_by_id((int)$doc->fileitemid);
+            if (!$file) {
+                // Fallback to component/filearea lookup (older docs that
+                // did not store the right fileitemid).
+                $file = $fs->get_file(
+                    context_system::instance()->id,
+                    'local_grupomakro_core',
+                    self::FILEAREA_DOCUMENT,
+                    $generationid,
+                    '/',
+                    (string)$doc->filename
+                );
+            }
+            if ($file) {
+                $file->delete();
+                $result['file_deleted'] = true;
+            }
+            $DB->delete_records('gmk_diploma_document', ['id' => $doc->id]);
+            $result['document_deleted'] = true;
+        }
+
+        $DB->delete_records('gmk_diploma_generation', ['id' => $generationid]);
+        $result['generation_deleted'] = true;
+        return $result;
+    }
+
+    /**
      * Returns the verification payload for a public token.
      *
      * @param string $token

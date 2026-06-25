@@ -189,6 +189,12 @@ final class dispatcher {
                 $manager::revoke_generation($id, $USER->id, (string)$reason);
                 return ['status' => 'success', 'message' => get_string('diploma_revoked_ok', 'local_grupomakro_core')];
 
+            case 'delete_generation':
+                require_capability($capmanage, context_system::instance());
+                $id = required_param('id', PARAM_INT);
+                $info = $manager::delete_generation($id);
+                return ['status' => 'success', 'message' => get_string('diploma_deleted_ok', 'local_grupomakro_core'), 'info' => $info];
+
             case 'download_generation':
                 require_capability($capview, context_system::instance());
                 $id = required_param('id', PARAM_INT);

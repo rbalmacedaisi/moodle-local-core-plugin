@@ -231,6 +231,9 @@
                                             <v-btn v-if="props.item.status === 'generated'" icon small @click="confirmRevoke(props.item)" title="Revocar">
                                                 <v-icon small color="error">mdi-cancel</v-icon>
                                             </v-btn>
+                                            <v-btn icon small @click="confirmDelete(props.item)" :title="strings.delete || 'Eliminar registro'">
+                                                <v-icon small color="error">mdi-delete</v-icon>
+                                            </v-btn>
                                         </template>
                                     </v-data-table>
                                 </v-card>
@@ -774,6 +777,47 @@
                         Swal.fire({ icon: 'success', title: res.data.message });
                         await this.loadGenerations();
                         await this.loadPlanCounts();
+                    } else {
+                        throw new Error((res.data && res.data.message) || 'Error');
+                    }
+                } catch (e) {
+                    Swal.fire({ icon: 'error', title: 'Error', text: e.message || e });
+                }
+            },
+            /**
+             * Show a hard-warning SweetAlert before letting the admin
+             * delete a generation record. We surface the student name
+             * and diploma number so accidental clicks are less likely.
+             */
+            confirmDelete(item) {
+                const student = (item.student_name || '').trim() || 'este estudiante';
+                const number = item.diploma_number ? ` (${item.diploma_number})` : '';
+                const msg = (this.strings.delete_confirm
+                    || '¿Está seguro de eliminar este registro de diploma? Esta acción NO se puede deshacer y borrará también el archivo PDF generado.')
+                    + `\n\nEstudiante: ${student}${number}`;
+                Swal.fire({
+                    title: this.strings.delete || 'Eliminar registro',
+                    text: msg,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonText: 'Sí, eliminar',
+                    cancelButtonText: this.strings.cancel || 'Cancelar',
+                    confirmButtonColor: '#d33'
+                }).then(r => {
+                    if (r.isConfirmed) this.deleteOne(item);
+                });
+            },
+            async deleteOne(item) {
+                try {
+                    const res = await this.http.post('/', {
+                        action: 'local_grupomakro_diploma_delete_generation',
+                        id: item.id
+                    });
+                    if (res.data && res.data.status === 'success') {
+                        Swal.fire({ icon: 'success', title: res.data.message });
+                        await this.loadGenerations();
+                        await this.loadPlanCounts();
+                        await this.loadGraduands();
                     } else {
                         throw new Error((res.data && res.data.message) || 'Error');
                     }
