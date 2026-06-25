@@ -590,6 +590,12 @@ class manager {
      */
 public static function list_eligible_graduands(?int $learningplanid = null, string $search = ''): array {
         global $DB;
+        // Skip plans with zero required courses: every student in them is
+        // auto-apto, which makes them meaningless for graduation tracking.
+        if ($learningplanid && $learningplanid > 0
+                && !self::plan_has_required_courses((int)$learningplanid)) {
+            return [];
+        }
         // 1) For each (user, plan) pair, verify that every required course is approved.
         $sql = "SELECT lu.userid, lu.learningplanid, lp.name AS planname,
                        lpcu.currentperiodid AS periodid,
@@ -707,6 +713,13 @@ public static function list_eligible_graduands(?int $learningplanid = null, stri
         int $limitnum = 200
     ): array {
         global $DB;
+
+        // Skip plans with zero required courses: every student in them is
+        // auto-apto, so they are meaningless for graduation tracking.
+        if ($learningplanid && $learningplanid > 0
+                && !self::plan_has_required_courses((int)$learningplanid)) {
+            return [];
+        }
 
         $sql = "SELECT lu.userid, lu.learningplanid, lp.name AS planname,
                        lpcu.currentperiodid AS periodid,
@@ -903,10 +916,31 @@ public static function list_eligible_graduands(?int $learningplanid = null, stri
         $plans = $DB->get_records('local_learning_plans', null, 'name ASC');
         $out = [];
         foreach ($plans as $p) {
-            $rows = self::list_eligible_graduands((int)$p->id);
-            $out[] = ['id' => (int)$p->id, 'name' => (string)$p->name, 'count' => count($rows)];
+            $hasreq = self::plan_has_required_courses((int)$p->id);
+            $count = $hasreq ? count(self::list_eligible_graduands((int)$p->id)) : 0;
+            $out[] = [
+                'id' => (int)$p->id,
+                'name' => (string)$p->name,
+                'count' => $count,
+                'has_required_courses' => $hasreq,
+            ];
         }
         return $out;
+    }
+
+    /**
+     * Whether the given plan has at least one course marked as required
+     * (isrequired = 1). Plans with zero required courses have no concept
+     * of "graduation" so every student in them is auto-eligible and the
+     * plan is excluded from the default UI lists.
+     *
+     * @param int $planid
+     * @return bool
+     */
+    public static function plan_has_required_courses(int $planid): bool {
+        global $DB;
+        return $DB->record_exists('local_learning_courses',
+            ['learningplanid' => $planid, 'isrequired' => 1]);
     }
 
     /**
@@ -919,7 +953,12 @@ public static function list_eligible_graduands(?int $learningplanid = null, stri
         $rows = $DB->get_records('local_learning_plans', null, 'name ASC', 'id, name');
         $out = [];
         foreach ($rows as $r) {
-            $out[] = ['id' => (int)$r->id, 'name' => (string)$r->name];
+            $hasreq = self::plan_has_required_courses((int)$r->id);
+            $out[] = [
+                'id' => (int)$r->id,
+                'name' => (string)$r->name,
+                'has_required_courses' => $hasreq,
+            ];
         }
         return $out;
     }

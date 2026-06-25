@@ -50,7 +50,7 @@
                             <!-- Career summary cards -->
                             <v-col cols="12" class="py-1">
                                 <v-row dense>
-                                    <v-col v-for="p in planCounts" :key="p.id" cols="6" sm="4" md="3" lg="2">
+                                    <v-col v-for="p in visiblePlanCounts" :key="p.id" cols="6" sm="4" md="3" lg="2">
                                         <v-card outlined class="pa-3 dpl-card-summary dpl-career-card" :class="p.count > 0 ? 'danger' : 'success'" @click="filterPlan(p.id)" style="cursor: pointer;">
                                             <div style="font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">
                                                 {{ strings.career || 'Carrera' }}
@@ -97,7 +97,7 @@
                             <!-- Graduands table -->
                             <v-col cols="12" class="py-1">
                                 <v-card outlined>
-                                    <v-card-text class="py-2 d-flex align-center" style="gap: 16px;">
+                                    <v-card-text class="py-2 d-flex align-center" style="gap: 16px; flex-wrap: wrap;">
                                         <v-switch
                                             v-model="onlyEligible"
                                             color="primary"
@@ -106,6 +106,15 @@
                                             inset
                                             @change="loadGraduands"
                                             label="Solo elegibles (cumplan todos los requisitos)"
+                                        ></v-switch>
+                                        <v-switch
+                                            v-model="includeNoRequirementPlans"
+                                            color="primary"
+                                            dense
+                                            hide-details
+                                            inset
+                                            @change="onIncludeNoRequirementPlansChange"
+                                            label="Incluir planes sin asignaturas obligatorias"
                                         ></v-switch>
                                         <v-spacer></v-spacer>
                                         <span class="caption grey--text">
@@ -370,6 +379,14 @@
                 // table feels familiar; the user can switch it off to
                 // see and select any student for an override generation.
                 onlyEligible: true,
+                // Toggle: when false (default), plans with zero required
+                // courses (e.g. 'Cursos Complementarios TPC') are hidden
+                // from the plan dropdown and the summary cards. Plans with
+                // no required courses have no concept of graduation (every
+                // student is auto-apto) so they are excluded by default to
+                // avoid confusion. The admin can flip this switch to opt-in
+                // to seeing those plans if they really need them.
+                includeNoRequirementPlans: false,
                 // Detail popup: holds the eligibility breakdown for the
                 // student the admin clicked on in the table.
                 detailDialog: false,
@@ -383,8 +400,23 @@
         computed: {
             strings() { return window.strings || {}; },
             planItems() {
+                // Hide plans with no required courses unless the admin
+                // explicitly opts in via the toggle.
+                const visible = this.plans.filter(p =>
+                    this.includeNoRequirementPlans || p.has_required_courses
+                );
                 return [{ text: this.strings.all_careers, value: null }].concat(
-                    this.plans.map(p => ({ text: p.name, value: p.id }))
+                    visible.map(p => ({ text: p.name, value: p.id }))
+                );
+            },
+            /**
+             * Summary cards shown above the filters. Same filtering rule
+             * as planItems but uses the count endpoint so each card shows
+             * the eligible-graduand count for that plan.
+             */
+            visiblePlanCounts() {
+                return this.planCounts.filter(p =>
+                    this.includeNoRequirementPlans || p.has_required_courses
                 );
             },
             templateItems() {
@@ -529,6 +561,23 @@
             },
             filterPlan(planId) {
                 this.selectedPlanId = this.selectedPlanId === planId ? null : planId;
+            },
+            /**
+             * When the "include plans with no required courses" toggle
+             * changes, the visible plan list may shrink. If the admin
+             * happens to have selected such a plan, we need to clear the
+             * filter (otherwise the dropdown would silently show an empty
+             * selection) and reload the graduands list so the table
+             * reflects the new state.
+             */
+            onIncludeNoRequirementPlansChange() {
+                if (this.selectedPlanId) {
+                    const sel = this.plans.find(p => p.id === this.selectedPlanId);
+                    if (sel && !sel.has_required_courses && !this.includeNoRequirementPlans) {
+                        this.selectedPlanId = null;
+                    }
+                }
+                this.loadGraduands();
             },
             async loadGraduands() {
                 try {
