@@ -170,13 +170,21 @@ Vue.component('bulk-reassign-modal', {
             this.saving = true;
             this.error = '';
             try {
+                // userids is external_multiple_structure(PARAM_INT), so we need to
+                // send an actual array. axios serializes arrays as repeated
+                // query params: userids[]=1&userids[]=2&userids[]=3, which
+                // Moodle's REST parser reconstructs into the expected array.
+                const userids = Array.from(this.selectedUserIds);
                 const resp = await axios.post(this.wsUrl, null, {
                     params: {
                         wstoken: userToken,
                         wsfunction: 'local_grupomakro_bulk_reassign_students_intake_period',
                         moodlewsrestformat: 'json',
-                        userids: Array.from(this.selectedUserIds).join(','),
+                        userids: userids,
                         new_intake_period: this.destPeriod,
+                    },
+                    paramsSerializer: {
+                        indexes: null,  // produces userids=1&userids=2 (no [] suffix)
                     },
                 });
                 const data = resp.data;
