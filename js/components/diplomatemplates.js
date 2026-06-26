@@ -368,10 +368,14 @@
                 // the canvas re-renders with the real Google Font faces.
                 // See waitForFontsThenRefresh() in mounted().
                 fontsReadyTick: 0,
-                // Dynamic scale factor so the canvas always fits the wrap
-                // even on narrow viewports. Mouse coords are divided by
-                // this factor in drag/resize/rotate handlers to keep the
-                // internal mm coordinates correct.
+                // CSS px per mm. 2.5 = 297mm * 2.5 = 742px wide, which
+                // fits most screens without horizontal scroll.
+                pixelRatio: 2.5,
+                // Dynamic scale factor. Always 1 now (the canvas renders
+                // at full size and the wrap has overflow: auto so the
+                // user can scroll if needed). Kept as a data field so
+                // the drag/resize/rotate handlers' pixelRatio /
+                // canvasScale math stays consistent.
                 canvasScale: 1
             };
         },
@@ -402,12 +406,7 @@
                 return {
                     width: (this.selected.width_mm * this.pixelRatio) + 'px',
                     height: (this.selected.height_mm * this.pixelRatio) + 'px',
-                    backgroundImage: this.selected.background_url ? 'url("' + this.selected.background_url + '")' : 'none',
-                    // Dynamic CSS scale so the canvas always fits the
-                    // wrap without scrollbar. The drag/resize/rotate
-                    // handlers divide mouse deltas by this number.
-                    transform: 'scale(' + this.canvasScale + ')',
-                    transformOrigin: '0 0'
+                    backgroundImage: this.selected.background_url ? 'url("' + this.selected.background_url + '")' : 'none'
                 };
             }
         },
@@ -526,22 +525,13 @@
                 return available / natural;
             },
             recomputeCanvasScale() {
-                var next = this.computeCanvasScale();
-                // Snap to 3 decimals to avoid re-rendering on floating noise.
-                next = Math.round(next * 1000) / 1000;
-                if (next !== this.canvasScale) {
-                    this.canvasScale = next;
-                }
-                // Resize the wrap to exactly the scaled canvas so the
-                // wrap does not overflow its parent column. The
-                // canvas itself keeps its natural width/height in CSS
-                // pixels; the CSS transform scales it visually.
-                var wrap = this.$refs.canvasWrap;
-                if (wrap && this.selected) {
-                    var w = this.selected.width_mm * this.pixelRatio * this.canvasScale;
-                    var h = this.selected.height_mm * this.pixelRatio * this.canvasScale;
-                    wrap.style.width = Math.ceil(w) + 'px';
-                    wrap.style.height = Math.ceil(h) + 'px';
+                // Always render the canvas at full size (no transform:
+                // scale). The wrap is now overflow: auto so the user
+                // can scroll if the canvas is wider than the column.
+                // Returning 1 here keeps the drag/resize handlers'
+                // pixelRatio / canvasScale math consistent.
+                if (this.canvasScale !== 1) {
+                    this.canvasScale = 1;
                 }
             },
             async loadTemplates() {

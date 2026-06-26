@@ -180,8 +180,8 @@ echo <<<EOT
 <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <style>
-    .theme--light.v-application { background: transparent !important; }
-    .dpl-canvas-wrap { position: relative; max-width: 100%; margin: 0 auto; padding: 16px; background: #f4f4f4; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,.08); }
+.theme--light.v-application { background: transparent !important; }
+    .dpl-canvas-wrap { position: relative; width: 100%; margin: 0 auto; padding: 16px; background: #f4f4f4; border-radius: 8px; overflow: auto; box-shadow: 0 2px 10px rgba(0,0,0,.08); }
     .dpl-canvas { position: relative; background: #fff; box-shadow: 0 0 0 1px #d8d8d8 inset; transform-origin: 0 0; overflow: hidden; }
     .dpl-canvas-bg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; pointer-events: none; user-select: none; z-index: 0; }
     .dpl-field { position: absolute; border: 1px dashed #1976d2; background: rgba(25,118,210,.06); cursor: move; user-select: none; box-sizing: border-box; z-index: 2; }
@@ -194,7 +194,7 @@ echo <<<EOT
     .dpl-handle.tl { top: -5px; left: -5px; cursor: nwse-resize; }
     .dpl-handle.tr { top: -5px; right: -5px; cursor: nesw-resize; }
     .dpl-handle.bl { bottom: -5px; left: -5px; cursor: nesw-resize; }
-    .dpl-handle.br { bottom: -5px; right: -5px; cursor: nwse-resize; }
+    .dpl-handle.br { bottom: -5px; right: -5px; cursor: nesw-resize; }
     .dpl-handle.rotate { top: -22px; left: 50%; transform: translateX(-50%); cursor: alias; border-radius: 0; width: 14px; height: 14px; background: #ff9800; }
     .dpl-handle.rotate::before { content: "\21BB"; color: #fff; font-size: 12px; line-height: 10px; display: block; text-align: center; }
     .dpl-field-content { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; white-space: pre-wrap; word-break: break-word; overflow: hidden; padding: 2px; }
