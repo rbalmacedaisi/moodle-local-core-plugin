@@ -149,7 +149,7 @@ Vue.component('intake-timeline', {
                             @click.stop="openBulkReassign(ip)"
                             title="Reclasificar periodo lectivo"
                         >
-                            <v-icon size="16" color="#C2410C">mdi-account-multiple-convert</v-icon>
+                            <v-icon size="16" color="#C2410C">mdi-swap-horizontal-bold</v-icon>
                         </button>
                         <button
                             class="tl-btn-icon tl-btn-renew"
