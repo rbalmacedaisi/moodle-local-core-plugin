@@ -73,6 +73,11 @@ Vue.component('renewal-modal', {
         };
     },
     computed: {
+        // The WS endpoint URL. Defined as computed so Vue auto-invokes the
+        // getter when this.wsUrl is accessed (returning the string). If it
+        // were a method, this.wsUrl would return the function reference,
+        // producing the malformed URL ".../function () { [native code] }".
+        wsUrl() { return window.location.origin + '/webservice/rest/server.php'; },
         summary() { return this.preview && this.preview.summary ? this.preview.summary : null; },
         // Flat list of all students that the preview surfaced, paired
         // with their destination section key. Used by the checkbox
@@ -153,7 +158,6 @@ Vue.component('renewal-modal', {
         this.fetchPreview();
     },
     methods: {
-        wsUrl() { return window.location.origin + '/webservice/rest/server.php'; },
         buildWsUrl(wsfunction, extraParams) {
             const params = new URLSearchParams();
             params.set('wstoken', userToken);
