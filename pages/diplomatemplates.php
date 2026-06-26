@@ -166,27 +166,77 @@ echo '<link href="https://fonts.googleapis.com/css?family=' . implode('|', $dipl
 // local/grupomakro_core/tcpdf_fonts/ so the browser uses the EXACT
 // same face the PDF renderer registers with TCPDF. Mirrors the
 // logic in renderer::register_custom_font() on the PHP side.
+//
+// IMPORTANT: the family name in @font-face must match the family
+// name used by FONT_OPTIONS in diplomatemplates.js EXACTLY (Google
+// Fonts uses spaces in family names: 'Great Vibes', 'Petit Formal
+// Script', etc.). Naively stripping the -Regular/-Bold suffix from
+// the original filename yields 'GreatVibes' which does NOT match
+// 'Great Vibes' in the CSS, so the browser keeps the fallback font.
+// Use the explicit map below to map TTF key -> Google Fonts family
+// name.
+$ttfkeytofamily = [
+    'opensans'              => 'Open Sans',
+    'roboto'                => 'Roboto',
+    'lato'                  => 'Lato',
+    'montserrat'            => 'Montserrat',
+    'poppins'               => 'Poppins',
+    'raleway'               => 'Raleway',
+    'oswald'                => 'Oswald',
+    'playfairdisplay'       => 'Playfair Display',
+    'cormorantgaramond'     => 'Cormorant Garamond',
+    'ebgaramond'            => 'EB Garamond',
+    'librebaskerville'      => 'Libre Baskerville',
+    'lora'                  => 'Lora',
+    'merriweather'          => 'Merriweather',
+    'cinzel'                => 'Cinzel',
+    'cinzeldecorative'      => 'Cinzel Decorative',
+    'marcellus'             => 'Marcellus',
+    'italiana'              => 'Italiana',
+    'bodoni'                => 'Bodoni Moda',
+    'abrilfatface'          => 'Abril Fatface',
+    'petitformalscript'     => 'Petit Formal Script',
+    'greatvibes'            => 'Great Vibes',
+    'pinyonscript'          => 'Pinyon Script',
+    'allura'                => 'Allura',
+    'tangerine'             => 'Tangerine',
+    'sacramento'            => 'Sacramento',
+    'alexbrush'             => 'Alex Brush',
+    'dancingscript'         => 'Dancing Script',
+    'pacifico'              => 'Pacifico',
+    'parisienne'            => 'Parisienne',
+    'mrdehaviland'          => 'Mr De Haviland',
+    'italianno'             => 'Italianno',
+    'mrssaintdelafield'     => 'Mrs Saint Delafield',
+    'bilbo'                 => 'Bilbo',
+    'rougescript'           => 'Rouge Script',
+    'allisonscript'         => 'Allison Script',
+    'labelleaurore'         => 'La Belle Aurore',
+    'halimun'               => 'Halimun',
+    'notosans'              => 'Noto Sans',
+    'notoserif'             => 'Noto Serif',
+    'ptsans'                => 'PT Sans',
+    'ptserif'               => 'PT Serif',
+];
+
 $fontdir = $CFG->dirroot . '/local/grupomakro_core/tcpdf_fonts';
 if (is_dir($fontdir)) {
-    $ttffiles = glob($fontdir . '/*.ttf') ?: [];
+    // Just emit one @font-face per known key; the browser only needs
+    // to load the file once even though the PDF may register it
+    // several times with different weights.
     $emitted = [];
-    foreach ($ttffiles as $ttf) {
-        $basename = basename($ttf);
-        // Skip variable fonts ([wght] / [wdth,wght]).
-        if (strpos($basename, '[wght]') !== false || strpos($basename, '[wdth') !== false) {
-            continue;
+    foreach ($ttfkeytofamily as $key => $family) {
+        $candidates = glob($fontdir . '/' . $key . '__*.ttf') ?: [];
+        $ttf = null;
+        foreach ($candidates as $cand) {
+            if (strpos($cand, '[wght]') === false && strpos($cand, '[wdth') === false) {
+                $ttf = $cand;
+                break;
+            }
         }
-        $parts = explode('__', $basename, 2);
-        if (count($parts) < 2) { continue; }
-        $key = $parts[0];
-        $original = $parts[1];
-        // Derive the human family name from the original TTF
-        // filename: "Lato-Bold.ttf" -> "Lato".
-        $family = preg_replace('/-(Regular|Bold|Italic|BoldItalic|Black|Light|Medium|Thin|ExtraBold|ExtraLight|SemiBold|ExtraLightItalic|BlackItalic|LightItalic|MediumItalic|SemiBoldItalic|ExtraBoldItalic|RegularItalic)\.ttf$/i', '', $original);
-        if ($family === '' || $family === $original) { continue; }
-        $keyid = $key . ':' . $family;
-        if (isset($emitted[$keyid])) { continue; }
-        $emitted[$keyid] = true;
+        if (!$ttf || !is_readable($ttf)) { continue; }
+        if (isset($emitted[$family])) { continue; }
+        $emitted[$family] = true;
         $url = new moodle_url('/local/grupomakro_core/pages/diploma_font.php', ['key' => $key]);
         echo '<style>@font-face{font-family:"' . addslashes($family) . '";font-style:normal;font-weight:400;src:url("' . $url->out(false) . '") format("truetype")}</style>' . "\n";
     }
