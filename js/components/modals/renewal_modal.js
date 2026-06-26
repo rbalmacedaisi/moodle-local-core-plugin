@@ -296,33 +296,21 @@ Vue.component('renewal-modal', {
             this.executing = true;
             this.error = '';
             try {
-                const params = {
-                    userids: userids,
-                    confirm_warnings: this.confirmWarnings ? 1 : 0,
-                };
+                // Put EVERYTHING in the URL via buildWsUrl so arrays
+                // (userids) are emitted as repeated params
+                // (userids=1&userids=2&userids=3) which Moodle's REST
+                // parser reconstructs into external_multiple_structure.
+                // The previous POST-body approach only sent a flat
+                // object and dropped the userids array entirely.
                 const url = this.buildWsUrl('local_grupomakro_execute_period_renewal', {
                     learningplanid: this.learningPlanId,
                     intake_period:  this.cohort,
+                    confirm_warnings: this.confirmWarnings ? 1 : 0,
+                    userids:         userids,
                 });
                 const resp = await fetch(url, {
                     method: 'POST',
                     credentials: 'same-origin',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: new URLSearchParams(
-                        Object.assign(
-                            {},
-                            // Existing wstoken/wsfunction/etc. come from the
-                            // GET URL. POST body adds the params.
-                            { wstoken: userToken, wsfunction: 'local_grupomakro_execute_period_renewal', moodlewsrestformat: 'json' },
-                            Object.fromEntries(
-                                Object.entries({
-                                    learningplanid: this.learningPlanId,
-                                    intake_period:  this.cohort,
-                                    confirm_warnings: params.confirm_warnings,
-                                })
-                            )
-                        )
-                    ).toString(),
                 });
                 if (!resp.ok) {
                     this.setError('[2] HTTP ' + resp.status + ' ' + resp.statusText);
