@@ -244,6 +244,12 @@ Vue.component('grademodal', {
                                                             :title="revalidTooltip(revalidationFor(course))">
                                                             <v-icon style="font-size:10px;" class="mr-1">mdi-school-outline</v-icon>{{ revalidChipLabel(revalidationFor(course)) }}
                                                         </v-chip>
+                                                        <v-chip v-if="homologationFor(course)" x-small dark label
+                                                            :color="homologationChipColor(homologationFor(course).homologation_type)"
+                                                            class="mt-1 ml-1" style="height:15px;font-size:10px;letter-spacing:0.3px;"
+                                                            :title="homologationTooltip(homologationFor(course))">
+                                                            <v-icon style="font-size:10px;" class="mr-1">mdi-check-decagram</v-icon>{{ homologationChipLabel(homologationFor(course).homologation_type) }}
+                                                        </v-chip>
                                                     </td>
                                                     <td class="text-center">
                                                         <v-chip x-small :color="course.statusColor" dark label class="text-caption font-weight-bold">
@@ -286,6 +292,19 @@ Vue.component('grademodal', {
                                                         >
                                                             <v-icon x-small :left="!!moduleStatusMap[getCourseKey(course)]">mdi-book-education-outline</v-icon>
                                                             <span v-if="moduleStatusMap[getCourseKey(course)]">Módulo ✓</span>
+                                                        </v-btn>
+                                                        <v-btn
+                                                            v-if="Number(course.courseid || 0) > 0 && canHomologate(course)"
+                                                            x-small
+                                                            color="deep-purple darken-2"
+                                                            dark
+                                                            :loading="homologatingCourseKey === getCourseKey(course)"
+                                                            :disabled="!!homologatingCourseKey"
+                                                            @click.stop="openHomologateDialog(course)"
+                                                            class="ml-1"
+                                                            title="Homologar nota (Suficiencia · Migración · Homologación)"
+                                                        >
+                                                            <v-icon x-small>mdi-check-decagram</v-icon>
                                                         </v-btn>
                                                     </td>
                                                 </tr>
@@ -455,6 +474,106 @@ Vue.component('grademodal', {
                     </v-card-actions>
                 </v-card>
             </v-dialog>
+
+            <v-dialog v-model="homologationDialog" max-width="600" persistent>
+                <v-card class="rounded-lg overflow-hidden">
+                    <v-card-title class="headline deep-purple darken-2 white--text d-flex align-center py-3 px-4">
+                        <v-icon left dark>mdi-check-decagram</v-icon>
+                        <span>Homologar nota</span>
+                        <v-spacer></v-spacer>
+                        <v-btn icon dark @click="closeHomologateDialog" :disabled="homologatingCourseKey">
+                            <v-icon>mdi-close</v-icon>
+                        </v-btn>
+                    </v-card-title>
+
+                    <v-card-text class="pa-4">
+                        <div v-if="homologationSelected" class="mb-3">
+                            <div class="text-body-1 font-weight-bold">{{ studentName }}</div>
+                            <div class="text-caption grey--text text--darken-1">
+                                {{ homologationSelected.coursename }}
+                                <span v-if="homologationSelected.statusLabel" class="ml-1">
+                                    · Estado actual: <b>{{ homologationSelected.statusLabel }}</b>
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="text-caption font-weight-bold grey--text text--darken-2 mb-1">
+                            Tipo de homologación <span class="red--text">*</span>
+                        </div>
+                        <v-radio-group v-model="homologationForm.type" mandatory class="mt-0 mb-3" hide-details>
+                            <v-radio value="suficiencia"   color="indigo darken-2"   class="mb-1">
+                                <template v-slot:label>
+                                    <span class="text-body-2">Examen de suficiencia</span>
+                                </template>
+                            </v-radio>
+                            <v-radio value="migracion"     color="amber darken-3"    class="mb-1">
+                                <template v-slot:label>
+                                    <span class="text-body-2">Migración</span>
+                                </template>
+                            </v-radio>
+                            <v-radio value="homologacion"  color="deep-purple darken-2" class="mb-1">
+                                <template v-slot:label>
+                                    <span class="text-body-2">Homologación</span>
+                                </template>
+                            </v-radio>
+                        </v-radio-group>
+
+                        <v-text-field
+                            v-model.number="homologationForm.grade"
+                            label="Nota homologada (0-100)"
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="0.1"
+                            suffix="pts"
+                            :error="!!homologationGradeError"
+                            :error-messages="homologationGradeError ? [homologationGradeError] : []"
+                            outlined
+                            dense
+                            class="mb-2"
+                            required
+                        ></v-text-field>
+
+                        <v-textarea
+                            v-model="homologationForm.observation"
+                            label="Observación / motivo"
+                            placeholder="Ej: Estudiante aprobó examen de suficiencia el 12/06/2026 (acta 2026-014)."
+                            rows="3"
+                            auto-grow
+                            :error="!!homologationObservationError"
+                            :error-messages="homologationObservationError ? [homologationObservationError] : []"
+                            outlined
+                            dense
+                            class="mb-2"
+                            required
+                        ></v-textarea>
+
+                        <v-alert type="info" dense outlined class="mb-0">
+                            <div class="text-caption">
+                                La nota se registrará en el ítem <b>Nota Final Integrada</b> del curso y actualizará el estado
+                                (Aprobada si la nota es ≥ 71, Reprobada si es &lt; 71). Si el estudiante aún no estaba
+                                inscrito en el curso, se inscribirá automáticamente <b>sin</b> asociarlo a ningún grupo.
+                            </div>
+                        </v-alert>
+                    </v-card-text>
+
+                    <v-divider></v-divider>
+
+                    <v-card-actions class="pa-3">
+                        <v-spacer></v-spacer>
+                        <v-btn text :disabled="homologatingCourseKey" @click="closeHomologateDialog">
+                            Cancelar
+                        </v-btn>
+                        <v-btn color="deep-purple darken-2" dark
+                               :loading="homologatingCourseKey"
+                               :disabled="homologatingCourseKey || !isHomologationFormValid"
+                               @click="homologate(homologationSelected)">
+                            <v-icon left>mdi-check-decagram</v-icon>
+                            Homologar
+                        </v-btn>
+                    </v-card-actions>
+                </v-card>
+            </v-dialog>
         </div>
     `,
     data() {
@@ -481,7 +600,21 @@ Vue.component('grademodal', {
             creditReport: null,
             creditScope: 'all',
             creditPlanId: 0,
-            revalidations: {}   // keyed by corecourseid
+            revalidations: {},   // keyed by corecourseid
+            homologations: {},    // keyed by corecourseid (mirrors gmk_course_progre.homologation_*)
+            homologatingCourseKey: null,
+            homologationDialog: false,
+            homologationSelected: null,
+            homologationForm: {
+                type: 'homologacion',
+                grade: 71,
+                observation: ''
+            },
+            homologationTypeOptions: [
+                { value: 'suficiencia',   label: 'Examen de suficiencia' },
+                { value: 'migracion',     label: 'Migración' },
+                { value: 'homologacion',  label: 'Homologación' }
+            ]
         };
     },
     watch: {
@@ -570,6 +703,156 @@ Vue.component('grademodal', {
             const pay = rev.payment_state === 'paid' ? 'Factura pagada' : 'Factura sin pagar';
             return `Nota original: ${orig} · Nota reválida: ${rg} · ${pay}`
                 + (rev.invoice_number ? ` · Factura ${rev.invoice_number}` : '');
+        },
+        homologationFor(course) {
+            const cid = Number(course && course.courseid ? course.courseid : 0);
+            if (!cid) return null;
+            if (this.homologations && this.homologations[cid]) return this.homologations[cid];
+            // Fallback to backend-rendered metadata so the chip survives a stale cache.
+            if (course.homologation_type) {
+                return {
+                    homologation_type: course.homologation_type,
+                    homologation_note: course.homologation_note || '',
+                    homologation_at: course.homologation_at || 0,
+                    homologation_by: course.homologation_by || 0
+                };
+            }
+            return null;
+        },
+        homologationChipColor(type) {
+            switch (type) {
+                case 'suficiencia':  return 'indigo darken-2';
+                case 'migracion':    return 'amber darken-3';
+                case 'homologacion': return 'deep-purple darken-2';
+                default:             return 'grey darken-2';
+            }
+        },
+        homologationChipLabel(type) {
+            switch (type) {
+                case 'suficiencia':  return 'Homologada · Suficiencia';
+                case 'migracion':    return 'Homologada · Migración';
+                case 'homologacion': return 'Homologada · Homologación';
+                default:             return 'Homologada';
+            }
+        },
+        homologationTooltip(h) {
+            if (!h) return '';
+            const pieces = [];
+            pieces.push('Tipo: ' + this.homologationChipLabel(h.homologation_type));
+            if (h.homologation_at) {
+                pieces.push('Aplicada: ' + new Date(Number(h.homologation_at) * 1000).toLocaleString('es-PA'));
+            }
+            if (h.homologation_note) {
+                pieces.push('Motivo: ' + h.homologation_note);
+            }
+            return pieces.join(' · ');
+        },
+        canHomologate(course) {
+            // Site admins only (same restriction as the rest of the modal).
+            const flag = window.isAdmin;
+            const isAdmin = (flag === true) || (flag === 'true') || (flag === 1) || (flag === '1');
+            if (!isAdmin) return false;
+            return Number(course && course.courseid ? course.courseid : 0) > 0
+                && Number(course && course.learningplanid ? course.learningplanid : 0) > 0;
+        },
+        openHomologateDialog(course) {
+            if (!this.canHomologate(course)) return;
+            this.homologationSelected = course;
+            const existing = this.homologationFor(course);
+            this.homologationForm = {
+                type: existing ? existing.homologation_type : 'homologacion',
+                grade: existing ? Number(course.grade || 71) : 71,
+                observation: existing ? (existing.homologation_note || '') : ''
+            };
+            this.homologationDialog = true;
+        },
+        closeHomologateDialog() {
+            if (this.homologatingCourseKey) return;
+            this.homologationDialog = false;
+            this.homologationSelected = null;
+        },
+        async homologate(course) {
+            if (!course || this.homologatingCourseKey) return;
+
+            const gradeErr = this.homologationGradeError;
+            const obsErr   = this.homologationObservationError;
+            if (gradeErr || obsErr) {
+                this.showMessage('warning', 'Revisa los campos obligatorios antes de continuar.');
+                return;
+            }
+            if (!this.isHomologationFormValid) return;
+
+            const gradeVal = Number(this.homologationForm.grade);
+            const typeLabel = this.homologationChipLabel(this.homologationForm.type);
+            const studentName = this.studentName;
+            const courseName = course.coursename || 'esta asignatura';
+
+            const confirmed = await window.Swal.fire({
+                icon: 'question',
+                title: '¿Confirmar homologación?',
+                html:
+                    `<div style="text-align:left;">` +
+                    `<p><b>${studentName}</b> · <b>${courseName}</b></p>` +
+                    `<p>Tipo: <b>${typeLabel}</b><br>Nota: <b>${gradeVal.toFixed(1)}</b></p>` +
+                    `<p style="margin-top:6px;"><b>Motivo:</b><br><i>${(this.homologationForm.observation || '').replace(/</g, '&lt;')}</i></p>` +
+                    `<p style="margin-top:6px;font-size:12px;" class="grey--text">` +
+                    `La nota se registrará en "Nota Final Integrada" y actualizará el estado del curso. ` +
+                    (Number(course.progressclassid || 0) > 0 || Number(course.module_classid || 0) > 0
+                        ? ''
+                        : 'Si el estudiante no está inscrito, será inscrito automáticamente sin grupo.') +
+                    `</p></div>`,
+                showCancelButton: true,
+                confirmButtonText: 'Sí, homologar',
+                cancelButtonText: 'Cancelar',
+                confirmButtonColor: '#4527A0',
+            });
+            if (!confirmed.isConfirmed) return;
+
+            this.homologatingCourseKey = this.getCourseKey(course);
+            try {
+                const url = window.wsUrl || (window.location.origin + '/local/grupomakro_core/ajax.php');
+                const response = await window.axios.get(url, {
+                    params: {
+                        action:         'local_grupomakro_homologate_course_grade',
+                        sesskey:        M.cfg.sesskey,
+                        userId:         Number(this.dataStudent.id),
+                        learningPlanId: Number(course.learningplanid || 0),
+                        coreCourseId:   Number(course.courseid || 0),
+                        grade:          gradeVal,
+                        type:           String(this.homologationForm.type || 'homologacion'),
+                        observation:    String(this.homologationForm.observation || '')
+                    }
+                });
+                const payload = (response && response.data) || {};
+                const result  = (payload.status === 'success' && payload.data) ? payload.data : payload;
+
+                if (result.status === 'ok') {
+                    const cid = Number(course.courseid || 0);
+                    if (cid > 0) {
+                        this.$set(this.homologations, cid, {
+                            homologation_type: result.homologation_type || this.homologationForm.type,
+                            homologation_note: String(this.homologationForm.observation || ''),
+                            homologation_at:   Number(result.homologation_at || Math.floor(Date.now() / 1000)),
+                            homologation_by:   Number(result.homologation_by || 0)
+                        });
+                    }
+                    this.showMessage('success',
+                        result.message || 'Nota homologada correctamente.');
+                    this.closeHomologateDialog();
+                    // Refresh pensum so grade / status chip updates.
+                    await this.getpensum();
+                } else {
+                    this.showMessage('error', result.message || 'No se pudo homologar la nota.');
+                }
+            } catch (error) {
+                console.error('Error homologating course grade:', error);
+                const msg = (error && error.response && error.response.data && error.response.data.data && error.response.data.data.message)
+                    || (error && error.message)
+                    || 'Error al homologar la nota.';
+                this.showMessage('error', msg);
+            } finally {
+                this.homologatingCourseKey = null;
+            }
         },
         async fetchCreditReport() {
             if (!this.dataStudent || !this.dataStudent.id) return;
@@ -1687,7 +1970,21 @@ Vue.component('grademodal', {
                     if (data && typeof data === 'object') {
                         Object.values(data).forEach(periodInfo => {
                             if (periodInfo && periodInfo.periodName) {
-                                groupedByPeriodName[periodInfo.periodName] = periodInfo.courses || [];
+                                const courses = periodInfo.courses || [];
+                                // Rebuild the homologation cache from the canonical backend payload
+                                // so the chip stays consistent with gmk_course_progre.
+                                courses.forEach((course) => {
+                                    const cid = Number(course && course.courseid ? course.courseid : 0);
+                                    if (cid > 0 && course.homologation_type) {
+                                        this.$set(this.homologations, cid, {
+                                            homologation_type: course.homologation_type,
+                                            homologation_note: course.homologation_note || '',
+                                            homologation_at:   Number(course.homologation_at || 0),
+                                            homologation_by:   Number(course.homologation_by || 0)
+                                        });
+                                    }
+                                });
+                                groupedByPeriodName[periodInfo.periodName] = courses;
                             }
                         });
                     }
@@ -2079,6 +2376,24 @@ Vue.component('grademodal', {
         },
         enrollableClasses() {
             return Array.isArray(this.enrollClasses) ? this.enrollClasses : [];
+        },
+        homologationGradeError() {
+            const raw = this.homologationForm && this.homologationForm.grade;
+            if (raw === null || raw === undefined || raw === '') return 'La nota es obligatoria.';
+            const v = Number(raw);
+            if (isNaN(v)) return 'La nota debe ser numérica.';
+            if (v < 0 || v > 100) return 'La nota debe estar entre 0 y 100.';
+            return '';
+        },
+        homologationObservationError() {
+            const obs = (this.homologationForm && this.homologationForm.observation || '').trim();
+            if (obs.length === 0) return 'La observación es obligatoria.';
+            if (obs.length < 5) return 'La observación debe tener al menos 5 caracteres.';
+            return '';
+        },
+        isHomologationFormValid() {
+            return !this.homologationGradeError && !this.homologationObservationError
+                && ['suficiencia', 'migracion', 'homologacion'].includes(this.homologationForm.type);
         }
     },
 });

@@ -346,6 +346,10 @@
         <FIELD NAME="groupid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
         <FIELD NAME="blocked_by_absence" TYPE="int" LENGTH="1" NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="1=class-level access blocked due to 3+ absences"/>
         <FIELD NAME="blocked_by_absence_at" TYPE="int" LENGTH="10" NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="Timestamp of the absence block"/>
+        <FIELD NAME="homologation_type" TYPE="char" LENGTH="20" NOTNULL="false" DEFAULT="" SEQUENCE="false" COMMENT="suficiencia|migracion|homologacion (Homologation source type for the consolidated grade)"/>
+        <FIELD NAME="homologation_note" TYPE="text" LENGTH="medium" NOTNULL="false" SEQUENCE="false" COMMENT="Free-text reason / observation captured when the grade was homologated"/>
+        <FIELD NAME="homologation_at" TYPE="int" LENGTH="10" NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="Unix timestamp of the last homologation"/>
+        <FIELD NAME="homologation_by" TYPE="int" LENGTH="10" NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="user.id who applied the last homologation"/>
       </FIELDS>
       <KEYS>
         <KEY NAME="primary" TYPE="primary" FIELDS="id"/>

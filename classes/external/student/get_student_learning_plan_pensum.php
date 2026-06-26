@@ -73,6 +73,25 @@ class get_student_learning_plan_pensum extends external_api
     ];
 
     /**
+     * Display labels for the homologation source. Keys mirror the values
+     * stored in gmk_course_progre.homologation_type.
+     */
+    const HOMOLOGATION_LABEL = [
+        'suficiencia'  => 'Homologada · Suficiencia',
+        'migracion'    => 'Homologada · Migración',
+        'homologacion' => 'Homologada · Homologación',
+    ];
+
+    /**
+     * Chip color per homologation source (hex, friendly for Vuetify).
+     */
+    const HOMOLOGATION_COLOR = [
+        'suficiencia'  => 'indigo darken-2',
+        'migracion'    => 'amber darken-3',
+        'homologacion' => 'deep-purple darken-2',
+    ];
+
+    /**
      * Describes parameters of the {@see self::execute()} method.
      *
      * @return external_function_parameters
@@ -110,7 +129,8 @@ class get_student_learning_plan_pensum extends external_api
             $userPensumCourses = $DB->get_records_sql(
                 "
                 SELECT lpc.*, lpc.id as learningcourseid, gcp.status, gcp.progress, gcp.credits, gcp.prerequisites, gcp.id as progressid,
-                       gcp.grade as progressgrade, gcp.classid as progressclassid, gcp.groupid as progressgroupid
+                       gcp.grade as progressgrade, gcp.classid as progressclassid, gcp.groupid as progressgroupid,
+                       gcp.homologation_type, gcp.homologation_note, gcp.homologation_at, gcp.homologation_by
                 FROM {local_learning_courses} lpc
                 LEFT JOIN {gmk_course_progre} gcp ON (gcp.courseid = lpc.courseid AND gcp.userid = :userid AND gcp.learningplanid = :learningplanid)
                 WHERE lpc.learningplanid = :lpid
@@ -886,6 +906,23 @@ class get_student_learning_plan_pensum extends external_api
 
                 $userPensumCourse->statusLabel = self::STATUS_LABEL[$userPensumCourse->status] ?? 'No disponible';
                 $userPensumCourse->statusColor = self::STATUS_COLOR[$userPensumCourse->status] ?? '#5e35b1';
+
+                // Homologation metadata (may be empty/null for legacy rows).
+                $homoType = isset($userPensumCourse->homologation_type)
+                    ? trim((string)$userPensumCourse->homologation_type)
+                    : '';
+                $userPensumCourse->homologation_type  = $homoType;
+                $userPensumCourse->homologation_note  = isset($userPensumCourse->homologation_note)
+                    ? (string)$userPensumCourse->homologation_note
+                    : '';
+                $userPensumCourse->homologation_at    = (int)($userPensumCourse->homologation_at ?? 0);
+                $userPensumCourse->homologation_by    = (int)($userPensumCourse->homologation_by ?? 0);
+                $userPensumCourse->homologation_label = $homoType !== ''
+                    ? (self::HOMOLOGATION_LABEL[$homoType] ?? $homoType)
+                    : '';
+                $userPensumCourse->homologation_color = $homoType !== ''
+                    ? (self::HOMOLOGATION_COLOR[$homoType] ?? 'grey darken-2')
+                    : '';
 
                 // Number of active classes available for manual enrollment from Academic Panel.
                 $learningKey = (int)$userPensumCourse->learningcourseid;

@@ -2414,6 +2414,37 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20260701002, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20260701004) {
+        // Homologation feature: track source and reason on gmk_course_progre
+        // so the academic panel can show a chip per asignatura indicating how
+        // the consolidated "Nota Final Integrada" was assigned (suficiencia /
+        // migracion / homologacion). All four fields are nullable so legacy
+        // rows stay untouched.
+        $table = new xmldb_table('gmk_course_progre');
+
+        $field = new xmldb_field('homologation_type', XMLDB_TYPE_CHAR, '20', null, null, '', 'blocked_by_absence_at');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        $field = new xmldb_field('homologation_note', XMLDB_TYPE_TEXT, 'medium', null, null, null, 'homologation_type');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        $field = new xmldb_field('homologation_at', XMLDB_TYPE_INTEGER, '10', null, null, '0', 'homologation_note');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        $field = new xmldb_field('homologation_by', XMLDB_TYPE_INTEGER, '10', null, null, '0', 'homologation_at');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        upgrade_plugin_savepoint(true, 20260701004, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

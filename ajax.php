@@ -1915,6 +1915,30 @@ try {
             ];
             break;
 
+        case 'local_grupomakro_homologate_course_grade':
+            require_sesskey();
+            require_capability('moodle/site:config', $context);
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/student/homologate_course_grade.php');
+            $userid         = required_param('userId',         PARAM_INT);
+            $learningplanid = required_param('learningPlanId', PARAM_INT);
+            $corecourseid   = required_param('coreCourseId',   PARAM_INT);
+            $grade          = required_param('grade',          PARAM_FLOAT);
+            $type           = required_param('type',           PARAM_TEXT);
+            $observation    = required_param('observation',    PARAM_RAW);
+            $result = \local_grupomakro_core\external\student\homologate_course_grade::execute(
+                $userid,
+                $learningplanid,
+                $corecourseid,
+                $grade,
+                $type,
+                $observation
+            );
+            $response = [
+                'status' => $result['status'] === 'error' ? 'error' : 'success',
+                'data'   => $result,
+            ];
+            break;
+
         case 'local_grupomakro_get_student_course_pensum_activities':
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/student/get_student_course_pensum_activities.php');
             $userid = required_param('userId', PARAM_INT);
