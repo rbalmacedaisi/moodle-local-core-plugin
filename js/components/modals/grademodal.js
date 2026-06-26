@@ -760,8 +760,15 @@ Vue.component('grademodal', {
             const flag = window.isAdmin;
             const isAdmin = (flag === true) || (flag === 'true') || (flag === 1) || (flag === '1');
             if (!isAdmin) return false;
-            return Number(course && course.courseid ? course.courseid : 0) > 0
-                && Number(course && course.learningplanid ? course.learningplanid : 0) > 0;
+            if (Number(course && course.courseid ? course.courseid : 0) <= 0) return false;
+            if (Number(course && course.learningplanid ? course.learningplanid : 0) <= 0) return false;
+            // Hide when the course already has a passing grade (>=71).
+            // The backend uses the same threshold (COURSE_APPROVED = 4) when
+            // validating nota < PASS_GRADE, so the UI and the server agree.
+            const rawGrade = course && course.grade;
+            const parsed = parseFloat(String(rawGrade == null ? '' : rawGrade).replace(',', '.'));
+            if (!isNaN(parsed) && parsed >= 71) return false;
+            return true;
         },
         openHomologateDialog(course) {
             if (!this.canHomologate(course)) return;

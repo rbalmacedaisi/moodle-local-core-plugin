@@ -154,6 +154,19 @@ class homologate_course_grade extends external_api
             return self::error('La observación es obligatoria.');
         }
 
+        // Defense-in-depth: reject if the (user, course, plan) row already
+        // holds a passing grade. The UI hides the button in this case, but a
+        // direct request could otherwise bypass that guard.
+        $existingGrade = $DB->get_record('gmk_course_progre', [
+            'userid'         => $userId,
+            'courseid'       => $coreCourseId,
+            'learningplanid' => $learningPlanId,
+        ], 'grade', IGNORE_MISSING);
+        if ($existingGrade && $existingGrade->grade !== null && (float)$existingGrade->grade >= self::PASS_GRADE) {
+            return self::error('La asignatura ya tiene una nota aprobatoria (' .
+                number_format((float)$existingGrade->grade, 2) . '). No se puede homologar nuevamente.');
+        }
+
         // Validate user / course / learning plan.
         $user  = $DB->get_record('user', ['id' => $userId, 'deleted' => 0], 'id,firstname,lastname', MUST_EXIST);
         $course = $DB->get_record('course', ['id' => $coreCourseId], 'id,fullname,shortname', MUST_EXIST);
