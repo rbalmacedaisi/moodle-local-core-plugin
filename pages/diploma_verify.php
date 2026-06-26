@@ -59,18 +59,35 @@ if ($token !== '') {
 $sitename = format_string($SITE->fullname);
 $wwwroot = $CFG->wwwroot;
 
-// Logo URL. The pix/ directory is NOT web-accessible, so we serve
-// the file via the existing pages/diploma_image.php endpoint
-// (extended with an asset=brand route). Falls back to a styled
-// initial block if the image is missing.
-$logo = $wwwroot . '/local/grupomakro_core/pages/diploma_image.php?asset=brand';
+// Logo URL — mirrors the pattern used by academicpanel.php so the
+// verification page shows the SAME logo that appears in the
+// generated PDF reports. We grab the theme logo from theme_config
+// and serve it from /theme/<theme>/pix/static/ which is publicly
+// reachable (this is the same path the PDF generator uses).
+$logo = '';
 $logoexists = false;
-foreach ([
-    $CFG->dirroot . '/local/grupomakro_core/pix/institute-logo.png',
-    $CFG->dirroot . '/local/grupomakro_core/pix/institute-logo.jpg',
-    $CFG->dirroot . '/theme/soluttolmsadmin/pix/static/logo ISI-1 (1).png',
-] as $cand) {
-    if (is_readable($cand)) { $logoexists = true; break; }
+try {
+    $theme = theme_config::load($CFG->theme);
+    if ($theme && isset($theme->settings->logo) && !empty($theme->settings->logo)) {
+        $logobase = basename($theme->settings->logo);
+        $candidate = $CFG->dirroot . '/theme/' . $CFG->theme . '/pix/static/' . $logobase;
+        if (is_readable($candidate)) {
+            $logo = $wwwroot . '/theme/' . $CFG->theme . '/pix/static/' . $logobase;
+            $logoexists = true;
+        }
+    }
+} catch (Throwable $e) {
+    // Ignore and continue without logo.
+}
+// Admins can override the default theme logo by dropping their own
+// PNG at local/grupomakro_core/pix/institute-logo.png. We try it
+// last so it wins over the theme logo when present.
+if (!$logoexists) {
+    $override = $CFG->dirroot . '/local/grupomakro_core/pix/institute-logo.png';
+    if (is_readable($override)) {
+        $logo = $wwwroot . '/local/grupomakro_core/pix/institute-logo.png';
+        $logoexists = true;
+    }
 }
 
 // Page chrome strings.
