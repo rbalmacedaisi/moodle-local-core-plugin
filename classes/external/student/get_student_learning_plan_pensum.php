@@ -80,6 +80,7 @@ class get_student_learning_plan_pensum extends external_api
         'suficiencia'  => 'Homologada · Suficiencia',
         'migracion'    => 'Homologada · Migración',
         'homologacion' => 'Homologada · Homologación',
+        'practica'     => 'Homologada · Práctica Profesional',
     ];
 
     /**
@@ -89,6 +90,7 @@ class get_student_learning_plan_pensum extends external_api
         'suficiencia'  => 'indigo darken-2',
         'migracion'    => 'amber darken-3',
         'homologacion' => 'deep-purple darken-2',
+        'practica'     => 'teal darken-3',
     ];
 
     /**

@@ -78,7 +78,7 @@ class homologate_course_grade extends external_api
     const STATUS_FAILED = 5;
 
     /** Allowed homologation sources. */
-    const ALLOWED_TYPES = ['suficiencia', 'migracion', 'homologacion'];
+    const ALLOWED_TYPES = ['suficiencia', 'migracion', 'homologacion', 'practica'];
 
     /**
      * Describes parameters of the {@see self::execute()} method.

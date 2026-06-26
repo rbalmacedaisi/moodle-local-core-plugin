@@ -516,6 +516,11 @@ Vue.component('grademodal', {
                                     <span class="text-body-2">Homologación</span>
                                 </template>
                             </v-radio>
+                            <v-radio value="practica"      color="teal darken-3"     class="mb-1">
+                                <template v-slot:label>
+                                    <span class="text-body-2">Práctica Profesional</span>
+                                </template>
+                            </v-radio>
                         </v-radio-group>
 
                         <v-text-field
@@ -613,7 +618,8 @@ Vue.component('grademodal', {
             homologationTypeOptions: [
                 { value: 'suficiencia',   label: 'Examen de suficiencia' },
                 { value: 'migracion',     label: 'Migración' },
-                { value: 'homologacion',  label: 'Homologación' }
+                { value: 'homologacion',  label: 'Homologación' },
+                { value: 'practica',      label: 'Práctica Profesional' }
             ]
         };
     },
@@ -724,6 +730,7 @@ Vue.component('grademodal', {
                 case 'suficiencia':  return 'indigo darken-2';
                 case 'migracion':    return 'amber darken-3';
                 case 'homologacion': return 'deep-purple darken-2';
+                case 'practica':     return 'teal darken-3';
                 default:             return 'grey darken-2';
             }
         },
@@ -732,6 +739,7 @@ Vue.component('grademodal', {
                 case 'suficiencia':  return 'Homologada · Suficiencia';
                 case 'migracion':    return 'Homologada · Migración';
                 case 'homologacion': return 'Homologada · Homologación';
+                case 'practica':     return 'Homologada · Práctica Profesional';
                 default:             return 'Homologada';
             }
         },
@@ -2393,7 +2401,7 @@ Vue.component('grademodal', {
         },
         isHomologationFormValid() {
             return !this.homologationGradeError && !this.homologationObservationError
-                && ['suficiencia', 'migracion', 'homologacion'].includes(this.homologationForm.type);
+                && ['suficiencia', 'migracion', 'homologacion', 'practica'].includes(this.homologationForm.type);
         }
     },
 });
