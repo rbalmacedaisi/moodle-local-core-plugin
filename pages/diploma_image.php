@@ -35,7 +35,7 @@ $filename    = optional_param('file', '', PARAM_FILE);
 $forcedown   = optional_param('download', 0, PARAM_BOOL);
 $nologin     = optional_param('nologin', 0, PARAM_BOOL);
 $sesskey     = optional_param('sesskey', '', PARAM_RAW);
-$type        = optional_param('type', '', PARAM_ALPHANUMEXT);
+$type        = optional_param('asset', '', PARAM_ALPHANUMEXT);
 
 // Serve the institute logo used by the public verification page.
 // The logo is a static asset on disk and must NOT go through
@@ -43,7 +43,7 @@ $type        = optional_param('type', '', PARAM_ALPHANUMEXT);
 // directories). We accept either a custom override at
 // local/grupomakro_core/pix/institute-logo.{png,jpg} or fall back to
 // the soluttolmsadmin theme logo.
-if ($type === 'logo') {
+if ($type === 'brand') {
     $candidates = [
         $CFG->dirroot . '/local/grupomakro_core/pix/institute-logo.png',
         $CFG->dirroot . '/local/grupomakro_core/pix/institute-logo.jpg',

@@ -61,9 +61,9 @@ $wwwroot = $CFG->wwwroot;
 
 // Logo URL. The pix/ directory is NOT web-accessible, so we serve
 // the file via the existing pages/diploma_image.php endpoint
-// (newly extended with a type=logo route). Falls back to a styled
+// (extended with an asset=brand route). Falls back to a styled
 // initial block if the image is missing.
-$logo = $wwwroot . '/local/grupomakro_core/pages/diploma_image.php?type=logo';
+$logo = $wwwroot . '/local/grupomakro_core/pages/diploma_image.php?asset=brand';
 $logoexists = false;
 foreach ([
     $CFG->dirroot . '/local/grupomakro_core/pix/institute-logo.png',
