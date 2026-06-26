@@ -365,7 +365,7 @@ if ($hassiteconfig) {
         if (empty($planoptions)) {
             $planoptions = ['0' => '(No hay planes configurados)'];
         }
-        $settingspage->add(new admin_setting_pickvalues(
+        $settingspage->add(new admin_setting_configmultiselect(
             'local_grupomakro_core/absence_alert_planids',
             new lang_string('absence_alert_planids', 'local_grupomakro_core'),
             new lang_string('absence_alert_planids_desc', 'local_grupomakro_core'),
