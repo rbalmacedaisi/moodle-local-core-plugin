@@ -24,6 +24,6 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = "local_grupomakro_core";
-$plugin->version   = 20260701004;         // Homologation flow from academic panel: gmk_course_progre.homologation_{type,note,at,by} + WS local_grupomakro_homologate_course_grade (inscribe sin grupo, escribe Nota Final Integrada, marca estado y observación).
+$plugin->version   = 20260701005;         // Course-level absence breakdown surfaced in the academic panel grades modal: WS local_grupomakro_get_course_absences_detail (per-class list of absent sessions).
 $plugin->requires = 2014051200;
 $plugin->maturity = MATURITY_STABLE;

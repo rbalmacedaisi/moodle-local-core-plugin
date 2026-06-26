@@ -223,8 +223,9 @@ Vue.component('grademodal', {
                                         <template v-slot:default>
                                             <thead>
                                                 <tr>
-                                                    <th class="text-left text-overline" style="width: 52%">Asignatura</th>
+                                                    <th class="text-left text-overline" style="width: 46%">Asignatura</th>
                                                     <th class="text-center text-overline">Estado</th>
+                                                    <th class="text-center text-overline" style="width: 88px;">Inasist.</th>
                                                     <th class="text-right text-overline">Nota</th>
                                                     <th class="text-center text-overline">Acción</th>
                                                 </tr>
@@ -255,6 +256,28 @@ Vue.component('grademodal', {
                                                         <v-chip x-small :color="course.statusColor" dark label class="text-caption font-weight-bold">
                                                             {{ course.statusLabel }}
                                                         </v-chip>
+                                                    </td>
+                                                    <td class="text-center py-1" @click.stop>
+                                                        <v-tooltip bottom :disabled="!absenceSummaryFor(course) || absenceSummaryFor(course).total_absences === 0">
+                                                            <template v-slot:activator="{ on, attrs }">
+                                                                <span v-bind="attrs" v-on="on">
+                                                                    <v-chip
+                                                                        :color="absenceChipColor(course)"
+                                                                        dark
+                                                                        small
+                                                                        label
+                                                                        :class="absenceSummaryFor(course) && absenceSummaryFor(course).total_absences > 0 ? 'absence-chip-clickable' : ''"
+                                                                        :loading="absenceLoadingKey === getCourseKey(course)"
+                                                                        :disabled="absenceLoadingKey === getCourseKey(course)"
+                                                                        @click.stop="openAbsenceDetailDialog(course)"
+                                                                    >
+                                                                        <v-icon x-small left>mdi-calendar-remove</v-icon>
+                                                                        {{ absenceSummaryFor(course) ? absenceSummaryFor(course).total_absences : '—' }}
+                                                                    </v-chip>
+                                                                </span>
+                                                            </template>
+                                                            <span>{{ absenceSummaryFor(course) ? absenceSummaryFor(course).total_absences : 0 }} inasistencias registradas — clic para ver el detalle.</span>
+                                                        </v-tooltip>
                                                     </td>
                                                     <td class="text-right font-weight-bold" :class="getGradeColor(course.grade)">
                                                         {{ course.grade }}
@@ -579,6 +602,126 @@ Vue.component('grademodal', {
                     </v-card-actions>
                 </v-card>
             </v-dialog>
+
+            <v-dialog v-model="absenceDialog" max-width="780" scrollable>
+                <v-card class="rounded-lg overflow-hidden">
+                    <v-card-title class="headline primary white--text d-flex align-center py-3 px-4">
+                        <v-icon left dark>mdi-calendar-remove</v-icon>
+                        <span>Detalle de inasistencias</span>
+                        <v-spacer></v-spacer>
+                        <v-btn icon dark @click="closeAbsenceDetailDialog">
+                            <v-icon>mdi-close</v-icon>
+                        </v-btn>
+                    </v-card-title>
+
+                    <v-card-text class="pa-4">
+                        <div v-if="absenceSelectedCourse" class="mb-3">
+                            <div class="text-body-1 font-weight-bold">{{ studentName }}</div>
+                            <div class="text-caption grey--text text--darken-1">
+                                {{ absenceSelectedCourse.coursename }}
+                            </div>
+                        </div>
+
+                        <div v-if="absenceLoading" class="text-center py-6">
+                            <v-progress-circular indeterminate color="primary"></v-progress-circular>
+                            <div class="caption grey--text mt-2">Cargando inasistencias...</div>
+                        </div>
+
+                        <div v-else-if="absenceError" class="py-2">
+                            <v-alert type="error" dense outlined>{{ absenceError }}</v-alert>
+                        </div>
+
+                        <template v-else-if="absenceSummary">
+                            <div class="d-flex flex-wrap align-center pa-3 rounded blue darken-4 white--text mb-3">
+                                <v-icon color="white" class="mr-2">mdi-calendar-remove</v-icon>
+                                <span class="text-body-2 font-weight-medium mr-4">
+                                    {{ absenceSummary.total_absences }} inasistencia(s) en total
+                                </span>
+                                <span class="text-caption mr-4" v-if="absenceSummary.threshold">
+                                    Umbral de bloqueo: <b>{{ absenceSummary.threshold }}</b>
+                                </span>
+                                <span v-if="absenceSummary.total_absences === 0" class="text-caption">
+                                    Sin registros de ausencia para esta asignatura.
+                                </span>
+                            </div>
+
+                            <div v-if="!absenceSummary.classes || absenceSummary.classes.length === 0" class="text-center py-6 grey--text">
+                                <v-icon large color="grey lighten-2">mdi-check-circle-outline</v-icon>
+                                <div class="mt-2 text-body-2 font-italic">
+                                    El estudiante no ha pertenecido a ninguna clase con sesiones de asistencia registradas.
+                                </div>
+                            </div>
+
+                            <div v-else>
+                                <div v-for="cls in absenceSummary.classes" :key="cls.classid" class="mb-4">
+                                    <div class="d-flex align-center px-2 py-1 blue-grey lighten-5 rounded mb-1">
+                                        <v-icon x-small color="blue-grey darken-2" class="mr-1">mdi-google-classroom</v-icon>
+                                        <span class="text-caption font-weight-bold text-uppercase blue-grey--text text--darken-2">
+                                            {{ cls.name }}
+                                        </span>
+                                        <v-spacer></v-spacer>
+                                        <v-chip x-small :color="cls.absent_count >= cls.alert_level && cls.absent_count >= 3 ? 'red darken-2' : (cls.absent_count >= 1 ? 'amber darken-2' : 'green darken-2')"
+                                                dark label class="text-caption font-weight-bold">
+                                            {{ cls.absent_count }} / {{ cls.taken_sessions }}
+                                        </v-chip>
+                                    </div>
+                                    <div class="d-flex flex-wrap caption grey--text text--darken-1 px-2 mb-2" style="gap: 8px;">
+                                        <span v-if="cls.periodname"><v-icon x-small>mdi-calendar-clock</v-icon> {{ cls.periodname }}</span>
+                                        <span v-if="cls.instructorname"><v-icon x-small>mdi-account</v-icon> {{ cls.instructorname }}</span>
+                                        <span v-if="cls.is_module"><v-icon x-small>mdi-book-education-outline</v-icon> Módulo</span>
+                                        <span v-if="cls.blocked" class="red--text font-weight-bold">
+                                            <v-icon x-small color="red">mdi-block-helper</v-icon> Bloqueada por inasistencias
+                                        </span>
+                                    </div>
+
+                                    <div v-if="cls.absent_sessions.length === 0" class="px-2 py-1 green--text text--darken-2 caption">
+                                        <v-icon x-small>mdi-check</v-icon> Asistencia completa
+                                    </div>
+
+                                    <v-simple-table v-else dense class="elevation-1 rounded">
+                                        <template v-slot:default>
+                                            <thead>
+                                                <tr class="blue-grey lighten-5">
+                                                    <th class="text-left py-1" style="width: 32%;">Fecha</th>
+                                                    <th class="text-left py-1" style="width: 25%;">Estado</th>
+                                                    <th class="text-left py-1">Descripción</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr v-for="(sess, idx) in cls.absent_sessions" :key="sess.sessionid">
+                                                    <td class="py-1">
+                                                        <div class="text-body-2 font-weight-medium">{{ sess.date }}</div>
+                                                        <div class="caption grey--text">{{ sess.time }}</div>
+                                                    </td>
+                                                    <td class="py-1">
+                                                        <v-chip x-small :color="sess.has_log ? 'red darken-2' : 'grey darken-1'" dark label class="text-caption font-weight-bold">
+                                                            {{ sess.acronym || (sess.has_log ? 'A' : '—') }}
+                                                        </v-chip>
+                                                        <span class="caption ml-1">{{ sess.status }}</span>
+                                                    </td>
+                                                    <td class="py-1 text-body-2">
+                                                        <div>{{ sess.description || '—' }}</div>
+                                                        <div v-if="sess.remarks" class="caption grey--text">
+                                                            <v-icon x-small>mdi-comment-text-outline</v-icon> {{ sess.remarks }}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </template>
+                                    </v-simple-table>
+                                </div>
+                            </div>
+                        </template>
+                    </v-card-text>
+
+                    <v-divider></v-divider>
+
+                    <v-card-actions class="pa-3">
+                        <v-spacer></v-spacer>
+                        <v-btn color="primary" text @click="closeAbsenceDetailDialog">Cerrar</v-btn>
+                    </v-card-actions>
+                </v-card>
+            </v-dialog>
         </div>
     `,
     data() {
@@ -607,6 +750,13 @@ Vue.component('grademodal', {
             creditPlanId: 0,
             revalidations: {},   // keyed by corecourseid
             homologations: {},    // keyed by corecourseid (mirrors gmk_course_progre.homologation_*)
+            absenceSummaries: {}, // keyed by corecourseid (cache of /get_course_absences_detail)
+            absenceLoadingKey: null,
+            absenceDialog: false,
+            absenceSelectedCourse: null,
+            absenceSummary: null,
+            absenceError: '',
+            absenceLoading: false,
             homologatingCourseKey: null,
             homologationDialog: false,
             homologationSelected: null,
@@ -769,6 +919,90 @@ Vue.component('grademodal', {
             const parsed = parseFloat(String(rawGrade == null ? '' : rawGrade).replace(',', '.'));
             if (!isNaN(parsed) && parsed >= 71) return false;
             return true;
+        },
+        absenceSummaryFor(course) {
+            const cid = Number(course && course.courseid ? course.courseid : 0);
+            if (!cid) return null;
+            return this.absenceSummaries && this.absenceSummaries[cid] ? this.absenceSummaries[cid] : null;
+        },
+        absenceChipColor(course) {
+            const summary = this.absenceSummaryFor(course);
+            const total = summary ? Number(summary.total_absences || 0) : 0;
+            if (total <= 0) return 'green darken-2';
+            if (total >= 3) return 'red darken-2';
+            return 'amber darken-2';
+        },
+        async openAbsenceDetailDialog(course) {
+            if (!course || Number(course.courseid || 0) <= 0) return;
+            this.absenceSelectedCourse = course;
+            this.absenceDialog = true;
+            this.absenceError = '';
+            this.absenceSummary = null;
+
+            const key = this.getCourseKey(course);
+            this.absenceLoadingKey = key;
+
+            try {
+                const url = window.wsUrl || (window.location.origin + '/local/grupomakro_core/ajax.php');
+                const response = await window.axios.get(url, {
+                    params: {
+                        action:       'local_grupomakro_get_course_absences_detail',
+                        sesskey:      M.cfg.sesskey,
+                        userId:       Number(this.dataStudent.id),
+                        coreCourseId: Number(course.courseid || 0),
+                    }
+                });
+                const payload = (response && response.data) || {};
+                const result  = (payload.status === 'success' && payload.data) ? payload.data : payload;
+                if (result && typeof result === 'object' && Array.isArray(result.classes)) {
+                    this.absenceSummary = result;
+                    const cid = Number(course.courseid || 0);
+                    if (cid > 0) {
+                        this.$set(this.absenceSummaries, cid, result);
+                    }
+                } else {
+                    this.absenceError = (result && result.message) || 'No se pudo obtener el detalle de inasistencias.';
+                }
+            } catch (error) {
+                console.error('Error loading absence detail:', error);
+                const msg = (error && error.response && error.response.data && error.response.data.message)
+                    || (error && error.message)
+                    || 'Error al consultar las inasistencias.';
+                this.absenceError = msg;
+            } finally {
+                this.absenceLoadingKey = null;
+            }
+        },
+        closeAbsenceDetailDialog() {
+            this.absenceDialog = false;
+            this.absenceSelectedCourse = null;
+            this.absenceSummary = null;
+            this.absenceError = '';
+        },
+        prefetchAbsenceSummaries(courses) {
+            if (!Array.isArray(courses)) return;
+            const userId = Number(this.dataStudent && this.dataStudent.id || 0);
+            if (userId <= 0) return;
+            courses.forEach((course) => {
+                const cid = Number(course && course.courseid ? course.courseid : 0);
+                if (cid <= 0) return;
+                if (this.absenceSummaries[cid]) return;
+                const url = window.wsUrl || (window.location.origin + '/local/grupomakro_core/ajax.php');
+                window.axios.get(url, {
+                    params: {
+                        action:       'local_grupomakro_get_course_absences_detail',
+                        sesskey:      M.cfg.sesskey,
+                        userId:       userId,
+                        coreCourseId: cid,
+                    }
+                }).then((response) => {
+                    const payload = (response && response.data) || {};
+                    const result = (payload.status === 'success' && payload.data) ? payload.data : payload;
+                    if (result && typeof result === 'object' && Array.isArray(result.classes)) {
+                        this.$set(this.absenceSummaries, cid, result);
+                    }
+                }).catch(() => { /* silent — chip stays at "—" */ });
+            });
         },
         openHomologateDialog(course) {
             if (!this.canHomologate(course)) return;
@@ -2000,6 +2234,9 @@ Vue.component('grademodal', {
                                     }
                                 });
                                 groupedByPeriodName[periodInfo.periodName] = courses;
+                                // Background prefetch of absence totals so the chip renders
+                                // with real numbers when the modal opens.
+                                this.prefetchAbsenceSummaries(courses);
                             }
                         });
                     }

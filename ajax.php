@@ -1939,6 +1939,18 @@ try {
             ];
             break;
 
+        case 'local_grupomakro_get_course_absences_detail':
+            require_capability('moodle/site:config', $context);
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/student/get_course_absences_detail.php');
+            $userid       = required_param('userId',       PARAM_INT);
+            $corecourseid = required_param('coreCourseId', PARAM_INT);
+            $result = \local_grupomakro_core\external\student\get_course_absences_detail::execute($userid, $corecourseid);
+            $response = [
+                'status' => 'success',
+                'data'   => $result,
+            ];
+            break;
+
         case 'local_grupomakro_get_student_course_pensum_activities':
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/student/get_student_course_pensum_activities.php');
             $userid = required_param('userId', PARAM_INT);

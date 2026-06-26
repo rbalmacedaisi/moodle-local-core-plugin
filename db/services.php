@@ -1076,4 +1076,13 @@ $functions = array(
         'ajax'        => true,
         'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
     ],
+    'local_grupomakro_get_course_absences_detail' => [
+        'classname'   => 'local_grupomakro_core\external\student\get_course_absences_detail',
+        'methodname'  => 'execute',
+        'description' => 'Per-class breakdown of absences for a (student, course) pair, including the list of absent/unmarked sessions. Powers the clickable absence chip in the academic panel grades modal.',
+        'type'        => 'read',
+        'capabilities'=> 'moodle/site:config',
+        'ajax'        => true,
+        'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
+    ],
 );
