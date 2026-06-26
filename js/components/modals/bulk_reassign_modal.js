@@ -140,8 +140,13 @@ Vue.component('bulk-reassign-modal', {
                 for (const key of Object.keys(extraParams)) {
                     const v = extraParams[key];
                     if (Array.isArray(v)) {
+                        // Moodle's REST parser requires the `[]` suffix
+                        // on repeated params to populate external_multiple_structure
+                        // as an array. Without it, a single-element array like
+                        // userids=2284 is parsed as the string "2284" and the
+                        // WS rejects it with "Only arrays accepted".
                         for (const item of v) {
-                            params.append(key, String(item));
+                            params.append(key + '[]', String(item));
                         }
                     } else if (v !== undefined && v !== null) {
                         params.set(key, String(v));
