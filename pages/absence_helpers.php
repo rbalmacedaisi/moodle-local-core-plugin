@@ -1539,11 +1539,32 @@ function absd_run_staged_absence_check(): array {
     $nowts = time();
     $studentstatus_fieldid = (int)($DB->get_field('user_info_field', 'id', ['shortname' => 'studentstatus']) ?: 0);
 
+    // When the plan whitelist is populated, restrict the per-class
+    // recompute loop to only those learning plans. When empty (default),
+    // all plans are processed (backward-compatible).
+    $planids = [];
+    $rawplans = (string)get_config('local_grupomakro_core', 'absence_alert_planids');
+    if (trim($rawplans) !== '') {
+        foreach (explode(',', $rawplans) as $piece) {
+            $v = (int)trim($piece);
+            if ($v > 0) {
+                $planids[$v] = $v;
+            }
+        }
+    }
+    $classparams = ['now' => $nowts];
+    $whereplan   = '';
+    if (!empty($planids)) {
+        [$plansql, $planparams] = $DB->get_in_or_equal(array_values($planids), SQL_PARAMS_NAMED, 'cronpl');
+        $whereplan    = ' AND learningplanid ' . $plansql;
+        $classparams  = array_merge($classparams, $planparams);
+    }
     $classes = $DB->get_records_sql(
-        "SELECT id, courseid, corecourseid, groupid, attendancemoduleid, initdate, enddate
+        "SELECT id, courseid, corecourseid, groupid, attendancemoduleid, initdate, enddate, learningplanid
            FROM {gmk_class}
-          WHERE approved = 1 AND closed = 0 AND enddate > :now",
-        ['now' => $nowts]
+          WHERE approved = 1 AND closed = 0 AND enddate > :now
+            $whereplan",
+        $classparams
     );
 
     foreach ($classes as $class) {
