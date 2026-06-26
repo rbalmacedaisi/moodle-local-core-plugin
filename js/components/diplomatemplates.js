@@ -425,6 +425,14 @@
                     // width_mm/height_mm than the previous one.
                     var self = this;
                     this.$nextTick(function () { self.recomputeCanvasScale(); });
+                    // Also bump fontsReadyTick so the just-mounted canvas
+                    // gets a fresh style object and the browser re-lays
+                    // the text with the (now-loaded) Google Font. Without
+                    // this, the field divs paint with the fallback
+                    // Helvetica and never get repainted because the
+                    // mounted() font-ready promise already resolved
+                    // before the template was selected.
+                    this.bumpFontsReadyTick();
                 },
                 deep: true
             }
@@ -477,6 +485,18 @@
                         self.fontsReadyTick++;
                     });
                 }
+            },
+            /**
+             * Force a fontsReadyTick bump. Called from the watch on
+             * `selected` so that selecting a template (which mounts the
+             * canvas) bumps the tick AFTER the document.fonts.ready
+             * promise has already resolved, ensuring the field divs
+             * get a fresh style object and the browser re-lays the
+             * text with the (now-loaded) Google Font instead of
+             * leaving it on the fallback Helvetica.
+             */
+            bumpFontsReadyTick() {
+                this.fontsReadyTick++;
             },
             setupCanvasResizeObserver() {
                 // Re-scale the canvas whenever the wrap size changes
