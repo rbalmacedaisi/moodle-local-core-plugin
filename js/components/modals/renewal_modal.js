@@ -348,7 +348,7 @@ Vue.component('renewal-modal', {
                 this.executing = false;
             }
         },
-        toggleSection(key) {
+        toggleExpand(key) {
             this.expandedSections[key] = !this.expandedSections[key];
         },
         closeModal() {
@@ -492,7 +492,7 @@ Vue.component('renewal-modal', {
                     <div class="tl-renewal-sections">
                         <!-- Next bimestre -->
                         <div v-if="summary.to_next_bim_count > 0" class="tl-renewal-section tl-section-blue">
-                            <div class="tl-renewal-section-head" @click="toggleSection('next_bim')">
+                            <div class="tl-renewal-section-head" @click="toggleExpand('next_bim')">
                                 <label class="tl-section-checkbox" @click.stop>
                                     <input
                                         type="checkbox"
@@ -526,7 +526,7 @@ Vue.component('renewal-modal', {
 
                         <!-- Next cuatrimestre -->
                         <div v-if="summary.to_next_cuatri_count > 0" class="tl-renewal-section tl-section-indigo">
-                            <div class="tl-renewal-section-head" @click="toggleSection('next_cuatri')">
+                            <div class="tl-renewal-section-head" @click="toggleExpand('next_cuatri')">
                                 <label class="tl-section-checkbox" @click.stop>
                                     <input
                                         type="checkbox"
@@ -559,7 +559,7 @@ Vue.component('renewal-modal', {
 
                         <!-- Graduate OK -->
                         <div v-if="summary.to_graduate_ok_count > 0" class="tl-renewal-section tl-section-green">
-                            <div class="tl-renewal-section-head" @click="toggleSection('graduate_ok')">
+                            <div class="tl-renewal-section-head" @click="toggleExpand('graduate_ok')">
                                 <label class="tl-section-checkbox" @click.stop>
                                     <input
                                         type="checkbox"
@@ -593,7 +593,7 @@ Vue.component('renewal-modal', {
 
                         <!-- Graduate WARN (highlighted in red) -->
                         <div v-if="summary.to_graduate_warn_count > 0" class="tl-renewal-section tl-section-red">
-                            <div class="tl-renewal-section-head" @click="toggleSection('graduate_warn')">
+                            <div class="tl-renewal-section-head" @click="toggleExpand('graduate_warn')">
                                 <label class="tl-section-checkbox" @click.stop>
                                     <input
                                         type="checkbox"
@@ -635,7 +635,7 @@ Vue.component('renewal-modal', {
 
                         <!-- Stays inactive (collapsed by default, not selectable) -->
                         <div v-if="summary.stays_inactive_count > 0" class="tl-renewal-section tl-section-amber">
-                            <div class="tl-renewal-section-head" @click="toggleSection('stays_inactive')">
+                            <div class="tl-renewal-section-head" @click="toggleExpand('stays_inactive')">
                                 <v-icon size="18" color="#F59E0B">mdi-account-clock-outline</v-icon>
                                 <strong>Inactivos que se quedan ({{ summary.stays_inactive_count }})</strong>
                                 <span class="tl-section-info-pill">No seleccionable</span>
@@ -654,7 +654,7 @@ Vue.component('renewal-modal', {
 
                         <!-- Skipped (collapsed by default, not selectable) -->
                         <div v-if="summary.skipped_count > 0" class="tl-renewal-section tl-section-muted">
-                            <div class="tl-renewal-section-head" @click="toggleSection('skipped')">
+                            <div class="tl-renewal-section-head" @click="toggleExpand('skipped')">
                                 <v-icon size="18" color="#94A3B8">mdi-help-circle-outline</v-icon>
                                 <strong>Omitidos ({{ summary.skipped_count }})</strong>
                                 <span class="tl-section-info-pill">No seleccionable</span>

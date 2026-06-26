@@ -1315,7 +1315,7 @@ class student_timeline extends external_api {
             $params['cspid'] = $subperiodid;
         }
 
-        $sql = "SELECT lu.userid, lu.status, lu.currentperiodid, lu.currentsubperiodid,
+        $sql = "SELECT DISTINCT lu.userid, lu.status, lu.currentperiodid, lu.currentsubperiodid,
                        u.firstname, u.lastname, u.email
                 FROM {local_learning_users} lu
                 JOIN {user} u ON u.id = lu.userid
