@@ -162,6 +162,36 @@ $diplomaFontFamilies = [
 ];
 echo '<link href="https://fonts.googleapis.com/css?family=' . implode('|', $diplomaFontFamilies) . '&display=swap" rel="stylesheet">' . "\n";
 
+// Emit a @font-face block for every TTF present in
+// local/grupomakro_core/tcpdf_fonts/ so the browser uses the EXACT
+// same face the PDF renderer registers with TCPDF. Mirrors the
+// logic in renderer::register_custom_font() on the PHP side.
+$fontdir = $CFG->dirroot . '/local/grupomakro_core/tcpdf_fonts';
+if (is_dir($fontdir)) {
+    $ttffiles = glob($fontdir . '/*.ttf') ?: [];
+    $emitted = [];
+    foreach ($ttffiles as $ttf) {
+        $basename = basename($ttf);
+        // Skip variable fonts ([wght] / [wdth,wght]).
+        if (strpos($basename, '[wght]') !== false || strpos($basename, '[wdth') !== false) {
+            continue;
+        }
+        $parts = explode('__', $basename, 2);
+        if (count($parts) < 2) { continue; }
+        $key = $parts[0];
+        $original = $parts[1];
+        // Derive the human family name from the original TTF
+        // filename: "Lato-Bold.ttf" -> "Lato".
+        $family = preg_replace('/-(Regular|Bold|Italic|BoldItalic|Black|Light|Medium|Thin|ExtraBold|ExtraLight|SemiBold|ExtraLightItalic|BlackItalic|LightItalic|MediumItalic|SemiBoldItalic|ExtraBoldItalic|RegularItalic)\.ttf$/i', '', $original);
+        if ($family === '' || $family === $original) { continue; }
+        $keyid = $key . ':' . $family;
+        if (isset($emitted[$keyid])) { continue; }
+        $emitted[$keyid] = true;
+        $url = new moodle_url('/local/grupomakro_core/pages/diploma_font.php', ['key' => $key]);
+        echo '<style>@font-face{font-family:"' . addslashes($family) . '";font-style:normal;font-weight:400;src:url("' . $url->out(false) . '") format("truetype")}</style>' . "\n";
+    }
+}
+
 echo <<<EOT
 <link href="https://cdn.jsdelivr.net/npm/@mdi/font@6.x/css/materialdesignicons.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.css" rel="stylesheet">
