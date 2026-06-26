@@ -147,9 +147,9 @@ Vue.component('intake-timeline', {
                         <button
                             class="tl-btn-icon tl-btn-reassign"
                             @click.stop="openBulkReassign(ip)"
-                            title="Reclasificar cohorte"
+                            title="Reclasificar periodo lectivo"
                         >
-                            <v-icon size="16" color="#F59E0B">mdi-account-multiple-convert</v-icon>
+                            <v-icon size="16" color="#C2410C">mdi-account-multiple-convert</v-icon>
                         </button>
                         <button
                             class="tl-btn-icon tl-btn-renew"

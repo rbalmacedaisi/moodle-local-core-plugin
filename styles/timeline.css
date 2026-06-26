@@ -1693,20 +1693,23 @@
    ========================================================= */
 .tl-btn-reassign {
     position: relative;
+    background: #FFEDD5;
+    border: 1px solid #FED7AA;
 }
 .tl-btn-reassign::after {
     content: '';
     position: absolute;
     inset: 0;
     border-radius: 8px;
-    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0);
+    box-shadow: 0 0 0 0 rgba(194, 65, 12, 0);
     transition: box-shadow var(--tl-dur) var(--tl-ease);
 }
 .tl-btn-reassign:hover {
-    background: #FEF3C7;
+    background: #FED7AA;
+    border-color: #FDBA74;
 }
 .tl-btn-reassign:hover::after {
-    box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.10);
+    box-shadow: 0 0 0 4px rgba(194, 65, 12, 0.18);
 }
 
 /* Renew button (FASE 2) */
