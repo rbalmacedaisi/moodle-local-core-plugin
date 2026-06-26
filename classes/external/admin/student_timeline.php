@@ -1846,6 +1846,12 @@ class student_timeline extends external_api {
             'subperiodid'         => new external_value(PARAM_INT, 'ID bimestre filtro', VALUE_DEFAULT, 0),
             'confirm_warnings'    => new external_value(PARAM_BOOL, 'Confirmar advertencia de graduandos con pendientes', VALUE_DEFAULT, false),
             'target_intake_period' => new external_value(PARAM_TEXT, 'Nuevo cohorte destino para los estudiantes promovidos al siguiente cuatrimestre (vacío = mantener cohorte actual)', VALUE_DEFAULT, ''),
+            'userids'             => new external_multiple_structure(
+                new external_value(PARAM_INT, 'ID usuario'),
+                'IDs específicos a renovar. Vacío = todos los del cohorte (legacy).',
+                VALUE_DEFAULT,
+                []
+            ),
         ]);
     }
 
@@ -1859,7 +1865,7 @@ class student_timeline extends external_api {
      *  - Only ACTIVE students at last bimestre of LAST period -> "graduando" (null period+subperiod).
      *  - INACTIVE students always stay (dropout calculation).
      */
-    public static function execute_period_renewal($learningplanid, $intake_period = '', $periodid = 0, $subperiodid = 0, $confirm_warnings = false, $target_intake_period = '') {
+    public static function execute_period_renewal($learningplanid, $intake_period = '', $periodid = 0, $subperiodid = 0, $confirm_warnings = false, $target_intake_period = '', $userids = []) {
         global $DB, $USER;
         $context = \context_system::instance();
         self::validate_context($context);
@@ -1873,6 +1879,54 @@ class student_timeline extends external_api {
 
         // Get the preview (which already does all the safety checks)
         $preview = self::get_period_renewal_preview($learningplanid, $intake_period, $periodid, $subperiodid);
+
+        // Selective processing: when the UI provides a non-empty userids
+        // list, only those students are touched. Empty = legacy "process
+        // all in cohort" behavior.
+        $selectedSet = [];
+        if (!empty($userids)) {
+            foreach ((array)$userids as $uid) {
+                $uid = (int)$uid;
+                if ($uid > 0) {
+                    $selectedSet[$uid] = true;
+                }
+            }
+        }
+        $hasSelection = !empty($selectedSet);
+
+        // Build a quick filter closure. When no selection was provided
+        // the filter is a no-op and the entire cohort is processed.
+        $filterBySelection = static function (array $students) use ($selectedSet, $hasSelection): array {
+            if (!$hasSelection) {
+                return $students;
+            }
+            $out = [];
+            foreach ($students as $s) {
+                if (isset($selectedSet[(int)($s['userid'] ?? 0)])) {
+                    $out[] = $s;
+                }
+            }
+            return $out;
+        };
+
+        $selectedBim       = $filterBySelection($preview['to_next_bim']      ?? []);
+        $selectedCuatri    = $filterBySelection($preview['to_next_cuatri']   ?? []);
+        $selectedGraduateOk  = $filterBySelection($preview['to_graduate_ok']  ?? []);
+        $selectedGraduateWarn = $filterBySelection($preview['to_graduate_warn'] ?? []);
+
+        // If a selection was provided but it matches nothing across all
+        // sections, there's nothing to do. Surface a clear message.
+        $totalSelected = count($selectedBim) + count($selectedCuatri) + count($selectedGraduateOk) + count($selectedGraduateWarn);
+        if ($hasSelection && $totalSelected === 0) {
+            return [
+                'success'        => false,
+                'updated_count'  => 0,
+                'failed_count'   => 0,
+                'message'        => 'Ninguno de los estudiantes seleccionados aplica a esta renovación (quizá ya fueron procesados).',
+                'requires_confirmation' => false,
+                'preview'        => $preview,
+            ];
+        }
 
         // Resolve the cohort that will be applied to the promoted students.
         // Priority: explicit target from UI -> suggestion from preview -> no change.
@@ -1901,8 +1955,8 @@ class student_timeline extends external_api {
 
         $transaction = $DB->start_delegated_transaction();
         try {
-            // 1) Bimestre advances (all students)
-            foreach ($preview['to_next_bim'] as $s) {
+            // 1) Bimestre advances (all students, filtered by selection if any)
+            foreach ($selectedBim as $s) {
                 $ok = $DB->set_field('local_learning_users', 'currentsubperiodid', $s['next_subperiod_id'],
                     ['userid' => $s['userid'], 'learningplanid' => $learningplanid]);
                 if ($ok) $updated++; else $failed++;
@@ -1913,7 +1967,7 @@ class student_timeline extends external_api {
             //    also gets their periodo_ingreso (user_info_data) updated so the
             //    cohort moves forward alongside the academic position.
             $promoted_userids = [];
-            foreach ($preview['to_next_cuatri'] as $s) {
+            foreach ($selectedCuatri as $s) {
                 $record = $DB->get_record('local_learning_users',
                     ['userid' => $s['userid'], 'learningplanid' => $learningplanid]);
                 if ($record) {
@@ -1963,7 +2017,7 @@ class student_timeline extends external_api {
             //     currentperiodid / currentsubperiodid are PRESERVED on purpose:
             //     the student must stay anchored to the last period they actually
             //     took, as required by the academic record.
-            foreach ($preview['to_graduate_ok'] as $g) {
+            foreach ($selectedGraduateOk as $g) {
                 $record = $DB->get_record('local_learning_users',
                     ['userid' => $g['userid'], 'learningplanid' => $learningplanid]);
                 if ($record) {
@@ -1984,7 +2038,7 @@ class student_timeline extends external_api {
             //     may be a missing grade load or a failed subject; the alert
             //     captures both possibilities in detail_json.
             $generated_alerts = [];
-            foreach ($preview['to_graduate_warn'] as $g) {
+            foreach ($selectedGraduateWarn as $g) {
                 $record = $DB->get_record('local_learning_users',
                     ['userid' => $g['userid'], 'learningplanid' => $learningplanid]);
                 if (!$record) {
