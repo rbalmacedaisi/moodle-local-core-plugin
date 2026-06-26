@@ -26,6 +26,10 @@
 Vue.component('bulk-reassign-modal', {
     props: {
         learningPlanId:  { type: [String, Number], required: true },
+        // Source cohort (periodo de ingreso) — when set, the modal only
+        // lists students in that cohort. The user is reclasifying their
+        // academic period (periodo lectivo), not the cohort itself.
+        cohort:           { type: String,   default: '' },
         careerName:      { type: String,   default: 'Carrera' },
     },
     data() {
@@ -157,6 +161,7 @@ Vue.component('bulk-reassign-modal', {
             try {
                 const url = this.buildWsUrl('local_grupomakro_get_students_by_academic_period', {
                     learningplanid: parseInt(this.learningPlanId, 10),
+                    intake_period:  this.cohort,
                     only_active: this.onlyActive ? 1 : 0,
                 });
                 resp = await fetch(url, { credentials: 'same-origin' });
@@ -297,6 +302,10 @@ Vue.component('bulk-reassign-modal', {
                         <span class="tl-modal-chip">
                             <v-icon size="12" color="#6366F1">mdi-book-open-variant</v-icon>
                             {{ careerName }}
+                        </span>
+                        <span v-if="cohort" class="tl-modal-chip" style="background:#FEF3C7;color:#92400E;">
+                            <v-icon size="12" color="#F59E0B">mdi-calendar-multiple</v-icon>
+                            Cohorte: {{ cohort }}
                         </span>
                         <span class="tl-modal-chip" style="background:#DBEAFE;color:#1E40AF;">
                             <v-icon size="12" color="#3B82F6">mdi-account-group</v-icon>

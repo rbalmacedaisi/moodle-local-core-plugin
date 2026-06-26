@@ -2275,27 +2275,33 @@ class student_timeline extends external_api {
     public static function get_students_by_academic_period_parameters() {
         return new external_function_parameters([
             'learningplanid'  => new external_value(PARAM_INT, 'ID del plan de aprendizaje'),
-            'only_active'     => new external_value(PARAM_BOOL, 'Solo estudiantes activos', VALUE_DEFAULT, true),
+            'intake_period'    => new external_value(PARAM_TEXT, 'Periodo de ingreso (cohorte) para filtrar', VALUE_DEFAULT, ''),
+            'only_active'      => new external_value(PARAM_BOOL, 'Solo estudiantes activos', VALUE_DEFAULT, true),
         ]);
     }
 
     /**
-     * Returns all students in a learning plan, grouped by their current
-     * academic period (periodo lectivo). Each student includes their
-     * academicperiodid + academicperiodname so the modal can show
+     * Returns students in a learning plan filtered by intake period
+     * (cohorte), grouped by their current academic period
+     * (periodo lectivo). Each student includes their academicperiodid
+     * + academicperiodname so the modal can show
      * "Periodo lectivo: 2025-II" next to each row.
      *
-     * Designed for the "Reclasificar periodo lectivo" modal: user sees
-     * students grouped by their current periodo lectivo, picks
-     * individuals, and bulk-reassigns them to a different academic
-     * period from the dropdown.
+     * Designed for the "Reclasificar periodo lectivo" modal: user clicks
+     * a cohort on the timeline, modal opens scoped to that cohort,
+     * user sees students grouped by their current periodo lectivo,
+     * picks individuals, and bulk-reassigns them to a different
+     * academic period from the dropdown.
      *
-     * @param int  $learningplanid
-     * @param bool $only_active  When true, excludes students whose local
-     *                           learning user.status is not 'activo'.
+     * @param int    $learningplanid
+     * @param string $intake_period  Optional cohort filter. When empty,
+     *                               returns all students in the plan.
+     * @param bool   $only_active    When true, excludes students whose
+     *                               local learning user.status is not
+     *                               'activo'.
      * @return array
      */
-    public static function get_students_by_academic_period($learningplanid, $only_active = true) {
+    public static function get_students_by_academic_period($learningplanid, $intake_period = '', $only_active = true) {
         global $DB;
         $context = \context_system::instance();
         self::validate_context($context);
@@ -2306,9 +2312,16 @@ class student_timeline extends external_api {
         // string we read into the student record so the modal's
         // getStatusClass/getStatusLabel can pick it up.
         $statusFilter = '';
+        $cohortFilter = '';
         $params = ['lp_id' => $learningplanid];
         if ($only_active) {
             $statusFilter = " AND LOWER(lu.status) = 'activo' ";
+        }
+        if (!empty($intake_period)) {
+            // Filter on the periodo_ingreso user_info_field, same as
+            // the intake-period-based counterpart.
+            $cohortFilter = " AND uid_periodo.data = :intake_period ";
+            $params['intake_period'] = $intake_period;
         }
 
         $sql_students = "SELECT u.id as userid, u.username, u.firstname, u.lastname, u.email,
@@ -2331,6 +2344,7 @@ class student_timeline extends external_api {
                                 ON ap.id = lu.academicperiodid
                          WHERE lu.learningplanid = :lp_id
                            $statusFilter
+                           $cohortFilter
                          ORDER BY u.lastname, u.firstname";
 
         $rows = $DB->get_records_sql($sql_students, $params);
