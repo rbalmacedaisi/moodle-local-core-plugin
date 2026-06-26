@@ -2422,22 +2422,22 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         // rows stay untouched.
         $table = new xmldb_table('gmk_course_progre');
 
-        $field = new xmldb_field('homologation_type', XMLDB_TYPE_CHAR, '20', null, null, '', 'blocked_by_absence_at');
+        $field = new xmldb_field('homologation_type', XMLDB_TYPE_CHAR, '20', null, null, null, '', 'blocked_by_absence_at');
         if (!$dbman->field_exists($table, $field)) {
             $dbman->add_field($table, $field);
         }
 
-        $field = new xmldb_field('homologation_note', XMLDB_TYPE_TEXT, 'medium', null, null, null, 'homologation_type');
+        $field = new xmldb_field('homologation_note', XMLDB_TYPE_TEXT, 'medium', null, null, null, null, 'homologation_type');
         if (!$dbman->field_exists($table, $field)) {
             $dbman->add_field($table, $field);
         }
 
-        $field = new xmldb_field('homologation_at', XMLDB_TYPE_INTEGER, '10', null, null, '0', 'homologation_note');
+        $field = new xmldb_field('homologation_at', XMLDB_TYPE_INTEGER, '10', null, null, null, '0', 'homologation_note');
         if (!$dbman->field_exists($table, $field)) {
             $dbman->add_field($table, $field);
         }
 
-        $field = new xmldb_field('homologation_by', XMLDB_TYPE_INTEGER, '10', null, null, '0', 'homologation_at');
+        $field = new xmldb_field('homologation_by', XMLDB_TYPE_INTEGER, '10', null, null, null, '0', 'homologation_at');
         if (!$dbman->field_exists($table, $field)) {
             $dbman->add_field($table, $field);
         }
