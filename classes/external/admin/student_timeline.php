@@ -1928,14 +1928,14 @@ class student_timeline extends external_api {
             ];
         }
 
-        // Resolve the cohort that will be applied to the promoted students.
-        // Priority: explicit target from UI -> suggestion from preview -> no change.
-        $effective_target = $target_intake_period;
-        if ($effective_target === '') {
-            $effective_target = $preview['suggested_target_cohort'] ?? '';
-        }
-        $cohort_changed_for = []; // userids whose periodo_ingreso was updated
-        $cohort_skipped_same = []; // userids already on the target cohort (no-op)
+        // The periodo_ingreso (cohorte) is the student's IDENTITY and is
+        // never modified by the renewal. The $target_intake_period
+        // parameter is kept in the signature for backward compatibility
+        // with older callers but is intentionally ignored here. Cohort
+        // changes are done through the separate "Reclasificar periodo
+        // lectivo" WS (bulk_update_students_academic_period or the
+        // user_info_data periodo_ingreso update path).
+        $target_intake_period = '';
 
         // Safety: if there are graduates with warnings and user hasn't confirmed, abort
         if ($preview['summary']['to_graduate_warn_count'] > 0 && !$confirm_warnings) {
@@ -1962,11 +1962,9 @@ class student_timeline extends external_api {
                 if ($ok) $updated++; else $failed++;
             }
 
-            // 2) Cuatrimestre promotion (active only)
-            //    When an effective target cohort is known, every promoted student
-            //    also gets their periodo_ingreso (user_info_data) updated so the
-            //    cohort moves forward alongside the academic position.
-            $promoted_userids = [];
+            // 2) Cuatrimestre promotion (active only).
+            //    NOTE: we explicitly do NOT touch periodo_ingreso here.
+            //    The cohort is the student's identity and is preserved.
             foreach ($selectedCuatri as $s) {
                 $record = $DB->get_record('local_learning_users',
                     ['userid' => $s['userid'], 'learningplanid' => $learningplanid]);
@@ -1977,39 +1975,8 @@ class student_timeline extends external_api {
                     $record->usermodified = (int)$USER->id;
                     $DB->update_record('local_learning_users', $record);
                     $updated++;
-                    $promoted_userids[] = (int)$s['userid'];
                 } else {
                     $failed++;
-                }
-            }
-
-            if ($effective_target !== '' && !empty($promoted_userids)) {
-                // Apply the new cohort only to students whose current periodo_ingreso
-                // is different from the target (so we avoid pointless writes).
-                $field = $DB->get_record('user_info_field', ['shortname' => 'periodo_ingreso']);
-                if ($field) {
-                    list($insql, $inparams) = $DB->get_in_or_equal($promoted_userids, SQL_PARAMS_NAMED, 'pu');
-                    $inparams['fieldid'] = $field->id;
-                    $inparams['target']  = $effective_target;
-                    $already_on_target = $DB->get_fieldset_sql(
-                        "SELECT userid FROM {user_info_data}
-                         WHERE fieldid = :fieldid AND data = :target
-                           AND userid $insql",
-                        $inparams
-                    );
-                    $already_set = array_flip(array_map('intval', $already_on_target));
-                    $needs_update = [];
-                    foreach ($promoted_userids as $uid) {
-                        if (isset($already_set[(int)$uid])) {
-                            $cohort_skipped_same[] = (int)$uid;
-                        } else {
-                            $needs_update[] = (int)$uid;
-                        }
-                    }
-                    if (!empty($needs_update)) {
-                        $cohort_changed_count = self::_bulk_update_intake_period($needs_update, $effective_target);
-                        $cohort_changed_for = $needs_update;
-                    }
                 }
             }
 
@@ -2087,15 +2054,8 @@ class student_timeline extends external_api {
         }
 
         $cohort_message = '';
-        if ($effective_target !== '' && !empty($promoted_userids)) {
-            $cohort_message = " · Recohorte aplicado: {$effective_target} a "
-                . count($cohort_changed_for) . " estudiante(s) promovido(s)"
-                . (!empty($cohort_skipped_same)
-                    ? " (" . count($cohort_skipped_same) . " ya estaban en ese cohorte)"
-                    : '');
-        } else if ($effective_target === '' && !empty($promoted_userids)) {
-            $cohort_message = ' · Recohorte NO aplicado (sin cohorte destino seleccionado)';
-        }
+        // No cohort changes performed. The cohorte (periodo_ingreso) is
+        // identity and is preserved by design.
 
         return [
             'success'        => $updated > 0,
@@ -2103,15 +2063,11 @@ class student_timeline extends external_api {
             'failed_count'   => $failed,
             'message'        => "Renovación completada: {$updated} estudiante(s) actualizado(s)"
                 . ($failed > 0 ? " ({$failed} fallaron)" : '')
-                . $cohort_message,
+                . " (cohorte no modificado)",
             'requires_confirmation' => false,
             'preview'        => $preview,
             'graduates_warn' => $graduates_warn,
             'generated_alerts' => $generated_alerts ?? [],
-            'effective_target_cohort'   => $effective_target,
-            'cohort_reassigned_count'   => count($cohort_changed_for),
-            'cohort_reassigned_userids' => $cohort_changed_for,
-            'cohort_skipped_userids'    => $cohort_skipped_same,
         ];
     }
 
@@ -2219,23 +2175,6 @@ class student_timeline extends external_api {
             'preview'        => $preview_struct,
             'graduates_warn' => new external_multiple_structure($grad_warn_struct, 'Graduandos con pendientes'),
             'generated_alerts' => new external_multiple_structure($generated_alerts_struct, 'Alertas académicas persistentes generadas en esta corrida (estudiantes que finalizaron ciclo con pendientes)'),
-            'effective_target_cohort' => new external_value(
-                PARAM_TEXT,
-                'Cohorte destino que se aplicó a los estudiantes promovidos al siguiente cuatrimestre (vacío si no se aplicó recohorte)',
-                VALUE_OPTIONAL
-            ),
-            'cohort_reassigned_count' => new external_value(
-                PARAM_INT,
-                'Cantidad de estudiantes a los que se les actualizó periodo_ingreso'
-            ),
-            'cohort_reassigned_userids' => new external_multiple_structure(
-                new external_value(PARAM_INT, 'ID usuario recohortado'),
-                'IDs de usuarios recohortados'
-            ),
-            'cohort_skipped_userids' => new external_multiple_structure(
-                new external_value(PARAM_INT, 'ID usuario ya en cohorte destino'),
-                'IDs de usuarios que ya estaban en el cohorte destino (no-op)'
-            ),
         ]);
     }
 
