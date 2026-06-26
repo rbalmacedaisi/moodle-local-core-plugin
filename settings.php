@@ -353,6 +353,28 @@ if ($hassiteconfig) {
             3,
             PARAM_INT
         ));
+
+        // Whitelist of learning plans that should generate absence alerts.
+        // Empty (default) = alerts for ALL plans (backward compatible).
+        // Any selection = alerts ONLY for the listed plans.
+        $planoptions = [];
+        $planrecords = $DB->get_records('local_learning_plans', null, 'name ASC', 'id, name, active');
+        foreach ($planrecords as $pl) {
+            if ((int)($pl->active ?? 1) === 0) {
+                continue;
+            }
+            $planoptions[(string)(int)$pl->id] = format_string($pl->name);
+        }
+        if (empty($planoptions)) {
+            $planoptions = ['0' => '(No hay planes activos configurados)'];
+        }
+        $settingspage->add(new admin_setting_pickvalues(
+            'local_grupomakro_core/absence_alert_planids',
+            new lang_string('absence_alert_planids', 'local_grupomakro_core'),
+            new lang_string('absence_alert_planids_desc', 'local_grupomakro_core'),
+            [],
+            $planoptions
+        ));
     }
 
     // Add the page to the settings tree.

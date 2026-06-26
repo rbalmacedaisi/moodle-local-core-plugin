@@ -56,6 +56,7 @@ class refresh_absence_state extends external_api {
         }
 
         $nowts = time();
+        $planfilter = absd_get_alert_plan_filter_sql();
         $classes = $DB->get_records_sql(
             "SELECT gc.id, gc.courseid, gc.corecourseid, gc.groupid, gc.attendancemoduleid, gc.initdate, gc.enddate
                FROM {gmk_course_progre} gcp
@@ -64,8 +65,9 @@ class refresh_absence_state extends external_api {
                 AND gcp.status = 2
                 AND gc.approved = 1
                 AND gc.closed = 0
-                AND gc.enddate > :now",
-            ['uid' => (int)$params['userid'], 'now' => $nowts]
+                AND gc.enddate > :now
+                AND {$planfilter['sql']}",
+            array_merge(['uid' => (int)$params['userid'], 'now' => $nowts], $planfilter['params'])
         );
 
         $processed = 0;

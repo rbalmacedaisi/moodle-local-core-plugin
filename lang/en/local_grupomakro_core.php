@@ -254,6 +254,8 @@ $string['enable_absence_blocking'] = 'Enable per-class absence blocking';
 $string['enable_absence_blocking_desc'] = 'When on, students that reach the threshold are blocked from the affected class. Keep this off while deploying mid-period and turn it on at the start of the next academic period. While off, students only see the visual alerts (orange icon, warning popup) without losing access.';
 $string['absence_block_threshold'] = 'Absence block threshold';
 $string['absence_block_threshold_desc'] = 'Number of absences in a single class that triggers the block. Defaults to 3.';
+$string['absence_alert_planids'] = 'Learning plans that generate absence alerts';
+$string['absence_alert_planids_desc'] = 'Select the learning plans from which absence alerts should be generated. If none are selected, alerts are generated for all plans (default behaviour). Excluded plans will not produce visual alerts, notifications, or cron recomputations for their classes.';
 
 $string['absence_info_subject'] = '{$a}: first absence recorded';
 $string['absence_info_body'] = 'We recorded your first absence in the subject "{$a->coursename}". At the third absence you may lose access to the resources and tracking for this subject. If you have a justification, please visit the academic department to present it.';

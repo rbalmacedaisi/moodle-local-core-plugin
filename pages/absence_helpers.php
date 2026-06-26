@@ -889,6 +889,41 @@ function absd_level_for_count(int $absences): int {
 }
 
 /**
+ * Returns the SQL fragment + params to restrict absence alerts to the
+ * whitelist configured in `local_grupomakro_core/absence_alert_planids`.
+ *
+ * - Empty config = no restriction (alert for all plans) -> returns
+ *   ['sql' => '1=1', 'params' => []].
+ * - Whitelist populated = only classes whose gmk_class.learningplanid is
+ *   in the list will trigger alerts. Use this in summary, refresh,
+ *   global-inactivity and recompute queries.
+ *
+ * @return array{sql:string, params:array}
+ */
+function absd_get_alert_plan_filter_sql(): array {
+    global $DB;
+    $raw = (string)get_config('local_grupomakro_core', 'absence_alert_planids');
+    if (trim($raw) === '') {
+        return ['sql' => '1=1', 'params' => []];
+    }
+    $ids = [];
+    foreach (explode(',', $raw) as $piece) {
+        $v = (int)trim($piece);
+        if ($v > 0) {
+            $ids[$v] = $v;
+        }
+    }
+    if (empty($ids)) {
+        return ['sql' => '1=1', 'params' => []];
+    }
+    [$insql, $inparams] = $DB->get_in_or_equal(array_values($ids), SQL_PARAMS_NAMED, 'alertpl');
+    return [
+        'sql'    => "gc.learningplanid $insql",
+        'params' => $inparams,
+    ];
+}
+
+/**
  * Returns true when the user is currently enrolled in the class with an
  * active progress status (1 = cursando, 2 = ?, 3 = ?). This is the
  * canonical predicate for "should this student see absence alerts for
@@ -1310,6 +1345,7 @@ function absd_get_class_display_name(int $classid): string {
  */
 function absd_check_global_inactivity(int $userid): array {
     global $DB;
+    $planfilter = absd_get_alert_plan_filter_sql();
     $row = $DB->get_record_sql(
         "SELECT
             SUM(CASE WHEN COALESCE(gcp.blocked_by_absence, 0) = 0 THEN 1 ELSE 0 END) AS open_count,
@@ -1321,8 +1357,9 @@ function absd_check_global_inactivity(int $userid): array {
             AND gcp.status = 2
             AND gc.approved = 1
             AND gc.closed = 0
-            AND gc.enddate > :now",
-        ['uid' => $userid, 'now' => time()]
+            AND gc.enddate > :now
+            AND {$planfilter['sql']}",
+        array_merge(['uid' => $userid, 'now' => time()], $planfilter['params'])
     );
 
     $open     = (int)($row->open_count ?? 0);
@@ -1351,6 +1388,9 @@ function absd_build_absence_summary(int $userid): array {
     // INNER JOIN against the active enrollments so stale state rows for
     // classes the student is no longer taking (status not in 1,2,3) are
     // never returned to the LXP. This is the LXP-facing filter.
+    // Plan-whitelist filter further excludes classes whose learningplan
+    // isn't enabled for absence alerts (admin setting).
+    $planfilter = absd_get_alert_plan_filter_sql();
     $sql = "SELECT s.id, s.classid, s.courseid, s.absence_count, s.alert_level,
                    s.info_dismissed_at, s.warning_dismissed_at,
                    s.blocked_at, s.unblocked_at, s.block_reason, s.last_calculated,
@@ -1362,12 +1402,13 @@ function absd_build_absence_summary(int $userid): array {
                  ON gcp.userid = s.userid
                 AND gcp.classid = s.classid
                 AND gcp.status = 2
-          LEFT JOIN {gmk_class} gc ON gc.id = s.classid
+         INNER JOIN {gmk_class} gc ON gc.id = s.classid
           LEFT JOIN {course}    c  ON c.id  = COALESCE(gc.courseid, gc.corecourseid)
               WHERE s.userid = :uid
+                AND {$planfilter['sql']}
            ORDER BY s.alert_level DESC, COALESCE(c.fullname, gc.name) ASC";
 
-    $rows = $DB->get_records_sql($sql, ['uid' => $userid]);
+    $rows = $DB->get_records_sql($sql, array_merge(['uid' => $userid], $planfilter['params']));
     $classes = [];
     $anyblocked = false;
     foreach ($rows as $r) {
@@ -1436,6 +1477,7 @@ function absd_is_class_blocked(int $userid, int $classid): bool {
  */
 function absd_get_course_absence_for_user(int $userid, int $courseid): ?array {
     global $DB;
+    $planfilter = absd_get_alert_plan_filter_sql();
     $row = $DB->get_record_sql(
         "SELECT s.classid, s.absence_count, s.alert_level, s.blocked_at, s.unblocked_at,
                 s.info_dismissed_at, s.warning_dismissed_at
@@ -1447,9 +1489,10 @@ function absd_get_course_absence_for_user(int $userid, int $courseid): ?array {
            JOIN {gmk_class} gc ON gc.id = s.classid
           WHERE s.userid = :uid
             AND (gc.courseid = :cid OR gc.corecourseid = :cid2)
+            AND {$planfilter['sql']}
        ORDER BY s.alert_level DESC, s.absence_count DESC
           LIMIT 1",
-        ['uid' => $userid, 'cid' => $courseid, 'cid2' => $courseid]
+        array_merge(['uid' => $userid, 'cid' => $courseid, 'cid2' => $courseid], $planfilter['params'])
     );
     if (!$row) {
         return null;
@@ -1539,6 +1582,7 @@ function absd_run_staged_absence_check(): array {
     // (alerts-only) phase the global suspension is NOT applied.
     $candidates = [];
     if (absd_is_blocking_enabled()) {
+        $planfilter = absd_get_alert_plan_filter_sql();
         $candidates = $DB->get_records_sql(
             "SELECT DISTINCT gcp.userid
                FROM {gmk_course_progre} gcp
@@ -1548,9 +1592,10 @@ function absd_run_staged_absence_check(): array {
                 AND gc.approved = 1
                 AND gc.closed = 0
                 AND gc.enddate > :now
+                AND {$planfilter['sql']}
                 AND u.deleted = 0
                 AND u.suspended = 0",
-            ['now' => $nowts]
+            array_merge(['now' => $nowts], $planfilter['params'])
         );
     }
 
