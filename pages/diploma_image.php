@@ -35,6 +35,32 @@ $filename    = optional_param('file', '', PARAM_FILE);
 $forcedown   = optional_param('download', 0, PARAM_BOOL);
 $nologin     = optional_param('nologin', 0, PARAM_BOOL);
 $sesskey     = optional_param('sesskey', '', PARAM_RAW);
+$type        = optional_param('type', '', PARAM_ALPHANUMEXT);
+
+// Serve the institute logo used by the public verification page.
+// The logo is a static asset on disk and must NOT go through
+// pluginfile.php (Moodle blocks direct web access to plugin
+// directories). We accept either a custom override at
+// local/grupomakro_core/pix/institute-logo.{png,jpg} or fall back to
+// the soluttolmsadmin theme logo.
+if ($type === 'logo') {
+    $candidates = [
+        $CFG->dirroot . '/local/grupomakro_core/pix/institute-logo.png',
+        $CFG->dirroot . '/local/grupomakro_core/pix/institute-logo.jpg',
+        $CFG->dirroot . '/theme/soluttolmsadmin/pix/static/logo ISI-1 (1).png',
+    ];
+    foreach ($candidates as $cand) {
+        if (is_readable($cand)) {
+            \core\session\manager::write_close();
+            send_file($cand, basename($cand), 0, 0, false, false, '', true);
+            exit;
+        }
+    }
+    header('HTTP/1.1 404 Not Found');
+    header('Content-Type: text/plain; charset=utf-8');
+    echo 'Logo not found';
+    exit;
+}
 
 if ($nologin) {
     // Public path used by diploma_verify.php. No login required.

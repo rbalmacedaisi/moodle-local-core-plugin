@@ -30,17 +30,20 @@ require_once(__DIR__ . '/../../../config.php');
 
 use local_grupomakro_core\local\diplomas\manager;
 
+// Set up a minimal PAGE context so format_string() and any other
+// helper that touches $PAGE->context does not error with
+// "$PAGE->context was not set". We do NOT call $OUTPUT->header() —
+// the verification page is self-contained and does not render the
+// Moodle navbar.
+$PAGE = new moodle_page();
+$PAGE->set_context(context_system::instance());
+$PAGE->set_pagelayout('embedded');
+
 $token = trim((string)optional_param('t', '', PARAM_ALPHANUMEXT));
 $urlparams = [];
 if ($token !== '') {
     $urlparams['t'] = $token;
 }
-
-// We intentionally do NOT call $PAGE->set_pagelayout() / $OUTPUT->header()
-// / $OUTPUT->footer(): this page is a self-contained certificate
-// verifier. We still need the Moodle framework for $DB, get_string(),
-// and $CFG/wwwroot, so config.php is required above and the language
-// pack is bootstrapped by string calls below.
 
 $verification = null;
 $found = false;
@@ -56,30 +59,18 @@ if ($token !== '') {
 $sitename = format_string($SITE->fullname);
 $wwwroot = $CFG->wwwroot;
 
-// Locate an institute logo. The plugin ships with the soluttolmsadmin
-// theme logo as a static asset, but admins can drop their own at
-// <pluginroot>/pix/institute-logo.png and it will take precedence.
-$pluginroot = $CFG->dirroot . '/local/grupomakro_core';
-$candidates = [
-    $pluginroot . '/pix/institute-logo.png',
-    $pluginroot . '/pix/institute-logo.jpg',
+// Logo URL. The pix/ directory is NOT web-accessible, so we serve
+// the file via the existing pages/diploma_image.php endpoint
+// (newly extended with a type=logo route). Falls back to a styled
+// initial block if the image is missing.
+$logo = $wwwroot . '/local/grupomakro_core/pages/diploma_image.php?type=logo';
+$logoexists = false;
+foreach ([
+    $CFG->dirroot . '/local/grupomakro_core/pix/institute-logo.png',
+    $CFG->dirroot . '/local/grupomakro_core/pix/institute-logo.jpg',
     $CFG->dirroot . '/theme/soluttolmsadmin/pix/static/logo ISI-1 (1).png',
-    $CFG->dirroot . '/theme/boost/pix/logo.png',
-];
-$logo = '';
-foreach ($candidates as $cand) {
-    if (is_readable($cand)) {
-        // Serve via pluginfile.php so the URL is stable even if the
-        // admin replaces the file on disk. We use a simple
-        // moodle_url() with the filearea to keep the path short.
-        $rel = str_replace($CFG->dirroot . '/', '', $cand);
-        $logo = $wwwroot . '/pluginfile.php/0/local_grupomakro_core/pix/' . basename($rel);
-        break;
-    }
-}
-if ($logo === '' && $CFG->wwwroot) {
-    // Last-ditch: try the theme default logo URL.
-    $logo = $wwwroot . '/theme/soluttolmsadmin/pix/static/logo.png';
+] as $cand) {
+    if (is_readable($cand)) { $logoexists = true; break; }
 }
 
 // Page chrome strings.
@@ -88,8 +79,6 @@ $pageleading = get_string('diploma_verify_page_heading', 'local_grupomakro_core'
 $copybtn = get_string('copy', 'moodle');
 
 // Status strings.
-$statusvalid = get_string('diploma_verify_status_valid', 'local_grupomakro_core');
-$statusrevoked = get_string('diploma_verify_status_revoked', 'local_grupomakro_core');
 $statusvalidkey = $revoked ? 'diploma_verify_status_revoked' : 'diploma_verify_status_valid';
 $invalidtokenmsg = get_string('diploma_verify_invalid_token', 'local_grupomakro_core');
 $legendmsg = get_string('diploma_verify_legend', 'local_grupomakro_core');
@@ -97,15 +86,20 @@ $revokedlabel = get_string('diploma_verify_revoked', 'local_grupomakro_core');
 $certifiedprefix = get_string('diploma_certified_to', 'local_grupomakro_core');
 $careerprefix = get_string('diploma_certified_career_prefix', 'local_grupomakro_core');
 $careersuffix = get_string('diploma_certified_career_suffix', 'local_grupomakro_core');
-$copybtnok = get_string('copytoclipboard', 'moodle') ?: 'Copied!';
 
 $labelnumber = get_string('diploma_verify_diploma_number', 'local_grupomakro_core');
 $labelversion = get_string('diploma_verify_version', 'local_grupomakro_core');
 $labelissuedat = get_string('diploma_verify_issued_at', 'local_grupomakro_core');
 $labelstatus = get_string('diploma_verify_status', 'local_grupomakro_core');
-$labeldoc = get_string('diploma_var_documentnumber', 'local_grupomakro_core');
-$labeltpl = get_string('diploma_template_used', 'local_grupomakro_core');
-$backlink = get_string('diploma_verify_back_to_site', 'local_grupomakro_core');
+
+$row = $verification ?: [];
+$studentname = isset($row['studentname']) ? s($row['studentname']) : '';
+$careername = isset($row['careername']) ? s($row['careername']) : '';
+$diplomanumber = isset($row['diplomanumber']) ? s($row['diplomanumber']) : '';
+$version = isset($row['version']) ? (int)$row['version'] : 0;
+$issuedat = isset($row['issued_at']) ? userdate((int)$row['issued_at']) : '';
+$statuslabel = $found ? get_string($statusvalidkey, 'local_grupomakro_core') : '';
+$verifyurl = isset($row['verification_url']) ? s($row['verification_url']) : '';
 
 $row = $verification ?: [];
 $studentname = isset($row['studentname']) ? s($row['studentname']) : '';
@@ -268,7 +262,7 @@ $verifyurl = isset($row['verification_url']) ? s($row['verification_url']) : '';
 <body>
 <div class="dplv-page">
     <header class="dplv-brand">
-        <?php if ($logo !== ''): ?>
+        <?php if ($logoexists): ?>
             <img class="dplv-logo" src="<?php echo $logo; ?>" alt="<?php echo s($sitename); ?>" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
             <div class="dplv-logo-fallback" style="display:none;"><?php echo strtoupper(substr($sitename, 0, 2)); ?></div>
         <?php else: ?>
@@ -331,25 +325,11 @@ $verifyurl = isset($row['verification_url']) ? s($row['verification_url']) : '';
                     <div class="k"><?php echo $labelstatus; ?></div>
                     <div class="v"><?php echo $statuslabel; ?></div>
                 </div>
-                <?php if ($studentdocument !== ''): ?>
-                <div class="item">
-                    <div class="k"><?php echo $labeldoc; ?></div>
-                    <div class="v"><?php echo $studentdocument; ?></div>
-                </div>
-                <?php endif; ?>
-                <div class="item">
-                    <div class="k"><?php echo $labeltpl; ?></div>
-                    <div class="v"><?php echo $templatename; ?></div>
-                </div>
             </div>
 
             <div class="dplv-share">
                 <code id="dplv-url"><?php echo $verifyurl; ?></code>
                 <button onclick="var b=this; navigator.clipboard.writeText(document.getElementById('dplv-url').textContent.trim()).then(function(){b.textContent='✓'; setTimeout(function(){b.textContent='<?php echo addslashes($copybtn); ?>';}, 1500);});"><?php echo $copybtn; ?></button>
-            </div>
-
-            <div class="dplv-foot">
-                <a href="<?php echo $wwwroot; ?>">← <?php echo $backlink; ?></a>
             </div>
         <?php endif; ?>
     </main>
