@@ -1324,7 +1324,7 @@ function absd_get_class_display_name(int $classid): string {
     $record = $DB->get_record_sql(
         "SELECT c.fullname
            FROM {gmk_class} gc
-           JOIN {course}  c ON c.id = COALESCE(gc.courseid, gc.corecourseid)
+           JOIN {course}  c ON c.id = COALESCE(gc.corecourseid, gc.courseid)
           WHERE gc.id = :id",
         ['id' => $classid],
         IGNORE_MISSING
@@ -1390,6 +1390,11 @@ function absd_build_absence_summary(int $userid): array {
     // never returned to the LXP. This is the LXP-facing filter.
     // Plan-whitelist filter further excludes classes whose learningplan
     // isn't enabled for absence alerts (admin setting).
+    //
+    // Note: COALESCE(gc.corecourseid, gc.courseid) — we prefer corecourseid
+    // because gmk_class.courseid is sometimes mis-assigned (e.g. reused
+    // from a deleted template course), whereas corecourseid always points
+    // to the real academic Moodle course.
     $planfilter = absd_get_alert_plan_filter_sql();
     $sql = "SELECT s.id, s.classid, s.courseid, s.absence_count, s.alert_level,
                    s.info_dismissed_at, s.warning_dismissed_at,
@@ -1403,7 +1408,7 @@ function absd_build_absence_summary(int $userid): array {
                 AND gcp.classid = s.classid
                 AND gcp.status = 2
          INNER JOIN {gmk_class} gc ON gc.id = s.classid
-          LEFT JOIN {course}    c  ON c.id  = COALESCE(gc.courseid, gc.corecourseid)
+          LEFT JOIN {course}    c  ON c.id  = COALESCE(gc.corecourseid, gc.courseid)
               WHERE s.userid = :uid
                 AND {$planfilter['sql']}
            ORDER BY s.alert_level DESC, COALESCE(c.fullname, gc.name) ASC";
@@ -1418,7 +1423,7 @@ function absd_build_absence_summary(int $userid): array {
         }
         $classes[] = [
             'classid'           => (int)$r->classid,
-            'courseid'          => (int)($r->classcourseid ?: $r->classcorecourseid ?: $r->courseid),
+            'courseid'          => (int)($r->classcorecourseid ?: $r->classcourseid ?: $r->courseid),
             'coursename'        => (string)($r->coursename ?? ''),
             'absence_count'     => (int)$r->absence_count,
             'alert_level'       => (int)$r->alert_level,
