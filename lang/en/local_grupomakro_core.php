@@ -216,6 +216,7 @@ $string['payment_type'] = 'Payment Type';
 $string['select_payment_type'] = 'Select Payment type';
 
 
+$string['select'] = 'Select';
 $string['credit_terms'] = 'Credit Terms';
 $string['select_periodicity'] = 'Select the periodicity';
 $string['number_quotas'] = 'Number of Quotas';

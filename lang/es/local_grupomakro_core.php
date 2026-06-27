@@ -122,6 +122,7 @@ $string['payment_type'] = 'Tipo de Pago';
 $string['select_payment_type'] = 'Seleccionar Tipo de pago';
 
 $string['credit_terms'] = 'Términos del crédito';
+$string['select'] = 'Seleccionar';
 $string['select_periodicity'] = 'Selecciona la periodicidad';
 $string['number_quotas'] = 'Número Cuotas';
 $string['payment_date'] = 'Fecha de pago';
