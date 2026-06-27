@@ -172,7 +172,6 @@ if ($dryrun) {
 }
 
 // Apply changes.
-$tx = $DB->start_delegated_transaction();
 foreach ($changes as $c) {
     if ($c['kind'] === 'courseid') {
         $DB->set_field('gmk_class', 'courseid', $c['new_value'], ['id' => $c['classid']]);
@@ -180,7 +179,6 @@ foreach ($changes as $c) {
         $DB->set_field('gmk_class', 'corecourseid', $c['new_value'], ['id' => $c['classid']]);
     }
 }
-$DB->commit_delegated_transaction();
 
 echo "[fix_class_courseid_mismatch] DONE.\n";
 echo "  courseid updates:              {$fixed_courseid}\n";
