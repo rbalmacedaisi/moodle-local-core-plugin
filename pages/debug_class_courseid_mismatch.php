@@ -43,10 +43,11 @@ function gmk_audit_normalize_name(string $name): string {
     $s = preg_replace('/\s+/', ' ', $s);
     // Drop leading period+shift prefix: "2026-iii (d) ", "2026-ii (n) ", etc.
     $s = preg_replace('/^\d{4}-[ivx]+ \([dns]\)\s*/u', '', $s);
-    // Drop any trailing modality / group / room annotations in parens.
+    // Drop trailing single-letter group marker FIRST so the modality
+    // parens become the actual trailing token.
+    $s = preg_replace('/\s+[a-z]$/u', '', $s);
+    // Drop any trailing modality / room annotations in parens.
     $s = preg_replace('/\s*\([^)]*\)\s*$/u', '', $s);
-    // Drop trailing single-letter group markers like " h", " g", " a", " b".
-    $s = preg_replace('/\s+[a-z]$/u', '', trim($s));
     return trim($s);
 }
 

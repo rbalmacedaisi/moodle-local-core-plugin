@@ -60,8 +60,11 @@ function gmk_fix_normalize_name(string $name): string {
     $s = preg_replace('/\p{Mn}+/u', '', normalizer_normalize($s, Normalizer::FORM_D));
     $s = preg_replace('/\s+/', ' ', $s);
     $s = preg_replace('/^\d{4}-[ivx]+ \([dns]\)\s*/u', '', $s);
+    // Strip the trailing group letter FIRST so the modality parens become
+    // the actual trailing token (otherwise "(presencial) g" doesn't get its
+    // parens stripped).
+    $s = preg_replace('/\s+[a-z]$/u', '', $s);
     $s = preg_replace('/\s*\([^)]*\)\s*$/u', '', $s);
-    $s = preg_replace('/\s+[a-z]$/u', '', trim($s));
     return trim($s);
 }
 
