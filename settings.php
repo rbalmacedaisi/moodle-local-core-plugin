@@ -223,6 +223,11 @@ if ($hassiteconfig) {
         new moodle_url('/local/grupomakro_core/pages/absence_dashboard.php'),
         'local/grupomakro_core:viewabsencedashboard'
     );
+    $classCourseidAuditPage = new admin_externalpage(
+        'grupomakro_core_class_courseid_audit',
+        $emojititle("\u{1F50D}", 'Auditor\u00eda: courseid mal asignado en gmk_class'),
+        new moodle_url('/local/grupomakro_core/pages/debug_class_courseid_mismatch.php')
+    );
     $letterTypesPage = new admin_externalpage(
         'grupomakro_core_letter_types',
         $emojititle("\u{1F4C4}", 'Catalogo de Cartas'),
@@ -279,6 +284,7 @@ if ($hassiteconfig) {
     $ADMIN->add('grupomakrocore_plugin', $activeStudentsByClassPage);
     $ADMIN->add('grupomakrocore_plugin', $studentPopulationPage);
     $ADMIN->add('grupomakrocore_plugin', $absenceDashboardPage);
+    $ADMIN->add('grupomakrocore_plugin', $classCourseidAuditPage);
     $ADMIN->add('grupomakrocore_plugin', $letterTypesPage);
     $ADMIN->add('grupomakrocore_plugin', $letterRequestsPage);
     $ADMIN->add('grupomakrocore_plugin', $bulkEnrollPage);
@@ -495,6 +501,54 @@ if ($hassiteconfig) {
             'local_grupomakro_core/revalida_webhook_token',
             'Token webhook de pago de reválidas',
             'Token compartido para validar el webhook de pago de reválidas (si vacío, usa el de cartas).',
+            ''
+        ));
+
+        // ── Módulos independientes (facturación Odoo) ──────────────────────────
+        $settingspage->add(new admin_setting_configtext(
+            'local_grupomakro_core/module_tc_odoo_product_id',
+            'Producto Odoo para Módulo Tronco Común',
+            'ID de producto en Odoo a facturar al solicitar un módulo de tipo Tronco Común.',
+            '0',
+            PARAM_INT
+        ));
+
+        $settingspage->add(new admin_setting_configtext(
+            'local_grupomakro_core/module_me_odoo_product_id',
+            'Producto Odoo para Módulo Materias Especializadas',
+            'ID de producto en Odoo a facturar al solicitar un módulo de tipo Materias Especializadas.',
+            '0',
+            PARAM_INT
+        ));
+
+        $settingspage->add(new admin_setting_configtext(
+            'local_grupomakro_core/module_tc_cost',
+            'Costo Módulo Tronco Común',
+            'Monto a facturar por un módulo de tipo Tronco Común (si el producto Odoo no fija el precio).',
+            '0',
+            PARAM_FLOAT
+        ));
+
+        $settingspage->add(new admin_setting_configtext(
+            'local_grupomakro_core/module_me_cost',
+            'Costo Módulo Materias Especializadas',
+            'Monto a facturar por un módulo de tipo Materias Especializadas (si el producto Odoo no fija el precio).',
+            '0',
+            PARAM_FLOAT
+        ));
+
+        $settingspage->add(new admin_setting_configtext(
+            'local_grupomakro_core/module_request_expiry_days',
+            'Caducidad solicitudes de módulo (días)',
+            'Número de días tras los cuales una solicitud pendiente de pago se marca automáticamente como expirada.',
+            '30',
+            PARAM_INT
+        ));
+
+        $settingspage->add(new admin_setting_configpasswordunmask(
+            'local_grupomakro_core/module_webhook_token',
+            'Token webhook de pago de módulos',
+            'Token compartido para validar el webhook de pago de módulos desde Express (si vacío, usa el de reválidas o cartas).',
             ''
         ));
 
