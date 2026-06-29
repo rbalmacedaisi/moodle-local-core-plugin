@@ -43,6 +43,7 @@
 
 namespace local_grupomakro_core\external\student;
 
+use context_course;
 use context_system;
 use external_api;
 use external_description;
