@@ -593,8 +593,8 @@ Vue.component('grademodal', {
                             Cancelar
                         </v-btn>
                         <v-btn color="deep-purple darken-2" dark
-                               :loading="homologatingCourseKey"
-                               :disabled="homologatingCourseKey || !isHomologationFormValid"
+                               :loading="!!homologatingCourseKey"
+                               :disabled="!!homologatingCourseKey || !isHomologationFormValid"
                                @click="homologate(homologationSelected)">
                             <v-icon left>mdi-check-decagram</v-icon>
                             Homologar
