@@ -924,6 +924,38 @@ function absd_get_alert_plan_filter_sql(): array {
 }
 
 /**
+ * Returns the canonical Moodle course id for a gmk_class row.
+ *
+ * gmk_class has TWO course fields:
+ *   - courseid      : historically a template/legacy course (may point to
+ *                     a deleted or reused course).
+ *   - corecourseid  : the actual academic Moodle course that always
+ *                     matches the class.name subject.
+ *
+ * Throughout the absence system (and across most of the plugin) we treat
+ * `corecourseid` as the source of truth. This helper returns the first
+ * non-null/non-zero value between the two so that:
+ *   - When corecourseid is set (normal case), we use it.
+ *   - When corecourseid is NULL (legacy classes), we fall back to courseid.
+ *
+ * The display SQL queries use `COALESCE(gc.corecourseid, gc.courseid)` for
+ * the course JOIN; the persisted state.courseid should match that same
+ * logic so the value stored in gmk_class_absence_state stays consistent
+ * with what the LXP will resolve when joining back.
+ *
+ * @param stdClass $class Object with at least courseid and corecourseid fields.
+ * @return int
+ */
+function absd_get_canonical_course_id(stdClass $class): int {
+    $core = isset($class->corecourseid) ? (int)$class->corecourseid : 0;
+    if ($core > 0) {
+        return $core;
+    }
+    $fallback = isset($class->courseid) ? (int)$class->courseid : 0;
+    return $fallback > 0 ? $fallback : 0;
+}
+
+/**
  * Returns true when the user is currently enrolled in the class with an
  * active progress status (1 = cursando, 2 = ?, 3 = ?). This is the
  * canonical predicate for "should this student see absence alerts for
@@ -1101,7 +1133,11 @@ function absd_recompute_user_class_state(stdClass $class, int $userid): array {
     $rec = new stdClass();
     $rec->userid             = $userid;
     $rec->classid            = (int)$class->id;
-    $rec->courseid           = (int)($class->courseid ?: ($class->corecourseid ?? 0));
+    // Canonical course id: prefer corecourseid (the actual academic Moodle
+    // course) over class.courseid (which can point to a template/legacy
+    // course). This keeps the persisted state.courseid consistent with the
+    // COALESCE(gc.corecourseid, gc.courseid) logic in the SELECT queries.
+    $rec->courseid           = absd_get_canonical_course_id($class);
     $rec->absence_count      = $count;
     $rec->last_session_id    = $lastsessionid;
     $rec->last_calculated    = $nowts;
