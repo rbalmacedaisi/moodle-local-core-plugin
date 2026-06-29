@@ -504,7 +504,7 @@ Vue.component('grademodal', {
                         <v-icon left dark>mdi-check-decagram</v-icon>
                         <span>Homologar nota</span>
                         <v-spacer></v-spacer>
-                        <v-btn icon dark @click="closeHomologateDialog" :disabled="homologatingCourseKey">
+                        <v-btn icon dark @click="closeHomologateDialog" :disabled="!!homologatingCourseKey">
                             <v-icon>mdi-close</v-icon>
                         </v-btn>
                     </v-card-title>
@@ -589,7 +589,7 @@ Vue.component('grademodal', {
 
                     <v-card-actions class="pa-3">
                         <v-spacer></v-spacer>
-                        <v-btn text :disabled="homologatingCourseKey" @click="closeHomologateDialog">
+                        <v-btn text :disabled="!!homologatingCourseKey" @click="closeHomologateDialog">
                             Cancelar
                         </v-btn>
                         <v-btn color="deep-purple darken-2" dark
