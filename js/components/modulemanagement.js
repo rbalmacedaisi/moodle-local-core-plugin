@@ -670,108 +670,6 @@ Vue.component('modulemanagement', {
     </v-col>
   </v-row>
 
-  <!-- Filters -->
-  <v-row align="center" class="mb-2">
-    <v-col cols="12" sm="4" md="3">
-      <v-select
-        v-model="selectedPeriodId"
-        :items="periodItems"
-        item-text="label"
-        item-value="id"
-        label="Período académico"
-        outlined
-        dense
-        hide-details
-        @change="loadModules"
-      ></v-select>
-    </v-col>
-    <v-col cols="12" sm="5" md="4">
-      <v-text-field
-        v-model="moduleSearch"
-        prepend-inner-icon="mdi-magnify"
-        label="Buscar asignatura..."
-        outlined
-        dense
-        hide-details
-        clearable
-      ></v-text-field>
-    </v-col>
-    <v-col class="text-right">
-      <v-btn small outlined color="teal darken-2" @click="loadModules" :loading="loadingModules">
-        <v-icon small left>mdi-refresh</v-icon> Actualizar
-      </v-btn>
-    </v-col>
-  </v-row>
-
-  <!-- Modules table -->
-  <v-card outlined>
-    <v-data-table
-      :headers="moduleHeaders"
-      :items="modules"
-      :loading="loadingModules"
-      :search="moduleSearch"
-      loading-text="Cargando módulos..."
-      no-data-text="No hay módulos registrados para el período seleccionado."
-      :footer-props="{ 'items-per-page-options': [10, 25, 50] }"
-      dense
-    >
-      <!-- Asignatura -->
-      <template v-slot:item.coursename="{ item }">
-        <span class="font-weight-medium">{{ item.coursename }}</span>
-      </template>
-
-      <!-- Período -->
-      <template v-slot:item.periodcode="{ item }">
-        <v-chip x-small outlined color="teal">{{ item.periodcode }}</v-chip>
-      </template>
-
-      <!-- Grupo Moodle — link to group members page -->
-      <template v-slot:item.name="{ item }">
-        <a
-          v-if="item.groupid"
-          :href="wwwroot + '/group/members.php?group=' + item.groupid"
-          target="_blank"
-          class="teal--text text--darken-2"
-          style="text-decoration:none; display:inline-flex; align-items:center; gap:4px;"
-          title="Ver grupo en Moodle"
-        >
-          <v-icon x-small color="teal darken-2">mdi-open-in-new</v-icon>
-          {{ item.name }}
-        </a>
-        <span v-else>{{ item.name }}</span>
-      </template>
-
-      <!-- Plazo días -->
-      <template v-slot:item.module_deadline_days="{ item }">
-        <span>{{ item.module_deadline_days }} días</span>
-      </template>
-
-      <!-- Inscritos -->
-      <template v-slot:item.enrolled_count="{ item }">
-        <v-chip x-small :color="item.enrolled_count > 0 ? 'teal darken-2' : 'grey'" dark>
-          {{ item.enrolled_count }}
-        </v-chip>
-      </template>
-
-      <!-- Acciones -->
-      <template v-slot:item._actions="{ item }">
-        <div style="white-space:nowrap">
-          <v-btn x-small color="teal darken-2" dark class="mr-1"
-            :disabled="deletingModuleId === item.id"
-            @click="openStudents(item)" title="Ver estudiantes inscritos">
-            <v-icon x-small left>mdi-account-group</v-icon> Estudiantes
-          </v-btn>
-          <v-btn x-small outlined color="red darken-2"
-            :loading="deletingModuleId === item.id"
-            :disabled="!!deletingModuleId && deletingModuleId !== item.id"
-            @click="deleteModule(item)" title="Eliminar módulo y grupo">
-            <v-icon x-small left>mdi-delete-outline</v-icon> Eliminar
-          </v-btn>
-        </div>
-      </template>
-    </v-data-table>
-  </v-card>
-
   <!-- ── Students dialog ───────────────────────────────────────────────── -->
   <v-dialog v-model="studentsDialog" max-width="900" scrollable>
     <v-card>
@@ -985,8 +883,112 @@ Vue.component('modulemanagement', {
     </v-tabs>
 
     <v-tabs-items v-model="activeTab">
-      <!-- Placeholder tab: the modules table is rendered above as the default view -->
-      <v-tab-item></v-tab-item>
+      <!-- Módulos tab: filters + table -->
+      <v-tab-item>
+        <v-card flat>
+          <!-- Filters -->
+          <v-card-text>
+            <v-row align="center" class="mb-2">
+              <v-col cols="12" sm="4" md="3">
+                <v-select
+                  v-model="selectedPeriodId"
+                  :items="periodItems"
+                  item-text="label"
+                  item-value="id"
+                  label="Período académico"
+                  outlined
+                  dense
+                  hide-details
+                  @change="loadModules"
+                ></v-select>
+              </v-col>
+              <v-col cols="12" sm="5" md="4">
+                <v-text-field
+                  v-model="moduleSearch"
+                  prepend-inner-icon="mdi-magnify"
+                  label="Buscar asignatura..."
+                  outlined
+                  dense
+                  hide-details
+                  clearable
+                ></v-text-field>
+              </v-col>
+              <v-col class="text-right">
+                <v-btn small outlined color="teal darken-2" @click="loadModules" :loading="loadingModules">
+                  <v-icon small left>mdi-refresh</v-icon> Actualizar
+                </v-btn>
+              </v-col>
+            </v-row>
+          </v-card-text>
+
+          <!-- Modules table -->
+          <v-data-table
+            :headers="moduleHeaders"
+            :items="modules"
+            :loading="loadingModules"
+            :search="moduleSearch"
+            loading-text="Cargando módulos..."
+            no-data-text="No hay módulos registrados para el período seleccionado."
+            :footer-props="{ 'items-per-page-options': [10, 25, 50] }"
+            dense
+          >
+            <!-- Asignatura -->
+            <template v-slot:item.coursename="{ item }">
+              <span class="font-weight-medium">{{ item.coursename }}</span>
+            </template>
+
+            <!-- Período -->
+            <template v-slot:item.periodcode="{ item }">
+              <v-chip x-small outlined color="teal">{{ item.periodcode }}</v-chip>
+            </template>
+
+            <!-- Grupo Moodle — link to group members page -->
+            <template v-slot:item.name="{ item }">
+              <a
+                v-if="item.groupid"
+                :href="wwwroot + '/group/members.php?group=' + item.groupid"
+                target="_blank"
+                class="teal--text text--darken-2"
+                style="text-decoration:none; display:inline-flex; align-items:center; gap:4px;"
+                title="Ver grupo en Moodle"
+              >
+                <v-icon x-small color="teal darken-2">mdi-open-in-new</v-icon>
+                {{ item.name }}
+              </a>
+              <span v-else>{{ item.name }}</span>
+            </template>
+
+            <!-- Plazo días -->
+            <template v-slot:item.module_deadline_days="{ item }">
+              <span>{{ item.module_deadline_days }} días</span>
+            </template>
+
+            <!-- Inscritos -->
+            <template v-slot:item.enrolled_count="{ item }">
+              <v-chip x-small :color="item.enrolled_count > 0 ? 'teal darken-2' : 'grey'" dark>
+                {{ item.enrolled_count }}
+              </v-chip>
+            </template>
+
+            <!-- Acciones -->
+            <template v-slot:item._actions="{ item }">
+              <div style="white-space:nowrap">
+                <v-btn x-small color="teal darken-2" dark class="mr-1"
+                  :disabled="deletingModuleId === item.id"
+                  @click="openStudents(item)" title="Ver estudiantes inscritos">
+                  <v-icon x-small left>mdi-account-group</v-icon> Estudiantes
+                </v-btn>
+                <v-btn x-small outlined color="red darken-2"
+                  :loading="deletingModuleId === item.id"
+                  :disabled="!!deletingModuleId && deletingModuleId !== item.id"
+                  @click="deleteModule(item)" title="Eliminar módulo y grupo">
+                  <v-icon x-small left>mdi-delete-outline</v-icon> Eliminar
+                </v-btn>
+              </div>
+            </template>
+          </v-data-table>
+        </v-card>
+      </v-tab-item>
 
       <!-- Solicitudes tab -->
       <v-tab-item>
