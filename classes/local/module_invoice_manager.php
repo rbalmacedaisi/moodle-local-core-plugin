@@ -140,6 +140,20 @@ class module_invoice_manager {
             ];
         }
 
+        // Pre-validate that the configured product actually exists in Odoo,
+        // otherwise we would surface an opaque XML-RPC fault later.
+        $productCheck = self::validate_product_in_odoo($productid);
+        if (!$productCheck['exists']) {
+            return [
+                'ok'      => false,
+                'error'   => 'El producto Odoo configurado para ' .
+                              self::module_type_label($moduleType) .
+                              ' (ID=' . $productid . ') no existe o fue eliminado. ' .
+                              'Contacte al administrador para actualizar la configuración.',
+                'request' => null,
+            ];
+        }
+
         // Expiry window (configurable, default 30 days).
         $expirydays = (int)get_config('local_grupomakro_core', 'module_request_expiry_days');
         if ($expirydays <= 0) {
@@ -174,11 +188,12 @@ class module_invoice_manager {
             $rec->timemodified   = time();
             $DB->update_record('gmk_module_invoice_requests', $rec);
         } catch (\Throwable $e) {
-            // Keep the row so the request can be retried; surface the error.
+            // Keep the row so the request can be retried; surface a sanitized error.
             \gmk_log('ERROR: module invoice failed requestid=' . $rec->id . ' msg=' . $e->getMessage());
+            $sanitized = self::sanitize_invoice_error($e->getMessage(), $productid);
             return [
                 'ok'      => false,
-                'error'   => 'No se pudo generar la factura: ' . $e->getMessage(),
+                'error'   => $sanitized,
                 'request' => $rec,
             ];
         }
@@ -569,6 +584,73 @@ class module_invoice_manager {
         }
         $idnumber = (string)$DB->get_field('user', 'idnumber', ['id' => $userid]);
         return trim($idnumber);
+    }
+
+    /**
+     * Verifies that a configured Odoo product.product still exists. Used by
+     * create_request() to fail-fast with a clean message instead of letting
+     * the invoice creation later surface an opaque XML-RPC fault.
+     *
+     * @param int $productId
+     * @return array{exists:bool, id:int, name:string, error:?string}
+     */
+    public static function validate_product_in_odoo(int $productId): array {
+        if ($productId <= 0) {
+            return ['exists' => false, 'id' => $productId, 'name' => '', 'error' => 'invalid_product_id'];
+        }
+        $response = self::call_odoo_proxy('/api/odoo/products/exists', [
+            'product_id' => $productId,
+        ]);
+        if (!is_array($response)) {
+            return ['exists' => false, 'id' => $productId, 'name' => '', 'error' => 'odoo_proxy_unreachable'];
+        }
+        if (empty($response['success'])) {
+            return [
+                'exists' => false,
+                'id'     => $productId,
+                'name'   => '',
+                'error'  => isset($response['error']) ? (string)$response['error'] : 'odoo_query_failed',
+            ];
+        }
+        return [
+            'exists' => !empty($response['exists']),
+            'id'     => $productId,
+            'name'   => (string)($response['name'] ?? ''),
+            'error'  => !empty($response['exists']) ? null : 'product_not_found',
+        ];
+    }
+
+    /**
+     * Sanitizes raw exception messages coming from the Odoo proxy so the UI
+     * never sees XML-RPC stack traces, internal HTTP codes, or English
+     * payloads. Falls back to a generic message when the cause is unknown.
+     *
+     * @param string $raw
+     * @param int $productId
+     * @return string
+     */
+    private static function sanitize_invoice_error(string $raw, int $productId): string {
+        // Detect the product-not-found XML-RPC signature.
+        if (stripos($raw, 'Record does not exist') !== false && stripos($raw, 'product.product') !== false) {
+            return 'El producto Odoo configurado (ID=' . $productId . ') no existe o fue eliminado. '
+                 . 'Contacte al administrador para actualizar la configuración.';
+        }
+        // Partner lookup failure.
+        if (stripos($raw, 'partner_not_found_for_document') !== false) {
+            return 'No se encontró el contacto del estudiante en Odoo. '
+                 . 'Verifique que el estudiante esté sincronizado como contacto.';
+        }
+        // Product id missing.
+        if (stripos($raw, 'odoo_product_id_required') !== false) {
+            return 'No hay un producto Odoo configurado para este tipo de módulo.';
+        }
+        // Network / proxy failure.
+        if (stripos($raw, 'odoo_proxy_unreachable') !== false || stripos($raw, 'invalid_json_response') !== false) {
+            return 'No se pudo comunicar con el servidor proxy de Odoo. Reintente en unos minutos.';
+        }
+        // Generic fallback (truncate to avoid dumping huge stacks).
+        return 'No se pudo generar la factura. Por favor contacte al administrador. (Detalle: '
+             . substr(preg_replace('/\s+/', ' ', $raw), 0, 200) . ')';
     }
 
     /**
