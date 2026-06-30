@@ -7672,17 +7672,25 @@ try {
                     require_once($CFG->libdir . '/externallib.php');
                     $classname = $fn->classname;
                     if (class_exists($classname) && is_subclass_of($classname, 'external_api')) {
-                        // Re-read args: payload was flattened into $_POST by the
-                        // JSON wrapper above, but values may have been coerced
-                        // to strings. We honour the original JSON types by
-                        // re-decoding the raw input.
+                        // Use the raw JSON payload so that parameter names and
+                        // types (int / bool / string) are preserved exactly as
+                        // the Vue component sent them. Missing optional args
+                        // are filled with null so Moodle's parameter validator
+                        // can apply each PARAM_* rule.
                         $rawInput = file_get_contents('php://input');
                         $jsonData = $rawInput ? json_decode($rawInput, true) : null;
                         $args = ($jsonData && isset($jsonData['args']) && is_array($jsonData['args']))
                             ? $jsonData['args']
                             : [];
                         try {
-                            $result = call_user_func([$classname, 'execute'], ...array_values($args));
+                            // external_api::call_external_function validates the
+                            // parameter names and types against the WS's
+                            // execute_parameters() definition, then invokes
+                            // execute() correctly. This is the same code path
+                            // used by /webservice/rest/server.php so behaviour
+                            // matches the public API exactly.
+                            $result = external_api::call_external_function(
+                                $action, $args, false);
                             $response = [
                                 'status' => 'success',
                                 'data' => $result,
