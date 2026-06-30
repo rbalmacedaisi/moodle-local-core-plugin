@@ -7661,6 +7661,44 @@ try {
                 $response = \local_grupomakro_core\external\diploma\dispatcher::dispatch($sub);
                 break;
             }
+            // Generic fallback: resolve local_grupomakro_* actions to their
+            // registered external_functions class and invoke ::execute() with
+            // the args posted by the Vue components. Capabilities are enforced
+            // inside each WS class via require_capability() in its execute().
+            if (strpos($action, 'local_grupomakro_') === 0) {
+                $fn = $DB->get_record('external_functions', ['name' => $action]);
+                if ($fn && !empty($fn->classname)) {
+                    require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
+                    require_once($CFG->libdir . '/externallib.php');
+                    $classname = $fn->classname;
+                    if (class_exists($classname) && is_subclass_of($classname, 'external_api')) {
+                        // Re-read args: payload was flattened into $_POST by the
+                        // JSON wrapper above, but values may have been coerced
+                        // to strings. We honour the original JSON types by
+                        // re-decoding the raw input.
+                        $rawInput = file_get_contents('php://input');
+                        $jsonData = $rawInput ? json_decode($rawInput, true) : null;
+                        $args = ($jsonData && isset($jsonData['args']) && is_array($jsonData['args']))
+                            ? $jsonData['args']
+                            : [];
+                        try {
+                            $result = call_user_func([$classname, 'execute'], ...array_values($args));
+                            $response = [
+                                'status' => 'success',
+                                'data' => $result,
+                                'message' => null,
+                            ];
+                        } catch (\Throwable $e) {
+                            $response = [
+                                'status' => 'error',
+                                'message' => $e->getMessage(),
+                                'data' => null,
+                            ];
+                        }
+                        break;
+                    }
+                }
+            }
             $response['message'] = 'Action not found: ' . $action;
             break;
     }
