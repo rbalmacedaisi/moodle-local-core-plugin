@@ -46,33 +46,15 @@ $PAGE->set_heading(get_string('revalidations_director_title', $plugin));
 $PAGE->set_pagelayout('admin');
 $PAGE->add_body_class('revalidations-director-page');
 
-$token = get_logged_user_token();
-$themerev = $assetversion;
-
-$logoUrl = $OUTPUT->get_logo_url();
-$logoUrlStr = ($logoUrl instanceof moodle_url) ? $logoUrl->out(false) : '';
+$sesskey = sesskey();
+$ajaxurl = new moodle_url('/local/grupomakro_core/ajax.php');
+$ajaxurlstr = $ajaxurl->out(false);
 
 echo $OUTPUT->header();
-
-echo <<<EOT
+?>
 <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/@mdi/font@6.x/css/materialdesignicons.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.css" rel="stylesheet">
-<div id="gmk-rev-dir-app">
-    <v-app class="transparent">
-        <v-main>
-            <revalidations-director
-                :can-create-extemp="{$cancreateextemp}"
-            ></revalidations-director>
-        </v-main>
-    </v-app>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/vue@2.x/dist/vue.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.js"></script>
-<script src="https://unpkg.com/axios/dist/axios.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-
 <style>
     .theme--light.v-application { background: transparent !important; }
     .rd-table th { white-space: nowrap; }
@@ -83,16 +65,73 @@ echo <<<EOT
     .rd-pill-red    { background:#FFEBEE; color:#B71C1C; }
     .rd-pill-grey   { background:#ECEFF1; color:#37474F; }
     .rd-pill-purple { background:#EDE7F6; color:#4527A0; }
+    .rd-picked { background: #FFFDE7; }
 </style>
 
-<script>
-    var wsUrl = window.wsUrl || "{$CFG->wwwroot}/local/grupomakro_core/ajax.php";
-    var sesskey = "{$sesskey}";
-    var canCreateExtemp = {$cancreateextemp} ? 1 : 0;
-</script>
-EOT;
+<div id="gmk-rev-dir-app">
+    <v-app class="transparent">
+        <v-main>
+            <revalidations-director
+                :can-create-extemp="<?php echo $cancreateextemp ? 'true' : 'false'; ?>"
+            ></revalidations-director>
+        </v-main>
+    </v-app>
+</div>
 
+<script src="https://cdn.jsdelivr.net/npm/vue@2.x/dist/vue.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.js"></script>
+<script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<script>
+window.wsUrl = window.wsUrl || <?php echo json_encode($ajaxurlstr); ?>;
+window.Y = window.Y || {};
+window.Y.config = window.Y.config || {};
+window.Y.config.sesskey = window.Y.config.sesskey || <?php echo json_encode($sesskey); ?>;
+</script>
+
+<?php
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/RevalidationsDirector.js?v=' . $assetversion));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/CreateExtemporaneousRevalidationModal.js?v=' . $assetversion));
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/app.js?v=' . $assetversion));
+?>
+<script>
+// Self-contained Vue mount for this page (avoids depending on app.js which targets #gmk-app).
+(function() {
+    function mountRevDirApp() {
+        if (!window.Vue || !window.Vuetify) {
+            console.error('[RevDir] Vue/Vuetify not loaded yet');
+            return;
+        }
+        if (typeof Swal !== 'undefined') {
+            window.Vue.prototype.$swal = Swal;
+        }
+        var el = document.getElementById('gmk-rev-dir-app');
+        if (!el) return;
+        if (el.__vue_app__) return; // already mounted
+        el.__vue_app__ = new window.Vue({
+            el: el,
+            vuetify: new window.Vuetify({
+                treeShake: true,
+                theme: {
+                    themes: {
+                        light: {
+                            primary: '#1976d2',
+                            secondary: '#424242',
+                            success: '#3cd4a0',
+                            base: '#f8f9fa'
+                        }
+                    }
+                }
+            })
+        });
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', mountRevDirApp);
+    } else {
+        // Wait one tick so the component definitions load.
+        setTimeout(mountRevDirApp, 0);
+    }
+})();
+</script>
+<?php
 echo $OUTPUT->footer();
