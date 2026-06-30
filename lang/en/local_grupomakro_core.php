@@ -255,6 +255,8 @@ $string['enable_absence_blocking'] = 'Enable per-class absence blocking';
 $string['enable_absence_blocking_desc'] = 'When on, students that reach the threshold are blocked from the affected class. Keep this off while deploying mid-period and turn it on at the start of the next academic period. While off, students only see the visual alerts (orange icon, warning popup) without losing access.';
 $string['absence_block_threshold'] = 'Absence block threshold';
 $string['absence_block_threshold_desc'] = 'Number of absences in a single class that triggers the block. Defaults to 3.';
+$string['overdue_grace_days'] = 'Overdue grace days';
+$string['overdue_grace_days_desc'] = 'Number of days after the due date before restricting LXP access. Invoices due on the current day are never counted as overdue. Defaults to 3. Must match days_overdue in the Odoo overdue cron.';
 $string['absence_alert_planids'] = 'Learning plans that generate absence alerts';
 $string['absence_alert_planids_desc'] = 'Select the learning plans from which absence alerts should be generated. If none are selected, alerts are generated for all plans (default behaviour). Excluded plans will not produce visual alerts, notifications, or cron recomputations for their classes.';
 

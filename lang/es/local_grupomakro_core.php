@@ -162,6 +162,8 @@ $string['enable_absence_blocking'] = 'Activar bloqueo real de clases por inasist
 $string['enable_absence_blocking_desc'] = 'Cuando está activo, los estudiantes que alcancen el umbral son bloqueados en la clase específica. Mantener desactivado durante el despliegue a mitad de período; activar al iniciar el siguiente período académico. Mientras esté desactivado, los estudiantes solo verán las alertas visuales (icono naranja, popup, banner) sin perder acceso.';
 $string['absence_block_threshold'] = 'Umbral de inasistencias para bloquear';
 $string['absence_block_threshold_desc'] = 'Número de inasistencias en una clase a partir del cual se bloquea el acceso. Por defecto 3.';
+$string['overdue_grace_days'] = 'Días de gracia para bloqueo por mora';
+$string['overdue_grace_days_desc'] = 'Número de días después del vencimiento antes de restringir el acceso al LXP. Las facturas que vencen el mismo día nunca cuentan como mora. Por defecto 3. Debe coincidir con days_overdue en el cron de mora de Odoo.';
 $string['absence_alert_planids'] = 'Planes que generan alertas de inasistencia';
 $string['absence_alert_planids_desc'] = 'Selecciona los planes de aprendizaje desde los cuales se generarán alertas de inasistencia. Si no se selecciona ninguno, se generan alertas para todos los planes (comportamiento por defecto). Los planes excluidos no producirán alertas visuales, ni notificaciones, ni recálculos por el cron para sus clases.';
 

@@ -1581,10 +1581,124 @@ try {
             $userid         = required_param('userId',       PARAM_INT);
             $corecourseid   = required_param('coreCourseId', PARAM_INT);
             $learningplanid = optional_param('learningPlanId', 0, PARAM_INT);
-            $result = \local_grupomakro_core\external\schedule\enroll_module::execute($userid, $corecourseid, $learningplanid);
+            $bypass         = optional_param('bypassPayment', 0, PARAM_BOOL);
+            $result = \local_grupomakro_core\external\schedule\enroll_module::execute(
+                $userid,
+                $corecourseid,
+                $learningplanid,
+                (bool)$bypass
+            );
             $response = [
                 'status' => 'success',
                 'data'   => $result,
+            ];
+            break;
+
+        case 'local_grupomakro_request_module_invoice':
+            require_sesskey();
+            require_capability('moodle/site:config', $context);
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/module_invoice_manager.php');
+            $userid         = required_param('userId',          PARAM_INT);
+            $corecourseid   = required_param('coreCourseId',    PARAM_INT);
+            $learningplanid = optional_param('learningPlanId',  0, PARAM_INT);
+            $moduletype     = required_param('moduleType',      PARAM_ALPHAEXT);
+            $result = \local_grupomakro_core\local\module_invoice_manager::create_request(
+                $userid,
+                $corecourseid,
+                $learningplanid,
+                $moduletype,
+                (int)$USER->id
+            );
+            $response = [
+                'status' => $result['ok'] ? 'success' : 'error',
+                'data'   => $result,
+            ];
+            break;
+
+        case 'local_grupomakro_refresh_module_payment':
+            require_sesskey();
+            require_capability('moodle/site:config', $context);
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/module_invoice_manager.php');
+            $requestid = required_param('requestId', PARAM_INT);
+            $result    = \local_grupomakro_core\local\module_invoice_manager::refresh_payment($requestid);
+            $response  = [
+                'status' => $result['ok'] ? 'success' : 'error',
+                'data'   => $result,
+            ];
+            break;
+
+        case 'local_grupomakro_cancel_module_request':
+            require_sesskey();
+            require_capability('moodle/site:config', $context);
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/module_invoice_manager.php');
+            $requestid = required_param('requestId', PARAM_INT);
+            $result    = \local_grupomakro_core\local\module_invoice_manager::cancel($requestid, (int)$USER->id);
+            $response  = [
+                'status' => $result['ok'] ? 'success' : 'error',
+                'data'   => $result,
+            ];
+            break;
+
+        case 'local_grupomakro_get_module_requests':
+            require_capability('moodle/site:config', $context);
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/module_invoice_manager.php');
+            $statusfilter = optional_param('statusFilter', '', PARAM_TEXT);
+            $usersearch   = optional_param('userSearch',  '', PARAM_TEXT);
+            $rows = \local_grupomakro_core\local\module_invoice_manager::list_requests(
+                $statusfilter !== '' ? $statusfilter : null,
+                $usersearch   !== '' ? $usersearch   : null
+            );
+            $response = [
+                'status' => 'success',
+                'data'   => array_map(function ($r) {
+                    return [
+                        'id'               => (int)$r->id,
+                        'userid'           => (int)$r->userid,
+                        'corecourseid'     => (int)$r->corecourseid,
+                        'learningplanid'   => (int)$r->learningplanid,
+                        'module_type'      => (string)$r->module_type,
+                        'module_type_label'=> \local_grupomakro_core\local\module_invoice_manager::module_type_label((string)$r->module_type),
+                        'invoice_id'       => (string)$r->invoice_id,
+                        'invoice_number'   => (string)$r->invoice_number,
+                        'payment_link'     => (string)$r->payment_link,
+                        'amount'           => (float)$r->amount,
+                        'payment_state'    => (string)$r->payment_state,
+                        'status'           => (string)$r->status,
+                        'expires_at'       => (int)$r->expires_at,
+                        'paidat'           => (int)$r->paidat,
+                        'enrolled_classid' => (int)$r->enrolled_classid,
+                        'timecreated'      => (int)$r->timecreated,
+                        'fullname'         => trim((string)$r->firstname . ' ' . (string)$r->lastname),
+                        'email'            => (string)$r->email,
+                        'coursename'       => (string)$r->coursename,
+                    ];
+                }, $rows),
+            ];
+            break;
+
+        case 'local_grupomakro_get_student_module_requests':
+            require_sesskey();
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/module_invoice_manager.php');
+            $userid = required_param('userId', PARAM_INT);
+            $rows   = \local_grupomakro_core\local\module_invoice_manager::get_pending_for_user($userid);
+            $response = [
+                'status' => 'success',
+                'data'   => [
+                    'requests' => array_map(function ($r) {
+                        return [
+                            'id'              => (int)$r->id,
+                            'corecourseid'    => (int)$r->corecourseid,
+                            'coursename'      => (string)$r->coursename,
+                            'module_type'     => (string)$r->module_type,
+                            'module_type_label' => \local_grupomakro_core\local\module_invoice_manager::module_type_label((string)$r->module_type),
+                            'invoice_number'  => (string)$r->invoice_number,
+                            'payment_link'    => (string)$r->payment_link,
+                            'amount'          => (float)$r->amount,
+                            'expires_at'      => (int)$r->expires_at,
+                            'payment_state'   => (string)$r->payment_state,
+                        ];
+                    }, $rows),
+                ],
             ];
             break;
 
@@ -7252,6 +7366,26 @@ try {
                 'status'     => 'success',
                 'inGrace'    => !empty($grace),
                 'graceuntil' => $grace ? (int)$grace->graceuntil : null,
+            ];
+            break;
+
+        case 'local_grupomakro_get_overdue_grace_days':
+            // Server-to-server: Express consulta a Moodle el valor del periodo
+            // de gracia de mora (overdue_grace_days). Mismo token compartido que
+            // local_grupomakro_check_grace_period. Devuelve el número de días
+            // a respetar tras el vencimiento antes de restringir el acceso al
+            // LXP. Si el setting no existe o es inválido, devuelve 3.
+            $token = optional_param('token', '', PARAM_TEXT);
+            $expected_token = get_config('local_grupomakro_core', 'grace_period_token') ?: 'gmk_grace_check_2026';
+            if ($token !== $expected_token) {
+                require_login();
+            }
+
+            $raw = get_config('local_grupomakro_core', 'overdue_grace_days');
+            $days = is_numeric($raw) ? max(0, (int)$raw) : 3;
+            $response = [
+                'status' => 'success',
+                'days'   => $days,
             ];
             break;
 

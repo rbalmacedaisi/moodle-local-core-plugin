@@ -464,6 +464,17 @@ if ($hassiteconfig) {
             PARAM_TEXT
         ));
 
+        // Días de gracia para bloqueo por mora (overdue)
+        $settingspage->add(new admin_setting_configtext(
+            'local_grupomakro_core/overdue_grace_days',
+            'Días de gracia para bloqueo por mora',
+            'Número de días después del vencimiento antes de restringir el acceso al LXP. '
+            . 'Las facturas que vencen el mismo día nunca cuentan como mora. '
+            . 'Por defecto 3. Debe coincidir con days_overdue en el cron de mora de Odoo.',
+            '3',
+            PARAM_INT
+        ));
+
         $settingspage->add(new admin_setting_configpasswordunmask(
             'local_grupomakro_core/letter_webhook_token',
             'Token webhook de cartas (Express -> Moodle)',
