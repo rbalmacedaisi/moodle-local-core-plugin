@@ -284,8 +284,15 @@ class revalida_manager {
         $progre = $DB->get_record('gmk_course_progre',
             ['classid' => $classid, 'userid' => $userid], '*', MUST_EXIST);
 
-        // Eligibility rule — same as the teacher path.
+        // Eligibility rule — same as the teacher path. Prefer the
+        // weighted-recomputed grade (gmk_get_student_class_grade) when
+        // available; otherwise fall back to the stored gmk_course_progre.grade
+        // which is what the picker (get_eligible_students_for_extemporaneous)
+        // and the teacher UI use.
         $grade = \gmk_get_student_class_grade($classid, $userid);
+        if ($grade === null) {
+            $grade = isset($progre->grade) ? (float)$progre->grade : null;
+        }
         if ($grade === null) {
             return [
                 'ok' => false,
@@ -411,6 +418,9 @@ class revalida_manager {
         }
 
         $grade = \gmk_get_student_class_grade((int)$class->id, $userid);
+        if ($grade === null) {
+            $grade = isset($progre->grade) ? (float)$progre->grade : null;
+        }
         if ($grade === null) {
             return ['ok' => false, 'error' => 'El estudiante no tiene nota final.', 'record' => null];
         }
