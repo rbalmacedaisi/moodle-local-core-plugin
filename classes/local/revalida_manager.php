@@ -90,10 +90,24 @@ class revalida_manager {
         if ($class) {
             $cal = null;
             if (!empty($class->periodid)) {
+                // The calendar stores academicperiodid as varchar, so we have
+                // to compare strings (works for both '4' and '202522' values).
                 $cal = $DB->get_record('gmk_academic_calendar',
-                    ['periodid' => (int)$class->periodid], '*', IGNORE_MULTIPLE);
+                    ['academicperiodid' => (string)$class->periodid], '*', IGNORE_MULTIPLE);
+                if (!$cal && !empty($class->periodid)) {
+                    // Fallback: try matching by period name (e.g. "2026-III") on
+                    // the academic_calendar.period column.
+                    $periodname = (string)$DB->get_field('gmk_academic_periods', 'name',
+                        ['id' => (int)$class->periodid]);
+                    if ($periodname !== '') {
+                        $cal = $DB->get_record('gmk_academic_calendar',
+                            ['period' => $periodname], '*', IGNORE_MULTIPLE);
+                    }
+                }
             }
-            if ($cal && !empty($cal->loadnotesandclosesubjects) && !empty($cal->revalidationprocess)) {
+            if ($cal && !empty($cal->loadnotesandclosesubjects) && !empty($cal->revalidationprocess)
+                && (int)$cal->revalidationprocess > 1000000000) {
+                // Ignore sentinel dates (1969-12-31 / 1900-01-16 = epoch placeholders).
                 $start = (int)$cal->loadnotesandclosesubjects;
                 $end = (int)$cal->revalidationprocess;
                 $source = 'academic_calendar';
