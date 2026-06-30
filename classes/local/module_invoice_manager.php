@@ -598,7 +598,7 @@ class module_invoice_manager {
         if ($productId <= 0) {
             return ['exists' => false, 'id' => $productId, 'name' => '', 'error' => 'invalid_product_id'];
         }
-        $response = self::call_odoo_proxy('/api/odoo/products/exists', [
+        $response = self::call_odoo_proxy_get('/api/odoo/products/exists', [
             'product_id' => $productId,
         ]);
         if (!is_array($response)) {
@@ -671,6 +671,49 @@ class module_invoice_manager {
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_TIMEOUT, 30);
         curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
+        $raw     = curl_exec($ch);
+        $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $error   = curl_error($ch);
+        curl_close($ch);
+
+        if ($raw === false) {
+            return ['success' => false, 'error' => $error];
+        }
+        $decoded = json_decode($raw, true);
+        if (!is_array($decoded)) {
+            return ['success' => false, 'error' => 'invalid_json_response', 'httpcode' => $httpcode, 'raw' => $raw];
+        }
+        if (($httpcode < 200 || $httpcode >= 300) && !isset($decoded['success'])) {
+            $decoded['success'] = false;
+        }
+        return $decoded;
+    }
+
+    /**
+     * GET helper for the Odoo proxy (used by product existence checks).
+     * Same error envelope as call_odoo_proxy() but reads query parameters
+     * from the URL instead of sending a JSON body.
+     *
+     * @param string $path
+     * @param array<string,mixed> $params
+     * @return array
+     */
+    private static function call_odoo_proxy_get(string $path, array $params): array {
+        $baseurl = get_config('local_grupomakro_core', 'odoo_proxy_url');
+        if (empty($baseurl)) {
+            $baseurl = 'https://lms.isi.edu.pa:4000';
+        }
+        $url = rtrim($baseurl, '/') . $path;
+        if (!empty($params)) {
+            $url .= (strpos($url, '?') === false ? '?' : '&') . http_build_query($params);
+        }
+
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_HTTPGET, 1);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
         $raw     = curl_exec($ch);
         $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $error   = curl_error($ch);
