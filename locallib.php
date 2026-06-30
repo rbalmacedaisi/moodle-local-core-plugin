@@ -9431,10 +9431,12 @@ function gmk_get_pending_grading_items($userid, $classid = 0, $status = 'pending
         $assign_params['instructorid'] = $userid;
     }
 
-    // Pending: only ungraded submitted items. Reopened items are excluded — they wait for student resubmission.
+    // Pending: ungraded submitted items, plus reopened items that have files attached (orphaned reopenings awaiting grade).
     $assign_grade_condition = ($status === 'history') ? "(g.grade IS NOT NULL AND g.grade >= 0)" : "(g.grade IS NULL OR g.grade < 0)";
-    // History: graded submitted items ('new' kept for backwards compat with old records). Reopened excluded — they are in limbo awaiting resubmission.
-    $assign_status_condition = ($status === 'history') ? "s.status IN ('submitted', 'new')" : "s.status = 'submitted'";
+    // History: graded submitted items ('new' kept for backwards compat with old records) plus graded reopened items.
+    $assign_status_condition = ($status === 'history')
+        ? "s.status IN ('submitted', 'new', 'reopened')"
+        : "(s.status = 'submitted' OR (s.status = 'reopened' AND EXISTS (SELECT 1 FROM {files} WHERE component = 'assignsubmission_file' AND itemid = s.id AND filename <> '.')))";
 
     $sql_assign = "SELECT s.id as submissionid, s.userid, s.assignment as itemid, s.timecreated as submissiontime,
                           s.status as submissionstatus,
