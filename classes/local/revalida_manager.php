@@ -873,7 +873,7 @@ class revalida_manager {
      * @param int $cmid
      * @return string
      */
-    private static function bbb_url(int $cmid): string {
+    public static function bbb_url(int $cmid): string {
         global $CFG;
         if ($cmid <= 0) {
             return '';
