@@ -190,7 +190,8 @@ Vue.component('revalidations-director', {
                 createdByDirectorOnly: false,
                 classid: 0,
                 periodid: 0,
-                instructorid: 0
+                instructorid: 0,
+                learningplanid: 0
             },
             createdByOptions: [
                 { text: 'Todos los orígenes', value: false },
@@ -234,19 +235,21 @@ Vue.component('revalidations-director', {
         },
         async fetchList() {
             this.loading = true;
+            this.error = null;
             try {
                 const r = await axios.post(window.wsUrl, {
                     action: 'local_grupomakro_list_revalidations_director',
                     args: {
                         status_filter: this.statusFilter,
-                        classid: this.filters.classid,
-                        periodid: this.filters.periodid,
-                        instructorid: this.filters.instructorid,
+                        classid: Number(this.filters.classid) || 0,
+                        periodid: Number(this.filters.periodid) || 0,
+                        instructorid: Number(this.filters.instructorid) || 0,
+                        learningplanid: Number(this.filters.learningplanid) || 0,
                         search: this.filters.search || '',
-                        include_extemporaneous: this.filters.includeExtemporaneous,
+                        include_extemporaneous: !!this.filters.includeExtemporaneous,
                         created_by_director_only: this.filters.createdByDirectorOnly === true,
-                        page: this.page,
-                        perpage: this.perpage
+                        page: Number(this.page) || 0,
+                        perpage: Number(this.perpage) || 25
                     },
                     sesskey: window.Y ? window.Y.config.sesskey : sesskey
                 });
