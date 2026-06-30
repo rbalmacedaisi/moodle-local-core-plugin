@@ -82,4 +82,19 @@ $capabilities = array(
             'user' => CAP_ALLOW,
         ),
     ),
+    'local/grupomakro_core:view_revalidations_dashboard' => array(
+        'captype' => 'read',
+        'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array(
+            'manager' => CAP_ALLOW,
+            'editingteacher' => CAP_ALLOW,
+        ),
+    ),
+    'local/grupomakro_core:create_extemporaneous_revalidations' => array(
+        'captype' => 'write',
+        'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array(
+            'manager' => CAP_ALLOW,
+        ),
+    ),
 );

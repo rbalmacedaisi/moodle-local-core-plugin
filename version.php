@@ -26,5 +26,6 @@ defined('MOODLE_INTERNAL') || die();
 $plugin->component = "local_grupomakro_core";
 $plugin->version   = 20260701007;         // overdue_grace_days admin setting + local_grupomakro_get_overdue_grace_days AJAX action for server-to-server Express lookup; configurable from financial settings page, default 3, consumed by Express rest_express/server.js instead of hard-coded constant.
 $plugin->version   = 20260701008;         // Module enrollment gated by Odoo invoice (gmk_module_invoice_requests) — mirrors revalidation flow with MODULE_REQ:<id> ref, payment-gated enroll_module, refresh-payment action, 30-day expiry cron, LXP pending modules section.
+$plugin->version   = 20260801002;         // Academic Director Revalidations Dashboard (pages/revalidations_director.php): 4 new WS (list/refresh_one/refresh_bulk/get_classes/get_eligible/create_extemp), new capabilities view_revalidations_dashboard + create_extemporaneous_revalidations, academic-calendar window gate on teacher schedule action, gmk_revalidations.extemporaneous* audit columns, extemporaneous creation by director bypassing the window but enforcing eligibility (60.0–70.9 sin horas prácticas).
 $plugin->requires = 2014051200;
 $plugin->maturity = MATURITY_STABLE;

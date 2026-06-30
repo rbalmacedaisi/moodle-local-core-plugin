@@ -50,6 +50,9 @@ class revalida_manager {
     /** @var float Consolidated final course grade when the revalidation is passed. */
     const PASS_FINAL_GRADE = 71.0;
 
+    /** @var int Tolerance (in seconds) applied to the revalidation window endpoints. */
+    const WINDOW_TOLERANCE_SECS = 86400;
+
     /**
      * Whether a student is eligible to take a revalidation, using the existing
      * institutional rule: theoretical subject (no practical hours) and final
@@ -61,6 +64,70 @@ class revalida_manager {
      */
     public static function is_eligible(float $grade, int $practicalhours): bool {
         return $practicalhours === 0 && $grade >= 60.0 && $grade <= self::PASS_THRESHOLD;
+    }
+
+    /**
+     * Whether the academic calendar window for teacher-driven revalidation
+     * scheduling is currently open for the given class. Uses the configured
+     * loadnotesandclosesubjects / revalidationprocess dates from
+     * gmk_academic_calendar (matched by periodid), with a fallback to a
+     * relative window around the class end date.
+     *
+     * Extemporaneous requests bypass this check via schedule_extemporaneous().
+     *
+     * @param int $classid
+     * @return array{open:bool, start:int, end:int, source:string}
+     */
+    public static function get_window_info(int $classid): array {
+        global $DB;
+
+        $class = $DB->get_record('gmk_class', ['id' => $classid], 'id,periodid,enddate');
+        $now = time();
+        $start = 0;
+        $end = 0;
+        $source = 'none';
+
+        if ($class) {
+            $cal = null;
+            if (!empty($class->periodid)) {
+                $cal = $DB->get_record('gmk_academic_calendar',
+                    ['periodid' => (int)$class->periodid], '*', IGNORE_MULTIPLE);
+            }
+            if ($cal && !empty($cal->loadnotesandclosesubjects) && !empty($cal->revalidationprocess)) {
+                $start = (int)$cal->loadnotesandclosesubjects;
+                $end = (int)$cal->revalidationprocess;
+                $source = 'academic_calendar';
+            } else {
+                // Fallback: 7 days before class end (closes-notes window) up to
+                // 14 days after class end (revalidation week), relative to today.
+                $enddate = !empty($class->enddate) ? (int)$class->enddate : $now;
+                $start = $enddate - 7 * DAYSECS;
+                $end = $enddate + 14 * DAYSECS;
+                $source = 'relative_fallback';
+            }
+        }
+
+        $open = ($start > 0 && $end > 0
+            && $now >= ($start - self::WINDOW_TOLERANCE_SECS)
+            && $now <= ($end + self::WINDOW_TOLERANCE_SECS));
+
+        return [
+            'open' => $open,
+            'start' => $start,
+            'end' => $end,
+            'source' => $source,
+            'now' => $now,
+        ];
+    }
+
+    /**
+     * Convenience wrapper for "is the window currently open?".
+     *
+     * @param int $classid
+     * @return bool
+     */
+    public static function is_window_open(int $classid): bool {
+        return self::get_window_info($classid)['open'];
     }
 
     /**
@@ -139,66 +206,23 @@ class revalida_manager {
             return ['ok' => false, 'error' => 'No se pudo crear la sesión de BigBlueButton: ' . $e->getMessage(), 'records' => []];
         }
 
-        $now = time();
         $records = [];
         foreach ($userids as $userid) {
-            $progre = $DB->get_record('gmk_course_progre',
-                ['classid' => $classid, 'userid' => $userid], '*', IGNORE_MULTIPLE);
-            if (!$progre) {
+            $res = self::create_single_revalidation(
+                $class,
+                $userid,
+                $actorid,
+                $bbbcmid,
+                $sessionstart,
+                $sessionend,
+                false,            // not extemporaneous
+                null,
+                null
+            );
+            if (!$res['ok'] || empty($res['record'])) {
                 continue;
             }
-
-            $grade = \gmk_get_student_class_grade($classid, $userid);
-            if ($grade === null) {
-                continue;
-            }
-            if (!self::is_eligible((float)$grade, (int)($progre->practicalhours ?? 0))) {
-                continue; // Defensive: only eligible students.
-            }
-
-            // Upsert the revalidation row (unique by class+user).
-            $existing = $DB->get_record('gmk_revalidations', ['classid' => $classid, 'userid' => $userid]);
-            $rec = $existing ?: new stdClass();
-            $rec->classid        = $classid;
-            $rec->userid         = $userid;
-            $rec->corecourseid   = (int)$class->corecourseid;
-            $rec->learningplanid = (int)($progre->learningplanid ?? 0);
-            $rec->progreid       = (int)$progre->id;
-            $rec->originalgrade  = round((float)$grade, 2);
-            $rec->result         = 'pending';
-            $rec->bbbcmid        = (int)$bbbcmid;
-            $rec->sessionstart   = (int)$sessionstart;
-            $rec->sessionend     = (int)$sessionend;
-            $rec->status         = 'scheduled';
-            $rec->timemodified   = $now;
-            if ($existing) {
-                $rec->id = (int)$existing->id;
-                $DB->update_record('gmk_revalidations', $rec);
-            } else {
-                $rec->payment_state = 'unpaid';
-                $rec->paidat        = 0;
-                $rec->createdby     = $actorid;
-                $rec->timecreated   = $now;
-                $rec->id = (int)$DB->insert_record('gmk_revalidations', $rec);
-            }
-
-            // Create / locate the Odoo invoice (idempotent by ref REVALID_REQ:<id>).
-            try {
-                $invoice = self::create_invoice($rec, $userid);
-                $rec->invoice_extref  = self::REVALID_REF_PREFIX . $rec->id;
-                $rec->invoice_id      = (string)($invoice['invoice_id'] ?? '');
-                $rec->invoice_number  = (string)($invoice['invoice_number'] ?? '');
-                $rec->payment_link    = (string)($invoice['payment_link'] ?? '');
-                $rec->timemodified    = time();
-                $DB->update_record('gmk_revalidations', $rec);
-            } catch (\Throwable $e) {
-                \gmk_log('WARNING: revalida invoice failed revalidationid=' . $rec->id . ' msg=' . $e->getMessage());
-                // Keep the row; the invoice can be retried. Surface the issue per record.
-                $rec->invoice_error = $e->getMessage();
-            }
-
-            $rec->bbb_url = self::bbb_url((int)$rec->bbbcmid);
-            $records[] = $rec;
+            $records[] = $res['record'];
         }
 
         if (empty($records)) {
@@ -206,6 +230,245 @@ class revalida_manager {
         }
 
         return ['ok' => true, 'error' => null, 'records' => $records];
+    }
+
+    /**
+     * Creates a single extemporaneous revalidation request for a (class, student)
+     * pair, bypassing the time window but enforcing the same eligibility rule
+     * used by teachers (grade 60.0–70.9, no practical hours). The session date
+     * can be provided by the caller (defaults to next-week same day/time).
+     *
+     * Marks the row with extemporaneous=1 + actor/timestamp/reason for audit.
+     *
+     * @param int    $classid
+     * @param int    $userid
+     * @param int    $actorid
+     * @param string $reason  Mandatory non-empty reason explaining the extemporaneous action.
+     * @param int|null $overrideSessionStart  Optional override of the session start (UNIX ts).
+     * @return array{ok:bool, error:?string, record:?stdClass}
+     */
+    public static function schedule_extemporaneous(
+        int $classid,
+        int $userid,
+        int $actorid,
+        string $reason,
+        ?int $overrideSessionStart = null
+    ): array {
+        global $DB;
+
+        $reason = trim($reason);
+        if ($reason === '' || mb_strlen($reason) < 20) {
+            return ['ok' => false, 'error' => 'Debe proporcionar un motivo de al menos 20 caracteres.', 'record' => null];
+        }
+        if (mb_strlen($reason) > 500) {
+            return ['ok' => false, 'error' => 'El motivo no puede exceder 500 caracteres.', 'record' => null];
+        }
+
+        $class = $DB->get_record('gmk_class', ['id' => $classid], '*', MUST_EXIST);
+
+        // Student must be linked to the class via gmk_course_progre.
+        $progre = $DB->get_record('gmk_course_progre',
+            ['classid' => $classid, 'userid' => $userid], '*', MUST_EXIST);
+
+        // Eligibility rule — same as the teacher path.
+        $grade = \gmk_get_student_class_grade($classid, $userid);
+        if ($grade === null) {
+            return [
+                'ok' => false,
+                'error' => 'El estudiante no tiene una nota final consolidada en esta clase.',
+                'record' => null,
+            ];
+        }
+        if (!self::is_eligible((float)$grade, (int)($progre->practicalhours ?? 0))) {
+            return [
+                'ok' => false,
+                'error' => sprintf(
+                    'El estudiante no cumple los requisitos de elegibilidad (nota final: %.2f, horas prácticas: %d). Se requiere nota entre 60.0 y 70.9 sin horas prácticas.',
+                    (float)$grade, (int)($progre->practicalhours ?? 0)
+                ),
+                'record' => null,
+            ];
+        }
+
+        // Block: don't create a duplicate row if there's already a consolidated one.
+        $existing = $DB->get_record('gmk_revalidations', ['classid' => $classid, 'userid' => $userid]);
+        if ($existing && (string)$existing->status === 'consolidated') {
+            return [
+                'ok' => false,
+                'error' => 'Ya existe una reválida consolidada para este estudiante en esta clase.',
+                'record' => null,
+            ];
+        }
+
+        // Resolve session window.
+        if ($overrideSessionStart !== null && $overrideSessionStart > 0) {
+            $sessionstart = (int)$overrideSessionStart;
+            $duration = 2 * HOURSECS;
+            $sched = $DB->get_record('gmk_class_schedules', ['classid' => $classid], '*', IGNORE_MULTIPLE);
+            if (!empty($sched->start_time) && !empty($sched->end_time)) {
+                $s = strtotime('1970-01-01 ' . $sched->start_time . ':00 UTC');
+                $e = strtotime('1970-01-01 ' . $sched->end_time . ':00 UTC');
+                if ($e > $s) {
+                    $duration = $e - $s;
+                }
+            }
+            $sessionend = $sessionstart + $duration;
+        } else {
+            [$sessionstart, $sessionend] = self::compute_next_week_session($class);
+            if ($sessionstart <= 0) {
+                return [
+                    'ok' => false,
+                    'error' => 'No se pudo determinar el horario de la clase para la sesión de reválida.',
+                    'record' => null,
+                ];
+            }
+        }
+
+        // Create a dedicated BBB session for the extemporaneous request.
+        $bbbcmid = 0;
+        try {
+            $bbbcmid = self::create_bbb_session($class, $sessionstart, $sessionend);
+        } catch (\Throwable $e) {
+            \gmk_log('ERROR: extemporaneous revalida BBB session failed classid=' . $classid . ' msg=' . $e->getMessage());
+            return [
+                'ok' => false,
+                'error' => 'No se pudo crear la sesión de BigBlueButton: ' . $e->getMessage(),
+                'record' => null,
+            ];
+        }
+
+        $res = self::create_single_revalidation(
+            $class,
+            $userid,
+            $actorid,
+            $bbbcmid,
+            $sessionstart,
+            $sessionend,
+            true,
+            $reason,
+            $actorid
+        );
+        if (!$res['ok']) {
+            return ['ok' => false, 'error' => $res['error'] ?? 'unknown', 'record' => null];
+        }
+
+        \gmk_log(sprintf(
+            'INFO: extemporaneous revalidation created revalidationid=%d classid=%d userid=%d actorid=%d',
+            (int)$res['record']->id, $classid, $userid, $actorid
+        ));
+
+        return ['ok' => true, 'error' => null, 'record' => $res['record']];
+    }
+
+    /**
+     * Shared single-student creation path used by schedule() (teacher) and
+     * schedule_extemporaneous() (director). Inserts/updates the
+     * gmk_revalidations row, sets the extemporaneous markers (when applicable),
+     * and creates the Odoo invoice.
+     *
+     * @param stdClass   $class
+     * @param int        $userid
+     * @param int        $actorid
+     * @param int        $bbbcmid
+     * @param int        $sessionstart
+     * @param int        $sessionend
+     * @param bool       $extemporaneous
+     * @param string|null $extemporaneousReason
+     * @param int|null   $extemporaneousBy
+     * @return array{ok:bool, error:?string, record:?stdClass}
+     */
+    private static function create_single_revalidation(
+        stdClass $class,
+        int $userid,
+        int $actorid,
+        int $bbbcmid,
+        int $sessionstart,
+        int $sessionend,
+        bool $extemporaneous = false,
+        ?string $extemporaneousReason = null,
+        ?int $extemporaneousBy = null
+    ): array {
+        global $DB;
+
+        $progre = $DB->get_record('gmk_course_progre',
+            ['classid' => (int)$class->id, 'userid' => $userid], '*', IGNORE_MULTIPLE);
+        if (!$progre) {
+            return ['ok' => false, 'error' => 'El estudiante no está inscrito en esta clase.', 'record' => null];
+        }
+
+        $grade = \gmk_get_student_class_grade((int)$class->id, $userid);
+        if ($grade === null) {
+            return ['ok' => false, 'error' => 'El estudiante no tiene nota final.', 'record' => null];
+        }
+
+        if (!$extemporaneous && !self::is_eligible((float)$grade, (int)($progre->practicalhours ?? 0))) {
+            // Defensive: only eligible students in the regular path. The
+            // extemporaneous path already validated eligibility upstream.
+            return ['ok' => false, 'error' => 'El estudiante no es elegible para reválida.', 'record' => null];
+        }
+
+        $now = time();
+        $existing = $DB->get_record('gmk_revalidations',
+            ['classid' => (int)$class->id, 'userid' => $userid]);
+        $rec = $existing ?: new stdClass();
+        $rec->classid        = (int)$class->id;
+        $rec->userid         = $userid;
+        $rec->corecourseid   = (int)$class->corecourseid;
+        $rec->learningplanid = (int)($progre->learningplanid ?? 0);
+        $rec->progreid       = (int)$progre->id;
+        $rec->originalgrade  = round((float)$grade, 2);
+        $rec->result         = 'pending';
+        $rec->bbbcmid        = (int)$bbbcmid;
+        $rec->sessionstart   = (int)$sessionstart;
+        $rec->sessionend     = (int)$sessionend;
+        $rec->status         = 'scheduled';
+        $rec->timemodified   = $now;
+
+        if ($existing) {
+            $rec->id = (int)$existing->id;
+        } else {
+            $rec->payment_state = 'unpaid';
+            $rec->paidat        = 0;
+            $rec->createdby     = $actorid;
+            $rec->timecreated   = $now;
+        }
+
+        if ($extemporaneous) {
+            $rec->extemporaneous = 1;
+            $rec->extemporaneous_by = (int)($extemporaneousBy ?? $actorid);
+            $rec->extemporaneous_at = $now;
+            $rec->extemporaneous_reason = $extemporaneousReason;
+        } else {
+            // Preserve previous extemporaneous marker if a teacher is
+            // re-scheduling a director-created row (idempotent).
+            if (!$existing || empty($existing->extemporaneous)) {
+                $rec->extemporaneous = 0;
+            }
+        }
+
+        if ($existing) {
+            $DB->update_record('gmk_revalidations', $rec);
+        } else {
+            $rec->id = (int)$DB->insert_record('gmk_revalidations', $rec);
+        }
+
+        // Create / locate the Odoo invoice (idempotent by ref REVALID_REQ:<id>).
+        try {
+            $invoice = self::create_invoice($rec, $userid);
+            $rec->invoice_extref  = self::REVALID_REF_PREFIX . $rec->id;
+            $rec->invoice_id      = (string)($invoice['invoice_id'] ?? '');
+            $rec->invoice_number  = (string)($invoice['invoice_number'] ?? '');
+            $rec->payment_link    = (string)($invoice['payment_link'] ?? '');
+            $rec->timemodified    = time();
+            $DB->update_record('gmk_revalidations', $rec);
+        } catch (\Throwable $e) {
+            \gmk_log('WARNING: revalida invoice failed revalidationid=' . $rec->id . ' msg=' . $e->getMessage());
+            // Keep the row; the invoice can be retried. Surface the issue per record.
+            $rec->invoice_error = $e->getMessage();
+        }
+
+        $rec->bbb_url = self::bbb_url((int)$rec->bbbcmid);
+        return ['ok' => true, 'error' => null, 'record' => $rec];
     }
 
     /**

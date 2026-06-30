@@ -120,6 +120,8 @@ function local_grupomakro_core_extend_navigation(global_navigation $navigation) 
             '|/local/grupomakro_core/pages/schedulepanel.php';
         $CFG->custommenuitems .= PHP_EOL . '-🎯 ' . get_string('academic_director_panel', 'local_grupomakro_core') .
             '|/local/grupomakro_core/pages/academicpanel.php';
+        $CFG->custommenuitems .= PHP_EOL . '-🧾 ' . get_string('revalidations_director_menu', 'local_grupomakro_core') .
+            '|/local/grupomakro_core/pages/revalidations_director.php';
         $CFG->custommenuitems .= PHP_EOL . '-📚 Gestión de Módulos Independientes' .
             '|/local/grupomakro_core/pages/module_management.php';
         $CFG->custommenuitems .= PHP_EOL . '-📊 ' . get_string('absence_dashboard', 'local_grupomakro_core') .
@@ -172,6 +174,36 @@ function local_grupomakro_core_extend_navigation(global_navigation $navigation) 
     } catch (Exception $e) {
         // Avoid crashing the whole site if URL comparison fails in certain contexts
     }
+}
+
+/**
+ * Inject the "Panel de Reválidas" custom menu entry for users with the
+ * view_revalidations_dashboard capability (manager archetype), even when they
+ * are not siteadmins (the siteadmin block above already covers them).
+ */
+function local_grupomakro_core_before_http_headers() {
+    global $CFG, $PAGE;
+
+    if (!isloggedin() || isguestuser() || is_siteadmin()) {
+        return;
+    }
+
+    try {
+        if (!has_capability('local/grupomakro_core:view_revalidations_dashboard',
+            context_system::instance(), null, false)) {
+            return;
+        }
+    } catch (Exception $e) {
+        return;
+    }
+
+    $existing = isset($CFG->custommenuitems) ? (string)$CFG->custommenuitems : '';
+    if (strpos($existing, '/local/grupomakro_core/pages/revalidations_director.php') !== false) {
+        return; // Already added by the siteadmin block.
+    }
+    $CFG->custommenuitems = trim($existing) . PHP_EOL . '-🧾 '
+        . get_string('revalidations_director_menu', 'local_grupomakro_core')
+        . '|/local/grupomakro_core/pages/revalidations_director.php';
 }
 
 /**

@@ -3285,8 +3285,28 @@ try {
             $class = $DB->get_record('gmk_class', ['id' => $classid], '*', MUST_EXIST);
             require_capability('moodle/grade:edit', context_course::instance((int)$class->corecourseid));
             $userids = array_values(array_filter(array_map('intval', explode(',', $useridsraw))));
+            // Gate by academic calendar window. Extemporaneous requests go
+            // through the create_extemporaneous_revalidation WS instead, which
+            // requires a different capability.
+            $window = \local_grupomakro_core\local\revalida_manager::get_window_info($classid);
+            if (!$window['open']) {
+                $response = [
+                    'status' => 'error',
+                    'data' => ['window' => $window],
+                    'message' => 'La ventana de reválidas para esta clase no está abierta. Use la creación extemporánea desde el Panel del Director Académico.',
+                ];
+                break;
+            }
             $result = \local_grupomakro_core\local\revalida_manager::schedule($classid, $userids, (int)$USER->id);
-            $response = ['status' => $result['ok'] ? 'success' : 'error', 'data' => $result, 'message' => $result['error']];
+            $response = ['status' => $result['ok'] ? 'success' : 'error', 'data' => $result + ['window' => $window], 'message' => $result['error']];
+            break;
+
+        case 'local_grupomakro_get_revalidation_window':
+            require_sesskey();
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/revalida_manager.php');
+            $classid = required_param('classId', PARAM_INT);
+            $window = \local_grupomakro_core\local\revalida_manager::get_window_info($classid);
+            $response = ['status' => 'success', 'data' => $window, 'message' => null];
             break;
 
         case 'local_grupomakro_save_revalid_grade':

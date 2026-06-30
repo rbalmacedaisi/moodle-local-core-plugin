@@ -127,6 +127,21 @@ Vue.component('grades-grid', {
             <!-- ── Gestión de Reválidas ───────────────────────────────────── -->
             <template v-if="!loading && !error && revalidaStudents.length > 0">
                 <v-divider></v-divider>
+                <v-alert v-if="windowInfo && !windowInfo.open" type="info" dense text class="ma-4 mb-0">
+                    <div class="d-flex align-center">
+                        <v-icon left color="info">mdi-information-outline</v-icon>
+                        <div>
+                            <div class="font-weight-medium">La ventana de reválidas para esta clase no está abierta.</div>
+                            <div class="text-caption">
+                                Si necesita programar una reválida fuera de la ventana establecida por el calendario académico,
+                                contacte al Director Académico para que la gestione como solicitud extemporánea.
+                                <span v-if="windowInfo.start && windowInfo.end">
+                                    Ventana: {{ formatDate(windowInfo.start) }} – {{ formatDate(windowInfo.end) }}.
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </v-alert>
                 <v-card-text class="pa-4">
                     <div class="d-flex align-center mb-3">
                         <v-icon left color="amber darken-2">mdi-school-outline</v-icon>
@@ -160,13 +175,22 @@ Vue.component('grades-grid', {
                                             v-if="!student.revalidation"
                                             v-model="selectedRevalids"
                                             :value="student.id"
-                                            :disabled="!weightsComplete || schedulingRevalids"
+                                            :disabled="!weightsComplete || schedulingRevalids || !windowOpen"
                                             hide-details dense class="ma-0 pa-0"
                                         ></v-checkbox>
                                         <v-icon v-else small color="green">mdi-check-circle</v-icon>
                                     </td>
                                     <td>
-                                        <div class="text-body-2 font-weight-medium">{{ student.fullname }}</div>
+                                        <div class="text-body-2 font-weight-medium">
+                                            {{ student.fullname }}
+                                            <v-chip v-if="student.revalidation && student.revalidation.extemporaneous"
+                                                x-small label color="deep-purple darken-1"
+                                                class="ml-1 white--text"
+                                                :title="student.revalidation.extemporaneous_reason || 'Solicitud extemporánea creada por el Director Académico'">
+                                                <v-icon x-small class="mr-1">mdi-clock-alert-outline</v-icon>
+                                                Extemp.
+                                            </v-chip>
+                                        </div>
                                         <div class="text-caption grey--text">{{ student.email }}</div>
                                     </td>
                                     <td class="text-center">{{ formatGrade(student.final_grade) }}</td>
@@ -244,7 +268,7 @@ Vue.component('grades-grid', {
                     <div class="d-flex mt-3">
                         <v-spacer></v-spacer>
                         <v-btn color="amber darken-2" class="white--text rounded-lg" elevation="0"
-                            :disabled="selectedRevalids.length === 0 || !weightsComplete"
+                            :disabled="selectedRevalids.length === 0 || !weightsComplete || !windowOpen"
                             :loading="schedulingRevalids"
                             @click="scheduleSelectedRevalids">
                             <v-icon left small>mdi-calendar-plus</v-icon>
@@ -284,6 +308,7 @@ Vue.component('grades-grid', {
             revalidGradeInputs: {},        // { revalidationId: value }
             savingRevalidGrade: {},        // { revalidationId: bool }
             verifyingPayment: {},          // { revalidationId: bool }
+            windowInfo: null,              // { open, start, end, source, now } from revalida_manager::get_window_info
         };
     },
     directives: {
@@ -332,6 +357,12 @@ Vue.component('grades-grid', {
         // Students eligible for revalida OR already having a revalida record.
         revalidaStudents() {
             return this.students.filter(s => s.revalid_eligible || s.revalidation);
+        },
+        // True when the academic calendar window allows creating NEW
+        // revalidation requests for this class. Existing records can still
+        // be graded regardless of the window state.
+        windowOpen() {
+            return this.windowInfo ? !!this.windowInfo.open : true;
         }
     },
     created() {
@@ -551,6 +582,9 @@ Vue.component('grades-grid', {
                 } else {
                     throw new Error(response.data.message || 'Error al cargar calificaciones');
                 }
+
+                // Also fetch the revalidation window info for this class.
+                await this.fetchWindowInfo();
             } catch (err) {
                 console.error(err);
                 this.error = 'No se pudieron cargar las notas correctamente.';
@@ -710,6 +744,27 @@ Vue.component('grades-grid', {
                 weekday: 'short', day: '2-digit', month: 'short',
                 hour: '2-digit', minute: '2-digit'
             });
+        },
+        formatDate(ts) {
+            if (!ts) return '—';
+            const d = new Date(ts * 1000);
+            if (isNaN(d.getTime())) return '—';
+            return d.toLocaleDateString('es-PA', { day: '2-digit', month: 'short', year: 'numeric' });
+        },
+        async fetchWindowInfo() {
+            try {
+                const r = await axios.post(window.wsUrl, {
+                    action: 'local_grupomakro_get_revalidation_window',
+                    args: { classId: this.classId },
+                    sesskey: window.Y.config.sesskey
+                });
+                if (r.data && r.data.status === 'success') {
+                    this.windowInfo = r.data.data;
+                }
+            } catch (e) {
+                console.warn('[GradesGrid] No se pudo obtener la ventana de reválidas:', e && e.message);
+                this.windowInfo = { open: true, start: 0, end: 0, source: 'unknown' };
+            }
         },
         async scheduleSelectedRevalids() {
             if (this.selectedRevalids.length === 0 || !this.weightsComplete) return;

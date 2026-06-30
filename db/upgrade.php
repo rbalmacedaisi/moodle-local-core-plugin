@@ -2487,6 +2487,41 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20260701008, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20260801002) {
+        // Extemporaneous revalidations: when the academic director creates a
+        // revalidation request outside the normal calendar window, the row is
+        // marked with extemporaneous=1 and stores the actor + reason + timestamp
+        // for audit purposes. Existing rows default to extemporaneous=0.
+        $table = new xmldb_table('gmk_revalidations');
+
+        $field = new xmldb_field('extemporaneous', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0', 'timemodified');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        $field = new xmldb_field('extemporaneous_by', XMLDB_TYPE_INTEGER, '10', null, null, null, null, 'extemporaneous');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        $field = new xmldb_field('extemporaneous_at', XMLDB_TYPE_INTEGER, '10', null, null, null, '0', 'extemporaneous_by');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        $field = new xmldb_field('extemporaneous_reason', XMLDB_TYPE_TEXT, 'medium', null, null, null, null, 'extemporaneous_at');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        $index = new xmldb_index('extemp_idx', XMLDB_INDEX_NOTUNIQUE, ['classid', 'userid', 'extemporaneous']);
+        if (!$dbman->index_exists($table, $index)) {
+            $dbman->add_index($table, $index);
+        }
+
+        upgrade_plugin_savepoint(true, 20260801002, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 
