@@ -394,8 +394,11 @@ class module_invoice_manager {
     }
 
     /**
-     * Returns pending payment requests for a given user (for the LXP pending
-     * modules section). Each row is decorated with the course name.
+     * Returns active (pending_payment OR paid) requests for a given user.
+     * Used by both the LXP profile page (which filters to pending only
+     * client-side) and the academic grademodal (which needs to know about
+     * paid requests so it can offer the "Inscribir ahora" action).
+     * Terminal statuses (enrolled/expired/cancelled) are excluded.
      *
      * @param int $userid
      * @return array
@@ -410,7 +413,7 @@ class module_invoice_manager {
                FROM {gmk_module_invoice_requests} r
                JOIN {course} c ON c.id = r.corecourseid
               WHERE r.userid = :uid
-                AND r.status = 'pending_payment'
+                AND r.status IN ('pending_payment', 'paid')
            ORDER BY r.id DESC",
             ['uid' => $userid]
         );

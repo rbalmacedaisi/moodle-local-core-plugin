@@ -67,6 +67,7 @@ Vue.component('modulemanagement', {
             requestStatusFilter: '',  // '' = todos, 'pending_payment', 'paid', 'enrolled', 'expired', 'cancelled'
             verifyingMap: {},         // { requestId: true } para spinner individual
             cancellingMap: {},        // { requestId: true } para spinner individual
+            enrollingMap: {},         // { requestId: true } para spinner individual al inscribir
 
             // Grade entry dialog (shown when marking completed without an existing grade
             // or when the module has more than one activity)
@@ -565,6 +566,59 @@ Vue.component('modulemanagement', {
                 this.$delete(this.cancellingMap, request.id);
             }
         },
+        async confirmEnroll(request) {
+            const sw = await window.Swal.fire({
+                title: 'Inscribir módulo',
+                html: '¿Inscribir a <b>' + (request.fullname || '') + '</b> en el módulo de <b>'
+                    + (request.coursename || '') + '</b> (<i>'
+                    + (request.module_type_label || request.module_type || '') + '</i>)?<br>'
+                    + '<small class="grey--text">La factura '
+                    + (request.invoice_number || '(sin número)') + ' ya está pagada.</small>',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Sí, inscribir',
+                cancelButtonText: 'Cancelar',
+                confirmButtonColor: '#4CAF50',
+            });
+            if (!sw.isConfirmed) return;
+
+            this.$set(this.enrollingMap, request.id, true);
+            try {
+                const res = await window.axios.get(ajaxUrl, { params: {
+                    action: 'local_grupomakro_enroll_module',
+                    sesskey,
+                    userId: Number(request.userid),
+                    coreCourseId: Number(request.corecourseid),
+                    learningPlanId: Number(request.learningplanid || 0),
+                }});
+                const payload = res.data || {};
+                const data = (payload.data) ? payload.data : payload;
+                if (data && (data.status === 'ok' || data.status === 'warning')) {
+                    const idx = this.requests.findIndex(r => r.id === request.id);
+                    if (idx !== -1) {
+                        const current = this.requests[idx];
+                        this.$set(this.requests, idx, Object.assign({}, current, {
+                            status:  'enrolled',
+                            _status: 'enrolled',
+                        }));
+                    }
+                    this.showMessage(
+                        data.status === 'ok' ? 'success' : 'warning',
+                        data.message || 'Inscripción procesada.'
+                    );
+                } else {
+                    this.showMessage(
+                        'error',
+                        (data && data.message) || 'No se pudo inscribir al estudiante.'
+                    );
+                }
+            } catch (e) {
+                console.error('Error enrolling from module_management:', e);
+                this.showMessage('error', 'Error al inscribir al estudiante.');
+            } finally {
+                this.$delete(this.enrollingMap, request.id);
+            }
+        },
         requestPaymentStateColor(state) {
             return state === 'paid' ? 'green darken-2' : 'orange darken-2';
         },
@@ -1038,20 +1092,25 @@ Vue.component('modulemanagement', {
                   <v-btn v-if="item._status === 'pending_payment'"
                     x-small color="orange darken-2" dark class="mr-1"
                     :loading="!!verifyingMap[item.id]"
-                    :disabled="!!verifyingMap[item.id] || !!cancellingMap[item.id]"
+                    :disabled="!!verifyingMap[item.id] || !!cancellingMap[item.id] || !!enrollingMap[item.id]"
                     @click="refreshPayment(item)" title="Consultar estado de pago en Odoo">
                     <v-icon x-small left>mdi-refresh</v-icon> Verificar pago
                   </v-btn>
                   <v-btn v-if="item._status === 'pending_payment'"
                     x-small outlined color="red darken-2"
                     :loading="!!cancellingMap[item.id]"
-                    :disabled="!!cancellingMap[item.id] || !!verifyingMap[item.id]"
+                    :disabled="!!cancellingMap[item.id] || !!verifyingMap[item.id] || !!enrollingMap[item.id]"
                     @click="cancelRequest(item)" title="Cancelar esta solicitud">
                     <v-icon x-small left>mdi-close-circle-outline</v-icon> Cancelar
                   </v-btn>
-                  <v-chip v-if="item._status === 'paid'" x-small color="green darken-2" dark>
-                    Listo para inscribir
-                  </v-chip>
+                  <v-btn v-if="item._status === 'paid'"
+                    x-small color="green darken-2" dark class="mr-1"
+                    :loading="!!enrollingMap[item.id]"
+                    :disabled="!!enrollingMap[item.id] || !!verifyingMap[item.id] || !!cancellingMap[item.id]"
+                    @click="confirmEnroll(item)"
+                    title="Inscribir al estudiante en el módulo">
+                    <v-icon x-small left>mdi-book-education-outline</v-icon> Inscribir
+                  </v-btn>
                   <v-chip v-if="item._status === 'enrolled'" x-small color="teal darken-2" dark>Inscrito</v-chip>
                   <v-chip v-if="item._status === 'expired'" x-small color="red darken-2" dark>Expirado</v-chip>
                   <v-chip v-if="item._status === 'cancelled'" x-small color="grey">Cancelado</v-chip>
