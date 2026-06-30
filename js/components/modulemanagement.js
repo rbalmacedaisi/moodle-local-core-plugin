@@ -48,6 +48,26 @@ Vue.component('modulemanagement', {
             updatingMap: {},
             deletingModuleId: null,
 
+            // ── Solicitudes de módulo con factura Odoo ──────────────────────────
+            activeTab: 0,                                    // 0 = módulos, 1 = solicitudes
+            requestHeaders: [
+                { text: 'Estudiante',         value: 'fullname',           sortable: true  },
+                { text: 'Asignatura',         value: 'coursename',         sortable: true  },
+                { text: 'Tipo',               value: 'module_type_label',  sortable: true  },
+                { text: 'Factura #',          value: 'invoice_number',     sortable: true  },
+                { text: 'Monto',              value: 'amount',             sortable: true, align: 'right' },
+                { text: 'Estado pago',        value: '_payment_state',     sortable: false, align: 'center' },
+                { text: 'Estado solicitud',   value: '_status',            sortable: true, align: 'center' },
+                { text: 'Expira',             value: 'expires_at',         sortable: true  },
+                { text: 'Acciones',           value: '_actions',           sortable: false, align: 'center' },
+            ],
+            requests: [],
+            loadingRequests: false,
+            requestSearch: '',
+            requestStatusFilter: '',  // '' = todos, 'pending_payment', 'paid', 'enrolled', 'expired', 'cancelled'
+            verifyingMap: {},         // { requestId: true } para spinner individual
+            cancellingMap: {},        // { requestId: true } para spinner individual
+
             // Grade entry dialog (shown when marking completed without an existing grade
             // or when the module has more than one activity)
             gradeDialog:        false,
@@ -447,6 +467,137 @@ Vue.component('modulemanagement', {
             window.Swal.fire({ icon: type, text, toast: true, position: 'top-end',
                 showConfirmButton: false, timer: 4000 });
         },
+
+        // ── Module invoice requests (Solicitudes tab) ─────────────────────────
+        async loadRequests() {
+            this.loadingRequests = true;
+            this.requests = [];
+            try {
+                const res = await window.axios.get(ajaxUrl, { params: {
+                    action: 'local_grupomakro_get_module_requests',
+                    sesskey,
+                    statusFilter: this.requestStatusFilter || '',
+                    userSearch:   this.requestSearch || '',
+                }});
+                const raw = ((res.data || {}).data) || [];
+                this.requests = (Array.isArray(raw) ? raw : []).map(r => Object.assign({}, r, {
+                    _payment_state: r.payment_state || 'unpaid',
+                    _status:        r.status || 'pending_payment',
+                }));
+            } catch (e) {
+                console.error('Error loading module requests:', e);
+                this.showMessage('error', 'Error al cargar solicitudes de módulo.');
+            } finally {
+                this.loadingRequests = false;
+            }
+        },
+        async refreshPayment(request) {
+            this.$set(this.verifyingMap, request.id, true);
+            try {
+                const res = await window.axios.get(ajaxUrl, { params: {
+                    action: 'local_grupomakro_refresh_module_payment',
+                    sesskey,
+                    requestId: request.id,
+                }});
+                const payload = res.data || {};
+                const d = (payload.data) ? payload.data : payload;
+                if (payload.status === 'success' && d && d.ok) {
+                    const idx = this.requests.findIndex(r => r.id === request.id);
+                    if (idx !== -1) {
+                        const current = this.requests[idx];
+                        this.$set(this.requests, idx, Object.assign({}, current, {
+                            payment_state:  d.payment_state || current.payment_state,
+                            status:         d.request_status || current.status,
+                            invoice_id:     d.invoice_id || current.invoice_id,
+                            invoice_number: d.invoice_number || current.invoice_number,
+                            _payment_state: d.payment_state || current.payment_state,
+                            _status:        d.request_status || current.status,
+                        }));
+                    }
+                    this.showMessage(d.paid ? 'success' : 'info', d.message || '');
+                } else {
+                    this.showMessage('error', (d && d.message) || 'No se pudo verificar el pago.');
+                }
+            } catch (e) {
+                console.error('Error refreshing payment:', e);
+                this.showMessage('error', 'Error al verificar el pago.');
+            } finally {
+                this.$delete(this.verifyingMap, request.id);
+            }
+        },
+        async cancelRequest(request) {
+            const confirmed = await window.Swal.fire({
+                title: 'Cancelar solicitud',
+                html: '¿Cancelar la solicitud de <b>' + (request.fullname || '') + '</b> para <b>' + (request.coursename || '') + '</b>?<br><small class="red--text">La factura quedará registrada pero no podrá usarse para inscribir al estudiante.</small>',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Sí, cancelar',
+                cancelButtonText: 'Volver',
+                confirmButtonColor: '#D32F2F',
+            });
+            if (!confirmed.isConfirmed) return;
+            this.$set(this.cancellingMap, request.id, true);
+            try {
+                const res = await window.axios.get(ajaxUrl, { params: {
+                    action: 'local_grupomakro_cancel_module_request',
+                    sesskey,
+                    requestId: request.id,
+                }});
+                const payload = res.data || {};
+                const d = (payload.data) ? payload.data : payload;
+                if (payload.status === 'success' && d && d.ok) {
+                    const idx = this.requests.findIndex(r => r.id === request.id);
+                    if (idx !== -1) {
+                        const current = this.requests[idx];
+                        this.$set(this.requests, idx, Object.assign({}, current, {
+                            status:  'cancelled',
+                            _status: 'cancelled',
+                        }));
+                    }
+                    this.showMessage('success', 'Solicitud cancelada.');
+                } else {
+                    this.showMessage('error', (d && d.error) || 'No se pudo cancelar.');
+                }
+            } catch (e) {
+                console.error('Error cancelling request:', e);
+                this.showMessage('error', 'Error al cancelar la solicitud.');
+            } finally {
+                this.$delete(this.cancellingMap, request.id);
+            }
+        },
+        requestPaymentStateColor(state) {
+            return state === 'paid' ? 'green darken-2' : 'orange darken-2';
+        },
+        requestPaymentStateLabel(state) {
+            return state === 'paid' ? 'Pagado' : 'Pendiente';
+        },
+        requestStatusColor(status) {
+            const map = {
+                pending_payment: 'orange',
+                paid:            'green',
+                enrolled:        'teal',
+                expired:         'red darken-2',
+                cancelled:       'grey',
+            };
+            return map[status] || 'grey';
+        },
+        requestStatusLabel(status) {
+            const map = {
+                pending_payment: 'Esperando pago',
+                paid:            'Pagado — listo para inscribir',
+                enrolled:        'Inscrito',
+                expired:         'Expirado',
+                cancelled:       'Cancelado',
+            };
+            return map[status] || status;
+        },
+        formatAmount(amount) {
+            const n = Number(amount || 0);
+            if (!isFinite(n) || n <= 0) return '—';
+            try {
+                return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(n);
+            } catch (e) { return String(n); }
+        },
     },
 
     template: `
@@ -767,6 +918,151 @@ Vue.component('modulemanagement', {
       </v-card-actions>
     </v-card>
   </v-dialog>
+
+  <!-- ── Tab navigation ─────────────────────────────────────────────────── -->
+  <v-card outlined class="mt-4">
+    <v-tabs v-model="activeTab" background-color="transparent" color="teal darken-2">
+      <v-tab>
+        <v-icon left small>mdi-book-multiple</v-icon> Módulos
+      </v-tab>
+      <v-tab @click="loadRequests">
+        <v-icon left small>mdi-receipt-text-outline</v-icon> Solicitudes de módulo
+      </v-tab>
+    </v-tabs>
+
+    <v-tabs-items v-model="activeTab">
+      <!-- Placeholder tab: the modules table is rendered above as the default view -->
+      <v-tab-item></v-tab-item>
+
+      <!-- Solicitudes tab -->
+      <v-tab-item>
+        <v-card flat>
+          <v-card-text>
+            <v-row align="center" class="mb-2">
+              <v-col cols="12" sm="4" md="3">
+                <v-select
+                  v-model="requestStatusFilter"
+                  :items="[
+                    { text: 'Todos los estados',   value: '' },
+                    { text: 'Esperando pago',      value: 'pending_payment' },
+                    { text: 'Pagado (por inscribir)', value: 'paid' },
+                    { text: 'Inscrito',            value: 'enrolled' },
+                    { text: 'Expirado',            value: 'expired' },
+                    { text: 'Cancelado',           value: 'cancelled' },
+                  ]"
+                  item-text="text"
+                  item-value="value"
+                  label="Estado"
+                  outlined dense hide-details
+                  @change="loadRequests"
+                ></v-select>
+              </v-col>
+              <v-col cols="12" sm="5" md="5">
+                <v-text-field
+                  v-model="requestSearch"
+                  prepend-inner-icon="mdi-magnify"
+                  label="Buscar estudiante (nombre o email)"
+                  outlined dense hide-details clearable
+                  @keyup.enter="loadRequests"
+                ></v-text-field>
+              </v-col>
+              <v-col cols="auto" class="text-right">
+                <v-btn small outlined color="teal darken-2" @click="loadRequests" :loading="loadingRequests">
+                  <v-icon small left>mdi-refresh</v-icon> Actualizar
+                </v-btn>
+              </v-col>
+            </v-row>
+
+            <v-data-table
+              :headers="requestHeaders"
+              :items="requests"
+              :loading="loadingRequests"
+              :search="requestSearch"
+              loading-text="Cargando solicitudes..."
+              no-data-text="No hay solicitudes de módulo registradas."
+              :footer-props="{ 'items-per-page-options': [10, 25, 50] }"
+              dense
+            >
+              <!-- Estudiante -->
+              <template v-slot:item.fullname="{ item }">
+                <div class="font-weight-medium">{{ item.fullname }}</div>
+                <div class="text-caption grey--text">{{ item.email }}</div>
+              </template>
+
+              <!-- Asignatura -->
+              <template v-slot:item.coursename="{ item }">
+                <span class="font-weight-medium">{{ item.coursename }}</span>
+              </template>
+
+              <!-- Tipo -->
+              <template v-slot:item.module_type_label="{ item }">
+                <v-chip x-small outlined :color="item.module_type === 'materias_especializadas' ? 'deep-purple' : 'teal'">
+                  {{ item.module_type_label || item.module_type }}
+                </v-chip>
+              </template>
+
+              <!-- Factura -->
+              <template v-slot:item.invoice_number="{ item }">
+                <span v-if="item.invoice_number">{{ item.invoice_number }}</span>
+                <span v-else class="grey--text">—</span>
+              </template>
+
+              <!-- Monto -->
+              <template v-slot:item.amount="{ item }">
+                <span class="font-weight-medium">{{ formatAmount(item.amount) }}</span>
+              </template>
+
+              <!-- Estado de pago -->
+              <template v-slot:item._payment_state="{ item }">
+                <v-chip x-small :color="requestPaymentStateColor(item._payment_state)" dark>
+                  {{ requestPaymentStateLabel(item._payment_state) }}
+                </v-chip>
+              </template>
+
+              <!-- Estado de solicitud -->
+              <template v-slot:item._status="{ item }">
+                <v-chip x-small :color="requestStatusColor(item._status)" dark>
+                  {{ requestStatusLabel(item._status) }}
+                </v-chip>
+              </template>
+
+              <!-- Expira -->
+              <template v-slot:item.expires_at="{ item }">
+                <span v-if="item.expires_at">{{ formatDate(item.expires_at) }}</span>
+                <span v-else class="grey--text">—</span>
+              </template>
+
+              <!-- Acciones -->
+              <template v-slot:item._actions="{ item }">
+                <div style="white-space:nowrap">
+                  <v-btn v-if="item._status === 'pending_payment'"
+                    x-small color="orange darken-2" dark class="mr-1"
+                    :loading="!!verifyingMap[item.id]"
+                    :disabled="!!verifyingMap[item.id] || !!cancellingMap[item.id]"
+                    @click="refreshPayment(item)" title="Consultar estado de pago en Odoo">
+                    <v-icon x-small left>mdi-refresh</v-icon> Verificar pago
+                  </v-btn>
+                  <v-btn v-if="item._status === 'pending_payment'"
+                    x-small outlined color="red darken-2"
+                    :loading="!!cancellingMap[item.id]"
+                    :disabled="!!cancellingMap[item.id] || !!verifyingMap[item.id]"
+                    @click="cancelRequest(item)" title="Cancelar esta solicitud">
+                    <v-icon x-small left>mdi-close-circle-outline</v-icon> Cancelar
+                  </v-btn>
+                  <v-chip v-if="item._status === 'paid'" x-small color="green darken-2" dark>
+                    Listo para inscribir
+                  </v-chip>
+                  <v-chip v-if="item._status === 'enrolled'" x-small color="teal darken-2" dark>Inscrito</v-chip>
+                  <v-chip v-if="item._status === 'expired'" x-small color="red darken-2" dark>Expirado</v-chip>
+                  <v-chip v-if="item._status === 'cancelled'" x-small color="grey">Cancelado</v-chip>
+                </div>
+              </template>
+            </v-data-table>
+          </v-card-text>
+        </v-card>
+      </v-tab-item>
+    </v-tabs-items>
+  </v-card>
 
 </v-container>
 `,

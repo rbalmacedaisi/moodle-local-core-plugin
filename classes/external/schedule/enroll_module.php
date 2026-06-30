@@ -8,16 +8,20 @@ defined('MOODLE_INTERNAL') || die();
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 require_once($CFG->dirroot . '/group/lib.php');
 require_once($CFG->dirroot . '/course/lib.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/module_invoice_manager.php');
 
 /**
  * Enroll a student in an independent study module.
  *
  * Logic:
- *  1. Find the student's current academic period via local_learning_users.
- *  2. Find or create a gmk_class with is_module=1 for the given corecourseid + academicperiodid.
+ *  1. (Payment gate) Require a paid gmk_module_invoice_requests row for
+ *     (userId, coreCourseId). Admins with the bypass capability may skip.
+ *  2. Find the student's current academic period via local_learning_users.
+ *  3. Find or create a gmk_class with is_module=1 for the given corecourseid + academicperiodid.
  *     The Moodle group is named  "{coursename} (MÓDULO) {period_code}".
- *  3. Enrol the student in the Moodle course and add them to the module group.
- *  4. Create a gmk_module_enrollment record with enrolldate=now and duedate=now+deadline_days*86400.
+ *  4. Enrol the student in the Moodle course and add them to the module group.
+ *  5. Create a gmk_module_enrollment record with enrolldate=now and duedate=now+deadline_days*86400.
+ *  6. Mark the originating invoice request as 'enrolled'.
  *
  * @package local_grupomakro_core
  */
@@ -29,9 +33,15 @@ class enroll_module {
      * @param int $userId
      * @param int $coreCourseId
      * @param int $learningPlanId  Used only for progress_manager sync (optional).
-     * @return array {status, message, duedate}
+     * @param bool $bypassPayment  When true, skip the payment gate (admin override).
+     * @return array {status, message, duedate, requires_payment}
      */
-    public static function execute(int $userId, int $coreCourseId, int $learningPlanId = 0): array {
+    public static function execute(
+        int $userId,
+        int $coreCourseId,
+        int $learningPlanId = 0,
+        bool $bypassPayment = false
+    ): array {
         global $DB, $USER;
 
         $context = context_system::instance();
@@ -40,6 +50,23 @@ class enroll_module {
         // ── 1. Validate user and course ──────────────────────────────────────────
         $user = $DB->get_record('user', ['id' => $userId, 'deleted' => 0], 'id,firstname,lastname', MUST_EXIST);
         $course = $DB->get_record('course', ['id' => $coreCourseId], 'id,fullname,shortname', MUST_EXIST);
+
+        // ── 1b. Payment gate: require a paid invoice request ────────────────────
+        $paidRequest = null;
+        if (!$bypassPayment) {
+            $paidRequest = \local_grupomakro_core\local\module_invoice_manager::find_paid_for_user_course(
+                $userId,
+                $coreCourseId
+            );
+            if (!$paidRequest) {
+                return [
+                    'status'           => 'error',
+                    'message'          => 'No existe una solicitud de módulo pagada para este estudiante y asignatura. Genere primero la factura.',
+                    'duedate'          => 0,
+                    'requires_payment' => true,
+                ];
+            }
+        }
 
         // ── 2. Get the last period that has already started ───────────────────────
         $academicPeriod = $DB->get_record_sql(
@@ -242,6 +269,15 @@ class enroll_module {
         $enrollment->usermodified = (int)$USER->id;
 
         $DB->insert_record('gmk_module_enrollment', $enrollment);
+
+        // ── 7. Mark the originating invoice request as enrolled ─────────────────
+        if ($paidRequest) {
+            \local_grupomakro_core\local\module_invoice_manager::mark_enrolled(
+                (int)$paidRequest->id,
+                $classId,
+                (int)$USER->id
+            );
+        }
 
         $dueDateFormatted = userdate($dueDate, get_string('strftimedatefullshort', 'langconfig'));
         return [

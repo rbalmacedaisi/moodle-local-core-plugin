@@ -796,6 +796,40 @@
         <INDEX NAME="classuser_unique" UNIQUE="true" FIELDS="classid, userid"/>
       </INDEXES>
     </TABLE>
+    <TABLE NAME="gmk_module_invoice_requests" COMMENT="Per-student module enrollment requests with Odoo invoice + payment state">
+      <FIELDS>
+        <FIELD NAME="id"             TYPE="int"    LENGTH="10"  NOTNULL="true"  SEQUENCE="true"/>
+        <FIELD NAME="userid"         TYPE="int"    LENGTH="10"  NOTNULL="true"  DEFAULT="0"    SEQUENCE="false"/>
+        <FIELD NAME="corecourseid"   TYPE="int"    LENGTH="10"  NOTNULL="true"  DEFAULT="0"    SEQUENCE="false"/>
+        <FIELD NAME="learningplanid" TYPE="int"    LENGTH="10"  NOTNULL="true"  DEFAULT="0"    SEQUENCE="false"/>
+        <FIELD NAME="module_type"    TYPE="char"   LENGTH="32"  NOTNULL="true"  DEFAULT="tronco_comun" SEQUENCE="false" COMMENT="tronco_comun|materias_especializadas"/>
+        <FIELD NAME="invoice_extref" TYPE="char"   LENGTH="64"  NOTNULL="false"                SEQUENCE="false" COMMENT="External request ref sent to Odoo (MODULE_REQ:&lt;id&gt;)"/>
+        <FIELD NAME="invoice_id"     TYPE="char"   LENGTH="32"  NOTNULL="false"                SEQUENCE="false" COMMENT="Odoo account.move id"/>
+        <FIELD NAME="invoice_number" TYPE="char"   LENGTH="64"  NOTNULL="false"                SEQUENCE="false" COMMENT="Odoo invoice consecutive (name)"/>
+        <FIELD NAME="payment_link"   TYPE="char"   LENGTH="1333" NOTNULL="false"               SEQUENCE="false"/>
+        <FIELD NAME="amount"         TYPE="number" LENGTH="10"  NOTNULL="true"  DEFAULT="0"    SEQUENCE="false" DECIMALS="2"/>
+        <FIELD NAME="payment_state"  TYPE="char"   LENGTH="20"  NOTNULL="true"  DEFAULT="unpaid" SEQUENCE="false" COMMENT="unpaid|paid"/>
+        <FIELD NAME="status"         TYPE="char"   LENGTH="20"  NOTNULL="true"  DEFAULT="pending_payment" SEQUENCE="false" COMMENT="pending_payment|paid|enrolled|expired|cancelled"/>
+        <FIELD NAME="enrolled_classid" TYPE="int"  LENGTH="10"  NOTNULL="true"  DEFAULT="0"    SEQUENCE="false" COMMENT="gmk_class.id assigned after enrollment"/>
+        <FIELD NAME="expires_at"     TYPE="int"    LENGTH="10"  NOTNULL="true"  DEFAULT="0"    SEQUENCE="false" COMMENT="Unix timestamp after which the request auto-expires"/>
+        <FIELD NAME="paidat"         TYPE="int"    LENGTH="10"  NOTNULL="true"  DEFAULT="0"    SEQUENCE="false"/>
+        <FIELD NAME="createdby"      TYPE="int"    LENGTH="10"  NOTNULL="true"  DEFAULT="0"    SEQUENCE="false"/>
+        <FIELD NAME="timecreated"    TYPE="int"    LENGTH="10"  NOTNULL="true"  DEFAULT="0"    SEQUENCE="false"/>
+        <FIELD NAME="timemodified"   TYPE="int"    LENGTH="10"  NOTNULL="true"  DEFAULT="0"    SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary"  TYPE="primary"  FIELDS="id"/>
+        <KEY NAME="userfk"   TYPE="foreign"  FIELDS="userid"       REFTABLE="user"   REFFIELDS="id"/>
+        <KEY NAME="coursefk" TYPE="foreign"  FIELDS="corecourseid" REFTABLE="course" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="user_course_status_idx" UNIQUE="false" FIELDS="userid, corecourseid, status"/>
+        <INDEX NAME="invoice_extref_idx"     UNIQUE="false" FIELDS="invoice_extref"/>
+        <INDEX NAME="status_idx"             UNIQUE="false" FIELDS="status"/>
+        <INDEX NAME="expires_idx"            UNIQUE="false" FIELDS="expires_at"/>
+        <INDEX NAME="user_status_idx"        UNIQUE="false" FIELDS="userid, status"/>
+      </INDEXES>
+    </TABLE>
     <TABLE NAME="gmk_student_observations" COMMENT="Observaciones de seguimiento por estudiante y clase">
       <FIELDS>
         <FIELD NAME="id"           TYPE="int"  LENGTH="10" NOTNULL="true" SEQUENCE="true"/>

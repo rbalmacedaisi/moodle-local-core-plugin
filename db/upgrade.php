@@ -2445,6 +2445,48 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20260701004, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20260701008) {
+        // Module invoice requests: gate module enrollment behind a paid Odoo invoice.
+        // Mirrors the revalidation flow (gmk_revalidations + REVALID_REQ: ref) but
+        // uses MODULE_REQ:<id> as the invoice ref prefix.
+        $table = new xmldb_table('gmk_module_invoice_requests');
+
+        $table->add_field('id',               XMLDB_TYPE_INTEGER, '10',   null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('userid',           XMLDB_TYPE_INTEGER, '10',   null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('corecourseid',     XMLDB_TYPE_INTEGER, '10',   null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('learningplanid',   XMLDB_TYPE_INTEGER, '10',   null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('module_type',      XMLDB_TYPE_CHAR,    '32',   null, XMLDB_NOTNULL, null, 'tronco_comun');
+        $table->add_field('invoice_extref',   XMLDB_TYPE_CHAR,    '64',   null, null,          null, null);
+        $table->add_field('invoice_id',       XMLDB_TYPE_CHAR,    '32',   null, null,          null, null);
+        $table->add_field('invoice_number',   XMLDB_TYPE_CHAR,    '64',   null, null,          null, null);
+        $table->add_field('payment_link',     XMLDB_TYPE_CHAR,    '1333', null, null,          null, null);
+        $table->add_field('amount',           XMLDB_TYPE_NUMBER,  '10',   null, XMLDB_NOTNULL, null, '0', null, '2');
+        $table->add_field('payment_state',    XMLDB_TYPE_CHAR,    '20',   null, XMLDB_NOTNULL, null, 'unpaid');
+        $table->add_field('status',           XMLDB_TYPE_CHAR,    '20',   null, XMLDB_NOTNULL, null, 'pending_payment');
+        $table->add_field('enrolled_classid', XMLDB_TYPE_INTEGER, '10',   null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('expires_at',       XMLDB_TYPE_INTEGER, '10',   null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('paidat',           XMLDB_TYPE_INTEGER, '10',   null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('createdby',        XMLDB_TYPE_INTEGER, '10',   null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timecreated',      XMLDB_TYPE_INTEGER, '10',   null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timemodified',     XMLDB_TYPE_INTEGER, '10',   null, XMLDB_NOTNULL, null, '0');
+
+        $table->add_key('primary',  XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('userfk',   XMLDB_KEY_FOREIGN, ['userid'],       'user',   ['id']);
+        $table->add_key('coursefk', XMLDB_KEY_FOREIGN, ['corecourseid'], 'course', ['id']);
+
+        $table->add_index('user_course_status_idx', XMLDB_INDEX_NOTUNIQUE, ['userid', 'corecourseid', 'status']);
+        $table->add_index('invoice_extref_idx',     XMLDB_INDEX_NOTUNIQUE, ['invoice_extref']);
+        $table->add_index('status_idx',             XMLDB_INDEX_NOTUNIQUE, ['status']);
+        $table->add_index('expires_idx',            XMLDB_INDEX_NOTUNIQUE, ['expires_at']);
+        $table->add_index('user_status_idx',        XMLDB_INDEX_NOTUNIQUE, ['userid', 'status']);
+
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        upgrade_plugin_savepoint(true, 20260701008, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

@@ -24,7 +24,7 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = "local_grupomakro_core";
-$plugin->version   = 20260701006;         // Module enrollment gated by Odoo invoice (gmk_module_invoice_requests) — mirrors revalidation flow with MODULE_REQ:<id> ref, payment-gated enroll_module, refresh-payment action, 30-day expiry cron, LXP pending modules section.
 $plugin->version   = 20260701007;         // overdue_grace_days admin setting + local_grupomakro_get_overdue_grace_days AJAX action for server-to-server Express lookup; configurable from financial settings page, default 3, consumed by Express rest_express/server.js instead of hard-coded constant.
+$plugin->version   = 20260701008;         // Module enrollment gated by Odoo invoice (gmk_module_invoice_requests) — mirrors revalidation flow with MODULE_REQ:<id> ref, payment-gated enroll_module, refresh-payment action, 30-day expiry cron, LXP pending modules section.
 $plugin->requires = 2014051200;
 $plugin->maturity = MATURITY_STABLE;

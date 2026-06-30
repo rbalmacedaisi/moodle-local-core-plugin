@@ -303,18 +303,19 @@ Vue.component('grademodal', {
                                                             Inscribir
                                                         </v-btn>
                                                         <v-btn
-                                                            v-if="Number(course.courseid || 0) > 0 && canEnrollInModule(course)"
+                                                            v-if="Number(course.courseid || 0) > 0 && (canEnrollInModule(course) || moduleRequestFor(course))"
                                                             x-small
-                                                            :color="moduleStatusMap[getCourseKey(course)] ? 'teal lighten-1' : 'teal darken-2'"
+                                                            :color="moduleStatusMap[getCourseKey(course)] ? 'teal lighten-1' : (moduleRequestFor(course) ? 'orange darken-2' : 'teal darken-2')"
                                                             dark
-                                                            :loading="enrollingModuleKey === getCourseKey(course)"
-                                                            :disabled="!!enrollingModuleKey || !!withdrawingCourseKey || !canEnrollInModule(course)"
+                                                            :loading="enrollingModuleKey === getCourseKey(course) || requestingModuleKey === getCourseKey(course) || verifyingModuleRequestId === (moduleRequestFor(course) || {}).request_id || cancellingModuleRequestId === (moduleRequestFor(course) || {}).request_id"
+                                                            :disabled="!!enrollingModuleKey || !!withdrawingCourseKey || !canEnrollInModule(course) || !!requestingModuleKey || !!verifyingModuleRequestId || !!cancellingModuleRequestId"
                                                             @click.stop="enrollInModule(course)"
                                                             class="ml-1"
-                                                            title="Inscribir en módulo independiente"
+                                                            :title="moduleStatusMap[getCourseKey(course)] ? 'Ya inscrito en módulo' : (moduleRequestFor(course) ? 'Ver/gestionar solicitud de módulo' : 'Inscribir en módulo independiente')"
                                                         >
                                                             <v-icon x-small :left="!!moduleStatusMap[getCourseKey(course)]">mdi-book-education-outline</v-icon>
                                                             <span v-if="moduleStatusMap[getCourseKey(course)]">Módulo ✓</span>
+                                                            <span v-else-if="moduleRequestFor(course)">Módulo {{ moduleRequestFor(course).status === 'paid' ? '✓ Pagado' : '⏳' }}</span>
                                                         </v-btn>
                                                         <v-btn
                                                             v-if="Number(course.courseid || 0) > 0 && canHomologate(course)"
@@ -743,6 +744,11 @@ Vue.component('grademodal', {
             exportingDetailedGradesPdf: false,
             enrollingModuleKey: null,
             moduleStatusMap: {},
+            // Module invoice request flow (gmk_module_invoice_requests)
+            requestingModuleKey: null,         // { userId, coreCourseId, key } while invoice is being created
+            verifyingModuleRequestId: null,    // requestId being checked on-demand
+            cancellingModuleRequestId: null,   // requestId being cancelled
+            pendingModuleRequest: null,        // current request snapshot keyed by courseKey
             creditView: false,
             loadingCreditReport: false,
             creditReport: null,
@@ -802,6 +808,7 @@ Vue.component('grademodal', {
             this.getpensum();
         }
         this.fetchRevalidations();
+        this.fetchStudentModuleRequests();
     },
     methods: {
         getGradeColor(grade) {
@@ -834,6 +841,42 @@ Vue.component('grademodal', {
             } catch (error) {
                 // Director-only data (requires site:config). Silently ignore for other roles.
                 console.debug('fetchRevalidations skipped:', error && error.message);
+            }
+        },
+        async fetchStudentModuleRequests() {
+            if (!this.dataStudent || !this.dataStudent.id) return;
+            try {
+                const url = window.wsUrl || (window.location.origin + '/local/grupomakro_core/ajax.php');
+                const response = await window.axios.get(url, { params: {
+                    action: 'local_grupomakro_get_student_module_requests',
+                    sesskey: M.cfg.sesskey,
+                    userId: Number(this.dataStudent.id),
+                }});
+                const payload = response && response.data ? response.data : {};
+                if (payload.status === 'success' && payload.data && Array.isArray(payload.data.requests)) {
+                    const map = {};
+                    payload.data.requests.forEach(r => {
+                        const cid = Number(r.corecourseid);
+                        map[String(cid)] = {
+                            request_id:     Number(r.id),
+                            corecourseid:   cid,
+                            coursename:     r.coursename,
+                            module_type:    r.module_type,
+                            module_type_label: r.module_type_label,
+                            invoice_id:     r.invoice_id,
+                            invoice_number: r.invoice_number,
+                            payment_link:   r.payment_link,
+                            amount:         r.amount,
+                            payment_state:  r.payment_state,
+                            status:         r.status,
+                            expires_at:     r.expires_at,
+                            paidat:         r.paidat,
+                        };
+                    });
+                    this.pendingModuleRequest = map;
+                }
+            } catch (error) {
+                console.debug('fetchStudentModuleRequests skipped:', error && error.message);
             }
         },
         revalidationFor(course) {
@@ -2300,6 +2343,11 @@ Vue.component('grademodal', {
             const statusLabel = String((course && course.statusLabel) ? course.statusLabel : '').trim().toLowerCase();
             return statusLabel !== 'cursando' && statusLabel !== 'aprobada';
         },
+        moduleRequestFor(course) {
+            if (!course || !this.pendingModuleRequest) return null;
+            const cid = String(Number(course.courseid || 0));
+            return this.pendingModuleRequest[cid] || null;
+        },
         async openEnrollDialog(course) {
             if (!this.canEnrollInCourse(course)) {
                 return;
@@ -2421,75 +2469,260 @@ Vue.component('grademodal', {
         },
         async enrollInModule(course) {
             const key = this.getCourseKey(course);
-            const existing = this.moduleStatusMap[key];
-            if (existing) {
-                const date = existing.duedate
-                    ? new Date(existing.duedate * 1000).toLocaleDateString('es-PA', { day: '2-digit', month: 'short', year: 'numeric' })
-                    : '—';
-                const period = existing.periodname ? ' | Período: ' + existing.periodname : '';
-                this.showMessage('info', 'Ya inscrito en módulo' + period + '. Plazo: ' + date);
+
+            // If an invoice request is already in flight (pending/paid), open the dedicated dialog.
+            const req = (this.pendingModuleRequest && this.pendingModuleRequest[key])
+                ? this.pendingModuleRequest[key]
+                : null;
+            if (req) {
+                this.showModuleRequestDialog(course, req);
                 return;
             }
 
-            // Pre-fetch the active lective period name to show in the confirmation dialog
-            let periodLabel = '';
-            try {
-                const url = window.wsUrl || (window.location.origin + '/local/grupomakro_core/ajax.php');
-                const preRes = await window.axios.get(url, { params: {
-                    action: 'local_grupomakro_get_student_period',
-                    sesskey: M.cfg.sesskey,
-                    userId: this.dataStudent.id,
-                }});
-                const preData = ((preRes.data || {}).data) || {};
-                if (preData.periodname) {
-                    periodLabel = '<br><small><b>Periodo activo:</b> ' + preData.periodname + '</small>';
-                }
-            } catch (_) {}
-
-            const swResult = await window.Swal.fire({
-                title: 'Inscribir en Módulo',
-                html: '¿Inscribir a <b>' + this.studentName + '</b> en el módulo de <b>' + (course.coursename || '') + '</b>?'
-                    + periodLabel
-                    + '<br><small class="grey--text">El estudiante tendrá <b>25 días</b> para completar las actividades.</small>',
+            // Otherwise prompt the academic to choose the module type (TC vs ME).
+            const typeResult = await window.Swal.fire({
+                title: 'Solicitar módulo',
+                html: '¿Desea generar la factura para que el estudiante pague el módulo de <b>' + (course.coursename || '') + '</b> antes de inscribirlo?',
                 icon: 'question',
                 showCancelButton: true,
-                confirmButtonText: 'Inscribir',
+                showDenyButton: true,
+                confirmButtonText: 'Tronco Común',
+                denyButtonText: 'Materias Especializadas',
                 cancelButtonText: 'Cancelar',
                 confirmButtonColor: '#00796B',
+                denyButtonColor: '#5E35B1',
             });
-            if (!swResult.isConfirmed) return;
+            if (typeResult.isDismissed) return;
+            const moduleType = typeResult.isConfirmed
+                ? 'tronco_comun'
+                : (typeResult.isDenied ? 'materias_especializadas' : null);
+            if (!moduleType) return;
 
+            // Confirm and call the invoice request action.
+            const confirmResult = await window.Swal.fire({
+                title: 'Generar factura de módulo',
+                html: 'Se generará una factura en Odoo para que el estudiante pague el módulo de <b>' + (course.coursename || '') + '</b>.<br>'
+                    + '<small class="grey--text">Una vez pagada la factura, el botón "Inscribir" se habilitará automáticamente.</small>',
+                icon: 'info',
+                showCancelButton: true,
+                confirmButtonText: 'Generar factura',
+                cancelButtonText: 'Cancelar',
+                confirmButtonColor: '#FB8C00',
+            });
+            if (!confirmResult.isConfirmed) return;
+
+            this.requestingModuleKey = key;
+            try {
+                const url = window.wsUrl || (window.location.origin + '/local/grupomakro_core/ajax.php');
+                const response = await window.axios.get(url, { params: {
+                    action: 'local_grupomakro_request_module_invoice',
+                    sesskey: M.cfg.sesskey,
+                    userId: this.dataStudent.id,
+                    coreCourseId: Number(course.courseid || 0),
+                    learningPlanId: Number(course.learningplanid || 0),
+                    moduleType: moduleType,
+                }});
+                const payload = response.data || {};
+                const data = (payload.data) ? payload.data : payload;
+
+                if (data.ok && data.request) {
+                    const r = data.request;
+                    this.$set(this.pendingModuleRequest, key, {
+                        request_id:     Number(r.id),
+                        corecourseid:   Number(r.corecourseid),
+                        coursename:     course.coursename || '',
+                        module_type:    r.module_type,
+                        module_type_label: r.module_type === 'materias_especializadas' ? 'Materias Especializadas' : 'Tronco Común',
+                        invoice_id:     r.invoice_id,
+                        invoice_number: r.invoice_number,
+                        payment_link:   r.payment_link,
+                        amount:         r.amount,
+                        payment_state:  r.payment_state,
+                        status:         r.status,
+                        expires_at:     r.expires_at,
+                        paidat:         r.paidat,
+                    });
+                    this.showMessage('success', 'Factura ' + (r.invoice_number || '') + ' generada. Espere el pago del estudiante.');
+                    // Re-open the dialog so the academic can copy the payment link.
+                    this.showModuleRequestDialog(course, this.pendingModuleRequest[key]);
+                } else {
+                    this.showMessage('error', (data && data.error) || 'No se pudo generar la factura.');
+                }
+            } catch (e) {
+                console.error('Error requesting module invoice:', e);
+                this.showMessage('error', 'Error al generar la factura.');
+            } finally {
+                this.requestingModuleKey = null;
+            }
+        },
+        async showModuleRequestDialog(course, req) {
+            const invoiceLine = req.invoice_number
+                ? '<div class="mb-1"><b>Factura:</b> ' + req.invoice_number + '</div>' : '';
+            const linkLine = req.payment_link
+                ? '<a href="' + req.payment_link + '" target="_blank" class="d-inline-block mb-3">Abrir enlace de pago ↗</a>'
+                : '';
+            const expiresLine = req.expires_at
+                ? '<div class="mb-2"><b>Expira:</b> ' + this._formatUnixDate(req.expires_at) + '</div>' : '';
+            const typeLine = req.module_type_label
+                ? '<div class="mb-1"><b>Tipo:</b> ' + req.module_type_label + '</div>' : '';
+
+            const isPending = req.status === 'pending_payment';
+            const isPaid    = req.status === 'paid';
+
+            const swResult = await window.Swal.fire({
+                title: 'Módulo: ' + (course.coursename || ''),
+                html:
+                    '<div class="text-left">' +
+                    '<div class="mb-2"><b>Estado:</b> ' + this._moduleRequestStatusLabel(req.status) + '</div>' +
+                    typeLine +
+                    invoiceLine +
+                    linkLine +
+                    expiresLine +
+                    (isPending
+                        ? '<div class="mt-3 grey--text text--darken-1" style="font-size:12px;">Puede verificar si el estudiante ya pagó haciendo click en "Verificar pago".</div>'
+                        : '') +
+                    '</div>',
+                icon: isPending ? 'warning' : (isPaid ? 'success' : 'info'),
+                showCancelButton: true,
+                showDenyButton:   isPending,
+                confirmButtonText: isPaid
+                    ? 'Inscribir ahora'
+                    : (isPending ? 'Verificar pago' : 'Cerrar'),
+                denyButtonText:   'Cancelar solicitud',
+                cancelButtonText: 'Cerrar',
+                confirmButtonColor: isPaid ? '#4CAF50' : '#FB8C00',
+                denyButtonColor:   '#D32F2F',
+            });
+
+            if (swResult.isConfirmed) {
+                if (isPaid) {
+                    await this._enrollAfterPaid(course, req);
+                } else if (isPending) {
+                    await this.refreshModulePayment(course, req);
+                }
+            } else if (swResult.isDenied && isPending) {
+                await this.cancelModuleRequest(course, req);
+            }
+        },
+        async refreshModulePayment(course, req) {
+            this.verifyingModuleRequestId = req.request_id;
+            try {
+                const url = window.wsUrl || (window.location.origin + '/local/grupomakro_core/ajax.php');
+                const res = await window.axios.get(url, { params: {
+                    action: 'local_grupomakro_refresh_module_payment',
+                    sesskey: M.cfg.sesskey,
+                    requestId: req.request_id,
+                }});
+                const payload = res.data || {};
+                const d = (payload.data) ? payload.data : payload;
+
+                if (d && d.ok) {
+                    const key = this.getCourseKey(course);
+                    const updated = Object.assign({}, this.pendingModuleRequest[key] || req, {
+                        payment_state: d.payment_state || req.payment_state,
+                        status:        d.request_status || req.status,
+                        invoice_id:    d.invoice_id || req.invoice_id,
+                        invoice_number: d.invoice_number || req.invoice_number,
+                    });
+                    this.$set(this.pendingModuleRequest, key, updated);
+                    this.showMessage(d.paid ? 'success' : 'info', d.message || '');
+                    if (d.paid) {
+                        // Reopen dialog so the academic can click "Inscribir ahora".
+                        this.showModuleRequestDialog(course, updated);
+                    }
+                } else {
+                    this.showMessage('error', (d && d.message) || 'No se pudo verificar el pago.');
+                }
+            } catch (e) {
+                console.error('Error refreshing module payment:', e);
+                this.showMessage('error', 'Error al verificar el pago.');
+            } finally {
+                this.verifyingModuleRequestId = null;
+            }
+        },
+        async cancelModuleRequest(course, req) {
+            const sw = await window.Swal.fire({
+                title: '¿Cancelar solicitud?',
+                text: 'La factura quedará registrada pero no se podrá inscribir al estudiante con esta solicitud.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Sí, cancelar',
+                cancelButtonText: 'Volver',
+                confirmButtonColor: '#D32F2F',
+            });
+            if (!sw.isConfirmed) return;
+
+            this.cancellingModuleRequestId = req.request_id;
+            try {
+                const url = window.wsUrl || (window.location.origin + '/local/grupomakro_core/ajax.php');
+                const res = await window.axios.get(url, { params: {
+                    action: 'local_grupomakro_cancel_module_request',
+                    sesskey: M.cfg.sesskey,
+                    requestId: req.request_id,
+                }});
+                const payload = res.data || {};
+                const d = (payload.data) ? payload.data : payload;
+                if (d && d.ok) {
+                    const key = this.getCourseKey(course);
+                    this.$delete(this.pendingModuleRequest, key);
+                    this.showMessage('success', 'Solicitud cancelada.');
+                } else {
+                    this.showMessage('error', (d && d.error) || 'No se pudo cancelar.');
+                }
+            } catch (e) {
+                console.error('Error cancelling request:', e);
+                this.showMessage('error', 'Error al cancelar la solicitud.');
+            } finally {
+                this.cancellingModuleRequestId = null;
+            }
+        },
+        async _enrollAfterPaid(course, req) {
+            const key = this.getCourseKey(course);
             this.enrollingModuleKey = key;
             try {
                 const url = window.wsUrl || (window.location.origin + '/local/grupomakro_core/ajax.php');
-                const response = await window.axios.get(url, {
-                    params: {
-                        action: 'local_grupomakro_enroll_module',
-                        sesskey: M.cfg.sesskey,
-                        userId: this.dataStudent.id,
-                        coreCourseId: Number(course.courseid || 0),
-                        learningPlanId: Number(course.learningplanid || 0),
-                    }
-                });
+                const response = await window.axios.get(url, { params: {
+                    action: 'local_grupomakro_enroll_module',
+                    sesskey: M.cfg.sesskey,
+                    userId: this.dataStudent.id,
+                    coreCourseId: Number(course.courseid || 0),
+                    learningPlanId: Number(course.learningplanid || 0),
+                }});
                 const payload = response.data || {};
-                console.log('[enroll_module] raw response:', JSON.stringify(payload));
                 const data = (payload.data) ? payload.data : payload;
-
-                if (data.status === 'ok') {
+                if (data && data.status === 'ok') {
                     this.$set(this.moduleStatusMap, key, { enrolled: true, duedate: data.duedate || 0, periodname: data.periodname || '' });
+                    this.$delete(this.pendingModuleRequest, key);
                     this.showMessage('success', data.message || 'Inscrito en módulo correctamente.');
-                } else if (data.status === 'warning') {
+                } else if (data && data.status === 'warning') {
                     this.$set(this.moduleStatusMap, key, { enrolled: true, duedate: data.duedate || 0, periodname: data.periodname || '' });
+                    this.$delete(this.pendingModuleRequest, key);
                     this.showMessage('warning', data.message || 'Ya estaba inscrito en este módulo.');
                 } else {
-                    this.showMessage('error', data.message || 'No se pudo inscribir en el módulo.');
+                    this.showMessage('error', (data && data.message) || 'No se pudo inscribir en el módulo.');
                 }
             } catch (e) {
-                console.error('Error enrolling in module:', e);
+                console.error('Error enrolling after paid:', e);
                 this.showMessage('error', 'Error al inscribir en módulo.');
             } finally {
                 this.enrollingModuleKey = null;
             }
+        },
+        _moduleRequestStatusLabel(status) {
+            const map = {
+                pending_payment: 'Esperando pago',
+                paid:            'Pagado — listo para inscribir',
+                enrolled:        'Inscrito',
+                expired:         'Expirado',
+                cancelled:       'Cancelado',
+            };
+            return map[status] || (status || '');
+        },
+        _formatUnixDate(ts) {
+            if (!ts) return '—';
+            try {
+                return new Date(ts * 1000).toLocaleDateString('es-PA', { day: '2-digit', month: 'short', year: 'numeric' });
+            } catch (e) { return '—'; }
         },
         getCourseKey(course) {
             return String(course && course.progressclassid ? course.progressclassid : 0) + '_' + String(course && course.courseid ? course.courseid : 0);

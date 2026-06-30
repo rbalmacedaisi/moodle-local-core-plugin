@@ -97,4 +97,15 @@ $tasks = [
         'month' => '*',
         'dayofweek' => '*',
     ],
+    [
+        // Auto-expire pending module invoice requests whose window has elapsed
+        // (default 30 days). Runs once per hour to avoid choking the row lock.
+        'classname' => 'local_grupomakro_core\task\expire_module_requests',
+        'blocking' => 0,
+        'minute' => '15',
+        'hour' => '*',
+        'day' => '*',
+        'month' => '*',
+        'dayofweek' => '*',
+    ],
 ];
