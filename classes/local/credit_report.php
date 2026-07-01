@@ -69,7 +69,8 @@ class credit_report {
                   WHERE lpu.userid = :userid
                     AND lpu.userrolename = :rolename
                ORDER BY lp.name ASC",
-                ['userid' => $userid, 'rolename' => 'student']
+                ['userid' => $userid, 'rolename' => 'student'],
+                'learningplanid'
             );
             foreach ($planrows as $pr) {
                 $plans[(int)$pr->learningplanid] = $pr->name ?: 'Plan';
