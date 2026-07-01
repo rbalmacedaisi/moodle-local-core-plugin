@@ -16,6 +16,9 @@ use core_user;
 use dml_exception;
 use moodle_exception;
 use stdClass;
+use local_sc_learningplans\local\credit_resolver;
+
+require_once($GLOBALS['CFG']->dirroot . '/local/sc_learningplans/classes/local/credit_resolver.php');
 
 /**
  * Letter request manager.
@@ -940,11 +943,17 @@ class manager {
             $records = $DB->get_records('gmk_course_progre', ['userid' => $userid], 'periodid ASC, coursename ASC');
             $rows = [];
             foreach ($records as $r) {
+                // Re-resolve credits at print time so homologated and module rows
+                // are not stuck at the historical 0 they were stamped with at insertion.
+                $resolved = credit_resolver::resolve(
+                    (int)($r->learningplanid ?? 0),
+                    (int)($r->courseid ?? 0)
+                );
                 $rows[] = [
                     (string)$r->coursename,
                     (string)$r->periodname,
                     (string)$r->grade,
-                    (string)$r->credits,
+                    (string)$resolved,
                     (string)$r->progress . '%',
                 ];
             }
@@ -955,18 +964,35 @@ class manager {
         }
 
         if ($code === 'resumen_creditos') {
-            $sql = "SELECT COALESCE(SUM(credits),0) AS total_credits,
-                           COALESCE(SUM(CASE WHEN status = 4 THEN credits ELSE 0 END),0) AS approved_credits,
-                           COUNT(1) AS total_courses
-                      FROM {gmk_course_progre}
-                     WHERE userid = :userid";
-            $agg = $DB->get_record_sql($sql, ['userid' => $userid]);
+            // Aggregate by resolving credits at query time so homologations and
+            // modules with stale 0 snapshots contribute to the total.
+            $sql = "SELECT gcp.id, gcp.learningplanid, gcp.courseid, gcp.status
+                      FROM {gmk_course_progre} gcp
+                     WHERE gcp.userid = :userid";
+            $rows = $DB->get_records_sql($sql, ['userid' => $userid]);
+            $totalcredits = 0;
+            $approvedcredits = 0;
+            $totalcourses = 0;
+            foreach ($rows as $r) {
+                $resolved = credit_resolver::resolve(
+                    (int)($r->learningplanid ?? 0),
+                    (int)($r->courseid ?? 0)
+                );
+                if ($resolved <= 0) {
+                    continue;
+                }
+                $totalcredits += $resolved;
+                $totalcourses++;
+                if ((int)$r->status === 4) {
+                    $approvedcredits += $resolved;
+                }
+            }
             return [
                 'columns' => ['Métrica', 'Valor'],
                 'rows' => [
-                    ['Total créditos cursados', (string)($agg->total_credits ?? 0)],
-                    ['Total créditos aprobados', (string)($agg->approved_credits ?? 0)],
-                    ['Total asignaturas', (string)($agg->total_courses ?? 0)],
+                    ['Total créditos cursados', (string)$totalcredits],
+                    ['Total créditos aprobados', (string)$approvedcredits],
+                    ['Total asignaturas', (string)$totalcourses],
                 ],
             ];
         }

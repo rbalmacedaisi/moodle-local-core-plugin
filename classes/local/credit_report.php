@@ -28,10 +28,12 @@
 namespace local_grupomakro_core\local;
 
 use local_grupomakro_core\external\student\get_student_learning_plan_pensum;
+use local_sc_learningplans\local\credit_resolver;
 
 defined('MOODLE_INTERNAL') || die();
 
 require_once($GLOBALS['CFG']->dirroot . '/local/grupomakro_core/classes/external/student/get_student_learning_plan_pensum.php');
+require_once($GLOBALS['CFG']->dirroot . '/local/sc_learningplans/classes/local/credit_resolver.php');
 
 /**
  * Credit report data builder.
@@ -112,18 +114,22 @@ class credit_report {
             return null;
         }
 
-        // Credit backfill: credits are constant per (plan, course); fill not-started courses.
-        $creditmap = [];
-        $credrows = $DB->get_records_sql(
-            "SELECT courseid, MAX(credits) AS cr
-               FROM {gmk_course_progre}
-              WHERE learningplanid = :lpid
-                AND credits > 0
-           GROUP BY courseid",
-            ['lpid' => $planid]
-        );
-        foreach ($credrows as $cr) {
-            $creditmap[(int)$cr->courseid] = (int)$cr->cr;
+        // Credit map: read from the canonical per-(plan, course) store, with the
+        // legacy gmk_course_progre snapshot kept as last-resort fallback for cases
+        // where a (plan, course) has no explicit definition yet.
+        $creditmap = credit_resolver::get_for_plan($planid);
+        if (empty($creditmap)) {
+            $credrows = $DB->get_records_sql(
+                "SELECT courseid, MAX(credits) AS cr
+                   FROM {gmk_course_progre}
+                  WHERE learningplanid = :lpid
+                    AND credits > 0
+               GROUP BY courseid",
+                ['lpid' => $planid]
+            );
+            foreach ($credrows as $cr) {
+                $creditmap[(int)$cr->courseid] = (int)$cr->cr;
+            }
         }
 
         $cuatrimestres = [];

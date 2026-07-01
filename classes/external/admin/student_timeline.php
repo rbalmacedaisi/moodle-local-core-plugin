@@ -6,12 +6,14 @@ defined('MOODLE_INTERNAL') || die();
 global $CFG;
 require_once($CFG->libdir . '/externallib.php');
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
+require_once($CFG->dirroot . '/local/sc_learningplans/classes/local/credit_resolver.php');
 
 use external_api;
 use external_function_parameters;
 use external_value;
 use external_single_structure;
 use external_multiple_structure;
+use local_sc_learningplans\local\credit_resolver;
 
 class student_timeline extends external_api {
 
@@ -573,7 +575,9 @@ class student_timeline extends external_api {
                 'shortname' => $c->shortname ?? '',
                 'isrequired' => (bool)$c->isrequired,
                 'position' => (int)$c->position,
-                'credits' => (int)$c->credits,
+                // [CREDITS] Read from the canonical per-(plan, course) store,
+                // falling back to the legacy junction column if absent.
+                'credits' => (int)credit_resolver::resolve((int)$learningplanid, (int)$c->courseid),
                 'periodid' => (int)$c->periodid,
                 'period_name' => $c->period_name ?? '',
                 'subperiodid' => (int)$c->subperiodid,
@@ -805,7 +809,9 @@ class student_timeline extends external_api {
                 'shortname' => $c->shortname ?? '',
                 'isrequired' => (bool)$c->isrequired,
                 'position' => (int)$c->position,
-                'credits' => (int)$c->credits,
+                // [CREDITS] Read from the canonical per-(plan, course) store,
+                // falling back to the legacy junction column if absent.
+                'credits' => (int)credit_resolver::resolve((int)$learningplanid, (int)$c->courseid),
                 'periodid' => (int)$c->periodid,
                 'period_name' => $c->period_name ?? '',
                 'subperiodid' => (int)$c->subperiodid,

@@ -2,6 +2,7 @@
 namespace local_grupomakro_core\external\schedule;
 
 use context_system;
+use local_sc_learningplans\local\credit_resolver;
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -9,6 +10,7 @@ require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 require_once($CFG->dirroot . '/group/lib.php');
 require_once($CFG->dirroot . '/course/lib.php');
 require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/module_invoice_manager.php');
+require_once($CFG->dirroot . '/local/sc_learningplans/classes/local/credit_resolver.php');
 
 /**
  * Enroll a student in an independent study module.
@@ -251,7 +253,7 @@ class enroll_module {
             $newProgress->status = 2;
             $newProgress->progress = 0;
             $newProgress->grade = 0; // Column is NOT NULL (DEFAULT 0.0); a fresh record has no grade yet.
-            $newProgress->credits = 0;
+            $newProgress->credits = credit_resolver::resolve((int)$learningPlanId, (int)$coreCourseId);
             $newProgress->timecreated = $now;
             $newProgress->timemodified = $now;
             $DB->insert_record('gmk_course_progre', $newProgress);

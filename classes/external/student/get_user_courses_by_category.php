@@ -28,11 +28,13 @@ use external_api;
 use external_description;
 use external_function_parameters;
 use Exception;
+use local_sc_learningplans\local\credit_resolver;
 
 defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 require_once($CFG->dirroot . '/local/grupomakro_core/pages/absence_helpers.php');
+require_once($CFG->dirroot . '/local/sc_learningplans/classes/local/credit_resolver.php');
 
 /**
  * External function 'local_grupomakro_get_user_courses_by_category' implementation.
@@ -72,7 +74,7 @@ class get_user_courses_by_category extends external_api
         try {
             $userCoursesByCategory = \local_soluttolms_core\external\getcourses_by_token::execute($params['userid']);
             $courseCategories = json_decode($userCoursesByCategory['categoryobj']);
-            $userGmkCourseProgress = $DB->get_records('gmk_course_progre', ['userid' => $params['userid']], '', 'courseid,progress');
+            $userGmkCourseProgress = $DB->get_records('gmk_course_progre', ['userid' => $params['userid']], '', 'courseid,learningplanid,progress,credits');
             $courseids = [];
             foreach ($courseCategories as $courseCategory) {
                 foreach ($courseCategory->courses as $course) {
@@ -92,17 +94,23 @@ class get_user_courses_by_category extends external_api
                     }
 
                     $course->progress = (float)$progress;
-                    
-                    // [FIX] Populate credits from progress record or fallback.
-                    if ($courseProgre && !empty($courseProgre->credits)) {
-                        $course->credits = (int)$courseProgre->credits;
-                    } else {
-                         // We don't have learningplanid easily here, but we can try to find the first match.
-                         $course->credits = (int)$DB->get_field('gmk_course_progre', 'credits', ['courseid' => $course->id, 'userid' => $params['userid']], IGNORE_MULTIPLE);
-                         if (empty($course->credits)) {
-                             $course->credits = (int)$DB->get_field('local_learning_courses', 'credits', ['courseid' => $course->id], IGNORE_MULTIPLE);
-                         }
+
+                    // [FIX] Resolve credits from the canonical per-(plan, course) store,
+                    // with the per-student snapshot and the legacy junction as fallbacks.
+                    $planid = $courseProgre ? (int)$courseProgre->learningplanid : 0;
+                    $resolved = credit_resolver::resolve($planid, (int)$course->id);
+                    if ($resolved <= 0 && $courseProgre && !empty($courseProgre->credits)) {
+                        $resolved = (int)$courseProgre->credits;
                     }
+                    if ($resolved <= 0) {
+                        $resolved = (int)$DB->get_field(
+                            'local_learning_courses',
+                            'credits',
+                            ['courseid' => $course->id],
+                            IGNORE_MULTIPLE
+                        );
+                    }
+                    $course->credits = $resolved;
 
                     // Absence alert payload (per-class, max severity).
                     $absence = absd_get_course_absence_for_user((int)$params['userid'], (int)$course->id);

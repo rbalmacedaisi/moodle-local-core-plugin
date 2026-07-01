@@ -28,10 +28,12 @@ use external_api;
 use external_description;
 use external_function_parameters;
 use Exception;
+use local_sc_learningplans\local\credit_resolver;
 
 defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
+require_once($CFG->dirroot . '/local/sc_learningplans/classes/local/credit_resolver.php');
 
 /**
  * External function 'local_grupomakro_get_data_by_courses' implementation.
@@ -242,7 +244,7 @@ class get_data_by_courses extends external_api
             self::normalize_activities_payload($courseData, (int)$params['courseid']);
             self::normalize_teachers_payload($courseData, (int)$params['courseid'], (int)$params['userid']);
 
-            $courseProgre = $DB->get_record('gmk_course_progre', ['courseid' => $params['courseid'], 'userid' => $params['userid']], 'progress,credits');
+            $courseProgre = $DB->get_record('gmk_course_progre', ['courseid' => $params['courseid'], 'userid' => $params['userid']], 'progress,credits,learningplanid');
             if ($courseProgre) {
                 $progress = $courseProgre->progress;
 
@@ -255,7 +257,22 @@ class get_data_by_courses extends external_api
                 }
 
                 $courseData->progress = (float)$progress;
-                $courseData->credits = (int)$courseProgre->credits;
+
+                // Resolve credits from the canonical store, falling back to the
+                // legacy snapshot and the legacy junction.
+                $resolved = credit_resolver::resolve((int)($courseProgre->learningplanid ?? 0), (int)$params['courseid']);
+                if ($resolved <= 0 && !empty($courseProgre->credits)) {
+                    $resolved = (int)$courseProgre->credits;
+                }
+                if ($resolved <= 0) {
+                    $resolved = (int)$DB->get_field(
+                        'local_learning_courses',
+                        'credits',
+                        ['courseid' => $params['courseid']],
+                        IGNORE_MULTIPLE
+                    );
+                }
+                $courseData->credits = $resolved;
             } else {
                 // Fallback attempt for credits if no progress record exists yet.
                 $courseData->progress = 0;

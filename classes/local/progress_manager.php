@@ -3,9 +3,11 @@
 defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
-require_once($CFG->dirroot . '/grade/querylib.php');
+require_once($CFG->grade/querylib.php');
+require_once($CFG->dirroot . '/local/sc_learningplans/classes/local/credit_resolver.php');
 
 use core\message\message;
+use local_sc_learningplans\local\credit_resolver;
 
 define('COURSE_NO_AVAILABLE', 0);
 define('COURSE_AVAILABLE', 1);
@@ -79,9 +81,14 @@ class local_grupomakro_progress_manager
                         $courseCustomFieldsKeyValue[$customField->get_field()->get('shortname')] = $customField->get_value();
                     }
 
-                    if (array_key_exists('credits', $courseCustomFieldsKeyValue)) {
-                        $learningPlanCourse->credits = $courseCustomFieldsKeyValue['credits'];
-                    }
+                    // Resolve credits from the canonical per-(plan, course) store,
+                    // with the Moodle course custom field as fallback. This replaces
+                    // the previous behavior that always copied from the custom field,
+                    // which ignored per-plan credit overrides.
+                    $learningPlanCourse->credits = credit_resolver::resolve(
+                        (int)$learningPlanCourse->learningplanid,
+                        (int)$learningPlanCourse->courseid
+                    );
                     if (array_key_exists('pre', $courseCustomFieldsKeyValue)) {
                         $prerequisitesShortNames = explode(',', $courseCustomFieldsKeyValue['pre']);
                         $learningPlanCourse->prerequisites = json_encode(array_filter(array_map(function ($prerequisiteShortName) use ($DB) {

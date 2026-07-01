@@ -31,11 +31,13 @@ use external_function_parameters;
 use external_single_structure;
 use external_value;
 use Exception;
+use local_sc_learningplans\local\credit_resolver;
 
 defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 require_once($CFG->dirroot . '/grade/querylib.php');
+require_once($CFG->dirroot . '/local/sc_learningplans/classes/local/credit_resolver.php');
 
 /**
  * External function 'local_grupomakro_get_student_learning_plan_pensum' implementation.
@@ -765,12 +767,20 @@ class get_student_learning_plan_pensum extends external_api
             foreach ($userPensumCourses as $userPensumCourse) {
                 // If status is null (no progress record), default to 0 (No disponible) or suitable default
                 if (is_null($userPensumCourse->status)) {
-                    $userPensumCourse->status = 0; 
+                    $userPensumCourse->status = 0;
                 }
 
                 // Ensure progress and credits are present for the frontend (Nuxt app).
                 $userPensumCourse->progress = !is_null($userPensumCourse->progress) ? (float)$userPensumCourse->progress : 0;
-                $userPensumCourse->credits = !is_null($userPensumCourse->credits) ? (int)$userPensumCourse->credits : 0;
+                // Resolve credits from the canonical per-(plan, course) store, then
+                // fall back to the snapshot so a freshly-added course still shows its
+                // current definition without waiting for the cron integrity run.
+                $snapshotcredits = !is_null($userPensumCourse->credits) ? (int)$userPensumCourse->credits : 0;
+                $resolvedcredits = credit_resolver::resolve(
+                    (int)$userPensumCourse->learningplanid,
+                    (int)$userPensumCourse->courseid
+                );
+                $userPensumCourse->credits = $resolvedcredits > 0 ? $resolvedcredits : $snapshotcredits;
 
                 $periodName = $DB->get_record('local_learning_periods', ['id' => $userPensumCourse->periodid]);
 

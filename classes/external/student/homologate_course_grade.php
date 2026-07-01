@@ -48,6 +48,7 @@ use context_system;
 use external_api;
 use external_description;
 use external_function_parameters;
+use local_sc_learningplans\local\credit_resolver;
 use external_single_structure;
 use external_value;
 use grade_grade;
@@ -244,6 +245,7 @@ class homologate_course_grade extends external_api
                 $existing->periodid            = $currentPeriodId;
                 $existing->periodname          = $periodName !== '' ? $periodName : $existing->periodname;
                 $existing->coursename          = $courseName;
+                $existing->credits             = credit_resolver::resolve((int)$learningPlanId, (int)$coreCourseId);
                 $existing->homologation_type   = $type;
                 $existing->homologation_note   = $observation;
                 $existing->homologation_at     = $now;
@@ -263,7 +265,7 @@ class homologate_course_grade extends external_api
                 $newRow->grade             = $grade;
                 $newRow->status            = $status;
                 $newRow->progress          = 100.00;
-                $newRow->credits           = 0;
+                $newRow->credits           = credit_resolver::resolve((int)$learningPlanId, (int)$coreCourseId);
                 $newRow->prerequisites     = '[]';
                 $newRow->tc                = 0;
                 $newRow->practicalhours    = 0;

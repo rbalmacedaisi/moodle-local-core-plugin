@@ -28,11 +28,13 @@ use external_api;
 use external_description;
 use external_function_parameters;
 use Exception;
+use local_sc_learningplans\local\credit_resolver;
 
 defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 require_once($CFG->dirroot . '/local/sc_learningplans/external/learning/get_learning_plans.php');
+require_once($CFG->dirroot . '/local/sc_learningplans/classes/local/credit_resolver.php');
 
 /**
  * External function 'local_grupomakro_get_learning_plans_data' implementation.
@@ -107,15 +109,22 @@ class get_learning_plans_data extends external_api
                             $course['realprogress'] = $progress;
                             $course['showprogress'] = $progress;
                             $course['progress'] = (float)$progress; // [FIX] Exact key 'progress'
-                            
-                            // [FIX] Populate credits from progress record or fallback to local_learning_courses.
-                            if ($courseProgre && !empty($courseProgre->credits)) {
-                                $course['credits'] = (int)$courseProgre->credits;
-                            } else {
-                                 // Fallback to the credits defined in the learning plan course.
-                                 $lpCourse = $DB->get_record('local_learning_courses', ['courseid' => $course['id'], 'learningplanid' => $learningPlan['learningplanid']], 'credits');
-                                 $course['credits'] = $lpCourse ? (int)$lpCourse->credits : 0;
+
+                            // [FIX] Resolve credits from the canonical store, then
+                            // the per-student snapshot, then the legacy junction.
+                            $resolved = credit_resolver::resolve((int)$learningPlan['learningplanid'], (int)$course['id']);
+                            if ($resolved <= 0 && $courseProgre && !empty($courseProgre->credits)) {
+                                $resolved = (int)$courseProgre->credits;
                             }
+                            if ($resolved <= 0) {
+                                $lpCourse = $DB->get_record(
+                                    'local_learning_courses',
+                                    ['courseid' => $course['id'], 'learningplanid' => $learningPlan['learningplanid']],
+                                    'credits'
+                                );
+                                $resolved = $lpCourse ? (int)$lpCourse->credits : 0;
+                            }
+                            $course['credits'] = $resolved;
                         }
                     }
                 }

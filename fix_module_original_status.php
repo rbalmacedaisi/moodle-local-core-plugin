@@ -30,6 +30,7 @@ if (!file_exists($configPath)) {
 /** @var mixed */
 require_once($configPath);
 require_once($CFG->dirroot . '/lib/clilib.php');
+require_once($CFG->dirroot . '/local/sc_learningplans/classes/local/credit_resolver.php');
 
 echo "=== Fix: Set original_status for pre-existing module enrollments ===\n\n";
 echo "This script works in TWO steps:\n";
@@ -188,7 +189,10 @@ foreach ($previewData as $row) {
         $newProgress->status = 2;
         $newProgress->progress = 0;
         $newProgress->grade = 0;  // NOT NULL field - use 0 as default
-        $newProgress->credits = 0;
+        $newProgress->credits = \local_sc_learningplans\local\credit_resolver::resolve(
+            (int)$row->learningplanid,
+            (int)$row->corecourseid
+        );
         $newProgress->timecreated = time();
         $newProgress->timemodified = time();
         $inserted = $DB->insert_record('gmk_course_progre', $newProgress);

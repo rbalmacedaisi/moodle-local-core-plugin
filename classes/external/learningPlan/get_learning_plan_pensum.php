@@ -70,10 +70,12 @@ class get_learning_plan_pensum extends external_api {
             'learningPlanId' => $learningPlanId,
         ]);
         
-        try{
-            
+try{
+
             global $DB;
-            
+
+            require_once($GLOBALS['CFG']->dirroot . '/local/sc_learningplans/classes/local/credit_resolver.php');
+
             $customFields = [
                 'credits' => 'credits',
                 't' => 'teoricalhours',
@@ -165,7 +167,12 @@ class get_learning_plan_pensum extends external_api {
                     'totalHours' => $course->totalhours,
                     'teoricalHours' => $course->teoricalhours,
                     'practicalHours' => $course->practicalhours,
-                    'credits' => $course->credits,
+                    // [CREDITS] Prefer the canonical per-(plan, course) value, then
+                    // fall back to the course custom field returned by the query.
+                    'credits' => (int)\local_sc_learningplans\local\credit_resolver::resolve(
+                        (int)$params['learningPlanId'],
+                        (int)$course->courseid
+                    ),
                     'prerequisite_fullnames' => $course->prerequisite_fullnames? explode(',', $course->prerequisite_fullnames):[],
                     // Add other fields as needed
                 ];

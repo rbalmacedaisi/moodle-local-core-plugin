@@ -31,10 +31,12 @@ use external_function_parameters;
 use external_single_structure;
 use external_value;
 use Exception;
+use local_sc_learningplans\local\credit_resolver;
 
 defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
+require_once($CFG->dirroot . '/local/sc_learningplans/classes/local/credit_resolver.php');
 
 /**
  * External function 'local_grupomakro_get_student_learning_plans_overview' implementation.
@@ -127,8 +129,8 @@ class get_student_learning_plans_overview extends external_api
                 $isComplete = true;
             }
 
-            $totalWeightedCompletion += ($isComplete ? 1 : 0) * $userLearningPlanProgressRecord->credits;
-            $totalCredits += $userLearningPlanProgressRecord->credits;
+            $totalWeightedCompletion += ($isComplete ? 1 : 0) * credit_resolver::resolve((int)$learningPlanId, (int)$userLearningPlanProgressRecord->courseid);
+            $totalCredits += credit_resolver::resolve((int)$learningPlanId, (int)$userLearningPlanProgressRecord->courseid);
         }
         return $totalCredits > 0 ? round(($totalWeightedCompletion / $totalCredits) * 100) : 0;
     }
