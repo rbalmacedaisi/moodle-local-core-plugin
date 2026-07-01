@@ -50,6 +50,8 @@ use external_description;
 use external_function_parameters;
 use external_single_structure;
 use external_value;
+use grade_grade;
+use grade_item;
 use stdClass;
 
 defined('MOODLE_INTERNAL') || die();
