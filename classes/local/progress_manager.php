@@ -3,7 +3,7 @@
 defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
-require_once($CFG->grade/querylib.php');
+require_once($CFG->dirroot . '/grade/querylib.php');
 require_once($CFG->dirroot . '/local/sc_learningplans/classes/local/credit_resolver.php');
 
 use core\message\message;
