@@ -70,6 +70,9 @@ class get_eligible_students_for_extemporaneous extends external_api {
                 'progress_label'     => new external_value(PARAM_RAW, 'Status label'),
                 'is_eligible'        => new external_value(PARAM_BOOL, 'Meets revalidation criteria'),
                 'ineligibility_reason'=> new external_value(PARAM_RAW, 'Reason if not eligible'),
+                'activities_total'   => new external_value(PARAM_INT, 'Total gradable activities in class'),
+                'activities_graded'  => new external_value(PARAM_INT, 'Activities already graded for this student'),
+                'activities_missing' => new external_value(PARAM_INT, 'Activities still pending grading'),
                 'existing_revalidation_id' => new external_value(PARAM_INT, 'Existing gmk_revalidations.id or 0'),
                 'existing_revalidation_status' => new external_value(PARAM_RAW, 'Existing status'),
                 'existing_revalidation_extemp' => new external_value(PARAM_INT, 'Existing extemporaneous flag'),
@@ -132,7 +135,18 @@ class get_eligible_students_for_extemporaneous extends external_api {
                 $finalGrade = (float)$r->storedgrade;
             }
             $practical = (int)($r->practicalhours ?? 0);
+
+            // Gate by completeness: the director may only create an
+            // extemporaneous revalidation when every gradable activity in the
+            // class gradebook has a real grade for this student. Otherwise
+            // the grade used as "originalgrade" is still incomplete and the
+            // request would be invalidated by a later grade entry.
+            $gradeablecols = \local_grupomakro_core\local\revalida_manager::get_gradeable_columns_for_class($classid);
+            $graded = \local_grupomakro_core\local\revalida_manager::all_activities_graded(
+                $classid, (int)$r->userid, $gradeablecols);
+
             $isEligible = ($finalGrade !== null)
+                && $graded['all_graded']
                 && \local_grupomakro_core\local\revalida_manager::is_eligible((float)$finalGrade, $practical);
 
             if ($only_eligible && !$isEligible) {
@@ -150,6 +164,12 @@ class get_eligible_students_for_extemporaneous extends external_api {
             if ($practical > 0) {
                 $reasons[] = 'tiene horas prácticas';
             }
+            if (!$graded['all_graded'] && $graded['total'] > 0) {
+                $reasons[] = sprintf(
+                    'faltan %d actividad(es) por calificar de %d',
+                    $graded['missing'], $graded['total']
+                );
+            }
             $ineligReason = empty($reasons) ? '' : implode('; ', $reasons);
 
             $statusLabel = self::status_label((int)$r->progress_status);
@@ -166,6 +186,9 @@ class get_eligible_students_for_extemporaneous extends external_api {
                 'progress_label' => $statusLabel,
                 'is_eligible' => $isEligible,
                 'ineligibility_reason' => $ineligReason,
+                'activities_total' => (int)$graded['total'],
+                'activities_graded' => (int)($graded['total'] - $graded['missing']),
+                'activities_missing' => (int)$graded['missing'],
                 'existing_revalidation_id' => (int)($r->existing_revalidation_id ?? 0),
                 'existing_revalidation_status' => (string)($r->existing_status ?? ''),
                 'existing_revalidation_extemp' => (int)($r->existing_extemp ?? 0),

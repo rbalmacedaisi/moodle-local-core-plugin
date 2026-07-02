@@ -67,6 +67,98 @@ class revalida_manager {
     }
 
     /**
+     * Whether every gradable activity in the class's gradebook has a real
+     * grade for the given student.
+     *
+     * Activities with weight 0 are still counted (we want "all activities
+     * graded", not "all weighted activities graded"). Manual items count
+     * as graded when grade_raw/finalgrade is not null.
+     *
+     * @param int   $classid
+     * @param int   $userid
+     * @param array $gradeableCols  Same shape as the WS / ajax response:
+     *                              [['id' => int, 'weight_pct' => float, ...], ...]
+     *                              If empty the function returns true (nothing
+     *                              to grade yet → vacuously eligible).
+     * @return array{all_graded:bool, missing:int, total:int}
+     */
+    public static function all_activities_graded(int $classid, int $userid, array $gradeableCols): array {
+        global $DB;
+
+        $total = count($gradeableCols);
+        if ($total === 0) {
+            return ['all_graded' => true, 'missing' => 0, 'total' => 0];
+        }
+
+        $itemids = [];
+        foreach ($gradeableCols as $col) {
+            if (!empty($col['id'])) {
+                $itemids[] = (int)$col['id'];
+            }
+        }
+        if (empty($itemids)) {
+            return ['all_graded' => true, 'missing' => 0, 'total' => 0];
+        }
+
+        list($insql, $inparams) = $DB->get_in_or_equal($itemids, SQL_PARAMS_NAMED, 'gi');
+        $sql = "SELECT gi.id,
+                       CASE WHEN gg.finalgrade IS NULL THEN 0 ELSE 1 END AS has_grade
+                  FROM {grade_items} gi
+             LEFT JOIN {grade_grades} gg
+                    ON gg.itemid = gi.id AND gg.userid = :uid
+                 WHERE gi.id $insql";
+        $params = array_merge(['uid' => $userid], $inparams);
+        $rows = $DB->get_records_sql($sql, $params);
+
+        $graded = 0;
+        foreach ($itemids as $iid) {
+            if (!empty($rows[$iid]) && !empty($rows[$iid]->has_grade)) {
+                $graded++;
+            }
+        }
+        return [
+            'all_graded' => $graded === $total,
+            'missing' => max(0, $total - $graded),
+            'total' => $total,
+        ];
+    }
+
+    /**
+     * Returns the gradeable columns (id, weight_pct, max_grade) for a class's
+     * grade category. Used by all_activities_graded() so the same definition
+     * is shared between the teacher gradebook WS and the create helper.
+     *
+     * @param int $classid
+     * @return array Each item: ['id'=>int,'weight_pct'=>float,'max_grade'=>float]
+     */
+    public static function get_gradeable_columns_for_class(int $classid): array {
+        global $DB;
+
+        $class = $DB->get_record('gmk_class', ['id' => $classid], 'id,gradecategoryid');
+        if (!$class || empty($class->gradecategoryid)) {
+            return [];
+        }
+
+        $rows = $DB->get_records_select(
+            'grade_items',
+            "categoryid = :cat AND itemtype IN ('mod','manual') AND itemnumber = 0",
+            ['cat' => (int)$class->gradecategoryid],
+            '',
+            'id, aggregationcoef, grademax'
+        );
+
+        $out = [];
+        foreach ($rows as $r) {
+            $out[] = [
+                'id'         => (int)$r->id,
+                'weight_pct' => (float)$r->aggregationcoef,
+                'max_grade'  => (float)$r->grademax,
+            ];
+        }
+        return $out;
+    }
+
+    /**
      * Whether the academic calendar window for teacher-driven revalidation
      * scheduling is currently open for the given class. Uses the configured
      * loadnotesandclosesubjects / revalidationprocess dates from
@@ -429,6 +521,25 @@ class revalida_manager {
             // Defensive: only eligible students in the regular path. The
             // extemporaneous path already validated eligibility upstream.
             return ['ok' => false, 'error' => 'El estudiante no es elegible para reválida.', 'record' => null];
+        }
+
+        // Defence in depth: even when the caller already validated eligibility,
+        // require that every gradable activity in the class gradebook has
+        // been graded for this student. Otherwise the "final" grade that
+        // gets stored as originalgrade is still incomplete and may change as
+        // the remaining activities are graded, which would invalidate the
+        // revalidation request.
+        $gradeablecols = self::get_gradeable_columns_for_class((int)$class->id);
+        $allgraded = self::all_activities_graded((int)$class->id, $userid, $gradeablecols);
+        if (!$allgraded['all_graded']) {
+            return [
+                'ok' => false,
+                'error' => sprintf(
+                    'El estudiante aún tiene %d actividad(es) sin calificar de %d. Espere a completar todas las calificaciones antes de programar la reválida.',
+                    $allgraded['missing'], $allgraded['total']
+                ),
+                'record' => null,
+            ];
         }
 
         $now = time();

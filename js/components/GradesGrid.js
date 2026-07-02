@@ -69,8 +69,15 @@ Vue.component('grades-grid', {
                                                     {{ revalidChipLabel(student.revalidation) }}
                                                 </v-chip>
                                                 <v-chip v-else-if="student.revalid_eligible" x-small label color="amber darken-2"
-                                                    class="ml-1 white--text" title="Elegible a reválida">
+                                                    class="ml-1 white--text"
+                                                    :title="revalidTooltip(student)">
                                                     Reválida
+                                                </v-chip>
+                                                <v-chip v-else-if="student.activities_graded && student.activities_graded.total > 0 && student.activities_graded.missing > 0"
+                                                    x-small label outlined color="grey"
+                                                    class="ml-1"
+                                                    :title="'Faltan ' + student.activities_graded.missing + ' actividad(es) por calificar de ' + student.activities_graded.total">
+                                                    {{ student.activities_graded.missing }} pendientes
                                                 </v-chip>
                                             </div>
                                             <div class="text-caption grey--text">{{ student.email }}</div>
@@ -735,6 +742,15 @@ Vue.component('grades-grid', {
             if (rev.result === 'approved') return 'Aprobó reválida';
             if (rev.result === 'failed') return 'Reprobó reválida';
             return 'Reválida programada';
+        },
+        revalidTooltip(student) {
+            const a = student.activities_graded;
+            const tip = 'Elegible a reválida (nota en [60.0, 70.9], sin horas prácticas)';
+            if (a && typeof a.total === 'number' && a.total > 0) {
+                return tip + ' — ' + a.missing + ' actividad(es) pendiente(s) de ' + a.total
+                    + '. Espere a calificar todas antes de programar.';
+            }
+            return tip;
         },
         formatRevalidDate(ts) {
             if (!ts) return '—';

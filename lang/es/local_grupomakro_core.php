@@ -812,3 +812,6 @@ $string['revalidations_director:reason_label'] = 'Motivo';
 $string['revalidations_director:extemp_yes'] = 'Sí';
 $string['revalidations_director:window_closed_banner'] = 'La ventana de reválidas para esta clase no está abierta.';
 $string['revalidations_director:window_closed_help'] = 'Si necesita programar una reválida fuera de la ventana, contacte al Director Académico.';
+$string['revalidations_director:activities_pending_short'] = '{$a} pendientes';
+$string['revalidations_director:activities_pending_tooltip'] = 'Faltan {$a->missing} actividad(es) por calificar de {$a->total}. La solicitud de reválida se habilitará cuando todas las actividades estén calificadas.';
+$string['revalidations_director:ineligibility_missing_activities'] = 'faltan {$a->missing} actividad(es) por calificar de {$a->total}';

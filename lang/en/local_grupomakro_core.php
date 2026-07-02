@@ -814,3 +814,6 @@ $string['revalidations_director:reason_label'] = 'Reason';
 $string['revalidations_director:extemp_yes'] = 'Yes';
 $string['revalidations_director:window_closed_banner'] = 'The revalidation window for this class is currently closed.';
 $string['revalidations_director:window_closed_help'] = 'If you need to schedule a revalidation outside the window, contact the Academic Director.';
+$string['revalidations_director:activities_pending_short'] = '{$a} pending';
+$string['revalidations_director:activities_pending_tooltip'] = '{$a->missing} of {$a->total} activities still pending. The revalidation request will be enabled once every activity is graded.';
+$string['revalidations_director:ineligibility_missing_activities'] = '{$a->missing} of {$a->total} activities still pending';
