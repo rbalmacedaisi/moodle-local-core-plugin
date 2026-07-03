@@ -29,11 +29,33 @@ class student_timeline extends external_api {
         self::validate_context($context);
         require_capability('moodle/site:config', $context);
 
+        // Exclude teacher-role accounts from the student count. Some users
+        // (e.g. administrative and teaching staff like editingteacher /
+        // scteachrole / teacher) end up with a row in local_learning_users
+        // even though they are not students. The Acuicultura plan had 11
+        // such "ghost" rows that made the dashboard show 11/11/100%.
         $sql = "SELECT lp.id, lp.name, lp.shortname,
                        COALESCE(lp.coursecount, 0) as coursecount,
                        COALESCE(lp.periodcount, 0) as periodcount,
-                       COUNT(CASE WHEN lu.status = 'activo' THEN 1 END) as active_count,
-                       COUNT(DISTINCT lu.userid) as total_enrolled
+                       COUNT(CASE
+                           WHEN lu.status = 'activo'
+                            AND NOT EXISTS (
+                                SELECT 1 FROM {role_assignments} ra
+                                JOIN {role} r ON r.id = ra.roleid
+                                WHERE ra.userid = lu.userid
+                                  AND r.shortname IN ('teacher','editingteacher','scteachrole')
+                            )
+                           THEN 1
+                       END) as active_count,
+                       COUNT(DISTINCT CASE
+                           WHEN NOT EXISTS (
+                               SELECT 1 FROM {role_assignments} ra2
+                               JOIN {role} r2 ON r2.id = ra2.roleid
+                               WHERE ra2.userid = lu.userid
+                                 AND r2.shortname IN ('teacher','editingteacher','scteachrole')
+                           )
+                           THEN lu.userid
+                       END) as total_enrolled
                 FROM {local_learning_plans} lp
                 LEFT JOIN {local_learning_users} lu ON lp.id = lu.learningplanid
                 GROUP BY lp.id, lp.name, lp.shortname, lp.coursecount, lp.periodcount
