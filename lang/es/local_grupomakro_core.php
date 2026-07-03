@@ -815,3 +815,13 @@ $string['revalidations_director:window_closed_help'] = 'Si necesita programar un
 $string['revalidations_director:activities_pending_short'] = '{$a} pendientes';
 $string['revalidations_director:activities_pending_tooltip'] = 'Faltan {$a->missing} actividad(es) por calificar de {$a->total}. La solicitud de reválida se habilitará cuando todas las actividades estén calificadas.';
 $string['revalidations_director:ineligibility_missing_activities'] = 'faltan {$a->missing} actividad(es) por calificar de {$a->total}';
+$string['revalidations:info_banner_title'] = 'Información sobre la selección de estudiantes para reválida';
+$string['revalidations:info_banner_intro'] = 'Los estudiantes de esta lista están marcados para reválida porque su <strong>nota final está entre 60.0 y 70.9</strong> y <strong>no tienen horas prácticas</strong>. Antes de programar la sesión, verifique que:';
+$string['revalidations:info_banner_weights_item'] = 'Las <strong>ponderaciones del libro de calificaciones sumen 100%</strong> (actualmente: <strong>{$a}%</strong>).';
+$string['revalidations:info_banner_weights_warning'] = 'Corrija esto antes de programar.';
+$string['revalidations:info_banner_activities_item'] = 'El estudiante haya <strong>entregado y se hayan calificado todas las actividades</strong> del periodo.';
+$string['revalidations:info_banner_incomplete_students'] = '({$a} estudiante(s) aún con actividades pendientes.)';
+$string['revalidations:info_banner_window_item'] = 'La ventana de reválidas del calendario académico esté <strong>abierta</strong>.';
+$string['revalidations:info_banner_window_closed'] = '<strong class="amber--text text--darken-4">cerrada</strong>';
+$string['revalidations:info_banner_window_open'] = '<strong>abierta</strong>';
+$string['revalidations:info_banner_window_range'] = '({$a->start} – {$a->end})';

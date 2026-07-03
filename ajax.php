@@ -3222,19 +3222,18 @@ try {
                 $student_row['final_grade'] = $rv_grade;
                 $student_row['practicalhours'] = (int)$rv_ph;
 
-                // Only mark a student as revalidation-eligible when their
-                // current weighted grade is in [60, 70.9], they have no
-                // practical hours AND every gradable activity in the class
-                // gradebook already has a real grade for them. Otherwise the
-                // grade is "incomplete" and may change as the remaining
-                // activities are graded, which would invalidate the
-                // revalidation request.
+                // Eligibility is based ONLY on the institutional rule
+                // (grade in [60, 70.9] + no practical hours). The frontend
+                // shows an info banner reminding the teacher to verify the
+                // weights (must sum to 100%) and ensure every activity was
+                // submitted and graded before scheduling. We still expose
+                // activities_graded below so the banner can quote real
+                // numbers per student.
                 $gradeablecols = array_values($revalida_gradeable_cols);
-                $allgraded = \local_grupomakro_core\local\revalida_manager::all_activities_graded(
-                    (int)$classid, $rv_uid, $gradeablecols);
-                $student_row['activities_graded'] = $allgraded;
+                $student_row['activities_graded'] =
+                    \local_grupomakro_core\local\revalida_manager::all_activities_graded(
+                        (int)$classid, $rv_uid, $gradeablecols);
                 $student_row['revalid_eligible'] = ($rv_grade !== null)
-                    && $allgraded['all_graded']
                     && \local_grupomakro_core\local\revalida_manager::is_eligible($rv_grade, (int)$rv_ph);
                 if (isset($revalida_records[$rv_uid])) {
                     $rvr = $revalida_records[$rv_uid];

@@ -73,12 +73,6 @@ Vue.component('grades-grid', {
                                                     :title="revalidTooltip(student)">
                                                     Reválida
                                                 </v-chip>
-                                                <v-chip v-else-if="student.activities_graded && student.activities_graded.total > 0 && student.activities_graded.missing > 0"
-                                                    x-small label outlined color="grey"
-                                                    class="ml-1"
-                                                    :title="'Faltan ' + student.activities_graded.missing + ' actividad(es) por calificar de ' + student.activities_graded.total">
-                                                    {{ student.activities_graded.missing }} pendientes
-                                                </v-chip>
                                             </div>
                                             <div class="text-caption grey--text">{{ student.email }}</div>
                                         </div>
@@ -148,6 +142,31 @@ Vue.component('grades-grid', {
                             </div>
                         </div>
                     </div>
+                </v-alert>
+                <v-alert type="amber darken-2" dense text class="ma-4 mb-0" color="#FFF3E0" icon="mdi-information-variant">
+                    <div class="font-weight-medium mb-1">
+                        {{ infoStrings.title }}
+                    </div>
+                    <div class="text-caption" v-html="infoStrings.intro"></div>
+                    <ul class="text-caption mt-1 mb-0 pl-3">
+                        <li>
+                            <span v-html="infoWeightsItem"></span>
+                            <span v-if="!weightsComplete" class="red--text font-weight-bold">
+                                {{ infoStrings.weightsWarning }}
+                            </span>
+                        </li>
+                        <li>
+                            <span v-html="infoStrings.activitiesItem"></span>
+                            <span v-if="incompleteRevalidaStudents.length > 0">
+                                {{ infoIncompleteText }}
+                            </span>
+                        </li>
+                        <li>
+                            <span v-html="windowOpen
+                                ? infoStrings.windowOpenLabel
+                                : infoStrings.windowClosedLabel"></span><span v-if="windowInfo && windowInfo.start && windowInfo.end">. {{ infoWindowRange }}</span>
+                        </li>
+                    </ul>
                 </v-alert>
                 <v-card-text class="pa-4">
                     <div class="d-flex align-center mb-3">
@@ -365,11 +384,60 @@ Vue.component('grades-grid', {
         revalidaStudents() {
             return this.students.filter(s => s.revalid_eligible || s.revalidation);
         },
+        // Count of eligible students whose gradebook still has ungraded
+        // activities. Surfaced as an info hint in the banner — does NOT
+        // block scheduling.
+        incompleteRevalidaStudents() {
+            return this.revalidaStudents.filter(s => {
+                const a = s.activities_graded;
+                return a && typeof a.total === 'number'
+                    && a.total > 0 && a.missing > 0;
+            });
+        },
         // True when the academic calendar window allows creating NEW
         // revalidation requests for this class. Existing records can still
         // be graded regardless of the window state.
         windowOpen() {
             return this.windowInfo ? !!this.windowInfo.open : true;
+        },
+        // Banner copy. Reads from window.strings first (when the host page
+        // provides translated strings) and falls back to embedded Spanish.
+        infoStrings() {
+            const s = (typeof window !== 'undefined' && window.strings) || {};
+            return {
+                title: s.revalidationsInfoBannerTitle
+                    || 'Información sobre la selección de estudiantes para reválida',
+                intro: s.revalidationsInfoBannerIntro
+                    || 'Los estudiantes de esta lista están marcados para reválida porque su <strong>nota final está entre 60.0 y 70.9</strong> y <strong>no tienen horas prácticas</strong>. Antes de programar la sesión, verifique que:',
+                weightsItem: s.revalidationsInfoBannerWeightsItem
+                    || 'Las <strong>ponderaciones del libro de calificaciones sumen 100%</strong> (actualmente: <strong>{pct}%</strong>).',
+                weightsWarning: s.revalidationsInfoBannerWeightsWarning
+                    || 'Corrija esto antes de programar.',
+                activitiesItem: s.revalidationsInfoBannerActivitiesItem
+                    || 'El estudiante haya <strong>entregado y se hayan calificado todas las actividades</strong> del periodo.',
+                incompleteText: s.revalidationsInfoBannerIncompleteStudents
+                    || '({n} estudiante(s) aún con actividades pendientes.)',
+                windowItemBase: s.revalidationsInfoBannerWindowItem
+                    || 'La ventana de reválidas del calendario académico esté {state}.',
+                windowOpenLabel: s.revalidationsInfoBannerWindowOpen
+                    || '<strong>abierta</strong>',
+                windowClosedLabel: s.revalidationsInfoBannerWindowClosed
+                    || '<strong class="amber--text text--darken-4">cerrada</strong>',
+                windowRange: s.revalidationsInfoBannerWindowRange
+                    || '({start} – {end})',
+            };
+        },
+        infoWeightsItem() {
+            return this.infoStrings.weightsItem.replace('{pct}', this.totalWeight);
+        },
+        infoIncompleteText() {
+            return this.infoStrings.incompleteText.replace('{n}', this.incompleteRevalidaStudents.length);
+        },
+        infoWindowRange() {
+            if (!this.windowInfo || !this.windowInfo.start || !this.windowInfo.end) return '';
+            return this.infoStrings.windowRange
+                .replace('{start}', this.formatDate(this.windowInfo.start))
+                .replace('{end}', this.formatDate(this.windowInfo.end));
         }
     },
     created() {
@@ -745,10 +813,11 @@ Vue.component('grades-grid', {
         },
         revalidTooltip(student) {
             const a = student.activities_graded;
-            const tip = 'Elegible a reválida (nota en [60.0, 70.9], sin horas prácticas)';
+            let tip = 'Elegible a reválida (nota en [60.0, 70.9], sin horas prácticas)';
             if (a && typeof a.total === 'number' && a.total > 0) {
-                return tip + ' — ' + a.missing + ' actividad(es) pendiente(s) de ' + a.total
-                    + '. Espere a calificar todas antes de programar.';
+                const graded = a.total - a.missing;
+                tip += ' — actividades calificadas: ' + graded + ' / ' + a.total
+                    + '. Verifique las ponderaciones y que todas las entregas estén calificadas antes de programar.';
             }
             return tip;
         },

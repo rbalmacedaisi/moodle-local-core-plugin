@@ -88,7 +88,7 @@ Vue.component('create-extemp-revalidation-modal', {
                                         <v-list-item-subtitle>
                                             Nota: {{ s.final_grade === null ? '—' : s.final_grade }} · PH: {{ s.practicalhours }} · {{ s.progress_label }}
                                             <span v-if="s.activities_total > 0">
-                                                · Calificadas: <strong>{{ s.activities_graded }} / {{ s.activities_total }}</strong>
+                                                · Calificadas: {{ s.activities_graded }} / {{ s.activities_total }}
                                             </span>
                                             <span v-if="!s.is_eligible && s.ineligibility_reason"> · <em>{{ s.ineligibility_reason }}</em></span>
                                         </v-list-item-subtitle>

@@ -136,17 +136,16 @@ class get_eligible_students_for_extemporaneous extends external_api {
             }
             $practical = (int)($r->practicalhours ?? 0);
 
-            // Gate by completeness: the director may only create an
-            // extemporaneous revalidation when every gradable activity in the
-            // class gradebook has a real grade for this student. Otherwise
-            // the grade used as "originalgrade" is still incomplete and the
-            // request would be invalidated by a later grade entry.
+            // Eligibility for the director's wizard is the same institutional
+            // rule as for the teacher: final grade in [60, 70.9] and no
+            // practical hours. We do NOT block on missing activities here —
+            // the director sees an info hint (activities_graded counter)
+            // and is expected to verify completeness before submitting.
             $gradeablecols = \local_grupomakro_core\local\revalida_manager::get_gradeable_columns_for_class($classid);
             $graded = \local_grupomakro_core\local\revalida_manager::all_activities_graded(
                 $classid, (int)$r->userid, $gradeablecols);
 
             $isEligible = ($finalGrade !== null)
-                && $graded['all_graded']
                 && \local_grupomakro_core\local\revalida_manager::is_eligible((float)$finalGrade, $practical);
 
             if ($only_eligible && !$isEligible) {
@@ -164,10 +163,13 @@ class get_eligible_students_for_extemporaneous extends external_api {
             if ($practical > 0) {
                 $reasons[] = 'tiene horas prácticas';
             }
-            if (!$graded['all_graded'] && $graded['total'] > 0) {
+            // Append a soft hint (NOT a hard reject) when not every activity
+            // is graded, so the director can double-check completeness before
+            // scheduling the extemporaneous request.
+            if ($graded['total'] > 0) {
                 $reasons[] = sprintf(
-                    'faltan %d actividad(es) por calificar de %d',
-                    $graded['missing'], $graded['total']
+                    'info: %d/%d actividades calificadas (la solicitud sigue disponible)',
+                    $graded['total'] - $graded['missing'], $graded['total']
                 );
             }
             $ineligReason = empty($reasons) ? '' : implode('; ', $reasons);

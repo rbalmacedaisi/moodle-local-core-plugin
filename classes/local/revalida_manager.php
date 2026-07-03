@@ -523,24 +523,18 @@ class revalida_manager {
             return ['ok' => false, 'error' => 'El estudiante no es elegible para reválida.', 'record' => null];
         }
 
-        // Defence in depth: even when the caller already validated eligibility,
-        // require that every gradable activity in the class gradebook has
-        // been graded for this student. Otherwise the "final" grade that
-        // gets stored as originalgrade is still incomplete and may change as
-        // the remaining activities are graded, which would invalidate the
-        // revalidation request.
-        $gradeablecols = self::get_gradeable_columns_for_class((int)$class->id);
-        $allgraded = self::all_activities_graded((int)$class->id, $userid, $gradeablecols);
-        if (!$allgraded['all_graded']) {
-            return [
-                'ok' => false,
-                'error' => sprintf(
-                    'El estudiante aún tiene %d actividad(es) sin calificar de %d. Espere a completar todas las calificaciones antes de programar la reválida.',
-                    $allgraded['missing'], $allgraded['total']
-                ),
-                'record' => null,
-            ];
-        }
+        // Note: we intentionally do NOT block the request when not every
+        // activity has been graded. The teacher UI shows an info banner
+        // reminding the teacher to verify weights and ensure every
+        // activity was submitted and graded before scheduling. The
+        // schedule() entry path also runs validate_weights() which fails
+        // loudly if weights don't sum to 100%.
+        //
+        // Helper methods all_activities_graded() and
+        // get_gradeable_columns_for_class() are still used by ajax.php and
+        // the picker WS to surface the activities-total/graded/missing
+        // counters for the info banner — they just no longer gate the
+        // request.
 
         $now = time();
         $existing = $DB->get_record('gmk_revalidations',
