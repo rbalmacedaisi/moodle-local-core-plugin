@@ -143,15 +143,15 @@ Vue.component('grades-grid', {
                         </div>
                     </div>
                 </v-alert>
-                <v-alert type="amber darken-2" dense text class="ma-4 mb-0" color="#FFF3E0" icon="mdi-information-variant">
-                    <div class="font-weight-medium mb-1">
+                <v-alert dense text class="rd-info-banner ma-4 mb-0" icon="mdi-information-variant">
+                    <div class="rd-info-banner__title mb-1">
                         {{ infoStrings.title }}
                     </div>
-                    <div class="text-caption" v-html="infoStrings.intro"></div>
-                    <ul class="text-caption mt-1 mb-0 pl-3">
+                    <div class="rd-info-banner__body" v-html="infoStrings.intro"></div>
+                    <ul class="rd-info-banner__list">
                         <li>
                             <span v-html="infoWeightsItem"></span>
-                            <span v-if="!weightsComplete" class="red--text font-weight-bold">
+                            <span v-if="!weightsComplete" class="rd-info-banner__warn">
                                 {{ infoStrings.weightsWarning }}
                             </span>
                         </li>
@@ -619,6 +619,64 @@ Vue.component('grades-grid', {
                 }
                 .revalida-table .grade-inline-input {
                     width: 64px;
+                }
+                /* ── Revalidation info banner (high-contrast both light + dark) ── */
+                .rd-info-banner {
+                    background-color: #fff3e0 !important;
+                    border-left: 4px solid #ef6c00 !important;
+                    color: #1a1a1a !important;
+                }
+                .rd-info-banner .v-icon { color: #ef6c00 !important; }
+                .rd-info-banner__title {
+                    color: #5d2c00 !important;
+                    font-weight: 700 !important;
+                    font-size: 1rem !important;
+                }
+                .rd-info-banner__body {
+                    color: #2b2b2b !important;
+                    font-size: 0.9rem !important;
+                    line-height: 1.5 !important;
+                }
+                .rd-info-banner__list {
+                    color: #2b2b2b !important;
+                    font-size: 0.875rem !important;
+                    line-height: 1.55 !important;
+                    margin: 8px 0 0 0 !important;
+                    padding-left: 20px !important;
+                    list-style: disc !important;
+                }
+                .rd-info-banner__list li {
+                    margin: 4px 0 !important;
+                }
+                .rd-info-banner__list strong {
+                    color: #1a1a1a !important;
+                    font-weight: 700 !important;
+                }
+                .rd-info-banner__warn {
+                    color: #b71c1c !important;
+                    font-weight: 700 !important;
+                }
+                .theme--dark .rd-info-banner {
+                    background-color: #3e2723 !important;
+                    border-left: 4px solid #ffb74d !important;
+                    color: #ffffff !important;
+                }
+                .theme--dark .rd-info-banner .v-icon { color: #ffb74d !important; }
+                .theme--dark .rd-info-banner__title {
+                    color: #ffe0b2 !important;
+                    font-weight: 700 !important;
+                }
+                .theme--dark .rd-info-banner__body {
+                    color: #f5f5f5 !important;
+                }
+                .theme--dark .rd-info-banner__list {
+                    color: #f5f5f5 !important;
+                }
+                .theme--dark .rd-info-banner__list strong {
+                    color: #ffffff !important;
+                }
+                .theme--dark .rd-info-banner__warn {
+                    color: #ff8a80 !important;
                 }
             `;
             document.head.appendChild(style);
