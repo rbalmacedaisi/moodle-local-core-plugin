@@ -45,6 +45,14 @@ $PAGE->set_title(get_string('fsr_title', $plugin));
 $PAGE->set_heading(get_string('fsr_title', $plugin));
 $PAGE->add_body_class('failed-subjects-report-page');
 
+// IMPORTANT: All $PAGE->requires->js/css calls MUST be made before
+// $OUTPUT->header() is printed. Moodle's outputrequirementslib.php
+// throws a coding_exception otherwise. We register the JS and CSS
+// here, then print the header.
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/FailedSubjectsReport.js?v=' . $assetversion));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/FailedSubjectsStudentDrawer.js?v=' . $assetversion));
+$PAGE->requires->css(new moodle_url('/local/grupomakro_core/styles/failed_subjects.css?v=' . $assetversion));
+
 $sesskey = sesskey();
 $ajaxurl = (new moodle_url('/local/grupomakro_core/ajax.php'))->out(false);
 $wwwroot = $CFG->wwwroot;
@@ -87,11 +95,6 @@ echo $OUTPUT->header();
 <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
-<?php
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/FailedSubjectsReport.js?v=' . $assetversion));
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/FailedSubjectsStudentDrawer.js?v=' . $assetversion));
-$PAGE->requires->css(new moodle_url('/local/grupomakro_core/styles/failed_subjects.css?v=' . $assetversion));
-?>
 <script>
 // Self-contained Vue mount for this page (matches the pattern used by
 // RevalidationsDirector).
