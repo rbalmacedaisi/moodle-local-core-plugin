@@ -47,12 +47,23 @@ require(__DIR__ . '/../../../config.php');
 require_once($CFG->libdir . '/clilib.php');
 require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/announcement_manager.php');
 
-$apply  = (bool)cli_get_param('apply', false);
-$msgid  = (int)cli_get_param('messageid', 0);
-$all    = (bool)cli_get_param('all', false);
+// This Moodle 4.0.x build ships cli_get_params (plural) but not cli_get_param
+// (singular). Use plain getopt() the same way the other group CLI scripts do.
+$options = getopt('', ['apply', 'messageid::', 'all', 'help']);
+if (isset($options['help']) || (!$options)) {
+    fwrite(STDOUT, "USAGE:\n");
+    fwrite(STDOUT, "  sudo -u www-data php local/grupomakro_core/cli/repair_announcement_audience.php --messageid=N\n");
+    fwrite(STDOUT, "  sudo -u www-data php local/grupomakro_core/cli/repair_announcement_audience.php --messageid=N --apply\n");
+    fwrite(STDOUT, "  sudo -u www-data php local/grupomakro_core/cli/repair_announcement_audience.php --all --apply\n");
+    exit(0);
+}
+$apply = !empty($options['apply']);
+$msgid = isset($options['messageid']) ? (int)$options['messageid'] : 0;
+$all   = !empty($options['all']);
 
 if (!$msgid && !$all) {
-    cli_error("Specify either --messageid=N or --all. Use --apply to commit changes.");
+    fwrite(STDERR, "ERROR: pass --messageid=N or --all.\n");
+    exit(1);
 }
 
 global $DB;
