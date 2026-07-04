@@ -1067,5 +1067,76 @@
         <INDEX NAME="version_idx"    UNIQUE="false" FIELDS="generationid, version"/>
       </INDEXES>
     </TABLE>
+    <TABLE NAME="gmk_admin_message" COMMENT="Broadcast announcements published by admins to be shown in the student LXP. Carries priority so it can take precedence over other notifications (e.g. absence alerts).">
+      <FIELDS>
+        <FIELD NAME="id"                  TYPE="int"    LENGTH="10"   NOTNULL="true"  SEQUENCE="true"/>
+        <FIELD NAME="usermodified"        TYPE="int"    LENGTH="10"   NOTNULL="true"  DEFAULT="0"  SEQUENCE="false"/>
+        <FIELD NAME="timecreated"         TYPE="int"    LENGTH="10"   NOTNULL="true"  DEFAULT="0"  SEQUENCE="false"/>
+        <FIELD NAME="timemodified"        TYPE="int"    LENGTH="10"   NOTNULL="true"  DEFAULT="0"  SEQUENCE="false"/>
+        <FIELD NAME="authorid"            TYPE="int"    LENGTH="10"   NOTNULL="true"  DEFAULT="0"  SEQUENCE="false" COMMENT="User id of the Moodle account that created the broadcast."/>
+        <FIELD NAME="title"               TYPE="char"   LENGTH="255"  NOTNULL="true"  SEQUENCE="false"/>
+        <FIELD NAME="messagetext"         TYPE="text"   LENGTH="long"  NOTNULL="true"  SEQUENCE="false" COMMENT="HTML/plain body of the announcement shown to students."/>
+        <FIELD NAME="messagetype"         TYPE="char"   LENGTH="20"   NOTNULL="true"  DEFAULT="info" SEQUENCE="false" COMMENT="Severity/styling: info (green) | warning (orange)"/>
+        <FIELD NAME="audience_scope"      TYPE="char"   LENGTH="20"   NOTNULL="true"  DEFAULT="all"  SEQUENCE="false" COMMENT="all | career | group"/>
+        <FIELD NAME="audience_careerid"   TYPE="int"    LENGTH="10"   NOTNULL="false" DEFAULT="0"   SEQUENCE="false" COMMENT="learning_plan.id when scope=career"/>
+        <FIELD NAME="audience_groupid"    TYPE="int"    LENGTH="10"   NOTNULL="false" DEFAULT="0"   SEQUENCE="false" COMMENT="group.id when scope=group"/>
+        <FIELD NAME="require_ack"         TYPE="int"    LENGTH="1"    NOTNULL="true"  DEFAULT="1"   SEQUENCE="false" COMMENT="1 = the student must acknowledge; 0 = informational only"/>
+        <FIELD NAME="ack_label"           TYPE="char"   LENGTH="255"  NOTNULL="false" DEFAULT="He leído y estoy de acuerdo" SEQUENCE="false"/>
+        <FIELD NAME="priority"            TYPE="int"    LENGTH="4"    NOTNULL="true"  DEFAULT="50"  SEQUENCE="false" COMMENT="Higher value = higher precedence. Default 50 beats absence alerts (default 10)."/>
+        <FIELD NAME="starts_at"           TYPE="int"    LENGTH="10"   NOTNULL="false" DEFAULT="0"   SEQUENCE="false" COMMENT="Optional unix timestamp before which the broadcast is hidden."/>
+        <FIELD NAME="ends_at"             TYPE="int"    LENGTH="10"   NOTNULL="false" DEFAULT="0"   SEQUENCE="false" COMMENT="Optional unix timestamp after which the broadcast stops surfacing."/>
+        <FIELD NAME="active"              TYPE="int"    LENGTH="1"    NOTNULL="true"  DEFAULT="1"   SEQUENCE="false" COMMENT="Soft-delete / disable flag; 1 = active, 0 = disabled."/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="authorfk"      TYPE="foreign" FIELDS="authorid"     REFTABLE="user" REFFIELDS="id"/>
+        <KEY NAME="usermodifiedfk" TYPE="foreign" FIELDS="usermodified" REFTABLE="user" REFFIELDS="id"/>
+        <KEY NAME="careerfk"      TYPE="foreign" FIELDS="audience_careerid" REFTABLE="local_learning_plans" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="active_idx"          UNIQUE="false" FIELDS="active"/>
+        <INDEX NAME="timecreated_idx"     UNIQUE="false" FIELDS="timecreated"/>
+        <INDEX NAME="priority_idx"        UNIQUE="false" FIELDS="priority, active"/>
+        <INDEX NAME="scope_idx"           UNIQUE="false" FIELDS="audience_scope, audience_careerid, audience_groupid"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="gmk_admin_message_ack" COMMENT="Per-user acknowledgements of an admin message. One row per (message, user); presence means the student accepted it.">
+      <FIELDS>
+        <FIELD NAME="id"              TYPE="int"   LENGTH="10"  NOTNULL="true"  SEQUENCE="true"/>
+        <FIELD NAME="messageid"       TYPE="int"   LENGTH="10"  NOTNULL="true"  DEFAULT="0"  SEQUENCE="false"/>
+        <FIELD NAME="userid"          TYPE="int"   LENGTH="10"  NOTNULL="true"  DEFAULT="0"  SEQUENCE="false"/>
+        <FIELD NAME="acknowledged"    TYPE="int"   LENGTH="1"   NOTNULL="true"  DEFAULT="1"  SEQUENCE="false" COMMENT="1 if the user clicked accept, 0 if dismissed without ack (only meaningful when require_ack=0)."/>
+        <FIELD NAME="timeacknowledged" TYPE="int"  LENGTH="10"  NOTNULL="true"  DEFAULT="0"  SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary"    TYPE="primary" FIELDS="id"/>
+        <KEY NAME="messagefk"  TYPE="foreign" FIELDS="messageid" REFTABLE="gmk_admin_message" REFFIELDS="id"/>
+        <KEY NAME="userfk"     TYPE="foreign" FIELDS="userid"    REFTABLE="user"             REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="message_user_uix" UNIQUE="true"  FIELDS="messageid, userid"/>
+        <INDEX NAME="message_idx"      UNIQUE="false" FIELDS="messageid"/>
+        <INDEX NAME="user_idx"         UNIQUE="false" FIELDS="userid"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="gmk_admin_message_user" COMMENT="Materialised audience: one row per (message, recipient). Lets us resolve counting by career without re-querying every UI load.">
+      <FIELDS>
+        <FIELD NAME="id"           TYPE="int"  LENGTH="10"  NOTNULL="true"  SEQUENCE="true"/>
+        <FIELD NAME="messageid"    TYPE="int"  LENGTH="10"  NOTNULL="true"  DEFAULT="0"  SEQUENCE="false"/>
+        <FIELD NAME="userid"       TYPE="int"  LENGTH="10"  NOTNULL="true"  DEFAULT="0"  SEQUENCE="false"/>
+        <FIELD NAME="careerid"     TYPE="int"  LENGTH="10"  NOTNULL="false" DEFAULT="0"  SEQUENCE="false" COMMENT="Snapshot of the user's career at the moment the broadcast was published."/>
+        <FIELD NAME="timecreated"  TYPE="int"  LENGTH="10"  NOTNULL="true"  DEFAULT="0"  SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary"   TYPE="primary" FIELDS="id"/>
+        <KEY NAME="messagefk" TYPE="foreign" FIELDS="messageid" REFTABLE="gmk_admin_message" REFFIELDS="id"/>
+        <KEY NAME="userfk"    TYPE="foreign" FIELDS="userid"    REFTABLE="user"             REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="message_user_uix" UNIQUE="true"  FIELDS="messageid, userid"/>
+        <INDEX NAME="message_idx"      UNIQUE="false" FIELDS="messageid"/>
+        <INDEX NAME="message_career_idx" UNIQUE="false" FIELDS="messageid, careerid"/>
+      </INDEXES>
+    </TABLE>
   </TABLES>
 </XMLDB>

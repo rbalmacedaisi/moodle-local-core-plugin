@@ -61,6 +61,87 @@ $response = [
     'message' => 'Invalid action.'
 ];
 
+if (!function_exists('call_announcement_ajax')) {
+    /**
+     * Bridge helper used by the announcement AJAX actions. Reads the raw
+     * JSON payload (POST body) and forwards the args to the corresponding
+     * external WS class execute() method, mirroring the generic dispatcher
+     * at the bottom of this file but living inline so it works for write
+     * operations too.
+     *
+     * @param string $kind One of: create_message, admin_list_messages,
+     *                     get_message_stats, list_message_recipients,
+     *                     set_message_active, get_pending_admin_messages,
+     *                     acknowledge_admin_message.
+     * @return array{
+     *     status: 'success'|'error',
+     *     data: mixed,
+     *     message: ?string
+     * }
+     */
+    function call_announcement_ajax(string $kind): array {
+        try {
+            $rawInput = file_get_contents('php://input');
+            $jsonData = $rawInput ? json_decode($rawInput, true) : null;
+            $args = ($jsonData && isset($jsonData['args']) && is_array($jsonData['args']))
+                ? $jsonData['args']
+                : [];
+            switch ($kind) {
+                case 'create_message':
+                    $res = \local_grupomakro_core\external\admin\announcement\create_message::execute(
+                        (string)($args['title']             ?? ''),
+                        (string)($args['messagetext']       ?? ''),
+                        (string)($args['messagetype']       ?? 'info'),
+                        (string)($args['audience_scope']    ?? 'all'),
+                        (int)($args['audience_careerid']     ?? 0),
+                        (int)($args['audience_groupid']      ?? 0),
+                        (bool)($args['require_ack']         ?? true),
+                        (string)($args['ack_label']         ?? ''),
+                        (int)($args['priority']              ?? 50),
+                        (int)($args['starts_at']             ?? 0),
+                        (int)($args['ends_at']               ?? 0)
+                    );
+                    return ['status' => 'success', 'data' => $res, 'message' => null];
+                case 'admin_list_messages':
+                    $res = \local_grupomakro_core\external\admin\announcement\admin_list_messages::execute();
+                    return ['status' => 'success', 'data' => $res, 'message' => null];
+                case 'get_message_stats':
+                    $res = \local_grupomakro_core\external\admin\announcement\get_message_stats::execute(
+                        (int)($args['messageid'] ?? 0)
+                    );
+                    return ['status' => 'success', 'data' => $res, 'message' => null];
+                case 'list_message_recipients':
+                    $res = \local_grupomakro_core\external\admin\announcement\list_message_recipients::execute(
+                        (int)($args['messageid'] ?? 0)
+                    );
+                    return ['status' => 'success', 'data' => $res, 'message' => null];
+                case 'set_message_active':
+                    $res = \local_grupomakro_core\external\admin\announcement\set_message_active::execute(
+                        (int)($args['messageid'] ?? 0),
+                        (bool)($args['active'] ?? false)
+                    );
+                    return ['status' => 'success', 'data' => $res, 'message' => null];
+                case 'get_pending_admin_messages':
+                    $res = \local_grupomakro_core\external\student\get_pending_admin_messages::execute(
+                        (int)($args['userid'] ?? 0)
+                    );
+                    return ['status' => 'success', 'data' => $res, 'message' => null];
+                case 'acknowledge_admin_message':
+                    $res = \local_grupomakro_core\external\student\acknowledge_admin_message::execute(
+                        (int)($args['userid'] ?? 0),
+                        (int)($args['messageid'] ?? 0),
+                        (bool)($args['accept'] ?? true)
+                    );
+                    return ['status' => 'success', 'data' => $res, 'message' => null];
+                default:
+                    return ['status' => 'error', 'data' => null, 'message' => 'unknown_kind'];
+            }
+        } catch (\Throwable $e) {
+            return ['status' => 'error', 'data' => null, 'message' => $e->getMessage()];
+        }
+    }
+}
+
 if (!function_exists('gmk_forum_manage_context')) {
     /**
      * Resolves and validates forum context for teacher-side forum management.
@@ -1167,6 +1248,45 @@ try {
             $periods = \local_grupomakro_core\external\admin\planning::get_periods();
             $response = ['status' => 'success', 'data' => $periods];
             break;
+
+        // ── Admin broadcast messages (info / warning to student LXP) ──────
+        case 'local_grupomakro_create_admin_message':
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/admin/announcement/create_message.php');
+            $response = call_announcement_ajax('create_message');
+            break;
+
+        case 'local_grupomakro_admin_list_messages':
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/admin/announcement/admin_list_messages.php');
+            $response = call_announcement_ajax('admin_list_messages');
+            break;
+
+        case 'local_grupomakro_get_admin_message_stats':
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/admin/announcement/get_message_stats.php');
+            $response = call_announcement_ajax('get_message_stats');
+            break;
+
+        case 'local_grupomakro_list_admin_message_recipients':
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/admin/announcement/list_message_recipients.php');
+            $response = call_announcement_ajax('list_message_recipients');
+            break;
+
+        case 'local_grupomakro_set_admin_message_active':
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/admin/announcement/set_message_active.php');
+            $response = call_announcement_ajax('set_message_active');
+            break;
+
+        // Student-side endpoints (no capability beyond auth, validated inside
+        // the WS class).
+        case 'local_grupomakro_get_pending_admin_messages':
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/student/get_pending_admin_messages.php');
+            $response = call_announcement_ajax('get_pending_admin_messages');
+            break;
+
+        case 'local_grupomakro_acknowledge_admin_message':
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/student/acknowledge_admin_message.php');
+            $response = call_announcement_ajax('acknowledge_admin_message');
+            break;
+
 
         case 'local_grupomakro_save_academic_period':
             $id = optional_param('id', 0, PARAM_INT);
@@ -4966,9 +5086,9 @@ try {
             // Normalize tags ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â may arrive as string (FormData/JSON) or array (JSON flattened)
             $raw_tags = isset($_POST['tags']) ? $_POST['tags'] : '';
             $tagList = gmk_ajax_extract_tags_from_request($raw_tags);
-            if (!empty($tagList)) {
-                $tagList = [reset($tagList)];
-            }
+            // Preserve all provided tags. Previous behaviour kept only
+            // [reset($tagList)], which silently dropped multi-lesson
+            // associations on save.
 
             try {
                 $result = \local_grupomakro_core\external\teacher\create_express_activity::execute(
@@ -5834,9 +5954,9 @@ try {
             // Normalize tags ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â may arrive as string (FormData/JSON) or array (JSON flattened)
             $raw_tags_upd = isset($_POST['tags']) ? $_POST['tags'] : '';
             $tags = gmk_ajax_extract_tags_from_request($raw_tags_upd);
-            if (!empty($tags)) {
-                $tags = [reset($tags)];
-            }
+            // Preserve all provided tags. Previous behaviour kept only
+            // [reset($tags)], which silently dropped multi-lesson
+            // associations on save.
             // visible is optional — if not sent, keep the module's current intended visibility.
             // We use visibleold when available because section-hiding cascades set visible=0
             // on modules temporarily; visibleold preserves the intended state. This prevents

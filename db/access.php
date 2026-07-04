@@ -112,4 +112,19 @@ $capabilities = array(
             'manager' => CAP_ALLOW,
         ),
     ),
+    'local/grupomakro_core:manageannouncements' => array(
+        'captype' => 'write',
+        'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array(
+            'manager' => CAP_ALLOW,
+        ),
+    ),
+    'local/grupomakro_core:viewannouncements' => array(
+        'captype' => 'read',
+        'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array(
+            'manager' => CAP_ALLOW,
+            'editingteacher' => CAP_ALLOW,
+        ),
+    ),
 );

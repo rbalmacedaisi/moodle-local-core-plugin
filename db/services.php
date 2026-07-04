@@ -1186,4 +1186,72 @@ $functions = array(
         'ajax'        => true,
         'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
     ],
+    // ── Admin broadcast messages (info/warning to student LXP) ──────────────
+    // These notifications take precedence over the absence alert system by
+    // default (priority 50 vs. 10). The student-side endpoints are read/write
+    // since they accept acknowledgements; the admin-side endpoints are
+    // capability-gated.
+    'local_grupomakro_get_pending_admin_messages' => [
+        'classname'   => 'local_grupomakro_core\external\student\get_pending_admin_messages',
+        'methodname'  => 'execute',
+        'description' => 'Return admin broadcast messages still pending for the calling student. Sorted by priority DESC so the LXP can take precedence over absence alerts.',
+        'type'        => 'read',
+        'capabilities'=> '',
+        'ajax'        => true,
+        'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
+    ],
+    'local_grupomakro_acknowledge_admin_message' => [
+        'classname'   => 'local_grupomakro_core\external\student\acknowledge_admin_message',
+        'methodname'  => 'execute',
+        'description' => 'Record the student acknowledgement (or informational dismiss) of an admin broadcast message',
+        'type'        => 'write',
+        'capabilities'=> '',
+        'ajax'        => true,
+        'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
+    ],
+    'local_grupomakro_create_admin_message' => [
+        'classname'   => 'local_grupomakro_core\external\admin\announcement\create_message',
+        'methodname'  => 'execute',
+        'description' => 'Create a new admin broadcast (info or warning). Materialises the audience so per-career stats stay cheap.',
+        'type'        => 'write',
+        'capabilities'=> 'local/grupomakro_core:manageannouncements',
+        'ajax'        => true,
+        'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
+    ],
+    'local_grupomakro_admin_list_messages' => [
+        'classname'   => 'local_grupomakro_core\external\admin\announcement\admin_list_messages',
+        'methodname'  => 'execute',
+        'description' => 'List existing admin broadcasts with audience and ack counters, plus the careers/groups dropdown catalogues',
+        'type'        => 'read',
+        'capabilities'=> 'local/grupomakro_core:viewannouncements',
+        'ajax'        => true,
+        'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
+    ],
+    'local_grupomakro_get_admin_message_stats' => [
+        'classname'   => 'local_grupomakro_core\external\admin\announcement\get_message_stats',
+        'methodname'  => 'execute',
+        'description' => 'Per-career acknowledgement counters for a single broadcast message',
+        'type'        => 'read',
+        'capabilities'=> 'local/grupomakro_core:viewannouncements',
+        'ajax'        => true,
+        'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
+    ],
+    'local_grupomakro_list_admin_message_recipients' => [
+        'classname'   => 'local_grupomakro_core\external\admin\announcement\list_message_recipients',
+        'methodname'  => 'execute',
+        'description' => 'Flat list of recipients of a broadcast, with their individual ack state, for the admin dashboard drawer',
+        'type'        => 'read',
+        'capabilities'=> 'local/grupomakro_core:viewannouncements',
+        'ajax'        => true,
+        'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
+    ],
+    'local_grupomakro_set_admin_message_active' => [
+        'classname'   => 'local_grupomakro_core\external\admin\announcement\set_message_active',
+        'methodname'  => 'execute',
+        'description' => 'Enable or disable an existing broadcast (soft delete)',
+        'type'        => 'write',
+        'capabilities'=> 'local/grupomakro_core:manageannouncements',
+        'ajax'        => true,
+        'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
+    ],
 );

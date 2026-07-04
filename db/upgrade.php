@@ -2522,6 +2522,101 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20260801002, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20260803000) {
+        // ────────────────────────────────────────────────────────────────────
+        // Admin broadcast messages (info / warning to student LXP).
+        //
+        // gmk_admin_message           – the publishable announcement
+        // gmk_admin_message_ack       – per-user acknowledgement rows
+        // gmk_admin_message_user      – materialised audience so we can
+        //                               group stats by career without
+        //                               recomputing audience every load.
+        //
+        // These tables give the academic area a delivery channel for
+        // administrative notices that take precedence over the absence
+        // alert system (priority column on the message row).
+        // ────────────────────────────────────────────────────────────────────
+
+        // gmk_admin_message
+        $table = new xmldb_table('gmk_admin_message');
+
+        $table->add_field('id',                 XMLDB_TYPE_INTEGER, '10',   null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('usermodified',       XMLDB_TYPE_INTEGER, '10',   null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timecreated',        XMLDB_TYPE_INTEGER, '10',   null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timemodified',       XMLDB_TYPE_INTEGER, '10',   null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('authorid',           XMLDB_TYPE_INTEGER, '10',   null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('title',              XMLDB_TYPE_CHAR,    '255',  null, XMLDB_NOTNULL, null, null);
+        $table->add_field('messagetext',        XMLDB_TYPE_TEXT,    'long', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('messagetype',        XMLDB_TYPE_CHAR,    '20',   null, XMLDB_NOTNULL, null, 'info');
+        $table->add_field('audience_scope',     XMLDB_TYPE_CHAR,    '20',   null, XMLDB_NOTNULL, null, 'all');
+        $table->add_field('audience_careerid',  XMLDB_TYPE_INTEGER, '10',   null, null,          null, '0');
+        $table->add_field('audience_groupid',   XMLDB_TYPE_INTEGER, '10',   null, null,          null, '0');
+        $table->add_field('require_ack',        XMLDB_TYPE_INTEGER, '1',    null, XMLDB_NOTNULL, null, '1');
+        $table->add_field('ack_label',          XMLDB_TYPE_CHAR,    '255',  null, null,          null, null);
+        $table->add_field('priority',           XMLDB_TYPE_INTEGER, '4',    null, XMLDB_NOTNULL, null, '50');
+        $table->add_field('starts_at',          XMLDB_TYPE_INTEGER, '10',   null, null,          null, '0');
+        $table->add_field('ends_at',            XMLDB_TYPE_INTEGER, '10',   null, null,          null, '0');
+        $table->add_field('active',             XMLDB_TYPE_INTEGER, '1',    null, XMLDB_NOTNULL, null, '1');
+
+        $table->add_key('primary',       XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('authorfk',      XMLDB_KEY_FOREIGN, ['authorid'],     'user',               ['id']);
+        $table->add_key('usermodifiedfk', XMLDB_KEY_FOREIGN, ['usermodified'], 'user',               ['id']);
+        $table->add_key('careerfk',      XMLDB_KEY_FOREIGN, ['audience_careerid'], 'local_learning_plans', ['id']);
+
+        $table->add_index('active_idx',       XMLDB_INDEX_NOTUNIQUE, ['active']);
+        $table->add_index('timecreated_idx',  XMLDB_INDEX_NOTUNIQUE, ['timecreated']);
+        $table->add_index('priority_idx',     XMLDB_INDEX_NOTUNIQUE, ['priority', 'active']);
+        $table->add_index('scope_idx',        XMLDB_INDEX_NOTUNIQUE, ['audience_scope', 'audience_careerid', 'audience_groupid']);
+
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // gmk_admin_message_ack
+        $table = new xmldb_table('gmk_admin_message_ack');
+
+        $table->add_field('id',               XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('messageid',        XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('userid',           XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('acknowledged',     XMLDB_TYPE_INTEGER, '1',  null, XMLDB_NOTNULL, null, '1');
+        $table->add_field('timeacknowledged', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+
+        $table->add_key('primary',   XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('messagefk', XMLDB_KEY_FOREIGN, ['messageid'], 'gmk_admin_message', ['id']);
+        $table->add_key('userfk',    XMLDB_KEY_FOREIGN, ['userid'],    'user',              ['id']);
+
+        $table->add_index('message_user_uix', XMLDB_INDEX_UNIQUE, ['messageid', 'userid']);
+        $table->add_index('message_idx',      XMLDB_INDEX_NOTUNIQUE, ['messageid']);
+        $table->add_index('user_idx',         XMLDB_INDEX_NOTUNIQUE, ['userid']);
+
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // gmk_admin_message_user
+        $table = new xmldb_table('gmk_admin_message_user');
+
+        $table->add_field('id',          XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('messageid',   XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('userid',      XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('careerid',    XMLDB_TYPE_INTEGER, '10', null, null,          null, '0');
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+
+        $table->add_key('primary',   XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('messagefk', XMLDB_KEY_FOREIGN, ['messageid'], 'gmk_admin_message', ['id']);
+        $table->add_key('userfk',    XMLDB_KEY_FOREIGN, ['userid'],    'user',              ['id']);
+
+        $table->add_index('message_user_uix',  XMLDB_INDEX_UNIQUE, ['messageid', 'userid']);
+        $table->add_index('message_idx',       XMLDB_INDEX_NOTUNIQUE, ['messageid']);
+        $table->add_index('message_career_idx', XMLDB_INDEX_NOTUNIQUE, ['messageid', 'careerid']);
+
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        upgrade_plugin_savepoint(true, 20260803000, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 
