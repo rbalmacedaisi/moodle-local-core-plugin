@@ -157,8 +157,8 @@ Vue.component('grades-grid', {
                         </li>
                         <li>
                             <span v-html="infoStrings.activitiesItem"></span>
-                            <span v-if="incompleteRevalidaStudents.length > 0">
-                                {{ infoIncompleteText }}
+                            <span v-if="incompleteAllStudents.length > 0">
+                                {{ infoIncompleteClassText }}
                             </span>
                         </li>
                         <li>
@@ -394,6 +394,23 @@ Vue.component('grades-grid', {
                     && a.total > 0 && a.missing > 0;
             });
         },
+        // Count of EVERY student in the class roster (not just the eligible
+        // ones) that still has ungraded activities. Surfaced in the banner
+        // so the teacher understands the total amount of pending grading in
+        // the class — not just for the eligible students shown in the table.
+        incompleteAllStudents() {
+            return this.students.filter(s => {
+                const a = s.activities_graded;
+                return a && typeof a.total === 'number'
+                    && a.total > 0 && a.missing > 0;
+            });
+        },
+        incompleteTotalMissingActivities() {
+            return this.incompleteAllStudents.reduce((acc, s) => {
+                return acc + (s.activities_graded && s.activities_graded.missing
+                    ? Number(s.activities_graded.missing) : 0);
+            }, 0);
+        },
         // True when the academic calendar window allows creating NEW
         // revalidation requests for this class. Existing records can still
         // be graded regardless of the window state.
@@ -414,9 +431,9 @@ Vue.component('grades-grid', {
                 weightsWarning: s.revalidationsInfoBannerWeightsWarning
                     || 'Corrija esto antes de programar.',
                 activitiesItem: s.revalidationsInfoBannerActivitiesItem
-                    || 'El estudiante haya <strong>entregado y se hayan calificado todas las actividades</strong> del periodo.',
-                incompleteText: s.revalidationsInfoBannerIncompleteStudents
-                    || '({n} estudiante(s) aún con actividades pendientes.)',
+                    || 'Todos los estudiantes de la clase (no solo los elegibles) hayan <strong>entregado y se hayan calificado todas las actividades</strong> del periodo.',
+                incompleteClassText: s.revalidationsInfoBannerIncompleteClass
+                    || 'Actualmente <strong>{students} estudiante(s)</strong> de toda la clase tienen <strong>{activities} actividad(es) sin calificar</strong> en total. Revise el libro antes de programar.',
                 windowItemBase: s.revalidationsInfoBannerWindowItem
                     || 'La ventana de reválidas del calendario académico esté {state}.',
                 windowOpenLabel: s.revalidationsInfoBannerWindowOpen
@@ -430,8 +447,10 @@ Vue.component('grades-grid', {
         infoWeightsItem() {
             return this.infoStrings.weightsItem.replace('{pct}', this.totalWeight);
         },
-        infoIncompleteText() {
-            return this.infoStrings.incompleteText.replace('{n}', this.incompleteRevalidaStudents.length);
+        infoIncompleteClassText() {
+            return this.infoStrings.incompleteClassText
+                .replace('{students}', this.incompleteAllStudents.length)
+                .replace('{activities}', this.incompleteTotalMissingActivities);
         },
         infoWindowRange() {
             if (!this.windowInfo || !this.windowInfo.start || !this.windowInfo.end) return '';

@@ -821,8 +821,8 @@ $string['revalidations:info_banner_title'] = 'How students are flagged for reval
 $string['revalidations:info_banner_intro'] = 'Students in this list are flagged for revalidation because their <strong>final grade is between 60.0 and 70.9</strong> and they <strong>have no practical hours</strong>. Before scheduling the session, verify that:';
 $string['revalidations:info_banner_weights_item'] = 'The <strong>gradebook weights sum to 100%</strong> (currently: <strong>{$a}%</strong>).';
 $string['revalidations:info_banner_weights_warning'] = 'Fix this before scheduling.';
-$string['revalidations:info_banner_activities_item'] = 'The student <strong>submitted and was graded on every activity</strong> for the term.';
-$string['revalidations:info_banner_incomplete_students'] = '({$a} student(s) still with pending activities.)';
+$string['revalidations:info_banner_activities_item'] = 'Every student in the class (not just the eligible ones) has <strong>submitted and been graded on every activity</strong> for the term.';
+$string['revalidations:info_banner_incomplete_class'] = 'Currently <strong>{$a->students} student(s)</strong> across the whole class have <strong>{$a->activities} ungraded activity entries</strong> in total. Review the gradebook before scheduling.';
 $string['revalidations:info_banner_window_item'] = 'The academic calendar revalidation window is <strong>open</strong>.';
 $string['revalidations:info_banner_window_closed'] = '<strong class="amber--text text--darken-4">closed</strong>';
 $string['revalidations:info_banner_window_open'] = '<strong>open</strong>';

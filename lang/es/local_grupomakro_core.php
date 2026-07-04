@@ -819,8 +819,8 @@ $string['revalidations:info_banner_title'] = 'Información sobre la selección d
 $string['revalidations:info_banner_intro'] = 'Los estudiantes de esta lista están marcados para reválida porque su <strong>nota final está entre 60.0 y 70.9</strong> y <strong>no tienen horas prácticas</strong>. Antes de programar la sesión, verifique que:';
 $string['revalidations:info_banner_weights_item'] = 'Las <strong>ponderaciones del libro de calificaciones sumen 100%</strong> (actualmente: <strong>{$a}%</strong>).';
 $string['revalidations:info_banner_weights_warning'] = 'Corrija esto antes de programar.';
-$string['revalidations:info_banner_activities_item'] = 'El estudiante haya <strong>entregado y se hayan calificado todas las actividades</strong> del periodo.';
-$string['revalidations:info_banner_incomplete_students'] = '({$a} estudiante(s) aún con actividades pendientes.)';
+$string['revalidations:info_banner_activities_item'] = 'Todos los estudiantes de la clase (no solo los elegibles) hayan <strong>entregado y se hayan calificado todas las actividades</strong> del periodo.';
+$string['revalidations:info_banner_incomplete_class'] = 'Actualmente <strong>{$a->students} estudiante(s)</strong> de toda la clase tienen <strong>{$a->activities} actividad(es) sin calificar</strong> en total. Revise el libro antes de programar.';
 $string['revalidations:info_banner_window_item'] = 'La ventana de reválidas del calendario académico esté <strong>abierta</strong>.';
 $string['revalidations:info_banner_window_closed'] = '<strong class="amber--text text--darken-4">cerrada</strong>';
 $string['revalidations:info_banner_window_open'] = '<strong>abierta</strong>';
