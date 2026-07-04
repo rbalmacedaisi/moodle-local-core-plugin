@@ -200,7 +200,13 @@ class announcement_manager {
      * (useful when the user later changes their learning plan).
      *
      * Scope rules:
-     *   - all     : every active student (role archetype = student) in the system
+     *   - all     : every active student. Authoritative source in this fork is
+     *               the local_learning_users table (userroleid = 5, status =
+     *               'activo'), the same definition the absence dashboard uses
+     *               to count students. We union that with users who have the
+     *               moodle 'student' role at any context (some legacy
+     *               contacts live in mdl_role_assignments only) so the admin
+     *               never under-counts the audience.
      *   - career  : every student currently linked to that learning_plan
      *               via local_learning_users.userroleid = 5 (student role)
      *   - group   : every member of the given Moodle group
@@ -213,21 +219,45 @@ class announcement_manager {
         $out = [];
 
         if ($scope === 'all') {
+            // Source 1: local_learning_users (canonical, used by
+            // pages/debug_active_count.php and the absence dashboard).
             $rs = $DB->get_recordset_sql(
                 "SELECT u.id, COALESCE(llu.learningplanid, 0) AS careerid
                    FROM {user} u
-                   JOIN {role_assignments} ra ON ra.userid = u.id
-                   JOIN {role} r ON r.id = ra.roleid AND r.shortname = 'student'
-                   JOIN {context} ctx ON ctx.id = ra.contextid AND ctx.contextlevel = :ctxsys
-              LEFT JOIN {local_learning_users} llu
-                         ON llu.userid = u.id AND llu.userroleid = 5
-                  WHERE u.deleted = 0 AND u.suspended = 0",
-                ['ctxsys' => CONTEXT_SYSTEM]
+                   JOIN {local_learning_users} llu
+                        ON llu.userid = u.id
+                       AND llu.userroleid = 5
+                       AND (llu.status = 'activo' OR llu.status = '' OR llu.status IS NULL)
+                  WHERE u.deleted = 0 AND u.suspended = 0 AND u.id > 1"
             );
             foreach ($rs as $r) {
                 $out[(int)$r->id] = (int)$r->careerid;
             }
             $rs->close();
+
+            // Source 2 (safety net): users with the moodle 'student' role at
+            // ANY context who were not captured above. The role-id itself is
+            // the well-known archetype='student' from mdl_role, so we look it
+            // up dynamically instead of hardcoding 5.
+            $studentroleid = (int)$DB->get_field('role', 'id', ['archetype' => 'student']);
+            if ($studentroleid > 0) {
+                $rs = $DB->get_recordset_sql(
+                    "SELECT DISTINCT u.id, COALESCE(llu.learningplanid, 0) AS careerid
+                       FROM {user} u
+                       JOIN {role_assignments} ra ON ra.userid = u.id AND ra.roleid = :srid
+                  LEFT JOIN {local_learning_users} llu
+                                ON llu.userid = u.id AND llu.userroleid = 5
+                      WHERE u.deleted = 0 AND u.suspended = 0 AND u.id > 1",
+                    ['srid' => $studentroleid]
+                );
+                foreach ($rs as $r) {
+                    $uid = (int)$r->id;
+                    if (!isset($out[$uid])) {
+                        $out[$uid] = (int)$r->careerid;
+                    }
+                }
+                $rs->close();
+            }
             return $out;
         }
 
