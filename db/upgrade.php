@@ -2585,9 +2585,10 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         $table->add_key('messagefk', XMLDB_KEY_FOREIGN, ['messageid'], 'gmk_admin_message', ['id']);
         $table->add_key('userfk',    XMLDB_KEY_FOREIGN, ['userid'],    'user',              ['id']);
 
+        // Moodle auto-creates a non-unique index on each FK column, so we
+        // only declare the additional indexes that are not redundant with
+        // a FK (messageid has an FK -> no manual message_idx; userid too).
         $table->add_index('message_user_uix', XMLDB_INDEX_UNIQUE, ['messageid', 'userid']);
-        $table->add_index('message_idx',      XMLDB_INDEX_NOTUNIQUE, ['messageid']);
-        $table->add_index('user_idx',         XMLDB_INDEX_NOTUNIQUE, ['userid']);
 
         if (!$dbman->table_exists($table)) {
             $dbman->create_table($table);
@@ -2606,8 +2607,8 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         $table->add_key('messagefk', XMLDB_KEY_FOREIGN, ['messageid'], 'gmk_admin_message', ['id']);
         $table->add_key('userfk',    XMLDB_KEY_FOREIGN, ['userid'],    'user',              ['id']);
 
-        $table->add_index('message_user_uix',  XMLDB_INDEX_UNIQUE, ['messageid', 'userid']);
-        $table->add_index('message_idx',       XMLDB_INDEX_NOTUNIQUE, ['messageid']);
+        // No manual message_idx (covered by the messagefk FK).
+        $table->add_index('message_user_uix',   XMLDB_INDEX_UNIQUE, ['messageid', 'userid']);
         $table->add_index('message_career_idx', XMLDB_INDEX_NOTUNIQUE, ['messageid', 'careerid']);
 
         if (!$dbman->table_exists($table)) {

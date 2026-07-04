@@ -1115,8 +1115,6 @@
       </KEYS>
       <INDEXES>
         <INDEX NAME="message_user_uix" UNIQUE="true"  FIELDS="messageid, userid"/>
-        <INDEX NAME="message_idx"      UNIQUE="false" FIELDS="messageid"/>
-        <INDEX NAME="user_idx"         UNIQUE="false" FIELDS="userid"/>
       </INDEXES>
     </TABLE>
     <TABLE NAME="gmk_admin_message_user" COMMENT="Materialised audience: one row per (message, recipient). Lets us resolve counting by career without re-querying every UI load.">
@@ -1133,8 +1131,7 @@
         <KEY NAME="userfk"    TYPE="foreign" FIELDS="userid"    REFTABLE="user"             REFFIELDS="id"/>
       </KEYS>
       <INDEXES>
-        <INDEX NAME="message_user_uix" UNIQUE="true"  FIELDS="messageid, userid"/>
-        <INDEX NAME="message_idx"      UNIQUE="false" FIELDS="messageid"/>
+        <INDEX NAME="message_user_uix"  UNIQUE="true"  FIELDS="messageid, userid"/>
         <INDEX NAME="message_career_idx" UNIQUE="false" FIELDS="messageid, careerid"/>
       </INDEXES>
     </TABLE>
