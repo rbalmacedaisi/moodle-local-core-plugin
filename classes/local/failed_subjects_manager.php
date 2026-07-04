@@ -431,33 +431,35 @@ class failed_subjects_manager {
     }
 
     /**
-     * Fetch a contact from Odoo via the local moodle.user mapping and
-     * a direct XML-RPC call. Returns null if any step fails.
+     * Fetch a contact from the Express proxy which in turn reads Odoo's
+     * res.partner. The lookup is by documentNumber (cedula) which is
+     * present in user_info_data and matches res.partner.vat in Odoo.
+     *
+     * The Express endpoint is /api/admin/partner-contact?documentNumber=X
+     * (header x-admin-secret required). If the endpoint is not deployed
+     * yet, the call will fail and we return null — the report still
+     * works without Odoo contact data (it just shows "—").
+     *
+     * Returns null on any error.
      */
     private static function fetch_odoo_contact(int $userid, string $cedulafallback): ?array {
-        global $DB, $CFG;
-
-        $mu = $DB->get_record('moodle.user', ['moodle_user_id' => (string)$userid], 'partner_id', IGNORE_MISSING);
-        if (!$mu) {
-            // Try by idnumber (cedula) — moodle.user_sync sets this.
-            $mu = $DB->get_record('moodle.user', ['documentNumber' => $cedulafallback], 'partner_id', IGNORE_MISSING);
+        $cedula = trim($cedulafallback);
+        if ($cedula === '') {
+            // Fallback to Moodle idnumber when the custom field is empty.
+            global $DB;
+            $cedula = (string)$DB->get_field('user', 'idnumber', ['id' => $userid]);
         }
-        if (!$mu || empty($mu->partner_id)) {
+        if ($cedula === '') {
             return null;
         }
 
         $url = get_config('local_grupomakro_core', 'odoo_proxy_url') ?: 'https://lms.isi.edu.pa:4000';
-        // Odoo is reached via Express proxy with admin secret because we
-        // do not want to expose Odoo credentials in this plugin. The
-        // proxy exposes /api/admin/partner-contact?partner_id=... when
-        // x-admin-secret is present.
         $secret = get_config('local_grupomakro_core', 'odoo_proxy_admin_secret') ?: '';
-
         if ($secret === '') {
             return null;
         }
 
-        $endpoint = rtrim($url, '/') . '/api/admin/partner-contact?partner_id=' . (int)$mu->partner_id;
+        $endpoint = rtrim($url, '/') . '/api/admin/partner-contact?documentNumber=' . urlencode($cedula);
         $ch = curl_init($endpoint);
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
