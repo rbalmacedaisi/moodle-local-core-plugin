@@ -44,6 +44,7 @@
 define('CLI_SCRIPT', true);
 
 require(__DIR__ . '/../../../config.php');
+require_once($CFG->libdir . '/clilib.php');
 require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/announcement_manager.php');
 
 $apply  = (bool)cli_get_param('apply', false);
