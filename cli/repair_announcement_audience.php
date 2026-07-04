@@ -57,9 +57,9 @@ if (isset($options['help']) || (!$options)) {
     fwrite(STDOUT, "  sudo -u www-data php local/grupomakro_core/cli/repair_announcement_audience.php --all --apply\n");
     exit(0);
 }
-$apply = !empty($options['apply']);
+$apply = isset($options['apply']);   // getopt returns false for a flag; use isset
 $msgid = isset($options['messageid']) ? (int)$options['messageid'] : 0;
-$all   = !empty($options['all']);
+$all   = isset($options['all']);
 
 if (!$msgid && !$all) {
     fwrite(STDERR, "ERROR: pass --messageid=N or --all.\n");
