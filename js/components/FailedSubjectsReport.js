@@ -16,15 +16,21 @@
  *     (force-over-quota, logged in gmk_class_absence_history).
  */
 Vue.component('failed-subjects-report', {
-    props: {
-        sesskey:  { type: String, default: '' },
-        ajaxUrl:  { type: String, default: '' },
-        wwwRoot:  { type: String, default: '' }
-    },
+    props: {},
     data() {
+        // Pull config (sesskey, ajaxUrl, wwwRoot) from the global
+        // window.fsConfig namespace populated by the page. This avoids
+        // passing complex values through Vue attribute binding which
+        // would otherwise try to parse unquoted strings like
+        // :ajax-url="https://..." as JS expressions and fail.
+        var cfg = (typeof window !== 'undefined' && window.fsConfig) || {};
         return {
             loading: false,
             error: null,
+
+            sesskey: cfg.sesskey || '',
+            ajaxUrl: cfg.ajaxUrl || '',
+            wwwRoot: cfg.wwwRoot || '',
 
             periods: [],
             plans: [],
@@ -519,7 +525,6 @@ Vue.component('failed-subjects-report', {
             <failed-subjects-drawer
                 :userid="drawerUserid"
                 :open.sync="drawerOpen"
-                :sesskey="sesskey"
                 @close="onDrawerClose"
             ></failed-subjects-drawer>
         </v-container>

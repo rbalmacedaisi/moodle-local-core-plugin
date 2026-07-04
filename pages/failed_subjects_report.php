@@ -53,18 +53,28 @@ $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/FailedS
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/FailedSubjectsStudentDrawer.js?v=' . $assetversion));
 $PAGE->requires->css(new moodle_url('/local/grupomakro_core/styles/failed_subjects.css?v=' . $assetversion));
 
-$sesskey = sesskey();
-$ajaxurl = (new moodle_url('/local/grupomakro_core/ajax.php'))->out(false);
-$wwwroot = $CFG->wwwroot;
-
-// Helper: emit a string safely for use inside a double-quoted HTML
-// attribute. For plain string props (sesskey, URL) we do NOT use
-// json_encode() because that would wrap the value in extra quotes
-// (attr=""value"") which Vue cannot parse. We only need to escape
-// the few characters that would otherwise break the HTML attribute.
-$attr = static function(string $v): string {
-    return htmlspecialchars($v, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-};
+// Build a server-to-client config object. Strings are encoded with
+// json_encode (which adds the surrounding double quotes) so the values
+// land in JS as proper string literals. The whole object is emitted
+// into a window.fsConfig namespace which the Vue component reads on
+// mount (see FailedSubjectsReport.js -> data().cfg).
+//
+// We use json_encode instead of htmlspecialchars here because the
+// values go inside a <script> block, not an HTML attribute, so we DO
+// want the surrounding quotes — and we DO want to escape any quotes
+// inside the value. JSON_HEX_TAG / HEX_AMP / HEX_APOS / HEX_QUOT
+// keep `<`, `>`, `&`, `'`, `"` from breaking the HTML or JS parser
+// even if a sesskey or URL contains them.
+$cfg = [
+    'sesskey' => sesskey(),
+    'ajaxUrl' => (new moodle_url('/local/grupomakro_core/ajax.php'))->out(false),
+    'wwwRoot' => $CFG->wwwroot,
+];
+$cfgJson = json_encode(
+    $cfg,
+    JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES
+);
+$cfgTag = '<!--__FSR_CFG__' . $cfgJson . '__FSR_CFG__-->';
 
 echo $OUTPUT->header();
 ?>
@@ -87,14 +97,12 @@ echo $OUTPUT->header();
     .fsr-sem-warn   { color:#E65100; font-weight:700; }
 </style>
 
+<?php echo $cfgTag; ?>
+
 <div id="gmk-fsr-app">
     <v-app class="transparent">
         <v-main>
-            <failed-subjects-report
-                :sesskey="<?php echo $attr($sesskey); ?>"
-                :ajax-url="<?php echo $attr($ajaxurl); ?>"
-                :www-root="<?php echo $attr($wwwroot); ?>"
-            ></failed-subjects-report>
+            <failed-subjects-report></failed-subjects-report>
         </v-main>
     </v-app>
 </div>
@@ -105,6 +113,15 @@ echo $OUTPUT->header();
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <script>
+// Parse the FSR config from the marker comment. This avoids passing
+// complex values through Vue attribute binding (where unquoted
+// expressions like :ajax-url="https://..." fail to parse).
+(function() {
+    var html = document.body ? document.body.innerHTML : '';
+    var m = html.match(/__FSR_CFG__(.*?)__FSR_CFG__/);
+    window.fsConfig = m ? JSON.parse(m[1]) : {};
+})();
+
 // Self-contained Vue mount for this page (matches the pattern used by
 // RevalidationsDirector).
 (function() {

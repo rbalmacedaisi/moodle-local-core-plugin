@@ -9,14 +9,18 @@
 Vue.component('failed-subjects-drawer', {
     props: {
         userid: { type: Number, default: 0 },
-        open:   { type: Boolean, default: false },
-        sesskey: { type: String, default: '' }
+        open:   { type: Boolean, default: false }
     },
     data() {
+        // sesskey is read from the global window.fsConfig that the
+        // page populates. We accept a prop too for backwards
+        // compatibility but prefer the global.
+        var cfg = (typeof window !== 'undefined' && window.fsConfig) || {};
         return {
             loading: false,
             error: null,
-            detail: null
+            detail: null,
+            sesskey: cfg.sesskey || ''
         };
     },
     watch: {
