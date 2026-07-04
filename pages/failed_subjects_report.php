@@ -122,6 +122,15 @@ echo $OUTPUT->header();
     window.fsConfig = m ? JSON.parse(m[1]) : {};
 })();
 
+// Expose the same config under the legacy names so the axios calls
+// in the component (which use the same conventions as the rest of
+// grupomakro_core: window.wsUrl + window.Y.config.sesskey) work
+// without any per-call refactor.
+window.wsUrl = (window.fsConfig && window.fsConfig.ajaxUrl) || window.wsUrl;
+window.Y = window.Y || {};
+window.Y.config = window.Y.config || {};
+window.Y.config.sesskey = (window.fsConfig && window.fsConfig.sesskey) || window.Y.config.sesskey;
+
 // Self-contained Vue mount for this page (matches the pattern used by
 // RevalidationsDirector).
 (function() {
