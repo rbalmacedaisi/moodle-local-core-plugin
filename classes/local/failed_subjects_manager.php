@@ -179,10 +179,15 @@ class failed_subjects_manager {
                   $cedulaJoin
                  ORDER BY u.lastname, u.firstname, c.fullname";
 
-        $records = $DB->get_records_sql($sql);
+        $records = $DB->get_recordset_sql($sql);
+        $list = [];
+        foreach ($records as $r) {
+            $list[] = $r;
+        }
+        $records->close();
 
         // Filter excluded courses (PRACTICA/PROYECTO).
-        $records = array_filter($records, function($r) {
+        $records = array_filter($list, function($r) {
             return !self::is_excluded_course($r->coursename);
         });
 
