@@ -57,15 +57,13 @@ $sesskey = sesskey();
 $ajaxurl = (new moodle_url('/local/grupomakro_core/ajax.php'))->out(false);
 $wwwroot = $CFG->wwwroot;
 
-// Helper: encode a value safely for use inside a double-quoted HTML
-// attribute. JSON_UNESCAPED_SLASHES keeps URLs as `https://...` (so Vue
-// can parse them as JS expressions); the HEX flags keep `<`, `>`, `&`,
-// `'` and `"` from breaking the HTML attribute.
-$jsonAttr = static function($v): string {
-    return json_encode(
-        $v,
-        JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES
-    );
+// Helper: emit a string safely for use inside a double-quoted HTML
+// attribute. For plain string props (sesskey, URL) we do NOT use
+// json_encode() because that would wrap the value in extra quotes
+// (attr=""value"") which Vue cannot parse. We only need to escape
+// the few characters that would otherwise break the HTML attribute.
+$attr = static function(string $v): string {
+    return htmlspecialchars($v, ENT_QUOTES | ENT_HTML5, 'UTF-8');
 };
 
 echo $OUTPUT->header();
@@ -93,9 +91,9 @@ echo $OUTPUT->header();
     <v-app class="transparent">
         <v-main>
             <failed-subjects-report
-                :sesskey="<?php echo $jsonAttr($sesskey); ?>"
-                :ajax-url="<?php echo $jsonAttr($ajaxurl); ?>"
-                :www-root="<?php echo $jsonAttr($wwwroot); ?>"
+                :sesskey="<?php echo $attr($sesskey); ?>"
+                :ajax-url="<?php echo $attr($ajaxurl); ?>"
+                :www-root="<?php echo $attr($wwwroot); ?>"
             ></failed-subjects-report>
         </v-main>
     </v-app>
