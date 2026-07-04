@@ -57,6 +57,17 @@ $sesskey = sesskey();
 $ajaxurl = (new moodle_url('/local/grupomakro_core/ajax.php'))->out(false);
 $wwwroot = $CFG->wwwroot;
 
+// Helper: encode a value safely for use inside a double-quoted HTML
+// attribute. JSON_UNESCAPED_SLASHES keeps URLs as `https://...` (so Vue
+// can parse them as JS expressions); the HEX flags keep `<`, `>`, `&`,
+// `'` and `"` from breaking the HTML attribute.
+$jsonAttr = static function($v): string {
+    return json_encode(
+        $v,
+        JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES
+    );
+};
+
 echo $OUTPUT->header();
 ?>
 <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900" rel="stylesheet">
@@ -82,9 +93,9 @@ echo $OUTPUT->header();
     <v-app class="transparent">
         <v-main>
             <failed-subjects-report
-                :sesskey="<?php echo json_encode($sesskey); ?>"
-                :ajax-url="<?php echo json_encode($ajaxurl); ?>"
-                :www-root="<?php echo json_encode($wwwroot); ?>"
+                :sesskey="<?php echo $jsonAttr($sesskey); ?>"
+                :ajax-url="<?php echo $jsonAttr($ajaxurl); ?>"
+                :www-root="<?php echo $jsonAttr($wwwroot); ?>"
             ></failed-subjects-report>
         </v-main>
     </v-app>
