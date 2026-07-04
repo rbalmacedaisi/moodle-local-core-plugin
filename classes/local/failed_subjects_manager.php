@@ -143,6 +143,11 @@ class failed_subjects_manager {
             $cedulaSelect = "uid_c.data AS cedula";
         }
 
+        // Deduplicate gmk_course_progre: keep only the most recent row
+        // per (userid, courseid, learningplanid) — historical data has
+        // orphan / duplicated rows that would otherwise explode the
+        // report and break get_records_sql() which requires unique
+        // first columns.
         $sql = "SELECT cp.id AS progress_id,
                        cp.userid, cp.courseid, cp.grade AS last_grade,
                        cp.timemodified AS failed_at,
@@ -153,6 +158,14 @@ class failed_subjects_manager {
                        $jornadaSelect,
                        $cedulaSelect
                   FROM {gmk_course_progre} cp
+                  JOIN (
+                      SELECT userid, courseid, learningplanid, MAX(id) AS maxid
+                        FROM {gmk_course_progre}
+                       WHERE status IN (5, 7)
+                         AND courseid > 0
+                    GROUP BY userid, courseid, learningplanid
+                  ) latest
+                    ON latest.maxid = cp.id
                   JOIN {user} u ON u.id = cp.userid
                        AND u.deleted = 0 AND u.suspended = 0
                   JOIN {local_learning_users} llu
@@ -164,8 +177,6 @@ class failed_subjects_manager {
                   JOIN {course} c ON c.id = cp.courseid
                   $jornadaJoin
                   $cedulaJoin
-                 WHERE cp.status IN (5, 7)
-                   AND cp.courseid > 0
                  ORDER BY u.lastname, u.firstname, c.fullname";
 
         $records = $DB->get_records_sql($sql);
