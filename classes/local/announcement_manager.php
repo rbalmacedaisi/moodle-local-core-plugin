@@ -317,8 +317,8 @@ class announcement_manager {
                        ack.acknowledged, ack.timeacknowledged
                   FROM {gmk_admin_message} am
                   JOIN {gmk_admin_message_user} amu ON amu.messageid = am.id
-             LEFT JOIN {gmk_admin_message_ack} ack ON ack.messageid = am.id AND ack.userid = :uid
-                 WHERE amu.userid = :uid
+             LEFT JOIN {gmk_admin_message_ack} ack ON ack.messageid = am.id AND ack.userid = :userid
+                 WHERE amu.userid = :userid2
                    AND am.active = 1
                    AND (am.starts_at = 0 OR am.starts_at <= :now1)
                    AND (am.ends_at   = 0 OR am.ends_at   >= :now2)
@@ -327,12 +327,13 @@ class announcement_manager {
                      OR ack.id IS NULL
                      OR ack.acknowledged = 0
                    )
-              ORDER BY am.priority DESC, am.timecreated DESC";
+            ORDER BY am.priority DESC, am.timecreated DESC";
 
         $rows = $DB->get_records_sql($sql, [
-            'uid'  => $userid,
-            'now1' => $now,
-            'now2' => $now,
+            'userid'  => $userid,
+            'userid2' => $userid,
+            'now1'    => $now,
+            'now2'    => $now,
         ]);
 
         $list = [];
