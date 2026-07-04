@@ -122,6 +122,8 @@ function local_grupomakro_core_extend_navigation(global_navigation $navigation) 
             '|/local/grupomakro_core/pages/academicpanel.php';
         $CFG->custommenuitems .= PHP_EOL . '-🧾 ' . get_string('revalidations_director_menu', 'local_grupomakro_core') .
             '|/local/grupomakro_core/pages/revalidations_director.php';
+        $CFG->custommenuitems .= PHP_EOL . '-📝 ' . get_string('fsr_menu', 'local_grupomakro_core') .
+            '|/local/grupomakro_core/pages/failed_subjects_report.php';
         $CFG->custommenuitems .= PHP_EOL . '-📚 Gestión de Módulos Independientes' .
             '|/local/grupomakro_core/pages/module_management.php';
         $CFG->custommenuitems .= PHP_EOL . '-📊 ' . get_string('absence_dashboard', 'local_grupomakro_core') .

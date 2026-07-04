@@ -97,4 +97,19 @@ $capabilities = array(
             'manager' => CAP_ALLOW,
         ),
     ),
+    'local/grupomakro_core:view_failed_subjects_report' => array(
+        'captype' => 'read',
+        'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array(
+            'manager' => CAP_ALLOW,
+            'editingteacher' => CAP_ALLOW,
+        ),
+    ),
+    'local/grupomakro_core:enrol_from_failed_subjects_report' => array(
+        'captype' => 'write',
+        'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array(
+            'manager' => CAP_ALLOW,
+        ),
+    ),
 );
