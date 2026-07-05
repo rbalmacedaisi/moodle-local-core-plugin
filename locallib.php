@@ -9717,6 +9717,32 @@ function gmk_safe_set_item_tags(int $cmid, $context, array $tagnames) {
          LIMIT 1"
     );
 
+    // Safety net: detect whether the caller provided any non-empty tag.
+    // An empty $tagnames array historically caused us to DELETE all existing
+    // tag_instances and insert nothing, silently wiping lesson associations
+    // when an edit (visibility toggle, name change, file upload) forgot to
+    // send tags. Treat an empty payload as "no change" unless there are also
+    // no pre-existing tags.
+    $hasincoming = false;
+    foreach ($tagnames as $_probe) {
+        if (trim((string)$_probe) !== '') {
+            $hasincoming = true;
+            break;
+        }
+    }
+    $existing = $DB->get_records('tag_instance', [
+        'component' => 'core',
+        'itemtype'  => 'course_modules',
+        'itemid'    => $cmid,
+        'contextid' => $context->id,
+    ], '', 'tagid');
+    $hasexisting = !empty($existing);
+    if (!$hasincoming && $hasexisting) {
+        // Caller did not provide any tag and there ARE existing ones:
+        // leave them untouched (safer default for plugin edits).
+        return;
+    }
+
     $DB->delete_records('tag_instance', [
         'component' => 'core',
         'itemtype'  => 'course_modules',

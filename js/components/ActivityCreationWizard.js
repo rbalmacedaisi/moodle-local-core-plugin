@@ -91,9 +91,12 @@ const ActivityCreationWizard = {
                             :search-input.sync="tagSearchInput"
                             :items="courseTags"
                             label="Etiqueta / Lección"
+                            multiple
+                            small-chips
+                            deletable-chips
                             outlined
                             dense
-                            hint="Seleccione o escriba el nombre de la lección"
+                            hint="Seleccione o escriba una o varias lecciones"
                             persistent-hint
                             clearable
                             @change="normalizeLessonTagInput"
@@ -405,6 +408,46 @@ const ActivityCreationWizard = {
             this.tagSearchInput = pending;
             return pending;
         },
+        /**
+         * Build the tag payload sent to the backend from this.formData.tags.
+         * Supports both the legacy single-value flow (string) and the new
+         * multi-value flow (array of strings) used by the v-combobox with
+         * multiple=true. Returns a comma-separated string so the existing
+         * backend parser (gmk_ajax_extract_tags_from_request) keeps working
+         * unchanged. Empty/whitespace tags are filtered out.
+         */
+        buildTagsPayload() {
+            const self = this;
+            const raw = this.formData.tags;
+            let list = [];
+            if (Array.isArray(raw)) {
+                list = raw.slice();
+            } else if (raw !== undefined && raw !== null && raw !== '') {
+                list = [raw];
+            }
+
+            // Flush any pending text in the v-combobox search input that the
+            // user typed but did not commit with Enter yet.
+            if (this.tagSearchInput && String(this.tagSearchInput).trim() !== '') {
+                const pending = this.normalizeLessonTagValue(this.tagSearchInput);
+                if (pending && list.indexOf(pending) === -1) {
+                    list.push(pending);
+                }
+            }
+
+            const normalized = list
+                .map(function(t) { return self.normalizeLessonTagValue(t); })
+                .filter(function(t) { return !!t; });
+
+            // De-duplicate while preserving order.
+            const seen = {};
+            const unique = [];
+            normalized.forEach(function(t) {
+                if (!seen[t]) { seen[t] = true; unique.push(t); }
+            });
+
+            return unique.join(',');
+        },
         async saveActivity() {
             this.saving = true;
             try {
@@ -414,7 +457,7 @@ const ActivityCreationWizard = {
 
                 let response;
 
-                const normalizedTag = this.normalizeLessonTagInput();
+                const tagPayload = this.buildTagsPayload();
                 const draftitemids = Array.from(new Set(
                     this.uploadedDrafts
                         .filter(function(d) { return !!d && !!d.draftitemid; })
@@ -429,7 +472,7 @@ const ActivityCreationWizard = {
                     cmid: this.editData.id,
                     name: this.formData.name,
                     intro: this.formData.intro || '',
-                    tags: normalizedTag,
+                    tags: tagPayload,
                     visible: this.formData.visible ? 1 : 0,
                     duedate: duedate,
                     allowsubmissionsfromdate: allowsubmissionsfromdate,
@@ -443,7 +486,7 @@ const ActivityCreationWizard = {
                     type: this.activityType,
                     name: this.formData.name,
                     intro: this.formData.intro || '',
-                    tags: normalizedTag,
+                    tags: tagPayload,
                     duedate: duedate,
                     allowsubmissionsfromdate: allowsubmissionsfromdate,
                     timeopen: timeopen,
@@ -493,10 +536,15 @@ const ActivityCreationWizard = {
                     const act = response.data.activity;
                     this.formData.name = act.name;
                     this.formData.intro = this.stripHtml(act.intro);
-                    this.formData.tags = this.normalizeLessonTagValue(
-                        (act.tags && act.tags.length > 0) ? act.tags[0] : ''
-                    );
-                    this.tagSearchInput = this.formData.tags;
+                    // Keep ALL existing tags so multi-lesson associations
+                    // survive an edit. Previously only the first tag was
+                    // loaded into the form, which silently dropped any
+                    // additional lesson associations on save.
+                    const allTags = (act.tags && Array.isArray(act.tags) && act.tags.length > 0)
+                        ? act.tags.map(t => this.normalizeLessonTagValue(t)).filter(Boolean)
+                        : [];
+                    this.formData.tags = allTags;
+                    this.tagSearchInput = allTags[0] || '';
                     // Use visibleold (intended state) if available; fall back to visible.
                     // This avoids showing visible=false when the module was hidden by section cascade.
                     this.formData.visible = act.visibleold != null ? !!act.visibleold : !!act.visible;

@@ -1316,7 +1316,11 @@ const ManageClass = {
                         cmid: activity.id,
                         name: activity.name,
                         intro: '',
-                        tags: '',
+                        // Do NOT touch tags when only restoring visibility.
+                        // The backend's gmk_safe_set_item_tags treats an empty
+                        // list as a no-op when tags already exist, but we still
+                        // omit them to keep the payload explicit.
+                        tags: undefined,
                         visible: 1,
                     },
                     ...window.wsStaticParams
