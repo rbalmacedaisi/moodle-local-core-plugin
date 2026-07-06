@@ -228,7 +228,7 @@ echo $OUTPUT->header();
                                         <span class="whitespace-nowrap">P-I (Próximo)</span>
                                         <select v-model.number="periodMappings[0]" class="w-full text-xs font-normal bg-white border border-blue-200 rounded px-1 py-0.5 outline-none max-w-[110px]">
                                             <option :value="undefined">Automático</option>
-                                            <option v-for="p in selectablePeriodsForColumns" :key="p.id" :value="p.id">{{ p.name }}</option>
+                                            <option v-for="p in selectablePeriodsForColumns" :key="p.id" :value="p.id" :disabled="p.id === selectedPeriodId">{{ p.name }}{{ p.id === selectedPeriodId ? ' (base)' : '' }}</option>
                                         </select>
                                     </div>
                                 </th>
@@ -237,7 +237,7 @@ echo $OUTPUT->header();
                                         <span class="whitespace-nowrap">{{ getPeriodLabel(i) }}</span>
                                         <select v-model.number="periodMappings[i]" class="w-full text-[10px] font-normal bg-white border border-slate-200 rounded px-1 outline-none text-slate-600 max-w-[110px]">
                                             <option :value="undefined">Automático</option>
-                                            <option v-for="p in selectablePeriodsForColumns" :key="p.id" :value="p.id">{{ p.name }}</option>
+                                            <option v-for="p in selectablePeriodsForColumns" :key="p.id" :value="p.id" :disabled="p.id === selectedPeriodId">{{ p.name }}{{ p.id === selectedPeriodId ? ' (base)' : '' }}</option>
                                         </select>
                                     </div>
                                 </th>
@@ -1902,11 +1902,12 @@ const app = createApp({
         });
 
         // Periods available as targets for the Matriz column dropdowns.
-        // Excludes the currently selected base period to prevent self-mappings
-        // (e.g. P-I of 2026-IV -> 2026-IV) that would never resolve correctly.
+// We expose ALL periods (including the BASE) so the user can see the full
+// list; the BASE option is visually disabled and labelled "(base)" in the
+// template. The backend (save_period_mappings) still rejects any self-mapping
+// as a safety net.
         const selectablePeriodsForColumns = computed(() => {
-            const baseId = parseInt(selectedPeriodId.value) || 0;
-            return uniquePeriods.value.filter(p => parseInt(p.id) !== baseId);
+            return uniquePeriods.value;
         });
 
         const careers = computed(() => {
