@@ -1254,15 +1254,24 @@ const loadInitial = async () => {
              console.log("Vue Planning App: loadInitial() periods loaded:", periods.value.length);
 
              if(periods.value.length > 0 && selectedPeriodId.value === 0) {
-                 // Prefer the most recent period that already has saved
-                 // planning projections, so the user lands where they were
-                 // actively working instead of an empty most-recent period.
-                 const withPlanning = periods.value.filter(x => parseInt(x.planning_count || 0) > 0);
-                 if (withPlanning.length > 0) {
-                     selectedPeriodId.value = withPlanning[0].id;
-                     console.log("Vue Planning App: loadInitial() defaulting BASE to period with planning data: " + withPlanning[0].name);
+                 // Default BASE selection strategy, in priority order:
+                 // 1. The period flagged as is_active_base (most recently used
+                 //    as a base in gmk_planning_period_maps).
+                 // 2. The most recent period that already has saved planning
+                 //    projections.
+                 // 3. Fallback: the most recent period by startdate.
+                 const activeBase = periods.value.find(x => x.is_active_base);
+                 if (activeBase) {
+                     selectedPeriodId.value = activeBase.id;
+                     console.log("Vue Planning App: loadInitial() defaulting BASE to active mapping base: " + activeBase.name);
                  } else {
-                     selectedPeriodId.value = periods.value[0].id;
+                     const withPlanning = periods.value.filter(x => parseInt(x.planning_count || 0) > 0);
+                     if (withPlanning.length > 0) {
+                         selectedPeriodId.value = withPlanning[0].id;
+                         console.log("Vue Planning App: loadInitial() defaulting BASE to period with planning data: " + withPlanning[0].name);
+                     } else {
+                         selectedPeriodId.value = periods.value[0].id;
+                     }
                  }
              }
              fetchData();
