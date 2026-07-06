@@ -1118,8 +1118,26 @@ const app = createApp({
             console.log("Vue Planning App: setup() starting...");
             const loading = ref(true);
             const store = window.schedulerStore;
-            const rawData = ref([]); 
-            const selectedPeriodId = ref(0);
+            const rawData = ref([]);
+
+            // Persist the user's last selected BASE across reloads so they
+            // don't lose their context when refreshing the page. Falls back
+            // to the smart default (active mapping base / most-recent with
+            // planning / most-recent overall) only on first visit or when
+            // the saved id no longer exists in the period list.
+            const SAVED_BASE_KEY = 'gmk_planning_base_period_id';
+            let savedBaseId = 0;
+            try {
+                const raw = window.localStorage.getItem(SAVED_BASE_KEY);
+                if (raw !== null) {
+                    const parsed = parseInt(raw);
+                    if (Number.isFinite(parsed) && parsed > 0) {
+                        savedBaseId = parsed;
+                    }
+                }
+            } catch (e) { /* localStorage may be disabled */ }
+            const selectedPeriodId = ref(savedBaseId);
+
             const periods = ref([]);
             
             // CRUD & Config State
@@ -1253,25 +1271,33 @@ const loadInitial = async () => {
              periods.value = Array.isArray(p) ? p : [];
              console.log("Vue Planning App: loadInitial() periods loaded:", periods.value.length);
 
-             if(periods.value.length > 0 && selectedPeriodId.value === 0) {
-                 // Default BASE selection strategy, in priority order:
-                 // 1. The period flagged as is_active_base (most recently used
-                 //    as a base in gmk_planning_period_maps).
-                 // 2. The most recent period that already has saved planning
-                 //    projections.
-                 // 3. Fallback: the most recent period by startdate.
-                 const activeBase = periods.value.find(x => x.is_active_base);
-                 if (activeBase) {
-                     selectedPeriodId.value = activeBase.id;
-                     console.log("Vue Planning App: loadInitial() defaulting BASE to active mapping base: " + activeBase.name);
-                 } else {
-                     const withPlanning = periods.value.filter(x => parseInt(x.planning_count || 0) > 0);
-                     if (withPlanning.length > 0) {
-                         selectedPeriodId.value = withPlanning[0].id;
-                         console.log("Vue Planning App: loadInitial() defaulting BASE to period with planning data: " + withPlanning[0].name);
+             if (periods.value.length > 0) {
+                 // Validate that the current selectedPeriodId (either from
+                 // localStorage or the smart default) points at an existing
+                 // period. If not, fall back to the smart default strategy.
+                 const exists = periods.value.some(x => parseInt(x.id) === parseInt(selectedPeriodId.value));
+                 if (!exists || selectedPeriodId.value === 0) {
+                     // Default BASE selection strategy, in priority order:
+                     // 1. The period flagged as is_active_base (most recently used
+                     //    as a base in gmk_planning_period_maps).
+                     // 2. The most recent period that already has saved planning
+                     //    projections.
+                     // 3. Fallback: the most recent period by startdate.
+                     const activeBase = periods.value.find(x => x.is_active_base);
+                     if (activeBase) {
+                         selectedPeriodId.value = activeBase.id;
+                         console.log("Vue Planning App: loadInitial() defaulting BASE to active mapping base: " + activeBase.name);
                      } else {
-                         selectedPeriodId.value = periods.value[0].id;
+                         const withPlanning = periods.value.filter(x => parseInt(x.planning_count || 0) > 0);
+                         if (withPlanning.length > 0) {
+                             selectedPeriodId.value = withPlanning[0].id;
+                             console.log("Vue Planning App: loadInitial() defaulting BASE to period with planning data: " + withPlanning[0].name);
+                         } else {
+                             selectedPeriodId.value = periods.value[0].id;
+                         }
                      }
+                 } else {
+                     console.log("Vue Planning App: loadInitial() keeping previously selected BASE: " + selectedPeriodId.value);
                  }
              }
              fetchData();
@@ -2613,6 +2639,16 @@ const loadInitial = async () => {
             if (refreshed) {
                 searchedStudent.value = refreshed;
             }
+        });
+
+        // Persist the BASE selection across reloads so the page lands on
+        // the same period the user was working on, even after refresh.
+        watch(selectedPeriodId, (newId) => {
+            try {
+                if (newId && Number(newId) > 0) {
+                    window.localStorage.setItem('gmk_planning_base_period_id', String(newId));
+                }
+            } catch (e) { /* localStorage may be disabled */ }
         });
 
         // Auto-load scheduler context (loads, holidays, etc.) when config sub-tabs are shown
