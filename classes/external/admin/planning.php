@@ -275,9 +275,19 @@ class planning extends external_api {
         require_capability('moodle/site:config', $context);
         
         $periods = $DB->get_records('gmk_academic_periods', [], 'startdate DESC');
+
+        // Bulk-load projection counts per period so the frontend can default
+        // the BASE selector to a period that already has planning data.
+        $counts = $DB->get_records_sql(
+            "SELECT academicperiodid, COUNT(*) AS c
+               FROM {gmk_academic_planning}
+              GROUP BY academicperiodid"
+        );
+
         foreach ($periods as $p) {
             $p->learningplans = array_values($DB->get_records_menu('gmk_academic_period_lps', ['academicperiodid' => $p->id], '', 'id, learningplanid'));
-            
+            $p->planning_count = isset($counts[$p->id]) ? (int)$counts[$p->id]->c : 0;
+
             // Fetch Calendar Details
             $cal = $DB->get_record('gmk_academic_calendar', ['academicperiodid' => $p->id]);
             if ($cal) {
@@ -309,6 +319,7 @@ class planning extends external_api {
                 'enddate' => new external_value(PARAM_INT, 'End Date'),
                 'status' => new external_value(PARAM_INT, 'Status'),
                 'learningplans' => new external_multiple_structure(new external_value(PARAM_INT), 'List of Learning Plan IDs', VALUE_OPTIONAL),
+                'planning_count' => new external_value(PARAM_INT, 'Number of gmk_academic_planning records for this period', VALUE_OPTIONAL),
                 'induction' => new external_value(PARAM_INT, 'Induction', VALUE_OPTIONAL),
                 'block1start' => new external_value(PARAM_INT, 'Block 1 Start', VALUE_OPTIONAL),
                 'block1end' => new external_value(PARAM_INT, 'Block 1 End', VALUE_OPTIONAL),

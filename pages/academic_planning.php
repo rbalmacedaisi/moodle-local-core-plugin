@@ -1247,17 +1247,26 @@ const app = createApp({
             }
         };
 
-        const loadInitial = async () => {
+const loadInitial = async () => {
              console.log("Vue Planning App: loadInitial() fetching institutional periods...");
              let p = await callMoodle('local_grupomakro_get_academic_periods', {});
              periods.value = Array.isArray(p) ? p : [];
              console.log("Vue Planning App: loadInitial() periods loaded:", periods.value.length);
-             
+
              if(periods.value.length > 0 && selectedPeriodId.value === 0) {
-                 selectedPeriodId.value = periods.value[0].id;
+                 // Prefer the most recent period that already has saved
+                 // planning projections, so the user lands where they were
+                 // actively working instead of an empty most-recent period.
+                 const withPlanning = periods.value.filter(x => parseInt(x.planning_count || 0) > 0);
+                 if (withPlanning.length > 0) {
+                     selectedPeriodId.value = withPlanning[0].id;
+                     console.log("Vue Planning App: loadInitial() defaulting BASE to period with planning data: " + withPlanning[0].name);
+                 } else {
+                     selectedPeriodId.value = periods.value[0].id;
+                 }
              }
              fetchData();
-        };
+         };
 
         const reloadData = () => fetchData();
 
