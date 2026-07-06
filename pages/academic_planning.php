@@ -1198,7 +1198,7 @@ const app = createApp({
             const studentStatusFilter = ref('Todos');
             const searchTerm = ref('');
             const impactPeriodFilter = ref(0); // 0=P-I ... 5=P-VI
-            const periodMappings = ref({});
+            const periodMappings = reactive({});
 
             // Placed courses: Set of corecourseid (Moodle course.id) that have a scheduled draft card
             const placedCoursesSet = ref(new Set());
@@ -1407,7 +1407,7 @@ const loadInitial = async () => {
                  // Save Period Mappings
                  await callMoodle('local_grupomakro_save_period_mappings', {
                      baseperiodid: selectedPeriodId.value,
-                     mappings: JSON.stringify(periodMappings.value)
+                     mappings: JSON.stringify(periodMappings)
                  });
 
                  let res = await callMoodle('local_grupomakro_save_planning', {
@@ -1454,7 +1454,11 @@ const loadInitial = async () => {
                    if (res) {
                         // Reset current states
                         Object.keys(ignoredSubjects).forEach(key => delete ignoredSubjects[key]);
-                        periodMappings.value = res.period_mappings || {};
+                        // Clear periodMappings in-place and copy the new entries so
+                        // Vue's reactivity tracks the property changes (replacing the
+                        // ref's value previously left v-model stale on reload).
+                        Object.keys(periodMappings).forEach(k => delete periodMappings[k]);
+                        Object.assign(periodMappings, res.period_mappings || {});
 
                         // Guarantee reactivity by pre-defining properties for all subjects
                         if (res.all_subjects) {
@@ -2010,7 +2014,7 @@ const loadInitial = async () => {
         const impactPeriodLabel = computed(() => getPeriodLabel(parseInt(impactPeriodFilter.value) || 0));
         const impactPeriodOptions = computed(() => {
             return Array.from({ length: 6 }, (_, idx) => {
-                const mappedPeriodId = periodMappings.value ? periodMappings.value[idx] : null;
+                const mappedPeriodId = periodMappings ? periodMappings[idx] : null;
                 const mapped = periods.value.find(p => String(p.id) === String(mappedPeriodId));
                 const suffix = mapped && mapped.name ? ` (${mapped.name})` : '';
                 return { value: idx, label: `${getPeriodLabel(idx)}${suffix}` };
