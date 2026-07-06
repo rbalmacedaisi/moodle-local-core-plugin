@@ -34,6 +34,7 @@ defined('MOODLE_INTERNAL') || die();
 
 global $CFG;
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/student/get_student_gradebook.php');
 
 class failed_subjects_manager {
 
@@ -51,6 +52,9 @@ class failed_subjects_manager {
 
     /** @var array<int,string> Cached field ids for user_info_field. */
     private static $fieldids = [];
+
+    /** @var array<string,float|null> Per-process grade cache, key = "userid_courseid". */
+    private static $gradecache = [];
 
     /**
      * Returns the id of a user_info_field by shortname, cached.
@@ -148,15 +152,22 @@ class failed_subjects_manager {
         // orphan / duplicated rows that would otherwise explode the
         // report and break get_records_sql() which requires unique
         // first columns.
+        // Note: we do NOT pre-filter by local_learning_users.status in
+        // SQL anymore — the academic status filter is applied in PHP so
+        // the report can show rows of students that are currently
+        // "aplazado" / "retirado" too (useful for the admin). The
+        // hard-join in the WHERE is removed in favour of a LEFT JOIN.
         $sql = "SELECT cp.id AS progress_id,
                        cp.userid, cp.courseid, cp.grade AS last_grade,
                        cp.timemodified AS failed_at,
                        cp.learningplanid, cp.status AS progress_status,
                        u.firstname, u.lastname, u.email AS user_email, u.idnumber,
                        c.fullname AS coursename,
+                       c.id AS corecourseid,
                        lp.name AS planname,
                        $jornadaSelect,
-                       $cedulaSelect
+                       $cedulaSelect,
+                       MIN(llu.status) AS academic_status
                   FROM {gmk_course_progre} cp
                   JOIN (
                       SELECT userid, courseid, learningplanid, MAX(id) AS maxid
@@ -168,15 +179,18 @@ class failed_subjects_manager {
                     ON latest.maxid = cp.id
                   JOIN {user} u ON u.id = cp.userid
                        AND u.deleted = 0 AND u.suspended = 0
-                  JOIN {local_learning_users} llu
+                  LEFT JOIN {local_learning_users} llu
                        ON llu.userid = cp.userid
                       AND llu.userrolename = 'student'
-                      AND llu.status = 'activo'
                   JOIN {local_learning_plans} lp
                        ON lp.id = cp.learningplanid
                   JOIN {course} c ON c.id = cp.courseid
                   $jornadaJoin
                   $cedulaJoin
+              GROUP BY cp.id, cp.userid, cp.courseid, cp.grade, cp.timemodified,
+                       cp.learningplanid, cp.status, u.firstname, u.lastname,
+                       u.email, u.idnumber, c.fullname, c.id, lp.name,
+                       uid_j.data, uid_c.data
                  ORDER BY u.lastname, u.firstname, c.fullname";
 
         $records = $DB->get_recordset_sql($sql);
@@ -207,25 +221,6 @@ class failed_subjects_manager {
             }
         }
 
-        // Pre-load groups_members counts per classid in one query to
-        // avoid N+1.
-        $allClassIds = [];
-        foreach ($classesByCourseShift as $list) {
-            foreach ($list as $c) { $allClassIds[] = (int)$c->id; }
-        }
-        $countsByClass = [];
-        if (!empty($allClassIds)) {
-            [$insql, $inparams] = $DB->get_in_or_equal($allClassIds, SQL_PARAMS_NAMED, 'cid');
-            $csql = "SELECT groupid, COUNT(DISTINCT userid) AS c
-                       FROM {groups_members}
-                      WHERE groupid $insql
-                   GROUP BY groupid";
-            $crow = $DB->get_records_sql($csql, $inparams);
-            foreach ($crow as $g => $row) {
-                $countsByClass[(int)$g] = (int)$row->c;
-            }
-        }
-
         $rows = [];
         foreach ($records as $r) {
             $jornada = self::normalize_jornada((string)($r->jornada ?? ''));
@@ -236,13 +231,17 @@ class failed_subjects_manager {
             $capacity = 0;
             $isFull = false;
             if (!empty($courseClasses)) {
-                // Pick the class with the lowest enrollment so the admin
-                // sees the most available option first.
+                // Pick the class with the most free quota so the admin
+                // sees the most available option first. Capacity count
+                // uses get_class_participants() — the same helper that
+                // powers list_classes — to keep numbers consistent
+                // with the academic panel.
                 $best = null;
                 foreach ($courseClasses as $cand) {
-                    $cnt = (int)($countsByClass[(int)$cand->id] ?? 0);
+                    $cp = get_class_participants($cand);
+                    $cnt = is_object($cp) ? (int)count((array)$cp->preRegisteredStudents) : 0;
                     if ($best === null || $cnt < $best['count']) {
-                        $best = ['class' => $cand, 'count' => $cnt];
+                        $best = ['class' => $cand, 'count' => $cnt, 'participants' => $cp];
                     }
                 }
                 if ($best !== null) {
@@ -252,6 +251,16 @@ class failed_subjects_manager {
                     $isFull = $capacity > 0 && $enrolled >= $capacity;
                 }
             }
+
+            // Recompute the grade using the EXACT same formula as
+            // grademodal.js -> gradebookWeightedTotal: sum of
+            // (grade / grade_max) * weight_pct across all items with
+            // weight_pct > 0, rounded to 1 decimal. This is the same
+            // methodology used by the studenttable modal.
+            $corecourseid = $target ? (int)$target->corecourseid : (int)$r->corecourseid;
+            $computedGrade = self::compute_gradebook_weighted_total(
+                (int)$r->userid, $corecourseid
+            );
 
             $contact = self::get_contact_cached((int)$r->userid, $r->cedula);
 
@@ -267,22 +276,27 @@ class failed_subjects_manager {
                 'contact_email'      => $contact['email'] ?? '',
                 'financial_status'   => $contact['financial_status'] ?? '',
                 'financial_label'    => $contact['financial_label'] ?? '',
+                'academic_status'    => (string)($r->academic_status ?? ''),
                 'jornada_estudiante' => $jornada,
                 'courseid'           => (int)$r->courseid,
                 'coursename'         => (string)$r->coursename,
                 'last_grade'         => (float)$r->last_grade,
+                'computed_grade'     => $computedGrade,
                 'failed_at'          => (int)$r->failed_at,
                 'learningplanid'     => (int)$r->learningplanid,
                 'planname'           => (string)$r->planname,
                 'progress_status'    => (int)$r->progress_status,
                 'classid'            => $target ? (int)$target->id : null,
                 'classname'          => $target ? (string)$target->classname : '',
-                'corecourseid'       => $target ? (int)$target->corecourseid : (int)$r->courseid,
+                'corecourseid'       => $corecourseid,
                 'jornada_grupo'      => $target ? self::normalize_jornada((string)$target->shift) : '',
                 'jornada_match'      => $target !== null,
                 'classroomcapacity'  => $capacity,
                 'enrolled_count'     => $enrolled,
                 'is_full'            => $isFull,
+                'available_classes'  => self::list_available_classes(
+                    (int)$r->courseid, $periodid, $jornada
+                ),
             ];
             $rows[] = $row;
         }
@@ -299,7 +313,8 @@ class failed_subjects_manager {
     }
 
     /**
-     * Apply search/jornada/learningplanid/hasclass/hasquota filters.
+     * Apply search/jornada/learningplanid/hasclass/hasquota/student_status
+     * /financial_status filters.
      */
     private static function apply_filters(array $rows, array $filters): array {
         $search = trim((string)($filters['search'] ?? ''));
@@ -308,8 +323,9 @@ class failed_subjects_manager {
         $hasclass = $filters['hasclass'] ?? null; // 'yes' | 'no' | null
         $hasquota = $filters['hasquota'] ?? null; // 'yes' | 'no' | null
         $fs = trim((string)($filters['financial_status'] ?? ''));
+        $studentStatus = trim((string)($filters['student_status'] ?? ''));
 
-        return array_values(array_filter($rows, function($r) use ($search, $jornada, $lpid, $hasclass, $hasquota, $fs) {
+        return array_values(array_filter($rows, function($r) use ($search, $jornada, $lpid, $hasclass, $hasquota, $fs, $studentStatus) {
             if ($search !== '') {
                 $hay = mb_strtolower($r['student_name'] . ' ' . $r['cedula'] . ' ' . $r['coursename'] . ' ' . $r['student_idnumber'], 'UTF-8');
                 if (strpos($hay, mb_strtolower($search, 'UTF-8')) === false) {
@@ -327,6 +343,9 @@ class failed_subjects_manager {
             if ($hasquota === 'yes' && ($r['classid'] === null || $r['is_full'])) { return false; }
             if ($hasquota === 'no'  && ($r['classid'] !== null && !$r['is_full'])) { return false; }
             if ($fs !== '' && strcasecmp((string)$r['financial_status'], $fs) !== 0) {
+                return false;
+            }
+            if ($studentStatus !== '' && strcasecmp((string)$r['academic_status'], $studentStatus) !== 0) {
                 return false;
             }
             return true;
@@ -572,6 +591,126 @@ class failed_subjects_manager {
     }
 
     /**
+     * Compute the gradebook weighted total for a (user, course) pair.
+     * This is the EXACT same formula used by the student gradebook
+     * modal (grademodal.js -> gradebookWeightedTotal): sum of
+     * (grade / grade_max) * weight_pct across all items with
+     * weight_pct > 0, rounded to 1 decimal. Result is null if no
+     * gradable items exist.
+     */
+    public static function compute_gradebook_weighted_total(int $userid, int $courseid): ?float {
+        $key = $userid . '_' . $courseid;
+        if (array_key_exists($key, self::$gradecache)) {
+            return self::$gradecache[$key];
+        }
+        if ($userid <= 0 || $courseid <= 0) {
+            self::$gradecache[$key] = null;
+            return null;
+        }
+        $result = \local_grupomakro_core\external\student\get_student_gradebook
+            ::execute($userid, $courseid);
+        $gbRaw = isset($result['gradebook']) ? $result['gradebook'] : '[]';
+        $gb = json_decode($gbRaw, true);
+        if (!is_array($gb) || empty($gb)) {
+            self::$gradecache[$key] = null;
+            return null;
+        }
+        $sum = 0.0;
+        $hasItems = false;
+        foreach ($gb as $cat) {
+            foreach (($cat['items'] ?? []) as $item) {
+                $wpct = (float)($item['weight_pct'] ?? 0);
+                if ($wpct <= 0) { continue; }
+                $grade = ($item['grade'] !== null && $item['grade'] !== '')
+                    ? (float)$item['grade'] : 0.0;
+                $max = (isset($item['grade_max']) && (float)$item['grade_max'] > 0)
+                    ? (float)$item['grade_max'] : 100.0;
+                $sum += ($grade / $max) * $wpct;
+                $hasItems = true;
+            }
+        }
+        $val = $hasItems ? round($sum * 10) / 10 : null;
+        self::$gradecache[$key] = $val;
+        return $val;
+    }
+
+    /**
+     * List the projected gmk_class rows available for a (course,
+     * period) tuple, regardless of the student's jornada. Returns each
+     * class with its normalized shift, capacity and current enrollment
+     * count (via get_class_participants), so the UI can offer a
+     * "Matricular aquí" picker for each candidate.
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    public static function list_available_classes(int $courseid, int $periodid, string $studentJornada = ''): array {
+        if ($courseid <= 0 || $periodid <= 0) {
+            return [];
+        }
+        global $DB;
+        $classes = $DB->get_records('gmk_class', [
+            'courseid' => $courseid,
+            'periodid' => $periodid,
+            'closed'   => 0,
+        ], 'shift ASC, name ASC');
+
+        $out = [];
+        foreach ($classes as $c) {
+            $shift = self::normalize_jornada((string)$c->shift);
+            $cp = get_class_participants($c);
+            $enrolled = is_object($cp) ? (int)count((array)$cp->preRegisteredStudents) : 0;
+            $capacity = (int)$c->classroomcapacity;
+            $isFull   = $capacity > 0 && $enrolled >= $capacity;
+            $out[] = [
+                'classid'           => (int)$c->id,
+                'classname'         => (string)$c->name,
+                'shift'             => $shift,
+                'jornada_match'     => $studentJornada !== '' && $shift === $studentJornada,
+                'classroomcapacity' => $capacity,
+                'enrolled_count'    => $enrolled,
+                'is_full'           => $isFull,
+            ];
+        }
+        return $out;
+    }
+
+    /**
+     * Refresh the financial status of a single student against Odoo.
+     * Reuses the legacy local_grupomakro_sync_financial_status() that
+     * the academicpanel "Refrescar financiero" button uses.
+     *
+     * @return array{status:string, financial_status?:string, financial_label?:string, message?:string}
+     */
+    public static function refresh_financial_status(int $userid): array {
+        if (!function_exists('local_grupomakro_sync_financial_status')) {
+            return ['status' => 'error', 'message' => 'sync helper not available'];
+        }
+        $result = local_grupomakro_sync_financial_status([$userid]);
+        if (!empty($result['error'])) {
+            return ['status' => 'error', 'message' => $result['error']];
+        }
+        // Invalidate caches so the next fetchReport() picks up the new
+        // financial_status row.
+        self::$contactcache = [];
+        self::$reportcache = [];
+        // Re-read the local row so we can return the new value.
+        global $DB;
+        $fs = $DB->get_record_sql(
+            "SELECT status, reason FROM {gmk_financial_status}
+              WHERE userid = :uid
+           ORDER BY lastupdated DESC LIMIT 1",
+            ['uid' => $userid]
+        );
+        return [
+            'status'           => 'ok',
+            'updated'          => (int)($result['updated'] ?? 0),
+            'financial_status' => $fs ? (string)$fs->status : '',
+            'financial_label'  => $fs ? (string)$fs->status : '',
+            'financial_reason' => $fs ? (string)($fs->reason ?? '') : '',
+        ];
+    }
+
+    /**
      * Invalidate the per-process caches. Useful for tests or when the
      * admin wants to force a refresh from the UI.
      */
@@ -579,5 +718,6 @@ class failed_subjects_manager {
         self::$contactcache = [];
         self::$reportcache = [];
         self::$fieldids = [];
+        self::$gradecache = [];
     }
 }

@@ -50,13 +50,29 @@ Vue.component('failed-subjects-report', {
                 jornada: '',
                 hasclass: 'all',
                 hasquota: 'all',
-                financial_status: ''
+                financial_status: '',
+                student_status: ''
             },
             jornadaOptions: ['Diurno', 'Nocturno', 'Sabatino'],
             financialOptions: ['al_dia', 'mora', 'becado', 'periodo_gracia'],
+            studentStatusOptions: [
+                { value: 'activo',    label: 'Activo' },
+                { value: 'aplazado',  label: 'Aplazado' },
+                { value: 'retirado',  label: 'Retirado' },
+                { value: 'suspendido',label: 'Suspendido' },
+                { value: 'desertor',  label: 'Desertor' },
+                { value: 'graduado',  label: 'Graduado' },
+                { value: 'egresado',  label: 'Egresado' }
+            ],
 
             drawerOpen: false,
             drawerUserid: 0,
+
+            // Class picker modal state.
+            pickerOpen: false,
+            pickerRow: null,
+            pickerEnrollingId: 0,
+            refreshingFinancial: {},  // { userid: bool }
 
             fetchTimer: null
         };
@@ -104,6 +120,7 @@ Vue.component('failed-subjects-report', {
                         hasclass:         this.filters.hasclass || 'all',
                         hasquota:         this.filters.hasquota || 'all',
                         financial_status: this.filters.financial_status || '',
+                        student_status:   this.filters.student_status || '',
                         page:             Number(this.page) || 0,
                         perpage:          Number(this.perpage) || 50
                     },
@@ -171,6 +188,114 @@ Vue.component('failed-subjects-report', {
             this.drawerOpen = false;
         },
 
+        // -- Class picker modal -------------------------------------------
+
+        openClassPicker(row) {
+            this.pickerRow = row;
+            this.pickerOpen = true;
+        },
+
+        closeClassPicker() {
+            this.pickerOpen = false;
+            this.pickerRow  = null;
+            this.pickerEnrollingId = 0;
+        },
+
+        async enrolInClass(cls, force) {
+            if (!this.pickerRow || !cls || !cls.classid) return;
+            const row = this.pickerRow;
+
+            if (cls.is_full && !force) {
+                const ok = await Swal.fire({
+                    title: 'Forzar matrícula?',
+                    text: 'Este grupo está en cupo lleno (' + cls.enrolled_count + '/' + cls.classroomcapacity + '). El estudiante será matriculado de todos modos y la acción se registrará en la bitácora.',
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonText: 'Sí, forzar',
+                    cancelButtonText: 'Cancelar'
+                });
+                if (!ok || !ok.value) return;
+                force = true;
+            }
+
+            this.pickerEnrollingId = cls.classid;
+            try {
+                const r = await axios.post(window.wsUrl, {
+                    action: 'local_grupomakro_enrol_student_from_failed_subjects',
+                    args: {
+                        userid:     row.userid,
+                        classid:    cls.classid,
+                        force_over: !!force
+                    },
+                    sesskey: this.sesskey
+                });
+                if (r.data && r.data.status === 'success') {
+                    const result = r.data.data || {};
+                    if (result.status === 'ok') {
+                        Swal.fire('Éxito', 'Estudiante matriculado correctamente.', 'success');
+                        this.closeClassPicker();
+                        this.fetchReport();
+                    } else if (result.status === 'already_enrolled') {
+                        Swal.fire('Aviso', result.message || 'El estudiante ya estaba matriculado.', 'info');
+                        this.closeClassPicker();
+                        this.fetchReport();
+                    } else if (result.status === 'quota_exceeded') {
+                        Swal.fire('Cupo lleno', result.message || 'El grupo está lleno.', 'warning');
+                    } else {
+                        Swal.fire('Error', result.message || 'No se pudo matricular.', 'error');
+                    }
+                } else {
+                    throw new Error((r.data && r.data.message) || 'Error al matricular');
+                }
+            } catch (e) {
+                Swal.fire('Error', e.message || 'No se pudo matricular al estudiante.', 'error');
+            } finally {
+                this.pickerEnrollingId = 0;
+            }
+        },
+
+        // -- Financial refresh (matches academicpanel button) -------------
+
+        async refreshFinancial(row) {
+            if (!row || !row.userid) return;
+            this.$set(this.refreshingFinancial, row.userid, true);
+            try {
+                const r = await axios.post(window.wsUrl, {
+                    action: 'local_grupomakro_refresh_financial_status_failed_subjects',
+                    args: { userid: row.userid },
+                    sesskey: this.sesskey
+                });
+                if (r.data && r.data.status === 'success' && r.data.data) {
+                    const d = r.data.data;
+                    if (d.status === 'ok') {
+                        // Update the row in place so the badge updates
+                        // without a full reload.
+                        row.financial_status = d.financial_status || '';
+                        row.financial_label  = d.financial_label  || '';
+                        Swal.fire({
+                            toast: true,
+                            position: 'top-end',
+                            timer: 2200,
+                            showConfirmButton: false,
+                            icon: 'success',
+                            title: 'Estado financiero actualizado: ' + (d.financial_status || '—')
+                        });
+                    } else {
+                        Swal.fire('Error', d.message || 'No se pudo refrescar el estado financiero.', 'error');
+                    }
+                } else {
+                    throw new Error((r.data && r.data.message) || 'Error');
+                }
+            } catch (e) {
+                Swal.fire('Error', e.message || 'No se pudo refrescar el estado financiero.', 'error');
+            } finally {
+                this.$set(this.refreshingFinancial, row.userid, false);
+            }
+        },
+
+        // Backwards-compatible wrapper for the row's "Matricular" button
+        // when there's already a single matched class. The picker is
+        // used when the admin clicks "Ver grupos" to see the full list.
         async enrolStudent(row, force) {
             if (!row.classid) {
                 return;
@@ -235,6 +360,17 @@ Vue.component('failed-subjects-report', {
             if (k === 'becado') return 'fsr-pill-blue';
             if (k === 'periodo_gracia') return 'fsr-pill-amber';
             return 'fsr-pill-grey';
+        },
+        academicPillClass(s) {
+            const k = (s || '').toLowerCase();
+            if (k === 'activo')    return 'fsr-pill-green';
+            if (k === 'graduado' || k === 'egresado') return 'fsr-pill-blue';
+            if (k === 'aplazado' || k === 'suspendido') return 'fsr-pill-amber';
+            if (k === 'retirado' || k === 'desertor') return 'fsr-pill-red';
+            return 'fsr-pill-grey';
+        },
+        isRefreshingFinancial(userid) {
+            return !!this.refreshingFinancial[userid];
         },
         fmtDate(ts) {
             if (!ts) return '—';
@@ -367,6 +503,16 @@ Vue.component('failed-subjects-report', {
                             @change="onFilterChange"
                         ></v-select>
                     </v-col>
+                    <v-col cols="6" md="2">
+                        <v-select
+                            v-model="filters.student_status"
+                            :items="studentStatusOptions"
+                            item-text="label" item-value="value"
+                            label="Estado académico"
+                            dense outlined clearable
+                            @change="onFilterChange"
+                        ></v-select>
+                    </v-col>
                 </v-row>
             </v-card>
 
@@ -419,17 +565,19 @@ Vue.component('failed-subjects-report', {
             <v-card outlined class="rounded-lg">
                 <v-data-table
                     :headers="[
-                        { text: 'Cédula',    value: 'cedula',           sortable: false, width: 110 },
-                        { text: 'Estudiante',value: 'student_name',     sortable: true,  width: 220 },
-                        { text: 'Asignatura',value: 'coursename',       sortable: true },
-                        { text: 'Nota',      value: 'last_grade',       sortable: true,  width: 80,  align: 'center' },
-                        { text: 'Reprobada', value: 'failed_at',        sortable: true,  width: 110 },
-                        { text: 'Jornada',   value: 'jornada_estudiante', sortable: true, width: 100, align: 'center' },
-                        { text: 'Grupo',     value: 'classname',        sortable: true },
-                        { text: 'Cupo',      value: 'classroomcapacity',sortable: true,  width: 90,  align: 'center' },
-                        { text: 'Contacto',  value: 'phone',            sortable: false, width: 200 },
-                        { text: 'Financiero',value: 'financial_status', sortable: false, width: 120, align: 'center' },
-                        { text: 'Acción',    value: 'action',           sortable: false, width: 130, align: 'center' }
+                        { text: 'Cédula',         value: 'cedula',              sortable: false, width: 110 },
+                        { text: 'Estudiante',     value: 'student_name',        sortable: true,  width: 220 },
+                        { text: 'Estado acad.',   value: 'academic_status',     sortable: true,  width: 110, align: 'center' },
+                        { text: 'Asignatura',     value: 'coursename',          sortable: true },
+                        { text: 'Nota reprob.',   value: 'last_grade',          sortable: true,  width: 100, align: 'center' },
+                        { text: 'Nota recalc.',   value: 'computed_grade',      sortable: true,  width: 100, align: 'center' },
+                        { text: 'Reprobada',      value: 'failed_at',           sortable: true,  width: 110 },
+                        { text: 'Jornada',        value: 'jornada_estudiante',  sortable: true,  width: 100, align: 'center' },
+                        { text: 'Grupo',          value: 'classname',           sortable: true },
+                        { text: 'Cupo',           value: 'classroomcapacity',   sortable: true,  width: 90,  align: 'center' },
+                        { text: 'Contacto',       value: 'phone',               sortable: false, width: 200 },
+                        { text: 'Financiero',     value: 'financial_status',    sortable: false, width: 160, align: 'center' },
+                        { text: 'Acción',         value: 'action',              sortable: false, width: 180, align: 'center' }
                     ]"
                     :items="rows"
                     :loading="loading"
@@ -449,9 +597,19 @@ Vue.component('failed-subjects-report', {
                         <a href="javascript:void(0)" class="fsr-link"
                            @click="onStudentClick(item)">{{ item.student_name }}</a>
                     </template>
+                    <template v-slot:item.academic_status="{ item }">
+                        <span class="fsr-pill" :class="academicPillClass(item.academic_status)">
+                            {{ item.academic_status || '—' }}
+                        </span>
+                    </template>
                     <template v-slot:item.last_grade="{ item }">
                         <span class="fsr-grade" :class="item.last_grade > 0 ? 'fsr-sem-full' : ''">
                             {{ fmtGrade(item.last_grade) }}
+                        </span>
+                    </template>
+                    <template v-slot:item.computed_grade="{ item }">
+                        <span class="fsr-grade" :class="item.computed_grade !== null && item.computed_grade > 0 ? 'fsr-sem-full' : 'grey--text'">
+                            {{ fmtGrade(item.computed_grade) }}
                         </span>
                     </template>
                     <template v-slot:item.failed_at="{ item }">
@@ -495,29 +653,51 @@ Vue.component('failed-subjects-report', {
                         </div>
                     </template>
                     <template v-slot:item.financial_status="{ item }">
-                        <span v-if="item.financial_status" class="fsr-pill"
-                              :class="financialPillClass(item.financial_status)">
-                            {{ item.financial_label || item.financial_status }}
-                        </span>
-                        <span v-else class="text-caption grey--text">—</span>
+                        <div class="d-flex align-center justify-center" style="gap:4px">
+                            <span v-if="item.financial_status" class="fsr-pill"
+                                  :class="financialPillClass(item.financial_status)">
+                                {{ item.financial_label || item.financial_status }}
+                            </span>
+                            <span v-else class="text-caption grey--text">—</span>
+                            <v-btn icon x-small color="primary"
+                                   :loading="isRefreshingFinancial(item.userid)"
+                                   @click="refreshFinancial(item)"
+                                   title="Refrescar estado financiero desde Odoo">
+                                <v-icon small>mdi-refresh</v-icon>
+                            </v-btn>
+                        </div>
                     </template>
                     <template v-slot:item.action="{ item }">
-                        <v-btn v-if="!item.classid" disabled small
-                               class="fsr-action-btn" color="grey lighten-2">
-                            Sin grupo
-                        </v-btn>
-                        <v-btn v-else-if="item.is_full" small
-                               class="fsr-action-btn" color="red" outlined
-                               @click="enrolStudent(item, true)">
-                            <v-icon left small>mdi-alert-circle</v-icon>
-                            Forzar
-                        </v-btn>
-                        <v-btn v-else small
-                               class="fsr-action-btn" color="success"
-                               @click="enrolStudent(item, false)">
-                            <v-icon left small>mdi-account-plus</v-icon>
-                            Matricular
-                        </v-btn>
+                        <div class="d-flex" style="gap:4px; justify-content:center">
+                            <v-btn v-if="!item.classid && !(item.available_classes && item.available_classes.length)"
+                                   disabled small class="fsr-action-btn" color="grey lighten-2">
+                                Sin grupo
+                            </v-btn>
+                            <v-btn v-else-if="!item.classid && item.available_classes && item.available_classes.length"
+                                   small class="fsr-action-btn" color="blue" outlined
+                                   @click="openClassPicker(item)">
+                                <v-icon left small>mdi-format-list-bulleted</v-icon>
+                                Ver grupos
+                            </v-btn>
+                            <v-btn v-else-if="item.is_full" small
+                                   class="fsr-action-btn" color="red" outlined
+                                   @click="enrolStudent(item, true)">
+                                <v-icon left small>mdi-alert-circle</v-icon>
+                                Forzar
+                            </v-btn>
+                            <v-btn v-else small
+                                   class="fsr-action-btn" color="success"
+                                   @click="enrolStudent(item, false)">
+                                <v-icon left small>mdi-account-plus</v-icon>
+                                Matricular
+                            </v-btn>
+                            <v-btn v-if="item.available_classes && item.available_classes.length > 1"
+                                   icon x-small color="primary"
+                                   @click="openClassPicker(item)"
+                                   title="Ver todos los grupos disponibles">
+                                <v-icon small>mdi-dots-vertical</v-icon>
+                            </v-btn>
+                        </div>
                     </template>
                 </v-data-table>
             </v-card>
@@ -527,6 +707,76 @@ Vue.component('failed-subjects-report', {
                 :open.sync="drawerOpen"
                 @close="onDrawerClose"
             ></failed-subjects-drawer>
+
+            <!-- Class picker modal: list of all projected classes for a course. -->
+            <v-dialog v-model="pickerOpen" max-width="780" scrollable>
+                <v-card v-if="pickerRow">
+                    <v-toolbar flat dense color="primary" dark>
+                        <v-toolbar-title>
+                            <v-icon left>mdi-format-list-bulleted</v-icon>
+                            Grupos disponibles — {{ pickerRow.coursename }}
+                        </v-toolbar-title>
+                        <v-spacer></v-spacer>
+                        <v-btn icon @click="closeClassPicker">
+                            <v-icon>mdi-close</v-icon>
+                        </v-btn>
+                    </v-toolbar>
+                    <v-card-text class="pt-4">
+                        <div class="mb-2">
+                            <strong>{{ pickerRow.student_name }}</strong>
+                            <span class="text-caption grey--text ml-2">Cédula: {{ pickerRow.cedula || '—' }}</span>
+                            <span class="ml-2">
+                                <v-icon small color="primary">mdi-account-school</v-icon>
+                                Jornada del estudiante:
+                                <span class="fsr-pill" :class="jornadaPillClass(pickerRow.jornada_estudiante)">
+                                    {{ pickerRow.jornada_estudiante || '—' }}
+                                </span>
+                            </span>
+                        </div>
+                        <v-alert v-if="!pickerRow.available_classes || !pickerRow.available_classes.length"
+                                 type="info" dense text>
+                            No hay grupos proyectados para esta asignatura en el período seleccionado.
+                        </v-alert>
+                        <v-list v-else dense>
+                            <v-list-item v-for="cls in pickerRow.available_classes" :key="cls.classid"
+                                         :class="{ 'fsr-picker-match': cls.jornada_match }">
+                                <v-list-item-content>
+                                    <div class="d-flex align-center" style="gap:6px">
+                                        <span class="fsr-pill" :class="jornadaPillClass(cls.shift)">
+                                            {{ cls.shift }}
+                                        </span>
+                                        <v-chip v-if="cls.jornada_match" x-small color="success" text-color="white">Match</v-chip>
+                                        <v-list-item-title class="fsr-truncate" :title="cls.classname">
+                                            {{ cls.classname }}
+                                        </v-list-item-title>
+                                    </div>
+                                    <v-list-item-subtitle>
+                                        Cupo:
+                                        <strong :class="cls.is_full ? 'fsr-sem-full' : 'fsr-sem-ok'">
+                                            {{ cls.enrolled_count }} / {{ cls.classroomcapacity }}
+                                        </strong>
+                                        <span v-if="cls.is_full" class="ml-1 fsr-pill fsr-pill-red">LLENO</span>
+                                    </v-list-item-subtitle>
+                                </v-list-item-content>
+                                <v-list-item-action>
+                                    <v-btn v-if="!cls.is_full" small color="success"
+                                           :loading="pickerEnrollingId === cls.classid"
+                                           @click="enrolInClass(cls, false)">
+                                        <v-icon left small>mdi-account-plus</v-icon>
+                                        Matricular
+                                    </v-btn>
+                                    <v-btn v-else small color="red" outlined
+                                           :loading="pickerEnrollingId === cls.classid"
+                                           @click="enrolInClass(cls, true)">
+                                        <v-icon left small>mdi-alert-circle</v-icon>
+                                        Forzar
+                                    </v-btn>
+                                </v-list-item-action>
+                            </v-list-item>
+                        </v-list>
+                    </v-card-text>
+                </v-card>
+            </v-dialog>
         </v-container>
     `
 });

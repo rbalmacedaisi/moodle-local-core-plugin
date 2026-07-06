@@ -1186,6 +1186,15 @@ $functions = array(
         'ajax'        => true,
         'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
     ],
+    'local_grupomakro_refresh_financial_status_failed_subjects' => [
+        'classname'   => 'local_grupomakro_core\external\admin\failed_subjects\refresh_financial_status',
+        'methodname'  => 'execute',
+        'description' => 'Refresh a single student financial status against Odoo via the Express proxy (same flow as academicpanel refresh button)',
+        'type'        => 'write',
+        'capabilities'=> 'local/grupomakro_core:view_failed_subjects_report',
+        'ajax'        => true,
+        'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
+    ],
     // ── Admin broadcast messages (info/warning to student LXP) ──────────────
     // These notifications take precedence over the absence alert system by
     // default (priority 50 vs. 10). The student-side endpoints are read/write

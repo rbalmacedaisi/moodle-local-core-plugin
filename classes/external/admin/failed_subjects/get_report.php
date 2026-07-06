@@ -45,15 +45,16 @@ class get_report extends external_api {
 
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters([
-            'periodid'       => new external_value(PARAM_INT, 'Academic period id', VALUE_DEFAULT, 0),
-            'search'         => new external_value(PARAM_TEXT, 'Free-text search', VALUE_DEFAULT, ''),
-            'learningplanid' => new external_value(PARAM_INT, 'Filter by learning plan', VALUE_DEFAULT, 0),
-            'jornada'        => new external_value(PARAM_TEXT, 'Filter by jornada (Diurno|Nocturno|Sabatino)', VALUE_DEFAULT, ''),
-            'hasclass'       => new external_value(PARAM_ALPHA, 'yes|no|all', VALUE_DEFAULT, 'all'),
-            'hasquota'       => new external_value(PARAM_ALPHA, 'yes|no|all', VALUE_DEFAULT, 'all'),
+            'periodid'         => new external_value(PARAM_INT, 'Academic period id', VALUE_DEFAULT, 0),
+            'search'           => new external_value(PARAM_TEXT, 'Free-text search', VALUE_DEFAULT, ''),
+            'learningplanid'   => new external_value(PARAM_INT, 'Filter by learning plan', VALUE_DEFAULT, 0),
+            'jornada'          => new external_value(PARAM_TEXT, 'Filter by jornada (Diurno|Nocturno|Sabatino)', VALUE_DEFAULT, ''),
+            'hasclass'         => new external_value(PARAM_ALPHA, 'yes|no|all', VALUE_DEFAULT, 'all'),
+            'hasquota'         => new external_value(PARAM_ALPHA, 'yes|no|all', VALUE_DEFAULT, 'all'),
             'financial_status' => new external_value(PARAM_TEXT, 'Filter by financial status', VALUE_DEFAULT, ''),
-            'page'           => new external_value(PARAM_INT, 'Page (0-based)', VALUE_DEFAULT, 0),
-            'perpage'        => new external_value(PARAM_INT, 'Items per page', VALUE_DEFAULT, 50),
+            'student_status'   => new external_value(PARAM_TEXT, 'Filter by academic status (activo|aplazado|retirado|...)', VALUE_DEFAULT, ''),
+            'page'             => new external_value(PARAM_INT, 'Page (0-based)', VALUE_DEFAULT, 0),
+            'perpage'          => new external_value(PARAM_INT, 'Items per page', VALUE_DEFAULT, 50),
         ]);
     }
 
@@ -65,6 +66,7 @@ class get_report extends external_api {
         string $hasclass = 'all',
         string $hasquota = 'all',
         string $financial_status = '',
+        string $student_status = '',
         int $page = 0,
         int $perpage = 50
     ): array {
@@ -81,6 +83,7 @@ class get_report extends external_api {
             'hasclass'         => $hasclass,
             'hasquota'         => $hasquota,
             'financial_status' => $financial_status,
+            'student_status'   => $student_status,
             'page'             => $page,
             'perpage'          => $perpage,
         ]);
@@ -92,6 +95,7 @@ class get_report extends external_api {
             'hasclass'         => $params['hasclass'] === 'all' ? null : $params['hasclass'],
             'hasquota'         => $params['hasquota'] === 'all' ? null : $params['hasquota'],
             'financial_status' => $params['financial_status'],
+            'student_status'   => $params['student_status'],
         ];
         $perpage = max(1, min(200, (int)$params['perpage']));
         $page    = max(0, (int)$params['page']);
@@ -134,10 +138,12 @@ class get_report extends external_api {
                 'contact_email'      => new external_value(PARAM_RAW, 'Email from Odoo (may differ)'),
                 'financial_status'   => new external_value(PARAM_RAW, 'Financial status code'),
                 'financial_label'    => new external_value(PARAM_RAW, 'Financial status label'),
+                'academic_status'    => new external_value(PARAM_RAW, 'Academic status (activo|aplazado|retirado|...)'),
                 'jornada_estudiante' => new external_value(PARAM_RAW, 'Diurno|Nocturno|Sabatino'),
                 'courseid'           => new external_value(PARAM_INT, 'Course id'),
                 'coursename'         => new external_value(PARAM_RAW, 'Course fullname'),
                 'last_grade'         => new external_value(PARAM_FLOAT, 'Last grade on record'),
+                'computed_grade'     => new external_value(PARAM_FLOAT, 'Recomputed grade via gradebookWeightedTotal (matches grademodal.js)', VALUE_OPTIONAL, null, NULL_ALLOWED),
                 'failed_at'          => new external_value(PARAM_INT, 'Last timemodified of progress record'),
                 'learningplanid'     => new external_value(PARAM_INT, 'Plan id'),
                 'planname'           => new external_value(PARAM_RAW, 'Plan name'),
@@ -150,6 +156,15 @@ class get_report extends external_api {
                 'classroomcapacity'  => new external_value(PARAM_INT, 'Quota'),
                 'enrolled_count'     => new external_value(PARAM_INT, 'Current enrolled count'),
                 'is_full'            => new external_value(PARAM_BOOL, 'Class is full'),
+                'available_classes'  => new external_multiple_structure(new external_single_structure([
+                    'classid'           => new external_value(PARAM_INT, 'gmk_class id'),
+                    'classname'         => new external_value(PARAM_RAW, 'Class name'),
+                    'shift'             => new external_value(PARAM_RAW, 'Diurno|Nocturno|Sabatino'),
+                    'jornada_match'     => new external_value(PARAM_BOOL, 'Shift matches student jornada'),
+                    'classroomcapacity' => new external_value(PARAM_INT, 'Quota'),
+                    'enrolled_count'    => new external_value(PARAM_INT, 'Current enrolled count'),
+                    'is_full'           => new external_value(PARAM_BOOL, 'Class is full'),
+                ]), 'All classes projected for this course+period'),
             ])),
             'total' => new external_value(PARAM_INT, 'Total rows after filter'),
             'summary' => new external_single_structure([
