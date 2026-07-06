@@ -228,7 +228,7 @@ echo $OUTPUT->header();
                                         <span class="whitespace-nowrap">P-I (Próximo)</span>
                                         <select v-model.number="periodMappings[0]" class="w-full text-xs font-normal bg-white border border-blue-200 rounded px-1 py-0.5 outline-none max-w-[110px]">
                                             <option :value="undefined">Automático</option>
-                                            <option v-for="p in uniquePeriods" :key="p.id" :value="p.id">{{ p.name }}</option>
+                                            <option v-for="p in selectablePeriodsForColumns" :key="p.id" :value="p.id">{{ p.name }}</option>
                                         </select>
                                     </div>
                                 </th>
@@ -237,7 +237,7 @@ echo $OUTPUT->header();
                                         <span class="whitespace-nowrap">{{ getPeriodLabel(i) }}</span>
                                         <select v-model.number="periodMappings[i]" class="w-full text-[10px] font-normal bg-white border border-slate-200 rounded px-1 outline-none text-slate-600 max-w-[110px]">
                                             <option :value="undefined">Automático</option>
-                                            <option v-for="p in uniquePeriods" :key="p.id" :value="p.id">{{ p.name }}</option>
+                                            <option v-for="p in selectablePeriodsForColumns" :key="p.id" :value="p.id">{{ p.name }}</option>
                                         </select>
                                     </div>
                                 </th>
@@ -1901,6 +1901,14 @@ const app = createApp({
             });
         });
 
+        // Periods available as targets for the Matriz column dropdowns.
+        // Excludes the currently selected base period to prevent self-mappings
+        // (e.g. P-I of 2026-IV -> 2026-IV) that would never resolve correctly.
+        const selectablePeriodsForColumns = computed(() => {
+            const baseId = parseInt(selectedPeriodId.value) || 0;
+            return uniquePeriods.value.filter(p => parseInt(p.id) !== baseId);
+        });
+
         const careers = computed(() => {
             const studentRaw = Array.isArray(rawData.value) ? rawData.value : (rawData.value?.students || []);
             const subjectRaw = rawData.value?.all_subjects || [];
@@ -2596,7 +2604,7 @@ const app = createApp({
         }, { immediate: true });
 
             return {
-                loading, selectedPeriodId, periods, uniquePeriods, reloadData, analysis, savePlanning,
+                loading, selectedPeriodId, periods, uniquePeriods, selectablePeriodsForColumns, reloadData, analysis, savePlanning,
                 ignoredSubjects, isOrderLocked, periodMappings,
                 // Filters
                 selectedCareers, showCareerDropdown, selectedShift, careers, shifts,

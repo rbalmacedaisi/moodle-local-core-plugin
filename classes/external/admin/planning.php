@@ -529,10 +529,24 @@ class planning extends external_api {
         }
 
         $now = time();
+        $baseperiodid = (int)$baseperiodid;
         
         foreach ($mappings as $relativeIndex => $targetPeriodId) {
             if (!$targetPeriodId) {
                 // If it was cleared, remove the record
+                $DB->delete_records('gmk_planning_period_maps', [
+                    'base_period_id' => $baseperiodid,
+                    'relative_index' => $relativeIndex
+                ]);
+                continue;
+            }
+
+            // Reject self-mappings: a column cannot point to the same period
+            // that is its own base (e.g. P-I of 2026-IV -> 2026-IV is meaningless
+            // and breaks the reverse-map scoring algorithm).
+            if ((int)$targetPeriodId === $baseperiodid) {
+                \gmk_log("save_period_mappings: rejected self-mapping base={$baseperiodid} relIdx={$relativeIndex} target={$targetPeriodId}");
+                // Clear any existing stale record for this slot to keep state clean.
                 $DB->delete_records('gmk_planning_period_maps', [
                     'base_period_id' => $baseperiodid,
                     'relative_index' => $relativeIndex

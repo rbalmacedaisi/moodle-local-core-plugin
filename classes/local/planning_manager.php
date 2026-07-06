@@ -645,6 +645,14 @@ class planning_manager {
             'timemodified DESC, id DESC'
         );
 
+        // Discard self-mappings (base == target). They are meaningless and would
+        // otherwise consume score slots and confuse the chronological scoring below.
+        if (!empty($reverseMaps)) {
+            $reverseMaps = array_filter($reverseMaps, function ($rm) use ($periodId) {
+                return (int)$rm->base_period_id !== (int)$periodId;
+            });
+        }
+
         if (!empty($reverseMaps)) {
             // Choose the most chronologically consistent reverse map for this target.
             // This prevents using an old cycle where the same target period had another relative index.
@@ -1400,6 +1408,14 @@ class planning_manager {
             ['target_period_id' => $periodId],
             'timemodified DESC, id DESC'
         );
+
+        // Discard self-mappings (base == target) so they cannot distort the
+        // chronological scoring algorithm below.
+        if (!empty($reverseMaps)) {
+            $reverseMaps = array_filter($reverseMaps, function ($rm) use ($periodId) {
+                return (int)$rm->base_period_id !== (int)$periodId;
+            });
+        }
 
         if (!empty($reverseMaps)) {
             $periodOrder = [];
