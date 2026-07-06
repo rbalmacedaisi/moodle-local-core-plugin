@@ -107,7 +107,7 @@ echo $OUTPUT->header();
                 
                 <div class="flex flex-col flex-1">
                      <label class="text-xs text-slate-500 font-bold mb-1">Periodo Actual (Base)</label>
-                    <select v-model="selectedPeriodId" class="bg-slate-100 border-none rounded-lg px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-blue-500 w-full md:w-64">
+                    <select v-model.number="selectedPeriodId" @change="onBasePeriodChange" class="bg-slate-100 border-none rounded-lg px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-blue-500 w-full md:w-64">
                         <option v-for="p in uniquePeriods" :key="p.id" :value="p.id">{{ p.name }}</option>
                     </select>
                 </div>
@@ -1304,6 +1304,16 @@ const loadInitial = async () => {
          };
 
         const reloadData = () => fetchData();
+
+        // Fired when the user changes the BASE selector. Reloads planning
+        // data so the matrix, demand tree and KPIs reflect the new BASE
+        // without requiring the user to click "Recargar" manually.
+        // localStorage persistence is handled by a separate watcher.
+        const onBasePeriodChange = () => {
+            if (selectedPeriodId.value && Number(selectedPeriodId.value) > 0) {
+                fetchData();
+            }
+        };
 
         const savePlanning = async () => {
              if (selectedPeriodId.value === 0) return;
@@ -2659,7 +2669,7 @@ const loadInitial = async () => {
         }, { immediate: true });
 
             return {
-                loading, selectedPeriodId, periods, uniquePeriods, selectablePeriodsForColumns, reloadData, analysis, savePlanning,
+                loading, selectedPeriodId, periods, uniquePeriods, selectablePeriodsForColumns, reloadData, onBasePeriodChange, analysis, savePlanning,
                 ignoredSubjects, isOrderLocked, periodMappings,
                 // Filters
                 selectedCareers, showCareerDropdown, selectedShift, careers, shifts,
