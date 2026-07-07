@@ -1311,7 +1311,15 @@ public static function generate_diplomas(int $templateid, array $items, int $act
     }
 
     /**
-     * Generates a unique diploma number.
+     * Generates a unique, sequential diploma number.
+     *
+     * Format: DP-<idnumber>-<planCode>-<YYYY>-<NNNNNN>
+     * where NNNNNN is a 6-digit zero-padded sequence that increments
+     * per (idnumber, planCode, year). The next value is computed as
+     * MAX(CAST(last_segment AS UNSIGNED)) + 1 over all existing rows
+     * with the same prefix. A do/while retry loop protects against
+     * a race when two generations are inserted concurrently for the
+     * same (idnumber, planCode, year).
      */
     private static function generate_diploma_number(stdClass $user, ?stdClass $lp): string {
         global $DB;
@@ -1323,11 +1331,25 @@ public static function generate_diplomas(int $templateid, array $items, int $act
             $prefix .= '-' . strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $lp->planname), 0, 5));
         }
         $prefix = rtrim($prefix, '-');
+        $year = date('Y');
+        $prefixWithYear = $prefix . '-' . $year . '-';
+
+        // Find the highest existing consecutive for this (idnumber,
+        // planCode, year). SUBSTRING_INDEX with delimiter '-' and
+        // count -1 returns the last dash-separated segment, which is
+        // the numeric tail. CAST AS UNSIGNED turns the padded number
+        // into a real int so MAX() does a numeric comparison (instead
+        // of a string comparison that would order '10' before '2').
+        $sql = "SELECT MAX(CAST(SUBSTRING_INDEX(g.diploma_number, '-', -1) AS UNSIGNED)) AS maxnum
+                  FROM {gmk_diploma_generation} g
+                 WHERE g.diploma_number LIKE ?";
         $attempts = 0;
         do {
-            $candidate = $prefix . '-' . date('Y') . '-' . str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+            $maxnum = $DB->get_field_sql($sql, [$prefixWithYear . '%']);
+            $next = (int)$maxnum + 1;
+            $candidate = $prefixWithYear . str_pad((string)$next, 6, '0', STR_PAD_LEFT);
             $attempts++;
-        } while ($DB->record_exists('gmk_diploma_generation', ['diploma_number' => $candidate]) && $attempts < 5);
+        } while ($DB->record_exists('gmk_diploma_generation', ['diploma_number' => $candidate]) && $attempts < 10);
         return $candidate;
     }
 
