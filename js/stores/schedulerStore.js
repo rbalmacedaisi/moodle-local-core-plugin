@@ -298,6 +298,24 @@
                 return;
             }
 
+            console.log("[DEBUG REGEN] ============================================");
+            console.log("[DEBUG REGEN] Iniciando generación de horarios...");
+            const demandStart = this.state.demand || {};
+            let totalDemandStudents = 0;
+            Object.keys(demandStart).forEach(c => {
+                if (c === '_omitida_debug' || !demandStart[c]) return;
+                Object.keys(demandStart[c]).forEach(s => {
+                    Object.keys(demandStart[c][s] || {}).forEach(lvl => {
+                        const counts = demandStart[c][s][lvl].course_counts || {};
+                        Object.keys(counts).forEach(cid => {
+                            const arr = counts[cid].students || [];
+                            totalDemandStudents += arr.length;
+                        });
+                    });
+                });
+            });
+            console.log(`[DEBUG REGEN] Total estudiantes proyectados en state.demand: ${totalDemandStudents}`);
+
             this.state.loading = true;
 
             try {
@@ -386,10 +404,16 @@
                 }
 
                 // --- Object Creation ---
+                let debugCount49 = -1;
                 for (const [aggKey, data] of Object.entries(aggregatedDemand)) {
                     const totalStudents = data.students;
                     const count = totalStudents.length || Math.max(...Object.values(data.plan_scores || { 0: 0 }));
                     if (count === 0) continue;
+
+                    if (data.courseid === 49 && /Nocturna/.test(aggKey)) {
+                        debugCount49 = totalStudents.length;
+                        console.log(`[DEBUG REGEN] Schedules aggKey=${aggKey} courseId=49 totalStudents=${totalStudents.length}`);
+                    }
 
                     const numGroups = Math.ceil(count / MAX_CAPACITY);
                     const baseCount = Math.floor(count / numGroups);
@@ -756,9 +780,25 @@
 
         async loadGeneration(periodId) {
             if (!periodId) return;
-            console.log(`DEBUG: Attempting to load draft for period ${periodId}...`);
+            console.log(`[DEBUG LOADGEN] ============================================`);
+            console.log(`[DEBUG LOADGEN] Loading draft for period ${periodId}...`);
             try {
+                // Re-fetch demand to ensure state.demand is fresh before reconciliation.
+                // Without this, a stale or empty demand would silently produce wrong counts.
+                try {
+                    const freshDemand = await this._fetch('local_grupomakro_get_demand_data', { periodid: periodId });
+                    if (freshDemand && freshDemand.demand_tree) {
+                        this.state.demand = typeof freshDemand.demand_tree === 'string'
+                            ? JSON.parse(freshDemand.demand_tree)
+                            : freshDemand.demand_tree;
+                        if (freshDemand.student_list) this.state.students = freshDemand.student_list;
+                    }
+                } catch (e) {
+                    console.warn('[DEBUG LOADGEN] could not refresh demand:', e);
+                }
+
                 const draft = await this._fetch('local_grupomakro_load_draft', { periodid: periodId });
+                console.log(`[DEBUG LOADGEN] Draft received: ${draft ? (Array.isArray(draft) ? draft.length + ' items' : typeof draft) : 'null'}`);
                 if (draft && Array.isArray(draft) && draft.length > 0) {
                     console.log(`DEBUG: Draft found for period ${periodId}. Items: ${draft.length}`);
                     const externalSchedules = this.state.generatedSchedules.filter(s => s.isExternal);
@@ -817,6 +857,12 @@
                     const externalSchedules = this.state.generatedSchedules.filter(s => s.isExternal);
                     const reconciledInternal = this._reconcileDraftWithDemand(dbSchedules, []);
                     console.log(`DEBUG Draft: No draft. DB=${dbSchedules.length}, reconciled_internal=${reconciledInternal.length}`);
+                    // Log specific item for EXPRESIÓN ORAL Y ESCRITA I Nocturna
+                    reconciledInternal.forEach(item => {
+                        if ((item.corecourseid === 49 || item.courseid === 49) && item.shift === 'Nocturna') {
+                            console.log(`[DEBUG LOADGEN] Reconciled item ${item.id} (${item.subjectName}) Nocturna: studentCount=${item.studentCount} studentIds.length=${(item.studentIds||[]).length}`);
+                        }
+                    });
                     const normalizedExternal = externalSchedules.map(item => this._withCanonicalSubjectName(Object.assign({}, item)));
                     this.state.generatedSchedules = [...reconciledInternal, ...normalizedExternal];
                 }
