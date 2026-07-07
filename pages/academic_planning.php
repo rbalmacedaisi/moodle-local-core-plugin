@@ -106,13 +106,17 @@ echo $OUTPUT->header();
                 </div>
                 
                 <div class="flex flex-col flex-1">
-                     <label class="text-xs text-slate-500 font-bold mb-1">Periodo Actual (Base)</label>
-                    <select v-model.number="selectedPeriodId" @change="onBasePeriodChange" class="bg-slate-100 border-none rounded-lg px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-blue-500 w-full md:w-64">
+                     <label class="text-xs text-slate-500 font-bold mb-1">Ciclo de Planificación</label>
+                    <div v-if="!showCycleSelect" class="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-sm font-bold text-blue-900 w-full md:w-64 flex items-center justify-between gap-2">
+                        <span class="truncate" :title="currentCycleLabel">{{ currentCycleLabel }}</span>
+                        <button @click="showCycleSelect = true" type="button" class="text-[10px] font-medium text-blue-500 hover:text-blue-700 underline shrink-0">cambiar</button>
+                    </div>
+                    <select v-else v-model.number="selectedPeriodId" @change="onBasePeriodChange" @blur="showCycleSelect = false" class="bg-slate-100 border-none rounded-lg px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-blue-500 w-full md:w-64">
                         <option v-for="p in uniquePeriods" :key="p.id" :value="p.id">{{ p.name }}</option>
                     </select>
                     <div v-if="baseConflictInfo" class="mt-1 flex items-start gap-1 bg-amber-50 border border-amber-300 text-amber-800 text-[11px] font-medium rounded-lg px-2 py-1.5 max-w-md">
                         <span>⚠</span>
-                        <span>Este periodo está asociado como <b>{{ baseConflictInfo.label }}</b> de la base <b>{{ baseConflictInfo.baseName }}</b>. El guardado sobre esta base está bloqueado: trabaja la planificación desde <b>{{ baseConflictInfo.baseName }}</b> o elimina esa asociación de columnas.</span>
+                        <span>Este periodo está asociado como <b>{{ baseConflictInfo.label }}</b> de la base <b>{{ baseConflictInfo.baseName }}</b>. El guardado sobre este ciclo está bloqueado: trabaja desde <b>{{ baseConflictInfo.baseName }}</b> o usa "cambiar" y confirma para liberar la asociación.</span>
                     </div>
                 </div>
 
@@ -231,8 +235,8 @@ echo $OUTPUT->header();
                                     <div class="flex flex-col items-center gap-1">
                                         <span class="whitespace-nowrap">P-I (Próximo)</span>
                                         <select v-model.number="periodMappings[0]" class="w-full text-xs font-normal bg-white border border-blue-200 rounded px-1 py-0.5 outline-none max-w-[110px]">
-                                            <option :value="undefined">Automático</option>
-                                            <option v-for="p in selectablePeriodsForColumns" :key="p.id" :value="p.id" :disabled="p.id === selectedPeriodId">{{ p.name }}{{ p.id === selectedPeriodId ? ' (base)' : '' }}</option>
+                                            <option :value="0">= Ciclo actual</option>
+                                            <option v-for="p in selectablePeriodsForColumns" :key="p.id" :value="p.id" :disabled="p.id === selectedPeriodId">{{ p.name }}{{ p.id === selectedPeriodId ? ' (ciclo actual)' : '' }}</option>
                                         </select>
                                     </div>
                                 </th>
@@ -240,8 +244,8 @@ echo $OUTPUT->header();
                                     <div class="flex flex-col items-center gap-1">
                                         <span class="whitespace-nowrap">{{ getPeriodLabel(i) }}</span>
                                         <select v-model.number="periodMappings[i]" class="w-full text-[10px] font-normal bg-white border border-slate-200 rounded px-1 outline-none text-slate-600 max-w-[110px]">
-                                            <option :value="undefined">Automático</option>
-                                            <option v-for="p in selectablePeriodsForColumns" :key="p.id" :value="p.id" :disabled="p.id === selectedPeriodId">{{ p.name }}{{ p.id === selectedPeriodId ? ' (base)' : '' }}</option>
+                                            <option :value="0">Sin asociar (solo proyección)</option>
+                                            <option v-for="p in selectablePeriodsForColumns" :key="p.id" :value="p.id" :disabled="p.id === selectedPeriodId">{{ p.name }}{{ p.id === selectedPeriodId ? ' (ciclo actual)' : '' }}</option>
                                         </select>
                                     </div>
                                 </th>
@@ -1142,6 +1146,11 @@ const app = createApp({
             } catch (e) { /* localStorage may be disabled */ }
             const selectedPeriodId = ref(savedBaseId);
 
+            // Single-base cycle UX: the cycle is shown as a locked chip; the
+            // select only appears on demand ("cambiar") and asks confirmation.
+            const showCycleSelect = ref(false);
+            let lastCycleId = savedBaseId; // previous value to revert on cancel
+
             const periods = ref([]);
             
             // CRUD & Config State
@@ -1276,47 +1285,74 @@ const loadInitial = async () => {
              console.log("Vue Planning App: loadInitial() periods loaded:", periods.value.length);
 
              if (periods.value.length > 0) {
-                 // Validate that the current selectedPeriodId (either from
-                 // localStorage or the smart default) points at an existing
-                 // period. If not, fall back to the smart default strategy.
+                 // Single-base rule: everyone lands on the SAME active cycle.
+                 // Priority order:
+                 // 1. The period flagged as is_active_base (most recent planning
+                 //    activity: projections, deferrals or mappings).
+                 // 2. The saved localStorage selection, if it still exists.
+                 // 3. The most recent period that already has planning data.
+                 // 4. Fallback: the most recent period by startdate.
                  const exists = periods.value.some(x => parseInt(x.id) === parseInt(selectedPeriodId.value));
-                 if (!exists || selectedPeriodId.value === 0) {
-                     // Default BASE selection strategy, in priority order:
-                     // 1. The period flagged as is_active_base (most recently used
-                     //    as a base in gmk_planning_period_maps).
-                     // 2. The most recent period that already has saved planning
-                     //    projections.
-                     // 3. Fallback: the most recent period by startdate.
-                     const activeBase = periods.value.find(x => x.is_active_base);
-                     if (activeBase) {
-                         selectedPeriodId.value = activeBase.id;
-                         console.log("Vue Planning App: loadInitial() defaulting BASE to active mapping base: " + activeBase.name);
-                     } else {
-                         const withPlanning = periods.value.filter(x => parseInt(x.planning_count || 0) > 0);
-                         if (withPlanning.length > 0) {
-                             selectedPeriodId.value = withPlanning[0].id;
-                             console.log("Vue Planning App: loadInitial() defaulting BASE to period with planning data: " + withPlanning[0].name);
-                         } else {
-                             selectedPeriodId.value = periods.value[0].id;
-                         }
-                     }
+                 const activeBase = periods.value.find(x => x.is_active_base);
+                 if (activeBase) {
+                     selectedPeriodId.value = activeBase.id;
+                     console.log("Vue Planning App: loadInitial() opening on active planning cycle: " + activeBase.name);
+                 } else if (exists && selectedPeriodId.value > 0) {
+                     console.log("Vue Planning App: loadInitial() keeping previously selected cycle: " + selectedPeriodId.value);
                  } else {
-                     console.log("Vue Planning App: loadInitial() keeping previously selected BASE: " + selectedPeriodId.value);
+                     const withPlanning = periods.value.filter(x => parseInt(x.planning_count || 0) > 0);
+                     if (withPlanning.length > 0) {
+                         selectedPeriodId.value = withPlanning[0].id;
+                         console.log("Vue Planning App: loadInitial() defaulting cycle to period with planning data: " + withPlanning[0].name);
+                     } else {
+                         selectedPeriodId.value = periods.value[0].id;
+                     }
                  }
+                 lastCycleId = selectedPeriodId.value;
              }
              fetchData();
          };
 
         const reloadData = () => fetchData();
 
-        // Fired when the user changes the BASE selector. Reloads planning
-        // data so the matrix, demand tree and KPIs reflect the new BASE
-        // without requiring the user to click "Recargar" manually.
-        // localStorage persistence is handled by a separate watcher.
-        const onBasePeriodChange = () => {
-            if (selectedPeriodId.value && Number(selectedPeriodId.value) > 0) {
-                fetchData();
+        const refreshPeriods = async () => {
+            const p = await callMoodle('local_grupomakro_get_academic_periods', {});
+            if (Array.isArray(p)) periods.value = p;
+        };
+
+        // Fired when the user changes the planning cycle via "cambiar".
+        // Single-base rule: switching cycle asks for confirmation, and if the
+        // chosen period is mapped as a P-N column of another base, that
+        // association is released first (otherwise the server blocks saves).
+        const onBasePeriodChange = async () => {
+            const newId = Number(selectedPeriodId.value);
+            if (!newId || newId === Number(lastCycleId)) {
+                showCycleSelect.value = false;
+                return;
             }
+            const p = periods.value.find(x => parseInt(x.id) === newId);
+            const name = p ? p.name : ('Periodo ' + newId);
+            const mappedFrom = p && parseInt(p.target_of_base_id) ? p : null;
+
+            let msg = `Vas a cambiar el ciclo de planificación a ${name}. La matriz cargará y guardará las proyecciones bajo ese ciclo. ¿Continuar?`;
+            if (mappedFrom) {
+                const colLabel = getPeriodLabel(parseInt(mappedFrom.target_of_base_index) || 0);
+                msg = `${name} está asociado como columna ${colLabel} de la base ${mappedFrom.target_of_base_name}. ` +
+                      `Para trabajarlo como ciclo propio se eliminará esa asociación de columnas ` +
+                      `(las proyecciones guardadas de ${mappedFrom.target_of_base_name} no se borran, solo dejan de alimentar a ${name}). ¿Continuar?`;
+            }
+            if (!window.confirm(msg)) {
+                selectedPeriodId.value = lastCycleId;
+                showCycleSelect.value = false;
+                return;
+            }
+            if (mappedFrom) {
+                await callMoodle('local_grupomakro_release_period_target', { periodid: newId });
+                await refreshPeriods();
+            }
+            lastCycleId = newId;
+            showCycleSelect.value = false;
+            fetchData();
         };
 
         const savePlanning = async () => {
@@ -1463,6 +1499,13 @@ const loadInitial = async () => {
                         // ref's value previously left v-model stale on reload).
                         Object.keys(periodMappings).forEach(k => delete periodMappings[k]);
                         Object.assign(periodMappings, res.period_mappings || {});
+                        // Normalize: every column slot exists with 0 = "sin asociar".
+                        // Using explicit 0 (instead of undefined) guarantees that
+                        // JSON.stringify keeps the key on save, so clearing a column
+                        // actually deletes its map row server-side.
+                        for (let slot = 0; slot <= 5; slot++) {
+                            if (!parseInt(periodMappings[slot])) periodMappings[slot] = 0;
+                        }
 
                         // Guarantee reactivity by pre-defining properties for all subjects
                         if (res.all_subjects) {
@@ -2026,6 +2069,19 @@ const loadInitial = async () => {
                 baseName: p.target_of_base_name || ('Periodo ' + p.target_of_base_id),
                 label: getPeriodLabel(parseInt(p.target_of_base_index) || 0)
             };
+        });
+
+        // Label for the locked cycle chip: the cycle period plus the P-I
+        // correlation when it points to a different (e.g. newly created) period.
+        const currentCycleLabel = computed(() => {
+            const own = periods.value.find(x => parseInt(x.id) === parseInt(selectedPeriodId.value));
+            const ownName = own ? own.name : ('Periodo ' + selectedPeriodId.value);
+            const mappedId = parseInt(periodMappings[0]) || 0;
+            if (mappedId && mappedId !== parseInt(selectedPeriodId.value)) {
+                const t = periods.value.find(x => parseInt(x.id) === mappedId);
+                return ownName + ' · P-I → ' + (t ? t.name : mappedId);
+            }
+            return ownName;
         });
 
         const impactPeriodLabel = computed(() => getPeriodLabel(parseInt(impactPeriodFilter.value) || 0));
@@ -2698,7 +2754,7 @@ const loadInitial = async () => {
                 // Tables
                 filteredStudents, studentStatusFilter, searchTerm, impactPeriodFilter, impactPeriodLabel, impactPeriodOptions,
                 // UI Helpers
-                toRoman, getPeriodLabel, baseConflictInfo, getSuggestionBadgeClass, 
+                toRoman, getPeriodLabel, baseConflictInfo, currentCycleLabel, showCycleSelect, getSuggestionBadgeClass, 
                 getSubjectsForCohortPeriod, getSubjectCount,
                 // Drag
                 handleDragStart, handleDrop, deferredGroups, deferralVersion,

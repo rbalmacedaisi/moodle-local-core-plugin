@@ -1243,6 +1243,13 @@ try {
             $response = ['status' => 'success', 'data' => $res];
             break;
 
+        case 'local_grupomakro_release_period_target':
+            $periodid = required_param('periodid', PARAM_INT);
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/admin/planning.php');
+            $res = \local_grupomakro_core\external\admin\planning::release_period_target($periodid);
+            $response = ['status' => 'success', 'data' => $res];
+            break;
+
         case 'local_grupomakro_get_academic_periods':
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/admin/planning.php');
             $periods = \local_grupomakro_core\external\admin\planning::get_periods();

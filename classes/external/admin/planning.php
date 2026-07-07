@@ -596,6 +596,30 @@ class planning extends external_api {
     }
 
     /**
+     * Release a period from any P-N column association so it can be worked
+     * as its own planning cycle (single-base rule). Deletes every
+     * gmk_planning_period_maps row that targets the period. The planning
+     * data of the old base is NOT touched; it simply stops feeding this
+     * period.
+     */
+    public static function release_period_target($periodid) {
+        global $DB;
+        $context = \context_system::instance();
+        self::validate_context($context);
+        require_capability('moodle/site:config', $context);
+
+        $periodid = (int)$periodid;
+        $maps = $DB->get_records('gmk_planning_period_maps', ['target_period_id' => $periodid]);
+        $deleted = 0;
+        foreach ($maps as $m) {
+            $DB->delete_records('gmk_planning_period_maps', ['id' => $m->id]);
+            \gmk_log("release_period_target: removed map base={$m->base_period_id} idx={$m->relative_index} target={$periodid}");
+            $deleted++;
+        }
+        return $deleted;
+    }
+
+    /**
      * Matrix column label for a relative index (0 => P-I, 1 => P-II, ...),
      * matching the roman numerals the projection matrix shows.
      */
@@ -632,6 +656,24 @@ class planning extends external_api {
                 $col = self::period_column_label((int)$relativeIndex);
                 throw new \Exception("No se guardó la asociación de periodos: {$tname} ya se trabaja directamente como base (tiene planificación propia) " .
                     "y no puede asignarse a la columna {$col}. Para mantener una sola base, trabaje la matriz seleccionando {$tname} como Periodo Actual (Base).");
+            }
+            // Tampoco puede estar mapeado desde OTRA base: un periodo alimentado
+            // por dos ciclos a la vez fue exactamente la causa del incidente
+            // matriz-19 vs tablero-6.
+            $otherBaseMap = $DB->get_record_select(
+                'gmk_planning_period_maps',
+                'target_period_id = :tid AND base_period_id <> :base AND base_period_id <> target_period_id',
+                ['tid' => $tid, 'base' => $baseperiodid],
+                '*',
+                IGNORE_MULTIPLE
+            );
+            if ($otherBaseMap) {
+                $tname = $DB->get_field('gmk_academic_periods', 'name', ['id' => $tid]);
+                $oname = $DB->get_field('gmk_academic_periods', 'name', ['id' => $otherBaseMap->base_period_id]);
+                $col = self::period_column_label((int)$relativeIndex);
+                throw new \Exception("No se guardó la asociación de periodos: {$tname} ya está asociado como columna " .
+                    self::period_column_label((int)$otherBaseMap->relative_index) . " de la base {$oname}. " .
+                    "Un periodo no puede ser alimentado por dos bases; libere primero esa asociación.");
             }
         }
 
