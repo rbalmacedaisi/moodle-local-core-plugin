@@ -2371,9 +2371,11 @@ const loadInitial = async () => {
                 title: `Estudiantes: ${cohortKey}`,
                 students: parsedStudents
             };
+            // Keep the breakdown popover open underneath (z-50 vs modal z-70):
+            // closing the student list must step back to the groups popover,
+            // not collapse the whole navigation chain.
             showStudentModal.value = true;
-            showBreakdownPopover.value = false;
-            
+
             // Fetch document numbers asynchronously
             const usernames = parsedStudents.map(s => s.id).filter(id => id).join(',');
             if (usernames) {
