@@ -610,6 +610,7 @@ public static function list_eligible_graduands(?int $learningplanid = null, stri
              LEFT JOIN {local_learning_periods} lper ON lper.id = lpcu.currentperiodid
              LEFT JOIN {local_learning_subperiods} lsp ON lsp.id = lpcu.currentsubperiodid
                  WHERE lu.userrolename = 'student'
+                   AND lu.status IN ('activo', 'egresado')
                    AND EXISTS (
                        SELECT 1 FROM {local_learning_courses} lcr
                         WHERE lcr.learningplanid = lu.learningplanid
@@ -739,6 +740,7 @@ public static function list_eligible_graduands(?int $learningplanid = null, stri
              LEFT JOIN {local_learning_periods} lper ON lper.id = lpcu.currentperiodid
              LEFT JOIN {local_learning_subperiods} lsp ON lsp.id = lpcu.currentsubperiodid
                  WHERE lu.userrolename = 'student'
+                   AND lu.status IN ('activo', 'egresado')
                    AND EXISTS (
                        SELECT 1 FROM {local_learning_courses} lcr
                         WHERE lcr.learningplanid = lu.learningplanid
@@ -1007,7 +1009,7 @@ public static function generate_diplomas(int $templateid, array $items, int $act
                        JOIN {local_learning_plans} lp ON lp.id = lu.learningplanid
                   LEFT JOIN {local_learning_periods} lp2 ON lp2.id = lu.currentperiodid
                   LEFT JOIN {local_learning_subperiods} lsp ON lsp.id = lu.currentsubperiodid
-                       WHERE lu.userid = :uid AND lu.learningplanid = :lpid AND lu.userrolename = 'student'",
+                       WHERE lu.userid = :uid AND lu.learningplanid = :lpid AND lu.userrolename = 'student' AND lu.status IN ('activo', 'egresado')",
                     ['uid' => $userid, 'lpid' => $lpid]
                 );
                 $token = self::generate_verification_token();
