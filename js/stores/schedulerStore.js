@@ -1203,30 +1203,34 @@
                 let resolvedSubjectId = 0;
                 if (demandData.plan_map[planId]) resolvedSubjectId = demandData.plan_map[planId].subjectid;
 
-                console.log(`DEBUG Reconcile: Adding new draft item "${courseName}" (${key}) — ${demandData.students.length} students.`);
-                result.push(this._withCanonicalSubjectName({
-                    id: `rec-${newIdCounter++}`,
-                    courseid: resolvedSubjectId || demandData.courseid,
-                    corecourseid: demandData.courseid,
-                    learningplanid: planId,
-                    subjectName: courseName,
-                    day: 'N/A',
-                    start: '00:00',
-                    end: '00:00',
-                    room: 'Sin aula',
-                    studentCount: demandStudents.length,
-                    studentIds: demandStudents,
-                    career: Array.from(demandData.careers).join(', '),
-                    careerList: Array.from(demandData.careers),
-                    shift: demandData.shift,
-                    levelDisplay: Array.from(demandData.levels).join(', '),
-                    levelList: Array.from(demandData.levels),
-                    subperiod: demandData.subperiod || 1,
-                    type: 0,
-                    typeLabel: 'Presencial',
-                    classdays: '0/0/0/0/0/0/0',
-                    isExternal: false
-                }));
+                console.log(`[DEBUG V3] Reconcile: Adding "${courseName}" (${key}) — demandData.students.length=${demandData.students.length} demandStudents.length=${demandStudents.length}`);
+                try {
+                    result.push(this._withCanonicalSubjectName({
+                        id: `rec-${newIdCounter++}`,
+                        courseid: resolvedSubjectId || demandData.courseid,
+                        corecourseid: demandData.courseid,
+                        learningplanid: planId,
+                        subjectName: courseName,
+                        day: 'N/A',
+                        start: '00:00',
+                        end: '00:00',
+                        room: 'Sin aula',
+                        studentCount: demandStudents.length,
+                        studentIds: demandStudents,
+                        career: Array.from(demandData.careers).join(', '),
+                        careerList: Array.from(demandData.careers),
+                        shift: demandData.shift,
+                        levelDisplay: Array.from(demandData.levels).join(', '),
+                        levelList: Array.from(demandData.levels),
+                        subperiod: demandData.subperiod || 1,
+                        type: 0,
+                        typeLabel: 'Presencial',
+                        classdays: '0/0/0/0/0/0/0',
+                        isExternal: false
+                    }));
+                } catch (e) {
+                    console.error(`[DEBUG V3] ERROR pushing item ${courseName} (${key}):`, e);
+                }
             }
 
             return result;
