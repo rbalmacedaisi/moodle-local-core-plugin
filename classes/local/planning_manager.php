@@ -767,7 +767,7 @@ class planning_manager {
             $planId     = $stu['planid'];
             $levelLabel = $stu['currentSemConfig'] ?: 'Sin Nivel';
             $subLabel   = $stu['currentSubperiodConfig'] ?: '';
-            $cohortKey  = self::build_cohort_key($career, $shift, $stu);
+$cohortKey  = self::build_cohort_key($career, $shift, $stu);
 
             // Extraer planningLevel y planningBimestre del cohortKey para consistencia con levelKey
             // Formato: "Career - Shift - Nivel X - Bimestre Y [entryP]"
@@ -776,10 +776,16 @@ class planning_manager {
             if (preg_match('/Nivel\s+(\d+)/', $cohortKey, $m)) {
                 $planningLevel = 'Cuatrimestre ' . $m[1];
             }
-            if (preg_match('/Bimestre\\s+(II|I)/', $cohortKey, $m)) {
+            if (preg_match('/Bimestre\s+(II|I)/', $cohortKey, $m)) {
                 $planningBimestre = 'BIMESTRE ' . $m[1];
             }
-            $levelKey = "$planningLevel - $planningBimestre";
+            // Match the frontend cohortKey format exactly so demand_tree keys
+            // align with the cohorts the UI counts. Without entry_period and career
+            // in the key, two students in different plans/cuatrimestres get merged
+            // into a single bucket and the totals reported to the user are
+            // inconsistent with what the matrix popover shows.
+            $entryPeriod = !empty($stu['entry_period']) ? $stu['entry_period'] : 'Sin Definir';
+            $levelKey = "$career - $shift - $planningLevel - $planningBimestre [$entryPeriod]";
             $stuAddedToTree = false;
 
             foreach ($stu['pendingSubjects'] as $subj) {
