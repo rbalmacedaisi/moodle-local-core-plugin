@@ -1582,13 +1582,61 @@ class scheduler extends external_api {
     }
 
     public static function get_generated_schedules($periodid, $includeoverlaps = false) {
-        global $DB;
+        global $DB, $CFG;
         $context = \context_system::instance();
         self::validate_context($context);
         require_capability('moodle/site:config', $context);
 
         if (function_exists('gmk_log')) {
             gmk_log("DEBUG: get_generated_schedules(periodid=$periodid, includeoverlaps=$includeoverlaps)");
+        }
+
+        // ----------------------------------------------------------------
+        // Pre-load projected students from demand_data so the planning
+        // board can use this endpoint as the enrollment surface (the user
+        // needs to see the FULL projection, not just the already-enrolled
+        // students, otherwise the board is useless for enrolling the
+        // remaining N students of a course).
+        // Map key: "corecourseId|shift" => [idnumber, idnumber, ...]
+        // ----------------------------------------------------------------
+        $projectedStudentsByKey = [];
+        try {
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/planning_manager.php');
+            $demandResult = \local_grupomakro_core\local\planning_manager::get_demand_data($periodid);
+            $demandTree = is_array($demandResult['demand_tree'] ?? null) ? $demandResult['demand_tree'] : [];
+            foreach ($demandTree as $career => $shifts) {
+                if ($career === '_omitida_debug' || !is_array($shifts)) {
+                    continue;
+                }
+                foreach ($shifts as $shift => $semesters) {
+                    if (!is_array($semesters)) {
+                        continue;
+                    }
+                    foreach ($semesters as $semData) {
+                        $counts = is_array($semData['course_counts'] ?? null) ? $semData['course_counts'] : [];
+                        foreach ($counts as $moodleId => $cd) {
+                            if (!isset($cd['students']) || !is_array($cd['students'])) {
+                                continue;
+                            }
+                            $key = $moodleId . '|' . $shift;
+                            if (!isset($projectedStudentsByKey[$key])) {
+                                $projectedStudentsByKey[$key] = [];
+                            }
+                            foreach ($cd['students'] as $sid) {
+                                $sid = (string)$sid;
+                                if ($sid !== '' && !in_array($sid, $projectedStudentsByKey[$key], true)) {
+                                    $projectedStudentsByKey[$key][] = $sid;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            // Demand may not be available; carry on with enrollment-only data.
+            if (function_exists('gmk_log')) {
+                gmk_log("WARN: get_generated_schedules could not load demand for projection enrichment: " . $e->getMessage());
+            }
         }
 
         $sql = "SELECT c.id, c.courseid, c.name as subjectname, c.instructorid, u.firstname, u.lastname,
@@ -1838,6 +1886,17 @@ class scheduler extends external_api {
             $enrolledCount = $countValid($enrolledUserIds, $validSet);
             $pendingEnrollmentCount = $countValid($pendingCandidateUserIds, $validSet);
 
+            // ----------------------------------------------------------------
+            // Merge projected students (from demand) into the class list so
+            // the planning board reflects the FULL projection, not just the
+            // already-enrolled students. The board IS the enrollment tool:
+            // it must show who still needs to be enrolled.
+            // ----------------------------------------------------------------
+            $projKey = ((int)($c->corecourseid ?? 0)) . '|' . ($c->shift ?? '');
+            $projectedStudents = $projectedStudentsByKey[$projKey] ?? [];
+            $enrolledStudentCount = count($classStudentIds);
+            $mergedStudentIds = array_values(array_unique(array_merge($classStudentIds, $projectedStudents)));
+
             $result[] = [
                 'id' => (int)$c->id,
                 'courseid' => (int)$c->courseid,
@@ -1849,8 +1908,10 @@ class scheduler extends external_api {
                 'end' => empty($sessArr) ? '00:00' : $sessArr[0]['end'],
                 'room' => empty($sessArr) ? 'Sin aula' : $sessArr[0]['roomName'],
                 'corecourseid' => (int)($c->corecourseid ?? 0),
-                'studentIds' => $classStudentIds,
-                'studentCount' => count($classStudentIds),
+                'studentIds' => $mergedStudentIds,
+                'studentCount' => count($mergedStudentIds),
+                'enrolledStudentCount' => $enrolledStudentCount,
+                'projectedStudentCount' => count($projectedStudents),
                 'preRegisteredCount' => (int)$preRegisteredCount,
                 'queuedCount' => (int)$queuedCount,
                 'enrolledCount' => (int)$enrolledCount,
