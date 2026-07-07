@@ -527,7 +527,7 @@ class planning extends external_api {
         if ($conflictMap) {
             $baseName = $DB->get_field('gmk_academic_periods', 'name', ['id' => $conflictMap->base_period_id]);
             $ownName = $DB->get_field('gmk_academic_periods', 'name', ['id' => $academicperiodid]);
-            $col = 'P-' . ((int)$conflictMap->relative_index + 1);
+            $col = self::period_column_label((int)$conflictMap->relative_index);
             throw new \Exception("No se guardó: el periodo {$ownName} está asociado como columna {$col} de la planificación con base {$baseName}. " .
                 "Para mantener una sola base de trabajo, planifique desde {$baseName} o elimine esa asociación de columnas antes de trabajar {$ownName} como base.");
         }
@@ -595,6 +595,15 @@ class planning extends external_api {
          return new external_value(PARAM_BOOL, 'Success');
     }
 
+    /**
+     * Matrix column label for a relative index (0 => P-I, 1 => P-II, ...),
+     * matching the roman numerals the projection matrix shows.
+     */
+    private static function period_column_label($relativeIndex) {
+        $romans = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX'];
+        return 'P-' . ($romans[$relativeIndex] ?? ($relativeIndex + 1));
+    }
+
     public static function save_period_mappings($baseperiodid, $mappingsJson) {
         global $DB, $USER;
         
@@ -620,7 +629,7 @@ class planning extends external_api {
                 || $DB->record_exists('gmk_academic_deferrals', ['academicperiodid' => $tid]);
             if ($hasOwnPlanning) {
                 $tname = $DB->get_field('gmk_academic_periods', 'name', ['id' => $tid]);
-                $col = 'P-' . ((int)$relativeIndex + 1);
+                $col = self::period_column_label((int)$relativeIndex);
                 throw new \Exception("No se guardó la asociación de periodos: {$tname} ya se trabaja directamente como base (tiene planificación propia) " .
                     "y no puede asignarse a la columna {$col}. Para mantener una sola base, trabaje la matriz seleccionando {$tname} como Periodo Actual (Base).");
             }
