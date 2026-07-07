@@ -769,21 +769,22 @@ class planning_manager {
             $subLabel   = $stu['currentSubperiodConfig'] ?: '';
 $cohortKey  = self::build_cohort_key($career, $shift, $stu);
 
-            // Extraer planningLevel y planningBimestre del cohortKey para consistencia con levelKey
-            // Formato: "Career - Shift - Nivel X - Bimestre Y [entryP]"
+            // Extract planningLevel and planningBimestre from the cohortKey so the
+            // demand_tree levelKey matches the format the frontend uses in the
+            // popover. Frontend cohortKey is "Career - Shift - Nivel X - Bimestre Y
+            // [entryP]". We do NOT translate "Nivel" to "Cuatrimestre" or "Bimestre"
+            // to "BIMESTRE" here because the user has set up the cohorts in the
+            // matrix popover with the exact "Nivel" and "Bimestre" labels, and the
+            // backend demand_tree must keep the same correlation between students
+            // and cohorts.
             $planningLevel = $levelLabel;
             $planningBimestre = $subLabel;
             if (preg_match('/Nivel\s+(\d+)/', $cohortKey, $m)) {
-                $planningLevel = 'Cuatrimestre ' . $m[1];
+                $planningLevel = 'Nivel ' . $m[1];
             }
             if (preg_match('/Bimestre\s+(II|I)/', $cohortKey, $m)) {
-                $planningBimestre = 'BIMESTRE ' . $m[1];
+                $planningBimestre = 'Bimestre ' . $m[1];
             }
-            // Match the frontend cohortKey format exactly so demand_tree keys
-            // align with the cohorts the UI counts. Without entry_period and career
-            // in the key, two students in different plans/cuatrimestres get merged
-            // into a single bucket and the totals reported to the user are
-            // inconsistent with what the matrix popover shows.
             $entryPeriod = !empty($stu['entry_period']) ? $stu['entry_period'] : 'Sin Definir';
             $levelKey = "$career - $shift - $planningLevel - $planningBimestre [$entryPeriod]";
             $stuAddedToTree = false;
