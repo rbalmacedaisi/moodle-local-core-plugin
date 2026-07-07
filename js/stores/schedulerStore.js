@@ -780,8 +780,6 @@
 
         async loadGeneration(periodId) {
             if (!periodId) return;
-            console.log(`[DEBUG LOADGEN] === BUILD_2026_07_07_v3 ===`);
-            console.log(`[DEBUG LOADGEN] ============================================`);
             console.log(`[DEBUG LOADGEN] Loading draft for period ${periodId}...`);
             try {
                 // Re-fetch demand to ensure state.demand is fresh before reconciliation.
@@ -857,7 +855,6 @@
                     const dbSchedules = this.state.generatedSchedules.filter(s => !s.isExternal);
                     const externalSchedules = this.state.generatedSchedules.filter(s => s.isExternal);
                     const reconciledInternal = this._reconcileDraftWithDemand(dbSchedules, []);
-                    console.log(`[DEBUG LOADGEN] === POST_RECONCILE_V3 === reconciled_internal=${reconciledInternal.length} ===`);
                     // Log specific item for EXPRESIÓN ORAL Y ESCRITA I Nocturna
                     reconciledInternal.forEach(item => {
                         if ((item.corecourseid === 49 || item.courseid === 49) && item.shift === 'Nocturna') {
@@ -1203,7 +1200,6 @@
                 let resolvedSubjectId = 0;
                 if (demandData.plan_map[planId]) resolvedSubjectId = demandData.plan_map[planId].subjectid;
 
-                console.log(`[DEBUG V3] Reconcile: Adding "${courseName}" (${key}) — demandData.students.length=${demandData.students.length} demandStudents.length=${demandStudents.length}`);
                 try {
                     result.push(this._withCanonicalSubjectName({
                         id: `rec-${newIdCounter++}`,

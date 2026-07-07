@@ -37,7 +37,7 @@ echo $OUTPUT->header();
 <!-- Scheduler Module Scripts -->
 <script src="../js/utils/scheduler_algorithm.js?v=<?= time() ?>"></script>
 <script src="../js/utils/pdfExport.js?v=<?= time() ?>"></script>
-<script src="../js/stores/schedulerStore.js?v=<?= time() ?>&v2=20260707a"></script>
+<script src="../js/stores/schedulerStore.js?v=0a4b215-clean"></script>
 
 <script src="../js/components/scheduler/projections_modal.js?v=<?= time() ?>"></script>
 <script src="../js/components/scheduler/demand_view.js?v=<?= time() ?>"></script>
