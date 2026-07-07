@@ -776,7 +776,7 @@ class planning_manager {
             if (preg_match('/Nivel\s+(\d+)/', $cohortKey, $m)) {
                 $planningLevel = 'Cuatrimestre ' . $m[1];
             }
-            if (preg_match('/Bimestre\s+(I|II)/', $cohortKey, $m)) {
+            if (preg_match('/Bimestre\\s+(II|I)/', $cohortKey, $m)) {
                 $planningBimestre = 'BIMESTRE ' . $m[1];
             }
             $levelKey = "$planningLevel - $planningBimestre";
@@ -919,7 +919,7 @@ class planning_manager {
              if (preg_match('/Nivel\s+(\d+)/', $cohortKey, $m)) {
                  $planningLevel = 'Cuatrimestre ' . $m[1];
              }
-             if (preg_match('/Bimestre\s+(I|II)/', $cohortKey, $m)) {
+if (preg_match('/Bimestre\s+(II|I)/', $cohortKey, $m)) {
                  $planningBimestre = 'BIMESTRE ' . $m[1];
              }
              $levelKey = "$planningLevel - $planningBimestre";
@@ -1061,7 +1061,7 @@ class planning_manager {
             if (preg_match('/Nivel\s+(\d+)/', $cohortKey, $m)) {
                 $planningLevel = 'Cuatrimestre ' . $m[1];
             }
-            if (preg_match('/Bimestre\s+(I|II)/', $cohortKey, $m)) {
+            if (preg_match('/Bimestre\\s+(II|I)/', $cohortKey, $m)) {
                 $planningBimestre = 'BIMESTRE ' . $m[1];
             }
             $levelKey = "$planningLevel - $planningBimestre";
@@ -1168,7 +1168,7 @@ class planning_manager {
             if (preg_match('/Nivel\s+(\d+)/', $cohortKey, $m)) {
                 $planningLevel = 'Cuatrimestre ' . $m[1];
             }
-            if (preg_match('/Bimestre\s+(I|II)/', $cohortKey, $m)) {
+            if (preg_match('/Bimestre\\s+(II|I)/', $cohortKey, $m)) {
                 $planningBimestre = 'BIMESTRE ' . $m[1];
             }
             $levelKey = "$planningLevel - $planningBimestre";
