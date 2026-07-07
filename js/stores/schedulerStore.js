@@ -780,6 +780,7 @@
 
         async loadGeneration(periodId) {
             if (!periodId) return;
+            console.log(`[DEBUG LOADGEN] === BUILD_2026_07_07_v3 ===`);
             console.log(`[DEBUG LOADGEN] ============================================`);
             console.log(`[DEBUG LOADGEN] Loading draft for period ${periodId}...`);
             try {
@@ -856,7 +857,7 @@
                     const dbSchedules = this.state.generatedSchedules.filter(s => !s.isExternal);
                     const externalSchedules = this.state.generatedSchedules.filter(s => s.isExternal);
                     const reconciledInternal = this._reconcileDraftWithDemand(dbSchedules, []);
-                    console.log(`DEBUG Draft: No draft. DB=${dbSchedules.length}, reconciled_internal=${reconciledInternal.length}`);
+                    console.log(`[DEBUG LOADGEN] === POST_RECONCILE_V3 === reconciled_internal=${reconciledInternal.length} ===`);
                     // Log specific item for EXPRESIÓN ORAL Y ESCRITA I Nocturna
                     reconciledInternal.forEach(item => {
                         if ((item.corecourseid === 49 || item.courseid === 49) && item.shift === 'Nocturna') {
