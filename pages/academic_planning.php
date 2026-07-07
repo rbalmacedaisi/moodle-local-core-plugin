@@ -110,6 +110,10 @@ echo $OUTPUT->header();
                     <select v-model.number="selectedPeriodId" @change="onBasePeriodChange" class="bg-slate-100 border-none rounded-lg px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-blue-500 w-full md:w-64">
                         <option v-for="p in uniquePeriods" :key="p.id" :value="p.id">{{ p.name }}</option>
                     </select>
+                    <div v-if="baseConflictInfo" class="mt-1 flex items-start gap-1 bg-amber-50 border border-amber-300 text-amber-800 text-[11px] font-medium rounded-lg px-2 py-1.5 max-w-md">
+                        <span>⚠</span>
+                        <span>Este periodo está asociado como <b>{{ baseConflictInfo.label }}</b> de la base <b>{{ baseConflictInfo.baseName }}</b>. El guardado sobre esta base está bloqueado: trabaja la planificación desde <b>{{ baseConflictInfo.baseName }}</b> o elimina esa asociación de columnas.</span>
+                    </div>
                 </div>
 
                 <div class="flex flex-col flex-1 relative" style="min-width:280px">
@@ -2011,6 +2015,19 @@ const loadInitial = async () => {
              return map[num] || num;
         };
         const getPeriodLabel = (idx) => idx === 0 ? 'P-I' : `P-${toRoman(idx+1)}`;
+
+        // Single-base rule: if the selected BASE period is itself mapped as a
+        // P-N column of another base, planning here is blocked server-side.
+        // Surface that before the user does any work.
+        const baseConflictInfo = computed(() => {
+            const p = periods.value.find(x => parseInt(x.id) === parseInt(selectedPeriodId.value));
+            if (!p || !parseInt(p.target_of_base_id)) return null;
+            return {
+                baseName: p.target_of_base_name || ('Periodo ' + p.target_of_base_id),
+                label: getPeriodLabel(parseInt(p.target_of_base_index) || 0)
+            };
+        });
+
         const impactPeriodLabel = computed(() => getPeriodLabel(parseInt(impactPeriodFilter.value) || 0));
         const impactPeriodOptions = computed(() => {
             return Array.from({ length: 6 }, (_, idx) => {
@@ -2681,7 +2698,7 @@ const loadInitial = async () => {
                 // Tables
                 filteredStudents, studentStatusFilter, searchTerm, impactPeriodFilter, impactPeriodLabel, impactPeriodOptions,
                 // UI Helpers
-                toRoman, getPeriodLabel, getSuggestionBadgeClass, 
+                toRoman, getPeriodLabel, baseConflictInfo, getSuggestionBadgeClass, 
                 getSubjectsForCohortPeriod, getSubjectCount,
                 // Drag
                 handleDragStart, handleDrop, deferredGroups, deferralVersion,

@@ -284,18 +284,45 @@ class planning extends external_api {
               GROUP BY academicperiodid"
         );
 
-        // Most recent base period referenced by gmk_planning_period_maps.
-        // This is the BASE the user is actively working from right now.
-        $activeBaseRow = $DB->get_record_sql(
-            "SELECT base_period_id, MAX(timemodified) AS m
+        // The BASE the team is actively working from: the period with the most
+        // recent planning activity (matrix projections, deferrals or period
+        // mappings). Looking only at gmk_planning_period_maps breaks when the
+        // working base has no mappings yet (direct-base planning).
+        $activeBaseId = 0;
+        $activeBaseTime = 0;
+        $activityQueries = [
+            "SELECT academicperiodid AS pid, MAX(timemodified) AS m FROM {gmk_academic_planning} GROUP BY academicperiodid",
+            "SELECT academicperiodid AS pid, MAX(timemodified) AS m FROM {gmk_academic_deferrals} GROUP BY academicperiodid",
+            "SELECT base_period_id AS pid, MAX(timemodified) AS m FROM {gmk_planning_period_maps} GROUP BY base_period_id",
+        ];
+        foreach ($activityQueries as $sql) {
+            foreach ($DB->get_records_sql($sql) as $row) {
+                if ((int)$row->m > $activeBaseTime) {
+                    $activeBaseTime = (int)$row->m;
+                    $activeBaseId = (int)$row->pid;
+                }
+            }
+        }
+
+        // Reverse maps: for each period, know if another base feeds it as a
+        // P-N column. The frontend uses this to warn that the period must be
+        // planned from its mapped base (single-base rule).
+        $targetOf = [];
+        $tmaps = $DB->get_records_sql(
+            "SELECT id, base_period_id, relative_index, target_period_id
                FROM {gmk_planning_period_maps}
-              GROUP BY base_period_id
-              ORDER BY m DESC
-              LIMIT 1"
+              WHERE base_period_id <> target_period_id
+              ORDER BY timemodified ASC"
         );
-        $activeBaseId = $activeBaseRow ? (int)$activeBaseRow->base_period_id : 0;
+        foreach ($tmaps as $tm) {
+            $targetOf[(int)$tm->target_period_id] = $tm; // latest wins
+        }
 
         foreach ($periods as $p) {
+            $tm = $targetOf[(int)$p->id] ?? null;
+            $p->target_of_base_id = $tm ? (int)$tm->base_period_id : 0;
+            $p->target_of_base_index = $tm ? (int)$tm->relative_index : -1;
+            $p->target_of_base_name = ($tm && isset($periods[$tm->base_period_id])) ? $periods[$tm->base_period_id]->name : '';
             $p->learningplans = array_values($DB->get_records_menu('gmk_academic_period_lps', ['academicperiodid' => $p->id], '', 'id, learningplanid'));
             $p->planning_count = isset($counts[$p->id]) ? (int)$counts[$p->id]->c : 0;
             $p->is_active_base = ((int)$p->id === $activeBaseId);
@@ -332,7 +359,10 @@ class planning extends external_api {
                 'status' => new external_value(PARAM_INT, 'Status'),
                 'learningplans' => new external_multiple_structure(new external_value(PARAM_INT), 'List of Learning Plan IDs', VALUE_OPTIONAL),
                 'planning_count' => new external_value(PARAM_INT, 'Number of gmk_academic_planning records for this period', VALUE_OPTIONAL),
-                'is_active_base' => new external_value(PARAM_BOOL, 'True when this period is the most recently used BASE in gmk_planning_period_maps', VALUE_OPTIONAL),
+                'is_active_base' => new external_value(PARAM_BOOL, 'True when this period has the most recent planning activity (projections, deferrals or mappings)', VALUE_OPTIONAL),
+                'target_of_base_id' => new external_value(PARAM_INT, 'Base period that maps this period as a P-N column (0 if none)', VALUE_OPTIONAL),
+                'target_of_base_index' => new external_value(PARAM_INT, 'Relative index (0=P-I) in the base that maps this period (-1 if none)', VALUE_OPTIONAL),
+                'target_of_base_name' => new external_value(PARAM_TEXT, 'Name of the base period that maps this period', VALUE_OPTIONAL),
                 'induction' => new external_value(PARAM_INT, 'Induction', VALUE_OPTIONAL),
                 'block1start' => new external_value(PARAM_INT, 'Block 1 Start', VALUE_OPTIONAL),
                 'block1end' => new external_value(PARAM_INT, 'Block 1 End', VALUE_OPTIONAL),
@@ -480,7 +510,28 @@ class planning extends external_api {
          $context = \context_system::instance();
         self::validate_context($context);
         require_capability('moodle/site:config', $context);
-        
+
+        // SINGLE-BASE GUARD: si este periodo ya está asociado como columna P-N
+        // de otra base en gmk_planning_period_maps, la demanda del scheduler se
+        // resuelve desde esa base y todo lo que se guarde aquí sería ignorado o
+        // entraría en conflicto con el ciclo existente (caso 2026-07-07:
+        // matriz 19 vs tablero 6 en GESTIÓN DE RECURSOS).
+        $academicperiodid = (int)$academicperiodid;
+        $conflictMap = null;
+        foreach ($DB->get_records('gmk_planning_period_maps', ['target_period_id' => $academicperiodid], 'timemodified DESC') as $m) {
+            if ((int)$m->base_period_id !== $academicperiodid) {
+                $conflictMap = $m;
+                break;
+            }
+        }
+        if ($conflictMap) {
+            $baseName = $DB->get_field('gmk_academic_periods', 'name', ['id' => $conflictMap->base_period_id]);
+            $ownName = $DB->get_field('gmk_academic_periods', 'name', ['id' => $academicperiodid]);
+            $col = 'P-' . ((int)$conflictMap->relative_index + 1);
+            throw new \Exception("No se guardó: el periodo {$ownName} está asociado como columna {$col} de la planificación con base {$baseName}. " .
+                "Para mantener una sola base de trabajo, planifique desde {$baseName} o elimine esa asociación de columnas antes de trabajar {$ownName} como base.");
+        }
+
         $items = json_decode($selections, true);
         error_log("save_planning items: " . print_r($items, true));
         
@@ -554,7 +605,27 @@ class planning extends external_api {
 
         $now = time();
         $baseperiodid = (int)$baseperiodid;
-        
+
+        // SINGLE-BASE GUARD: validar ANTES de escribir. No se puede asociar como
+        // columna P-N un periodo que ya se trabaja directamente como base (tiene
+        // proyecciones o diferimientos propios): quedarían dos ciclos de
+        // planificación alimentando el mismo periodo y el tablero leería el
+        // equivocado.
+        foreach ($mappings as $relativeIndex => $targetPeriodId) {
+            $tid = (int)$targetPeriodId;
+            if (!$tid || $tid === $baseperiodid) {
+                continue;
+            }
+            $hasOwnPlanning = $DB->record_exists('gmk_academic_planning', ['academicperiodid' => $tid])
+                || $DB->record_exists('gmk_academic_deferrals', ['academicperiodid' => $tid]);
+            if ($hasOwnPlanning) {
+                $tname = $DB->get_field('gmk_academic_periods', 'name', ['id' => $tid]);
+                $col = 'P-' . ((int)$relativeIndex + 1);
+                throw new \Exception("No se guardó la asociación de periodos: {$tname} ya se trabaja directamente como base (tiene planificación propia) " .
+                    "y no puede asignarse a la columna {$col}. Para mantener una sola base, trabaje la matriz seleccionando {$tname} como Periodo Actual (Base).");
+            }
+        }
+
         foreach ($mappings as $relativeIndex => $targetPeriodId) {
             if (!$targetPeriodId) {
                 // If it was cleared, remove the record
