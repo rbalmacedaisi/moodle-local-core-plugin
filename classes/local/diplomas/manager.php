@@ -1178,6 +1178,258 @@ public static function generate_diplomas(int $templateid, array $items, int $act
     }
 
     /**
+     * Lists every course that has at least one student enrolled in
+     * the system (joins {course} -> {gmk_course_progre}), with the
+     * current eligibility flag from gmk_diploma_eligible_course and
+     * the count of eligible students (status = 4 = COURSE_APPROVED,
+     * student status = activo / egresado). Used by the new
+     * "Certificados por curso" tab in diplomageneration.php and by
+     * the admin section that toggles which courses can issue a
+     * per-student certificate.
+     *
+     * @param bool $enabledOnly If true, only include courses that
+     *                            have been flagged as eligible for
+     *                            certificate generation.
+     * @return array<int, array{id:int,fullname:string,shortname:string,
+     *                           categoryname:string,enabled:bool,
+     *                           eligible_count:int,total_count:int}>
+     */
+    public static function list_courses_with_eligibility(bool $enabledOnly = false): array {
+        global $DB;
+        $sql = "SELECT c.id, c.fullname, c.shortname, cc.name AS categoryname,
+                       COALESCE(ec.enabled, 0) AS enabled
+                  FROM {course} c
+             LEFT JOIN {course_categories} cc ON cc.id = c.category
+             LEFT JOIN {gmk_diploma_eligible_course} ec ON ec.courseid = c.id
+                 WHERE c.id > 1
+              ORDER BY c.fullname ASC";
+        $rows = $DB->get_records_sql($sql);
+        $out = [];
+        foreach ($rows as $r) {
+            if ($enabledOnly && empty($r->enabled)) { continue; }
+            // Count students whose progress in this course is
+            // COURSE_APPROVED (status = 4) AND whose local_learning_users
+            // status is 'activo' or 'egresado'. We deduplicate by
+            // (userid, courseid) to avoid counting the same student
+            // twice if she has multiple approved rows.
+            $eligcount = $DB->get_field_sql(
+                "SELECT COUNT(DISTINCT p.userid)
+                   FROM {gmk_course_progre} p
+                   JOIN {user} u ON u.id = p.userid AND u.deleted = 0 AND u.suspended = 0
+                   JOIN {local_learning_users} lu
+                        ON lu.userid = p.userid AND lu.userrolename = 'student'
+                       AND lu.status IN ('activo', 'egresado')
+                  WHERE p.courseid = :cid AND p.status = 4",
+                ['cid' => $r->id]
+            );
+            $totcount = $DB->get_field_sql(
+                "SELECT COUNT(DISTINCT p.userid)
+                   FROM {gmk_course_progre} p
+                   JOIN {user} u ON u.id = p.userid AND u.deleted = 0 AND u.suspended = 0
+                   JOIN {local_learning_users} lu
+                        ON lu.userid = p.userid AND lu.userrolename = 'student'
+                       AND lu.status IN ('activo', 'egresado')
+                  WHERE p.courseid = :cid",
+                ['cid' => $r->id]
+            );
+            $out[] = [
+                'id' => (int)$r->id,
+                'fullname' => (string)$r->fullname,
+                'shortname' => (string)$r->shortname,
+                'categoryname' => (string)($r->categoryname ?? ''),
+                'enabled' => (bool)$r->enabled,
+                'eligible_count' => (int)$eligcount,
+                'total_count' => (int)$totcount,
+            ];
+        }
+        return $out;
+    }
+
+    /**
+     * Toggle whether a course is eligible for per-student certificate
+     * generation. Inserts a row on first activation; updates it on
+     * subsequent toggles.
+     *
+     * @param int $courseid
+     * @param bool $enabled
+     * @return array{id:int,enabled:bool} Updated record.
+     */
+    public static function set_course_eligibility(int $courseid, bool $enabled): array {
+        global $DB, $USER;
+        $courseid = (int)$courseid;
+        $now = time();
+        $existing = $DB->get_record('gmk_diploma_eligible_course', ['courseid' => $courseid]);
+        if ($existing) {
+            $existing->enabled = $enabled ? 1 : 0;
+            $existing->timemodified = $now;
+            $existing->usermodified = (int)$USER->id;
+            $DB->update_record('gmk_diploma_eligible_course', $existing);
+            return ['id' => (int)$existing->id, 'enabled' => (bool)$existing->enabled];
+        }
+        $id = $DB->insert_record('gmk_diploma_eligible_course', (object)[
+            'courseid' => $courseid,
+            'enabled' => $enabled ? 1 : 0,
+            'usermodified' => (int)$USER->id,
+            'timecreated' => $now,
+            'timemodified' => $now,
+        ]);
+        return ['id' => $id, 'enabled' => (bool)$enabled];
+    }
+
+    /**
+     * Returns the per-student eligibility breakdown for one course:
+     * approved / not-yet-approved / not-enrolled, plus grade and
+     * completion date. Mirrors compute_eligibility() used by the
+     * learning-plan version.
+     *
+     * @param int $userid
+     * @param int $courseid
+     * @return array<string, mixed>
+     */
+    public static function compute_course_eligibility(int $userid, int $courseid): array {
+        global $DB;
+        $user = core_user::get_user($userid, '*', MUST_EXIST);
+        $course = $DB->get_record('course', ['id' => $courseid], 'id, fullname, shortname', MUST_EXIST);
+
+        // Find the latest progress row for this (user, course).
+        $prow = $DB->get_record_sql(
+            "SELECT p.id, p.status, p.grade, p.progress, p.timemodified
+               FROM {gmk_course_progre} p
+              WHERE p.userid = :uid AND p.courseid = :cid
+           ORDER BY p.timemodified DESC, p.id DESC
+              LIMIT 1",
+            ['uid' => $userid, 'cid' => $courseid]
+        );
+
+        $status = $prow ? (int)$prow->status : 0;
+        $grade = $prow ? (float)$prow->grade : 0.0;
+        $progress = $prow ? (float)$prow->progress : 0.0;
+        $completedat = ($prow && $status === 4) ? userdate((int)$prow->timemodified) : '';
+
+        $has_diploma = $DB->record_exists_sql(
+            "SELECT 1 FROM {gmk_diploma_generation} g
+              WHERE g.userid = :uid
+                AND g.courseid = :cid
+                AND g.status = :st",
+            ['uid' => $userid, 'cid' => $courseid, 'st' => self::STATUS_GENERATED]
+        );
+
+        return [
+            'userid' => (int)$userid,
+            'username' => fullname($user),
+            'courseid' => (int)$courseid,
+            'coursename' => (string)$course->fullname,
+            'courseshortname' => (string)$course->shortname,
+            'is_approved' => $status === 4,
+            'status' => $status,
+            'grade' => $grade,
+            'progress' => $progress,
+            'completed_at' => $completedat,
+            'has_diploma' => (bool)$has_diploma,
+            'is_eligible' => $status === 4 && !$has_diploma,
+            'reason' => $has_diploma
+                ? get_string('diploma_course_has_diploma', 'local_grupomakro_core')
+                : ($status === 4
+                    ? get_string('diploma_course_ready', 'local_grupomakro_core')
+                    : get_string('diploma_course_not_approved', 'local_grupomakro_core', [
+                        'progress' => round($progress, 1),
+                        'grade' => round($grade, 2),
+                    ])),
+        ];
+    }
+
+    /**
+     * Lists students with their eligibility for a single course.
+     * Mirrors list_graduands_with_eligibility() for plans. Uses the
+     * same Solo pendientes toggle UX as the plan section.
+     *
+     * @param int $courseid
+     * @param bool $onlyeligible
+     * @param string $search
+     * @param int $limitfrom
+     * @param int $limitnum
+     * @return array<int, array<string, mixed>>
+     */
+    public static function list_students_for_course(
+        int $courseid,
+        bool $onlyeligible = false,
+        string $search = '',
+        int $limitfrom = 0,
+        int $limitnum = 200
+    ): array {
+        global $DB;
+        $params = ['cid' => $courseid];
+
+        $where = "p.courseid = :cid";
+        if ($search !== '') {
+            $where .= " AND (LOWER(u.firstname) LIKE :s OR LOWER(u.lastname) LIKE :s
+                          OR LOWER(u.username) LIKE :s OR LOWER(u.idnumber) LIKE :s)";
+            $params['s'] = '%' . core_text::strtolower($search) . '%';
+        }
+
+        // Pull every distinct student that has a progress row for this
+        // course and is activo/egresado in local_learning_users.
+        $sql = "SELECT u.id, u.firstname, u.lastname, u.username, u.idnumber, u.email,
+                       MAX(p.timemodified) AS last_seen,
+                       MAX(CASE WHEN p.status = 4 THEN 1 ELSE 0 END) AS approved_flag,
+                       MAX(CASE WHEN p.status = 4 THEN p.grade ELSE 0 END) AS approved_grade,
+                       MAX(CASE WHEN p.status = 4 THEN p.progress ELSE 0 END) AS approved_progress,
+                       MAX(CASE WHEN p.status = 4 THEN p.timemodified ELSE 0 END) AS approved_at
+                  FROM {gmk_course_progre} p
+                  JOIN {user} u ON u.id = p.userid AND u.deleted = 0 AND u.suspended = 0
+                  JOIN {local_learning_users} lu
+                       ON lu.userid = p.userid AND lu.userrolename = 'student'
+                      AND lu.status IN ('activo', 'egresado')
+                 WHERE $where
+              GROUP BY u.id, u.firstname, u.lastname, u.username, u.idnumber, u.email
+              ORDER BY u.lastname ASC, u.firstname ASC";
+        $rs = $DB->get_recordset_sql($sql, $params, $limitfrom, $limitnum);
+        $out = [];
+        foreach ($rs as $r) {
+            $userid = (int)$r->id;
+            $eligibility = self::compute_course_eligibility($userid, $courseid);
+            if ($onlyeligible && empty($eligibility['is_eligible'])) {
+                continue;
+            }
+            $out[] = [
+                'user' => [
+                    'id' => $userid,
+                    'firstname' => (string)$r->firstname,
+                    'lastname' => (string)$r->lastname,
+                    'fullname' => fullname((object)['firstname' => $r->firstname, 'lastname' => $r->lastname]),
+                    'username' => (string)$r->username,
+                    'idnumber' => (string)$r->idnumber,
+                    'email' => (string)$r->email,
+                ],
+                'eligibility' => $eligibility,
+            ];
+        }
+        $rs->close();
+        return $out;
+    }
+
+    /**
+     * Counts eligible students per course (matches list_courses_with_eligibility
+     * eligibility_count column for consistency).
+     *
+     * @param int $courseid
+     * @return int
+     */
+    public static function count_eligible_for_course(int $courseid): int {
+        global $DB;
+        return (int)$DB->get_field_sql(
+            "SELECT COUNT(DISTINCT p.userid)
+               FROM {gmk_course_progre} p
+               JOIN {user} u ON u.id = p.userid AND u.deleted = 0 AND u.suspended = 0
+               JOIN {local_learning_users} lu
+                    ON lu.userid = p.userid AND lu.userrolename = 'student'
+                   AND lu.status IN ('activo', 'egresado')
+              WHERE p.courseid = :cid AND p.status = 4",
+            ['cid' => $courseid]
+        );
+    }
+
+    /**
      * Revokes a generated diploma (does NOT delete the file).
      *
      * @param int $generationid

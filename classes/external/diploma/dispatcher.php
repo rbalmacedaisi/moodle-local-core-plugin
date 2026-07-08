@@ -134,6 +134,33 @@ final class dispatcher {
                 require_capability($capview, context_system::instance());
                 return ['status' => 'success', 'counts' => $manager::count_eligible_by_plan()];
 
+            case 'list_courses_with_eligibility':
+                require_capability($capmanage, context_system::instance());
+                $enabledonly = optional_param('enabledonly', 0, PARAM_BOOL) ? true : false;
+                return ['status' => 'success', 'courses' => $manager::list_courses_with_eligibility($enabledonly)];
+
+            case 'set_course_eligibility':
+                require_capability($capmanage, context_system::instance());
+                $cid = required_param('courseid', PARAM_INT);
+                $enabled = optional_param('enabled', 0, PARAM_BOOL) ? true : false;
+                return ['status' => 'success', 'result' => $manager::set_course_eligibility($cid, $enabled)];
+
+            case 'list_students_for_course':
+                require_capability($capmanage, context_system::instance());
+                $cid = required_param('courseid', PARAM_INT);
+                $search = optional_param('search', '', PARAM_TEXT);
+                $onlyeligible = optional_param('onlyeligible', 0, PARAM_BOOL) ? true : false;
+                return [
+                    'status' => 'success',
+                    'students' => $manager::list_students_for_course($cid, $onlyeligible, $search, 0, 200),
+                ];
+
+            case 'course_eligibility_detail':
+                require_capability($capview, context_system::instance());
+                $cid = required_param('courseid', PARAM_INT);
+                $uid = required_param('userid', PARAM_INT);
+                return ['status' => 'success', 'detail' => $manager::compute_course_eligibility($uid, $cid)];
+
             case 'list_graduands':
                 require_capability($capview, context_system::instance());
                 $lpid = optional_param('learningplanid', 0, PARAM_INT);
