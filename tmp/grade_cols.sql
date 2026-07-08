@@ -1,1 +1,0 @@
-DESCRIBE isi_grade_grades_history;

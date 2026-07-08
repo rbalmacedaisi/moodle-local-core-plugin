@@ -1,1 +1,0 @@
-SELECT GROUP_CONCAT(f.contenthash SEPARATOR ' ') FROM isi_files f WHERE f.component='assignsubmission_file' AND f.itemid IN (SELECT asub.id FROM isi_assign_submission asub WHERE asub.assignment = 183);

@@ -1,1 +1,0 @@
-SELECT id, eventname, userid, from_unixtime(timecreated) AS dt, other FROM isi_logstore_standard_log WHERE contextinstanceid = 6828 AND userid = 2558 ORDER BY timecreated;

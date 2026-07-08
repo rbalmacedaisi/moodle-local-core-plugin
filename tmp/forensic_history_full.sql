@@ -1,1 +1,0 @@
-SELECT gh.id, gh.action, gh.userid AS moduserid, gh.timemodified, gh.finalgrade, gh.rawgrade, gh.userid AS graded_user, u.firstname, u.lastname FROM isi_grade_grades_history gh LEFT JOIN isi_user u ON u.id = gh.userid WHERE gh.itemid = 1947 ORDER BY gh.userid, gh.timemodified;
