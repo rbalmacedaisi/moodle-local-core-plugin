@@ -1565,7 +1565,7 @@ if (preg_match('/Bimestre\s+(II|I)/', $cohortKey, $m)) {
         $studentRowsByDb = [];
 
         $matchToken = static function($a, $b) {
-            return core_text::strtolower(trim((string)$a)) === core_text::strtolower(trim((string)$b));
+            return \core_text::strtolower(trim((string)$a)) === \core_text::strtolower(trim((string)$b));
         };
 
         foreach ($students as $stu) {
