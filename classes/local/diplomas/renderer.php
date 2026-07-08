@@ -283,7 +283,8 @@ class renderer {
         stdClass $user,
         ?stdClass $lp,
         ?stdClass $generation,
-        string $verificationurl
+        string $verificationurl,
+        ?stdClass $course = null
     ): string {
         global $CFG;
         require_once($CFG->libdir . '/tcpdf/tcpdf.php');
@@ -374,7 +375,7 @@ class renderer {
         }
         $text = '';
         if ($type === manager::FIELD_VARIABLE) {
-            $text = manager::resolve_variable((string)$f->variable_code, $user, $lp, $generation);
+            $text = manager::resolve_variable((string)$f->variable_code, $user, $lp, $generation, $course);
         } else if ($type === manager::FIELD_CUSTOM) {
             $text = self::substitute_placeholders((string)$f->custom_text, $user, $lp, $generation);
         } else if ($type === manager::FIELD_STATIC) {
@@ -433,7 +434,7 @@ class renderer {
     public static function substitute_placeholders(string $text, stdClass $user, ?stdClass $lp, ?stdClass $generation): string {
         return preg_replace_callback('/\{\{\s*([a-z0-9_]+)\s*\}\}/i', function ($m) use ($user, $lp, $generation) {
             $code = strtolower($m[1]);
-            return manager::resolve_variable($code, $user, $lp, $generation);
+            return manager::resolve_variable($code, $user, $lp, $generation, $course);
         }, $text);
     }
 

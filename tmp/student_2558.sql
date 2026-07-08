@@ -1,0 +1,16 @@
+SELECT '==USER INFO==' as '';
+SELECT id, firstname, lastname, email, username FROM isi_user WHERE id = 2558;
+SELECT '==GRADES FOR ASSIGN 255 (Vuelo Digital) itemid 2047==' as '';
+SELECT gg.id, gg.itemid, gg.userid, gg.finalgrade, gg.rawgrade, gg.timemodified, ag.grade AS assign_grade FROM isi_grade_grades gg LEFT JOIN isi_assign_grades ag ON ag.assignment = 255 AND ag.userid = gg.userid WHERE gg.itemid = 2047 AND gg.userid = 2558;
+SELECT '==GRADES FOR ASSIGN 256 (Quiz) itemid 2048==' as '';
+SELECT gg.id, gg.itemid, gg.userid, gg.finalgrade, gg.rawgrade, gg.timemodified, ag.grade AS assign_grade FROM isi_grade_grades gg LEFT JOIN isi_assign_grades ag ON ag.assignment = 256 AND ag.userid = gg.userid WHERE gg.itemid = 2048 AND gg.userid = 2558;
+SELECT '==SUBMISSIONS==' as '';
+SELECT * FROM isi_assign_submission WHERE assignment IN (255, 256) AND userid = 2558;
+SELECT '==GROUP MEMBERSHIP==' as '';
+SELECT gm.groupid, g.name FROM isi_groups_members gm JOIN isi_groups g ON g.id = gm.groupid WHERE gm.userid = 2558 AND g.courseid = 74;
+SELECT '==ENROLLMENT IN COURSE 74==' as '';
+SELECT * FROM isi_user_enrolments ue JOIN isi_enrol e ON e.id = ue.enrolid WHERE ue.userid = 2558 AND e.courseid = 74;
+SELECT '==GMK COURSE PROGRESS==' as '';
+SELECT cp.id, cp.courseid, cp.progress, cp.grade, cp.status, from_unixtime(cp.timemodified) dt FROM isi_gmk_course_progre cp WHERE cp.userid = 2558 AND cp.courseid = 74;
+SELECT '==COURSE TOTAL GRADE==';
+SELECT gg.finalgrade FROM isi_grade_grades gg JOIN isi_grade_items gi ON gi.id = gg.itemid WHERE gi.courseid = 74 AND gi.itemtype = 'course' AND gg.userid = 2558;

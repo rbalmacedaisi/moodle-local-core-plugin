@@ -1,0 +1,12 @@
+SELECT '==SEARCH USER BY CEDULA 8-1053-512==' as '';
+SELECT id, firstname, lastname, email, username, idnumber FROM isi_user WHERE idnumber LIKE '%8-1053-512%' OR username LIKE '%8-1053-512%' OR idnumber LIKE '%1053512%' OR idnumber LIKE '%8-1053%';
+SELECT '==ALSO CHECK BY NAME PATTERN==' as '';
+SELECT id, firstname, lastname, username, idnumber, email FROM isi_user WHERE idnumber LIKE '%1053%' OR idnumber LIKE '%8-1053%' LIMIT 10;
+SELECT '==CUSTOM PROFILE FIELDS FOR CEDULA==' as '';
+SHOW TABLES LIKE 'isi_user_info%';
+SELECT '==IF USER_INFO_DATA EXISTS==' as '';
+DESCRIBE isi_user_info_data;
+SELECT '==SEARCH BY CUSTOM FIELD==' as '';
+SELECT userid, fieldid, data FROM isi_user_info_data WHERE data LIKE '%8-1053-512%' OR data LIKE '%1053-512%' LIMIT 10;
+SELECT '==USER_PROFILE_FIELD SHORTNAMES==' as '';
+SELECT id, shortname, name, datatype FROM isi_user_info_field WHERE shortname LIKE '%cedula%' OR shortname LIKE '%dni%' OR shortname LIKE '%id%' LIMIT 20;

@@ -1,0 +1,1 @@
+SELECT COUNT(*) AS n FROM isi_logstore_standard_log WHERE contextinstanceid = 6828 AND userid = 2558;

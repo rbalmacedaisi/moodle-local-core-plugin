@@ -37,6 +37,10 @@
                         <v-icon left>mdi-account-school-outline</v-icon>
                         {{ strings.list_only_pending || 'Estudiantes elegibles' }}
                     </v-tab>
+                    <v-tab key="courses">
+                        <v-icon left>mdi-book-open-page-variant</v-icon>
+                        {{ strings.course_tab || 'Certificados por curso' }}
+                    </v-tab>
                     <v-tab key="generated">
                         <v-icon left>mdi-check-decagram</v-icon>
                         {{ strings.list_generated || 'Diplomas generados' }}
@@ -172,6 +176,132 @@
                                                 <v-icon left small>mdi-clipboard-check-outline</v-icon>
                                                 Ver detalle
                                             </v-btn>
+                                        </template>
+                                    </v-data-table>
+                                </v-card>
+                            </v-col>
+                        </v-row>
+                    </v-tab-item>
+
+                    <!-- COURSES TAB -->
+                    <v-tab-item key="courses">
+                        <v-row class="ma-0">
+                            <!-- Course summary cards -->
+                            <v-col cols="12" class="py-1">
+                                <v-row dense>
+                                    <v-col v-for="c in courseCards" :key="c.id" cols="6" sm="4" md="3" lg="2">
+                                        <v-card outlined class="pa-3 dpl-card-summary dpl-career-card"
+                                                :class="c.enabled ? 'success' : ''"
+                                                @click="filterCourse(c.id)" style="cursor: pointer;">
+                                            <div style="font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">
+                                                {{ strings.course_filter }}
+                                            </div>
+                                            <div style="font-size: 14px; font-weight: 600; margin-top: 4px; line-height: 1.2;"
+                                                 :title="c.fullname">{{ c.shortname || c.fullname }}</div>
+                                            <div style="font-size: 26px; font-weight: 700; margin-top: 8px;"
+                                                 :class="c.eligible_count > 0 ? 'green--text' : 'grey--text'">
+                                                {{ c.eligible_count }}
+                                            </div>
+                                            <div style="font-size: 11px; color: #6b7280;">
+                                                / {{ c.total_count }}
+                                                <span v-if="!c.enabled" style="margin-left:6px;color:#dc2626;">(off)</span>
+                                            </div>
+                                        </v-card>
+                                    </v-col>
+                                </v-row>
+                            </v-col>
+
+                            <!-- Filters + Template picker + Actions -->
+                            <v-col cols="12" class="py-1">
+                                <v-card outlined class="pa-3">
+                                    <v-row dense align="center">
+                                        <v-col cols="12" md="5">
+                                            <v-select v-model="selectedCourseId" :items="courseItems"
+                                                      :label="strings.course_filter"
+                                                      outlined dense clearable hide-details></v-select>
+                                        </v-col>
+                                        <v-col cols="12" md="4">
+                                            <v-select v-model="selectedTemplateId" :items="templateItems"
+                                                      :label="strings.select_template"
+                                                      outlined dense hide-details></v-select>
+                                        </v-col>
+                                        <v-col cols="12" md="3">
+                                            <v-text-field v-model="search" :label="strings.search_student"
+                                                          append-icon="mdi-magnify"
+                                                          outlined dense clearable hide-details></v-text-field>
+                                        </v-col>
+                                    </v-row>
+                                    <v-row dense align="center" class="mt-1">
+                                        <v-col cols="12" md="4" class="d-flex align-center" style="gap: 8px;">
+                                            <v-checkbox v-model="selectAll" :label="'Todos'" color="primary"
+                                                        dense hide-details @change="toggleAllCourse"></v-checkbox>
+                                            <v-chip small color="primary">{{ selected.length }} {{ strings.selected_count || 'seleccionados' }}</v-chip>
+                                        </v-col>
+                                        <v-col cols="12" md="8" class="d-flex justify-end" style="gap: 8px;">
+                                            <v-switch v-model="onlyEligibleCourse" color="primary" dense hide-details inset
+                                                      @change="loadCourseStudents"
+                                                      label="Solo pendientes"></v-switch>
+                                            <v-btn small color="primary" @click="generateCourse" :loading="generating"
+                                                   :disabled="!selected.length || !selectedTemplateId || !selectedCourseId">
+                                                <v-icon left small>mdi-cog</v-icon>
+                                                {{ strings.generate_selected }}
+                                            </v-btn>
+                                        </v-col>
+                                    </v-row>
+                                </v-card>
+                            </v-col>
+
+                            <!-- Students table -->
+                            <v-col cols="12" class="py-1">
+                                <v-card outlined>
+                                    <v-card-text class="py-2 d-flex align-center" style="gap: 16px; flex-wrap: wrap;">
+                                        <v-spacer></v-spacer>
+                                        <span class="caption grey--text" v-if="selectedCourseId">
+                                            {{ courseStudents.length }} estudiante(s) en la lista
+                                        </span>
+                                    </v-card-text>
+                                    <v-divider></v-divider>
+                                    <v-data-table
+                                        v-model="selected"
+                                        :headers="courseStudentHeaders"
+                                        :items="courseStudents"
+                                        item-key="rowKey"
+                                        :search="search"
+                                        :items-per-page="20"
+                                        :footer-props="{itemsPerPageOptions: [10,20,50,-1]}"
+                                        show-select
+                                        no-data-text="">
+                                        <template slot="no-data">
+                                            <div class="pa-6 text-center grey--text">
+                                                <div>{{ strings.course_no_students || 'No hay estudiantes con esta asignatura aprobada.' }}</div>
+                                                <div class="caption mt-2">
+                                                    Active el curso desde la sección "Cursos elegibles" en la página de plantillas.
+                                                </div>
+                                            </div>
+                                        </template>
+                                        <template slot="item.student_name" slot-scope="props">
+                                            <div class="font-weight-medium">{{ props.item.user.fullname }}</div>
+                                            <div class="caption grey--text">{{ props.item.user.idnumber || props.item.user.username }}</div>
+                                        </template>
+                                        <template slot="item.user.documentnumber" slot-scope="props">
+                                            <span>{{ props.item.user.documentnumber || '—' }}</span>
+                                        </template>
+                                        <template slot="item.course_status" slot-scope="props">
+                                            <v-chip v-if="props.item.eligibility.has_diploma" small color="grey" text-color="white">
+                                                {{ strings.course_has_diploma }}
+                                            </v-chip>
+                                            <v-chip v-else-if="props.item.eligibility.is_eligible" small color="green" text-color="white">
+                                                {{ strings.course_ready }}
+                                            </v-chip>
+                                            <v-chip v-else small color="orange" text-color="white">
+                                                {{ strings.course_not_approved }}
+                                            </v-chip>
+                                        </template>
+                                        <template slot="item.course_grade" slot-scope="props">
+                                            <span>{{ props.item.eligibility.grade ? props.item.eligibility.grade.toFixed(2) : '—' }}</span>
+                                        </template>
+                                        <template slot="item.completed_at" slot-scope="props">
+                                            <span>{{ props.item.eligibility.completed_at || '—' }}</span>
                                         </template>
                                     </v-data-table>
                                 </v-card>
@@ -397,7 +527,15 @@
                 detailError: '',
                 detail: null,
                 detailUserId: 0,
-                detailPlanId: 0
+                detailPlanId: 0,
+                // Course-certificates tab state. Mirrors the graduands
+                // tab (same Solo pendientes toggle UX) but eligibility is
+                // per-course (status 4 in gmk_course_progre) instead of
+                // per-learning-plan.
+                courseCards: [],
+                courseStudents: [],
+                selectedCourseId: null,
+                onlyEligibleCourse: true
             };
         },
         computed: {
@@ -427,6 +565,22 @@
             },
             templateItemsWithAll() {
                 return [{ text: this.strings.all_status || 'Todos', value: null }].concat(this.templateItems);
+            },
+            // Courses tab dropdown: only enabled courses show up.
+            courseItems() {
+                const enabled = (this.courseCards || []).filter(c => c.enabled);
+                return [{ text: this.strings.course_all || 'Todos los cursos elegibles', value: null }].concat(
+                    enabled.map(c => ({ text: c.fullname, value: c.id }))
+                );
+            },
+            courseStudentHeaders() {
+                return [
+                    { text: this.strings.name || 'Estudiante', value: 'student_name', sortable: true },
+                    { text: this.strings.document || 'Documento', value: 'user.documentnumber', sortable: false },
+                    { text: this.strings.course_status || 'Estado', value: 'course_status', sortable: false, align: 'center', width: 160 },
+                    { text: this.strings.course_grade || 'Nota', value: 'course_grade', sortable: false, align: 'end', width: 80 },
+                    { text: this.strings.course_approved_at || 'Aprobada el', value: 'completed_at', sortable: false, width: 160 }
+                ];
             },
             statusItems() {
                 return [
@@ -467,12 +621,24 @@
                 this.selected = this.selected.filter(s => validKeys.has(s.rowKey));
             },
             'genFilter.templateid'() { this.loadGenerations(); },
-            'genFilter.status'(v) { if (v !== undefined) this.loadGenerations(); }
+            'genFilter.status'(v) { if (v !== undefined) this.loadGenerations(); },
+            // When the admin opens the Courses tab for the first time,
+            // refresh the cards and load the currently-selected course.
+            tab(newTab) {
+                if (newTab === 1) {
+                    this.loadCourseCards();
+                    if (this.selectedCourseId) { this.loadCourseStudents(); }
+                }
+            },
+            selectedCourseId() { this.loadCourseStudents(); }
         },
         async mounted() {
             await Promise.all([this.loadPlans(), this.loadTemplates(), this.loadPlanCounts()]);
             await this.loadGraduands();
             await this.loadGenerations();
+            // Eagerly load course cards so the Courses tab renders
+            // immediately when the user clicks it for the first time.
+            this.loadCourseCards();
         },
         methods: {
             goTemplates() {
@@ -564,6 +730,70 @@
             },
             filterPlan(planId) {
                 this.selectedPlanId = this.selectedPlanId === planId ? null : planId;
+            },
+            /**
+             * Courses tab: when a course card is clicked, set the
+             * dropdown filter to that course (toggle off if already
+             * selected, matching the plan-tab filterPlan() UX).
+             */
+            filterCourse(courseId) {
+                this.selectedCourseId = this.selectedCourseId === courseId ? null : courseId;
+                this.loadCourseStudents();
+            },
+            /**
+             * Fetch the list of enabled courses + their eligible-student
+             * counts (used by the summary cards and the dropdown). Only
+             * enabled courses are returned because the cards drive the
+             * "Solo pendientes" filter UX.
+             */
+            async loadCourseCards() {
+                try {
+                    const res = await this.http.post('/', {
+                        action: 'local_grupomakro_diploma_list_courses_with_eligibility',
+                        enabledonly: 1
+                    });
+                    if (res.data && res.data.status === 'success') {
+                        this.courseCards = res.data.courses || [];
+                    }
+                } catch (e) { console.warn(e); }
+            },
+            /**
+             * Fetch the students eligible for the currently-selected
+             * course. Uses the same (template + records) layout as
+             * loadGraduands so the table renders consistently.
+             */
+            async loadCourseStudents() {
+                if (!this.selectedCourseId) {
+                    this.courseStudents = [];
+                    return;
+                }
+                try {
+                    const payload = {
+                        action: 'local_grupomakro_diploma_list_students_for_course',
+                        courseid: this.selectedCourseId,
+                        search: this.search || '',
+                        onlyeligible: this.onlyEligibleCourse ? 1 : 0
+                    };
+                    const res = await this.http.post('/', payload);
+                    if (res.data && res.data.status === 'success') {
+                        this.courseStudents = (res.data.students || []).map(s => ({
+                            ...s,
+                            student_name: s.user.fullname,
+                            rowKey: s.user.id + '_' + (s.eligibility.courseid || '')
+                        }));
+                    }
+                } catch (e) { console.warn(e); }
+            },
+            /**
+             * Toggle all visible students on/off (mirrors toggleAll
+             * for the graduands tab).
+             */
+            toggleAllCourse() {
+                if (this.selectAll) {
+                    this.selected = [...this.courseStudents];
+                } else {
+                    this.selected = [];
+                }
             },
             /**
              * When the "include plans with no required courses" toggle
@@ -700,6 +930,89 @@
                         this.selected = [];
                         await this.loadGraduands();
                         await this.loadPlanCounts();
+                        await this.loadGenerations();
+                    } else {
+                        throw new Error((res.data && res.data.message) || 'Error');
+                    }
+                } catch (e) {
+                    Swal.close();
+                    Swal.fire({ icon: 'error', title: 'Error', text: e.message || e });
+                } finally {
+                    this.generating = false;
+                }
+            },
+            /**
+             * Generate per-course certificates. Mirrors generate() but
+             * the payload uses courseid instead of learningplanid and
+             * the eligibility warning looks at the per-course is_eligible
+             * flag (which is true only when the student has status=4 in
+             * gmk_course_progre for this course AND does not already have
+             * a generated certificate).
+             */
+            async generateCourse() {
+                if (!this.selectedCourseId) {
+                    Swal.fire({ icon: 'warning', title: this.strings.course_filter || 'Seleccione un curso' });
+                    return;
+                }
+                if (!this.selectedTemplateId) {
+                    Swal.fire({ icon: 'warning', title: this.strings.no_template_selected });
+                    return;
+                }
+                if (!this.selected.length) {
+                    Swal.fire({ icon: 'warning', title: this.strings.no_students_selected });
+                    return;
+                }
+                const noteligible = (this.selected || []).filter(s =>
+                    s.eligibility && !s.eligibility.is_eligible
+                );
+                if (noteligible.length > 0) {
+                    const list = noteligible.slice(0, 5).map(s =>
+                        '• ' + (s.user ? s.user.fullname : '?') +
+                        ' (' + (s.eligibility ? s.eligibility.reason : '?') + ')'
+                    ).join('\n');
+                    const more = noteligible.length > 5 ? '\ny ' + (noteligible.length - 5) + ' más…' : '';
+                    const proceed = await Swal.fire({
+                        title: 'Hay ' + noteligible.length + ' estudiante(s) que NO cumplen requisitos',
+                        html: '<div style="text-align:left;"><p>Los siguientes seleccionados aún no tienen la asignatura aprobada o ya tienen diploma:</p>' +
+                              '<pre style="white-space:pre-wrap;font-family:inherit;">' + list + more + '</pre>' +
+                              '<p>¿Deseas generar el diploma de todos modos?</p></div>',
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonText: 'Sí, generar de todos modos',
+                        cancelButtonText: this.strings.cancel
+                    });
+                    if (!proceed.isConfirmed) { return; }
+                }
+                const confirm = await Swal.fire({
+                    title: (this.strings.generate_for || 'Generar diploma para {n} estudiante(s)')
+                        .replace('{n}', this.selected.length),
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonText: this.strings.generate_selected,
+                    cancelButtonText: this.strings.cancel
+                });
+                if (!confirm.isConfirmed) { return; }
+
+                this.generating = true;
+                Swal.fire({
+                    title: this.strings.generation_in_progress,
+                    allowOutsideClick: false,
+                    didOpen: () => Swal.showLoading()
+                });
+                try {
+                    const items = this.selected.map(s => ({ userid: s.user.id, courseid: this.selectedCourseId }));
+                    const res = await this.http.post('/', {
+                        action: 'local_grupomakro_diploma_generate_course_certificates',
+                        templateid: this.selectedTemplateId,
+                        items: JSON.stringify(items)
+                    });
+                    Swal.close();
+                    if (res.data && res.data.status === 'success') {
+                        const text = res.data.message || 'Operación completada';
+                        Swal.fire({ icon: 'success', title: 'Completado', text: text });
+                        this.selected = [];
+                        await this.loadCourseStudents();
+                        await this.loadCourseCards();
                         await this.loadGenerations();
                     } else {
                         throw new Error((res.data && res.data.message) || 'Error');

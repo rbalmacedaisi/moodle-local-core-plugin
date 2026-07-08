@@ -1,0 +1,12 @@
+SELECT '==ESTUDIANTE 8-1039-2032==' as '';
+SELECT u.id, u.firstname, u.lastname, u.email, u.username FROM isi_user u WHERE u.username = '8-1039-2032' OR u.idnumber = '8-1039-2032';
+SELECT '==CUSTOM FIELD==' as '';
+SELECT userid, fieldid, data FROM isi_user_info_data WHERE data = '8-1039-2032';
+SELECT '==GLOBAL SEARCH==' as '';
+SELECT id, firstname, lastname, username, idnumber FROM isi_user WHERE idnumber LIKE '%1039%' OR username LIKE '%1039%';
+SELECT '==CURSO METEOROLOG?A B?SICA==' as '';
+SELECT id, shortname, fullname, category FROM isi_course WHERE shortname LIKE '%METEOROLOG%' OR fullname LIKE '%METEOROLOG%';
+SELECT '==GMK CLASS 9588==' as '';
+SELECT id, name, corecourseid, gradecategoryid, is_module FROM isi_gmk_class WHERE id = 9588;
+SELECT '==GRUPOS 2026-III METEOROLOGIA==' as '';
+SELECT id, name, courseid FROM isi_groups WHERE name LIKE '%METEOROLOG%' AND name LIKE '%2026-III%';

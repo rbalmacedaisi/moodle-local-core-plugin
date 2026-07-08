@@ -710,6 +710,12 @@ $string['diploma_var_diploma_number'] = 'Diploma number';
 $string['diploma_var_diploma_version'] = 'Document version';
 $string['diploma_var_institution'] = 'Institution name';
 $string['diploma_var_campus'] = 'Campus';
+$string['diploma_var_course_name'] = 'Course name';
+$string['diploma_var_course_shortname'] = 'Course shortname';
+$string['diploma_var_course_idnumber'] = 'Course ID number';
+$string['diploma_var_course_grade'] = 'Course grade';
+$string['diploma_var_course_completed_at'] = 'Course completion date';
+$string['diploma_var_course_progress'] = 'Course progress';
 
 $string['diploma_generation'] = 'Diploma generation';
 $string['diploma_filter_career'] = 'Filter by career';

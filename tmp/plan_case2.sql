@@ -1,0 +1,12 @@
+SELECT '==SECCIONES CURSO 87==' as '';
+SELECT id, course, section, name, sequence FROM isi_course_sections WHERE course = 87 ORDER BY section;
+SELECT '==ASSIGNS EN CURSO 87 CON "METEOROLOG" O "TAREA" O "ATMOSFERA"==' as '';
+SELECT id, course, name, duedate, timemodified FROM isi_assign WHERE course = 87 AND (name LIKE '%METEOROLOG%' OR name LIKE '%TAREA%' OR name LIKE '%ATMOSFERA%' OR name LIKE '%PALABRA%') ORDER BY id;
+SELECT '==TODOS ASSIGNS CURSO 87==' as '';
+SELECT id, course, name, duedate, timemodified FROM isi_assign WHERE course = 87 ORDER BY id;
+SELECT '==GMK_CLASS 9588 DETAIL==' as '';
+SELECT id, name, corecourseid, gradecategoryid, is_module, instructorid FROM isi_gmk_class WHERE id = 9588;
+SELECT '==GRUPO 749==' as '';
+SELECT id, name, courseid FROM isi_groups WHERE id = 749;
+SELECT '==STUDENT IN GRUPOS DE CURSO 87==' as '';
+SELECT gm.groupid, g.name, gm.userid FROM isi_groups_members gm JOIN isi_groups g ON g.id = gm.groupid WHERE gm.userid = 2735 AND g.courseid = 87;

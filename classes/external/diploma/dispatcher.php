@@ -202,6 +202,21 @@ final class dispatcher {
                 $msg = get_string($msgkey, 'local_grupomakro_core', $result);
                 return ['status' => 'success', 'summary' => $result, 'message' => $msg];
 
+            case 'generate_course_certificates':
+                require_capability($capmanage, context_system::instance());
+                $templateid = required_param('templateid', PARAM_INT);
+                $args = required_param('items', PARAM_RAW);
+                $items = json_decode($args, true);
+                if (!is_array($items)) {
+                    throw new moodle_exception('invalidjson');
+                }
+                $result = $manager::generate_course_certificates($templateid, $items, $USER->id);
+                $msgkey = $result['errors'] > 0
+                    ? 'diploma_generation_partial'
+                    : 'diploma_generation_done';
+                $msg = get_string($msgkey, 'local_grupomakro_core', $result);
+                return ['status' => 'success', 'summary' => $result, 'message' => $msg];
+
             case 'list_generations':
                 require_capability($capview, context_system::instance());
                 $templateid = optional_param('templateid', 0, PARAM_INT);

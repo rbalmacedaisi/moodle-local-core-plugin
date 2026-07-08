@@ -1,0 +1,12 @@
+SELECT '==DELETED ASSIGNS (with possible grades/submissions)==' as '';
+SELECT id, course, name, duedate, grade, timemodified FROM isi_assign WHERE id IN (96, 97, 98, 99, 165, 257, 500, 65, 544, 735);
+SELECT '==DELETED QUIZZES==' as '';
+SELECT id, course, name, timemodified FROM isi_quiz WHERE id IN (58, 82);
+SELECT '==GRADE ITEMS FOR DELETED ASSIGNS IN COURSE 74==' as '';
+SELECT id, itemname, itemmodule, iteminstance AS assign_id, categoryid, grademax FROM isi_grade_items WHERE courseid = 74 AND itemmodule IN ('assign','quiz') AND iteminstance IN (96, 97, 98, 99, 165, 257, 500, 65, 544, 735, 58, 82);
+SELECT '==SUBMISSIONS FOR DELETED ASSIGNS==' as '';
+SELECT assignment, COUNT(*) AS total_submissions, SUM(CASE WHEN status = 'submitted' THEN 1 ELSE 0 END) AS submitted, SUM(CASE WHEN status = 'reopened' THEN 1 ELSE 0 END) AS reopened FROM isi_assign_submission WHERE assignment IN (96, 97, 98, 99, 165, 257, 500, 65, 544, 735) GROUP BY assignment;
+SELECT '==GRADES FOR DELETED ASSIGNS==' as '';
+SELECT ag.assignment, COUNT(*) AS total_grade_records, SUM(CASE WHEN ag.grade >= 0 THEN 1 ELSE 0 END) AS with_positive_grade, MIN(ag.timemodified) AS first_grade_date, MAX(ag.timemodified) AS last_grade_date FROM isi_assign_grades ag WHERE ag.assignment IN (96, 97, 98, 99, 165, 257, 500, 65, 544, 735) GROUP BY ag.assignment;
+SELECT '==GRADES IN GRADEBOOK (grade_grades) FOR DELETED ASSIGNS==' as '';
+SELECT gi.id AS grade_item_id, gi.itemname, gi.iteminstance AS assign_id, COUNT(gg.id) AS total_grade_grades, SUM(CASE WHEN gg.finalgrade IS NOT NULL AND gg.finalgrade >= 0 THEN 1 ELSE 0 END) AS with_grade FROM isi_grade_items gi LEFT JOIN isi_grade_grades gg ON gg.itemid = gi.id WHERE gi.courseid = 74 AND gi.itemmodule IN ('assign','quiz') AND gi.iteminstance IN (96, 97, 98, 99, 165, 257, 500, 65, 544, 735, 58, 82) GROUP BY gi.id, gi.itemname, gi.iteminstance ORDER BY gi.iteminstance;

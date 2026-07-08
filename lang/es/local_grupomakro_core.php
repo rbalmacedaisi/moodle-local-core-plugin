@@ -708,6 +708,12 @@ $string['diploma_var_diploma_number'] = 'Número de diploma';
 $string['diploma_var_diploma_version'] = 'Versión del documento';
 $string['diploma_var_institution'] = 'Nombre de la institución';
 $string['diploma_var_campus'] = 'Sede / Recinto';
+$string['diploma_var_course_name'] = 'Nombre del curso';
+$string['diploma_var_course_shortname'] = 'Código corto del curso';
+$string['diploma_var_course_idnumber'] = 'ID del curso';
+$string['diploma_var_course_grade'] = 'Nota del curso';
+$string['diploma_var_course_completed_at'] = 'Fecha de aprobación del curso';
+$string['diploma_var_course_progress'] = 'Progreso del curso';
 
 $string['diploma_generation'] = 'Generación de diplomas';
 $string['diploma_filter_career'] = 'Filtrar por carrera';

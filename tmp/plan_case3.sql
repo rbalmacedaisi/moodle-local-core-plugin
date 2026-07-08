@@ -1,0 +1,12 @@
+SELECT '==CM PARA ASSIGN 519==' as '';
+SELECT id, course, section, instance, module, deletioninprogress FROM isi_course_modules WHERE instance = 519 AND course = 87;
+SELECT '==TODOS CMs EN SECCION 1016==' as '';
+SELECT cm.id, cm.instance, cm.module, m.name AS module_name FROM isi_course_modules cm LEFT JOIN isi_modules m ON m.id = cm.module WHERE cm.course = 87 AND cm.section = 1016 ORDER BY cm.id;
+SELECT '==SUBMISSION PARA 519 USER 2735==' as '';
+SELECT id, assignment, userid, from_unixtime(timecreated) tc, from_unixtime(timemodified) tm, status, attemptnumber, latest FROM isi_assign_submission WHERE assignment = 519 AND userid = 2735;
+SELECT '==GRADE GRADES USER 2735 ITEM FOR ASSIGN 519==' as '';
+SELECT gi.id, gi.itemname, gi.categoryid, gg.id AS gg_id, gg.finalgrade, gg.rawgrade FROM isi_grade_items gi LEFT JOIN isi_grade_grades gg ON gg.itemid = gi.id AND gg.userid = 2735 WHERE gi.iteminstance = 519 AND gi.courseid = 87;
+SELECT '==ASSIGN_GRADES USER 2735==' as '';
+SELECT id, assignment, userid, grade, grader, from_unixtime(timecreated) tc, from_unixtime(timemodified) tm FROM isi_assign_grades WHERE assignment = 519 AND userid = 2735;
+SELECT '==GRADE HISTORY USER 2735 ITEM FOR ASSIGN 519==' as '';
+SELECT action, source, itemid, userid, finalgrade, from_unixtime(timemodified) dt FROM isi_grade_grades_history WHERE itemid IN (SELECT id FROM isi_grade_items WHERE iteminstance = 519 AND courseid = 87) AND userid = 2735 ORDER BY timemodified;

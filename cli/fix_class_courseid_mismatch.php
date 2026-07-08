@@ -54,18 +54,42 @@ echo "[fix_class_courseid_mismatch] dry_run=" . ($dryrun ? 'yes' : 'no') . " lim
 
 /**
  * Shared normaliser (kept in sync with pages/debug_class_courseid_mismatch.php).
+ *
+ * For classnames we return an array of candidate normalisations because the
+ * trailing single-letter rule is ambiguous (it can be a group marker "G" or
+ * a Roman numeral "I" in "INGLÉS I"). The fix/audit logic tries every
+ * candidate against the course name.
+ *
+ * For course names (moodle course.fullname) we just do the minimal cleanup.
  */
-function gmk_fix_normalize_name(string $name): string {
-    $s = mb_strtolower(trim($name), 'UTF-8');
-    $s = preg_replace('/\p{Mn}+/u', '', normalizer_normalize($s, Normalizer::FORM_D));
-    $s = preg_replace('/\s+/', ' ', $s);
-    $s = preg_replace('/^\d{4}-[ivx]+ \([dns]\)\s*/u', '', $s);
-    // Strip the trailing group letter FIRST so the modality parens become
-    // the actual trailing token (otherwise "(presencial) g" doesn't get its
-    // parens stripped).
-    $s = preg_replace('/\s+[a-z]$/u', '', $s);
-    $s = preg_replace('/\s*\([^)]*\)\s*$/u', '', $s);
-    return trim($s);
+function gmk_fix_normalize_name(string $name, bool $as_classname = false): array|string {
+    if (!$as_classname) {
+        $s = mb_strtolower(trim($name), 'UTF-8');
+        $s = preg_replace('/\p{Mn}+/u', '', normalizer_normalize($s, Normalizer::FORM_D));
+        $s = preg_replace('/\s+/', ' ', $s);
+        return trim($s);
+    }
+
+    $base = mb_strtolower(trim($name), 'UTF-8');
+    $base = preg_replace('/\p{Mn}+/u', '', normalizer_normalize($base, Normalizer::FORM_D));
+    $base = preg_replace('/\s+/', ' ', $base);
+
+    // Strip the period+shift prefix.
+    $a = preg_replace('/^\d{4}-[ivx]+ \([dns]\)\s*/u', '', $base);
+    // Strip all parens content anywhere.
+    $a = preg_replace('/\s*\([^)]*\)/u', '', $a);
+    // Strip trailing known room/place words.
+    $a = preg_replace(
+        '/\s+(auditorio|sala|aula|laboratorio|taller|online|virtual|piso|modulo)$/iu',
+        '',
+        $a
+    );
+    // Variation 1: keep trailing letter (preserves Roman numerals).
+    $variations = [trim($a)];
+    // Variation 2: also strip trailing single letter (group marker).
+    $variations[] = trim(preg_replace('/\s+[a-z]$/u', '', $a));
+
+    return array_values(array_unique(array_filter($variations, static fn($v) => $v !== '')));
 }
 
 global $DB;
@@ -98,7 +122,7 @@ foreach ($rows as $r) {
     if ($limit > 0 && $i > $limit) {
         break;
     }
-    $classcore = gmk_fix_normalize_name($r->classname ?? '');
+    $classcore = gmk_fix_normalize_name($r->classname ?? '', true);
     $coursename = gmk_fix_normalize_name($r->course_fullname ?? '');
     $corecore   = gmk_fix_normalize_name($r->corecourse_fullname ?? '');
 

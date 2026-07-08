@@ -1,0 +1,12 @@
+SELECT '==A. ESTUDIANTES DEL ASSIGN 65 (DELETED) QUE YA TIENEN NOTA EN ASSIGN 256 (NO TOCAR)==' as '';
+SELECT gh.userid, u.firstname, u.lastname FROM isi_grade_grades_history gh JOIN isi_user u ON u.id = gh.userid WHERE gh.itemid = 1766 AND gh.finalgrade IS NOT NULL AND gh.finalgrade >= 0 AND gh.userid IN (SELECT userid FROM isi_grade_grades WHERE itemid = 2048 AND finalgrade IS NOT NULL) ORDER BY gh.userid;
+SELECT '==B. ESTUDIANTES DEL ASSIGN 65 (DELETED) QUE NO TIENEN NOTA EN ASSIGN 256 (RESTAURAR)==' as '';
+SELECT gh.userid, u.firstname, u.lastname, u.username AS cedula FROM isi_grade_grades_history gh JOIN isi_user u ON u.id = gh.userid WHERE gh.itemid = 1766 AND gh.finalgrade IS NOT NULL AND gh.finalgrade >= 0 AND gh.userid NOT IN (SELECT userid FROM isi_grade_grades WHERE itemid = 2048 AND finalgrade IS NOT NULL) ORDER BY gh.userid;
+SELECT '==C. PARA ESOS ESTUDIANTES A RESTAURAR: ESTAN EN GRUPO 660 (9503)?==' as '';
+SELECT gm.userid, u.firstname, u.lastname, u.username AS cedula FROM isi_groups_members gm JOIN isi_user u ON u.id = gm.userid WHERE gm.groupid = 660 AND gm.userid IN (SELECT gh.userid FROM isi_grade_grades_history gh WHERE gh.itemid = 1766 AND gh.finalgrade IS NOT NULL AND gh.finalgrade >= 0 AND gh.userid NOT IN (SELECT userid FROM isi_grade_grades WHERE itemid = 2048 AND finalgrade IS NOT NULL)) ORDER BY gm.userid;
+SELECT '==D. USUARIO 2317: SU SUBMISSION ACTUAL PARA ASSIGN 256==' as '';
+SELECT s.id, s.assignment, s.userid, s.status, from_unixtime(s.timecreated) tc, from_unixtime(s.timemodified) tm FROM isi_assign_submission s WHERE s.assignment = 256 AND s.userid = 2317 AND s.latest = 1;
+SELECT '==E. ARCHIVO Actividad_de_Inform?tica_Azafata.pdf - INFO ACTUAL==' as '';
+SELECT f.id, f.component, f.filearea, f.itemid, f.filename, f.filesize, f.contenthash, f.userid FROM isi_files f WHERE f.contenthash = '890dab3724681cc1535f7cfd3f4ed8f122479fdd';
+SELECT '==F. VERIFICAR QUE 2317 ESTA EN GRUPO 660==' as '';
+SELECT u.id, u.firstname, u.lastname FROM isi_groups_members gm JOIN isi_user u ON u.id = gm.userid WHERE gm.groupid = 660 AND gm.userid = 2317;

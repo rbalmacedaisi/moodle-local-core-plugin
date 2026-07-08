@@ -1,0 +1,12 @@
+SELECT '---ASSIGN 640 INFO---' as '';
+SELECT id, course, name, duedate, grade, timemodified FROM isi_assign WHERE id = 640;
+SELECT '---CM FOR ASSIGN 640---' as '';
+SELECT cm.id, cm.course, cm.section, s.name as section_name, s.availability FROM isi_course_modules cm LEFT JOIN isi_course_sections s ON s.id = cm.section WHERE cm.instance = 640 AND cm.course = 86;
+SELECT '---GRADE ITEMS IN CATEGORY 961 (the module)---' as '';
+SELECT id, itemname, itemtype, itemmodule, iteminstance, categoryid FROM isi_grade_items WHERE categoryid = 961;
+SELECT '---CATEGORY 168 ITEMS (where 1947 currently is)---' as '';
+SELECT id, itemname, itemtype, itemmodule, iteminstance, categoryid FROM isi_grade_items WHERE categoryid = 168 AND itemmodule IN ('assign');
+SELECT '---GMK_MODULE_ENROLLMENT SCHEMA---' as '';
+DESCRIBE isi_gmk_module_enrollment;
+SELECT '---ENROLLMENTS FOR CLASS 9548---' as '';
+SELECT * FROM isi_gmk_module_enrollment WHERE classid = 9548;

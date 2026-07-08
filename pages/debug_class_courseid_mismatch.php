@@ -36,18 +36,28 @@ echo $OUTPUT->header();
  *  - drop the leading "2026-iii (n) " or similar period+shift prefix
  *  - drop trailing modality suffixes like "(presencial)", "(mixta)", etc.
  */
-function gmk_audit_normalize_name(string $name): string {
+/**
+ * Two modes:
+ *   - $is_classname = true: aggressive suffix stripping (period+shift prefix,
+ *     parens content, trailing group letter, trailing room word). Used for
+ *     gmk_class.name.
+ *   - $is_classname = false: minimal normalisation only. Used for course.fullname.
+ */
+function gmk_audit_normalize_name(string $name, bool $is_classname = false): string {
     $s = mb_strtolower(trim($name), 'UTF-8');
     // Strip diacritics (NFD decomposition + remove combining marks).
     $s = preg_replace('/\p{Mn}+/u', '', normalizer_normalize($s, Normalizer::FORM_D));
     $s = preg_replace('/\s+/', ' ', $s);
-    // Drop leading period+shift prefix: "2026-iii (d) ", "2026-ii (n) ", etc.
-    $s = preg_replace('/^\d{4}-[ivx]+ \([dns]\)\s*/u', '', $s);
-    // Drop trailing single-letter group marker FIRST so the modality
-    // parens become the actual trailing token.
-    $s = preg_replace('/\s+[a-z]$/u', '', $s);
-    // Drop any trailing modality / room annotations in parens.
-    $s = preg_replace('/\s*\([^)]*\)\s*$/u', '', $s);
+    if ($is_classname) {
+        $s = preg_replace('/^\d{4}-[ivx]+ \([dns]\)\s*/u', '', $s);
+        $s = preg_replace('/\s*\([^)]*\)/u', '', $s);
+        $s = preg_replace(
+            '/\s+(auditorio|sala|aula|laboratorio|taller|online|virtual|piso|modulo)$/iu',
+            '',
+            $s
+        );
+        $s = preg_replace('/\s+[a-z]$/u', '', $s);
+    }
     return trim($s);
 }
 
@@ -94,7 +104,7 @@ $totals     = ['classes' => 0, 'mismatched' => 0, 'matching' => 0, 'nocourse' =>
 
 foreach ($rows as $r) {
     $totals['classes']++;
-    $classcore = gmk_audit_normalize_name($r->classname ?? '');
+    $classcore = gmk_audit_normalize_name($r->classname ?? '', true);
     $coursename = gmk_audit_normalize_name($r->course_fullname ?? '');
     $corecore   = gmk_audit_normalize_name($r->corecourse_fullname ?? '');
 

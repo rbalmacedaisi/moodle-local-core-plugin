@@ -289,6 +289,106 @@ echo <<<EOT
 </script>
 EOT;
 
+// ----------------------------------------------------------------------
+// Section: courses eligible for per-student certificate generation.
+// Mirrors the "Solo pendientes" UX of the diplomas-by-plan section:
+// every course gets a card with a toggle on/off and the count of
+// students that would appear in the new "Certificados por curso"
+// tab once enabled.
+// ----------------------------------------------------------------------
+$eligibleCourses = \local_grupomakro_core\local\diplomas\manager::list_courses_with_eligibility(false);
+echo '<div class="dpl-courses-config" style="max-width:1100px;margin:32px auto 0;padding:0 16px 64px;">';
+echo '  <h2 style="margin:0 0 6px;font-size:22px;font-weight:700;color:#111827;">' .
+    get_string('diploma_course_param_title', 'local_grupomakro_core') . '</h2>';
+echo '  <p style="margin:0 0 18px;color:#6b7280;font-size:14px;">' .
+    get_string('diploma_course_param_help', 'local_grupomakro_core') . '</p>';
+echo '  <div id="dpl-courses-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;">';
+foreach ($eligibleCourses as $c) {
+    $enabled = !empty($c['enabled']);
+    $ecolor = $enabled ? '#16a34a' : '#94a3b8';
+    $elabel = $enabled ? get_string('diploma_course_disable', 'local_grupomakro_core')
+                       : get_string('diploma_course_enable', 'local_grupomakro_core');
+    echo '    <div class="dpl-course-card" data-courseid="' . (int)$c['id'] . '" '
+       . 'style="background:#fff;border:1px solid ' . ($enabled ? '#86efac' : '#e5e7eb') . ';'
+       . 'border-radius:10px;padding:14px 16px;box-shadow:0 2px 8px rgba(15,23,42,.04);">';
+    echo '      <div style="display:flex;align-items:flex-start;gap:10px;">';
+    echo '        <div style="flex:1;min-width:0;">';
+    echo '          <div style="font-size:14px;font-weight:600;color:#111827;'
+       . 'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" '
+       . 'title="' . s($c['fullname']) . '">' . s($c['fullname']) . '</div>';
+    echo '          <div style="font-size:11px;color:#6b7280;margin-top:2px;">'
+       . s($c['shortname']) . '</div>';
+    echo '        </div>';
+    echo '        <button type="button" class="dpl-course-toggle" '
+       . 'data-courseid="' . (int)$c['id'] . '" '
+       . 'data-enabled="' . ($enabled ? '1' : '0') . '" '
+       . 'style="background:' . $ecolor . ';color:#fff;border:0;border-radius:6px;'
+       . 'padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">'
+       . $elabel . '</button>';
+    echo '      </div>';
+    echo '      <div style="display:flex;gap:14px;margin-top:12px;font-size:12px;color:#6b7280;">';
+    echo '        <span><strong style="color:#047857;">' . (int)$c['eligible_count']
+       . '</strong> ' . get_string('diploma_course_ready', 'local_grupomakro_core') . '</span>';
+    echo '        <span style="color:#94a3b8;">' . (int)$c['total_count']
+       . ' ' . get_string('diploma_course_status', 'local_grupomakro_core') . '</span>';
+    echo '      </div>';
+    echo '    </div>';
+}
+echo '  </div>';
+echo '</div>';
+
+echo <<<'EOS'
+<style>
+.dpl-course-card { transition: border-color .15s, box-shadow .15s; }
+.dpl-course-card:hover { box-shadow: 0 6px 18px rgba(15,23,42,.08); }
+.dpl-course-toggle[disabled] { opacity:.6; cursor: not-allowed; }
+</style>
+<script>
+(function () {
+    'use strict';
+    function postJSON(payload) {
+        return fetch(window.location.origin + '/local/grupomakro_core/ajax.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            body: JSON.stringify(payload)
+        }).then(function (r) { return r.json(); });
+    }
+    document.addEventListener('click', function (ev) {
+        var btn = ev.target.closest('.dpl-course-toggle');
+        if (!btn) { return; }
+        ev.preventDefault();
+        if (btn.disabled) { return; }
+        var courseid = parseInt(btn.getAttribute('data-courseid'), 10);
+        var enabled = btn.getAttribute('data-enabled') !== '1';
+        btn.disabled = true;
+        var oldLabel = btn.textContent;
+        btn.textContent = '...';
+        postJSON({
+            action: 'local_grupomakro_diploma_set_course_eligibility',
+            courseid: courseid,
+            enabled: enabled ? 1 : 0
+        }).then(function (res) {
+            if (res && res.status === 'success') {
+                btn.setAttribute('data-enabled', enabled ? '1' : '0');
+                btn.textContent = enabled ? (strings.diploma_course_disable || 'Disable') : (strings.diploma_course_enable || 'Enable');
+                btn.style.background = enabled ? '#16a34a' : '#94a3b8';
+                var card = btn.closest('.dpl-course-card');
+                if (card) { card.style.borderColor = enabled ? '#86efac' : '#e5e7eb'; }
+            } else {
+                alert((res && res.message) || 'Error');
+                btn.textContent = oldLabel;
+            }
+        }).catch(function (e) {
+            alert(e.message || e);
+            btn.textContent = oldLabel;
+        }).finally(function () {
+            btn.disabled = false;
+        });
+    });
+})();
+</script>
+EOS;
+
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/diplomatemplates.js?v=' . $assetversion));
 
 echo $OUTPUT->footer();

@@ -1,0 +1,14 @@
+SELECT '---ALL CMs IN SECTION 924 (9503)---' as '';
+SELECT id, course, section, instance, module, deletioninprogress FROM isi_course_modules WHERE course = 74 AND section = 924;
+SELECT '---ALL CMs IN SECTION 925 (9504)---' as '';
+SELECT id, course, section, instance, module, deletioninprogress FROM isi_course_modules WHERE course = 74 AND section = 925;
+SELECT '---SUBMISSIONS FOR ASSIGN 255---' as '';
+SELECT COUNT(*) AS subs FROM isi_assign_submission WHERE assignment = 255;
+SELECT '---SUBMISSIONS FOR ASSIGN 256---' as '';
+SELECT COUNT(*) AS subs FROM isi_assign_submission WHERE assignment = 256;
+SELECT '---GRADE_GRADES FOR ASSIGN 255 (item?)---' as '';
+SELECT id, itemname, itemtype, itemmodule, iteminstance, categoryid, courseid FROM isi_grade_items WHERE iteminstance IN (255, 256) AND courseid = 74;
+SELECT '---ASSIGN_GRADES FOR ASSIGN 255---' as '';
+SELECT id, assignment, userid, grade, grader, timemodified, timecreated FROM isi_assign_grades WHERE assignment = 255;
+SELECT '---ASSIGN_GRADES FOR ASSIGN 256---' as '';
+SELECT id, assignment, userid, grade, grader, timemodified, timecreated FROM isi_assign_grades WHERE assignment = 256;

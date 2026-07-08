@@ -1,0 +1,11 @@
+SELECT '==ALL ACTIVITY LOG FOR USER 2558 ON ASSIGNS 255 AND 256==' as '';
+SELECT id, eventname, action, userid, relateduserid, contextinstanceid, from_unixtime(timecreated) AS dt, other FROM isi_logstore_standard_log WHERE component = 'mod_assign' AND relateduserid = 2558 AND contextinstanceid IN (255, 256) ORDER BY timecreated LIMIT 50;
+SELECT '==HISTORY FOR THIS USER GRADES==';
+SELECT action, source, itemid, userid, finalgrade, rawgrade, from_unixtime(timemodified) AS dt FROM isi_grade_grades_history WHERE itemid IN (2047, 2048) AND userid = 2558 ORDER BY timemodified;
+SELECT '==ANY VIEW OR ACCESS BY TEACHER TO THIS STUDENT SUBMISSION==' as '';
+SELECT id, eventname, userid, relateduserid, contextinstanceid, from_unixtime(timecreated) AS dt FROM isi_logstore_standard_log WHERE component = 'mod_assign' AND contextinstanceid IN (255, 256) AND relateduserid = 2558 AND timecreated > UNIX_TIMESTAMP('2026-04-01') ORDER BY timecreated;
+SELECT '==CHECK SUBMISSION STATUS NORMALLY==' as '';
+SELECT 'new' AS status, COUNT(*) AS n FROM isi_assign_submission WHERE assignment IN (255, 256) AND status = 'new' GROUP BY status;
+SELECT 'submitted' AS status, COUNT(*) AS n FROM isi_assign_submission WHERE assignment IN (255, 256) AND status = 'submitted' GROUP BY status;
+SELECT '==2558 IN ASSIGN 255 TIMELINE==' as '';
+SELECT id, eventname, userid AS actor, relateduserid, from_unixtime(timecreated) AS dt, other FROM isi_logstore_standard_log WHERE component = 'mod_assign' AND relateduserid = 2558 AND timecreated BETWEEN 1776000000 AND 1776300000 ORDER BY timecreated;

@@ -1,0 +1,10 @@
+SELECT '==1. GRADE_GRADES_HISTORY PARA ITEMS HUERFANOS (iteminstance IN deleted but gi still exists) ==' as '';
+SELECT COUNT(*) AS history_rows FROM isi_grade_grades_history WHERE itemid IN (SELECT id FROM isi_grade_items WHERE courseid = 74);
+SELECT '==2. ALL ASSIGN IDs WITH SUBMISSIONS BUT NO LIVE COURSE_MODULE ==' as '';
+SELECT s.assignment AS assign_id, COUNT(*) AS submissions FROM isi_assign_submission s WHERE s.assignment IN (SELECT a.id FROM isi_assign a LEFT JOIN isi_course_modules cm ON cm.instance = a.id AND cm.course = a.course WHERE a.course = 74 AND cm.id IS NULL) GROUP BY s.assignment;
+SELECT '==3. ASSIGN IDS THAT EXIST IN BD BUT NO COURSE_MODULE (HUERFANOS)==' as '';
+SELECT a.id AS assign_id, a.name, a.course, a.duedate FROM isi_assign a LEFT JOIN isi_course_modules cm ON cm.instance = a.id AND cm.course = a.course WHERE a.course = 74 AND cm.id IS NULL ORDER BY a.id;
+SELECT '==4. ALL FILES RELACIONADOS A COURSE 74 QUE NO TIENEN ASIGN VIVO==' as '';
+SELECT f.id, f.component, f.filearea, f.itemid, f.filename, f.filesize, f.contextid FROM isi_files f WHERE f.contextid IN (SELECT ctx.id FROM isi_context ctx WHERE ctx.contextlevel = 70 AND ctx.instanceid = 74) AND f.component IN ('assignsubmission_file','mod_quiz','assignfeedback_file') AND f.filename <> '.' ORDER BY f.id LIMIT 30;
+SELECT '==5. FILES BY ITEMID (itemid=assign_id of deleted assigns)==' as '';
+SELECT f.id, f.component, f.filearea, f.itemid, f.filename, f.filesize FROM isi_files f WHERE f.itemid IN (96, 97, 98, 99, 165, 257, 500, 65, 544, 735) AND f.filename <> '.';

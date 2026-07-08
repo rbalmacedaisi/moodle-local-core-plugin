@@ -190,6 +190,67 @@ class manager {
                     return (string)get_config('local_grupomakro_core', 'campusname');
                 },
             ],
+
+            // Per-course variables (only populated when the diploma is
+            // tied to a single course, not a learning plan).
+            'course_name' => [
+                'label' => get_string('diploma_var_course_name', 'local_grupomakro_core'),
+                'resolve' => function (stdClass $user, ?stdClass $lp = null, ?stdClass $generation = null, ?stdClass $course = null): string {
+                    if (!$course) { return ''; }
+                    return (string)$course->fullname;
+                },
+            ],
+            'course_shortname' => [
+                'label' => get_string('diploma_var_course_shortname', 'local_grupomakro_core'),
+                'resolve' => function (stdClass $user, ?stdClass $lp = null, ?stdClass $generation = null, ?stdClass $course = null): string {
+                    if (!$course) { return ''; }
+                    return (string)$course->shortname;
+                },
+            ],
+            'course_idnumber' => [
+                'label' => get_string('diploma_var_course_idnumber', 'local_grupomakro_core'),
+                'resolve' => function (stdClass $user, ?stdClass $lp = null, ?stdClass $generation = null, ?stdClass $course = null): string {
+                    if (!$course) { return ''; }
+                    return (string)$course->idnumber;
+                },
+            ],
+            'course_grade' => [
+                'label' => get_string('diploma_var_course_grade', 'local_grupomakro_core'),
+                'resolve' => function (stdClass $user, ?stdClass $lp = null, ?stdClass $generation = null, ?stdClass $course = null): string {
+                    global $DB;
+                    if (!$course || empty($generation->courseid)) { return ''; }
+                    $grade = $DB->get_field_sql(
+                        "SELECT MAX(grade) FROM {gmk_course_progre} WHERE userid = :uid AND courseid = :cid",
+                        ['uid' => $user->id, 'cid' => (int)$course->id]
+                    );
+                    return $grade !== false ? rtrim(rtrim(number_format((float)$grade, 2, '.', ''), '0'), '.') : '';
+                },
+            ],
+            'course_completed_at' => [
+                'label' => get_string('diploma_var_course_completed_at', 'local_grupomakro_core'),
+                'resolve' => function (stdClass $user, ?stdClass $lp = null, ?stdClass $generation = null, ?stdClass $course = null): string {
+                    global $DB;
+                    if (!$course || empty($generation->courseid)) { return ''; }
+                    $ts = $DB->get_field_sql(
+                        "SELECT MAX(timemodified) FROM {gmk_course_progre}
+                          WHERE userid = :uid AND courseid = :cid AND status = 4",
+                        ['uid' => $user->id, 'cid' => (int)$course->id]
+                    );
+                    return $ts ? userdate((int)$ts) : '';
+                },
+            ],
+            'course_progress' => [
+                'label' => get_string('diploma_var_course_progress', 'local_grupomakro_core'),
+                'resolve' => function (stdClass $user, ?stdClass $lp = null, ?stdClass $generation = null, ?stdClass $course = null): string {
+                    global $DB;
+                    if (!$course || empty($generation->courseid)) { return ''; }
+                    $p = $DB->get_field_sql(
+                        "SELECT MAX(progress) FROM {gmk_course_progre} WHERE userid = :uid AND courseid = :cid",
+                        ['uid' => $user->id, 'cid' => (int)$course->id]
+                    );
+                    return $p !== false ? rtrim(rtrim(number_format((float)$p, 1, '.', ''), '0'), '.') . '%' : '';
+                },
+            ],
         ];
     }
 
@@ -202,13 +263,13 @@ class manager {
      * @param stdClass|null $generation Generation record (optional).
      * @return string Resolved value, or empty string if unknown.
      */
-    public static function resolve_variable(string $code, stdClass $user, ?stdClass $lp = null, ?stdClass $generation = null): string {
+    public static function resolve_variable(string $code, stdClass $user, ?stdClass $lp = null, ?stdClass $generation = null, ?stdClass $course = null): string {
         $catalog = self::get_variable_catalog();
         if (!isset($catalog[$code])) {
             return '';
         }
         $fn = $catalog[$code]['resolve'];
-        return (string)$fn($user, $lp, $generation);
+        return (string)$fn($user, $lp, $generation, $course);
     }
 
     /**
@@ -1111,6 +1172,149 @@ public static function generate_diplomas(int $templateid, array $items, int $act
             }
         }
         return ['success' => $success, 'errors' => $errors, 'generated' => $generated];
+    }
+
+    /**
+     * Generate per-course certificates for a batch of (user, course)
+     * pairs. Reuses the diploma template system; the difference vs
+     * generate_diplomas is that learningplanid is 0 and courseid is
+     * populated, and the PDF gets the new course_* variables (course
+     * name, grade, completion date, progress, etc.).
+     *
+     * @param int $templateid
+     * @param array<int, array{userid:int, courseid:int}> $items
+     * @param int $actorid
+     * @return array{success:int, errors:int, generated:array<int, array<string, mixed>>}
+     */
+    public static function generate_course_certificates(int $templateid, array $items, int $actorid): array {
+        global $DB;
+        $template = $DB->get_record('gmk_diploma_template', ['id' => $templateid], '*', MUST_EXIST);
+        $fields = $DB->get_records('gmk_diploma_tpl_field', ['templateid' => $templateid], 'z_index ASC, id ASC');
+        $success = 0;
+        $errors = 0;
+        $generated = [];
+        foreach ($items as $item) {
+            $userid = (int)($item['userid'] ?? 0);
+            $courseid = (int)($item['courseid'] ?? 0);
+            if ($userid <= 0 || $courseid <= 0) {
+                $errors++;
+                continue;
+            }
+            try {
+                $user = core_user::get_user($userid, '*', MUST_EXIST);
+                $course = $DB->get_record('course', ['id' => $courseid], '*', MUST_EXIST);
+                $token = self::generate_verification_token();
+                $verificationurl = self::build_verification_url($token);
+                $number = self::generate_course_diploma_number($user, $course);
+                $now = time();
+
+                $generation = (object)[
+                    'templateid' => $templateid,
+                    'userid' => $userid,
+                    'learningplanid' => 0,
+                    'courseid' => $courseid,
+                    'diploma_number' => $number,
+                    'version' => 1,
+                    'status' => self::STATUS_GENERATED,
+                    'verification_token' => $token,
+                    'verification_url' => $verificationurl,
+                    'snapshot_json' => null,
+                    'issued_by' => $actorid,
+                    'issued_at' => $now,
+                    'revoked_by' => 0,
+                    'revoked_at' => 0,
+                    'revoke_reason' => null,
+                    'usermodified' => $actorid,
+                    'timecreated' => $now,
+                    'timemodified' => $now,
+                ];
+                $renderer = new renderer();
+                $pdfbytes = $renderer->render_pdf($template, $fields, $user, null, $generation, $verificationurl, $course);
+
+                $fs = get_file_storage();
+                $filename = 'diploma_' . $templateid . '_' . $userid . '_' . $courseid . '_' . $number . '.pdf';
+                $genid = $DB->insert_record('gmk_diploma_generation', $generation);
+                $filerec = (object)[
+                    'contextid' => context_system::instance()->id,
+                    'component' => 'local_grupomakro_core',
+                    'filearea' => self::FILEAREA_DOCUMENT,
+                    'itemid' => $genid,
+                    'filepath' => '/',
+                    'filename' => $filename,
+                    'userid' => $actorid,
+                ];
+                $stored = $fs->create_file_from_string($filerec, $pdfbytes);
+
+                $docrec = (object)[
+                    'generationid' => $genid,
+                    'fileitemid' => (int)$stored->get_id(),
+                    'filename' => $filename,
+                    'mimetype' => 'application/pdf',
+                    'version' => 1,
+                    'filesize' => (int)$stored->get_filesize(),
+                    'contenthash' => (string)$stored->get_contenthash(),
+                    'usermodified' => $actorid,
+                    'timecreated' => $now,
+                    'timemodified' => $now,
+                ];
+                $docid = $DB->insert_record('gmk_diploma_document', $docrec);
+
+                $generated[] = [
+                    'generationid' => $genid,
+                    'documentid' => $docid,
+                    'userid' => $userid,
+                    'courseid' => $courseid,
+                    'verification_url' => $verificationurl,
+                ];
+                $success++;
+            } catch (Throwable $e) {
+                debugging(
+                    'diploma generate_course_certificates failed for user=' . $userid
+                    . ' course=' . $courseid . ' template=' . $templateid . ': ' . $e->getMessage()
+                    . ' @ ' . $e->getFile() . ':' . $e->getLine(),
+                    DEBUG_NORMAL
+                );
+                error_log(
+                    '[grupomakro_core] course-cert generation failed: '
+                    . 'user=' . $userid . ' course=' . $courseid . ' template=' . $templateid
+                    . ' err=' . $e->getMessage()
+                );
+                $errors++;
+            }
+        }
+        return ['success' => $success, 'errors' => $errors, 'generated' => $generated];
+    }
+
+    /**
+     * Sequential per-course diploma number: DP-<idnumber>-<courseShort>-<YYYY>-<NNNNNN>.
+     */
+    private static function generate_course_diploma_number(stdClass $user, stdClass $course): string {
+        global $DB;
+        $prefix = 'DP';
+        if (!empty($user->idnumber)) {
+            $prefix .= '-' . preg_replace('/[^A-Za-z0-9]/', '', $user->idnumber);
+        }
+        if (!empty($course->shortname)) {
+            $short = strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $course->shortname), 0, 5));
+            if ($short !== '') {
+                $prefix .= '-' . $short;
+            }
+        }
+        $prefix = rtrim($prefix, '-');
+        $year = date('Y');
+        $prefixWithYear = $prefix . '-' . $year . '-';
+
+        $sql = "SELECT MAX(CAST(SUBSTRING_INDEX(g.diploma_number, '-', -1) AS UNSIGNED)) AS maxnum
+                  FROM {gmk_diploma_generation} g
+                 WHERE g.diploma_number LIKE ?";
+        $attempts = 0;
+        do {
+            $maxnum = $DB->get_field_sql($sql, [$prefixWithYear . '%']);
+            $next = (int)$maxnum + 1;
+            $candidate = $prefixWithYear . str_pad((string)$next, 6, '0', STR_PAD_LEFT);
+            $attempts++;
+        } while ($DB->record_exists('gmk_diploma_generation', ['diploma_number' => $candidate]) && $attempts < 10);
+        return $candidate;
     }
 
     /**
