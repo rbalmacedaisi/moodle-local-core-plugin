@@ -447,7 +447,41 @@ window.SchedulerComponents.PlanningBoard = {
                                 Pendientes por inscribir: <strong>{{ currentPendingStudents.length }}</strong>
                             </p>
                          </div>
-                         <button @click="studentsDialog = false"><i data-lucide="x" class="w-4 h-4 text-slate-400"></i></button>
+                         <div class="flex items-center gap-2">
+                            <button v-if="currentStudentsClass && !currentStudentsClass.isExternal"
+                                    @click="toggleMovePanel"
+                                    :class="['px-3 py-1.5 text-xs font-bold rounded transition-colors flex items-center gap-1.5', movePanelOpen ? 'bg-indigo-600 text-white' : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200']">
+                                <i data-lucide="calendar-clock" class="w-3.5 h-3.5"></i>
+                                Mover de periodo
+                            </button>
+                            <button @click="studentsDialog = false"><i data-lucide="x" class="w-4 h-4 text-slate-400"></i></button>
+                         </div>
+                    </div>
+                    <!-- Panel Mover de periodo -->
+                    <div v-if="movePanelOpen" class="px-4 py-3 border-b border-indigo-200 bg-indigo-50 space-y-2">
+                        <div v-if="moveDistLoading" class="text-xs text-indigo-600 font-medium">Cargando distribución de periodos...</div>
+                        <template v-else-if="moveDistribution">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span class="text-xs font-bold text-indigo-800">Mover {{ moveSelectedCount }} seleccionado(s) a:</span>
+                                <select v-model.number="moveTargetIndex" class="px-2 py-1.5 border border-indigo-300 rounded text-xs bg-white outline-none focus:ring-2 focus:ring-indigo-500">
+                                    <option value="" disabled>Periodo destino...</option>
+                                    <option v-for="opt in moveDistribution.options" :key="opt.index" :value="opt.index">
+                                        {{ opt.label }} — {{ opt.count }} est.
+                                    </option>
+                                </select>
+                                <button @click="confirmMoveStudents"
+                                        :disabled="movingStudents || moveSelectedCount === 0 || moveTargetIndex === ''"
+                                        class="px-3 py-1.5 text-xs font-bold bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-1.5">
+                                    <i v-if="movingStudents" data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i>
+                                    {{ movingStudents ? 'Moviendo...' : 'Mover' }}
+                                </button>
+                                <button @click="selectAllMovable" class="text-[11px] text-indigo-600 hover:text-indigo-800 underline font-medium">Seleccionar todos</button>
+                            </div>
+                            <p class="text-[11px] text-indigo-700 leading-snug">
+                                Selecciona estudiantes en la tabla. <span class="font-bold text-red-600">🔴 Sí o sí:</span> el estudiante llegó al final de su ciclo y debe cursarla en este periodo.
+                                <span class="font-bold text-amber-600">máx P-N:</span> último periodo posible sin comprometer su graduación.
+                            </p>
+                        </template>
                     </div>
                     <div v-if="canManageCurrentStudents" class="px-4 py-2 border-b border-slate-200 bg-cyan-50 flex items-center justify-between gap-2">
                         <span class="text-xs font-semibold text-cyan-800">Ficha publicada: puedes inscribir pendientes desde aqui.</span>
@@ -464,16 +498,25 @@ window.SchedulerComponents.PlanningBoard = {
                         <table class="w-full text-sm text-left">
                             <thead class="bg-slate-50 text-xs text-slate-500 uppercase font-bold sticky top-0">
                                 <tr>
+                                    <th v-if="movePanelOpen" class="px-3 py-2 border-b w-8"></th>
                                     <th class="px-4 py-2 border-b">ID</th>
                                     <th class="px-4 py-2 border-b">Nombre</th>
                                     <th class="px-4 py-2 border-b">Carrera</th>
                                     <th class="px-4 py-2 border-b">Estado</th>
                                     <th class="px-4 py-2 border-b">Fuente</th>
+                                    <th v-if="movePanelOpen" class="px-4 py-2 border-b">Periodo</th>
                                     <th v-if="canManageCurrentStudents" class="px-4 py-2 border-b text-right">Accion</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-slate-100">
-                                <tr v-for="stu in currentStudents" :key="stu.dbId || stu.id" class="hover:bg-slate-50">
+                                <tr v-for="stu in currentStudents" :key="stu.dbId || stu.id"
+                                    :class="['hover:bg-slate-50', movePanelOpen && moveSelected[stu.dbId] ? 'bg-indigo-50' : '']">
+                                    <td v-if="movePanelOpen" class="px-3 py-2">
+                                        <input v-if="moveStudentInfo[stu.dbId]" type="checkbox"
+                                               v-model="moveSelected[stu.dbId]"
+                                               class="w-4 h-4 text-indigo-600 border-slate-300 rounded cursor-pointer" />
+                                        <span v-else class="text-slate-300" title="Sin proyección editable para esta asignatura">—</span>
+                                    </td>
                                     <td class="px-4 py-2 font-mono text-xs text-slate-500">{{ stu.id }}</td>
                                     <td class="px-4 py-2 font-medium text-slate-800">{{ stu.name }}</td>
                                     <td class="px-4 py-2 text-xs text-slate-500">{{ stu.career }}</td>
@@ -482,6 +525,21 @@ window.SchedulerComponents.PlanningBoard = {
                                         <span v-else class="px-2 py-0.5 rounded bg-green-100 text-green-700 font-bold">Inscrito</span>
                                     </td>
                                     <td class="px-4 py-2 text-xs text-slate-500">{{ getStudentSourceLabel(stu.source) }}</td>
+                                    <td v-if="movePanelOpen" class="px-4 py-2 text-xs whitespace-nowrap">
+                                        <template v-if="moveStudentInfo[stu.dbId]">
+                                            <span class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-bold font-mono">{{ movePeriodLabel(moveStudentInfo[stu.dbId].current_index) }}</span>
+                                            <span v-if="moveStudentInfo[stu.dbId].must_take_now"
+                                                  class="ml-1 px-1.5 py-0.5 rounded bg-red-100 text-red-700 font-bold"
+                                                  title="Fin de su ciclo académico: esta asignatura debe cursarla en este periodo">
+                                                🔴 Sí o sí
+                                            </span>
+                                            <span v-else-if="moveStudentInfo[stu.dbId].max_safe_index !== null"
+                                                  class="ml-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-bold"
+                                                  :title="'Puede diferirla hasta ' + movePeriodLabel(moveStudentInfo[stu.dbId].max_safe_index) + ' sin comprometer su graduación'">
+                                                máx {{ movePeriodLabel(moveStudentInfo[stu.dbId].max_safe_index) }}
+                                            </span>
+                                        </template>
+                                    </td>
                                     <td v-if="canManageCurrentStudents" class="px-4 py-2 text-right">
                                         <button v-if="stu.pending"
                                                 @click="enrollPendingStudent(stu)"
@@ -493,7 +551,7 @@ window.SchedulerComponents.PlanningBoard = {
                                     </td>
                                 </tr>
                                 <tr v-if="currentStudents.length === 0">
-                                    <td :colspan="canManageCurrentStudents ? 6 : 5" class="px-4 py-8 text-center text-slate-400 italic">
+                                    <td :colspan="studentsDialogColspan" class="px-4 py-8 text-center text-slate-400 italic">
                                         No hay información de estudiantes disponible.
                                     </td>
                                 </tr>
@@ -768,6 +826,14 @@ window.SchedulerComponents.PlanningBoard = {
             currentStudents: [],
             currentStudentsClass: null,
             enrollingStudents: false,
+            // Panel "Mover de periodo" (reproyectar estudiantes del grupo)
+            movePanelOpen: false,
+            moveDistribution: null,
+            moveDistLoading: false,
+            moveStudentInfo: {},
+            moveSelected: {},
+            moveTargetIndex: '',
+            movingStudents: false,
             logDialog: false,
             currentLog: [],
             teacherSearch: '',
@@ -801,6 +867,15 @@ window.SchedulerComponents.PlanningBoard = {
         },
         currentPendingStudents() {
             return (this.currentStudents || []).filter(stu => !!stu.pending);
+        },
+        moveSelectedCount() {
+            return Object.keys(this.moveSelected).filter(k => this.moveSelected[k]).length;
+        },
+        studentsDialogColspan() {
+            let n = 5;
+            if (this.movePanelOpen) n += 2;
+            if (this.canManageCurrentStudents) n += 1;
+            return n;
         },
         selectedForJoinSplit() {
             const wanted = new Set((this.joinSplitSelectedIds || []).map(id => String(id)));
@@ -2424,8 +2499,134 @@ window.SchedulerComponents.PlanningBoard = {
                 this.publishing = false;
             }
         },
+        // --- Mover estudiantes de periodo (reproyección desde el tablero) ---
+        movePeriodLabel(idx) {
+            const romans = ['I', 'II', 'III', 'IV', 'V', 'VI'];
+            const n = parseInt(idx);
+            return 'P-' + (romans[n] || (n + 1));
+        },
+        _resetMovePanel() {
+            this.movePanelOpen = false;
+            this.moveDistribution = null;
+            this.moveStudentInfo = {};
+            this.moveSelected = {};
+            this.moveTargetIndex = '';
+        },
+        async toggleMovePanel() {
+            this.movePanelOpen = !this.movePanelOpen;
+            if (this.movePanelOpen && !this.moveDistribution) {
+                await this.loadMoveDistribution();
+            }
+            this.$nextTick(() => { if (window.lucide) window.lucide.createIcons(); });
+        },
+        async loadMoveDistribution() {
+            const cls = this.currentStudentsClass;
+            if (!cls || !window.schedulerStore) return;
+            this.moveDistLoading = true;
+            try {
+                const res = await window.schedulerStore._fetch('local_grupomakro_get_subject_projection_distribution', {
+                    periodid: this.periodId,
+                    courseid: cls.corecourseid || cls.courseid,
+                    career: '',
+                    shift: cls.shift || ''
+                });
+                this.moveDistribution = res;
+                const map = {};
+                (res.students || []).forEach(r => { map[r.dbId] = r; });
+                this.moveStudentInfo = map;
+            } catch (e) {
+                console.error('loadMoveDistribution failed', e);
+                alert('No se pudo cargar la distribución de periodos: ' + e.message);
+                this.movePanelOpen = false;
+            } finally {
+                this.moveDistLoading = false;
+            }
+        },
+        selectAllMovable() {
+            const sel = {};
+            (this.currentStudents || []).forEach(stu => {
+                if (this.moveStudentInfo[stu.dbId]) sel[stu.dbId] = true;
+            });
+            this.moveSelected = sel;
+        },
+        async confirmMoveStudents() {
+            const cls = this.currentStudentsClass;
+            const target = parseInt(this.moveTargetIndex);
+            if (!cls || !Number.isInteger(target)) return;
+            const ids = Object.keys(this.moveSelected).filter(k => this.moveSelected[k]);
+            if (ids.length === 0) return;
+
+            const targetOpt = (this.moveDistribution?.options || []).find(o => o.index === target);
+            const targetLabel = targetOpt ? targetOpt.label : this.movePeriodLabel(target);
+
+            // Ventana de graduación: quienes quedarían fuera de su ciclo académico.
+            const outOfWindow = ids
+                .map(id => this.moveStudentInfo[id])
+                .filter(r => r && r.max_safe_index !== null && target > r.max_safe_index);
+            const lateOnly = ids
+                .map(id => this.moveStudentInfo[id])
+                .filter(r => r && r.max_safe_index !== null && target <= r.max_safe_index && target > r.natural_index);
+
+            if (outOfWindow.length > 0) {
+                const names = outOfWindow.map(r =>
+                    `  • ${r.name} — debe cursarla a más tardar en ${this.movePeriodLabel(r.max_safe_index)} (fin de su ciclo académico)`
+                ).join('\n');
+                const ok = window.confirm(
+                    `🔴 ATENCIÓN: ${outOfWindow.length} estudiante(s) quedarían FUERA de su ventana de graduación al moverlos a ${targetLabel}:\n\n${names}\n\n` +
+                    `Estos estudiantes deben ver la asignatura antes de terminar su plan. ¿Mover de todas formas?`
+                );
+                if (!ok) return;
+            } else if (lateOnly.length > 0) {
+                const ok = window.confirm(
+                    `⏱ ${lateOnly.length} estudiante(s) quedarían con retraso respecto a su periodo natural (aún dentro de su ventana de graduación).\n\n¿Mover ${ids.length} estudiante(s) a ${targetLabel}?`
+                );
+                if (!ok) return;
+            } else {
+                if (!window.confirm(`¿Mover ${ids.length} estudiante(s) a ${targetLabel}?`)) return;
+            }
+
+            this.movingStudents = true;
+            const courseid = cls.corecourseid || cls.courseid;
+            let moved = 0;
+            try {
+                for (const id of ids) {
+                    await window.schedulerStore._fetch('local_grupomakro_move_student_subject_period', {
+                        periodid: this.periodId,
+                        userid: id,
+                        courseid: courseid,
+                        target_period_index: target,
+                        career: '',
+                        shift: cls.shift || ''
+                    });
+                    moved++;
+                }
+            } catch (e) {
+                console.error('confirmMoveStudents failed', e);
+                alert(`Error al mover (${moved}/${ids.length} completados): ` + e.message);
+            }
+
+            try {
+                // Recargar demanda + reconciliar el draft para que la ficha refleje el grupo nuevo.
+                await window.schedulerStore.loadGeneration(this.periodId);
+                const updated = (this.allClasses || []).find(c => c.id === cls.id);
+                this.currentStudentsClass = updated || cls;
+                this.moveSelected = {};
+                this.moveTargetIndex = '';
+                await this.loadMoveDistribution();
+                await this.viewStudents(this.currentStudentsClass);
+            } catch (e) {
+                console.error('post-move refresh failed', e);
+            } finally {
+                this.movingStudents = false;
+            }
+            if (moved > 0) {
+                alert(`${moved} estudiante(s) movidos a ${targetLabel}. La demanda del tablero fue actualizada.`);
+            }
+        },
         async viewStudents(cls) {
             if (!window.schedulerStore) return;
+            const isNewClass = !this.currentStudentsClass || this.currentStudentsClass.id !== (cls && cls.id);
+            if (isNewClass) this._resetMovePanel();
             this.currentStudentsClass = cls || null;
 
             if (this.canManageEnrollment(cls)) {

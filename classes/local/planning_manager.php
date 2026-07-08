@@ -1545,9 +1545,24 @@ if (preg_match('/Bimestre\s+(II|I)/', $cohortKey, $m)) {
         }
         $studentDeferralsByCourse = self::get_student_deferrals($effectivePeriodId);
 
+        // Career => max curricular level, for graduation-window warnings
+        // ("this student MUST take the subject now — end of academic cycle").
+        $maxLevelByCareer = [];
+        foreach (($planningData['all_subjects'] ?? []) as $subjCat) {
+            $semNum = (int)($subjCat['semester_num'] ?? 0);
+            foreach (($subjCat['careers'] ?? []) as $c) {
+                $cName = is_array($c) ? (string)($c['name'] ?? '') : (string)($c->name ?? '');
+                if ($cName === '' || $semNum <= 0) continue;
+                if (!isset($maxLevelByCareer[$cName]) || $semNum > $maxLevelByCareer[$cName]) {
+                    $maxLevelByCareer[$cName] = $semNum;
+                }
+            }
+        }
+
         $counts = [0, 0, 0, 0, 0, 0];
         $seenByPeriod = [];
         $studentPeriodIndexMap = [];
+        $studentRowsByDb = [];
 
         $matchToken = static function($a, $b) {
             return core_text::strtolower(trim((string)$a)) === core_text::strtolower(trim((string)$b));
@@ -1584,6 +1599,35 @@ if (preg_match('/Bimestre\s+(II|I)/', $cohortKey, $m)) {
                 }
                 if (!isset($studentPeriodIndexMap[$dbId]) || $resolvedIdx < $studentPeriodIndexMap[$dbId]) {
                     $studentPeriodIndexMap[$dbId] = $resolvedIdx;
+                }
+
+                // Per-student detail with graduation window, for the board's
+                // "move group to another period" UI. Dedupe by dbId keeping the
+                // lowest resolved index (same rule as studentPeriodIndexMap).
+                if (!isset($studentRowsByDb[$dbId]) || $resolvedIdx < $studentRowsByDb[$dbId]['current_index']) {
+                    list($planningLevel, $planningBimestre) = self::get_student_planning_state($stu);
+                    $maxLvl = (int)($maxLevelByCareer[$stuCareer] ?? 0);
+                    $periodsRemaining = null;
+                    $maxSafeIndex = null;
+                    if ($maxLvl > 0 && $planningLevel > 0) {
+                        $cohortAbs = (($planningLevel - 1) * 2) + (int)$planningBimestre;
+                        $periodsRemaining = ($maxLvl * 2) - $cohortAbs;
+                        $maxSafeIndex = max(0, $periodsRemaining - 1);
+                    }
+                    $studentRowsByDb[$dbId] = [
+                        'dbId' => $dbId,
+                        'id' => (string)($stu['id'] ?? ''),
+                        'name' => (string)($stu['name'] ?? ''),
+                        'career' => $stuCareer,
+                        'shift' => $stuShift,
+                        'cohort_key' => $cohortKey,
+                        'current_index' => $resolvedIdx,
+                        'natural_index' => (int)$naturalIdx,
+                        'has_student_deferral' => ($studentTargetIdx !== null),
+                        'periods_remaining' => $periodsRemaining,
+                        'max_safe_index' => $maxSafeIndex,
+                        'must_take_now' => ($maxSafeIndex !== null && $maxSafeIndex <= 0),
+                    ];
                 }
             }
         }
@@ -1622,7 +1666,8 @@ if (preg_match('/Bimestre\s+(II|I)/', $cohortKey, $m)) {
             'career_filter' => $career,
             'shift_filter' => $shift,
             'options' => $options,
-            'student_period_index_map' => $studentPeriodIndexMap
+            'student_period_index_map' => $studentPeriodIndexMap,
+            'students' => array_values($studentRowsByDb)
         ];
     }
 
