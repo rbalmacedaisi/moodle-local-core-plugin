@@ -2618,6 +2618,39 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20260803000, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20260805000) {
+        // Individual course certificates: which courses are eligible for
+        // per-student certificate generation + a nullable courseid column
+        // on gmk_diploma_generation so the same table can store both
+        // learning-plan diplomas (courseid NULL) and per-course diplomas.
+
+        // 1) gmk_diploma_eligible_course (admin-managed eligibility).
+        $table = new xmldb_table('gmk_diploma_eligible_course');
+        $table->add_field('id',           XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('courseid',     XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('enabled',      XMLDB_TYPE_INTEGER, '1',  null, XMLDB_NOTNULL, null, '1');
+        $table->add_field('usermodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timecreated',  XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+
+        $table->add_key('primary',   XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('coursefk',  XMLDB_KEY_FOREIGN_UNIQUE, ['courseid'], 'course', ['id']);
+        $table->add_index('enabled_idx', XMLDB_INDEX_NOTUNIQUE, ['enabled']);
+
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // 2) Add courseid column to gmk_diploma_generation.
+        $gtable = new xmldb_table('gmk_diploma_generation');
+        $gfield = new xmldb_field('courseid', XMLDB_TYPE_INTEGER, '10', null, null, null, null, 'learningplanid');
+        if (!$dbman->field_exists($gtable, $gfield)) {
+            $dbman->add_field($gtable, $gfield);
+        }
+
+        upgrade_plugin_savepoint(true, 20260805000, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 
