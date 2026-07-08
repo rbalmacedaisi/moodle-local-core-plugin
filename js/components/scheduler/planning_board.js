@@ -509,7 +509,21 @@ window.SchedulerComponents.PlanningBoard = {
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-slate-100">
-                                <tr v-for="stu in currentStudents" :key="stu.dbId || stu.id"
+                                <template v-for="grp in displayStudentGroups" :key="grp.key">
+                                <tr v-if="grp.label !== null" class="bg-indigo-50/70">
+                                    <td :colspan="studentsDialogColspan" class="px-3 py-1.5 border-t border-indigo-100">
+                                        <label class="flex items-center gap-2 cursor-pointer select-none">
+                                            <input type="checkbox"
+                                                   :checked="grp.movableCount > 0 && grp.selectedCount === grp.movableCount"
+                                                   :disabled="grp.movableCount === 0"
+                                                   @change="toggleGroupSelection(grp)"
+                                                   class="w-4 h-4 text-indigo-600 border-slate-300 rounded cursor-pointer" />
+                                            <span class="text-[11px] font-bold text-indigo-900 leading-tight">{{ grp.label }}</span>
+                                            <span class="text-[10px] text-indigo-500 font-mono shrink-0">{{ grp.selectedCount }}/{{ grp.movableCount }} sel. · {{ grp.students.length }} est.</span>
+                                        </label>
+                                    </td>
+                                </tr>
+                                <tr v-for="stu in grp.students" :key="stu.dbId || stu.id"
                                     :class="['hover:bg-slate-50', movePanelOpen && moveSelected[stu.dbId] ? 'bg-indigo-50' : '']">
                                     <td v-if="movePanelOpen" class="px-3 py-2">
                                         <input v-if="moveStudentInfo[stu.dbId]" type="checkbox"
@@ -550,6 +564,7 @@ window.SchedulerComponents.PlanningBoard = {
                                         <span v-else class="text-[11px] text-slate-400">-</span>
                                     </td>
                                 </tr>
+                                </template>
                                 <tr v-if="currentStudents.length === 0">
                                     <td :colspan="studentsDialogColspan" class="px-4 py-8 text-center text-slate-400 italic">
                                         No hay información de estudiantes disponible.
@@ -870,6 +885,43 @@ window.SchedulerComponents.PlanningBoard = {
         },
         moveSelectedCount() {
             return Object.keys(this.moveSelected).filter(k => this.moveSelected[k]).length;
+        },
+        // Agrupa el listado por los mismos cohortes de la matriz de proyección
+        // (cohort_key = "Carrera - Jornada - Nivel X - Bimestre Y [ingreso]").
+        // Con el panel cerrado devuelve un único grupo sin encabezado.
+        displayStudentGroups() {
+            const students = this.currentStudents || [];
+            if (!this.movePanelOpen || !this.moveDistribution) {
+                return [{ key: '__all__', label: null, students, movableCount: 0, selectedCount: 0 }];
+            }
+            const NO_MOVE = '__nomove__';
+            const groups = {};
+            const order = [];
+            students.forEach(stu => {
+                const info = this.moveStudentInfo[stu.dbId];
+                const key = info ? (info.cohort_key || 'Sin cohorte') : NO_MOVE;
+                if (!groups[key]) {
+                    groups[key] = {
+                        key,
+                        label: key === NO_MOVE ? 'Sin proyección editable para esta asignatura' : key,
+                        students: [],
+                        movableCount: 0,
+                        selectedCount: 0
+                    };
+                    order.push(key);
+                }
+                groups[key].students.push(stu);
+                if (info) {
+                    groups[key].movableCount++;
+                    if (this.moveSelected[stu.dbId]) groups[key].selectedCount++;
+                }
+            });
+            order.sort((a, b) => {
+                if (a === NO_MOVE) return 1;
+                if (b === NO_MOVE) return -1;
+                return a.localeCompare(b);
+            });
+            return order.map(k => groups[k]);
         },
         studentsDialogColspan() {
             let n = 5;
@@ -2548,6 +2600,17 @@ window.SchedulerComponents.PlanningBoard = {
                 if (this.moveStudentInfo[stu.dbId]) sel[stu.dbId] = true;
             });
             this.moveSelected = sel;
+        },
+        toggleGroupSelection(grp) {
+            const allSelected = grp.movableCount > 0 && grp.selectedCount === grp.movableCount;
+            grp.students.forEach(stu => {
+                if (!this.moveStudentInfo[stu.dbId]) return;
+                if (allSelected) {
+                    delete this.moveSelected[stu.dbId];
+                } else {
+                    this.moveSelected[stu.dbId] = true;
+                }
+            });
         },
         async confirmMoveStudents() {
             const cls = this.currentStudentsClass;
