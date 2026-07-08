@@ -501,11 +501,12 @@ class planning extends external_api {
         return new external_function_parameters([
             'academicperiodid' => new external_value(PARAM_INT, ''),
             'selections' => new external_value(PARAM_RAW, 'JSON array of objects {planid, courseid, periodid, count}'),
-            'deferredGroups' => new external_value(PARAM_RAW, 'JSON object for student movements', VALUE_DEFAULT, '{}')
+            'deferredGroups' => new external_value(PARAM_RAW, 'JSON object for student movements', VALUE_DEFAULT, '{}'),
+            'clearStudentDeferrals' => new external_value(PARAM_RAW, 'JSON array of {courseid, cohortKey} whose individual student deferrals must be removed (cohort move overrides)', VALUE_DEFAULT, '[]')
         ]);
     }
-    
-    public static function save_planning($academicperiodid, $selections, $deferredGroups = '{}') {
+
+    public static function save_planning($academicperiodid, $selections, $deferredGroups = '{}', $clearStudentDeferrals = '[]') {
         global $DB;
          $context = \context_system::instance();
         self::validate_context($context);
@@ -541,6 +542,39 @@ class planning extends external_api {
         error_log("save_planning deferred groups: " . print_r($deferredData, true));
         if (is_array($deferredData)) {
             \local_grupomakro_core\local\planning_manager::save_deferrals($academicperiodid, $deferredData);
+        }
+
+        // Cohort-move override: el coordinador movió explícitamente estos (curso,
+        // cohorte) en la matriz durante esta sesión. Los diferimientos INDIVIDUALES
+        // (gmk_student_deferrals, creados p.ej. desde el tablero) tienen prioridad
+        // sobre los de cohorte, así que se anulan para que el movimiento de grupo
+        // surta efecto sobre todos sus miembros.
+        $clearList = json_decode($clearStudentDeferrals, true);
+        if (is_array($clearList) && !empty($clearList)) {
+            foreach ($clearList as $clear) {
+                $cCourseId = (int)($clear['courseid'] ?? 0);
+                $cohortKey = trim((string)($clear['cohortKey'] ?? ''));
+                if ($cCourseId <= 0 || $cohortKey === '') continue;
+                $parts = explode(' - ', $cohortKey, 3);
+                if (count($parts) < 3) continue;
+                $deleted = $DB->count_records('gmk_student_deferrals', [
+                    'academicperiodid' => $academicperiodid,
+                    'courseid' => $cCourseId,
+                    'career' => trim($parts[0]),
+                    'shift' => trim($parts[1]),
+                    'current_level' => trim($parts[2])
+                ]);
+                if ($deleted > 0) {
+                    $DB->delete_records('gmk_student_deferrals', [
+                        'academicperiodid' => $academicperiodid,
+                        'courseid' => $cCourseId,
+                        'career' => trim($parts[0]),
+                        'shift' => trim($parts[1]),
+                        'current_level' => trim($parts[2])
+                    ]);
+                    \gmk_log("save_planning: cleared {$deleted} student deferral(s) for course {$cCourseId} cohort '{$cohortKey}' (cohort move override)");
+                }
+            }
         }
 
         if (!is_array($items)) {

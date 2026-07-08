@@ -978,12 +978,19 @@ echo $OUTPUT->header();
                         </span>
                     </div>
 
+                    <!-- Individual deferrals notice -->
+                    <div v-if="getIndividualDeferralCount(key) > 0"
+                         class="mb-2 px-2.5 py-1.5 rounded-lg text-[11px] bg-amber-50 text-amber-800 border border-amber-200 flex items-start gap-1.5 leading-snug">
+                        <span>⚠</span>
+                        <span><strong>{{ getIndividualDeferralCount(key) }}</strong> estudiante(s) de este grupo tienen movimiento <strong>individual</strong> (hecho desde el tablero) que prevalece sobre el grupo. Al mover el grupo aquí, esos movimientos individuales se anularán al guardar.</span>
+                    </div>
+
                     <!-- Movement Controls -->
                     <div class="border-t border-slate-100 pt-3">
                         <span class="text-[10px] font-bold text-slate-400 uppercase mb-2 block">Mover a Periodo:</span>
                         <div class="grid grid-cols-6 gap-1">
                             <button v-for="i in 6" :key="i"
-                                    @click="deferredGroups[popoverData.subject.name + '_' + key] = (i-1); deferralVersion++"
+                                    @click="moveCohortToPeriod(key, i-1)"
                                     :class="[
                                         'px-1 py-2 rounded text-[10px] font-bold transition-all border flex flex-col items-center justify-center',
                                         isActivePeriod(key, i-1)
@@ -1189,6 +1196,11 @@ const app = createApp({
             const deferralVersion = ref(0); // Increment to force computed recalculation
             const studentDeferredGroups = reactive({}); // { CourseId_DbUserId: PeriodIndex (0-5) }
             const studentDeferralVersion = ref(0); // Increment to force computed recalculation
+            // Cohortes movidos explícitamente en esta sesión: "{SubjectName}_{cohortKey}" => true.
+            // Al guardar, el backend anula los diferimientos INDIVIDUALES de esos (curso, cohorte)
+            // para que el movimiento de grupo de la matriz prevalezca sobre movimientos hechos
+            // por estudiante desde el tablero.
+            const clearedCohortMoves = reactive({});
             const ignoredSubjects = reactive({}); // { SubjectName: Boolean }
             
             // Popover
@@ -1443,7 +1455,23 @@ const loadInitial = async () => {
                  }
 
                  console.log("Vue Planning App: savePlanning() deferrals payload:", JSON.stringify(repackedDeferrals));
-                 
+
+                 // Repack cohortes movidos explícitamente en esta sesión → el backend
+                 // anula los diferimientos individuales de esos (curso, cohorte) para
+                 // que el movimiento de grupo prevalezca.
+                 const clearList = [];
+                 if (allSubjects) {
+                     Object.keys(clearedCohortMoves).forEach(flatKey => {
+                         for (const s of allSubjects) {
+                             if (flatKey.startsWith(s.name + '_')) {
+                                 clearList.push({ courseid: s.id, cohortKey: flatKey.substring(s.name.length + 1) });
+                                 break;
+                             }
+                         }
+                     });
+                 }
+                 console.log("Vue Planning App: savePlanning() clearStudentDeferrals payload:", JSON.stringify(clearList));
+
                  // Save Period Mappings
                  await callMoodle('local_grupomakro_save_period_mappings', {
                      baseperiodid: selectedPeriodId.value,
@@ -1453,10 +1481,12 @@ const loadInitial = async () => {
                  let res = await callMoodle('local_grupomakro_save_planning', {
                      academicperiodid: selectedPeriodId.value,
                      selections: JSON.stringify(items),
-                     deferredGroups: JSON.stringify(repackedDeferrals)
+                     deferredGroups: JSON.stringify(repackedDeferrals),
+                     clearStudentDeferrals: JSON.stringify(clearList)
                  });
-                 
+
                  if (res) {
+                     Object.keys(clearedCohortMoves).forEach(k => delete clearedCohortMoves[k]);
                      alert("Planificación guardada con éxito.");
                      fetchData();
                  }
@@ -2190,6 +2220,49 @@ const loadInitial = async () => {
             return 0; 
         };
 
+        // -- Movimiento de cohortes (popover y drag&drop) --
+
+        // Anula localmente los diferimientos individuales de los miembros del
+        // cohorte para esta asignatura, y marca el par para que el backend borre
+        // las filas de gmk_student_deferrals al guardar.
+        const clearIndividualDeferralsFor = (subjectName, subjectId, cohortKey) => {
+            clearedCohortMoves[`${subjectName}_${cohortKey}`] = true;
+            if (!subjectId || !analysis.value || !analysis.value.students) return;
+            let cleared = 0;
+            Object.values(analysis.value.students).forEach(stu => {
+                if (stu.cohortKey !== cohortKey) return;
+                const defKey = `${subjectId}_${stu.dbId || stu.id}`;
+                if (studentDeferredGroups[defKey] !== undefined) {
+                    delete studentDeferredGroups[defKey];
+                    cleared++;
+                }
+            });
+            if (cleared > 0) studentDeferralVersion.value++;
+        };
+
+        // Cuenta miembros del cohorte con diferimiento individual para la
+        // asignatura del popover (visibilidad en la tarjeta del grupo).
+        const getIndividualDeferralCount = (cohortKey) => {
+            if (!popoverData.value || !popoverData.value.subject || !analysis.value || !analysis.value.students) return 0;
+            const subjectId = popoverData.value.subject.id;
+            let n = 0;
+            Object.values(analysis.value.students).forEach(stu => {
+                if (stu.cohortKey !== cohortKey) return;
+                if (studentDeferredGroups[`${subjectId}_${stu.dbId || stu.id}`] !== undefined) n++;
+            });
+            return n;
+        };
+
+        // Handler de los botones "Mover a Periodo" del popover: mueve el cohorte
+        // completo y anula los movimientos individuales de sus miembros.
+        const moveCohortToPeriod = (cohortKey, targetIdx) => {
+            if (!popoverData.value || !popoverData.value.subject) return;
+            const subj = popoverData.value.subject;
+            deferredGroups[`${subj.name}_${cohortKey}`] = targetIdx;
+            deferralVersion.value++;
+            clearIndividualDeferralsFor(subj.name, subj.id, cohortKey);
+        };
+
         // -- Drag Drop --
         const handleDragStart = (e, subj, cKey, pIdx) => {
             e.dataTransfer.setData('auth', JSON.stringify({subj, cKey, pIdx}));
@@ -2201,6 +2274,8 @@ const loadInitial = async () => {
                  let key = `${data.subj}_${targetCKey}`;
                  deferredGroups[key] = targetPIdx;
                  deferralVersion.value++;
+                 const subjObj = analysis.value?.subjectList?.find(s => s.name === data.subj);
+                 clearIndividualDeferralsFor(data.subj, subjObj ? subjObj.id : 0, targetCKey);
             }
         };
 
@@ -2760,6 +2835,7 @@ const loadInitial = async () => {
                 getSubjectsForCohortPeriod, getSubjectCount,
                 // Drag
                 handleDragStart, handleDrop, deferredGroups, deferralVersion,
+                moveCohortToPeriod, getIndividualDeferralCount,
                 // Popover
                 openPopover, activePopover, showBreakdownPopover, popoverData,
                 // Modals

@@ -1230,8 +1230,9 @@ try {
             $academicperiodid = required_param('academicperiodid', PARAM_INT);
             $selections = required_param('selections', PARAM_RAW);
             $deferredGroups = optional_param('deferredGroups', '{}', PARAM_RAW);
+            $clearStudentDeferrals = optional_param('clearStudentDeferrals', '[]', PARAM_RAW);
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/admin/planning.php');
-            $res = \local_grupomakro_core\external\admin\planning::save_planning($academicperiodid, $selections, $deferredGroups);
+            $res = \local_grupomakro_core\external\admin\planning::save_planning($academicperiodid, $selections, $deferredGroups, $clearStudentDeferrals);
             $response = ['status' => 'success', 'data' => $res];
             break;
 
