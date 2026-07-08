@@ -335,7 +335,7 @@ class renderer {
         });
 
         foreach ($fields as $f) {
-            $this->draw_field($pdf, $f, $user, $lp, $generation, $verificationurl, (float)$template->width_mm, (float)$template->height_mm);
+            $this->draw_field($pdf, $f, $user, $lp, $generation, $verificationurl, (float)$template->width_mm, (float)$template->height_mm, $course);
         }
 
         return $pdf->Output('', 'S');
@@ -352,7 +352,8 @@ class renderer {
         ?stdClass $generation,
         string $verificationurl,
         float $pagew,
-        float $pageh
+        float $pageh,
+        ?stdClass $course = null
     ): void {
         $type = (string)$f->field_type;
         $x = (float)$f->x_mm;
@@ -377,7 +378,7 @@ class renderer {
         if ($type === manager::FIELD_VARIABLE) {
             $text = manager::resolve_variable((string)$f->variable_code, $user, $lp, $generation, $course);
         } else if ($type === manager::FIELD_CUSTOM) {
-            $text = self::substitute_placeholders((string)$f->custom_text, $user, $lp, $generation);
+            $text = self::substitute_placeholders((string)$f->custom_text, $user, $lp, $generation, $course);
         } else if ($type === manager::FIELD_STATIC) {
             $text = (string)$f->static_text;
         }
@@ -431,8 +432,8 @@ class renderer {
     /**
      * Substitute {{var}} tokens inside a custom text with the value from manager.
      */
-    public static function substitute_placeholders(string $text, stdClass $user, ?stdClass $lp, ?stdClass $generation): string {
-        return preg_replace_callback('/\{\{\s*([a-z0-9_]+)\s*\}\}/i', function ($m) use ($user, $lp, $generation) {
+    public static function substitute_placeholders(string $text, stdClass $user, ?stdClass $lp, ?stdClass $generation, ?stdClass $course = null): string {
+        return preg_replace_callback('/\{\{\s*([a-z0-9_]+)\s*\}\}/i', function ($m) use ($user, $lp, $generation, $course) {
             $code = strtolower($m[1]);
             return manager::resolve_variable($code, $user, $lp, $generation, $course);
         }, $text);
