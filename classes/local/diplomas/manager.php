@@ -219,11 +219,55 @@ class manager {
                 'resolve' => function (stdClass $user, ?stdClass $lp = null, ?stdClass $generation = null, ?stdClass $course = null): string {
                     global $DB;
                     if (!$course || empty($generation->courseid)) { return ''; }
-                    $grade = $DB->get_field_sql(
-                        "SELECT MAX(grade) FROM {gmk_course_progre} WHERE userid = :uid AND courseid = :cid",
-                        ['uid' => $user->id, 'cid' => (int)$course->id]
+                    $courseid = (int)$course->id;
+                    $userid = (int)$user->id;
+
+                    // Resolve the grade through the same cascade that the
+                    // student-table grade modal uses (course_grade_resolver):
+                    // module grade first, then Nota Final Integrada, then
+                    // class category, then plan category, then Moodle
+                    // course total. The resolver needs the student's
+                    // gmk_course_progre row context (status, classid,
+                    // groupid, currentperiodid) for that course.
+                    $row = $DB->get_record_sql(
+                        "SELECT p.status, p.classid, p.groupid, p.learningplanid,
+                                p.currentperiodid, p.progress
+                           FROM {gmk_course_progre} p
+                          WHERE p.userid = :uid AND p.courseid = :cid
+                       ORDER BY (p.status = 4) DESC, p.timemodified DESC, p.id DESC
+                          LIMIT 1",
+                        ['uid' => $userid, 'cid' => $courseid]
                     );
-                    return $grade !== false ? rtrim(rtrim(number_format((float)$grade, 2, '.', ''), '0'), '.') : '';
+                    if (!$row) { return ''; }
+
+                    // Resolve the learning plan id: prefer the lp passed
+                    // by the renderer, then the progre row's plan, then
+                    // any active plan the student is in.
+                    $lpid = (int)($lp->id ?? 0);
+                    if ($lpid <= 0) { $lpid = (int)$row->learningplanid; }
+                    if ($lpid <= 0) {
+                        $lpid = (int)$DB->get_field_sql(
+                            "SELECT learningplanid FROM {local_learning_users}
+                              WHERE userid = :uid AND userrolename = 'student'
+                              ORDER BY id ASC LIMIT 1",
+                            ['uid' => $userid]
+                        );
+                    }
+
+                    $resolution = \local_grupomakro_core\course_grade_resolver::resolve_course_grade(
+                        $userid,
+                        $courseid,
+                        $lpid,
+                        (int)$row->status,
+                        !empty($row->classid) ? (int)$row->classid : null,
+                        !empty($row->groupid) ? (int)$row->groupid : null,
+                        (int)($row->currentperiodid ?? 0),
+                        (string)($course->fullname ?? ''),
+                        $row->progress !== null ? (float)$row->progress : null
+                    );
+                    $grade = $resolution['grade'] ?? null;
+                    if ($grade === null) { return ''; }
+                    return rtrim(rtrim(number_format((float)$grade, 2, '.', ''), '0'), '.');
                 },
             ],
             'course_completed_at' => [
