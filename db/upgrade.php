@@ -27,6 +27,7 @@ defined('MOODLE_INTERNAL') || die();
 
 // Require the upgradelib.php file.
 require_once($CFG->dirroot . '/local/grupomakro_core/db/upgradelib.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 
 /**
  * Execute local_soluttolms_core upgrade from the given old version.
