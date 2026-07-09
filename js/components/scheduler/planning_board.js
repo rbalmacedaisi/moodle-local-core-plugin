@@ -446,6 +446,10 @@ window.SchedulerComponents.PlanningBoard = {
                             <p v-if="canManageCurrentStudents" class="text-xs text-slate-500">
                                 Pendientes por inscribir: <strong>{{ currentPendingStudents.length }}</strong>
                             </p>
+                            <p v-if="currentOverlapCount > 0" class="text-xs text-red-600 font-bold flex items-center gap-1 mt-0.5">
+                                <i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i>
+                                {{ currentOverlapCount }} estudiante(s) con solapamiento de horario
+                            </p>
                          </div>
                          <div class="flex items-center gap-2">
                             <button v-if="currentStudentsClass && !currentStudentsClass.isExternal"
@@ -476,6 +480,7 @@ window.SchedulerComponents.PlanningBoard = {
                                     {{ movingStudents ? 'Moviendo...' : 'Mover' }}
                                 </button>
                                 <button @click="selectAllMovable" class="text-[11px] text-indigo-600 hover:text-indigo-800 underline font-medium">Seleccionar todos</button>
+                                <button v-if="currentOverlapCount > 0" @click="selectOverlappingStudents" class="text-[11px] text-red-600 hover:text-red-800 underline font-bold">Seleccionar solapados ({{ currentOverlapCount }})</button>
                             </div>
                             <p class="text-[11px] text-indigo-700 leading-snug">
                                 Selecciona estudiantes en la tabla. <span class="font-bold text-red-600">🔴 Sí o sí:</span> el estudiante llegó al final de su ciclo y debe cursarla en este periodo.
@@ -532,7 +537,16 @@ window.SchedulerComponents.PlanningBoard = {
                                         <span v-else class="text-slate-300" title="Sin proyección editable para esta asignatura">—</span>
                                     </td>
                                     <td class="px-4 py-2 font-mono text-xs text-slate-500">{{ stu.id }}</td>
-                                    <td class="px-4 py-2 font-medium text-slate-800">{{ stu.name }}</td>
+                                    <td class="px-4 py-2 font-medium text-slate-800">
+                                        {{ stu.name }}
+                                        <div v-if="currentStudentOverlaps[String(stu.id)]" class="mt-1 flex flex-wrap gap-1">
+                                            <span v-for="(ov, oi) in currentStudentOverlaps[String(stu.id)]" :key="oi"
+                                                  class="text-[10px] bg-red-50 text-red-700 border border-red-200 rounded px-1.5 py-0.5 font-normal leading-tight"
+                                                  :title="'Este estudiante también está en ' + ov.subjectName + ' en un horario que se cruza'">
+                                                ⚠ Solapa con <b>{{ ov.subjectName }}</b> ({{ ov.day }} {{ ov.start }}-{{ ov.end }})
+                                            </span>
+                                        </div>
+                                    </td>
                                     <td class="px-4 py-2 text-xs text-slate-500">{{ stu.career }}</td>
                                     <td class="px-4 py-2 text-xs">
                                         <span v-if="stu.pending" class="px-2 py-0.5 rounded bg-cyan-100 text-cyan-700 font-bold">Pendiente</span>
@@ -885,6 +899,23 @@ window.SchedulerComponents.PlanningBoard = {
         },
         moveSelectedCount() {
             return Object.keys(this.moveSelected).filter(k => this.moveSelected[k]).length;
+        },
+        // Detalle de solapamiento por estudiante para la ficha del listado:
+        // { idnumber: [{subjectName, day, start, end, room}] }. Mismas reglas
+        // de solape que detectConflicts (fechas exactas, subperiodo, receso).
+        currentStudentOverlaps() {
+            const cls = this.currentStudentsClass;
+            if (!cls || !this.studentsDialog) return {};
+            if (!window.SchedulerAlgorithm?.getStudentOverlapDetails) return {};
+            const context = {
+                ...this.storeState.context,
+                instructors: this.storeState.instructors,
+                students: this.storeState.students
+            };
+            return window.SchedulerAlgorithm.getStudentOverlapDetails(cls, this.allClasses, context);
+        },
+        currentOverlapCount() {
+            return Object.keys(this.currentStudentOverlaps).length;
         },
         // Agrupa el listado por los mismos cohortes de la matriz de proyección
         // (cohort_key = "Carrera - Jornada - Nivel X - Bimestre Y [ingreso]").
@@ -2598,6 +2629,17 @@ window.SchedulerComponents.PlanningBoard = {
             const sel = {};
             (this.currentStudents || []).forEach(stu => {
                 if (this.moveStudentInfo[stu.dbId]) sel[stu.dbId] = true;
+            });
+            this.moveSelected = sel;
+        },
+        // Marca en la selección de "Mover de periodo" a los estudiantes con
+        // solapamiento de horario (los candidatos naturales a reproyectar).
+        selectOverlappingStudents() {
+            const sel = { ...this.moveSelected };
+            (this.currentStudents || []).forEach(stu => {
+                if (this.currentStudentOverlaps[String(stu.id)] && this.moveStudentInfo[stu.dbId]) {
+                    sel[stu.dbId] = true;
+                }
             });
             this.moveSelected = sel;
         },

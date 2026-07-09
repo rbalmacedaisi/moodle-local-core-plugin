@@ -483,16 +483,16 @@
         });
     };
 
-    const detectConflicts = (schedule, allSchedules, context) => {
-        const issues = [];
-        if (!schedule || schedule.day === 'N/A') return issues;
+    // Builds the pairwise overlap predicate for a schedule. Shared by
+    // detectConflicts and getStudentOverlapDetails so both use the exact
+    // same rules (dates > weekday fallback, subperiod, recess padding).
+    const buildOverlapChecker = (schedule, context) => {
         const sStart = toMins(schedule.start);
         const sEnd = toMins(schedule.end);
         const sDates = new Set(schedule.assignedDates || []);
+        const intervalMins = context?.configSettings?.intervalMinutes || 10;
 
-        const intervalMins = context.configSettings?.intervalMinutes || 10;
-
-        const checkOverlap = (other) => {
+        return (other) => {
             if (other.id === schedule.id) return false;
             const oDates = other.assignedDates || [];
             if (schedule.assignedDates?.length && other.assignedDates?.length) {
@@ -525,6 +525,14 @@
             // Include interval padding to enforce recess in conflict detection
             return Math.max(sStart, toMins(other.start) - intervalMins) < Math.min(sEnd, toMins(other.end) + intervalMins);
         };
+    };
+
+    const detectConflicts = (schedule, allSchedules, context) => {
+        const issues = [];
+        if (!schedule || schedule.day === 'N/A') return issues;
+        const sStart = toMins(schedule.start);
+        const sEnd = toMins(schedule.end);
+        const checkOverlap = buildOverlapChecker(schedule, context);
 
         // --- Teacher Specific Conflicts ---
         if (schedule.teacherName) {
@@ -588,6 +596,38 @@
     };
 
     /**
+     * Per-student overlap detail for a schedule: which of ITS students are also
+     * present in another class that overlaps in time/dates.
+     * Returns { studentId(String): [{ id, subjectName, day, start, end, room }] }.
+     * Uses the same overlap rules as detectConflicts (buildOverlapChecker).
+     */
+    const getStudentOverlapDetails = (schedule, allSchedules, context) => {
+        const result = {};
+        if (!schedule || schedule.day === 'N/A' || !(schedule.studentIds?.length)) return result;
+        const checkOverlap = buildOverlapChecker(schedule, context);
+
+        for (const other of allSchedules) {
+            if (!checkOverlap(other)) continue;
+            const otherSet = new Set((other.studentIds || []).map(id => String(id)));
+            if (otherSet.size === 0) continue;
+            for (const sid of schedule.studentIds) {
+                const key = String(sid);
+                if (!otherSet.has(key)) continue;
+                if (!result[key]) result[key] = [];
+                result[key].push({
+                    id: other.id,
+                    subjectName: other.subjectName,
+                    day: other.day,
+                    start: other.start,
+                    end: other.end,
+                    room: other.room || ''
+                });
+            }
+        }
+        return result;
+    };
+
+    /**
      * Return all non-holiday dates within the period that fall on `day` (e.g. "Lunes").
      * Optionally filtered by subperiod range.
      * @param {string} day - Day name matching dayMap (e.g. "Lunes", "Martes")
@@ -622,6 +662,7 @@
         autoPlace,
         getSuggestions,
         detectConflicts,
+        getStudentOverlapDetails,
         getDatesForDay,
         toMins,
         formatTime,
