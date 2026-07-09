@@ -599,10 +599,43 @@
             }
         },
 
+        // Duplicate-id guard: a corrupted draft (or an in-session glitch) can end up
+        // with two cards sharing the same id. That breaks drag&drop (updates always
+        // hit the first match, the other card looks like a hidden "ghost") and makes
+        // the reconciler split the demand between them as sibling groups.
+        // - Temp-id duplicates (rec-/gen-/manual-/join-) get a unique "-dN" suffix so
+        //   both placements survive and the user can delete the unwanted one.
+        // - Numeric duplicates of persisted DB classes are dropped (DB row = identity).
+        _ensureUniqueScheduleIds(items, label = '') {
+            if (!Array.isArray(items)) return items;
+            const seen = new Set();
+            const out = [];
+            for (const item of items) {
+                const rawId = (item && item.id !== undefined && item.id !== null) ? String(item.id) : '';
+                if (!rawId) { out.push(item); continue; }
+                if (!seen.has(rawId)) { seen.add(rawId); out.push(item); continue; }
+                const numId = Number(rawId);
+                if (Number.isFinite(numId) && numId > 0) {
+                    console.warn(`[SchedulerStore] Descartando copia duplicada de clase DB id=${rawId} (${item.subjectName || ''}) ${label}`);
+                    continue;
+                }
+                let n = 2;
+                let candidate = `${rawId}-d${n}`;
+                while (seen.has(candidate)) candidate = `${rawId}-d${++n}`;
+                console.warn(`[SchedulerStore] Id duplicado "${rawId}" (${item.subjectName || ''}) ${label} — reasignado a "${candidate}"`);
+                seen.add(candidate);
+                out.push(Object.assign({}, item, { id: candidate }));
+            }
+            return out;
+        },
+
         async saveGeneration(periodId, schedules) {
             if (!periodId || !schedules) return;
             this.state.loading = true;
             try {
+                if (Array.isArray(schedules)) {
+                    schedules = this._ensureUniqueScheduleIds(schedules, 'al guardar draft');
+                }
                 // Strip redundant metadata to reduce payload size (1MB is too large)
                 // Correct keys (lowercase as confirmed by stats)
                 const essentialKeys = [
@@ -810,12 +843,12 @@
 
                     // Purge draft items that are DB externals
                     const cleanedDraft = draft.filter(item => !externalIds.has(Number(item.id)));
-                    const processedDraft = cleanedDraft.map(item => {
+                    const processedDraft = this._ensureUniqueScheduleIds(cleanedDraft.map(item => {
                         const next = Object.assign({}, item);
                         next.isExternal = (Number(next.periodid) || pIdNum) !== pIdNum;
                         next.subjectName = this._resolveSubjectName(next);
                         return next;
-                    });
+                    }), 'en draft cargado');
 
                     // Split draft into: items already in DB vs truly new (temp id / no id)
                     const draftById = {};
