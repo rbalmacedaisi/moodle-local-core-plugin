@@ -7717,6 +7717,7 @@ function gmk_count_pending_attendance_sessions(int $attendanceId, int $groupId, 
         "SELECT COUNT(s.id)
            FROM {attendance_sessions} s
           WHERE s.attendanceid = :attid
+            AND COALESCE(s.is_revalida, 0) = 0
             AND s.sessdate + s.duration < :now
             AND s.lasttaken > 0
             AND EXISTS (
@@ -7800,6 +7801,7 @@ function gmk_mark_pending_sessions_as_absent(int $attendanceId, int $groupId, in
         "SELECT s.id
            FROM {attendance_sessions} s
           WHERE s.attendanceid = :attid
+            AND COALESCE(s.is_revalida, 0) = 0
             AND s.sessdate + s.duration < :now
             AND s.lasttaken > 0
             AND EXISTS (
@@ -7963,6 +7965,7 @@ function gmk_batch_weighted_grades(int $classId, array $userIds): array {
             "SELECT COUNT(s.id)
                FROM {attendance_sessions} s
               WHERE s.attendanceid = :attid
+                AND COALESCE(s.is_revalida, 0) = 0
                 AND s.sessdate + s.duration < :now
                 AND (EXISTS (SELECT 1 FROM {attendance_log} l WHERE l.sessionid = s.id)
                      OR COALESCE(s.lasttaken, 0) > 0)",
@@ -7979,11 +7982,12 @@ function gmk_batch_weighted_grades(int $classId, array $userIds): array {
                JOIN {attendance_log} al
                     ON al.sessionid = s.id AND al.studentid $userInSql
                LEFT JOIN {attendance_statuses} ast ON ast.id = al.statusid
-              WHERE s.attendanceid = :batt
-                AND s.sessdate + s.duration < :bnow
-                AND (EXISTS (SELECT 1 FROM {attendance_log} l2 WHERE l2.sessionid = s.id)
-                     OR COALESCE(s.lasttaken, 0) > 0)
-           GROUP BY al.studentid",
+               WHERE s.attendanceid = :batt
+                 AND COALESCE(s.is_revalida, 0) = 0
+                 AND s.sessdate + s.duration < :bnow
+                 AND (EXISTS (SELECT 1 FROM {attendance_log} l2 WHERE l2.sessionid = s.id)
+                      OR COALESCE(s.lasttaken, 0) > 0)
+            GROUP BY al.studentid",
             array_merge($userInParams, ['batt' => $attid, 'bnow' => $attNow])
         );
 

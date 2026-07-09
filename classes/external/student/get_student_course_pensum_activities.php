@@ -156,6 +156,7 @@ class get_student_course_pensum_activities extends external_api
                                 "SELECT COUNT(s.id) AS total
                                    FROM {attendance_sessions} s
                                   WHERE s.attendanceid = :attid
+                                    AND COALESCE(s.is_revalida, 0) = 0
                                     AND s.sessdate + s.duration < :now
                                     AND (
                                         EXISTS (SELECT 1 FROM {attendance_log} l WHERE l.sessionid = s.id)
@@ -171,6 +172,7 @@ class get_student_course_pensum_activities extends external_api
                                        JOIN {attendance_log} al ON al.sessionid = s.id AND al.studentid = :uid
                                        LEFT JOIN {attendance_statuses} ast ON ast.id = al.statusid
                                       WHERE s.attendanceid = :attid2
+                                        AND COALESCE(s.is_revalida, 0) = 0
                                         AND s.sessdate + s.duration < :now2
                                         AND (
                                             EXISTS (SELECT 1 FROM {attendance_log} l2 WHERE l2.sessionid = s.id)

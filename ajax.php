@@ -5410,6 +5410,48 @@ try {
              }
              break;
 
+        case 'local_grupomakro_toggle_session_revalida':
+            // Flip the is_revalida flag on a single attendance_session row.
+            // Requires 'mod/attendance:takeattendance' on the activity's course.
+            $rvSessionId   = required_param('sessionid', PARAM_INT);
+            $rvDesired     = (int)required_param('value', PARAM_INT);
+            try {
+                $rvSession = $DB->get_record('attendance_sessions',
+                    ['id' => $rvSessionId], 'id, attendanceid, sessdate, is_revalida', MUST_EXIST);
+                $rvAtt = $DB->get_record('attendance',
+                    ['id' => (int)$rvSession->attendanceid], 'id, course', MUST_EXIST);
+                $rvCmid = $DB->get_field('course_modules', 'id',
+                    ['module' => (int)$DB->get_field('modules', 'id', ['name' => 'attendance']),
+                     'instance' => (int)$rvSession->attendanceid]);
+                if (empty($rvCmid)) {
+                    throw new moodle_exception('Attendance course_module not found.');
+                }
+                $rvCtx = context_module::instance($rvCmid);
+                require_capability('mod/attendance:takeattendance', $rvCtx);
+                $rvDesired = ($rvDesired === 1) ? 1 : 0;
+                $rvNow = time();
+                $DB->set_field('attendance_sessions', 'is_revalida', $rvDesired,
+                    ['id' => $rvSessionId]);
+                $DB->set_field('attendance_sessions', 'timemodified', $rvNow,
+                    ['id' => $rvSessionId]);
+                // Force Moodle to recompute the course total next time grades
+                // are viewed, otherwise the cached course total keeps the old
+                // attendance% in place.
+                $DB->set_field('grade_items', 'needsupdate', 1,
+                    ['courseid' => (int)$rvAtt->course, 'itemmodule' => 'attendance',
+                     'iteminstance' => (int)$rvSession->attendanceid]);
+                $response = [
+                    'status'       => 'success',
+                    'sessionid'    => $rvSessionId,
+                    'currentValue' => $rvDesired,
+                    'previousValue'=> (int)$rvSession->is_revalida,
+                    'is_revalida'  => $rvDesired === 1,
+                ];
+            } catch (Throwable $rvE) {
+                $response = ['status' => 'error', 'message' => $rvE->getMessage()];
+            }
+            break;
+
         case 'local_grupomakro_get_bbb_join_url':
             $cmid = optional_param('cmid', 0, PARAM_INT);
             $classid = optional_param('classid', 0, PARAM_INT);

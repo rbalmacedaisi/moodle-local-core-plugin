@@ -260,6 +260,7 @@ function absd_get_class_past_session_ids(stdClass $class, int $nowts): array {
                FROM {attendance_sessions} s
               WHERE s.attendanceid = :attid
                 AND (s.groupid = :groupid OR s.groupid = 0)
+                AND COALESCE(s.is_revalida, 0) = 0
                 AND s.sessdate >= :start
                 AND s.sessdate <= :end
                 AND s.sessdate < :nowts
@@ -288,6 +289,7 @@ function absd_get_class_past_session_ids(stdClass $class, int $nowts): array {
             "SELECT s.id
                FROM {attendance_sessions} s
               WHERE s.id $sessinsql
+                AND COALESCE(s.is_revalida, 0) = 0
                 AND s.sessdate < :nowts
            ORDER BY s.sessdate ASC",
             array_merge($sessparams, ['nowts' => $nowts])
@@ -306,6 +308,7 @@ function absd_get_class_past_session_ids(stdClass $class, int $nowts): array {
                FROM {attendance_sessions} s
               WHERE s.attendanceid = :attid
                 AND (s.groupid = :groupid OR s.groupid = 0)
+                AND COALESCE(s.is_revalida, 0) = 0
                 AND s.sessdate >= :start
                 AND s.sessdate <= :end
                 AND s.sessdate < :nowts
@@ -377,6 +380,7 @@ function absd_get_taken_session_ids(array $sessionids): array {
             "SELECT s.id
                FROM {attendance_sessions} s
               WHERE s.id $sessinsql
+                AND COALESCE(s.is_revalida, 0) = 0
                 AND COALESCE(s.lasttaken, 0) > 0",
             $sessparams
         );

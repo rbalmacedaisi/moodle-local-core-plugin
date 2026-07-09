@@ -359,6 +359,29 @@ class homologate_course_grade extends external_api
             return self::error('No se pudo registrar la homologación: ' . $t->getMessage());
         }
 
+        // Audit row (best-effort: an audit failure must not break the homologation).
+        try {
+            $audit = new stdClass();
+            $audit->userid              = $userId;
+            $audit->corecourseid        = $coreCourseId;
+            $audit->learningplanid      = $learningPlanId;
+            $audit->gcp_id              = $gcpId;
+            $audit->action              = 'homologate';
+            $audit->type                = $type;
+            $audit->grade               = $grade;
+            $audit->course_status       = $status;
+            $audit->observation         = $observation;
+            $audit->previous_observation = null;
+            $audit->previous_grade      = null;
+            $audit->previous_status     = null;
+            $audit->previous_type       = null;
+            $audit->applied_by          = (int)$USER->id;
+            $audit->applied_at          = $now;
+            $DB->insert_record('gmk_homologation_audit', $audit);
+        } catch (\Throwable $auditError) {
+            gmk_log('WARN homologate audit insert failed: ' . $auditError->getMessage());
+        }
+
         gmk_log(sprintf(
             'homologate_course_grade OK user=%d plan=%d course=%d grade=%s type=%s by=%d',
             $userId, $learningPlanId, $coreCourseId, (string)$grade, $type, (int)$USER->id

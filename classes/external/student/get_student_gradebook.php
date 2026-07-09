@@ -131,6 +131,7 @@ class get_student_gradebook extends external_api
                                                                    AND al.studentid = :uid
                                LEFT JOIN {attendance_statuses} ast ON ast.id = al.statusid
                               WHERE s.attendanceid = :attid
+                                AND COALESCE(s.is_revalida, 0) = 0
                                 AND s.sessdate + s.duration < :now
                                 AND (
                                     EXISTS (SELECT 1 FROM {attendance_log} l WHERE l.sessionid = s.id)
