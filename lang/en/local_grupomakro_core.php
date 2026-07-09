@@ -955,3 +955,17 @@ $string["fsr:financial_updated"] = 'Financial status updated: {$a}';
 $string["fsr:picker_title"] = 'Available groups — {$a}';
 $string["fsr:picker_no_classes"] = "No groups are projected for this course in the selected period.";
 $string["fsr:picker_match_badge"] = "Match";
+
+// Attendance: reválida (revalidation / makeup) session marker.
+// When a session is flagged as reválida it does NOT contribute to the
+// attendance % used for grades (course_grade_resolver, gmk_batch_weighted_grades,
+// get_student_gradebook, ...) NOR to the absence counter that drives the
+// 3-strikes inactivation rule.
+$string["attendance:is_revalida:chip"] = 'Reválida';
+$string["attendance:is_revalida:tooltip"] = 'This session does not count toward the attendance % nor toward absences.';
+$string["attendance:is_revalida:switch_label"] = 'Mark as revalidation session';
+$string["attendance:is_revalida:switch_help"] = 'When on, this session is excluded from the attendance % and from the 3-strikes absence counter.';
+$string["attendance:is_revalida:menu_mark"] = 'Mark as revalidation session';
+$string["attendance:is_revalida:menu_unmark"] = 'Unmark as revalidation';
+$string["attendance:is_revalida:snackbar_marked"] = 'Session marked as revalidation. It no longer counts toward attendance % or absences.';
+$string["attendance:is_revalida:snackbar_unmarked"] = 'Session unmarked. It now counts toward attendance % again.';

@@ -953,3 +953,17 @@ $string["fsr:financial_updated"] = 'Estado financiero actualizado: {$a}';
 $string["fsr:picker_title"] = 'Grupos disponibles - {$a}';
 $string["fsr:picker_no_classes"] = "No hay grupos proyectados para esta asignatura en el periodo seleccionado.";
 $string["fsr:picker_match_badge"] = "Match";
+
+// Attendance: reválida (makeup) session marker.
+// When a session is flagged as reválida, it does NOT contribute to the
+// attendance % used for grades (course_grade_resolver, gmk_batch_weighted_grades,
+// get_student_gradebook, ...) NOR to the absence counter that drives the
+// 3-strikes inactivation rule.
+$string["attendance:is_revalida:chip"] = 'Reválida';
+$string["attendance:is_revalida:tooltip"] = 'Esta sesión no se contabiliza en el % de asistencia ni en las faltas.';
+$string["attendance:is_revalida:switch_label"] = 'Marcar como sesión de reválida';
+$string["attendance:is_revalida:switch_help"] = 'Al activarlo, esta sesión se excluye del cálculo del % de asistencia y del conteo de inasistencias (umbral de 3 strikes).';
+$string["attendance:is_revalida:menu_mark"] = 'Marcar como sesión de reválida';
+$string["attendance:is_revalida:menu_unmark"] = 'Desmarcar como reválida';
+$string["attendance:is_revalida:snackbar_marked"] = 'Sesión marcada como reválida. No se contabiliza en el % de asistencia ni en las faltas.';
+$string["attendance:is_revalida:snackbar_unmarked"] = 'Sesión desmarcada como reválida. Vuelve a contar en el % de asistencia.';

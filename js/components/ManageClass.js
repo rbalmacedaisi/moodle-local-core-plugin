@@ -61,16 +61,50 @@ const ManageClass = {
                                     <v-timeline-item
                                         v-for="(session, index) in timeline"
                                         :key="session.id"
-                                        color="blue"
+                                        :color="isSessionRevalida(session) ? 'amber darken-2' : 'blue'"
                                         small
                                         fill-dot
                                     >
                                         <v-card class="rounded-xl shadow-sm elevation-1 mb-2">
                                             <v-card-title class="text-subtitle-1 font-weight-bold pb-1">
-                                                Sesi&oacute;n {{ index + 1 }}
+                                                <span>Sesi&oacute;n {{ index + 1 }}</span>
+                                                <v-chip
+                                                    v-if="isSessionRevalida(session)"
+                                                    x-small
+                                                    color="amber darken-2"
+                                                    class="ml-2 white--text"
+                                                    title="Esta sesión no se contabiliza en el % de asistencia ni en las faltas."
+                                                >
+                                                    <v-icon x-small class="mr-1">mdi-school-outline</v-icon>Reválida
+                                                </v-chip>
                                                 <v-spacer></v-spacer>
+                                                <v-menu v-if="session.attendance && session.attendance.id" offset-y>
+                                                    <template v-slot:activator="{ on, attrs }">
+                                                        <v-btn
+                                                            icon
+                                                            small
+                                                            v-bind="attrs"
+                                                            v-on="on"
+                                                            :loading="!!revalidaBusy[session.attendance.id]"
+                                                        >
+                                                            <v-icon :color="isSessionRevalida(session) ? 'amber darken-2' : 'grey'">mdi-dots-vertical</v-icon>
+                                                        </v-btn>
+                                                    </template>
+                                                    <v-list dense>
+                                                        <v-list-item @click="toggleSessionRevalida(session)">
+                                                            <v-list-item-icon class="mr-2">
+                                                                <v-icon :color="isSessionRevalida(session) ? '' : 'amber darken-2'">
+                                                                    {{ isSessionRevalida(session) ? 'mdi-toggle-switch' : 'mdi-toggle-switch-off' }}
+                                                                </v-icon>
+                                                            </v-list-item-icon>
+                                                            <v-list-item-content>
+                                                                {{ isSessionRevalida(session) ? 'Desmarcar como reválida' : 'Marcar como sesión de reválida' }}
+                                                            </v-list-item-content>
+                                                        </v-list-item>
+                                                    </v-list>
+                                                </v-menu>
                                                 <v-chip x-small outlined color="blue">
-                                                    {{ ((classDetails.typelabel || 'Sesi\\u00f3n') + '').toUpperCase() }}
+                                                    {{ ((classDetails.typelabel || 'Sesi\u00f3n') + '').toUpperCase() }}
                                                 </v-chip>
                                             </v-card-title>
                                             <v-card-text>
@@ -711,6 +745,8 @@ const ManageClass = {
             qrTimer: null,
             qrSecondsLeft: 0,
             qrTotalSeconds: 30,
+            revalidaBusy: {},
+            revalidaError: null,
             forumManagerDialog: false,
             forumManagerLoading: false,
             forumManagerError: '',
@@ -1011,6 +1047,51 @@ const ManageClass = {
             this.qrDialog = false;
             if (this.qrTimer) clearInterval(this.qrTimer);
             this.currentSession = null;
+        },
+        isSessionRevalida(session) {
+            if (!session || !session.attendance) return false;
+            const v = session.attendance.is_revalida;
+            return v === 1 || v === '1' || v === true;
+        },
+        async toggleSessionRevalida(session) {
+            const att = session && session.attendance ? session.attendance : null;
+            if (!att || !att.id) return;
+            const sid = parseInt(att.id, 10);
+            if (!sid || this.revalidaBusy[sid]) return;
+            const desired = this.isSessionRevalida(session) ? 0 : 1;
+            this.$set(this.revalidaBusy, sid, true);
+            this.revalidaError = null;
+            const previous = this.isSessionRevalida(session);
+            // Optimistic update.
+            att.is_revalida = desired;
+            try {
+                const params = new URLSearchParams();
+                params.append('action', 'local_grupomakro_toggle_session_revalida');
+                params.append('sessionid', String(sid));
+                params.append('value', String(desired));
+                const wwwroot = (window.M.cfg && window.M.cfg.wwwroot) || window.location.origin || '';
+                const response = await axios.post(
+                    wwwroot + '/local/grupomakro_core/ajax.php',
+                    params
+                );
+                if (!response.data || response.data.status !== 'success') {
+                    throw new Error(response.data && response.data.message
+                        ? response.data.message
+                        : 'No se pudo actualizar el flag de reválida.');
+                }
+                att.is_revalida = response.data.is_revalida ? 1 : 0;
+                this.snackbarText = desired
+                    ? 'Sesión marcada como reválida. No se contabiliza en el % de asistencia ni en las faltas.'
+                    : 'Sesión desmarcada como reválida. Vuelve a contar en el % de asistencia.';
+                this.snackbar = true;
+            } catch (e) {
+                // Roll back to the previous value.
+                att.is_revalida = previous ? 1 : 0;
+                this.revalidaError = (e && e.message) ? e.message : String(e);
+                console.error('toggleSessionRevalida failed', e);
+            } finally {
+                this.$set(this.revalidaBusy, sid, false);
+            }
         },
 
 

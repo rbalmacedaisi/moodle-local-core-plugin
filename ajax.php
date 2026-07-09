@@ -5320,6 +5320,7 @@ try {
                         'description' => (string)($sr->description ?? ''),
                         'taken'       => $is_taken,
                         'future'      => $is_future,
+                        'is_revalida' => isset($sr->is_revalida) ? (int)$sr->is_revalida : 0,
                     ];
                 }
 

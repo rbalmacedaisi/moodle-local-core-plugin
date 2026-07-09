@@ -421,7 +421,8 @@ class attendance_manager extends external_api {
             $item->time = userdate($s->sessdate, '%H:%M') . ' - ' . userdate($s->sessdate + $s->duration, '%H:%M');
             $item->description = $s->description;
             $item->state = ($s->sessdate < time()) ? 'Pasada' : 'Futura';
-            
+            $item->is_revalida = isset($s->is_revalida) ? (int)$s->is_revalida : 0;
+
             // Check if passwords exist (for QR)
             $item->has_qr = !empty($s->includeqrcode);
 

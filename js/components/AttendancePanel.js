@@ -12,6 +12,7 @@ Vue.component('attendance-panel', {
                 </div>
 
                 <v-alert v-if="error" type="error" dense dismissible>{{ error }}</v-alert>
+                <v-alert v-if="revalidaError" type="warning" dense dismissible @input="revalidaError = null">{{ revalidaError }}</v-alert>
 
                 <div v-if="loading" class="text-center py-5">
                     <v-progress-circular indeterminate color="primary"></v-progress-circular>
@@ -25,13 +26,22 @@ Vue.component('attendance-panel', {
 
                 <v-list v-else two-line>
                     <v-list-item v-for="session in sessions" :key="session.id" class="mb-2 elevation-1 rounded white">
-                        <v-list-item-avatar color="primary" class="white--text font-weight-bold">
+                        <v-list-item-avatar :color="revalidaActive(session) ? 'amber darken-2' : 'primary'" class="white--text font-weight-bold">
                             {{ session.date.substr(0, 2) }}
                         </v-list-item-avatar>
 
                         <v-list-item-content>
-                            <v-list-item-title class="font-weight-bold">
-                                {{ session.description || 'Sesion Regular' }}
+                            <v-list-item-title class="font-weight-bold d-flex align-center">
+                                <span>{{ session.description || 'Sesion Regular' }}</span>
+                                <v-chip
+                                    v-if="revalidaActive(session)"
+                                    x-small
+                                    color="amber darken-2"
+                                    class="ml-2 white--text"
+                                    :title="'Esta sesión no se contabiliza en el % de asistencia ni en las faltas'"
+                                >
+                                    <v-icon x-small class="mr-1">mdi-school-outline</v-icon>Reválida
+                                </v-chip>
                             </v-list-item-title>
                             <v-list-item-subtitle>
                                 <v-icon x-small>mdi-clock-outline</v-icon> {{ session.time }}
@@ -42,6 +52,23 @@ Vue.component('attendance-panel', {
 
                         <v-list-item-action>
                             <div class="d-flex">
+                                <v-tooltip bottom>
+                                    <template v-slot:activator="{ on, attrs }">
+                                        <v-switch
+                                            v-bind="attrs"
+                                            v-on="on"
+                                            :input-value="revalidaActive(session)"
+                                            :loading="!!revalidaBusy[session.id]"
+                                            :disabled="!!revalidaBusy[session.id]"
+                                            color="amber darken-2"
+                                            hide-details
+                                            class="mr-2 mt-0 pt-0"
+                                            @change="(v) => toggleRevalida(session, v)"
+                                        ></v-switch>
+                                    </template>
+                                    <span>Marcar/desmarcar como sesión de reválida. No se contabiliza en el % de asistencia ni en las faltas.</span>
+                                </v-tooltip>
+
                                 <v-btn
                                     v-if="session.has_qr"
                                     color="secondary"
@@ -110,7 +137,9 @@ Vue.component('attendance-panel', {
             loadingQR: false,
             qrTimer: null,
             qrTotalSeconds: 180,
-            qrSecondsLeft: 0
+            qrSecondsLeft: 0,
+            revalidaBusy: {},
+            revalidaError: null
         };
     },
     beforeDestroy() {
@@ -201,6 +230,42 @@ Vue.component('attendance-panel', {
             if (this.qrTimer) {
                 clearInterval(this.qrTimer);
                 this.qrTimer = null;
+            }
+        },
+        revalidaActive(session) {
+            return !!(session && (session.is_revalida === 1 || session.is_revalida === true));
+        },
+        async toggleRevalida(session, desired) {
+            const sid = parseInt(session.id, 10);
+            const value = desired ? 1 : 0;
+            if (!sid || this.revalidaBusy[sid]) return;
+            this.$set(this.revalidaBusy, sid, true);
+            this.revalidaError = null;
+            const previous = this.revalidaActive(session);
+            // Optimistic update so the switch toggles immediately.
+            session.is_revalida = value;
+            try {
+                const params = new URLSearchParams();
+                params.append('action', 'local_grupomakro_toggle_session_revalida');
+                params.append('sessionid', String(sid));
+                params.append('value', String(value));
+                const response = await axios.post(
+                    this.config.wwwroot + '/local/grupomakro_core/ajax.php',
+                    params
+                );
+                if (!response.data || response.data.status !== 'success') {
+                    throw new Error(response.data && response.data.message
+                        ? response.data.message
+                        : 'No se pudo actualizar el flag de reválida.');
+                }
+                session.is_revalida = response.data.is_revalida ? 1 : 0;
+            } catch (e) {
+                // Roll back to the previous value.
+                session.is_revalida = previous ? 1 : 0;
+                this.revalidaError = (e && e.message) ? e.message : String(e);
+                console.error('toggleRevalida failed', e);
+            } finally {
+                this.$set(this.revalidaBusy, sid, false);
             }
         }
     }
