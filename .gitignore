@@ -5,3 +5,7 @@ local/grupomakro_core/tcpdf_fonts/
 
 # Throwaway diagnostic scripts and SQL dumps. Safe to delete locally.
 tmp/
+
+# Throwaway CLI one-off diagnostics (e.g. ad-hoc SQL probes). Don't commit
+# these; rerun via cli/ snapshots / debug paths instead.
+cli/diagnostic_*.php
