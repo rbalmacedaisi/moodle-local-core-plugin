@@ -330,6 +330,19 @@ Vue.component('grademodal', {
                                                         >
                                                             <v-icon x-small>mdi-check-decagram</v-icon>
                                                         </v-btn>
+                                                        <v-btn
+                                                            v-if="Number(course.courseid || 0) > 0 && canRevertHomologation(course)"
+                                                            x-small
+                                                            color="amber darken-3"
+                                                            dark
+                                                            :loading="revertingCourseKey === getCourseKey(course)"
+                                                            :disabled="!!revertingCourseKey || !!homologatingCourseKey"
+                                                            @click.stop="openRevertHomologationDialog(course)"
+                                                            class="ml-1"
+                                                            title="Revertir homologación (limpia nota final integrada y estado del curso)"
+                                                        >
+                                                            <v-icon x-small>mdi-undo-variant</v-icon>
+                                                        </v-btn>
                                                     </td>
                                                 </tr>
                                             </tbody>
@@ -723,6 +736,91 @@ Vue.component('grademodal', {
                     </v-card-actions>
                 </v-card>
             </v-dialog>
+
+            <v-dialog v-model="revertDialog" max-width="560" persistent>
+                <v-card class="rounded-lg overflow-hidden">
+                    <v-card-title class="headline amber darken-3 white--text d-flex align-center py-3 px-4">
+                        <v-icon left dark>mdi-undo-variant</v-icon>
+                        <span>Revertir homologación</span>
+                        <v-spacer></v-spacer>
+                        <v-btn icon dark @click="closeRevertDialog" :disabled="!!revertingCourseKey">
+                            <v-icon>mdi-close</v-icon>
+                        </v-btn>
+                    </v-card-title>
+
+                    <v-card-text class="pa-4">
+                        <div v-if="revertSelectedCourse" class="mb-3">
+                            <div class="text-body-1 font-weight-bold">{{ studentName }}</div>
+                            <div class="text-caption grey--text text--darken-1">
+                                {{ revertSelectedCourse.coursename }}
+                            </div>
+                        </div>
+
+                        <div v-if="revertSelectedHomologation" class="px-3 py-2 rounded amber lighten-5 mb-3">
+                            <div class="text-caption text-uppercase font-weight-bold amber--text text--darken-4 mb-1">
+                                Homologación actual
+                            </div>
+                            <div class="text-body-2">
+                                <v-chip x-small :color="homologationChipColor(revertSelectedHomologation.homologation_type)"
+                                        dark label class="mr-2">
+                                    <v-icon x-small left>mdi-check-decagram</v-icon>
+                                    {{ homologationChipLabel(revertSelectedHomologation.homologation_type) }}
+                                </v-chip>
+                                <span v-if="revertSelectedCourse.grade" class="font-weight-bold">
+                                    Nota: {{ revertSelectedCourse.grade }}
+                                </span>
+                            </div>
+                            <div v-if="revertSelectedHomologation.homologation_note" class="text-caption grey--text text--darken-2 mt-1">
+                                <v-icon x-small>mdi-comment-text-outline</v-icon>
+                                {{ revertSelectedHomologation.homologation_note }}
+                            </div>
+                            <div v-if="revertSelectedHomologation.homologation_at" class="text-caption grey--text">
+                                Aplicada: {{ formatRevertTimestamp(revertSelectedHomologation.homologation_at) }}
+                            </div>
+                        </div>
+
+                        <v-alert type="warning" dense outlined class="mb-3">
+                            <div class="text-body-2">
+                                Vas a <b>revertir</b> esta homologación. Esto hará:
+                            </div>
+                            <ul class="text-caption mt-1 mb-0 pl-3">
+                                <li>Limpiar la nota del ítem <b>Nota Final Integrada</b> y el total del curso.</li>
+                                <li>Restablecer el estado del curso a <b>Disponible</b> y el progreso a 0.</li>
+                                <li>Borrar el tipo, la observación y la fecha de la homologación.</li>
+                            </ul>
+                            <div class="text-caption mt-2 font-italic">
+                                La inscripción a Moodle que se haya creado se mantiene; el director puede retirar al estudiante por separado.
+                            </div>
+                        </v-alert>
+
+                        <v-textarea
+                            v-model="revertForm.reason"
+                            label="Motivo de la reversión (opcional pero recomendado)"
+                            placeholder="Ej: Error en la nota, se debe re-homologar como Homologación."
+                            rows="2"
+                            auto-grow
+                            outlined
+                            dense
+                        ></v-textarea>
+                    </v-card-text>
+
+                    <v-divider></v-divider>
+
+                    <v-card-actions class="pa-3">
+                        <v-spacer></v-spacer>
+                        <v-btn text :disabled="!!revertingCourseKey" @click="closeRevertDialog">
+                            Cancelar
+                        </v-btn>
+                        <v-btn color="amber darken-3" dark
+                               :loading="!!revertingCourseKey"
+                               :disabled="!!revertingCourseKey"
+                               @click="revertHomologation(revertSelectedCourse)">
+                            <v-icon left>mdi-undo-variant</v-icon>
+                            Revertir homologación
+                        </v-btn>
+                    </v-card-actions>
+                </v-card>
+            </v-dialog>
         </div>
     `,
     data() {
@@ -764,6 +862,12 @@ Vue.component('grademodal', {
             absenceError: '',
             absenceLoading: false,
             homologatingCourseKey: null,
+            revertingCourseKey: null,
+            revertDialog: false,
+            revertSelectedCourse: null,
+            revertForm: {
+                reason: ''
+            },
             homologationDialog: false,
             homologationSelected: null,
             homologationForm: {
@@ -1062,6 +1166,105 @@ Vue.component('grademodal', {
             if (this.homologatingCourseKey) return;
             this.homologationDialog = false;
             this.homologationSelected = null;
+        },
+        canRevertHomologation(course) {
+            const flag = window.isAdmin;
+            const isAdmin = (flag === true) || (flag === 'true') || (flag === 1) || (flag === '1');
+            if (!isAdmin) return false;
+            if (Number(course && course.courseid ? course.courseid : 0) <= 0) return false;
+            return !!this.homologationFor(course);
+        },
+        openRevertDialog(course) { /* legacy alias kept for safety */ },
+        openRevertHomologationDialog(course) {
+            if (!this.canRevertHomologation(course)) return;
+            this.revertSelectedCourse = course;
+            this.revertForm = { reason: '' };
+            this.revertDialog = true;
+        },
+        closeRevertDialog() {
+            if (this.revertingCourseKey) return;
+            this.revertDialog = false;
+            this.revertSelectedCourse = null;
+            this.revertForm = { reason: '' };
+        },
+        formatRevertTimestamp(ts) {
+            const n = Number(ts || 0);
+            if (!n) return '';
+            try {
+                return new Date(n * 1000).toLocaleString('es-PA');
+            } catch (e) {
+                return '';
+            }
+        },
+        async revertHomologation(course) {
+            if (!course || this.revertingCourseKey) return;
+            if (!this.homologationFor(course)) {
+                this.showMessage('warning', 'Esta asignatura no tiene una homologación activa para revertir.');
+                return;
+            }
+            const reason = (this.revertForm.reason || '').trim();
+            const studentName = this.studentName;
+            const courseName = course.coursename || 'esta asignatura';
+            const homoLabel = this.homologationChipLabel(this.homologationFor(course).homologation_type);
+
+            const confirmed = await window.Swal.fire({
+                icon: 'warning',
+                title: '¿Revertir la homologación?',
+                html:
+                    `<div style="text-align:left;">` +
+                    `<p><b>${studentName}</b> · <b>${courseName}</b></p>` +
+                    `<p>Tipo actual: <b>${homoLabel}</b></p>` +
+                    (reason
+                        ? `<p style="margin-top:6px;"><b>Motivo:</b><br><i>${reason.replace(/</g, '&lt;')}</i></p>`
+                        : '') +
+                    `<p style="margin-top:6px;font-size:12px;" class="grey--text">` +
+                    `La nota de "Nota Final Integrada" se borrará y el estado volverá a <b>Disponible</b>.` +
+                    `</p></div>`,
+                showCancelButton: true,
+                confirmButtonText: 'Sí, revertir',
+                cancelButtonText: 'Cancelar',
+                confirmButtonColor: '#FF8F00',
+            });
+            if (!confirmed.isConfirmed) return;
+
+            this.revertingCourseKey = this.getCourseKey(course);
+            try {
+                const url = window.wsUrl || (window.location.origin + '/local/grupomakro_core/ajax.php');
+                const response = await window.axios.get(url, {
+                    params: {
+                        action:         'local_grupomakro_revert_homologation',
+                        sesskey:        M.cfg.sesskey,
+                        userId:         Number(this.dataStudent.id),
+                        learningPlanId: Number(course.learningplanid || 0),
+                        coreCourseId:   Number(course.courseid || 0),
+                        reason:         reason
+                    }
+                });
+                const payload = (response && response.data) || {};
+                const result  = (payload.status === 'success' && payload.data) ? payload.data : payload;
+
+                if (result.status === 'ok') {
+                    // Drop the local homologation cache entry so the chip and
+                    // the Homologar button reappear.
+                    const cid = Number(course.courseid || 0);
+                    if (cid > 0 && this.homologations) {
+                        this.$set(this.homologations, cid, null);
+                    }
+                    this.showMessage('success', result.message || 'Homologación revertida correctamente.');
+                    this.closeRevertDialog();
+                    await this.getpensum();
+                } else {
+                    this.showMessage('error', result.message || 'No se pudo revertir la homologación.');
+                }
+            } catch (error) {
+                console.error('Error reverting homologation:', error);
+                const msg = (error && error.response && error.response.data && error.response.data.data && error.response.data.data.message)
+                    || (error && error.message)
+                    || 'Error al revertir la homologación.';
+                this.showMessage('error', msg);
+            } finally {
+                this.revertingCourseKey = null;
+            }
         },
         async homologate(course) {
             if (!course || this.homologatingCourseKey) return;
@@ -2879,6 +3082,9 @@ Vue.component('grademodal', {
         isHomologationFormValid() {
             return !this.homologationGradeError && !this.homologationObservationError
                 && ['suficiencia', 'migracion', 'homologacion', 'practica'].includes(this.homologationForm.type);
+        },
+        revertSelectedHomologation() {
+            return this.revertSelectedCourse ? this.homologationFor(this.revertSelectedCourse) : null;
         }
     },
 });

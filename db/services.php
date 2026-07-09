@@ -1263,4 +1263,13 @@ $functions = array(
         'ajax'        => true,
         'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
     ],
+    'local_grupomakro_revert_homologation' => [
+        'classname'   => 'local_grupomakro_core\external\student\revert_homologation',
+        'methodname'  => 'execute',
+        'description' => 'Revert a previously applied homologation: clears the homologation fields on gmk_course_progre, resets status to Disponible, and nulls the Nota Final Integrada / course total grade_grades rows.',
+        'type'        => 'write',
+        'capabilities'=> 'moodle/site:config',
+        'ajax'        => true,
+        'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
+    ],
 );
