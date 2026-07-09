@@ -2,3 +2,6 @@
 # Populated by bin/download_diploma_fonts.php (or manually with bin/copy_fonts.sh
 # + a git clone of https://github.com/google/fonts).
 local/grupomakro_core/tcpdf_fonts/
+
+# Throwaway diagnostic scripts and SQL dumps. Safe to delete locally.
+tmp/
