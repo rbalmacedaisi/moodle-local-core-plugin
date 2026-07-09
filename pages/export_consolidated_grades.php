@@ -58,8 +58,12 @@ if ($withgrades) {
     if (!empty($periodid)) {
         $periodidArray = array_filter(explode(',', $periodid), 'is_numeric');
         if (!empty($periodidArray)) {
+            // Filter STUDENTS by their current cuatrimestre (lpu.currentperiodid),
+            // same semantics as the on-screen table and the no-grades export.
+            // Filtering rows by cp.periodid instead silently dropped every subject
+            // coursed in a different cuatrimestre from the selected one.
             list($insql, $inparams) = $DB->get_in_or_equal($periodidArray, SQL_PARAMS_NAMED, 'period');
-            $sqlConditions[] = "cp.periodid $insql";
+            $sqlConditions[] = "lpu.currentperiodid $insql";
             $sqlParams = array_merge($sqlParams, $inparams);
         }
     }
