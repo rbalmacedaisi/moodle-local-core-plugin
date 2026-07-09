@@ -2213,6 +2213,25 @@ try {
             ];
             break;
 
+        case 'local_grupomakro_get_homologation_audit':
+            require_capability('moodle/site:config', $context);
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/student/get_homologation_audit.php');
+            $userid         = required_param('userId',         PARAM_INT);
+            $corecourseid   = required_param('coreCourseId',   PARAM_INT);
+            $learningplanid = optional_param('learningPlanId', 0,    PARAM_INT);
+            $limit          = optional_param('limit',         50,   PARAM_INT);
+            $result = \local_grupomakro_core\external\student\get_homologation_audit::execute(
+                $userid,
+                $corecourseid,
+                $learningplanid,
+                $limit
+            );
+            $response = [
+                'status' => 'success',
+                'data'   => $result,
+            ];
+            break;
+
         case 'local_grupomakro_get_student_course_pensum_activities':
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/student/get_student_course_pensum_activities.php');
             $userid = required_param('userId', PARAM_INT);

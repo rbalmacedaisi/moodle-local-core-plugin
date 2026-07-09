@@ -1272,4 +1272,13 @@ $functions = array(
         'ajax'        => true,
         'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
     ],
+    'local_grupomakro_get_homologation_audit' => [
+        'classname'   => 'local_grupomakro_core\external\student\get_homologation_audit',
+        'methodname'  => 'execute',
+        'description' => 'Return the chronological list of homologate/revert actions for a (student, course, plan) triple, sourced from gmk_homologation_audit. Powers the timeline dialog in the academic panel grades modal.',
+        'type'        => 'read',
+        'capabilities'=> 'moodle/site:config',
+        'ajax'        => true,
+        'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
+    ],
 );

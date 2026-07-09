@@ -343,6 +343,19 @@ Vue.component('grademodal', {
                                                         >
                                                             <v-icon x-small>mdi-undo-variant</v-icon>
                                                         </v-btn>
+                                                        <v-btn
+                                                            v-if="Number(course.courseid || 0) > 0 && homologationFor(course)"
+                                                            x-small
+                                                            color="blue-grey darken-2"
+                                                            dark
+                                                            :loading="auditLoadingKey === getCourseKey(course)"
+                                                            :disabled="!!auditLoadingKey"
+                                                            @click.stop="openAuditDialog(course)"
+                                                            class="ml-1"
+                                                            title="Ver historial de homologaciones"
+                                                        >
+                                                            <v-icon x-small>mdi-history</v-icon>
+                                                        </v-btn>
                                                     </td>
                                                 </tr>
                                             </tbody>
@@ -812,12 +825,132 @@ Vue.component('grademodal', {
                             Cancelar
                         </v-btn>
                         <v-btn color="amber darken-3" dark
-                               :loading="!!revertingCourseKey"
+                                :loading="!!revertingCourseKey"
                                :disabled="!!revertingCourseKey"
                                @click="revertHomologation(revertSelectedCourse)">
                             <v-icon left>mdi-undo-variant</v-icon>
                             Revertir homologación
                         </v-btn>
+                    </v-card-actions>
+                </v-card>
+            </v-dialog>
+
+            <v-dialog v-model="auditDialog" max-width="720" scrollable>
+                <v-card class="rounded-lg overflow-hidden">
+                    <v-card-title class="headline blue-grey darken-3 white--text d-flex align-center py-3 px-4">
+                        <v-icon left dark>mdi-history</v-icon>
+                        <span>Historial de homologaciones</span>
+                        <v-spacer></v-spacer>
+                        <v-btn icon dark @click="closeAuditDialog" :disabled="!!auditLoadingKey">
+                            <v-icon>mdi-close</v-icon>
+                        </v-btn>
+                    </v-card-title>
+
+                    <v-card-text class="pa-4">
+                        <div v-if="auditSelectedCourse" class="mb-3">
+                            <div class="text-body-1 font-weight-bold">{{ studentName }}</div>
+                            <div class="text-caption grey--text text--darken-1">
+                                {{ auditSelectedCourse.coursename }}
+                            </div>
+                        </div>
+
+                        <div v-if="auditLoading" class="text-center py-6">
+                            <v-progress-circular indeterminate color="primary"></v-progress-circular>
+                            <div class="caption grey--text mt-2">Cargando historial...</div>
+                        </div>
+
+                        <div v-else-if="auditError" class="py-2">
+                            <v-alert type="error" dense outlined>{{ auditError }}</v-alert>
+                        </div>
+
+                        <template v-else>
+                            <div v-if="!auditEntries || auditEntries.length === 0" class="text-center py-6 grey--text">
+                                <v-icon large color="grey lighten-2">mdi-clipboard-text-clock-outline</v-icon>
+                                <div class="mt-2 text-body-2 font-italic">
+                                    Sin acciones registradas para esta asignatura.
+                                </div>
+                            </div>
+
+                            <div v-else>
+                                <v-timeline dense class="audit-timeline">
+                                    <v-timeline-item
+                                        v-for="entry in auditEntries"
+                                        :key="entry.id"
+                                        :color="entry.action === 'homologate' ? 'deep-purple darken-2' : 'amber darken-3'"
+                                        :icon="entry.action === 'homologate' ? 'mdi-check-decagram' : 'mdi-undo-variant'"
+                                        small
+                                        fill-dot
+                                    >
+                                        <template v-slot:opposite>
+                                            <span class="text-caption grey--text text--darken-1">
+                                                {{ formatAuditTimestamp(entry.applied_at) }}
+                                            </span>
+                                        </template>
+                                        <div class="px-1">
+                                            <div class="d-flex align-center mb-1">
+                                                <v-chip x-small
+                                                        :color="entry.action === 'homologate' ? 'deep-purple darken-2' : 'amber darken-3'"
+                                                        dark label class="text-caption font-weight-bold">
+                                                    <v-icon x-small left>
+                                                        {{ entry.action === 'homologate' ? 'mdi-check-decagram' : 'mdi-undo-variant' }}
+                                                    </v-icon>
+                                                    {{ entry.action === 'homologate' ? 'Homologación' : 'Reversión' }}
+                                                </v-chip>
+                                                <v-spacer></v-spacer>
+                                                <span class="text-caption grey--text">
+                                                    por {{ entry.applied_by_name || ('user #' + entry.applied_by) }}
+                                                </span>
+                                            </div>
+
+                                            <div v-if="entry.action === 'homologate'" class="text-body-2">
+                                                <div>
+                                                    Tipo:
+                                                    <v-chip x-small :color="homologationChipColor(entry.type)" dark label class="ml-1">
+                                                        {{ homologationChipLabel(entry.type) }}
+                                                    </v-chip>
+                                                    <span v-if="entry.grade !== null && entry.grade !== undefined" class="ml-2 font-weight-bold">
+                                                        Nota: {{ Number(entry.grade).toFixed(1) }}
+                                                    </span>
+                                                </div>
+                                                <div v-if="entry.course_status !== null" class="caption grey--text text--darken-1 mt-1">
+                                                    Estado del curso: <b>{{ statusLabelFor(entry.course_status) }}</b>
+                                                </div>
+                                                <div v-if="entry.observation" class="caption grey--text text--darken-2 mt-1">
+                                                    <v-icon x-small>mdi-comment-text-outline</v-icon>
+                                                    {{ entry.observation }}
+                                                </div>
+                                            </div>
+
+                                            <div v-else class="text-body-2">
+                                                <div v-if="entry.previous_type" class="caption grey--text text--darken-1">
+                                                    Se revirtió una homologación de tipo
+                                                    <v-chip x-small :color="homologationChipColor(entry.previous_type)" dark label class="ml-1">
+                                                        {{ homologationChipLabel(entry.previous_type) }}
+                                                    </v-chip>
+                                                    <span v-if="entry.previous_grade !== null && entry.previous_grade !== undefined" class="ml-2">
+                                                        (nota {{ Number(entry.previous_grade).toFixed(1) }})
+                                                    </span>
+                                                </div>
+                                                <div v-if="entry.previous_observation" class="caption grey--text text--darken-2 mt-1">
+                                                    Observación original: <i>{{ entry.previous_observation }}</i>
+                                                </div>
+                                                <div v-if="entry.observation" class="caption grey--text text--darken-2 mt-1">
+                                                    <v-icon x-small>mdi-comment-text-outline</v-icon>
+                                                    Motivo de la reversión: <i>{{ entry.observation }}</i>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </v-timeline-item>
+                                </v-timeline>
+                            </div>
+                        </template>
+                    </v-card-text>
+
+                    <v-divider></v-divider>
+
+                    <v-card-actions class="pa-3">
+                        <v-spacer></v-spacer>
+                        <v-btn color="primary" text :disabled="!!auditLoadingKey" @click="closeAuditDialog">Cerrar</v-btn>
                     </v-card-actions>
                 </v-card>
             </v-dialog>
@@ -868,6 +1001,12 @@ Vue.component('grademodal', {
             revertForm: {
                 reason: ''
             },
+            auditDialog: false,
+            auditSelectedCourse: null,
+            auditEntries: [],
+            auditLoading: false,
+            auditError: '',
+            auditLoadingKey: null,
             homologationDialog: false,
             homologationSelected: null,
             homologationForm: {
@@ -1265,6 +1404,76 @@ Vue.component('grademodal', {
             } finally {
                 this.revertingCourseKey = null;
             }
+        },
+        openAuditDialog(course) {
+            if (!course || Number(course.courseid || 0) <= 0) return;
+            this.auditSelectedCourse = course;
+            this.auditEntries = [];
+            this.auditError = '';
+            this.auditDialog = true;
+            this.fetchAuditEntries(course);
+        },
+        closeAuditDialog() {
+            if (this.auditLoadingKey) return;
+            this.auditDialog = false;
+            this.auditSelectedCourse = null;
+            this.auditEntries = [];
+            this.auditError = '';
+        },
+        async fetchAuditEntries(course) {
+            if (!course || Number(course.courseid || 0) <= 0) return;
+            this.auditLoading = true;
+            this.auditError = '';
+            this.auditLoadingKey = this.getCourseKey(course);
+            try {
+                const url = window.wsUrl || (window.location.origin + '/local/grupomakro_core/ajax.php');
+                const response = await window.axios.get(url, {
+                    params: {
+                        action:         'local_grupomakro_get_homologation_audit',
+                        sesskey:        M.cfg.sesskey,
+                        userId:         Number(this.dataStudent.id),
+                        coreCourseId:   Number(course.courseid || 0),
+                        learningPlanId: Number(course.learningplanid || 0),
+                        limit:          50
+                    }
+                });
+                const payload = (response && response.data) || {};
+                const result  = (payload.status === 'success' && payload.data) ? payload.data : payload;
+                if (result && Array.isArray(result.entries)) {
+                    this.auditEntries = result.entries;
+                } else {
+                    this.auditError = (result && result.message) || 'No se pudo obtener el historial.';
+                }
+            } catch (error) {
+                console.error('Error loading audit entries:', error);
+                this.auditError = (error && error.message) || 'Error al cargar el historial.';
+            } finally {
+                this.auditLoading = false;
+                this.auditLoadingKey = null;
+            }
+        },
+        formatAuditTimestamp(ts) {
+            const n = Number(ts || 0);
+            if (!n) return '';
+            try {
+                return new Date(n * 1000).toLocaleString('es-PA');
+            } catch (e) {
+                return '';
+            }
+        },
+        statusLabelFor(status) {
+            const map = {
+                0: 'No disponible',
+                1: 'Disponible',
+                2: 'Cursando',
+                3: 'Aprobada',
+                4: 'Aprobada',
+                5: 'Reprobada',
+                6: 'Pendiente Reválida',
+                7: 'Revalidando curso',
+                99: 'Migración Pendiente'
+            };
+            return map[Number(status)] || ('Estado ' + status);
         },
         async homologate(course) {
             if (!course || this.homologatingCourseKey) return;

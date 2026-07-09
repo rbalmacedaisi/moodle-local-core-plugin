@@ -1135,5 +1135,33 @@
         <INDEX NAME="message_career_idx" UNIQUE="false" FIELDS="messageid, careerid"/>
       </INDEXES>
     </TABLE>
+    <TABLE NAME="gmk_homologation_audit" COMMENT="Audit log of homologate / revert actions for the academic panel grades modal.">
+      <FIELDS>
+        <FIELD NAME="id"                  TYPE="int"     LENGTH="10"   NOTNULL="true"  SEQUENCE="true"/>
+        <FIELD NAME="userid"              TYPE="int"     LENGTH="10"   NOTNULL="true"  DEFAULT="0"   SEQUENCE="false"/>
+        <FIELD NAME="corecourseid"        TYPE="int"     LENGTH="10"   NOTNULL="true"  DEFAULT="0"   SEQUENCE="false"/>
+        <FIELD NAME="learningplanid"      TYPE="int"     LENGTH="10"   NOTNULL="true"  DEFAULT="0"   SEQUENCE="false"/>
+        <FIELD NAME="gcp_id"              TYPE="int"     LENGTH="10"   NOTNULL="false"                SEQUENCE="false" COMMENT="gmk_course_progre.id at the time of the action"/>
+        <FIELD NAME="action"              TYPE="char"    LENGTH="16"   NOTNULL="true"  DEFAULT="homologate" SEQUENCE="false" COMMENT="homologate|revert"/>
+        <FIELD NAME="type"                TYPE="char"    LENGTH="20"   NOTNULL="false"                SEQUENCE="false" COMMENT="Homologation type at the time of the action (suficiencia|migracion|homologacion|practica|empty)"/>
+        <FIELD NAME="grade"               TYPE="number"   LENGTH="5"    NOTNULL="false"                SEQUENCE="false" DECIMALS="2" COMMENT="Grade at the time of the action"/>
+        <FIELD NAME="course_status"       TYPE="int"     LENGTH="2"    NOTNULL="false"                SEQUENCE="false" COMMENT="gmk_course_progre.status after the action"/>
+        <FIELD NAME="observation"         TYPE="text"    LENGTH="medium" NOTNULL="false"             SEQUENCE="false" COMMENT="Observation captured at the time of the action"/>
+        <FIELD NAME="previous_observation" TYPE="text"   LENGTH="medium" NOTNULL="false"             SEQUENCE="false" COMMENT="For revert only: the observation that was cleared"/>
+        <FIELD NAME="previous_grade"      TYPE="number"   LENGTH="5"   NOTNULL="false"                SEQUENCE="false" DECIMALS="2" COMMENT="For revert only: the grade that was cleared"/>
+        <FIELD NAME="previous_status"     TYPE="int"     LENGTH="2"   NOTNULL="false"                SEQUENCE="false" COMMENT="For revert only: the status that was cleared"/>
+        <FIELD NAME="previous_type"       TYPE="char"    LENGTH="20"  NOTNULL="false"                SEQUENCE="false" COMMENT="For revert only: the type that was cleared"/>
+        <FIELD NAME="applied_by"          TYPE="int"     LENGTH="10"  NOTNULL="true"  DEFAULT="0"   SEQUENCE="false"/>
+        <FIELD NAME="applied_at"          TYPE="int"     LENGTH="10"  NOTNULL="true"  DEFAULT="0"   SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="user_course_idx"  UNIQUE="false" FIELDS="userid, corecourseid, learningplanid"/>
+        <INDEX NAME="action_idx"      UNIQUE="false" FIELDS="action"/>
+        <INDEX NAME="applied_at_idx"  UNIQUE="false" FIELDS="applied_at"/>
+      </INDEXES>
+    </TABLE>
   </TABLES>
 </XMLDB>

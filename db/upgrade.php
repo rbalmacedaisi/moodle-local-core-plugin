@@ -2651,6 +2651,104 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20260805000, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20260805002) {
+        // Homologation audit log: gmk_homologation_audit captures every
+        // homologate/revert action with the (user, course, plan) context, the
+        // grade and type that were set/cleared, the previous state for reverts
+        // and the director who applied the change. Powers the timeline view
+        // in the academic panel grades modal.
+
+        $table = new xmldb_table('gmk_homologation_audit');
+        $table->add_field('id',                  XMLDB_TYPE_INTEGER, '10',    null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('userid',              XMLDB_TYPE_INTEGER, '10',    null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('corecourseid',        XMLDB_TYPE_INTEGER, '10',    null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('learningplanid',      XMLDB_TYPE_INTEGER, '10',    null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('gcp_id',              XMLDB_TYPE_INTEGER, '10',    null, null,          null, null);
+        $table->add_field('action',              XMLDB_TYPE_CHAR,    '16',    null, XMLDB_NOTNULL, null, 'homologate');
+        $table->add_field('type',                XMLDB_TYPE_CHAR,    '20',    null, null,          null, null);
+        $table->add_field('grade',               XMLDB_TYPE_NUMBER,  '5',     null, null,          null, null, '2');
+        $table->add_field('course_status',       XMLDB_TYPE_INTEGER, '2',     null, null,          null, null);
+        $table->add_field('observation',         XMLDB_TYPE_TEXT,    'medium', null, null,         null, null);
+        $table->add_field('previous_observation', XMLDB_TYPE_TEXT,   'medium', null, null,         null, null);
+        $table->add_field('previous_grade',      XMLDB_TYPE_NUMBER,  '5',     null, null,          null, null, '2');
+        $table->add_field('previous_status',     XMLDB_TYPE_INTEGER, '2',     null, null,          null, null);
+        $table->add_field('previous_type',       XMLDB_TYPE_CHAR,    '20',    null, null,          null, null);
+        $table->add_field('applied_by',          XMLDB_TYPE_INTEGER, '10',    null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('applied_at',          XMLDB_TYPE_INTEGER, '10',    null, XMLDB_NOTNULL, null, '0');
+
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_index('user_course_idx', XMLDB_INDEX_NOTUNIQUE, ['userid', 'corecourseid', 'learningplanid']);
+        $table->add_index('action_idx',      XMLDB_INDEX_NOTUNIQUE, ['action']);
+        $table->add_index('applied_at_idx',  XMLDB_INDEX_NOTUNIQUE, ['applied_at']);
+
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        upgrade_plugin_savepoint(true, 20260805002, 'local', 'grupomakro_core');
+    }
+
+    if ($oldversion < 20260806000) {
+        // Per-session "is_revalida" flag so the attendance-grade calculations
+        // (academicpanel, teacher dashboard, LXP gradebook, student
+        // absences, 3-strikes inactivation) and the per-class weighted grade
+        // resolver exclude the makeup/revalidation session that closes a
+        // course. Defaults to 0 (regular session); teachers can toggle it
+        // from the AttendancePanel / ManageClass UI.
+        $atable = new xmldb_table('attendance_sessions');
+        $afield = new xmldb_field('is_revalida',
+            XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0', 'lasttakenby');
+        if (!$dbman->field_exists($atable, $afield)) {
+            $dbman->add_field($atable, $afield);
+        }
+        $aindex = new xmldb_index('att_sess_is_revalida_idx',
+            XMLDB_INDEX_NOTUNIQUE, ['is_revalida']);
+        if (!$dbman->index_exists($atable, $aindex)) {
+            $dbman->add_index($atable, $aindex);
+        }
+
+        // Backfill for this week (Mon 06-Jul-2026 .. Sat 11-Jul-2026 Panama
+        // time = UTC-5, no DST): mark the LAST attendance session per class
+        // as is_revalida=1 if it falls in that window. The same logic is
+        // also available as a SELECT-only dry-run script:
+        //   cli/mark_revalida_window_jul6_jul11.php
+        // Any subsequent week is handled either by the UI toggle (Phase 2)
+        // or by an at-creation auto-marker (Phase 3, future).
+        $rvStart = gmmktime(5, 0, 0, 7, 6, 2026);  // 06-Jul 00:00 Panama.
+        $rvEnd   = gmmktime(5, 0, 0, 7, 12, 2026); // 12-Jul 00:00 Panama (excl).
+        $rvNow   = time();
+        // Find ids of "last per attendance" sessions in the window.
+        $rvIds = $DB->get_fieldset_sql(
+            "SELECT s.id
+               FROM {attendance_sessions} s
+              WHERE s.sessdate >= :start
+                AND s.sessdate <  :end
+                AND s.sessdate = (
+                       SELECT MAX(s2.sessdate)
+                         FROM {attendance_sessions} s2
+                        WHERE s2.attendanceid = s.attendanceid
+                    )",
+            ['start' => $rvStart, 'end' => $rvEnd]
+        );
+        if (!empty($rvIds)) {
+            list($rvinsql, $rvparams) = $DB->get_in_or_equal($rvIds, SQL_PARAMS_NAMED, 'rv');
+            $DB->execute(
+                "UPDATE {attendance_sessions}
+                    SET is_revalida = 1, timemodified = :now
+                  WHERE id $rvinsql",
+                ['now' => $rvNow] + $rvparams
+            );
+        }
+        $rvMarked = is_array($rvIds) ? count($rvIds) : 0;
+        $rvMessage = "Phase 1: is_revalida flag added; backfilled " . (int)$rvMarked
+            . " session(s) in [Mon 06-Jul .. Sat 11-Jul 2026] that are the last of their class.";
+        gmk_log('INFO: ' . $rvMessage);
+        // Visible in the upgrade output.
+        echo PHP_EOL . "[grupomakro_core] " . $rvMessage . PHP_EOL;
+
+        upgrade_plugin_savepoint(true, 20260806000, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

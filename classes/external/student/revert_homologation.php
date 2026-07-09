@@ -229,6 +229,29 @@ class revert_homologation extends external_api
             return self::error('No se pudo revertir la homologación: ' . $t->getMessage());
         }
 
+        // Audit row (best-effort).
+        try {
+            $audit = new stdClass();
+            $audit->userid               = $userId;
+            $audit->corecourseid         = $coreCourseId;
+            $audit->learningplanid       = $learningPlanId;
+            $audit->gcp_id               = (int)$row->id;
+            $audit->action               = 'revert';
+            $audit->type                 = '';
+            $audit->grade                = 0.0;
+            $audit->course_status        = self::RESET_STATUS;
+            $audit->observation          = $reason;
+            $audit->previous_observation = (string)($row->homologation_note ?? '');
+            $audit->previous_grade       = (float)($previous['grade'] ?? 0);
+            $audit->previous_status      = (int)($previous['status'] ?? 0);
+            $audit->previous_type        = (string)($previous['homologation_type'] ?? '');
+            $audit->applied_by           = (int)$USER->id;
+            $audit->applied_at           = $now;
+            $DB->insert_record('gmk_homologation_audit', $audit);
+        } catch (\Throwable $auditError) {
+            gmk_log('WARN revert audit insert failed: ' . $auditError->getMessage());
+        }
+
         gmk_log(sprintf(
             'revert_homologation OK user=%d plan=%d course=%d type=%s by=%d',
             $userId, $learningPlanId, $coreCourseId, $homoType, (int)$USER->id
