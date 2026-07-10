@@ -8,7 +8,7 @@ Vue.component('attendance-matrix', {
                 </div>
                 <v-spacer></v-spacer>
                 <div v-if="!loading && sessions.length" class="caption grey--text mr-3">
-                    {{ takenCount }} sesiones tomadas de {{ sessions.length }} programadas
+                    {{ takenCount }} sesiones tomadas de {{ sessions.length }} programadas<span v-if="revalidaCount > 0"> · {{ revalidaCount }} excluida(s) como reválida</span>
                 </div>
                 <v-btn icon small @click="fetchMatrix" :loading="loading">
                     <v-icon>mdi-refresh</v-icon>
@@ -48,14 +48,21 @@ Vue.component('attendance-matrix', {
                                 <th v-for="sess in sessions" :key="sess.id"
                                     class="att-session-header"
                                     :class="{
-                                        'att-session-taken': sess.taken,
-                                        'att-session-future': sess.future && !sess.taken,
-                                        'att-session-pending': !sess.taken && !sess.future
+                                        'att-session-revalida': isRevalida(sess),
+                                        'att-session-taken': sess.taken && !isRevalida(sess),
+                                        'att-session-future': sess.future && !sess.taken && !isRevalida(sess),
+                                        'att-session-pending': !sess.taken && !sess.future && !isRevalida(sess)
                                     }"
                                     :title="sess.description || sess.date">
                                     <div class="att-session-date">{{ sess.dateshort }}</div>
                                     <div class="att-session-time">{{ sess.time }}</div>
-                                    <v-icon v-if="sess.future && !sess.taken" x-small class="mt-1" color="grey darken-1">mdi-clock-outline</v-icon>
+                                    <v-tooltip v-if="isRevalida(sess)" bottom>
+                                        <template v-slot:activator="{ on, attrs }">
+                                            <v-icon v-bind="attrs" v-on="on" x-small class="mt-1" color="amber darken-3" style="cursor:help">mdi-school-outline</v-icon>
+                                        </template>
+                                        <span>Esta sesión es de reválida. No se contabiliza en el % de asistencia ni en las faltas.</span>
+                                    </v-tooltip>
+                                    <v-icon v-else-if="sess.future && !sess.taken" x-small class="mt-1" color="grey darken-1">mdi-clock-outline</v-icon>
                                     <v-icon v-else-if="!sess.taken && !sess.future" x-small class="mt-1" color="orange darken-2">mdi-alert</v-icon>
                                 </th>
                                 <th class="att-summary-header">
@@ -128,6 +135,10 @@ Vue.component('attendance-matrix', {
                             <span class="att-legend-dot att-dot-future mr-1"></span>
                             <span class="caption grey--text">Futura</span>
                         </div>
+                        <div class="d-flex align-center" v-if="revalidaCount > 0">
+                            <v-icon x-small color="amber darken-3" class="mr-1">mdi-school-outline</v-icon>
+                            <span class="caption grey--text">Reválida ({{ revalidaCount }})</span>
+                        </div>
                     </div>
                 </div>
             </v-card-text>
@@ -141,6 +152,8 @@ Vue.component('attendance-matrix', {
                 .att-session-taken { background: #1565c0 !important; color: #fff !important; }
                 .att-session-future { background: #eeeeee !important; color: #757575 !important; }
                 .att-session-pending { background: #fff3e0 !important; color: #e65100 !important; }
+                .att-session-revalida { background: #fff8e1 !important; color: #6d4c00 !important; border-top: 3px solid #ff8f00 !important; }
+                .att-session-revalida.att-session-taken { background: #fff8e1 !important; color: #6d4c00 !important; }
                 .att-session-date { font-size: 12px; font-weight: 700; }
                 .att-session-time { font-size: 10px; font-weight: 400; opacity: 0.85; }
                 .att-student-cell { min-width: 210px; background: #fff; }
@@ -154,6 +167,7 @@ Vue.component('attendance-matrix', {
                 .att-dot-taken { background: #1565c0; }
                 .att-dot-pending { background: #ff8f00; }
                 .att-dot-future { background: #bdbdbd; }
+                .att-dot-revalida { background: #fff8e1; border: 1px solid #ff8f00; }
             </style>
         </v-card>
     `,
@@ -195,9 +209,17 @@ Vue.component('attendance-matrix', {
         takenSessions() {
             return this.sessions.filter((s) => s.taken);
         },
+        revalidaCount() {
+            return this.sessions.filter((s) => this.isRevalida(s)).length;
+        },
     },
 
     methods: {
+        isRevalida(sess) {
+            if (!sess) return false;
+            const v = sess.is_revalida;
+            return v === 1 || v === '1' || v === true;
+        },
         async fetchMatrix() {
             if (!this.classId) return;
             this.loading = true;
