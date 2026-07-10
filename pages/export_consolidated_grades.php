@@ -58,12 +58,20 @@ if ($withgrades) {
     if (!empty($periodid)) {
         $periodidArray = array_filter(explode(',', $periodid), 'is_numeric');
         if (!empty($periodidArray)) {
-            // Filter STUDENTS by their current cuatrimestre (lpu.currentperiodid),
-            // same semantics as the on-screen table and the no-grades export.
-            // Filtering rows by cp.periodid instead silently dropped every subject
-            // coursed in a different cuatrimestre from the selected one.
+            // Filter STUDENTS by their current cuatrimestre, same semantics as the
+            // on-screen table. Uses EXISTS over ALL the student's enrollments: a
+            // dual-career student matching the cuatrimestre in ONE career must
+            // export the complete history of every selected career, not just the
+            // rows of the plan whose enrollment matched (los periodos son por plan,
+            // así que igualar lpu.currentperiodid fila a fila dejaba fuera la otra
+            // carrera completa).
             list($insql, $inparams) = $DB->get_in_or_equal($periodidArray, SQL_PARAMS_NAMED, 'period');
-            $sqlConditions[] = "lpu.currentperiodid $insql";
+            $sqlConditions[] = "EXISTS (
+                SELECT 1 FROM {local_learning_users} lpu2
+                 WHERE lpu2.userid = u.id
+                   AND lpu2.userrolename = 'student'
+                   AND lpu2.currentperiodid $insql
+            )";
             $sqlParams = array_merge($sqlParams, $inparams);
         }
     }
@@ -214,8 +222,15 @@ if ($withgrades) {
     if (!empty($periodid)) {
         $periodids = array_filter(explode(',', $periodid), 'is_numeric');
         if (!empty($periodids)) {
+            // Same EXISTS semantics as the grades mode: a dual-career student
+            // matching in one career must list ALL their careers/periods.
             list($insql, $inparams) = $DB->get_in_or_equal($periodids, SQL_PARAMS_NAMED, 'period');
-            $sqlConditions[] = "lpu.currentperiodid $insql";
+            $sqlConditions[] = "EXISTS (
+                SELECT 1 FROM {local_learning_users} lpu2
+                 WHERE lpu2.userid = u.id
+                   AND lpu2.userrolename = 'student'
+                   AND lpu2.currentperiodid $insql
+            )";
             $sqlParams = array_merge($sqlParams, $inparams);
         }
     }

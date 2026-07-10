@@ -30,8 +30,16 @@ if (!empty($planid)) {
 if (!empty($periodid)) {
     $periodids = array_filter(explode(',', $periodid), 'is_numeric');
     if (!empty($periodids)) {
+        // EXISTS sobre todas las matrículas del estudiante: un estudiante con dos
+        // carreras que coincide en una debe listar TODAS sus carreras, no solo la
+        // fila del plan cuyo cuatrimestre coincidió.
         list($insql, $inparams) = $DB->get_in_or_equal($periodids, SQL_PARAMS_NAMED, 'period');
-        $sqlConditions[] = "lpu.currentperiodid $insql";
+        $sqlConditions[] = "EXISTS (
+            SELECT 1 FROM {local_learning_users} lpu2
+             WHERE lpu2.userid = u.id
+               AND lpu2.userrolename = 'student'
+               AND lpu2.currentperiodid $insql
+        )";
         $sqlParams = array_merge($sqlParams, $inparams);
     }
 }
