@@ -23,6 +23,7 @@ Vue.component('create-extemp-revalidation-modal', {
                                 v-model:search-input="classSearch"
                                 @update:search-input="onClassSearchInput"
                                 @update:searchInput="onClassSearchInput"
+                                @change="onClassPicked"
                                 item-text="label"
                                 item-value="value"
                                 no-filter
@@ -230,6 +231,27 @@ Vue.component('create-extemp-revalidation-modal', {
     },
     methods: {
         close() { this.$emit('input', false); },
+        onClassPicked(item) {
+            // Vuetify's v-autocomplete sometimes emits the entire object (with
+            // return-object semantics) or the raw value depending on item-value
+            // + no-filter. Normalize here so selectedClassId is always the
+            // integer class id, and kick off the students fetch once.
+            if (item == null) {
+                this.selectedClassId = null;
+                this.selectedClass = null;
+                this.students = [];
+                return;
+            }
+            const id = typeof item === 'object' && item !== null
+                ? (item.value != null ? item.value : item)
+                : item;
+            this.selectedClassId = id;
+            const found = this.classOptions.find(o => o.value === id);
+            if (found) {
+                this.selectedClass = found;
+                this.fetchStudents();
+            }
+        },
         reset() {
             this.step = 1;
             this.classSearch = '';
