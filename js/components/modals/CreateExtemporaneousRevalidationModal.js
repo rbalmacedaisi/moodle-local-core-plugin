@@ -20,17 +20,18 @@ Vue.component('create-extemp-revalidation-modal', {
                                 v-model="selectedClassId"
                                 :items="classOptions"
                                 :loading="loadingClasses"
-                                :search-input.sync="classSearch"
+                                v-model:search-input="classSearch"
+                                @update:search-input="onClassSearchInput"
+                                @update:searchInput="onClassSearchInput"
                                 item-text="label"
                                 item-value="value"
-                                cache-items
+                                no-filter
                                 clearable
                                 label="Buscar clase por nombre, asignatura o docente"
                                 placeholder="Escriba para buscar..."
                                 hide-details
                                 outlined
                                 dense
-                                @update:search-input="onClassSearchInput"
                             >
                                 <template v-slot:item="{ item }">
                                     <v-list-item-content>
@@ -199,6 +200,16 @@ Vue.component('create-extemp-revalidation-modal', {
                 this.reset();
             }
         },
+        classSearch: {
+            handler(v) {
+                // Debounced server search: guarantees the dropdown stays in
+                // sync with the user's typing regardless of which Vuetify
+                // event name the loaded version uses.
+                clearTimeout(this.classSearchTimer);
+                this.classSearchTimer = setTimeout(
+                    () => this.fetchClasses(v || ''), 250);
+            }
+        },
         selectedClassId: {
             handler(v) {
                 if (!v) {
@@ -228,16 +239,17 @@ Vue.component('create-extemp-revalidation-modal', {
             this.sessionDateLocal = '';
         },
         onClassSearchInput(v) {
-            this.classSearch = v || '';
+            const q = (v == null ? this.classSearch : v) || '';
             clearTimeout(this.classSearchTimer);
-            this.classSearchTimer = setTimeout(() => this.fetchClasses(), 250);
+            this.classSearchTimer = setTimeout(() => this.fetchClasses(q), 250);
         },
-        async fetchClasses() {
+        async fetchClasses(query) {
+            const q = (query !== undefined ? query : (this.classSearch || ''));
             this.loadingClasses = true;
             try {
                 const r = await axios.post(window.wsUrl, {
                     action: 'local_grupomakro_get_classes_for_search',
-                    args: { query: this.classSearch, limit: 20, only_with_eligible: false },
+                    args: { query: q, limit: 20, only_with_eligible: false },
                     sesskey: window.Y ? window.Y.config.sesskey : sesskey
                 });
                 if (r.data && r.data.status === 'success') {
@@ -252,20 +264,6 @@ Vue.component('create-extemp-revalidation-modal', {
                 console.error('[extemp modal] fetchClasses:', e);
             } finally {
                 this.loadingClasses = false;
-            }
-        },
-        watch_selectedClassId: {
-            handler(v) {
-                if (!v) {
-                    this.selectedClass = null;
-                    this.students = [];
-                    return;
-                }
-                const found = this.classOptions.find(o => o.value === v);
-                if (found) {
-                    this.selectedClass = found;
-                    this.fetchStudents();
-                }
             }
         },
         onStudentSearchInput() {
