@@ -95,7 +95,7 @@ window.Y.config.sesskey = window.Y.config.sesskey || <?php echo json_encode($ses
 // $assetversion (which is typically $CFG->themerev); on its own it does
 // not invalidate the browser cache when only the JS changes. Add the
 // commit-like tag below so a new deploy forces a fresh download.
-$revcache = $assetversion . '_rev20260713_extemp-pick';
+$revcache = $assetversion . '_rev20260713_extemp-key';
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/RevalidationsDirector.js?v=' . $revcache));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/CreateExtemporaneousRevalidationModal.js?v=' . $revcache));
 ?>

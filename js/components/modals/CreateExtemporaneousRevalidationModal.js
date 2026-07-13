@@ -76,7 +76,7 @@ Vue.component('create-extemp-revalidation-modal', {
                                 class="mb-2"
                             ></v-text-field>
                             <v-list dense max-height="320" class="overflow-y-auto">
-                                <v-list-item v-for="s in filteredStudents" :key="s.userid"
+                                <v-list-item v-for="(s, idx) in filteredStudents" :key="s.progreid || (s.userid + '-' + idx)"
                                     @click="pickStudent(s)"
                                     :class="{'rd-picked': selectedStudent && selectedStudent.userid === s.userid}"
                                     style="border-bottom:1px solid #eee;">
