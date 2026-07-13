@@ -33,17 +33,20 @@ Vue.component('create-extemp-revalidation-modal', {
                                 outlined
                                 dense
                             >
-                                <template v-slot:item="{ item }">
+                                <template v-slot:item="{ item, index }">
                                     <v-list-item-content>
-                                        <v-list-item-title>{{ item.raw.name }}</v-list-item-title>
+                                        <v-list-item-title>{{ item.name || item.label || ('Clase #' + item.value) }}</v-list-item-title>
                                         <v-list-item-subtitle>
-                                            {{ item.raw.coursename }} · {{ item.raw.instructor_name }}
-                                            <span v-if="item.raw.periodname"> · {{ item.raw.periodname }}</span>
+                                            <span v-if="item.coursename || item.instructor_name">
+                                                {{ item.coursename }} · {{ item.instructor_name }}
+                                            </span>
+                                            <span v-else>{{ item.label }}</span>
+                                            <span v-if="item.periodname"> · {{ item.periodname }}</span>
                                         </v-list-item-subtitle>
                                     </v-list-item-content>
                                     <v-list-item-action>
-                                        <v-chip x-small color="amber darken-2" class="white--text" v-if="item.raw.eligible_count > 0">
-                                            {{ item.raw.eligible_count }} elegible(s)
+                                        <v-chip x-small color="amber darken-2" class="white--text" v-if="item.eligible_count > 0">
+                                            {{ item.eligible_count }} elegible(s)
                                         </v-chip>
                                     </v-list-item-action>
                                 </template>
