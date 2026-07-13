@@ -91,8 +91,13 @@ window.Y.config.sesskey = window.Y.config.sesskey || <?php echo json_encode($ses
 </script>
 
 <?php
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/RevalidationsDirector.js?v=' . $assetversion));
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/CreateExtemporaneousRevalidationModal.js?v=' . $assetversion));
+// Bump the cache-bust suffix whenever the JS changes. The page reuses
+// $assetversion (which is typically $CFG->themerev); on its own it does
+// not invalidate the browser cache when only the JS changes. Add the
+// commit-like tag below so a new deploy forces a fresh download.
+$revcache = $assetversion . '_rev20260713_extemp-autocomplete';
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/RevalidationsDirector.js?v=' . $revcache));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/CreateExtemporaneousRevalidationModal.js?v=' . $revcache));
 ?>
 <script>
 // Self-contained Vue mount for this page (avoids depending on app.js which targets #gmk-app).
