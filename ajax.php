@@ -2422,12 +2422,16 @@ try {
                     $pstart = (int)($selectedperiod['startdate'] ?? 0);
                     $pend = (int)($selectedperiod['enddate'] ?? 0);
                     if ($pstart > 0 || $pend > 0) {
-                        $params['overlapstart'] = $pstart;
+                        // Use unique placeholder names per occurrence to keep the
+                        // placeholder count in sync with the bound parameters
+                        // (mysqli requires one value per ? placeholder).
                         $params['overlapend'] = $pend;
+                        $params['overlapstart'] = $pstart;
+                        $params['periodfilter_excl'] = $periodfilter;
                         // Course from another period overlaps with the selected
                         // period when: course.initdate <= period.enddate AND
                         // (course.enddate = 0 OR course.enddate >= period.startdate).
-                        $periodclauses[] = "(c.periodid <> :periodfilter "
+                        $periodclauses[] = "(c.periodid <> :periodfilter_excl "
                             . "AND c.initdate > 0 AND c.initdate <= :overlapend "
                             . "AND (c.enddate = 0 OR c.enddate >= :overlapstart))";
                     }
