@@ -2355,6 +2355,7 @@ try {
             require_capability('moodle/site:config', $context);
             $userid = required_param('userId', PARAM_INT);
             $periodfilter = optional_param('periodId', 0, PARAM_INT);
+            $includeoverlapping = optional_param('includeOverlapping', 1, PARAM_INT) ? 1 : 0;
 
             $student = $DB->get_record(
                 'user',
@@ -2377,10 +2378,33 @@ try {
             }
 
             $periodnames = [];
+            $periodslist = [];
+            $selectedperiod = null;
             if ($periodtable !== '') {
-                $periodrows = $DB->get_records_sql("SELECT id, name FROM {" . $periodtable . "}");
+                $periodrows = $DB->get_records_sql(
+                    "SELECT id, name, startdate, enddate, status FROM {" . $periodtable . "} ORDER BY startdate DESC, id DESC"
+                );
                 foreach ($periodrows as $periodrow) {
-                    $periodnames[(int)$periodrow->id] = (string)$periodrow->name;
+                    $pid = (int)$periodrow->id;
+                    $periodnames[$pid] = (string)$periodrow->name;
+                    $periodslist[] = [
+                        'id' => $pid,
+                        'name' => (string)$periodrow->name,
+                        'startdate' => (int)$periodrow->startdate,
+                        'enddate' => (int)$periodrow->enddate,
+                        'status' => isset($periodrow->status) ? (int)$periodrow->status : 1,
+                    ];
+                }
+                if ($periodfilter > 0 && isset($periodnames[$periodfilter])) {
+                    $selectedperiod = $periodslist[$periodfilter] ?? null;
+                    if ($selectedperiod === null) {
+                        foreach ($periodslist as $p) {
+                            if ((int)$p['id'] === $periodfilter) {
+                                $selectedperiod = $p;
+                                break;
+                            }
+                        }
+                    }
                 }
             }
 
@@ -2392,8 +2416,23 @@ try {
             ];
             $whereperiod = '';
             if ($periodfilter > 0) {
-                $whereperiod = ' AND c.periodid = :periodfilter';
                 $params['periodfilter'] = $periodfilter;
+                $periodclauses = ['c.periodid = :periodfilter'];
+                if ($includeoverlapping && is_array($selectedperiod)) {
+                    $pstart = (int)($selectedperiod['startdate'] ?? 0);
+                    $pend = (int)($selectedperiod['enddate'] ?? 0);
+                    if ($pstart > 0 || $pend > 0) {
+                        $params['overlapstart'] = $pstart;
+                        $params['overlapend'] = $pend;
+                        // Course from another period overlaps with the selected
+                        // period when: course.initdate <= period.enddate AND
+                        // (course.enddate = 0 OR course.enddate >= period.startdate).
+                        $periodclauses[] = "(c.periodid <> :periodfilter "
+                            . "AND c.initdate > 0 AND c.initdate <= :overlapend "
+                            . "AND (c.enddate = 0 OR c.enddate >= :overlapstart))";
+                    }
+                }
+                $whereperiod = ' AND (' . implode(' OR ', $periodclauses) . ')';
             }
 
             $classsql = "SELECT
@@ -2577,6 +2616,7 @@ try {
                     'subjectname' => (string)$classrow->subjectname,
                     'periodid' => (int)$classrow->periodid,
                     'periodname' => (string)($periodnames[(int)$classrow->periodid] ?? ''),
+                    'isoverlapping' => ($periodfilter > 0 && (int)$classrow->periodid !== $periodfilter),
                     'shift' => (string)$classrow->shift,
                     'typelabel' => $typelabel,
                     'classroomname' => (string)$classrow->classroomname,
@@ -2602,6 +2642,9 @@ try {
                     'idnumber' => (string)$student->idnumber,
                 ],
                 'classes' => $outputclasses,
+                'periods' => $periodslist,
+                'selectedperiod' => $selectedperiod,
+                'includeoverlapping' => $includeoverlapping,
                 'generatedat' => userdate(time(), '%Y-%m-%d %H:%M'),
             ];
             break;

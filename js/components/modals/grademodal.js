@@ -400,6 +400,40 @@ Vue.component('grademodal', {
                         <v-icon left>mdi-file-pdf-box</v-icon>
                         Descargar horario PDF
                       </v-btn>
+                      <template v-if="showSchedulePdfButton && !creditView">
+                        <div class="d-flex align-center ml-1" style="gap:6px;">
+                            <v-select
+                                v-model="schedulePdfPeriodId"
+                                :items="schedulePdfPeriodOptions"
+                                item-text="text"
+                                item-value="value"
+                                dense
+                                hide-details
+                                outlined
+                                :loading="schedulePdfPeriodsLoading"
+                                :disabled="exportingSchedulePdf"
+                                label="Periodo académico"
+                                style="min-width:200px; max-width:240px;"
+                                @change="onSchedulePdfPeriodChange"
+                            ></v-select>
+                            <v-tooltip bottom :disabled="schedulePdfPeriodId <= 0">
+                                <template v-slot:activator="{ on, attrs }">
+                                    <span v-bind="attrs" v-on="on">
+                                        <v-checkbox
+                                            v-model="schedulePdfIncludeOverlapping"
+                                            dense
+                                            hide-details
+                                            class="ma-0 pa-0"
+                                            color="primary"
+                                            :disabled="schedulePdfPeriodId <= 0 || exportingSchedulePdf"
+                                            label="Incluir cursos que solapen fechas"
+                                        ></v-checkbox>
+                                    </span>
+                                </template>
+                                <span>Selecciona un periodo específico para habilitar esta opción.</span>
+                            </v-tooltip>
+                        </div>
+                      </template>
                       <v-btn
                         v-if="canExportGradesPdf && !creditView"
                         color="teal darken-2"
@@ -973,6 +1007,10 @@ Vue.component('grademodal', {
             exportingSchedulePdf: false,
             exportingGradesPdf: false,
             exportingDetailedGradesPdf: false,
+            schedulePdfPeriodId: 0,
+            schedulePdfIncludeOverlapping: true,
+            schedulePdfPeriods: [],
+            schedulePdfPeriodsLoading: false,
             enrollingModuleKey: null,
             moduleStatusMap: {},
             // Module invoice request flow (gmk_module_invoice_requests)
@@ -1052,6 +1090,9 @@ Vue.component('grademodal', {
         }
         this.fetchRevalidations();
         this.fetchStudentModuleRequests();
+        if (!this.classId) {
+            this.loadSchedulePdfPeriods();
+        }
     },
     methods: {
         getGradeColor(grade) {
@@ -1604,6 +1645,10 @@ Vue.component('grademodal', {
         close() {
             this.enrollDialog = false;
             this.dialog = false;
+            this.schedulePdfPeriodId = 0;
+            this.schedulePdfIncludeOverlapping = true;
+            this.schedulePdfPeriods = [];
+            this.lastSchedulePayload = null;
             this.$emit('close-dialog');
         },
         async fetchGradebook() {
@@ -1740,6 +1785,58 @@ Vue.component('grademodal', {
                 img.src = `${url}${hasQuery ? '&' : '?'}v=${Date.now()}`;
             });
         },
+        formatUnixDate(timestamp) {
+            const ts = Number(timestamp || 0);
+            if (!ts) return '';
+            try {
+                const d = new Date(ts * 1000);
+                if (isNaN(d.getTime())) return '';
+                const dd = String(d.getDate()).padStart(2, '0');
+                const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+                const mm = months[d.getMonth()] || '';
+                const yy = d.getFullYear();
+                return `${dd}-${mm}-${yy}`;
+            } catch (e) {
+                return '';
+            }
+        },
+        async loadSchedulePdfPeriods() {
+            if (this.schedulePdfPeriodsLoading) return;
+            this.schedulePdfPeriodsLoading = true;
+            try {
+                const url = window.wsUrl || (window.location.origin + '/local/grupomakro_core/ajax.php');
+                const response = await window.axios.get(url, {
+                    params: {
+                        action: 'local_grupomakro_get_student_schedule_pdf_data',
+                        sesskey: M.cfg.sesskey,
+                        userId: Number(this.dataStudent && this.dataStudent.id),
+                        periodId: 0,
+                        includeOverlapping: 0,
+                    }
+                });
+                const payload = response && response.data ? response.data : {};
+                if (payload.status === 'success' && Array.isArray(payload.periods)) {
+                    this.schedulePdfPeriods = payload.periods.map((p) => ({
+                        id: Number(p.id || 0),
+                        name: String(p.name || ''),
+                        startdate: Number(p.startdate || 0),
+                        enddate: Number(p.enddate || 0),
+                        status: Number(p.status || 1),
+                    }));
+                }
+            } catch (error) {
+                console.warn('No se pudieron cargar los periodos académicos:', error);
+            } finally {
+                this.schedulePdfPeriodsLoading = false;
+            }
+        },
+        onSchedulePdfPeriodChange() {
+            if (this.schedulePdfPeriodId <= 0) {
+                this.schedulePdfIncludeOverlapping = false;
+            } else {
+                this.schedulePdfIncludeOverlapping = true;
+            }
+        },
         toDayIndex(dayValue) {
             if (typeof dayValue === 'number' && Number.isFinite(dayValue)) {
                 const n = Math.trunc(dayValue);
@@ -1865,6 +1962,7 @@ Vue.component('grademodal', {
                     enrollmentstatus: String(item && item.enrollmentstatus ? item.enrollmentstatus : 'Relacionado'),
                     periodid: Number(item && item.periodid ? item.periodid : 0),
                     periodname: String(item && item.periodname ? item.periodname : ''),
+                    isoverlapping: !!(item && item.isoverlapping),
                     dayIndex: dayIndex,
                     startMin: startMin,
                     endMin: endMin,
@@ -1932,6 +2030,52 @@ Vue.component('grademodal', {
                 return a.classid - b.classid;
             });
 
+            // Column packing per day so that overlapping entries are placed
+            // side-by-side instead of obscuring each other in the PDF.
+            const dayGroups = {};
+            entries.forEach((entry) => {
+                if (!dayGroups[entry.dayIndex]) {
+                    dayGroups[entry.dayIndex] = [];
+                }
+                dayGroups[entry.dayIndex].push(entry);
+            });
+
+            const MAX_COLUMNS = 5;
+            Object.keys(dayGroups).forEach((dayKey) => {
+                const list = dayGroups[dayKey];
+                list.sort((a, b) => {
+                    if (a.startMin !== b.startMin) return a.startMin - b.startMin;
+                    if (a.endMin !== b.endMin) return b.endMin - a.endMin;
+                    return a.classid - b.classid;
+                });
+
+                const activeColumns = [];
+                let dayMaxColumns = 1;
+                list.forEach((entry) => {
+                    for (let i = activeColumns.length - 1; i >= 0; i -= 1) {
+                        if (activeColumns[i].endMin <= entry.startMin) {
+                            activeColumns.splice(i, 1);
+                        }
+                    }
+                    const used = new Set(activeColumns.map((c) => c.colIndex));
+                    let colIndex = 0;
+                    while (used.has(colIndex)) {
+                        colIndex += 1;
+                    }
+                    if (colIndex >= MAX_COLUMNS) {
+                        colIndex = MAX_COLUMNS - 1;
+                    }
+                    entry.colIndex = colIndex;
+                    activeColumns.push({ endMin: entry.endMin, colIndex });
+                    if (colIndex + 1 > dayMaxColumns) {
+                        dayMaxColumns = colIndex + 1;
+                    }
+                });
+                list.forEach((entry) => {
+                    entry.dayColumns = dayMaxColumns;
+                });
+            });
+
             return { entries, withoutSchedule };
         },
         async downloadStudentSchedulePdf() {
@@ -1947,6 +2091,11 @@ Vue.component('grademodal', {
                     sesskey: M.cfg.sesskey,
                     userId: Number(this.dataStudent.id),
                 };
+                const periodId = Number(this.schedulePdfPeriodId || 0);
+                if (periodId > 0) {
+                    params.periodId = periodId;
+                    params.includeOverlapping = this.schedulePdfIncludeOverlapping ? 1 : 0;
+                }
 
                 const response = await window.axios.get(url, { params });
                 const payload = response && response.data ? response.data : {};
@@ -1955,11 +2104,23 @@ Vue.component('grademodal', {
                     return;
                 }
 
+                if (Array.isArray(payload.periods) && payload.periods.length) {
+                    this.schedulePdfPeriods = payload.periods.map((p) => ({
+                        id: Number(p.id || 0),
+                        name: String(p.name || ''),
+                        startdate: Number(p.startdate || 0),
+                        enddate: Number(p.enddate || 0),
+                        status: Number(p.status || 1),
+                    }));
+                }
+
                 const classes = Array.isArray(payload.classes) ? payload.classes : [];
                 if (!classes.length) {
                     this.showMessage('info', 'El estudiante no tiene clases activas o pendientes para exportar.');
                     return;
                 }
+
+                this.lastSchedulePayload = payload;
 
                 await this.ensurePdfLibrary();
                 const jsPDF = (window.jspdf && window.jspdf.jsPDF) ? window.jspdf.jsPDF : window.jsPDF;
@@ -2024,7 +2185,15 @@ Vue.component('grademodal', {
                 }
                 doc.setFont('helvetica', 'bold');
                 doc.setFontSize(14);
-                doc.text('Horario semanal del estudiante', headerTextX, margin + 6.5);
+                const mainPeriodName = (this.lastSchedulePayload
+                    && this.lastSchedulePayload.selectedperiod
+                    && this.lastSchedulePayload.selectedperiod.name)
+                    ? String(this.lastSchedulePayload.selectedperiod.name)
+                    : '';
+                const headerTitle = (this.schedulePdfPeriodId > 0 && mainPeriodName)
+                    ? `Horario semanal — ${mainPeriodName}`
+                    : 'Horario semanal del estudiante';
+                doc.text(headerTitle, headerTextX, margin + 6.5);
                 doc.setFont('helvetica', 'normal');
                 doc.setFontSize(9);
                 doc.text('Generado: ' + (generatedAt || '--'), headerTextX, margin + 12);
@@ -2117,9 +2286,12 @@ Vue.component('grademodal', {
                     const dayPos = Math.min(6, Math.max(0, entry.dayIndex - 1));
                     const startOffset = (entry.startMin - minMinutes) / interval;
                     const duration = Math.max(interval, entry.endMin - entry.startMin);
-                    const x = calendarX + timeColumnW + (dayPos * dayW) + 0.7;
+                    const colCount = Math.max(1, Number(entry.dayColumns) || 1);
+                    const colIndex = Math.max(0, Math.min(colCount - 1, Number(entry.colIndex) || 0));
+                    const colWidth = (dayW - 1.4) / colCount;
+                    const x = calendarX + timeColumnW + (dayPos * dayW) + 0.7 + (colIndex * colWidth);
                     const y = calendarY + dayHeaderH + (startOffset * rowH) + 0.5;
-                    const w = dayW - 1.4;
+                    const w = colWidth - 0.4;
                     let h = Math.max(8, (duration / interval) * rowH - 1);
                     const maxH = (calendarY + calendarH - 0.7) - y;
                     if (maxH <= 1) {
@@ -2129,17 +2301,32 @@ Vue.component('grademodal', {
 
                     const pname = String(entry.periodname || '');
                     const bg = periodColors[pname] || defaultPeriodColor;
-                    doc.setFillColor(bg[0], bg[1], bg[2]);
+                    const isOverlapping = !!entry.isoverlapping;
+                    const fillR = isOverlapping ? Math.min(255, bg[0] + 18) : bg[0];
+                    const fillG = isOverlapping ? Math.min(255, bg[1] + 18) : bg[1];
+                    const fillB = isOverlapping ? Math.min(255, bg[2] + 18) : bg[2];
+                    doc.setFillColor(fillR, fillG, fillB);
                     doc.setDrawColor(Math.max(0, bg[0] - 35), Math.max(0, bg[1] - 35), Math.max(0, bg[2] - 35));
+                    doc.setLineWidth(isOverlapping ? 0.6 : 0.2);
                     doc.roundedRect(x, y, w, h, 1, 1, 'FD');
+                    doc.setLineWidth(0.2);
+
+                    // Left accent stripe for overlapping courses (drawn over fill).
+                    if (isOverlapping) {
+                        doc.setFillColor(Math.max(0, bg[0] - 50), Math.max(0, bg[1] - 50), Math.max(0, bg[2] - 50));
+                        doc.rect(x, y + 0.4, 0.9, h - 0.8, 'F');
+                    }
 
                     doc.setTextColor(255, 255, 255);
                     doc.setFont('helvetica', 'bold');
                     doc.setFontSize(7);
                     const status = String(entry.enrollmentstatus || 'Relacionado');
+                    const timeLine = `${this.formatMinutesLabel(entry.startMin)}-${this.formatMinutesLabel(entry.endMin)}`
+                        + (isOverlapping ? ' (solapado)' : '')
+                        + ` | ${status}`;
                     const contentLines = [
                         String(entry.subjectname || entry.name || '--'),
-                        `${this.formatMinutesLabel(entry.startMin)}-${this.formatMinutesLabel(entry.endMin)} | ${status}`,
+                        timeLine,
                         `Docente: ${entry.instructorname || '--'}`,
                         `Aula: ${entry.classroomname || 'Sin aula'}`,
                     ];
@@ -2160,6 +2347,13 @@ Vue.component('grademodal', {
                 doc.text('Periodo:', legendX, legendY);
                 legendX += 16;
 
+                const overlappingPeriodLabels = new Set();
+                entries.forEach((entry) => {
+                    if (entry.isoverlapping && entry.periodname) {
+                        overlappingPeriodLabels.add(String(entry.periodname));
+                    }
+                });
+
                 Object.keys(periodColors).forEach((label) => {
                     const color = periodColors[label];
                     doc.setFillColor(color[0], color[1], color[2]);
@@ -2167,8 +2361,12 @@ Vue.component('grademodal', {
                     doc.setFont('helvetica', 'normal');
                     doc.setFontSize(7.5);
                     doc.setTextColor(30, 30, 30);
-                    doc.text(label, legendX + 5.5, legendY - 0.4);
-                    legendX += (14 + (label.length * 1.8));
+                    let labelText = label;
+                    if (mainPeriodName && overlappingPeriodLabels.has(label)) {
+                        labelText += ' (solapado)';
+                    }
+                    doc.text(labelText, legendX + 5.5, legendY - 0.4);
+                    legendX += (14 + (labelText.length * 1.8));
                 });
 
                 if (withoutSchedule.length > 0) {
@@ -2193,7 +2391,10 @@ Vue.component('grademodal', {
 
                 const token = this.sanitizeFileToken(student.name || this.studentName || 'estudiante');
                 const dateToken = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-                const filename = `horario_semanal_${token}_${dateToken}.pdf`;
+                const periodSlug = mainPeriodName
+                    ? '_' + this.sanitizeFileToken(mainPeriodName)
+                    : '';
+                const filename = `horario_semanal${periodSlug}_${token}_${dateToken}.pdf`;
                 doc.save(filename);
             } catch (error) {
                 console.error('Error generating student schedule pdf:', error);
@@ -3239,6 +3440,20 @@ Vue.component('grademodal', {
         },
         showSchedulePdfButton() {
             return !this.classId;
+        },
+        schedulePdfPeriodOptions() {
+            const opts = [{ value: 0, text: 'Todos los periodos' }];
+            const periods = Array.isArray(this.schedulePdfPeriods) ? this.schedulePdfPeriods : [];
+            periods.forEach((p) => {
+                const id = Number(p.id || 0);
+                if (!id) return;
+                const name = String(p.name || ('Periodo ' + id));
+                const startTxt = p.startdateformatted || (p.startdate ? this.formatUnixDate(p.startdate) : '');
+                const endTxt = p.enddateformatted || (p.enddate ? this.formatUnixDate(p.enddate) : '');
+                const dateRange = (startTxt && endTxt) ? ` (${startTxt} → ${endTxt})` : '';
+                opts.push({ value: id, text: `${name}${dateRange}` });
+            });
+            return opts;
         },
         canExportGradesPdf() {
             if (this.classId) {
