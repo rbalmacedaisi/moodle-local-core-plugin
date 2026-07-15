@@ -251,7 +251,8 @@ foreach ($toCreate as $c) {
     $endTS   = strtotime(date('Y-m-d', $c['ts']) . ' ' . $endTime . ' America/Panama');
 
     // (a) Crear BBB
-    $bbbInfo = create_big_blue_button_activity($class, $startTS, $endTS, $BBBmoduleId, $class->coursesectionid);
+    $classSectionNumber = (int)$DB->get_field('course_sections', 'section', ['id' => $class->coursesectionid]);
+    $bbbInfo = create_big_blue_button_activity($class, $startTS, $endTS, $BBBmoduleId, $classSectionNumber);
 
     // (b) Construir attendance_session_object
     $sessionObj = create_attendance_session_object($class, $startTS, $endTS - $startTS, $bbbInfo);
