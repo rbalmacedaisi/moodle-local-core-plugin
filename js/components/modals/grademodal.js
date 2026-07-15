@@ -368,7 +368,53 @@ Vue.component('grademodal', {
 
                     <v-divider class="my-0"></v-divider>
 
-                    <v-card-actions class="pa-3">
+                    <div
+                        v-if="showSchedulePdfButton && !creditView"
+                        class="schedule-pdf-config px-4 py-3 grey lighten-4"
+                        style="border-top: 1px solid #e0e0e0; border-bottom: 1px solid #e0e0e0;"
+                    >
+                        <div class="d-flex align-center mb-1">
+                            <v-icon small color="secondary" class="mr-1">mdi-calendar-clock</v-icon>
+                            <span class="text-caption font-weight-bold text-uppercase grey--text text--darken-2">
+                                Configuración del horario (PDF)
+                            </span>
+                        </div>
+                        <div class="d-flex align-center flex-wrap" style="gap: 12px; row-gap: 8px;">
+                            <v-select
+                                v-model="schedulePdfPeriodId"
+                                :items="schedulePdfPeriodOptions"
+                                item-text="text"
+                                item-value="value"
+                                dense
+                                hide-details
+                                outlined
+                                :loading="schedulePdfPeriodsLoading"
+                                :disabled="exportingSchedulePdf"
+                                label="Periodo académico"
+                                prepend-inner-icon="mdi-calendar-month"
+                                style="flex: 1 1 260px; min-width: 220px; max-width: 360px;"
+                                @change="onSchedulePdfPeriodChange"
+                            ></v-select>
+                            <v-tooltip bottom :disabled="schedulePdfPeriodId > 0">
+                                <template v-slot:activator="{ on, attrs }">
+                                    <span v-bind="attrs" v-on="on" class="d-flex align-center">
+                                        <v-checkbox
+                                            v-model="schedulePdfIncludeOverlapping"
+                                            dense
+                                            hide-details
+                                            class="ma-0 pa-0"
+                                            color="primary"
+                                            :disabled="schedulePdfPeriodId <= 0 || exportingSchedulePdf"
+                                            label="Incluir cursos que solapen fechas con el periodo seleccionado"
+                                        ></v-checkbox>
+                                    </span>
+                                </template>
+                                <span>Selecciona un periodo específico para habilitar esta opción.</span>
+                            </v-tooltip>
+                        </div>
+                    </div>
+
+                    <v-card-actions class="pa-3 flex-wrap" style="gap: 4px;">
                       <v-btn
                         v-if="!classId && creditView"
                         color="blue darken-3"
@@ -400,40 +446,6 @@ Vue.component('grademodal', {
                         <v-icon left>mdi-file-pdf-box</v-icon>
                         Descargar horario PDF
                       </v-btn>
-                      <template v-if="showSchedulePdfButton && !creditView">
-                        <div class="d-flex align-center ml-1" style="gap:6px;">
-                            <v-select
-                                v-model="schedulePdfPeriodId"
-                                :items="schedulePdfPeriodOptions"
-                                item-text="text"
-                                item-value="value"
-                                dense
-                                hide-details
-                                outlined
-                                :loading="schedulePdfPeriodsLoading"
-                                :disabled="exportingSchedulePdf"
-                                label="Periodo académico"
-                                style="min-width:200px; max-width:240px;"
-                                @change="onSchedulePdfPeriodChange"
-                            ></v-select>
-                            <v-tooltip bottom :disabled="schedulePdfPeriodId <= 0">
-                                <template v-slot:activator="{ on, attrs }">
-                                    <span v-bind="attrs" v-on="on">
-                                        <v-checkbox
-                                            v-model="schedulePdfIncludeOverlapping"
-                                            dense
-                                            hide-details
-                                            class="ma-0 pa-0"
-                                            color="primary"
-                                            :disabled="schedulePdfPeriodId <= 0 || exportingSchedulePdf"
-                                            label="Incluir cursos que solapen fechas"
-                                        ></v-checkbox>
-                                    </span>
-                                </template>
-                                <span>Selecciona un periodo específico para habilitar esta opción.</span>
-                            </v-tooltip>
-                        </div>
-                      </template>
                       <v-btn
                         v-if="canExportGradesPdf && !creditView"
                         color="teal darken-2"
