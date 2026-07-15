@@ -2476,8 +2476,6 @@ try {
                           AND (
                             gm.id IS NOT NULL
                             OR (gcp.id IS NOT NULL AND gcp.status = 2)
-                            OR cq.id IS NOT NULL
-                            OR cpr.id IS NOT NULL
                           )
                           {$whereperiod}
                         GROUP BY
