@@ -37,13 +37,18 @@ require_once($CFG->dirroot . '/user/profile/lib.php');
 if (!function_exists('gmk_log')) {
     /**
      * Helper function to log debug messages to a local file.
+     * No-op in production unless GMK_DEBUG_LOG is defined as truthy.
+     * Define in config.php with `define('GMK_DEBUG_LOG', true);` for development.
      * @param string $message
      */
     function gmk_log($message) {
+        if (!defined('GMK_DEBUG_LOG') || !GMK_DEBUG_LOG) {
+            return;
+        }
         $logfile = __DIR__ . '/gmk_debug.log';
         $timestamp = date('Y-m-d H:i:s');
         $formatted = "[$timestamp] $message\n";
-        file_put_contents($logfile, $formatted, FILE_APPEND);
+        @file_put_contents($logfile, $formatted, FILE_APPEND);
     }
 }
 
@@ -66,6 +71,38 @@ if (!function_exists('gmk_best_effort_db_commit')) {
             }
             return false;
         }
+    }
+}
+
+if (!function_exists('gmk_muc')) {
+    /**
+     * Tiny accessor for the plugin's MUC cache definitions. Centralised so we
+     * never typo a name and so renaming the cache in db/caches.php is a one-line
+     * change. Caches are intentionally short-TTL because enrolment, attendance
+     * and reschedule operations can shift the data any moment.
+     *
+     * @param string $name One of the keys declared in db/caches.php.
+     * @return cache_application
+     */
+    function gmk_muc(string $name) {
+        static $cache = null;
+        if ($cache === null) {
+            $cache = cache::make('local_grupomakro_core', $name);
+        }
+        return $cache;
+    }
+}
+
+if (!function_exists('gmk_muc_factories')) {
+    /**
+     * Return a fresh cache_application per name. Use only when you need to
+     * bypass the static cache (e.g. unit tests that swap config).
+     *
+     * @param string $name
+     * @return cache_application
+     */
+    function gmk_muc_factories(string $name) {
+        return cache::make('local_grupomakro_core', $name);
     }
 }
 
@@ -3630,83 +3667,205 @@ function list_classes($filters)
 {
     global $DB, $PAGE, $OUTPUT;
 
-    $fetchedLearningPlans = [];
-    $fetchedLearningPlanPeriods = [];
-    $fetchedCourses = [];
-    $fetchedInstructors = [];
-    $fetchedClassrooms = [];
+    // ----------------------------------------------------------------------
+    // PERFORMANCE: bulk prefetch all reference data for the entire result set
+    // in a handful of queries, then resolve each class in PHP using in-memory
+    // maps. This replaces the previous per-class N+1 with a fixed cost
+    // proportional to the result-set size, not to N*N. (Added 2026-08.)
+    // ----------------------------------------------------------------------
 
     $classes = $DB->get_records('gmk_class', $filters);
-    
-    // We need a mapping to derive metadata from subject if needed
-    $subjects_metadata_cache = [];
+
+    if (empty($classes)) {
+        return $classes;
+    }
+
+    // Collect unique ids we need to fetch in bulk.
+    $subjectIds = [];
+    $coreCourseIds = [];
+    $instructorIds = [];
+    $learningPlanIds = [];
+    $periodIds = [];
+    $classroomIds = [];
+
+    foreach ($classes as $class) {
+        if (!empty($class->courseid)) {
+            $subjectIds[(int)$class->courseid] = (int)$class->courseid;
+        }
+        if (!empty($class->corecourseid)) {
+            $coreCourseIds[(int)$class->corecourseid] = (int)$class->corecourseid;
+        }
+        if (!empty($class->instructorid)) {
+            $instructorIds[(int)$class->instructorid] = (int)$class->instructorid;
+        }
+        if (!empty($class->learningplanid)) {
+            $learningPlanIds[(int)$class->learningplanid] = (int)$class->learningplanid;
+        }
+        if (!empty($class->periodid)) {
+            $periodIds[(int)$class->periodid] = (int)$class->periodid;
+        }
+        if (!empty($class->classroomid)) {
+            $classroomIds[(int)$class->classroomid] = (int)$class->classroomid;
+        }
+    }
+
+    // Bulk subjects (local_learning_courses) — try by id first; if any class still
+    // misses metadata we'll do one extra lookup by courseid fallback.
+    $subjectsById = [];
+    $missingSubjectIds = [];
+    if (!empty($subjectIds)) {
+        [$insql, $inparams] = $DB->get_in_or_equal(array_values($subjectIds), SQL_PARAMS_NAMED, 'sid');
+        $rows = $DB->get_records_select(
+            'local_learning_courses',
+            "id $insql",
+            $inparams,
+            '',
+            'id, learningplanid, periodid, courseid'
+        );
+        foreach ($rows as $r) {
+            $subjectsById[(int)$r->id] = $r;
+        }
+        foreach ($subjectIds as $sid) {
+            if (!isset($subjectsById[$sid])) {
+                $missingSubjectIds[$sid] = $sid;
+            }
+        }
+    }
+
+    // Fallback by courseid for the ones we missed.
+    $subjectsByCourseid = [];
+    if (!empty($missingSubjectIds)) {
+        [$insql, $inparams] = $DB->get_in_or_equal(array_values($missingSubjectIds), SQL_PARAMS_NAMED, 'cid');
+        $rows = $DB->get_records_select(
+            'local_learning_courses',
+            "courseid $insql",
+            $inparams,
+            '',
+            'id, learningplanid, periodid, courseid'
+        );
+        foreach ($rows as $r) {
+            $subjectsByCourseid[(int)$r->courseid] = $r;
+            $subjectsById[(int)$r->id] = $r;
+        }
+    }
+
+    // Bulk instructors — single SQL using user_get_users_by_id under the hood.
+    $instructorsById = [];
+    if (!empty($instructorIds)) {
+        $instructorsById = user_get_users_by_id(array_values($instructorIds));
+    }
+
+    // Bulk learning plans.
+    $plansById = [];
+    if (!empty($learningPlanIds)) {
+        [$insql, $inparams] = $DB->get_in_or_equal(array_values($learningPlanIds), SQL_PARAMS_NAMED, 'lpid');
+        $rows = $DB->get_records_select('local_learning_plans', "id $insql", $inparams);
+        foreach ($rows as $r) {
+            $plansById[(int)$r->id] = $r;
+        }
+    }
+
+    // Bulk periods.
+    $periodsById = [];
+    if (!empty($periodIds)) {
+        [$insql, $inparams] = $DB->get_in_or_equal(array_values($periodIds), SQL_PARAMS_NAMED, 'perid');
+        $rows = $DB->get_records_select('local_learning_periods', "id $insql", $inparams);
+        foreach ($rows as $r) {
+            $periodsById[(int)$r->id] = $r;
+        }
+    }
+
+    // Bulk courses.
+    $coursesById = [];
+    if (!empty($coreCourseIds)) {
+        [$insql, $inparams] = $DB->get_in_or_equal(array_values($coreCourseIds), SQL_PARAMS_NAMED, 'corid');
+        $rows = $DB->get_records_select('course', "id $insql", $inparams);
+        foreach ($rows as $r) {
+            $coursesById[(int)$r->id] = $r;
+        }
+    }
+
+    // Custom fields per course — bulk fetch.
+    if (!empty($coursesById)) {
+        $customFieldsByCourse = gmk_bulk_course_customfields(array_keys($coursesById));
+        foreach ($customFieldsByCourse as $cid => $fields) {
+            foreach ($fields as $cf) {
+                $coursesById[$cid]->{$cf->shortname} = $cf->value;
+            }
+        }
+    }
+
+    // Bulk classrooms.
+    $classroomNamesById = [];
+    if (!empty($classroomIds)) {
+        [$insql, $inparams] = $DB->get_in_or_equal(array_values($classroomIds), SQL_PARAMS_NAMED, 'crid');
+        $rows = $DB->get_records_select('gmk_classrooms', "id $insql", $inparams, '', 'id, name');
+        foreach ($rows as $r) {
+            $classroomNamesById[(int)$r->id] = $r->name;
+        }
+    }
+
+    // Bulk classroom fallback (gmk_class_schedules for classes without classroomid).
+    $classesNeedingClassroomFallback = [];
+    foreach ($classes as $class) {
+        if (empty($class->classroomid) && !empty($class->id)) {
+            $classesNeedingClassroomFallback[(int)$class->id] = (int)$class->id;
+        }
+    }
+    $classroomFallbackByClass = [];
+    if (!empty($classesNeedingClassroomFallback)) {
+        [$insql, $inparams] = $DB->get_in_or_equal(array_values($classesNeedingClassroomFallback), SQL_PARAMS_NAMED, 'cfid');
+        $rows = $DB->get_records_sql(
+            "SELECT s.classid, MIN(s.classroomid) AS classroomid
+               FROM {gmk_class_schedules} s
+              WHERE s.classid $insql
+                AND s.classroomid IS NOT NULL
+                AND s.classroomid > 0
+           GROUP BY s.classid",
+            $inparams
+        );
+        foreach ($rows as $r) {
+            $cid = (int)$r->classid;
+            $resolved = (int)$r->classroomid;
+            $classroomFallbackByClass[$cid] = $resolved;
+            if (!isset($classroomNamesById[$resolved])) {
+                $classroomNamesById[$resolved] = $DB->get_field(
+                    'gmk_classrooms',
+                    'name',
+                    ['id' => $resolved],
+                    IGNORE_MISSING
+                );
+            }
+        }
+    }
+
+    // Bulk class participants (replaces 4 queries per class).
+    $participantsByClass = gmk_bulk_class_participants($classes);
 
     foreach ($classes as &$class) {
-        
-        // Derive Academic Metadata from Subject ID (gmk_class.courseid)
-        if (!empty($class->courseid)) {
-            $cacheKey = $class->courseid . '_' . ($class->learningplanid ?? 0);
-            if (!isset($subjects_metadata_cache[$cacheKey])) {
-                // First try: assume courseid is the Subject ID (local_learning_courses.id)
-                $subj = $DB->get_record('local_learning_courses', ['id' => $class->courseid], 'id, learningplanid, periodid, courseid');
-                
-                // Fallback: if not found, maybe it's a Moodle courseid? (legacy or error)
-                if (!$subj) {
-                    $searchParams = ['courseid' => $class->courseid];
-                    // CRITICAL: If we already have a learningplanid, use it to narrow down the correct record!
-                    if (!empty($class->learningplanid)) {
-                        $searchParams['learningplanid'] = $class->learningplanid;
-                    }
+        // Derive Academic Metadata from Subject ID.
+        $meta = null;
+        if (!empty($class->courseid) && isset($subjectsById[(int)$class->courseid])) {
+            $meta = $subjectsById[(int)$class->courseid];
+        } else if (!empty($class->courseid) && isset($subjectsByCourseid[(int)$class->courseid])) {
+            $meta = $subjectsByCourseid[(int)$class->courseid];
+        }
 
-                    $subj = $DB->get_record('local_learning_courses', $searchParams, 'id, learningplanid, periodid, courseid', IGNORE_MULTIPLE);
-
-                    // Last resort: try by Moodle courseid without learningplanid filter (corecourseid cross-check)
-                    if (!$subj && !empty($class->corecourseid)) {
-                        $subj = $DB->get_record('local_learning_courses', ['courseid' => $class->corecourseid], 'id, learningplanid, periodid, courseid', IGNORE_MULTIPLE);
-                    }
-
-                    if ($subj) {
-                        gmk_log("DEBUG: list_classes encontrÃƒÂ³ materia via FALLBACK (Moodle Course ID) para la clase " . ($class->id ?? 'new') . " con courseid " . $class->courseid . " y plan " . ($class->learningplanid ?? 'N/A'));
-                    } else {
-                        gmk_log("DEBUG: list_classes NO encontrÃƒÂ³ metadatos para courseid: " . $class->courseid . " en clase: " . ($class->name ?? 'sin nombre'));
-                    }
-                }
-                
-                $subjects_metadata_cache[$cacheKey] = $subj ?: null;
+        if ($meta) {
+            if (empty($class->learningplanid) || (int)$class->learningplanid !== (int)$meta->learningplanid) {
+                $class->learningplanid = (int)$meta->learningplanid;
             }
-
-            $meta = $subjects_metadata_cache[$cacheKey];
-            if ($meta) {
-                $oldPlan = $class->learningplanid;
-                $oldPeriod = $class->periodid;
-                $oldCourse = $class->courseid;
-
-                // Always trust meta over stored value (meta comes from the actual subject record)
-                if (empty($class->learningplanid) || (int)$class->learningplanid !== (int)$meta->learningplanid) {
-                    $class->learningplanid = (int)$meta->learningplanid;
-                }
-                
-                // Helper field for the Level ID
-                $class->academic_period_id = (int)$meta->periodid; 
-                
-                // Keep institutional ID
-                if (!isset($class->institutional_period_id)) {
-                    $class->institutional_period_id = (int)$class->periodid;
-                }
-                
-                // Override for editclass.php
-                $class->periodid = (int)$meta->periodid; 
-                
-                // Sync Course ID
-                if ($class->courseid == $meta->courseid && $class->courseid != $meta->id) {
-                    $class->courseid = (int)$meta->id;
-                } else {
-                    $class->courseid = (int)$class->courseid;
-                }
-                $class->corecourseid = (int)$meta->courseid;
-
-                gmk_log("HEALING list_classes: Class {$class->id} - Plan: $oldPlan->{$class->learningplanid}, Period: $oldPeriod->{$class->periodid}, Course: $oldCourse->{$class->courseid}");
+            $class->academic_period_id = (int)$meta->periodid;
+            if (!isset($class->institutional_period_id)) {
+                $class->institutional_period_id = (int)$class->periodid;
             }
+            $class->periodid = (int)$meta->periodid;
+            if ($class->courseid == $meta->courseid && $class->courseid != $meta->id) {
+                $class->courseid = (int)$meta->id;
+            } else {
+                $class->courseid = (int)$class->courseid;
+            }
+            $class->corecourseid = (int)$meta->courseid;
         }
 
         //Set the type class icon and label robustness
@@ -3714,7 +3873,7 @@ function list_classes($filters)
         if (empty($class->typelabel) && isset($typeMap[$class->type])) {
             $class->typelabel = $typeMap[$class->type];
         }
-        
+
         if ($class->type === '0') {
             $class->icon = 'fa fa-group';
         } else if ($class->type === '2') {
@@ -3737,7 +3896,7 @@ function list_classes($filters)
         }
         $class->selectedDaysES = $selectedDaysES;
         $class->selectedDaysEN = $selectedDaysEN;
-        $class->classDaysString = implode(' - ', $class->selectedDaysES);
+        $class->classDaysString = implode(' - ', $selectedDaysES);
         $class->daysFilters = [];
         // Define time constants for readability
         $DAY_START_TS = 21600;  // 6:00 AM in seconds
@@ -3757,32 +3916,20 @@ function list_classes($filters)
             $class->daysFilters[] = 'Nocturna';
         }
 
-        if (in_array('Saturday', $class->selectedDaysEN)) {
+        if (in_array('Saturday', $selectedDaysEN)) {
             $class->daysFilters[] = 'Sabatina';
         }
-        if (in_array('Sunday', $class->selectedDaysEN)) {
+        if (in_array('Sunday', $selectedDaysEN)) {
             $class->daysFilters[] = 'Dominical';
         }
-        //set the 
 
         //set the hour range string
         $class->hourRangeString = $class->inithourformatted . ' - ' . $class->endhourformatted;
 
         //Set class instructor Info
         $class->instructorName = 'No asignado'; // Fallback to avoid iterative get_string warnings while cache refreshes.
-        if (!empty($class->instructorid)) {
-            if (!array_key_exists($class->instructorid, $fetchedInstructors)) {
-                $instructors = user_get_users_by_id([$class->instructorid]);
-                if (isset($instructors[$class->instructorid])) {
-                    $classInstructor = $instructors[$class->instructorid];
-                    $fetchedInstructors[$class->instructorid] = $classInstructor;
-                } else {
-                    $fetchedInstructors[$class->instructorid] = null;
-                }
-            } else {
-                $classInstructor = $fetchedInstructors[$class->instructorid];
-            }
-
+        if (!empty($class->instructorid) && isset($instructorsById[(int)$class->instructorid])) {
+            $classInstructor = $instructorsById[(int)$class->instructorid];
             if (!empty($classInstructor)) {
                 $class->instructorName = $classInstructor->firstname . ' ' . $classInstructor->lastname;
             }
@@ -3790,13 +3937,8 @@ function list_classes($filters)
 
         //Set Learning plan Info
         $class->learningPlanName = 'N/A';
-        if (!empty($class->learningplanid)) {
-            if (!array_key_exists($class->learningplanid, $fetchedLearningPlans)) {
-                $classLearningPlan = $DB->get_record('local_learning_plans', ['id' => $class->learningplanid]);
-                $fetchedLearningPlans[$class->learningplanid] = $classLearningPlan;
-            } else {
-                $classLearningPlan = $fetchedLearningPlans[$class->learningplanid];
-            }
+        if (!empty($class->learningplanid) && isset($plansById[(int)$class->learningplanid])) {
+            $classLearningPlan = $plansById[(int)$class->learningplanid];
             if ($classLearningPlan) {
                 $class->learningPlanName = $classLearningPlan->name;
                 $class->learningPlanShortname = $classLearningPlan->shortname;
@@ -3805,13 +3947,8 @@ function list_classes($filters)
 
         //Set period Info
         $class->periodName = 'N/A';
-        if (!empty($class->periodid)) {
-            if (!array_key_exists($class->periodid, $fetchedLearningPlanPeriods)) {
-                $classLearningPlanPeriod = $DB->get_record('local_learning_periods', ['id' => $class->periodid]);
-                $fetchedLearningPlanPeriods[$class->periodid] = $classLearningPlanPeriod;
-            } else {
-                $classLearningPlanPeriod = $fetchedLearningPlanPeriods[$class->periodid];
-            }
+        if (!empty($class->periodid) && isset($periodsById[(int)$class->periodid])) {
+            $classLearningPlanPeriod = $periodsById[(int)$class->periodid];
             if ($classLearningPlanPeriod) {
                 $class->periodName = $classLearningPlanPeriod->name;
             }
@@ -3819,64 +3956,38 @@ function list_classes($filters)
 
         //Set the course Info
         $class->coreCourseName = 'N/A';
-        if (!empty($class->corecourseid)) {
-            if (!array_key_exists($class->corecourseid, $fetchedCourses)) {
-                $classCourse = $DB->get_record('course', ['id' => $class->corecourseid]);
-                if ($classCourse) {
-                    $courseCustomFields = \core_course\customfield\course_handler::create()->get_instance_data($class->corecourseid);
-                    foreach ($courseCustomFields as $courseCustomField) {
-                        $classCourse->{$courseCustomField->get_field()->get('shortname')} = $courseCustomField->get_value();
-                    }
-                    $fetchedCourses[$class->corecourseid] = $classCourse;
-                } else {
-                    $fetchedCourses[$class->corecourseid] = null;
-                }
-            } else {
-                $classCourse = $fetchedCourses[$class->corecourseid];
-            }
-
+        if (!empty($class->corecourseid) && isset($coursesById[(int)$class->corecourseid])) {
+            $classCourse = $coursesById[(int)$class->corecourseid];
             if ($classCourse) {
                 $class->course = $classCourse;
-                $class->coreCourseName = $class->course->fullname;
+                $class->coreCourseName = $classCourse->fullname;
             }
         }
         $class->coursesectionid = $class->coursesectionid;
 
-        //Set the number of students registered for the class
-        $classParticipants = get_class_participants($class);
-        $class->enroledStudents = count($classParticipants->enroledStudents);
-        $class->preRegisteredStudents = count($classParticipants->preRegisteredStudents);
-        $class->queuedStudents = count($classParticipants->queuedStudents);
-        $class->classFull = $class->preRegisteredStudents >= $class->classroomcapacity;
+        // Participants (bulk).
+        $classParticipants = $participantsByClass[(int)$class->id] ?? null;
+        if ($classParticipants) {
+            $class->enroledStudents = count($classParticipants->enroledStudents);
+            $class->preRegisteredStudents = count($classParticipants->preRegisteredStudents);
+            $class->queuedStudents = count($classParticipants->queuedStudents);
+            $class->classFull = $class->preRegisteredStudents >= $class->classroomcapacity;
+        } else {
+            $class->enroledStudents = 0;
+            $class->preRegisteredStudents = 0;
+            $class->queuedStudents = 0;
+            $class->classFull = false;
+        }
 
-        // Resolve classroom name for consumers that need room labels (student schedule cards, planner, etc.).
+        // Resolve classroom name.
         $resolvedClassroomId = !empty($class->classroomid) ? (int)$class->classroomid : 0;
-        if ($resolvedClassroomId <= 0 && !empty($class->id)) {
-            $resolvedClassroomId = (int)$DB->get_field_sql(
-                "SELECT s.classroomid
-                   FROM {gmk_class_schedules} s
-                  WHERE s.classid = :classid
-                    AND s.classroomid IS NOT NULL
-                    AND s.classroomid > 0
-               ORDER BY s.id ASC",
-                ['classid' => (int)$class->id],
-                IGNORE_MULTIPLE
-            );
+        if ($resolvedClassroomId <= 0 && !empty($class->id) && isset($classroomFallbackByClass[(int)$class->id])) {
+            $resolvedClassroomId = $classroomFallbackByClass[(int)$class->id];
         }
 
         $classroomName = 'Sin aula';
-        if ($resolvedClassroomId > 0) {
-            if (!array_key_exists($resolvedClassroomId, $fetchedClassrooms)) {
-                $fetchedClassrooms[$resolvedClassroomId] = $DB->get_field(
-                    'gmk_classrooms',
-                    'name',
-                    ['id' => $resolvedClassroomId],
-                    IGNORE_MISSING
-                );
-            }
-            $classroomName = !empty($fetchedClassrooms[$resolvedClassroomId])
-                ? (string)$fetchedClassrooms[$resolvedClassroomId]
-                : 'Sin aula';
+        if ($resolvedClassroomId > 0 && isset($classroomNamesById[$resolvedClassroomId])) {
+            $classroomName = (string)$classroomNamesById[$resolvedClassroomId];
             $class->classroomid = $resolvedClassroomId;
         }
 
@@ -3885,8 +3996,8 @@ function list_classes($filters)
 
         //Instructor profile image
         $class->instructorProfileImage = $OUTPUT->image_url('u/f1'); // Default fallback
-        if (!empty($class->instructorid)) {
-            $user = core_user::get_user($class->instructorid);
+        if (!empty($class->instructorid) && isset($instructorsById[(int)$class->instructorid])) {
+            $user = $instructorsById[(int)$class->instructorid];
             if ($user) {
                 $userpicture = new user_picture($user);
                 $userpicture->size = 1; // Size f1.
@@ -3898,8 +4009,241 @@ function list_classes($filters)
         $class->startDate =  date('Y-m-d');
         $class->available = !$class->approved;
     }
-    // die;
     return $classes;
+}
+
+if (!function_exists('gmk_bulk_course_customfields')) {
+    /**
+     * Bulk-load customfield_data for a set of courses in a single SQL, grouped by course.
+     * Replaces N calls to course_handler::create()->get_instance_data() which each
+     * issue two SQL queries (field list + data).
+     *
+     * @param int[] $courseids
+     * @return array<int, array<int, object{shortname:string, value:mixed}>>
+     */
+    function gmk_bulk_course_customfields(array $courseids) {
+        global $DB;
+        $result = [];
+        if (empty($courseids)) {
+            return $result;
+        }
+        [$insql, $inparams] = $DB->get_in_or_equal($courseids, SQL_PARAMS_NAMED, 'cffid');
+
+        // Single join: data + field (for shortname).
+        $sql = "SELECT d.instanceid AS courseid,
+                       f.shortname,
+                       d.value,
+                       d.valueformat
+                  FROM {customfield_data} d
+                  JOIN {customfield_field} f ON f.id = d.fieldid
+                  JOIN {customfield_category} c ON c.id = f.categoryid
+                 WHERE d.instanceid $insql
+                   AND c.component = 'core_course'
+                   AND c.area = 'course'";
+        $rows = $DB->get_records_sql($sql, $inparams);
+        foreach ($rows as $r) {
+            $cid = (int)$r->courseid;
+            if (!isset($result[$cid])) {
+                $result[$cid] = [];
+            }
+            $result[$cid][] = (object)[
+                'shortname' => (string)$r->shortname,
+                'value' => $r->value,
+                'valueformat' => $r->valueformat ?? 0,
+            ];
+        }
+        return $result;
+    }
+}
+
+if (!function_exists('gmk_bulk_class_participants')) {
+    /**
+     * Bulk-load enrolled / pre-registered / queued students for a set of classes.
+     * Replaces 4 separate $DB->get_records() per class with 4 bulk queries.
+     *
+     * @param array $classes List of gmk_class records (must have id, groupid, instructorid).
+     * @return array<int, stdClass> Map classid => participants object (same shape as get_class_participants()).
+     */
+    function gmk_bulk_class_participants(array $classes) {
+        global $DB;
+        $out = [];
+        if (empty($classes)) {
+            return $out;
+        }
+        $classIds = [];
+        $groupIds = [];
+        foreach ($classes as $c) {
+            if (empty($c->id)) {
+                continue;
+            }
+            $cid = (int)$c->id;
+            $classIds[$cid] = $cid;
+            if (!empty($c->groupid)) {
+                $groupIds[(int)$c->groupid] = (int)$c->groupid;
+            }
+        }
+        if (empty($classIds)) {
+            return $out;
+        }
+
+        $approvedClasses = [];
+        foreach ($classes as $c) {
+            $cid = (int)$c->id;
+            $out[$cid] = (object)[
+                'enroledStudents' => [],
+                'preRegisteredStudents' => [],
+                'queuedStudents' => [],
+                'progreStudents' => [],
+            ];
+            if (!empty($c->approved)) {
+                $approvedClasses[$cid] = $c;
+            }
+        }
+
+        // -- enroledStudents --
+        $gmByGroup = [];
+        if (!empty($groupIds)) {
+            [$insql, $inparams] = $DB->get_in_or_equal(array_values($groupIds), SQL_PARAMS_NAMED, 'gid');
+            $gmRows = $DB->get_records_select('groups_members', "groupid $insql", $inparams, '', 'groupid, userid');
+            foreach ($gmRows as $r) {
+                $gmByGroup[(int)$r->groupid][(int)$r->userid] = $r;
+            }
+        }
+
+        $proByClass = [];
+        if (!empty($approvedClasses)) {
+            [$insql, $inparams] = $DB->get_in_or_equal(array_keys($approvedClasses), SQL_PARAMS_NAMED, 'apc');
+            $proRows = $DB->get_records_select(
+                'gmk_course_progre',
+                "classid $insql",
+                $inparams,
+                '',
+                'classid, userid'
+            );
+            foreach ($proRows as $r) {
+                $proByClass[(int)$r->classid][(int)$r->userid] = $r;
+            }
+        }
+
+        foreach ($classes as $c) {
+            $cid = (int)$c->id;
+            $instructorId = (int)($c->instructorid ?? 0);
+
+            if (empty($c->groupid) && !empty($c->approved)) {
+                $rows = $proByClass[$cid] ?? [];
+            } else if (!empty($c->groupid) && isset($gmByGroup[(int)$c->groupid])) {
+                $rows = $gmByGroup[(int)$c->groupid];
+            } else {
+                $rows = [];
+            }
+
+            if ($instructorId > 0) {
+                $filtered = [];
+                foreach ($rows as $uid => $row) {
+                    if ((int)$uid !== $instructorId) {
+                        $filtered[$uid] = $row;
+                    }
+                }
+                $out[$cid]->enroledStudents = $filtered;
+            } else {
+                $out[$cid]->enroledStudents = $rows;
+            }
+        }
+
+        // -- preRegisteredStudents + queuedStudents (single IN clause shared). --
+        $classIdList = array_values($classIds);
+        [$insql, $inparams] = $DB->get_in_or_equal($classIdList, SQL_PARAMS_NAMED, 'prid');
+
+        $preRows = $DB->get_records_select(
+            'gmk_class_pre_registration',
+            "classid $insql",
+            $inparams,
+            '',
+            'classid, userid'
+        );
+        $preByClass = [];
+        foreach ($preRows as $r) {
+            $preByClass[(int)$r->classid][(int)$r->userid] = $r;
+        }
+        foreach ($classes as $c) {
+            $cid = (int)$c->id;
+            $instructorId = (int)($c->instructorid ?? 0);
+            $rows = $preByClass[$cid] ?? [];
+            if ($instructorId > 0) {
+                $filtered = [];
+                foreach ($rows as $uid => $row) {
+                    if ((int)$uid !== $instructorId) {
+                        $filtered[$uid] = $row;
+                    }
+                }
+                $out[$cid]->preRegisteredStudents = $filtered;
+            } else {
+                $out[$cid]->preRegisteredStudents = $rows;
+            }
+        }
+
+        $qRows = $DB->get_records_select(
+            'gmk_class_queue',
+            "classid $insql",
+            $inparams,
+            '',
+            'classid, userid'
+        );
+        $qByClass = [];
+        foreach ($qRows as $r) {
+            $qByClass[(int)$r->classid][(int)$r->userid] = $r;
+        }
+        foreach ($classes as $c) {
+            $cid = (int)$c->id;
+            $instructorId = (int)($c->instructorid ?? 0);
+            $rows = $qByClass[$cid] ?? [];
+            if ($instructorId > 0) {
+                $filtered = [];
+                foreach ($rows as $uid => $row) {
+                    if ((int)$uid !== $instructorId) {
+                        $filtered[$uid] = $row;
+                    }
+                }
+                $out[$cid]->queuedStudents = $filtered;
+            } else {
+                $out[$cid]->queuedStudents = $rows;
+            }
+        }
+
+        // Apply same dedup rules as get_class_participants(): enrolled subsumes
+        // pre-reg and queue; pre-reg subsumes queue.
+        foreach ($out as $cid => $bucket) {
+            $enrolledIds = [];
+            foreach ((array)$bucket->enroledStudents as $e) {
+                if (!empty($e->userid)) {
+                    $enrolledIds[(int)$e->userid] = true;
+                }
+            }
+            if (!empty($enrolledIds)) {
+                $bucket->preRegisteredStudents = array_filter(
+                    (array)$bucket->preRegisteredStudents,
+                    fn($s) => !isset($enrolledIds[(int)$s->userid])
+                );
+                $bucket->queuedStudents = array_filter(
+                    (array)$bucket->queuedStudents,
+                    fn($s) => !isset($enrolledIds[(int)$s->userid])
+                );
+            }
+            $preIds = [];
+            foreach ((array)$bucket->preRegisteredStudents as $s) {
+                if (!empty($s->userid)) {
+                    $preIds[(int)$s->userid] = true;
+                }
+            }
+            if (!empty($preIds)) {
+                $bucket->queuedStudents = array_filter(
+                    (array)$bucket->queuedStudents,
+                    fn($s) => !isset($preIds[(int)$s->userid])
+                );
+            }
+        }
+        return $out;
+    }
 }
 
 function get_class_course_info($coreCourseId)
@@ -6049,9 +6393,18 @@ function get_class_events($userId = null, $initDate = null, $endDate = null)
 {
     global $DB;
 
-    // Set the date range to look for the events (should be required always from arguments)
+    // Set the date range to look for the events (should be required always from arguments).
+    // PERFORMANCE: frontend now sends only the visible window; clamp at 12 months
+    // max to bound cost of calendar_get_events().
     $initDate = $initDate ? $initDate : date('Y-01-01');
     $endDate = $endDate ? $endDate : date('Y-12-31', strtotime('+1 year'));
+
+    $initTs = strtotime($initDate);
+    $endTs = strtotime($endDate);
+    $maxRangeSeconds = 366 * 24 * 60 * 60; // 12 months.
+    if (($endTs - $initTs) > $maxRangeSeconds) {
+        $endTs = $initTs + $maxRangeSeconds;
+    }
 
     //Initialize events array
     $events = [];
@@ -6071,9 +6424,9 @@ function get_class_events($userId = null, $initDate = null, $endDate = null)
         $userCourseIds = array_unique(array_map(function ($group) {
             return $group->courseid;
         }, $userGroups));
-        
+
         //Get the events filtered by date range, groups and courses.
-        $events = calendar_get_events(strtotime($initDate), strtotime($endDate), false, $userGroupIds, $userCourseIds, true);
+        $events = calendar_get_events($initTs, $endTs, false, $userGroupIds, $userCourseIds, true);
 
         // Build a Set of groupIds the user actually belongs to, for post-fetch filtering.
         // calendar_get_events returns events for ALL groups in a course when courseIds are passed,
@@ -6087,18 +6440,12 @@ function get_class_events($userId = null, $initDate = null, $endDate = null)
         $studentActiveCourseIdSet = [];
         $studentActiveClassIdSet = [];
 
-        $studentperiodmap = [];
         $learningplanusers = $DB->get_records(
             'local_learning_users',
             ['userid' => (int)$userId],
             '',
             'id, learningplanid, currentperiodid'
         );
-        foreach ($learningplanusers as $lpu) {
-            if (!empty($lpu->learningplanid) && !empty($lpu->currentperiodid)) {
-                $studentperiodmap[(int)$lpu->learningplanid] = (int)$lpu->currentperiodid;
-            }
-        }
 
         $studentprogrerows = $DB->get_records_select(
             'gmk_course_progre',
@@ -6114,9 +6461,6 @@ function get_class_events($userId = null, $initDate = null, $endDate = null)
                 if ((int)$prow->status !== 2) {
                     continue;
                 }
-                // Si el registro tiene status=2 (en curso), se incluye sin importar el periodo.
-                // El check de currentperiodid fue removido porque puede estar desactualizado
-                // al inicio de un nuevo periodo acadÃ©mico, causando que se descarten cursos activos.
                 if (!empty($prow->courseid)) {
                     $studentActiveCourseIdSet[(int)$prow->courseid] = true;
                 }
@@ -6135,36 +6479,231 @@ function get_class_events($userId = null, $initDate = null, $endDate = null)
 
         if (!empty($courseIds) || !empty($groupIds)) {
             // Fetch events for these specific courses and groups.
-            $events = calendar_get_events(strtotime($initDate), strtotime($endDate), false, $groupIds ?: false, $courseIds ?: false, true);
+            $events = calendar_get_events($initTs, $endTs, false, $groupIds ?: false, $courseIds ?: false, true);
         }
     }
 
+    // =====================================================================
+    // PERFORMANCE: bulk pre-fetch of attendance_sessions and
+    // gmk_bbb_attendance_relation rows for the whole event set in O(1)
+    // SQL, instead of the previous 1-3 SQL queries per event. (Added 2026-08.)
+    // =====================================================================
+
+    // Collect the (attendanceid, instance) ids we need by event type.
+    $attendanceInstanceIds = [];
+    $bbbInstanceIds = [];
+    $bbbCmCache = []; // instance => cm (cached bulk fetch)
+    foreach ($events as $event) {
+        if (!empty($event->instance)) {
+            if ($event->modulename === 'attendance') {
+                $attendanceInstanceIds[(int)$event->instance] = (int)$event->instance;
+            } else if ($event->modulename === 'bigbluebuttonbn') {
+                $bbbInstanceIds[(int)$event->instance] = (int)$event->instance;
+            }
+        }
+    }
+
+    // Bulk attendance_sessions: one query for all (attendanceid, caleventid) pairs we care about.
+    $sessionCache = []; // attendanceid|caleventid => sessionid
+    if (!empty($attendanceInstanceIds) && !empty($events)) {
+        [$ainInsql, $ainInparams] = $DB->get_in_or_equal(
+            array_values($attendanceInstanceIds),
+            SQL_PARAMS_NAMED,
+            'asid'
+        );
+        // Caleventid from matching event.
+        $eventIds = [];
+        foreach ($events as $event) {
+            if ($event->modulename === 'attendance' && !empty($event->id)) {
+                $eventIds[(int)$event->id] = (int)$event->id;
+            }
+        }
+        if (!empty($eventIds)) {
+            [$evInsql, $evInparams] = $DB->get_in_or_equal(
+                array_values($eventIds),
+                SQL_PARAMS_NAMED,
+                'evid'
+            );
+            $sessionRows = $DB->get_records_sql(
+                "SELECT id, attendanceid, caleventid
+                   FROM {attendance_sessions}
+                  WHERE attendanceid $ainInsql
+                    AND caleventid $evInsql",
+                array_merge($ainInparams, $evInparams)
+            );
+            foreach ($sessionRows as $sr) {
+                $sessionCache[(int)$sr->attendanceid . '|' . (int)$sr->caleventid] = (int)$sr->id;
+            }
+        }
+    }
+
+    // Bulk gmk_bbb_attendance_relation: one query for all attendanceid/attendancesessionid pairs.
+    $relationCache = []; // key: attendanceid|sessionid => relation row
+    $classIdToRelations = []; // classid => [relations] for BBB lookup fallback
+    $relationByAttendance = []; // attendanceid => [relations]
+    if (!empty($attendanceInstanceIds)) {
+        [$ainInsql, $ainInparams] = $DB->get_in_or_equal(
+            array_values($attendanceInstanceIds),
+            SQL_PARAMS_NAMED,
+            'arid'
+        );
+        $relationRows = $DB->get_records_sql(
+            "SELECT id, classid, bbbmoduleid, attendancemoduleid, attendancesessionid,
+                    attendanceid, bbbid
+               FROM {gmk_bbb_attendance_relation}
+              WHERE attendanceid $ainInsql",
+            $ainInparams,
+            'id DESC'
+        );
+        foreach ($relationRows as $rr) {
+            $key1 = (int)$rr->attendanceid . '|' . (int)$rr->attendancesessionid;
+            if (!isset($relationCache[$key1])) {
+                $relationCache[$key1] = $rr; // latest wins (ORDER BY id DESC).
+            }
+            $relationByAttendance[(int)$rr->attendanceid][(int)$rr->id] = $rr;
+            if (!empty($rr->classid)) {
+                $classIdToRelations[(int)$rr->classid][] = $rr;
+            }
+        }
+    }
+
+    // Bulk gmk_bbb_attendance_relation: one query for all bbbid (BBB events).
+    $relationByBbbid = []; // bbbid => [relations]
+    if (!empty($bbbInstanceIds)) {
+        [$binInsql, $binInparams] = $DB->get_in_or_equal(
+            array_values($bbbInstanceIds),
+            SQL_PARAMS_NAMED,
+            'brid'
+        );
+        $bbbRelRows = $DB->get_records_sql(
+            "SELECT id, classid, bbbmoduleid, attendancemoduleid, attendancesessionid,
+                    attendanceid, bbbid
+               FROM {gmk_bbb_attendance_relation}
+              WHERE bbbid $binInsql",
+            $binInparams,
+            'id DESC'
+        );
+        foreach ($bbbRelRows as $rr) {
+            $relationByBbbid[(int)$rr->bbbid][(int)$rr->id] = $rr;
+        }
+    }
+
+    // Bulk course_modules for BBB instances (single query).
+    $bbbCmByInstance = []; // instance => cm
+    if (!empty($bbbInstanceIds) && !empty($events)) {
+        $cmCourseIds = [];
+        foreach ($events as $event) {
+            if ($event->modulename === 'bigbluebuttonbn' && !empty($event->courseid)) {
+                $cmCourseIds[(int)$event->courseid] = (int)$event->courseid;
+            }
+        }
+        if (!empty($cmCourseIds)) {
+            [$binInsql, $binInparams] = $DB->get_in_or_equal(
+                array_values($bbbInstanceIds),
+                SQL_PARAMS_NAMED,
+                'bmi'
+            );
+            [$cInsql, $cInparams] = $DB->get_in_or_equal(
+                array_values($cmCourseIds),
+                SQL_PARAMS_NAMED,
+                'cmc'
+            );
+            $cmRows = $DB->get_records_sql(
+                "SELECT cm.id AS cmid, cm.instance, cm.course, cm.section
+                   FROM {course_modules} cm
+                   JOIN {modules} m ON m.id = cm.module
+                  WHERE cm.instance $binInsql
+                    AND cm.course $cInsql
+                    AND m.name = 'bigbluebuttonbn'",
+                array_merge($binInparams, $cInparams)
+            );
+            foreach ($cmRows as $cr) {
+                $bbbCmByInstance[(int)$cr->instance] = (object)[
+                    'id' => (int)$cr->cmid,
+                    'instance' => (int)$cr->instance,
+                    'course' => (int)$cr->course,
+                    'section' => (int)$cr->section,
+                ];
+            }
+        }
+    }
+
+    // Bulk user roles for the user across all courses that show up in events.
+    // (Replaces 1 SQL per event.)
+    $userRolesByCourse = [];
+    if ($userId && !empty($events)) {
+        $courseIdsForRoles = [];
+        foreach ($events as $event) {
+            if (!empty($event->courseid)) {
+                $courseIdsForRoles[(int)$event->courseid] = (int)$event->courseid;
+            }
+        }
+        if (!empty($courseIdsForRoles)) {
+            [$cInsql, $cInparams] = $DB->get_in_or_equal(
+                array_values($courseIdsForRoles),
+                SQL_PARAMS_NAMED,
+                'ctx'
+            );
+            $params = array_merge($cInparams, ['userid' => (int)$userId]);
+            $roleRows = $DB->get_records_sql(
+                "SELECT c.id AS contextid, c.instanceid AS courseid, r.shortname
+                   FROM {role_assignments} ra
+                   JOIN {role} r ON r.id = ra.roleid
+                   JOIN {context} c ON c.id = ra.contextid
+                  WHERE ra.userid = :userid
+                    AND c.contextlevel = :ctxlvl
+                    AND c.instanceid $cInsql",
+                array_merge($params, ['ctxlvl' => CONTEXT_COURSE])
+            );
+            foreach ($roleRows as $rr) {
+                $cid = (int)$rr->courseid;
+                if (!isset($userRolesByCourse[$cid])) {
+                    $userRolesByCourse[$cid] = [];
+                }
+                $userRolesByCourse[$cid][(string)$rr->shortname] = true;
+            }
+        }
+    }
+
+    // Pre-declare caches used by the per-event handlers.
     $fetchedClasses = [];
+    $sessionsCacheById = []; // for bbb session lookups
+
     $eventsFiltered = [];
 
     foreach ($events as $event) {
         if ($event->modulename === 'attendance') {
-            $eventComplete = complete_class_event_information($event, $fetchedClasses);
+            $eventComplete = gmk_complete_class_event_information_fast(
+                $event,
+                $fetchedClasses,
+                $sessionCache,
+                $relationCache
+            );
         } elseif ($event->modulename === 'bigbluebuttonbn') {
-             $eventComplete = complete_class_event_information_bbb($event, $fetchedClasses);
+            $eventComplete = gmk_complete_class_event_information_bbb_fast(
+                $event,
+                $fetchedClasses,
+                $relationByBbbid,
+                $bbbCmByInstance,
+                $sessionsCacheById
+            );
         } elseif (in_array($event->eventtype, ['due', 'gradingdue', 'close', 'open'])) {
-             // Handle deadlines and other activity events
-             $eventComplete = complete_generic_module_event_information($event, $fetchedClasses);
+            $eventComplete = gmk_complete_generic_module_event_information_fast(
+                $event,
+                $fetchedClasses,
+                $bbbCmByInstance
+            );
         } else {
-             // Other modules ignored for now, or add generic handler if needed
-             continue;
+            continue;
         }
 
         if (!$eventComplete) {
             continue;
         }
 
-        // Student strict scope (if applicable):
-        // 1) course must be in progress
-        // 2) if we have class mapping, class must be in progress too
+        // Student strict scope (if applicable).
         if ($userId && !empty($studentHasProgreData)) {
             $eventcourseid = !empty($eventComplete->courseid) ? (int)$eventComplete->courseid : 0;
-            // If the user has progress rows but no active in-progress courses, show no events.
             if (empty($studentActiveCourseIdSet)) {
                 continue;
             }
@@ -6180,33 +6719,29 @@ function get_class_events($userId = null, $initDate = null, $endDate = null)
             }
         }
 
-        // Filter out events from groups the user is NOT enrolled in.
-        // calendar_get_events returns events for all groups in a course, not just the user's group.
+        // Group scope filter.
         if ($userId && isset($userGroupIdSet) && !empty($eventComplete->groupid)) {
             if (!isset($userGroupIdSet[(int)$eventComplete->groupid])) {
-                continue; // Event belongs to a group the student is not part of
+                continue;
             }
         }
 
-        //If the user is provided, let get the role that he plays in the event
+        // Role assignment (bulk).
         if ($userId) {
-            $courseContext = context_course::instance($eventComplete->courseid);
-            $userRolesInCourse = array_values(array_map(function ($role) {
-                return $role->shortname;
-            }, get_user_roles($courseContext, $userId, false)));
-
-            if (in_array('student', $userRolesInCourse)) {
+            $courseId = (int)$eventComplete->courseid;
+            $roles = $userRolesByCourse[$courseId] ?? [];
+            if (isset($roles['student'])) {
                 $eventComplete->role = 'student';
                 unset($eventComplete->attendanceActivityUrl);
                 unset($eventComplete->sessionId);
-            } else if (in_array('teacher', $userRolesInCourse) || in_array('editingteacher', $userRolesInCourse)) {
+            } else if (isset($roles['teacher']) || isset($roles['editingteacher'])) {
                 $eventComplete->role = 'teacher';
             }
         }
         $eventsFiltered[] = $eventComplete;
     }
-    // Filter out BBB events if an Attendance event exists for the same Class and nearby Start Time
-    // BBB sessions are typically created 10 mins (600s) before class start, while Attendance is at class start.
+
+    // Filter out BBB events if an Attendance event exists for the same Class and nearby Start Time.
     $attendanceEvents = [];
     foreach ($eventsFiltered as $event) {
         if ($event->modulename === 'attendance' && !empty($event->classId)) {
@@ -6220,9 +6755,7 @@ function get_class_events($userId = null, $initDate = null, $endDate = null)
             $isDuplicate = false;
             if (isset($attendanceEvents[$event->classId])) {
                 foreach ($attendanceEvents[$event->classId] as $attTime) {
-                    // Check if times are within 10 minutes (600s) of each other
-                    // Covers exact match and the -600s opening time
-                    if (abs($attTime - $event->timestart) <= 601) { 
+                    if (abs($attTime - $event->timestart) <= 601) {
                         $isDuplicate = true;
                         break;
                     }
@@ -6236,7 +6769,6 @@ function get_class_events($userId = null, $initDate = null, $endDate = null)
     }
 
     // Defensive dedupe: keep only one BBB event per class + start time + duration.
-    // This protects student calendar from historical duplicate BBB rows.
     $dedupedEvents = [];
     $seenBBB = [];
     foreach ($finalEvents as $event) {
@@ -6500,6 +7032,424 @@ function gmk_resolve_bbb_event_schedule(int $bbbinstanceid, int $defaultstart, i
     }
 
     return [$startts, $duration];
+}
+
+if (!function_exists('gmk_complete_class_event_information_fast')) {
+    /**
+     * PERFORMANCE: drop-in faster replacement for complete_class_event_information()
+     * that uses the bulk pre-fetched caches ($sessionCache, $relationCache) passed
+     * by get_class_events(). Falls back to a single targeted SQL only on miss.
+     *
+     * Returns enriched event object or false to filter out the event.
+     *
+     * @param stdClass $event
+     * @param array<int, stdClass> &$fetchedClasses
+     * @param array<string, int> $sessionCache   key = "attendanceid|caleventid" => sessionid
+     * @param array<string, stdClass> $relationCache key = "attendanceid|sessionid" => relation row
+     */
+    function gmk_complete_class_event_information_fast(
+        $event,
+        array &$fetchedClasses,
+        array $sessionCache,
+        array $relationCache
+    ) {
+        global $DB, $CFG;
+
+        if (!defined('PRESENCIAL_CLASS_TYPE_INDEX')) define('PRESENCIAL_CLASS_TYPE_INDEX', '0');
+        if (!defined('VIRTUAL_CLASS_TYPE_INDEX')) define('VIRTUAL_CLASS_TYPE_INDEX', '1');
+        if (!defined('MIXTA_CLASS_TYPE_INDEX')) define('MIXTA_CLASS_TYPE_INDEX', '2');
+        if (!defined('PRESENCIAL_CLASS_COLOR')) define('PRESENCIAL_CLASS_COLOR', '#00bcd4');
+        if (!defined('VIRTUAL_CLASS_COLOR')) define('VIRTUAL_CLASS_COLOR', '#2196f3');
+        if (!defined('MIXTA_CLASS_COLOR')) define('MIXTA_CLASS_COLOR', '#673ab7');
+
+        $eventColors = [
+            PRESENCIAL_CLASS_TYPE_INDEX => PRESENCIAL_CLASS_COLOR,
+            VIRTUAL_CLASS_TYPE_INDEX => VIRTUAL_CLASS_COLOR,
+            MIXTA_CLASS_TYPE_INDEX => MIXTA_CLASS_COLOR,
+        ];
+
+        $attendanceId = (int)$event->instance;
+        $eventId = (int)$event->id;
+        $sessionKey = $attendanceId . '|' . $eventId;
+
+        $attendanceSessionId = $sessionCache[$sessionKey] ?? null;
+        if ($attendanceSessionId === null) {
+            $attendanceSessionId = $DB->get_field(
+                'attendance_sessions',
+                'id',
+                ['attendanceid' => $attendanceId, 'caleventid' => $eventId]
+            );
+        }
+        if (!$attendanceSessionId) {
+            return false;
+        }
+
+        $relationKey = $attendanceId . '|' . (int)$attendanceSessionId;
+        $eventModuleClassRelation = $relationCache[$relationKey] ?? null;
+        if ($eventModuleClassRelation === null) {
+            $eventModuleClassRelation = $DB->get_record(
+                'gmk_bbb_attendance_relation',
+                ['attendanceid' => $attendanceId, 'attendancesessionid' => (int)$attendanceSessionId],
+                'classid,bbbmoduleid,attendancemoduleid,attendancesessionid'
+            );
+            if ($eventModuleClassRelation) {
+                $relationCache[$relationKey] = $eventModuleClassRelation;
+            }
+        }
+        if (!$eventModuleClassRelation) {
+            return false;
+        }
+
+        $eventClassId = (int)$eventModuleClassRelation->classid;
+        $eventAttendanceModuleId = (int)$eventModuleClassRelation->attendancemoduleid;
+
+        if (!isset($fetchedClasses[$eventClassId]) || !isset($fetchedClasses[$eventClassId]->selectedDaysES)) {
+            $fetchedClasses[$eventClassId] = list_classes(['id' => $eventClassId])[$eventClassId] ?? null;
+        }
+        $gmkClass = $fetchedClasses[$eventClassId] ?? null;
+        if (!$gmkClass) {
+            return false;
+        }
+
+        $event->instructorName = $gmkClass->instructorName;
+        $duration = (int)($event->timeduration ?? 0);
+        if ($duration <= 0) {
+            $duration = (int)($gmkClass->classduration ?? 0);
+        }
+        if ($duration < 0) {
+            $duration = 0;
+        }
+        $event->timeduration = $duration;
+        $event->timeRange = gmk_build_event_time_range((int)$event->timestart, (int)$event->timeduration);
+        $event->classDaysES = $gmkClass->selectedDaysES;
+        $event->classDaysEN = $gmkClass->selectedDaysEN;
+        $event->typelabel = $gmkClass->typelabel;
+        $event->classType = $gmkClass->type;
+        $event->className = $gmkClass->name;
+        $event->classId = (int)$gmkClass->id;
+        $event->instructorlpid = $gmkClass->instructorlpid;
+        $event->instructorid = $gmkClass->instructorid;
+        $event->groupid = $gmkClass->groupid;
+        $event->classroomid = !empty($gmkClass->classroomid) ? (int)$gmkClass->classroomid : 0;
+        $event->classroomName = !empty($gmkClass->classroomName) ? (string)$gmkClass->classroomName : 'Sin aula';
+        $event->room = $event->classroomName;
+        $event->coursename = $gmkClass->course->fullname;
+        $event->courseShortName = $gmkClass->course->shortname;
+        if ($event->timeRange === '') {
+            $event->timeRange = ($gmkClass->inithourformatted ?? '') . ' - ' . ($gmkClass->endhourformatted ?? '');
+        }
+        $event->color = $eventColors[$event->classType] ?? VIRTUAL_CLASS_COLOR;
+
+        $event->moduleId = $eventAttendanceModuleId;
+        $event->attendanceActivityUrl = $CFG->wwwroot . '/mod/attendance/view.php?id=' . $eventAttendanceModuleId;
+        $event->sessionId = (int)$attendanceSessionId;
+        $event->bigBlueButtonActivityUrl = $event->classType !== '0'
+            ? $CFG->wwwroot . '/mod/bigbluebuttonbn/view.php?id=' . (int)$eventModuleClassRelation->bbbmoduleid
+            : null;
+        $event->start = date('Y-m-d H:i:s', (int)$event->timestart);
+        $event->end = date('Y-m-d H:i:s', (int)$event->timestart + (int)$event->timeduration);
+
+        return $event;
+    }
+}
+
+if (!function_exists('gmk_complete_class_event_information_bbb_fast')) {
+    /**
+     * PERFORMANCE: drop-in faster replacement for complete_class_event_information_bbb()
+     * using bulk pre-fetched relation/cm maps and an in-memory session cache.
+     */
+    function gmk_complete_class_event_information_bbb_fast(
+        $event,
+        array &$fetchedClasses,
+        array $relationByBbbid,
+        array $bbbCmByInstance,
+        array &$sessionsCacheById
+    ) {
+        global $DB, $CFG;
+
+        if (!defined('PRESENCIAL_CLASS_TYPE_INDEX')) define('PRESENCIAL_CLASS_TYPE_INDEX', '0');
+        if (!defined('VIRTUAL_CLASS_TYPE_INDEX')) define('VIRTUAL_CLASS_TYPE_INDEX', '1');
+        if (!defined('MIXTA_CLASS_TYPE_INDEX')) define('MIXTA_CLASS_TYPE_INDEX', '2');
+        if (!defined('PRESENCIAL_CLASS_COLOR')) define('PRESENCIAL_CLASS_COLOR', '#00bcd4');
+        if (!defined('VIRTUAL_CLASS_COLOR')) define('VIRTUAL_CLASS_COLOR', '#2196f3');
+        if (!defined('MIXTA_CLASS_COLOR')) define('MIXTA_CLASS_COLOR', '#673ab7');
+
+        $eventColors = [
+            PRESENCIAL_CLASS_TYPE_INDEX => PRESENCIAL_CLASS_COLOR,
+            VIRTUAL_CLASS_TYPE_INDEX => VIRTUAL_CLASS_COLOR,
+            MIXTA_CLASS_TYPE_INDEX => MIXTA_CLASS_COLOR,
+        ];
+
+        $bbbId = (int)$event->instance;
+        $cm = $bbbCmByInstance[$bbbId] ?? null;
+        if (!$cm) {
+            $cm = get_coursemodule_from_instance('bigbluebuttonbn', $bbbId, (int)$event->courseid);
+            if ($cm) {
+                $bbbCmByInstance[$bbbId] = (object)[
+                    'id' => (int)$cm->id,
+                    'instance' => $bbbId,
+                    'course' => (int)$cm->course,
+                    'section' => (int)$cm->section,
+                ];
+            }
+        }
+        if (!$cm) {
+            return false;
+        }
+        $event->cmid = (int)$cm->id;
+
+        $relations = $relationByBbbid[$bbbId] ?? [];
+        $relation = null;
+        if (!empty($relations)) {
+            // Prefer match by (bbbid, bbbmoduleid).
+            foreach ($relations as $r) {
+                if ((int)$r->bbbmoduleid === (int)$cm->id) {
+                    $relation = $r;
+                    break;
+                }
+            }
+            if (!$relation) {
+                $relation = reset($relations); // most recent.
+            }
+        }
+        if (!$relation || empty($relation->classid)) {
+            return false;
+        }
+
+        $attendancesessionid = (int)($relation->attendancesessionid ?? 0);
+        if ($attendancesessionid > 0) {
+            if (!isset($sessionsCacheById[$attendancesessionid])) {
+                $sessionsCacheById[$attendancesessionid] = $DB->get_record(
+                    'attendance_sessions',
+                    ['id' => $attendancesessionid],
+                    'sessdate, duration',
+                    IGNORE_MISSING
+                );
+            }
+            $session_exists = !empty($sessionsCacheById[$attendancesessionid]);
+            if (!$session_exists) {
+                $DB->delete_records('gmk_bbb_attendance_relation', ['id' => (int)$relation->id]);
+                return false;
+            }
+        } else {
+            $session_exists = false;
+        }
+
+        $eventClassId = (int)$relation->classid;
+        if (!isset($fetchedClasses[$eventClassId]) || !isset($fetchedClasses[$eventClassId]->selectedDaysES)) {
+            $gmkClass = $DB->get_record('gmk_class', ['id' => $eventClassId, 'closed' => 0], '*', IGNORE_MISSING);
+            if ($gmkClass) {
+                $fetchedClasses[$eventClassId] = $gmkClass;
+            } else {
+                $fetchedClasses[$eventClassId] = null;
+            }
+        }
+        $gmkClass = $fetchedClasses[$eventClassId] ?? null;
+        if (!$gmkClass) {
+            return false;
+        }
+
+        if (!empty($gmkClass->corecourseid) && (int)$gmkClass->corecourseid !== (int)$event->courseid) {
+            return false;
+        }
+        if (!empty($event->groupid) && !empty($gmkClass->groupid) && (int)$event->groupid !== (int)$gmkClass->groupid) {
+            return false;
+        }
+
+        if (!isset($gmkClass->selectedDaysES)) {
+            $enrichedClasses = list_classes(['id' => $gmkClass->id]);
+            if (!empty($enrichedClasses) && isset($enrichedClasses[$gmkClass->id])) {
+                $gmkClass = $enrichedClasses[$gmkClass->id];
+                $fetchedClasses[$gmkClass->id] = $gmkClass;
+            }
+        }
+
+        $event->instructorName = $gmkClass->instructorName ?? '';
+        $event->instructorid = $gmkClass->instructorid ?? 0;
+        $defaultduration = (int)($event->timeduration ?? 0);
+        $fallbackclassduration = !empty($gmkClass->classduration) ? (int)$gmkClass->classduration : 0;
+
+        if ($session_exists && !empty($sessionsCacheById[$attendancesessionid]->sessdate)) {
+            $event->timestart = (int)$sessionsCacheById[$attendancesessionid]->sessdate;
+            $event->timeduration = !empty($sessionsCacheById[$attendancesessionid]->duration)
+                ? (int)$sessionsCacheById[$attendancesessionid]->duration
+                : ($fallbackclassduration ?: $defaultduration);
+        } else {
+            [$resolvedstart, $resolvedduration] = gmk_resolve_bbb_event_schedule(
+                (int)$event->instance,
+                (int)$event->timestart,
+                $defaultduration,
+                $fallbackclassduration
+            );
+            $event->timestart = $resolvedstart;
+            $event->timeduration = $resolvedduration;
+        }
+        $event->timeRange = gmk_build_event_time_range((int)$event->timestart, (int)$event->timeduration);
+        $event->classDaysES = $gmkClass->selectedDaysES ?? [];
+        $event->classDaysEN = $gmkClass->selectedDaysEN ?? [];
+        $event->typelabel = $gmkClass->typelabel ?? ($gmkClass->type == 1 ? 'VIRTUAL' : 'PRESENCIAL');
+        $event->classType = $gmkClass->type ?? 1;
+        $event->className = $gmkClass->name ?? '';
+        $event->coursename = $event->className;
+        if (!empty($gmkClass->course) && is_object($gmkClass->course) && !empty($gmkClass->course->fullname)) {
+            $event->coursename = (string)$gmkClass->course->fullname;
+        } else if (!empty($event->course) && is_object($event->course) && !empty($event->course->fullname)) {
+            $event->coursename = (string)$event->course->fullname;
+        }
+        $event->classId = (int)$gmkClass->id;
+        $event->groupid = (int)($gmkClass->groupid ?? 0);
+        $event->classroomid = !empty($gmkClass->classroomid) ? (int)$gmkClass->classroomid : 0;
+        $event->classroomName = !empty($gmkClass->classroomName) ? (string)$gmkClass->classroomName : 'Sin aula';
+        $event->room = $event->classroomName;
+        $event->color = isset($eventColors[$event->classType]) ? $eventColors[$event->classType] : VIRTUAL_CLASS_COLOR;
+        if ($event->timeRange === '') {
+            $event->timeRange = ($gmkClass->inithourformatted ?? '') . ' - ' . ($gmkClass->endhourformatted ?? '');
+        }
+        $event->bigBlueButtonActivityUrl = $CFG->wwwroot . '/mod/bigbluebuttonbn/view.php?id=' . (int)$event->cmid;
+        $event->moduleId  = (int)$event->cmid;
+        $event->sessionId = !empty($relation->attendancesessionid) ? (int)$relation->attendancesessionid : 0;
+        $event->start = date('Y-m-d H:i:s', (int)$event->timestart);
+        $event->end = date('Y-m-d H:i:s', (int)$event->timestart + (int)$event->timeduration);
+
+        return $event;
+    }
+}
+
+if (!function_exists('gmk_complete_generic_module_event_information_fast')) {
+    /**
+     * PERFORMANCE: drop-in faster replacement for complete_generic_module_event_information().
+     * The per-call course-module lookup is satisfied from $bbbCmByInstance when
+     * the event is bigbluebuttonbn; for other modules a single bulk lookup of
+     * gmk_class by course/section is performed on demand and memoised in
+     * $fetchedClasses under a course|section key.
+     */
+    function gmk_complete_generic_module_event_information_fast(
+        $event,
+        array &$fetchedClasses,
+        array $bbbCmByInstance
+    ) {
+        global $DB, $CFG;
+
+        $gmkClass = null;
+        $cm = null;
+
+        if (!empty($event->modulename) && !empty($event->instance) && !empty($event->courseid)) {
+            if ($event->modulename === 'bigbluebuttonbn' && isset($bbbCmByInstance[(int)$event->instance])) {
+                $cm = $bbbCmByInstance[(int)$event->instance];
+            } else {
+                $cm = get_coursemodule_from_instance(
+                    $event->modulename,
+                    (int)$event->instance,
+                    (int)$event->courseid
+                );
+            }
+            if ($cm && !empty($cm->section)) {
+                $cachekey = 'section_' . (int)$event->courseid . '_' . (int)$cm->section;
+                if (array_key_exists($cachekey, $fetchedClasses)) {
+                    $gmkClass = $fetchedClasses[$cachekey];
+                } else {
+                    $gmkClass = $DB->get_record_select(
+                        'gmk_class',
+                        'corecourseid = :courseid AND coursesectionid = :sectionid AND closed = 0',
+                        ['courseid' => (int)$event->courseid, 'sectionid' => (int)$cm->section],
+                        '*',
+                        IGNORE_MULTIPLE
+                    );
+                    $fetchedClasses[$cachekey] = $gmkClass;
+                }
+            }
+        }
+
+        if (!$gmkClass && !empty($event->groupid)) {
+            $key = 'group_' . $event->groupid;
+            if (array_key_exists($key, $fetchedClasses)) {
+                $gmkClass = $fetchedClasses[$key];
+            } else {
+                $gmkClass = $DB->get_record('gmk_class', ['groupid' => $event->groupid, 'closed' => 0], '*', IGNORE_MULTIPLE);
+                $fetchedClasses[$key] = $gmkClass;
+            }
+        }
+
+        if (!$gmkClass) {
+            $key = 'course_' . $event->courseid;
+            if (array_key_exists($key, $fetchedClasses)) {
+                $gmkClass = $fetchedClasses[$key];
+            } else {
+                $classes = $DB->get_records('gmk_class', ['corecourseid' => $event->courseid, 'closed' => 0]);
+                if (count($classes) == 1) {
+                    $gmkClass = reset($classes);
+                }
+                $fetchedClasses[$key] = $gmkClass;
+            }
+        }
+
+        if (!$gmkClass) {
+            $course = $DB->get_record('course', ['id' => $event->courseid], 'id, fullname');
+            $event->className = $course ? $course->fullname : 'Actividad';
+            $event->coursename = $event->className;
+            $event->classId = 0;
+            $event->classroomid = 0;
+            $event->classroomName = 'Sin aula';
+            $event->room = 'Sin aula';
+        } else {
+            if (!isset($gmkClass->selectedDaysES) && !empty($gmkClass->id)) {
+                $enrichedClasses = list_classes(['id' => $gmkClass->id]);
+                if (!empty($enrichedClasses)) {
+                    $gmkClass = $enrichedClasses[$gmkClass->id];
+                    $fetchedClasses['group_' . $gmkClass->groupid] = $gmkClass;
+                }
+            }
+
+            $event->instructorName = $gmkClass->instructorName ?? '';
+            $event->instructorid = $gmkClass->instructorid ?? 0;
+            $event->className = $gmkClass->name ?? '';
+            $event->coursename = $gmkClass->course->fullname ?? $event->className;
+            $event->courseShortName = $gmkClass->course->shortname ?? '';
+            $event->classId = (int)$gmkClass->id;
+            $event->groupid = (int)($gmkClass->groupid ?? 0);
+            $event->classroomid = !empty($gmkClass->classroomid) ? (int)$gmkClass->classroomid : 0;
+            $event->classroomName = !empty($gmkClass->classroomName) ? (string)$gmkClass->classroomName : 'Sin aula';
+            $event->room = $event->classroomName;
+        }
+
+        switch ($event->eventtype) {
+            case 'due':
+                $event->color = '#FF9800';
+                $event->name = "Vencimiento: " . $event->name;
+                break;
+            case 'gradingdue':
+                $event->color = '#E91E63';
+                $event->name = "Por calificar: " . $event->name;
+                $event->is_grading_task = true;
+                break;
+            case 'close':
+                $event->color = '#F44336';
+                $event->name = "Cierre: " . $event->name;
+                break;
+            default:
+                $event->color = '#9E9E9E';
+                break;
+        }
+
+        $event->classDaysES   = $event->classDaysES   ?? [];
+        $event->classDaysEN   = $event->classDaysEN   ?? [];
+        $event->timeRange     = $event->timeRange     ?? date('H:i', $event->timestart);
+        $event->typelabel     = $event->typelabel     ?? 'Actividad';
+        $event->instructorName = $event->instructorName ?? '';
+        $event->classroomid = $event->classroomid ?? 0;
+        $event->classroomName = $event->classroomName ?? 'Sin aula';
+        $event->room = $event->room ?? $event->classroomName;
+
+        if ($cm && !empty($cm->id)) {
+            $event->cmid = (int)$cm->id;
+        }
+
+        $event->timeduration = 0;
+        $event->start = date('Y-m-d H:i:s', $event->timestart);
+        $event->end = $event->start;
+
+        return $event;
+    }
 }
 
 function complete_class_event_information($event, &$fetchedClasses)
@@ -7201,9 +8151,14 @@ function student_get_active_classes($userId, $courseId = null)
     $activeClasses['finalEnrolmentDate'] = $finalEnrolmentDate;
 
     foreach ($userLearningPlans as $userLearningPlan) {
-        $courseFilter = ['learningplanid' => $userLearningPlan->learningplanid];
+        $courseFilter = [
+            'learningplanid' => $userLearningPlan->learningplanid,
+            'userid' => (int)$userId,
+        ];
         $courseId ? $courseFilter['courseid'] = $courseId : null;
 
+        // BUGFIX 2026-08: previously the query omitted userid and pulled progress
+        // rows from every student in the plan. We now scope to the current user.
         $learningPlanUserCourses = $DB->get_records('gmk_course_progre', $courseFilter);
         $learningPlanUserCoursesIndexed = [];
         foreach ($learningPlanUserCourses as $learningPlanUserCourse) {
