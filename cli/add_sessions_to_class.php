@@ -271,7 +271,7 @@ foreach ($toCreate as $c) {
     $rel->usermodified        = $USER->id ?? 0;
     $rel->timecreated         = time();
     $rel->timemodified        = time();
-    $DB->insert_record('gmk_bbb_attendance_relation', $rel);
+    $rel->id = $DB->insert_record('gmk_bbb_attendance_relation', $rel);
 
     $created[] = [
         'date'      => $c['date'],
@@ -279,10 +279,10 @@ foreach ($toCreate as $c) {
         'sessionid' => $sessId,
         'bbbcmid'   => $bbbInfo->coursemodule,
         'bbbid'     => $bbbInfo->instance,
-        'relid'     => $rel->id ?? $DB->insert_id(),
+        'relid'     => $rel->id,
     ];
 
-    echo sprintf("  CREADO  %s  sessid=%d  bbbcmid=%d\n", $c['date'], $sessId, $bbbInfo->coursemodule);
+    echo sprintf("  CREADO  %s  sessid=%d  bbbcmid=%d  relid=%d\n", $c['date'], $sessId, $bbbInfo->coursemodule, $rel->id);
 }
 
 /* ============================================================
