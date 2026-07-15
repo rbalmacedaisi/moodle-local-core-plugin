@@ -76,13 +76,36 @@ $BBBmoduleId = $DB->get_field('modules', 'id', ['name' => 'bigbluebuttonbn']);
 $schedules = $DB->get_records('gmk_class_schedules', ['classid' => $classid]);
 
 $isoToMoodle = [1=>'Lun',2=>'Mar',3=>'Mie',4=>'Jue',5=>'Vie',6=>'Sab',7=>'Dom'];
+$dayTextToIso = [
+    'lunes' => 1, 'martes' => 2, 'miercoles' => 3, 'jueves' => 4, 'viernes' => 5, 'sabado' => 6, 'domingo' => 7,
+    'miércoles' => 3, 'sábado' => 6,
+    'mon' => 1, 'tue' => 2, 'wed' => 3, 'thu' => 4, 'fri' => 5, 'sat' => 6, 'sun' => 7,
+    'monday' => 1, 'tuesday' => 2, 'wednesday' => 3, 'thursday' => 4, 'friday' => 5, 'saturday' => 6, 'sunday' => 7,
+];
 $weekdaysIso = [];
 $scheduleRows = [];
 
 if (!empty($schedules)) {
     foreach ($schedules as $s) {
-        $weekdaysIso[(int)$s->day] = true;
-        $scheduleRows[] = $s;
+        $dayKey = strtolower(trim((string)$s->day));
+        $iso = null;
+        if (is_numeric($s->day) && (int)$s->day >= 1 && (int)$s->day <= 7) {
+            $iso = (int)$s->day;
+        } elseif (isset($dayTextToIso[$dayKey])) {
+            $iso = $dayTextToIso[$dayKey];
+        } else {
+            $dayNoAccents = strtr($dayKey, ['á'=>'a','é'=>'e','í'=>'i','ó'=>'o','ú'=>'u']);
+            if (isset($dayTextToIso[$dayNoAccents])) {
+                $iso = $dayTextToIso[$dayNoAccents];
+            }
+        }
+        if ($iso !== null) {
+            $weekdaysIso[$iso] = true;
+            $s->day = $iso;
+            $scheduleRows[] = $s;
+        } else {
+            fwrite(STDERR, "WARN: schedule {$s->id} con day='{$s->day}' no reconocido\n");
+        }
     }
 } else {
     $bitToIso = [0=>1, 1=>2, 2=>3, 3=>4, 4=>5, 5=>6, 6=>7];
