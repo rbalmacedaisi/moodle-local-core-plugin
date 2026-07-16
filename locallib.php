@@ -2069,6 +2069,20 @@ function gmk_ensure_cmid_in_section_sequence($sectionid, $cmid)
         return true;
     }
 
+    // Remove the cmid from any OTHER section sequence where it currently sits.
+    $currentSection = (int)$DB->get_field('course_modules', 'section', ['id' => $cmid]);
+    if ($currentSection && $currentSection !== $sectionid) {
+        $otherSection = $DB->get_record('course_sections', ['id' => $currentSection], 'id,sequence');
+        if ($otherSection) {
+            $otherSeq = trim((string)$otherSection->sequence);
+            $otherCmids = $otherSeq === '' ? [] : array_values(array_filter(array_map('intval', explode(',', $otherSeq))));
+            $otherCmids = array_values(array_filter($otherCmids, fn($x) => $x !== $cmid));
+            $DB->set_field('course_sections', 'sequence', implode(',', $otherCmids), ['id' => $currentSection]);
+        }
+        // Move the cm to the correct section.
+        $DB->set_field('course_modules', 'section', $sectionid, ['id' => $cmid]);
+    }
+
     $cmids[] = $cmid;
     $newsequence = implode(',', $cmids);
     $DB->set_field('course_sections', 'sequence', $newsequence, ['id' => $sectionid]);
