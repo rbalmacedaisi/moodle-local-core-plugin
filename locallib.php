@@ -4030,7 +4030,11 @@ if (!function_exists('gmk_bulk_course_customfields')) {
         [$insql, $inparams] = $DB->get_in_or_equal($courseids, SQL_PARAMS_NAMED, 'cffid');
 
         // Single join: data + field (for shortname).
-        $sql = "SELECT d.instanceid AS courseid,
+        // NOTE: d.id must be the first column so get_records_sql() has a unique key.
+        // A course has many customfield_data rows (one per field); keying by
+        // instanceid/courseid collapses them and drops all but one field.
+        $sql = "SELECT d.id AS id,
+                       d.instanceid AS courseid,
                        f.shortname,
                        d.value,
                        d.valueformat
