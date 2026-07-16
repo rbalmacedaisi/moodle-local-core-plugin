@@ -11069,6 +11069,11 @@ function gmk_copy_class_activity(array $params): array {
             $bbbInfo = null;
             if ($classNeedsBBB) {
                 $bbbInfo = create_big_blue_button_activity($class, $startTS, $endTS, $BBBmoduleId, $classSectionNumber);
+                // Defensive: ensure the new cm sits in the correct course section
+                // (add_moduleinfo can create an orphan section if cache is stale).
+                if (!empty($class->coursesectionid) && function_exists('gmk_ensure_cmid_in_section_sequence')) {
+                    gmk_ensure_cmid_in_section_sequence((int)$class->coursesectionid, (int)$bbbInfo->coursemodule);
+                }
             }
 
             // (b) Create attendance_sessions row.
