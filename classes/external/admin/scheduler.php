@@ -1210,6 +1210,18 @@ class scheduler extends external_api {
                     } else {
                         $sLink->assigned_dates = $rootAssignedDates;
                     }
+
+                    // GUARD (day/date desync): a stale frontend payload can change the day without
+                    // recomputing assignedDates, persisting dates on the wrong weekday. That desync is
+                    // invisible here (classdays is derived from the day name, so it always agrees) but
+                    // produces phantom overlaps in the planning board because conflict detection matches
+                    // on the exact dates. Re-align every date to the session's day and log any correction
+                    // so the offending frontend flow can be traced.
+                    list($alignedDates, $datesFixed) = self::align_assigned_dates_to_day($sLink->assigned_dates, $sLink->day);
+                    if ($datesFixed) {
+                        gmk_log("save_generation_result: assigned_dates desalineadas con day='{$sLink->day}' (classid=$classid); corregidas: {$sLink->assigned_dates} -> {$alignedDates}");
+                        $sLink->assigned_dates = $alignedDates;
+                    }
                     $sLink->usermodified = $GLOBALS['USER']->id;
                     $sLink->timecreated = time();
                     $sLink->timemodified = time();
@@ -1374,6 +1386,61 @@ class scheduler extends external_api {
         return self::is_payload_valid_day($session['day'] ?? '')
             && self::is_payload_valid_time($session['start'] ?? '')
             && self::is_payload_valid_time($session['end'] ?? '');
+    }
+
+    /**
+     * Ensure every date in an assigned_dates JSON array falls on the weekday named by $dayName.
+     * A stale planning-board payload can carry dates computed for a different day than the one
+     * finally saved; those wrong-weekday dates cause phantom overlaps in the board (conflict
+     * detection matches on exact dates). Any mismatched date is shifted to the nearest date of
+     * the correct weekday within the same week (delta in [-3, 3]).
+     *
+     * @param string|null $assignedDatesJson JSON array of 'YYYY-MM-DD' strings (or null/empty)
+     * @param string $dayName Spanish day name (Lunes..Domingo); accents optional
+     * @return array{0: string|null, 1: bool} [correctedJson, wasChanged]
+     */
+    private static function align_assigned_dates_to_day($assignedDatesJson, $dayName): array {
+        if (empty($assignedDatesJson)) {
+            return [$assignedDatesJson, false];
+        }
+        $map = [
+            'domingo' => 0, 'lunes' => 1, 'martes' => 2, 'miercoles' => 3,
+            'jueves' => 4, 'viernes' => 5, 'sabado' => 6,
+        ];
+        $key = trim(strtolower(strtr((string)$dayName, [
+            'á' => 'a', 'é' => 'e', 'í' => 'i', 'ó' => 'o', 'ú' => 'u',
+            'Á' => 'a', 'É' => 'e', 'Í' => 'i', 'Ó' => 'o', 'Ú' => 'u',
+        ])));
+        if (!isset($map[$key])) {
+            // Unknown/legacy day token (e.g. numeric) — cannot align safely, leave as-is.
+            return [$assignedDatesJson, false];
+        }
+        $target = $map[$key];
+        $dates = json_decode($assignedDatesJson, true);
+        if (!is_array($dates)) {
+            return [$assignedDatesJson, false];
+        }
+        $changed = false;
+        $out = [];
+        foreach ($dates as $d) {
+            $ts = strtotime((string)$d);
+            if ($ts === false) {
+                $out[] = $d;
+                continue;
+            }
+            $actual = (int)date('w', $ts);
+            if ($actual === $target) {
+                $out[] = date('Y-m-d', $ts);
+                continue;
+            }
+            $delta = $target - $actual;
+            if ($delta > 3) { $delta -= 7; }
+            if ($delta < -3) { $delta += 7; }
+            $mod = ($delta >= 0 ? "+{$delta}" : "{$delta}") . ' day';
+            $out[] = date('Y-m-d', strtotime($mod, $ts));
+            $changed = true;
+        }
+        return [json_encode(array_values($out)), $changed];
     }
 
     private static function is_payload_programmed(array $cls): bool {
