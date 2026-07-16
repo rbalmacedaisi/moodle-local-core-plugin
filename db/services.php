@@ -1308,4 +1308,13 @@ $functions = array(
         'ajax'        => true,
         'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
     ],
+    'local_grupomakro_list_classes_paged' => [
+        'classname'   => 'local_grupomakro_core\external\gmkclass\list_classes_paged',
+        'methodname'  => 'execute',
+        'description' => 'Server-side paginated listing of classes for the classmanagement page: search across name/shift/instructor/learning plan/course, filters by period/learning plan/core course, status (active/closed/all), sort + dir. Reuses list_classes() bulk-prefetch.',
+        'type'        => 'read',
+        'capabilities'=> 'local/grupomakro_core:manage_classes',
+        'ajax'        => true,
+        'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
+    ],
 );

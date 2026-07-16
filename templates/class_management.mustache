@@ -12,81 +12,147 @@
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+    along with Moodle.  If not, see <https://moodle.org/>.
 }}
 {{!
-    @template local_grupomakro_core/create_contract
+    @template local_grupomakro_core/class_management
 
-    Template purpose and description.
+    Server-side paginated shell for the classmanagement page. The PHP
+    page renders the FIRST page of classes (so the first paint has
+    content) and the AMD module local_grupomakro_core/class_management_filters
+    takes over to handle search/filters/pagination without a full reload.
 
     Classes required for JS:
     * none
 
     Data attributes required for JS:
-    * none
+    * data-page, data-perpage, data-total, data-totalpages  (rendered by PHP)
 
     Context variables required for this template:
-    * attributes Array of name / value pairs.
-
-    Example context (json):
-    {
-        "attributes": [
-            { "name": "src", "value": "https://example.com/imgs/logo.png" },
-            { "name": "class", "value": "iconsmall" }
-        ]
-    }
+    * createurl, url, createclass_url, sesskey
+    * search, periodid, learningplanid, corecourseid, status, sort, dir, page, perpage
+    * facets (periods + courses)
+    * allClasses (first page rendered server-side)
+    * total, totalpages (server-side counts for the first page)
+    * shiftfeedback, shifterror, periodfeedback, periormerror
+    * academicPeriods (for the modal)
 }}
-
-<div class="container-fluid">   
+<div class="container-fluid">
     <div class="d-flex">
-        {{! Class administration menu }}
+        {{! Sidebar }}
         <div class="side-bar-class mr-2 d-none d-sm-block">
-            {{! Class menu card }}
             <div class="card p-3">
-                {{! Button to create classes }}
                 <div class="pb-3">
                     <a type="button" class="btn btn-primary btn-block shadow-sm" href="{{createclass_url}}">{{#str}}create_class, local_grupomakro_core{{/str}}</a>
                 </div>
-                
-                {{! Button to delete multiple classes }}
                 <div class="pb-4">
                     <button type="button" class="btn btn-danger btn-block shadow-sm d-none" id="bulkDeleteButton" data-toggle="modal" data-target="#deleteClassModalCenter">
                         <i class="fa fa-trash mr-1"></i> {{#str}}deleteselected, local_grupomakro_core{{/str}}
                     </button>
                 </div>
-                
-                {{! Class filter }}
                 <ul class="nav flex-column class-tabs">
-                    {{! Tab all classes }}
-                    <li class="nav-item ">
+                    <li class="nav-item">
                         <a class="nav-link active d-flex align-items-center font-weight-bold" href="" data-toggle="tab" data-target="#all">
                             <i class="fa fa-mortar-board mr-3" style="font-size: 24px;"></i>
                             {{#str}}allclasses, local_grupomakro_core{{/str}}
                         </a>
                     </li>
-                    {{! End Tab all classes }}
                 </ul>
-                {{! End Class filter }}
             </div>
-            {{! End Class menu card }}
         </div>
-        {{! End Class administration menu }}
 
-        {{! Tab content classes }}
-        <div class="tab-content">
-            {{! Tab content all classes }}
+        {{! Main content }}
+        <div class="tab-content flex-grow-1">
             <div class="tab-pane active" id="all" role="tabpanel" aria-labelledby="all-tab">
-                {{! View Controls }}
-                <div class="d-flex justify-content-end mb-3">
-                    <div class="btn-group shadow-sm bg-white" role="group" aria-label="View toggle">
-                        <button type="button" class="btn btn-outline-secondary active" id="btn-grid-view" title="{{#str}}gridview, local_grupomakro_core{{/str}}">
-                            <i class="fa fa-th"></i>
-                        </button>
-                        <button type="button" class="btn btn-outline-secondary" id="btn-list-view" title="{{#str}}listview, local_grupomakro_core{{/str}}">
-                            <i class="fa fa-list"></i>
-                        </button>
+
+                {{! Filter bar (version 20260807001) }}
+                <div class="card shadow-sm mb-3">
+                    <div class="card-body py-2">
+                        <div class="form-row align-items-end">
+                            <div class="form-group col-md-4 mb-2">
+                                <label class="sr-only" for="classmgmt-search">{{#str}}classmgmt:search_placeholder, local_grupomakro_core{{/str}}</label>
+                                <div class="input-group input-group-sm">
+                                    <div class="input-group-prepend">
+                                        <span class="input-group-text bg-white"><i class="fa fa-search text-muted"></i></span>
+                                    </div>
+                                    <input type="text"
+                                           id="classmgmt-search"
+                                           class="form-control"
+                                           placeholder="{{#str}}classmgmt:search_placeholder, local_grupomakro_core{{/str}}"
+                                           value="{{search}}"
+                                           autocomplete="off">
+                                </div>
+                            </div>
+                            <div class="form-group col-md-2 mb-2">
+                                <label for="classmgmt-period" class="small text-muted mb-1">{{#str}}classmgmt:filter_period, local_grupomakro_core{{/str}}</label>
+                                <select id="classmgmt-period" class="form-control form-control-sm">
+                                    <option value="0">{{#str}}classmgmt:filter_period_all, local_grupomakro_core{{/str}}</option>
+                                    {{#facetPeriods}}
+                                    <option value="{{id}}">{{name}} ({{count}})</option>
+                                    {{/facetPeriods}}
+                                </select>
+                            </div>
+                            <div class="form-group col-md-3 mb-2">
+                                <label for="classmgmt-course" class="small text-muted mb-1">{{#str}}classmgmt:filter_course, local_grupomakro_core{{/str}}</label>
+                                <select id="classmgmt-course" class="form-control form-control-sm">
+                                    <option value="0">{{#str}}classmgmt:filter_course_all, local_grupomakro_core{{/str}}</option>
+                                    {{#facetCourses}}
+                                    <option value="{{id}}">{{name}} ({{count}})</option>
+                                    {{/facetCourses}}
+                                </select>
+                            </div>
+                            <div class="form-group col-md-3 mb-2">
+                                <label class="small text-muted mb-1 d-block">{{#str}}classmgmt:filter_status, local_grupomakro_core{{/str}}</label>
+                                <div class="btn-group btn-group-sm" role="group" aria-label="Status">
+                                    <input type="radio" class="btn-check" name="classmgmt-status" id="classmgmt-status-active" value="active" autocomplete="off" {{statusactivechecked}}>
+                                    <label class="btn btn-outline-primary" for="classmgmt-status-active">{{#str}}classmgmt:status_active, local_grupomakro_core{{/str}}</label>
+                                    <input type="radio" class="btn-check" name="classmgmt-status" id="classmgmt-status-closed" value="closed" autocomplete="off" {{statusclosedchecked}}>
+                                    <label class="btn btn-outline-primary" for="classmgmt-status-closed">{{#str}}classmgmt:status_closed, local_grupomakro_core{{/str}}</label>
+                                    <input type="radio" class="btn-check" name="classmgmt-status" id="classmgmt-status-all" value="all" autocomplete="off" {{statusallchecked}}>
+                                    <label class="btn btn-outline-primary" for="classmgmt-status-all">{{#str}}classmgmt:status_all, local_grupomakro_core{{/str}}</label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-row align-items-end">
+                            <div class="form-group col-md-2 mb-2">
+                                <label for="classmgmt-sort" class="small text-muted mb-1">{{#str}}classmgmt:sort_by, local_grupomakro_core{{/str}}</label>
+                                <select id="classmgmt-sort" class="form-control form-control-sm">
+                                    <option value="timecreated">{{#str}}classmgmt:sort_timecreated, local_grupomakro_core{{/str}}</option>
+                                    <option value="timemodified">{{#str}}classmgmt:sort_timemodified, local_grupomakro_core{{/str}}</option>
+                                    <option value="name">{{#str}}classmgmt:sort_name, local_grupomakro_core{{/str}}</option>
+                                    <option value="startdate">{{#str}}classmgmt:sort_startdate, local_grupomakro_core{{/str}}</option>
+                                    <option value="enddate">{{#str}}classmgmt:sort_enddate, local_grupomakro_core{{/str}}</option>
+                                    <option value="periodid">{{#str}}classmgmt:sort_periodid, local_grupomakro_core{{/str}}</option>
+                                    <option value="instructor">{{#str}}classmgmt:sort_instructor, local_grupomakro_core{{/str}}</option>
+                                </select>
+                            </div>
+                            <div class="form-group col-md-2 mb-2">
+                                <label for="classmgmt-dir" class="small text-muted mb-1">&nbsp;</label>
+                                <select id="classmgmt-dir" class="form-control form-control-sm">
+                                    <option value="DESC">{{#str}}classmgmt:sort_desc, local_grupomakro_core{{/str}}</option>
+                                    <option value="ASC">{{#str}}classmgmt:sort_asc, local_grupomakro_core{{/str}}</option>
+                                </select>
+                            </div>
+                            <div class="form-group col-md-2 mb-2">
+                                <label for="classmgmt-perpage" class="small text-muted mb-1">{{#str}}classmgmt:per_page, local_grupomakro_core{{/str}}</label>
+                                <select id="classmgmt-perpage" class="form-control form-control-sm">
+                                    <option value="10">10 {{#str}}classmgmt:per_page, local_grupomakro_core{{/str}}</option>
+                                    <option value="25">25 {{#str}}classmgmt:per_page, local_grupomakro_core{{/str}}</option>
+                                    <option value="50">50 {{#str}}classmgmt:per_page, local_grupomakro_core{{/str}}</option>
+                                    <option value="100">100 {{#str}}classmgmt:per_page, local_grupomakro_core{{/str}}</option>
+                                    <option value="200">200 {{#str}}classmgmt:per_page, local_grupomakro_core{{/str}}</option>
+                                </select>
+                            </div>
+                            <div class="form-group col-md-2 mb-2">
+                                <button type="button" id="classmgmt-clear" class="btn btn-sm btn-outline-secondary btn-block">
+                                    <i class="fa fa-eraser mr-1"></i>{{#str}}classmgmt:clear_filters, local_grupomakro_core{{/str}}
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
+
+                {{! Flash messages }}
                 {{#shiftfeedback}}
                 <div class="alert alert-success shadow-sm" role="alert">{{shiftfeedback}}</div>
                 {{/shiftfeedback}}
@@ -100,203 +166,188 @@
                 <div class="alert alert-danger shadow-sm" role="alert">{{periormerror}}</div>
                 {{/periormerror}}
 
-                {{! List View }}
-                <div id="class-list-view" class="d-none">
+                {{! Toolbar: results count + view toggle + paginator }}
+                <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+                    <div id="classmgmt-loading" class="text-primary small" style="display:none;" aria-live="polite">
+                        <i class="fa fa-spinner fa-spin mr-1"></i>{{#str}}classmgmt:loading, local_grupomakro_core{{/str}}
+                    </div>
+                    <div id="classmgmt-error" class="alert alert-danger py-2 mb-0 small w-100" style="display:none;" role="alert"></div>
+                    <div class="d-flex align-items-center">
+                        <div id="classmgmt-results-count" class="text-muted small mr-3" data-total="{{total}}" data-page="{{page}}" data-perpage="{{perpage}}">
+                            {{#hasResults}}
+                            {{resultsCountLabel}}
+                            {{/hasResults}}
+                        </div>
+                        <div id="classmgmt-paginator" class="mr-3" data-totalpages="{{totalpages}}" data-page="{{page}}"></div>
+                        <div class="btn-group shadow-sm bg-white" role="group" aria-label="View toggle">
+                            <button type="button" class="btn btn-outline-secondary active" id="btn-grid-view" title="{{#str}}gridview, local_grupomakro_core{{/str}}">
+                                <i class="fa fa-th"></i>
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary" id="btn-list-view" title="{{#str}}listview, local_grupomakro_core{{/str}}">
+                                <i class="fa fa-list"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                {{! Empty state (shown when no rows match) }}
+                <div id="classmgmt-empty" class="card shadow-sm py-5 text-center text-muted" style="display:{{#hasResults}}none{{/hasResults}}{{^hasResults}}block{{/hasResults}};">
+                    <i class="fa fa-search mb-2" style="font-size:32px; opacity:0.4"></i>
+                    <div>{{#str}}classmgmt:no_results_for_filters, local_grupomakro_core{{/str}}</div>
+                </div>
+
+                {{! List view }}
+                <div id="class-list-view" class="d-none" {{^hasResults}}style="display:none;"{{/hasResults}}>
                     <div class="table-responsive bg-white shadow-sm rounded">
-                    <table class="table table-hover mb-0">
-                        <thead class="thead-light">
-                            <tr>
-                                <th scope="col" style="width: 40px;" class="text-center align-middle">
-                                    <input type="checkbox" id="selectAllClasses" aria-label="Select All">
-                                </th>
-                                <th scope="col" class="align-middle">{{#str}}class_name, local_grupomakro_core{{/str}}</th>
-                                <th scope="col" class="align-middle">{{#str}}instructor, local_grupomakro_core{{/str}}</th>
-                                <th scope="col" class="align-middle">{{#str}}class_type, local_grupomakro_core{{/str}}</th>
-                                <th scope="col" class="align-middle">{{#str}}startdate, local_grupomakro_core{{/str}}</th>
-                                <th scope="col" class="align-middle">{{#str}}class_schedule, local_grupomakro_core{{/str}}</th>
-                                <th scope="col" class="align-middle">Jornada</th>
-                                <th scope="col" class="align-middle text-center">{{#str}}actions, local_grupomakro_core{{/str}}</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {{#allClasses}}
-                            <tr>
-                                <td class="text-center align-middle">
-                                    <input type="checkbox" class="class-checkbox" value="{{id}}">
-                                </td>
-                                <td class="align-middle font-weight-bold">
+                        <table class="table table-hover mb-0">
+                            <thead class="thead-light">
+                                <tr>
+                                    <th scope="col" style="width: 40px;" class="text-center align-middle">
+                                        <input type="checkbox" id="selectAllClasses" aria-label="Select All">
+                                    </th>
+                                    <th scope="col" class="align-middle">{{#str}}class_name, local_grupomakro_core{{/str}}</th>
+                                    <th scope="col" class="align-middle">{{#str}}instructor, local_grupomakro_core{{/str}}</th>
+                                    <th scope="col" class="align-middle">{{#str}}class_type, local_grupomakro_core{{/str}}</th>
+                                    <th scope="col" class="align-middle">{{#str}}startdate, local_grupomakro_core{{/str}}</th>
+                                    <th scope="col" class="align-middle">{{#str}}class_schedule, local_grupomakro_core{{/str}}</th>
+                                    <th scope="col" class="align-middle">Jornada</th>
+                                    <th scope="col" class="align-middle text-center">{{#str}}actions, local_grupomakro_core{{/str}}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {{#allClasses}}
+                                <tr>
+                                    <td class="text-center align-middle">
+                                        <input type="checkbox" class="class-checkbox" value="{{id}}">
+                                    </td>
+                                    <td class="align-middle font-weight-bold">
+                                        {{#groupurl}}
+                                        <a href="{{groupurl}}" target="_blank" rel="noopener" class="text-decoration-none">
+                                            {{name}} <i class="fa fa-external-link text-muted ml-1" style="font-size:11px"></i>
+                                        </a>
+                                        {{/groupurl}}
+                                        {{^groupurl}}
+                                        {{name}}
+                                        {{/groupurl}}
+                                        {{#closedbadge}}<span class="badge badge-secondary ml-2">{{closedbadge}}</span>{{/closedbadge}}
+                                    </td>
+                                    <td class="align-middle">
+                                        <div class="d-flex align-items-center">
+                                            <img src="{{instructorProfileImage}}" class="rounded-circle mr-2" style="width:32px; height:32px; object-fit:cover;">
+                                            <div class="d-flex flex-column">
+                                                <span class="mb-0">{{instructorName}}</span>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="align-middle"><i class="{{icon}} mr-1"></i> {{typelabel}}</td>
+                                    <td class="align-middle"><i class="fa fa-calendar-o mr-1 text-muted"></i> {{startDate}}</td>
+                                    <td class="align-middle">
+                                        <div><i class="fa fa-clock-o mr-1 text-muted"></i> {{inithourformatted}}</div>
+                                        <small class="text-muted">{{classDaysString}}</small>
+                                    </td>
+                                    <td class="align-middle">
+                                        <form method="post" class="d-flex align-items-center">
+                                            <input type="hidden" name="sesskey" value="{{sesskey}}">
+                                            <input type="hidden" name="action" value="update_shift">
+                                            <input type="hidden" name="classid" value="{{id}}">
+                                            <input type="text" name="shift" value="{{shiftvalue}}" class="form-control form-control-sm mr-2" style="min-width: 110px;" placeholder="Sin jornada">
+                                            <button type="submit" class="btn btn-sm btn-outline-primary">Guardar</button>
+                                        </form>
+                                    </td>
+                                    <td class="align-middle text-center">
+                                        <a data-toggle='tooltip' title="Modificar" href="/local/grupomakro_core/pages/editclass.php?class_id={{id}}" class="btn btn-sm btn-light border">
+                                            <i class="fa fa-gear text-secondary"></i>
+                                        </a>
+                                        <a data-toggle='tooltip' title="Actualizar periodo" href="#" class="updatePeriodButton btn btn-sm btn-light border text-info ml-1" data-class-id="{{id}}" data-class-name="{{name}}" data-student-count="{{enroledStudents}}">
+                                            <i class="fa fa-calendar"></i>
+                                        </a>
+                                        <a title="Eliminar" data-toggle='modal' class="deleteButton btn btn-sm btn-light border text-danger ml-1" class-id="{{id}}" data-target='#deleteClassModalCenter'>
+                                            <i class="fa fa-trash"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {{/allClasses}}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                {{! Grid view }}
+                <div id="class-grid-view" {{^hasResults}}style="display:none;"{{/hasResults}}>
+                    <div class="d-flex flex-wrap">
+                        {{#allClasses}}
+                        <div class="card position-relative border-0 mx-2 mb-3 shadow-sm" style="width: 320px;">
+                            <div class="v-alert__border v-alert__border--top"></div>
+                            <div class="card-body position-relative pb-2">
+                                <h6 class="card-title">
                                     {{#groupurl}}
-                                    <a href="{{groupurl}}" target="_blank" rel="noopener" title="Ir a la sección del curso con las actividades del grupo" class="text-decoration-none">
-                                        {{name}} <i class="fa fa-external-link text-muted ml-1" style="font-size:11px"></i>
+                                    <a href="{{groupurl}}" target="_blank" rel="noopener" class="text-decoration-none text-dark">
+                                        {{name}} <i class="fa fa-external-link text-muted ml-1" style="font-size:12px"></i>
                                     </a>
                                     {{/groupurl}}
                                     {{^groupurl}}
                                     {{name}}
                                     {{/groupurl}}
-                                </td>
-                                <td class="align-middle">
-                                    <div class="d-flex align-items-center">
-                                        <img src="{{instructorProfileImage}}" class="rounded-circle mr-2" style="width:32px; height:32px; object-fit:cover;">
-                                        <div class="d-flex flex-column">
-                                            <span class="mb-0">{{instructorName}}</span>
-                                        </div>
+                                    {{#closedbadge}}<span class="badge badge-secondary ml-2">{{closedbadge}}</span>{{/closedbadge}}
+                                </h6>
+
+                                <div class="d-flex mb-2">
+                                    <i class="mr-3">
+                                        <img src="{{instructorProfileImage}}" class="rounded-circle" style="width:40px"/>
+                                    </i>
+                                    <div class="d-flex flex-column">
+                                        <span>{{instructorName}}</span>
+                                        <span class="text-primary">Instructor</span>
                                     </div>
-                                </td>
-                                <td class="align-middle">
-                                    <i class="{{icon}} mr-1"></i> {{typelabel}}
-                                </td>
-                                <td class="align-middle">
-                                    <i class="fa fa-calendar-o mr-1 text-muted"></i> {{startDate}}
-                                </td>
-                                <td class="align-middle">
-                                    <div><i class="fa fa-clock-o mr-1 text-muted"></i> {{inithourformatted}}</div>
-                                    <small class="text-muted">{{classDaysString}}</small>
-                                </td>
-                                <td class="align-middle">
-                                    <form method="post" class="d-flex align-items-center">
-                                        <input type="hidden" name="sesskey" value="{{sesskey}}">
-                                        <input type="hidden" name="action" value="update_shift">
-                                        <input type="hidden" name="classid" value="{{id}}">
-                                        <input type="text"
-                                            name="shift"
-                                            value="{{shiftvalue}}"
-                                            class="form-control form-control-sm mr-2"
-                                            style="min-width: 110px;"
-                                            placeholder="Sin jornada">
-                                        <button type="submit" class="btn btn-sm btn-outline-primary">Guardar</button>
-                                    </form>
-                                </td>
-                                <td class="align-middle text-center">
-                                    <a data-toggle='tooltip' title="{{#str}} modify, local_grupomakro_core{{/str}}" href="/local/grupomakro_core/pages/editclass.php?class_id={{id}}" class="btn btn-sm btn-light border">
-                                        <i class="fa fa-gear text-secondary"></i>
-                                    </a>
-                                    <a data-toggle='tooltip' title="{{#str}}update_class_period, local_grupomakro_core{{/str}}" href="#" class="updatePeriodButton btn btn-sm btn-light border text-info ml-1" data-class-id="{{id}}" data-class-name="{{name}}" data-student-count="{{enroledStudents}}">
-                                        <i class="fa fa-calendar"></i>
-                                    </a>
-                                    <a title="{{#str}} remove, local_grupomakro_core{{/str}}" data-toggle='modal' class="deleteButton btn btn-sm btn-light border text-danger ml-1" class-id="{{id}}" data-target='#deleteClassModalCenter'>
-                                        <i class="fa fa-trash"></i>
-                                    </a>
-                                </td>
-                            </tr>
-                            {{/allClasses}}
-                            {{^allClasses}}
-                            <tr>
-                                <td colspan="8" class="text-center py-4 text-muted">
-                                    {{#str}}noclasses, local_grupomakro_core{{/str}}
-                                </td>
-                            </tr>
-                            {{/allClasses}}
-                        </tbody>
-                    </table>
-                    </div>
-                </div>
+                                </div>
 
-                {{! Grid View }}
-                <div id="class-grid-view">
-                    <div class="d-flex flex-wrap">
-                    {{#allClasses}}
-                    {{! Class card }}
-                    <div class="card position-relative border-0 mx-2 mb-3 shadow-sm" style="width: 320px;">
-                        <div class="v-alert__border v-alert__border--top"></div>
-                        <div class="card-body position-relative pb-2">
-                            {{! Class name }}
-                            <h6 class="card-title">
-                                {{#groupurl}}
-                                <a href="{{groupurl}}" target="_blank" rel="noopener" title="Ir a la sección del curso con las actividades del grupo" class="text-decoration-none text-dark">
-                                    {{name}} <i class="fa fa-external-link text-muted ml-1" style="font-size:12px"></i>
-                                </a>
-                                {{/groupurl}}
-                                {{^groupurl}}
-                                {{name}}
-                                {{/groupurl}}
-                            </h6>
-                            
-                            {{! Class instructors }}
-                            <div class="d-flex mb-2">
-                                <i class="mr-3">
-                                    <img src="{{instructorProfileImage}}" class="rounded-circle" style="width:40px"/>
-                                </i>
-                                <div class="d-flex flex-column">
-                                    <span>{{instructorName}}</span>
-                                    <span class="text-primary">Instructor</span>
+                                <div class="d-flex pl-2 flex-column">
+                                    <div class="mb-1">
+                                        <i class="{{icon}} mr-1"></i>
+                                        {{typelabel}}
+                                    </div>
+                                    <div class="mb-1">
+                                        <i class="fa fa-calendar-o mr-2"></i>
+                                        <span class="text-muted startdate">{{startDate}}</span>
+                                    </div>
+                                    <div class="mb-1">
+                                        <i class="fa fa-clock-o mr-2"></i>
+                                        <span class="text-muted startdate">{{inithourformatted}}</span>
+                                        <small class="text-muted">{{classDaysString}}</small>
+                                    </div>
+                                    <div class="mb-1 mt-2">
+                                        <small class="font-weight-bold d-block">Jornada actual: {{shiftdisplay}}</small>
+                                        <form method="post" class="d-flex align-items-center mt-1">
+                                            <input type="hidden" name="sesskey" value="{{sesskey}}">
+                                            <input type="hidden" name="action" value="update_shift">
+                                            <input type="hidden" name="classid" value="{{id}}">
+                                            <input type="text" name="shift" value="{{shiftvalue}}" class="form-control form-control-sm mr-2" placeholder="Sin jornada">
+                                            <button type="submit" class="btn btn-sm btn-outline-primary">Guardar</button>
+                                        </form>
+                                    </div>
                                 </div>
                             </div>
-                            {{! End Class instructors }}
-                            
-                            {{! Class details }}
-                            <div class="d-flex pl-2 flex-column">
-                                {{! Class type }}
-                                <div class="mb-1">
-                                    <i class="{{icon}} mr-1"></i>
-                                    {{typelabel}}
-                                </div>
-                                {{! End Class type }}
-                                
-                                {{! Class start date }}
-                                <div class="mb-1">
-                                    <i class="fa fa-calendar-o mr-2"></i>
-                                    <span class="text-muted startdate">{{startDate}}</span>
-                                </div>
-                                {{! End Class start date }}
-                                
-                                {{! Class schedule }}
-                                <div class="mb-1">
-                                    <i class="fa fa-clock-o mr-2"></i>
-                                    <span class="text-muted startdate">{{inithourformatted}}</span>
-                                    <small class="text-muted">{{classDaysString}}</small>
-                                </div>
-                                {{! End Class schedule }}
-                                <div class="mb-1 mt-2">
-                                    <small class="font-weight-bold d-block">Jornada actual: {{shiftdisplay}}</small>
-                                    <form method="post" class="d-flex align-items-center mt-1">
-                                        <input type="hidden" name="sesskey" value="{{sesskey}}">
-                                        <input type="hidden" name="action" value="update_shift">
-                                        <input type="hidden" name="classid" value="{{id}}">
-                                        <input type="text"
-                                            name="shift"
-                                            value="{{shiftvalue}}"
-                                            class="form-control form-control-sm mr-2"
-                                            placeholder="Sin jornada">
-                                        <button type="submit" class="btn btn-sm btn-outline-primary">Guardar</button>
-                                    </form>
+
+                            <div class="card-footer d-flex">
+                                <div class="spacer"></div>
+                                <div class="options">
+                                    <a data-toggle='tooltip' data-placement='bottom' title="Modificar" href="/local/grupomakro_core/pages/editclass.php?class_id={{id}}">
+                                        <i class="fa fa-gear mx-1 text-secondary" style="font-size:20px"></i>
+                                    </a>
+                                    <a data-toggle='tooltip' data-placement='bottom' title="Actualizar periodo" href="#" class="updatePeriodButton" data-class-id="{{id}}" data-class-name="{{name}}" data-student-count="{{enroledStudents}}">
+                                        <i class="fa fa-calendar mx-1 text-info" style="font-size:20px"></i>
+                                    </a>
+                                    <a data-placement='bottom' title="Eliminar" data-toggle='modal' class="deleteButton" class-id="{{id}}" data-target='#deleteClassModalCenter'>
+                                        <i class="fa fa-trash mx-1" style="font-size:20px"></i>
+                                    </a>
                                 </div>
                             </div>
-                            {{! End Class details }}
                         </div>
-                        
-                        <div class="card-footer d-flex">
-                            <div class="spacer"></div>
-                            {{! Options }}
-                            <div class="options">
-                                {{! Edit }}
-                                <a data-toggle='tooltip' data-placement='bottom' title="{{#str}} modify, local_grupomakro_core{{/str}}" href="/local/grupomakro_core/pages/editclass.php?class_id={{id}}">
-                                    <i class="fa fa-gear mx-1 text-secondary" style="font-size:20px"></i>
-                                </a>
-                                {{! End Edit }}
-
-                                {{! Update academic period }}
-                                <a data-toggle='tooltip' data-placement='bottom' title="{{#str}}update_class_period, local_grupomakro_core{{/str}}" href="#" class="updatePeriodButton" data-class-id="{{id}}" data-class-name="{{name}}" data-student-count="{{enroledStudents}}">
-                                    <i class="fa fa-calendar mx-1 text-info" style="font-size:20px"></i>
-                                </a>
-                                {{! End Update academic period }}
-
-                                {{! Delete }}
-                                <a data-placement='bottom' title="{{#str}} remove, local_grupomakro_core{{/str}}" data-toggle='modal' class="deleteButton" class-id="{{id}}" data-target='#deleteClassModalCenter'>
-                                    <i class="fa fa-trash mx-1" style="font-size:20px"></i>
-                                </a>
-                                {{! End Delete }}
-                            </div>
-                            {{! End Options }}
-                        </div>
-                    </div>
-                    {{! End Class card }}
-                    {{/allClasses}}
+                        {{/allClasses}}
                     </div>
                 </div>
             </div>
-            {{! ENd Tab content all classes }}
         </div>
-        {{! Tab content classes }}
     </div>
 </div>
 {{> local_grupomakro_core/modals/modal_delete_class }}

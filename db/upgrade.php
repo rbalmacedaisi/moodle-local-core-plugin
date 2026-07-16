@@ -2750,6 +2750,51 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20260806000, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20260809001) {
+        // Indexes for the paginated classmanagement view (WS
+        // local_grupomakro_list_classes_paged). The gmk_class table only
+        // had the primary key + a single FK on usermodified, so every
+        // filter (closed, periodid, learningplanid, corecourseid) and the
+        // default ORDER BY timecreated DESC were full-table scans. These
+        // indexes bring that down to index range scans, which is what
+        // makes the new server-side paginated view viable at scale.
+        $ctable = new xmldb_table('gmk_class');
+
+        $cindexes = [
+            ['name' => 'gmkcls_closed_idx',         'fields' => ['closed']],
+            ['name' => 'gmkcls_period_idx',         'fields' => ['periodid']],
+            ['name' => 'gmkcls_lp_idx',             'fields' => ['learningplanid']],
+            ['name' => 'gmkcls_corecourse_idx',     'fields' => ['corecourseid']],
+            ['name' => 'gmkcls_timecreated_idx',    'fields' => ['timecreated']],
+            // Composite covering the most common query in classmanagement:
+            // "Active classes of the current period, newest first".
+            ['name' => 'gmkcls_closed_period_tc_idx', 'fields' => ['closed', 'periodid', 'timecreated']],
+            // Covers list_classes's JOIN path gmk_class.courseid =
+            // local_learning_courses.id (subject resolution).
+            ['name' => 'gmkcls_courseid_idx',       'fields' => ['courseid']],
+        ];
+        foreach ($cindexes as $idxdef) {
+            $idx = new xmldb_index($idxdef['name'], XMLDB_INDEX_NOTUNIQUE, $idxdef['fields']);
+            if (!$dbman->index_exists($ctable, $idx)) {
+                $dbman->add_index($ctable, $idx);
+            }
+        }
+
+        // Index for the LIKE search on course.fullname triggered by the
+        // classmanagement search box. The default Moodle install already
+        // creates an index on course.shortname but not on fullname; this
+        // adds one explicitly. Without it the search LIKE has to full-
+        // scan the course table, which is acceptable in dev but painful
+        // in production.
+        $coursetable = new xmldb_table('course');
+        $cfullnameidx = new xmldb_index('course_fullname_search_idx', XMLDB_INDEX_NOTUNIQUE, ['fullname']);
+        if (!$dbman->index_exists($coursetable, $cfullnameidx)) {
+            $dbman->add_index($coursetable, $cfullnameidx);
+        }
+
+        upgrade_plugin_savepoint(true, 20260809001, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 
