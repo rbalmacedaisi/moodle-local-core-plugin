@@ -2429,9 +2429,14 @@ window.SchedulerComponents.PlanningBoard = {
                 let lastErr = null;
                 for (let attempt = 1; attempt <= 2; attempt++) {
                     try {
+                        // forcerebuilddates=0: respect the assigned_dates just persisted in Phase 1
+                        // (assignedDatesForPayload already caps them to the subject's load, i.e.
+                        // ceil(totalHours/sessionHours), and recomputes for the current day when the
+                        // day/time changed). Forcing a rebuild here discarded those dates and
+                        // regenerated every weekday in the period, inflating a 3-session subject to 8.
                         res = await store._fetch('local_grupomakro_create_class_moodle_structures', {
                             classid: targetClassId,
-                            forcerebuilddates: 1
+                            forcerebuilddates: 0
                         });
                         lastErr = null;
                         break;
