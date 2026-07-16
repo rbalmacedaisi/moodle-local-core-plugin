@@ -242,6 +242,10 @@ if ($total > 0) {
     $resultsCountLabel = get_string('classmgmt:no_results_for_filters', $plugin_name);
 }
 
+// Pre-render the paginator so the next/prev/first/last buttons are
+// visible on the first paint (before any JS interaction).
+$paginatorHtml = local_grupomakro_core_build_paginator_html($total, $totalpages, $page);
+
 $templatedata = [
     'createurl' => $CFG->wwwroot.'/local/grupomakro_core/pages/createcontract.php',
     'url' => $CFG->wwwroot.'/local/grupomakro_core/pages/contractmanagement.php',
@@ -269,6 +273,7 @@ $templatedata = [
     'fromItem'       => $fromItem,
     'toItem'         => $toItem,
     'resultsCountLabel' => $resultsCountLabel,
+    'paginatorHtml'     => $paginatorHtml,
     'facetPeriods'   => $facets['periods'],
     'facetCourses'   => $facets['courses'],
 

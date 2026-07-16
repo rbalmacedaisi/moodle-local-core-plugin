@@ -236,4 +236,58 @@ class class_query_manager {
 
         return ['periods' => $periods, 'courses' => $courses];
     }
+
+    /**
+     * Build the paginator HTML for the toolbar. Used by both the server-
+     * side render (pages/classmanagement.php) and the AMD module
+     * (amd/src/class_management_filters.js) so the markup stays in sync.
+     *
+     * @param int $total      Total classes matching the current filter.
+     * @param int $totalpages Total pages.
+     * @param int $page       Current page (0-based).
+     * @return string         HTML to inject into the paginator container.
+     */
+    public static function build_paginator_html(int $total, int $totalpages, int $page): string {
+        $disabled = $totalpages <= 1;
+        $isFirst = $page <= 0;
+        $isLast = $page >= $totalpages - 1;
+
+        $pageLabel = get_string('classmgmt:page_x_of_y', 'local_grupomakro_core', (object)[
+            'page'  => max(1, $page + 1),
+            'total' => max(1, $totalpages),
+        ]);
+
+        if ($disabled) {
+            return '<span class="text-muted small">' . s($pageLabel) . '</span>';
+        }
+
+        $prevLabel = get_string('classmgmt:previous_page', 'local_grupomakro_core');
+        $nextLabel = get_string('classmgmt:next_page', 'local_grupomakro_core');
+
+        $firstDisabled = $isFirst ? 'disabled' : '';
+        $prevDisabled = $isFirst ? 'disabled' : '';
+        $nextDisabled = $isLast ? 'disabled' : '';
+        $lastDisabled = $isLast ? 'disabled' : '';
+
+        return ''
+            . '<button type="button" class="btn btn-sm btn-outline-secondary" data-page-action="first" ' . $firstDisabled . ' title="Primera">'
+            . '<i class="fa fa-step-backward"></i></button> '
+            . '<button type="button" class="btn btn-sm btn-outline-secondary" data-page-action="prev" ' . $prevDisabled . '>'
+            . '<i class="fa fa-chevron-left"></i> ' . s($prevLabel) . '</button> '
+            . '<span class="mx-2 small text-muted">' . s($pageLabel) . '</span> '
+            . '<button type="button" class="btn btn-sm btn-outline-secondary" data-page-action="next" ' . $nextDisabled . '>'
+            . s($nextLabel) . ' <i class="fa fa-chevron-right"></i></button> '
+            . '<button type="button" class="btn btn-sm btn-outline-secondary" data-page-action="last" ' . $lastDisabled . ' title="Ultima">'
+            . '<i class="fa fa-step-forward"></i></button>';
+    }
+}
+
+if (!function_exists('local_grupomakro_core_build_paginator_html')) {
+    /**
+     * Procedural wrapper so the page can call it without referencing the
+     * fully-qualified class name.
+     */
+    function local_grupomakro_core_build_paginator_html(int $total, int $totalpages, int $page): string {
+        return \local_grupomakro_core\local\class_query_manager::build_paginator_html($total, $totalpages, $page);
+    }
 }
