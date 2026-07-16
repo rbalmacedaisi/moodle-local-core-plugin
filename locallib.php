@@ -11178,3 +11178,181 @@ function gmk_copy_class_activity(array $params): array {
     ];
 }
 
+/**
+ * Delete an attendance_sessions row and, when present, its associated BBB
+ * course_module + bigbluebuttonbn instance + gmk_bbb_attendance_relation row.
+ *
+ * Refuses when the session has attendance_log records unless force=true.
+ * Always writes a JSON backup to $CFG->dataroot/local_grupomakro_core/deleted_sessions/
+ * before mutating anything.
+ *
+ * @param array $params {
+ *   @var int $classId   gmk_class.id
+ *   @var int $sessionId attendance_sessions.id
+ *   @var bool $force    Delete attendance_log rows if present.
+ * }
+ * @return array ['deleted' => ['sessionId','bbbCmid','logsDeleted'], 'backupPath' => string]
+ * @throws moodle_exception
+ */
+function gmk_delete_class_activity(array $params): array {
+    global $DB, $CFG, $USER;
+
+    date_default_timezone_set('America/Panama');
+
+    $classId   = (int)($params['classId'] ?? 0);
+    $sessionId = (int)($params['sessionId'] ?? 0);
+    $force     = !empty($params['force']);
+
+    if ($classId <= 0 || $sessionId <= 0) {
+        throw new moodle_exception('error_invalid_parameters', 'local_grupomakro_core');
+    }
+
+    if (is_class_closed($classId)) {
+        throw new moodle_exception('error_class_closed_modification', 'local_grupomakro_core');
+    }
+
+    // Load class + attendance context.
+    $classes = list_classes(['id' => $classId]);
+    if (empty($classes[$classId])) {
+        throw new moodle_exception('error_class_not_found', 'local_grupomakro_core');
+    }
+    $class = $classes[$classId];
+
+    $attendanceCm     = get_coursemodule_from_id('attendance', $class->attendancemoduleid, 0, false, MUST_EXIST);
+    $attendanceRecord = $DB->get_record('attendance', ['id' => $attendanceCm->instance], '*', MUST_EXIST);
+
+    $session = $DB->get_record('attendance_sessions', ['id' => $sessionId], '*', MUST_EXIST);
+    if ((int)$session->attendanceid !== (int)$attendanceRecord->id) {
+        throw new moodle_exception('error_invalid_source_session', 'local_grupomakro_core');
+    }
+
+    // Pre-check: refuse if logs exist and force=false.
+    $logCount = (int)$DB->count_records('attendance_log', ['sessionid' => $sessionId]);
+    if ($logCount > 0 && !$force) {
+        throw new moodle_exception('error_session_has_logs', 'local_grupomakro_core', '', $logCount);
+    }
+
+    // Capture relations BEFORE the transaction (we need the bbbmoduleid for cleanup).
+    $relations = $DB->get_records('gmk_bbb_attendance_relation', ['attendancesessionid' => $sessionId]);
+    $bbbCmid   = null;
+    foreach ($relations as $rel) {
+        if (!empty($rel->bbbmoduleid)) {
+            $bbbCmid = (int)$rel->bbbmoduleid;
+            break;
+        }
+    }
+
+    // Backup to JSON file in dataroot.
+    $backupDir = $CFG->dataroot . '/local_grupomakro_core/deleted_sessions';
+    if (!is_dir($backupDir)) {
+        @mkdir($backupDir, 0777, true);
+    }
+    $backupPath = $backupDir . '/deleted_session_' . $sessionId . '_' . date('Ymd_His') . '.json';
+    $backupData = [
+        'deleted_at'    => date('c'),
+        'deleted_by'    => $USER->id ?? 0,
+        'session'       => $session,
+        'logs'          => $DB->get_records('attendance_log', ['sessionid' => $sessionId]),
+        'relations'     => $relations,
+        'bbb_module'    => $bbbCmid
+            ? $DB->get_record_sql(
+                "SELECT b.*, cm.section AS cm_section
+                   FROM {bigbluebuttonbn} b
+                   JOIN {course_modules} cm ON cm.instance = b.id
+                  WHERE cm.id = ?",
+                [$bbbCmid]
+            )
+            : null,
+        'class'         => ['id' => $class->id, 'name' => $class->name],
+    ];
+    file_put_contents($backupPath, json_encode($backupData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+
+    // Mutate inside a delegated transaction.
+    $transaction = $DB->start_delegated_transaction();
+    try {
+        // 1) Logs.
+        if ($logCount > 0) {
+            $DB->delete_records('attendance_log', ['sessionid' => $sessionId]);
+        }
+
+        // 2) Calendar event for the attendance session (use the helper that
+        //    sidesteps the broken mod_attendance session_deleted event).
+        require_once($CFG->dirroot . '/mod/attendance/classes/calendar_helpers.php');
+        if (function_exists('attendance_delete_calendar_events')) {
+            attendance_delete_calendar_events([$sessionId]);
+        }
+
+        // 3) Relation rows.
+        $DB->delete_records('gmk_bbb_attendance_relation', ['attendancesessionid' => $sessionId]);
+
+        // 4) Attendance session row.
+        $DB->delete_records('attendance_sessions', ['id' => $sessionId]);
+
+        // 5) BBB module (if any). course_delete_module handles events, completion,
+        //    grade items and the course_sections sequence.
+        if ($bbbCmid) {
+            // Wrap in try/catch: course_delete_module can throw if the meeting is
+            // still active on BBB server; we still want to remove the row from
+            // course_modules so the UI is consistent.
+            try {
+                course_delete_module($bbbCmid);
+            } catch (\Throwable $e) {
+                gmk_log('WARN: gmk_delete_class_activity course_delete_module failed for cmid=' . $bbbCmid
+                    . ': ' . $e->getMessage() . '. Falling back to raw SQL.');
+                // Manual cleanup as a safety net.
+                if (function_exists('attendance_delete_calendar_events')) {
+                    $DB->delete_records('event', ['instance' => $bbbCmid, 'modulename' => 'bigbluebuttonbn']);
+                }
+                $otherSection = (int)$DB->get_field('course_modules', 'section', ['id' => $bbbCmid]);
+                if ($otherSection) {
+                    $otherSec = $DB->get_record('course_sections', ['id' => $otherSection], 'id,sequence');
+                    if ($otherSec && !empty($otherSec->sequence)) {
+                        $arr = array_filter(explode(',', $otherSec->sequence), fn($x) => (int)$x !== $bbbCmid);
+                        $DB->set_field('course_sections', 'sequence', implode(',', $arr), ['id' => $otherSection]);
+                    }
+                }
+                $DB->delete_records('course_modules', ['id' => $bbbCmid]);
+                $DB->delete_records('bigbluebuttonbn', ['id' => $DB->get_field('course_modules', 'instance', ['id' => $bbbCmid])]);
+            }
+
+            // Pull cmid from gmk_class.bbbmoduleids (CSV).
+            $current = $DB->get_field('gmk_class', 'bbbmoduleids', ['id' => $classId]);
+            $cmids = $current ? array_filter(explode(',', $current)) : [];
+            $cmids = array_values(array_filter(array_map('intval', $cmids), fn($c) => $c !== $bbbCmid));
+            $class->bbbmoduleids = $cmids ? implode(',', $cmids) : null;
+            $class->timemodified = time();
+            $DB->update_record('gmk_class', $class);
+        }
+
+        $transaction->allow_commit();
+    } catch (\Throwable $e) {
+        $transaction->rollback($e);
+        throw $e;
+    }
+
+    // Cache invalidation.
+    if (!empty($class->corecourseid) && function_exists('rebuild_course_cache')) {
+        rebuild_course_cache((int)$class->corecourseid, true);
+    }
+    if (class_exists('\cache')) {
+        $cache = \cache::make('local_grupomakro_core', 'gmkclass_enriched');
+        $cache->delete($class->id);
+        if ($bbbCmid) {
+            $relCache = \cache::make('local_grupomakro_core', 'gmkbbbatrel');
+            $relCache->delete($bbbCmid);
+        }
+    }
+
+    gmk_log('INFO: gmk_delete_class_activity class=' . $classId . ' session=' . $sessionId
+        . ' bbbcmid=' . ($bbbCmid ?? 'null') . ' logs=' . $logCount);
+
+    return [
+        'deleted' => [
+            'sessionId'   => $sessionId,
+            'bbbCmid'     => $bbbCmid,
+            'logsDeleted' => $logCount,
+        ],
+        'backupPath' => $backupPath,
+    ];
+}
+

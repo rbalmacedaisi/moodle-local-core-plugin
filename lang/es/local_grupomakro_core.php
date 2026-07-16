@@ -570,6 +570,17 @@ $string['error_class_not_found'] = 'Clase no encontrada.';
 $string['error_invalid_source_session'] = 'La sesión origen no pertenece a esta clase.';
 $string['error_invalid_parameters'] = 'Parámetros inválidos.';
 
+// Delete session labels
+$string['deleteSession'] = 'Eliminar sesión';
+$string['deleteSessionTitle'] = 'Eliminar sesión de forma permanente';
+$string['deleteSessionConfirm'] = '¿Está seguro que desea eliminar esta sesión? Esta acción no se puede deshacer.';
+$string['deleteSessionHasBBB'] = 'También se eliminará la sala de BigBlueButton asociada.';
+$string['deleteSessionHasLogs'] = 'Esta sesión tiene {$a} marca(s) de asistencia registrada(s). Si continúa, también se eliminarán.';
+$string['deleteSessionForceLabel'] = 'Sí, eliminar también las marcas de asistencia';
+$string['deleteSessionNoBBB'] = 'Esta sesión no tiene una sala de BigBlueButton asociada.';
+$string['deleteSuccess'] = 'Sesión eliminada correctamente.';
+$string['error_session_has_logs'] = 'La sesión tiene {$a} marca(s) de asistencia registrada(s). Use force=1 para eliminarlas.';
+
 //Revalidation Message Body.
 $string['msg:send_revalidation_message:body'] = '
 <h2>El curso <strong>{$a->courseName}</strong> puede ser revalidado.</h2>

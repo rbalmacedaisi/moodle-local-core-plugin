@@ -572,6 +572,17 @@ $string['error_class_not_found'] = 'Class not found.';
 $string['error_invalid_source_session'] = 'The source session does not belong to this class.';
 $string['error_invalid_parameters'] = 'Invalid parameters.';
 
+// Delete session labels
+$string['deleteSession'] = 'Delete session';
+$string['deleteSessionTitle'] = 'Delete session permanently';
+$string['deleteSessionConfirm'] = 'Are you sure you want to delete this session? This action cannot be undone.';
+$string['deleteSessionHasBBB'] = 'The associated BigBlueButton room will also be deleted.';
+$string['deleteSessionHasLogs'] = 'This session has {$a} attendance record(s). If you continue, they will also be deleted.';
+$string['deleteSessionForceLabel'] = 'Yes, also delete attendance records';
+$string['deleteSessionNoBBB'] = 'This session has no associated BigBlueButton room.';
+$string['deleteSuccess'] = 'Session deleted successfully.';
+$string['error_session_has_logs'] = 'Session has {$a} attendance record(s). Use force=1 to delete them.';
+
 //Revalidation Message Body.
 $string['msg:send_revalidation_message:body'] = '
 <h2>The course<strong>{$a->courseName}</strong> can be revalidated.</h2>

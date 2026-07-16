@@ -93,7 +93,10 @@ $requiredStringsKeys = [
   'copySession', 'copySessionTitle', 'copySessionHelp', 'sourceSession',
   'targetDates', 'targetDate', 'targetInitTime', 'targetEndTime',
   'addDate', 'removeDate', 'verifyConflicts', 'forceCopy',
-  'maxDatesReached', 'copySuccess', 'copyConflictsTitle', 'copyNoConflicts', 'copyConfirmTitle'
+  'maxDatesReached', 'copySuccess', 'copyConflictsTitle', 'copyNoConflicts', 'copyConfirmTitle',
+  'deleteSession', 'deleteSessionTitle', 'deleteSessionConfirm',
+  'deleteSessionHasBBB', 'deleteSessionHasLogs', 'deleteSessionForceLabel',
+  'deleteSessionNoBBB', 'deleteSuccess'
 ];
 $strings = new stdClass();
 foreach ($requiredStringsKeys as $stringKey) {

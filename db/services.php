@@ -216,6 +216,15 @@ $functions = array(
         'ajax'          => true,
         'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
     ),
+    'local_grupomakro_delete_session' => array(
+        'classname' => 'local_grupomakro_core\external\activity\delete_session',
+        'methodname' => 'execute',
+        'description' => 'Delete an attendance session and its associated BBB (refuses if attendance_log exists unless force=1)',
+        'type' => 'write',
+        'capabilities' => '',
+        'ajax'          => true,
+        'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
     'local_grupomakro_create_institution' => array(
         'classname' => 'local_grupomakro_core\external\institution\create_institution',
         'methodname' => 'execute',

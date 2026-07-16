@@ -230,6 +230,14 @@ window.Vue.component('classschedule', {
                                             <v-list-item-title>{{strings.copySession}}</v-list-item-title>
                                           </v-list-item-content>
                                         </v-list-item>
+                                        <v-list-item @click="openDeleteDialog(selectedEvent)" >
+                                          <v-list-item-icon class="mr-2">
+                                            <v-icon color="error">mdi-delete</v-icon>
+                                          </v-list-item-icon>
+                                          <v-list-item-content>
+                                            <v-list-item-title class="error--text">{{strings.deleteSession}}</v-list-item-title>
+                                          </v-list-item-content>
+                                        </v-list-item>
                                       </v-list-item-group>
                                     </v-list>
                                 </v-card>
@@ -729,6 +737,93 @@ window.Vue.component('classschedule', {
                     </v-card-actions>
                 </v-card>
             </v-dialog>
+
+            <v-dialog v-model="deleteSuccessDialog" max-width="420">
+                <v-card>
+                    <v-card-title class="text-h6 success white--text">
+                        <v-icon left dark>mdi-check-circle</v-icon>
+                        {{strings.deleteSessionTitle}}
+                    </v-card-title>
+                    <v-card-text class="pt-4">
+                        {{strings.deleteSuccess}}
+                    </v-card-text>
+                    <v-card-actions>
+                        <v-spacer></v-spacer>
+                        <v-btn text color="primary" @click="deleteSuccessDialog = false">{{strings.accept}}</v-btn>
+                    </v-card-actions>
+                </v-card>
+            </v-dialog>
+
+            <v-dialog v-model="deleteDialog" max-width="520" persistent>
+                <v-card>
+                    <v-card-title class="text-h6 error white--text">
+                        <v-icon left dark>mdi-delete-alert</v-icon>
+                        {{strings.deleteSessionTitle}}
+                    </v-card-title>
+                    <v-card-text class="pt-4">
+                        <div class="mb-2">
+                            <strong>{{selectedEvent.start ? selectedEvent.start.split(' ')[0] : ''}}</strong>
+                            {{selectedEvent.hour}}
+                        </div>
+                        <div class="mb-3">
+                            {{strings.deleteSessionConfirm}}
+                        </div>
+                        <v-alert
+                            v-if="deleteHasBBB"
+                            dense
+                            outlined
+                            type="warning"
+                            class="mb-3"
+                        >
+                            {{strings.deleteSessionHasBBB}}
+                        </v-alert>
+                        <v-alert
+                            v-else
+                            dense
+                            outlined
+                            type="info"
+                            class="mb-3"
+                        >
+                            {{strings.deleteSessionNoBBB}}
+                        </v-alert>
+                        <v-alert
+                            v-if="deleteLogCount > 0"
+                            dense
+                            outlined
+                            type="error"
+                            class="mb-3"
+                        >
+                            {{strings.deleteSessionHasLogs.replace('{$a}', deleteLogCount)}}
+                            <v-checkbox
+                                v-model="deleteForce"
+                                :label="strings.deleteSessionForceLabel"
+                                color="error"
+                                dense
+                                class="mt-1"
+                            ></v-checkbox>
+                        </v-alert>
+                        <v-alert v-if="deleteError" dense outlined type="error">
+                            {{deleteError}}
+                        </v-alert>
+                    </v-card-text>
+                    <v-divider></v-divider>
+                    <v-card-actions>
+                        <v-spacer></v-spacer>
+                        <v-btn small text @click="deleteDialog = false" :disabled="deleteLoading">
+                            {{strings.cancel}}
+                        </v-btn>
+                        <v-btn
+                            small
+                            :loading="deleteLoading"
+                            :disabled="deleteLogCount > 0 && !deleteForce"
+                            color="error"
+                            @click="sendDelete"
+                        >
+                            {{strings.deleteSession}}
+                        </v-btn>
+                    </v-card-actions>
+                </v-card>
+            </v-dialog>
         </div>
     `,
     data() {
@@ -775,6 +870,15 @@ window.Vue.component('classschedule', {
             copyValid: false,
             copySuccessDialog: false,
             copySuccessCount: 0,
+
+            // Delete session state
+            deleteDialog: false,
+            deleteLoading: false,
+            deleteError: '',
+            deleteHasBBB: false,
+            deleteLogCount: 0,
+            deleteForce: false,
+            deleteSuccessDialog: false,
 
             weekdays: [1, 2, 3, 4, 5, 6, 0],
             events: [],
@@ -1195,6 +1299,62 @@ window.Vue.component('classschedule', {
                 this.copyError = (e && e.message) ? e.message : 'Error al copiar';
             } finally {
                 this.copyLoading = false;
+            }
+        },
+        openDeleteDialog(event) {
+            if (!event || !event.sessionId) {
+                return;
+            }
+            this.selectedEvent = event;
+            this.deleteError = '';
+            this.deleteForce = false;
+            // We don't know yet if the session has a BBB or logs; check on open.
+            // For UI, optimistically show the warning about BBB if modulename === 'bigbluebuttonbn'
+            this.deleteHasBBB = (event.modulename === 'bigbluebuttonbn');
+            this.deleteLogCount = 0;
+            this.deleteDialog = true;
+            // Fetch log count via WS (best effort).
+            this.fetchSessionLogCount(event.sessionId);
+        },
+        async fetchSessionLogCount(sessionId) {
+            // We use the event list data: the backend bundles attendance sessions with their
+            // log counts nowhere, so we fall back to a dedicated WS if available, or simply
+            // skip the pre-check (server enforces protection via force flag).
+            // For now, we leave deleteLogCount=0 unless we already know it.
+            // The server will reject the call if logs exist and force=0.
+        },
+        async sendDelete() {
+            this.deleteError = '';
+            if (!this.selectedEvent || !this.selectedEvent.sessionId) return;
+            this.deleteLoading = true;
+            try {
+                const fd = new FormData();
+                fd.append('wstoken', this.token);
+                fd.append('wsfunction', 'local_grupomakro_delete_session');
+                fd.append('moodlewsrestformat', 'json');
+                fd.append('classId', this.selectedEvent.classId);
+                fd.append('sessionId', this.selectedEvent.sessionId);
+                fd.append('force', this.deleteForce ? 1 : 0);
+                const config = { headers: { 'Content-Type': 'multipart/form-data' } };
+                const resp = await window.axios.post(wsUrl, fd, config);
+                const data = resp.data || {};
+                if (data.status === -1) {
+                    if (data.hasLogs) {
+                        this.deleteLogCount = data.logCount || this.deleteLogCount;
+                        this.deleteForce = false;
+                        this.deleteError = data.message || this.strings.deleteSessionHasLogs.replace('{$a}', this.deleteLogCount);
+                    } else {
+                        throw new Error(data.message || 'Error al eliminar');
+                    }
+                    return;
+                }
+                this.deleteDialog = false;
+                this.deleteSuccessDialog = true;
+                this.getEvents();
+            } catch (e) {
+                this.deleteError = (e && e.message) ? e.message : 'Error al eliminar';
+            } finally {
+                this.deleteLoading = false;
             }
         },
         formatDate(date) {
