@@ -69,7 +69,7 @@ class copy_activity extends external_api {
 
             $dates = json_decode($params['dates'], true);
             if (!is_array($dates)) {
-                return ['status' => -1, 'message' => 'Invalid dates JSON', 'hasConflicts' => false];
+                return ['status' => -1, 'message' => 'Invalid dates JSON', 'hasConflicts' => 0];
             }
 
             // If not forcing, re-check conflicts first.
@@ -93,7 +93,7 @@ class copy_activity extends external_api {
                     return [
                         'status'   => -1,
                         'message'  => json_encode($conflictsByDate),
-                        'hasConflicts' => true,
+                        'hasConflicts' => 1,
                         'conflictsByDate' => json_encode($conflictsByDate),
                     ];
                 }
@@ -108,15 +108,15 @@ class copy_activity extends external_api {
             return [
                 'status'   => 1,
                 'message'  => json_encode($result),
-                'hasConflicts' => false,
+                'hasConflicts' => 0,
                 'conflictsByDate' => '{}',
             ];
 
         } catch (\moodle_exception $e) {
-            return ['status' => -1, 'message' => $e->getMessage(), 'hasConflicts' => false, 'conflictsByDate' => '{}'];
+            return ['status' => -1, 'message' => $e->getMessage(), 'hasConflicts' => 0, 'conflictsByDate' => '{}'];
         } catch (\Throwable $e) {
             $detail = get_class($e) . ': ' . $e->getMessage() . ' in ' . basename($e->getFile()) . ':' . $e->getLine();
-            return ['status' => -1, 'message' => $detail, 'hasConflicts' => false, 'conflictsByDate' => '{}'];
+            return ['status' => -1, 'message' => $detail, 'hasConflicts' => 0, 'conflictsByDate' => '{}'];
         }
     }
 

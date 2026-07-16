@@ -86,13 +86,13 @@ class check_copy_conflicts extends external_api {
             return [
                 'status'  => 1,
                 'message' => json_encode($conflictsByDate),
-                'hasConflicts' => !empty($conflictsByDate),
+                'hasConflicts' => empty($conflictsByDate) ? 0 : 1,
                 'conflictsByDate' => json_encode($conflictsByDate),
             ];
 
         } catch (\Throwable $e) {
             $detail = get_class($e) . ': ' . $e->getMessage() . ' in ' . basename($e->getFile()) . ':' . $e->getLine();
-            return ['status' => -1, 'message' => $detail, 'hasConflicts' => false, 'conflictsByDate' => '{}'];
+            return ['status' => -1, 'message' => $detail, 'hasConflicts' => 0, 'conflictsByDate' => '{}'];
         }
     }
 
