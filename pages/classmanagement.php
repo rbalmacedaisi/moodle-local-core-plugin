@@ -244,7 +244,7 @@ if ($total > 0) {
 
 // Pre-render the paginator so the next/prev/first/last buttons are
 // visible on the first paint (before any JS interaction).
-$paginatorHtml = local_grupomakro_core_build_paginator_html($total, $totalpages, $page);
+$paginatorHtml = \local_grupomakro_core\local\class_query_manager::build_paginator_html($total, $totalpages, $page);
 
 $templatedata = [
     'createurl' => $CFG->wwwroot.'/local/grupomakro_core/pages/createcontract.php',
