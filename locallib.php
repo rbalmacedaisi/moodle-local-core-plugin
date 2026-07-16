@@ -11322,6 +11322,32 @@ function gmk_delete_class_activity(array $params): array {
             $class->bbbmoduleids = $cmids ? implode(',', $cmids) : null;
             $class->timemodified = time();
             $DB->update_record('gmk_class', $class);
+
+            // If no remaining session exists for the deleted date in this class,
+            // drop the date from assigned_dates so the planning layer stays consistent.
+            $deletedDateStr = date('Y-m-d', $session->sessdate);
+            $remainingOnDate = $DB->count_records_sql(
+                "SELECT COUNT(*) FROM {attendance_sessions}
+                  WHERE attendanceid = ? AND groupid = ? AND sessdate = ?",
+                [$attendanceRecord->id, $class->groupid, $session->sessdate]
+            );
+            if ($remainingOnDate === 0) {
+                $deletedIsoDay = (int)date('N', $session->sessdate);
+                $schedules = $DB->get_records('gmk_class_schedules', ['classid' => $class->id]);
+                foreach ($schedules as $s) {
+                    if (!gmk_schedule_day_matches_iso($s, $deletedIsoDay)) {
+                        continue;
+                    }
+                    $assigned = !empty($s->assigned_dates) ? json_decode($s->assigned_dates, true) : [];
+                    if (!is_array($assigned)) $assigned = [];
+                    $newAssigned = array_values(array_filter($assigned, fn($d) => $d !== $deletedDateStr));
+                    if (count($newAssigned) !== count($assigned)) {
+                        $s->assigned_dates = json_encode($newAssigned);
+                        $s->timemodified = time();
+                        $DB->update_record('gmk_class_schedules', $s);
+                    }
+                }
+            }
         }
 
         $transaction->allow_commit();
