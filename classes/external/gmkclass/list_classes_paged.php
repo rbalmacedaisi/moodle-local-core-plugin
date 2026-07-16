@@ -201,15 +201,21 @@ class list_classes_paged extends external_api {
 
         // Reuse the existing list_classes() bulk-prefetch so the response
         // carries all the enriched fields the template already expects.
-        // list_classes() preserves the input order when called with an
-        // ['id' => [...]] filter (it returns an associative array keyed by
-        // id), so we re-sort the result here to match the page order.
+        // list_classes() calls $DB->get_records('gmk_class', $filters) and
+        // Moodle's get_records() does NOT accept an array as a filter
+        // value (it tries to real_escape_string() it), so we cannot pass
+        // ['id' => $ids] directly. Instead we pull the class rows via a
+        // proper IN-clause and pass each id individually to list_classes()
+        // — list_classes() short-circuits for an id-keyed filter anyway.
         $items = [];
         if (!empty($ids)) {
-            $enriched = list_classes(['id' => $ids]);
             $byId = [];
-            foreach ($enriched as $row) {
-                $byId[(int)$row->id] = $row;
+            foreach ($ids as $cid) {
+                $one = list_classes(['id' => (int)$cid]);
+                if (!empty($one)) {
+                    $row = reset($one);
+                    $byId[(int)$row->id] = $row;
+                }
             }
             foreach ($ids as $cid) {
                 if (isset($byId[$cid])) {

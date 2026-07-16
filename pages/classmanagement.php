@@ -164,16 +164,17 @@ if ($total > 0) {
 }
 
 // Reuse the existing bulk-prefetch enrichment (see version 20260807000).
+// list_classes() calls $DB->get_records('gmk_class', $filters) and that
+// helper does NOT accept an array as a filter value (it tries to
+// real_escape_string the array, which throws a warning and yields
+// nothing). We must call list_classes() once per id, or run a single
+// direct query here. Per-id is fine for the 25-row pages we render.
 $classes = [];
 if (!empty($classIds)) {
-    $enriched = list_classes(['id' => $classIds]);
-    $byId = [];
-    foreach ($enriched as $row) {
-        $byId[(int)$row->id] = $row;
-    }
     foreach ($classIds as $cid) {
-        if (isset($byId[$cid])) {
-            $classes[] = $byId[$cid];
+        $one = list_classes(['id' => (int)$cid]);
+        if (!empty($one)) {
+            $classes[] = reset($one);
         }
     }
 }

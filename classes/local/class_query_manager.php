@@ -176,10 +176,19 @@ class class_query_manager {
         $sortcol = self::SORT_COLUMNS[$sort] ?? self::SORT_COLUMNS['timecreated'];
         $dir = (strtoupper($dir) === 'ASC') ? 'ASC' : 'DESC';
 
+        // NOTE: Moodle 4.0.x's get_fieldset_sql() signature is
+        //   get_fieldset_sql($sql, array $params = null)
+        // and does NOT accept limitfrom/limitnum. We use get_records_sql()
+        // instead (which DOES support LIMIT/OFFSET) and then extract the
+        // ids in the same order the SQL returned them.
         $sql = "SELECT c.id FROM $from WHERE $where ORDER BY $sortcol $dir, c.id $dir";
-        $ids = $DB->get_fieldset_sql($sql, $params, $page * $perpage, $perpage);
+        $records = $DB->get_records_sql($sql, $params, $page * $perpage, $perpage);
 
-        return array_map('intval', $ids);
+        $ids = [];
+        foreach ($records as $rec) {
+            $ids[] = (int)$rec->id;
+        }
+        return $ids;
     }
 
     /**
