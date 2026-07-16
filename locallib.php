@@ -10984,19 +10984,18 @@ function gmk_copy_class_activity(array $params): array {
     $class->course  = get_course($class->corecourseid);
     $class->courseid = $class->corecourseid;
 
-    // Source session must belong to this class.
-    $sourceSession = $DB->get_record('attendance_sessions', ['id' => $sourceSessId], '*', MUST_EXIST);
-    $sourceAttendance = $DB->get_record('attendance', ['id' => $sourceSession->attendanceid], '*', MUST_EXIST);
-    if ((int)$sourceAttendance->id !== (int)$class->attendanceid) {
-        // The session is not part of this class. Refuse.
-        throw new moodle_exception('error_invalid_source_session', 'local_grupomakro_core');
-    }
-
     // Resolve modules + section number.
     $BBBmoduleId        = (int)$DB->get_field('modules', 'id', ['name' => 'bigbluebuttonbn']);
     $attendanceCm       = get_coursemodule_from_id('attendance', $class->attendancemoduleid, 0, false, MUST_EXIST);
     $attendanceRecord   = $DB->get_record('attendance', ['id' => $attendanceCm->instance], '*', MUST_EXIST);
     $classSectionNumber = (int)$DB->get_field('course_sections', 'section', ['id' => $class->coursesectionid]);
+
+    // Source session must belong to this class.
+    $sourceSession = $DB->get_record('attendance_sessions', ['id' => $sourceSessId], '*', MUST_EXIST);
+    if ((int)$sourceSession->attendanceid !== (int)$attendanceRecord->id) {
+        // The session is not part of this class. Refuse.
+        throw new moodle_exception('error_invalid_source_session', 'local_grupomakro_core');
+    }
 
     // Source relation (does source BBB exist?).
     $sourceRelation = $DB->get_record('gmk_bbb_attendance_relation', ['attendancesessionid' => $sourceSessId]);
