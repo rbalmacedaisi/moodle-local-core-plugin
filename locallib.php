@@ -4108,7 +4108,7 @@ if (!function_exists('gmk_bulk_class_participants')) {
         $gmByGroup = [];
         if (!empty($groupIds)) {
             [$insql, $inparams] = $DB->get_in_or_equal(array_values($groupIds), SQL_PARAMS_NAMED, 'gid');
-            $gmRows = $DB->get_records_select('groups_members', "groupid $insql", $inparams, '', 'groupid, userid');
+            $gmRows = $DB->get_records_select('groups_members', "groupid $insql", $inparams, '', 'id, groupid, userid');
             foreach ($gmRows as $r) {
                 $gmByGroup[(int)$r->groupid][(int)$r->userid] = $r;
             }
@@ -4122,7 +4122,7 @@ if (!function_exists('gmk_bulk_class_participants')) {
                 "classid $insql",
                 $inparams,
                 '',
-                'classid, userid'
+                'id, classid, userid'
             );
             foreach ($proRows as $r) {
                 $proByClass[(int)$r->classid][(int)$r->userid] = $r;
@@ -4163,7 +4163,7 @@ if (!function_exists('gmk_bulk_class_participants')) {
             "classid $insql",
             $inparams,
             '',
-            'classid, userid'
+            'id, classid, userid'
         );
         $preByClass = [];
         foreach ($preRows as $r) {
@@ -4191,7 +4191,7 @@ if (!function_exists('gmk_bulk_class_participants')) {
             "classid $insql",
             $inparams,
             '',
-            'classid, userid'
+            'id, classid, userid'
         );
         $qByClass = [];
         foreach ($qRows as $r) {
