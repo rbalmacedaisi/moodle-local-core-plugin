@@ -3858,11 +3858,47 @@ function list_classes($filters)
 
     foreach ($classes as &$class) {
         // Derive Academic Metadata from Subject ID.
+        // gmk_class.courseid is a subject id (local_learning_courses.id), but legacy
+        // rows store a Moodle course id there instead. Both ranges overlap, so a bare
+        // by-id hit can land on another career's subject and relabel the class
+        // (2026-07: clase de INGLÉS mostrada como ÉTICA AMBIENTAL). Only trust a
+        // by-id match that is consistent with the row (same Moodle course or same
+        // plan); otherwise re-interpret courseid as a legacy Moodle course id.
         $meta = null;
-        if (!empty($class->courseid) && isset($subjectsById[(int)$class->courseid])) {
-            $meta = $subjectsById[(int)$class->courseid];
-        } else if (!empty($class->courseid) && isset($subjectsByCourseid[(int)$class->courseid])) {
-            $meta = $subjectsByCourseid[(int)$class->courseid];
+        $subjectRefId = !empty($class->courseid) ? (int)$class->courseid : 0;
+        if ($subjectRefId) {
+            $byId = $subjectsById[$subjectRefId] ?? null;
+            $canValidate = !empty($class->corecourseid) || !empty($class->learningplanid);
+            if ($byId && (!$canValidate
+                || (int)$byId->courseid === (int)$class->corecourseid
+                || (int)$byId->learningplanid === (int)$class->learningplanid)) {
+                $meta = $byId;
+            } else {
+                $fallback = $subjectsByCourseid[$subjectRefId] ?? null;
+                if ($fallback && !empty($class->learningplanid)
+                    && (int)$fallback->learningplanid !== (int)$class->learningplanid) {
+                    $fallback = null;
+                }
+                if (!$fallback) {
+                    $fallbackparams = ['courseid' => $subjectRefId];
+                    if (!empty($class->learningplanid)) {
+                        $fallbackparams['learningplanid'] = (int)$class->learningplanid;
+                    }
+                    $fallback = $DB->get_record('local_learning_courses', $fallbackparams,
+                        'id, learningplanid, periodid, courseid', IGNORE_MULTIPLE);
+                    if (!$fallback && !empty($class->corecourseid)) {
+                        $fallback = $DB->get_record('local_learning_courses',
+                            ['courseid' => (int)$class->corecourseid],
+                            'id, learningplanid, periodid, courseid', IGNORE_MULTIPLE);
+                    }
+                }
+                if ($fallback) {
+                    $meta = $fallback;
+                    gmk_log("WARN list_classes: class {$class->id} courseid {$subjectRefId} tratado como curso Moodle legacy -> materia {$fallback->id}");
+                } else if ($byId) {
+                    gmk_log("WARN list_classes: class {$class->id} courseid {$subjectRefId} coincide con materia de otro plan ({$byId->learningplanid}); healing omitido");
+                }
+            }
         }
 
         if ($meta) {
