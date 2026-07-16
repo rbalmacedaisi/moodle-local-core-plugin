@@ -477,6 +477,26 @@ $string['activity'] = 'Actividad';
 $string['unable_complete_action'] = 'No es posible completar la acción. El rango seleccionado para edición tiene clases programadas.';
 $string['create'] = 'Crear';
 
+// Copy session labels
+$string['copySession'] = 'Copiar sesión';
+$string['copySessionTitle'] = 'Copiar sesión a otras fechas';
+$string['copySessionHelp'] = 'Crea nuevas sesiones con los mismos parámetros de la sesión origen en las fechas y horas que indiques.';
+$string['sourceSession'] = 'Sesión origen';
+$string['targetDates'] = 'Fechas destino';
+$string['targetDate'] = 'Fecha';
+$string['targetInitTime'] = 'Hora inicio';
+$string['targetEndTime'] = 'Hora fin';
+$string['addDate'] = '+ Agregar otra fecha';
+$string['removeDate'] = 'Quitar';
+$string['verifyConflicts'] = 'Verificar conflictos';
+$string['forceCopy'] = 'Copiar de todos modos';
+$string['maxDatesReached'] = 'Máximo 20 fechas por operación';
+$string['copySuccess'] = 'Sesiones copiadas exitosamente: {$a}';
+$string['copySuccessTitle'] = 'Copia exitosa';
+$string['copyConflictsTitle'] = 'Conflictos detectados';
+$string['copyNoConflicts'] = 'Sin conflictos. Listo para copiar.';
+$string['copyConfirmTitle'] = 'Confirmar copia';
+
 // Pagina Panel de Horarios.
 $string['schedule_panel'] = 'Panel de Horarios';
 $string['scheduleapproval'] = 'Aprobación de horarios';
@@ -537,6 +557,18 @@ $string['msg:send_reschedule_message:body'] = '
 <p>Para reprogramar la sesión haz click <a href="{$a->rescheduleUrl}">aquí.</a></p>';
 $string['msg:send_reschedule_message:subject'] = 'Solicitud de reprogramación nueva';
 $string['msg:send_reschedule_message:contexturlname'] = 'Reprogramar sesión';
+
+// Copy session error messages
+$string['error_invalid_dates_count'] = 'Debe especificar entre 1 y {$a} fechas.';
+$string['error_too_many_dates'] = 'Máximo {$a} fechas por operación.';
+$string['error_invalid_time_range'] = 'La hora de inicio debe ser menor que la hora de fin ({$a}).';
+$string['error_invalid_date_format'] = 'Formato de fecha inválido ({$a}).';
+$string['error_invalid_time_format'] = 'Formato de hora inválido. Use HH:MM.';
+$string['error_date_in_past'] = 'La fecha no puede estar en el pasado ({$a}).';
+$string['error_duplicate_sessions'] = 'Ya existe una sesión en: {$a}';
+$string['error_class_not_found'] = 'Clase no encontrada.';
+$string['error_invalid_source_session'] = 'La sesión origen no pertenece a esta clase.';
+$string['error_invalid_parameters'] = 'Parámetros inválidos.';
 
 //Revalidation Message Body.
 $string['msg:send_revalidation_message:body'] = '

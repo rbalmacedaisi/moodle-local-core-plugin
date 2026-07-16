@@ -89,7 +89,11 @@ $rescheduleCauses = $DB->get_records('gmk_reschedule_causes');
 $requiredStringsKeys = [
   'today', 'add', 'availability', 'day', 'week', 'month', 'instructors', 'scheduledclasses',
   'close', 'edit', 'remove', 'reschedule', 'cancel', 'accept', 'desc_rescheduling', 'competences', 'field_required',
-  'causes_rescheduling', 'select_possible_date', 'new_class_time', 'activity'
+  'causes_rescheduling', 'select_possible_date', 'new_class_time', 'activity',
+  'copySession', 'copySessionTitle', 'copySessionHelp', 'sourceSession',
+  'targetDates', 'targetDate', 'targetInitTime', 'targetEndTime',
+  'addDate', 'removeDate', 'verifyConflicts', 'forceCopy',
+  'maxDatesReached', 'copySuccess', 'copyConflictsTitle', 'copyNoConflicts', 'copyConfirmTitle'
 ];
 $strings = new stdClass();
 foreach ($requiredStringsKeys as $stringKey) {

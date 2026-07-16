@@ -10885,3 +10885,278 @@ function local_grupomakro_core_bbb_ratio($raw, float $default): float {
     return $value;
 }
 
+/**
+ * Helper: tells whether a gmk_class_schedules row "matches" a given ISO weekday (1=Mon..7=Sun).
+ *
+ * The `day` column may be stored as:
+ *   - numeric: '1'..'7' (ISO) or '0'..'6' (legacy bitmask)
+ *   - text:    'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'
+ *   - text:    'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'
+ *
+ * @param stdClass $schedule Row with at least a `day` field.
+ * @param int      $isoDay   ISO weekday 1..7 (date('N', $timestamp)).
+ * @return bool
+ */
+function gmk_schedule_day_matches_iso(stdClass $schedule, int $isoDay): bool {
+    $dayKey = strtolower(trim((string)($schedule->day ?? '')));
+    if ($dayKey === '') {
+        return false;
+    }
+    // Numeric ISO (1..7).
+    if (is_numeric($dayKey) && (int)$dayKey >= 1 && (int)$dayKey <= 7) {
+        return (int)$dayKey === $isoDay;
+    }
+    // Legacy bitmask (0..6, Mon=0). Skip: a single bitmask cannot match a single weekday reliably
+    // (it represents a set of weekdays). We only treat it as a match if it has exactly one bit
+    // and that bit corresponds to the ISO day.
+    if (is_numeric($dayKey) && (int)$dayKey >= 0 && (int)$dayKey <= 6) {
+        $bit = (int)$dayKey;
+        $isoFromBit = $bit + 1;
+        return $isoFromBit === $isoDay;
+    }
+    static $textToIso = [
+        'lunes' => 1, 'martes' => 2, 'miercoles' => 3, 'jueves' => 4,
+        'viernes' => 5, 'sabado' => 6, 'domingo' => 7,
+        'miércoles' => 3, 'sábado' => 6,
+        'mon' => 1, 'tue' => 2, 'wed' => 3, 'thu' => 4, 'fri' => 5, 'sat' => 6, 'sun' => 7,
+        'monday' => 1, 'tuesday' => 2, 'wednesday' => 3, 'thursday' => 4,
+        'friday' => 5, 'saturday' => 6, 'sunday' => 7,
+    ];
+    if (isset($textToIso[$dayKey])) {
+        return $textToIso[$dayKey] === $isoDay;
+    }
+    // Strip diacritics and retry.
+    $noAccents = strtr($dayKey, ['á' => 'a', 'é' => 'e', 'í' => 'i', 'ó' => 'o', 'ú' => 'u']);
+    if (isset($textToIso[$noAccents])) {
+        return $textToIso[$noAccents] === $isoDay;
+    }
+    return false;
+}
+
+/**
+ * Copy an existing attendance_sessions row to one or more user-supplied target
+ * dates/hours. Each copy creates its own attendance_sessions row, its own BBB
+ * module (when the source had one and/or the class is virtual/mixed), and its
+ * own gmk_bbb_attendance_relation row.
+ *
+ * Strictly additive: the source session is never modified or deleted.
+ * Extends gmk_class.enddate if any target date is beyond it.
+ * Appends each target date to gmk_class_schedules.assigned_dates for the
+ * matching weekday schedule row.
+ *
+ * @param array $params {
+ *   @var int    $classId         gmk_class.id
+ *   @var int    $sourceSessionId attendance_sessions.id
+ *   @var array  $dates           list of ['date'=>'YYYY-MM-DD','initTime'=>'HH:MM','endTime'=>'HH:MM']
+ * }
+ * @return array  ['created' => [['date','sessId','bbbCmid']], 'enddate' => int]
+ * @throws moodle_exception
+ */
+function gmk_copy_class_activity(array $params): array {
+    global $DB, $USER, $CFG;
+
+    date_default_timezone_set('America/Panama');
+
+    $classId       = (int)($params['classId'] ?? 0);
+    $sourceSessId  = (int)($params['sourceSessionId'] ?? 0);
+    $dates         = $params['dates'] ?? [];
+
+    if ($classId <= 0 || $sourceSessId <= 0) {
+        throw new moodle_exception('error_invalid_parameters', 'local_grupomakro_core');
+    }
+    if (!is_array($dates) || empty($dates)) {
+        throw new moodle_exception('error_invalid_dates_count', 'local_grupomakro_core');
+    }
+    if (count($dates) > 20) {
+        throw new moodle_exception('error_too_many_dates', 'local_grupomakro_core', '', 20);
+    }
+
+    if (is_class_closed($classId)) {
+        throw new moodle_exception('error_class_closed_modification', 'local_grupomakro_core');
+    }
+
+    // Load enriched class.
+    $classes = list_classes(['id' => $classId]);
+    if (empty($classes[$classId])) {
+        throw new moodle_exception('error_class_not_found', 'local_grupomakro_core');
+    }
+    $class = $classes[$classId];
+    $class->course  = get_course($class->corecourseid);
+    $class->courseid = $class->corecourseid;
+
+    // Source session must belong to this class.
+    $sourceSession = $DB->get_record('attendance_sessions', ['id' => $sourceSessId], '*', MUST_EXIST);
+    $sourceAttendance = $DB->get_record('attendance', ['id' => $sourceSession->attendanceid], '*', MUST_EXIST);
+    if ((int)$sourceAttendance->id !== (int)$class->attendanceid) {
+        // The session is not part of this class. Refuse.
+        throw new moodle_exception('error_invalid_source_session', 'local_grupomakro_core');
+    }
+
+    // Resolve modules + section number.
+    $BBBmoduleId        = (int)$DB->get_field('modules', 'id', ['name' => 'bigbluebuttonbn']);
+    $attendanceCm       = get_coursemodule_from_id('attendance', $class->attendancemoduleid, 0, false, MUST_EXIST);
+    $attendanceRecord   = $DB->get_record('attendance', ['id' => $attendanceCm->instance], '*', MUST_EXIST);
+    $classSectionNumber = (int)$DB->get_field('course_sections', 'section', ['id' => $class->coursesectionid]);
+
+    // Source relation (does source BBB exist?).
+    $sourceRelation = $DB->get_record('gmk_bbb_attendance_relation', ['attendancesessionid' => $sourceSessId]);
+    $sourceHasBBB   = !empty($sourceRelation) && !empty($sourceRelation->bbbmoduleid);
+    $classNeedsBBB  = ((string)$class->type !== '0') || $sourceHasBBB;
+
+    // Pre-validate every requested date.
+    $todayTs = strtotime(date('Y-m-d') . ' 00:00:00');
+    $prepared = [];
+    $duplicates = [];
+    foreach ($dates as $d) {
+        if (empty($d['date']) || empty($d['initTime']) || empty($d['endTime'])) {
+            throw new moodle_exception('error_invalid_dates_count', 'local_grupomakro_core');
+        }
+        $dateStr = trim((string)$d['date']);
+        $initStr = trim((string)$d['initTime']);
+        $endStr  = trim((string)$d['endTime']);
+
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateStr)) {
+            throw new moodle_exception('error_invalid_date_format', 'local_grupomakro_core', '', $dateStr);
+        }
+        if (!preg_match('/^\d{2}:\d{2}$/', $initStr) || !preg_match('/^\d{2}:\d{2}$/', $endStr)) {
+            throw new moodle_exception('error_invalid_time_format', 'local_grupomakro_core');
+        }
+        $startTS = strtotime($dateStr . ' ' . $initStr);
+        $endTS   = strtotime($dateStr . ' ' . $endStr);
+        if (!$startTS || !$endTS) {
+            throw new moodle_exception('error_invalid_date_format', 'local_grupomakro_core', '', $dateStr);
+        }
+        if ($startTS >= $endTS) {
+            throw new moodle_exception('error_invalid_time_range', 'local_grupomakro_core', '', $dateStr);
+        }
+        if ($startTS < $todayTs) {
+            throw new moodle_exception('error_date_in_past', 'local_grupomakro_core', '', $dateStr);
+        }
+        if ($DB->record_exists('attendance_sessions', [
+            'attendanceid' => $attendanceRecord->id,
+            'groupid'      => $class->groupid,
+            'sessdate'     => $startTS,
+        ])) {
+            $duplicates[] = $dateStr;
+            continue;
+        }
+        $prepared[] = [
+            'dateStr' => $dateStr,
+            'initStr' => $initStr,
+            'endStr'  => $endStr,
+            'startTS' => $startTS,
+            'endTS'   => $endTS,
+        ];
+    }
+
+    if (!empty($duplicates)) {
+        throw new moodle_exception('error_duplicate_sessions', 'local_grupomakro_core', '', implode(', ', $duplicates));
+    }
+    if (empty($prepared)) {
+        throw new moodle_exception('error_invalid_dates_count', 'local_grupomakro_core');
+    }
+
+    $attendanceStructure = new \mod_attendance_structure($attendanceRecord, $attendanceCm, $class->course);
+
+    $transaction = $DB->start_delegated_transaction();
+    $created = [];
+    try {
+        foreach ($prepared as $p) {
+            $startTS  = $p['startTS'];
+            $endTS    = $p['endTS'];
+            $duration = $endTS - $startTS;
+
+            // (a) Create BBB if needed.
+            $bbbInfo = null;
+            if ($classNeedsBBB) {
+                $bbbInfo = create_big_blue_button_activity($class, $startTS, $endTS, $BBBmoduleId, $classSectionNumber);
+            }
+
+            // (b) Create attendance_sessions row.
+            $sessionObj = create_attendance_session_object($class, $startTS, $duration, $bbbInfo);
+            $newSessId  = $attendanceStructure->add_session($sessionObj);
+
+            // (c) Insert relation if there is a BBB.
+            if ($bbbInfo) {
+                $rel = new stdClass();
+                $rel->attendancesessionid = $newSessId;
+                $rel->bbbmoduleid         = $bbbInfo->coursemodule;
+                $rel->bbbid               = $bbbInfo->instance;
+                $rel->classid             = $class->id;
+                $rel->attendancemoduleid  = $attendanceCm->id;
+                $rel->attendanceid        = $attendanceRecord->id;
+                $rel->sectionid           = $class->coursesectionid;
+                $rel->usermodified        = $USER->id ?? 0;
+                $rel->timecreated         = time();
+                $rel->timemodified        = time();
+                $DB->insert_record('gmk_bbb_attendance_relation', $rel);
+            }
+
+            // (d) APPEND cmid to gmk_class.bbbmoduleids (CSV).
+            if ($bbbInfo) {
+                $cmids = $class->bbbmoduleids ? array_filter(explode(',', $class->bbbmoduleids)) : [];
+                $cmids[] = (int)$bbbInfo->coursemodule;
+                $cmids   = array_values(array_unique(array_map('intval', $cmids)));
+                $class->bbbmoduleids = implode(',', $cmids);
+            }
+
+            // (e) Extend enddate if needed.
+            if ($endTS > (int)$class->enddate) {
+                $class->enddate = $endTS;
+            }
+
+            // (f) Append date to gmk_class_schedules.assigned_dates for the matching weekday.
+            $isoDay = (int)date('N', $startTS);
+            $schedules = $DB->get_records('gmk_class_schedules', ['classid' => $class->id]);
+            foreach ($schedules as $s) {
+                if (!gmk_schedule_day_matches_iso($s, $isoDay)) {
+                    continue;
+                }
+                $assigned = !empty($s->assigned_dates) ? json_decode($s->assigned_dates, true) : [];
+                if (!is_array($assigned)) {
+                    $assigned = [];
+                }
+                if (!in_array($p['dateStr'], $assigned, true)) {
+                    $assigned[] = $p['dateStr'];
+                    sort($assigned);
+                    $s->assigned_dates = json_encode(array_values($assigned));
+                    $s->timemodified   = time();
+                    $DB->update_record('gmk_class_schedules', $s);
+                }
+            }
+
+            $created[] = [
+                'date'    => $p['dateStr'],
+                'sessId'  => (int)$newSessId,
+                'bbbCmid' => $bbbInfo ? (int)$bbbInfo->coursemodule : null,
+            ];
+        }
+
+        $class->timemodified = time();
+        $DB->update_record('gmk_class', $class);
+        $transaction->allow_commit();
+    } catch (\Throwable $e) {
+        $transaction->rollback($e);
+        throw $e;
+    }
+
+    // Invalidate course cache (best-effort).
+    if (!empty($class->corecourseid) && function_exists('rebuild_course_cache')) {
+        rebuild_course_cache((int)$class->corecourseid, true);
+    }
+    // Invalidate class enriched cache so the calendar refreshes.
+    if (class_exists('\cache')) {
+        $cache = \cache::make('local_grupomakro_core', 'gmkclass_enriched');
+        $cache->delete($class->id);
+    }
+
+    gmk_log('INFO: gmk_copy_class_activity class ' . $class->id
+        . ' copied session ' . $sourceSessId . ' into ' . count($created) . ' new sessions');
+
+    return [
+        'created' => $created,
+        'enddate' => (int)$class->enddate,
+        'classId' => $class->id,
+    ];
+}
+

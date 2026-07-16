@@ -479,6 +479,26 @@ $string['activity'] = 'Activity';
 $string['unable_complete_action'] = 'Unable to complete action. The range selected for editing has scheduled classes.';
 $string['create'] = 'Create';
 
+// Copy session labels
+$string['copySession'] = 'Copy session';
+$string['copySessionTitle'] = 'Copy session to other dates';
+$string['copySessionHelp'] = 'Creates new sessions with the same parameters as the source session at the dates and times you specify.';
+$string['sourceSession'] = 'Source session';
+$string['targetDates'] = 'Target dates';
+$string['targetDate'] = 'Date';
+$string['targetInitTime'] = 'Start time';
+$string['targetEndTime'] = 'End time';
+$string['addDate'] = '+ Add another date';
+$string['removeDate'] = 'Remove';
+$string['verifyConflicts'] = 'Verify conflicts';
+$string['forceCopy'] = 'Copy anyway';
+$string['maxDatesReached'] = 'Maximum 20 dates per operation';
+$string['copySuccess'] = 'Sessions copied successfully: {$a}';
+$string['copySuccessTitle'] = 'Copy successful';
+$string['copyConflictsTitle'] = 'Conflicts detected';
+$string['copyNoConflicts'] = 'No conflicts. Ready to copy.';
+$string['copyConfirmTitle'] = 'Confirm copy';
+
 // Schedule Panel page.
 $string['schedule_panel'] = 'Schedule Panel';
 $string['scheduleapproval'] = 'Schedule approval';
@@ -539,6 +559,18 @@ $string['msg:send_reschedule_message:body'] = '
 
 $string['msg:send_reschedule_message:subject'] = 'New reschedule request';
 $string['msg:send_reschedule_message:contexturlname'] = 'Reschedule session';
+
+// Copy session error messages
+$string['error_invalid_dates_count'] = 'You must specify between 1 and {$a} dates.';
+$string['error_too_many_dates'] = 'Maximum {$a} dates per operation.';
+$string['error_invalid_time_range'] = 'Start time must be earlier than end time ({$a}).';
+$string['error_invalid_date_format'] = 'Invalid date format ({$a}).';
+$string['error_invalid_time_format'] = 'Invalid time format. Use HH:MM.';
+$string['error_date_in_past'] = 'Date cannot be in the past ({$a}).';
+$string['error_duplicate_sessions'] = 'A session already exists on: {$a}';
+$string['error_class_not_found'] = 'Class not found.';
+$string['error_invalid_source_session'] = 'The source session does not belong to this class.';
+$string['error_invalid_parameters'] = 'Invalid parameters.';
 
 //Revalidation Message Body.
 $string['msg:send_revalidation_message:body'] = '

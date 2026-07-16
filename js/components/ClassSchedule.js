@@ -222,6 +222,14 @@ window.Vue.component('classschedule', {
                                             <v-list-item-title>{{strings.edit}}</v-list-item-title>
                                           </v-list-item-content>
                                         </v-list-item>
+                                        <v-list-item @click="openCopyDialog(selectedEvent)" >
+                                          <v-list-item-icon class="mr-2">
+                                            <v-icon >mdi-content-copy</v-icon>
+                                          </v-list-item-icon>
+                                          <v-list-item-content>
+                                            <v-list-item-title>{{strings.copySession}}</v-list-item-title>
+                                          </v-list-item-content>
+                                        </v-list-item>
                                       </v-list-item-group>
                                     </v-list>
                                 </v-card>
@@ -375,7 +383,7 @@ window.Vue.component('classschedule', {
                                         >
                                             {{strings.cancel}}
                                         </v-btn>
-                                      
+
                                         <v-btn
                                           small
                                           @click="sendSolit(selectedEvent)"
@@ -385,6 +393,217 @@ window.Vue.component('classschedule', {
                                         >
                                             {{strings.accept}}
                                         </v-btn>
+                                    </v-card-actions>
+                                </v-card>
+                            </v-dialog>
+
+                            <v-dialog
+                              v-model="copyDialog"
+                              width="640"
+                            >
+                                <template v-slot:activator="{ on, attrs }">
+                                    <v-btn
+                                      v-if="!isAdmin"
+                                      color="primary"
+                                      x-small
+                                      dark
+                                      class="ml-2"
+                                      v-bind="attrs"
+                                      v-on="on"
+                                      @click="openCopyDialog(selectedEvent)"
+                                    >
+                                      {{strings.copySession}}
+                                    </v-btn>
+                                </template>
+
+                                <v-card>
+                                    <v-card-title class="text-h6 white--text" :style="{ background: selectedEvent.color }">
+                                      {{strings.copySessionTitle}}: {{selectedEvent.name}}
+                                    </v-card-title>
+                                    <v-card-text class="pt-4">
+                                      <div class="mb-3">
+                                        <strong>{{strings.sourceSession}}:</strong>
+                                        {{selectedEvent.start ? selectedEvent.start.split(' ')[0] : ''}}
+                                        {{selectedEvent.hour}}
+                                      </div>
+                                      <div class="mb-2 text-caption grey--text text--darken-1">
+                                        {{strings.copySessionHelp}}
+                                      </div>
+
+                                      <v-form ref="copyForm" v-model="copyValid">
+                                        <div v-for="(row, idx) in copyRows" :key="idx" class="mb-3 pa-2 grey lighten-4 rounded">
+                                          <v-row dense align="center">
+                                            <v-col cols="12" md="5">
+                                              <v-menu
+                                                :ref="'copyDateMenu' + idx"
+                                                v-model="row.dateMenu"
+                                                :close-on-content-click="false"
+                                                :return-value.sync="row.date"
+                                                transition="scale-transition"
+                                                offset-y
+                                                min-width="auto"
+                                              >
+                                                <template v-slot:activator="{ on, attrs }">
+                                                  <v-text-field
+                                                    v-model="row.date"
+                                                    :label="strings.targetDate"
+                                                    append-icon="mdi-calendar"
+                                                    readonly
+                                                    v-bind="attrs"
+                                                    v-on="on"
+                                                    outlined
+                                                    dense
+                                                    required
+                                                    :rules="[v => !!v || strings.field_required]"
+                                                  ></v-text-field>
+                                                </template>
+                                                <v-date-picker
+                                                  v-model="row.date"
+                                                  no-title
+                                                  scrollable
+                                                  :min="today"
+                                                >
+                                                  <v-spacer></v-spacer>
+                                                  <v-btn text :color="selectedEvent.color" @click="row.dateMenu = false">
+                                                    {{strings.cancel}}
+                                                  </v-btn>
+                                                  <v-btn text :color="selectedEvent.color" @click="$refs['copyDateMenu' + idx][0].save(row.date)">
+                                                    OK
+                                                  </v-btn>
+                                                </v-date-picker>
+                                              </v-menu>
+                                            </v-col>
+                                            <v-col cols="5" md="3">
+                                              <v-text-field
+                                                v-model="row.initTime"
+                                                :label="strings.targetInitTime"
+                                                type="time"
+                                                outlined
+                                                dense
+                                                required
+                                                :rules="[v => !!v || strings.field_required]"
+                                              ></v-text-field>
+                                            </v-col>
+                                            <v-col cols="5" md="3">
+                                              <v-text-field
+                                                v-model="row.endTime"
+                                                :label="strings.targetEndTime"
+                                                type="time"
+                                                outlined
+                                                dense
+                                                required
+                                                :rules="[v => !!v || strings.field_required]"
+                                              ></v-text-field>
+                                            </v-col>
+                                            <v-col cols="2" md="1" class="d-flex align-center justify-center">
+                                              <v-btn
+                                                icon
+                                                small
+                                                :disabled="copyRows.length <= 1"
+                                                @click="removeCopyRow(idx)"
+                                              >
+                                                <v-icon>mdi-close</v-icon>
+                                              </v-btn>
+                                            </v-col>
+                                          </v-row>
+                                        </div>
+                                      </v-form>
+
+                                      <v-btn
+                                        outlined
+                                        color="primary"
+                                        small
+                                        :disabled="copyRows.length >= 20"
+                                        @click="addCopyRow"
+                                      >
+                                        <v-icon small left>mdi-plus</v-icon>
+                                        {{strings.addDate}}
+                                      </v-btn>
+                                      <span v-if="copyRows.length >= 20" class="ml-3 caption red--text">
+                                        {{strings.maxDatesReached}}
+                                      </span>
+
+                                      <v-alert
+                                        v-if="copyError"
+                                        dense
+                                        outlined
+                                        type="error"
+                                        class="mt-3"
+                                      >
+                                        {{copyError}}
+                                      </v-alert>
+
+                                      <v-alert
+                                        v-if="copyConflicts && Object.keys(copyConflicts).length"
+                                        dense
+                                        outlined
+                                        type="warning"
+                                        class="mt-3"
+                                      >
+                                        <div class="font-weight-bold mb-1">{{strings.copyConflictsTitle}}:</div>
+                                        <div v-for="(msgs, date) in copyConflicts" :key="date" class="mb-1">
+                                          <strong>{{date}}:</strong>
+                                          <ul class="ml-3">
+                                            <li v-for="(m, i) in msgs" :key="i">{{m}}</li>
+                                          </ul>
+                                        </div>
+                                      </v-alert>
+                                      <v-alert
+                                        v-else-if="copyVerified"
+                                        dense
+                                        outlined
+                                        type="success"
+                                        class="mt-3"
+                                      >
+                                        {{strings.copyNoConflicts}}
+                                      </v-alert>
+                                    </v-card-text>
+
+                                    <v-divider></v-divider>
+
+                                    <v-card-actions>
+                                      <v-spacer></v-spacer>
+                                      <v-btn
+                                        small
+                                        @click="copyDialog = false"
+                                        class="rounded"
+                                        text
+                                        color="secondary"
+                                      >
+                                        {{strings.cancel}}
+                                      </v-btn>
+                                      <v-btn
+                                        small
+                                        :loading="copyLoading"
+                                        @click="verifyCopyConflicts"
+                                        class="rounded"
+                                        text
+                                        color="info"
+                                      >
+                                        {{strings.verifyConflicts}}
+                                      </v-btn>
+                                      <v-btn
+                                        v-if="copyConflicts && Object.keys(copyConflicts).length"
+                                        small
+                                        :loading="copyLoading"
+                                        @click="sendCopy(true)"
+                                        class="rounded"
+                                        text
+                                        color="warning"
+                                      >
+                                        {{strings.forceCopy}}
+                                      </v-btn>
+                                      <v-btn
+                                        v-else
+                                        small
+                                        :loading="copyLoading"
+                                        @click="sendCopy(false)"
+                                        class="rounded"
+                                        text
+                                        color="secondary"
+                                      >
+                                        {{strings.accept}}
+                                      </v-btn>
                                     </v-card-actions>
                                 </v-card>
                             </v-dialog>
@@ -494,6 +713,22 @@ window.Vue.component('classschedule', {
                 </v-overlay>
             </v-sheet>
             <eventdialog v-if="dialogconfirm" @hiden-dialog="hidenDialog"></eventdialog>
+
+            <v-dialog v-model="copySuccessDialog" max-width="420">
+                <v-card>
+                    <v-card-title class="text-h6 success white--text">
+                        <v-icon left dark>mdi-check-circle</v-icon>
+                        {{strings.copySuccessTitle}}
+                    </v-card-title>
+                    <v-card-text class="pt-4">
+                        {{strings.copySuccess.replace('{$a}', copySuccessCount)}}
+                    </v-card-text>
+                    <v-card-actions>
+                        <v-spacer></v-spacer>
+                        <v-btn text color="primary" @click="copySuccessDialog = false">{{strings.accept}}</v-btn>
+                    </v-card-actions>
+                </v-card>
+            </v-dialog>
         </div>
     `,
     data() {
@@ -527,6 +762,19 @@ window.Vue.component('classschedule', {
             competences: [],
             valid: false,
             rescheduleError: undefined,
+
+            // Copy session state
+            copyDialog: false,
+            copyLoading: false,
+            copyVerified: false,
+            copyError: '',
+            copyConflicts: null,
+            copyRows: [
+                { date: (new Date(Date.now() - (new Date()).getTimezoneOffset() * 60000)).toISOString().substr(0, 10), initTime: '', endTime: '', dateMenu: false }
+            ],
+            copyValid: false,
+            copySuccessDialog: false,
+            copySuccessCount: 0,
 
             weekdays: [1, 2, 3, 4, 5, 6, 0],
             events: [],
@@ -764,6 +1012,190 @@ window.Vue.component('classschedule', {
                 url += '&sessionId=' + event.sessionId
             }
             window.location = url
+        },
+        // Open the Copy dialog prefilled with the source session date/time.
+        openCopyDialog(event) {
+            if (!event || !event.sessionId) {
+                this.copyError = 'Sesión sin ID';
+                return;
+            }
+            this.selectedEvent = event;
+            this.copyError = '';
+            this.copyConflicts = null;
+            this.copyVerified = false;
+            // Pre-fill first row with the source date + hour.
+            const todayStr = (new Date(Date.now() - (new Date()).getTimezoneOffset() * 60000)).toISOString().substr(0, 10);
+            let sourceDate = todayStr;
+            let sourceInit = '';
+            let sourceEnd = '';
+            try {
+                if (event.start) {
+                    const parts = event.start.split(' ');
+                    sourceDate = parts[0];
+                    if (parts[1]) {
+                        sourceInit = parts[1].substring(0, 5);
+                    }
+                }
+                if (event.end) {
+                    const parts = event.end.split(' ');
+                    if (parts[1]) {
+                        sourceEnd = parts[1].substring(0, 5);
+                    }
+                }
+            } catch (e) { /* ignore */ }
+
+            // Default: same day next week
+            let defaultDate = sourceDate;
+            try {
+                const d = new Date(sourceDate + 'T00:00:00');
+                if (!isNaN(d.getTime())) {
+                    d.setDate(d.getDate() + 7);
+                    defaultDate = d.toISOString().substr(0, 10);
+                }
+            } catch (e) { /* ignore */ }
+
+            this.copyRows = [{
+                date: defaultDate,
+                initTime: sourceInit,
+                endTime: sourceEnd,
+                dateMenu: false
+            }];
+            this.copyDialog = true;
+        },
+        addCopyRow() {
+            if (this.copyRows.length >= 20) {
+                return;
+            }
+            const last = this.copyRows[this.copyRows.length - 1];
+            let nextDate = this.today;
+            try {
+                const d = new Date(last.date + 'T00:00:00');
+                if (!isNaN(d.getTime())) {
+                    d.setDate(d.getDate() + 7);
+                    nextDate = d.toISOString().substr(0, 10);
+                }
+            } catch (e) { /* ignore */ }
+            this.copyRows.push({
+                date: nextDate,
+                initTime: last.initTime,
+                endTime: last.endTime,
+                dateMenu: false
+            });
+        },
+        removeCopyRow(idx) {
+            if (this.copyRows.length <= 1) return;
+            this.copyRows.splice(idx, 1);
+            this.copyVerified = false;
+            this.copyConflicts = null;
+        },
+        // POST helper that sends FormData to the WS endpoint.
+        async postWs(wsfunction, formData) {
+            const config = { headers: { 'Content-Type': 'multipart/form-data' } };
+            const resp = await window.axios.post(wsUrl, formData, config);
+            return resp.data;
+        },
+        buildCopyFormData(force) {
+            const fd = new FormData();
+            fd.append('wstoken', this.token);
+            fd.append('wsfunction', 'local_grupomakro_copy_activity');
+            fd.append('moodlewsrestformat', 'json');
+            fd.append('classId', this.selectedEvent.classId);
+            fd.append('sourceSessionId', this.selectedEvent.sessionId);
+            const datesArr = this.copyRows.map(r => ({
+                date: r.date,
+                initTime: r.initTime,
+                endTime: r.endTime
+            }));
+            fd.append('dates', JSON.stringify(datesArr));
+            fd.append('force', force ? 1 : 0);
+            return fd;
+        },
+        buildCheckFormData() {
+            const fd = new FormData();
+            fd.append('wstoken', this.token);
+            fd.append('wsfunction', 'local_grupomakro_check_copy_conflicts');
+            fd.append('moodlewsrestformat', 'json');
+            fd.append('classId', this.selectedEvent.classId);
+            const datesArr = this.copyRows.map(r => ({
+                date: r.date,
+                initTime: r.initTime,
+                endTime: r.endTime
+            }));
+            fd.append('dates', JSON.stringify(datesArr));
+            return fd;
+        },
+        async verifyCopyConflicts() {
+            this.copyError = '';
+            this.copyVerified = false;
+            this.copyConflicts = null;
+            // Validate local form first.
+            if (this.$refs.copyForm && !this.$refs.copyForm.validate()) {
+                return;
+            }
+            this.copyLoading = true;
+            try {
+                const resp = await this.postWs('local_grupomakro_check_copy_conflicts', this.buildCheckFormData());
+                if (resp.status === -1) {
+                    throw new Error(resp.message || 'Error');
+                }
+                let conflictsByDate = {};
+                try {
+                    conflictsByDate = JSON.parse(resp.conflictsByDate || '{}');
+                } catch (e) { conflictsByDate = {}; }
+                this.copyConflicts = conflictsByDate;
+                this.copyVerified = Object.keys(conflictsByDate).length === 0;
+            } catch (e) {
+                this.copyError = (e && e.message) ? e.message : 'Error al verificar conflictos';
+            } finally {
+                this.copyLoading = false;
+            }
+        },
+        async sendCopy(force) {
+            this.copyError = '';
+            if (this.$refs.copyForm && !this.$refs.copyForm.validate()) {
+                return;
+            }
+            this.copyLoading = true;
+            try {
+                const resp = await this.postWs('local_grupomakro_copy_activity', this.buildCopyFormData(force));
+                if (resp.status === -1) {
+                    if (resp.hasConflicts) {
+                        let conflictsByDate = {};
+                        try {
+                            conflictsByDate = JSON.parse(resp.conflictsByDate || '{}');
+                        } catch (e) { conflictsByDate = {}; }
+                        this.copyConflicts = conflictsByDate;
+                        this.copyVerified = false;
+                        this.copyError = this.strings.copyConflictsTitle;
+                    } else {
+                        throw new Error(resp.message || 'Error');
+                    }
+                    return;
+                }
+                let created = [];
+                try {
+                    const parsed = JSON.parse(resp.message || '{}');
+                    created = parsed.created || [];
+                } catch (e) { /* ignore */ }
+                this.copyDialog = false;
+                this.copyConflicts = null;
+                this.copyVerified = false;
+                this.copyRows = [{
+                    date: this.today,
+                    initTime: '',
+                    endTime: '',
+                    dateMenu: false
+                }];
+                // Show success dialog.
+                this.copySuccessCount = created.length;
+                this.copySuccessDialog = true;
+                // Refresh calendar.
+                this.getEvents();
+            } catch (e) {
+                this.copyError = (e && e.message) ? e.message : 'Error al copiar';
+            } finally {
+                this.copyLoading = false;
+            }
         },
         formatDate(date) {
             const year = date.getFullYear();
