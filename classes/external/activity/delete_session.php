@@ -52,6 +52,7 @@ class delete_session extends external_api {
     }
 
     public static function execute($classId, $sessionId, $force) {
+        global $DB;
         $params = self::validate_parameters(self::execute_parameters(), [
             'classId'   => $classId,
             'sessionId' => $sessionId,
