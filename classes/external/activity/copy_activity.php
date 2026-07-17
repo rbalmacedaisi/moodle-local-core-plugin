@@ -55,6 +55,7 @@ class copy_activity extends external_api {
     }
 
     public static function execute($classId, $sourceSessionId, $datesJson, $force) {
+        global $DB;
         $params = self::validate_parameters(self::execute_parameters(), [
             'classId'         => $classId,
             'sourceSessionId' => $sourceSessionId,
@@ -67,9 +68,15 @@ class copy_activity extends external_api {
             self::validate_context($context);
             require_capability('local/grupomakro_core:manage_classes', $context);
 
-            $dates = json_decode($params['dates'], true);
+            // dates may arrive as a JSON string (URL-encoded) OR as a PHP array
+            // (when Moodle auto-decodes multipart JSON-shaped PARAM_RAW values).
+            if (is_array($params['dates'])) {
+                $dates = $params['dates'];
+            } else {
+                $dates = json_decode((string)$params['dates'], true);
+            }
             if (!is_array($dates)) {
-                return ['status' => -1, 'message' => 'Invalid dates JSON', 'hasConflicts' => 0];
+                return ['status' => -1, 'message' => 'Invalid dates JSON', 'hasConflicts' => 0, 'conflictsByDate' => '{}'];
             }
 
             // If not forcing, re-check conflicts first.

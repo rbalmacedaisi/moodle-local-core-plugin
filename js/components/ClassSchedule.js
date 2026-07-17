@@ -1193,40 +1193,43 @@ window.Vue.component('classschedule', {
             this.copyConflicts = null;
         },
         // POST helper that sends FormData to the WS endpoint.
-        async postWs(wsfunction, formData) {
-            const config = { headers: { 'Content-Type': 'multipart/form-data' } };
-            const resp = await window.axios.post(wsUrl, formData, config);
+        // Use URLSearchParams (application/x-www-form-urlencoded) instead of FormData
+        // (multipart/form-data). With PARAM_RAW JSON-shaped values Moodle
+        // auto-decodes them as PHP arrays, which breaks json_decode() in the WS.
+        async postWs(wsfunction, params) {
+            const config = { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } };
+            const resp = await window.axios.post(wsUrl, params, config);
             return resp.data;
         },
         buildCopyFormData(force) {
-            const fd = new FormData();
-            fd.append('wstoken', this.token);
-            fd.append('wsfunction', 'local_grupomakro_copy_activity');
-            fd.append('moodlewsrestformat', 'json');
-            fd.append('classId', this.selectedEvent.classId);
-            fd.append('sourceSessionId', this.selectedEvent.sessionId);
+            const params = new URLSearchParams();
+            params.append('wstoken', this.token);
+            params.append('wsfunction', 'local_grupomakro_copy_activity');
+            params.append('moodlewsrestformat', 'json');
+            params.append('classId', this.selectedEvent.classId);
+            params.append('sourceSessionId', this.selectedEvent.sessionId);
             const datesArr = this.copyRows.map(r => ({
                 date: r.date,
                 initTime: r.initTime,
                 endTime: r.endTime
             }));
-            fd.append('dates', JSON.stringify(datesArr));
-            fd.append('force', force ? 1 : 0);
-            return fd;
+            params.append('dates', JSON.stringify(datesArr));
+            params.append('force', force ? 1 : 0);
+            return params;
         },
         buildCheckFormData() {
-            const fd = new FormData();
-            fd.append('wstoken', this.token);
-            fd.append('wsfunction', 'local_grupomakro_check_copy_conflicts');
-            fd.append('moodlewsrestformat', 'json');
-            fd.append('classId', this.selectedEvent.classId);
+            const params = new URLSearchParams();
+            params.append('wstoken', this.token);
+            params.append('wsfunction', 'local_grupomakro_check_copy_conflicts');
+            params.append('moodlewsrestformat', 'json');
+            params.append('classId', this.selectedEvent.classId);
             const datesArr = this.copyRows.map(r => ({
                 date: r.date,
                 initTime: r.initTime,
                 endTime: r.endTime
             }));
-            fd.append('dates', JSON.stringify(datesArr));
-            return fd;
+            params.append('dates', JSON.stringify(datesArr));
+            return params;
         },
         async verifyCopyConflicts() {
             this.copyError = '';
@@ -1328,16 +1331,14 @@ window.Vue.component('classschedule', {
             if (!this.selectedEvent || !this.selectedEvent.sessionId) return;
             this.deleteLoading = true;
             try {
-                const fd = new FormData();
-                fd.append('wstoken', this.token);
-                fd.append('wsfunction', 'local_grupomakro_delete_session');
-                fd.append('moodlewsrestformat', 'json');
-                fd.append('classId', this.selectedEvent.classId);
-                fd.append('sessionId', this.selectedEvent.sessionId);
-                fd.append('force', this.deleteForce ? 1 : 0);
-                const config = { headers: { 'Content-Type': 'multipart/form-data' } };
-                const resp = await window.axios.post(wsUrl, fd, config);
-                const data = resp.data || {};
+                const params = new URLSearchParams();
+                params.append('wstoken', this.token);
+                params.append('wsfunction', 'local_grupomakro_delete_session');
+                params.append('moodlewsrestformat', 'json');
+                params.append('classId', this.selectedEvent.classId);
+                params.append('sessionId', this.selectedEvent.sessionId);
+                params.append('force', this.deleteForce ? 1 : 0);
+                const data = await this.postWs('local_grupomakro_delete_session', params);
                 if (data.status === -1) {
                     if (data.hasLogs) {
                         this.deleteLogCount = data.logCount || this.deleteLogCount;
