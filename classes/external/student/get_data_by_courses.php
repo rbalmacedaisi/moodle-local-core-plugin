@@ -241,6 +241,21 @@ class get_data_by_courses extends external_api
             if (!$courseData) {
                 throw new Exception('No se pudo decodificar la data del curso.');
             }
+
+            // GUARD (array-vs-object): the base service keys sections by their section number, so a
+            // course with non-contiguous sections (e.g. 0,1,8,9 after deletions) is emitted as a JSON
+            // object instead of an array. The student app does `topics.find(...)` on it and crashes
+            // with "t.find is not a function". Re-index sections (and their modules) to sequential
+            // arrays so the payload is always a JSON array.
+            if (isset($courseData->activities)) {
+                $courseData->activities = array_values((array)$courseData->activities);
+                foreach ($courseData->activities as $section) {
+                    if (isset($section->modules)) {
+                        $section->modules = array_values((array)$section->modules);
+                    }
+                }
+            }
+
             self::normalize_activities_payload($courseData, (int)$params['courseid']);
             self::normalize_teachers_payload($courseData, (int)$params['courseid'], (int)$params['userid']);
 
