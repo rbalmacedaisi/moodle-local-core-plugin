@@ -729,7 +729,7 @@ window.Vue.component('classschedule', {
                         {{strings.copySuccessTitle}}
                     </v-card-title>
                     <v-card-text class="pt-4">
-                        {{strings.copySuccess.replace('{$a}', copySuccessCount)}}
+                        {{(strings.copySuccess || '').replace('{$a}', copySuccessCount)}}
                     </v-card-text>
                     <v-card-actions>
                         <v-spacer></v-spacer>
@@ -793,7 +793,7 @@ window.Vue.component('classschedule', {
                             type="error"
                             class="mb-3"
                         >
-                            {{strings.deleteSessionHasLogs.replace('{$a}', deleteLogCount)}}
+                            {{(strings.deleteSessionHasLogs || '').replace('{$a}', deleteLogCount)}}
                             <v-checkbox
                                 v-model="deleteForce"
                                 :label="strings.deleteSessionForceLabel"
@@ -919,7 +919,9 @@ window.Vue.component('classschedule', {
     created() {
     },
     mounted() {
-        this.$refs.calendar.checkChange();
+        if (this.$refs.calendar && typeof this.$refs.calendar.checkChange === 'function') {
+            this.$refs.calendar.checkChange();
+        }
         this.ready = true
         this.getEvents();
         this.fetchInstructors();
@@ -1367,7 +1369,7 @@ window.Vue.component('classschedule', {
                     if (data.hasLogs) {
                         this.deleteLogCount = data.logCount || this.deleteLogCount;
                         this.deleteForce = false;
-                        this.deleteError = data.message || this.strings.deleteSessionHasLogs.replace('{$a}', this.deleteLogCount);
+                        this.deleteError = data.message || (this.strings.deleteSessionHasLogs || '').replace('{$a}', this.deleteLogCount);
                     } else {
                         throw new Error(data.message || 'Error al eliminar');
                     }
