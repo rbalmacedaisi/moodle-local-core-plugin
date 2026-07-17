@@ -1197,8 +1197,10 @@ window.Vue.component('classschedule', {
         // (multipart/form-data). With PARAM_RAW JSON-shaped values Moodle
         // auto-decodes them as PHP arrays, which breaks json_decode() in the WS.
         async postWs(wsfunction, params) {
+            console.log('[postWs] calling', wsfunction);
             const config = { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } };
             const resp = await window.axios.post(wsUrl, params, config);
+            console.log('[postWs] response for', wsfunction, ':', resp.data);
             return resp.data;
         },
         buildCopyFormData(force) {
@@ -1260,11 +1262,15 @@ window.Vue.component('classschedule', {
         async sendCopy(force) {
             this.copyError = '';
             if (this.$refs.copyForm && !this.$refs.copyForm.validate()) {
+                console.warn('[sendCopy] form validation failed');
                 return;
             }
             this.copyLoading = true;
+            const formData = this.buildCopyFormData(force);
+            console.log('[sendCopy] built formData entries:', [...formData.entries()]);
             try {
-                const resp = await this.postWs('local_grupomakro_copy_activity', this.buildCopyFormData(force));
+                const resp = await this.postWs('local_grupomakro_copy_activity', formData);
+                console.log('[sendCopy] response:', JSON.stringify(resp));
                 if (resp.status === -1) {
                     if (resp.hasConflicts) {
                         let conflictsByDate = {};
@@ -1273,7 +1279,7 @@ window.Vue.component('classschedule', {
                         } catch (e) { conflictsByDate = {}; }
                         this.copyConflicts = conflictsByDate;
                         this.copyVerified = false;
-                        this.copyError = this.strings.copyConflictsTitle;
+                        this.copyError = this.strings.copyConflictsTitle + ': ' + (resp.message || '');
                     } else {
                         throw new Error(resp.message || 'Error');
                     }
@@ -1283,7 +1289,12 @@ window.Vue.component('classschedule', {
                 try {
                     const parsed = JSON.parse(resp.message || '{}');
                     created = parsed.created || [];
-                } catch (e) { /* ignore */ }
+                    console.log('[sendCopy] parsed created:', created);
+                } catch (e) {
+                    console.error('[sendCopy] JSON.parse failed for message:', resp.message, e);
+                    this.copyError = 'Respuesta del servidor invalida: ' + (resp.message || '').substring(0, 200);
+                    return;
+                }
                 this.copyDialog = false;
                 this.copyConflicts = null;
                 this.copyVerified = false;
@@ -1299,6 +1310,7 @@ window.Vue.component('classschedule', {
                 // Refresh calendar.
                 this.getEvents();
             } catch (e) {
+                console.error('[sendCopy] error:', e);
                 this.copyError = (e && e.message) ? e.message : 'Error al copiar';
             } finally {
                 this.copyLoading = false;
