@@ -40,11 +40,13 @@ $PAGE->set_pagelayout('base');
 //Get tokens
 // get_logged_user_token() returns a JSON-encoded string (e.g. "abc123"),
 // which would result in the JS variable holding a literal quoted string.
-// Decode it so the JS sends the bare token value.
-// Use null coalescing so a missing/empty token becomes '' instead of null
-// (which would produce invalid JS like "var token = ;").
-$token     = json_decode(get_logged_user_token()) ?? '';
-$themeToken = json_decode(get_theme_token()) ?? '';
+// Decode it so the JS sends the bare token value (without surrounding quotes).
+// If the decode yields null/empty, emit JS string literal '""' instead of nothing,
+// because PHP interpolates '' as nothing which produces invalid JS "var token = ;".
+$rawToken = json_decode(get_logged_user_token());
+$token    = (is_string($rawToken) && $rawToken !== '') ? $rawToken : '""';
+$rawTheme = json_decode(get_theme_token());
+$themeToken = (is_string($rawTheme) && $rawTheme !== '') ? $rawTheme : '""';
 
 $userRole = is_siteadmin() ? 'admin' : false;
 
