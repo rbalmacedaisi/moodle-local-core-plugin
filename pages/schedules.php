@@ -188,7 +188,7 @@ echo <<<EOT
   </style>
 EOT;
 
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/app.js'));
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/ClassSchedule.cpfix.js'));
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/dialogconfirm.js'));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/app.js?v=cpfix1'));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/ClassSchedule.cpfix.js?v=cpfix1'));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/dialogconfirm.js?v=cpfix1'));
 echo $OUTPUT->footer();
