@@ -38,15 +38,15 @@ $PAGE->set_heading(get_string('schedules', $plugin_name));
 $PAGE->set_pagelayout('base');
 
 //Get tokens
-// get_logged_user_token() returns a JSON-encoded string (e.g. "abc123"),
-// which would result in the JS variable holding a literal quoted string.
-// Decode it so the JS sends the bare token value (without surrounding quotes).
-// If the decode yields null/empty, emit JS string literal '""' instead of nothing,
-// because PHP interpolates '' as nothing which produces invalid JS "var token = ;".
+// get_logged_user_token() returns a JSON-encoded string (e.g. "abc123"). Decode it to
+// the raw token, then RE-ENCODE with json_encode so the heredoc emits a valid quoted JS
+// string literal: `var token = "abc123";`. Emitting the bare value (`var token = abc123;`)
+// is a JS SyntaxError for hex tokens starting with a digit, which aborts the whole inline
+// <script> — leaving window.strings/token undefined and crashing the Vue app ("no carga nada").
 $rawToken = json_decode(get_logged_user_token());
-$token    = (is_string($rawToken) && $rawToken !== '') ? $rawToken : '""';
+$token    = json_encode((is_string($rawToken) && $rawToken !== '') ? $rawToken : '');
 $rawTheme = json_decode(get_theme_token());
-$themeToken = (is_string($rawTheme) && $rawTheme !== '') ? $rawTheme : '""';
+$themeToken = json_encode((is_string($rawTheme) && $rawTheme !== '') ? $rawTheme : '');
 
 $userRole = is_siteadmin() ? 'admin' : false;
 
