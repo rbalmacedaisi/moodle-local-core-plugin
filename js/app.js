@@ -86,10 +86,33 @@ function mountVueApp() {
 
 // Wrap initialization in DOMContentLoaded to ensure DOM is ready
 function initVueApp() {
+  // Skip the theme fetch entirely if there is no usable token (avoids a
+  // SyntaxError cascade: WS returns "undefined" string, JSON.parse explodes,
+  // Vue component never gets window.strings etc. and surfaces a confusing
+  // "Cannot read properties of undefined").
+  const hasThemeToken = typeof getThemeSettingsParams.wstoken === 'string'
+    && getThemeSettingsParams.wstoken
+    && getThemeSettingsParams.wstoken !== 'undefined'
+    && getThemeSettingsParams.wstoken !== '""';
+
+  if (!hasThemeToken) {
+    console.warn('[initVueApp] no themeToken; skipping theme fetch and using defaults.');
+    applyThemeDefaults();
+    mountVueApp();
+    return;
+  }
+
   // Make a GET request to the API using Axios and the specified parameters.
   window.axios.get(wsUrl, { params: getThemeSettingsParams })
     .then(response => {
-      // Extract the colors from the JSON response and assign them to the corresponding variables.
+      // Guard against non-JSON themeobject (e.g. "undefined" when the WS
+      // returns an error string). Falling back to defaults is safer than
+      // throwing a SyntaxError that breaks every Vue component downstream.
+      if (typeof response.data.themeobject !== 'string'
+          || !response.data.themeobject
+          || response.data.themeobject === 'undefined') {
+        throw new Error('themeobject missing or invalid');
+      }
       const data = JSON.parse(response.data.themeobject);
       primarycolor = data.brandcolor;
       darkPrimarycolor = data.brandcolordark;
@@ -100,22 +123,29 @@ function initVueApp() {
       // Get the value of the 'data-preset' attribute from the root element of the document.
       const preset = document.documentElement.getAttribute('data-preset');
       // If the 'data-preset' attribute value is 'dark', set the 'darkMode' variable to true.
-      // This variable is later used to determine whether the dark or light theme should be applied.
+      // This variable is later used to determine whether the dark or light theme should be used.
       if (preset === 'dark') {
         darkMode = true;
       }
       mountVueApp();
     })
     .catch(error => {
-      console.error(error);
-      // Fallback defaults so schedule page still loads even if theme API fails.
-      primarycolor = primarycolor || '#1976d2';
-      darkPrimarycolor = darkPrimarycolor || '#1e88e5';
-      secondarycolor = secondarycolor || '#424242';
-      secondarycolordark = secondarycolordark || '#bdbdbd';
-      bgcolordark = bgcolordark || '#121212';
+      console.error('[initVueApp] theme fetch failed:', error);
+      applyThemeDefaults();
       mountVueApp();
     });
+}
+
+function applyThemeDefaults() {
+  primarycolor = primarycolor || '#1976d2';
+  darkPrimarycolor = darkPrimarycolor || '#1e88e5';
+  secondarycolor = secondarycolor || '#424242';
+  secondarycolordark = secondarycolordark || '#bdbdbd';
+  bgcolordark = bgcolordark || '#121212';
+  const preset = document.documentElement.getAttribute('data-preset');
+  if (preset === 'dark') {
+    darkMode = true;
+  }
 }
 
 // Initialize when DOM is ready
