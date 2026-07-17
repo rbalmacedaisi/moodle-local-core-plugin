@@ -827,6 +827,18 @@ window.Vue.component('classschedule', {
         </div>
     `,
     data() {
+        // Defensive: provide defaults for all window.* globals so the component
+        // can mount even when the inline script in schedules.php fails or is
+        // cached from an older version (no more "Cannot read properties of
+        // undefined" cascades).
+        const safeStrings = window.strings && typeof window.strings === 'object'
+            ? window.strings : {};
+        const safeRescheduleCauses = Array.isArray(window.rescheduleCauses)
+            ? window.rescheduleCauses : [];
+        const safeCourses = Array.isArray(window.coursesWithCreatedClasses)
+            ? window.coursesWithCreatedClasses : [];
+        const safeInstructors = window.instructors;
+
         return {
             today: new Date().toISOString().substr(0, 10),
             focus: new Date().toISOString().substr(0, 10),
@@ -845,7 +857,7 @@ window.Vue.component('classschedule', {
             selectedEvent: {},
             selectedElement: null,
             showSelectedEvent: false,
-            strings: window.strings,
+            strings: safeStrings,
             value: '',
             causes: [],
             date: (new Date(Date.now() - (new Date()).getTimezoneOffset() * 60000)).toISOString().substr(0, 10),
@@ -883,17 +895,17 @@ window.Vue.component('classschedule', {
             weekdays: [1, 2, 3, 4, 5, 6, 0],
             events: [],
             instructors: [],
-            coursesWithCreatedClasses: window.coursesWithCreatedClasses,
+            coursesWithCreatedClasses: safeCourses,
             isAdmin: window.userRole === 'admin',
             userId: window.userId,
             fetchingEvents: false,
             typeToLabel: {
-                month: window.strings.month,
-                week: window.strings.week,
-                day: window.strings.day,
+                month: (safeStrings && safeStrings.month) || 'Mes',
+                week: (safeStrings && safeStrings.week) || 'Semana',
+                day: (safeStrings && safeStrings.day) || 'Día',
             },
             calendarType: 'week',
-            rescheduleCauses: window.rescheduleCauses.map(cause => ({ text: cause.causename, id: cause.id, value: cause.id }))
+            rescheduleCauses: safeRescheduleCauses.map(cause => ({ text: cause.causename, id: cause.id, value: cause.id }))
         }
     },
     props: {},
