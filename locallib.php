@@ -11162,9 +11162,8 @@ function gmk_copy_class_activity(array $params): array {
         if ($startTS >= $endTS) {
             throw new moodle_exception('error_invalid_time_range', 'local_grupomakro_core', '', $dateStr);
         }
-        if ($startTS < $todayTs) {
-            throw new moodle_exception('error_date_in_past', 'local_grupomakro_core', '', $dateStr);
-        }
+        // NOTE: past dates are intentionally allowed — copying/creating sessions on dates that
+        // already passed is a valid use case (backfilling attendance for a session that was held).
         if ($DB->record_exists('attendance_sessions', [
             'attendanceid' => $attendanceRecord->id,
             'groupid'      => $class->groupid,
