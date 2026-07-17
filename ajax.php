@@ -2938,18 +2938,21 @@ try {
             // Used below to filter out orphaned BBB events whose attendance session was deleted
             // but whose BBB module (and calendar event) still exists (e.g. hidden but not deleted).
             $bbbInstancesWithValidSession = [];
+            $bbbInstanceSessionEventId = [];
             if (!empty($classBbbInstanceIds)) {
                 list($bbbValidInSql, $bbbValidParams) = $DB->get_in_or_equal(array_values($classBbbInstanceIds), SQL_PARAMS_NAMED, 'bvld');
                 $validRelRows = $DB->get_records_sql(
-                    "SELECT rel.bbbid
+                    "SELECT rel.bbbid, MAX(asess.caleventid) AS caleventid
                        FROM {gmk_bbb_attendance_relation} rel
                        JOIN {attendance_sessions} asess ON asess.id = rel.attendancesessionid
                       WHERE rel.classid = :classid
-                        AND rel.bbbid $bbbValidInSql",
+                        AND rel.bbbid $bbbValidInSql
+                   GROUP BY rel.bbbid",
                     array_merge(['classid' => (int)$classid], $bbbValidParams)
                 );
                 foreach ($validRelRows as $vr) {
                     $bbbInstancesWithValidSession[(int)$vr->bbbid] = true;
+                    $bbbInstanceSessionEventId[(int)$vr->bbbid] = (int)$vr->caleventid;
                 }
             }
 
@@ -2972,6 +2975,14 @@ try {
                         // This filters orphaned BBB calendar events left behind when the
                         // attendance session was deleted but the BBB module was only hidden.
                         if (!isset($bbbInstancesWithValidSession[(int)$e->instance])) {
+                            continue;
+                        }
+                        // Skip BBB events whose session is already represented by its own
+                        // attendance calendar event: the ±10-min overlap check above misses
+                        // them when BBB opening and attendance times drifted apart, and the
+                        // timeline would then list the same session twice.
+                        $linkedcaleventid = $bbbInstanceSessionEventId[(int)$e->instance] ?? 0;
+                        if ($linkedcaleventid > 0 && isset($attendanceEventIds[$linkedcaleventid])) {
                             continue;
                         }
                     }
