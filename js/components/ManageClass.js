@@ -52,6 +52,10 @@ const ManageClass = {
             <!-- Tab Content -->
             <v-row class="mt-4">
                 <v-col cols="12">
+                    <v-alert v-if="revalidaError" type="error" dense dismissible
+                        @input="revalidaError = null" class="mb-3 mx-4">
+                        {{ revalidaError }}
+                    </v-alert>
                     <v-tabs-items v-model="activeTab" class="transparent">
                         
                         <!-- Timeline Tab -->
@@ -495,7 +499,7 @@ const ManageClass = {
                 @success="onActivityCreated"
             ></quiz-creation-wizard>
 
-            <v-snackbar v-model="snackbar" :timeout="3000" color="success">
+            <v-snackbar v-model="snackbar" :timeout="5000" :color="snackbarColor">
                 {{ snackbarText }}
                 <template v-slot:action="{ attrs }">
                     <v-btn text v-bind="attrs" @click="snackbar = false">Cerrar</v-btn>
@@ -735,6 +739,7 @@ const ManageClass = {
             isEditing: false,
             snackbar: false,
             snackbarText: '',
+            snackbarColor: 'success',
             // Enter session loading state
             enteringSessionId: null,
             // QR / Attendance Data
@@ -1080,6 +1085,7 @@ const ManageClass = {
                         : 'No se pudo actualizar el flag de reválida.');
                 }
                 att.is_revalida = response.data.is_revalida ? 1 : 0;
+                this.snackbarColor = 'success';
                 this.snackbarText = desired
                     ? 'Sesión marcada como reválida. No se contabiliza en el % de asistencia ni en las faltas.'
                     : 'Sesión desmarcada como reválida. Vuelve a contar en el % de asistencia.';
@@ -1087,7 +1093,13 @@ const ManageClass = {
             } catch (e) {
                 // Roll back to the previous value.
                 att.is_revalida = previous ? 1 : 0;
-                this.revalidaError = (e && e.message) ? e.message : String(e);
+                const msg = (e && e.message) ? e.message : String(e);
+                this.revalidaError = msg;
+                // Surface the failure to the teacher (previously only logged
+                // to the console, leaving the user with no feedback).
+                this.snackbarColor = 'error';
+                this.snackbarText = 'Error al marcar la sesión como reválida: ' + msg;
+                this.snackbar = true;
                 console.error('toggleSessionRevalida failed', e);
             } finally {
                 this.$set(this.revalidaBusy, sid, false);

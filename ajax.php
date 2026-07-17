@@ -5458,7 +5458,8 @@ try {
 
         case 'local_grupomakro_toggle_session_revalida':
             // Flip the is_revalida flag on a single attendance_session row.
-            // Requires 'mod/attendance:takeattendance' on the activity's course.
+            // Requires 'mod/attendance:takeattendances' on the activity's course
+            // (note the trailing 's' — the typo would silently fail for everyone).
             $rvSessionId   = required_param('sessionid', PARAM_INT);
             $rvDesired     = (int)required_param('value', PARAM_INT);
             try {
@@ -5473,7 +5474,7 @@ try {
                     throw new moodle_exception('Attendance course_module not found.');
                 }
                 $rvCtx = context_module::instance($rvCmid);
-                require_capability('mod/attendance:takeattendance', $rvCtx);
+                require_capability('mod/attendance:takeattendances', $rvCtx);
                 $rvDesired = ($rvDesired === 1) ? 1 : 0;
                 $rvNow = time();
                 $DB->set_field('attendance_sessions', 'is_revalida', $rvDesired,
