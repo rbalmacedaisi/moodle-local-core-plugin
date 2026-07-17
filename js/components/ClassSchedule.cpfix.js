@@ -838,8 +838,12 @@ window.Vue.component('classschedule', {
         const safeCourses = Array.isArray(window.coursesWithCreatedClasses)
             ? window.coursesWithCreatedClasses : [];
         const safeInstructors = window.instructors;
+        // copy/delete/reschedule ws calls use this.token; getEvents uses wsStaticParams.wstoken.
+        // Without this the copy/delete calls sent wstoken=undefined -> Moodle 'invalidtoken'.
+        const safeToken = (typeof window.token === 'string') ? window.token : '';
 
         return {
+            token: safeToken,
             today: new Date().toISOString().substr(0, 10),
             focus: new Date().toISOString().substr(0, 10),
             start: null,
