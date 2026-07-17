@@ -9414,6 +9414,16 @@ function gmk_close_class_with_grade_recalc(int $classId): array {
             );
         }
 
+        // GUARD (wrong-plan closure): on a class shared across learning plans, the
+        // enrollment can create the progre row under a plan other than the student's
+        // active one, so the closure just marked a terminal status (4/5) there while
+        // the pensum keeps reading the active-plan projection — shown as "Disponible".
+        // Move each terminal result onto the student's active-plan row and drop the
+        // wrong-plan duplicate so the transcript is consistent and closing is idempotent.
+        foreach ($updates as $upd) {
+            gmk_reconcile_closed_progre_to_active_plan((int)$class->corecourseid, (int)$upd['id']);
+        }
+
         $DB->execute("UPDATE {gmk_class} SET closed = 1, timemodified = :t WHERE id = :id",
             ['t' => $now, 'id' => $classId]);
 
@@ -9449,6 +9459,80 @@ function gmk_close_class_with_grade_recalc(int $classId): array {
     }
 
     return ['ok' => true, 'error' => null, 'summary' => $summary];
+}
+
+/**
+ * Reconcile a just-closed progre row onto the student's active-plan row for the same course.
+ *
+ * On classes shared across learning plans, enrollment can create the gmk_course_progre row
+ * under a plan that is not the student's active one. The closure marks the terminal status
+ * (Aprobada/Reprobada) on that wrong-plan row, but the student's pensum reads the row under
+ * their active plan — which stayed as a "Disponible"/"Cursando" projection. This moves the
+ * terminal result onto the active-plan projection and deletes the wrong-plan duplicate.
+ *
+ * Only acts when ALL of these hold (otherwise it is a no-op, so it is safe to call always):
+ *   - the student has an active learning plan (local_learning_users.status='activo') that
+ *     contains this course, and it differs from the closed row's plan;
+ *   - under that active plan there is a stale projection (status 0/1, no classid) for the course.
+ * Legitimate retakes (status 2 with a real classid) are never touched.
+ *
+ * @param int $corecourseid gmk_course_progre.courseid (the core course)
+ * @param int $closedProgreId id of the row the closure just set terminal
+ * @return bool true if a reconciliation was applied
+ */
+function gmk_reconcile_closed_progre_to_active_plan(int $corecourseid, int $closedProgreId): bool {
+    global $DB;
+
+    $closed = $DB->get_record('gmk_course_progre', ['id' => $closedProgreId], '*', IGNORE_MISSING);
+    if (!$closed || (int)$closed->courseid !== $corecourseid) {
+        return false;
+    }
+    // Only reconcile terminal results.
+    if (!in_array((int)$closed->status, [COURSE_APPROVED, COURSE_FAILED], true)) {
+        return false;
+    }
+    $userid = (int)$closed->userid;
+
+    // Resolve the student's active plan that contains this course.
+    $activePlan = $DB->get_field_sql(
+        "SELECT lu.learningplanid
+           FROM {local_learning_users} lu
+           JOIN {local_learning_courses} lc
+             ON lc.learningplanid = lu.learningplanid AND lc.courseid = :cc
+          WHERE lu.userid = :uid AND lu.status = 'activo'
+       ORDER BY lu.learningplanid ASC",
+        ['uid' => $userid, 'cc' => $corecourseid],
+        IGNORE_MULTIPLE
+    );
+    if (empty($activePlan) || (int)$activePlan === (int)$closed->learningplanid) {
+        return false; // already on the active plan, or no active plan to reconcile to.
+    }
+
+    // Find a stale projection under the active plan (never a real/in-progress enrollment).
+    $proj = $DB->get_record_sql(
+        "SELECT * FROM {gmk_course_progre}
+          WHERE userid = :uid AND courseid = :cc AND learningplanid = :plan
+            AND id <> :cid AND status IN (0, 1) AND (classid IS NULL OR classid = 0)
+       ORDER BY id ASC",
+        ['uid' => $userid, 'cc' => $corecourseid, 'plan' => (int)$activePlan, 'cid' => $closedProgreId],
+        IGNORE_MULTIPLE
+    );
+    if (!$proj) {
+        return false;
+    }
+
+    // Move the terminal result onto the active-plan row, then drop the wrong-plan duplicate.
+    $DB->execute(
+        "UPDATE {gmk_course_progre}
+            SET status = :s, grade = :g, progress = 100, classid = :cls, groupid = :grp, timemodified = :t
+          WHERE id = :id",
+        ['s' => (int)$closed->status, 'g' => $closed->grade, 'cls' => $closed->classid,
+         'grp' => $closed->groupid, 't' => time(), 'id' => (int)$proj->id]
+    );
+    $DB->delete_records('gmk_course_progre', ['id' => $closedProgreId]);
+    gmk_log("close reconcile: user $userid course $corecourseid moved terminal (status {$closed->status}) "
+        . "from progre $closedProgreId plan {$closed->learningplanid} -> row {$proj->id} active plan $activePlan");
+    return true;
 }
 
 /**
