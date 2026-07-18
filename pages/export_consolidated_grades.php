@@ -162,8 +162,6 @@ if ($withgrades) {
         $row->period = $cp->periodname;
         $row->course = $cp->coursename;
 
-        $gradeVal = ($cp->grade !== null) ? (float)$cp->grade : null;
-        $row->grade = ($gradeVal !== null) ? number_format($gradeVal, 2) : '--';
         $row->student_status = $currentStudentStatus;
         $row->financial_status = $cp->financial_status ?: 'Pendiente';
 
