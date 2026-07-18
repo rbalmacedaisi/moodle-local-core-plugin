@@ -115,6 +115,10 @@ if ($withgrades) {
     $data = [];
     $studentStatusCache = [];
 
+    // First pass: collect all cp rows and apply status/search filters.
+    // We buffer them so the resolver can be called in bulk (one batched pre-load
+    // per data type instead of N+1 queries per row).
+    $pending = [];
     foreach ($recordset as $cp) {
         if (!isset($studentStatusCache[$cp->userid])) {
             $sStatus = 'Activo';
@@ -153,42 +157,57 @@ if ($withgrades) {
             if (!$match) continue;
         }
 
+        $pending[] = [
+            'cp' => $cp,
+            'docNumber' => $finalID,
+            'student_status' => $currentStudentStatus,
+            'financial_status' => $cp->financial_status ?: 'Pendiente',
+        ];
+    }
+    $recordset->close();
+
+    // Bulk resolver call: one pre-load per data type for all rows.
+    $resolverInput = [];
+    foreach ($pending as $i => $p) {
+        $cp = $p['cp'];
+        $resolverInput[] = [
+            'key'              => (string)$i,
+            'userid'           => (int)$cp->userid,
+            'courseid'         => (int)$cp->courseid,
+            'learningplanid'   => (int)$cp->learningplanid,
+            'baseStatus'       => (int)($cp->coursestatus ?? 0),
+            'progressclassid'  => !empty($cp->classid) ? (int)$cp->classid : null,
+            'progressgroupid'  => !empty($cp->groupid) ? (int)$cp->groupid : null,
+            'currentperiodid'  => (int)($cp->currentperiodid ?? 0),
+            'coursename'       => (string)($cp->coursename ?? ''),
+            'baseProgress'     => $cp->progress !== null ? (float)$cp->progress : null,
+        ];
+    }
+    $resolutions = \local_grupomakro_core\course_grade_resolver::bulk_resolve_for_records($resolverInput);
+
+    // Second pass: build the final row objects using the bulk resolutions.
+    foreach ($pending as $i => $p) {
+        $cp = $p['cp'];
+        $resolution = $resolutions[(string)$i] ?? ['grade' => null, 'status' => (int)($cp->coursestatus ?? 0)];
+
         $row = new stdClass();
         $row->id = $cp->userid;
         $row->fullname = $cp->firstname . ' ' . $cp->lastname;
         $row->email = $cp->email;
-        $row->identification = $finalID;
+        $row->identification = $p['docNumber'];
         $row->career = $cp->career;
         $row->period = $cp->periodname;
         $row->course = $cp->coursename;
+        $row->student_status = $p['student_status'];
+        $row->financial_status = $p['financial_status'];
 
-        $row->student_status = $currentStudentStatus;
-        $row->financial_status = $cp->financial_status ?: 'Pendiente';
-
-        // Use the unified resolver cascade (same as the academic panel modal) so the
-        // export shows the same nota/estado that the teacher sees on screen — including
-        // module priority, class category grade and virtual approval (>=70 → Aprobada).
-        $baseStatus  = (int)($cp->coursestatus ?? 0);
-        $progress    = ($cp->progress !== null) ? (float)$cp->progress : null;
-        $resolution = \local_grupomakro_core\course_grade_resolver::resolve_course_grade(
-            (int)$cp->userid,
-            (int)$cp->courseid,
-            (int)$cp->learningplanid,
-            $baseStatus,
-            !empty($cp->classid) ? (int)$cp->classid : null,
-            !empty($cp->groupid) ? (int)$cp->groupid : null,
-            (int)($cp->currentperiodid ?? 0),
-            (string)($cp->coursename ?? ''),
-            $progress
-        );
-        $resolvedGrade  = $resolution['grade'];
+        $resolvedGrade = $resolution['grade'];
         $resolvedStatus = (int)$resolution['status'];
         $row->grade = ($resolvedGrade !== null) ? number_format((float)$resolvedGrade, 2) : '--';
         $row->course_status = \local_grupomakro_core\course_grade_resolver::STATUS_LABEL[$resolvedStatus] ?? 'No disponible';
 
         $data[] = $row;
     }
-    $recordset->close();
 } else {
     // --- MODE 2: Student-based (Consolidated WITHOUT grades, matching Panel) ---
     $sqlConditions = ["lpu.userrolename = :userrolename", "u.deleted = 0"];
