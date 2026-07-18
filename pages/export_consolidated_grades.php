@@ -10,6 +10,7 @@ require_once(__DIR__ . '/../../../config.php');
 require_once($CFG->libdir . '/adminlib.php');
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/progress_manager.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/classes/course_grade_resolver.php');
 require_once($CFG->libdir . '/dataformatlib.php');
 
 require_login();
@@ -83,44 +84,23 @@ if ($withgrades) {
 
     $whereClause = "WHERE " . implode(' AND ', $sqlConditions);
 
-    // Grade resolved using the same priority as the pensum/studenttable:
-    //   1) "Nota Final Integrada" grade item  (authoritative migrated/final grade)
-    //   2) Class category grade via student's real group membership
-    //   3) Stored cp.grade as fallback
+    // Grade and course_status are resolved per-row using course_grade_resolver,
+    // which is the same cascade used by the academic panel grades modal
+    // (get_student_learning_plan_pensum). This ensures the Excel export shows the
+    // same nota/estado that the teacher sees on screen — including module grades,
+    // class category aggregation and virtual approval.
     $query = "
         SELECT u.id as userid, u.firstname, u.lastname, u.email, u.idnumber,
                lp.name as career, per.name as periodname,
                COALESCE(cp.coursename, '(Sin curso activo)') as coursename,
-               COALESCE(
-                   (SELECT gg.finalgrade
-                      FROM {grade_items} gi
-                      JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = u.id
-                     WHERE gi.courseid = cp.courseid
-                       AND gg.finalgrade BETWEEN 0 AND 100
-                       AND (gi.itemname LIKE '%Nota Final Integrada%'
-                            OR gi.itemname LIKE '%Final Integrada%'
-                            OR gi.itemname LIKE '%Nota Final%')
-                     ORDER BY gg.finalgrade DESC
-                     LIMIT 1),
-                   (SELECT gg.finalgrade
-                      FROM {groups_members} gm
-                      JOIN {gmk_class} cls ON cls.groupid = gm.groupid
-                           AND cls.corecourseid = cp.courseid
-                           AND cls.gradecategoryid > 0
-                      JOIN {grade_items} gi ON gi.itemtype = 'category'
-                           AND gi.iteminstance = cls.gradecategoryid
-                           AND gi.courseid = cls.corecourseid
-                      JOIN {grade_grades} gg ON gg.itemid = gi.id
-                           AND gg.userid = u.id
-                           AND gg.finalgrade BETWEEN 0 AND 100
-                     WHERE gm.userid = u.id
-                     LIMIT 1),
-                   cp.grade
-               ) AS grade,
-               cp.status as coursestatus, cp.practicalhours, fs.status as financial_status
+               cp.courseid, cp.learningplanid, cp.periodid,
+               cp.classid, cp.groupid, cp.progress,
+               cp.status as coursestatus, cp.grade as cpgrade, cp.practicalhours,
+               lpu.currentperiodid,
+               fs.status as financial_status
         FROM {gmk_course_progre} cp
         JOIN {user} u ON u.id = cp.userid
-        JOIN {local_learning_users} lpu ON (lpu.userid = u.id AND lpu.learningplanid = cp.learningplanid)
+        JOIN {local_learning_users} lpu ON (lpu.userid = u.id AND lpu.learningplanid = cp.learningplanid AND lpu.userrolename = 'student')
         JOIN {local_learning_plans} lp ON lp.id = cp.learningplanid
         LEFT JOIN {local_learning_periods} per ON per.id = cp.periodid
         LEFT JOIN {gmk_financial_status} fs ON (fs.userid = u.id)
@@ -187,21 +167,26 @@ if ($withgrades) {
         $row->student_status = $currentStudentStatus;
         $row->financial_status = $cp->financial_status ?: 'Pendiente';
 
-        // Re-derive course status from resolved grade (same logic as gmk_classify_student_grade).
-        // Keep stored status for in-progress (2), revalidating (7) and migration-pending (99).
-        $storedStatus = (int)$cp->coursestatus;
-        $practHours   = (int)($cp->practicalhours ?? 0);
-        if ($gradeVal !== null && $gradeVal > 0 && !in_array($storedStatus, [2, 7, 99])) {
-            if ($gradeVal > 70.9) {
-                $row->course_status = 'Aprobada';
-            } elseif ($practHours === 0 && $gradeVal >= 60.0) {
-                $row->course_status = 'Pendiente Revalida';
-            } else {
-                $row->course_status = 'Reprobada';
-            }
-        } else {
-            $row->course_status = $statusLabels[$storedStatus] ?? '--';
-        }
+        // Use the unified resolver cascade (same as the academic panel modal) so the
+        // export shows the same nota/estado that the teacher sees on screen — including
+        // module priority, class category grade and virtual approval (>=70 → Aprobada).
+        $baseStatus  = (int)($cp->coursestatus ?? 0);
+        $progress    = ($cp->progress !== null) ? (float)$cp->progress : null;
+        $resolution = \local_grupomakro_core\course_grade_resolver::resolve_course_grade(
+            (int)$cp->userid,
+            (int)$cp->courseid,
+            (int)$cp->learningplanid,
+            $baseStatus,
+            !empty($cp->classid) ? (int)$cp->classid : null,
+            !empty($cp->groupid) ? (int)$cp->groupid : null,
+            (int)($cp->currentperiodid ?? 0),
+            (string)($cp->coursename ?? ''),
+            $progress
+        );
+        $resolvedGrade  = $resolution['grade'];
+        $resolvedStatus = (int)$resolution['status'];
+        $row->grade = ($resolvedGrade !== null) ? number_format((float)$resolvedGrade, 2) : '--';
+        $row->course_status = \local_grupomakro_core\course_grade_resolver::STATUS_LABEL[$resolvedStatus] ?? 'No disponible';
 
         $data[] = $row;
     }
