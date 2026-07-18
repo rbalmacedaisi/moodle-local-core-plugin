@@ -1116,7 +1116,8 @@ class course_grade_resolver
         list($ciSql, $ciParams) = $DB->get_in_or_equal($courseids, SQL_PARAMS_NAMED, 'ci');
         $allItems = $DB->get_records_sql(
             "SELECT id, courseid, categoryid, itemtype, itemmodule, iteminstance,
-                    grademax, grademin, aggregationcoef, aggregationcoef2
+                    grademax, grademin, aggregationcoef, aggregationcoef2,
+                    itemname
                FROM {grade_items}
               WHERE courseid $ciSql",
             $ciParams
@@ -1130,21 +1131,29 @@ class course_grade_resolver
         }
 
         // 3) Pre-load ALL grade_grades for the relevant users.
+        // Note: get_records_sql requires the first column to be unique, but
+        // grade_grades has many rows per userid (one per itemid). Use a
+        // recordset loop instead. We also load rawgrade as a fallback when
+        // finalgrade is NULL — matches bulk_course_total_grades semantics.
         $gradesByUserItem = [];
         if (!empty($allItemIds) && !empty($userids)) {
             list($uiSql, $uiParams) = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED, 'uid');
             list($iiSql, $iiParams) = $DB->get_in_or_equal($allItemIds, SQL_PARAMS_NAMED, 'iid');
-            $allGrades = $DB->get_records_sql(
-                "SELECT userid, itemid, finalgrade
+            $rs = $DB->get_recordset_sql(
+                "SELECT userid, itemid, finalgrade, rawgrade
                    FROM {grade_grades}
                   WHERE userid $uiSql
                     AND itemid $iiSql
-                    AND finalgrade IS NOT NULL",
+                    AND (finalgrade IS NOT NULL OR rawgrade IS NOT NULL)",
                 $uiParams + $iiParams
             );
-            foreach ($allGrades as $g) {
-                $gradesByUserItem[(int)$g->userid][(int)$g->itemid] = (float)$g->finalgrade;
+            foreach ($rs as $g) {
+                $val = $g->finalgrade !== null ? (float)$g->finalgrade
+                     : ($g->rawgrade  !== null ? (float)$g->rawgrade  : null);
+                if ($val === null) continue;
+                $gradesByUserItem[(int)$g->userid][(int)$g->itemid] = $val;
             }
+            $rs->close();
         }
 
         // 4) Pre-load ALL gmk_class rows for the relevant courses.
@@ -1431,7 +1440,7 @@ class course_grade_resolver
             $candidate = (float)$manualIntegratedGradeByCourseId[$courseidkey];
             if ($candidate >= 0 && $candidate <= 100) {
                 $coursegrade = $candidate;
-                $gradesource = self::SOURCE_MANUAL_NOTA_INTEGRADA_FALLBACK ?? self::SOURCE_MANUAL_NOTA_FINAL_INTEGRADA;
+                $gradesource = self::SOURCE_MANUAL_NOTA_FINAL_INTEGRADA;
             }
         }
 
