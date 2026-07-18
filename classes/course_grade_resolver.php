@@ -1183,16 +1183,17 @@ class course_grade_resolver
             $allClassGroupIds = array_keys($allClassGroupIds);
             list($gidSql, $gidParams) = $DB->get_in_or_equal($allClassGroupIds, SQL_PARAMS_NAMED, 'gid');
             list($uidSql, $uidParams) = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED, 'uid');
-            $allGm = $DB->get_records_sql(
+            $rs = $DB->get_recordset_sql(
                 "SELECT userid, groupid
                    FROM {groups_members}
                   WHERE groupid $gidSql
                     AND userid $uidSql",
                 $gidParams + $uidParams
             );
-            foreach ($allGm as $gm) {
+            foreach ($rs as $gm) {
                 $groupsByUser[(int)$gm->userid][(int)$gm->groupid] = true;
             }
+            $rs->close();
         }
 
         // 6) Pre-load ALL grade_categories referenced by the pre-loaded classes.
