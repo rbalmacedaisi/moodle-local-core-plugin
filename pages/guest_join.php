@@ -18,7 +18,11 @@ if ($action === 'join' && !empty($username)) {
     $bbb = $DB->get_record('bigbluebuttonbn', array('id' => $cm->instance), '*', MUST_EXIST);
 
     $meetingID = $bbb->meetingid;
-    $password = $bbb->moderatorpass; // Moderator role required to allow screen sharing.
+    // Guests must join as VIEWER. With moderatorpass any student could end the
+    // meeting for everyone on logout (ENDED_AFTER_USER_LOGGED_OUT), leaving
+    // joining clients stuck on the loading screen with invalidated tokens.
+    // If a guest needs to share screen, the teacher can promote them in-session.
+    $password = $bbb->viewerpass;
 
     // BBB Server Config
     $bbb_url = trim(get_config('core', 'bigbluebuttonbn_server_url'));

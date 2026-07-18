@@ -92,6 +92,29 @@ class end_bbb_sessions extends scheduled_task {
                     continue;
                 }
 
+                // Don't cut a live class: if a moderator (teacher) is still in the
+                // meeting, skip ending it and let a later run (or the teacher) close it.
+                $infoQuery    = 'meetingID=' . urlencode($meetingId);
+                $infoChecksum = sha1('getMeetingInfo' . $infoQuery . $secret);
+                $infoUrl      = $serverUrl . 'api/getMeetingInfo?' . $infoQuery . '&checksum=' . $infoChecksum;
+
+                $infocurl = new \curl();
+                $infocurl->setopt([
+                    'CURLOPT_TIMEOUT'        => 10,
+                    'CURLOPT_SSL_VERIFYPEER' => false,
+                ]);
+                $infoResponse = (string)$infocurl->get($infoUrl);
+
+                if (!$infocurl->get_errno() && strpos($infoResponse, '<returncode>SUCCESS</returncode>') !== false) {
+                    if (strpos($infoResponse, '<role>MODERATOR</role>') !== false) {
+                        mtrace("  Skipped — moderator still present for classid={$session->classid} (meetingID={$meetingId})");
+                        continue;
+                    }
+                } elseif (strpos($infoResponse, 'notFound') !== false) {
+                    mtrace("  Meeting not running — nothing to end for classid={$session->classid}");
+                    continue;
+                }
+
                 // Build BBB API end URL with checksum
                 $queryString = 'meetingID=' . urlencode($meetingId) . '&password=' . urlencode($modPw);
                 $checksum    = sha1('end' . $queryString . $secret);
