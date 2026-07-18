@@ -198,12 +198,12 @@ if ($withgrades) {
         $row->career = $cp->career;
         $row->period = $cp->periodname;
         $row->course = $cp->coursename;
-        $row->student_status = $p['student_status'];
-        $row->financial_status = $p['financial_status'];
 
         $resolvedGrade = $resolution['grade'];
         $resolvedStatus = (int)$resolution['status'];
         $row->grade = ($resolvedGrade !== null) ? number_format((float)$resolvedGrade, 2) : '--';
+        $row->student_status = $p['student_status'];
+        $row->financial_status = $p['financial_status'];
         $row->course_status = \local_grupomakro_core\course_grade_resolver::STATUS_LABEL[$resolvedStatus] ?? 'No disponible';
 
         $data[] = $row;
