@@ -795,7 +795,7 @@ class course_grade_resolver
 
         list($classInSql, $classInParams) = $DB->get_in_or_equal($candidateClassIds, SQL_PARAMS_NAMED, 'clid');
         $classrows = $DB->get_records_sql(
-            "SELECT c.id, c.groupid, c.corecourseid, c.gradecategoryid, c.is_module
+            "SELECT c.id, c.groupid, c.corecourseid, c.gradecategoryid, c.is_module, c.coursesectionid
                FROM {gmk_class} c
               WHERE c.id $classInSql
                 AND c.gradecategoryid > 0
@@ -985,6 +985,73 @@ class course_grade_resolver
                 if (!empty($cr->is_module)) {
                     $membershipClassIsModuleByCourseId[$courseid] = true;
                 }
+            }
+        }
+
+        // Section-based grade lookup for modules: reads the grade item directly from the
+        // module's course section, bypassing category weight distortion. This mirrors the
+        // logic in get_student_learning_plan_pensum and ensures module classes whose only
+        // activity has aggregationcoef=0 (e.g. fresh MODULO DE MATEMATICA II with a single
+        // assign item) still resolve the student's grade. Runs AFTER the weighted loop so
+        // it can also OVERRIDE wrong values when needed.
+        foreach ($classrows as $cr) {
+            if (empty($cr->is_module) || (int)$cr->coursesectionid <= 0 || (int)$cr->corecourseid <= 0) {
+                continue;
+            }
+            $mcSequence = (string)$DB->get_field('course_sections', 'sequence', ['id' => (int)$cr->coursesectionid]);
+            if ($mcSequence === '') continue;
+            $mcCmids = array_values(array_filter(array_map('intval', explode(',', $mcSequence))));
+            if (empty($mcCmids)) continue;
+
+            list($mcCminSql, $mcCminParams) = $DB->get_in_or_equal($mcCmids, SQL_PARAMS_NAMED, 'mcm');
+            $mcGi = $DB->get_record_sql(
+                "SELECT gi.id, gi.grademax
+                   FROM {grade_items} gi
+                   JOIN {course_modules} cm ON cm.instance = gi.iteminstance
+                   JOIN {modules} mmod ON mmod.id = cm.module
+                                        AND gi.itemmodule = mmod.name
+                  WHERE cm.id $mcCminSql
+                    AND gi.courseid = :mc_cid
+                    AND gi.itemtype IN ('mod', 'manual')
+                    AND gi.grademax > 0
+               ORDER BY gi.id ASC
+                  LIMIT 1",
+                $mcCminParams + ['mc_cid' => (int)$cr->corecourseid]
+            );
+            if (!$mcGi) continue;
+
+            $mcGg = $DB->get_record('grade_grades',
+                ['itemid' => (int)$mcGi->id, 'userid' => $userid]);
+            if (!$mcGg || $mcGg->finalgrade === null) continue;
+
+            $mcGrade = min(
+                round(((float)$mcGg->finalgrade / (float)$mcGi->grademax) * 100, 2),
+                100.0
+            );
+
+            // Override any previously computed category-weighted value (or fill if it was missing).
+            $classGradeByClassId[(int)$cr->id] = $mcGrade;
+            if (!empty($cr->groupid)) {
+                $classGradeByGroupId[(int)$cr->groupid] = $mcGrade;
+            }
+            if (!isset($moduleClassIds[(int)$cr->id])) {
+                $moduleClassIds[(int)$cr->id] = true;
+            }
+            if (!empty($cr->groupid) && !isset($moduleGroupIds[(int)$cr->groupid])) {
+                $moduleGroupIds[(int)$cr->groupid] = true;
+            }
+
+            // Also surface the section-derived grade through the membership map so the
+            // "fallback by classes where the student is group member" path picks it up.
+            $classid = (int)$cr->id;
+            if (isset($membershipClassCourseByClassId[$classid])) {
+                $ccourseid = (int)$membershipClassCourseByClassId[$classid];
+                $membershipClassIsModuleByCourseId[$ccourseid] = true;
+                if (!isset($membershipClassGradesByCourseId[$ccourseid])) {
+                    $membershipClassGradesByCourseId[$ccourseid] = [];
+                }
+                // Replace any earlier weighted value with the authoritative section grade.
+                $membershipClassGradesByCourseId[$ccourseid] = [$mcGrade];
             }
         }
 
