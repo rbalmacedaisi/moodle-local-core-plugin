@@ -724,10 +724,14 @@ function create_class($classParams)
         $newClass->learningplanid = $classParams["learningPlanId"];
         // periodId = academic/plan period (local_learning_periods)
         // academicPeriodId = institutional/lective period (gmk_academic_periods)
-        // gmk_class.periodid stores the institutional period.
-        $newClass->periodid       = !empty($classParams["academicPeriodId"])
-            ? (int)$classParams["academicPeriodId"]
-            : (int)$classParams["periodId"];
+        // gmk_class.periodid stores the institutional period. Never fall back to
+        // periodId here: it is a different concept (plan/level period) and mixing
+        // them corrupts the institutional period link (incident 2026-07-20, classes
+        // silently reassigned to a nonexistent periodid taken from periodId).
+        if (empty($classParams["academicPeriodId"])) {
+            throw new \Exception('academicPeriodId es requerido para crear la clase (periodo institucional).');
+        }
+        $newClass->periodid       = (int)$classParams["academicPeriodId"];
         $newClass->courseid       = $classParams["courseId"];
         $newClass->instructorid   = $classParams["instructorId"];
         $newClass->inittime       = $classParams["initTime"];
@@ -4539,10 +4543,14 @@ function update_class($classParams)
     $class->learningplanid = $classParams["learningPlanId"];
     // periodId = academic/plan period (local_learning_periods)
     // academicPeriodId = institutional/lective period (gmk_academic_periods)
-    // gmk_class.periodid stores the institutional period.
-    $class->periodid       = !empty($classParams["academicPeriodId"])
-        ? (int)$classParams["academicPeriodId"]
-        : (int)$classParams["periodId"];
+    // gmk_class.periodid stores the institutional period. Never fall back to
+    // periodId here: it is a different concept (plan/level period) and mixing
+    // them corrupts the institutional period link (incident 2026-07-20, classes
+    // silently reassigned to a nonexistent periodid taken from periodId). If the
+    // request omits academicPeriodId, keep the class's existing periodid as-is.
+    if (!empty($classParams["academicPeriodId"])) {
+        $class->periodid = (int)$classParams["academicPeriodId"];
+    }
     $class->courseid       = $classParams["courseId"];
     $class->instructorid   = $classParams["instructorId"];
     $class->inittime       = $classParams["initTime"];
