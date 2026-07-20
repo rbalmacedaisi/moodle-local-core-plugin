@@ -4560,8 +4560,14 @@ function update_class($classParams)
     $class->classdays      = $classParams["classDays"];
     if (array_key_exists("classroomId", $classParams)) {
         $roomToken = trim((string)$classParams["classroomId"]);
+        $isVirtual = (int)$class->type === 1;
         if ($roomToken === '' || $roomToken === '0' || core_text::strtolower($roomToken) === 'sin aula') {
-            $class->classroomid = null;
+            // Presencial/Mixta classes always require a room in the edit form (the select
+            // is `required` whenever modality != Virtual), so an empty token here means the
+            // UI failed to resolve the class's current room (e.g. a classRoomIndex mismatch
+            // when the room list didn't contain it) — not that the user intentionally cleared
+            // it. Only actually-Virtual classes may legitimately have no room.
+            $class->classroomid = $isVirtual ? null : $class->classroomid;
         } else {
             $class->classroomid = (int)$roomToken;
         }

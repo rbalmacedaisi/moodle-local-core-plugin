@@ -179,6 +179,23 @@ $classPotentialTeachers = array_values(array_map(function ($potentialTeacher) us
 
 $classRooms = get_classrooms();
 
+// If the class's currently assigned room is inactive/retired (so get_classrooms()
+// excludes it), append it as a fallback option. Without this, the edit form's room
+// dropdown can't preselect it: classRoomIndex stays unresolved in editclass.js, the
+// save payload sends classroomId=0, and the class's real room silently gets wiped
+// on the next save (incident 2026-07-20 — room/modality reverting after edits).
+if (!empty($class->classroomid) && !in_array((int)$class->classroomid, array_column($classRooms, 'value'), true)) {
+    $inactiveRoom = $DB->get_record('gmk_classrooms', ['id' => $class->classroomid], 'id, name, capacity', IGNORE_MISSING);
+    $roomLabel = $inactiveRoom
+        ? ($inactiveRoom->name . ', Cap: ' . ($inactiveRoom->capacity ?? 0) . ' (inactiva)')
+        : ('Aula #' . $class->classroomid . ' (no encontrada)');
+    $classRooms[] = [
+        'label'    => $roomLabel,
+        'value'    => (int)$class->classroomid,
+        'capacity' => $inactiveRoom ? (int)($inactiveRoom->capacity ?? 0) : 0,
+    ];
+}
+
 $classDaysRaw = trim($class->classdays ?? '');
 $daysParts = explode('/', $classDaysRaw);
 $classDays = [

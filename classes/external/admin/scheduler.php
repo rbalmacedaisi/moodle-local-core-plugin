@@ -899,7 +899,14 @@ class scheduler extends external_api {
                 // or restored from existingDbRec (update) in the block below.
                 $classRec->groupid = 0;
                 $classRec->subperiodid = $cls['subperiod'] ?? 0;
-                $classRec->type = $cls['type'] ?? 0; 
+                // Track whether the payload actually specified a modality. If it didn't
+                // (key missing/null), we must not silently reset an existing class to
+                // Presencial once $existingDbRec is available below (incident 2026-07-20:
+                // republishing the whole board reverted room/modality on classes not
+                // being edited, because a stale draft or partial payload item defaulted
+                // these fields instead of carrying the real DB value forward).
+                $typeProvidedByPayload = array_key_exists('type', $cls) && $cls['type'] !== null && $cls['type'] !== '';
+                $classRec->type = $typeProvidedByPayload ? (int)$cls['type'] : 0;
                 $classRec->typelabel = $cls['typeLabel'] ?? 'Presencial';
                 
                 // Metadata Persistence
@@ -1036,6 +1043,13 @@ class scheduler extends external_api {
                     $classRec->approved = 0;
                 }
 
+                // Payload omitted modality entirely — never silently reset an existing,
+                // already-published class back to Presencial. New classes still default to 0.
+                if ($isUpdate && $existingDbRec && !$typeProvidedByPayload) {
+                    $classRec->type = (int)$existingDbRec->type;
+                    $classRec->typelabel = $existingDbRec->typelabel ?: $classRec->typelabel;
+                }
+
                 // Resolve classroomid from payload so build_class_group_name has it for both INSERT and UPDATE
                 $classRec->classroomid = null;
                 $roomRef = $cls['room'] ?? '';
@@ -1066,6 +1080,13 @@ class scheduler extends external_api {
                             $classRec->classroomid = $classrooms_cache[$rname];
                         }
                     }
+                }
+                // Payload had no resolvable room (empty, 'Sin aula', or a name that no longer
+                // matches any gmk_classrooms row) — never silently unassign an existing class's
+                // classroom on republish. There is no UI affordance to explicitly clear a room
+                // today, so an unresolved value here is data loss, not user intent.
+                if (empty($classRec->classroomid) && $isUpdate && $existingDbRec && !empty($existingDbRec->classroomid)) {
+                    $classRec->classroomid = (int)$existingDbRec->classroomid;
                 }
 
                 // Build full class name with nomenclature: PERIOD (SHIFT) SUBJECT (TYPE) ROOM
@@ -1177,7 +1198,10 @@ class scheduler extends external_api {
                         'day' => $cls['day'],
                         'start' => $cls['start'],
                         'end' => $cls['end'],
-                        'classroomid' => (!empty($cls['room']) && $cls['room'] !== 'Sin aula') ? $cls['room'] : null,
+                        // Reuse the already-resolved (and preserved-on-update) class-level
+                        // classroomid instead of re-deriving from cls['room'], so this session
+                        // row can't disagree with gmk_class.classroomid.
+                        'classroomid' => $classRec->classroomid ?: null,
                         'excluded_dates' => $cls['excluded_dates'] ?? null
                     ];
                 }
