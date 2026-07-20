@@ -1382,11 +1382,13 @@ public static function generate_diplomas(int $templateid, array $items, int $act
             $params['st'] = $status;
         }
         $sql = "SELECT g.*, u.firstname, u.lastname, u.idnumber, u.email, t.name AS templatename,
-                       lp.name AS planname, d.id AS docid, d.filename AS docfilename
+                       lp.name AS planname, d.id AS docid, d.filename AS docfilename,
+                       c.fullname AS coursefullname, c.shortname AS courseshortname
                   FROM {gmk_diploma_generation} g
                   JOIN {user} u ON u.id = g.userid
                   JOIN {gmk_diploma_template} t ON t.id = g.templateid
-                  JOIN {local_learning_plans} lp ON lp.id = g.learningplanid
+             LEFT JOIN {local_learning_plans} lp ON lp.id = g.learningplanid
+             LEFT JOIN {course} c ON c.id = g.courseid
              LEFT JOIN {gmk_diploma_document} d ON d.generationid = g.id AND d.version = g.version
                  WHERE " . implode(' AND ', $where) . "
               ORDER BY g.issued_at DESC, g.id DESC";
@@ -1420,6 +1422,9 @@ public static function generate_diplomas(int $templateid, array $items, int $act
                 'verification_url' => (string)$r->verification_url,
                 'documentid' => isset($r->docid) ? (int)$r->docid : 0,
                 'filename' => (string)($r->docfilename ?? ''),
+                'courseid' => isset($r->courseid) ? (int)$r->courseid : 0,
+                'coursefullname' => (string)($r->coursefullname ?? ''),
+                'courseshortname' => (string)($r->courseshortname ?? ''),
             ];
         }
         return $out;

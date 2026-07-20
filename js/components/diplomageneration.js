@@ -343,6 +343,15 @@
                                             <div class="font-weight-medium">{{ props.item.student_name }}</div>
                                             <div class="caption grey--text">{{ props.item.student_idnumber || '—' }} • {{ props.item.student_document || '—' }}</div>
                                         </template>
+                                        <template slot="item.plan_or_course" slot-scope="props">
+                                            <v-chip v-if="props.item.courseid" small color="teal" text-color="white" :title="props.item.coursefullname">
+                                                <v-icon x-small left>mdi-book-open-page-variant</v-icon>
+                                                {{ props.item.courseshortname || props.item.coursefullname }}
+                                            </v-chip>
+                                            <v-chip v-else small color="primary" outlined :title="props.item.learningplan_name">
+                                                {{ props.item.learningplan_name || '—' }}
+                                            </v-chip>
+                                        </template>
                                         <template slot="item.status" slot-scope="props">
                                             <v-chip small :color="props.item.status === 'generated' ? 'green' : 'red'" text-color="white">
                                                 {{ props.item.status === 'generated' ? strings.status_generated : strings.status_revoked }}
@@ -603,6 +612,7 @@
                 return [
                     { text: this.strings.generated_for, value: 'student_name', sortable: true },
                     { text: this.strings.template_used, value: 'template_name', sortable: true },
+                    { text: 'Plan / Curso', value: 'plan_or_course', sortable: false },
                     { text: 'N° Diploma', value: 'diploma_number', sortable: true },
                     { text: this.strings.generated_at, value: 'issued_at', sortable: true },
                     { text: this.strings.status_generated, value: 'status', sortable: true },
