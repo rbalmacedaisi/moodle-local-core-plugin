@@ -2710,6 +2710,37 @@ function delete_class($classId, $reason = null)
     $classDeletionMessage->timemodified = time();
     $DB->insert_record('gmk_class_deletion_message', $classDeletionMessage);
 
+    // Keep the planning board draft in sync with this deletion. The draft
+    // (gmk_academic_periods.draft_schedules) is a separate JSON snapshot that
+    // delete_class historically did NOT touch, so a deleted class kept living as
+    // a placed card in the draft — and a later full "Publicar Todo" re-inserted
+    // it as a brand-new class (incident 2026-07-21: LEGISLACIÓN, INGLÉS I,
+    // UMBILICAL, etc. resucitadas). Removing the card here makes the deletion
+    // durable so no future publish can resurrect it. Best-effort: never let a
+    // draft hiccup block the actual class deletion.
+    try {
+        $periodid = (int)($class->periodid ?? 0);
+        if ($periodid > 0) {
+            $draftjson = $DB->get_field('gmk_academic_periods', 'draft_schedules', ['id' => $periodid]);
+            if (!empty($draftjson)) {
+                $draftitems = json_decode($draftjson, true);
+                if (is_array($draftitems)) {
+                    $before = count($draftitems);
+                    $draftitems = array_values(array_filter($draftitems, function ($it) use ($classid) {
+                        $rid = is_array($it) ? ($it['id'] ?? null) : null;
+                        return !(is_numeric($rid) && (int)$rid === (int)$classid);
+                    }));
+                    if (count($draftitems) !== $before) {
+                        $DB->set_field('gmk_academic_periods', 'draft_schedules',
+                            json_encode($draftitems), ['id' => $periodid]);
+                    }
+                }
+            }
+        }
+    } catch (\Throwable $draftex) {
+        gmk_log("WARN delete_class: no se pudo depurar draft para clase {$classid}: " . $draftex->getMessage());
+    }
+
     // Delete the class.
     return $DB->delete_records('gmk_class', ['id' => $classid]);
 }
