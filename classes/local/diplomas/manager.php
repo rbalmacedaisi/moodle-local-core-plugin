@@ -388,6 +388,20 @@ class manager {
      * @param stdClass $row
      * @return array
      */
+    public static function paper_size_dimensions(): array {
+        // Authoritative source of truth for the paper sizes the editor
+        // exposes in the dropdown. Keys are the paper_size ids saved in
+        // the template payload; the manager derives width_mm, height_mm
+        // and orientation from these on save so the renderer never has
+        // to know about size labels.
+        return [
+            'a4_h'     => ['width_mm' => 297.0, 'height_mm' => 210.0, 'orientation' => 'landscape', 'label' => 'A4 Horizontal'],
+            'a4_v'     => ['width_mm' => 210.0, 'height_mm' => 297.0, 'orientation' => 'portrait',  'label' => 'A4 Vertical'],
+            'letter_h' => ['width_mm' => 279.4, 'height_mm' => 215.9, 'orientation' => 'landscape', 'label' => 'Carta Horizontal'],
+            'letter_v' => ['width_mm' => 215.9, 'height_mm' => 279.4, 'orientation' => 'portrait',  'label' => 'Carta Vertical'],
+        ];
+    }
+
     public static function export_template(stdClass $row): array {
         global $DB, $CFG;
         $bgurl = '';
@@ -404,6 +418,11 @@ class manager {
             'id' => (int)$row->id,
             'name' => (string)$row->name,
             'description' => (string)($row->description ?? ''),
+            'paper_size' => self::infer_paper_size_from_dimensions(
+                (float)$row->width_mm,
+                (float)$row->height_mm,
+                (string)$row->orientation
+            ),
             'orientation' => (string)$row->orientation,
             'width_mm' => (float)$row->width_mm,
             'height_mm' => (float)$row->height_mm,
@@ -415,6 +434,23 @@ class manager {
             'timemodified' => (int)$row->timemodified,
             'fields' => $exportedfields,
         ];
+    }
+
+    /**
+     * Server-side mirror of the JS inferPaperSize(): maps the existing
+     * width/height/orientation of a row saved before paper_size existed
+     * to the closest known paper_size id.
+     */
+    public static function infer_paper_size_from_dimensions(float $width_mm, float $height_mm, string $orientation): string {
+        $landscape = $orientation === 'landscape' || $width_mm > $height_mm;
+        if ($landscape) {
+            if (abs($width_mm - 297.0) < 1.0) { return 'a4_h'; }
+            if (abs($width_mm - 279.4) < 1.0) { return 'letter_h'; }
+        } else {
+            if (abs($width_mm - 210.0) < 1.0) { return 'a4_v'; }
+            if (abs($width_mm - 215.9) < 1.0) { return 'letter_v'; }
+        }
+        return 'a4_h';
     }
 
     /**
@@ -461,9 +497,20 @@ class manager {
         if ($name === '') {
             throw new moodle_exception('diploma_template_name', 'local_grupomakro_core');
         }
-        $orientation = ($payload['orientation'] ?? 'landscape') === 'portrait' ? 'portrait' : 'landscape';
-        $widthmm = $orientation === 'portrait' ? 210.0 : 297.0;
-        $heightmm = $orientation === 'portrait' ? 297.0 : 210.0;
+        // Resolve paper size. New clients send a paper_size id; older
+        // clients only send orientation, in which case we fall back to
+        // the original A4 mapping.
+        $papersizes = self::paper_size_dimensions();
+        $papersize = (string)($payload['paper_size'] ?? '');
+        if (isset($papersizes[$papersize])) {
+            $widthmm = (float)$papersizes[$papersize]['width_mm'];
+            $heightmm = (float)$papersizes[$papersize]['height_mm'];
+            $orientation = (string)$papersizes[$papersize]['orientation'];
+        } else {
+            $orientation = ($payload['orientation'] ?? 'landscape') === 'portrait' ? 'portrait' : 'landscape';
+            $widthmm = $orientation === 'portrait' ? 210.0 : 297.0;
+            $heightmm = $orientation === 'portrait' ? 297.0 : 210.0;
+        }
 
         if ($id > 0) {
             $current = $DB->get_record('gmk_diploma_template', ['id' => $id], '*', MUST_EXIST);

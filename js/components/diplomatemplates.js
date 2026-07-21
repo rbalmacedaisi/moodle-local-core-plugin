@@ -102,6 +102,17 @@
         { text: 'Código QR', value: 'qr' }
     ];
 
+    // Paper sizes supported by the editor. Each entry maps a paper_size
+    // id (saved in the template's payload as paper_size) to the actual
+    // width/height in mm and the corresponding TCPDF orientation code.
+    // Letter = 8.5" x 11" = 215.9 mm x 279.4 mm.
+    const PAPER_SIZES = {
+        'a4_h':      { width_mm: 297.0,  height_mm: 210.0,  orientation: 'landscape', label: 'A4 Horizontal' },
+        'a4_v':      { width_mm: 210.0,  height_mm: 297.0,  orientation: 'portrait',  label: 'A4 Vertical' },
+        'letter_h':  { width_mm: 279.4,  height_mm: 215.9,  orientation: 'landscape', label: 'Carta Horizontal' },
+        'letter_v':  { width_mm: 215.9,  height_mm: 279.4,  orientation: 'portrait',  label: 'Carta Vertical' }
+    };
+
     function getCsrfToken() {
         if (typeof window.M !== 'undefined' && window.M.cfg && window.M.cfg.sesskey) {
             return window.M.cfg.sesskey;
@@ -194,7 +205,7 @@
                                         <v-text-field v-model="selected.name" :label="strings.template_name" outlined dense hide-details></v-text-field>
                                     </v-col>
                                     <v-col cols="12" md="4">
-                                        <v-select v-model="selected.orientation" :items="[{text: strings.orient_landscape, value: 'landscape'},{text: strings.orient_portrait, value: 'portrait'}]" :label="strings.orientation" outlined dense hide-details @change="onOrientationChange"></v-select>
+                                        <v-select v-model="selected.paper_size" :items="paperSizeItems" :label="strings.orientation" outlined dense hide-details @change="onPaperSizeChange"></v-select>
                                     </v-col>
                                     <v-col cols="12" md="2">
                                         <v-switch v-model="activeSwitch" :label="strings.active" color="primary" hide-details></v-switch>
@@ -382,6 +393,22 @@
         computed: {
             strings() {
                 return window.strings || {};
+            },
+            PAPER_SIZES() {
+                return PAPER_SIZES;
+            },
+            paperSizeItems() {
+                var strings = this.strings || {};
+                return Object.keys(PAPER_SIZES).map(function (id) {
+                    var s = PAPER_SIZES[id];
+                    var label;
+                    if (id === 'a4_h') label = strings.paper_a4_h || s.label;
+                    else if (id === 'a4_v') label = strings.paper_a4_v || s.label;
+                    else if (id === 'letter_h') label = strings.paper_letter_h || s.label;
+                    else if (id === 'letter_v') label = strings.paper_letter_v || s.label;
+                    else label = s.label;
+                    return { text: label, value: id };
+                });
             },
             currentField() {
                 if (!this.selected || !this.selectedFieldId) {
@@ -582,6 +609,7 @@
                     id: 0,
                     name: this.strings.new_template || 'Nueva plantilla',
                     description: '',
+                    paper_size: 'a4_h',
                     orientation: 'landscape',
                     width_mm: 297,
                     height_mm: 210,
@@ -599,6 +627,11 @@
                     if (res.data && res.data.status === 'success') {
                         const data = res.data.template;
                         data.fields = (data.fields || []).map(f => ({ ...f, localId: this.nextLocalId++ }));
+                        // Backwards-compat: infer paper_size from width/height
+                        // when the template was created before this field.
+                        if (!data.paper_size) {
+                            data.paper_size = this.inferPaperSize(data.width_mm, data.height_mm, data.orientation);
+                        }
                         this.selected = data;
                         this.selectedFieldId = null;
                     } else {
@@ -676,15 +709,71 @@
                     this.saving = false;
                 }
             },
-            onOrientationChange() {
-                if (!this.selected) return;
-                if (this.selected.orientation === 'portrait') {
-                    this.selected.width_mm = 210;
-                    this.selected.height_mm = 297;
+            onPaperSizeChange() {
+                if (!this.selected) { return; }
+                var newSize = this.PAPER_SIZES[this.selected.paper_size];
+                if (!newSize) { return; }
+                var oldSize = { width_mm: this.selected.width_mm, height_mm: this.selected.height_mm };
+                var oldLabel = this.paperSizeLabelFor(oldSize);
+                var newLabel = this.paperSizeLabelFor(newSize);
+                var familyChanged = this.paperSizeFamily(oldSize) !== this.paperSizeFamily(newSize);
+                var apply = () => {
+                    this.selected.width_mm = newSize.width_mm;
+                    this.selected.height_mm = newSize.height_mm;
+                    this.selected.orientation = newSize.orientation;
+                };
+                if (familyChanged && this.selected.background_filename) {
+                    var self = this;
+                    Swal.fire({
+                        icon: 'warning',
+                        title: this.strings.orientation || 'Tamaño de papel',
+                        text: (this.strings.paper_warn_mismatch || 'El fondo actual se diseñó para {$a->old}; al cambiar a {$a->new} el fondo se estirará. ¿Continuar?')
+                            .replace('{$a->old}', oldLabel)
+                            .replace('{$a->new}', newLabel),
+                        showCancelButton: true,
+                        confirmButtonText: 'Sí, continuar',
+                        cancelButtonText: this.strings.cancel || 'Cancelar'
+                    }).then(function (r) {
+                        if (r.isConfirmed) { apply(); }
+                        else { self.$set(self.selected, 'paper_size', self.inferPaperSize(oldSize.width_mm, oldSize.height_mm, self.selected.orientation)); }
+                    });
                 } else {
-                    this.selected.width_mm = 297;
-                    this.selected.height_mm = 210;
+                    apply();
                 }
+            },
+            paperSizeFamily(size) {
+                // Two families: A4 (~297x210) and Letter (~279.4x215.9).
+                if (Math.abs(size.width_mm - 297) < 1 || Math.abs(size.width_mm - 210) < 1) { return 'a4'; }
+                if (Math.abs(size.width_mm - 279.4) < 1 || Math.abs(size.width_mm - 215.9) < 1) { return 'letter'; }
+                return 'custom';
+            },
+            paperSizeLabelFor(size) {
+                if (this.paperSizeFamily(size) === 'a4') {
+                    return size.width_mm > size.height_mm
+                        ? (this.strings.paper_a4_h || 'A4 Horizontal (297×210 mm)')
+                        : (this.strings.paper_a4_v || 'A4 Vertical (210×297 mm)');
+                }
+                if (this.paperSizeFamily(size) === 'letter') {
+                    return size.width_mm > size.height_mm
+                        ? (this.strings.paper_letter_h || 'Carta Horizontal (11×8.5")')
+                        : (this.strings.paper_letter_v || 'Carta Vertical (8.5×11")');
+                }
+                return size.width_mm + 'x' + size.height_mm + ' mm';
+            },
+            inferPaperSize(width_mm, height_mm, orientation) {
+                // Best-effort inference for templates saved before paper_size existed.
+                // Tolerates +/- 1 mm of float drift.
+                var w = parseFloat(width_mm);
+                var h = parseFloat(height_mm);
+                var landscape = orientation === 'landscape' || (w > h);
+                if (landscape) {
+                    if (Math.abs(w - 297) < 1) { return 'a4_h'; }
+                    if (Math.abs(w - 279.4) < 1) { return 'letter_h'; }
+                } else {
+                    if (Math.abs(w - 210) < 1) { return 'a4_v'; }
+                    if (Math.abs(w - 215.9) < 1) { return 'letter_v'; }
+                }
+                return 'a4_h';
             },
             async onBgSelected(e) {
                 const file = e.target.files && e.target.files[0];
