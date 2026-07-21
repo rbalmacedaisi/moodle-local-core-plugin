@@ -6697,6 +6697,22 @@ try {
             $schedules = json_decode($schedules_json, true);
             if (!is_array($schedules)) $schedules = [];
 
+            // "Publicar Todo" = full publish (preserveexisting=0): destructive, may recreate/reconcile
+            // the whole period. Restricted to site admins. Individual publish (preserveexisting=1)
+            // stays open to coordinators.
+            if (!$preserveexisting && !is_siteadmin()) {
+                $response = ['status' => 'error',
+                    'message' => 'Solo un Administrador puede usar "Publicar Todo". Publica las fichas de forma individual.'];
+                break;
+            }
+            // Single-editor lock: refuse the write if another user is editing this period's board.
+            try {
+                gmk_board_lock_assert_writable($periodid, (int)$USER->id, fullname($USER));
+            } catch (\Throwable $lockex) {
+                $response = ['status' => 'error', 'message' => $lockex->getMessage()];
+                break;
+            }
+
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/admin/scheduler.php');
             $result = \local_grupomakro_core\external\admin\scheduler::save_generation_result(
                 $periodid,
@@ -6979,6 +6995,44 @@ try {
             $response = ['status' => 'success', 'data' => ['saved' => $count]];
             break;
 
+        // ----- Planning-board single-editor lock -----------------------------------
+        case 'local_grupomakro_board_acquire_lock': {
+            $periodid = required_param('periodid', PARAM_INT);
+            $res = gmk_board_lock_acquire($periodid, (int)$USER->id, fullname($USER));
+            $response = ['status' => 'success', 'data' => [
+                'ok'            => (bool)$res['ok'],
+                'mine'          => (bool)$res['mine'],
+                'holder_userid' => (int)$res['holder']['userid'],
+                'holder_name'   => (string)$res['holder']['name'],
+                'ttl'           => gmk_board_lock_ttl(),
+            ]];
+            break;
+        }
+        case 'local_grupomakro_board_heartbeat': {
+            $periodid = required_param('periodid', PARAM_INT);
+            $lock = gmk_board_lock_get($periodid);
+            if ($lock && gmk_board_lock_active($lock) && (int)$lock['userid'] !== (int)$USER->id) {
+                // Someone else took over (e.g. our lock expired). Report, do not steal.
+                $response = ['status' => 'success', 'data' => [
+                    'ok' => false, 'mine' => false,
+                    'holder_userid' => (int)$lock['userid'], 'holder_name' => (string)$lock['name'],
+                ]];
+            } else {
+                $res = gmk_board_lock_acquire($periodid, (int)$USER->id, fullname($USER));
+                $response = ['status' => 'success', 'data' => [
+                    'ok' => true, 'mine' => true,
+                    'holder_userid' => (int)$USER->id, 'holder_name' => fullname($USER),
+                ]];
+            }
+            break;
+        }
+        case 'local_grupomakro_board_release_lock': {
+            $periodid = required_param('periodid', PARAM_INT);
+            gmk_board_lock_release($periodid, (int)$USER->id);
+            $response = ['status' => 'success', 'data' => ['released' => true]];
+            break;
+        }
+
         case 'local_grupomakro_save_draft':
             raise_memory_limit(MEMORY_HUGE);
             core_php_time_limit::raise(300);
@@ -7014,6 +7068,14 @@ try {
 
             if (!$DB->record_exists('gmk_academic_periods', ['id' => $periodid])) {
                 $response = ['status' => 'error', 'message' => 'Period not found'];
+                break;
+            }
+
+            // Single-editor lock: refuse the draft save if another user holds the board.
+            try {
+                gmk_board_lock_assert_writable($periodid, (int)$USER->id, fullname($USER));
+            } catch (\Throwable $lockex) {
+                $response = ['status' => 'error', 'message' => $lockex->getMessage()];
                 break;
             }
 

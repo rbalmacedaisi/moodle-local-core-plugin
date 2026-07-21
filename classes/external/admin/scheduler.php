@@ -1003,9 +1003,17 @@ class scheduler extends external_api {
                 $existingDbRec = null;
                 if ($isUpdate) {
                     $existingDbRec = $DB->get_record('gmk_class', ['id' => $classRec->id]);
-                    // If the record no longer exists in DB (e.g. it was deleted by a previous buggy publish),
-                    // fall back to INSERT so the class is fully recreated instead of silently lost.
                     if (!$existingDbRec) {
+                        // ANTI-RESURRECTION (full publish only): a payload item carrying a real numeric
+                        // id whose gmk_class row no longer exists means the class was intentionally
+                        // deleted. On "Publicar Todo" a stale board still holds its card, and the old
+                        // behaviour re-inserted it as a brand-new class — resurrecting deletions
+                        // (incident 2026-07: LEGISLACIÓN, INGLÉS I, UMBILICAL...). Skip it so the
+                        // deletion stays honoured. Individual publish (preserveexisting) still recreates.
+                        if (!$preserveexisting) {
+                            gmk_log("ANTI-RESURRECCION: clase id={$classRec->id} ya no existe; se OMITE en Publicar Todo (no se recrea).");
+                            continue;
+                        }
                         gmk_log("WARNING: clase id={$classRec->id} no existe en gmk_class (fue eliminada). Insertando como nueva.");
                         unset($classRec->id);
                         $isUpdate = false;

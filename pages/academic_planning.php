@@ -34,6 +34,14 @@ echo $OUTPUT->header();
 <!-- Excel Export Lib -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
+<!-- Identidad y rol del usuario para el candado de edición y la restricción de "Publicar Todo".
+     Debe declararse ANTES de cargar los componentes para que planning_board.js lo lea en data(). -->
+<script>
+    window.GMK_IS_SITEADMIN = <?php echo is_siteadmin() ? 'true' : 'false'; ?>;
+    window.GMK_USER_ID = <?php echo (int)$USER->id; ?>;
+    window.GMK_USER_NAME = <?php echo json_encode(fullname($USER)); ?>;
+</script>
+
 <!-- Scheduler Module Scripts -->
 <script src="../js/utils/scheduler_algorithm.js?v=<?= time() ?>"></script>
 <script src="../js/utils/pdfExport.js?v=<?= time() ?>"></script>

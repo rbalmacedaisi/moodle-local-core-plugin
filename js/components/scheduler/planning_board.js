@@ -9,6 +9,10 @@ window.SchedulerComponents.PlanningBoard = {
     props: ['periodId'],
     template: `
         <div class="flex flex-col h-[calc(100vh-200px)] overflow-hidden bg-white rounded-xl shadow-sm border border-gray-100">
+             <div v-if="boardReadOnly" class="shrink-0 bg-amber-50 border-b border-amber-300 px-4 py-2 flex items-center gap-2 text-amber-800 text-xs font-bold">
+                <i data-lucide="lock" class="w-4 h-4"></i>
+                Tablero en edición por {{ lockHolderName || 'otro usuario' }} — modo solo lectura. No podrás guardar ni publicar hasta que termine (recarga para reintentar).
+             </div>
              <div class="flex h-full">
                 <!-- Unassigned List (Left) -->
                 <div class="w-1/4 h-full flex flex-col border-r border-gray-200 bg-slate-50">
@@ -137,11 +141,11 @@ window.SchedulerComponents.PlanningBoard = {
                              <button class="px-3 py-1 text-xs font-bold bg-slate-100 text-slate-700 rounded hover:bg-slate-200 transition-colors">Semana</button>
                          </div>
                          <div class="flex gap-2">
-                             <button @click="saveChanges" :disabled="saving || publishing" class="flex items-center gap-2 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-bold shadow-sm transition-colors disabled:opacity-50">
+                             <button @click="saveChanges" :disabled="saving || publishing || boardReadOnly" class="flex items-center gap-2 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-bold shadow-sm transition-colors disabled:opacity-50">
                                 <i data-lucide="save" class="w-3 h-3"></i>
                                 {{ saving ? 'Guardando...' : 'Guardar Borrador' }}
                              </button>
-                             <button @click="publishSchedules" :disabled="saving || publishing" class="flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-sm transition-colors disabled:opacity-50" title="Crear clases en Moodle y hacerlas visibles en Gestión de Clases">
+                             <button v-if="isSiteadmin" @click="publishSchedules" :disabled="saving || publishing || boardReadOnly" class="flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-sm transition-colors disabled:opacity-50" title="Solo el Administrador puede publicar todo el tablero">
                                 <i data-lucide="send" class="w-3 h-3"></i>
                                 {{ publishing ? 'Publicando...' : 'Publicar Horarios' }}
                              </button>
@@ -254,7 +258,7 @@ window.SchedulerComponents.PlanningBoard = {
                                             <button @click.stop="viewStudents(cls)" class="p-0.5 bg-white rounded shadow text-slate-500 hover:text-blue-600" title="Ver Estudiantes">
                                                 <i data-lucide="users" class="w-3 h-3"></i>
                                             </button>
-                                            <button v-if="!cls.isExternal" @click.stop="publishSingleClass(cls)" :disabled="publishing" class="p-0.5 bg-white rounded shadow hover:bg-blue-50 transition-colors disabled:opacity-40" title="Publicar esta ficha en Moodle">
+                                            <button v-if="!cls.isExternal" @click.stop="publishSingleClass(cls)" :disabled="publishing || boardReadOnly" class="p-0.5 bg-white rounded shadow hover:bg-blue-50 transition-colors disabled:opacity-40" title="Publicar esta ficha en Moodle">
                                                 <i data-lucide="send" class="w-3 h-3 text-slate-400 hover:text-blue-600"></i>
                                             </button>
                                         </div>
@@ -845,6 +849,11 @@ window.SchedulerComponents.PlanningBoard = {
             selectedClass: null,
             saving: false,
             publishing: false,
+            // --- Candado de edición / rol ---
+            isSiteadmin: (typeof window !== 'undefined' && window.GMK_IS_SITEADMIN === true),
+            boardReadOnly: false,      // true cuando otro usuario tiene el candado
+            lockHolderName: '',        // nombre de quien tiene el candado (si no soy yo)
+            _lockHeartbeatId: null,    // id del setInterval del heartbeat
             publishDialog: false,
             publishProgress: 0,
             publishLog: [],
@@ -2128,8 +2137,59 @@ window.SchedulerComponents.PlanningBoard = {
                 this.editDialog = false;
             }
         },
+        // ---- Candado de edición (un solo editor por periodo) ----
+        _lockPeriodId() {
+            return (window.schedulerStore && window.schedulerStore.state)
+                ? window.schedulerStore.state.activePeriod : null;
+        },
+        async _acquireBoardLock() {
+            const periodId = this._lockPeriodId();
+            if (!periodId || !window.schedulerStore) return;
+            try {
+                const r = await window.schedulerStore._fetch('local_grupomakro_board_acquire_lock', { periodid: periodId });
+                if (r && r.mine === false) {
+                    this.boardReadOnly = true;
+                    this.lockHolderName = r.holder_name || 'otro usuario';
+                } else {
+                    this.boardReadOnly = false;
+                    this.lockHolderName = '';
+                }
+            } catch (e) {
+                // Si el candado falla, no bloqueamos la UI; el servidor sigue protegido en cada guardado.
+                console.warn('[Board lock] no se pudo adquirir el candado:', e);
+            }
+            this.$nextTick(() => { if (window.lucide) window.lucide.createIcons(); });
+        },
+        _startLockHeartbeat() {
+            if (this._lockHeartbeatId) return;
+            this._lockHeartbeatId = setInterval(async () => {
+                const periodId = this._lockPeriodId();
+                if (!periodId || !window.schedulerStore) return;
+                try {
+                    const r = await window.schedulerStore._fetch('local_grupomakro_board_heartbeat', { periodid: periodId });
+                    if (r && r.mine === false) {
+                        this.boardReadOnly = true;
+                        this.lockHolderName = r.holder_name || 'otro usuario';
+                    } else if (r && r.mine === true) {
+                        this.boardReadOnly = false;
+                        this.lockHolderName = '';
+                    }
+                } catch (e) { /* transitorio: reintenta en el próximo latido */ }
+            }, 60000);
+        },
+        async _releaseBoardLock() {
+            const periodId = this._lockPeriodId();
+            if (!periodId || !window.schedulerStore) return;
+            try {
+                await window.schedulerStore._fetch('local_grupomakro_board_release_lock', { periodid: periodId });
+            } catch (e) { /* best-effort */ }
+        },
         async saveChanges() {
             if (!window.schedulerStore) return;
+            if (this.boardReadOnly) {
+                alert('El tablero lo está editando ' + (this.lockHolderName || 'otro usuario') + '. Recarga cuando se libere.');
+                return;
+            }
             this.saving = true;
             try {
                 const periodId = window.schedulerStore.state.activePeriod;
@@ -2151,6 +2211,10 @@ window.SchedulerComponents.PlanningBoard = {
         },
         async publishSingleClass(cls) {
             if (!window.schedulerStore || !cls || cls.isExternal) return;
+            if (this.boardReadOnly) {
+                alert('El tablero lo está editando ' + (this.lockHolderName || 'otro usuario') + '. Recarga cuando se libere.');
+                return;
+            }
 
             const hasSession = (typeof window.schedulerStore._isProgrammedSchedule === 'function')
                 ? window.schedulerStore._isProgrammedSchedule(cls)
@@ -2522,6 +2586,14 @@ window.SchedulerComponents.PlanningBoard = {
 
         async publishSchedules() {
             if (!window.schedulerStore) return;
+            if (!this.isSiteadmin) {
+                alert('Solo un Administrador puede usar "Publicar Todo". Publica las fichas de forma individual.');
+                return;
+            }
+            if (this.boardReadOnly) {
+                alert('El tablero lo está editando ' + (this.lockHolderName || 'otro usuario') + '. Recarga cuando se libere.');
+                return;
+            }
             const assignedCount = this.allClasses.filter(c =>
                 !c.isExternal &&
                 ((typeof window.schedulerStore._isProgrammedSchedule === 'function')
@@ -2850,9 +2922,30 @@ window.SchedulerComponents.PlanningBoard = {
             this.draggedClass = null;
         };
         document.addEventListener('dragend', this._onDragEnd);
+
+        // Candado de edición: tomar el candado del periodo activo y mantenerlo con latidos.
+        this._acquireBoardLock().then(() => this._startLockHeartbeat());
+        // Liberar el candado si el usuario cierra/recarga la pestaña (best-effort).
+        this._onBeforeUnload = () => {
+            const periodId = this._lockPeriodId();
+            if (!periodId) return;
+            try {
+                const url = (window.wsUrl || (window.location.origin + '/local/grupomakro_core/ajax.php'));
+                const fd = new FormData();
+                fd.append('action', 'local_grupomakro_board_release_lock');
+                fd.append('periodid', periodId);
+                if (window.M && window.M.cfg && window.M.cfg.sesskey) fd.append('sesskey', window.M.cfg.sesskey);
+                navigator.sendBeacon(url, fd);
+            } catch (e) { /* best-effort */ }
+        };
+        window.addEventListener('beforeunload', this._onBeforeUnload);
     },
     unmounted() {
         document.removeEventListener('dragend', this._onDragEnd);
         if (this._dragRafId) { cancelAnimationFrame(this._dragRafId); this._dragRafId = null; }
+        if (this._lockHeartbeatId) { clearInterval(this._lockHeartbeatId); this._lockHeartbeatId = null; }
+        if (this._onBeforeUnload) { window.removeEventListener('beforeunload', this._onBeforeUnload); }
+        // Liberar el candado al salir de la vista del tablero.
+        this._releaseBoardLock();
     }
 };

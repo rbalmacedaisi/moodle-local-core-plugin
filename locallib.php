@@ -52,6 +52,84 @@ if (!function_exists('gmk_log')) {
     }
 }
 
+// ===========================================================================
+// Planning-board edit lock (single-editor concurrency guard).
+// Only one user may edit/publish a period's board at a time. State is stored in
+// config_plugins (no schema change). A lock older than the TTL is stale and can
+// be taken over. Server-side write guards make this non-bypassable, independent
+// of the UI (incident 2026-07: concurrent editors + stale "Publicar Todo"
+// overwriting each other's deletions, reschedules and rooms). See [[fix ...]].
+// ===========================================================================
+if (!function_exists('gmk_board_lock_ttl')) {
+    function gmk_board_lock_ttl(): int {
+        return 300; // 5 minutes. Client heartbeats every ~60s to keep it alive.
+    }
+}
+if (!function_exists('gmk_board_lock_get')) {
+    /** @return array{userid:int,name:string,time:int}|null */
+    function gmk_board_lock_get(int $periodid): ?array {
+        $raw = get_config('local_grupomakro_core', 'boardlock_' . $periodid);
+        if ($raw === false || $raw === null || $raw === '') {
+            return null;
+        }
+        $d = json_decode($raw, true);
+        if (!is_array($d) || empty($d['userid'])) {
+            return null;
+        }
+        return [
+            'userid' => (int)$d['userid'],
+            'name'   => (string)($d['name'] ?? ''),
+            'time'   => (int)($d['time'] ?? 0),
+        ];
+    }
+}
+if (!function_exists('gmk_board_lock_active')) {
+    function gmk_board_lock_active(?array $lock): bool {
+        return $lock !== null && (time() - (int)$lock['time']) < gmk_board_lock_ttl();
+    }
+}
+if (!function_exists('gmk_board_lock_acquire')) {
+    /**
+     * Acquire/renew the edit lock. Succeeds when the lock is free, expired, or already held by
+     * $userid; fails only when another user holds an ACTIVE lock.
+     * @return array{ok:bool,mine:bool,holder:array{userid:int,name:string,time:int}}
+     */
+    function gmk_board_lock_acquire(int $periodid, int $userid, string $name): array {
+        $lock = gmk_board_lock_get($periodid);
+        if (gmk_board_lock_active($lock) && (int)$lock['userid'] !== $userid) {
+            return ['ok' => false, 'mine' => false, 'holder' => $lock];
+        }
+        $new = ['userid' => $userid, 'name' => $name, 'time' => time()];
+        set_config('boardlock_' . $periodid, json_encode($new), 'local_grupomakro_core');
+        return ['ok' => true, 'mine' => true, 'holder' => $new];
+    }
+}
+if (!function_exists('gmk_board_lock_release')) {
+    function gmk_board_lock_release(int $periodid, int $userid): void {
+        $lock = gmk_board_lock_get($periodid);
+        if ($lock !== null && (int)$lock['userid'] === $userid) {
+            unset_config('boardlock_' . $periodid, 'local_grupomakro_core');
+        }
+    }
+}
+if (!function_exists('gmk_board_lock_assert_writable')) {
+    /**
+     * Guard for any board write (save draft / publish). Auto-acquires or renews the lock when it is
+     * free/expired/mine; throws when another user holds an active lock so the write is refused
+     * before it can clobber their work.
+     */
+    function gmk_board_lock_assert_writable(int $periodid, int $userid, string $name): void {
+        $res = gmk_board_lock_acquire($periodid, $userid, $name);
+        if (empty($res['ok'])) {
+            $holder = !empty($res['holder']['name']) ? $res['holder']['name'] : 'otro usuario';
+            throw new \Exception(
+                "El tablero de este periodo lo está editando {$holder}. "
+                . "No se guardó nada; recarga la página cuando se libere para no pisar sus cambios."
+            );
+        }
+    }
+}
+
 if (!function_exists('gmk_best_effort_db_commit')) {
     /**
      * Try to commit any pending DB transaction without throwing.
