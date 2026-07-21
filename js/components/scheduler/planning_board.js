@@ -17,6 +17,13 @@ window.SchedulerComponents.PlanningBoard = {
                 <i data-lucide="lock" class="w-3.5 h-3.5"></i>
                 Tienes el control de edición de este periodo (candado activo). Nadie más puede guardar mientras lo edites.
              </div>
+             <div v-if="boardStale" class="shrink-0 bg-blue-600 px-4 py-2 flex items-center justify-between gap-3 text-white text-xs font-bold">
+                <span class="flex items-center gap-2">
+                    <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                    El tablero fue modificado (otro usuario o proceso). Recarga para ver los cambios y no trabajar sobre datos viejos.
+                </span>
+                <button @click="reloadBoard" class="shrink-0 px-3 py-1 bg-white text-blue-700 rounded-lg hover:bg-blue-50 transition-colors">Recargar ahora</button>
+             </div>
              <div class="flex h-full">
                 <!-- Unassigned List (Left) -->
                 <div class="w-1/4 h-full flex flex-col border-r border-gray-200 bg-slate-50">
@@ -858,6 +865,7 @@ window.SchedulerComponents.PlanningBoard = {
             boardReadOnly: false,      // true cuando otro usuario tiene el candado
             lockMine: false,           // true cuando YO tengo el candado (control de edición)
             lockHolderName: '',        // nombre de quien tiene el candado (si no soy yo)
+            boardStale: false,         // true cuando el periodo cambió en BD desde que cargué
             _lockHeartbeatId: null,    // id del setInterval del heartbeat
             publishDialog: false,
             publishProgress: 0,
@@ -2161,6 +2169,7 @@ window.SchedulerComponents.PlanningBoard = {
                     this.lockMine = true;
                     this.lockHolderName = '';
                 }
+                if (r && r.token) this._boardToken = r.token; // huella base del periodo
             } catch (e) {
                 // Si el candado falla, no bloqueamos la UI; el servidor sigue protegido en cada guardado.
                 console.warn('[Board lock] no se pudo adquirir el candado:', e);
@@ -2183,6 +2192,16 @@ window.SchedulerComponents.PlanningBoard = {
                         this.lockMine = true;
                         this.lockHolderName = '';
                     }
+                    // Detección de cambios: si la huella del periodo cambió respecto a la que cargué
+                    // (otro usuario publicó, o un proceso modificó clases), avisar para recargar.
+                    // Se ignora mientras estoy publicando/guardando (mis propios cambios).
+                    if (r && r.token) {
+                        if (!this._boardToken) {
+                            this._boardToken = r.token;
+                        } else if (r.token !== this._boardToken && !this.publishing && !this.saving) {
+                            this.boardStale = true;
+                        }
+                    }
                 } catch (e) { /* transitorio: reintenta en el próximo latido */ }
             }, 60000);
         },
@@ -2192,6 +2211,16 @@ window.SchedulerComponents.PlanningBoard = {
             try {
                 await window.schedulerStore._fetch('local_grupomakro_board_release_lock', { periodid: periodId });
             } catch (e) { /* best-effort */ }
+        },
+        reloadBoard() {
+            // El usuario aceptó recargar para traer los cambios de otro usuario/proceso.
+            try { window.location.reload(); } catch (e) { location.reload(); }
+        },
+        _rebaselineBoardToken() {
+            // Tras una publicación propia, la huella del periodo cambia por MIS cambios; se re-sincroniza
+            // en el próximo latido para no marcar "cambió" por lo que yo mismo hice.
+            this._boardToken = null;
+            this.boardStale = false;
         },
         async saveChanges() {
             if (!window.schedulerStore) return;
@@ -2590,6 +2619,7 @@ window.SchedulerComponents.PlanningBoard = {
                 this._publishLog('ERROR: ' + e.message, 'error');
             } finally {
                 this.publishing = false;
+                this._rebaselineBoardToken();
             }
         },
 
@@ -2666,6 +2696,7 @@ window.SchedulerComponents.PlanningBoard = {
                 }
             } finally {
                 this.publishing = false;
+                this._rebaselineBoardToken();
             }
         },
         // --- Mover estudiantes de periodo (reproyección desde el tablero) ---
@@ -2933,6 +2964,7 @@ window.SchedulerComponents.PlanningBoard = {
         document.addEventListener('dragend', this._onDragEnd);
 
         // Candado de edición: tomar el candado del periodo activo y mantenerlo con latidos.
+        this._boardToken = null;   // huella del estado del periodo (para detectar cambios de otros)
         this._acquireBoardLock().then(() => this._startLockHeartbeat());
         // Liberar el candado si el usuario cierra/recarga la pestaña (best-effort).
         this._onBeforeUnload = () => {

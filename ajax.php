@@ -7005,6 +7005,7 @@ try {
                 'holder_userid' => (int)$res['holder']['userid'],
                 'holder_name'   => (string)$res['holder']['name'],
                 'ttl'           => gmk_board_lock_ttl(),
+                'token'         => gmk_board_state_token($periodid),
             ]];
             break;
         }
@@ -7016,12 +7017,14 @@ try {
                 $response = ['status' => 'success', 'data' => [
                     'ok' => false, 'mine' => false,
                     'holder_userid' => (int)$lock['userid'], 'holder_name' => (string)$lock['name'],
+                    'token' => gmk_board_state_token($periodid),
                 ]];
             } else {
                 $res = gmk_board_lock_acquire($periodid, (int)$USER->id, fullname($USER));
                 $response = ['status' => 'success', 'data' => [
                     'ok' => true, 'mine' => true,
                     'holder_userid' => (int)$USER->id, 'holder_name' => fullname($USER),
+                    'token' => gmk_board_state_token($periodid),
                 ]];
             }
             break;

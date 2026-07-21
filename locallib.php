@@ -112,6 +112,23 @@ if (!function_exists('gmk_board_lock_release')) {
         }
     }
 }
+if (!function_exists('gmk_board_state_token')) {
+    /**
+     * Lightweight fingerprint of a period's published classes. Changes whenever any class of the
+     * period is inserted, updated or deleted (count captures insert/delete; max timemodified
+     * captures updates and the timestamp of the newest insert/update). Used by the board to detect
+     * that another user or an out-of-band process modified the period, and offer a refresh.
+     */
+    function gmk_board_state_token(int $periodid): string {
+        global $DB;
+        $cnt = (int)$DB->count_records('gmk_class', ['periodid' => $periodid]);
+        $maxmod = (int)$DB->get_field_sql(
+            "SELECT COALESCE(MAX(timemodified), 0) FROM {gmk_class} WHERE periodid = ?",
+            [$periodid]
+        );
+        return $cnt . ':' . $maxmod;
+    }
+}
 if (!function_exists('gmk_board_lock_assert_writable')) {
     /**
      * Guard for any board write (save draft / publish). Auto-acquires or renews the lock when it is
