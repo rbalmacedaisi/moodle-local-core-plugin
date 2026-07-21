@@ -13,6 +13,10 @@ window.SchedulerComponents.PlanningBoard = {
                 <i data-lucide="lock" class="w-4 h-4"></i>
                 Tablero en edición por {{ lockHolderName || 'otro usuario' }} — modo solo lectura. No podrás guardar ni publicar hasta que termine (recarga para reintentar).
              </div>
+             <div v-else-if="lockMine" class="shrink-0 bg-emerald-50 border-b border-emerald-200 px-4 py-1.5 flex items-center gap-2 text-emerald-700 text-[11px] font-bold">
+                <i data-lucide="lock" class="w-3.5 h-3.5"></i>
+                Tienes el control de edición de este periodo (candado activo). Nadie más puede guardar mientras lo edites.
+             </div>
              <div class="flex h-full">
                 <!-- Unassigned List (Left) -->
                 <div class="w-1/4 h-full flex flex-col border-r border-gray-200 bg-slate-50">
@@ -852,6 +856,7 @@ window.SchedulerComponents.PlanningBoard = {
             // --- Candado de edición / rol ---
             isSiteadmin: (typeof window !== 'undefined' && window.GMK_IS_SITEADMIN === true),
             boardReadOnly: false,      // true cuando otro usuario tiene el candado
+            lockMine: false,           // true cuando YO tengo el candado (control de edición)
             lockHolderName: '',        // nombre de quien tiene el candado (si no soy yo)
             _lockHeartbeatId: null,    // id del setInterval del heartbeat
             publishDialog: false,
@@ -2149,9 +2154,11 @@ window.SchedulerComponents.PlanningBoard = {
                 const r = await window.schedulerStore._fetch('local_grupomakro_board_acquire_lock', { periodid: periodId });
                 if (r && r.mine === false) {
                     this.boardReadOnly = true;
+                    this.lockMine = false;
                     this.lockHolderName = r.holder_name || 'otro usuario';
                 } else {
                     this.boardReadOnly = false;
+                    this.lockMine = true;
                     this.lockHolderName = '';
                 }
             } catch (e) {
@@ -2169,9 +2176,11 @@ window.SchedulerComponents.PlanningBoard = {
                     const r = await window.schedulerStore._fetch('local_grupomakro_board_heartbeat', { periodid: periodId });
                     if (r && r.mine === false) {
                         this.boardReadOnly = true;
+                        this.lockMine = false;
                         this.lockHolderName = r.holder_name || 'otro usuario';
                     } else if (r && r.mine === true) {
                         this.boardReadOnly = false;
+                        this.lockMine = true;
                         this.lockHolderName = '';
                     }
                 } catch (e) { /* transitorio: reintenta en el próximo latido */ }
