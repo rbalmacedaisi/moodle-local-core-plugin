@@ -46,13 +46,22 @@ $sqlParams = [];
 
 if ($withgrades) {
     // --- MODE 1: Course-based (Granular with grades) ---
-    $sqlConditions = ["u.deleted = 0", "lpu.userrolename = 'student'"];
+    // IMPORTANT: this mode is PENSUM-DRIVEN (FROM local_learning_courses), exactly
+    // like the academic panel grades modal (get_student_learning_plan_pensum). It
+    // enumerates EVERY course of the student's plan and LEFT JOINs gmk_course_progre,
+    // instead of driving FROM gmk_course_progre. Rationale: a subject can live in the
+    // plan pensum but have NO progress row yet (courses not started, or graded outside
+    // the normal class flow — modules, homologations, manual grades). Driving from
+    // gmk_course_progre silently dropped those subjects from the export while the modal
+    // still showed them, causing the export ≠ modal mismatch. The resolver fills in the
+    // nota/estado for rows without a progre row, matching the modal 1:1.
+    $sqlConditions = ["u.deleted = 0"];
 
     if (!empty($planid)) {
         $planids = array_filter(explode(',', $planid), 'is_numeric');
         if (!empty($planids)) {
             list($insql, $inparams) = $DB->get_in_or_equal($planids, SQL_PARAMS_NAMED, 'plan');
-            $sqlConditions[] = "cp.learningplanid $insql";
+            $sqlConditions[] = "lpc.learningplanid $insql";
             $sqlParams = array_merge($sqlParams, $inparams);
         }
     }
@@ -89,23 +98,37 @@ if ($withgrades) {
     // (get_student_learning_plan_pensum). This ensures the Excel export shows the
     // same nota/estado that the teacher sees on screen — including module grades,
     // class category aggregation and virtual approval.
+    //
+    // The `enr` subquery collapses each (student, plan) enrollment to a single row
+    // (MAX currentperiodid, mirroring the modal) so the pensum JOIN never multiplies
+    // rows when a user has duplicate local_learning_users records.
     $query = "
         SELECT u.id as userid, u.firstname, u.lastname, u.email, u.idnumber,
                lp.name as career, per.name as periodname,
-               COALESCE(cp.coursename, '(Sin curso activo)') as coursename,
-               cp.courseid, cp.learningplanid, cp.periodid,
+               COALESCE(cp.coursename, c.fullname) as coursename,
+               lpc.courseid, lpc.learningplanid,
+               COALESCE(cp.periodid, lpc.periodid) as periodid,
                cp.classid, cp.groupid, cp.progress,
                cp.status as coursestatus, cp.grade as cpgrade, cp.practicalhours,
-               lpu.currentperiodid,
-               fs.status as financial_status
-        FROM {gmk_course_progre} cp
-        JOIN {user} u ON u.id = cp.userid
-        JOIN {local_learning_users} lpu ON (lpu.userid = u.id AND lpu.learningplanid = cp.learningplanid AND lpu.userrolename = 'student')
-        JOIN {local_learning_plans} lp ON lp.id = cp.learningplanid
-        LEFT JOIN {local_learning_periods} per ON per.id = cp.periodid
+               enr.currentperiodid,
+               fs.status as financial_status,
+               lpc.position as lpcposition
+        FROM {local_learning_courses} lpc
+        JOIN {course} c ON c.id = lpc.courseid
+        JOIN (
+            SELECT lpu.userid, lpu.learningplanid, MAX(lpu.currentperiodid) AS currentperiodid
+              FROM {local_learning_users} lpu
+             WHERE lpu.userrolename = 'student'
+          GROUP BY lpu.userid, lpu.learningplanid
+        ) enr ON enr.learningplanid = lpc.learningplanid
+        JOIN {user} u ON u.id = enr.userid
+        JOIN {local_learning_plans} lp ON lp.id = lpc.learningplanid
+        LEFT JOIN {gmk_course_progre} cp
+               ON (cp.userid = enr.userid AND cp.courseid = lpc.courseid AND cp.learningplanid = lpc.learningplanid)
+        LEFT JOIN {local_learning_periods} per ON per.id = COALESCE(cp.periodid, lpc.periodid)
         LEFT JOIN {gmk_financial_status} fs ON (fs.userid = u.id)
         $whereClause
-        ORDER BY lp.name, per.id, u.firstname";
+        ORDER BY lp.name, per.id, u.firstname, lpc.position";
 
     $recordset = $DB->get_recordset_sql($query, $sqlParams);
 
