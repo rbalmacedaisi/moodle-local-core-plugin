@@ -111,10 +111,16 @@ if ($withgrades) {
     // The `enr` subquery collapses each (student, plan) enrollment to a single row
     // (MAX currentperiodid, mirroring the modal) so the pensum JOIN never multiplies
     // rows when a user has duplicate local_learning_users records.
+    //
+    // Course name comes from the authoritative {course}.fullname (c.fullname), NOT the
+    // denormalized gmk_course_progre.coursename snapshot. That column has a DB default
+    // of 'unnamed' (NOT NULL) so insert paths that don't set it leave 'unnamed', and it
+    // also goes stale when a course is later renamed. Using c.fullname matches the modal
+    // (which reads course.fullname) and fixes both the 'unnamed' and stale-snapshot rows.
     $query = "
         SELECT u.id as userid, u.firstname, u.lastname, u.email, u.idnumber,
                lp.name as career, per.name as periodname,
-               COALESCE(cp.coursename, c.fullname) as coursename,
+               c.fullname as coursename,
                lpc.courseid, lpc.learningplanid,
                COALESCE(cp.periodid, lpc.periodid) as periodid,
                cp.classid, cp.groupid, cp.progress,
