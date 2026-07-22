@@ -15,7 +15,16 @@ require_once($CFG->libdir . '/dataformatlib.php');
 
 require_login();
 $context = context_system::instance();
-require_capability('moodle/site:config', $context); 
+require_capability('moodle/site:config', $context);
+
+// A full "export todo" spans ~28k pensum rows that are buffered, run through the
+// in-memory grade resolver (which pre-loads grade_items/grade_grades/classes) and
+// then serialised into an .xlsx workbook in memory — the Excel writer alone holds
+// every cell. The default 128M php memory_limit blows up mid-build (fatal at the
+// second pass). Raise to MEMORY_HUGE (2G) and lift the time cap; this is an
+// admin-only (site:config) export run rarely, so the headroom is acceptable.
+raise_memory_limit(MEMORY_HUGE);
+\core_php_time_limit::raise();
 
 global $DB;
 
@@ -207,11 +216,13 @@ if ($withgrades) {
         ];
     }
     $resolutions = \local_grupomakro_core\course_grade_resolver::bulk_resolve_for_records($resolverInput);
+    unset($resolverInput); // free the intermediate copy before building the final rows.
 
     // Second pass: build the final row objects using the bulk resolutions.
     foreach ($pending as $i => $p) {
         $cp = $p['cp'];
         $resolution = $resolutions[(string)$i] ?? ['grade' => null, 'status' => (int)($cp->coursestatus ?? 0)];
+        unset($pending[$i], $resolutions[(string)$i]); // release each row as it is consumed.
 
         $row = new stdClass();
         $row->id = $cp->userid;
