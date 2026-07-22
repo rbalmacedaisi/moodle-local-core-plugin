@@ -918,6 +918,19 @@ class get_student_learning_plan_pensum extends external_api
                 $userPensumCourse->is_module = $isModuleGrade ? 1 : 0;
                 $userPensumCourse->module_classid = $activeModuleByCoreCourseId[$courseidkey] ?? 0;
 
+                // Badge as "Módulo" whenever the student is actively enrolled as an
+                // independent module, not only when the resolved grade came from a
+                // module. A newly enrolled module student still has their grade
+                // resolved from the prior class category (the enrollment flow keeps
+                // progre.classid on the old class to preserve the existing grade until
+                // the module is graded), so $isModuleGrade is false while
+                // module_classid already points to the active module class. That
+                // active enrollment is the authoritative "this is a module" signal and
+                // must drive the label, restoring the badge for new enrollees.
+                if (!empty($userPensumCourse->module_classid)) {
+                    $userPensumCourse->is_module = 1;
+                }
+
                 $userPensumCourse->statusLabel = self::STATUS_LABEL[$userPensumCourse->status] ?? 'No disponible';
                 $userPensumCourse->statusColor = self::STATUS_COLOR[$userPensumCourse->status] ?? '#5e35b1';
 
