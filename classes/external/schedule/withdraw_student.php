@@ -13,13 +13,21 @@ require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/progress_manager.php');
 
 /**
- * Withdraw a student from a class and reset their progress to available.
+ * Withdraw a student from a SINGLE class (module or regular) surgically.
+ *
+ * A student may be enrolled in both a module class and a regular class of the
+ * SAME subject (they share one Moodle course: module enrollment adds the student
+ * to the regular class group for section visibility). Withdrawing must therefore
+ * be surgical: remove only the passed class, keep the other enrollment and the
+ * shared Moodle course access, and only unenrol from the course when the student
+ * no longer belongs to ANY class of that course. Progress is set to Cursando when
+ * an active class survives, or restored to the original/available status when not.
  */
 class withdraw_student extends external_api {
 
     public static function execute_parameters() {
         return new external_function_parameters([
-            'classId' => new external_value(PARAM_INT, 'The class ID (gmk_class.id)'),
+            'classId' => new external_value(PARAM_INT, 'The class ID (gmk_class.id) to withdraw from'),
             'userId' => new external_value(PARAM_INT, 'The student user ID'),
             'learningPlanId' => new external_value(PARAM_INT, 'Preferred learning plan ID', VALUE_DEFAULT, 0),
         ]);
@@ -44,113 +52,159 @@ class withdraw_student extends external_api {
 
         $class = $DB->get_record('gmk_class', ['id' => $classId]);
 
-        if ($class) {
-            $progressRows = $DB->get_records('gmk_course_progre', ['userid' => $userId, 'classid' => $classId], 'id ASC');
+        // ── Class deleted: reset any progress rows still referencing the class id ──
+        if (!$class) {
+            return self::reset_orphan_progress($userId, $classId, $learningPlanId);
+        }
 
-            // 1. Remove from class group.
-            if (!empty($class->groupid) && groups_is_member((int)$class->groupid, $userId)) {
-                groups_remove_member((int)$class->groupid, $userId);
+        $corecourseid  = (int)$class->corecourseid;
+        $isModuleClass = !empty($class->is_module);
+
+        // ── 1. Remove membership from THIS class group only ───────────────────────
+        if (!empty($class->groupid) && groups_is_member((int)$class->groupid, $userId)) {
+            groups_remove_member((int)$class->groupid, $userId);
+        }
+
+        // ── 2. Target-specific record cleanup ─────────────────────────────────────
+        $moduleOriginalStatus = null;
+        if ($isModuleClass) {
+            // Drop the module enrollment for this class (do NOT touch the regular class).
+            $moduleEnroll = $DB->get_record('gmk_module_enrollment', ['classid' => $classId, 'userid' => $userId]);
+            if ($moduleEnroll) {
+                $moduleOriginalStatus = is_null($moduleEnroll->original_status)
+                    ? null
+                    : (int)$moduleEnroll->original_status;
+                $DB->delete_records('gmk_module_enrollment', ['id' => (int)$moduleEnroll->id]);
             }
-
-            // Defensive: remove from any stale groups linked by progress rows for this class.
-            foreach ($progressRows as $row) {
+        } else {
+            // Regular class: also drop any stale group stored on progre rows for this class.
+            $progressRowsForClass = $DB->get_records('gmk_course_progre', ['userid' => $userId, 'classid' => $classId]);
+            foreach ($progressRowsForClass as $row) {
                 $gid = (int)($row->groupid ?? 0);
                 if ($gid > 0 && groups_is_member($gid, $userId)) {
                     groups_remove_member($gid, $userId);
                 }
             }
-
-            // 2. Unenrol from manual enrol instances.
-            $enrolplugin = enrol_get_plugin('manual');
-            $courseIds = [(int)$class->corecourseid];
-            foreach ($progressRows as $row) {
-                $cid = (int)($row->courseid ?? 0);
-                if ($cid > 0) {
-                    $courseIds[] = $cid;
-                }
-            }
-            $courseIds = array_values(array_unique(array_filter($courseIds)));
-
-            if ($enrolplugin) {
-                foreach ($courseIds as $cid) {
-                    $instance = get_manual_enroll($cid);
-                    if ($instance) {
-                        $enrolplugin->unenrol_user($instance, $userId);
-                    }
-                }
-            }
-
-            // 3. Reset progress rows.
-            $updated = \local_grupomakro_progress_manager::unassign_class_from_course_progress(
-                $userId,
-                $class,
-                $learningPlanId
-            );
-
-            // Last resort: force reset rows that still point to this class id.
-            if (!$updated && !empty($progressRows)) {
-                foreach ($progressRows as $row) {
-                    if ($learningPlanId > 0 && (int)($row->learningplanid ?? 0) <= 0) {
-                        $row->learningplanid = $learningPlanId;
-                    }
-                    $row->classid = 0;
-                    $row->groupid = 0;
-                    $row->progress = 0;
-                    $row->grade = 0;
-                    $row->status = COURSE_AVAILABLE;
-                    $row->timemodified = time();
-                    $DB->update_record('gmk_course_progre', $row);
-                }
-            }
-
-            // 4. Remove pending records.
-            $DB->delete_records('gmk_class_pre_registration', ['userid' => $userId, 'classid' => $classId]);
-            $DB->delete_records('gmk_class_queue', ['userid' => $userId, 'classid' => $classId]);
-
-            // 5. Module-specific cleanup.
-            if (!empty($class->is_module)) {
-                $moduleEnroll = $DB->get_record('gmk_module_enrollment', ['classid' => $classId, 'userid' => $userId]);
-                if ($moduleEnroll) {
-                    $restoreStatus = (!is_null($moduleEnroll->original_status) && (int)$moduleEnroll->original_status !== 2)
-                        ? (int)$moduleEnroll->original_status
-                        : COURSE_AVAILABLE;
-
-                    // Reset progress rows set to Cursando by enroll_module (classid was not stored there).
-                    $progressToReset = $DB->get_records_select(
-                        'gmk_course_progre',
-                        'userid = :uid AND courseid = :cid AND status = 2 AND classid = 0',
-                        ['uid' => $userId, 'cid' => (int)$class->corecourseid]
-                    );
-                    foreach ($progressToReset as $pr) {
-                        $pr->status = $restoreStatus;
-                        $pr->classid = 0;
-                        $pr->groupid = 0;
-                        $pr->timemodified = time();
-                        $DB->update_record('gmk_course_progre', $pr);
-                    }
-
-                    $DB->delete_records('gmk_module_enrollment', ['id' => (int)$moduleEnroll->id]);
-                }
-
-                // Remove student from the regular class group that enroll_module added them to.
-                $regularGroup = $DB->get_record_sql(
-                    "SELECT groupid FROM {gmk_class}
-                      WHERE corecourseid = :cid AND is_module = 0 AND groupid > 0
-                      ORDER BY id DESC LIMIT 1",
-                    ['cid' => (int)$class->corecourseid]
-                );
-                if ($regularGroup && !empty($regularGroup->groupid) && groups_is_member((int)$regularGroup->groupid, $userId)) {
-                    groups_remove_member((int)$regularGroup->groupid, $userId);
-                }
-            }
-
-            return ['status' => 'ok', 'message' => 'Estudiante retirado correctamente de la clase.'];
         }
 
-        // Class deleted: reset all progress rows that still reference the class id.
+        // ── 3. Pending records for THIS class ─────────────────────────────────────
+        $DB->delete_records('gmk_class_pre_registration', ['userid' => $userId, 'classid' => $classId]);
+        $DB->delete_records('gmk_class_queue', ['userid' => $userId, 'classid' => $classId]);
+
+        // ── 4. What remains for this course (excluding the class we just left)? ────
+        $remaining = self::remaining_classes_for_course($userId, $corecourseid, $classId);
+        $stillMemberAny = !empty($remaining); // any class group (any state) -> keep course access
+        $activeAny = null;
+        $activeRegular = null;
+        foreach ($remaining as $rc) {
+            if ((int)$rc->approved === 1 && (int)$rc->closed === 0) {
+                if ($activeAny === null) {
+                    $activeAny = $rc;
+                }
+                if (empty($rc->is_module) && $activeRegular === null) {
+                    $activeRegular = $rc;
+                }
+            }
+        }
+
+        // ── 5. Unenrol from the Moodle course only if nothing of it remains ───────
+        if (!$stillMemberAny) {
+            $enrolplugin = enrol_get_plugin('manual');
+            if ($enrolplugin && $corecourseid > 0) {
+                $instance = get_manual_enroll($corecourseid);
+                if ($instance) {
+                    $enrolplugin->unenrol_user($instance, $userId);
+                }
+            }
+        }
+
+        // ── 6. Update progress rows for (user, corecourse[, plan]) ────────────────
+        $progreParams = ['userid' => $userId, 'courseid' => $corecourseid];
+        if ($learningPlanId > 0) {
+            $progreParams['learningplanid'] = $learningPlanId;
+        }
+        $progreRows = $DB->get_records('gmk_course_progre', $progreParams);
+        if (empty($progreRows) && $learningPlanId > 0) {
+            // Fall back to any plan if the preferred one had no row.
+            $progreRows = $DB->get_records('gmk_course_progre', ['userid' => $userId, 'courseid' => $corecourseid]);
+        }
+
+        foreach ($progreRows as $row) {
+            if ($activeAny !== null) {
+                // An active class of this course survives -> keep Cursando.
+                $row->status = 2; // COURSE_IN_PROGRESS (Cursando)
+                if ($activeRegular !== null) {
+                    // Point the row at the surviving regular class for clean grade resolution.
+                    $row->classid = (int)$activeRegular->id;
+                    $row->groupid = (int)$activeRegular->groupid;
+                } else {
+                    // Only a module survives (module grade is resolved without progre.classid).
+                    $row->classid = 0;
+                    $row->groupid = 0;
+                }
+            } else {
+                // Nothing active remains -> restore to the pre-module status or Available.
+                $restore = (!is_null($moduleOriginalStatus) && $moduleOriginalStatus !== 2)
+                    ? $moduleOriginalStatus
+                    : COURSE_AVAILABLE;
+                $row->status = $restore;
+                $row->classid = 0;
+                $row->groupid = 0;
+                $row->progress = 0;
+                $row->grade = 0;
+            }
+            if ($learningPlanId > 0 && (int)($row->learningplanid ?? 0) <= 0) {
+                $row->learningplanid = $learningPlanId;
+            }
+            $row->timemodified = time();
+            $DB->update_record('gmk_course_progre', $row);
+        }
+
+        $msg = $isModuleClass
+            ? 'Estudiante retirado del módulo correctamente.'
+            : 'Estudiante retirado de la clase correctamente.';
+        if ($stillMemberAny) {
+            $msg .= ' Se conservó su otra inscripción del mismo curso.';
+        } else {
+            $msg .= ' El estado volvió a Disponible.';
+        }
+
+        return ['status' => 'ok', 'message' => $msg];
+    }
+
+    /**
+     * Classes (other than $excludeClassId) of the given core course where the
+     * student is still a group member. Any approval/closed state is returned so
+     * the caller can decide course access (any) vs. Cursando status (active only).
+     *
+     * @return array<int,\stdClass>
+     */
+    private static function remaining_classes_for_course(int $userId, int $corecourseid, int $excludeClassId): array {
+        global $DB;
+        if ($corecourseid <= 0) {
+            return [];
+        }
+        return $DB->get_records_sql(
+            "SELECT c.id, c.is_module, c.approved, c.closed, c.groupid
+               FROM {gmk_class} c
+               JOIN {groups_members} gm ON gm.groupid = c.groupid AND gm.userid = :uid
+              WHERE c.corecourseid = :cid
+                AND c.id <> :exclude
+                AND c.groupid > 0",
+            ['uid' => $userId, 'cid' => $corecourseid, 'exclude' => $excludeClassId]
+        );
+    }
+
+    /**
+     * The class row no longer exists: reset every progress row still referencing
+     * the class id and unenrol from the referenced courses.
+     */
+    private static function reset_orphan_progress(int $userId, int $classId, int $learningPlanId): array {
+        global $DB;
+
         $progressRows = $DB->get_records('gmk_course_progre', ['userid' => $userId, 'classid' => $classId], 'id ASC');
         if (empty($progressRows)) {
-            return ['status' => 'error', 'message' => 'No se encontro el registro del estudiante para esta clase.'];
+            return ['status' => 'error', 'message' => 'No se encontró el registro del estudiante para esta clase.'];
         }
 
         foreach ($progressRows as $row) {
@@ -169,8 +223,7 @@ class withdraw_student extends external_api {
                     $courseIds[] = $cid;
                 }
             }
-            $courseIds = array_values(array_unique($courseIds));
-            foreach ($courseIds as $cid) {
+            foreach (array_values(array_unique($courseIds)) as $cid) {
                 $instance = get_manual_enroll($cid);
                 if ($instance) {
                     $enrolplugin->unenrol_user($instance, $userId);

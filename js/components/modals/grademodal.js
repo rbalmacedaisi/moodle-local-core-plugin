@@ -283,16 +283,43 @@ Vue.component('grademodal', {
                                                         {{ course.grade }}
                                                     </td>
                                                     <td class="text-center py-1" style="white-space:nowrap;">
-                                                        <v-btn
-                                                            v-if="canWithdrawFromCourse(course)"
-                                                            x-small
-                                                            color="error"
-                                                            :loading="withdrawingCourseKey === getCourseKey(course)"
-                                                            :disabled="!!withdrawingCourseKey"
-                                                            @click.stop="withdrawFromCourse(course)"
-                                                        >
-                                                            Retirar
-                                                        </v-btn>
+                                                        <template v-if="canWithdrawFromCourse(course)">
+                                                            <v-menu v-if="hasBothEnrollments(course)" offset-y>
+                                                                <template v-slot:activator="{ on, attrs }">
+                                                                    <v-btn
+                                                                        x-small
+                                                                        color="error"
+                                                                        v-bind="attrs"
+                                                                        v-on="on"
+                                                                        :loading="withdrawingCourseKey === getCourseKey(course)"
+                                                                        :disabled="!!withdrawingCourseKey"
+                                                                    >
+                                                                        Retirar
+                                                                        <v-icon x-small right>mdi-menu-down</v-icon>
+                                                                    </v-btn>
+                                                                </template>
+                                                                <v-list dense>
+                                                                    <v-list-item @click="withdrawFromCourse(course, 'module')">
+                                                                        <v-icon small class="mr-2" color="teal darken-1">mdi-book-education-outline</v-icon>
+                                                                        <v-list-item-title>Retirar del módulo</v-list-item-title>
+                                                                    </v-list-item>
+                                                                    <v-list-item @click="withdrawFromCourse(course, 'regular')">
+                                                                        <v-icon small class="mr-2" color="blue darken-1">mdi-school-outline</v-icon>
+                                                                        <v-list-item-title>Retirar de clase regular</v-list-item-title>
+                                                                    </v-list-item>
+                                                                </v-list>
+                                                            </v-menu>
+                                                            <v-btn
+                                                                v-else
+                                                                x-small
+                                                                color="error"
+                                                                :loading="withdrawingCourseKey === getCourseKey(course)"
+                                                                :disabled="!!withdrawingCourseKey"
+                                                                @click.stop="withdrawFromCourse(course)"
+                                                            >
+                                                                Retirar
+                                                            </v-btn>
+                                                        </template>
                                                         <v-btn
                                                             v-else
                                                             x-small
@@ -3088,9 +3115,20 @@ Vue.component('grademodal', {
         canWithdrawFromCourse(course) {
             const label = String((course && course.statusLabel) ? course.statusLabel : '').trim().toLowerCase();
             if (label !== 'cursando') return false;
-            if (Number(course && course.progressclassid ? course.progressclassid : 0) > 0) return true;
+            if (this._regularClassId(course) > 0) return true;
             if (Number(course && course.module_classid ? course.module_classid : 0) > 0) return true;
             return false;
+        },
+        _regularClassId(course) {
+            // Prefer the explicit regular class id exposed by the backend; fall back to
+            // progressclassid for older payloads.
+            const rc = Number(course && course.regular_classid ? course.regular_classid : 0);
+            if (rc > 0) return rc;
+            return Number(course && course.progressclassid ? course.progressclassid : 0);
+        },
+        hasBothEnrollments(course) {
+            return this._regularClassId(course) > 0
+                && Number(course && course.module_classid ? course.module_classid : 0) > 0;
         },
         async enrollInModule(course) {
             const key = this.getCourseKey(course);
@@ -3352,27 +3390,46 @@ Vue.component('grademodal', {
         getCourseKey(course) {
             return String(course && course.progressclassid ? course.progressclassid : 0) + '_' + String(course && course.courseid ? course.courseid : 0);
         },
-        async withdrawFromCourse(course) {
-            const regularClassId = Number(course && course.progressclassid ? course.progressclassid : 0);
+        async withdrawFromCourse(course, mode) {
+            const regularClassId = this._regularClassId(course);
             const moduleClassId  = Number(course && course.module_classid  ? course.module_classid  : 0);
-            const classId = regularClassId || moduleClassId;
-            const isModuleWithdrawal = !regularClassId && moduleClassId > 0;
+
+            // Resolve which enrollment to withdraw. When the student has both and the
+            // caller did not specify, default to the module (least destructive: keeps
+            // the regular class). Explicit mode comes from the "Retirar" menu.
+            let isModuleWithdrawal;
+            if (mode === 'module') {
+                isModuleWithdrawal = true;
+            } else if (mode === 'regular') {
+                isModuleWithdrawal = false;
+            } else {
+                isModuleWithdrawal = !regularClassId && moduleClassId > 0;
+            }
+            const classId = isModuleWithdrawal ? moduleClassId : (regularClassId || moduleClassId);
             if (!classId || this.withdrawingCourseKey) return;
 
+            const bothEnrollments = regularClassId > 0 && moduleClassId > 0;
             const courseName = course.coursename || 'esta asignatura';
             const studentName = this.studentName;
 
             const confirmed = await (async () => {
                 if (window.Swal) {
-                    const bodyText = isModuleWithdrawal
-                        ? `<b>${studentName}</b> será <b>retirado del módulo</b> de <b>${courseName}</b>.<br><br>` +
-                          `Se eliminará la inscripción del módulo y el estado volverá a <em>Disponible</em>.`
-                        : `<b>${studentName}</b> será <b>retirado</b> de <b>${courseName}</b>.<br><br>` +
-                          `Se eliminará su inscripción en el grupo, se des-matriculará del curso en Moodle ` +
-                          `y su estado volverá a <em>Disponible</em> para poder inscribirse nuevamente.`;
+                    let bodyText;
+                    if (isModuleWithdrawal) {
+                        bodyText = `<b>${studentName}</b> será <b>retirado del módulo</b> de <b>${courseName}</b>.<br><br>` +
+                            (bothEnrollments
+                                ? `Se conservará su inscripción en la <b>clase regular</b> y su acceso al curso.`
+                                : `Se eliminará la inscripción del módulo y el estado volverá a <em>Disponible</em>.`);
+                    } else {
+                        bodyText = `<b>${studentName}</b> será <b>retirado de la clase regular</b> de <b>${courseName}</b>.<br><br>` +
+                            (bothEnrollments
+                                ? `Se conservará su inscripción en el <b>módulo</b> y su acceso al curso.`
+                                : `Se eliminará su inscripción en el grupo, se des-matriculará del curso en Moodle ` +
+                                  `y su estado volverá a <em>Disponible</em> para poder inscribirse nuevamente.`);
+                    }
                     const result = await window.Swal.fire({
                         icon: 'warning',
-                        title: isModuleWithdrawal ? '¿Retirar del módulo?' : '¿Retirar estudiante?',
+                        title: isModuleWithdrawal ? '¿Retirar del módulo?' : '¿Retirar de clase regular?',
                         html: bodyText,
                         showCancelButton: true,
                         confirmButtonColor: '#d33',
@@ -3383,8 +3440,7 @@ Vue.component('grademodal', {
                     return result.isConfirmed;
                 }
                 return window.confirm(
-                    `¿Retirar a ${studentName} de ${courseName}?\n\n` +
-                    `Se eliminará su inscripción. El estado volverá a Disponible para re-inscripción.`
+                    `¿Retirar a ${studentName} de ${courseName} (${isModuleWithdrawal ? 'módulo' : 'clase regular'})?`
                 );
             })();
 

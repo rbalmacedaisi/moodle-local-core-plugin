@@ -161,6 +161,7 @@ class get_student_learning_plan_pensum extends external_api
             $moduleGroupIds = [];
             $membershipClassIsModuleByCourseId = [];
             $activeModuleByCoreCourseId = [];
+            $activeRegularClassByCoreCourseId = [];
 
             if (!empty($userPensumCourses)) {
                 $learningcourseids = [];
@@ -762,6 +763,31 @@ class get_student_learning_plan_pensum extends external_api
                     foreach ($meRows as $mer) {
                         $activeModuleByCoreCourseId[(int)$mer->corecourseid] = (int)$mer->classid;
                     }
+
+                    // Active REGULAR (non-module) class membership per core course. Used by
+                    // the modal to offer a SEPARATE "Retirar de clase regular" action when a
+                    // student is in both a module and a regular class of the same subject
+                    // (module enrollment adds them to the regular group for section
+                    // visibility, so progre.classid may be 0 while they are a group member).
+                    list($rcInSql, $rcParams) = $DB->get_in_or_equal($corecourseids, SQL_PARAMS_NAMED, 'rcc');
+                    $rcRows = $DB->get_records_sql(
+                        "SELECT c.corecourseid, c.id AS classid
+                           FROM {gmk_class} c
+                           JOIN {groups_members} gm ON gm.groupid = c.groupid AND gm.userid = :rcuserid
+                          WHERE c.is_module = 0
+                            AND c.approved = 1
+                            AND c.closed = 0
+                            AND c.groupid > 0
+                            AND c.corecourseid $rcInSql
+                       ORDER BY c.id DESC",
+                        ['rcuserid' => (int)$params['userId']] + $rcParams
+                    );
+                    foreach ($rcRows as $rcr) {
+                        // Keep the most recent (query is id DESC) active regular class per course.
+                        if (!isset($activeRegularClassByCoreCourseId[(int)$rcr->corecourseid])) {
+                            $activeRegularClassByCoreCourseId[(int)$rcr->corecourseid] = (int)$rcr->classid;
+                        }
+                    }
                 }
             }
             
@@ -917,6 +943,15 @@ class get_student_learning_plan_pensum extends external_api
                 $userPensumCourse->gradesource = $gradesource;
                 $userPensumCourse->is_module = $isModuleGrade ? 1 : 0;
                 $userPensumCourse->module_classid = $activeModuleByCoreCourseId[$courseidkey] ?? 0;
+
+                // Regular (non-module) class the student is actively enrolled in for this
+                // subject. Prefer the class stored on the progress row; fall back to the
+                // active regular-class group membership (module enrollees keep progre.classid
+                // at 0 but are members of the regular group). Lets the modal offer a separate
+                // "Retirar de clase regular" action independent of the module.
+                $userPensumCourse->regular_classid = $progressclassid > 0
+                    ? $progressclassid
+                    : ($activeRegularClassByCoreCourseId[$courseidkey] ?? 0);
 
                 // Badge as "Módulo" whenever the student is actively enrolled as an
                 // independent module, not only when the resolved grade came from a
