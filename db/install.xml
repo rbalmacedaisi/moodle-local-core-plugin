@@ -1163,5 +1163,27 @@
         <INDEX NAME="applied_at_idx"  UNIQUE="false" FIELDS="applied_at"/>
       </INDEXES>
     </TABLE>
+    <TABLE NAME="gmk_homologation_rules" COMMENT="Reusable homologation rules: maps an origin course (in an origin learning plan) to a destination course (in a destination plan). Consumed by the Homologation Manager to preview and bulk-apply homologations across students enrolled in both plans.">
+      <FIELDS>
+        <FIELD NAME="id"                TYPE="int"  LENGTH="10" NOTNULL="true"  SEQUENCE="true"/>
+        <FIELD NAME="origin_planid"     TYPE="int"  LENGTH="10" NOTNULL="true"  DEFAULT="0" SEQUENCE="false" COMMENT="local_learning_plans.id of the origin plan"/>
+        <FIELD NAME="origin_courseid"   TYPE="int"  LENGTH="10" NOTNULL="true"  DEFAULT="0" SEQUENCE="false" COMMENT="course.id of the origin subject"/>
+        <FIELD NAME="dest_planid"       TYPE="int"  LENGTH="10" NOTNULL="true"  DEFAULT="0" SEQUENCE="false" COMMENT="local_learning_plans.id of the destination plan (may equal origin_planid for intra-plan homologations)"/>
+        <FIELD NAME="dest_courseid"     TYPE="int"  LENGTH="10" NOTNULL="true"  DEFAULT="0" SEQUENCE="false" COMMENT="course.id of the destination subject"/>
+        <FIELD NAME="homologation_type" TYPE="char" LENGTH="20" NOTNULL="true"  DEFAULT="homologacion" SEQUENCE="false" COMMENT="suficiencia|migracion|homologacion|practica"/>
+        <FIELD NAME="active"            TYPE="int"  LENGTH="2"  NOTNULL="true"  DEFAULT="1" SEQUENCE="false"/>
+        <FIELD NAME="usermodified"      TYPE="int"  LENGTH="10" NOTNULL="true"  DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timecreated"       TYPE="int"  LENGTH="10" NOTNULL="true"  DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timemodified"      TYPE="int"  LENGTH="10" NOTNULL="true"  DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="rule_unique_idx" UNIQUE="true"  FIELDS="origin_planid, origin_courseid, dest_planid, dest_courseid"/>
+        <INDEX NAME="dest_plan_idx"   UNIQUE="false" FIELDS="dest_planid"/>
+        <INDEX NAME="origin_plan_idx" UNIQUE="false" FIELDS="origin_planid"/>
+      </INDEXES>
+    </TABLE>
   </TABLES>
 </XMLDB>

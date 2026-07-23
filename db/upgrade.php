@@ -2795,6 +2795,30 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20260809001, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20260812000) {
+        // Homologation Manager: reusable origin->destination course homologation rules.
+        $table = new xmldb_table('gmk_homologation_rules');
+        if (!$dbman->table_exists($table)) {
+            $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+            $table->add_field('origin_planid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $table->add_field('origin_courseid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $table->add_field('dest_planid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $table->add_field('dest_courseid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $table->add_field('homologation_type', XMLDB_TYPE_CHAR, '20', null, XMLDB_NOTNULL, null, 'homologacion');
+            $table->add_field('active', XMLDB_TYPE_INTEGER, '2', null, XMLDB_NOTNULL, null, '1');
+            $table->add_field('usermodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $table->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+            $table->add_index('rule_unique_idx', XMLDB_INDEX_UNIQUE, ['origin_planid', 'origin_courseid', 'dest_planid', 'dest_courseid']);
+            $table->add_index('dest_plan_idx', XMLDB_INDEX_NOTUNIQUE, ['dest_planid']);
+            $table->add_index('origin_plan_idx', XMLDB_INDEX_NOTUNIQUE, ['origin_planid']);
+            $dbman->create_table($table);
+        }
+
+        upgrade_plugin_savepoint(true, 20260812000, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

@@ -2181,6 +2181,66 @@ try {
             ];
             break;
 
+        // ---- Homologation Manager ------------------------------------------------
+        case 'local_grupomakro_homolmgr_get_form_data':
+            require_capability('moodle/site:config', $context);
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/homologation/get_form_data.php');
+            $response = ['status' => 'success', 'data' => \local_grupomakro_core\external\homologation\get_form_data::execute()];
+            break;
+
+        case 'local_grupomakro_homolmgr_list_rules':
+            require_capability('moodle/site:config', $context);
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/homologation/list_rules.php');
+            $response = ['status' => 'success', 'data' => \local_grupomakro_core\external\homologation\list_rules::execute()];
+            break;
+
+        case 'local_grupomakro_homolmgr_save_rule':
+            require_sesskey();
+            require_capability('moodle/site:config', $context);
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/homologation/save_rule.php');
+            $result = \local_grupomakro_core\external\homologation\save_rule::execute(
+                required_param('originPlanId', PARAM_INT),
+                required_param('originCourseId', PARAM_INT),
+                required_param('destPlanId', PARAM_INT),
+                required_param('destCourseId', PARAM_INT),
+                optional_param('type', 'homologacion', PARAM_TEXT)
+            );
+            $response = ['status' => $result['status'] === 'error' ? 'error' : 'success', 'data' => $result];
+            break;
+
+        case 'local_grupomakro_homolmgr_delete_rule':
+            require_sesskey();
+            require_capability('moodle/site:config', $context);
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/homologation/delete_rule.php');
+            $result = \local_grupomakro_core\external\homologation\delete_rule::execute(required_param('id', PARAM_INT));
+            $response = ['status' => $result['status'] === 'error' ? 'error' : 'success', 'data' => $result];
+            break;
+
+        case 'local_grupomakro_homolmgr_preview':
+            require_capability('moodle/site:config', $context);
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/homologation/preview.php');
+            $rulesraw = optional_param('rules', '', PARAM_RAW);
+            $rules = $rulesraw !== '' ? json_decode($rulesraw, true) : [];
+            if (!is_array($rules)) {
+                $rules = [];
+            }
+            $result = \local_grupomakro_core\external\homologation\preview::execute($rules);
+            $response = ['status' => 'success', 'data' => $result];
+            break;
+
+        case 'local_grupomakro_homolmgr_apply':
+            require_sesskey();
+            require_capability('moodle/site:config', $context);
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/homologation/apply.php');
+            $rulesraw = optional_param('rules', '', PARAM_RAW);
+            $rules = $rulesraw !== '' ? json_decode($rulesraw, true) : [];
+            if (!is_array($rules)) {
+                $rules = [];
+            }
+            $result = \local_grupomakro_core\external\homologation\apply::execute($rules);
+            $response = ['status' => 'success', 'data' => $result];
+            break;
+
         case 'local_grupomakro_get_course_absences_detail':
             require_capability('moodle/site:config', $context);
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/student/get_course_absences_detail.php');
