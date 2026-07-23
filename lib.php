@@ -134,6 +134,8 @@ function local_grupomakro_core_extend_navigation(global_navigation $navigation) 
             '|/local/grupomakro_core/pages/teachers.php';
         $CFG->custommenuitems .= PHP_EOL . '-📂 Gestor de Cursos' .
             '|/local/grupomakro_core/pages/manage_courses.php';
+        $CFG->custommenuitems .= PHP_EOL . '-🔀 Gestor de Homologaciones' .
+            '|/local/grupomakro_core/pages/homologation_manager.php';
         $CFG->custommenuitems .= PHP_EOL . '-🎥 Gestor de Sesiones Virtuales' .
             '|/local/grupomakro_core/pages/manage_meetings.php';
         $CFG->custommenuitems .= PHP_EOL . '-📋 Matrícula Masiva a Plan' .
