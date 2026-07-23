@@ -32,7 +32,7 @@ namespace local_grupomakro_core\local;
 
 defined('MOODLE_INTERNAL') || die();
 
-require_once($CFG->dirroot . '/local/grupomakro_core/classes/course_grade_resolver.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/student/get_student_learning_plan_pensum.php');
 require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/student/homologate_course_grade.php');
 
 /**
@@ -69,113 +69,41 @@ class homologation_engine {
             }
         }
 
-        // Collect the ids we need to pre-load.
+        // Course names (for display only).
         $courseIds = [];
-        $planIds   = [];
-        $userIds   = [];
         foreach ($rules as $r) {
             $courseIds[$r['origin_courseid']] = true;
             $courseIds[$r['dest_courseid']]   = true;
-            $planIds[$r['origin_planid']]     = true;
-            $planIds[$r['dest_planid']]       = true;
-            foreach ($studentsByPair[$r['origin_planid'] . '-' . $r['dest_planid']] as $u) {
-                $userIds[(int)$u->id] = true;
-            }
         }
-        if (empty($userIds)) {
-            return ['rows' => [], 'summary' => self::empty_summary()];
-        }
-
-        $courseIdList = array_keys($courseIds);
-        $userIdList   = array_keys($userIds);
-        $planIdList   = array_keys($planIds);
-
-        // Course names.
         $courseNames = [];
-        list($cin, $cp) = $DB->get_in_or_equal($courseIdList, SQL_PARAMS_NAMED, 'cn');
-        foreach ($DB->get_records_select('course', "id $cin", $cp, '', 'id, fullname') as $c) {
-            $courseNames[(int)$c->id] = $c->fullname;
-        }
-
-        // Current period per (user, plan).
-        $periodByUserPlan = [];
-        list($uin, $up) = $DB->get_in_or_equal($userIdList, SQL_PARAMS_NAMED, 'up');
-        list($pin, $pp) = $DB->get_in_or_equal($planIdList, SQL_PARAMS_NAMED, 'pp');
-        $rs = $DB->get_recordset_sql(
-            "SELECT userid, learningplanid, MAX(currentperiodid) AS mp
-               FROM {local_learning_users}
-              WHERE userrolename = 'student' AND userid $uin AND learningplanid $pin
-           GROUP BY userid, learningplanid",
-            $up + $pp
-        );
-        foreach ($rs as $row) {
-            $periodByUserPlan[$row->userid . '-' . $row->learningplanid] = (int)$row->mp;
-        }
-        $rs->close();
-
-        // Progress rows for the needed (user, course, plan).
-        $progreByKey = [];
-        list($ccin, $ccp) = $DB->get_in_or_equal($courseIdList, SQL_PARAMS_NAMED, 'pc');
-        $rs = $DB->get_recordset_sql(
-            "SELECT id, userid, courseid, learningplanid, status, grade, classid, groupid, progress, homologation_type
-               FROM {gmk_course_progre}
-              WHERE userid $uin AND courseid $ccin AND learningplanid $pin",
-            $up + $ccp + $pp
-        );
-        foreach ($rs as $row) {
-            $progreByKey[$row->userid . '|' . $row->courseid . '|' . $row->learningplanid] = $row;
-        }
-        $rs->close();
-
-        // Build resolver input (one entry per distinct user/course/plan involved).
-        $resolverInput = [];
-        $seen = [];
-        foreach ($rules as $r) {
-            foreach ($studentsByPair[$r['origin_planid'] . '-' . $r['dest_planid']] as $u) {
-                foreach ([[$r['origin_courseid'], $r['origin_planid']], [$r['dest_courseid'], $r['dest_planid']]] as $pair) {
-                    list($cid, $pid) = $pair;
-                    $k = $u->id . '|' . $cid . '|' . $pid;
-                    if (isset($seen[$k])) {
-                        continue;
-                    }
-                    $seen[$k] = true;
-                    $cprow = $progreByKey[$k] ?? null;
-                    $resolverInput[] = [
-                        'key'             => $k,
-                        'userid'          => (int)$u->id,
-                        'courseid'        => (int)$cid,
-                        'learningplanid'  => (int)$pid,
-                        'baseStatus'      => $cprow ? (int)$cprow->status : 0,
-                        'progressclassid' => ($cprow && !empty($cprow->classid)) ? (int)$cprow->classid : null,
-                        'progressgroupid' => ($cprow && !empty($cprow->groupid)) ? (int)$cprow->groupid : null,
-                        'currentperiodid' => $periodByUserPlan[$u->id . '-' . $pid] ?? 0,
-                        'coursename'      => $courseNames[$cid] ?? '',
-                        'baseProgress'    => ($cprow && $cprow->progress !== null) ? (float)$cprow->progress : null,
-                    ];
-                }
+        if (!empty($courseIds)) {
+            list($cin, $cp) = $DB->get_in_or_equal(array_keys($courseIds), SQL_PARAMS_NAMED, 'cn');
+            foreach ($DB->get_records_select('course', "id $cin", $cp, '', 'id, fullname') as $c) {
+                $courseNames[(int)$c->id] = $c->fullname;
             }
         }
 
-        $resolutions = \local_grupomakro_core\course_grade_resolver::bulk_resolve_for_records($resolverInput);
-
-        // Build the pending list.
+        // Build the pending list. Grade AND status come from the SAME source the
+        // academic panel grades modal uses (get_student_learning_plan_pensum), so the
+        // preview/apply values are identical to what the teacher/director sees.
         $rows = [];
         $summary = self::empty_summary();
+        $pensumCache = [];
         foreach ($rules as $r) {
             $students = $studentsByPair[$r['origin_planid'] . '-' . $r['dest_planid']];
             $summary['students_scanned'] += count($students);
             foreach ($students as $u) {
-                $ok = $u->id . '|' . $r['origin_courseid'] . '|' . $r['origin_planid'];
-                $dk = $u->id . '|' . $r['dest_courseid'] . '|' . $r['dest_planid'];
-                $ores = $resolutions[$ok] ?? null;
-                $dres = $resolutions[$dk] ?? null;
+                $origin = self::pensum_grades($pensumCache, (int)$u->id, $r['origin_planid']);
+                $dest   = self::pensum_grades($pensumCache, (int)$u->id, $r['dest_planid']);
+
+                $ores = $origin[$r['origin_courseid']] ?? null;
+                $dres = $dest[$r['dest_courseid']] ?? null;
 
                 $ograde  = ($ores && $ores['grade'] !== null) ? round((float)$ores['grade'], 2) : null;
                 $dstatus = $dres ? (int)$dres['status'] : 0;
-                $dcp     = $progreByKey[$dk] ?? null;
 
-                $destHomol    = $dcp && !empty($dcp->homologation_type);
-                $destApproved = in_array($dstatus, self::APPROVED_STATUSES, true);
+                $destHomol      = $dres && $dres['homologation_type'] !== '';
+                $destApproved   = in_array($dstatus, self::APPROVED_STATUSES, true);
                 $originApproved = ($ograde !== null && $ograde >= self::PASS_GRADE);
 
                 if ($destApproved || $destHomol) {
@@ -207,6 +135,53 @@ class homologation_engine {
         }
 
         return ['rows' => $rows, 'summary' => $summary];
+    }
+
+    /**
+     * Resolve a student's grades/status for a plan using the SAME backend the
+     * grades modal uses (get_student_learning_plan_pensum), cached per (user, plan).
+     *
+     * @param array $cache Reference to a per-call cache keyed by "uid-plan".
+     * @return array<int,array{grade:?float,status:int,homologation_type:string}> keyed by courseid
+     */
+    private static function pensum_grades(array &$cache, int $uid, int $planid): array {
+        $ck = $uid . '-' . $planid;
+        if (isset($cache[$ck])) {
+            return $cache[$ck];
+        }
+        $out = [];
+        try {
+            $res = \local_grupomakro_core\external\student\get_student_learning_plan_pensum::execute((string)$uid, (string)$planid);
+            if (($res['status'] ?? 0) == 1 && !empty($res['pensum'])) {
+                $pensum = json_decode($res['pensum'], true);
+                if (is_array($pensum)) {
+                    foreach ($pensum as $period) {
+                        if (empty($period['courses'])) {
+                            continue;
+                        }
+                        foreach ($period['courses'] as $c) {
+                            $cid = (int)$c['courseid'];
+                            $g = $c['grade'] ?? null;
+                            if ($g === null || $g === '-' || $g === '−' || $g === '') {
+                                $g = null;
+                            } else {
+                                $g = round((float)$g, 2);
+                            }
+                            $out[$cid] = [
+                                'grade'             => $g,
+                                'status'            => (int)($c['status'] ?? 0),
+                                'homologation_type' => trim((string)($c['homologation_type'] ?? '')),
+                            ];
+                        }
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            // Leave $out empty on failure; the caller treats it as "no data".
+            $out = [];
+        }
+        $cache[$ck] = $out;
+        return $out;
     }
 
     /**
