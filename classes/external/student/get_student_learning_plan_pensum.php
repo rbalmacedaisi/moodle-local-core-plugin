@@ -949,7 +949,7 @@ class get_student_learning_plan_pensum extends external_api
                 // active regular-class group membership (module enrollees keep progre.classid
                 // at 0 but are members of the regular group). Lets the modal offer a separate
                 // "Retirar de clase regular" action independent of the module.
-                $userPensumCourse->regular_classid = $progressclassid > 0
+                $userPensumCourse->regular_classid = $progressclassid > 0 && empty($moduleClassIds[$progressclassid])
                     ? $progressclassid
                     : ($activeRegularClassByCoreCourseId[$courseidkey] ?? 0);
 

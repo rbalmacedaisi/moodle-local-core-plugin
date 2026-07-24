@@ -3127,8 +3127,9 @@ Vue.component('grademodal', {
             return Number(course && course.progressclassid ? course.progressclassid : 0);
         },
         hasBothEnrollments(course) {
-            return this._regularClassId(course) > 0
-                && Number(course && course.module_classid ? course.module_classid : 0) > 0;
+            const regularClassId = this._regularClassId(course);
+            const moduleClassId = Number(course && course.module_classid ? course.module_classid : 0);
+            return regularClassId > 0 && moduleClassId > 0 && regularClassId !== moduleClassId;
         },
         async enrollInModule(course) {
             const key = this.getCourseKey(course);
@@ -3408,7 +3409,7 @@ Vue.component('grademodal', {
             const classId = isModuleWithdrawal ? moduleClassId : (regularClassId || moduleClassId);
             if (!classId || this.withdrawingCourseKey) return;
 
-            const bothEnrollments = regularClassId > 0 && moduleClassId > 0;
+            const bothEnrollments = regularClassId > 0 && moduleClassId > 0 && regularClassId !== moduleClassId;
             const courseName = course.coursename || 'esta asignatura';
             const studentName = this.studentName;
 
