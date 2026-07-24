@@ -238,9 +238,6 @@ class local_grupomakro_progress_manager
                 } else if ($userGrade > 0 && $userGrade < 71 && $userCourseProgress->progress >= 100) {
                     // Student completed all activities but grade is below passing
                     $userCourseProgress->status = COURSE_FAILED;  // Status 5
-                } else if ($userCourseProgress->progress >= 100 && $userGrade == 0) {
-                    // Activities completed but no grade yet
-                    $userCourseProgress->status = COURSE_COMPLETED;  // Status 3
                 }
 
                 // Mark as completed if approved
