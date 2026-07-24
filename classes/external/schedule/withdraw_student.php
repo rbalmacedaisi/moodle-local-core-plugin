@@ -129,35 +129,48 @@ class withdraw_student extends external_api {
             $progreRows = $DB->get_records('gmk_course_progre', ['userid' => $userId, 'courseid' => $corecourseid]);
         }
 
+        // ── 6. Update progress rows for (user, corecourse[, plan]) ────────────────
+        //     IMPORTANT (bug 2026-07-24): only touch the row that was created for
+        //     the module being withdrawn (classid = $classId). The regular class's
+        //     row was deliberately left untouched at enroll time and must remain
+        //     intact here too — otherwise we destroy the student's regular-class
+        //     status (grade, "Aprobado", credits, etc.) just because they took a
+        //     module of the same subject.
+        $moduleProgreRow = null;
         foreach ($progreRows as $row) {
+            if ((int)($row->classid ?? 0) === $classId) {
+                $moduleProgreRow = $row;
+                break;
+            }
+        }
+
+        if ($moduleProgreRow !== null) {
             if ($activeAny !== null) {
-                // An active class of this course survives -> keep Cursando.
-                $row->status = 2; // COURSE_IN_PROGRESS (Cursando)
+                // An active class of this course survives -> module progre stays Cursando.
+                $moduleProgreRow->status = 2;
                 if ($activeRegular !== null) {
-                    // Point the row at the surviving regular class for clean grade resolution.
-                    $row->classid = (int)$activeRegular->id;
-                    $row->groupid = (int)$activeRegular->groupid;
+                    $moduleProgreRow->classid = (int)$activeRegular->id;
+                    $moduleProgreRow->groupid = (int)$activeRegular->groupid;
                 } else {
-                    // Only a module survives (module grade is resolved without progre.classid).
-                    $row->classid = 0;
-                    $row->groupid = 0;
+                    $moduleProgreRow->classid = 0;
+                    $moduleProgreRow->groupid = 0;
                 }
             } else {
-                // Nothing active remains -> restore to the pre-module status or Available.
+                // Nothing active remains -> restore the pre-module status or Available.
                 $restore = (!is_null($moduleOriginalStatus) && $moduleOriginalStatus !== 2)
                     ? $moduleOriginalStatus
                     : COURSE_AVAILABLE;
-                $row->status = $restore;
-                $row->classid = 0;
-                $row->groupid = 0;
-                $row->progress = 0;
-                $row->grade = 0;
+                $moduleProgreRow->status = $restore;
+                $moduleProgreRow->classid = 0;
+                $moduleProgreRow->groupid = 0;
+                $moduleProgreRow->progress = 0;
+                $moduleProgreRow->grade = 0;
             }
-            if ($learningPlanId > 0 && (int)($row->learningplanid ?? 0) <= 0) {
-                $row->learningplanid = $learningPlanId;
+            if ($learningPlanId > 0 && (int)($moduleProgreRow->learningplanid ?? 0) <= 0) {
+                $moduleProgreRow->learningplanid = $learningPlanId;
             }
-            $row->timemodified = time();
-            $DB->update_record('gmk_course_progre', $row);
+            $moduleProgreRow->timemodified = time();
+            $DB->update_record('gmk_course_progre', $moduleProgreRow);
         }
 
         $msg = $isModuleClass

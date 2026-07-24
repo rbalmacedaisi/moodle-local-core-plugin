@@ -213,18 +213,32 @@ class enroll_module {
             groups_add_member($groupId, $userId);
         }
 
-        // ── 5b. Also add to the regular class group so group-restricted
-        //        course sections remain visible to the module student ──────────────
-        $regularClass = $DB->get_record_sql(
-            "SELECT groupid FROM {gmk_class}
-              WHERE corecourseid = :cid AND periodid = :pid AND is_module = 0 AND groupid > 0
-              ORDER BY id DESC
-              LIMIT 1",
-            ['cid' => $coreCourseId, 'pid' => (int)$academicPeriod->id]
+        // ── 5b. Add to the regular class group ONLY if the student does not already
+        //        belong to any class (regular or module) of this course. Otherwise
+        //        the module is a second enrollment on top of the regular class and
+        //        we must not flip the student's regular-class group membership.
+        //        Bug 2026-07-24: students showed up as "enrolled in both the module
+        //        and the regular class of the same subject" in LXP.
+        $alreadyMemberOfAnyClassForCourse = $DB->record_exists_select(
+            'groups_members',
+            "userid = :uid AND groupid IN (
+                SELECT groupid FROM {gmk_class}
+                 WHERE corecourseid = :cid AND groupid > 0 AND id <> :excludeid
+            )",
+            ['uid' => $userId, 'cid' => $coreCourseId, 'excludeid' => $classId]
         );
-        if ($regularClass && !empty($regularClass->groupid)) {
-            if (!groups_is_member((int)$regularClass->groupid, $userId)) {
-                groups_add_member((int)$regularClass->groupid, $userId);
+        if (!$alreadyMemberOfAnyClassForCourse) {
+            $regularClass = $DB->get_record_sql(
+                "SELECT groupid FROM {gmk_class}
+                  WHERE corecourseid = :cid AND periodid = :pid AND is_module = 0 AND groupid > 0
+                  ORDER BY id DESC
+                  LIMIT 1",
+                ['cid' => $coreCourseId, 'pid' => (int)$academicPeriod->id]
+            );
+            if ($regularClass && !empty($regularClass->groupid)) {
+                if (!groups_is_member((int)$regularClass->groupid, $userId)) {
+                    groups_add_member((int)$regularClass->groupid, $userId);
+                }
             }
         }
 
@@ -232,8 +246,12 @@ class enroll_module {
         $now     = time();
         $dueDate = $now + ($deadlineDays * DAYSECS);
 
-        // Save current course progress status before enrolling in module.
-        // This allows us to restore it when the module is removed.
+        // Snapshot the regular class's CURRENT status so we can restore it later
+        // when the module is withdrawn/completed. Do NOT touch the regular class's
+        // gmk_course_progre row directly: the module must own its own progre row
+        // (with classid = $classId) so it does not get co-mingled with the regular
+        // class's report in LXP ("the student is enrolled in both the module and
+        // the regular class of the same subject"). See bug 2026-07-24.
         $currentProgress = $DB->get_record('gmk_course_progre', [
             'userid' => $userId,
             'courseid' => $coreCourseId,
@@ -241,21 +259,30 @@ class enroll_module {
         ]);
         $originalStatus = $currentProgress ? (int)$currentProgress->status : null;
 
-        // Update course progress to 'Cursando' (status = 2).
-        if ($currentProgress) {
-            $DB->set_field('gmk_course_progre', 'status', 2, ['id' => $currentProgress->id]);
+        // Create a DEDICATED gmk_course_progre row for this module, scoped to
+        // its own classid. If one already exists for this exact (user, classid,
+        // learningplanid) triple, update it to Cursando. Otherwise insert.
+        $moduleProgress = $DB->get_record('gmk_course_progre', [
+            'userid'         => $userId,
+            'courseid'       => $coreCourseId,
+            'classid'        => $classId,
+            'learningplanid' => $learningPlanId,
+        ]);
+        if ($moduleProgress) {
+            $DB->set_field('gmk_course_progre', 'status', 2, ['id' => $moduleProgress->id]);
+            $DB->set_field('gmk_course_progre', 'timemodified', $now, ['id' => $moduleProgress->id]);
         } else {
-            // If no progress record exists, create one.
             $newProgress = new \stdClass();
-            $newProgress->userid = $userId;
-            $newProgress->courseid = $coreCourseId;
+            $newProgress->userid         = $userId;
+            $newProgress->courseid       = $coreCourseId;
+            $newProgress->classid        = $classId;
             $newProgress->learningplanid = $learningPlanId;
-            $newProgress->status = 2;
-            $newProgress->progress = 0;
-            $newProgress->grade = 0; // Column is NOT NULL (DEFAULT 0.0); a fresh record has no grade yet.
-            $newProgress->credits = credit_resolver::resolve((int)$learningPlanId, (int)$coreCourseId);
-            $newProgress->timecreated = $now;
-            $newProgress->timemodified = $now;
+            $newProgress->status         = 2; // COURSE_IN_PROGRESS
+            $newProgress->progress       = 0;
+            $newProgress->grade          = 0; // Column is NOT NULL (DEFAULT 0.0); a fresh record has no grade yet.
+            $newProgress->credits        = credit_resolver::resolve((int)$learningPlanId, (int)$coreCourseId);
+            $newProgress->timecreated    = $now;
+            $newProgress->timemodified   = $now;
             $DB->insert_record('gmk_course_progre', $newProgress);
         }
 
