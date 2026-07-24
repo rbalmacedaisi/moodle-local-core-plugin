@@ -427,6 +427,7 @@ class manager {
             'width_mm' => (float)$row->width_mm,
             'height_mm' => (float)$row->height_mm,
             'active' => (int)$row->active,
+            'bundle_id' => !empty($row->bundle_id) ? (int)$row->bundle_id : null,
             'background_filename' => (string)($row->background_filename ?? ''),
             'background_mimetype' => (string)($row->background_mimetype ?? ''),
             'background_url' => $bgurl,
@@ -512,6 +513,8 @@ class manager {
             $heightmm = $orientation === 'portrait' ? 297.0 : 210.0;
         }
 
+        $bundleid = isset($payload['bundle_id']) && (int)$payload['bundle_id'] > 0 ? (int)$payload['bundle_id'] : null;
+
         if ($id > 0) {
             $current = $DB->get_record('gmk_diploma_template', ['id' => $id], '*', MUST_EXIST);
             $current->name = $name;
@@ -520,6 +523,7 @@ class manager {
             $current->width_mm = $widthmm;
             $current->height_mm = $heightmm;
             $current->active = !empty($payload['active']) ? 1 : 0;
+            $current->bundle_id = $bundleid;
             $current->timemodified = $now;
             $current->usermodified = $actorid;
             $DB->update_record('gmk_diploma_template', $current);
@@ -530,6 +534,7 @@ class manager {
                 'orientation' => $orientation,
                 'width_mm' => $widthmm,
                 'height_mm' => $heightmm,
+                'bundle_id' => $bundleid,
                 'background_fileid' => 0,
                 'background_filename' => '',
                 'background_mimetype' => '',
@@ -1166,7 +1171,8 @@ public static function generate_diplomas(int $templateid, array $items, int $act
                 );
                 $token = self::generate_verification_token();
                 $verificationurl = self::build_verification_url($token);
-                $number = self::generate_diploma_number($user, $lp);
+                $bundleid = !empty($template->bundle_id) ? (int)$template->bundle_id : null;
+                $number = self::generate_diploma_number($user, $lp, $bundleid);
                 $now = time();
 
                 // Pre-build the generation record so we can pass it to the
@@ -1296,7 +1302,8 @@ public static function generate_diplomas(int $templateid, array $items, int $act
                 $course = $DB->get_record('course', ['id' => $courseid], '*', MUST_EXIST);
                 $token = self::generate_verification_token();
                 $verificationurl = self::build_verification_url($token);
-                $number = self::generate_course_diploma_number($user, $course);
+                $bundleid = !empty($template->bundle_id) ? (int)$template->bundle_id : null;
+                $number = self::generate_course_diploma_number($user, $course, $bundleid);
                 $now = time();
 
                 $generation = (object)[
@@ -1377,10 +1384,34 @@ public static function generate_diplomas(int $templateid, array $items, int $act
     }
 
     /**
-     * Sequential per-course diploma number: DP-<idnumber>-<courseShort>-<YYYY>-<NNNNNN>.
+     * Sequential per-course diploma number. When the template is
+     * linked to a consecutive bundle, that bundle owns the prefix
+     * and the counter; otherwise it falls back to the legacy
+     * DP-<idnumber>-<courseShort>-<YYYY>-<NNNNNN> format.
      */
-    private static function generate_course_diploma_number(stdClass $user, stdClass $course): string {
+    private static function generate_course_diploma_number(stdClass $user, stdClass $course, ?int $bundleid = null): string {
         global $DB;
+        // Bundle path: same logic as generate_diploma_number.
+        if ($bundleid) {
+            $attempts = 0;
+            do {
+                $bundle = $DB->get_record('gmk_diploma_consecutive_bundle', ['id' => $bundleid, 'active' => 1]);
+                if (!$bundle) { break; }
+                $candidate = self::build_bundle_candidate($bundle, (int)$bundle->next_number);
+                if (!$DB->record_exists('gmk_diploma_generation', ['diploma_number' => $candidate])) {
+                    $next = (int)$bundle->next_number + 1;
+                    $DB->set_field('gmk_diploma_consecutive_bundle', 'next_number', $next,
+                        ['id' => $bundle->id, 'next_number' => $bundle->next_number]);
+                    return $candidate;
+                }
+                $DB->set_field('gmk_diploma_consecutive_bundle', 'next_number', (int)$bundle->next_number + 1,
+                    ['id' => $bundle->id, 'next_number' => $bundle->next_number]);
+                $attempts++;
+            } while ($attempts < 10);
+            $bundle = $DB->get_record('gmk_diploma_consecutive_bundle', ['id' => $bundleid]);
+            return $bundle ? self::build_bundle_candidate($bundle, (int)$bundle->next_number) : '';
+        }
+
         $prefix = 'DP';
         if (!empty($user->idnumber)) {
             $prefix .= '-' . preg_replace('/[^A-Za-z0-9]/', '', $user->idnumber);
@@ -1875,8 +1906,38 @@ public static function generate_diplomas(int $templateid, array $items, int $act
      * a race when two generations are inserted concurrently for the
      * same (idnumber, planCode, year).
      */
-    private static function generate_diploma_number(stdClass $user, ?stdClass $lp): string {
+    private static function generate_diploma_number(stdClass $user, ?stdClass $lp, ?int $bundleid = null): string {
         global $DB;
+
+        // Bundle path: if the template is linked to a consecutive
+        // bundle, use its prefix + next_number, then bump the bundle
+        // counter so the next generation continues from there. The
+        // do/while handles a race where two generations read the same
+        // counter concurrently: both retry with the latest MAX+1.
+        if ($bundleid) {
+            $attempts = 0;
+            do {
+                $bundle = $DB->get_record('gmk_diploma_consecutive_bundle', ['id' => $bundleid, 'active' => 1]);
+                if (!$bundle) { break; }
+                $candidate = self::build_bundle_candidate($bundle, (int)$bundle->next_number);
+                if (!$DB->record_exists('gmk_diploma_generation', ['diploma_number' => $candidate])) {
+                    $next = (int)$bundle->next_number + 1;
+                    $DB->set_field('gmk_diploma_consecutive_bundle', 'next_number', $next,
+                        ['id' => $bundle->id, 'next_number' => $bundle->next_number]);
+                    return $candidate;
+                }
+                // Race: the candidate already exists; bump locally and
+                // re-read so we converge with whoever won the race.
+                $DB->set_field('gmk_diploma_consecutive_bundle', 'next_number', $next,
+                    ['id' => $bundle->id, 'next_number' => $bundle->next_number]);
+                $attempts++;
+            } while ($attempts < 10);
+            // Fallback: return whatever the bundle is currently at so
+            // the admin at least sees a number they can edit manually.
+            $bundle = $DB->get_record('gmk_diploma_consecutive_bundle', ['id' => $bundleid]);
+            return $bundle ? self::build_bundle_candidate($bundle, (int)$bundle->next_number) : '';
+        }
+
         $prefix = 'DP';
         if (!empty($user->idnumber)) {
             $prefix .= '-' . preg_replace('/[^A-Za-z0-9]/', '', $user->idnumber);
@@ -1905,6 +1966,116 @@ public static function generate_diplomas(int $templateid, array $items, int $act
             $attempts++;
         } while ($DB->record_exists('gmk_diploma_generation', ['diploma_number' => $candidate]) && $attempts < 10);
         return $candidate;
+    }
+
+    /**
+     * Build the candidate diploma_number for a given bundle + counter.
+     * Examples:
+     *   prefix='', next=1      -> '1'
+     *   prefix='', next=42     -> '42'
+     *   prefix='LIC-', next=7   -> 'LIC-7'
+     *   prefix='2025/DIPL/', n=12 -> '2025/DIPL/12'
+     */
+    private static function build_bundle_candidate(stdClass $bundle, int $next): string {
+        $prefix = rtrim((string)($bundle->prefix ?? ''));
+        $body = $prefix === '' ? (string)$next : ($prefix . $next);
+        return $body;
+    }
+
+    /**
+     * List every diploma consecutive bundle ordered by name.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public static function list_bundles(): array {
+        global $DB;
+        $rows = $DB->get_records('gmk_diploma_consecutive_bundle', null, 'name ASC');
+        $out = [];
+        foreach ($rows as $r) {
+            $out[] = [
+                'id' => (int)$r->id,
+                'name' => (string)$r->name,
+                'prefix' => (string)($r->prefix ?? ''),
+                'next_number' => (int)$r->next_number,
+                'active' => (int)$r->active,
+                'timecreated' => (int)$r->timecreated,
+                'timemodified' => (int)$r->timemodified,
+            ];
+        }
+        return $out;
+    }
+
+    /**
+     * Create or update a consecutive bundle.
+     *
+     * @param array{name:string,prefix?:string,next_number?:int,active?:int,id?:int} $payload
+     * @return array<string, mixed>
+     */
+    public static function save_bundle(array $payload): array {
+        global $DB, $USER;
+        $name = trim((string)($payload['name'] ?? ''));
+        if ($name === '') {
+            throw new moodle_exception('diploma_bundle_name_required', 'local_grupomakro_core');
+        }
+        $prefix = trim((string)($payload['prefix'] ?? ''));
+        $next = max(1, (int)($payload['next_number'] ?? 1));
+        $active = !empty($payload['active']) ? 1 : 0;
+        $now = time();
+        $id = (int)($payload['id'] ?? 0);
+
+        if ($id > 0) {
+            $existing = $DB->get_record('gmk_diploma_consecutive_bundle', ['id' => $id], '*', MUST_EXIST);
+            $existing->name = $name;
+            $existing->prefix = $prefix;
+            $existing->next_number = $next;
+            $existing->active = $active;
+            $existing->timemodified = $now;
+            $existing->usermodified = (int)$USER->id;
+            $DB->update_record('gmk_diploma_consecutive_bundle', $existing);
+            return self::get_bundle($id);
+        }
+        $rec = (object)[
+            'name' => $name,
+            'prefix' => $prefix,
+            'next_number' => $next,
+            'active' => $active,
+            'usermodified' => (int)$USER->id,
+            'timecreated' => $now,
+            'timemodified' => $now,
+        ];
+        $newid = $DB->insert_record('gmk_diploma_consecutive_bundle', $rec);
+        return self::get_bundle($newid);
+    }
+
+    /**
+     * Fetch a bundle by id.
+     *
+     * @return array<string, mixed>
+     */
+    public static function get_bundle(int $id): array {
+        global $DB;
+        $r = $DB->get_record('gmk_diploma_consecutive_bundle', ['id' => $id], '*', MUST_EXIST);
+        return [
+            'id' => (int)$r->id,
+            'name' => (string)$r->name,
+            'prefix' => (string)($r->prefix ?? ''),
+            'next_number' => (int)$r->next_number,
+            'active' => (int)$r->active,
+            'timecreated' => (int)$r->timecreated,
+            'timemodified' => (int)$r->timemodified,
+        ];
+    }
+
+    /**
+     * Delete a bundle. Returns void; throws if the id does not exist.
+     */
+    public static function delete_bundle(int $id): void {
+        global $DB;
+        $DB->get_record('gmk_diploma_consecutive_bundle', ['id' => $id], '*', MUST_EXIST);
+        // Detach templates linked to this bundle so they fall back to
+        // the default consecutive format.
+        $DB->set_field('gmk_diploma_template', 'bundle_id', null, ['bundle_id' => $id]);
+        $DB->delete_records('gmk_diploma_consecutive_bundle', ['id' => $id]);
     }
 
     /**

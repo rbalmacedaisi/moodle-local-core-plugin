@@ -52,6 +52,24 @@ final class dispatcher {
                 require_capability($capmanage, context_system::instance());
                 return ['status' => 'success', 'templates' => $manager::list_templates()];
 
+            case 'list_bundles':
+                require_capability($capmanage, context_system::instance());
+                return ['status' => 'success', 'bundles' => $manager::list_bundles()];
+
+            case 'save_bundle':
+                require_capability($capmanage, context_system::instance());
+                $payload = json_decode((string)optional_param('payload', '{}', PARAM_RAW), true);
+                if (!is_array($payload)) { $payload = []; }
+                $result = $manager::save_bundle($payload);
+                $msgkey = !empty($payload['id']) ? 'diploma_bundle_updated' : 'diploma_bundle_created';
+                return ['status' => 'success', 'bundle' => $result, 'message' => get_string($msgkey, 'local_grupomakro_core')];
+
+            case 'delete_bundle':
+                require_capability($capmanage, context_system::instance());
+                $id = required_param('id', PARAM_INT);
+                $manager::delete_bundle($id);
+                return ['status' => 'success', 'message' => get_string('diploma_bundle_deleted', 'local_grupomakro_core')];
+
             case 'get_template':
                 require_capability($capmanage, context_system::instance());
                 $id = required_param('id', PARAM_INT);

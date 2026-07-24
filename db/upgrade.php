@@ -2819,6 +2819,45 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20260812000, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20260813000) {
+        // Diploma consecutive bundles: let admins group templates that
+        // share an external sequence (e.g. so all "Faculty of Engineering"
+        // templates keep a single counter regardless of how many of each
+        // variant get issued). The bundle owns the prefix (optional) and
+        // the next_number; templates linked to a bundle inherit that
+        // counter and bump it after each generation.
+
+        // 1) gmk_diploma_consecutive_bundle.
+        $btable = new xmldb_table('gmk_diploma_consecutive_bundle');
+        $btable->add_field('id',           XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $btable->add_field('name',         XMLDB_TYPE_CHAR,    '100', null, XMLDB_NOTNULL, null, '');
+        $btable->add_field('prefix',       XMLDB_TYPE_CHAR,    '40',  null, null, null, '');
+        $btable->add_field('next_number',  XMLDB_TYPE_INTEGER, '10',  null, XMLDB_NOTNULL, null, '1');
+        $btable->add_field('active',       XMLDB_TYPE_INTEGER, '1',   null, XMLDB_NOTNULL, null, '1');
+        $btable->add_field('usermodified', XMLDB_TYPE_INTEGER, '10',  null, XMLDB_NOTNULL, null, '0');
+        $btable->add_field('timecreated',  XMLDB_TYPE_INTEGER, '10',  null, XMLDB_NOTNULL, null, '0');
+        $btable->add_field('timemodified', XMLDB_TYPE_INTEGER, '10',  null, XMLDB_NOTNULL, null, '0');
+
+        $btable->add_key('primary',  XMLDB_KEY_PRIMARY, ['id']);
+        $btable->add_index('name_uix', XMLDB_INDEX_UNIQUE, ['name']);
+        $btable->add_index('active_idx', XMLDB_INDEX_NOTUNIQUE, ['active']);
+
+        if (!$dbman->table_exists($btable)) {
+            $dbman->create_table($btable);
+        }
+
+        // 2) Nullable bundle_id on gmk_diploma_template.
+        $gtable = new xmldb_table('gmk_diploma_template');
+        $bfield = new xmldb_field('bundle_id', XMLDB_TYPE_INTEGER, '10', null, null, null, null, 'active');
+        if (!$dbman->field_exists($gtable, $bfield)) {
+            $dbman->add_field($gtable, $bfield);
+        }
+        $gkey = new xmldb_key('bundlefk', XMLDB_KEY_FOREIGN, ['bundle_id'], 'gmk_diploma_consecutive_bundle', ['id']);
+        $dbman->add_key($gtable, $gkey);
+
+        upgrade_plugin_savepoint(true, 20260813000, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 
