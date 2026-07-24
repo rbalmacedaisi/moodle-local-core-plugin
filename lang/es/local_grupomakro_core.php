@@ -705,6 +705,7 @@ $string['diploma_bundle_created'] = 'Bundle creado.';
 $string['diploma_bundle_updated'] = 'Bundle actualizado.';
 $string['diploma_bundle_deleted'] = 'Bundle eliminado.';
 $string['diploma_bundle_name_required'] = 'El nombre del bundle es obligatorio.';
+$string['diploma_bundle_delete_confirm'] = '¿Eliminar el bundle "{$a}"? Las plantillas asignadas a este bundle pasarán al formato por defecto.';
 $string['diploma_background'] = 'Imagen de fondo';
 $string['diploma_background_help'] = 'Sube la imagen que servirá como arte del diploma. Se recomienda alta resolución (mínimo 3508x2480 px para A4 horizontal a 300 DPI).';
 $string['diploma_upload_background'] = 'Subir imagen de fondo';

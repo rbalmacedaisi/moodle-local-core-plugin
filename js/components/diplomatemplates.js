@@ -208,6 +208,9 @@
                                     <v-col cols="12" md="4">
                                         <v-select v-model="selected.paper_size" :items="paperSizeItems" :label="strings.orientation" outlined dense hide-details @change="onPaperSizeChange"></v-select>
                                     </v-col>
+                                    <v-col cols="12" md="4">
+                                        <v-select v-model="selected.bundle_id" :items="bundleItems" :label="strings.bundle_assign || 'Bundle de consecutivo'" outlined dense hide-details></v-select>
+                                    </v-col>
                                     <v-col cols="12" md="2">
                                         <v-switch v-model="activeSwitch" :label="strings.active" color="primary" hide-details></v-switch>
                                     </v-col>
@@ -375,6 +378,7 @@
                 variableItems: [],
                 fontItems: FONT_OPTIONS,
                 typeItems: TYPE_OPTIONS,
+                bundles: [],
                 nextLocalId: 1,
                 // Bumped from 0 -> 1 once document.fonts.ready resolves so
                 // the canvas re-renders with the real Google Font faces.
@@ -410,6 +414,15 @@
                     else label = s.label;
                     return { text: label, value: id };
                 });
+            },
+            bundleItems() {
+                var strings = this.strings || {};
+                var items = [{ text: strings.bundle_none || '— sin bundle —', value: null }];
+                (this.bundles || []).forEach(function (b) {
+                    var label = b.name + (b.prefix ? '  (' + b.prefix + ')' : '') + '  · #' + b.next_number;
+                    items.push({ text: label, value: b.id });
+                });
+                return items;
             },
             currentField() {
                 if (!this.selected || !this.selectedFieldId) {
@@ -468,6 +481,7 @@
         mounted() {
             this.loadTemplates();
             this.loadVariables();
+            this.loadBundles();
             this.setupCanvasResizeObserver();
             // First-pass scale once the layout has settled.
             var self = this;
@@ -597,6 +611,16 @@
                     this.loadingTemplates = false;
                 }
             },
+            async loadBundles() {
+                try {
+                    const res = await this.http.post('/', { action: 'local_grupomakro_diploma_list_bundles' });
+                    if (res.data && res.data.status === 'success') {
+                        this.bundles = res.data.bundles || [];
+                    } else {
+                        throw new Error((res.data && res.data.message) || 'Error');
+                    }
+                } catch (e) { console.warn(e); }
+            },
             async loadVariables() {
                 try {
                     const res = await this.http.post('/', { action: 'local_grupomakro_diploma_list_variables' });
@@ -614,6 +638,7 @@
                     orientation: 'landscape',
                     width_mm: 297,
                     height_mm: 210,
+                    bundle_id: null,
                     active: 1,
                     background_url: '',
                     background_filename: '',
