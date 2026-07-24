@@ -1395,20 +1395,20 @@ public static function generate_diplomas(int $templateid, array $items, int $act
         if ($bundleid) {
             $attempts = 0;
             do {
-                $bundle = $DB->get_record('gmk_diploma_consecutive_bundle', ['id' => $bundleid, 'active' => 1]);
+                $bundle = $DB->get_record('gmk_diploma_bundle', ['id' => $bundleid, 'active' => 1]);
                 if (!$bundle) { break; }
                 $candidate = self::build_bundle_candidate($bundle, (int)$bundle->next_number);
                 if (!$DB->record_exists('gmk_diploma_generation', ['diploma_number' => $candidate])) {
                     $next = (int)$bundle->next_number + 1;
-                    $DB->set_field('gmk_diploma_consecutive_bundle', 'next_number', $next,
+                    $DB->set_field('gmk_diploma_bundle', 'next_number', $next,
                         ['id' => $bundle->id, 'next_number' => $bundle->next_number]);
                     return $candidate;
                 }
-                $DB->set_field('gmk_diploma_consecutive_bundle', 'next_number', (int)$bundle->next_number + 1,
+                $DB->set_field('gmk_diploma_bundle', 'next_number', (int)$bundle->next_number + 1,
                     ['id' => $bundle->id, 'next_number' => $bundle->next_number]);
                 $attempts++;
             } while ($attempts < 10);
-            $bundle = $DB->get_record('gmk_diploma_consecutive_bundle', ['id' => $bundleid]);
+            $bundle = $DB->get_record('gmk_diploma_bundle', ['id' => $bundleid]);
             return $bundle ? self::build_bundle_candidate($bundle, (int)$bundle->next_number) : '';
         }
 
@@ -1917,24 +1917,24 @@ public static function generate_diplomas(int $templateid, array $items, int $act
         if ($bundleid) {
             $attempts = 0;
             do {
-                $bundle = $DB->get_record('gmk_diploma_consecutive_bundle', ['id' => $bundleid, 'active' => 1]);
+                $bundle = $DB->get_record('gmk_diploma_bundle', ['id' => $bundleid, 'active' => 1]);
                 if (!$bundle) { break; }
                 $candidate = self::build_bundle_candidate($bundle, (int)$bundle->next_number);
                 if (!$DB->record_exists('gmk_diploma_generation', ['diploma_number' => $candidate])) {
                     $next = (int)$bundle->next_number + 1;
-                    $DB->set_field('gmk_diploma_consecutive_bundle', 'next_number', $next,
+                    $DB->set_field('gmk_diploma_bundle', 'next_number', $next,
                         ['id' => $bundle->id, 'next_number' => $bundle->next_number]);
                     return $candidate;
                 }
                 // Race: the candidate already exists; bump locally and
                 // re-read so we converge with whoever won the race.
-                $DB->set_field('gmk_diploma_consecutive_bundle', 'next_number', $next,
+                $DB->set_field('gmk_diploma_bundle', 'next_number', $next,
                     ['id' => $bundle->id, 'next_number' => $bundle->next_number]);
                 $attempts++;
             } while ($attempts < 10);
             // Fallback: return whatever the bundle is currently at so
             // the admin at least sees a number they can edit manually.
-            $bundle = $DB->get_record('gmk_diploma_consecutive_bundle', ['id' => $bundleid]);
+            $bundle = $DB->get_record('gmk_diploma_bundle', ['id' => $bundleid]);
             return $bundle ? self::build_bundle_candidate($bundle, (int)$bundle->next_number) : '';
         }
 
@@ -1989,7 +1989,7 @@ public static function generate_diplomas(int $templateid, array $items, int $act
      */
     public static function list_bundles(): array {
         global $DB;
-        $rows = $DB->get_records('gmk_diploma_consecutive_bundle', null, 'name ASC');
+        $rows = $DB->get_records('gmk_diploma_bundle', null, 'name ASC');
         $out = [];
         foreach ($rows as $r) {
             $out[] = [
@@ -2024,14 +2024,14 @@ public static function generate_diplomas(int $templateid, array $items, int $act
         $id = (int)($payload['id'] ?? 0);
 
         if ($id > 0) {
-            $existing = $DB->get_record('gmk_diploma_consecutive_bundle', ['id' => $id], '*', MUST_EXIST);
+            $existing = $DB->get_record('gmk_diploma_bundle', ['id' => $id], '*', MUST_EXIST);
             $existing->name = $name;
             $existing->prefix = $prefix;
             $existing->next_number = $next;
             $existing->active = $active;
             $existing->timemodified = $now;
             $existing->usermodified = (int)$USER->id;
-            $DB->update_record('gmk_diploma_consecutive_bundle', $existing);
+            $DB->update_record('gmk_diploma_bundle', $existing);
             return self::get_bundle($id);
         }
         $rec = (object)[
@@ -2043,7 +2043,7 @@ public static function generate_diplomas(int $templateid, array $items, int $act
             'timecreated' => $now,
             'timemodified' => $now,
         ];
-        $newid = $DB->insert_record('gmk_diploma_consecutive_bundle', $rec);
+        $newid = $DB->insert_record('gmk_diploma_bundle', $rec);
         return self::get_bundle($newid);
     }
 
@@ -2054,7 +2054,7 @@ public static function generate_diplomas(int $templateid, array $items, int $act
      */
     public static function get_bundle(int $id): array {
         global $DB;
-        $r = $DB->get_record('gmk_diploma_consecutive_bundle', ['id' => $id], '*', MUST_EXIST);
+        $r = $DB->get_record('gmk_diploma_bundle', ['id' => $id], '*', MUST_EXIST);
         return [
             'id' => (int)$r->id,
             'name' => (string)$r->name,
@@ -2071,11 +2071,11 @@ public static function generate_diplomas(int $templateid, array $items, int $act
      */
     public static function delete_bundle(int $id): void {
         global $DB;
-        $DB->get_record('gmk_diploma_consecutive_bundle', ['id' => $id], '*', MUST_EXIST);
+        $DB->get_record('gmk_diploma_bundle', ['id' => $id], '*', MUST_EXIST);
         // Detach templates linked to this bundle so they fall back to
         // the default consecutive format.
         $DB->set_field('gmk_diploma_template', 'bundle_id', null, ['bundle_id' => $id]);
-        $DB->delete_records('gmk_diploma_consecutive_bundle', ['id' => $id]);
+        $DB->delete_records('gmk_diploma_bundle', ['id' => $id]);
     }
 
     /**

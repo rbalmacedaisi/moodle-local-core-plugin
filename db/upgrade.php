@@ -2827,8 +2827,8 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         // the next_number; templates linked to a bundle inherit that
         // counter and bump it after each generation.
 
-        // 1) gmk_diploma_consecutive_bundle.
-        $btable = new xmldb_table('gmk_diploma_consecutive_bundle');
+        // 1) gmk_diploma_bundle (short name: MySQL 28-char limit).
+        $btable = new xmldb_table('gmk_diploma_bundle');
         $btable->add_field('id',           XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
         $btable->add_field('name',         XMLDB_TYPE_CHAR,    '100', null, XMLDB_NOTNULL, null, '');
         $btable->add_field('prefix',       XMLDB_TYPE_CHAR,    '40',  null, null, null, '');
@@ -2852,7 +2852,7 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         if (!$dbman->field_exists($gtable, $bfield)) {
             $dbman->add_field($gtable, $bfield);
         }
-        $gkey = new xmldb_key('bundlefk', XMLDB_KEY_FOREIGN, ['bundle_id'], 'gmk_diploma_consecutive_bundle', ['id']);
+        $gkey = new xmldb_key('bundlefk', XMLDB_KEY_FOREIGN, ['bundle_id'], 'gmk_diploma_bundle', ['id']);
         $dbman->add_key($gtable, $gkey);
 
         upgrade_plugin_savepoint(true, 20260813000, 'local', 'grupomakro_core');
