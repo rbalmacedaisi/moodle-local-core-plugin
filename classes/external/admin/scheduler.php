@@ -555,10 +555,39 @@ class scheduler extends external_api {
 
             // 2. Delete classes that belong to this period and are NOT in the payload.
             //    Never touch classes from other periods — they are "external" in the board.
+            //
+            //    IMPORTANT: Before deleting, clean up foreign-key style references in
+            //    gmk_module_enrollment and gmk_module_invoice_requests. Without this,
+            //    student enrollments become "orphaned" (classid pointing to a non-existent
+            //    gmk_class row) and the LXP "my modules" view silently hides them because
+            //    it INNER JOINs gmk_class.
             if ($preserveexisting) {
                 gmk_log("INFO: preserveexisting=true, skipping destructive cleanup for period {$periodid}");
             } else if (!empty($validIds)) {
                 $placeholders = implode(',', array_fill(0, count($validIds), '?'));
+                // First, mark module enrollments as expired for classes that are about to be deleted.
+                $DB->execute(
+                    "UPDATE {gmk_module_enrollment}
+                        SET status = 'expired', timemodified = :now
+                      WHERE classid IN (
+                          SELECT id FROM {gmk_class}
+                           WHERE periodid = :pid
+                             AND id NOT IN ($placeholders)
+                      )
+                        AND status = 'active'",
+                    array_merge(['now' => time(), 'pid' => $periodid], $validIds)
+                );
+                // Reset enrolled_classid on invoice requests so they don't point to a now-deleted class.
+                $DB->execute(
+                    "UPDATE {gmk_module_invoice_requests}
+                        SET enrolled_classid = 0, timemodified = :now
+                      WHERE enrolled_classid IN (
+                          SELECT id FROM {gmk_class}
+                           WHERE periodid = :pid
+                             AND id NOT IN ($placeholders)
+                      )",
+                    array_merge(['now' => time(), 'pid' => $periodid], $validIds)
+                );
                 $DB->delete_records_select(
                     'gmk_class',
                     "periodid = ? AND id NOT IN ($placeholders)",
@@ -566,6 +595,24 @@ class scheduler extends external_api {
                 );
             } else if ($processablePayloadCount > 0 || empty($data)) {
                 // No programmed ids in payload → wipe all classes of this period
+                // Mark module enrollments as expired first to avoid orphaned classids.
+                $DB->execute(
+                    "UPDATE {gmk_module_enrollment}
+                        SET status = 'expired', timemodified = :now
+                      WHERE classid IN (
+                          SELECT id FROM {gmk_class} WHERE periodid = :pid
+                      )
+                        AND status = 'active'",
+                    ['now' => time(), 'pid' => $periodid]
+                );
+                $DB->execute(
+                    "UPDATE {gmk_module_invoice_requests}
+                        SET enrolled_classid = 0, timemodified = :now
+                      WHERE enrolled_classid IN (
+                          SELECT id FROM {gmk_class} WHERE periodid = :pid
+                      )",
+                    ['now' => time(), 'pid' => $periodid]
+                );
                 $DB->delete_records('gmk_class', ['periodid' => $periodid]);
             } else {
                 gmk_log("INFO: Skip destructive cleanup for period {$periodid}: payload had no processable internal classes.");

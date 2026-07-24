@@ -86,6 +86,23 @@ if ($action === 'resetone') {
         $DB->delete_records('gmk_class_queue',            ['classid' => $classid]);
         $DB->delete_records('gmk_class_schedules',        ['classid' => $classid]);
 
+        // 5b. Mark module enrollments as expired and clear invoice request references
+        //     BEFORE deleting the class. Without this, students end up with "orphan" classids
+        //     in gmk_module_enrollment pointing to a non-existent gmk_class row, and the LXP
+        //     "my modules" view (which INNER JOINs gmk_class) silently hides them.
+        $DB->execute(
+            "UPDATE {gmk_module_enrollment}
+                SET status = 'expired', timemodified = :now
+              WHERE classid = :cid AND status = 'active'",
+            ['now' => time(), 'cid' => $classid]
+        );
+        $DB->execute(
+            "UPDATE {gmk_module_invoice_requests}
+                SET enrolled_classid = 0, timemodified = :now
+              WHERE enrolled_classid = :cid",
+            ['now' => time(), 'cid' => $classid]
+        );
+
         // 6. Registro de eliminación y delete final
         $msg = new stdClass();
         $msg->classid         = $classid;
