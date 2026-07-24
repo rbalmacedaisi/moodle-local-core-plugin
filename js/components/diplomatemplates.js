@@ -61,7 +61,8 @@
         { text: 'Rouge Script',   value: 'rougescript',    family: '"Rouge Script", cursive',        tag: 'script' },
         { text: 'Allison Script', value: 'allisonscript',  family: '"Allison Script", cursive',      tag: 'script' },
         { text: 'La Belle Aurore', value: 'labelleaurore', family: '"La Belle Aurore", cursive',     tag: 'script' },
-        { text: 'Halimun',        value: 'halimun',        family: 'Halimun, cursive',               tag: 'script' }
+        { text: 'Halimun',        value: 'halimun',        family: 'Halimun, cursive',               tag: 'script' },
+        { text: 'Gótica (Old English)', value: 'gotica', family: '"OPTIEngraversOldEnglish", "UnifrakturMaguntia", "Old English Text MT", serif', tag: 'gothic' }
     ];
 
     // Quick lookup so the font-items list view can show each entry in its

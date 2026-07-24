@@ -221,6 +221,7 @@ $ttfkeytofamily = [
     'notoserif'             => 'Noto Serif',
     'ptsans'                => 'PT Sans',
     'ptserif'               => 'PT Serif',
+    'gotica'                => 'OPTIEngraversOldEnglish',
 ];
 
 $fontdir = $CFG->dirroot . '/local/grupomakro_core/tcpdf_fonts';

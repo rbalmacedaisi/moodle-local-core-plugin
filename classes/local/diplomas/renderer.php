@@ -113,6 +113,9 @@ class renderer {
         'allisonscript' => 'freeserif',
         'labelleaurore' => 'freeserif',
         'halimun' => 'freeserif',
+        // Gothic / Old English. Real TTF (OPTIEngraversOldEnglish.otf)
+        // registered from tcpdf_fonts/ via register_custom_font().
+        'gotica' => 'gotica',
         // Monospace.
         'monospace' => 'courier',
     ];
