@@ -119,6 +119,11 @@ $strings->bundle_none = get_string('diploma_bundle_none', $plugin_name);
 $strings->bundle_new = get_string('diploma_bundle_new', $plugin_name);
 $strings->bundle_save = get_string('diploma_bundle_save', $plugin_name);
 $strings->bundle_delete = get_string('diploma_bundle_delete', $plugin_name);
+// Keep a non-encoded copy of the string object so the bundle
+// management section below (rendered server-side, not from JS) can
+// still access individual properties after $strings is replaced by
+// the JSON-encoded version for JS consumption.
+$bundleui = $strings;
 $strings = json_encode($strings);
 
 $token = get_logged_user_token();
@@ -558,6 +563,83 @@ echo '<script>
 })();
 </script>
 EOS;
+
+// ----------------------------------------------------------------------
+// Bundle management section: list existing bundles + a small "New bundle"
+// panel, both wired by a tiny vanilla JS helper that POSTs to the
+// dispatcher and refreshes the page on success.
+// ----------------------------------------------------------------------
+$bundles = \local_grupomakro_core\local\diplomas\manager::list_bundles();
+echo '<div class="dpl-bundles-config" style="max-width:1100px;margin:32px auto 0;padding:0 16px 64px;">';
+echo '  <h2 style="margin:0 0 6px;font-size:22px;font-weight:700;color:#111827;">' . $bundleui->bundle_title . '</h2>';
+echo '  <p style="margin:0 0 18px;color:#6b7280;font-size:14px;">' . $bundleui->bundle_help . '</p>';
+echo '  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">';
+echo '    <div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:14px;box-shadow:0 2px 8px rgba(15,23,42,.04);">';
+if (empty($bundles)) {
+    echo '      <div style="color:#6b7280;font-size:14px;">' . $bundleui->bundle_none . '</div>';
+} else {
+    echo '      <table style="width:100%;border-collapse:collapse;font-size:13px;">';
+    echo '        <thead><tr style="text-align:left;color:#6b7280;font-weight:600;">';
+    echo '          <th style="padding:6px;">' . $bundleui->bundle_name . '</th>';
+    echo '          <th style="padding:6px;">' . $bundleui->bundle_prefix . '</th>';
+    echo '          <th style="padding:6px;">' . $bundleui->bundle_next . '</th>';
+    echo '          <th style="padding:6px;">' . $bundleui->bundle_active . '</th>';
+    echo '          <th></th>';
+    echo '        </tr></thead><tbody>';
+    foreach ($bundles as $b) {
+        $statusColor = !empty($b['active']) ? '#16a34a' : '#9ca3af';
+        $statusLabel = !empty($b['active']) ? 'OK' : '-';
+        echo '          <tr style="border-top:1px solid #f1f5f9;" data-bundleid="' . (int)$b['id'] . '">';
+        echo '            <td style="padding:8px 6px;font-weight:500;">' . s($b['name']) . '</td>';
+        echo '            <td style="padding:8px 6px;color:#6b7280;">' . s($b['prefix'] ?: '-') . '</td>';
+        echo '            <td style="padding:8px 6px;font-weight:600;">' . (int)$b['next_number'] . '</td>';
+        echo '            <td style="padding:8px 6px;color:' . $statusColor . ';">' . $statusLabel . '</td>';
+        echo '            <td style="padding:8px 6px;text-align:right;">';
+        echo '              <button type="button" class="dpl-bundle-edit" data-bundle=\'' . s(json_encode($b)) . '\' style="background:#e0e7ff;color:#3730a3;border:0;border-radius:6px;padding:4px 10px;font-size:12px;font-weight:600;cursor:pointer;margin-right:4px;">' . get_string('edit') . '</button>';
+        echo '              <button type="button" class="dpl-bundle-delete" data-bundleid="' . (int)$b['id'] . '" data-bundlename="' . s($b['name']) . '" style="background:#fee2e2;color:#b91c1c;border:0;border-radius:6px;padding:4px 10px;font-size:12px;font-weight:600;cursor:pointer;">' . $bundleui->bundle_delete . '</button>';
+        echo '            </td>';
+        echo '          </tr>';
+    }
+    echo '        </tbody></table>';
+}
+echo '    </div>';
+echo '    <div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:14px;box-shadow:0 2px 8px rgba(15,23,42,.04);">';
+echo '      <div style="font-size:14px;font-weight:600;margin-bottom:10px;" id="dpl-bundle-form-title">' . $bundleui->bundle_new . '</div>';
+echo '      <input type="hidden" id="dpl-bundle-id" value="0">';
+echo '      <label style="display:block;font-size:12px;color:#6b7280;margin-top:8px;">' . $bundleui->bundle_name . '</label>';
+echo '      <input type="text" id="dpl-bundle-name" style="width:100%;padding:6px 8px;border:1px solid #d1d5db;border-radius:6px;">';
+echo '      <label style="display:block;font-size:12px;color:#6b7280;margin-top:8px;">' . $bundleui->bundle_prefix . '</label>';
+echo '      <input type="text" id="dpl-bundle-prefix" placeholder="LIC-, 2025/," style="width:100%;padding:6px 8px;border:1px solid #d1d5db;border-radius:6px;font-family:monospace;">';
+echo '      <label style="display:block;font-size:12px;color:#6b7280;margin-top:8px;">' . $bundleui->bundle_next . '</label>';
+echo '      <input type="number" id="dpl-bundle-next" value="1" min="1" style="width:100%;padding:6px 8px;border:1px solid #d1d5db;border-radius:6px;">';
+echo '      <label style="display:flex;align-items:center;gap:6px;font-size:13px;margin-top:8px;">';
+echo '        <input type="checkbox" id="dpl-bundle-active" checked>';
+echo '        <span>' . $bundleui->bundle_active . '</span>';
+echo '      </label>';
+echo '      <div style="display:flex;gap:8px;margin-top:14px;">';
+echo '        <button type="button" id="dpl-bundle-save" style="background:#2563eb;color:#fff;border:0;border-radius:6px;padding:8px 14px;font-weight:600;cursor:pointer;">' . $bundleui->bundle_save . '</button>';
+echo '        <button type="button" id="dpl-bundle-cancel" style="display:none;background:#e5e7eb;color:#374151;border:0;border-radius:6px;padding:8px 14px;font-weight:600;cursor:pointer;">' . get_string('cancel') . '</button>';
+echo '      </div>';
+echo '    </div>';
+echo '  </div>';
+echo '</div>';
+echo '<style>.dpl-bundle-edit:hover,.dpl-bundle-delete:hover,#dpl-bundle-save:hover,#dpl-bundle-cancel:hover{filter:brightness(0.95);}.dpl-bundle-row-active{background:#f0f9ff !important;}</style>';
+echo '<script>(function(){';
+echo 'function postBundle(p){return fetch(window.location.origin+"/local/grupomakro_core/ajax.php",{method:"POST",headers:{"Content-Type":"application/json","X-Requested-With":"XMLHttpRequest"},body:JSON.stringify(p)}).then(function(r){return r.json();});}';
+echo 'function fillForm(b){document.getElementById("dpl-bundle-id").value=b.id||0;document.getElementById("dpl-bundle-name").value=b.name||"";document.getElementById("dpl-bundle-prefix").value=b.prefix||"";document.getElementById("dpl-bundle-next").value=b.next_number||1;document.getElementById("dpl-bundle-active").checked=!!b.active;document.getElementById("dpl-bundle-form-title").textContent=b.id?("Editar bundle #"+b.id):(window.strings&&window.strings.bundle_new)||"Crear bundle";document.getElementById("dpl-bundle-cancel").style.display=b.id?"":"none";}';
+echo 'function clearForm(){fillForm({id:0,name:"",prefix:"",next_number:1,active:1});}';
+echo 'document.addEventListener("click",function(ev){';
+echo '  var editBtn=ev.target.closest(".dpl-bundle-edit");';
+echo '  if(editBtn){try{var b=JSON.parse(editBtn.getAttribute("data-bundle"));fillForm(b);document.querySelectorAll("tr[data-bundleid]").forEach(function(r){r.classList.remove("dpl-bundle-row-active");});editBtn.closest("tr").classList.add("dpl-bundle-row-active");}catch(e){console.warn(e);}return;}';
+echo '  var delBtn=ev.target.closest(".dpl-bundle-delete");';
+echo '  if(delBtn){var id=parseInt(delBtn.getAttribute("data-bundleid"),10);var name=delBtn.getAttribute("data-bundlename");var strings=window.strings||{};var msg=(strings.bundle_delete_confirm||"Eliminar el bundle? Las plantillas asignadas volveran al formato por defecto.").replace("{name}",name);if(!confirm(msg)){return;}postBundle({action:"local_grupomakro_diploma_delete_bundle",id:id}).then(function(res){if(res&&res.status==="success"){window.location.reload();}else{alert((res&&res.message)||"Error");}}).catch(function(e){alert(e.message||e);});return;}';
+echo '});';
+echo 'var saveBtn=document.getElementById("dpl-bundle-save");';
+echo 'if(saveBtn){saveBtn.addEventListener("click",function(){var payload={action:"local_grupomakro_diploma_save_bundle",payload:JSON.stringify({id:parseInt(document.getElementById("dpl-bundle-id").value||0,10),name:(document.getElementById("dpl-bundle-name").value||"").trim(),prefix:document.getElementById("dpl-bundle-prefix").value||"",next_number:parseInt(document.getElementById("dpl-bundle-next").value||1,10),active:document.getElementById("dpl-bundle-active").checked?1:0})};if(!payload.payload||payload.payload.length<6){alert((window.strings&&window.strings.bundle_name_required)||"El nombre del bundle es obligatorio.");return;}saveBtn.disabled=true;postBundle(payload).then(function(res){if(res&&res.status==="success"){window.location.reload();}else{alert((res&&res.message)||"Error");}}).catch(function(e){alert(e.message||e);}).finally(function(){saveBtn.disabled=false;});});}';
+echo 'var cancelBtn=document.getElementById("dpl-bundle-cancel");';
+echo 'if(cancelBtn){cancelBtn.addEventListener("click",function(){clearForm();});}';
+echo '})();';
+echo '</script>';
 
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/diplomatemplates.js?v=' . $assetversion));
 
