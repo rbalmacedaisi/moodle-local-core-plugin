@@ -669,6 +669,24 @@ foreach ($templates as $tpl) {
 echo '      </tbody></table>';
 echo '  </div>';
 echo '</div>';
+
+echo '<script>(function(){';
+echo 'function selectTab(name){';
+echo '  document.querySelectorAll(".dpl-tab-button").forEach(function(b){b.classList.toggle("active",b.getAttribute("data-tab")===name);});';
+echo '  document.querySelectorAll(".dpl-tab-panel").forEach(function(p){p.classList.toggle("active",p.getAttribute("data-panel")===name);});';
+echo '  try{if(history.replaceState)history.replaceState(null,"","#"+name);}catch(e){}';
+echo '  try{localStorage.setItem("dpl_active_tab",name);}catch(e){}';
+echo '}';
+echo 'document.querySelectorAll(".dpl-tab-button").forEach(function(btn){';
+echo '  btn.addEventListener("click",function(){selectTab(btn.getAttribute("data-tab"));});';
+echo '});';
+echo 'var initial="editor";';
+echo 'try{var hash=window.location.hash.replace("#","");if(hash&&document.querySelector(".dpl-tab-panel[data-panel=\""+hash+"\"]")){initial=hash;}}catch(e){}';
+echo 'if(initial==="editor"){try{var saved=localStorage.getItem("dpl_active_tab");if(saved&&document.querySelector(".dpl-tab-panel[data-panel=\""+saved+"\"]")){initial=saved;}}catch(e){}}';
+echo 'if(initial!=="editor"){selectTab(initial);}';
+echo '})();';
+echo '</script>';
+
 echo '<style>.dpl-bundle-edit:hover,.dpl-bundle-delete:hover,#dpl-bundle-save:hover,#dpl-bundle-cancel:hover{filter:brightness(0.95);}.dpl-bundle-row-active{background:#f0f9ff !important;}</style>';
 echo '<script>(function(){';
 echo 'function postBundle(p){return fetch(window.location.origin+"/local/grupomakro_core/ajax.php",{method:"POST",headers:{"Content-Type":"application/json","X-Requested-With":"XMLHttpRequest"},body:JSON.stringify(p)}).then(function(r){return r.json();});}';
