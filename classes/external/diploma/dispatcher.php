@@ -77,6 +77,26 @@ final class dispatcher {
                 $manager::assign_template_to_bundle($templateid, $bundleid > 0 ? $bundleid : null);
                 return ['status' => 'success', 'message' => 'Bundle asignado correctamente.'];
 
+            case 'list_bundles_admin':
+                require_capability($capmanage, context_system::instance());
+                $bundles = $manager::list_bundles();
+                $templates = $DB->get_records_sql(
+                    "SELECT id, name, bundle_id FROM {gmk_diploma_template} ORDER BY name ASC"
+                );
+                $templateRows = [];
+                foreach ($templates as $tpl) {
+                    $templateRows[] = [
+                        'id' => (int)$tpl->id,
+                        'name' => (string)$tpl->name,
+                        'bundle_id' => isset($tpl->bundle_id) ? (int)$tpl->bundle_id : 0,
+                    ];
+                }
+                return ['status' => 'success', 'bundles' => $bundles, 'templates' => $templateRows];
+
+            case 'render_bundles_section':
+                require_capability($capmanage, context_system::instance());
+                return ['status' => 'success', 'html' => $manager::render_bundles_section_html()];
+
             case 'get_template':
                 require_capability($capmanage, context_system::instance());
                 $id = required_param('id', PARAM_INT);

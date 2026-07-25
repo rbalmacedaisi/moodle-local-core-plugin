@@ -2067,6 +2067,145 @@ public static function generate_diplomas(int $templateid, array $items, int $act
     }
 
     /**
+     * Render the inner HTML of the Bundles tab (list + create form +
+     * template-assignment table). Used by the editor page to refresh
+     * the tab in place after save/delete/assign, so the admin does not
+     * lose the active tab and the form state on every CRUD action.
+     *
+     * @return string HTML fragment (NOT a full document).
+     */
+    public static function render_bundles_section_html(): string {
+        global $DB;
+        $bundles = self::list_bundles();
+
+        $bundleOptions = [['text' => '— sin bundle —', 'value' => 0]];
+        foreach ($bundles as $b) {
+            $bundleOptions[] = [
+                'text' => $b['name'] . ($b['prefix'] ? '  (' . $b['prefix'] . ')' : ''),
+                'value' => (int)$b['id'],
+            ];
+        }
+
+        $bundleui = (object)[
+            'bundle_title' => get_string('diploma_bundle_title', 'local_grupomakro_core'),
+            'bundle_help' => get_string('diploma_bundle_help', 'local_grupomakro_core'),
+            'bundle_name' => get_string('diploma_bundle_name', 'local_grupomakro_core'),
+            'bundle_prefix' => get_string('diploma_bundle_prefix', 'local_grupomakro_core'),
+            'bundle_next' => get_string('diploma_bundle_next', 'local_grupomakro_core'),
+            'bundle_active' => get_string('diploma_bundle_active', 'local_grupomakro_core'),
+            'bundle_new' => get_string('diploma_bundle_new', 'local_grupomakro_core'),
+            'bundle_save' => get_string('diploma_bundle_save', 'local_grupomakro_core'),
+            'bundle_delete' => get_string('diploma_bundle_delete', 'local_grupomakro_core'),
+            'bundle_none' => get_string('diploma_bundle_none', 'local_grupomakro_core'),
+        ];
+
+        $h = function (string $s): string { return htmlspecialchars($s, ENT_QUOTES, 'UTF-8'); };
+
+        $out = '<div class="dpl-bundles-config" style="max-width:1100px;margin:0;padding:0;">';
+        $out .= '  <h2 style="margin:0 0 6px;font-size:22px;font-weight:700;color:#111827;">' . $h($bundleui->bundle_title) . '</h2>';
+        $out .= '  <p style="margin:0 0 18px;color:#6b7280;font-size:14px;">' . $h($bundleui->bundle_help) . '</p>';
+        $out .= '  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">';
+
+        // Left column: list of existing bundles.
+        $out .= '    <div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:14px;box-shadow:0 2px 8px rgba(15,23,42,.04);">';
+        if (empty($bundles)) {
+            $out .= '      <div style="color:#6b7280;font-size:14px;">' . $h($bundleui->bundle_none) . '</div>';
+        } else {
+            $out .= '      <table style="width:100%;border-collapse:collapse;font-size:13px;">';
+            $out .= '        <thead><tr style="text-align:left;color:#6b7280;font-weight:600;">';
+            $out .= '          <th style="padding:6px;">' . $h($bundleui->bundle_name) . '</th>';
+            $out .= '          <th style="padding:6px;">' . $h($bundleui->bundle_prefix) . '</th>';
+            $out .= '          <th style="padding:6px;">' . $h($bundleui->bundle_next) . '</th>';
+            $out .= '          <th style="padding:6px;">' . $h($bundleui->bundle_active) . '</th>';
+            $out .= '          <th></th>';
+            $out .= '        </tr></thead><tbody>';
+            foreach ($bundles as $b) {
+                $statusColor = !empty($b['active']) ? '#16a34a' : '#9ca3af';
+                $statusLabel = !empty($b['active']) ? 'OK' : '-';
+                $out .= '          <tr style="border-top:1px solid #f1f5f9;" data-bundleid="' . (int)$b['id'] . '">';
+                $out .= '            <td style="padding:8px 6px;font-weight:500;">' . $h($b['name']) . '</td>';
+                $out .= '            <td style="padding:8px 6px;color:#6b7280;">' . $h($b['prefix'] ?: '-') . '</td>';
+                $out .= '            <td style="padding:8px 6px;font-weight:600;">' . (int)$b['next_number'] . '</td>';
+                $out .= '            <td style="padding:8px 6px;color:' . $statusColor . ';">' . $statusLabel . '</td>';
+                $out .= '            <td style="padding:8px 6px;text-align:right;">';
+                $out .= '              <button type="button" class="dpl-bundle-edit" data-bundle=\'' . $h(json_encode($b)) . '\' style="background:#e0e7ff;color:#3730a3;border:0;border-radius:6px;padding:4px 10px;font-size:12px;font-weight:600;cursor:pointer;margin-right:4px;">' . $h(get_string('edit')) . '</button>';
+                $out .= '              <button type="button" class="dpl-bundle-delete" data-bundleid="' . (int)$b['id'] . '" data-bundlename="' . $h($b['name']) . '" style="background:#fee2e2;color:#b91c1c;border:0;border-radius:6px;padding:4px 10px;font-size:12px;font-weight:600;cursor:pointer;">' . $h($bundleui->bundle_delete) . '</button>';
+                $out .= '            </td>';
+                $out .= '          </tr>';
+            }
+            $out .= '        </tbody></table>';
+        }
+        $out .= '    </div>';
+
+        // Right column: create / edit form.
+        $out .= '    <div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:14px;box-shadow:0 2px 8px rgba(15,23,42,.04);">';
+        $out .= '      <div style="font-size:14px;font-weight:600;margin-bottom:10px;" id="dpl-bundle-form-title">' . $h($bundleui->bundle_new) . '</div>';
+        $out .= '      <input type="hidden" id="dpl-bundle-id" value="0">';
+        $out .= '      <label style="display:block;font-size:12px;color:#6b7280;margin-top:8px;">' . $h($bundleui->bundle_name) . '</label>';
+        $out .= '      <input type="text" id="dpl-bundle-name" style="width:100%;padding:6px 8px;border:1px solid #d1d5db;border-radius:6px;">';
+        $out .= '      <label style="display:block;font-size:12px;color:#6b7280;margin-top:8px;">' . $h($bundleui->bundle_prefix) . '</label>';
+        $out .= '      <input type="text" id="dpl-bundle-prefix" placeholder="LIC-, 2025/," style="width:100%;padding:6px 8px;border:1px solid #d1d5db;border-radius:6px;font-family:monospace;">';
+        $out .= '      <label style="display:block;font-size:12px;color:#6b7280;margin-top:8px;">' . $h($bundleui->bundle_next) . '</label>';
+        $out .= '      <input type="number" id="dpl-bundle-next" value="1" min="1" style="width:100%;padding:6px 8px;border:1px solid #d1d5db;border-radius:6px;">';
+        $out .= '      <label style="display:flex;align-items:center;gap:6px;font-size:13px;margin-top:8px;">';
+        $out .= '        <input type="checkbox" id="dpl-bundle-active" checked>';
+        $out .= '        <span>' . $h($bundleui->bundle_active) . '</span>';
+        $out .= '      </label>';
+        $out .= '      <div style="display:flex;gap:8px;margin-top:14px;">';
+        $out .= '        <button type="button" id="dpl-bundle-save" style="background:#2563eb;color:#fff;border:0;border-radius:6px;padding:8px 14px;font-weight:600;cursor:pointer;">' . $h($bundleui->bundle_save) . '</button>';
+        $out .= '        <button type="button" id="dpl-bundle-cancel" style="display:none;background:#e5e7eb;color:#374151;border:0;border-radius:6px;padding:8px 14px;font-weight:600;cursor:pointer;">' . $h(get_string('cancel')) . '</button>';
+        $out .= '      </div>';
+        $out .= '    </div>';
+        $out .= '  </div>';
+
+        // Bottom: template-to-bundle assignment table.
+        $out .= '  <div style="margin-top:24px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:14px;box-shadow:0 2px 8px rgba(15,23,42,.04);">';
+        $out .= '    <h3 style="margin:0 0 10px;font-size:16px;font-weight:600;">Plantillas y bundle asignado</h3>';
+        $out .= '    <p style="margin:0 0 12px;color:#6b7280;font-size:13px;">Asigná un bundle a cada plantilla. Las plantillas sin bundle usan el formato por defecto (DP-&lt;idnumber&gt;-&lt;planCode&gt;-&lt;YYYY&gt;-&lt;NNNNNN&gt;).</p>';
+        $out .= '    <table style="width:100%;border-collapse:collapse;font-size:13px;">';
+        $out .= '      <thead><tr style="text-align:left;color:#6b7280;font-weight:600;border-bottom:1px solid #e5e7eb;">';
+        $out .= '        <th style="padding:6px;">Plantilla</th>';
+        $out .= '        <th style="padding:6px;">Bundle actual</th>';
+        $out .= '        <th style="padding:6px;">Cambiar a</th>';
+        $out .= '        <th></th>';
+        $out .= '      </tr></thead><tbody>';
+        $templates = $DB->get_records_sql(
+            "SELECT id, name, bundle_id FROM {gmk_diploma_template} ORDER BY name ASC"
+        );
+        foreach ($templates as $tpl) {
+            $currentBundle = isset($tpl->bundle_id) ? (int)$tpl->bundle_id : 0;
+            $currentLabel = '— sin bundle —';
+            foreach ($bundles as $b) {
+                if ((int)$b['id'] === $currentBundle) {
+                    $currentLabel = $b['name'] . ($b['prefix'] ? '  (' . $b['prefix'] . ')' : '');
+                    break;
+                }
+            }
+            $out .= '        <tr style="border-bottom:1px solid #f1f5f9;" data-templateid="' . (int)$tpl->id . '" data-current-bundleid="' . $currentBundle . '">';
+            $out .= '          <td style="padding:8px 6px;font-weight:500;">' . $h($tpl->name) . '</td>';
+            $out .= '          <td style="padding:8px 6px;color:#374151;">' . $h($currentLabel) . '</td>';
+            $out .= '          <td style="padding:8px 6px;">';
+            $out .= '            <select class="dpl-tpl-bundle" data-templateid="' . (int)$tpl->id . '" style="width:100%;padding:6px 8px;border:1px solid #d1d5db;border-radius:6px;">';
+            foreach ($bundleOptions as $opt) {
+                $sel = ((int)$opt['value'] === $currentBundle) ? ' selected' : '';
+                $out .= '<option value="' . (int)$opt['value'] . '"' . $sel . '>' . $h($opt['text']) . '</option>';
+            }
+            $out .= '            </select>';
+            $out .= '          </td>';
+            $out .= '          <td style="padding:8px 6px;text-align:right;">';
+            $out .= '            <button type="button" class="dpl-tpl-bundle-save" data-templateid="' . (int)$tpl->id . '" style="background:#10b981;color:#fff;border:0;border-radius:6px;padding:4px 12px;font-size:12px;font-weight:600;cursor:pointer;">Guardar</button>';
+            $out .= '          </td>';
+            $out .= '        </tr>';
+        }
+        $out .= '      </tbody></table>';
+        $out .= '  </div>';
+
+        $out .= '</div>';
+
+        return $out;
+    }
+
+    /**
      * Delete a bundle. Returns void; throws if the id does not exist.
      */
     public static function delete_bundle(int $id): void {

@@ -569,6 +569,7 @@ EOS;
 // panel, both wired by a tiny vanilla JS helper that POSTs to the
 // dispatcher and refreshes the page on success.
 // ----------------------------------------------------------------------
+echo '<div id="dpl-bundles-body">';
 $bundles = \local_grupomakro_core\local\diplomas\manager::list_bundles();
 echo '<div class="dpl-bundles-config" style="max-width:1100px;margin:32px auto 0;padding:0 16px 64px;">';
 echo '  <h2 style="margin:0 0 6px;font-size:22px;font-weight:700;color:#111827;">' . $bundleui->bundle_title . '</h2>';
@@ -669,6 +670,7 @@ foreach ($templates as $tpl) {
 echo '      </tbody></table>';
 echo '  </div>';
 echo '</div>';
+echo '</div>';  // /dpl-bundles-body
 
 echo '<script>(function(){';
 echo 'function selectTab(name){';
@@ -684,36 +686,21 @@ echo 'var initial="editor";';
 echo 'try{var hash=window.location.hash.replace("#","");if(hash&&document.querySelector(".dpl-tab-panel[data-panel=\""+hash+"\"]")){initial=hash;}}catch(e){}';
 echo 'if(initial==="editor"){try{var saved=localStorage.getItem("dpl_active_tab");if(saved&&document.querySelector(".dpl-tab-panel[data-panel=\""+saved+"\"]")){initial=saved;}}catch(e){}}';
 echo 'if(initial!=="editor"){selectTab(initial);}';
-echo '})();';
-echo '</script>';
-
-echo '<style>.dpl-bundle-edit:hover,.dpl-bundle-delete:hover,#dpl-bundle-save:hover,#dpl-bundle-cancel:hover{filter:brightness(0.95);}.dpl-bundle-row-active{background:#f0f9ff !important;}</style>';
-echo '<script>(function(){';
+echo 'document.querySelectorAll(".dpl-tab-button").forEach(function(btn){';
+echo '  btn.addEventListener("click",function(){selectTab(btn.getAttribute("data-tab"));});';
+echo '});';
+echo 'function refreshBundles(){return fetch(window.location.origin+"/local/grupomakro_core/ajax.php",{method:"POST",headers:{"Content-Type":"application/json","X-Requested-With":"XMLHttpRequest"},body:JSON.stringify({action:"local_grupomakro_diploma_render_bundles_section"})}).then(function(r){return r.json();}).then(function(res){if(res&&res.status==="success"&&res.html){var body=document.getElementById("dpl-bundles-body");if(body){body.innerHTML=res.html;rebindBundleHandlers();}}else{alert((res&&res.message)||"Error");window.location.reload();}}).catch(function(e){console.warn(e);window.location.reload();});}';
 echo 'function postBundle(p){return fetch(window.location.origin+"/local/grupomakro_core/ajax.php",{method:"POST",headers:{"Content-Type":"application/json","X-Requested-With":"XMLHttpRequest"},body:JSON.stringify(p)}).then(function(r){return r.json();});}';
 echo 'function fillForm(b){document.getElementById("dpl-bundle-id").value=b.id||0;document.getElementById("dpl-bundle-name").value=b.name||"";document.getElementById("dpl-bundle-prefix").value=b.prefix||"";document.getElementById("dpl-bundle-next").value=b.next_number||1;document.getElementById("dpl-bundle-active").checked=!!b.active;document.getElementById("dpl-bundle-form-title").textContent=b.id?("Editar bundle #"+b.id):(window.strings&&window.strings.bundle_new)||"Crear bundle";document.getElementById("dpl-bundle-cancel").style.display=b.id?"":"none";}';
 echo 'function clearForm(){fillForm({id:0,name:"",prefix:"",next_number:1,active:1});}';
-echo 'document.addEventListener("click",function(ev){';
-echo '  var editBtn=ev.target.closest(".dpl-bundle-edit");';
-echo '  if(editBtn){try{var b=JSON.parse(editBtn.getAttribute("data-bundle"));fillForm(b);document.querySelectorAll("tr[data-bundleid]").forEach(function(r){r.classList.remove("dpl-bundle-row-active");});editBtn.closest("tr").classList.add("dpl-bundle-row-active");}catch(e){console.warn(e);}return;}';
-echo '  var delBtn=ev.target.closest(".dpl-bundle-delete");';
-echo '  if(delBtn){var id=parseInt(delBtn.getAttribute("data-bundleid"),10);var name=delBtn.getAttribute("data-bundlename");var strings=window.strings||{};var msg=(strings.bundle_delete_confirm||"Eliminar el bundle? Las plantillas asignadas volveran al formato por defecto.").replace("{name}",name);if(!confirm(msg)){return;}postBundle({action:"local_grupomakro_diploma_delete_bundle",id:id}).then(function(res){if(res&&res.status==="success"){window.location.reload();}else{alert((res&&res.message)||"Error");}}).catch(function(e){alert(e.message||e);});return;}';
-echo '});';
-echo 'var saveBtn=document.getElementById("dpl-bundle-save");';
-echo 'if(saveBtn){saveBtn.addEventListener("click",function(){var payload={action:"local_grupomakro_diploma_save_bundle",payload:JSON.stringify({id:parseInt(document.getElementById("dpl-bundle-id").value||0,10),name:(document.getElementById("dpl-bundle-name").value||"").trim(),prefix:document.getElementById("dpl-bundle-prefix").value||"",next_number:parseInt(document.getElementById("dpl-bundle-next").value||1,10),active:document.getElementById("dpl-bundle-active").checked?1:0})};if(!payload.payload||payload.payload.length<6){alert((window.strings&&window.strings.bundle_name_required)||"El nombre del bundle es obligatorio.");return;}saveBtn.disabled=true;postBundle(payload).then(function(res){if(res&&res.status==="success"){window.location.reload();}else{alert((res&&res.message)||"Error");}}).catch(function(e){alert(e.message||e);}).finally(function(){saveBtn.disabled=false;});});}';
-echo 'var cancelBtn=document.getElementById("dpl-bundle-cancel");';
-echo 'if(cancelBtn){cancelBtn.addEventListener("click",function(){clearForm();});}';
-echo 'document.querySelectorAll(".dpl-tpl-bundle-save").forEach(function(btn){';
-echo '  btn.addEventListener("click",function(){';
-echo '    var tr=btn.closest("tr");';
-echo '    var templateid=parseInt(btn.getAttribute("data-templateid"),10);';
-echo '    var sel=tr.querySelector(".dpl-tpl-bundle");';
-echo '    var newBundle=parseInt(sel.value||0,10);';
-echo '    var current=parseInt(tr.getAttribute("data-current-bundleid")||"0",10);';
-echo '    if(newBundle===current){alert("Sin cambios.");return;}';
-echo '    btn.disabled=true;';
-echo '    postBundle({action:"local_grupomakro_diploma_assign_bundle_to_template",templateid:templateid,bundleid:newBundle}).then(function(res){if(res&&res.status==="success"){window.location.reload();}else{alert((res&&res.message)||"Error");}}).catch(function(e){alert(e.message||e);}).finally(function(){btn.disabled=false;});';
-echo '  });';
-echo '});';
+echo 'function rebindBundleHandlers(){';
+echo '  document.querySelectorAll(".dpl-bundle-edit").forEach(function(btn){btn.addEventListener("click",function(){try{var b=JSON.parse(btn.getAttribute("data-bundle"));fillForm(b);document.querySelectorAll("tr[data-bundleid]").forEach(function(r){r.classList.remove("dpl-bundle-row-active");});btn.closest("tr").classList.add("dpl-bundle-row-active");}catch(e){console.warn(e);}});});';
+echo '  document.querySelectorAll(".dpl-bundle-delete").forEach(function(btn){btn.addEventListener("click",function(){var id=parseInt(btn.getAttribute("data-bundleid"),10);var name=btn.getAttribute("data-bundlename");var strings=window.strings||{};var msg=(strings.bundle_delete_confirm||"Eliminar el bundle? Las plantillas asignadas volveran al formato por defecto.").replace("{name}",name);if(!confirm(msg)){return;}postBundle({action:"local_grupomakro_diploma_delete_bundle",id:id}).then(function(res){if(res&&res.status==="success"){refreshBundles();}else{alert((res&&res.message)||"Error");}}).catch(function(e){alert(e.message||e);});});});';
+echo '  document.querySelectorAll(".dpl-tpl-bundle-save").forEach(function(btn){btn.addEventListener("click",function(){var tr=btn.closest("tr");var templateid=parseInt(btn.getAttribute("data-templateid"),10);var sel=tr.querySelector(".dpl-tpl-bundle");var newBundle=parseInt(sel.value||0,10);var current=parseInt(tr.getAttribute("data-current-bundleid")||"0",10);if(newBundle===current){alert("Sin cambios.");return;}btn.disabled=true;postBundle({action:"local_grupomakro_diploma_assign_bundle_to_template",templateid:templateid,bundleid:newBundle}).then(function(res){if(res&&res.status==="success"){refreshBundles();}else{alert((res&&res.message)||"Error");}}).catch(function(e){alert(e.message||e);}).finally(function(){btn.disabled=false;});});});';
+echo '  var sb=document.getElementById("dpl-bundle-save");if(sb){sb.addEventListener("click",function(){var payload={action:"local_grupomakro_diploma_save_bundle",payload:JSON.stringify({id:parseInt(document.getElementById("dpl-bundle-id").value||0,10),name:(document.getElementById("dpl-bundle-name").value||"").trim(),prefix:document.getElementById("dpl-bundle-prefix").value||"",next_number:parseInt(document.getElementById("dpl-bundle-next").value||1,10),active:document.getElementById("dpl-bundle-active").checked?1:0})};if(!payload.payload||payload.payload.length<6){alert((window.strings&&window.strings.bundle_name_required)||"El nombre del bundle es obligatorio.");return;}sb.disabled=true;postBundle(payload).then(function(res){if(res&&res.status==="success"){refreshBundles();}else{alert((res&&res.message)||"Error");}}).catch(function(e){alert(e.message||e);}).finally(function(){sb.disabled=false;});});}';
+echo '  var cb=document.getElementById("dpl-bundle-cancel");if(cb){cb.addEventListener("click",function(){clearForm();});}';
+echo '}';
+echo 'rebindBundleHandlers();';
 echo '})();';
 echo '</script>';
 
