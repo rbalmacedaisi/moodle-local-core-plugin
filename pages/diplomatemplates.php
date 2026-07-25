@@ -556,7 +556,6 @@ echo '<script>
         cancelBtn.addEventListener("click", function () { clearForm(); });
     }
 })();
-</script>';
 </script>
 EOS;
 
