@@ -323,7 +323,6 @@ EOT;
 // are hidden by default. The inline JS at the bottom of the page
 // handles tab clicks and persists the active tab in localStorage +
 // URL hash.
-$bundleui = $strings;
 $newTplLabel = get_string('new_template', 'local_grupomakro_core');
 echo '<div class="dpl-tabs" role="tablist">';
 echo '  <button class="dpl-tab-button active" data-tab="editor" role="tab">Editor</button>';
