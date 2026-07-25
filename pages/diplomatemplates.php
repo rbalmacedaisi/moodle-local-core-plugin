@@ -317,8 +317,27 @@ EOT;
 // students that would appear in the new "Certificados por curso"
 // tab once enabled.
 // ----------------------------------------------------------------------
+// Tabbed nav: a single .dpl-tabs strip is rendered right after the
+// editor, and each existing section is wrapped in .dpl-tab-panel with
+// data-panel="<name>". The active panel is Editor; Courses and Bundles
+// are hidden by default. The inline JS at the bottom of the page
+// handles tab clicks and persists the active tab in localStorage +
+// URL hash.
+$bundleui = $strings;
+$newTplLabel = get_string('new_template', 'local_grupomakro_core');
+echo '<div class="dpl-tabs" role="tablist">';
+echo '  <button class="dpl-tab-button active" data-tab="editor" role="tab">Editor</button>';
+echo '  <button class="dpl-tab-button" data-tab="courses" role="tab">' .
+    htmlspecialchars(get_string('diploma_course_param_title', $plugin_name), ENT_QUOTES, 'UTF-8') . '</button>';
+echo '  <button class="dpl-tab-button" data-tab="bundles" role="tab">' .
+    htmlspecialchars($bundleui->bundle_title, ENT_QUOTES, 'UTF-8') . '</button>';
+echo '</div>';
+
+echo '<style>.dpl-tabs{display:flex;gap:4px;border-bottom:1px solid #e5e7eb;margin:24px auto 0;max-width:1100px;padding:0 16px;}.dpl-tab-button{background:none;border:0;padding:12px 16px;font-size:14px;font-weight:600;color:#6b7280;cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-1px;transition:color .15s,border-color .15s;}.dpl-tab-button:hover{color:#111827;}.dpl-tab-button.active{color:#2563eb;border-bottom-color:#2563eb;}.dpl-tab-panel{display:none;max-width:1100px;margin:0 auto;padding:24px 16px 64px;}.dpl-tab-panel.active{display:block;}</style>';
+
 $eligibleCourses = \local_grupomakro_core\local\diplomas\manager::list_courses_with_eligibility(false);
-echo '<div class="dpl-courses-config" style="max-width:1100px;margin:32px auto 0;padding:0 16px 64px;">';
+echo '<div class="dpl-tab-panel" data-panel="courses">';
+echo '<div class="dpl-courses-config" style="max-width:1100px;margin:0;padding:0;">';
 echo '  <h2 style="margin:0 0 6px;font-size:22px;font-weight:700;color:#111827;">' .
     get_string('diploma_course_param_title', 'local_grupomakro_core') . '</h2>';
 echo '  <p style="margin:0 0 18px;color:#6b7280;font-size:14px;">' .
@@ -407,12 +426,17 @@ echo <<<'EOS'
         });
     });
 })();
+echo '</div>';  // /dpl-tab-panel courses
+echo '</div>';  // /dpl-courses-config
 
 // ----------------------------------------------------------------------
 // Bundle management section. Mirrors the courses-config block:
 // server-rendered list of existing bundles + a small "New bundle"
 // panel, both wired by a tiny vanilla JS helper that POSTs to the
 // dispatcher and refreshes the page on success.
+// ----------------------------------------------------------------------
+echo '<div class="dpl-tab-panel" data-panel="bundles">';
+echo '<div id="dpl-bundles-body">';
 // ----------------------------------------------------------------------
 $bundles = \local_grupomakro_core\local\diplomas\manager::list_bundles();
 echo '<div class="dpl-courses-config dpl-bundles-config" style="max-width:1100px;margin:32px auto 0;padding:0 16px 64px;">';
@@ -569,9 +593,8 @@ EOS;
 // panel, both wired by a tiny vanilla JS helper that POSTs to the
 // dispatcher and refreshes the page on success.
 // ----------------------------------------------------------------------
-echo '<div id="dpl-bundles-body">';
 $bundles = \local_grupomakro_core\local\diplomas\manager::list_bundles();
-echo '<div class="dpl-bundles-config" style="max-width:1100px;margin:32px auto 0;padding:0 16px 64px;">';
+echo '<div class="dpl-bundles-config" style="max-width:1100px;margin:0;padding:0;">';
 echo '  <h2 style="margin:0 0 6px;font-size:22px;font-weight:700;color:#111827;">' . $bundleui->bundle_title . '</h2>';
 echo '  <p style="margin:0 0 18px;color:#6b7280;font-size:14px;">' . $bundleui->bundle_help . '</p>';
 echo '  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">';
@@ -703,6 +726,7 @@ echo '}';
 echo 'rebindBundleHandlers();';
 echo '})();';
 echo '</script>';
+echo '</div>';  // /dpl-tab-panel bundles
 
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/diplomatemplates.js?v=' . $assetversion));
 
