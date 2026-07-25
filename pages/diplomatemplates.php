@@ -27,7 +27,10 @@ require_once($CFG->libdir . '/adminlib.php');
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 
 $plugin_name = 'local_grupomakro_core';
-$assetversion = !empty($CFG->themerev) ? (int)$CFG->themerev : 1;
+$assetfile = __DIR__ . '/../js/components/diplomatemplates.js';
+$assetversion = is_readable($assetfile)
+    ? (int)filemtime($assetfile)
+    : (!empty($CFG->themerev) ? (int)$CFG->themerev : 1);
 require_login();
 
 $PAGE->set_url($CFG->wwwroot . '/local/grupomakro_core/pages/diplomatemplates.php');

@@ -498,14 +498,7 @@
                     // width_mm/height_mm than the previous one.
                     var self = this;
                     this.$nextTick(function () { self.recomputeCanvasScale(); });
-                    // Also bump fontsReadyTick so the just-mounted canvas
-                    // gets a fresh style object and the browser re-lays
-                    // the text with the (now-loaded) Google Font. Without
-                    // this, the field divs paint with the fallback
-                    // Helvetica and never get repainted because the
-                    // mounted() font-ready promise already resolved
-                    // before the template was selected.
-                    this.bumpFontsReadyTick();
+                    this.ensureSelectedFontsLoaded();
                 },
                 deep: true
             },
@@ -578,14 +571,39 @@
                 var bundles = document.getElementById('dpl-bundles-partial');
                 if (bundles) { this.bundlesHtml = bundles.innerHTML; }
             },
-            /**
-             * Wait for the Google Fonts CSS <link> at the top of the
-             * page to finish loading all the requested families, then
-             * bump fontsReadyTick so the canvas re-renders with the
-             * real faces. Without this, Vue mounts the field divs while
-             * the fonts are still pending and the browser paints the
-             * fallback (Helvetica/Times) without ever re-laying out.
-             */
+            ensureSelectedFontsLoaded(force) {
+                if (typeof document === 'undefined' || !document.fonts || !this.selected) {
+                    return;
+                }
+                var specs = [];
+                var seen = {};
+                (this.selected.fields || []).forEach(function (field) {
+                    if (field.field_type === 'qr') { return; }
+                    var item = FONT_BY_VALUE[field.font_family];
+                    if (!item || !item.family) { return; }
+                    var weight = field.font_weight === 'bold' ? '700' : '400';
+                    var spec = weight + ' 32px ' + item.family;
+                    if (!seen[spec]) {
+                        seen[spec] = true;
+                        specs.push(spec);
+                    }
+                });
+                specs.sort();
+                var signature = specs.join('|');
+                if (!force && signature === this._fontLoadSignature) {
+                    return;
+                }
+                this._fontLoadSignature = signature;
+                if (!specs.length) {
+                    return;
+                }
+                var self = this;
+                Promise.all(specs.map(function (spec) {
+                    return document.fonts.load(spec).catch(function () { return []; });
+                })).then(function () {
+                    self.fontsReadyTick++;
+                });
+            },
             waitForFontsThenRefresh() {
                 if (typeof document === 'undefined' || !document.fonts) {
                     return;
@@ -594,6 +612,7 @@
                 // First pass: resolve the initial promise so we know the
                 // critical fonts are loaded.
                 document.fonts.ready.then(function () {
+                    self.ensureSelectedFontsLoaded(true);
                     self.fontsReadyTick++;
                 });
                 // Second pass: also react to any font added later via the
@@ -604,18 +623,6 @@
                         self.fontsReadyTick++;
                     });
                 }
-            },
-            /**
-             * Force a fontsReadyTick bump. Called from the watch on
-             * `selected` so that selecting a template (which mounts the
-             * canvas) bumps the tick AFTER the document.fonts.ready
-             * promise has already resolved, ensuring the field divs
-             * get a fresh style object and the browser re-lays the
-             * text with the (now-loaded) Google Font instead of
-             * leaving it on the fallback Helvetica.
-             */
-            bumpFontsReadyTick() {
-                this.fontsReadyTick++;
             },
             setupCanvasResizeObserver() {
                 // Re-scale the canvas whenever the wrap size changes
