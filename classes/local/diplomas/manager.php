@@ -2079,6 +2079,22 @@ public static function generate_diplomas(int $templateid, array $items, int $act
     }
 
     /**
+     * Link (or unlink) a template to a bundle. Passing null clears the
+     * assignment so the template reverts to the default consecutive.
+     *
+     * @param int $templateid
+     * @param int|null $bundleid
+     */
+    public static function assign_template_to_bundle(int $templateid, ?int $bundleid): void {
+        global $DB;
+        $DB->get_record('gmk_diploma_template', ['id' => $templateid], '*', MUST_EXIST);
+        if ($bundleid !== null) {
+            $DB->get_record('gmk_diploma_bundle', ['id' => $bundleid], '*', MUST_EXIST);
+        }
+        $DB->set_field('gmk_diploma_template', 'bundle_id', $bundleid, ['id' => $templateid]);
+    }
+
+    /**
      * Generates a unique random token for the public verification URL.
      */
     private static function generate_verification_token(): string {

@@ -622,6 +622,52 @@ echo '        <button type="button" id="dpl-bundle-cancel" style="display:none;b
 echo '      </div>';
 echo '    </div>';
 echo '  </div>';
+
+echo '  <div style="margin-top:24px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:14px;box-shadow:0 2px 8px rgba(15,23,42,.04);">';
+echo '    <h3 style="margin:0 0 10px;font-size:16px;font-weight:600;">Plantillas y bundle asignado</h3>';
+echo '    <p style="margin:0 0 12px;color:#6b7280;font-size:13px;">Asigná un bundle a cada plantilla. Las plantillas sin bundle usan el formato por defecto (DP-&lt;idnumber&gt;-&lt;planCode&gt;-&lt;YYYY&gt;-&lt;NNNNNN&gt;).</p>';
+echo '    <table style="width:100%;border-collapse:collapse;font-size:13px;">';
+echo '      <thead><tr style="text-align:left;color:#6b7280;font-weight:600;border-bottom:1px solid #e5e7eb;">';
+echo '        <th style="padding:6px;">Plantilla</th>';
+echo '        <th style="padding:6px;">Bundle actual</th>';
+echo '        <th style="padding:6px;">Cambiar a</th>';
+echo '        <th></th>';
+echo '      </tr></thead><tbody>';
+
+$bundleOptions = [['text' => '— sin bundle —', 'value' => 0]];
+foreach ($bundles as $b) {
+    $bundleOptions[] = ['text' => $b['name'] . ($b['prefix'] ? '  (' . $b['prefix'] . ')' : ''), 'value' => (int)$b['id']];
+}
+$templates = $DB->get_records_sql(
+    "SELECT id, name, bundle_id FROM {gmk_diploma_template} ORDER BY name ASC"
+);
+foreach ($templates as $tpl) {
+    $currentBundle = isset($tpl->bundle_id) ? (int)$tpl->bundle_id : 0;
+    $currentLabel = '— sin bundle —';
+    foreach ($bundles as $b) {
+        if ((int)$b['id'] === $currentBundle) {
+            $currentLabel = $b['name'] . ($b['prefix'] ? '  (' . $b['prefix'] . ')' : '');
+            break;
+        }
+    }
+    echo '        <tr style="border-bottom:1px solid #f1f5f9;" data-templateid="' . (int)$tpl->id . '" data-current-bundleid="' . $currentBundle . '">';
+    echo '          <td style="padding:8px 6px;font-weight:500;">' . s($tpl->name) . '</td>';
+    echo '          <td style="padding:8px 6px;color:#374151;">' . s($currentLabel) . '</td>';
+    echo '          <td style="padding:8px 6px;">';
+    echo '            <select class="dpl-tpl-bundle" data-templateid="' . (int)$tpl->id . '" style="width:100%;padding:6px 8px;border:1px solid #d1d5db;border-radius:6px;">';
+    foreach ($bundleOptions as $opt) {
+        $sel = ((int)$opt['value'] === $currentBundle) ? ' selected' : '';
+        echo '<option value="' . (int)$opt['value'] . '"' . $sel . '>' . s($opt['text']) . '</option>';
+    }
+    echo '            </select>';
+    echo '          </td>';
+    echo '          <td style="padding:8px 6px;text-align:right;">';
+    echo '            <button type="button" class="dpl-tpl-bundle-save" data-templateid="' . (int)$tpl->id . '" style="background:#10b981;color:#fff;border:0;border-radius:6px;padding:4px 12px;font-size:12px;font-weight:600;cursor:pointer;">Guardar</button>';
+    echo '          </td>';
+    echo '        </tr>';
+}
+echo '      </tbody></table>';
+echo '  </div>';
 echo '</div>';
 echo '<style>.dpl-bundle-edit:hover,.dpl-bundle-delete:hover,#dpl-bundle-save:hover,#dpl-bundle-cancel:hover{filter:brightness(0.95);}.dpl-bundle-row-active{background:#f0f9ff !important;}</style>';
 echo '<script>(function(){';
@@ -638,6 +684,18 @@ echo 'var saveBtn=document.getElementById("dpl-bundle-save");';
 echo 'if(saveBtn){saveBtn.addEventListener("click",function(){var payload={action:"local_grupomakro_diploma_save_bundle",payload:JSON.stringify({id:parseInt(document.getElementById("dpl-bundle-id").value||0,10),name:(document.getElementById("dpl-bundle-name").value||"").trim(),prefix:document.getElementById("dpl-bundle-prefix").value||"",next_number:parseInt(document.getElementById("dpl-bundle-next").value||1,10),active:document.getElementById("dpl-bundle-active").checked?1:0})};if(!payload.payload||payload.payload.length<6){alert((window.strings&&window.strings.bundle_name_required)||"El nombre del bundle es obligatorio.");return;}saveBtn.disabled=true;postBundle(payload).then(function(res){if(res&&res.status==="success"){window.location.reload();}else{alert((res&&res.message)||"Error");}}).catch(function(e){alert(e.message||e);}).finally(function(){saveBtn.disabled=false;});});}';
 echo 'var cancelBtn=document.getElementById("dpl-bundle-cancel");';
 echo 'if(cancelBtn){cancelBtn.addEventListener("click",function(){clearForm();});}';
+echo 'document.querySelectorAll(".dpl-tpl-bundle-save").forEach(function(btn){';
+echo '  btn.addEventListener("click",function(){';
+echo '    var tr=btn.closest("tr");';
+echo '    var templateid=parseInt(btn.getAttribute("data-templateid"),10);';
+echo '    var sel=tr.querySelector(".dpl-tpl-bundle");';
+echo '    var newBundle=parseInt(sel.value||0,10);';
+echo '    var current=parseInt(tr.getAttribute("data-current-bundleid")||"0",10);';
+echo '    if(newBundle===current){alert("Sin cambios.");return;}';
+echo '    btn.disabled=true;';
+echo '    postBundle({action:"local_grupomakro_diploma_assign_bundle_to_template",templateid:templateid,bundleid:newBundle}).then(function(res){if(res&&res.status==="success"){window.location.reload();}else{alert((res&&res.message)||"Error");}}).catch(function(e){alert(e.message||e);}).finally(function(){btn.disabled=false;});';
+echo '  });';
+echo '});';
 echo '})();';
 echo '</script>';
 

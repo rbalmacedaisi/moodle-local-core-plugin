@@ -70,6 +70,13 @@ final class dispatcher {
                 $manager::delete_bundle($id);
                 return ['status' => 'success', 'message' => get_string('diploma_bundle_deleted', 'local_grupomakro_core')];
 
+            case 'assign_bundle_to_template':
+                require_capability($capmanage, context_system::instance());
+                $templateid = required_param('templateid', PARAM_INT);
+                $bundleid = optional_param('bundleid', 0, PARAM_INT);
+                $manager::assign_template_to_bundle($templateid, $bundleid > 0 ? $bundleid : null);
+                return ['status' => 'success', 'message' => 'Bundle asignado correctamente.'];
+
             case 'get_template':
                 require_capability($capmanage, context_system::instance());
                 $id = required_param('id', PARAM_INT);
