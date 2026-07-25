@@ -193,10 +193,33 @@
 
                     <!-- Right column: editor -->
                     <v-col cols="12" md="9" class="py-1">
-                        <v-card v-if="!selected" outlined class="pa-6 text-center grey--text">
-                            <v-icon size="48" color="grey lighten-1">mdi-file-document-outline</v-icon>
-                            <p class="mt-3 mb-0">{{ strings.no_templates }}</p>
-                        </v-card>
+                        <!-- Tab bar: Editor / Cursos / Bundles. The Cursos
+                             and Bundles panels are server-rendered into
+                             .dpl-tab-panel[data-panel="..."] elements that
+                             we capture at mount time and inject as innerHTML
+                             so Vuetify can switch between them. -->
+                        <v-tabs v-model="activeTab" background-color="transparent"
+                                color="primary" class="mb-3">
+                            <v-tab key="editor" href="#editor">
+                                <v-icon left>mdi-file-document-edit-outline</v-icon>
+                                Editor
+                            </v-tab>
+                            <v-tab key="courses" href="#courses">
+                                <v-icon left>mdi-book-open-page-variant</v-icon>
+                                {{ strings.course_tab || 'Certificados por curso' }}
+                            </v-tab>
+                            <v-tab key="bundles" href="#bundles">
+                                <v-icon left>mdi-package-variant-closed</v-icon>
+                                {{ strings.bundle_title || 'Bundles de consecutivo' }}
+                            </v-tab>
+                        </v-tabs>
+
+                        <v-tabs-items v-model="activeTab">
+                            <v-tab-item key="editor" eager>
+                                <v-card v-if="!selected" outlined class="pa-6 text-center grey--text">
+                                    <v-icon size="48" color="grey lighten-1">mdi-file-document-outline</v-icon>
+                                    <p class="mt-3 mb-0">{{ strings.no_templates }}</p>
+                                </v-card>
 
                         <div v-else>
                             <!-- Meta header -->
@@ -359,6 +382,14 @@
                                         </template>
                                     </v-card>
                                 </v-col>
+                            </v-tab-item>
+                            <v-tab-item key="courses" eager>
+                                <div v-html="coursesHtml"></div>
+                            </v-tab-item>
+                            <v-tab-item key="bundles" eager>
+                                <div v-html="bundlesHtml"></div>
+                            </v-tab-item>
+                        </v-tabs-items>
                             </v-row>
                         </div>
                     </v-col>
@@ -392,7 +423,20 @@
                 // user can scroll if needed). Kept as a data field so
                 // the drag/resize/rotate handlers' pixelRatio /
                 // canvasScale math stays consistent.
-                canvasScale: 1
+                canvasScale: 1,
+                // Active tab in the editor / courses / bundles tab bar.
+                // 'editor' is the default; the value is mirrored to the
+                // URL hash on every change so deep links work.
+                activeTab: 'editor',
+                // innerHTML of the Courses and Bundles panels, captured
+                // at mount from the .dpl-tab-panel[data-panel="..."]
+                // partials that pages/diplomatemplates.php renders right
+                // after the editor. The v-tab-item uses v-html to inject
+                // this content; updates to the partials (after save/
+                // delete/assign) bump coursesHtml/bundlesHtml via the
+                // refreshBundles() helper in pages/diplomatemplates.php.
+                coursesHtml: '',
+                bundlesHtml: ''
             };
         },
         computed: {
@@ -483,6 +527,16 @@
             this.loadVariables();
             this.loadBundles();
             this.setupCanvasResizeObserver();
+            // Capture the Courses and Bundles partials that pages/diplomatemplates.php
+            // renders into .dpl-tab-panel[data-panel="..."] divs and inject them
+            // into the v-tab-item slots via v-html. Done once at mount; refreshBundles
+            // updates the data when the user saves/deletes/assigns.
+            this.captureTabPartials();
+            // Honour the URL hash so deep links to a specific tab work.
+            try {
+                var hash = (window.location.hash || '').replace('#', '');
+                if (hash === 'courses' || hash === 'bundles') { this.activeTab = hash; }
+            } catch (e) {}
             // First-pass scale once the layout has settled.
             var self = this;
             this.$nextTick(function () { self.recomputeCanvasScale(); });
@@ -500,7 +554,35 @@
                 this._canvasResizeObserver = null;
             }
         },
+        watch: {
+            activeTab: {
+                handler(name) {
+                    if (!name) { return; }
+                    try {
+                        if (window.history && window.history.replaceState) {
+                            window.history.replaceState(null, '', '#' + name);
+                        } else {
+                            window.location.hash = name;
+                        }
+                    } catch (e) {}
+                },
+                immediate: false
+            }
+        },
         methods: {
+            /**
+             * Pull the innerHTML of the .dpl-tab-panel partials that the
+             * page rendered after the editor into the coursesHtml and
+             * bundlesHtml data slots. v-tab-item uses v-html to render
+             * them. refreshBundles (in pages/diplomatemplates.php) does
+             * the same thing after each CRUD action.
+             */
+            captureTabPartials() {
+                var courses = document.querySelector('.dpl-tab-panel[data-panel="courses"]');
+                if (courses) { this.coursesHtml = courses.innerHTML; }
+                var bundles = document.querySelector('.dpl-tab-panel[data-panel="bundles"]');
+                if (bundles) { this.bundlesHtml = bundles.innerHTML; }
+            },
             /**
              * Wait for the Google Fonts CSS <link> at the top of the
              * page to finish loading all the requested families, then
