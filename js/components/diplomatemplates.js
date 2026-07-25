@@ -193,11 +193,6 @@
 
                     <!-- Right column: editor -->
                     <v-col cols="12" md="9" class="py-1">
-                        <!-- Tab bar: Editor / Cursos / Bundles. The Cursos
-                             and Bundles panels are server-rendered into
-                             .dpl-tab-panel[data-panel="..."] elements that
-                             we capture at mount time and inject as innerHTML
-                             so Vuetify can switch between them. -->
                         <v-tabs v-model="activeTab" background-color="transparent"
                                 color="primary" class="mb-3">
                             <v-tab key="editor" href="#editor">
@@ -215,7 +210,7 @@
                         </v-tabs>
 
                         <v-tabs-items v-model="activeTab">
-                            <v-tab-item key="editor" eager>
+                            <v-tab-item value="editor" eager>
                                 <v-card v-if="!selected" outlined class="pa-6 text-center grey--text">
                                     <v-icon size="48" color="grey lighten-1">mdi-file-document-outline</v-icon>
                                     <p class="mt-3 mb-0">{{ strings.no_templates }}</p>
@@ -382,16 +377,16 @@
                                         </template>
                                     </v-card>
                                 </v-col>
+                            </v-row>
+                        </div>
                             </v-tab-item>
-                            <v-tab-item key="courses" eager>
+                            <v-tab-item value="courses" eager>
                                 <div v-html="coursesHtml"></div>
                             </v-tab-item>
-                            <v-tab-item key="bundles" eager>
+                            <v-tab-item value="bundles" eager>
                                 <div v-html="bundlesHtml"></div>
                             </v-tab-item>
                         </v-tabs-items>
-                            </v-row>
-                        </div>
                     </v-col>
                 </v-row>
             </v-container>
@@ -428,13 +423,6 @@
                 // 'editor' is the default; the value is mirrored to the
                 // URL hash on every change so deep links work.
                 activeTab: 'editor',
-                // innerHTML of the Courses and Bundles panels, captured
-                // at mount from the .dpl-tab-panel[data-panel="..."]
-                // partials that pages/diplomatemplates.php renders right
-                // after the editor. The v-tab-item uses v-html to inject
-                // this content; updates to the partials (after save/
-                // delete/assign) bump coursesHtml/bundlesHtml via the
-                // refreshBundles() helper in pages/diplomatemplates.php.
                 coursesHtml: '',
                 bundlesHtml: ''
             };
@@ -520,6 +508,19 @@
                     this.bumpFontsReadyTick();
                 },
                 deep: true
+            },
+            activeTab: {
+                handler(name) {
+                    if (!name) { return; }
+                    try {
+                        if (window.history && window.history.replaceState) {
+                            window.history.replaceState(null, '', '#' + name);
+                        } else {
+                            window.location.hash = name;
+                        }
+                    } catch (e) {}
+                },
+                immediate: false
             }
         },
         mounted() {
@@ -527,11 +528,23 @@
             this.loadVariables();
             this.loadBundles();
             this.setupCanvasResizeObserver();
-            // Capture the Courses and Bundles partials that pages/diplomatemplates.php
-            // renders into .dpl-tab-panel[data-panel="..."] divs and inject them
-            // into the v-tab-item slots via v-html. Done once at mount; refreshBundles
-            // updates the data when the user saves/deletes/assigns.
             this.captureTabPartials();
+            this._bundleRefreshHandler = (event) => {
+                if (!event.detail) { return; }
+                this.bundlesHtml = event.detail;
+                this.loadBundles();
+                this.loadTemplates();
+                if (this.selected && this.selected.id) {
+                    var wrapper = document.createElement('div');
+                    wrapper.innerHTML = event.detail;
+                    var row = wrapper.querySelector('tr[data-templateid="' + this.selected.id + '"]');
+                    if (row) {
+                        var bundleid = parseInt(row.getAttribute('data-current-bundleid') || '0', 10);
+                        this.$set(this.selected, 'bundle_id', bundleid || null);
+                    }
+                }
+            };
+            document.addEventListener('dpl-bundles-refreshed', this._bundleRefreshHandler);
             // Honour the URL hash so deep links to a specific tab work.
             try {
                 var hash = (window.location.hash || '').replace('#', '');
@@ -549,38 +562,20 @@
             this.waitForFontsThenRefresh();
         },
         beforeDestroy() {
+            if (this._bundleRefreshHandler) {
+                document.removeEventListener('dpl-bundles-refreshed', this._bundleRefreshHandler);
+                this._bundleRefreshHandler = null;
+            }
             if (this._canvasResizeObserver) {
                 try { this._canvasResizeObserver.disconnect(); } catch (e) {}
                 this._canvasResizeObserver = null;
             }
         },
-        watch: {
-            activeTab: {
-                handler(name) {
-                    if (!name) { return; }
-                    try {
-                        if (window.history && window.history.replaceState) {
-                            window.history.replaceState(null, '', '#' + name);
-                        } else {
-                            window.location.hash = name;
-                        }
-                    } catch (e) {}
-                },
-                immediate: false
-            }
-        },
         methods: {
-            /**
-             * Pull the innerHTML of the .dpl-tab-panel partials that the
-             * page rendered after the editor into the coursesHtml and
-             * bundlesHtml data slots. v-tab-item uses v-html to render
-             * them. refreshBundles (in pages/diplomatemplates.php) does
-             * the same thing after each CRUD action.
-             */
             captureTabPartials() {
-                var courses = document.querySelector('.dpl-tab-panel[data-panel="courses"]');
+                var courses = document.getElementById('dpl-courses-partial');
                 if (courses) { this.coursesHtml = courses.innerHTML; }
-                var bundles = document.querySelector('.dpl-tab-panel[data-panel="bundles"]');
+                var bundles = document.getElementById('dpl-bundles-partial');
                 if (bundles) { this.bundlesHtml = bundles.innerHTML; }
             },
             /**

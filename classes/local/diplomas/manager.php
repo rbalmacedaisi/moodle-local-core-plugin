@@ -2101,7 +2101,7 @@ public static function generate_diplomas(int $templateid, array $items, int $act
 
         $h = function (string $s): string { return htmlspecialchars($s, ENT_QUOTES, 'UTF-8'); };
 
-        $out = '';
+        $out = '<div class="dpl-bundles-config" style="max-width:1100px;margin:0;padding:0;">';
         $out .= '  <h2 style="margin:0 0 6px;font-size:22px;font-weight:700;color:#111827;">' . $h($bundleui->bundle_title) . '</h2>';
         $out .= '  <p style="margin:0 0 18px;color:#6b7280;font-size:14px;">' . $h($bundleui->bundle_help) . '</p>';
         $out .= '  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">';
