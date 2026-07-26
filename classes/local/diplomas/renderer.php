@@ -147,9 +147,19 @@ class renderer {
      * @return string|null Registered font name or null.
      */
     public static function register_custom_font(string $key): ?string {
+        global $CFG;
         static $cache = [];
         if (isset($cache[$key])) {
             return $cache[$key];
+        }
+        // Ensure TCPDF core class is available so addTTFfont works when this
+        // helper is invoked from contexts that haven't yet bootstrapped it
+        // (CLI scripts, AJAX endpoints, etc.).
+        if (!class_exists('TCPDF_FONTS')) {
+            @require_once($CFG->libdir . '/tcpdf/include/tcpdf_fonts.php');
+        }
+        if (!class_exists('TCPDF_STATIC')) {
+            @require_once($CFG->libdir . '/tcpdf/include/tcpdf_static.php');
         }
         $dir = self::custom_font_dir();
         if (!is_dir($dir)) {
