@@ -124,6 +124,12 @@ $strings->bundle_save = get_string('diploma_bundle_save', $plugin_name);
 $strings->bundle_delete = get_string('diploma_bundle_delete', $plugin_name);
 $strings->bundle_delete_confirm = get_string('diploma_bundle_delete_confirm', $plugin_name, '{name}');
 $strings->bundle_name_required = get_string('diploma_bundle_name_required', $plugin_name);
+$strings->bundle_reset = get_string('diploma_bundle_reset', $plugin_name);
+$strings->bundle_reset_confirm = get_string('diploma_bundle_reset_confirm', $plugin_name, (object)['name' => '{name}', 'next' => '{next}']);
+$strings->bundle_reset_help = get_string('diploma_bundle_reset_help', $plugin_name);
+$strings->bundle_reset_prompt = get_string('diploma_bundle_reset_prompt', $plugin_name);
+$strings->bundle_reset_invalid = get_string('diploma_bundle_reset_invalid', $plugin_name);
+$strings->bundle_reset_done = get_string('diploma_bundle_reset_done', $plugin_name, '{next}');
 $strings->course_tab = get_string('diploma_course_tab', $plugin_name);
 $strings->diploma_course_enable = get_string('diploma_course_enable', $plugin_name);
 $strings->diploma_course_disable = get_string('diploma_course_disable', $plugin_name);
@@ -454,6 +460,7 @@ if (empty($bundles)) {
         echo '            <td style="padding:8px 6px;color:' . $statusColor . ';">' . $statusLabel . '</td>';
         echo '            <td style="padding:8px 6px;text-align:right;">';
         echo '              <button type="button" class="dpl-bundle-edit" data-bundle=\'' . s(json_encode($b)) . '\' style="background:#e0e7ff;color:#3730a3;border:0;border-radius:6px;padding:4px 10px;font-size:12px;font-weight:600;cursor:pointer;margin-right:4px;">' . get_string('edit') . '</button>';
+        echo '              <button type="button" class="dpl-bundle-reset" data-bundleid="' . (int)$b['id'] . '" data-bundlecurrent="' . (int)$b['next_number'] . '" data-bundlename="' . s($b['name']) . '" title="' . s(get_string('diploma_bundle_reset_help', 'local_grupomakro_core')) . '" style="background:#fef3c7;color:#92400e;border:0;border-radius:6px;padding:4px 10px;font-size:12px;font-weight:600;cursor:pointer;margin-right:4px;">' . s(get_string('diploma_bundle_reset', 'local_grupomakro_core')) . '</button>';
         echo '              <button type="button" class="dpl-bundle-delete" data-bundleid="' . (int)$b['id'] . '" data-bundlename="' . s($b['name']) . '" style="background:#fee2e2;color:#b91c1c;border:0;border-radius:6px;padding:4px 10px;font-size:12px;font-weight:600;cursor:pointer;">' . $bundleui->bundle_delete . '</button>';
         echo '            </td>';
         echo '          </tr>';
@@ -532,7 +539,7 @@ echo '</template>';
 
 echo <<<'EOS'
 <style>
-.dpl-bundle-edit:hover, .dpl-bundle-delete:hover, #dpl-bundle-save:hover, #dpl-bundle-cancel:hover { filter: brightness(0.95); }
+.dpl-bundle-edit:hover, .dpl-bundle-delete:hover, .dpl-bundle-reset:hover, #dpl-bundle-save:hover, #dpl-bundle-cancel:hover { filter: brightness(0.95); }
 .dpl-bundle-row-active { background:#f0f9ff !important; }
 </style>
 <script>
@@ -591,6 +598,36 @@ echo <<<'EOS'
             var message = ((window.strings && window.strings.bundle_delete_confirm) || 'Eliminar el bundle? Las plantillas asignadas volveran al formato por defecto.').replace('{name}', name);
             if (!confirm(message)) { return; }
             postBundle({ action: 'local_grupomakro_diploma_delete_bundle', id: id }).then(function (res) {
+                if (res && res.status === 'success') { return refreshBundles(); }
+                alert((res && res.message) || 'Error');
+            }).catch(function (e) { alert(e.message || e); });
+            return;
+        }
+        button = ev.target.closest('.dpl-bundle-reset');
+        if (button) {
+            var id = parseInt(button.getAttribute('data-bundleid'), 10);
+            var name = button.getAttribute('data-bundlename');
+            var current = parseInt(button.getAttribute('data-bundlecurrent'), 10);
+            var promptLabel = (window.strings && window.strings.diploma_bundle_reset_prompt) || 'Nuevo siguiente número';
+            var input = window.prompt(promptLabel + ' (' + name + ')', String(current));
+            if (input === null) { return; }
+            var trimmed = String(input).trim();
+            if (!/^\d+$/.test(trimmed)) {
+                alert((window.strings && window.strings.diploma_bundle_reset_invalid) || 'Ingresa un entero positivo.');
+                return;
+            }
+            var next = parseInt(trimmed, 10);
+            if (!next || next < 1) {
+                alert((window.strings && window.strings.diploma_bundle_reset_invalid) || 'Ingresa un entero positivo.');
+                return;
+            }
+            var confirmTemplate = (window.strings && window.strings.diploma_bundle_reset_confirm) || 'Restablecer el consecutivo del bundle a {next}?';
+            var confirmMessage = confirmTemplate
+                .replace(/\{a\}/g, JSON.stringify(name))
+                .replace(/\\?\{a->next\\?\}/g, String(next))
+                .replace(/\{next\}/g, String(next));
+            if (!confirm(confirmMessage)) { return; }
+            postBundle({ action: 'local_grupomakro_diploma_reset_bundle_counter', id: id, next: next }).then(function (res) {
                 if (res && res.status === 'success') { return refreshBundles(); }
                 alert((res && res.message) || 'Error');
             }).catch(function (e) { alert(e.message || e); });

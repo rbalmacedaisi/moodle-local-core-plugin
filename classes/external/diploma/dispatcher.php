@@ -70,6 +70,19 @@ final class dispatcher {
                 $manager::delete_bundle($id);
                 return ['status' => 'success', 'message' => get_string('diploma_bundle_deleted', 'local_grupomakro_core')];
 
+            case 'reset_bundle_counter':
+                require_capability($capmanage, context_system::instance());
+                $id = required_param('id', PARAM_INT);
+                $next = optional_param('next', 1, PARAM_INT);
+                $result = $manager::reset_bundle_counter($id, $next, $USER->id);
+                $bundle = $result['bundle'];
+                return [
+                    'status' => 'success',
+                    'message' => get_string('diploma_bundle_reset_done', 'local_grupomakro_core', (int)$bundle['next_number']),
+                    'bundle' => $bundle,
+                    'previous' => (int)$result['previous'],
+                ];
+
             case 'assign_bundle_to_template':
                 require_capability($capmanage, context_system::instance());
                 $templateid = required_param('templateid', PARAM_INT);

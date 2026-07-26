@@ -2218,6 +2218,34 @@ public static function generate_diplomas(int $templateid, array $items, int $act
     }
 
     /**
+     * Reset the next counter of a bundle to a specific value (>= 1).
+     * Useful when running tests or when an admin needs to realign the
+     * counter with an external sequence. The existing issued
+     * generations keep their number; only the next counter changes.
+     *
+     * @param int $id
+     * @param int $next
+     * @param int $actorid
+     * @return array{bundle: array<string,mixed>, previous: int}
+     */
+    public static function reset_bundle_counter(int $id, int $next, int $actorid): array {
+        global $DB;
+        $bundle = $DB->get_record('gmk_diploma_bundle', ['id' => $id], '*', MUST_EXIST);
+        if ($next < 1) {
+            throw new moodle_exception('diploma_bundle_reset_invalid', 'local_grupomakro_core');
+        }
+        $previous = (int)$bundle->next_number;
+        $bundle->next_number = $next;
+        $bundle->usermodified = $actorid;
+        $bundle->timemodified = time();
+        $DB->update_record('gmk_diploma_bundle', $bundle);
+        return [
+            'bundle' => self::get_bundle($id),
+            'previous' => $previous,
+        ];
+    }
+
+    /**
      * Link (or unlink) a template to a bundle. Passing null clears the
      * assignment so the template reverts to the default consecutive.
      *
