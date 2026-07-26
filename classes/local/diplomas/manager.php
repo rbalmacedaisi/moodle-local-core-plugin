@@ -1162,13 +1162,15 @@ public static function generate_diplomas(int $templateid, array $items, int $act
                             lp2.name AS periodname,
                             lu.currentsubperiodid AS subperiodid,
                             lsp.name AS subperiodname
-                       FROM {local_learning_users} lu
-                       JOIN {local_learning_plans} lp ON lp.id = lu.learningplanid
+                       FROM {local_learning_plans} lp
+                       JOIN {local_learning_users} lu ON lu.learningplanid = lp.id
                   LEFT JOIN {local_learning_periods} lp2 ON lp2.id = lu.currentperiodid
                   LEFT JOIN {local_learning_subperiods} lsp ON lsp.id = lu.currentsubperiodid
-                       WHERE lu.userid = :uid AND lu.learningplanid = :lpid AND lu.userrolename = 'student' AND lu.status IN ('activo', 'egresado')",
+                       WHERE lu.userid = :uid AND lu.learningplanid = :lpid AND lu.userrolename = 'student'
+                       LIMIT 1",
                     ['uid' => $userid, 'lpid' => $lpid]
                 );
+                if (!$lp) { $lp = null; }
                 $token = self::generate_verification_token();
                 $verificationurl = self::build_verification_url($token);
                 $bundleid = !empty($template->bundle_id) ? (int)$template->bundle_id : null;
