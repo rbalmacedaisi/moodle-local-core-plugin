@@ -622,7 +622,13 @@
         },
         watch: {
             selectedPlanId() { this.loadGraduands(); },
-            search() { this.loadGraduands(); },
+            search() {
+                // Debounce: avoid re-fetching on every keystroke. 300ms keeps
+                // the UI feeling snappy while collapsing bursts of typing
+                // into a single server round-trip.
+                if (this._searchTimer) { clearTimeout(this._searchTimer); }
+                this._searchTimer = setTimeout(() => this.loadGraduands(), 300);
+            },
             graduands() {
                 // Pre-assign rowKey for v-data-table.
                 this.graduands.forEach((g, idx) => { g.rowKey = g.user.id + '_' + g.plan.id; });

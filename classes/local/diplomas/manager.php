@@ -873,7 +873,7 @@ public static function list_eligible_graduands(?int $learningplanid = null, stri
         string $search = '',
         bool $onlyeligible = false,
         int $limitfrom = 0,
-        int $limitnum = 200
+        int $limitnum = 500
     ): array {
         global $DB;
 
@@ -917,43 +917,160 @@ public static function list_eligible_graduands(?int $learningplanid = null, stri
         // Use recordset so users enrolled in multiple plans are not deduplicated by userid.
         $rs = $DB->get_recordset_sql($sql, $params, $limitfrom, $limitnum);
         $candidates = [];
-        foreach ($rs as $row) {
+        $candidateIds = [];
+        $candidateKeyToIndex = [];
+        foreach ($rs as $i => $row) {
             $candidates[] = $row;
+            $key = (int)$row->userid . '_' . (int)$row->learningplanid;
+            $candidateKeyToIndex[$key] = $i;
+            $candidateIds[$key] = true;
         }
         $rs->close();
 
+        if (empty($candidates)) {
+            return [];
+        }
+
+        // Batch-load all required courses per plan in one query.
+        $planIds = array_values(array_unique(array_map(function ($c) {
+            return (int)$c->learningplanid;
+        }, $candidates)));
+        [$planIn, $planParams] = $DB->get_in_or_equal($planIds, SQL_PARAMS_NAMED, 'lp');
+        $requiredSql = "SELECT lc.learningplanid, lc.courseid, c.fullname AS coursename
+                          FROM {local_learning_courses} lc
+                          JOIN {course} c ON c.id = lc.courseid
+                         WHERE lc.isrequired = 1
+                           AND lc.learningplanid $planIn";
+        $requiredByPlan = [];
+        foreach ($DB->get_records_sql($requiredSql, $planParams) as $rc) {
+            $requiredByPlan[(int)$rc->learningplanid][] = $rc;
+        }
+
+        // Batch-load all approved-progress statuses for the candidate user/course combos.
+        $userIds = array_values(array_unique(array_map(function ($c) { return (int)$c->userid; }, $candidates)));
+        $courseIds = [];
+        foreach ($requiredByPlan as $reqs) {
+            foreach ($reqs as $rc) { $courseIds[(int)$rc->courseid] = true; }
+        }
+        $courseIds = array_keys($courseIds);
+        $approvedMap = []; // [userid][courseid] => 1
+        if (!empty($userIds) && !empty($courseIds)) {
+            [$userIn, $userParams] = $DB->get_in_or_equal($userIds, SQL_PARAMS_NAMED, 'uid');
+            [$courseIn, $courseParams] = $DB->get_in_or_equal($courseIds, SQL_PARAMS_NAMED, 'cid');
+            $approvedSql = "SELECT userid, courseid, MAX(status) AS max_status
+                               FROM {gmk_course_progre}
+                              WHERE status = 4
+                                AND userid $userIn
+                                AND courseid $courseIn
+                           GROUP BY userid, courseid";
+            $params = array_merge($userParams, $courseParams);
+            foreach ($DB->get_records_sql($approvedSql, $params) as $row) {
+                $approvedMap[(int)$row->userid][(int)$row->courseid] = (int)$row->max_status;
+            }
+        }
+
+        // Batch-load existing diplomas for the candidates.
+        [$userIn, $userParams] = $DB->get_in_or_equal($userIds, SQL_PARAMS_NAMED, 'uid');
+        [$planIn, $planParams] = $DB->get_in_or_equal($planIds, SQL_PARAMS_NAMED, 'lp');
+        $diplomasSql = "SELECT userid, learningplanid FROM {gmk_diploma_generation}
+                          WHERE status = :st AND userid $userIn AND learningplanid $planIn";
+        $hasDiploma = [];
+        foreach ($DB->get_records_sql($diplomasSql, array_merge(['st' => self::STATUS_GENERATED], $userParams, $planParams)) as $row) {
+            $hasDiploma[(int)$row->userid . '_' . (int)$row->learningplanid] = true;
+        }
+
+        // Batch-load documentnumbers for all candidates.
+        $documentnumbers = self::bulk_resolve_documentnumbers($userIds);
+
         $out = [];
         foreach ($candidates as $c) {
-            $user = core_user::get_user($c->userid);
+            $userid = (int)$c->userid;
+            $planid = (int)$c->learningplanid;
+            $key = $userid . '_' . $planid;
+            if (!empty($hasDiploma[$key])) {
+                continue;
+            }
+            $user = core_user::get_user($userid);
             if (!$user) {
                 continue;
             }
-            $eligibility = self::compute_eligibility((int)$c->userid, (int)$c->learningplanid);
-
-            if ($onlyeligible && !$eligibility['is_eligible']) {
+            if ($search !== '') {
+                $needle = core_text::strtolower($search);
+                $haystack = core_text::strtolower(
+                    fullname($user) . ' ' . $user->idnumber . ' ' . $user->username . ' ' .
+                    ($documentnumbers[$userid] ?? '')
+                );
+                if (strpos($haystack, $needle) === false) {
+                    continue;
+                }
+            }
+            $required = $requiredByPlan[$planid] ?? [];
+            $requiredcount = count($required);
+            $passednames = [];
+            $missednames = [];
+            $passed = 0;
+            foreach ($required as $rc) {
+                if (isset($approvedMap[$userid][(int)$rc->courseid])) {
+                    $passed++;
+                    $passednames[] = (string)$rc->coursename;
+                } else {
+                    $missednames[] = (string)$rc->coursename;
+                }
+            }
+            $is_eligible = ($requiredcount === 0 || $passed >= $requiredcount);
+            if ($onlyeligible && !$is_eligible) {
                 continue;
             }
-
             $out[] = [
                 'user' => [
-                    'id' => (int)$user->id,
+                    'id' => $userid,
                     'firstname' => $user->firstname,
                     'lastname' => $user->lastname,
                     'fullname' => fullname($user),
                     'idnumber' => $user->idnumber,
                     'email' => $user->email,
                     'username' => $user->username,
-                    'documentnumber' => self::resolve_user_custom_field($user->id, 'documentnumber'),
+                    'documentnumber' => $documentnumbers[$userid] ?? '',
                 ],
                 'plan' => [
-                    'id' => (int)$c->learningplanid,
+                    'id' => $planid,
                     'name' => (string)$c->planname,
                     'periodname' => (string)($c->periodname ?? ''),
                     'subperiodname' => (string)($c->subperiodname ?? ''),
                 ],
-                'eligibility' => $eligibility,
-                'has_diploma' => $eligibility['has_diploma'],
+                'eligibility' => [
+                    'is_eligible' => $is_eligible,
+                    'has_diploma' => false,
+                    'required_count' => $requiredcount,
+                    'passed_count' => $passed,
+                    'progress_percent' => $requiredcount === 0 ? 100
+                        : (int)floor(($passed / $requiredcount) * 100),
+                    'passed_requirements' => $passednames,
+                    'missing_requirements' => $missednames,
+                    'reason' => self::explain_ineligibility($is_eligible, $requiredcount, $passed, false),
+                ],
+                'has_diploma' => false,
             ];
+        }
+        return $out;
+    }
+
+    /**
+     * Resolve documentnumber profile field for many userids with a
+     * single query. Returns a map userid => documentnumber (empty if absent).
+     */
+    private static function bulk_resolve_documentnumbers(array $userids): array {
+        global $DB;
+        if (empty($userids)) { return []; }
+        [$in, $params] = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED, 'uid');
+        $sql = "SELECT uid.userid, uid.data
+                  FROM {user_info_data} uid
+                  JOIN {user_info_field} uif ON uif.id = uid.fieldid
+                 WHERE uif.shortname = 'documentnumber'
+                   AND uid.userid $in";
+        $out = [];
+        foreach ($DB->get_records_sql($sql, $params) as $row) {
+            $out[(int)$row->userid] = (string)$row->data;
         }
         return $out;
     }
@@ -984,17 +1101,42 @@ public static function list_eligible_graduands(?int $learningplanid = null, stri
         $missednames = [];
         $passed = 0;
 
-        foreach ($required as $rc) {
-            // A user may have multiple rows for the same course (retakes, periods).
-            // Pick the best (latest approved) status with MAX(status).
-            $row = $DB->get_record_sql(
-                "SELECT MAX(p.status) AS status
-                   FROM {gmk_course_progre} p
-                  WHERE p.userid = :uid AND p.courseid = :cid",
-                ['uid' => $userid, 'cid' => $rc->courseid]
+        if ($requiredcount === 0) {
+            $has = $DB->record_exists_select(
+                'gmk_diploma_generation',
+                "userid = :u AND learningplanid = :lp AND status = :st",
+                ['u' => $userid, 'lp' => $learningplanid, 'st' => self::STATUS_GENERATED]
             );
-            // Status 4 = COURSE_APPROVED (per progress_manager constants).
-            if ($row && (int)$row->status === 4) {
+            $is_eligible = !$has;
+            return [
+                'is_eligible' => $is_eligible,
+                'has_diploma' => (bool)$has,
+                'required_count' => 0,
+                'passed_count' => 0,
+                'progress_percent' => 100,
+                'passed_requirements' => [],
+                'missing_requirements' => [],
+                'reason' => self::explain_ineligibility($is_eligible, 0, 0, (bool)$has),
+            ];
+        }
+
+        // One batch query: MAX(status) per (user, course) for the required courses.
+        $courseids = array_map(function ($r) { return (int)$r->courseid; }, $required);
+        [$insql, $inparams] = $DB->get_in_or_equal($courseids, SQL_PARAMS_NAMED, 'cid');
+        $sql = "SELECT courseid, MAX(status) AS max_status
+                  FROM {gmk_course_progre}
+                 WHERE userid = :uid
+                   AND courseid $insql
+              GROUP BY courseid";
+        $params = array_merge(['uid' => $userid], $inparams);
+        $statuses = $DB->get_records_sql($sql, $params);
+        $statusMap = [];
+        foreach ($statuses as $s) {
+            $statusMap[(int)$s->courseid] = (int)$s->max_status;
+        }
+
+        foreach ($required as $rc) {
+            if (($statusMap[(int)$rc->courseid] ?? 0) === 4) {
                 $passed++;
                 $passednames[] = (string)$rc->coursename;
             } else {
@@ -1529,6 +1671,23 @@ public static function generate_diplomas(int $templateid, array $items, int $act
      */
     public static function list_courses_with_eligibility(bool $enabledOnly = false): array {
         global $DB;
+        // Single batched query instead of 2*N queries per course.
+        // Counts students whose progress status = 4 (approved) and are
+        // activo/egresado in local_learning_users.
+        $countSql = "SELECT p.courseid,
+                             COUNT(DISTINCT CASE WHEN p.status = 4 THEN p.userid END) AS eligible,
+                             COUNT(DISTINCT p.userid) AS total
+                        FROM {gmk_course_progre} p
+                        JOIN {user} u ON u.id = p.userid AND u.deleted = 0 AND u.suspended = 0
+                        JOIN {local_learning_users} lu
+                             ON lu.userid = p.userid AND lu.userrolename = 'student'
+                            AND lu.status IN ('activo', 'egresado')
+                       GROUP BY p.courseid";
+        $counts = [];
+        foreach ($DB->get_records_sql($countSql) as $c) {
+            $counts[(int)$c->courseid] = ['eligible' => (int)$c->eligible, 'total' => (int)$c->total];
+        }
+
         $sql = "SELECT c.id, c.fullname, c.shortname, cc.name AS categoryname,
                        COALESCE(ec.enabled, 0) AS enabled
                   FROM {course} c
@@ -1540,39 +1699,15 @@ public static function generate_diplomas(int $templateid, array $items, int $act
         $out = [];
         foreach ($rows as $r) {
             if ($enabledOnly && empty($r->enabled)) { continue; }
-            // Count students whose progress in this course is
-            // COURSE_APPROVED (status = 4) AND whose local_learning_users
-            // status is 'activo' or 'egresado'. We deduplicate by
-            // (userid, courseid) to avoid counting the same student
-            // twice if she has multiple approved rows.
-            $eligcount = $DB->get_field_sql(
-                "SELECT COUNT(DISTINCT p.userid)
-                   FROM {gmk_course_progre} p
-                   JOIN {user} u ON u.id = p.userid AND u.deleted = 0 AND u.suspended = 0
-                   JOIN {local_learning_users} lu
-                        ON lu.userid = p.userid AND lu.userrolename = 'student'
-                       AND lu.status IN ('activo', 'egresado')
-                  WHERE p.courseid = :cid AND p.status = 4",
-                ['cid' => $r->id]
-            );
-            $totcount = $DB->get_field_sql(
-                "SELECT COUNT(DISTINCT p.userid)
-                   FROM {gmk_course_progre} p
-                   JOIN {user} u ON u.id = p.userid AND u.deleted = 0 AND u.suspended = 0
-                   JOIN {local_learning_users} lu
-                        ON lu.userid = p.userid AND lu.userrolename = 'student'
-                       AND lu.status IN ('activo', 'egresado')
-                  WHERE p.courseid = :cid",
-                ['cid' => $r->id]
-            );
+            $c = $counts[(int)$r->id] ?? ['eligible' => 0, 'total' => 0];
             $out[] = [
                 'id' => (int)$r->id,
                 'fullname' => (string)$r->fullname,
                 'shortname' => (string)$r->shortname,
                 'categoryname' => (string)($r->categoryname ?? ''),
                 'enabled' => (bool)$r->enabled,
-                'eligible_count' => (int)$eligcount,
-                'total_count' => (int)$totcount,
+                'eligible_count' => $c['eligible'],
+                'total_count' => $c['total'],
             ];
         }
         return $out;
@@ -1717,13 +1852,23 @@ public static function generate_diplomas(int $templateid, array $items, int $act
               GROUP BY u.id, u.firstname, u.lastname, u.username, u.idnumber, u.email
               ORDER BY u.lastname ASC, u.firstname ASC";
         $rs = $DB->get_recordset_sql($sql, $params, $limitfrom, $limitnum);
+        $rows = [];
+        foreach ($rs as $r) { $rows[] = $r; }
+        $rs->close();
+        if (empty($rows)) {
+            return [];
+        }
+        $userIds = array_map(function ($r) { return (int)$r->id; }, $rows);
+        $documentnumbers = self::bulk_resolve_documentnumbers($userIds);
         $out = [];
-        foreach ($rs as $r) {
+        foreach ($rows as $r) {
             $userid = (int)$r->id;
-            $eligibility = self::compute_course_eligibility($userid, $courseid);
-            if ($onlyeligible && empty($eligibility['is_eligible'])) {
+            $isEligible = (int)$r->approved_flag === 1;
+            if ($onlyeligible && !$isEligible) {
                 continue;
             }
+            $grade = (float)$r->approved_grade;
+            $progress = (float)$r->approved_progress;
             $out[] = [
                 'user' => [
                     'id' => $userid,
@@ -1733,11 +1878,24 @@ public static function generate_diplomas(int $templateid, array $items, int $act
                     'username' => (string)$r->username,
                     'idnumber' => (string)$r->idnumber,
                     'email' => (string)$r->email,
+                    'documentnumber' => $documentnumbers[$userid] ?? '',
                 ],
-                'eligibility' => $eligibility,
+                'eligibility' => [
+                    'courseid' => $courseid,
+                    'is_approved' => $isEligible,
+                    'grade' => $grade,
+                    'progress' => $progress,
+                    'completed_at' => $r->approved_at > 0 ? userdate((int)$r->approved_at) : '',
+                    'is_eligible' => $isEligible,
+                    'reason' => $isEligible
+                        ? get_string('diploma_course_ready', 'local_grupomakro_core')
+                        : get_string('diploma_course_not_approved', 'local_grupomakro_core', [
+                            'progress' => round($progress, 1),
+                            'grade' => round($grade, 2),
+                        ]),
+                ],
             ];
         }
-        $rs->close();
         return $out;
     }
 
