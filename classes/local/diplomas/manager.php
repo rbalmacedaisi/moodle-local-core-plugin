@@ -72,6 +72,17 @@ class manager {
                     return trim(fullname($user));
                 },
             ],
+            'reverse_fullname' => [
+                'label' => get_string('diploma_var_reverse_fullname', 'local_grupomakro_core'),
+                'resolve' => function (stdClass $user): string {
+                    $surname = trim((string)$user->lastname);
+                    $given = trim((string)$user->firstname);
+                    if ($surname === '' && $given === '') { return ''; }
+                    if ($surname === '') { return $given; }
+                    if ($given === '') { return $surname; }
+                    return $surname . ', ' . $given;
+                },
+            ],
             'firstname' => [
                 'label' => get_string('diploma_var_firstname', 'local_grupomakro_core'),
                 'resolve' => function (stdClass $user): string {

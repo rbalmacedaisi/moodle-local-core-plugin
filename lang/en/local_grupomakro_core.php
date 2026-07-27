@@ -764,6 +764,7 @@ $string['diploma_editor_loading'] = 'Loading editor...';
 $string['diploma_no_fields'] = 'No elements yet. Add variables, custom text or a QR code.';
 
 $string['diploma_var_fullname'] = 'Full name';
+$string['diploma_var_reverse_fullname'] = 'Surnames and names';
 $string['diploma_var_firstname'] = 'First name';
 $string['diploma_var_lastname'] = 'Last name';
 $string['diploma_var_idnumber'] = 'ID number';
