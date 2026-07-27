@@ -939,7 +939,7 @@ public static function list_eligible_graduands(?int $learningplanid = null, stri
         if (!empty($planUsers)) {
             [$in, $p] = $DB->get_in_or_equal(array_keys($planUsers), SQL_PARAMS_NAMED, 'uid');
             $periodSql = "SELECT lu.userid, lu.learningplanid,
-                                  lp.name AS periodname,
+                                  lp2.name AS periodname,
                                   lsp.name AS subperiodname
                              FROM {local_learning_users} lu
                              LEFT JOIN {local_learning_periods} lp2 ON lp2.id = lu.currentperiodid
