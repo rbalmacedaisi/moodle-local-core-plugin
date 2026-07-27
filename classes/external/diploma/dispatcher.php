@@ -295,6 +295,12 @@ final class dispatcher {
                 $info = $manager::delete_generation($id);
                 return ['status' => 'success', 'message' => get_string('diploma_deleted_ok', 'local_grupomakro_core'), 'info' => $info];
 
+            case 'regenerate_diploma_pdf':
+                require_capability($capmanage, context_system::instance());
+                $id = required_param('id', PARAM_INT);
+                $info = $manager::regenerate_diploma_pdf($id);
+                return ['status' => 'success', 'message' => get_string('diploma_regenerated_ok', 'local_grupomakro_core'), 'info' => $info];
+
             case 'download_generation':
                 require_capability($capview, context_system::instance());
                 $id = required_param('id', PARAM_INT);

@@ -367,6 +367,9 @@
                                             <v-btn icon small @click="downloadOne(props.item)" title="Descargar">
                                                 <v-icon small color="primary">mdi-download</v-icon>
                                             </v-btn>
+                                            <v-btn v-if="props.item.status === 'generated'" icon small @click="confirmRegenerate(props.item)" :title="strings.diploma_regenerate || 'Regenerar PDF'">
+                                                <v-icon small color="success">mdi-refresh</v-icon>
+                                            </v-btn>
                                             <v-btn v-if="props.item.status === 'generated'" icon small @click="confirmRevoke(props.item)" title="Revocar">
                                                 <v-icon small color="error">mdi-cancel</v-icon>
                                             </v-btn>
@@ -1094,6 +1097,39 @@
                 }).then(r => {
                     if (r.isConfirmed) this.revoke(item);
                 });
+            },
+            confirmRegenerate(item) {
+                const student = (item.student_name || '').trim() || 'este estudiante';
+                const number = item.diploma_number ? ` (${item.diploma_number})` : '';
+                Swal.fire({
+                    title: this.strings.diploma_regenerate || 'Regenerar PDF',
+                    text: (this.strings.diploma_regenerate_confirm
+                        || '¿Regenerar el PDF de este diploma con la plantilla actual?')
+                        + `\n\nEstudiante: ${student}${number}`,
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonText: 'Sí, regenerar',
+                    cancelButtonText: this.strings.cancel || 'Cancelar',
+                    confirmButtonColor: '#16a34a'
+                }).then(r => {
+                    if (r.isConfirmed) this.regenerateOne(item);
+                });
+            },
+            async regenerateOne(item) {
+                try {
+                    const res = await this.http.post('/', {
+                        action: 'local_grupomakro_diploma_regenerate_diploma_pdf',
+                        id: item.id
+                    });
+                    if (res.data && res.data.status === 'success') {
+                        Swal.fire({ icon: 'success', title: res.data.message });
+                        await this.loadGenerations();
+                    } else {
+                        throw new Error((res.data && res.data.message) || 'Error');
+                    }
+                } catch (e) {
+                    Swal.fire({ icon: 'error', title: 'Error', text: e.message || e });
+                }
             },
             async revoke(item) {
                 try {

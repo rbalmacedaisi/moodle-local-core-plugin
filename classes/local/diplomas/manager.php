@@ -2012,6 +2012,69 @@ public static function generate_diplomas(int $templateid, array $items, int $act
     }
 
     /**
+     * Regenerate the PDF for an existing generation using the current
+     * template and user data. Useful after template tweaks so the admin
+     * doesn't have to delete and recreate every diploma.
+     *
+     * @param int $generationid
+     * @return array{regenerated: bool, fileitemid: int, filesize: int, version: int}
+     */
+    public static function regenerate_diploma_pdf(int $generationid): array {
+        global $DB, $CFG;
+        require_once $CFG->dirroot . '/lib/tcpdf/include/tcpdf_fonts.php';
+        require_once $CFG->dirroot . '/lib/tcpdf/include/tcpdf_static.php';
+        require_once $CFG->libdir . '/filelib.php';
+
+        $gen = $DB->get_record('gmk_diploma_generation', ['id' => $generationid], '*', MUST_EXIST);
+        $templateid = (int)$gen->templateid;
+        $userid = (int)$gen->userid;
+        $planid = (int)$gen->learningplanid;
+
+        $template = $DB->get_record('gmk_diploma_template', ['id' => $templateid], '*', MUST_EXIST);
+        $fields = $DB->get_records('gmk_diploma_tpl_field', ['templateid' => $templateid], 'z_index ASC, id ASC');
+        $user = core_user::get_user($userid, '*', MUST_EXIST);
+        $plan = $planid ? $DB->get_record('local_learning_plans', ['id' => $planid], '*', MUST_EXIST) : null;
+
+        $renderer = new renderer();
+        $pdfbytes = $renderer->render_pdf($template, $fields, $user, $plan, $gen, (string)$gen->verification_url);
+
+        $fs = get_file_storage();
+        $docRec = $DB->get_record('gmk_diploma_document', ['generationid' => $generationid, 'version' => $gen->version], '*', MUST_EXIST);
+        $oldfile = $docRec ? $fs->get_file_by_id((int)$docRec->fileitemid) : null;
+        $tmpname = '__regen_' . $generationid . '_' . microtime(true) . '.pdf';
+        $tmp = $fs->create_file_from_string((object)[
+            'contextid' => context_system::instance()->id,
+            'component' => 'local_grupomakro_core',
+            'filearea' => self::FILEAREA_DOCUMENT,
+            'itemid' => $generationid,
+            'filepath' => '/',
+            'filename' => $tmpname,
+            'userid' => (int)$gen->issued_by,
+        ], $pdfbytes);
+        if ($oldfile) {
+            $oldfile->replace_file_with($tmp);
+        }
+        $tmp->delete();
+
+        $updatedfile = $fs->get_file_by_id((int)$docRec->fileitemid);
+        $docRec->filesize = (int)$updatedfile->get_filesize();
+        $docRec->contenthash = (string)$updatedfile->get_contenthash();
+        $docRec->timemodified = time();
+        $docRec->usermodified = (int)$gen->issued_by;
+        $DB->update_record('gmk_diploma_document', $docRec);
+
+        $gen->timemodified = time();
+        $DB->update_record('gmk_diploma_generation', $gen);
+
+        return [
+            'regenerated' => true,
+            'fileitemid' => (int)$docRec->fileitemid,
+            'filesize' => (int)$docRec->filesize,
+            'version' => (int)$gen->version,
+        ];
+    }
+
+    /**
      * Returns the verification payload for a public token.
      *
      * @param string $token
