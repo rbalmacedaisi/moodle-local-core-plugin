@@ -80,7 +80,7 @@ class manager {
                     if ($surname === '' && $given === '') { return ''; }
                     if ($surname === '') { return $given; }
                     if ($given === '') { return $surname; }
-                    return $surname . ', ' . $given;
+                    return $surname . ' ' . $given;
                 },
             ],
             'firstname' => [
