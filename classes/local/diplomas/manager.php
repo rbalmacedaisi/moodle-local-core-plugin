@@ -885,17 +885,10 @@ public static function list_eligible_graduands(?int $learningplanid = null, stri
         }
 
         $sql = "SELECT lu.userid, lu.learningplanid, lp.name AS planname,
-                       lpcu.currentperiodid AS periodid,
-                       lper.name AS periodname,
-                       lpcu.currentsubperiodid AS subperiodid,
-                       lsp.name AS subperiodname,
                        u.firstname, u.lastname, u.idnumber, u.email, u.username
                   FROM {local_learning_users} lu
                   JOIN {user} u ON u.id = lu.userid AND u.deleted = 0 AND u.suspended = 0
                   JOIN {local_learning_plans} lp ON lp.id = lu.learningplanid
-             LEFT JOIN {local_learning_users} lpcu ON lpcu.userid = lu.userid AND lpcu.learningplanid = lu.learningplanid
-             LEFT JOIN {local_learning_periods} lper ON lper.id = lpcu.currentperiodid
-             LEFT JOIN {local_learning_subperiods} lsp ON lsp.id = lpcu.currentsubperiodid
                  WHERE lu.userrolename = 'student'
                    AND lu.status IN ('activo', 'egresado')
                    AND EXISTS (
@@ -914,16 +907,10 @@ public static function list_eligible_graduands(?int $learningplanid = null, stri
             $params['s'] = '%' . core_text::strtolower($search) . '%';
         }
         $sql .= " ORDER BY u.lastname ASC, u.firstname ASC";
-        // Use recordset so users enrolled in multiple plans are not deduplicated by userid.
         $rs = $DB->get_recordset_sql($sql, $params, $limitfrom, $limitnum);
         $candidates = [];
-        $candidateIds = [];
-        $candidateKeyToIndex = [];
-        foreach ($rs as $i => $row) {
+        foreach ($rs as $row) {
             $candidates[] = $row;
-            $key = (int)$row->userid . '_' . (int)$row->learningplanid;
-            $candidateKeyToIndex[$key] = $i;
-            $candidateIds[$key] = true;
         }
         $rs->close();
 
@@ -931,10 +918,31 @@ public static function list_eligible_graduands(?int $learningplanid = null, stri
             return [];
         }
 
+        // Batch-load period/subperiod metadata for all candidates.
+        $userIds = array_values(array_unique(array_map(function ($c) { return (int)$c->userid; }, $candidates)));
+        $planIds = array_values(array_unique(array_map(function ($c) { return (int)$c->learningplanid; }, $candidates)));
+        $planUsers = [];
+        foreach ($candidates as $c) { $planUsers[(int)$c->userid] = (int)$c->learningplanid; }
+
+        $periodMap = []; // userid => periodname
+        if (!empty($planUsers)) {
+            [$in, $p] = $DB->get_in_or_equal(array_keys($planUsers), SQL_PARAMS_NAMED, 'uid');
+            $periodSql = "SELECT lu.userid, lu.learningplanid,
+                                  lp.name AS periodname,
+                                  lsp.name AS subperiodname
+                             FROM {local_learning_users} lu
+                             LEFT JOIN {local_learning_periods} lp2 ON lp2.id = lu.currentperiodid
+                             LEFT JOIN {local_learning_subperiods} lsp ON lsp.id = lu.currentsubperiodid
+                            WHERE lu.userid $in";
+            foreach ($DB->get_records_sql($periodSql, $p) as $row) {
+                $periodMap[(int)$row->userid] = [
+                    'periodname' => (string)($row->periodname ?? ''),
+                    'subperiodname' => (string)($row->subperiodname ?? ''),
+                ];
+            }
+        }
+
         // Batch-load all required courses per plan in one query.
-        $planIds = array_values(array_unique(array_map(function ($c) {
-            return (int)$c->learningplanid;
-        }, $candidates)));
         [$planIn, $planParams] = $DB->get_in_or_equal($planIds, SQL_PARAMS_NAMED, 'lp');
         $requiredSql = "SELECT lc.learningplanid, lc.courseid, c.fullname AS coursename
                           FROM {local_learning_courses} lc
@@ -947,7 +955,6 @@ public static function list_eligible_graduands(?int $learningplanid = null, stri
         }
 
         // Batch-load all approved-progress statuses for the candidate user/course combos.
-        $userIds = array_values(array_unique(array_map(function ($c) { return (int)$c->userid; }, $candidates)));
         $courseIds = [];
         foreach ($requiredByPlan as $reqs) {
             foreach ($reqs as $rc) { $courseIds[(int)$rc->courseid] = true; }
@@ -1021,6 +1028,7 @@ public static function list_eligible_graduands(?int $learningplanid = null, stri
             if ($onlyeligible && !$is_eligible) {
                 continue;
             }
+            $period = $periodMap[$userid] ?? ['periodname' => '', 'subperiodname' => ''];
             $out[] = [
                 'user' => [
                     'id' => $userid,
@@ -1035,8 +1043,8 @@ public static function list_eligible_graduands(?int $learningplanid = null, stri
                 'plan' => [
                     'id' => $planid,
                     'name' => (string)$c->planname,
-                    'periodname' => (string)($c->periodname ?? ''),
-                    'subperiodname' => (string)($c->subperiodname ?? ''),
+                    'periodname' => $period['periodname'],
+                    'subperiodname' => $period['subperiodname'],
                 ],
                 'eligibility' => [
                     'is_eligible' => $is_eligible,
