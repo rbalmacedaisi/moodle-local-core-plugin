@@ -87,4 +87,14 @@ $definitions = [
         'simpledata' => false,
         'ttl' => 120,
     ],
+    // JSON-encoded calendar events payload returned by
+    // local_grupomakro_calendar_get_calendar_events. Caching the encoded
+    // string (not the raw array) keeps simplesdata=true and lets MUC store it
+    // efficiently.
+    'teacher_calendar_events' => [
+        'mode' => cache_store::MODE_APPLICATION,
+        'simplekeys' => true,
+        'simpledata' => true,
+        'ttl' => 120,
+    ],
 ];

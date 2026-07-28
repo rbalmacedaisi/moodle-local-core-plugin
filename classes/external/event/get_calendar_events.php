@@ -90,13 +90,33 @@ class get_calendar_events extends external_api
                 }
             }
 
-            if (!$isadmin && $targetuserid <= 0) {
+if (!$isadmin && $targetuserid <= 0) {
                 throw new Exception('No se pudo resolver el usuario para consultar eventos.');
             }
 
-            $eventDaysFiltered = get_class_events($targetuserid, $params['initDate'], $params['endDate']);
+            // Cache the enriched event list keyed by (user, date range, day).
+            // get_class_events() is the heavy path (5-10s per call due to per-event
+            // gmk_complete_* enrichment) and the dashboard opens this endpoint
+            // every time the teacher clicks "Ver Calendario Completo". 2-minute
+            // TTL keeps the calendar snappy without making edits invisible for long.
+            $cache = \cache::make('local_grupomakro_core', 'teacher_calendar_events');
+            $cachekey = sprintf(
+                'uid_%d_%s_%s_d_%s',
+                (int)$targetuserid,
+                (int)$isadmin,
+                (string)($params['initDate'] ?? 'na'),
+                date('Ymd')
+            );
+            $cached = $cache->get($cachekey);
+            if ($cached !== false && is_string($cached)) {
+                return ['events' => $cached];
+            }
 
-            return ['events' => json_encode(array_values($eventDaysFiltered))];
+            $eventDaysFiltered = get_class_events($targetuserid, $params['initDate'], $params['endDate']);
+            $encoded = json_encode(array_values($eventDaysFiltered));
+            $cache->set($cachekey, $encoded);
+
+            return ['events' => $encoded];
         } catch (Exception $e) {
             return ['status' => -1, 'message' => $e->getMessage()];
         }
