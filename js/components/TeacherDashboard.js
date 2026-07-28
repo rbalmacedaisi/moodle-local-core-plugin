@@ -10,8 +10,8 @@ const TeacherDashboard = {
                 <v-col cols="12" class="text-center py-12">
                     <v-progress-circular indeterminate color="primary" size="64"></v-progress-circular>
                 </v-col>
-            </v-row>
-            <v-row v-else>
+            </div>
+            <div class="v-row" v-else style="display:flex;flex-wrap:wrap;">
 
                 <!-- ── Stats row (compact, always full-width across top) ── -->
                 <v-col cols="12" sm="4" v-for="(stat, index) in overviewStats" :key="'stat-' + index">
@@ -136,7 +136,7 @@ const TeacherDashboard = {
 
                 </v-col>
 
-            </v-row>
+            </div>
 
             <!-- Calendar Dialog -->
             <v-dialog v-model="showCalendar" max-width="900px" scrollable transition="dialog-bottom-transition">
@@ -240,6 +240,7 @@ const TeacherDashboard = {
                     </v-card-text>
                 </v-card>
             </v-dialog>
+        </div>
         </div>
     `,
     data() {
