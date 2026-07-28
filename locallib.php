@@ -6936,7 +6936,11 @@ function get_class_events($userId = null, $initDate = null, $endDate = null)
         }
 
         // Group scope filter.
-        if ($userId && isset($userGroupIdSet) && !empty($eventComplete->groupid)) {
+        // Only meaningful for users who actually belong to groups (typically
+        // students). For teachers whose classes have groupids but who are not
+        // group members themselves, $userGroupIdSet is empty and this filter
+        // would drop every event. Skip it when the user has no group memberships.
+        if ($userId && !empty($userGroupIdSet) && !empty($eventComplete->groupid)) {
             if (!isset($userGroupIdSet[(int)$eventComplete->groupid])) {
                 continue;
             }
