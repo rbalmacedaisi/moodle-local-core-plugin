@@ -228,7 +228,7 @@ const ActivityCreationWizard = {
                 timeopen: '',
                 timeclose: '',
                 attempts: 1,
-                tags: '',
+                tags: [],
                 visible: true,
                 guest: false,
                 forumtopic: '',
@@ -393,20 +393,39 @@ const ActivityCreationWizard = {
             return value;
         },
         normalizeLessonTagInput(value) {
-            const normalized = this.normalizeLessonTagValue(
-                value !== undefined ? value : this.formData.tags
-            );
-            if (normalized) {
-                this.formData.tags = normalized;
-                this.tagSearchInput = normalized;
-                return normalized;
+            const raw = value !== undefined ? value : this.formData.tags;
+            let tags = [];
+
+            if (Array.isArray(raw)) {
+                // v-combobox with multiple=true emits the full chip list as an
+                // array. Normalize each entry, drop empties and de-duplicate
+                // so the v-model stays an array (otherwise Vuetify renders each
+                // character of the assigned string as a separate chip).
+                const seen = {};
+                for (let i = 0; i < raw.length; i++) {
+                    const normalized = this.normalizeLessonTagValue(raw[i]);
+                    if (normalized && !seen[normalized]) {
+                        seen[normalized] = true;
+                        tags.push(normalized);
+                    }
+                }
+            } else if (raw) {
+                // Backward-compat path for callers that still pass a single value.
+                const normalized = this.normalizeLessonTagValue(raw);
+                if (normalized) {
+                    tags.push(normalized);
+                }
             }
 
             // In v-combobox, typed values can stay in search-input until blur/enter.
             const pending = this.normalizeLessonTagValue(this.tagSearchInput);
-            this.formData.tags = pending;
-            this.tagSearchInput = pending;
-            return pending;
+            if (pending && tags.indexOf(pending) === -1) {
+                tags.push(pending);
+                this.tagSearchInput = '';
+            }
+
+            this.formData.tags = tags;
+            return tags;
         },
         /**
          * Build the tag payload sent to the backend from this.formData.tags.
