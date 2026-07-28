@@ -6619,6 +6619,28 @@ function get_class_events($userId = null, $initDate = null, $endDate = null)
             return $group->courseid;
         }, $userGroups));
 
+        // Teachers are typically enrolled in their courses via role_assignments
+        // (editingteacher / teacher) but NOT as group members, so groups_members
+        // returns an empty array and calendar_get_events returns nothing. Merge
+        // the role-assigned course ids so a teacher who isn't in any group still
+        // gets back the events for the courses they actually teach.
+        $roleCourseRows = $DB->get_records_sql(
+            "SELECT DISTINCT ctx.instanceid AS courseid
+               FROM {role_assignments} ra
+               JOIN {role} r ON r.id = ra.roleid
+               JOIN {context} ctx ON ctx.id = ra.contextid
+              WHERE ra.userid = :uid
+                AND ctx.contextlevel = :lvl
+                AND r.shortname IN ('teacher', 'editingteacher')",
+            ['uid' => (int)$userId, 'lvl' => CONTEXT_COURSE]
+        );
+        if (!empty($roleCourseRows)) {
+            $roleCourseIds = array_map(function ($row) {
+                return (int)$row->courseid;
+            }, $roleCourseRows);
+            $userCourseIds = array_values(array_unique(array_merge($userCourseIds, $roleCourseIds)));
+        }
+
         //Get the events filtered by date range, groups and courses.
         $events = calendar_get_events($initTs, $endTs, false, $userGroupIds, $userCourseIds, true);
 
