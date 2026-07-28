@@ -99,12 +99,17 @@ if (!$isadmin && $targetuserid <= 0) {
             // gmk_complete_* enrichment) and the dashboard opens this endpoint
             // every time the teacher clicks "Ver Calendario Completo". 2-minute
             // TTL keeps the calendar snappy without making edits invisible for long.
+            // Simple-key MUC: only [a-zA-Z0-9_] allowed — strip dashes from
+            // the date components.
             $cache = \cache::make('local_grupomakro_core', 'teacher_calendar_events');
+            $initCompact = isset($params['initDate']) ? preg_replace('/[^a-zA-Z0-9_]/', '', $params['initDate']) : 'na';
+            $endCompact = isset($params['endDate']) ? preg_replace('/[^a-zA-Z0-9_]/', '', $params['endDate']) : 'na';
             $cachekey = sprintf(
-                'uid_%d_%s_%s_d_%s',
+                'uid_%d_a%d_i%s_e%s_d%s',
                 (int)$targetuserid,
                 (int)$isadmin,
-                (string)($params['initDate'] ?? 'na'),
+                $initCompact,
+                $endCompact,
                 date('Ymd')
             );
             $cached = $cache->get($cachekey);
