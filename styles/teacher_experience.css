@@ -28,8 +28,12 @@
    inside an ~1100px centred container with dead space on either side. The
    explicit !important rules below override that without touching the rest
    of the page. */
+#teacher-app,
+#teacher-app .v-application,
 #teacher-app .v-application__wrap,
 #teacher-app .v-main,
+#teacher-app .v-fade-transition,
+#teacher-app .gmk-teacher-dashboard,
 #teacher-app .v-container,
 #teacher-app .container,
 #teacher-app .v-row {
@@ -39,6 +43,12 @@
 #teacher-app .v-main {
     align-items: stretch !important;
     justify-content: flex-start !important;
+}
+/* v-fade-transition wraps the dashboard component and defaults to
+   position: absolute which collapses it. Force it back to relative so
+   the wrapper div fills the available width. */
+#teacher-app .v-fade-transition {
+    position: relative !important;
 }
 #teacher-app .v-container {
     padding-left: max(16px, 2vw) !important;
