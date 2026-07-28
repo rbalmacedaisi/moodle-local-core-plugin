@@ -27,9 +27,22 @@ class get_dashboard_data extends external_api {
         global $DB, $USER;
 
         $params = self::validate_parameters(self::execute_parameters(), array('userid' => $userid));
-        
+
         $context = \context_system::instance();
         self::validate_context($context);
+
+        // Cache the assembled dashboard payload (active_classes + pending_tasks +
+        // health_status). The calendar events intentionally live elsewhere — see
+        // local_grupomakro_calendar_get_calendar_events — so this cache stays
+        // compact and the dashboard renders from cache on warm hits in <50ms
+        // instead of recomputing everything (which previously took 15-20s for
+        // teachers with many classes).
+        $cache = \cache::make('local_grupomakro_core', 'teacher_dashboard');
+        $cachekey = 'uid_' . (int)$params['userid'] . '_d_' . date('Ymd');
+        $cached = $cache->get($cachekey);
+        if ($cached !== false && is_array($cached)) {
+            return $cached;
+        }
 
         // 1. Get Active Classes
         $now = time();
@@ -86,137 +99,12 @@ class get_dashboard_data extends external_api {
             $active_classes[] = $class_data;
         }
 
-        // Create Course -> Class ID Map
-        $courseToClassId = [];
-        foreach ($active_classes as $cls) {
-            $courseToClassId[$cls->courseid] = $cls->id;
-        }
-
-        // 2. Get Calendar Events (Dynamic range based on active classes)
-        // Default to -1 month to +2 months if no classes, otherwise use class limits
-        $min_start = $now - (30 * 24 * 60 * 60); 
-        $max_end = $now + (60 * 24 * 60 * 60);
-
-        if (!empty($active_classes)) {
-            $start_dates = [];
-            $end_dates = [];
-            foreach ($active_classes as $c) {
-                if (!empty($c->initdate)) $start_dates[] = $c->initdate;
-                if (!empty($c->enddate)) $end_dates[] = $c->enddate;
-            }
-            
-            if (!empty($start_dates)) {
-                // Start from the earliest class start date
-                $min_start = min($start_dates);
-                // Optional: Add a small buffer backwards if needed, but strict class start is usually fine.
-                // However, if we want to show context, maybe 1 week before? 
-                // Let's stick to class start date to ensure all sessions are seen.
-            }
-            
-            if (!empty($end_dates)) {
-                $max_end = max($end_dates);
-            }
-        }
-
-        $init_date_str = date('Y-m-d', $min_start);
-        $end_date_str = date('Y-m-d', $max_end);
-        
-        $events = get_class_events($params['userid'], $init_date_str, $end_date_str);
-
-        // Keep only events that belong to the instructor active classes shown in this dashboard.
-        $activeclassids = array_map(function($c) {
-            return (int)$c->id;
-        }, $active_classes);
-        $activeclassset = array_flip($activeclassids);
-
-        $events = array_values(array_filter($events, function($event) use ($activeclassset) {
-            $eventclassid = !empty($event->classId) ? (int)$event->classId : 0;
-            if ($eventclassid > 0) {
-                return isset($activeclassset[$eventclassid]);
-            }
-            // Strict filter: if event cannot be mapped to a visible active class, do not show it.
-            return false;
-        }));
-        
-        // Build maps for Course Info and Group Info
-        $event_course_ids = [];
-        $event_group_ids = [];
-
-        foreach ($events as $event) {
-            $event_course_ids[] = $event->courseid;
-            if (!empty($event->groupid)) {
-                $event_group_ids[] = $event->groupid;
-            }
-        }
-        $event_course_ids = array_unique($event_course_ids);
-        $event_group_ids = array_unique($event_group_ids);
-        
-        $course_info_map = [];
-        if (!empty($event_course_ids)) {
-            list($insql, $inparams) = $DB->get_in_or_equal($event_course_ids);
-            // Query COURSE table for fullname and shortname
-            $sql_map = "SELECT id, fullname, shortname FROM {course} WHERE id $insql";
-            $mapped_courses = $DB->get_records_sql($sql_map, $inparams);
-            foreach ($mapped_courses as $row) {
-                $course_info_map[$row->id] = $row;
-            }
-        }
-
-        $group_name_map = [];
-        if (!empty($event_group_ids)) {
-            list($insql, $inparams) = $DB->get_in_or_equal($event_group_ids);
-            $sql_map = "SELECT id, name FROM {groups} WHERE id $insql";
-            $mapped_groups = $DB->get_records_sql($sql_map, $inparams);
-            foreach ($mapped_groups as $row) {
-                $group_name_map[$row->id] = $row->name;
-            }
-        }
-
-        $calendar_events = [];
-        foreach ($events as $event) {
-            $e = new stdClass();
-            $e->id = $event->id;
-            $e->name = $event->name;
-            $e->timestart = $event->timestart;
-            $e->timeduration = isset($event->timeduration) ? (int)$event->timeduration : 0;
-            if ($e->timeduration < 0) $e->timeduration = 0;
-            
-            $e->courseid = $event->courseid;
-            
-            // Map to class ID: Prefer existing enriched data, fallback to map
-            $e->classid = !empty($event->classId) ? $event->classId : (isset($courseToClassId[$event->courseid]) ? $courseToClassId[$event->courseid] : 0);
-            
-            // Determine best label (Coursename/Classname)
-            if (!empty($event->className)) {
-                $label = $event->className;
-            } else {
-                // Fallback logic
-                $label = $event->name;
-                if (!empty($event->groupid) && isset($group_name_map[$event->groupid])) {
-                    $label = $group_name_map[$event->groupid];
-                } elseif (isset($course_info_map[$event->courseid])) {
-                    $label = $course_info_map[$event->courseid]->shortname ?: $course_info_map[$event->courseid]->fullname;
-                }
-            }
- 
-            $e->classname = $label;
-            
-            // Pass metadata for frontend
-            if (isset($event->bigBlueButtonActivityUrl)) {
-                 $e->activityUrl = $event->bigBlueButtonActivityUrl;
-            } 
-            if (isset($event->color)) {
-                 $e->color = $event->color;
-            }
-            if (!empty($event->is_grading_task)) {
-                 $e->is_grading_task = true;
-            }
-            if (!empty($event->courseShortName)) {
-                 $e->course_shortname = $event->courseShortName;
-            }
-
-            $calendar_events[] = $e;
-        }
+// Calendar events are NOT loaded here. They are fetched lazily by the
+        // frontend via local_grupomakro_calendar_get_calendar_events when the
+        // teacher opens the "Ver Calendario Completo" dialog. Loading them
+        // here takes ~5s+ per teacher because of get_class_events() and the
+        // per-event gmk_complete_class_event_information_fast() enrichment,
+        // and they're only used inside the modal — not on the dashboard.
 
         // 3. Pending Tasks (Count submissions to grade)
         $pending_tasks = [];
@@ -246,12 +134,13 @@ class get_dashboard_data extends external_api {
             $health_status[] = $status;
         }
 
-        return array(
+        $payload = array(
             'active_classes' => $active_classes,
-            'calendar_events' => $calendar_events,
             'pending_tasks' => $pending_tasks,
             'health_status' => $health_status
         );
+        $cache->set($cachekey, $payload);
+        return $payload;
     }
 
     private static function get_next_session($classid) {
@@ -324,22 +213,6 @@ class get_dashboard_data extends external_api {
                             'initdate' => new external_value(PARAM_INT, 'Start date', VALUE_OPTIONAL),
                             'enddate' => new external_value(PARAM_INT, 'End date', VALUE_OPTIONAL),
                             'schedule_text' => new external_value(PARAM_TEXT, 'Formatted schedule', VALUE_OPTIONAL)
-                        )
-                    )
-                ),
-                'calendar_events' => new external_multiple_structure(
-                    new external_single_structure(
-                        array(
-                            'id' => new external_value(PARAM_INT, 'Event ID'),
-                            'name' => new external_value(PARAM_TEXT, 'Event Name'),
-                            'timestart' => new external_value(PARAM_INT, 'Start time'),
-                            'timeduration' => new external_value(PARAM_INT, 'Duration in seconds', VALUE_OPTIONAL),
-                            'courseid' => new external_value(PARAM_INT, 'Course ID'),
-                            'classid' => new external_value(PARAM_INT, 'Class ID', VALUE_OPTIONAL),
-                            'classname' => new external_value(PARAM_TEXT, 'Class Name from DB', VALUE_OPTIONAL),
-                            'course_shortname' => new external_value(PARAM_TEXT, 'Course Shortname from DB', VALUE_OPTIONAL),
-                            'is_grading_task' => new external_value(PARAM_BOOL, 'Is a grading task', VALUE_OPTIONAL),
-                            'color' => new external_value(PARAM_TEXT, 'Event Color', VALUE_OPTIONAL)
                         )
                     )
                 ),

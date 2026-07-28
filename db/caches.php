@@ -77,4 +77,14 @@ $definitions = [
         'simpledata' => true,
         'ttl' => 300,
     ],
+    // Aggregated teacher dashboard payload (active_classes + pending_tasks +
+    // health_status). Calendar events are deliberately excluded so the cache
+    // stays compact and the dashboard can render instantly on warm hits.
+    // Invalidated implicitly via the 2-minute TTL.
+    'teacher_dashboard' => [
+        'mode' => cache_store::MODE_APPLICATION,
+        'simplekeys' => true,
+        'simpledata' => false,
+        'ttl' => 120,
+    ],
 ];

@@ -164,7 +164,11 @@ const TeacherDashboard = {
                         <v-btn icon @click="showCalendar = false"><v-icon>mdi-close</v-icon></v-btn>
                     </v-toolbar>
                     <v-card-text class="pa-4">
-                        <v-sheet height="600">
+                        <v-sheet height="600" class="position-relative">
+                            <div v-if="calendarEventsLoading" class="d-flex flex-column align-center justify-center" style="position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(255,255,255,0.85);z-index:5;">
+                                <v-progress-circular indeterminate color="primary" size="48"></v-progress-circular>
+                                <div class="caption grey--text mt-3">Cargando eventos del calendario…</div>
+                            </div>
                             <v-calendar
                                 ref="calendar"
                                 v-model="calendarValue"
@@ -253,10 +257,14 @@ const TeacherDashboard = {
             viewNames: { 'month': 'Mes', 'week': 'Semana', 'day': 'Día' },
             dashboardData: {
                 active_classes: [],
-                calendar_events: [],
                 pending_tasks: [],
                 health_status: []
             },
+            // Calendar events are fetched lazily via loadCalendarEvents() so the
+            // initial dashboard render isn't blocked by get_class_events().
+            calendarEventsData: [],
+            calendarEventsLoaded: false,
+            calendarEventsLoading: false,
             overviewStats: [
                 { label: 'Cursos Activos', value: 0, icon: 'mdi-book-open-page-variant', color: 'blue' },
                 { label: 'Estudiantes', value: 0, icon: 'mdi-account-group', color: 'orange' },
@@ -295,8 +303,8 @@ const TeacherDashboard = {
                 });
         },
         calendarEvents() {
-            const list = Array.isArray(this.dashboardData.calendar_events)
-                ? this.dashboardData.calendar_events
+            const list = Array.isArray(this.calendarEventsData)
+                ? this.calendarEventsData
                 : [];
             const mapped = [];
             for (let i = 0; i < list.length; i++) {
@@ -359,12 +367,18 @@ const TeacherDashboard = {
         // events prop when the dialog is already mounted but the data fetch
         // resolves afterwards. Calling checkChange() forces a recompute.
         showCalendar(isOpen) {
-            if (isOpen && this.$refs.calendar) {
-                this.$nextTick(() => {
-                    if (this.$refs.calendar && typeof this.$refs.calendar.checkChange === 'function') {
-                        this.$refs.calendar.checkChange();
-                    }
-                });
+            if (isOpen) {
+                // Lazy-load the calendar events the first time the dialog opens
+                // so we don't block the initial dashboard render on a heavy
+                // get_class_events() query.
+                this.loadCalendarEvents();
+                if (this.$refs.calendar) {
+                    this.$nextTick(() => {
+                        if (this.$refs.calendar && typeof this.$refs.calendar.checkChange === 'function') {
+                            this.$refs.calendar.checkChange();
+                        }
+                    });
+                }
             }
         },
         calendarEvents() {
@@ -405,6 +419,55 @@ const TeacherDashboard = {
                 console.error('Network error fetching dashboard data:', error);
             } finally {
                 this.loading = false;
+            }
+        },
+        async loadCalendarEvents() {
+            // Skip if already loaded or already in-flight.
+            if (this.calendarEventsLoaded || this.calendarEventsLoading) return;
+            this.calendarEventsLoading = true;
+            try {
+                // Reuse the same endpoint the schedules.php page uses.
+                // Range: today minus 1 month to today plus 6 months — enough
+                // for v-calendar to fill its visible window without pulling the
+                // entire semester.
+                const initDate = new Date();
+                initDate.setMonth(initDate.getMonth() - 1);
+                const endDate = new Date();
+                endDate.setMonth(endDate.getMonth() + 6);
+                const fmt = (d) => {
+                    const y = d.getFullYear();
+                    const m = String(d.getMonth() + 1).padStart(2, '0');
+                    const day = String(d.getDate()).padStart(2, '0');
+                    return `${y}-${m}-${day}`;
+                };
+                const response = await axios.get(window.wsUrl, {
+                    params: {
+                        ...window.wsStaticParams,
+                        wsfunction: 'local_grupomakro_calendar_get_calendar_events',
+                        userId: window.userId || 0,
+                        initDate: fmt(initDate),
+                        endDate: fmt(endDate)
+                    }
+                });
+                if (response.data && response.data.status === -1) {
+                    throw new Error(response.data.message || 'Error fetching calendar events');
+                }
+                const raw = (response.data && typeof response.data.events === 'string')
+                    ? JSON.parse(response.data.events)
+                    : (response.data && Array.isArray(response.data.events) ? response.data.events : []);
+                this.calendarEventsData = Array.isArray(raw) ? raw : [];
+                this.calendarEventsLoaded = true;
+                // Force v-calendar to re-render with the freshly loaded events.
+                this.$nextTick(() => {
+                    if (this.$refs.calendar && typeof this.$refs.calendar.checkChange === 'function') {
+                        this.$refs.calendar.checkChange();
+                    }
+                });
+            } catch (error) {
+                console.error('Error fetching calendar events:', error);
+                this.calendarEventsData = [];
+            } finally {
+                this.calendarEventsLoading = false;
             }
         },
         updateStats() {
