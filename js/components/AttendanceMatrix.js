@@ -1,3 +1,42 @@
+// CSS for the attendance matrix is injected at mount time. Vue strips
+// <style> blocks from inline templates with only a "side-effects in
+// templates" warning, leaving the matrix table without its sticky headers,
+// borders and per-state coloring. Injecting once into <head> keeps the
+// styles active even when this component is mounted multiple times.
+(function injectAttendanceMatrixStyles() {
+    if (typeof document === 'undefined') return;
+    if (document.getElementById('attendance-matrix-styles')) return;
+    const style = document.createElement('style');
+    style.id = 'attendance-matrix-styles';
+    style.textContent = `
+.att-matrix-table { border-collapse: collapse; min-width: 100%; }
+.att-matrix-table th, .att-matrix-table td { border: 1px solid #e0e0e0; padding: 4px 6px; white-space: nowrap; }
+.att-sticky-col { position: sticky; left: 0; z-index: 2; background: #fff; }
+.att-header-student { background: #f5f5f5 !important; font-weight: 600; font-size: 12px; min-width: 210px; text-align: left; }
+.att-session-header { text-align: center; font-size: 11px; font-weight: 600; width: 70px; min-width: 70px; max-width: 70px; vertical-align: top; padding: 4px 2px; }
+.att-session-taken { background: #1565c0 !important; color: #fff !important; }
+.att-session-future { background: #eeeeee !important; color: #757575 !important; }
+.att-session-pending { background: #fff3e0 !important; color: #e65100 !important; }
+.att-session-revalida { background: #fff8e1 !important; color: #6d4c00 !important; border-top: 3px solid #ff8f00 !important; }
+.att-session-revalida.att-session-taken { background: #fff8e1 !important; color: #6d4c00 !important; }
+.att-session-date { font-size: 12px; font-weight: 700; }
+.att-session-time { font-size: 10px; font-weight: 400; opacity: 0.85; }
+.att-student-cell { min-width: 210px; background: #fff; }
+.att-cell { text-align: center; width: 70px; min-width: 70px; max-width: 70px; }
+.att-cell-untaken { background: #fafafa; }
+.att-summary-header { background: #e3f2fd !important; text-align: center; font-size: 11px; font-weight: 600; width: 80px; min-width: 80px; max-width: 80px; position: sticky; right: 0; z-index: 2; }
+.att-summary-cell { text-align: center; background: #e3f2fd; position: sticky; right: 0; z-index: 1; }
+.att-student-row:hover td { background: #f5f5f5 !important; }
+.att-student-row:hover .att-summary-cell { background: #bbdefb !important; }
+.att-legend-dot { display: inline-block; width: 12px; height: 12px; border-radius: 2px; }
+.att-dot-taken { background: #1565c0; }
+.att-dot-pending { background: #ff8f00; }
+.att-dot-future { background: #bdbdbd; }
+.att-dot-revalida { background: #fff8e1; border: 1px solid #ff8f00; }
+`;
+    document.head.appendChild(style);
+})();
+
 Vue.component('attendance-matrix', {
     template: `
         <v-card flat class="attendance-matrix-card rounded-lg border">
@@ -141,34 +180,7 @@ Vue.component('attendance-matrix', {
                         </div>
                     </div>
                 </div>
-            </v-card-text>
-
-            <style>
-                .att-matrix-table { border-collapse: collapse; min-width: 100%; }
-                .att-matrix-table th, .att-matrix-table td { border: 1px solid #e0e0e0; padding: 4px 6px; white-space: nowrap; }
-                .att-sticky-col { position: sticky; left: 0; z-index: 2; background: #fff; }
-                .att-header-student { background: #f5f5f5 !important; font-weight: 600; font-size: 12px; min-width: 210px; text-align: left; }
-                .att-session-header { text-align: center; font-size: 11px; font-weight: 600; width: 70px; min-width: 70px; max-width: 70px; vertical-align: top; padding: 4px 2px; }
-                .att-session-taken { background: #1565c0 !important; color: #fff !important; }
-                .att-session-future { background: #eeeeee !important; color: #757575 !important; }
-                .att-session-pending { background: #fff3e0 !important; color: #e65100 !important; }
-                .att-session-revalida { background: #fff8e1 !important; color: #6d4c00 !important; border-top: 3px solid #ff8f00 !important; }
-                .att-session-revalida.att-session-taken { background: #fff8e1 !important; color: #6d4c00 !important; }
-                .att-session-date { font-size: 12px; font-weight: 700; }
-                .att-session-time { font-size: 10px; font-weight: 400; opacity: 0.85; }
-                .att-student-cell { min-width: 210px; background: #fff; }
-                .att-cell { text-align: center; width: 70px; min-width: 70px; max-width: 70px; }
-                .att-cell-untaken { background: #fafafa; }
-                .att-summary-header { background: #e3f2fd !important; text-align: center; font-size: 11px; font-weight: 600; width: 80px; min-width: 80px; position: sticky; right: 0; z-index: 2; }
-                .att-summary-cell { text-align: center; background: #e3f2fd; position: sticky; right: 0; z-index: 1; }
-                .att-student-row:hover td { background: #f5f5f5 !important; }
-                .att-student-row:hover .att-summary-cell { background: #bbdefb !important; }
-                .att-legend-dot { display: inline-block; width: 12px; height: 12px; border-radius: 2px; }
-                .att-dot-taken { background: #1565c0; }
-                .att-dot-pending { background: #ff8f00; }
-                .att-dot-future { background: #bdbdbd; }
-                .att-dot-revalida { background: #fff8e1; border: 1px solid #ff8f00; }
-            </style>
+</v-card-text>
         </v-card>
     `,
 

@@ -257,12 +257,10 @@ class get_dashboard_data extends external_api {
     private static function get_next_session($classid) {
         global $DB;
         $now = time();
-        
-        // Read the next upcoming session directly from the attendance sessions linked to this
-        // class. We deliberately DO NOT join the Moodle calendar {event} table: some sessions are
-        // created without a calendar event (caleventid = 0), which previously made them invisible
-        // here (and in the upcoming-sessions panel, which derives from next_session) even though
-        // they exist and show in the attendance/calendar views. Using sessdate makes this robust.
+
+        // Primary path: attendance_sessions linked via gmk_bbb_attendance_relation.
+        // Most reliable because it doesn't depend on the Moodle calendar {event} row
+        // being present (caleventid can be 0 right after a session is created).
         $sql = "SELECT asess.sessdate
                 FROM {attendance_sessions} asess
                 JOIN {gmk_bbb_attendance_relation} rel ON rel.attendancesessionid = asess.id
@@ -270,7 +268,42 @@ class get_dashboard_data extends external_api {
                 ORDER BY asess.sessdate ASC";
 
         $session = $DB->get_record_sql($sql, ['classid' => $classid, 'now' => $now], IGNORE_MULTIPLE);
-        return $session ? (int)$session->sessdate : null;
+        if ($session) {
+            return (int)$session->sessdate;
+        }
+
+        // Fallback path: Moodle's calendar {event} table. Used when the primary path
+        // returns nothing because the existing relations all point to past (deleted)
+        // attendance_sessions, but new calendar events still exist for this class.
+        // Without this fallback, classes would render 'Sin fecha programada' on the
+        // dashboard card and would be excluded from the 'Próximas Sesiones' panel
+        // even though the events clearly show on the calendar dialog.
+        $class = $DB->get_record('gmk_class', ['id' => $classid], 'courseid,corecourseid');
+        if ($class) {
+            $courseids = array_values(array_filter([
+                (int)$class->courseid,
+                (int)$class->corecourseid,
+            ]));
+            if (!empty($courseids)) {
+                list($insql, $inparams) = $DB->get_in_or_equal($courseids, SQL_PARAMS_NAMED, 'cbcid');
+                $params = array_merge($inparams, ['now' => $now]);
+                $event = $DB->get_record_sql(
+                    "SELECT e.timestart
+                       FROM {event} e
+                      WHERE e.modulename IN ('attendance', 'bigbluebuttonbn')
+                        AND e.courseid $insql
+                        AND e.timestart >= :now
+                   ORDER BY e.timestart ASC",
+                    $params,
+                    IGNORE_MULTIPLE
+                );
+                if ($event) {
+                    return (int)$event->timestart;
+                }
+            }
+        }
+
+        return null;
     }
 
     public static function execute_returns() {
