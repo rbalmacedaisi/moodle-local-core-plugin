@@ -1535,18 +1535,56 @@ try {
         case 'local_grupomakro_calendar_get_calendar_events':
             // Lazy-loaded by the TeacherDashboard 'Ver Calendario Completo'
             // dialog after the initial dashboard render. Delegates to the same
-            // WS handler that schedules.php uses.
+            // WS handler that schedules.php uses, then applies the same strict
+            // class-scope filter the old dashboard payload used so teachers only
+            // see events for their currently-active classes (not for every
+            // course where they happen to hold a role assignment).
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/event/get_calendar_events.php');
             $userid = optional_param('userid', 0, PARAM_INT);
             $initdate = optional_param('initDate', null, PARAM_TEXT);
             $enddate = optional_param('endDate', null, PARAM_TEXT);
             $result = \local_grupomakro_core\external\event\get_calendar_events::execute($userid, $initdate, $enddate);
-            // The WS returns ['events' => '<json string>']. Wrap so the
-            // TeacherDashboard.js can read response.data.events directly.
             if (is_array($result) && isset($result['events']) && is_string($result['events'])) {
+                $events = json_decode($result['events']);
+
+                // Build the active-class id set for the target user so we can
+                // strip out events that belong to courses the teacher is merely
+                // role-assigned to but does not currently teach (very common
+                // case: a teacher who is editingteacher on 60+ courses but only
+                // owns 2 active gmk_class rows — without this filter the
+                // calendar shows events for all 60+ courses).
+                $scopeUserid = $userid > 0 ? $userid : (int)$USER->id;
+                $isScopeAdmin = is_siteadmin($scopeUserid);
+                $scopeWhere = $isScopeAdmin ? '' : ' AND c.instructorid = :instructorid';
+                $scopeParams = [];
+                if (!$isScopeAdmin) {
+                    $scopeParams['instructorid'] = $scopeUserid;
+                }
+                $activeClasses = $DB->get_records_sql(
+                    "SELECT c.id FROM {gmk_class} c WHERE c.closed = 0 $scopeWhere",
+                    $scopeParams
+                );
+                $activeclassset = array_flip(array_map(function ($c) {
+                    return (int)$c->id;
+                }, $activeClasses));
+
+                $filtered = [];
+                if (is_array($events)) {
+                    foreach ($events as $ev) {
+                        $evclassid = !empty($ev->classId) ? (int)$ev->classId : 0;
+                        // Only keep events whose classId matches one of the
+                        // teacher's currently-active classes. Events with no
+                        // class mapping are dropped (strict scope, matches the
+                        // behaviour the dashboard used before lazy-loading).
+                        if ($evclassid > 0 && isset($activeclassset[$evclassid])) {
+                            $filtered[] = $ev;
+                        }
+                    }
+                }
+
                 $response = [
                     'status' => 'success',
-                    'events' => json_decode($result['events'])
+                    'events' => $filtered
                 ];
             } else {
                 $response = $result;
