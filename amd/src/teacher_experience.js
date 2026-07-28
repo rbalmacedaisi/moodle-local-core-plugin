@@ -156,14 +156,30 @@ window.TeacherExperience = {
             document.body.classList.contains('dark-mode') ||
             window.matchMedia('(prefers-color-scheme: dark)').matches;
 
+        // Manual toggle stored in localStorage overrides the system-detected
+        // default. Storage key is namespaced to avoid collisions with other
+        // Moodle code; missing/blocked localStorage falls back to the
+        // system-detected default silently.
+        let userThemePref = null;
+        try {
+            const stored = window.localStorage.getItem('gmk-teacher-theme');
+            if (stored === 'dark') userThemePref = true;
+            else if (stored === 'light') userThemePref = false;
+        } catch (e) {
+            // Ignore — fall back to system default below.
+        }
+        const effectiveDarkMode = (userThemePref === null) ? isDarkMode : userThemePref;
+
         console.log('Teacher Experience: Dark Mode detected?', isDarkMode,
+            '| user pref:', userThemePref,
+            '| effective:', effectiveDarkMode,
             '| data-preset:', document.documentElement.getAttribute('data-preset'),
             '| data-bs-theme:', document.documentElement.getAttribute('data-bs-theme'));
 
         const app = new Vue({
             el: '#teacher-app',
             vuetify: new Vuetify({
-                theme: { dark: isDarkMode }
+                theme: { dark: effectiveDarkMode }
             }),
             template: `
                 <v-app :style="{ background: $vuetify.theme.dark ? '#121212' : '#f5f5f5' }">
@@ -183,6 +199,10 @@ window.TeacherExperience = {
                             </v-toolbar-title>
                             
                             <v-spacer></v-spacer>
+
+                            <v-btn icon small :title="$vuetify.theme.dark ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'" class="mr-1" @click="toggleTheme">
+                                <v-icon>{{ $vuetify.theme.dark ? 'mdi-weather-sunny' : 'mdi-weather-night' }}</v-icon>
+                            </v-btn>
 
                             <v-btn text small color="primary" class="mr-2 d-none d-md-flex" @click="setPage('dashboard')">
                                 <v-icon left>mdi-view-dashboard</v-icon> Mi Inicio
@@ -264,6 +284,25 @@ window.TeacherExperience = {
                 this.persistNavigationState();
             },
             methods: {
+                toggleTheme() {
+                    // Flip the Vuetify theme reactively. Vuetify 2 exposes the
+                    // active theme through $vuetify.theme.dark; assigning to it
+                    // triggers a re-render across the whole app.
+                    const next = !this.$vuetify.theme.dark;
+                    this.$vuetify.theme.dark = next;
+                    // Persist the user's choice so reloads remember it. Wrap
+                    // in try/catch because some browsers block storage in
+                    // private mode or under restrictive cookie/storage policies.
+                    try {
+                        window.localStorage.setItem(
+                            'gmk-teacher-theme',
+                            next ? 'dark' : 'light'
+                        );
+                    } catch (e) {
+                        // Best-effort: still works in-session, just doesn't
+                        // persist across reloads.
+                    }
+                },
                 buildNavigationState() {
                     const page = sanitizePage(this.currentPage);
                     return sanitizeState({
