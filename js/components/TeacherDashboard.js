@@ -325,13 +325,13 @@ const TeacherDashboard = {
                     headerTitle = e.classname || displayName;
                 }
 
-                // v-calendar v2 has a known rendering quirk with Date objects
-                // passed through a Vue computed: it sometimes ignores them entirely
-                // (the grid shows but no events render). Pass `start`/`end` as the
-                // same ISO-ish strings that ClassSchedule.cpfix.js uses successfully,
-                // so v-calendar's own `new Date(...)` parsing takes over.
-                const startStr = new Date(tStart * 1000).toISOString();
-                const endStr = new Date((tStart + tDur) * 1000).toISOString();
+                // v-calendar v2's parseTimestamp() rejects ISO 8601 strings with 'T'/'Z'
+                // ("2026-05-22T00:50:00.000Z is not a valid timestamp"). It only accepts
+                // Date objects, ms-since-epoch numbers, or strings in the format
+                // YYYY-MM-DD hh:mm[:ss]. Pass Date objects directly (which ClassSchedule
+                // proves works) instead of strings.
+                const startDate = new Date(tStart * 1000);
+                const endDate = new Date((tStart + tDur) * 1000);
 
                 mapped.push({
                     id: e.id,
@@ -340,8 +340,8 @@ const TeacherDashboard = {
                     activityName: e.name || '',
                     courseFull: e.classname || '',
                     courseShort: e.course_shortname || '',
-                    start: startStr,
-                    end: endStr,
+                    start: startDate,
+                    end: endDate,
                     classid: e.classid || 0,
                     color: e.color || 'primary',
                     // All our events come from a calendar event with a specific time;
@@ -486,11 +486,9 @@ const TeacherDashboard = {
             nativeEvent.stopPropagation();
         },
         formatEventTime(date) {
-            // date may be a Date object or an ISO string (v-calendar v2 parsing)
+            // date is a Date object
             if (!date) return '';
-            const d = (date instanceof Date) ? date : new Date(date);
-            if (Number.isNaN(d.getTime())) return '';
-            return d.toLocaleTimeString("es-ES", {
+            return date.toLocaleTimeString("es-ES", {
                 hour: "2-digit",
                 minute: "2-digit",
                 hour12: true,
