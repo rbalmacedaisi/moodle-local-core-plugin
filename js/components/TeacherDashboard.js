@@ -30,8 +30,8 @@ const TeacherDashboard = {
                     </v-card>
                 </v-col>
 
-                <!-- ── LEFT PANEL: class cards (full width mobile, 8 cols desktop) ── -->
-                <v-col cols="12" lg="8" xl="9" class="mt-2">
+                <!-- ── LEFT PANEL: class cards (full width mobile, wider on lg/xl) ── -->
+                <v-col cols="12" lg="9" xl="9" class="mt-2">
                     <div class="d-flex align-center mb-4">
                         <h2 class="text-h5 font-weight-bold mb-0">{{ lang.my_active_classes || 'Mis Clases Activas' }}</h2>
                         <v-spacer></v-spacer>
@@ -41,7 +41,9 @@ const TeacherDashboard = {
                         </v-btn>
                     </div>
                     <v-row>
-                        <v-col cols="12" sm="6" md="4" v-for="classItem in dashboardData.active_classes" :key="classItem.id">
+                        <!-- Cards: 1/row on mobile, 2 on sm, 3 on md, 4 on lg+, so
+                             wider screens don't leave most of the row empty. -->
+                        <v-col cols="12" sm="6" md="4" lg="3" v-for="classItem in dashboardData.active_classes" :key="classItem.id">
                             <v-card class="rounded-xl hover-card overflow-hidden" elevation="2" @click="goToClass(classItem.id)">
                                 <v-img :src="getClassImage(classItem)" height="120" class="align-start">
                                     <v-chip dark small :color="classItem.type === 1 ? 'blue darken-2' : 'green darken-2'" class="ma-3 font-weight-bold">
@@ -87,8 +89,8 @@ const TeacherDashboard = {
                     </v-row>
                 </v-col>
 
-                <!-- ── RIGHT PANEL: sidebar (hidden on mobile, 4 cols on lg, 3 on xl) ── -->
-                <v-col cols="12" lg="4" xl="3" class="mt-2 d-none d-lg-block">
+                <!-- ── RIGHT PANEL: sidebar (hidden on mobile, 3 cols on lg+) ── -->
+                <v-col cols="12" lg="3" xl="3" class="mt-2 d-none d-lg-block">
 
                     <!-- Calendar button -->
                     <v-btn block outlined color="primary" class="rounded-lg mb-4" @click="showCalendar = true">

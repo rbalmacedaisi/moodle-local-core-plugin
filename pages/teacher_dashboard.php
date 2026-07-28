@@ -20,7 +20,7 @@ $PAGE->set_pagelayout('standard');
 $PAGE->add_body_class('gmk-full-frame');
 
 // Required CSS for modern look
-$PAGE->requires->css(new moodle_url('/local/grupomakro_core/styles/teacher_experience.css'));
+$PAGE->requires->css(new moodle_url('/local/grupomakro_core/styles/teacher_experience.css?v=20260728001'));
 $PAGE->requires->css(new moodle_url('https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.css'));
 $PAGE->requires->css(new moodle_url('https://cdn.jsdelivr.net/npm/@mdi/font@6.x/css/materialdesignicons.min.css'));
 

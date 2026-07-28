@@ -21,6 +21,30 @@
     min-height: 100vh;
 }
 
+/* Dashboard layout: spread across wide screens instead of centring in a
+   narrow band. Force the dashboard's <v-container fluid> and its inner
+   rows/cols to use 100% width — the Vuetify 2.x CDN build we load seems to
+   ignore the `fluid` prop's CSS class in some cases, leaving the content
+   inside an ~1100px centred container with dead space on either side. The
+   explicit !important rules below override that without touching the rest
+   of the page. */
+#teacher-app .v-application__wrap,
+#teacher-app .v-main,
+#teacher-app .v-container,
+#teacher-app .container,
+#teacher-app .v-row {
+    max-width: 100% !important;
+    width: 100% !important;
+}
+#teacher-app .v-main {
+    align-items: stretch !important;
+    justify-content: flex-start !important;
+}
+#teacher-app .v-container {
+    padding-left: max(16px, 2vw) !important;
+    padding-right: max(16px, 2vw) !important;
+}
+
 .hover-card {
     transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
     cursor: pointer;
