@@ -156,23 +156,25 @@ window.TeacherExperience = {
             document.body.classList.contains('dark-mode') ||
             window.matchMedia('(prefers-color-scheme: dark)').matches;
 
-        // Manual toggle stored in localStorage overrides the system-detected
-        // default. Storage key is namespaced to avoid collisions with other
-        // Moodle code; missing/blocked localStorage falls back to the
-        // system-detected default silently.
+        // Manual toggle stored in localStorage overrides the default. Storage
+        // key is namespaced to avoid collisions with other Moodle code;
+        // missing/blocked localStorage falls back silently to the default
+        // below. The default is always LIGHT so first-time visitors don't get
+        // the OS dark-mode surprise; users who explicitly toggled to dark keep
+        // their choice via the localStorage 'dark' value.
         let userThemePref = null;
         try {
             const stored = window.localStorage.getItem('gmk-teacher-theme');
             if (stored === 'dark') userThemePref = true;
             else if (stored === 'light') userThemePref = false;
         } catch (e) {
-            // Ignore — fall back to system default below.
+            // Ignore — fall back to default below.
         }
-        const effectiveDarkMode = (userThemePref === null) ? isDarkMode : userThemePref;
+        const effectiveDarkMode = (userThemePref === null) ? false : userThemePref;
 
         console.log('Teacher Experience: Dark Mode detected?', isDarkMode,
             '| user pref:', userThemePref,
-            '| effective:', effectiveDarkMode,
+            '| effective:', effectiveDarkMode, ' (default = light)',
             '| data-preset:', document.documentElement.getAttribute('data-preset'),
             '| data-bs-theme:', document.documentElement.getAttribute('data-bs-theme'));
 
