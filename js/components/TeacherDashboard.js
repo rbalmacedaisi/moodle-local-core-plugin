@@ -237,10 +237,13 @@ const TeacherDashboard = {
         </v-container>
     `,
     data() {
+        const todayIso = new Date().toISOString().substr(0, 10);
         return {
             loading: true,
             showCalendar: false,
-            calendarValue: '',
+            // v-calendar v-model expects a YYYY-MM-DD string. Empty string made
+            // v-calendar skip rendering events until the user clicked "Hoy".
+            calendarValue: todayIso,
             calendarView: 'month',
             calendarTitle: '',
             // Event Details Popover state
@@ -292,41 +295,75 @@ const TeacherDashboard = {
                 });
         },
         calendarEvents() {
-            return this.dashboardData.calendar_events.map(e => {
+            const list = Array.isArray(this.dashboardData.calendar_events)
+                ? this.dashboardData.calendar_events
+                : [];
+            const mapped = [];
+            for (let i = 0; i < list.length; i++) {
+                const e = list[i];
                 const tStart = parseInt(e.timestart);
                 const tDur = parseInt(e.timeduration) || 0;
+                // Skip events with no valid start — they would render as Invalid Date
+                // and v-calendar silently drops them.
+                if (!Number.isFinite(tStart) || tStart <= 0) {
+                    continue;
+                }
 
                 // Use course identifier (shortname if available, otherwise truncated longname)
-                const courseIden = e.course_shortname || e.classname;
-                let displayName = e.name;
+                const courseIden = e.course_shortname || e.classname || '';
+                let displayName = e.name || '';
 
-                // If it's a month view, we want to see the activity clearly. 
+                // If it's a month view, we want to see the activity clearly.
                 // We'll prefix with course code only if it's a session or specifically relevant.
-                if (!e.is_grading_task && courseIden && !e.name.includes(courseIden)) {
-                    displayName = `[${courseIden}] ${e.name}`;
+                if (!e.is_grading_task && courseIden && displayName && !displayName.includes(courseIden)) {
+                    displayName = `[${courseIden}] ${displayName}`;
                 }
 
                 // Determine header title for the popover
-                let headerTitle = e.name;
-                if (!e.is_grading_task && (e.name.toLowerCase().includes('asistencia') || e.name.toLowerCase().includes('programado'))) {
-                    headerTitle = e.classname;
+                let headerTitle = displayName;
+                if (!e.is_grading_task && displayName && (displayName.toLowerCase().includes('asistencia') || displayName.toLowerCase().includes('programado'))) {
+                    headerTitle = e.classname || displayName;
                 }
 
-                return {
+                mapped.push({
                     id: e.id,
                     name: displayName,
                     headerTitle: headerTitle,
-                    activityName: e.name, // Full activity name
-                    courseFull: e.classname, // Full class/course name
-                    courseShort: e.course_shortname,
+                    activityName: e.name || '',
+                    courseFull: e.classname || '',
+                    courseShort: e.course_shortname || '',
                     start: new Date(tStart * 1000),
                     end: new Date((tStart + tDur) * 1000),
                     classid: e.classid || 0,
                     color: e.color || 'primary',
                     timed: tDur > 0,
                     is_grading_task: !!e.is_grading_task
-                };
-            });
+                });
+            }
+            return mapped;
+        }
+    },
+    watch: {
+        // Vuetify's v-calendar sometimes does not pick up late changes to the
+        // events prop when the dialog is already mounted but the data fetch
+        // resolves afterwards. Calling checkChange() forces a recompute.
+        showCalendar(isOpen) {
+            if (isOpen && this.$refs.calendar) {
+                this.$nextTick(() => {
+                    if (this.$refs.calendar && typeof this.$refs.calendar.checkChange === 'function') {
+                        this.$refs.calendar.checkChange();
+                    }
+                });
+            }
+        },
+        calendarEvents() {
+            if (this.$refs.calendar && typeof this.$refs.calendar.checkChange === 'function') {
+                this.$nextTick(() => {
+                    if (this.$refs.calendar && typeof this.$refs.calendar.checkChange === 'function') {
+                        this.$refs.calendar.checkChange();
+                    }
+                });
+            }
         }
     },
     mounted() {
@@ -404,7 +441,7 @@ const TeacherDashboard = {
         },
         calendarNext() { this.$refs.calendar.next(); },
         calendarPrev() { this.$refs.calendar.prev(); },
-        calendarToday() { this.calendarValue = ''; },
+        calendarToday() { this.calendarValue = new Date().toISOString().substr(0, 10); },
         onCalendarChange({ start, end }) {
             // Updated to handle range properly in title
             // Note: start and end are objects with date info
