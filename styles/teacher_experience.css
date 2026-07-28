@@ -27,12 +27,23 @@
    ignore the `fluid` prop's CSS class in some cases, leaving the content
    inside an ~1100px centred container with dead space on either side. The
    explicit !important rules below override that without touching the rest
-   of the page. */
+   of the page.
+
+   Also target the Moodle page wrapper that sits outside the Vue mount
+   point: #page > #page-content > .region-main > #region-main >
+   .local_grupomakro_core_dashboard_wrapper > #teacher-app. If any of
+   those has a max-width or centred flex, the dashboard inherits the
+   constraint. The selectors below override each of them so the dashboard
+   always uses the full body width on every page layout. */
 #teacher-app,
+body.gmk-full-frame #teacher-app,
+body.gmk-full-frame #page-content,
+body.gmk-full-frame .region-main,
+body.gmk-full-frame #region-main,
+body.gmk-full-frame .local_grupomakro_core_dashboard_wrapper,
 #teacher-app .v-application,
 #teacher-app .v-application__wrap,
 #teacher-app .v-main,
-#teacher-app .v-fade-transition,
 #teacher-app .gmk-teacher-dashboard,
 #teacher-app .v-container,
 #teacher-app .container,
@@ -43,12 +54,6 @@
 #teacher-app .v-main {
     align-items: stretch !important;
     justify-content: flex-start !important;
-}
-/* v-fade-transition wraps the dashboard component and defaults to
-   position: absolute which collapses it. Force it back to relative so
-   the wrapper div fills the available width. */
-#teacher-app .v-fade-transition {
-    position: relative !important;
 }
 #teacher-app .v-container {
     padding-left: max(16px, 2vw) !important;

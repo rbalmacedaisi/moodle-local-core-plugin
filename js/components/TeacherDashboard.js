@@ -5,7 +5,7 @@
 
 const TeacherDashboard = {
     template: `
-        <div class="gmk-teacher-dashboard pa-4" style="background-color: var(--gmk-bg); min-height: 100vh; width: 100%; box-sizing: border-box;">
+        <v-container fluid class="pa-4" style="background-color: var(--gmk-bg); min-height: 100vh;">
             <div class="v-row" v-if="loading" style="display:flex;flex-wrap:wrap;">
                 <v-col cols="12" class="text-center py-12">
                     <v-progress-circular indeterminate color="primary" size="64"></v-progress-circular>
@@ -240,8 +240,7 @@ const TeacherDashboard = {
                     </v-card-text>
                 </v-card>
             </v-dialog>
-        </div>
-        </div>
+        </v-container>
     `,
     data() {
         const todayIso = new Date().toISOString().substr(0, 10);
