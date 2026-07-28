@@ -325,6 +325,14 @@ const TeacherDashboard = {
                     headerTitle = e.classname || displayName;
                 }
 
+                // v-calendar v2 has a known rendering quirk with Date objects
+                // passed through a Vue computed: it sometimes ignores them entirely
+                // (the grid shows but no events render). Pass `start`/`end` as the
+                // same ISO-ish strings that ClassSchedule.cpfix.js uses successfully,
+                // so v-calendar's own `new Date(...)` parsing takes over.
+                const startStr = new Date(tStart * 1000).toISOString();
+                const endStr = new Date((tStart + tDur) * 1000).toISOString();
+
                 mapped.push({
                     id: e.id,
                     name: displayName,
@@ -332,11 +340,14 @@ const TeacherDashboard = {
                     activityName: e.name || '',
                     courseFull: e.classname || '',
                     courseShort: e.course_shortname || '',
-                    start: new Date(tStart * 1000),
-                    end: new Date((tStart + tDur) * 1000),
+                    start: startStr,
+                    end: endStr,
                     classid: e.classid || 0,
                     color: e.color || 'primary',
-                    timed: tDur > 0,
+                    // All our events come from a calendar event with a specific time;
+                    // force timed=true so v-calendar renders them in month view as
+                    // a colored dot/bar.
+                    timed: true,
                     is_grading_task: !!e.is_grading_task
                 });
             }
@@ -475,9 +486,11 @@ const TeacherDashboard = {
             nativeEvent.stopPropagation();
         },
         formatEventTime(date) {
-            // date is a Date object
+            // date may be a Date object or an ISO string (v-calendar v2 parsing)
             if (!date) return '';
-            return date.toLocaleTimeString("es-ES", {
+            const d = (date instanceof Date) ? date : new Date(date);
+            if (Number.isNaN(d.getTime())) return '';
+            return d.toLocaleTimeString("es-ES", {
                 hour: "2-digit",
                 minute: "2-digit",
                 hour12: true,
