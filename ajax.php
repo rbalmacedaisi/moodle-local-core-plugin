@@ -1532,6 +1532,27 @@ try {
             ];
             break;
 
+        case 'local_grupomakro_calendar_get_calendar_events':
+            // Lazy-loaded by the TeacherDashboard 'Ver Calendario Completo'
+            // dialog after the initial dashboard render. Delegates to the same
+            // WS handler that schedules.php uses.
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/event/get_calendar_events.php');
+            $userid = optional_param('userid', 0, PARAM_INT);
+            $initdate = optional_param('initDate', null, PARAM_TEXT);
+            $enddate = optional_param('endDate', null, PARAM_TEXT);
+            $result = \local_grupomakro_core\external\event\get_calendar_events::execute($userid, $initdate, $enddate);
+            // The WS returns ['events' => '<json string>']. Wrap so the
+            // TeacherDashboard.js can read response.data.events directly.
+            if (is_array($result) && isset($result['events']) && is_string($result['events'])) {
+                $response = [
+                    'status' => 'success',
+                    'events' => json_decode($result['events'])
+                ];
+            } else {
+                $response = $result;
+            }
+            break;
+
         case 'local_grupomakro_get_student_learning_plan_pensum':
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/student/get_student_learning_plan_pensum.php');
             $userid = required_param('userId', PARAM_INT);

@@ -426,10 +426,10 @@ const TeacherDashboard = {
             if (this.calendarEventsLoaded || this.calendarEventsLoading) return;
             this.calendarEventsLoading = true;
             try {
-                // Reuse the same endpoint the schedules.php page uses.
-                // Range: today minus 1 month to today plus 6 months — enough
-                // for v-calendar to fill its visible window without pulling the
-                // entire semester.
+                // Range: today minus 1 month to today plus 6 months — enough for
+                // v-calendar to fill its visible window without pulling the
+                // entire semester. The AJAX dispatcher wraps the WS handler
+                // and returns { status, events: [...] }.
                 const initDate = new Date();
                 initDate.setMonth(initDate.getMonth() - 1);
                 const endDate = new Date();
@@ -440,29 +440,28 @@ const TeacherDashboard = {
                     const day = String(d.getDate()).padStart(2, '0');
                     return `${y}-${m}-${day}`;
                 };
-                const response = await axios.get(window.wsUrl, {
-                    params: {
-                        ...window.wsStaticParams,
-                        wsfunction: 'local_grupomakro_calendar_get_calendar_events',
-                        userId: window.userId || 0,
+                const response = await axios.post(window.wsUrl, {
+                    action: 'local_grupomakro_calendar_get_calendar_events',
+                    args: {
+                        userid: window.userId || 0,
                         initDate: fmt(initDate),
                         endDate: fmt(endDate)
-                    }
+                    },
+                    ...window.wsStaticParams
                 });
-                if (response.data && response.data.status === -1) {
-                    throw new Error(response.data.message || 'Error fetching calendar events');
+                if (response.data && response.data.status === 'success') {
+                    const raw = response.data.events;
+                    this.calendarEventsData = Array.isArray(raw) ? raw : [];
+                    this.calendarEventsLoaded = true;
+                    // Force v-calendar to re-render with the freshly loaded events.
+                    this.$nextTick(() => {
+                        if (this.$refs.calendar && typeof this.$refs.calendar.checkChange === 'function') {
+                            this.$refs.calendar.checkChange();
+                        }
+                    });
+                } else {
+                    throw new Error((response.data && response.data.message) || 'Error fetching calendar events');
                 }
-                const raw = (response.data && typeof response.data.events === 'string')
-                    ? JSON.parse(response.data.events)
-                    : (response.data && Array.isArray(response.data.events) ? response.data.events : []);
-                this.calendarEventsData = Array.isArray(raw) ? raw : [];
-                this.calendarEventsLoaded = true;
-                // Force v-calendar to re-render with the freshly loaded events.
-                this.$nextTick(() => {
-                    if (this.$refs.calendar && typeof this.$refs.calendar.checkChange === 'function') {
-                        this.$refs.calendar.checkChange();
-                    }
-                });
             } catch (error) {
                 console.error('Error fetching calendar events:', error);
                 this.calendarEventsData = [];
