@@ -29,12 +29,17 @@
    explicit !important rules below override that without touching the rest
    of the page.
 
-   Also target the Moodle page wrapper that sits outside the Vue mount
-   point: #page > #page-content > .region-main > #region-main >
-   .local_grupomakro_core_dashboard_wrapper > #teacher-app. If any of
-   those has a max-width or centred flex, the dashboard inherits the
-   constraint. The selectors below override each of them so the dashboard
-   always uses the full body width on every page layout. */
+   The actual culprit on pagelayout-standard + drawers is the Classic
+   theme rule that caps #page.drawers .main-inner at max-width: 830px
+   (for readability on extra-wide monitors). Override it so the teacher
+   dashboard can use the full body width. */
+body.gmk-full-frame.pagelayout-standard #page.drawers .main-inner,
+body.gmk-full-frame.limitedwidth #page.drawers .main-inner,
+body.gmk-full-frame #topofscroll.main-inner,
+body.gmk-full-frame .main-inner {
+    max-width: none !important;
+    width: 100% !important;
+}
 #teacher-app,
 body.gmk-full-frame #teacher-app,
 body.gmk-full-frame #page-content,
