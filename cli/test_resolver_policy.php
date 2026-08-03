@@ -35,7 +35,7 @@
 
 define('CLI_SCRIPT', true);
 
-require_once(__DIR__ . '/../../../../config.php');
+require_once(__DIR__ . '/../../../config.php');
 require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/academic_movement_manager.php');
 require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/academic_grade_resolver.php');
 
