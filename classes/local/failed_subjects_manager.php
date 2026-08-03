@@ -327,7 +327,7 @@ class failed_subjects_manager {
         $pageRows = array_slice($rows, $offset, $perpage);
 
         foreach ($pageRows as &$row) {
-            $row['computed_grade'] = self::compute_gradebook_weighted_total(
+            $row['computed_grade'] = self::compute_pensum_grade_for_course(
                 (int)$row['userid'],
                 (int)$row['corecourseid']
             );
@@ -711,6 +711,104 @@ class failed_subjects_manager {
         $val = $hasItems ? round($sum * 10) / 10 : null;
         self::$gradecache[$key] = $val;
         return $val;
+    }
+
+    /**
+     * Resolve the same grade that the academicpanel pensum modal shows
+     * for a (user, course) pair, following the cascade in
+     * get_student_learning_plan_pensum.php:817-943:
+     *   1. Nota Final Integrada (manual item)
+     *   2. Class category grade (weighted total of items in gmk_class.gradecategoryid)
+     *   3. Group class category grade
+     *   4. Membership class category grade (max of all classes the student is a member of)
+     *   5. Plan class category grade
+     *   6. Moodle course total (itemtype='course', finalgrade/grademax*100)
+     *   7. gmk_course_progre.grade (last fallback)
+     *
+     * For a reprobada, the student is typically not enrolled in any
+     * active class, so the cascade falls through to the Moodle course
+     * total or to gmk_course_progre.grade — which is what the modal
+     * shows.
+     */
+    public static function compute_pensum_grade_for_course(int $userid, int $courseid): ?float {
+        if ($userid <= 0 || $courseid <= 0) {
+            return null;
+        }
+        $cacheKey = $userid . '_pensum_' . $courseid;
+        if (array_key_exists($cacheKey, self::$gradecache)) {
+            return self::$gradecache[$cacheKey];
+        }
+
+        global $DB;
+
+        // 1) Nota Final Integrada (manual item for this course).
+        $integrated = $DB->get_field_sql(
+            "SELECT gg.finalgrade
+               FROM {grade_items} gi
+               LEFT JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = :uid
+              WHERE gi.courseid = :cid
+                AND gi.itemtype = 'manual'
+                AND gi.itemname LIKE :name
+              ORDER BY gi.id DESC
+              LIMIT 1",
+            ['uid' => $userid, 'cid' => $courseid, 'name' => '%Nota Final Integrada%']
+        );
+        if ($integrated !== false && $integrated !== null) {
+            $val = (float)$integrated;
+            if ($val >= 0 && $val <= 100) {
+                $result = round($val, 2);
+                self::$gradecache[$cacheKey] = $result;
+                return $result;
+            }
+        }
+
+        // 2-5) Class category grade: weighted total of items in
+        // gmk_class.gradecategoryid for the student's class/group.
+        $weightedTotal = self::compute_gradebook_weighted_total($userid, $courseid);
+        if ($weightedTotal !== null) {
+            $result = round($weightedTotal, 2);
+            self::$gradecache[$cacheKey] = $result;
+            return $result;
+        }
+
+        // 6) Moodle course total (itemtype='course').
+        $courseTotal = $DB->get_record_sql(
+            "SELECT gg.finalgrade, gi.grademax
+               FROM {grade_items} gi
+               LEFT JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = :uid
+              WHERE gi.courseid = :cid
+                AND gi.itemtype = 'course'
+              LIMIT 1",
+            ['uid' => $userid, 'cid' => $courseid]
+        );
+        if ($courseTotal && $courseTotal->finalgrade !== null && $courseTotal->grademax > 0) {
+            $val = (float)$courseTotal->finalgrade / (float)$courseTotal->grademax * 100;
+            if ($val >= 0 && $val <= 100) {
+                $result = round($val, 2);
+                self::$gradecache[$cacheKey] = $result;
+                return $result;
+            }
+        }
+
+        // 7) Last fallback: gmk_course_progre.grade.
+        $progreGrade = $DB->get_field_sql(
+            "SELECT MAX(grade)
+               FROM {gmk_course_progre}
+              WHERE userid = :uid
+                AND courseid = :cid",
+            ['uid' => $userid, 'cid' => $courseid]
+        );
+        if ($progreGrade !== false && $progreGrade !== null) {
+            $val = (float)$progreGrade;
+            if ($val >= 0 && $val <= 100) {
+                $result = round($val, 2);
+                self::$gradecache[$cacheKey] = $result;
+                return $result;
+            }
+        }
+
+        self::$gradecache[$cacheKey] = null;
+        return null;
     }
 
     /**
