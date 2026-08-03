@@ -2937,7 +2937,7 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
             $ltable->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
             $ltable->add_key('movementfk', XMLDB_KEY_FOREIGN, ['movement_id'], 'gmk_academic_movements', ['id']);
             $ltable->add_key('userfk', XMLDB_KEY_FOREIGN, ['userid'], 'user', ['id']);
-            $ltable->add_index('movement_idx', XMLDB_INDEX_NOTUNIQUE, ['movement_id']);
+            $ltable->add_index('movement_log_lookup_idx', XMLDB_INDEX_NOTUNIQUE, ['movement_id']);
 
             $dbman->create_table($ltable);
         }
