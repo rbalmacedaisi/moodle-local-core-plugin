@@ -2858,6 +2858,93 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20260813000, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20260815000) {
+        // Academic Movements Phase 1: persist per-attempt history and append-only
+        // academic movements so the resolver can pick the best grade across
+        // re-enrolments without overwriting prior evidence. See
+        // classes/local/academic_movement_manager.php and academic_grade_resolver.php.
+
+        // 1) gmk_course_attempts: immutable per-attempt record (regular or module).
+        $atable = new xmldb_table('gmk_course_attempts');
+        if (!$dbman->table_exists($atable)) {
+            $atable->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+            $atable->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $atable->add_field('learningplanid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $atable->add_field('corecourseid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $atable->add_field('classid', XMLDB_TYPE_INTEGER, '10', null, null, null, null);
+            $atable->add_field('attempt_no', XMLDB_TYPE_INTEGER, '4', null, XMLDB_NOTNULL, null, '1');
+            $atable->add_field('is_module', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0');
+            $atable->add_field('enroll_date', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $atable->add_field('end_date', XMLDB_TYPE_INTEGER, '10', null, null, null, null);
+            $atable->add_field('status', XMLDB_TYPE_CHAR, '16', null, XMLDB_NOTNULL, null, 'active');
+            $atable->add_field('usermodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $atable->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $atable->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+
+            $atable->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+            $atable->add_key('userfk', XMLDB_KEY_FOREIGN, ['userid'], 'user', ['id']);
+            $atable->add_index('attempt_uix', XMLDB_INDEX_UNIQUE, ['userid', 'learningplanid', 'corecourseid', 'attempt_no']);
+            $atable->add_index('attempt_lookup_idx', XMLDB_INDEX_NOTUNIQUE, ['userid', 'learningplanid', 'corecourseid', 'status']);
+
+            $dbman->create_table($atable);
+        }
+
+        // 2) gmk_academic_movements: append-only per-event record.
+        $mtable = new xmldb_table('gmk_academic_movements');
+        if (!$dbman->table_exists($mtable)) {
+            $mtable->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+            $mtable->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $mtable->add_field('learningplanid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $mtable->add_field('corecourseid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $mtable->add_field('attempt_id', XMLDB_TYPE_INTEGER, '10', null, null, null, null);
+            $mtable->add_field('classid', XMLDB_TYPE_INTEGER, '10', null, null, null, null);
+            $mtable->add_field('source', XMLDB_TYPE_CHAR, '24', null, XMLDB_NOTNULL, null, 'class_close');
+            $mtable->add_field('source_record_id', XMLDB_TYPE_INTEGER, '10', null, null, null, null);
+            $mtable->add_field('grade', XMLDB_TYPE_NUMBER, '5', null, null, null, null);
+            $mtable->add_field('course_status', XMLDB_TYPE_INTEGER, '2', null, null, null, null);
+            $mtable->add_field('effective_at', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $mtable->add_field('annulled', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0');
+            $mtable->add_field('annulled_by', XMLDB_TYPE_INTEGER, '10', null, null, null, null);
+            $mtable->add_field('annulled_at', XMLDB_TYPE_INTEGER, '10', null, null, null, null);
+            $mtable->add_field('annul_reason', XMLDB_TYPE_TEXT, null, null, null, null, null);
+            $mtable->add_field('usermodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $mtable->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $mtable->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+
+            $mtable->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+            $mtable->add_key('userfk', XMLDB_KEY_FOREIGN, ['userid'], 'user', ['id']);
+            $mtable->add_key('attemptfk', XMLDB_KEY_FOREIGN, ['attempt_id'], 'gmk_course_attempts', ['id']);
+            $mtable->add_index('resolve_idx', XMLDB_INDEX_NOTUNIQUE, ['userid', 'learningplanid', 'corecourseid', 'annulled', 'effective_at']);
+            $mtable->add_index('attempt_idx', XMLDB_INDEX_NOTUNIQUE, ['attempt_id', 'annulled']);
+            $mtable->add_index('source_idx', XMLDB_INDEX_NOTUNIQUE, ['source', 'source_record_id']);
+
+            $dbman->create_table($mtable);
+        }
+
+        // 3) gmk_movement_deletion_log: append-only audit of annul actions.
+        $ltable = new xmldb_table('gmk_movement_deletion_log');
+        if (!$dbman->table_exists($ltable)) {
+            $ltable->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+            $ltable->add_field('movement_id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $ltable->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $ltable->add_field('learningplanid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $ltable->add_field('corecourseid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $ltable->add_field('snapshot_json', XMLDB_TYPE_TEXT, null, null, null, null, null);
+            $ltable->add_field('reason', XMLDB_TYPE_TEXT, null, null, XMLDB_NOTNULL, null, null);
+            $ltable->add_field('acted_by', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $ltable->add_field('acted_at', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+
+            $ltable->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+            $ltable->add_key('movementfk', XMLDB_KEY_FOREIGN, ['movement_id'], 'gmk_academic_movements', ['id']);
+            $ltable->add_key('userfk', XMLDB_KEY_FOREIGN, ['userid'], 'user', ['id']);
+            $ltable->add_index('movement_idx', XMLDB_INDEX_NOTUNIQUE, ['movement_id']);
+
+            $dbman->create_table($ltable);
+        }
+
+        upgrade_plugin_savepoint(true, 20260815000, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

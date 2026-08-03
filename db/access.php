@@ -127,4 +127,19 @@ $capabilities = array(
             'editingteacher' => CAP_ALLOW,
         ),
     ),
+    'local/grupomakro_core:view_movement_audit' => array(
+        'captype' => 'read',
+        'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array(
+            'manager' => CAP_ALLOW,
+            'editingteacher' => CAP_ALLOW,
+        ),
+    ),
+    'local/grupomakro_core:annul_movement' => array(
+        'captype' => 'write',
+        'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array(
+            'manager' => CAP_ALLOW,
+        ),
+    ),
 );
