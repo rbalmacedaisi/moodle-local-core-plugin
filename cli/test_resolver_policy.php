@@ -68,13 +68,18 @@ function assertion(string $name, bool $cond, $expected = null, $actual = null) {
 }
 
 function reset_fixture($DB, $mgr, $userid, $learningplanid, $corecourseid) {
-    // Annul any leftover fixture rows from previous runs so the resolver starts
-    // from a known state without breaking the unique attempt_no index.
-    $DB->execute(
-        'UPDATE {gmk_academic_movements} SET annulled = 1, annulled_at = ?, annul_reason = ?
-         WHERE userid = ? AND learningplanid = ? AND corecourseid = ?',
-        [time(), 'test_resolver_policy fixture reset', $userid, $learningplanid, $corecourseid]
-    );
+    // Hard-delete any leftover fixture rows so the unique (userid, plan, course)
+    // attempt row and the (source, source_record_id) idempotency stay deterministic.
+    $DB->delete_records('gmk_movement_deletion_log', [
+        'userid'         => $userid,
+        'learningplanid' => $learningplanid,
+        'corecourseid'   => $corecourseid,
+    ]);
+    $DB->delete_records('gmk_academic_movements', [
+        'userid'         => $userid,
+        'learningplanid' => $learningplanid,
+        'corecourseid'   => $corecourseid,
+    ]);
     $DB->delete_records('gmk_course_attempts', [
         'userid'         => $userid,
         'learningplanid' => $learningplanid,

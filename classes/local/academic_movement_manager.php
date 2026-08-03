@@ -162,6 +162,8 @@ class local_grupomakro_academic_movement_manager {
         $sourcerecordid = isset($payload['source_record_id']) ? (int)$payload['source_record_id'] : 0;
 
         // Idempotency: skip when the same logical source already produced a row.
+        // We only consider non-annulled rows for dedup so re-running a migration
+        // after annulment can re-create the logical event.
         if ($sourcerecordid > 0) {
             $existing = $DB->get_record('gmk_academic_movements', [
                 'userid'         => $userid,
@@ -169,6 +171,7 @@ class local_grupomakro_academic_movement_manager {
                 'corecourseid'   => $corecourseid,
                 'source'         => $source,
                 'source_record_id' => $sourcerecordid,
+                'annulled'       => 0,
             ]);
             if ($existing) {
                 return (int)$existing->id;
