@@ -122,21 +122,18 @@ class failed_subjects_manager {
     public static function build_report(int $periodid, array $filters, int $page = 0, int $perpage = 50): array {
         global $DB;
 
-        $cachekey = self::cache_key($periodid, $filters);
-        $cached = self::$reportcache[$cachekey] ?? null;
-        if ($cached && (time() - $cached['ts']) < self::REPORT_CACHE_TTL) {
-            return self::paginate($cached['data'], $page, $perpage);
-        }
+        $jornadaFieldId    = self::get_field_id('gmkjourney');
+        $cedulaFieldId     = self::get_field_id('documentnumber');
+        $customPhoneFieldId = self::get_field_id('custom_phone');
 
-        $jornadaFieldId = self::get_field_id('gmkjourney');
-        $cedulaFieldId  = self::get_field_id('documentnumber');
-
+        $profileGroupBy = [];
         $jornadaJoin = '';
         $jornadaSelect = "'' AS jornada";
         if ($jornadaFieldId > 0) {
             $jornadaJoin = "LEFT JOIN {user_info_data} uid_j
                               ON uid_j.userid = u.id AND uid_j.fieldid = $jornadaFieldId";
             $jornadaSelect = "uid_j.data AS jornada";
+            $profileGroupBy[] = 'uid_j.data';
         }
 
         $cedulaJoin = '';
@@ -145,7 +142,18 @@ class failed_subjects_manager {
             $cedulaJoin = "LEFT JOIN {user_info_data} uid_c
                              ON uid_c.userid = u.id AND uid_c.fieldid = $cedulaFieldId";
             $cedulaSelect = "uid_c.data AS cedula";
+            $profileGroupBy[] = 'uid_c.data';
         }
+
+        $customPhoneJoin = '';
+        $customPhoneSelect = "'' AS custom_phone";
+        if ($customPhoneFieldId > 0) {
+            $customPhoneJoin = "LEFT JOIN {user_info_data} uid_p
+                                  ON uid_p.userid = u.id AND uid_p.fieldid = $customPhoneFieldId";
+            $customPhoneSelect = "uid_p.data AS custom_phone";
+            $profileGroupBy[] = 'uid_p.data';
+        }
+        $profileGroupSql = empty($profileGroupBy) ? '' : ', ' . implode(', ', $profileGroupBy);
 
         // Deduplicate gmk_course_progre: keep only the most recent row
         // per (userid, courseid, learningplanid) — historical data has
@@ -161,13 +169,15 @@ class failed_subjects_manager {
                        cp.userid, cp.courseid, cp.grade AS last_grade,
                        cp.timemodified AS failed_at,
                        cp.learningplanid, cp.status AS progress_status,
-                       u.firstname, u.lastname, u.email AS user_email, u.idnumber,
-                       c.fullname AS coursename,
-                       c.id AS corecourseid,
-                       lp.name AS planname,
-                       $jornadaSelect,
-                       $cedulaSelect,
-                       MIN(llu.status) AS academic_status
+                        u.firstname, u.lastname, u.email AS user_email, u.idnumber,
+                        u.phone1, u.phone2,
+                        c.fullname AS coursename,
+                        c.id AS corecourseid,
+                        lp.name AS planname,
+                        $jornadaSelect,
+                        $cedulaSelect,
+                        $customPhoneSelect,
+                        MIN(llu.status) AS academic_status
                   FROM {gmk_course_progre} cp
                   JOIN (
                       SELECT userid, courseid, learningplanid, MAX(id) AS maxid
@@ -185,12 +195,13 @@ class failed_subjects_manager {
                   JOIN {local_learning_plans} lp
                        ON lp.id = cp.learningplanid
                   JOIN {course} c ON c.id = cp.courseid
-                  $jornadaJoin
-                  $cedulaJoin
-              GROUP BY cp.id, cp.userid, cp.courseid, cp.grade, cp.timemodified,
-                       cp.learningplanid, cp.status, u.firstname, u.lastname,
-                       u.email, u.idnumber, c.fullname, c.id, lp.name,
-                       uid_j.data, uid_c.data
+                   $jornadaJoin
+                   $cedulaJoin
+                   $customPhoneJoin
+               GROUP BY cp.id, cp.userid, cp.courseid, cp.grade, cp.timemodified,
+                        cp.learningplanid, cp.status, u.firstname, u.lastname,
+                        u.email, u.idnumber, u.phone1, u.phone2, c.fullname, c.id, lp.name
+                        $profileGroupSql
                  ORDER BY u.lastname, u.firstname, c.fullname";
 
         $records = $DB->get_recordset_sql($sql);
@@ -205,83 +216,94 @@ class failed_subjects_manager {
             return !self::is_excluded_course($r->coursename);
         });
 
-        // Pre-load all classes projected to open in the requested period.
         $classesByCourseShift = [];
+        $classesByCourse = [];
+        $classCounts = [];
         if ($periodid > 0) {
             $classSql = "SELECT id, courseid, corecourseid, shift, periodid,
-                                classroomcapacity, groupid, approved, closed,
+                                classroomcapacity, groupid, instructorid, approved, closed,
                                 name AS classname
                            FROM {gmk_class}
                           WHERE periodid = :pid
-                            AND closed = 0";
-            $cls = $DB->get_records_sql($classSql, ['pid' => $periodid]);
-            foreach ($cls as $c) {
+                            AND closed = 0
+                       ORDER BY shift ASC, name ASC";
+            $classes = array_values($DB->get_records_sql($classSql, ['pid' => $periodid]));
+            $participants = gmk_bulk_class_participants($classes);
+            foreach ($classes as $c) {
                 $shift = self::normalize_jornada((string)$c->shift);
-                $classesByCourseShift[$c->courseid . '|' . $shift][] = $c;
+                $courseid = (int)$c->courseid;
+                $classesByCourseShift[$courseid . '|' . $shift][] = $c;
+                $classesByCourse[$courseid][] = $c;
+                $bucket = $participants[(int)$c->id] ?? null;
+                $classCounts[(int)$c->id] = $bucket
+                    ? count((array)$bucket->preRegisteredStudents)
+                    : 0;
             }
         }
+
+        $userids = [];
+        foreach ($records as $r) {
+            $userids[(int)$r->userid] = (int)$r->userid;
+        }
+        $financialByUser = self::load_financial_statuses(array_values($userids));
 
         $rows = [];
         foreach ($records as $r) {
             $jornada = self::normalize_jornada((string)($r->jornada ?? ''));
-            $courseClasses = $classesByCourseShift[$r->courseid . '|' . $jornada] ?? [];
+            $courseClasses = $classesByCourseShift[(int)$r->courseid . '|' . $jornada] ?? [];
 
             $target = null;
             $enrolled = 0;
             $capacity = 0;
             $isFull = false;
-            if (!empty($courseClasses)) {
-                // Pick the class with the most free quota so the admin
-                // sees the most available option first. Capacity count
-                // uses get_class_participants() — the same helper that
-                // powers list_classes — to keep numbers consistent
-                // with the academic panel.
-                $best = null;
-                foreach ($courseClasses as $cand) {
-                    $cp = get_class_participants($cand);
-                    $cnt = is_object($cp) ? (int)count((array)$cp->preRegisteredStudents) : 0;
-                    if ($best === null || $cnt < $best['count']) {
-                        $best = ['class' => $cand, 'count' => $cnt, 'participants' => $cp];
-                    }
-                }
-                if ($best !== null) {
-                    $target = $best['class'];
-                    $enrolled = $best['count'];
-                    $capacity = (int)$target->classroomcapacity;
-                    $isFull = $capacity > 0 && $enrolled >= $capacity;
+            foreach ($courseClasses as $candidate) {
+                $candidateCount = $classCounts[(int)$candidate->id] ?? 0;
+                if ($target === null || $candidateCount < $enrolled) {
+                    $target = $candidate;
+                    $enrolled = $candidateCount;
                 }
             }
+            if ($target !== null) {
+                $capacity = (int)$target->classroomcapacity;
+                $isFull = $capacity > 0 && $enrolled >= $capacity;
+            }
 
-            // Recompute the grade using the EXACT same formula as
-            // grademodal.js -> gradebookWeightedTotal: sum of
-            // (grade / grade_max) * weight_pct across all items with
-            // weight_pct > 0, rounded to 1 decimal. This is the same
-            // methodology used by the studenttable modal.
+            $availableClasses = [];
+            foreach ($classesByCourse[(int)$r->courseid] ?? [] as $available) {
+                $availableShift = self::normalize_jornada((string)$available->shift);
+                $availableCount = $classCounts[(int)$available->id] ?? 0;
+                $availableCapacity = (int)$available->classroomcapacity;
+                $availableClasses[] = [
+                    'classid' => (int)$available->id,
+                    'classname' => (string)$available->classname,
+                    'shift' => $availableShift,
+                    'jornada_match' => $jornada !== '' && $availableShift === $jornada,
+                    'classroomcapacity' => $availableCapacity,
+                    'enrolled_count' => $availableCount,
+                    'is_full' => $availableCapacity > 0 && $availableCount >= $availableCapacity,
+                ];
+            }
+
+            $financial = $financialByUser[(int)$r->userid] ?? ['status' => '', 'label' => ''];
             $corecourseid = $target ? (int)$target->corecourseid : (int)$r->corecourseid;
-            $computedGrade = self::compute_gradebook_weighted_total(
-                (int)$r->userid, $corecourseid
-            );
-
-            $contact = self::get_contact_cached((int)$r->userid, $r->cedula);
-
-            $row = [
+            $rows[] = [
                 'progress_id'        => (int)$r->progress_id,
                 'userid'             => (int)$r->userid,
                 'student_name'       => trim($r->firstname . ' ' . $r->lastname),
                 'student_idnumber'   => (string)($r->idnumber ?? ''),
                 'user_email'         => (string)($r->user_email ?? ''),
                 'cedula'             => (string)($r->cedula ?? ''),
-                'phone'              => $contact['phone'] ?? '',
-                'mobile'             => $contact['mobile'] ?? '',
-                'contact_email'      => $contact['email'] ?? '',
-                'financial_status'   => $contact['financial_status'] ?? '',
-                'financial_label'    => $contact['financial_label'] ?? '',
+                'phone'              => (string)($r->custom_phone ?: ($r->phone1 ?? '')),
+                'mobile'             => (string)($r->phone2 ?? ''),
+                'contact_email'      => (string)($r->user_email ?? ''),
+                'financial_status'   => (string)$financial['status'],
+                'financial_label'    => (string)$financial['label'],
                 'academic_status'    => (string)($r->academic_status ?? ''),
                 'jornada_estudiante' => $jornada,
                 'courseid'           => (int)$r->courseid,
                 'coursename'         => (string)$r->coursename,
                 'last_grade'         => (float)$r->last_grade,
-                'computed_grade'     => $computedGrade,
+                'computed_grade'     => null,
                 'failed_at'          => (int)$r->failed_at,
                 'learningplanid'     => (int)$r->learningplanid,
                 'planname'           => (string)$r->planname,
@@ -294,22 +316,59 @@ class failed_subjects_manager {
                 'classroomcapacity'  => $capacity,
                 'enrolled_count'     => $enrolled,
                 'is_full'            => $isFull,
-                'available_classes'  => self::list_available_classes(
-                    (int)$r->courseid, $periodid, $jornada
-                ),
+                'available_classes'  => $availableClasses,
             ];
-            $rows[] = $row;
         }
 
-        // Apply filters.
         $rows = self::apply_filters($rows, $filters);
-
-        // Build summary counts.
         $summary = self::build_summary($rows, $periodid);
+        $total = count($rows);
+        $offset = $page * $perpage;
+        $pageRows = array_slice($rows, $offset, $perpage);
 
-        self::$reportcache[$cachekey] = ['ts' => time(), 'data' => $rows];
+        foreach ($pageRows as &$row) {
+            $row['computed_grade'] = self::compute_gradebook_weighted_total(
+                (int)$row['userid'],
+                (int)$row['corecourseid']
+            );
+        }
+        unset($row);
 
-        return self::paginate_with_summary($rows, $summary, $page, $perpage);
+        return [
+            'rows' => $pageRows,
+            'total' => $total,
+            'summary' => $summary,
+            'page' => $page,
+            'perpage' => $perpage,
+        ];
+    }
+
+    private static function load_financial_statuses(array $userids): array {
+        global $DB;
+        if (empty($userids)) {
+            return [];
+        }
+
+        [$insql, $params] = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED, 'fsuid');
+        $records = $DB->get_recordset_select(
+            'gmk_financial_status',
+            "userid $insql",
+            $params,
+            'userid ASC, lastupdated DESC, id DESC',
+            'id, userid, status, reason, lastupdated'
+        );
+        $result = [];
+        foreach ($records as $record) {
+            $userid = (int)$record->userid;
+            if (!isset($result[$userid])) {
+                $result[$userid] = [
+                    'status' => (string)$record->status,
+                    'label' => (string)$record->status,
+                ];
+            }
+        }
+        $records->close();
+        return $result;
     }
 
     /**
@@ -417,15 +476,28 @@ class failed_subjects_manager {
         }
 
         global $DB;
+        $user = $DB->get_record(
+            'user',
+            ['id' => $userid],
+            'id, email, phone1, phone2',
+            IGNORE_MISSING
+        );
+        $customPhone = '';
+        $customPhoneFieldId = self::get_field_id('custom_phone');
+        if ($customPhoneFieldId > 0) {
+            $customPhone = (string)$DB->get_field('user_info_data', 'data', [
+                'userid' => $userid,
+                'fieldid' => $customPhoneFieldId,
+            ]);
+        }
         $data = [
-            'phone' => '',
-            'mobile' => '',
-            'email' => '',
+            'phone' => $customPhone !== '' ? $customPhone : (string)($user->phone1 ?? ''),
+            'mobile' => (string)($user->phone2 ?? ''),
+            'email' => (string)($user->email ?? ''),
             'financial_status' => '',
             'financial_label' => '',
         ];
 
-        // Financial status from local gmk_financial_status.
         $fs = $DB->get_record_sql(
             "SELECT status, reason FROM {gmk_financial_status}
               WHERE userid = :uid
@@ -434,15 +506,7 @@ class failed_subjects_manager {
         );
         if ($fs) {
             $data['financial_status'] = (string)$fs->status;
-            $data['financial_label']  = (string)$fs->status; // localized in JS.
-        }
-
-        // Try Odoo (best-effort). Failure is non-fatal.
-        $odooContact = self::fetch_odoo_contact($userid, $cedulafallback);
-        if ($odooContact) {
-            $data['phone']  = (string)($odooContact['phone'] ?? '');
-            $data['mobile'] = (string)($odooContact['mobile'] ?? '');
-            $data['email']  = (string)($odooContact['email'] ?? '');
+            $data['financial_label'] = (string)$fs->status;
         }
 
         self::$contactcache[$userid] = ['ts' => time(), 'data' => $data];

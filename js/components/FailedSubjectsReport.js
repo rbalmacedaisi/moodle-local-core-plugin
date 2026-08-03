@@ -74,7 +74,8 @@ Vue.component('failed-subjects-report', {
             pickerEnrollingId: 0,
             refreshingFinancial: {},  // { userid: bool }
 
-            fetchTimer: null
+            fetchTimer: null,
+            tableReady: false
         };
     },
     computed: {
@@ -103,7 +104,9 @@ Vue.component('failed-subjects-report', {
             } catch (e) {
                 console.error('[FSR] fetchPeriods', e);
             }
-            this.fetchReport();
+            this.fetchReport().finally(() => {
+                this.tableReady = true;
+            });
         },
 
         async fetchReport() {
@@ -137,7 +140,10 @@ Vue.component('failed-subjects-report', {
                 }
             } catch (e) {
                 console.error('[FSR] fetchReport', e);
-                this.error = e.message || 'No se pudo cargar el reporte.';
+                const responseData = e.response && e.response.data;
+                this.error = (responseData && responseData.message)
+                    || e.message
+                    || 'No se pudo cargar el reporte.';
                 this.rows = [];
             } finally {
                 this.loading = false;
@@ -162,7 +168,9 @@ Vue.component('failed-subjects-report', {
         onTableOptions(opt) {
             this.page    = (opt.page || 1) - 1;
             this.perpage = opt.itemsPerPage || 50;
-            this.fetchReport();
+            if (this.tableReady) {
+                this.fetchReport();
+            }
         },
 
         async clearCache() {
@@ -561,6 +569,10 @@ Vue.component('failed-subjects-report', {
                 Sin período seleccionado — solo se muestran reprobadas (sin match de grupo).
             </v-alert>
 
+            <v-alert v-if="error" type="error" dense text class="mb-3">
+                {{ error }}
+            </v-alert>
+
             <!-- Data table -->
             <v-card outlined class="rounded-lg">
                 <v-data-table
@@ -639,15 +651,15 @@ Vue.component('failed-subjects-report', {
                     </template>
                     <template v-slot:item.phone="{ item }">
                         <div class="text-caption">
-                            <div v-if="item.contact_mobile">
+                            <div v-if="item.mobile">
                                 <v-icon small color="primary">mdi-cellphone</v-icon>
-                                <span>{{ item.contact_mobile }}</span>
+                                <span>{{ item.mobile }}</span>
                             </div>
-                            <div v-if="item.contact_phone && item.contact_phone !== item.contact_mobile">
+                            <div v-if="item.phone && item.phone !== item.mobile">
                                 <v-icon small color="primary">mdi-phone</v-icon>
-                                <span>{{ item.contact_phone }}</span>
+                                <span>{{ item.phone }}</span>
                             </div>
-                            <div v-if="!item.contact_mobile && !item.contact_phone" class="grey--text">
+                            <div v-if="!item.mobile && !item.phone" class="grey--text">
                                 —
                             </div>
                         </div>

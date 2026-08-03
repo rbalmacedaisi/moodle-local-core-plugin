@@ -36,7 +36,7 @@ require_login();
 require_capability('local/grupomakro_core:view_failed_subjects_report', context_system::instance());
 
 $plugin = 'local_grupomakro_core';
-$assetversion = !empty($CFG->themerev) ? (int)$CFG->themerev : 1;
+$assetversion = 'fsr-20260803-1';
 
 $PAGE->set_url(new moodle_url('/local/grupomakro_core/pages/failed_subjects_report.php'));
 $PAGE->set_context(context_system::instance());
