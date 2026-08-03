@@ -718,17 +718,18 @@ class failed_subjects_manager {
      * for a (user, course) pair, following the cascade in
      * get_student_learning_plan_pensum.php:817-943:
      *   1. Nota Final Integrada (manual item)
-     *   2. Class category grade (weighted total of items in gmk_class.gradecategoryid)
+     *   2. Class category grade (weighted total of items in gmk_class.gradecategoryid
+     *      for the student's ACTIVE class via gmk_course_progre.classid)
      *   3. Group class category grade
      *   4. Membership class category grade (max of all classes the student is a member of)
      *   5. Plan class category grade
      *   6. Moodle course total (itemtype='course', finalgrade/grademax*100)
      *   7. gmk_course_progre.grade (last fallback)
      *
-     * For a reprobada, the student is typically not enrolled in any
-     * active class, so the cascade falls through to the Moodle course
-     * total or to gmk_course_progre.grade — which is what the modal
-     * shows.
+     * For a reprobada, the student's gmk_course_progre record is
+     * historical (classid = 0), so the cascade falls through to the
+     * Moodle course total or to gmk_course_progre.grade — which is
+     * what the modal shows.
      */
     public static function compute_pensum_grade_for_course(int $userid, int $courseid): ?float {
         if ($userid <= 0 || $courseid <= 0) {
@@ -762,13 +763,33 @@ class failed_subjects_manager {
             }
         }
 
-        // 2-5) Class category grade: weighted total of items in
-        // gmk_class.gradecategoryid for the student's class/group.
-        $weightedTotal = self::compute_gradebook_weighted_total($userid, $courseid);
-        if ($weightedTotal !== null) {
-            $result = round($weightedTotal, 2);
-            self::$gradecache[$cacheKey] = $result;
-            return $result;
+        // 2-5) Class category grade: only if the student has an ACTIVE
+        // class for this course (gmk_course_progre.classid > 0 with a
+        // matching gmk_class). This matches the pensum cascade which
+        // uses progressclassid, not groups_members. For reprobadas the
+        // classid is 0, so the cascade falls through to step 6.
+        $activeClassRow = $DB->get_record_sql(
+            "SELECT cp.classid, c.groupid, c.gradecategoryid
+               FROM {gmk_course_progre} cp
+               JOIN {gmk_class} c ON c.id = cp.classid
+              WHERE cp.userid = :uid
+                AND cp.courseid = :cid
+                AND cp.classid > 0
+                AND c.gradecategoryid > 0
+           ORDER BY cp.timemodified DESC
+              LIMIT 1",
+            ['uid' => $userid, 'cid' => $courseid]
+        );
+        if ($activeClassRow) {
+            $catid = (int)$activeClassRow->gradecategoryid;
+            $categoryTotal = self::compute_class_category_total(
+                $userid, $courseid, $catid
+            );
+            if ($categoryTotal !== null) {
+                $result = round($categoryTotal, 2);
+                self::$gradecache[$cacheKey] = $result;
+                return $result;
+            }
         }
 
         // 6) Moodle course total (itemtype='course').
@@ -809,6 +830,126 @@ class failed_subjects_manager {
 
         self::$gradecache[$cacheKey] = null;
         return null;
+    }
+
+    /**
+     * Compute the weighted total for a grade category, matching the
+     * logic in get_student_learning_plan_pensum.php:454-571: items
+     * with weight_pct > 0, attendance override via attendance_log,
+     * rounded to 2 decimals and capped at 100.
+     */
+    private static function compute_class_category_total(int $userid, int $courseid, int $categoryid): ?float {
+        global $DB;
+        if ($userid <= 0 || $courseid <= 0 || $categoryid <= 0) {
+            return null;
+        }
+
+        $categoryAgg = (int)$DB->get_field('grade_categories', 'aggregation', ['id' => $categoryid]);
+        $items = $DB->get_records_sql(
+            "SELECT gi.id, gi.categoryid, gi.itemmodule, gi.iteminstance, gi.grademax,
+                    gi.aggregationcoef, gi.aggregationcoef2
+               FROM {grade_items} gi
+              WHERE gi.courseid = :cid
+                AND gi.categoryid = :catid
+                AND gi.itemtype IN ('mod', 'manual')",
+            ['cid' => $courseid, 'catid' => $categoryid]
+        );
+        if (empty($items)) {
+            return null;
+        }
+
+        $catRawSums = [];
+        foreach ($items as $gi) {
+            $cagg = $categoryAgg;
+            if ($cagg === 10 || $cagg === 2) {
+                $catRawSums[(int)$gi->categoryid] =
+                    ($catRawSums[(int)$gi->categoryid] ?? 0.0) + (float)$gi->aggregationcoef;
+            }
+        }
+        $itemWeightPct = [];
+        foreach ($items as $gi) {
+            $cagg = $categoryAgg;
+            $raww = ($cagg === 10 || $cagg === 2)
+                ? (float)$gi->aggregationcoef
+                : (float)$gi->aggregationcoef2;
+            $catsum = $catRawSums[(int)$gi->categoryid] ?? 0;
+            $itemWeightPct[(int)$gi->id] = ($cagg === 10 || $cagg === 2)
+                ? ($catsum > 0 ? ($raww / $catsum) * 100 : 0)
+                : $raww * 100;
+        }
+
+        $gradesByItemId = [];
+        $itemIds = array_values(array_map('intval', array_keys((array)$items)));
+        if (!empty($itemIds)) {
+            [$inSql, $inParams] = $DB->get_in_or_equal($itemIds, SQL_PARAMS_NAMED, 'cgi');
+            $ggRows = $DB->get_records_sql(
+                "SELECT gg.itemid, gg.finalgrade
+                   FROM {grade_grades} gg
+                  WHERE gg.userid = :uid
+                    AND gg.itemid $inSql",
+                ['uid' => $userid] + $inParams
+            );
+            foreach ($ggRows as $ggr) {
+                if (!is_null($ggr->finalgrade)) {
+                    $gradesByItemId[(int)$ggr->itemid] = (float)$ggr->finalgrade;
+                }
+            }
+
+            // Attendance override: log-based recalculation.
+            $now = time();
+            foreach ($items as $gi) {
+                if (($gi->itemmodule ?? '') !== 'attendance') continue;
+                $attAttid = (int)$gi->iteminstance;
+                $attMax = (float)$gi->grademax;
+                if ($attAttid <= 0 || $attMax <= 0) continue;
+
+                $attTotalRow = $DB->get_record_sql(
+                    "SELECT COUNT(s.id) AS total
+                       FROM {attendance_sessions} s
+                      WHERE s.attendanceid = :attid
+                        AND COALESCE(s.is_revalida, 0) = 0
+                        AND s.sessdate + s.duration < :now
+                        AND (
+                            EXISTS (SELECT 1 FROM {attendance_log} l WHERE l.sessionid = s.id)
+                            OR COALESCE(s.lasttaken, 0) > 0
+                        )",
+                    ['attid' => $attAttid, 'now' => $now]
+                );
+                $attTotal = $attTotalRow ? (int)$attTotalRow->total : 0;
+                if ($attTotal <= 0) continue;
+
+                $attPresRow = $DB->get_record_sql(
+                    "SELECT COUNT(DISTINCT CASE WHEN ast.grade > 0 THEN s.id END) AS present
+                       FROM {attendance_sessions} s
+                       JOIN {attendance_log} al ON al.sessionid = s.id AND al.studentid = :uid
+                       LEFT JOIN {attendance_statuses} ast ON ast.id = al.statusid
+                      WHERE s.attendanceid = :attid
+                        AND COALESCE(s.is_revalida, 0) = 0
+                        AND s.sessdate + s.duration < :now
+                        AND (
+                            EXISTS (SELECT 1 FROM {attendance_log} l2 WHERE l2.sessionid = s.id)
+                            OR COALESCE(s.lasttaken, 0) > 0
+                        )",
+                    ['uid' => $userid, 'attid' => $attAttid, 'now' => $now]
+                );
+                $present = $attPresRow ? (int)$attPresRow->present : 0;
+                $gradesByItemId[(int)$gi->id] = round(($present / $attTotal) * $attMax, 2);
+            }
+        }
+
+        $total = 0.0;
+        $hasAny = false;
+        foreach ($items as $gi) {
+            $wpct = $itemWeightPct[(int)$gi->id] ?? 0;
+            if ($wpct <= 0) continue;
+            $raw = $gradesByItemId[(int)$gi->id] ?? null;
+            $grade = ($raw !== null) ? (float)$raw : 0.0;
+            $max = ((float)$gi->grademax > 0) ? (float)$gi->grademax : 100.0;
+            if ($raw !== null) $hasAny = true;
+            $total += ($grade / $max) * $wpct;
+        }
+        if (!$hasAny) return null;
+        return min($total, 100.0);
     }
 
     /**
