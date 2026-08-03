@@ -9426,7 +9426,8 @@ function gmk_close_class_with_grade_recalc(int $classId): array {
     global $DB, $CFG, $USER;
     require_once($CFG->libdir . '/gradelib.php');
     if (!class_exists('local_grupomakro_progress_manager')) {
-        require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/progress_manager.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/progress_manager.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/academic_movement_manager.php');
     }
 
     $class = $DB->get_record('gmk_class', ['id' => $classId], '*', MUST_EXIST);
@@ -9609,6 +9610,32 @@ function gmk_close_class_with_grade_recalc(int $classId): array {
     } catch (Throwable $e) {
         $transaction->rollback($e);
         return ['ok' => false, 'error' => 'Error de base de datos al cerrar la clase: ' . $e->getMessage()];
+    }
+
+    // ── 6b. Academic movements Phase 2: record a class_close movement per
+    // terminal progre so the resolver picks the best grade across re-enrolments.
+    // Best-effort: a movement failure must not abort the closure.
+    foreach ($updates as $upd) {
+        try {
+            $progreRow = $DB->get_record('gmk_course_progre', ['id' => $upd['id']]);
+            if (!$progreRow) {
+                continue;
+            }
+            local_grupomakro_academic_movement_manager::record_movement([
+                'userid'          => (int)$progreRow->userid,
+                'learningplanid'  => (int)$progreRow->learningplanid,
+                'corecourseid'    => (int)$progreRow->courseid,
+                'classid'         => (int)$classId,
+                'source'          => 'class_close',
+                'source_record_id' => (int)$upd['id'],
+                'grade'           => (float)$upd['grade'],
+                'course_status'   => (int)$upd['status'],
+                'effective_at'    => $now,
+                'usermodified'    => (int)($USER->id ?? 0),
+            ]);
+        } catch (\Throwable $mvError) {
+            gmk_log('WARN gmk_close_class_with_grade_recalc academic_movement insert failed: ' . $mvError->getMessage());
+        }
     }
 
     // ── 7. Post-commit: lock grade category (non-critical, outside transaction) ─

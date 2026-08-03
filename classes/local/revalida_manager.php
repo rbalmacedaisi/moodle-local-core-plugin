@@ -35,6 +35,7 @@ defined('MOODLE_INTERNAL') || die();
 
 require_once($GLOBALS['CFG']->dirroot . '/local/grupomakro_core/locallib.php');
 require_once($GLOBALS['CFG']->dirroot . '/local/grupomakro_core/classes/local/progress_manager.php');
+require_once($GLOBALS['CFG']->dirroot . '/local/grupomakro_core/classes/local/academic_movement_manager.php');
 
 /**
  * Revalidation business logic.
@@ -651,6 +652,26 @@ class revalida_manager {
         } catch (\Throwable $e) {
             $transaction->rollback($e);
             return ['ok' => false, 'error' => 'Error al guardar la nota de reválida: ' . $e->getMessage(), 'result' => null, 'finalgrade' => null];
+        }
+
+        // Academic movements Phase 2: record a revalidation movement so the
+        // resolver picks the best grade across re-enrolments. Best-effort: a
+        // movement failure must not break the grade save.
+        try {
+            local_grupomakro_academic_movement_manager::record_movement([
+                'userid'          => (int)$rec->userid,
+                'learningplanid'  => (int)$rec->learningplanid,
+                'corecourseid'    => (int)$rec->corecourseid,
+                'classid'         => (int)$rec->classid,
+                'source'          => 'revalidation',
+                'source_record_id' => (int)$rec->id,
+                'grade'           => $finalgrade,
+                'course_status'   => $newstatus,
+                'effective_at'    => $now,
+                'usermodified'    => $actorid,
+            ]);
+        } catch (\Throwable $mvError) {
+            gmk_log('WARN revalida save_grade academic_movement insert failed: ' . $mvError->getMessage());
         }
 
         return ['ok' => true, 'error' => null, 'result' => $rec->result, 'finalgrade' => $finalgrade];

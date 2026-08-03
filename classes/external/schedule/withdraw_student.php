@@ -11,6 +11,7 @@ defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/progress_manager.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/academic_movement_manager.php');
 
 /**
  * Withdraw a student from a SINGLE class (module or regular) surgically.
@@ -180,6 +181,28 @@ class withdraw_student extends external_api {
             $msg .= ' Se conservó su otra inscripción del mismo curso.';
         } else {
             $msg .= ' El estado volvió a Disponible.';
+        }
+
+        // Academic movements Phase 2: record a withdrawal so the resolver can
+        // pick the best grade across re-enrolments. Best-effort: a movement
+        // failure must not abort the withdrawal.
+        if ($moduleProgreRow !== null) {
+            try {
+                local_grupomakro_academic_movement_manager::record_movement([
+                    'userid'          => (int)$userId,
+                    'learningplanid'  => (int)($moduleProgreRow->learningplanid ?? 0),
+                    'corecourseid'    => (int)$corecourseid,
+                    'classid'         => (int)$classId,
+                    'source'          => 'withdrawal',
+                    'source_record_id' => (int)$moduleProgreRow->id,
+                    'grade'           => null,
+                    'course_status'   => (int)$moduleProgreRow->status,
+                    'effective_at'    => time(),
+                    'usermodified'    => (int)$USER->id,
+                ]);
+            } catch (\Throwable $mvError) {
+                gmk_log('WARN withdraw_student academic_movement insert failed: ' . $mvError->getMessage());
+            }
         }
 
         return ['status' => 'ok', 'message' => $msg];

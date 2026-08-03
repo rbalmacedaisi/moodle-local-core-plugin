@@ -57,6 +57,7 @@ defined('MOODLE_INTERNAL') || die();
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 require_once($CFG->libdir  . '/gradelib.php');
 require_once($CFG->dirroot . '/grade/lib.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/academic_movement_manager.php');
 
 /**
  * External function 'local_grupomakro_revert_homologation' implementation.
@@ -250,6 +251,30 @@ class revert_homologation extends external_api
             $DB->insert_record('gmk_homologation_audit', $audit);
         } catch (\Throwable $auditError) {
             gmk_log('WARN revert audit insert failed: ' . $auditError->getMessage());
+        }
+
+        // Academic movements Phase 2: when reverting a homologation, annul the
+        // previous homologate movement (if any) so the resolver no longer counts
+        // it. Best-effort: a movement failure must not block the revert.
+        try {
+            $priorMovement = $DB->get_record('gmk_academic_movements', [
+                'userid'          => $userId,
+                'learningplanid'  => $learningPlanId,
+                'corecourseid'    => $coreCourseId,
+                'source'          => 'homologate',
+                'source_record_id' => (int)$row->id,
+                'annulled'        => 0,
+            ]);
+            if ($priorMovement) {
+                $revertReason = 'Revertido: ' . substr($reason, 0, 200);
+                local_grupomakro_academic_movement_manager::annul_movement(
+                    (int)$priorMovement->id,
+                    $revertReason,
+                    (int)$USER->id
+                );
+            }
+        } catch (\Throwable $mvError) {
+            gmk_log('WARN revert academic_movement annul failed: ' . $mvError->getMessage());
         }
 
         gmk_log(sprintf(

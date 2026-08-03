@@ -57,9 +57,10 @@ use stdClass;
 
 defined('MOODLE_INTERNAL') || die();
 
-require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
-require_once($CFG->libdir  . '/gradelib.php');
-require_once($CFG->dirroot . '/grade/lib.php');
+        require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
+        require_once($CFG->libdir  . '/gradelib.php');
+        require_once($CFG->dirroot . '/grade/lib.php');
+        require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/academic_movement_manager.php');
 
 /**
  * External function 'local_grupomakro_homologate_course_grade' implementation.
@@ -380,6 +381,26 @@ class homologate_course_grade extends external_api
             $DB->insert_record('gmk_homologation_audit', $audit);
         } catch (\Throwable $auditError) {
             gmk_log('WARN homologate audit insert failed: ' . $auditError->getMessage());
+        }
+
+        // Academic movements Phase 2: record a homologate movement so the resolver
+        // can pick the best grade across re-enrolments. Best-effort: a movement
+        // failure must not block the homologation.
+        try {
+            local_grupomakro_academic_movement_manager::record_movement([
+                'userid'          => $userId,
+                'learningplanid'  => $learningPlanId,
+                'corecourseid'    => $coreCourseId,
+                'classid'         => 0,
+                'source'          => 'homologate',
+                'source_record_id' => $gcpId,
+                'grade'           => $grade,
+                'course_status'   => $status,
+                'effective_at'    => $now,
+                'usermodified'    => (int)$USER->id,
+            ]);
+        } catch (\Throwable $mvError) {
+            gmk_log('WARN homologate academic_movement insert failed: ' . $mvError->getMessage());
         }
 
         gmk_log(sprintf(

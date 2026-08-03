@@ -5,6 +5,7 @@ defined('MOODLE_INTERNAL') || die();
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 require_once($CFG->dirroot . '/grade/querylib.php');
 require_once($CFG->dirroot . '/local/sc_learningplans/classes/local/credit_resolver.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/academic_movement_manager.php');
 
 use core\message\message;
 use local_sc_learningplans\local\credit_resolver;
@@ -1257,9 +1258,29 @@ class local_grupomakro_progress_manager
                     $droppedIds[] = $ac->courseid;
                     $ac->classid = 0;
                     $ac->groupid = 0;
-                    $ac->status = COURSE_AVAILABLE; 
+                    $ac->status = COURSE_AVAILABLE;
                     $ac->timemodified = time();
                     $DB->update_record('gmk_course_progre', $ac);
+
+                    // Academic movements Phase 2: record the retirement of each
+                    // active course so the resolver no longer counts an "active"
+                    // attempt for this (user, plan, course) triple.
+                    try {
+                        local_grupomakro_academic_movement_manager::record_movement([
+                            'userid'          => (int)$userId,
+                            'learningplanid'  => (int)($ac->learningplanid ?? 0),
+                            'corecourseid'    => (int)$ac->courseid,
+                            'classid'         => (int)($ac->classid ?? 0),
+                            'source'          => 'withdrawal',
+                            'source_record_id' => (int)$ac->id,
+                            'grade'           => null,
+                            'course_status'   => COURSE_AVAILABLE,
+                            'effective_at'    => time(),
+                            'usermodified'    => (int)($USER->id ?? 2),
+                        ]);
+                    } catch (\Throwable $mvError) {
+                        mtrace('WARN update_external_status academic_movement insert failed: ' . $mvError->getMessage());
+                    }
                 }
                 $suspension->active_courses_dropped = json_encode($droppedIds);
             }
