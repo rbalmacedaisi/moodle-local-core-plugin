@@ -661,18 +661,33 @@ class failed_subjects_manager {
      * (grade / grade_max) * weight_pct across all items with
      * weight_pct > 0, rounded to 1 decimal. Result is null if no
      * gradable items exist.
+     *
+     * To match the modal byte-for-byte we feed the gradebook endpoint
+     * with the (userid, corecourseid) the modal would see: the
+     * corecourseid of the actual gmk_class the student belongs to
+     * (groups_members) for that course. get_fast_modinfo() then walks
+     * every section the user can access, so picking the right
+     * corecourseid is what guarantees parity. If the student is not
+     * enrolled in any gmk_class for that course (e.g. the failed
+     * subject is historical), we fall back to the first class where
+     * they have a gmk_course_progre row, and finally to the
+     * corecourseid stored in gmk_course_progre itself. If none exists,
+     * returns null (same as the modal with an empty gradebook).
      */
     public static function compute_gradebook_weighted_total(int $userid, int $courseid): ?float {
-        $key = $userid . '_' . $courseid;
+        if ($userid <= 0) {
+            return null;
+        }
+        $resolvedCourseId = self::resolve_student_corecourseid($userid, $courseid);
+        if ($resolvedCourseId <= 0) {
+            return null;
+        }
+        $key = $userid . '_' . $resolvedCourseId;
         if (array_key_exists($key, self::$gradecache)) {
             return self::$gradecache[$key];
         }
-        if ($userid <= 0 || $courseid <= 0) {
-            self::$gradecache[$key] = null;
-            return null;
-        }
         $result = \local_grupomakro_core\external\student\get_student_gradebook
-            ::execute($userid, $courseid);
+            ::execute($userid, $resolvedCourseId);
         $gbRaw = isset($result['gradebook']) ? $result['gradebook'] : '[]';
         $gb = json_decode($gbRaw, true);
         if (!is_array($gb) || empty($gb)) {
@@ -687,7 +702,7 @@ class failed_subjects_manager {
                 if ($wpct <= 0) { continue; }
                 $grade = ($item['grade'] !== null && $item['grade'] !== '')
                     ? (float)$item['grade'] : 0.0;
-                $max = (isset($item['grade_max']) && (float)$item['grade_max'] > 0)
+                $max = ((float)$item['grade_max'] > 0)
                     ? (float)$item['grade_max'] : 100.0;
                 $sum += ($grade / $max) * $wpct;
                 $hasItems = true;
@@ -696,6 +711,65 @@ class failed_subjects_manager {
         $val = $hasItems ? round($sum * 10) / 10 : null;
         self::$gradecache[$key] = $val;
         return $val;
+    }
+
+    /**
+     * Resolve the corecourseid that get_student_gradebook should use
+     * for a (userid, courseid) pair, matching the academicpanel
+     * gradebook modal. Order:
+     *   1) corecourseid of a gmk_class the student is enrolled in
+     *      (groups_members) for that course.
+     *   2) corecourseid of a gmk_class the student has a
+     *      gmk_course_progre record for that course.
+     *   3) The courseid argument itself, if it looks like a real
+     *      corecourseid.
+     */
+    private static function resolve_student_corecourseid(int $userid, int $courseid): int {
+        global $DB;
+        $resolved = (int)$DB->get_field_sql(
+            "SELECT c.corecourseid
+               FROM {gmk_class} c
+               JOIN {groups_members} gm ON gm.groupid = c.groupid
+              WHERE gm.userid = :uid
+                AND c.corecourseid = :cid
+           ORDER BY c.id DESC
+              LIMIT 1",
+            ['uid' => $userid, 'cid' => $courseid]
+        );
+        if ($resolved > 0) {
+            return $resolved;
+        }
+        $resolved = (int)$DB->get_field_sql(
+            "SELECT c.corecourseid
+               FROM {gmk_class} c
+               JOIN {groups_members} gm ON gm.groupid = c.groupid
+              WHERE gm.userid = :uid
+                AND c.courseid = :cid
+           ORDER BY c.id DESC
+              LIMIT 1",
+            ['uid' => $userid, 'cid' => $courseid]
+        );
+        if ($resolved > 0) {
+            return $resolved;
+        }
+        $resolved = (int)$DB->get_field_sql(
+            "SELECT c.corecourseid
+               FROM {gmk_course_progre} cp
+               JOIN {gmk_class} c ON c.id = cp.classid
+              WHERE cp.userid = :uid
+                AND cp.courseid = :cid
+                AND c.id > 0
+           ORDER BY cp.timemodified DESC, c.id DESC
+              LIMIT 1",
+            ['uid' => $userid, 'cid' => $courseid]
+        );
+        if ($resolved > 0) {
+            return $resolved;
+        }
+        if ($courseid > 0 && $DB->record_exists('course', ['id' => $courseid])) {
+            return $courseid;
+        }
+        return 0;
     }
 
     /**
