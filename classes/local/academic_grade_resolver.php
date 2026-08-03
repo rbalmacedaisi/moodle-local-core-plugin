@@ -115,14 +115,22 @@ class local_grupomakro_academic_grade_resolver {
                 continue;
             }
             $grade = (float)$m->grade;
-            if ($best === null
-                || $grade > $best->grade
-                || ($grade === $best->grade && (
-                    (int)$m->effective_at > (int)$best->effective_at
-                    || ((int)$m->effective_at === (int)$best->effective_at && (int)$m->id > (int)$best->id)
-                ))
-            ) {
+            $effective = (int)$m->effective_at;
+            if ($best === null) {
                 $best = $m;
+                continue;
+            }
+            $bestgrade = (float)$best->grade;
+            $besteffective = (int)$best->effective_at;
+            if ($grade > $bestgrade) {
+                $best = $m;
+                continue;
+            }
+            if ($grade === $bestgrade) {
+                if ($effective > $besteffective
+                    || ($effective === $besteffective && (int)$m->id > (int)$best->id)) {
+                    $best = $m;
+                }
             }
         }
 
