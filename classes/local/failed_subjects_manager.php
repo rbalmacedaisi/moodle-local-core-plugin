@@ -321,6 +321,9 @@ class failed_subjects_manager {
         }
 
         $rows = self::apply_filters($rows, $filters);
+
+        $rows = self::filter_already_approved($rows);
+
         $summary = self::build_summary($rows, $periodid);
         $total = count($rows);
         $offset = $page * $perpage;
@@ -341,6 +344,34 @@ class failed_subjects_manager {
             'page' => $page,
             'perpage' => $perpage,
         ];
+    }
+
+    /**
+     * Drop rows whose pensum-cascade grade indicates the student has
+     * effectively passed (>=71 for status 5, >=70 for status 7). This
+     * matches the "virtual approval" rule in
+     * get_student_learning_plan_pensum.php:932-941, which auto-upgrades
+     * reprobadas that already have a passing grade in the gradebook.
+     * Without this filter, the report shows reprobadas whose actual
+     * course grade is >=71 (because the student retook and passed the
+     * subject) — those rows should not appear in a "failed subjects"
+     * list.
+     */
+    private static function filter_already_approved(array $rows): array {
+        return array_values(array_filter($rows, function ($r) {
+            $status = (int)($r['progress_status'] ?? 0);
+            if ($status !== 5 && $status !== 7) {
+                return true;
+            }
+            $userid  = (int)$r['userid'];
+            $courseid = (int)$r['corecourseid'];
+            $grade = self::compute_pensum_grade_for_course($userid, $courseid);
+            if ($grade === null) {
+                return true;
+            }
+            $passgrade = ($status === 5) ? 71.0 : 70.0;
+            return $grade < $passgrade;
+        }));
     }
 
     private static function load_financial_statuses(array $userids): array {
