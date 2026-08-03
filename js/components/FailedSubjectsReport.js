@@ -581,8 +581,7 @@ Vue.component('failed-subjects-report', {
                         { text: 'Estudiante',     value: 'student_name',        sortable: true,  width: 220 },
                         { text: 'Estado acad.',   value: 'academic_status',     sortable: true,  width: 110, align: 'center' },
                         { text: 'Asignatura',     value: 'coursename',          sortable: true },
-                        { text: 'Nota reprob.',   value: 'last_grade',          sortable: true,  width: 100, align: 'center' },
-                        { text: 'Nota recalc.',   value: 'computed_grade',      sortable: true,  width: 100, align: 'center' },
+                        { text: 'Nota',           value: 'computed_grade',      sortable: true,  width: 100, align: 'center' },
                         { text: 'Reprobada',      value: 'failed_at',           sortable: true,  width: 110 },
                         { text: 'Jornada',        value: 'jornada_estudiante',  sortable: true,  width: 100, align: 'center' },
                         { text: 'Grupo',          value: 'classname',           sortable: true },
@@ -612,11 +611,6 @@ Vue.component('failed-subjects-report', {
                     <template v-slot:item.academic_status="{ item }">
                         <span class="fsr-pill" :class="academicPillClass(item.academic_status)">
                             {{ item.academic_status || '—' }}
-                        </span>
-                    </template>
-                    <template v-slot:item.last_grade="{ item }">
-                        <span class="fsr-grade" :class="item.last_grade > 0 ? 'fsr-sem-full' : ''">
-                            {{ fmtGrade(item.last_grade) }}
                         </span>
                     </template>
                     <template v-slot:item.computed_grade="{ item }">
