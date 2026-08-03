@@ -51,7 +51,7 @@ Vue.component('failed-subjects-report', {
                 hasclass: 'all',
                 hasquota: 'all',
                 financial_status: '',
-                student_status: ''
+                student_status: 'activo'
             },
             jornadaOptions: ['Diurno', 'Nocturno', 'Sabatino'],
             financialOptions: ['al_dia', 'mora', 'becado', 'periodo_gracia'],
