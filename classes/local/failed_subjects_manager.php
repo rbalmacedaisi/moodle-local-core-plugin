@@ -189,7 +189,7 @@ class failed_subjects_manager {
                     ON latest.maxid = cp.id
                   JOIN {user} u ON u.id = cp.userid
                        AND u.deleted = 0 AND u.suspended = 0
-                  LEFT JOIN {local_learning_users} llu
+                  JOIN {local_learning_users} llu
                        ON llu.userid = cp.userid
                       AND llu.userrolename = 'student'
                   JOIN {local_learning_plans} lp
