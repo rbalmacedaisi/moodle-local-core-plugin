@@ -792,19 +792,27 @@ class failed_subjects_manager {
             }
         }
 
-        // 6) Moodle course total (itemtype='course').
+        // 6) Moodle course total (itemtype='course'). Same query as
+        // get_student_learning_plan_pensum.php:373-398: uses
+        // COALESCE(finalgrade, rawgrade) and filters to 0..100 so a
+        // rawgrade-only entry (common when the course total was written
+        // by an external sync or before regrade_final_grades) still
+        // surfaces as the pensum grade.
         $courseTotal = $DB->get_record_sql(
-            "SELECT gg.finalgrade, gi.grademax
+            "SELECT MAX(CASE WHEN COALESCE(gg.finalgrade, gg.rawgrade) BETWEEN 0 AND 100
+                              THEN COALESCE(gg.finalgrade, gg.rawgrade) END) AS gradeval_sane,
+                    MAX(COALESCE(gg.finalgrade, gg.rawgrade)) AS gradeval_any
                FROM {grade_items} gi
                LEFT JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = :uid
               WHERE gi.courseid = :cid
-                AND gi.itemtype = 'course'
-              LIMIT 1",
+                AND gi.itemtype = 'course'",
             ['uid' => $userid, 'cid' => $courseid]
         );
-        if ($courseTotal && $courseTotal->finalgrade !== null && $courseTotal->grademax > 0) {
-            $val = (float)$courseTotal->finalgrade / (float)$courseTotal->grademax * 100;
-            if ($val >= 0 && $val <= 100) {
+        if ($courseTotal) {
+            $val = !is_null($courseTotal->gradeval_sane)
+                ? (float)$courseTotal->gradeval_sane
+                : (!is_null($courseTotal->gradeval_any) ? (float)$courseTotal->gradeval_any : null);
+            if ($val !== null && $val >= 0 && $val <= 100) {
                 $result = round($val, 2);
                 self::$gradecache[$cacheKey] = $result;
                 return $result;
