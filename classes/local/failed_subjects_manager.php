@@ -231,9 +231,13 @@ class failed_subjects_manager {
             $participants = gmk_bulk_class_participants($classes);
             foreach ($classes as $c) {
                 $shift = self::normalize_jornada((string)$c->shift);
-                $courseid = (int)$c->courseid;
-                $classesByCourseShift[$courseid . '|' . $shift][] = $c;
-                $classesByCourse[$courseid][] = $c;
+                // gmk_course_progre.courseid joins with course.id (= corecourseid),
+                // NOT with gmk_class.courseid (which points to local_learning_courses).
+                // Index by corecourseid so we match the same Moodle course as the
+                // reprobada row.
+                $coreKey = (int)$c->corecourseid;
+                $classesByCourseShift[$coreKey . '|' . $shift][] = $c;
+                $classesByCourse[$coreKey][] = $c;
                 $bucket = $participants[(int)$c->id] ?? null;
                 $classCounts[(int)$c->id] = $bucket
                     ? count((array)$bucket->preRegisteredStudents)
