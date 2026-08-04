@@ -239,8 +239,13 @@ class failed_subjects_manager {
                 $classesByCourseShift[$coreKey . '|' . $shift][] = $c;
                 $classesByCourse[$coreKey][] = $c;
                 $bucket = $participants[(int)$c->id] ?? null;
+                // Count actual enrolled students (groups_members), not pre-
+                // registrations. Projected classes for a new period have no
+                // pre-registrations yet, which would always report 0 enrolled and
+                // mark every class as "cupo disponible" even when the class has
+                // carry-over enrollment from the previous period.
                 $classCounts[(int)$c->id] = $bucket
-                    ? count((array)$bucket->preRegisteredStudents)
+                    ? count((array)$bucket->enroledStudents)
                     : 0;
             }
         }
