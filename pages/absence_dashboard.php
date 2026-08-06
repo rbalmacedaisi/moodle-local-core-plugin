@@ -803,28 +803,61 @@ if (optional_param('abs_ajax', 0, PARAM_INT)) {
                 echo json_encode(['ok' => false, 'message' => 'La justificación es obligatoria']);
                 exit;
             }
-            $session = $DB->get_record('attendance_sessions', ['id' => $sessionid], 'id, attendanceid', MUST_EXIST);
+            $session = $DB->get_record('attendance_sessions', ['id' => $sessionid], '*', MUST_EXIST);
             $present_status = $DB->get_record_sql(
-                "SELECT id FROM {attendance_statuses} WHERE attendanceid = :aid AND grade > 0 ORDER BY grade DESC LIMIT 1",
+                "SELECT id, setnumber FROM {attendance_statuses} WHERE attendanceid = :aid AND grade > 0 ORDER BY grade DESC LIMIT 1",
                 ['aid' => $session->attendanceid]
             );
             if (!$present_status) {
                 echo json_encode(['ok' => false, 'message' => 'No se encontró estado de presencia para este módulo de asistencia']);
                 exit;
             }
-            $existing = $DB->get_record('attendance_log', ['sessionid' => $sessionid, 'studentid' => $userid]);
+            $now       = time();
+            $statusset = (string)($present_status->setnumber ?? 0);
+            $existing  = $DB->get_record('attendance_log', ['sessionid' => $sessionid, 'studentid' => $userid]);
             if ($existing) {
-                $DB->set_field('attendance_log', 'statusid',  $present_status->id, ['id' => $existing->id]);
-                $DB->set_field('attendance_log', 'remarks',   $justification,      ['id' => $existing->id]);
-                $DB->set_field('attendance_log', 'timetaken', time(),              ['id' => $existing->id]);
+                // Full audit: record WHO corroborated (takenby) — previously this
+                // path left takenby=0, making the mark untraceable.
+                $existing->statusid  = $present_status->id;
+                $existing->statusset = $statusset;
+                $existing->remarks   = $justification;
+                $existing->timetaken = $now;
+                $existing->takenby   = $USER->id;
+                $DB->update_record('attendance_log', $existing);
             } else {
                 $log            = new stdClass();
                 $log->sessionid = $sessionid;
                 $log->studentid = $userid;
                 $log->statusid  = $present_status->id;
-                $log->timetaken = time();
+                $log->statusset = $statusset;
+                $log->timetaken = $now;
+                $log->takenby   = $USER->id;
                 $log->remarks   = $justification;
                 $DB->insert_record('attendance_log', $log);
+            }
+
+            // Trazabilidad: emitir el evento estándar de mod_attendance para que la
+            // acción quede en los logs del sitio (operador, IP, contexto, hora).
+            // Antes esta escritura no generaba evento y dejaba takenby=0.
+            try {
+                $attcm = get_coursemodule_from_instance('attendance', (int)$session->attendanceid, 0, false, MUST_EXIST);
+                $attctx = context_module::instance($attcm->id);
+                $attevent = \mod_attendance\event\attendance_taken::create([
+                    'objectid' => (int)$session->attendanceid,
+                    'context'  => $attctx,
+                    'other'    => ['sessionid' => (int)$sessionid, 'grouptype' => 0],
+                ]);
+                $attevent->add_record_snapshot('course_modules', $attcm);
+                $attevent->add_record_snapshot('attendance_sessions', $session);
+                $attevent->trigger();
+                if (function_exists('gmk_log')) {
+                    gmk_log("INFO: mark_session_present operador={$USER->id} (" . fullname($USER) . ") session={$sessionid} student={$userid} class={$classid} via absence_dashboard");
+                }
+            } catch (\Throwable $attlogerr) {
+                // Nunca fallar la marca por un problema de logging; registrar el fallo.
+                if (function_exists('gmk_log')) {
+                    gmk_log("WARNING: mark_session_present event/log failed session={$sessionid} student={$userid}: " . $attlogerr->getMessage());
+                }
             }
             // Recalculate absences for this student in this class
             $class_obj = $DB->get_record('gmk_class', ['id' => $classid], '*', MUST_EXIST);
