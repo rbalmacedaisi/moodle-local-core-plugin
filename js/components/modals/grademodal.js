@@ -10,6 +10,9 @@ Vue.component('grademodal', {
                     <v-card-title class="headline primary white--text d-flex align-center py-3 px-4">
                         <span>{{ lang.grades }}</span>
                         <v-spacer></v-spacer>
+                        <v-btn icon dark @click="openStatusHistoryDialog" :disabled="statusHistoryLoading" title="Ver historial académico del estudiante">
+                            <v-icon>mdi-account-clock-outline</v-icon>
+                        </v-btn>
                         <v-btn icon dark @click="close">
                             <v-icon>mdi-close</v-icon>
                         </v-btn>
@@ -1027,6 +1030,97 @@ Vue.component('grademodal', {
                     </v-card-actions>
                 </v-card>
             </v-dialog>
+
+            <!-- Status history dialog: aplazamientos, retiros, renovaciones del estudiante -->
+            <v-dialog v-model="statusHistoryDialog" max-width="720" scrollable>
+                <v-card class="rounded-lg overflow-hidden">
+                    <v-card-title class="headline teal darken-1 white--text d-flex align-center py-3 px-4">
+                        <v-icon left dark>mdi-account-clock-outline</v-icon>
+                        <span>Historial académico</span>
+                        <v-spacer></v-spacer>
+                        <v-btn icon dark @click="statusHistoryDialog = false">
+                            <v-icon>mdi-close</v-icon>
+                        </v-btn>
+                    </v-card-title>
+
+                    <v-card-text class="pa-4">
+                        <div class="mb-3">
+                            <div class="text-body-1 font-weight-bold">{{ studentName }}</div>
+                            <div class="text-caption grey--text text--darken-1">
+                                Aplazos, retiros y reactivaciones (LXP / Odoo)
+                            </div>
+                        </div>
+
+                        <div v-if="statusHistoryLoading" class="text-center py-6">
+                            <v-progress-circular indeterminate color="primary"></v-progress-circular>
+                            <div class="caption grey--text mt-2">Cargando historial...</div>
+                        </div>
+
+                        <div v-else-if="statusHistoryError" class="py-2">
+                            <v-alert type="error" dense outlined>{{ statusHistoryError }}</v-alert>
+                        </div>
+
+                        <template v-else>
+                            <div v-if="!statusHistoryEntries || statusHistoryEntries.length === 0" class="text-center py-6 grey--text">
+                                <v-icon large color="grey lighten-2">mdi-clipboard-text-clock-outline</v-icon>
+                                <div class="mt-2 text-body-2 font-italic">
+                                    Sin cambios de estado registrados para este estudiante.
+                                </div>
+                            </div>
+
+                            <v-timeline v-else dense class="audit-timeline">
+                                <v-timeline-item
+                                    v-for="entry in statusHistoryEntries"
+                                    :key="entry.id"
+                                    :color="statusColor(entry)"
+                                    :icon="statusIcon(entry)"
+                                    small
+                                >
+                                    <template v-slot:opposite>
+                                        <span class="caption grey--text text--darken-1">{{ formatDate(entry.timecreated) }}</span>
+                                    </template>
+                                    <div class="d-flex align-center mb-1">
+                                        <v-chip x-small :color="statusColor(entry)" dark class="mr-2">
+                                            {{ statusLabel(entry) }}
+                                        </v-chip>
+                                        <v-chip v-if="entry.origin === 'lxp'" x-small color="primary" dark class="mr-2">
+                                            <v-icon left x-small>mdi-laptop</v-icon>LXP
+                                        </v-chip>
+                                        <v-chip v-else-if="entry.origin === 'odoo'" x-small color="amber darken-2" dark class="mr-2">
+                                            <v-icon left x-small>mdi-database</v-icon>Odoo
+                                        </v-chip>
+                                        <v-chip v-else x-small color="grey" dark class="mr-2">{{ entry.origin }}</v-chip>
+                                    </div>
+                                    <div class="text-body-2 mb-1">
+                                        <strong>{{ entry.actor && entry.actor.fullname ? entry.actor.fullname : 'Sistema' }}</strong>
+                                        <span v-if="entry.target_period_name"> → {{ entry.target_period_name }}</span>
+                                    </div>
+                                    <div v-if="entry.reason" class="text-body-2 grey--text text--darken-2 mb-1">
+                                        “{{ entry.reason }}”
+                                    </div>
+                                    <div v-if="entry.active_courses_dropped && entry.active_courses_dropped.length > 0"
+                                         class="text-caption error--text text--darken-2">
+                                        {{ entry.active_courses_dropped.length }} curso(s) des-matriculado(s)
+                                    </div>
+                                    <div v-if="entry.details && entry.details.odoo_result"
+                                         class="text-caption mt-1"
+                                         :class="entry.details.odoo_result.success ? 'success--text text--darken-2' : 'amber--text text--darken-2'">
+                                        <v-icon x-small>mdi-database</v-icon>
+                                        Odoo sync: {{ entry.details.odoo_result.message || (entry.details.odoo_result.success ? 'OK' : 'error') }}
+                                    </div>
+                                </v-timeline-item>
+                            </v-timeline>
+                        </template>
+                    </v-card-text>
+
+                    <v-divider></v-divider>
+
+                    <v-card-actions class="pa-3">
+                        <v-spacer></v-spacer>
+                        <v-btn color="primary" text @click="statusHistoryDialog = false">Cerrar</v-btn>
+                    </v-card-actions>
+                </v-card>
+            </v-dialog>
         </div>
     `,
     data() {
@@ -1084,6 +1178,10 @@ Vue.component('grademodal', {
             auditLoading: false,
             auditError: '',
             auditLoadingKey: null,
+            statusHistoryDialog: false,
+            statusHistoryEntries: [],
+            statusHistoryLoading: false,
+            statusHistoryError: '',
             homologationDialog: false,
             homologationSelected: null,
             homologationForm: {
@@ -1499,6 +1597,61 @@ Vue.component('grademodal', {
             this.auditSelectedCourse = null;
             this.auditEntries = [];
             this.auditError = '';
+        },
+        async openStatusHistoryDialog() {
+            if (!this.dataStudent || !this.dataStudent.id) return;
+            this.statusHistoryDialog = true;
+            this.statusHistoryLoading = true;
+            this.statusHistoryError = '';
+            this.statusHistoryEntries = [];
+            try {
+                const url = window.wsUrl || (window.location.origin + '/local/grupomakro_core/ajax.php');
+                const response = await window.axios.get(url, {
+                    params: {
+                        action: 'local_grupomakro_get_status_change_history',
+                        sesskey: M.cfg.sesskey,
+                        userid: Number(this.dataStudent.id),
+                    },
+                });
+                if (response.data && response.data.status === 'success') {
+                    this.statusHistoryEntries = response.data.data || [];
+                } else {
+                    this.statusHistoryError = (response.data && response.data.message) || 'No se pudo cargar el historial.';
+                }
+            } catch (e) {
+                this.statusHistoryError = 'Error de conexión: ' + (e.message || e);
+            } finally {
+                this.statusHistoryLoading = false;
+            }
+        },
+        statusColor(entry) {
+            switch (entry.status) {
+                case 'aplazo':      return 'amber darken-2';
+                case 'retiro':      return 'red darken-2';
+                case 'renovacion':  return 'teal darken-1';
+                default:            return 'grey';
+            }
+        },
+        statusIcon(entry) {
+            switch (entry.status) {
+                case 'aplazo':      return 'mdi-pause-circle';
+                case 'retiro':      return 'mdi-account-cancel';
+                case 'renovacion':  return entry.details && entry.details.is_reactivation ? 'mdi-account-convert' : 'mdi-arrow-right-bold-circle';
+                default:            return 'mdi-circle-medium';
+            }
+        },
+        statusLabel(entry) {
+            switch (entry.status) {
+                case 'aplazo':      return 'APLAZADO';
+                case 'retiro':      return 'RETIRADO';
+                case 'renovacion':  return entry.details && entry.details.is_reactivation ? 'REACTIVACIÓN' : 'RENOVACIÓN';
+                default:            return (entry.status || '').toUpperCase();
+            }
+        },
+        formatDate(ts) {
+            if (!ts) return '--';
+            const d = new Date(Number(ts) * 1000);
+            return d.toLocaleString();
         },
         async fetchAuditEntries(course) {
             if (!course || Number(course.courseid || 0) <= 0) return;

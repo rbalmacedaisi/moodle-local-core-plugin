@@ -53,6 +53,28 @@ class enroll_module {
         $user = $DB->get_record('user', ['id' => $userId, 'deleted' => 0], 'id,firstname,lastname', MUST_EXIST);
         $course = $DB->get_record('course', ['id' => $coreCourseId], 'id,fullname,shortname', MUST_EXIST);
 
+        // ── 1a. Status guard: refused for retirado/aplazado students ────────────
+        $blockingCodes = $DB->get_records('local_learning_users',
+            ['userid' => $userId],
+            '',
+            'status'
+        );
+        $blocking = [];
+        foreach ($blockingCodes as $lpu) {
+            if (in_array($lpu->status, ['retirado', 'aplazado'], true)) {
+                $blocking[] = $lpu->status;
+            }
+        }
+        if (!empty($blocking)) {
+            $stateLabel = implode('/', array_unique($blocking));
+            return [
+                'status'           => 'error',
+                'message'          => "No se puede matricular en el módulo a " . fullname($user) . ": su estado académico es '$stateLabel'. Debe ser reactivado desde el panel académico antes de asignarle nuevos cursos.",
+                'duedate'          => 0,
+                'requires_payment' => false,
+            ];
+        }
+
         // ── 1b. Payment gate: require a paid invoice request ────────────────────
         $paidRequest = null;
         if (!$bypassPayment) {

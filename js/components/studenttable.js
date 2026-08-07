@@ -328,13 +328,43 @@ Vue.component('studenttable', {
                             <v-btn small color="primary" class="elevation-0 text-capitalize font-weight-bold" @click="gradeDialog(item)">
                                 notas
                             </v-btn>
-                            <v-btn v-if="isAdmin" small color="teal darken-1" dark
-                                   class="elevation-0 text-capitalize font-weight-bold"
-                                   @click="openRenovarPreview(item)"
-                                   :loading="item.renovating === true">
-                                <v-icon left small>mdi-arrow-right-bold-circle</v-icon>
-                                Renovar
-                            </v-btn>
+                            <v-menu v-if="isAdmin" offset-y>
+                                <template v-slot:activator="{ on, attrs }">
+                                    <v-btn small color="teal darken-1" dark
+                                           class="elevation-0 text-capitalize font-weight-bold"
+                                           v-bind="attrs" v-on="on"
+                                           :loading="(item.renovating === true || item.statusChanging === true)">
+                                        <v-icon left small>mdi-cog</v-icon>
+                                        Acciones
+                                        <v-icon right small>mdi-menu-down</v-icon>
+                                    </v-btn>
+                                </template>
+                                <v-list dense>
+                                    <v-list-item @click="openRenovarPreview(item)" :disabled="!hasCarrers(item)">
+                                        <v-list-item-icon><v-icon color="teal">mdi-arrow-right-bold-circle</v-icon></v-list-item-icon>
+                                        <v-list-item-content>
+                                            <v-list-item-title>Renovar período</v-list-item-title>
+                                            <v-list-item-subtitle v-if="isReactivable(item)" class="amber--text text--darken-2">
+                                                Reactivará al estudiante (estado actual: {{ item.academicstatus || 'desconocido' }})
+                                            </v-list-item-subtitle>
+                                        </v-list-item-content>
+                                    </v-list-item>
+                                    <v-list-item @click="openStatusChangeWizard(item, 'aplazar')" :disabled="!hasCarrers(item)">
+                                        <v-list-item-icon><v-icon color="amber darken-2">mdi-pause-circle</v-icon></v-list-item-icon>
+                                        <v-list-item-content>
+                                            <v-list-item-title>Aplazar</v-list-item-title>
+                                            <v-list-item-subtitle>Marcar como aplazado y reagendar facturas</v-list-item-subtitle>
+                                        </v-list-item-content>
+                                    </v-list-item>
+                                    <v-list-item @click="openStatusChangeWizard(item, 'retirar')" :disabled="!hasCarrers(item)">
+                                        <v-list-item-icon><v-icon color="red darken-2">mdi-account-cancel</v-icon></v-list-item-icon>
+                                        <v-list-item-content>
+                                            <v-list-item-title>Retirar</v-list-item-title>
+                                            <v-list-item-subtitle>Dar de baja definitiva</v-list-item-subtitle>
+                                        </v-list-item-content>
+                                    </v-list-item>
+                                </v-list>
+                            </v-menu>
                         </div>
                     </template>
 
@@ -425,6 +455,11 @@ Vue.component('studenttable', {
                         Renovar Estudiante
                     </v-card-title>
                     <v-card-text class="pt-4 pb-0">
+                        <v-alert v-if="renovarDialog.isReactivation" type="warning" dense class="mb-3">
+                            El estudiante se encuentra actualmente <strong>{{ renovarDialog.previousStatus }}</strong>.
+                            Al renovar será reactivado como <strong>Activo</strong>, sus cursos activos serán des-matriculados,
+                            y se le ubicará en el periodo lectivo en curso.
+                        </v-alert>
                         <div class="text-subtitle-1 font-weight-bold mb-3">{{ renovarDialog.studentName }}</div>
                         <v-row no-gutters class="mb-2">
                             <v-col cols="5" class="caption font-weight-bold grey--text text--darken-2 text-uppercase">Estado Actual</v-col>
@@ -490,11 +525,22 @@ Vue.component('studenttable', {
                         <v-btn text @click="renovarDialog.show = false" :disabled="renovarDialog.confirming">Cancelar</v-btn>
                         <v-btn color="teal darken-1" dark @click="confirmRenovar" :loading="renovarDialog.confirming">
                             <v-icon left>mdi-check</v-icon>
-                            Confirmar Renovación
+                            {{ renovarDialog.isReactivation ? 'Confirmar Reactivación' : 'Confirmar Renovación' }}
                         </v-btn>
                     </v-card-actions>
                 </v-card>
             </v-dialog>
+
+            <!-- Wizard de Aplazar / Retirar -->
+            <status-change-wizard
+                v-if="statusChangeWizard.userid > 0"
+                v-model="statusChangeWizard.show"
+                :userid="statusChangeWizard.userid"
+                :studentName="statusChangeWizard.studentName"
+                :initialAction="statusChangeWizard.action"
+                @executed="onStatusChangeExecuted"
+                @close="statusChangeWizard.userid = 0">
+            </status-change-wizard>
 
             <grademodal v-if="studentsGrades"  :dataStudent="studentGradeSelected" @close-dialog="closeDialog"></grademodal>
             
@@ -552,6 +598,15 @@ Vue.component('studenttable', {
                 plans: [],              // [{ carrer, preview, error }] — uno por plan
                 selectedAcademicPeriodId: null,
                 allAcademicPeriods: [],
+                isReactivation: false,
+                previousStatus: '',
+            },
+            statusChangeWizard: {
+                show: false,
+                userid: 0,
+                studentName: '',
+                action: '',             // 'aplazar' | 'retirar'
+                running: false,
             },
         };
     },
@@ -1323,6 +1378,8 @@ Vue.component('studenttable', {
                 this.renovarDialog.selectedAcademicPeriodId = suggestedAcId;
                 this.renovarDialog.confirming               = false;
                 this.renovarDialog.error                    = '';
+                this.renovarDialog.isReactivation           = !!firstOk.preview.isreactivation;
+                this.renovarDialog.previousStatus           = firstOk.preview.previousstatus || '';
                 this.renovarDialog.show                     = true;
             } catch (error) {
                 console.error('Error en preview de renovación:', error);
@@ -1381,6 +1438,60 @@ Vue.component('studenttable', {
                 this.renovarDialog.error = 'Error de conexión. Intente nuevamente.';
             } finally {
                 this.renovarDialog.confirming = false;
+            }
+        },
+
+        hasCarrers(item) {
+            return item && item.carrers && item.carrers.length > 0;
+        },
+
+        isReactivable(item) {
+            const s = (item && item.academicstatus) || '';
+            return ['retirado', 'aplazado', 'suspendido', 'desertor'].indexOf(String(s).toLowerCase()) >= 0;
+        },
+
+        openStatusChangeWizard(item, action) {
+            if (!this.hasCarrers(item)) {
+                alert('Este estudiante no tiene carrera asignada.');
+                return;
+            }
+            this.$set(item, 'statusChanging', true);
+            this.statusChangeWizard.userid = item.id;
+            this.statusChangeWizard.studentName = item.name || '';
+            this.statusChangeWizard.action = action;
+            this.statusChangeWizard.show = true;
+        },
+
+        async onStatusChangeExecuted(payload) {
+            this.$set(this.statusChangeWizard, 'running', false);
+            // Limpia flag de loading en el row.
+            const item = this.students.find(s => s.id === payload.userid);
+            if (item) {
+                this.$set(item, 'statusChanging', false);
+            }
+
+            // Mensaje según el resultado de Odoo.
+            const odoo = (payload.response && payload.response.data && payload.response.data.odoo_sync) || null;
+            let title = 'Operación completada';
+            let icon = 'success';
+            let msg = payload.response && payload.response.message ? payload.response.message : '';
+            if (odoo && odoo.attempted && !odoo.success) {
+                icon = 'warning';
+                title = 'Completado en Moodle — Odoo no respondió';
+                msg += '\nOdoo: ' + (odoo.message || 'sin detalle');
+            }
+            if (window.Swal) {
+                window.Swal.fire({
+                    title,
+                    text: msg,
+                    icon,
+                    timer: icon === 'warning' ? 6000 : 3500,
+                    showConfirmButton: icon === 'warning',
+                });
+            }
+            // Refresca la tabla para que aparezcan los nuevos estados.
+            if (typeof this.getDataFromApi === 'function') {
+                await this.getDataFromApi();
             }
         },
     }

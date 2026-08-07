@@ -628,6 +628,26 @@ class failed_subjects_manager {
             return ['status' => 'error', 'message' => 'La clase está cerrada.'];
         }
 
+        // Status guard: refuse to enrol a student whose academic status is
+        // retirado or aplazado. Operators must reactivate them from the
+        // academic panel before forcing them into a class.
+        $blocking = [];
+        $statuses = $DB->get_records('local_learning_users', ['userid' => $userid], '', 'status');
+        foreach ($statuses as $lpu) {
+            if (in_array($lpu->status, ['retirado', 'aplazado'], true)) {
+                $blocking[] = $lpu->status;
+            }
+        }
+        if (!empty($blocking)) {
+            $stateLabel = implode('/', array_unique($blocking));
+            $student = $DB->get_record('user', ['id' => $userid], 'firstname, lastname');
+            $studentName = $student ? fullname($student) : ('userid=' . $userid);
+            return [
+                'status'  => 'error',
+                'message' => "No se puede matricular a $studentName: su estado académico es '$stateLabel'. Debe ser reactivado desde el panel académico antes de asignarle nuevos cursos.",
+            ];
+        }
+
         // Compute current enrollment count.
         $currentCount = 0;
         if (!empty($class->groupid)) {

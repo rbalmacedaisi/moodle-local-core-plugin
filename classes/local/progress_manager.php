@@ -1250,38 +1250,15 @@ class local_grupomakro_progress_manager
             $suspension->usermodified = $USER->id ?? 2; // Default to admin
             $suspension->timecreated = time();
 
-            // 4. Special logic for 'retiro'
-            if ($action === 'retiro') {
-                $activeCourses = $DB->get_records('gmk_course_progre', ['userid' => $userId, 'status' => COURSE_IN_PROGRESS]);
-                $droppedIds = [];
-                foreach ($activeCourses as $ac) {
-                    $droppedIds[] = $ac->courseid;
-                    $ac->classid = 0;
-                    $ac->groupid = 0;
-                    $ac->status = COURSE_AVAILABLE;
-                    $ac->timemodified = time();
-                    $DB->update_record('gmk_course_progre', $ac);
-
-                    // Academic movements Phase 2: record the retirement of each
-                    // active course so the resolver no longer counts an "active"
-                    // attempt for this (user, plan, course) triple.
-                    try {
-                        local_grupomakro_academic_movement_manager::record_movement([
-                            'userid'          => (int)$userId,
-                            'learningplanid'  => (int)($ac->learningplanid ?? 0),
-                            'corecourseid'    => (int)$ac->courseid,
-                            'classid'         => (int)($ac->classid ?? 0),
-                            'source'          => 'withdrawal',
-                            'source_record_id' => (int)$ac->id,
-                            'grade'           => null,
-                            'course_status'   => COURSE_AVAILABLE,
-                            'effective_at'    => time(),
-                            'usermodified'    => (int)($USER->id ?? 2),
-                        ]);
-                    } catch (\Throwable $mvError) {
-                        mtrace('WARN update_external_status academic_movement insert failed: ' . $mvError->getMessage());
-                    }
-                }
+            // 4. Special logic for 'retiro' and 'aplazo': drop active courses so
+            //    the resolver no longer counts them as in-progress and the
+            //    student is forced to re-enroll on reactivation.
+            if ($action === 'retiro' || $action === 'aplazo') {
+                $droppedIds = self::drop_active_courses_for_user(
+                    $userId,
+                    $action === 'retiro' ? 'student_withdrawn' : 'student_deferred',
+                    $USER->id ?? 2
+                );
                 $suspension->active_courses_dropped = json_encode($droppedIds);
             }
 
@@ -1292,6 +1269,108 @@ class local_grupomakro_progress_manager
         } catch (Exception $e) {
             return ['status' => 'error', 'message' => $e->getMessage()];
         }
+    }
+
+    /**
+     * Drop every COURSE_IN_PROGRESS row for a user, resetting classid/groupid
+     * to 0 and status to COURSE_AVAILABLE. Records an academic_movement per
+     * affected course with source='withdrawal' and the given reason tag so the
+     * resolver no longer counts them as in-progress attempts.
+     *
+     * Shared by update_external_status (retiro/aplazo) and the status change
+     * wizard (reactivation flows).
+     *
+     * @param int    $userid      Moodle user id.
+     * @param string $reasonTag   Short label stored in annul_reason of each movement.
+     * @param int    $actorUserid Moodle user id who triggered the drop.
+     * @return int[]              List of corecourseids that were dropped.
+     */
+    public static function drop_active_courses_for_user($userid, $reasonTag = 'student_withdrawn', $actorUserid = 2) {
+        global $DB;
+
+        $activeCourses = $DB->get_records('gmk_course_progre', [
+            'userid' => $userid,
+            'status' => COURSE_IN_PROGRESS,
+        ]);
+
+        $dropped = [];
+        $now = time();
+
+        foreach ($activeCourses as $ac) {
+            $dropped[] = (int)$ac->courseid;
+
+            $ac->classid = 0;
+            $ac->groupid = 0;
+            $ac->status = COURSE_AVAILABLE;
+            $ac->timemodified = $now;
+            $DB->update_record('gmk_course_progre', $ac);
+
+            try {
+                local_grupomakro_academic_movement_manager::record_movement([
+                    'userid'           => (int)$userid,
+                    'learningplanid'   => (int)($ac->learningplanid ?? 0),
+                    'corecourseid'     => (int)$ac->courseid,
+                    'classid'          => 0,
+                    'source'           => 'withdrawal',
+                    'source_record_id' => (int)$ac->id,
+                    'grade'            => null,
+                    'course_status'    => COURSE_AVAILABLE,
+                    'effective_at'     => $now,
+                    'usermodified'     => (int)$actorUserid,
+                ]);
+            } catch (\Throwable $mvError) {
+                mtrace('WARN drop_active_courses_for_user academic_movement insert failed: ' . $mvError->getMessage());
+            }
+        }
+
+        return $dropped;
+    }
+
+    /**
+     * Find the academic period to suggest for student reactivation:
+     *   1) The period whose [startdate, enddate] range contains `now`.
+     *   2) Otherwise, the next period whose startdate > `now` (we are in recess
+     *      between a finished period and the next one).
+     *   3) Otherwise, the most recent period that has already started.
+     *
+     * @return object|null Row from {gmk_academic_periods} or null if none configured.
+     */
+    public static function suggest_reactivation_period($now = null) {
+        global $DB;
+        if ($now === null) {
+            $now = time();
+        }
+
+        // 1) Currently in progress.
+        $row = $DB->get_record_sql(
+            "SELECT * FROM {gmk_academic_periods}
+             WHERE status = 1 AND startdate <= :now AND enddate >= :now
+             ORDER BY startdate DESC LIMIT 1",
+            ['now' => $now]
+        );
+        if ($row) {
+            return $row;
+        }
+
+        // 2) Next period to start (recess).
+        $row = $DB->get_record_sql(
+            "SELECT * FROM {gmk_academic_periods}
+             WHERE status = 1 AND startdate > :now
+             ORDER BY startdate ASC LIMIT 1",
+            ['now' => $now]
+        );
+        if ($row) {
+            return $row;
+        }
+
+        // 3) Most recent that started.
+        $row = $DB->get_record_sql(
+            "SELECT * FROM {gmk_academic_periods}
+             WHERE status = 1 AND startdate <= :now
+             ORDER BY startdate DESC LIMIT 1",
+            ['now' => $now]
+        );
+        return $row ?: null;
     }
 
     /**

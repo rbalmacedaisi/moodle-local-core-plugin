@@ -44,13 +44,37 @@ class manual_enroll extends external_api {
         require_capability('moodle/site:config', $context); 
 
         $class = $DB->get_record('gmk_class', ['id' => $params['classId']], '*', MUST_EXIST);
-        
+
         if (!$class->approved) {
              return ['status' => 'error', 'message' => 'Class is not approved yet. Cannot enroll students.'];
         }
-        
+
         if ($class->closed) {
              return ['status' => 'error', 'message' => 'Class is closed. Cannot enroll students.'];
+        }
+
+        // Status guard: refuse to enrol a student whose academic status is
+        // retirado or aplazado. Operators must reactivate them from the
+        // academic panel first.
+        $blockingCodes = $DB->get_records('local_learning_users',
+            ['userid' => $params['userId']],
+            '',
+            'status'
+        );
+        $blocking = [];
+        foreach ($blockingCodes as $lpu) {
+            if (in_array($lpu->status, ['retirado', 'aplazado'], true)) {
+                $blocking[] = $lpu->status;
+            }
+        }
+        if (!empty($blocking)) {
+            $stateLabel = implode('/', array_unique($blocking));
+            $student = $DB->get_record('user', ['id' => $params['userId']], 'firstname, lastname');
+            $studentName = $student ? fullname($student) : ('userid=' . $params['userId']);
+            return [
+                'status' => 'error',
+                'message' => "No se puede matricular a $studentName: su estado académico es '$stateLabel'. Debe ser reactivado desde el panel académico antes de asignarle nuevos cursos.",
+            ];
         }
 
         $alreadyInGroup = (!empty($class->groupid) && groups_is_member((int)$class->groupid, (int)$params['userId']));

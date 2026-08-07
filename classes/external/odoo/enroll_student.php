@@ -74,6 +74,36 @@ class enroll_student extends external_api {
             throw new moodle_exception('invaliduser', 'error', '', $params['username'] . " (mapped to $lookupUsername)");
         }
 
+        // Status guard: block new enrolments when the student is in a
+        // retirado/aplazado state. Operators must run the Renovar / reactivation
+        // flow from the academic panel before they can be enrolled again.
+        $blockingStatuses = $DB->get_records('local_learning_users',
+            ['userid' => $user->id],
+            '',
+            'status'
+        );
+        $blockingCodes = [];
+        foreach ($blockingStatuses as $lpu) {
+            if (in_array($lpu->status, ['retirado', 'aplazado'], true)) {
+                $blockingCodes[] = $lpu->status;
+            }
+        }
+        if (!empty($blockingCodes)) {
+            $stateLabel = implode('/', array_unique($blockingCodes));
+            file_put_contents($logfile, $logmsg . " - ERROR: blocked by status ($stateLabel)\n", FILE_APPEND);
+            return [
+                'status' => 'error',
+                'message' => get_string_manager()->get_string(
+                    'enroll_blocked_retired_or_deferred',
+                    'local_grupomakro_core',
+                    (object)['name' => fullname($user), 'status' => $stateLabel],
+                    'en'
+                ) ?: "Cannot enroll student: their academic status is '$stateLabel'. They must be reactivated from the academic panel before being enrolled in new courses.",
+                'learning_user_id' => 0,
+                'plan_id' => 0,
+            ];
+        }
+
         // 1.1 Save the incoming period as "periodo_ingreso" custom profile field
         if (!empty($params['period_name'])) {
             $fieldid = $DB->get_field('user_info_field', 'id', ['shortname' => 'periodo_ingreso']);

@@ -7936,6 +7936,42 @@ try {
             ];
             break;
 
+        case 'local_grupomakro_get_status_change_preview':
+            require_capability('local/grupomakro_core:manageacademicstatus', $context);
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/status_change_manager.php');
+
+            $userid = required_param('userid', PARAM_INT);
+            $preview = \local_grupomakro_status_change_manager::build_preview($userid);
+            $response = ['status' => 'success', 'data' => $preview];
+            break;
+
+        case 'local_grupomakro_execute_status_change':
+            require_capability('local/grupomakro_core:manageacademicstatus', $context);
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/status_change_manager.php');
+
+            $userid = required_param('userid', PARAM_INT);
+            $action = required_param('action_name', PARAM_ALPHANEXT); // 'aplazar' | 'retirar'
+            $reason = (string)required_param('reason', PARAM_TEXT);
+            $targetPeriodId = optional_param('target_period_id', 0, PARAM_INT);
+
+            $result = \local_grupomakro_status_change_manager::execute(
+                $userid,
+                $action,
+                $reason,
+                $targetPeriodId ?: null
+            );
+            $response = $result;
+            break;
+
+        case 'local_grupomakro_get_status_change_history':
+            require_capability('local/grupomakro_core:manageacademicstatus', $context);
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/status_change_manager.php');
+
+            $userid = required_param('userid', PARAM_INT);
+            $history = \local_grupomakro_status_change_manager::get_history($userid);
+            $response = ['status' => 'success', 'data' => $history];
+            break;
+
         case 'local_grupomakro_renovar_student':
             require_capability('moodle/site:config', $context);
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/progress_manager.php');
@@ -7950,6 +7986,13 @@ try {
                 $response = ['status' => 'error', 'message' => 'InscripciÃ³n no encontrada.'];
                 break;
             }
+
+            // Detectar reactivaciÃ³n: estudiante retirado/aplazado/suspendido/desertor.
+            // En ese caso Renovar funciona como reingreso: lo dejamos en activo y
+            // proponemos el periodo lectivo en curso (no el siguiente).
+            $reactivableStatuses = ['retirado', 'aplazado', 'suspendido', 'desertor'];
+            $isReactivation = in_array($lpUser->status, $reactivableStatuses, true);
+            $previousStatus = $isReactivation ? $lpUser->status : null;
 
             $currentSubperiod = $DB->get_record('local_learning_subperiods',
                 ['id' => $lpUser->currentsubperiodid]);
@@ -8009,28 +8052,33 @@ try {
             }
 
             // â”€â”€ Periodo lectivo sugerido â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-            // Prioridad 1: periodo que inicia en los prÃ³ximos 30 dÃ­as
-            // Prioridad 2 (fallback): periodo en curso (el que ya iniciÃ³, mÃ¡s reciente)
+            // Si es reactivaciÃ³n usamos el algoritmo "ultimo que inicio / proximo si receso".
+            // Si es avance normal: prioridad 1 = periodo que inicia en los proximos 30 dias,
+            // prioridad 2 (fallback) = periodo en curso (el mas reciente que ya inicio).
             $now      = time();
-            $in30days = $now + (30 * 24 * 3600);
 
-            $suggestedAcPeriod = $DB->get_record_sql(
-                "SELECT id, name, startdate, enddate, status FROM {gmk_academic_periods}
-                  WHERE startdate > :now AND startdate <= :in30
-                  ORDER BY startdate ASC",
-                ['now' => $now, 'in30' => $in30days],
-                0, 1
-            );
+            if ($isReactivation) {
+                $suggestedAcPeriod = \local_grupomakro_progress_manager::suggest_reactivation_period($now);
+            } else {
+                $in30days = $now + (30 * 24 * 3600);
 
-            // Fallback: periodo en curso (startdate ya pasÃ³, el mÃ¡s reciente)
-            if (!$suggestedAcPeriod) {
                 $suggestedAcPeriod = $DB->get_record_sql(
                     "SELECT id, name, startdate, enddate, status FROM {gmk_academic_periods}
-                      WHERE startdate <= :now
-                      ORDER BY startdate DESC",
-                    ['now' => $now],
+                      WHERE startdate > :now AND startdate <= :in30
+                      ORDER BY startdate ASC",
+                    ['now' => $now, 'in30' => $in30days],
                     0, 1
                 );
+
+                if (!$suggestedAcPeriod) {
+                    $suggestedAcPeriod = $DB->get_record_sql(
+                        "SELECT id, name, startdate, enddate, status FROM {gmk_academic_periods}
+                          WHERE startdate <= :now
+                          ORDER BY startdate DESC",
+                        ['now' => $now],
+                        0, 1
+                    );
+                }
             }
 
             if (!$suggestedAcPeriod) {
@@ -8067,6 +8115,7 @@ try {
                     'subperiodname'      => $currentSubperiod->name,
                     'academicperiodid'   => (int)$lpUser->academicperiodid,
                     'academicperiodname' => $currentAcPeriod ? $currentAcPeriod->name : '--',
+                    'status'             => $lpUser->status,
                 ],
                 'next' => [
                     'periodid'           => (int)$nextPeriod->id,
@@ -8077,6 +8126,8 @@ try {
                     'academicperiodname' => $suggestedAcPeriod->name,
                 ],
                 'advancetype'      => $advanceType,
+                'isreactivation'   => $isReactivation,
+                'previousstatus'   => $previousStatus,
                 'allAcademicPeriods' => $allAcPeriods,
             ];
 
@@ -8108,9 +8159,61 @@ try {
                     ['userid' => $userid, 'learningplanid' => $planid]);
                 $DB->set_field('local_learning_users', 'timemodified', time(),
                     ['userid' => $userid, 'learningplanid' => $planid]);
+
+                $droppedIds = [];
+                $suspensionRow = null;
+                if ($isReactivation) {
+                    // 1) Des-matricular cualquier curso activo y registrar movimientos.
+                    $droppedIds = \local_grupomakro_progress_manager::drop_active_courses_for_user(
+                        $userid,
+                        'student_reactivated',
+                        $USER->id ?? 2
+                    );
+                    // 2) Flip status a activo en TODOS los planes del usuario.
+                    $DB->set_field('local_learning_users', 'status', 'activo',
+                        ['userid' => $userid]);
+                    // 3) Reflejar en el profile field institucional.
+                    require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/student/update_student_status.php');
+                    \local_grupomakro_core\external\student\update_student_status::write_profile_field($userid, 'studentstatus', 'Activo');
+                    // 4) Insertar fila de auditoria.
+                    $suspensionRow = new stdClass();
+                    $suspensionRow->userid                 = $userid;
+                    $suspensionRow->status                 = 'renovacion';
+                    $suspensionRow->reason                 = 'ReactivaciÃ³n automÃ¡tica al renovar (estado previo: ' . $previousStatus . ')';
+                    $suspensionRow->targetperiodid         = $suggestedAcPeriod->id;
+                    $suspensionRow->active_courses_dropped = json_encode($droppedIds);
+                    $suspensionRow->usermodified           = $USER->id ?? 2;
+                    $suspensionRow->timecreated            = time();
+                    $suspensionRow->origin                 = 'lxp';
+                    $suspensionRow->details                = json_encode([
+                        'is_reactivation' => true,
+                        'previous_status' => $previousStatus,
+                        'academic_period' => [
+                            'id'   => (int)$suggestedAcPeriod->id,
+                            'name' => $suggestedAcPeriod->name,
+                        ],
+                        'plans_processed' => [(int)$planid],
+                        'next_subperiod'  => [
+                            'id'   => (int)$nextSubperiod->id,
+                            'name' => $nextSubperiod->name,
+                        ],
+                    ]);
+                    $DB->insert_record('gmk_student_suspension', $suspensionRow);
+                }
+
                 $transaction->allow_commit();
-                $response = ['status' => 'success', 'message' => 'RenovaciÃ³n aplicada correctamente.',
-                             'data' => $previewData];
+                $response = [
+                    'status'  => 'success',
+                    'message' => $isReactivation
+                        ? 'Estudiante reactivado correctamente.'
+                        : 'RenovaciÃ³n aplicada correctamente.',
+                    'data'    => array_merge($previewData, [
+                        'isreactivation' => $isReactivation,
+                        'previousstatus' => $previousStatus,
+                        'newstatus'      => 'activo',
+                        'droppedcourses' => $droppedIds,
+                    ]),
+                ];
             } catch (Exception $e) {
                 $transaction->rollback($e);
                 $response = ['status' => 'error', 'message' => $e->getMessage()];

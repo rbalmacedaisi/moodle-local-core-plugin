@@ -142,4 +142,11 @@ $capabilities = array(
             'manager' => CAP_ALLOW,
         ),
     ),
+    'local/grupomakro_core:manageacademicstatus' => array(
+        'captype' => 'write',
+        'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array(
+            'manager' => CAP_ALLOW,
+        ),
+    ),
 );

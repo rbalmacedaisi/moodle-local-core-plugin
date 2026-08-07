@@ -193,6 +193,7 @@ EOT;
 
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/academicpanel.js?v=' . $assetversion));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/studenttable.js?v=' . $assetversion));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/statusChangeWizard.js?v=' . $assetversion . '_statuschange1'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/academicoffer.js?v=' . $assetversion));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/curriculum.js?v=' . $assetversion));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/revalidatestudents.js?v=' . $assetversion));

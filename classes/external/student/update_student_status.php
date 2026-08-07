@@ -178,6 +178,42 @@ class update_student_status extends external_api {
     }
 
     /**
+     * Helper used by status_change_manager.php and the reactivation branch of
+     * the Renovar flow to write a value into the custom profile field
+     * shortname='studentstatus' without going through execute() (avoids a
+     * capability re-check on already-validated callers).
+     *
+     * @param int    $userid
+     * @param string $shortname Profile field shortname (today only 'studentstatus' is supported).
+     * @param string $value
+     * @return bool true on success, false if field missing.
+     */
+    public static function write_profile_field($userid, $shortname, $value) {
+        global $DB;
+        $fieldRecord = $DB->get_record('user_info_field', ['shortname' => $shortname]);
+        if (!$fieldRecord) {
+            return false;
+        }
+        $existing = $DB->get_record('user_info_data', [
+            'userid'  => $userid,
+            'fieldid' => $fieldRecord->id,
+        ]);
+        if ($existing) {
+            $existing->data = $value;
+            $existing->dataformat = 0;
+            $DB->update_record('user_info_data', $existing);
+        } else {
+            $row = new \stdClass();
+            $row->userid = $userid;
+            $row->fieldid = $fieldRecord->id;
+            $row->data = $value;
+            $row->dataformat = 0;
+            $DB->insert_record('user_info_data', $row);
+        }
+        return true;
+    }
+
+    /**
      * Describes return value.
      *
      * @return external_single_structure

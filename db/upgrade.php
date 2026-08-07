@@ -2944,6 +2944,32 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20260815000, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20260816000) {
+        // Status change wizard: extend gmk_student_suspension with origin + details
+        // so the academic timeline can distinguish LXP-driven changes from Odoo
+        // sync and capture the full snapshot of what was changed (active courses
+        // dropped, target period, Odoo sync result, etc.).
+
+        $stable = new xmldb_table('gmk_student_suspension');
+
+        $origin = new xmldb_field('origin', XMLDB_TYPE_CHAR, '20', null, null, null, 'odoo');
+        if (!$dbman->field_exists($stable, $origin)) {
+            $dbman->add_field($stable, $origin);
+        }
+
+        $details = new xmldb_field('details', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        if (!$dbman->field_exists($stable, $details)) {
+            $dbman->add_field($stable, $details);
+        }
+
+        $historyidx = new xmldb_index('history_idx', XMLDB_INDEX_NOTUNIQUE, ['userid', 'timecreated']);
+        if (!$dbman->index_exists($stable, $historyidx)) {
+            $dbman->add_index($stable, $historyidx);
+        }
+
+        upgrade_plugin_savepoint(true, 20260816000, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 
