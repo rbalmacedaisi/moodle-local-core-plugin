@@ -1279,14 +1279,15 @@ class local_grupomakro_progress_manager
      * mdl_user does not have a `vat` column in this deployment; the
      * cedula is stored as a user_info_data row keyed by shortname.
      *
-     * Tries shortnames 'vat' then 'cedula' in that order.
+     * Tries shortnames 'vat' then 'cedula' then 'documentnumber' in
+     * that order. This Moodle's profile field is named 'documentnumber'.
      *
      * @param string $vat
      * @return object|null The user record (id, username) or null.
      */
     protected static function find_user_by_vat($vat) {
         global $DB;
-        foreach (['vat', 'cedula'] as $shortname) {
+        foreach (['vat', 'cedula', 'documentnumber'] as $shortname) {
             $field = $DB->get_record('user_info_field', ['shortname' => $shortname]);
             if (!$field) {
                 continue;

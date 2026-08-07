@@ -506,11 +506,15 @@ class local_grupomakro_status_change_manager
      * (it's a custom profile field). Reading it via $user->vat throws
      * 'Unknown column vat in field list' on a $DB->get_record query.
      *
+     * Tries shortnames in order: 'vat' (Odoo-style), 'cedula'
+     * (Latin-American), and 'documentnumber' (this Moodle's actual
+     * fieldname for the cedula, id=5 in user_info_field).
+     *
      * @param int $userid
      * @return string
      */
     protected static function get_user_vat($userid) {
-        foreach (['vat', 'cedula'] as $shortname) {
+        foreach (['vat', 'cedula', 'documentnumber'] as $shortname) {
             $val = self::get_profile_field($userid, $shortname);
             if (!empty($val)) {
                 return (string)$val;
