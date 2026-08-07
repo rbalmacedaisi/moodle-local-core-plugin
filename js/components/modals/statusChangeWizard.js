@@ -37,7 +37,7 @@ Vue.component('status-change-wizard', {
                         <!-- Step 1: Diagnóstico -->
                         <v-stepper-step :complete="step > 1" step="1" :color="step === 1 ? 'amber darken-2' : ''">
                             Diagnóstico
-                            <small v-if="preview">Estado actual: {{ preview.academicstatus }}</small>
+                            <small v-if="preview">Estado actual: {{ preview?.academicstatus }}</small>
                         </v-stepper-step>
                         <v-stepper-content step="1">
                             <div v-if="loadingPreview" class="text-center pa-6">
@@ -45,8 +45,8 @@ Vue.component('status-change-wizard', {
                                 <div class="caption mt-2">Cargando diagnóstico del estudiante...</div>
                             </div>
                             <template v-else-if="preview">
-                                <div class="text-h6 mb-3">{{ preview.fullname }}
-                                    <span class="caption ml-2 grey--text">({{ preview.username }})</span>
+                                <div class="text-h6 mb-3">{{ preview?.fullname }}
+                                    <span class="caption ml-2 grey--text">({{ preview?.username }})</span>
                                 </div>
 
                                 <!-- Asignaturas activas -->
@@ -75,16 +75,16 @@ Vue.component('status-change-wizard', {
                                 </v-alert>
 
                                 <!-- Facturas pendientes -->
-                                <v-alert v-if="preview.pending_invoices_unavailable" type="grey" dense class="mb-3" border="left" icon="mdi-cloud-off-outline">
+                                <v-alert v-if="preview?.pending_invoices_unavailable" type="grey" dense class="mb-3" border="left" icon="mdi-cloud-off-outline">
                                     <div class="text-caption">No se pudo contactar a Odoo para obtener el detalle de facturas pendientes. La información financiera puede estar desactualizada.</div>
                                 </v-alert>
-                                <v-alert v-else-if="preview.pending_invoices.length === 0" type="success" dense class="mb-3" border="left">
+                                <v-alert v-else-if="preview?.pending_invoices?.length === 0" type="success" dense class="mb-3" border="left">
                                     El estudiante está al día con sus facturas.
                                 </v-alert>
                                 <v-alert v-else :type="hasOverdueInvoices ? 'error' : 'warning'" dense class="mb-3" border="left">
                                     <div class="font-weight-bold mb-1">
                                         <v-icon left>mdi-receipt-text-remove</v-icon>
-                                        {{ preview.pending_invoices.length }} factura(s) pendiente(s)
+                                        {{ preview?.pending_invoices?.length }} factura(s) pendiente(s)
                                         <span v-if="hasOverdueInvoices">— {{ overdueCount }} en mora</span>
                                     </div>
                                     <v-list dense style="max-height: 180px; overflow-y: auto;">
@@ -210,10 +210,10 @@ Vue.component('status-change-wizard', {
                         <v-stepper-step :complete="false" :step="confirmStep">Confirmar</v-stepper-step>
                         <v-stepper-content :step="confirmStep">
                             <v-list dense>
-                                <v-list-item>
+                                <v-list-item v-if="preview">
                                     <v-list-item-content>
                                         <v-list-item-title class="caption grey--text">Estudiante</v-list-item-title>
-                                        <v-list-item-subtitle class="font-weight-bold">{{ preview.fullname }}</v-list-item-subtitle>
+                                        <v-list-item-subtitle class="font-weight-bold">{{ preview?.fullname }}</v-list-item-subtitle>
                                     </v-list-item-content>
                                 </v-list-item>
                                 <v-list-item>
@@ -303,7 +303,7 @@ Vue.component('status-change-wizard', {
         activeCourses() {
             if (!this.preview) return [];
             const all = [];
-            for (const c of this.preview.carrers) {
+            for (const c of this.preview?.carrers) {
                 for (const ac of (c.active_courses || [])) {
                     all.push(Object.assign({}, ac, { plan_name: c.plan_name }));
                 }
@@ -328,12 +328,12 @@ Vue.component('status-change-wizard', {
         },
         selectedPeriodName() {
             if (!this.preview || !this.form.target_period_id) return '--';
-            const p = this.preview.target_periods.find(p => p.id === this.form.target_period_id);
+            const p = (this.preview?.target_periods || []).find(p => p.id === this.form.target_period_id);
             return p ? p.name : ('Periodo #' + this.form.target_period_id);
         },
         suggestedPeriodHint() {
             if (!this.preview || !this.form.target_period_id) return '';
-            const p = this.preview.target_periods.find(p => p.id === this.form.target_period_id);
+            const p = (this.preview?.target_periods || []).find(p => p.id === this.form.target_period_id);
             if (!p || !p.startdate) return '';
             const start = new Date(p.startdate * 1000);
             return 'Inicio: ' + start.toISOString().substring(0, 10);
@@ -403,15 +403,15 @@ Vue.component('status-change-wizard', {
                     this.preview = resp.data.data;
                     // Auto-pick suggested period for reactivation or first active one.
                     if (this.form.action === 'aplazar' && !this.form.target_period_id) {
-                        const inProgress = this.preview.target_periods.find(p => {
+                        const inProgress = (this.preview?.target_periods || []).find(p => {
                             if (!p.startdate || !p.enddate) return false;
                             const now = Math.floor(Date.now() / 1000);
                             return p.startdate <= now && now <= p.enddate;
                         });
                         if (inProgress) {
                             this.form.target_period_id = inProgress.id;
-                        } else if (this.preview.target_periods.length > 0) {
-                            this.form.target_period_id = this.preview.target_periods[0].id;
+                        } else if ((this.preview?.target_periods || []).length > 0) {
+                            this.form.target_period_id = (this.preview?.target_periods || [])[0].id;
                         }
                     }
                 } else {
