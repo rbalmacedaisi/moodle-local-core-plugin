@@ -10262,7 +10262,15 @@ function local_grupomakro_sync_financial_status($userids = []) {
     $ch = curl_init($endpoint);
     curl_setopt($ch, CURLOPT_POST, 1);
     curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+    $headers = ['Content-Type: application/json'];
+    // Send X-Api-Key when configured so the new Express middleware doesn't
+    // reject the request with 401. Same key as the status-change wizard
+    // uses; see docs/X-API-KEY.md.
+    $apiKey = get_config('local_grupomakro_core', 'odoo_proxy_api_key');
+    if (!empty($apiKey)) {
+        $headers[] = 'X-Api-Key: ' . $apiKey;
+    }
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
     curl_setopt($ch, CURLOPT_TIMEOUT, 120);      // Q10 sequential processing needs more time
