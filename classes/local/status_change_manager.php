@@ -51,7 +51,8 @@ class local_grupomakro_status_change_manager
     public static function build_preview($userid) {
         global $DB;
 
-        $user = $DB->get_record('user', ['id' => $userid], 'id, username, firstname, lastname, firstnamephonetic, lastnamephonetic, middlename, alternatename, email, vat, suspended, deleted', MUST_EXIST);
+        $user = $DB->get_record('user', ['id' => $userid], 'id, username, firstname, lastname, firstnamephonetic, lastnamephonetic, middlename, alternatename, email, suspended, deleted', MUST_EXIST);
+        $user->vat = self::get_user_vat($userid);
 
         // Profile field institucional.
         $studentstatus = self::get_profile_field($userid, 'studentstatus');
@@ -179,7 +180,8 @@ class local_grupomakro_status_change_manager
             $actorUserid = $USER->id ?? 2;
         }
 
-        $user = $DB->get_record('user', ['id' => $userid], 'id, username, firstname, lastname, email, vat', MUST_EXIST);
+        $user = $DB->get_record('user', ['id' => $userid], 'id, username, firstname, lastname, email', MUST_EXIST);
+        $user->vat = self::get_user_vat($userid);
         $lpUsers = $DB->get_records('local_learning_users', ['userid' => $userid]);
         if (empty($lpUsers)) {
             return ['status' => 'error', 'message' => 'El estudiante no tiene inscripciones activas.'];
@@ -493,5 +495,27 @@ class local_grupomakro_status_change_manager
         }
         $data = $DB->get_record('user_info_data', ['userid' => $userid, 'fieldid' => $field->id]);
         return $data ? $data->data : null;
+    }
+
+    /**
+     * Resolve the student's VAT (cedula) for Odoo. Falls back to the
+     * custom profile field shortnamed 'vat', or 'cedula', in that order.
+     * Returns an empty string if no VAT is configured for the user.
+     *
+     * NOTE: mdl_user does NOT have a `vat` column in this deployment
+     * (it's a custom profile field). Reading it via $user->vat throws
+     * 'Unknown column vat in field list' on a $DB->get_record query.
+     *
+     * @param int $userid
+     * @return string
+     */
+    protected static function get_user_vat($userid) {
+        foreach (['vat', 'cedula'] as $shortname) {
+            $val = self::get_profile_field($userid, $shortname);
+            if (!empty($val)) {
+                return (string)$val;
+            }
+        }
+        return '';
     }
 }

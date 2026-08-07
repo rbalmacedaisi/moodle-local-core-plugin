@@ -1216,11 +1216,14 @@ class local_grupomakro_progress_manager
             // 1. Find the user
             $user = null;
             if (is_numeric($userIdOrVat) && $userIdOrVat < 1000000) { // Assume ID
-                $user = $DB->get_record('user', ['id' => $userIdOrVat], 'id, username, vat');
+                $user = $DB->get_record('user', ['id' => $userIdOrVat], 'id, username');
             } else { // Assume Document Number
-                $user = $DB->get_record('user', ['username' => $userIdOrVat], 'id, username, vat');
+                $user = $DB->get_record('user', ['username' => $userIdOrVat], 'id, username');
                 if (!$user) {
-                    $user = $DB->get_record('user', ['vat' => $userIdOrVat], 'id, username, vat');
+                    $user = $DB->get_record('user', ['idnumber' => $userIdOrVat], 'id, username');
+                }
+                if (!$user) {
+                    $user = self::find_user_by_vat($userIdOrVat);
                 }
             }
 
@@ -1269,6 +1272,34 @@ class local_grupomakro_progress_manager
         } catch (Exception $e) {
             return ['status' => 'error', 'message' => $e->getMessage()];
         }
+    }
+
+    /**
+     * Resolve a user by their VAT (cedula) using the custom profile field.
+     * mdl_user does not have a `vat` column in this deployment; the
+     * cedula is stored as a user_info_data row keyed by shortname.
+     *
+     * Tries shortnames 'vat' then 'cedula' in that order.
+     *
+     * @param string $vat
+     * @return object|null The user record (id, username) or null.
+     */
+    protected static function find_user_by_vat($vat) {
+        global $DB;
+        foreach (['vat', 'cedula'] as $shortname) {
+            $field = $DB->get_record('user_info_field', ['shortname' => $shortname]);
+            if (!$field) {
+                continue;
+            }
+            $data = $DB->get_record('user_info_data', ['fieldid' => $field->id, 'data' => $vat]);
+            if ($data) {
+                $user = $DB->get_record('user', ['id' => $data->userid], 'id, username');
+                if ($user) {
+                    return $user;
+                }
+            }
+        }
+        return null;
     }
 
     /**
