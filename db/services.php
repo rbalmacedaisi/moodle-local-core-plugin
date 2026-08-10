@@ -883,6 +883,12 @@ $functions = array(
         'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
     ],
     'local_grupomakro_update_student_status' => [
+        // NOTE: the AJAX action 'local_grupomakro_update_student_status' is a
+        // separate thing that hits local_grupomakro_sync_financial_status() for a
+        // single user (see ajax.php case). The WS REST endpoint below is a
+        // status-change action (studentstatus / academicstatus fields).
+        // The two are deliberately de-coupled; do NOT rename one to match
+        // the other or callers will silently switch behaviour.
         'classname' => 'local_grupomakro_core\external\student\update_student_status',
         'methodname' => 'execute',
         'description' => 'Update student status (general or academic)',

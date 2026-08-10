@@ -1233,10 +1233,14 @@ Vue.component('studenttable', {
         async updateFinancialStatus(item) {
             item.updatingFinancial = true;
             try {
-                // Using the external API we created
+                // Using the new explicit-name AJAX action. The legacy
+                // 'local_grupomakro_update_student_status' alias still works
+                // (ajax.php) but is deprecated to avoid confusion with the
+                // WS REST external function of the same name which performs
+                // a status change instead of a financial sync.
                 const params = new URLSearchParams();
                 params.append('sesskey', M.cfg.sesskey);
-                params.append('action', 'local_grupomakro_update_student_status');
+                params.append('action', 'local_grupomakro_sync_financial_status_single');
                 params.append('userid', item.id);
 
                 const response = await axios.post(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php`, params);

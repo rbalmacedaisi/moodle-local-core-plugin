@@ -307,7 +307,27 @@ try {
             $response = \local_grupomakro_core\external\student\sync_progress::execute($phase, $offset, $limit);
             break;
         
+        case 'local_grupomakro_sync_financial_status_single':
+            // Renamed from the ambiguous 'local_grupomakro_update_student_status'
+            // to avoid the name clash with the WS REST external function of the
+            // same name (which is a status-change action — completely different).
+            // The legacy action name is kept as an alias below for backwards
+            // compatibility.
+            $userid = required_param('userid', PARAM_INT);
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/student/update_status.php');
+            $result = \local_grupomakro_core\external\student\update_status::execute($userid);
+            $response = [
+                'status' => 'success',
+                'data' => $result
+            ];
+            break;
+
         case 'local_grupomakro_update_student_status':
+            // DEPRECATED alias for 'local_grupomakro_sync_financial_status_single'
+            // above. Same logic. Kept for backwards compatibility because the
+            // studenttable.js uses this name. New callers should use the
+            // new name to avoid the name clash with the WS REST status-change
+            // endpoint in db/services.php.
             $userid = required_param('userid', PARAM_INT);
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/student/update_status.php');
             $result = \local_grupomakro_core\external\student\update_status::execute($userid);
