@@ -1292,7 +1292,15 @@ class local_grupomakro_progress_manager
             if (!$field) {
                 continue;
             }
-            $data = $DB->get_record('user_info_data', ['fieldid' => $field->id, 'data' => $vat]);
+            // user_info_data.data is a TEXT column; Moodle strict mode (and
+            // any debug-enabled CLI invocation) rejects direct equality
+            // comparisons on TEXT. Use sql_compare_text() so the query
+            // works both with debug on and off.
+            $data = $DB->get_record_sql(
+                "SELECT id, userid, data FROM {user_info_data}
+                  WHERE fieldid = :fieldid AND " . $DB->sql_compare_text('data') . " = :data",
+                ['fieldid' => $field->id, 'data' => $vat]
+            );
             if ($data) {
                 $user = $DB->get_record('user', ['id' => $data->userid], 'id, username');
                 if ($user) {
