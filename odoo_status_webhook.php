@@ -43,6 +43,7 @@ require_once(__DIR__ . '/../../config.php');
 
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/progress_manager.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/status_change_manager.php');
 require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/student/update_student_status.php');
 
 use local_grupomakro_core\external\student\update_student_status;
@@ -124,7 +125,7 @@ try {
     }
 
     $currentStatuses = array_map(function($lpu) { return $lpu->status; }, $lpUsers);
-    $currentStatus = \local_grupomakro_progress_manager::worst_status_public($currentStatuses);
+    $currentStatus = \local_grupomakro_status_change_manager::worst_status_public($currentStatuses);
 
     // Idempotency: if current already matches target, skip the write.
     if ($currentStatus === $targetStatus) {
