@@ -281,6 +281,23 @@ $string['absence_unblock_class_noop'] = 'The class is not blocked, no changes we
 $string['absence_recompute_class'] = 'Recompute absences';
 $string['absence_recompute_class_success'] = 'State recomputed: {$a->count} absences (level {$a->level}).';
 
+// Attendance mark with support: tabs, file input and validation copy.
+$string['absence_mark_support_title'] = 'Justify attendance';
+$string['absence_mark_support_intro'] = 'Enter the justification and attach the support (photo or PDF) to register this attendance. <strong>Both fields are required.</strong>';
+$string['absence_mark_support_label'] = 'Support (PDF, JPG or PNG · max. 10 MB)';
+$string['absence_mark_support_help'] = 'Attach a photo of the justification or the scanned PDF. The file is stored alongside the attendance record.';
+$string['absence_mark_support_required'] = 'The support file is required (PDF or image).';
+$string['absence_mark_support_too_big'] = 'The file exceeds the 10 MB limit.';
+$string['absence_mark_support_bad_type'] = 'File type not allowed. Only PDF, JPG or PNG.';
+$string['absence_mark_support_bad_mime'] = 'The file contents do not match a valid PDF or image.';
+$string['absence_mark_support_save_error'] = 'Could not save the support file. Please try again.';
+$string['absence_sessions_tab_sessions'] = 'Sessions';
+$string['absence_sessions_tab_history'] = 'Marks history';
+$string['absence_history_empty'] = 'No marks with a justification or support for this student in this class yet.';
+$string['absence_history_refresh'] = 'Refresh';
+$string['absence_history_open_support'] = 'Open support';
+$string['absence_history_no_support'] = 'No support attached';
+
 $string['bulk_exempt_legacy_title'] = 'Exempt students with 3+ existing absences';
 $string['bulk_exempt_legacy_desc'] = 'Marks as exempt from the new blocking system every student who already has 3 or more accumulated absences. Recommended when deploying mid-period so that only students who reach the threshold after the deploy are blocked. The action is reversible: the exemption list is cleared at the start of the next period.';
 $string['bulk_exempt_legacy_confirm'] = 'Confirm the bulk exemption? This marks every student with 3 or more accumulated absences as NOT subject to the new blocking. Students will continue seeing the visual alerts (1 and 2 absences) normally. The operation is recorded in the audit log.';

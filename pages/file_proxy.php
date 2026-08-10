@@ -7,7 +7,11 @@
  *   ?url=ENCODED_PLUGINFILE_URL             → serve file inline (PDF, images, etc.)
  *   ?url=ENCODED_PLUGINFILE_URL&convert=html → convert DOCX to HTML (no CDN needed)
  *
- * Security: requires login + mod/assign:grade or mod/assign:view on the file's context.
+ * Security: requires login.
+ *   - For mod_assign / assignsubmission_file / assignsubmission_onlinetext
+ *     fileareas: requires mod/assign:grade or mod/assign:view on the context.
+ *   - For local_grupomakro_core/attendance_support: requires
+ *     local/grupomakro_core:viewabsencedashboard on the context.
  */
 
 define('NO_DEBUG_DISPLAY', true);
@@ -60,7 +64,14 @@ if (substr($filepath, -1) !== '/') {
 
 // Only allow submission-related components
 $allowed_components = ['mod_assign', 'assignsubmission_file', 'assignsubmission_onlinetext'];
-if (!in_array($component, $allowed_components, true)) {
+// Attendance support files (PDF / image) attached by the absence dashboard when
+// marking a session as present. Restricted to the attendance_support filearea
+// and gated by the absence dashboard capability.
+$allowed_fileareas = [
+    'local_grupomakro_core' => ['attendance_support'],
+];
+if (!in_array($component, $allowed_components, true)
+        && !isset($allowed_fileareas[$component])) {
     http_response_code(403);
     die('Component not allowed.');
 }
@@ -72,9 +83,22 @@ if (!$context) {
     die('Context not found.');
 }
 
-if (!has_capability('mod/assign:grade', $context) && !has_capability('mod/assign:view', $context)) {
-    http_response_code(403);
-    die('Access denied.');
+if (in_array($component, $allowed_components, true)) {
+    if (!has_capability('mod/assign:grade', $context) && !has_capability('mod/assign:view', $context)) {
+        http_response_code(403);
+        die('Access denied.');
+    }
+} else {
+    // Plugin-local filearea — check the matching capability and that the
+    // requested filearea is whitelisted for that component.
+    if (!in_array($filearea, $allowed_fileareas[$component], true)) {
+        http_response_code(403);
+        die('Filearea not allowed.');
+    }
+    if (!has_capability('local/grupomakro_core:viewabsencedashboard', $context)) {
+        http_response_code(403);
+        die('Access denied.');
+    }
 }
 
 // Fetch from Moodle file storage

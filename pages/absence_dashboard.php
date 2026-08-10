@@ -803,6 +803,56 @@ if (optional_param('abs_ajax', 0, PARAM_INT)) {
                 echo json_encode(['ok' => false, 'message' => 'La justificación es obligatoria']);
                 exit;
             }
+
+            // Support file is mandatory: PDF, JPG or PNG up to 10MB.
+            $supporterror = '';
+            $supportfile  = isset($_FILES['support_file']) ? $_FILES['support_file'] : null;
+            $maxbytes     = 10 * 1024 * 1024;
+            $allowedexts  = ['pdf', 'jpg', 'jpeg', 'png'];
+            $allowedmimes = [
+                'application/pdf',
+                'image/jpeg', 'image/jpg', 'image/pjpeg',
+                'image/png',
+            ];
+            if (!$supportfile || (isset($supportfile['error']) && (int)$supportfile['error'] === UPLOAD_ERR_NO_FILE)) {
+                $supporterror = 'El archivo de soporte es obligatorio (PDF o imagen).';
+            } elseif (!empty($supportfile['error'])) {
+                $supporterror = 'Error al subir el archivo (código ' . (int)$supportfile['error'] . ').';
+            } elseif (!is_uploaded_file($supportfile['tmp_name'])) {
+                $supporterror = 'El archivo subido no es válido.';
+            } else {
+                $filesize = (int)@filesize($supportfile['tmp_name']);
+                if ($filesize <= 0) {
+                    $supporterror = 'El archivo está vacío.';
+                } elseif ($filesize > $maxbytes) {
+                    $supporterror = 'El archivo supera el límite de 10 MB.';
+                } else {
+                    $clientname = (string)($supportfile['name'] ?? 'soporte');
+                    $ext = strtolower(pathinfo($clientname, PATHINFO_EXTENSION));
+                    if (!in_array($ext, $allowedexts, true)) {
+                        $supporterror = 'Tipo de archivo no permitido. Solo PDF, JPG o PNG.';
+                    } else {
+                        $mimetype = (string)@mime_content_type($supportfile['tmp_name']);
+                        // Fall back to ext-derived MIME when finfo is unavailable.
+                        if ($mimetype === '' || $mimetype === 'application/x-empty') {
+                            $extmime = [
+                                'pdf' => 'application/pdf',
+                                'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg',
+                                'png' => 'image/png',
+                            ];
+                            $mimetype = $extmime[$ext] ?? 'application/octet-stream';
+                        }
+                        if (!in_array($mimetype, $allowedmimes, true)) {
+                            $supporterror = 'El contenido del archivo no coincide con un PDF o imagen válidos.';
+                        }
+                    }
+                }
+            }
+            if ($supporterror !== '') {
+                echo json_encode(['ok' => false, 'message' => $supporterror]);
+                exit;
+            }
+
             $session = $DB->get_record('attendance_sessions', ['id' => $sessionid], '*', MUST_EXIST);
             $present_status = $DB->get_record_sql(
                 "SELECT id, setnumber FROM {attendance_statuses} WHERE attendanceid = :aid AND grade > 0 ORDER BY grade DESC LIMIT 1",
@@ -824,6 +874,7 @@ if (optional_param('abs_ajax', 0, PARAM_INT)) {
                 $existing->timetaken = $now;
                 $existing->takenby   = $USER->id;
                 $DB->update_record('attendance_log', $existing);
+                $logid = (int)$existing->id;
             } else {
                 $log            = new stdClass();
                 $log->sessionid = $sessionid;
@@ -833,7 +884,48 @@ if (optional_param('abs_ajax', 0, PARAM_INT)) {
                 $log->timetaken = $now;
                 $log->takenby   = $USER->id;
                 $log->remarks   = $justification;
-                $DB->insert_record('attendance_log', $log);
+                $logid = (int)$DB->insert_record('attendance_log', $log);
+            }
+
+            // Persist the support file in the local_grupomakro_core/attendance_support
+            // filearea (itemid = attendance_log.id, context = system). Previous
+            // uploads are removed so the latest support always reflects the latest
+            // justification. This keeps audit simple: one support per attendance_log row.
+            try {
+                $fs = get_file_storage();
+                $sysctx = context_system::instance();
+                $fs->delete_area_files($sysctx->id, 'local_grupomakro_core', 'attendance_support', $logid);
+                $clientname = (string)($supportfile['name'] ?? 'soporte');
+                $storedname = clean_param($clientname, PARAM_FILE);
+                if ($storedname === '') {
+                    $storedname = 'soporte_' . $logid . '.bin';
+                }
+                $filerec = [
+                    'contextid' => $sysctx->id,
+                    'component' => 'local_grupomakro_core',
+                    'filearea'  => 'attendance_support',
+                    'itemid'    => $logid,
+                    'filepath'  => '/',
+                    'filename'  => $storedname,
+                    'userid'    => (int)$USER->id,
+                ];
+                $fs->create_file_from_pathname($filerec, $supportfile['tmp_name']);
+            } catch (Throwable $fileerr) {
+                // Roll back the attendance_log write so the user can retry without
+                // leaving an orphaned mark without support.
+                if ($existing) {
+                    $existing->statusid  = 0;
+                    $existing->remarks   = '';
+                    $existing->takenby   = 0;
+                    $DB->update_record('attendance_log', $existing);
+                } else {
+                    $DB->delete_records('attendance_log', ['id' => $logid]);
+                }
+                if (function_exists('gmk_log')) {
+                    gmk_log('ERROR: mark_session_present file save failed session=' . $sessionid . ' student=' . $userid . ' logid=' . $logid . ': ' . $fileerr->getMessage());
+                }
+                echo json_encode(['ok' => false, 'message' => 'No se pudo guardar el archivo de soporte. Inténtalo nuevamente.']);
+                exit;
             }
 
             // Trazabilidad: emitir el evento estándar de mod_attendance para que la
@@ -875,7 +967,137 @@ if (optional_param('abs_ajax', 0, PARAM_INT)) {
                 );
                 $new_absences = max(0, count($past_sids) - $present_count);
             }
-            echo json_encode(['ok' => true, 'new_absences' => $new_absences], JSON_UNESCAPED_UNICODE);
+            echo json_encode([
+                'ok' => true,
+                'new_absences' => $new_absences,
+                'logid' => $logid,
+            ], JSON_UNESCAPED_UNICODE);
+
+        } elseif ($abs_action === 'get_attendance_marks_history') {
+            // Returns the per-session attendance marks made via this dashboard for
+            // (classid, userid). Dashboard marks always carry a justification in
+            // remarks (validation in mark_session_present) and optionally a support
+            // file in the attendance_support filearea; the support column is
+            // resolved per-row below by querying Moodle file storage.
+            $classid = required_param('classid', PARAM_INT);
+            $userid  = required_param('userid',  PARAM_INT);
+
+            $class = $DB->get_record(
+                'gmk_class',
+                ['id' => $classid],
+                'id, attendancemoduleid, groupid, courseid, corecourseid, initdate, enddate',
+                MUST_EXIST
+            );
+
+            $isenrolled = $DB->record_exists_select(
+                'gmk_course_progre',
+                'classid = :classid AND userid = :userid AND status = 2',
+                ['classid' => $classid, 'userid' => $userid]
+            );
+            if (!$isenrolled) {
+                echo json_encode(['ok' => false, 'message' => 'El estudiante no pertenece a esta clase.']);
+                exit;
+            }
+
+            $pastsessionids = absd_get_class_past_session_ids($class, time());
+            $takensessionids = absd_get_taken_session_ids($pastsessionids);
+            if (empty($takensessionids)) {
+                echo json_encode(['ok' => true, 'marks' => []], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG);
+                exit;
+            }
+
+            [$sessinsql, $sessparams] = $DB->get_in_or_equal($takensessionids, SQL_PARAMS_NAMED, 'smh');
+            $sessparams['uid'] = $userid;
+
+            // Latest log per (sessionid, studentid) — matches the semantics used
+            // everywhere else in this file. Marks without remarks are excluded so
+            // only dashboard-driven marks (which always carry a justification) are
+            // listed. The support file column is resolved after-the-fact per log
+            // row by querying Moodle file storage (see loop below).
+            $logs = $DB->get_records_sql(
+                "SELECT l.id, l.sessionid, l.statusid, l.timetaken, l.takenby, l.remarks,
+                        s.sessdate, s.description AS sessiondesc,
+                        ast.acronym, ast.description AS statusdesc, ast.grade,
+                        u.firstname AS marker_firstname, u.lastname AS marker_lastname
+                   FROM {attendance_log} l
+                   JOIN (
+                        SELECT sessionid, studentid, MAX(id) AS maxid
+                          FROM {attendance_log}
+                         WHERE studentid = :uid
+                           AND sessionid $sessinsql
+                      GROUP BY sessionid, studentid
+                   ) mx ON mx.maxid = l.id
+                   JOIN {attendance_sessions} s ON s.id = l.sessionid
+              LEFT JOIN {attendance_statuses} ast ON ast.id = l.statusid
+              LEFT JOIN {user} u ON u.id = l.takenby
+                  WHERE l.studentid = :uid
+                    AND l.sessionid $sessinsql
+                    AND COALESCE(l.remarks, '') <> ''
+               ORDER BY s.sessdate DESC, l.id DESC",
+                $sessparams
+            );
+
+            $fs     = get_file_storage();
+            $sysctx = context_system::instance();
+            $out    = [];
+            foreach ($logs as $log) {
+                $supportfile = $fs->get_file(
+                    $sysctx->id,
+                    'local_grupomakro_core',
+                    'attendance_support',
+                    (int)$log->id,
+                    '/',
+                    false
+                );
+                $supporturl   = '';
+                $supportname  = '';
+                $supportmimet = '';
+                $supportsize  = 0;
+                if ($supportfile) {
+                    $supporturl = (new moodle_url('/local/grupomakro_core/pages/file_proxy.php', [
+                        'url' => rawurlencode((string)moodle_url::make_pluginfile_url(
+                            $sysctx->id,
+                            'local_grupomakro_core',
+                            'attendance_support',
+                            (int)$log->id,
+                            '/',
+                            $supportfile->get_filename()
+                        )->out(false)),
+                    ]))->out(false);
+                    $supportname  = (string)$supportfile->get_filename();
+                    $supportmimet = (string)$supportfile->get_mimetype();
+                    $supportsize  = (int)$supportfile->get_filesize();
+                }
+
+                $marker = trim(((string)$log->marker_firstname) . ' ' . ((string)$log->marker_lastname));
+                $out[] = [
+                    'logid'           => (int)$log->id,
+                    'sessionid'       => (int)$log->sessionid,
+                    'sessiondate'     => (int)$log->sessdate,
+                    'sessiondate_str' => userdate((int)$log->sessdate, get_string('strftimedatefullshort', 'langconfig')),
+                    'sessiontime_str' => userdate((int)$log->sessdate, '%H:%M'),
+                    'sessiondesc'     => trim((string)$log->sessiondesc),
+                    'statusdesc'      => trim((string)($log->statusdesc ?? '')),
+                    'acronym'         => trim((string)($log->acronym ?? '')),
+                    'grade'           => (float)($log->grade ?? 0),
+                    'markerid'        => (int)$log->takenby,
+                    'marker_name'     => $marker !== '' ? $marker : '—',
+                    'timetaken'       => (int)$log->timetaken,
+                    'timetaken_str'   => userdate((int)$log->timetaken, get_string('strftimedatetime', 'langconfig')),
+                    'remarks'         => (string)$log->remarks,
+                    'has_support'     => $supportfile ? true : false,
+                    'support_url'     => $supporturl,
+                    'support_name'    => $supportname,
+                    'support_mimetype'=> $supportmimet,
+                    'support_size'    => $supportsize,
+                ];
+            }
+
+            echo json_encode([
+                'ok' => true,
+                'marks' => $out,
+                'count' => count($out),
+            ], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG);
 
         } else {
             echo json_encode(['ok' => false, 'message' => 'Unknown action']);
@@ -1723,6 +1945,85 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
     font-size: 12px; color: #64748b;
 }
 
+/* ── Tabs (sessions modal: sesiones / historial) ──────────────────── */
+.absd-tabs {
+    display: flex;
+    gap: 0;
+    padding: 0 20px;
+    border-bottom: 1.5px solid #e2e8f0;
+    background: #f8fafc;
+    flex-shrink: 0;
+}
+.absd-tab {
+    background: transparent;
+    border: none;
+    border-bottom: 3px solid transparent;
+    padding: 11px 18px 10px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #64748b;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: -1.5px;
+    transition: color .15s, border-color .15s, background .15s;
+}
+.absd-tab:hover { color: #1e293b; background: #f1f5f9; }
+.absd-tab.active {
+    color: #1d4ed8;
+    border-bottom-color: #1d4ed8;
+    background: #ffffff;
+}
+.absd-tab-badge {
+    background: #e2e8f0;
+    color: #475569;
+    border-radius: 10px;
+    padding: 1px 8px;
+    font-size: 10.5px;
+    font-weight: 700;
+    min-width: 18px;
+    text-align: center;
+}
+.absd-tab.active .absd-tab-badge {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+.absd-tab-pane { display: none; }
+.absd-tab-pane.active { display: block; }
+.absd-history-refresh {
+    background: #f1f5f9;
+    color: #334155;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 5px 12px;
+    font-size: 11.5px;
+    font-weight: 600;
+    cursor: pointer;
+}
+.absd-history-refresh:hover { background: #e2e8f0; }
+.absd-history-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: #eff6ff;
+    color: #1d4ed8;
+    border: 1px solid #bfdbfe;
+    border-radius: 6px;
+    padding: 3px 9px;
+    font-size: 11px;
+    font-weight: 700;
+    text-decoration: none;
+    white-space: nowrap;
+}
+.absd-history-link:hover { background: #dbeafe; color: #1e40af; }
+.absd-history-link::after { content: "\2197"; font-size: 10px; }
+.absd-history-no-support {
+    color: #94a3b8;
+    font-size: 11px;
+    font-style: italic;
+}
+
 /* ── Student table ─────────────────────────────────────────────────── */
 .absd-student-table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
 .absd-student-table thead th {
@@ -2191,24 +2492,65 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
             <h2 id="absdSessionsTitle">Detalle de sesiones</h2>
             <button class="absd-modal-close" onclick="absdCloseSessionsModal()">&#10005;</button>
         </div>
+        <div class="absd-tabs absd-sessions-tabs" role="tablist">
+            <button type="button" class="absd-tab active" role="tab"
+                    id="absdTabSessionsBtn" data-tab="sessions"
+                    aria-controls="absdTabSessionsPane" aria-selected="true"
+                    onclick="absdSwitchSessionsTab('sessions')">
+                <span class="absd-tab-label">Sesiones</span>
+                <span class="absd-tab-badge" id="absdTabSessionsCount">0</span>
+            </button>
+            <button type="button" class="absd-tab" role="tab"
+                    id="absdTabHistoryBtn" data-tab="history"
+                    aria-controls="absdTabHistoryPane" aria-selected="false"
+                    onclick="absdSwitchSessionsTab('history')">
+                <span class="absd-tab-label">Historial de marcaciones</span>
+                <span class="absd-tab-badge" id="absdTabHistoryCount">0</span>
+            </button>
+        </div>
         <div class="absd-modal-toolbar">
             <span id="absdSessionsCount" style="font-size:12px;color:#64748b"></span>
         </div>
         <div class="absd-modal-body">
-            <table class="absd-student-table">
-                <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>Fecha</th>
-                        <th>Hora</th>
-                        <th>Sesión</th>
-                        <th>Registro</th>
-                        <th>Estado</th>
-                        <th>Acción</th>
-                    </tr>
-                </thead>
-                <tbody id="absdSessionsTbody"></tbody>
-            </table>
+            <div id="absdTabSessionsPane" class="absd-tab-pane active" role="tabpanel" aria-labelledby="absdTabSessionsBtn">
+                <table class="absd-student-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Fecha</th>
+                            <th>Hora</th>
+                            <th>Sesión</th>
+                            <th>Registro</th>
+                            <th>Estado</th>
+                            <th>Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody id="absdSessionsTbody"></tbody>
+                </table>
+            </div>
+            <div id="absdTabHistoryPane" class="absd-tab-pane" role="tabpanel" aria-labelledby="absdTabHistoryBtn" hidden>
+                <div id="absdHistoryToolbar" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:8px;flex-wrap:wrap">
+                    <span style="font-size:12px;color:#64748b">Marcas registradas con justificación o soporte adjunto desde este panel.</span>
+                    <button type="button" class="absd-history-refresh" onclick="absdRefreshHistoryTab()" title="Recargar historial">
+                        &#128260; Actualizar
+                    </button>
+                </div>
+                <table class="absd-student-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Fecha de sesi&oacute;n</th>
+                            <th>Hora</th>
+                            <th>Estado</th>
+                            <th>Justificaci&oacute;n</th>
+                            <th>Marcado por</th>
+                            <th>Cu&aacute;ndo</th>
+                            <th>Soporte</th>
+                        </tr>
+                    </thead>
+                    <tbody id="absdHistoryTbody"></tbody>
+                </table>
+            </div>
         </div>
     </div>
 </div>
@@ -2236,15 +2578,32 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
 
 <!-- ── Mark present justification modal ──────────────────────────────── -->
 <div id="absdMarkPresentModal" class="absd-modal-overlay">
-    <div class="absd-modal" style="max-width:480px">
+    <div class="absd-modal" style="max-width:520px">
         <div class="absd-modal-header">
             <h2>Justificar asistencia</h2>
             <button class="absd-modal-close" onclick="absdCloseMarkPresent()">&#10005;</button>
         </div>
         <div class="absd-modal-body">
-            <p style="color:#475569;font-size:13px;margin-bottom:12px">Ingrese la justificación para registrar esta asistencia. <strong>Este campo es obligatorio.</strong></p>
+            <p style="color:#475569;font-size:13px;margin-bottom:12px">
+                Ingrese la justificación y adjunte el soporte (foto o PDF) para registrar esta asistencia.
+                <strong>Ambos campos son obligatorios.</strong>
+            </p>
+            <label for="absdJustificationText" style="display:block;font-size:12px;font-weight:600;color:#334155;margin-bottom:4px">
+                Justificación <span style="color:#dc2626">*</span>
+            </label>
             <textarea id="absdJustificationText" rows="3" style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;resize:vertical;box-sizing:border-box" placeholder="Justificación obligatoria..."></textarea>
             <p id="absdJustificationError" style="color:#dc2626;font-size:12px;margin-top:4px;display:none">&#9888; La justificación es obligatoria.</p>
+
+            <label for="absdSupportFile" style="display:block;font-size:12px;font-weight:600;color:#334155;margin:14px 0 4px">
+                Soporte (PDF, JPG o PNG · máx. 10 MB) <span style="color:#dc2626">*</span>
+            </label>
+            <input type="file" id="absdSupportFile" name="support_file"
+                   accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png"
+                   style="width:100%;padding:7px;border:1px solid #cbd5e1;border-radius:6px;font-size:12.5px;box-sizing:border-box;background:#f8fafc" />
+            <p id="absdSupportInfo" style="color:#64748b;font-size:11.5px;margin-top:4px">
+                Adjunte una foto del justificante o el PDF escaneado. El archivo se almacena junto al registro de asistencia.
+            </p>
+            <p id="absdSupportError" style="color:#dc2626;font-size:12px;margin-top:4px;display:none">&#9888; El archivo de soporte es obligatorio.</p>
         </div>
         <div style="display:flex;justify-content:flex-end;gap:8px;padding:12px 20px 20px">
             <button onclick="absdCloseMarkPresent()" style="padding:7px 16px;border:1px solid #cbd5e1;border-radius:6px;background:#f8fafc;color:#475569;cursor:pointer;font-size:13px">Cancelar</button>
@@ -2664,6 +3023,17 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
         document.getElementById('absdSessionsCount').textContent = 'Cargando...';
         document.getElementById('absdSessionsTbody').innerHTML =
             '<tr><td colspan="7" style="text-align:center;padding:20px;color:#64748b">Cargando sesiones...</td></tr>';
+        // Reset tab state so the user always lands on the sesiones pane.
+        absdSwitchSessionsTab('sessions');
+        absdHistoryLoaded = false;
+        var histBody = document.getElementById('absdHistoryTbody');
+        if (histBody) {
+            histBody.innerHTML =
+                '<tr><td colspan="8" style="text-align:center;padding:20px;color:#94a3b8;font-style:italic">' +
+                'Cambia a la pestaña «Historial de marcaciones» para cargar.</td></tr>';
+        }
+        var histCount = document.getElementById('absdTabHistoryCount');
+        if (histCount) histCount.textContent = '0';
         document.getElementById('absdSessionsModal').classList.add('absd-modal-open');
 
         var params = new URLSearchParams({
@@ -2680,7 +3050,10 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
                 if (!data.ok) {
                     throw new Error(data.message || 'Error al cargar sesiones');
                 }
-                renderSessionsTable(data.sessions || []);
+                var sessions = data.sessions || [];
+                renderSessionsTable(sessions);
+                var badge = document.getElementById('absdTabSessionsCount');
+                if (badge) badge.textContent = String(sessions.length);
             })
             .catch(function(err) {
                 document.getElementById('absdSessionsTbody').innerHTML =
@@ -2692,6 +3065,125 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
     window.absdCloseSessionsModal = function() {
         document.getElementById('absdSessionsModal').classList.remove('absd-modal-open');
     };
+
+    var absdHistoryLoaded = false;
+    window.absdSwitchSessionsTab = function(tabname) {
+        var sessionsPane = document.getElementById('absdTabSessionsPane');
+        var historyPane  = document.getElementById('absdTabHistoryPane');
+        var sessionsBtn  = document.getElementById('absdTabSessionsBtn');
+        var historyBtn   = document.getElementById('absdTabHistoryBtn');
+        if (!sessionsPane || !historyPane || !sessionsBtn || !historyBtn) {
+            return;
+        }
+        var isHistory = tabname === 'history';
+        sessionsPane.classList.toggle('active', !isHistory);
+        historyPane.classList.toggle('active', isHistory);
+        sessionsBtn.classList.toggle('active', !isHistory);
+        historyBtn.classList.toggle('active', isHistory);
+        sessionsBtn.setAttribute('aria-selected', isHistory ? 'false' : 'true');
+        historyBtn.setAttribute('aria-selected', isHistory ? 'true' : 'false');
+        sessionsPane.hidden = isHistory;
+        historyPane.hidden  = !isHistory;
+        if (isHistory) {
+            absdLoadHistory();
+        }
+    };
+
+    window.absdLoadHistory = function() {
+        if (!currentClassId || !absdCurrentSessionsUserId) {
+            return;
+        }
+        var tbody = document.getElementById('absdHistoryTbody');
+        if (!tbody) return;
+        tbody.innerHTML =
+            '<tr><td colspan="8" style="text-align:center;padding:20px;color:#64748b">Cargando historial...</td></tr>';
+        var params = new URLSearchParams({
+            abs_ajax: 1,
+            abs_action: 'get_attendance_marks_history',
+            classid: currentClassId,
+            userid: absdCurrentSessionsUserId,
+            sesskey: SESSKEY
+        });
+        fetch(AJAX_URL + '?' + params.toString())
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.ok) {
+                    throw new Error(data.message || 'Error al cargar historial');
+                }
+                absdHistoryLoaded = true;
+                absdRenderHistory(data.marks || []);
+                var badge = document.getElementById('absdTabHistoryCount');
+                if (badge) badge.textContent = String((data.marks || []).length);
+            })
+            .catch(function(err) {
+                tbody.innerHTML =
+                    '<tr><td colspan="8" style="text-align:center;padding:20px;color:#dc2626">' + esc(err.message) + '</td></tr>';
+            });
+    };
+
+    window.absdRefreshHistoryTab = function() {
+        absdHistoryLoaded = false;
+        absdLoadHistory();
+    };
+
+    function absdRenderHistory(marks) {
+        var tbody = document.getElementById('absdHistoryTbody');
+        if (!tbody) return;
+        if (!marks.length) {
+            tbody.innerHTML =
+                '<tr><td colspan="8" style="text-align:center;padding:24px;color:#94a3b8;font-style:italic">' +
+                'A&uacute;n no hay marcaciones con justificaci&oacute;n o soporte para este estudiante en esta clase.</td></tr>';
+            return;
+        }
+        var html = '';
+        marks.forEach(function(m, i) {
+            var status = String(m.statusdesc || '').trim();
+            var acronym = String(m.acronym || '').trim();
+            var statusLabel = status || '—';
+            if (acronym && status) {
+                statusLabel = acronym + ' — ' + status;
+            } else if (acronym) {
+                statusLabel = acronym;
+            }
+            var supportCell;
+            if (m.has_support && m.support_url) {
+                var filename = m.support_name ? String(m.support_name) : 'soporte';
+                var sizeText = m.support_size ? ' · ' + absdHumanFileSize(m.support_size) : '';
+                supportCell =
+                    '<a class="absd-history-link" href="' + esc(m.support_url) + '" ' +
+                    'target="_blank" rel="noopener noreferrer" ' +
+                    'title="Abrir soporte en nueva pestaña: ' + esc(filename) + '">' +
+                    '&#128196; Ver soporte</a>' +
+                    '<div style="font-size:10.5px;color:#64748b;margin-top:3px;word-break:break-all" ' +
+                    'title="' + esc(filename) + '">' + esc(absdTruncate(filename, 28)) + sizeText + '</div>';
+            } else {
+                supportCell =
+                    '<span class="absd-history-no-support">Sin soporte adjunto</span>';
+            }
+            html += '<tr>' +
+                '<td>' + (i + 1) + '</td>' +
+                '<td>' + esc(m.sessiondate_str || '-') + '</td>' +
+                '<td>' + esc(m.sessiontime_str || '-') + '</td>' +
+                '<td>' + esc(statusLabel) + '</td>' +
+                '<td style="white-space:pre-wrap;max-width:340px">' + esc(m.remarks || '') + '</td>' +
+                '<td>' + esc(m.marker_name || '—') + '</td>' +
+                '<td>' + esc(m.timetaken_str || '-') + '</td>' +
+                '<td>' + supportCell + '</td>' +
+                '</tr>';
+        });
+        tbody.innerHTML = html;
+    }
+
+    function absdHumanFileSize(bytes) {
+        var n = parseInt(bytes, 10) || 0;
+        if (n < 1024) return n + ' B';
+        if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+        return (n / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+    function absdTruncate(text, max) {
+        var s = String(text || '');
+        return s.length > max ? s.slice(0, max - 1) + '…' : s;
+    }
 
     window.absdOpenAllStudentsModal = function() {
         currentClassId = 0;
@@ -3356,34 +3848,98 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
         absdMarkPresentSession = sessionid;
         document.getElementById('absdJustificationText').value = '';
         document.getElementById('absdJustificationError').style.display = 'none';
+        var fileInput = document.getElementById('absdSupportFile');
+        if (fileInput) {
+            fileInput.value = '';
+        }
+        var supportErr = document.getElementById('absdSupportError');
+        if (supportErr) supportErr.style.display = 'none';
         document.getElementById('absdMarkPresentModal').classList.add('absd-modal-open');
     };
 
     window.absdCloseMarkPresent = function() {
         document.getElementById('absdMarkPresentModal').classList.remove('absd-modal-open');
+        var fileInput = document.getElementById('absdSupportFile');
+        if (fileInput) {
+            fileInput.value = '';
+        }
+        var supportErr = document.getElementById('absdSupportError');
+        if (supportErr) supportErr.style.display = 'none';
     };
 
     window.absdConfirmMarkPresent = function() {
-        var justification = document.getElementById('absdJustificationText').value.trim();
+        var justificationEl = document.getElementById('absdJustificationText');
+        var justification = justificationEl ? justificationEl.value.trim() : '';
+        var fileInput = document.getElementById('absdSupportFile');
+        var file = (fileInput && fileInput.files && fileInput.files[0]) ? fileInput.files[0] : null;
+
+        var justificationErr = document.getElementById('absdJustificationError');
+        var supportErr       = document.getElementById('absdSupportError');
+        var hasError = false;
         if (!justification) {
-            document.getElementById('absdJustificationError').style.display = 'block';
+            if (justificationErr) justificationErr.style.display = 'block';
+            hasError = true;
+        } else if (justificationErr) {
+            justificationErr.style.display = 'none';
+        }
+        if (!file) {
+            if (supportErr) supportErr.style.display = 'block';
+            hasError = true;
+        } else {
+            var maxBytes = 10 * 1024 * 1024;
+            if (file.size > maxBytes) {
+                if (supportErr) {
+                    supportErr.textContent = '\u26A0 El archivo supera el límite de 10 MB.';
+                    supportErr.style.display = 'block';
+                }
+                hasError = true;
+            } else {
+                var allowed = ['application/pdf', 'image/jpeg', 'image/png'];
+                if (file.type && allowed.indexOf(file.type.toLowerCase()) === -1) {
+                    if (supportErr) {
+                        supportErr.textContent = '\u26A0 Tipo de archivo no permitido. Solo PDF, JPG o PNG.';
+                        supportErr.style.display = 'block';
+                    }
+                    hasError = true;
+                } else if (supportErr) {
+                    supportErr.textContent = '\u26A0 El archivo de soporte es obligatorio.';
+                    supportErr.style.display = 'none';
+                }
+            }
+        }
+        if (hasError) {
             return;
         }
-        document.getElementById('absdJustificationError').style.display = 'none';
+
         var btn = document.getElementById('absdMarkPresentConfirmBtn');
-        btn.disabled = true; btn.textContent = 'Procesando...';
-        var params = new URLSearchParams({
-            abs_ajax: 1, abs_action: 'mark_session_present',
-            sessionid: absdMarkPresentSession,
-            userid: absdCurrentSessionsUserId,
-            classid: currentClassId,
-            justification: justification,
-            sesskey: SESSKEY
-        });
-        fetch(AJAX_URL, { method: 'POST', body: params })
-            .then(function(r){ return r.json(); })
+        btn.disabled = true; btn.textContent = 'Subiendo soporte...';
+
+        // Multipart/form-data so the PHP endpoint can read $_FILES['support_file'].
+        var formData = new FormData();
+        formData.append('abs_ajax', '1');
+        formData.append('abs_action', 'mark_session_present');
+        formData.append('sessionid', String(absdMarkPresentSession));
+        formData.append('userid',    String(absdCurrentSessionsUserId));
+        formData.append('classid',   String(currentClassId));
+        formData.append('justification', justification);
+        formData.append('sesskey',   SESSKEY);
+        formData.append('support_file', file, file.name || 'soporte');
+
+        fetch(AJAX_URL, { method: 'POST', body: formData, credentials: 'same-origin' })
+            .then(function(r){
+                return r.text().then(function(text){
+                    var data = null;
+                    try { data = JSON.parse(text); } catch (e) { /* fall through */ }
+                    if (!data) {
+                        throw new Error('Respuesta inválida del servidor (HTTP ' + r.status + ').');
+                    }
+                    if (!data.ok) {
+                        throw new Error(data.message || 'No se pudo registrar la asistencia.');
+                    }
+                    return data;
+                });
+            })
             .then(function(data){
-                if (!data.ok) throw new Error(data.message);
                 // Actualizar fila en el modal de sesiones
                 var row = document.querySelector('#absdSessionsTbody tr[data-sessionid="' + absdMarkPresentSession + '"]');
                 if (row) {
@@ -3400,10 +3956,24 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
                     absBtn.classList.toggle('absd-abs-high', n > 0);
                     absBtn.classList.toggle('absd-abs-zero', n === 0);
                 }
+                // Refrescar historial si está visible; si no, simplemente marcamos
+                // como "pendiente" para que la próxima vez que el usuario abra la
+                // pestaña se vuelva a consultar.
+                var historyPane = document.getElementById('absdTabHistoryPane');
+                if (historyPane && historyPane.classList.contains('active')) {
+                    absdRefreshHistoryTab();
+                } else {
+                    absdHistoryLoaded = false;
+                    var histCount = document.getElementById('absdTabHistoryCount');
+                    if (histCount) {
+                        var current = parseInt(histCount.textContent || '0', 10);
+                        if (!isNaN(current)) histCount.textContent = String(current + 1);
+                    }
+                }
                 absdCloseMarkPresent();
             })
             .catch(function(err){ alert('Error: ' + err.message); })
-            .finally(function(){ btn.disabled = false; btn.textContent = '✓ Confirmar asistencia'; });
+            .finally(function(){ btn.disabled = false; btn.textContent = '\u2713 Confirmar asistencia'; });
     };
 
 })();
