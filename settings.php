@@ -447,6 +447,18 @@ if ($hassiteconfig) {
             PARAM_TEXT
         ));
 
+        // API Key para autenticacion X-Api-Key contra Express (rutas /api/odoo/students/*).
+        // Debe coincidir con ODOO_PROXY_API_KEY en server.js (si esta seteado).
+        // Si esta vacio, Moodle no envia el header y Express queda en modo abierto
+        // (compatible con el legacy /api/odoo/status/bulk).
+        $settingspage->add(new admin_setting_configpasswordunmask(
+            'local_grupomakro_core/odoo_proxy_api_key',
+            'API Key Odoo Proxy (X-Api-Key a Express)',
+            'Token compartido enviado en header X-Api-Key a Express en /api/odoo/students/{pending-invoices,aplazar,retirar,reactivar}. Debe coincidir con ODOO_PROXY_API_KEY en server.js. Vacio = no envia header (modo abierto).',
+            '',
+            PARAM_TEXT
+        ));
+
         // Habilitar/deshabilitar periodo de gracia en primer login
         $settingspage->add(new admin_setting_configcheckbox(
             'local_grupomakro_core/grace_period_enabled',
