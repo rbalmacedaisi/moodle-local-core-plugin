@@ -472,22 +472,31 @@ class local_grupomakro_status_change_manager
             $body['target_period_id']   = (int)$targetPeriod->id;
         }
 
-        $headers = ['Content-Type' => 'application/json', 'Accept' => 'application/json'];
+        // Use native curl with explicit string-form headers. Moodle's
+        // $curl->setHeader(['Content-Type' => 'application/json']) drops the
+        // key and stores just the value, which produces malformed headers and
+        // makes Express's body-parser fail to parse the JSON (HTTP 400
+        // missing_vat). Native curl is the pattern already used elsewhere
+        // in this plugin (locallib.php sync_financial_status, pages/bypass_financial.php).
+        $headers = ['Content-Type: application/json', 'Accept: application/json'];
         $apiKey = self::get_proxy_api_key();
         if (!empty($apiKey)) {
-            $headers['X-Api-Key'] = $apiKey;
+            $headers[] = 'X-Api-Key: ' . $apiKey;
         }
 
-        $curl = new curl();
-        $curl->setHeader($headers);
-        $curl->setopt([
-            'CURLOPT_TIMEOUT'        => 8,
-            'CURLOPT_CONNECTTIMEOUT' => 3,
-        ]);
-        $raw = $curl->post($url, json_encode($body));
-        $info = $curl->get_info();
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_POST, 1);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body));
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 8);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
+        $raw     = curl_exec($ch);
+        $info    = curl_getinfo($ch);
         $httpCode = isset($info['http_code']) ? (int)$info['http_code'] : 0;
-        $err = $curl->error ?? '';
+        $err     = curl_error($ch);
+        curl_close($ch);
 
         if ($err) {
             return ['attempted' => true, 'success' => false, 'http_code' => $httpCode, 'message' => 'Error de conexión: ' . $err];
@@ -528,22 +537,26 @@ class local_grupomakro_status_change_manager
             'actor_moodle_id' => (int)$actorUserid,
         ];
 
-        $headers = ['Content-Type' => 'application/json', 'Accept' => 'application/json'];
+        // Native curl: see dispatch_odoo_action() for rationale.
+        $headers = ['Content-Type: application/json', 'Accept: application/json'];
         $apiKey = self::get_proxy_api_key();
         if (!empty($apiKey)) {
-            $headers['X-Api-Key'] = $apiKey;
+            $headers[] = 'X-Api-Key: ' . $apiKey;
         }
 
-        $curl = new curl();
-        $curl->setHeader($headers);
-        $curl->setopt([
-            'CURLOPT_TIMEOUT'        => 8,
-            'CURLOPT_CONNECTTIMEOUT' => 3,
-        ]);
-        $raw = $curl->post($url, json_encode($body));
-        $info = $curl->get_info();
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_POST, 1);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body));
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 8);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
+        $raw     = curl_exec($ch);
+        $info    = curl_getinfo($ch);
         $httpCode = isset($info['http_code']) ? (int)$info['http_code'] : 0;
-        $err = $curl->error ?? '';
+        $err     = curl_error($ch);
+        curl_close($ch);
 
         if ($err) {
             return ['attempted' => true, 'success' => false, 'http_code' => $httpCode, 'message' => 'Error de conexión: ' . $err];
