@@ -983,6 +983,46 @@ function absd_is_user_enrolled_in_class(int $userid, int $classid): bool {
 }
 
 /**
+ * POLICY: el bloqueo por inasistencia es GLOBAL, no por-clase. Devuelve true
+ * solo si el estudiante tiene nivel de alerta 3 (3+ inasistencias) en TODAS sus
+ * clases activas (mismo conjunto que absd_check_global_inactivity). Para la
+ * clase que se está recomputando se usa el nivel recién calculado; para las
+ * demás, el alert_level ya persistido en gmk_class_absence_state.
+ *
+ * @param int $userid
+ * @param int $currentclassid  Clase que se recomputa ahora.
+ * @param int $currentlevel    Nivel recién calculado para esa clase (0..3).
+ * @return bool  true si TODAS las clases activas están en nivel 3.
+ */
+function absd_all_active_classes_at_block_level(int $userid, int $currentclassid, int $currentlevel): bool {
+    global $DB;
+    $planfilter = absd_get_alert_plan_filter_sql();
+    $rows = $DB->get_records_sql(
+        "SELECT gcp.classid, COALESCE(st.alert_level, 0) AS alert_level
+           FROM {gmk_course_progre} gcp
+           JOIN {gmk_class} gc ON gc.id = gcp.classid
+      LEFT JOIN {gmk_class_absence_state} st ON st.classid = gcp.classid AND st.userid = gcp.userid
+          WHERE gcp.userid = :uid
+            AND gcp.status = 2
+            AND gc.approved = 1
+            AND gc.closed = 0
+            AND gc.enddate > :now
+            AND {$planfilter['sql']}",
+        array_merge(['uid' => $userid, 'now' => time()], $planfilter['params'])
+    );
+    if (empty($rows)) {
+        return false;
+    }
+    foreach ($rows as $r) {
+        $level = ((int)$r->classid === $currentclassid) ? $currentlevel : (int)$r->alert_level;
+        if ($level < 3) {
+            return false; // al menos una clase activa NO está en nivel 3 → no bloquear.
+        }
+    }
+    return true;
+}
+
+/**
  * Recompute the absence state for a single (class, user) pair. Updates
  * gmk_class_absence_state with the latest count, level, last_session_id,
  * blocked_at, unblocked_at and dismissal timestamps. Also keeps the
@@ -1069,19 +1109,26 @@ function absd_recompute_user_class_state(stdClass $class, int $userid): array {
     $block_reason = $existing ? (string)$existing->block_reason : '';
 
     $transitions = [];
-    if ($currentlevel === 3) {
+    // POLICY: el bloqueo por inasistencia es GLOBAL, no por-clase. Una clase
+    // solo se bloquea cuando el estudiante tiene nivel 3 (3+ inasistencias) en
+    // TODAS sus clases activas. Llegar a nivel 3 en una sola asignatura deja la
+    // clase en nivel 3 (aviso) pero NO la bloquea. (Ver absd_all_active_classes_at_block_level.)
+    $shouldBlock = ($currentlevel === 3)
+        && absd_all_active_classes_at_block_level($userid, (int)$class->id, $currentlevel);
+    if ($shouldBlock) {
         // Escalation to (or stays at) block.
         if ($blocked_at === 0 || $unblocked_at !== 0) {
             // Was never blocked, or was previously unblocked: re-apply block now.
             $blocked_at   = $nowts;
             $unblocked_at = 0;
-            $block_reason = 'attendance_threshold_reached';
+            $block_reason = 'attendance_threshold_reached_all_classes';
             if (!in_array('block', $transitions, true)) {
                 $transitions[] = 'block';
             }
         }
     } else {
-        // Below level 3.
+        // Not blocked: either below level 3, OR at level 3 but the student is
+        // not at level 3 in ALL active classes (global rule not met).
         if ($blocked_at !== 0 && $unblocked_at === 0) {
             // Was blocked and is now unblocked (count dropped or attendance corrected).
             $unblocked_at = $nowts;
