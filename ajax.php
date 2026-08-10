@@ -8162,6 +8162,7 @@ try {
 
                 $droppedIds = [];
                 $suspensionRow = null;
+                $odooResult = null;
                 if ($isReactivation) {
                     // 1) Des-matricular cualquier curso activo y registrar movimientos.
                     $droppedIds = \local_grupomakro_progress_manager::drop_active_courses_for_user(
@@ -8198,7 +8199,28 @@ try {
                             'name' => $nextSubperiod->name,
                         ],
                     ]);
-                    $DB->insert_record('gmk_student_suspension', $suspensionRow);
+                    $suspensionId = $DB->insert_record('gmk_student_suspension', $suspensionRow);
+
+                    // 5) Propagar la reactivación a Odoo via Express (best-effort,
+                    //    post-commit). Same error envelope as the wizard's
+                    //    dispatch_odoo_action so the result can be persisted on
+                    //    the suspension row.
+                    require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/status_change_manager.php');
+                    $reactivationReason = trim(($suspensionRow->reason ?? '') . ' | Plan: ' . ($currentPeriod->name ?? '') . ' | Periodo lectivo sugerido: ' . $suggestedAcPeriod->name);
+                    $userRow = $DB->get_record('user', ['id' => $userid], 'id, username, firstname, lastname, email');
+                    $userRow->vat = \local_grupomakro_status_change_manager::get_user_vat($userid);
+                    $odooResult = \local_grupomakro_status_change_manager::dispatch_odoo_reactivation_public(
+                        $userRow,
+                        $reactivationReason,
+                        $USER->id ?? 2
+                    );
+                    if (!empty($odooResult)) {
+                        $row = $DB->get_record('gmk_student_suspension', ['id' => $suspensionId]);
+                        $details = json_decode($row->details ?? '{}', true) ?: [];
+                        $details['odoo_result'] = $odooResult;
+                        $row->details = json_encode($details);
+                        $DB->update_record('gmk_student_suspension', $row);
+                    }
                 }
 
                 $transaction->allow_commit();

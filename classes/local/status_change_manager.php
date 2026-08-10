@@ -33,6 +33,7 @@ class local_grupomakro_status_change_manager
     /** Action constants */
     const ACTION_APLAZAR = 'aplazar';
     const ACTION_RETIRAR = 'retirar';
+    const ACTION_REACTIVAR = 'reactivar';
 
     /** Cache TTL for the per-vat pending-invoices lookup, in seconds. */
     const PENDING_INVOICES_CACHE_TTL = 30;
@@ -167,7 +168,7 @@ class local_grupomakro_status_change_manager
     public static function execute($userid, $action, $reason, $targetPeriodId = null, $actorUserid = 0) {
         global $DB, $USER;
 
-        if (!in_array($action, [self::ACTION_APLAZAR, self::ACTION_RETIRAR], true)) {
+        if (!in_array($action, [self::ACTION_APLAZAR, self::ACTION_RETIRAR, self::ACTION_REACTIVAR], true)) {
             return ['status' => 'error', 'message' => 'Acción no soportada.'];
         }
         if (trim((string)$reason) === '' || mb_strlen(trim((string)$reason)) < 10) {
@@ -196,17 +197,63 @@ class local_grupomakro_status_change_manager
             }
         }
 
-        $internalAction = $action === self::ACTION_APLAZAR ? 'aplazo' : 'retiro';
-        $statusValue    = $action === self::ACTION_APLAZAR ? 'aplazado' : 'retirado';
-        $reasonTag      = $action === self::ACTION_APLAZAR ? 'student_deferred' : 'student_withdrawn';
-
         $previousStatus = self::worst_status(array_map(function($lpu) { return $lpu->status; }, $lpUsers));
         $previousStatuses = [];
         foreach ($lpUsers as $lpu) { $previousStatuses[] = $lpu->status; }
 
+        // ─── State guards (Fix #1) ────────────────────────────────────────
+        // Avoid double-aplazar / double-retirar by short-circuiting with a
+        // clear error message. Reactivation is only valid from a terminal
+        // status; transitional states (e.g. desertor) need manual handling.
+        if ($action === self::ACTION_APLAZAR) {
+            if ($previousStatus === 'aplazado') {
+                return [
+                    'status'  => 'error',
+                    'message' => 'El estudiante ya está aplazado. Si necesita cambiar el periodo destino, primero reactívelo y luego aplácelo nuevamente.',
+                ];
+            }
+            if ($previousStatus === 'retirado') {
+                return [
+                    'status'  => 'error',
+                    'message' => 'El estudiante está retirado. Use "Reactivar" antes de poder aplazar.',
+                ];
+            }
+        } elseif ($action === self::ACTION_RETIRAR) {
+            if ($previousStatus === 'retirado') {
+                return [
+                    'status'  => 'error',
+                    'message' => 'El estudiante ya está retirado. No se puede retirar dos veces.',
+                ];
+            }
+            // retiring an already-deferred student is a valid transition.
+        } elseif ($action === self::ACTION_REACTIVAR) {
+            $reactivable = ['retirado', 'aplazado', 'suspendido', 'desertor'];
+            if (!in_array($previousStatus, $reactivable, true)) {
+                return [
+                    'status'  => 'error',
+                    'message' => 'El estudiante no está en un estado que requiera reactivación (estado actual: ' . ($previousStatus ?: 'sin estado') . ').',
+                ];
+            }
+        }
+
+        // Action-specific knobs.
+        if ($action === self::ACTION_REACTIVAR) {
+            $internalAction = 'renovacion';   // we keep the gmk_student_suspension.status='renovacion' taxonomy
+            $statusValue    = 'activo';
+            $reasonTag      = 'student_reactivated';
+            $profileValue   = 'Activo';
+        } else {
+            $internalAction = $action === self::ACTION_APLAZAR ? 'aplazo' : 'retiro';
+            $statusValue    = $action === self::ACTION_APLAZAR ? 'aplazado' : 'retirado';
+            $reasonTag      = $action === self::ACTION_APLAZAR ? 'student_deferred' : 'student_withdrawn';
+            $profileValue   = $action === self::ACTION_APLAZAR ? 'Aplazado' : 'Retirado';
+        }
+
         $transaction = $DB->start_delegated_transaction();
         try {
             // 1) Des-matricular cursos activos y registrar movimientos.
+            //    On reactivation the student should have 0 active courses already,
+            //    but we still call it for safety (idempotent).
             $droppedIds = \local_grupomakro_progress_manager::drop_active_courses_for_user(
                 $userid, $reasonTag, $actorUserid
             );
@@ -219,7 +266,6 @@ class local_grupomakro_status_change_manager
             }
 
             // 3) Reflejar en el profile field institucional.
-            $profileValue = $action === self::ACTION_APLAZAR ? 'Aplazado' : 'Retirado';
             update_student_status::write_profile_field($userid, 'studentstatus', $profileValue);
 
             // 4) Insertar fila de suspension.
@@ -233,21 +279,26 @@ class local_grupomakro_status_change_manager
             $suspension->timecreated            = time();
             $suspension->origin                 = 'lxp';
             $suspension->details                = json_encode([
-                'previous_status'     => $previousStatus,
-                'previous_per_plan'   => $previousStatuses,
-                'target_period'       => $targetPeriod ? [
+                'previous_status'   => $previousStatus,
+                'previous_per_plan' => $previousStatuses,
+                'target_period'     => $targetPeriod ? [
                     'id'   => (int)$targetPeriod->id,
                     'name' => $targetPeriod->name,
                 ] : null,
-                'dropped_courses'     => $droppedIds,
-                'moodle_user_id'      => (int)$userid,
+                'dropped_courses'   => $droppedIds,
+                'moodle_user_id'    => (int)$userid,
+                'is_reactivation'   => $action === self::ACTION_REACTIVAR,
             ]);
             $suspensionId = $DB->insert_record('gmk_student_suspension', $suspension);
 
             $transaction->allow_commit();
 
             // 5) Después del commit Moodle, llamar a Express/Odoo best-effort.
-            $odooResult = self::dispatch_odoo_action($user, $action, $reason, $targetPeriod, $actorUserid);
+            if ($action === self::ACTION_REACTIVAR) {
+                $odooResult = self::dispatch_odoo_reactivation($user, $reason, $actorUserid);
+            } else {
+                $odooResult = self::dispatch_odoo_action($user, $action, $reason, $targetPeriod, $actorUserid);
+            }
 
             // Persistir el resultado de Odoo dentro de details.odoo_result.
             if (!empty($odooResult)) {
@@ -260,11 +311,15 @@ class local_grupomakro_status_change_manager
 
             \gmk_log("status_change_manager: user $userid action=$action actor=$actorUserid dropped=" . count($droppedIds) . " odoo=" . json_encode($odooResult));
 
+            $successMessages = [
+                self::ACTION_APLAZAR   => 'Estudiante aplazado correctamente.',
+                self::ACTION_RETIRAR   => 'Estudiante retirado correctamente.',
+                self::ACTION_REACTIVAR => 'Estudiante reactivado correctamente.',
+            ];
+
             return [
                 'status'  => 'success',
-                'message' => $action === self::ACTION_APLAZAR
-                    ? 'Estudiante aplazado correctamente.'
-                    : 'Estudiante retirado correctamente.',
+                'message' => $successMessages[$action],
                 'data' => [
                     'userid'         => (int)$userid,
                     'newstatus'      => $statusValue,
@@ -445,6 +500,72 @@ class local_grupomakro_status_change_manager
             'response'   => $payload,
             'message'    => is_array($payload) ? ($payload['message'] ?? ('HTTP ' . $httpCode)) : ('HTTP ' . $httpCode),
         ];
+    }
+
+    /**
+     * Thin wrapper around Express POST /api/odoo/students/reactivar.
+     * Used when reactivation is triggered from the status-change wizard
+     * (not from the renewal/renovar flow, which has its own dispatcher in
+     * ajax.php). Same error envelope as dispatch_odoo_action() so callers
+     * can persist it identically in gmk_student_suspension.details.
+     */
+    protected static function dispatch_odoo_reactivation($user, $reason, $actorUserid) {
+        global $DB, $USER;
+
+        $proxyUrl = get_config('local_grupomakro_core', 'odoo_proxy_url');
+        if (empty($proxyUrl) || empty($user->vat)) {
+            return ['attempted' => false, 'success' => false, 'message' => 'Sin URL del proxy Odoo configurada o estudiante sin VAT.'];
+        }
+
+        $url = rtrim($proxyUrl, '/') . '/api/odoo/students/reactivar';
+
+        $actor = $DB->get_record('user', ['id' => $actorUserid], 'id, username, email', IGNORE_MISSING) ?? null;
+        $body = [
+            'vat'             => $user->vat,
+            'reason'          => $reason,
+            'actor_username'  => $actor ? $actor->username : ($USER->username ?? null),
+            'actor_email'     => $actor ? $actor->email    : ($USER->email    ?? null),
+            'actor_moodle_id' => (int)$actorUserid,
+        ];
+
+        $headers = ['Content-Type' => 'application/json', 'Accept' => 'application/json'];
+        $apiKey = self::get_proxy_api_key();
+        if (!empty($apiKey)) {
+            $headers['X-Api-Key'] = $apiKey;
+        }
+
+        $curl = new curl();
+        $curl->setHeader($headers);
+        $curl->setopt([
+            'CURLOPT_TIMEOUT'        => 8,
+            'CURLOPT_CONNECTTIMEOUT' => 3,
+        ]);
+        $raw = $curl->post($url, json_encode($body));
+        $info = $curl->get_info();
+        $httpCode = isset($info['http_code']) ? (int)$info['http_code'] : 0;
+        $err = $curl->error ?? '';
+
+        if ($err) {
+            return ['attempted' => true, 'success' => false, 'http_code' => $httpCode, 'message' => 'Error de conexión: ' . $err];
+        }
+        $payload = json_decode((string)$raw, true);
+        return [
+            'attempted' => true,
+            'success'   => $httpCode >= 200 && $httpCode < 300 && (is_array($payload) && ($payload['success'] ?? true)),
+            'http_code' => $httpCode,
+            'response'  => $payload,
+            'message'   => is_array($payload) ? ($payload['message'] ?? ('HTTP ' . $httpCode)) : ('HTTP ' . $httpCode),
+        ];
+    }
+
+    /**
+     * Public wrapper around dispatch_odoo_reactivation() so callers outside
+     * the class hierarchy (e.g. ajax.php's local_grupomakro_renovar_student
+     * block when isReactivation=true) can fire the Odoo sync. Same envelope
+     * (attempted/success/http_code/response/message).
+     */
+    public static function dispatch_odoo_reactivation_public($user, $reason, $actorUserid) {
+        return self::dispatch_odoo_reactivation($user, $reason, $actorUserid);
     }
 
     /**
