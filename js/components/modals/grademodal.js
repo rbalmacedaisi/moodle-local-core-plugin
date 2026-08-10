@@ -286,7 +286,7 @@ Vue.component('grademodal', {
                                                         {{ course.grade }}
                                                     </td>
                                                     <td class="text-center py-1" style="white-space:nowrap;">
-                                                        <template v-if="canWithdrawFromCourse(course)">
+                                                        <template v-if="canWithdrawFromCourse(course) && !isStudentReactivable()">
                                                             <v-menu v-if="hasBothEnrollments(course)" offset-y>
                                                                 <template v-slot:activator="{ on, attrs }">
                                                                     <v-btn
@@ -3271,6 +3271,21 @@ Vue.component('grademodal', {
             if (this._regularClassId(course) > 0) return true;
             if (Number(course && course.module_classid ? course.module_classid : 0) > 0) return true;
             return false;
+        },
+        /**
+         * True when the student is in a terminal academic status that
+         * needs a Reactivar (renovar) before any per-class surgery. Used
+         * by the course-withdraw UI to disable the per-class button when
+         * the global status is already retirado/aplazado/suspendido/desertor.
+         *
+         * Source of truth: local_learning_users.status propagated through
+         * studenttable.js as `dataStudent.academicstatus`. Returns true when
+         * the student IS reactivable (i.e. should NOT be touched by
+         * per-class withdraw while in this state).
+         */
+        isStudentReactivable() {
+            const s = String((this.dataStudent && this.dataStudent.academicstatus) ? this.dataStudent.academicstatus : '').trim().toLowerCase();
+            return ['retirado', 'aplazado', 'suspendido', 'desertor'].indexOf(s) !== -1;
         },
         _regularClassId(course) {
             // Prefer the explicit regular class id exposed by the backend; fall back to
