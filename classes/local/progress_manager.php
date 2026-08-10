@@ -1304,6 +1304,16 @@ class local_grupomakro_progress_manager
     }
 
     /**
+     * Public wrapper around find_user_by_vat() so external entry points
+     * (the Odoo -> Moodle webhook in odoo_status_webhook.php) can resolve a
+     * student by cedula without having to know the Moodle-side shortname
+     * ordering.
+     */
+    public static function find_user_by_vat_public($vat) {
+        return self::find_user_by_vat($vat);
+    }
+
+    /**
      * Drop every COURSE_IN_PROGRESS row for a user, resetting classid/groupid
      * to 0 and status to COURSE_AVAILABLE. Records an academic_movement per
      * affected course with source='withdrawal' and the given reason tag so the

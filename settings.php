@@ -483,6 +483,18 @@ if ($hassiteconfig) {
             PARAM_TEXT
         ));
 
+        // Shared secret for the Odoo -> Moodle status-change webhook
+        // (odoo_status_webhook.php). Must match ir.config_parameter
+        // `subscription_oca.moodle_sync_token` in Odoo. Leave blank to
+        // disable the reverse sync.
+        $settingspage->add(new admin_setting_configpasswordunmask(
+            'local_grupomakro_core/odoo_incoming_webhook_secret',
+            'Secreto webhook entrante desde Odoo',
+            'Token compartido que Odoo envía en X-Odoo-Webhook-Token al ejecutar wizard.aplazar.estudiante.do_aplazo / do_retiro / do_reactivacion desde la UI directa de Odoo. Debe coincidir con subscription_oca.moodle_sync_token en Odoo. Vacío = deshabilitado.',
+            '',
+            PARAM_TEXT
+        ));
+
         $settingspage->add(new admin_setting_configtext(
             'local_grupomakro_core/letters_default_odoo_product_id',
             'Producto Odoo por defecto para cartas',

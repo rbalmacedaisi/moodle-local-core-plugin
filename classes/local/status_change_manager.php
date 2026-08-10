@@ -619,6 +619,16 @@ class local_grupomakro_status_change_manager
     }
 
     /**
+     * Public wrapper around worst_status() so external entry points
+     * (the Odoo -> Moodle webhook in odoo_status_webhook.php) can compute
+     * the worst local_learning_users.status without exposing the protected
+     * helper.
+     */
+    public static function worst_status_public(array $statuses) {
+        return self::worst_status($statuses);
+    }
+
+    /**
      * Read a custom profile field by shortname for a user.
      */
     protected static function get_profile_field($userid, $shortname) {
