@@ -71,14 +71,18 @@ class get_financial_counts extends external_api {
      * actuales (gmk_class.*, local_learning_users.userid+groupid, y los
      * índices de gmk_financial_status.status y userid).
      *
-     * Lógica (misma que get_student_info.php activeUsers):
+     * Lógica (misma que get_student_info.php activeUsers, EXCEPTO que este
+     * endpoint NO depende del filtro de plan para evitar JOIN adicionales):
      *   1. Universo = usuarios con local_learning_users.userrolename='student'
      *      y al menos una clase activa aprobada, no cerrada, vigente y NO TC.
      *      TC se detecta con un customfield "tc" en la tabla customfield_data
      *      (instanceid = gc.corecourseid, value = '1').
-     *   2. LEFT JOIN gmk_financial_status por userid.
-     *   3. GROUP BY fs.status y contamos.
-     *   4. Los NULL son los "pendiente".
+     *   2. **Ninguna fila de local_learning_users para ese user con rol
+     *      'student' debe tener status distinto de 'activo'**. Esto replica
+     *      el NOT EXISTS de get_student_info.php activeUsers.
+     *   3. LEFT JOIN gmk_financial_status por userid.
+     *   4. GROUP BY fs.status y contamos.
+     *   5. Los NULL son los "pendiente".
      *
      * Importante: usamos EXISTS en lugar de JOIN para evitar multiplicar filas
      * (un usuario con N clases generaría N filas y distorsionaría los
@@ -109,10 +113,18 @@ class get_financial_counts extends external_api {
                 COUNT(DISTINCT u.id) AS cnt
               FROM {user} u
               JOIN {local_learning_users} lpu ON lpu.userid = u.id
+              JOIN {local_learning_plans}  lp  ON lp.id = lpu.learningplanid
          LEFT JOIN {gmk_financial_status} fs ON fs.userid = u.id
              WHERE u.deleted = 0
                AND u.suspended = 0
                AND lpu.userrolename = 'student'
+               AND NOT EXISTS (
+                   SELECT 1
+                     FROM {local_learning_users} lpu_chk
+                    WHERE lpu_chk.userid = u.id
+                      AND lpu_chk.userrolename = 'student'
+                      AND COALESCE(lpu_chk.status, 'activo') <> 'activo'
+               )
                AND EXISTS (
                    SELECT 1
                      FROM {gmk_course_progre} cp2
