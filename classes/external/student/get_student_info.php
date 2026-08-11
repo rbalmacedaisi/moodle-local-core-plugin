@@ -661,7 +661,12 @@ list($fsClause, $fsParams) = local_grupomakro_translate_financial_filter($params
             : '';
         $tc_where_sql = $tc_fid ? "AND _tc_chk.instanceid IS NULL" : '';
 
-        $activeuserscount = (int)$DB->count_records_sql(
+        // "Universo activo" = estudiantes con lpu activo + clase activa no-TC
+        // + todos sus planes en estado activo. Lo extraemos a una variable
+        // para reusarlo en activeuserscount y en totalResults, de modo que
+        // ambos conteos usen exactamente el mismo universo y los numeros de
+        // las cards cuadren con los de la tabla cuando hay filtro activo.
+        $activeuniverseql =
             "SELECT COUNT(DISTINCT u.id) $fromsql $whereclause
              AND NOT EXISTS (
                  SELECT 1 FROM {local_learning_users} lpu_chk
@@ -679,7 +684,9 @@ list($fsClause, $fsParams) = local_grupomakro_translate_financial_filter($params
                     AND gc_act.approved = 1
                     AND gc_act.closed   = 0
                     $tc_where_sql
-             )",
+             )";
+        $activeuserscount = (int)$DB->count_records_sql(
+            $activeuniverseql,
             array_merge(
                 $sqlparams,
                 ['lpu_chk_role' => 'student'],
@@ -687,12 +694,56 @@ list($fsClause, $fsParams) = local_grupomakro_translate_financial_filter($params
             )
         );
 
-        $pageusers = $DB->get_records_sql(
-            "SELECT DISTINCT u.id, u.firstname, u.lastname
+        // totalResults = universo activo + filtro financiero (si hay).
+        // Asi si filtras por 'up_to_date', el totalResults coincide con la
+        // card 'Al dia'. Si no hay filtro, totalResults == activeuserscount.
+        if (!empty($tableOnlyConditions)) {
+            $financialClause = implode(' AND ', $tableOnlyConditions);
+            $totalSql = $activeuniverseql . ' AND (' . $financialClause . ')';
+            $totalresults = (int)$DB->count_records_sql(
+                $totalSql,
+                array_merge(
+                    $sqlparams,
+                    ['lpu_chk_role' => 'student'],
+                    $tc_fid ? ['tc_fid_chk' => $tc_fid] : [],
+                    $tableOnlyParams
+                )
+            );
+        } else {
+            $totalresults = $activeuserscount;
+        }
+
+        // pageusers = universo activo + filtro financiero (misma semantica que
+// totalresults) con paginacion.
+        $pageusersSql = "SELECT DISTINCT u.id, u.firstname, u.lastname
                $fromsql
                $tableWhereclause
-           ORDER BY u.firstname ASC, u.lastname ASC, u.id ASC",
+               AND NOT EXISTS (
+                   SELECT 1 FROM {local_learning_users} lpu_chk
+                    WHERE lpu_chk.userid = u.id
+                      AND lpu_chk.userrolename = :lpu_chk_role
+                      AND COALESCE(lpu_chk.status, 'activo') <> 'activo'
+               )
+               AND EXISTS (
+                   SELECT 1
+                     FROM {gmk_course_progre} cp_act
+                     JOIN {gmk_class} gc_act ON gc_act.id = cp_act.classid
+                     $tc_join_sql
+                    WHERE cp_act.userid = u.id
+                      AND cp_act.status IN (1, 2, 3)
+                      AND gc_act.approved = 1
+                      AND gc_act.closed   = 0
+                      $tc_where_sql
+               )
+           ORDER BY u.firstname ASC, u.lastname ASC, u.id ASC";
+        $pageusersParams = array_merge(
             $allParams,
+            ['lpu_chk_role' => 'student'],
+            $tc_fid ? ['tc_fid_chk' => $tc_fid] : []
+        );
+        $pageusers = $DB->get_records_sql(
+            $pageusersSql,
+            $pageusersParams,
             $offset,
             $resultsperpage
         );
