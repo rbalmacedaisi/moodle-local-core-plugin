@@ -91,8 +91,6 @@ class get_financial_counts extends external_api {
     private static function compute_counts(): array {
         global $DB;
 
-        $now = time();
-
         // TC custom field: si existe, excluir las clases marcadas como TC=1.
         $tcfid = (int)($DB->get_field('customfield_field', 'id', ['shortname' => 'tc']) ?: 0);
         $tcjoin2 = '';
@@ -133,14 +131,12 @@ class get_financial_counts extends external_api {
                       AND cp2.status IN (1, 2, 3)
                       AND gc2.approved = 1
                       AND gc2.closed = 0
-                      AND gc2.initdate <= :now1
-                      AND (gc2.enddate = 0 OR gc2.enddate >= :now2)
                       $tcwhere2
                )
           GROUP BY fstatus
         ";
 
-        $params = ['now1' => $now, 'now2' => $now];
+        $params = [];
         if ($tcfid > 0) {
             $params['tcfid2'] = $tcfid;
         }
