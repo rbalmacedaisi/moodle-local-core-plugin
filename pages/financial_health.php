@@ -50,7 +50,7 @@ try {
 
     // Ultimo run del cron update_financial_status.
     $lastrunrow = $DB->get_record_sql(
-        "SELECT MAX(timecreated) AS last_run
+        "SELECT MAX(timestart) AS last_run
            FROM {task_log}
           WHERE classname = ?
             AND component = 'local_grupomakro_core'",
