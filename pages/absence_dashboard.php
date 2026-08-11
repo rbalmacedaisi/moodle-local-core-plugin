@@ -1007,7 +1007,15 @@ if (optional_param('abs_ajax', 0, PARAM_INT)) {
             }
 
             [$sessinsql, $sessparams] = $DB->get_in_or_equal($takensessionids, SQL_PARAMS_NAMED, 'smh');
-            $sessparams['uid'] = $userid;
+            // Moodle's parameter counter is occurrence-based (each `:uid` and
+            // every named session placeholder counts separately), so the outer
+            // WHERE reuses the same session set under a different alias to avoid
+            // double-counting the placeholders while still being bound to the
+            // same value list. Likewise `:uid` is bound under two distinct names.
+            [$sessinsql2, $sessparams2] = $DB->get_in_or_equal($takensessionids, SQL_PARAMS_NAMED, 'smh2');
+            $combinedparams = array_merge($sessparams, $sessparams2);
+            $combinedparams['uid'] = $userid;
+            $combinedparams['uid2'] = $userid;
 
             // Latest log per (sessionid, studentid) — matches the semantics used
             // everywhere else in this file. Marks without remarks are excluded so
@@ -1030,11 +1038,11 @@ if (optional_param('abs_ajax', 0, PARAM_INT)) {
                    JOIN {attendance_sessions} s ON s.id = l.sessionid
               LEFT JOIN {attendance_statuses} ast ON ast.id = l.statusid
               LEFT JOIN {user} u ON u.id = l.takenby
-                  WHERE l.studentid = :uid
-                    AND l.sessionid $sessinsql
+                  WHERE l.studentid = :uid2
+                    AND l.sessionid $sessinsql2
                     AND COALESCE(l.remarks, '') <> ''
                ORDER BY s.sessdate DESC, l.id DESC",
-                $sessparams
+                $combinedparams
             );
 
             $fs     = get_file_storage();
