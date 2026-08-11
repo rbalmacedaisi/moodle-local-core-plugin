@@ -55,8 +55,12 @@ if (!function_exists('local_grupomakro_translate_financial_filter')) {
             return [null, []];
         }
         if ($f === 'up_to_date') {
+            // Incluye los aliases historicos de cada bucket para que el
+            // filtro coincida exactamente con la suma de las cards
+            // (get_financial_counts mapea contrato_especial -> convenio,
+            // sincontrato -> sin_contrato, etc).
             return [
-                "fs.status IN ('al_dia', 'becado', 'convenio')",
+                "fs.status IN ('al_dia', 'becado', 'convenio', 'contrato_especial')",
                 [],
             ];
         }
@@ -67,8 +71,10 @@ if (!function_exists('local_grupomakro_translate_financial_filter')) {
             ];
         }
         if ($f === 'pending') {
+            // Incluye el alias sincontrato (typo historico) ademas del
+            // canonico sin_contrato_o_usuario.
             return [
-                "(fs.id IS NULL OR fs.status = 'sin_contrato_o_usuario')",
+                "(fs.id IS NULL OR fs.status IN ('sin_contrato_o_usuario', 'sincontrato'))",
                 [],
             ];
         }
