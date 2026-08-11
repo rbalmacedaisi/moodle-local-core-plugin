@@ -145,14 +145,41 @@ class get_financial_counts extends external_api {
             'pendiente'    => 0,
         ];
 
+        // Mapeo de los valores reales de gmk_financial_status.status al
+        // bucket del indicador. Los nombres canonicos del WS son estos,
+        // pero en la BD hay variantes historicas que deben caer en su
+        // bucket correspondiente:
+        //   sincontrato            -> sin_contrato (typo historico, ver bd)
+        //   contrato_especial      -> convenio (x_studio_tipo_contrato_especial en Odoo)
+        //   bypass_financiero      -> al_dia (mientras bypass esta activo,
+        //                              todos cuentan como al dia en el snapshot)
+        $statustobucket = [
+            'al_dia'                 => 'al_dia',
+            'mora'                   => 'mora',
+            'becado'                 => 'becado',
+            'convenio'               => 'convenio',
+            'contrato_especial'      => 'convenio',
+            'sin_contrato'           => 'sin_contrato',
+            'sincontrato'            => 'sin_contrato',
+            'sin_contrato_o_usuario' => 'sin_contrato',
+            'bypass_financiero'      => 'al_dia',
+            'periodo_gracia'         => 'al_dia',
+        ];
+
         foreach ($rows as $r) {
-            $key = (string)$r->fstatus;
-            $cnt = (int)$r->cnt;
+            $rawkey = (string)$r->fstatus;
+            $cnt    = (int)$r->cnt;
             $result['total'] += $cnt;
-            if ($key === '__pendiente__') {
+            if ($rawkey === '__pendiente__') {
                 $result['pendiente'] = $cnt;
-            } else if (isset($result[$key])) {
-                $result[$key] = $cnt;
+            } else if (isset($statustobucket[$rawkey])) {
+                $bucket = $statustobucket[$rawkey];
+                $result[$bucket] += $cnt;
+            } else {
+                // Status desconocido: lo logueamos como pendiente para
+                // que no se pierda en el agregado.
+                $result['pendiente'] += $cnt;
+                error_log("[get_financial_counts] status desconocido en BD: '$rawkey' (cnt=$cnt)");
             }
         }
 
