@@ -79,6 +79,10 @@ class get_financial_counts extends external_api {
      *   2. LEFT JOIN gmk_financial_status por userid.
      *   3. GROUP BY fs.status y contamos.
      *   4. Los NULL son los "pendiente".
+     *
+     * Importante: usamos EXISTS en lugar de JOIN para evitar multiplicar filas
+     * (un usuario con N clases generaría N filas y distorsionaría los
+     * GROUP BY). Cada usuario cuenta UNA vez.
      */
     private static function compute_counts(): array {
         global $DB;
@@ -87,16 +91,16 @@ class get_financial_counts extends external_api {
 
         // TC custom field: si existe, excluir las clases marcadas como TC=1.
         $tcfid = (int)($DB->get_field('customfield_field', 'id', ['shortname' => 'tc']) ?: 0);
-        $tcjoin = '';
-        $tcwhere = '';
+        $tcjoin2 = '';
+        $tcwhere2 = '';
         if ($tcfid > 0) {
-            $tcjoin = "
-                LEFT JOIN {customfield_data} _tc_chk
-                       ON _tc_chk.instanceid = gc.corecourseid
-                      AND _tc_chk.fieldid = :tcfid
-                      AND _tc_chk.value = '1'
+            $tcjoin2 = "
+                LEFT JOIN {customfield_data} _tc_chk2
+                       ON _tc_chk2.instanceid = gc2.corecourseid
+                      AND _tc_chk2.fieldid = :tcfid2
+                      AND _tc_chk2.value = '1'
             ";
-            $tcwhere = "AND _tc_chk.id IS NULL";
+            $tcwhere2 = "AND _tc_chk2.id IS NULL";
         }
 
         $sql = "
@@ -105,26 +109,29 @@ class get_financial_counts extends external_api {
                 COUNT(DISTINCT u.id) AS cnt
               FROM {user} u
               JOIN {local_learning_users} lpu ON lpu.userid = u.id
-              JOIN {gmk_course_progre} cp ON cp.userid = u.id
-              JOIN {gmk_class} gc
-                ON gc.id = cp.classid
-               AND gc.approved = 1
-               AND gc.closed = 0
-               AND gc.initdate <= :now1
-               AND (gc.enddate = 0 OR gc.enddate >= :now2)
-              $tcjoin
          LEFT JOIN {gmk_financial_status} fs ON fs.userid = u.id
              WHERE u.deleted = 0
                AND u.suspended = 0
                AND lpu.userrolename = 'student'
-               AND cp.status IN (1, 2, 3)
-               $tcwhere
+               AND EXISTS (
+                   SELECT 1
+                     FROM {gmk_course_progre} cp2
+                     JOIN {gmk_class} gc2 ON gc2.id = cp2.classid
+                     $tcjoin2
+                    WHERE cp2.userid = u.id
+                      AND cp2.status IN (1, 2, 3)
+                      AND gc2.approved = 1
+                      AND gc2.closed = 0
+                      AND gc2.initdate <= :now1
+                      AND (gc2.enddate = 0 OR gc2.enddate >= :now2)
+                      $tcwhere2
+               )
           GROUP BY fstatus
         ";
 
         $params = ['now1' => $now, 'now2' => $now];
         if ($tcfid > 0) {
-            $params['tcfid'] = $tcfid;
+            $params['tcfid2'] = $tcfid;
         }
         $rows = $DB->get_records_sql($sql, $params);
 
