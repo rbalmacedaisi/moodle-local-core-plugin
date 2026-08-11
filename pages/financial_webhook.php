@@ -360,7 +360,12 @@ try {
     }
 
     $result = fwh_process_payload($payload, $providedsig);
-    $code   = empty($result['success']) ? 500 : 200;
+    // success=false no es necesariamente un crash del servidor: el caso
+    // comun es que el partner_vat no existia o que el sync a Odoo fallo y
+    // se encolo en la DLQ. Devolvemos 200 con success=false para que el
+    // caller (Express) sepa que el payload fue procesado y no reintente
+    // agresivamente. Solo devolvemos 500 si la excepcion se propago arriba.
+    $code = 200;
     http_response_code($code);
     echo json_encode($result);
     exit;
