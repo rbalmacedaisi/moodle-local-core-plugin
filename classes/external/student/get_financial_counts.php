@@ -113,7 +113,6 @@ class get_financial_counts extends external_api {
                 COUNT(DISTINCT u.id) AS cnt
               FROM {user} u
               JOIN {local_learning_users} lpu ON lpu.userid = u.id
-              JOIN {local_learning_plans}  lp  ON lp.id = lpu.learningplanid
          LEFT JOIN {gmk_financial_status} fs ON fs.userid = u.id
              WHERE u.deleted = 0
                AND u.suspended = 0
