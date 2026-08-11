@@ -394,6 +394,14 @@ $string['pending_tasks'] = 'Pending tasks';
 $string['next_session'] = 'Next session';
 $string['no_groups'] = 'No groups assigned';
 
+// Academic panel — financial breakdown cards.
+$string['financial_up_to_date'] = 'Up to date (financial)';
+$string['financial_in_arrears'] = 'In arrears';
+$string['financial_pending'] = 'Pending / no contract';
+$string['financial_breakdown_tooltip'] = 'Scholarships and special contracts count as "Up to date". "Pending" means the student has no row in gmk_financial_status or no contract in Odoo.';
+$string['financial_refresh_indicator'] = 'Updating...';
+$string['financial_indicator_offline'] = 'Indicator offline — retrying in {$a}s';
+
 // Contract Enrol Page.
 $string['contractenrol'] = 'Contract Enrol';
 $string['contractenrollinkexpirated'] = 'This link has expired.';

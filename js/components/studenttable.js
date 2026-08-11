@@ -3,32 +3,108 @@ Vue.component('studenttable', {
     template: `
         <v-row justify="center" class="my-2 mx-0 position-relative">
             <v-col cols="12" class="mb-4">
-                 <v-card class="pa-4 d-flex align-center" outlined style="border-left: 5px solid #4CAF50;">
-                    <div>
-                        <div class="text-overline mb-0">Estudiantes Activos</div>
-                        <div class="d-flex align-center" style="gap:6px">
-                            <span class="text-h4 font-weight-bold success--text">{{ activeUsers }}</span>
-                            <v-tooltip max-width="340" right>
-                                <template v-slot:activator="{ on, attrs }">
-                                    <v-icon v-bind="attrs" v-on="on" size="18" color="grey darken-1" style="cursor:pointer;margin-top:2px">mdi-information-outline</v-icon>
-                                </template>
-                                <div style="font-size:12px;line-height:1.6">
-                                    <div style="font-weight:700;margin-bottom:6px">¿Cómo se calcula?</div>
-                                    <div>Se cuentan los usuarios que cumplen <b>todas</b> estas condiciones:</div>
-                                    <ul style="margin:6px 0 0 14px;padding:0">
-                                        <li>Rol de estudiante en <em>local_learning_users</em></li>
-                                        <li>Todos sus planes académicos en estado <em>activo</em></li>
-                                        <li>Matrícula activa (status 1–3) en al menos una clase aprobada, no cerrada y vigente</li>
-                                        <li>La clase no es un curso transversal (TC)</li>
-                                    </ul>
-                                    <div style="margin-top:8px;color:#bdbdbd;font-size:11px">Misma lógica que el Total general del dashboard de inasistencias.</div>
+                <v-row no-gutters>
+                    <v-col cols="12" md="3" class="px-1 mb-2">
+                        <v-card class="pa-4 d-flex align-center" outlined style="border-left: 5px solid #4CAF50; height: 100%;">
+                            <div>
+                                <div class="text-overline mb-0">Estudiantes Activos</div>
+                                <div class="d-flex align-center" style="gap:6px">
+                                    <span class="text-h4 font-weight-bold success--text">{{ activeUsers }}</span>
+                                    <v-tooltip max-width="340" right>
+                                        <template v-slot:activator="{ on, attrs }">
+                                            <v-icon v-bind="attrs" v-on="on" size="18" color="grey darken-1" style="cursor:pointer;margin-top:2px">mdi-information-outline</v-icon>
+                                        </template>
+                                        <div style="font-size:12px;line-height:1.6">
+                                            <div style="font-weight:700;margin-bottom:6px">¿Cómo se calcula?</div>
+                                            <div>Se cuentan los usuarios que cumplen <b>todas</b> estas condiciones:</div>
+                                            <ul style="margin:6px 0 0 14px;padding:0">
+                                                <li>Rol de estudiante en <em>local_learning_users</em></li>
+                                                <li>Todos sus planes académicos en estado <em>activo</em></li>
+                                                <li>Matrícula activa (status 1–3) en al menos una clase aprobada, no cerrada y vigente</li>
+                                                <li>La clase no es un curso transversal (TC)</li>
+                                            </ul>
+                                            <div style="margin-top:8px;color:#bdbdbd;font-size:11px">Misma lógica que el Total general del dashboard de inasistencias.</div>
+                                        </div>
+                                    </v-tooltip>
                                 </div>
-                            </v-tooltip>
-                        </div>
-                    </div>
-                    <v-spacer></v-spacer>
-                    <v-icon size="48" color="success" class=" opacity-50">mdi-account-check</v-icon>
-                 </v-card>
+                            </div>
+                            <v-spacer></v-spacer>
+                            <v-icon size="48" color="success" class="opacity-50">mdi-account-check</v-icon>
+                        </v-card>
+                    </v-col>
+                    <v-col cols="12" md="3" class="px-1 mb-2">
+                        <v-card class="pa-4 d-flex align-center" outlined style="border-left: 5px solid #1976D2; height: 100%;">
+                            <div>
+                                <div class="text-overline mb-0">{{ lang.financial_up_to_date || 'Al día (financiero)' }}</div>
+                                <div class="d-flex align-center" style="gap:6px">
+                                    <span class="text-h4 font-weight-bold primary--text">{{ counts.upToDate }}</span>
+                                    <v-tooltip max-width="340" right>
+                                        <template v-slot:activator="{ on, attrs }">
+                                            <v-icon v-bind="attrs" v-on="on" size="18" color="grey darken-1" style="cursor:pointer;margin-top:2px">mdi-information-outline</v-icon>
+                                        </template>
+                                        <div style="font-size:12px;line-height:1.6">
+                                            <div>al_dia: <b>{{ counts.al_dia }}</b></div>
+                                            <div>becado: <b>{{ counts.becado }}</b></div>
+                                            <div>convenio: <b>{{ counts.convenio }}</b></div>
+                                            <div style="margin-top:6px;color:#777;font-size:11px">Becados y convenios cuentan como "Al día".</div>
+                                        </div>
+                                    </v-tooltip>
+                                </div>
+                            </div>
+                            <v-spacer></v-spacer>
+                            <v-icon size="48" color="primary" class="opacity-50">mdi-check-decagram</v-icon>
+                        </v-card>
+                    </v-col>
+                    <v-col cols="12" md="3" class="px-1 mb-2">
+                        <v-card class="pa-4 d-flex align-center" outlined style="border-left: 5px solid #E53935; height: 100%;">
+                            <div>
+                                <div class="text-overline mb-0">{{ lang.financial_in_arrears || 'En mora' }}</div>
+                                <div class="d-flex align-center" style="gap:6px">
+                                    <span class="text-h4 font-weight-bold error--text">{{ counts.mora }}</span>
+                                    <v-tooltip max-width="340" right>
+                                        <template v-slot:activator="{ on, attrs }">
+                                            <v-icon v-bind="attrs" v-on="on" size="18" color="grey darken-1" style="cursor:pointer;margin-top:2px">mdi-information-outline</v-icon>
+                                        </template>
+                                        <div style="font-size:12px;line-height:1.6">
+                                            <div>Estudiantes con <em>facturas vencidas</em> en Odoo más allá del periodo de gracia configurado.</div>
+                                        </div>
+                                    </v-tooltip>
+                                </div>
+                            </div>
+                            <v-spacer></v-spacer>
+                            <v-icon size="48" color="error" class="opacity-50">mdi-alert-octagon</v-icon>
+                        </v-card>
+                    </v-col>
+                    <v-col cols="12" md="3" class="px-1 mb-2">
+                        <v-card class="pa-4 d-flex align-center" outlined style="border-left: 5px solid #FB8C00; height: 100%;">
+                            <div>
+                                <div class="text-overline mb-0">{{ lang.financial_pending || 'Pendientes / sin contrato' }}</div>
+                                <div class="d-flex align-center" style="gap:6px">
+                                    <span class="text-h4 font-weight-bold warning--text">{{ counts.pending }}</span>
+                                    <v-tooltip max-width="340" right>
+                                        <template v-slot:activator="{ on, attrs }">
+                                            <v-icon v-bind="attrs" v-on="on" size="18" color="grey darken-1" style="cursor:pointer;margin-top:2px">mdi-information-outline</v-icon>
+                                        </template>
+                                        <div style="font-size:12px;line-height:1.6">
+                                            <div style="font-weight:700;margin-bottom:6px">¿Qué significa?</div>
+                                            <div>sin_contrato: <b>{{ counts.sin_contrato }}</b></div>
+                                            <div>sin fila financiera: <b>{{ counts.pendiente }}</b></div>
+                                            <div style="margin-top:6px;color:#777;font-size:11px">El snapshot aún no se ha sincronizado, o el partner no existe en Odoo.</div>
+                                        </div>
+                                    </v-tooltip>
+                                </div>
+                            </div>
+                            <v-spacer></v-spacer>
+                            <v-icon size="48" color="warning" class="opacity-50">mdi-help-circle</v-icon>
+                        </v-card>
+                    </v-col>
+                </v-row>
+                <div class="caption grey--text text-right pr-2" style="font-size:11px">
+                    <v-icon size="12" :color="countsOffline ? 'error' : 'grey'">mdi-circle-medium</v-icon>
+                    <span v-if="countsOffline">{{ (lang.financial_indicator_offline || 'Indicador offline — reintentando en {$a}s').replace('{$a}', countsRetryIn) }}</span>
+                    <span v-else-if="countsLoading">{{ lang.financial_refresh_indicator || 'Actualizando...' }}</span>
+                    <span v-else>Última actualización: {{ countsUpdatedAtLabel }} ({{ countsAge }}s)</span>
+                </div>
             </v-col>
             <v-col cols="12" class="py-0 px-0">
                 <v-data-table
@@ -38,7 +114,7 @@ Vue.component('studenttable', {
                     :server-items-length="totalDesserts"
                     :loading="loading"
                     class="elevation-1"
-                    :footer-props="{ 
+                    :footer-props="{
                         'items-per-page-text': lang.students_per_page,
                         'items-per-page-options': [15],
                     }"
@@ -560,6 +636,26 @@ Vue.component('studenttable', {
             syncCancelled: false,
             syncDone: false,
             loading: true,
+            // Financial breakdown cards state.
+            counts: {
+                total: 0,
+                al_dia: 0,
+                mora: 0,
+                becado: 0,
+                convenio: 0,
+                sin_contrato: 0,
+                pendiente: 0,
+                upToDate: 0,
+                pending: 0,
+            },
+            countsLoading: false,
+            countsUpdatedAt: null,
+            countsAge: null,
+            countsOffline: false,
+            countsRetryIn: 0,
+            countsTimer: null,
+            countsBackoffTimer: null,
+            countsAbortController: null,
             options: {
                 page: 1,
                 itemsPerPage: 15,
@@ -617,6 +713,14 @@ Vue.component('studenttable', {
         isAdmin() { return window.isAdmin || false; },
         isSuperAdmin() { return window.isSuperAdmin || false; },
         dataPruningUrl() { return window.location.origin + '/local/grupomakro_core/pages/fix_student_setup.php'; },
+        countsUpdatedAtLabel() {
+            if (!this.countsUpdatedAt) return '—';
+            const d = new Date(this.countsUpdatedAt);
+            const hh = String(d.getHours()).padStart(2, '0');
+            const mm = String(d.getMinutes()).padStart(2, '0');
+            const ss = String(d.getSeconds()).padStart(2, '0');
+            return `${hh}:${mm}:${ss}`;
+        },
         headers() {
             const lang = this.lang;
             const headers = [
@@ -673,6 +777,18 @@ Vue.component('studenttable', {
     created() {
         console.log('StudentTable Component Created');
         this.searchInput = this.options.search || '';
+        // Start financial breakdown auto-refresh (60s polling).
+        this.fetchCounts();
+        this.countsTimer = setInterval(() => this.fetchCounts(), 60000);
+        // Tick once per second to update the age label without re-fetching.
+        this.countsAgeTimer = setInterval(() => {
+            if (this.countsUpdatedAt) {
+                this.countsAge = Math.floor((Date.now() - this.countsUpdatedAt) / 1000);
+            }
+            if (this.countsOffline && this.countsRetryIn > 0) {
+                this.countsRetryIn--;
+            }
+        }, 1000);
     },
     watch: {
         'options.page': function() {
@@ -696,6 +812,22 @@ Vue.component('studenttable', {
         if (this.currentFetchController) {
             this.currentFetchController.abort();
             this.currentFetchController = null;
+        }
+        if (this.countsAbortController) {
+            this.countsAbortController.abort();
+            this.countsAbortController = null;
+        }
+        if (this.countsTimer) {
+            clearInterval(this.countsTimer);
+            this.countsTimer = null;
+        }
+        if (this.countsAgeTimer) {
+            clearInterval(this.countsAgeTimer);
+            this.countsAgeTimer = null;
+        }
+        if (this.countsBackoffTimer) {
+            clearTimeout(this.countsBackoffTimer);
+            this.countsBackoffTimer = null;
         }
     },
     methods: {
@@ -812,6 +944,83 @@ Vue.component('studenttable', {
                 }
             }
         },
+
+        /**
+         * Fetch the lightweight financial breakdown counts via the
+         * local_grupomakro_get_financial_counts WebService. Called every 60s
+         * by setInterval (started in created()) and on demand by the manual
+         * refresh action. Uses AbortController so that overlapping requests
+         * are cancelled. On failure, schedules a backoff retry (30s/60s/120s)
+         * and shows the offline indicator. On success, clears offline flag
+         * and resets backoff.
+         */
+        async fetchCounts(isManual = false) {
+            // Si el usuario esta editando (focus en input), no recargamos
+            // para no perder lo que esta escribiendo.
+            const active = document.activeElement;
+            if (!isManual && active && /^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName)) {
+                return;
+            }
+            if (this.countsAbortController) {
+                this.countsAbortController.abort();
+            }
+            this.countsAbortController = new AbortController();
+            this.countsLoading = true;
+
+            try {
+                const url = `${M.cfg.wwwroot}/webservice/rest/server.php`;
+                const params = new URLSearchParams();
+                params.append('wstoken', this.token || '');
+                params.append('wsfunction', 'local_grupomakro_get_financial_counts');
+                params.append('moodlewsrestformat', 'json');
+
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: params,
+                    signal: this.countsAbortController.signal,
+                });
+                const res = await response.json();
+                if (res && !res.exception && !res.errorcode) {
+                    const c = this.counts;
+                    c.total        = res.total        || 0;
+                    c.al_dia       = res.al_dia       || 0;
+                    c.mora         = res.mora         || 0;
+                    c.becado       = res.becado       || 0;
+                    c.convenio     = res.convenio     || 0;
+                    c.sin_contrato = res.sin_contrato || 0;
+                    c.pendiente    = res.pendiente    || 0;
+                    c.upToDate     = c.al_dia + c.becado + c.convenio;
+                    c.pending      = c.sin_contrato + c.pendiente;
+                    this.countsUpdatedAt = Date.now();
+                    this.countsAge = 0;
+                    this.countsOffline = false;
+                    if (this.countsBackoffTimer) {
+                        clearTimeout(this.countsBackoffTimer);
+                        this.countsBackoffTimer = null;
+                    }
+                } else {
+                    throw new Error((res && (res.message || res.errorcode)) || 'unknown_error');
+                }
+            } catch (e) {
+                if (e && e.name === 'AbortError') {
+                    return;
+                }
+                console.warn('[financial_counts] fetch failed:', e.message || e);
+                this.countsOffline = true;
+                // Backoff: 30s, 60s, 120s, max 120s.
+                const backoff = Math.min(120, 30 * Math.pow(2, Math.min(2, this._countsFailures || 0)));
+                this._countsFailures = (this._countsFailures || 0) + 1;
+                this.countsRetryIn = backoff;
+                if (this.countsBackoffTimer) {
+                    clearTimeout(this.countsBackoffTimer);
+                }
+                this.countsBackoffTimer = setTimeout(() => this.fetchCounts(), backoff * 1000);
+            } finally {
+                this.countsLoading = false;
+            }
+        },
+
         getChipStyle(item) {
             const theme = this.$vuetify.theme.dark ? "dark" : "light";
             const themeColors = {

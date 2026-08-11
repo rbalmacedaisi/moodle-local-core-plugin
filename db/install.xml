@@ -1185,5 +1185,29 @@
         <INDEX NAME="origin_plan_idx" UNIQUE="false" FIELDS="origin_planid"/>
       </INDEXES>
     </TABLE>
+    <TABLE NAME="gmk_financial_webhook_dlq" COMMENT="Dead-letter queue for failed Moodle financial webhook events pushed from Express /api/odoo/cache/invalidate. Lets admins inspect, retry or resolve deliveries that did not make it through after 3 attempts.">
+      <FIELDS>
+        <FIELD NAME="id"               TYPE="int"  LENGTH="10" NOTNULL="true"  SEQUENCE="true"/>
+        <FIELD NAME="partner_vat"      TYPE="char" LENGTH="50" NOTNULL="true"  DEFAULT="" SEQUENCE="false" COMMENT="res.partner.vat from Odoo (== user_info_data.documentnumber in Moodle)"/>
+        <FIELD NAME="reason"           TYPE="char" LENGTH="50" NOTNULL="true"  DEFAULT="" SEQUENCE="false" COMMENT="invoice_paid|invoice_unreconciled|invoice_due_date_changed|invoice_cancelled|contract_type_changed"/>
+        <FIELD NAME="invoice_id"       TYPE="char" LENGTH="50"                SEQUENCE="false" COMMENT="account.move.id from Odoo (empty for contract_type_changed)"/>
+        <FIELD NAME="event_time"       TYPE="char" LENGTH="50"                SEQUENCE="false"/>
+        <FIELD NAME="payload"          TYPE="text"                            SEQUENCE="false" COMMENT="Raw JSON body of the original webhook for forensics"/>
+        <FIELD NAME="signature"        TYPE="char" LENGTH="128"               SEQUENCE="false"/>
+        <FIELD NAME="attempts"         TYPE="int"  LENGTH="3"  NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="last_error"       TYPE="text"                            SEQUENCE="false"/>
+        <FIELD NAME="last_received_at" TYPE="int"  LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="state"            TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="pending" SEQUENCE="false" COMMENT="pending|resolved|abandoned"/>
+        <FIELD NAME="timecreated"      TYPE="int"  LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="state_idx" UNIQUE="false" FIELDS="state"/>
+        <INDEX NAME="vat_idx"   UNIQUE="false" FIELDS="partner_vat"/>
+        <INDEX NAME="received_at_idx" UNIQUE="false" FIELDS="last_received_at"/>
+      </INDEXES>
+    </TABLE>
   </TABLES>
 </XMLDB>

@@ -65,6 +65,11 @@ $strings->grades = get_string('grades', $plugin_name);
 $strings->grades = get_string('grades', $plugin_name);
 $strings->period = get_string('academic_level', $plugin_name);
 $strings->pensum = get_string('pensum', $plugin_name);
+$strings->financial_up_to_date = get_string('financial_up_to_date', $plugin_name);
+$strings->financial_in_arrears = get_string('financial_in_arrears', $plugin_name);
+$strings->financial_pending = get_string('financial_pending', $plugin_name);
+$strings->financial_refresh_indicator = get_string('financial_refresh_indicator', $plugin_name);
+$strings->financial_indicator_offline = get_string('financial_indicator_offline', $plugin_name);
 
 $strings = json_encode($strings);
 

@@ -10214,9 +10214,11 @@ function local_grupomakro_sync_financial_status($userids = []) {
         $sql .= " AND u.id $insql";
         $params = array_merge($params, $inparams);
     } else {
-        // Prevent infinite loops: Only pick users not updated in the last hour
-        // or never updated.
-        $cutoff = time() - 3600; 
+        // Red de seguridad residual del cron (corre cada 6h): solo recoge
+        // filas con lastupdated > 24h (o nunca actualizadas). Si pasaron < 24h
+        // es porque el webhook Express->Moodle o el hook user_loggedin ya
+        // las refrescaron y no hay que duplicar el trabajo contra el proxy.
+        $cutoff = time() - 86400;
         $sql .= " AND (fs.lastupdated IS NULL OR fs.lastupdated < :cutoff)";
         $params['cutoff'] = $cutoff;
 

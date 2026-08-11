@@ -4,14 +4,29 @@ namespace local_grupomakro_core\event;
 
 defined('MOODLE_INTERNAL') || die();
 
+require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
+
 /**
  * Event handler for user login events.
  */
 class user_login_handler {
 
     /**
+     * Minimum age (seconds) between automatic financial-status refreshes on login.
+     * Keeps the proxy from being hammered when the same student logs in repeatedly.
+     */
+    const FINANCIAL_REFRESH_MIN_AGE = 6 * 3600;
+
+    /**
+     * Defensive throttle: even if the snapshot is stale, ignore a refresh that
+     * was attempted within the last 60 seconds (e.g. user logged out and back
+     * in immediately, or two devices hit login in parallel).
+     */
+    const FINANCIAL_REFRESH_DEFENSIVE = 60;
+
+    /**
      * Handle user_loggedin event.
-     * 
+     *
      * @param \core\event\user_loggedin $event
      */
     public static function user_loggedin(\core\event\user_loggedin $event) {
@@ -21,6 +36,10 @@ class user_login_handler {
 
         // Grace period: grant first-login access until end of month
         self::maybe_create_grace_period($userid);
+
+        // Refresh financial status snapshot from Odoo (best-effort, throttled).
+        // Failures are swallowed: a broken proxy must NEVER block a login.
+        self::maybe_refresh_financial_status($userid);
 
         // DEBUG LOGGING
         $log_file = $CFG->dirroot . '/local/grupomakro_core/redirect_debug.log';
@@ -103,5 +122,70 @@ class user_login_handler {
         $DB->insert_record('gmk_grace_period', $record);
 
         error_log("[grupomakro_core] Periodo de gracia creado para userid=$userid doc=$documentnumber hasta=" . date('Y-m-d', $graceuntil));
+    }
+
+    /**
+     * Best-effort refresh of gmk_financial_status for a single student during
+     * login. Throttled to 6h between refreshes by default and additionally
+     * guarded against double-firing within 60s. Wrapped in try/catch so any
+     * proxy failure NEVER blocks the login flow.
+     *
+     * Only triggers for users typed as 'Estudiante' (mirrors the grace period
+     * gate) so admin/teacher logins don't waste proxy calls.
+     *
+     * @param int $userid
+     * @return void
+     */
+    public static function maybe_refresh_financial_status(int $userid): void {
+        global $DB, $CFG;
+
+        // Only students — mirrors maybe_create_grace_period gate.
+        $usertypefieldid = $DB->get_field('user_info_field', 'id', ['shortname' => 'usertype']);
+        if ($usertypefieldid) {
+            $usertype = $DB->get_field('user_info_data', 'data',
+                ['userid' => $userid, 'fieldid' => $usertypefieldid]);
+            if ($usertype && $usertype !== 'Estudiante') {
+                return;
+            }
+        }
+
+        // Need a document number — without one we cannot query Odoo.
+        $docfieldid = $DB->get_field('user_info_field', 'id', ['shortname' => 'documentnumber']);
+        if (!$docfieldid) {
+            return;
+        }
+        $documentnumber = trim((string)$DB->get_field('user_info_data', 'data',
+            ['userid' => $userid, 'fieldid' => $docfieldid]));
+        if ($documentnumber === '') {
+            return;
+        }
+
+        // Throttle: refresh only if the snapshot is older than FINANCIAL_REFRESH_MIN_AGE
+        // or never recorded. Defensive second gate avoids burst refresh on
+        // immediate re-login.
+        $now = time();
+        $current = $DB->get_record('gmk_financial_status', ['userid' => $userid], 'id, lastupdated');
+        if ($current) {
+            $age = $now - (int)$current->lastupdated;
+            if ($age < self::FINANCIAL_REFRESH_MIN_AGE) {
+                return;
+            }
+            if ($age < self::FINANCIAL_REFRESH_DEFENSIVE) {
+                return;
+            }
+        }
+
+        // Best-effort. Catches Throwable so nothing leaks to the login flow.
+        try {
+            $result = local_grupomakro_sync_financial_status([$userid]);
+            if (isset($result['error'])) {
+                $err = (string)$result['error'];
+                $details = (string)($result['details'] ?? '');
+                error_log("[grupomakro_core] login sync FAILED userid=$userid: {$err}"
+                    . ($details !== '' ? ' (' . substr($details, 0, 200) . ')' : ''));
+            }
+        } catch (\Throwable $e) {
+            error_log("[grupomakro_core] login sync EXCEPTION userid=$userid: " . $e->getMessage());
+        }
     }
 }

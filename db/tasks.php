@@ -42,10 +42,14 @@ $tasks = [
         'dayofweek' => '*',
     ],
     [
+        // Cron residual cada 6h. El flujo principal es tiempo real via
+        // webhook Express -> Moodle y hook user_loggedin (throttle 6h).
+        // Este cron solo limpia filas con lastupdated > 24h que se hayan
+        // escapado de ambos caminos (pagos hechos offline, Odoo down, etc).
         'classname' => 'local_grupomakro_core\task\update_financial_status',
         'blocking' => 0,
-        'minute' => '30',
-        'hour' => '2',
+        'minute' => '0',
+        'hour' => '*/6',
         'day' => '*',
         'month' => '*',
         'dayofweek' => '*',

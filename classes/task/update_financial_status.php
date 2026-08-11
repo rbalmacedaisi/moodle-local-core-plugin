@@ -28,19 +28,22 @@ class update_financial_status extends \core\task\scheduled_task {
      * Throw exceptions on errors (the job will be retried).
      */
     public function execute() {
-        mtrace('Starting financial status update...');
+        mtrace('Starting financial status update (cron residual 6h)...');
 
-        // Sync a batch of users. 
-        // We call it multiple times to process more if needed, 
-        // or just once per run depending on volume.
-        // Let's do a loop to process up to 200 users per run (4 batches of 50)
-        
-        $batches = 4;
+        // Red de seguridad residual. El flujo principal ya cubre la
+        // mayoria de los cambios en tiempo real via:
+        //   - webhook Express -> Moodle (gmk_financial_webhook_dlq)
+        //   - hook user_loggedin con throttle 6h
+        // Este cron solo limpia filas que quedaron stale (lastupdated > 24h)
+        // y nunca se actualizaron por ninguna de las dos vias anteriores.
+        // 1 lote por ejecucion evita saturar el proxy; 4 ejecuciones/dia
+        // dan una ventana maxima de 6h entre refreshes exitosos.
+        $batches = 1;
         $totalUpdated = 0;
 
         for ($i = 0; $i < $batches; $i++) {
             $result = local_grupomakro_sync_financial_status();
-            
+
             if (isset($result['error'])) {
                 mtrace('Error: ' . $result['error']);
                 if (isset($result['details'])) {
@@ -50,13 +53,13 @@ class update_financial_status extends \core\task\scheduled_task {
             }
 
             if (empty($result['updated'])) {
-                mtrace('No more users to update.');
+                mtrace('No stale users to update.');
                 break;
             }
 
             $totalUpdated += $result['updated'];
             mtrace("Batch $i: Updated {$result['updated']} users.");
-            
+
             // Small pause to be nice to the proxy
             sleep(1);
         }

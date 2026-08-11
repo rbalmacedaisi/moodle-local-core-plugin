@@ -1228,6 +1228,15 @@ $functions = array(
         'ajax'        => true,
         'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
     ],
+    'local_grupomakro_get_financial_counts' => [
+        'classname'   => 'local_grupomakro_core\external\student\get_financial_counts',
+        'methodname'  => 'execute',
+        'description' => 'Lightweight count of active students broken down by financial status (al_dia/mora/becado/convenio/sin_contrato/pendiente). Powers the academicpanel 3-card indicator; called by the 60s polling.',
+        'type'        => 'read',
+        'capabilities'=> 'moodle/site:viewparticipants',
+        'ajax'        => true,
+        'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
+    ],
     // ── Admin broadcast messages (info/warning to student LXP) ──────────────
     // These notifications take precedence over the absence alert system by
     // default (priority 50 vs. 10). The student-side endpoints are read/write

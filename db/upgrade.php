@@ -2970,6 +2970,40 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20260816000, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20260818000) {
+        // Financial status real-time: dead-letter queue for the
+        // pages/financial_webhook.php endpoint so we don't lose pushes
+        // from Express /api/odoo/cache/invalidate when the proxy call
+        // fails. Admins can inspect/retry from
+        // pages/financial_webhook_dlq.php.
+        $table = new xmldb_table('gmk_financial_webhook_dlq');
+
+        $table->add_field('id',               XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('partner_vat',      XMLDB_TYPE_CHAR,    '50', null, XMLDB_NOTNULL, null, '');
+        $table->add_field('reason',           XMLDB_TYPE_CHAR,    '50', null, XMLDB_NOTNULL, null, '');
+        $table->add_field('invoice_id',       XMLDB_TYPE_CHAR,    '50', null, null,         null, null);
+        $table->add_field('event_time',       XMLDB_TYPE_CHAR,    '50', null, null,         null, null);
+        $table->add_field('payload',          XMLDB_TYPE_TEXT,    null, null, null,         null, null);
+        $table->add_field('signature',        XMLDB_TYPE_CHAR,   '128', null, null,         null, null);
+        $table->add_field('attempts',         XMLDB_TYPE_INTEGER,  '3', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('last_error',       XMLDB_TYPE_TEXT,    null, null, null,         null, null);
+        $table->add_field('last_received_at', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('state',            XMLDB_TYPE_CHAR,    '20', null, XMLDB_NOTNULL, null, 'pending');
+        $table->add_field('timecreated',      XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+
+        $table->add_index('state_idx',       XMLDB_INDEX_NOTUNIQUE, ['state']);
+        $table->add_index('vat_idx',         XMLDB_INDEX_NOTUNIQUE, ['partner_vat']);
+        $table->add_index('received_at_idx', XMLDB_INDEX_NOTUNIQUE, ['last_received_at']);
+
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        upgrade_plugin_savepoint(true, 20260818000, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

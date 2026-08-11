@@ -392,6 +392,14 @@ $string['pending_tasks'] = 'Tareas pendientes';
 $string['next_session'] = 'Siguiente sesión';
 $string['no_groups'] = 'No hay grupos asignados';
 
+// Academic panel — financial breakdown cards.
+$string['financial_up_to_date'] = 'Al día (financiero)';
+$string['financial_in_arrears'] = 'En mora';
+$string['financial_pending'] = 'Pendientes / sin contrato';
+$string['financial_breakdown_tooltip'] = 'Becados y convenios cuentan como "Al día". "Pendientes" son estudiantes sin fila en gmk_financial_status o sin contrato en Odoo.';
+$string['financial_refresh_indicator'] = 'Actualizando...';
+$string['financial_indicator_offline'] = 'Indicador offline — reintentando en {$a}s';
+
 // Contract Enrol Page.
 $string['contractenrol'] = 'Matriculación contrato';
 $string['contractenrollinkexpirated'] = 'Este link ha vencido.';
