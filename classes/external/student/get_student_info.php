@@ -33,6 +33,52 @@ use external_value;
 use stdClass;
 use Exception;
 
+/**
+ * Helper: mapea los valores logicos del filtro financiero (los que la UI
+ * de academicpanel envia al hacer click en las cards) a SQL ejecutable.
+ *
+ *   'all'         -> sin filtro (string vacio)
+ *   'up_to_date'  -> fs.status IN ('al_dia', 'becado', 'convenio')
+ *   'in_arrears'  -> fs.status = 'mora'
+ *   'pending'     -> fs.id IS NULL OR fs.status = 'sin_contrato_o_usuario'
+ *   cualquier otro valor -> fs.status = :value (compatibilidad con filtro
+ *                                              del dropdown existente)
+ *
+ * Devuelve un array con 2 elementos:
+ *   [string $sqlClause, array $params]
+ * Si $sqlClause es null, no hay filtro.
+ */
+if (!function_exists('local_grupomakro_translate_financial_filter')) {
+    function local_grupomakro_translate_financial_filter(string $filter): array {
+        $f = trim($filter);
+        if ($f === '' || strtolower($f) === 'all') {
+            return [null, []];
+        }
+        if ($f === 'up_to_date') {
+            return [
+                "fs.status IN ('al_dia', 'becado', 'convenio')",
+                [],
+            ];
+        }
+        if ($f === 'in_arrears') {
+            return [
+                "fs.status = :financial_status",
+                ['financial_status' => 'mora'],
+            ];
+        }
+        if ($f === 'pending') {
+            return [
+                "(fs.id IS NULL OR fs.status = 'sin_contrato_o_usuario')",
+                [],
+            ];
+        }
+        return [
+            "fs.status = :financial_status",
+            ['financial_status' => $f],
+        ];
+    }
+}
+
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -145,8 +191,11 @@ class get_student_info extends external_api {
         }
 
         if (!empty($params['financial_status'])) {
-            $sqlConditions[] = "fs.status = :financial_status";
-            $sqlParams['financial_status'] = $params['financial_status'];
+            list($fsClause, $fsParams) = local_grupomakro_translate_financial_filter($params['financial_status']);
+            if ($fsClause !== null) {
+                $sqlConditions[] = $fsClause;
+                $sqlParams = array_merge($sqlParams, $fsParams);
+            }
         }
 
         $whereClause = "WHERE " . implode(' AND ', $sqlConditions);
@@ -456,6 +505,10 @@ class get_student_info extends external_api {
             'docfieldid' => $docfieldid,
             'journeyfieldid' => $journeyfieldid
         ];
+        // Condiciones que solo se aplican al query de la tabla
+        // (no al activeUsers ni al conteo total sin filtro).
+        $tableOnlyConditions = [];
+        $tableOnlyParams = [];
 
         if (!empty($params['planid'])) {
             $planids = array_filter(explode(',', $params['planid']), 'is_numeric');
@@ -500,11 +553,17 @@ class get_student_info extends external_api {
             }
         }
 
-        if (!empty($params['financial_status'])) {
-            $sqlconditions[] = "fs.status = :financial_status";
-            $sqlparams['financial_status'] = $params['financial_status'];
+if (!empty($params['financial_status'])) {
+            // El filtro financiero se aplica SOLO al query de la tabla
+            // y a totalResults, NO al activeUsers. Asi el card
+            // "Estudiantes Activos" siempre muestra el total global,
+            // independientemente del filtro seleccionado en las cards.
+list($fsClause, $fsParams) = local_grupomakro_translate_financial_filter($params['financial_status']);
+            if ($fsClause !== null) {
+                $tableOnlyConditions[] = $fsClause;
+                $tableOnlyParams = array_merge($tableOnlyParams, $fsParams);
+            }
         }
-
         if (!empty($params['status'])) {
             $sqlconditions[] = "LOWER(COALESCE(statusud.data, 'Activo')) LIKE :statussearch";
             $sqlparams['statussearch'] = '%' . \core_text::strtolower(trim($params['status'])) . '%';
@@ -570,9 +629,14 @@ class get_student_info extends external_api {
 
         $whereclause = "WHERE " . implode(' AND ', $sqlconditions);
 
+        // Combinar condiciones generales + filtro financiero SOLO para la tabla.
+        $allConditions = array_merge($sqlconditions, $tableOnlyConditions);
+        $allParams     = array_merge($sqlparams, $tableOnlyParams);
+        $tableWhereclause = "WHERE " . implode(' AND ', $allConditions);
+
         $totalresults = (int)$DB->count_records_sql(
-            "SELECT COUNT(DISTINCT u.id) $fromsql $whereclause",
-            $sqlparams
+            "SELECT COUNT(DISTINCT u.id) $fromsql $tableWhereclause",
+            $allParams
         );
 
         if ($totalresults === 0) {
@@ -626,9 +690,9 @@ class get_student_info extends external_api {
         $pageusers = $DB->get_records_sql(
             "SELECT DISTINCT u.id, u.firstname, u.lastname
                $fromsql
-               $whereclause
+               $tableWhereclause
            ORDER BY u.firstname ASC, u.lastname ASC, u.id ASC",
-            $sqlparams,
+            $allParams,
             $offset,
             $resultsperpage
         );

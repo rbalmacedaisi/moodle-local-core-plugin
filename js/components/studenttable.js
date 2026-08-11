@@ -1,11 +1,15 @@
 Vue.component('studenttable', {
     props: ['classId'],
-    template: `
+template: `
         <v-row justify="center" class="my-2 mx-0 position-relative">
             <v-col cols="12" class="mb-4">
                 <v-row no-gutters>
                     <v-col cols="12" md="3" class="px-1 mb-2">
-                        <v-card class="pa-4 d-flex align-center" outlined style="border-left: 5px solid #4CAF50; height: 100%;">
+                        <v-card class="pa-4 d-flex align-center filter-card"
+                               :class="{ 'filter-card-active': activeFilterCard === 'all' }"
+                               outlined
+                               style="border-left: 5px solid #4CAF50; height: 100%; cursor: pointer;"
+                               @click="setActiveFilter('all')">
                             <div>
                                 <div class="text-overline mb-0">Estudiantes Activos</div>
                                 <div class="d-flex align-center" style="gap:6px">
@@ -24,6 +28,7 @@ Vue.component('studenttable', {
                                                 <li>La clase no es un curso transversal (TC)</li>
                                             </ul>
                                             <div style="margin-top:8px;color:#bdbdbd;font-size:11px">Misma lógica que el Total general del dashboard de inasistencias.</div>
+                                            <div style="margin-top:6px;color:#1976D2;font-size:11px"><b>Click para mostrar todos.</b></div>
                                         </div>
                                     </v-tooltip>
                                 </div>
@@ -33,7 +38,11 @@ Vue.component('studenttable', {
                         </v-card>
                     </v-col>
                     <v-col cols="12" md="3" class="px-1 mb-2">
-                        <v-card class="pa-4 d-flex align-center" outlined style="border-left: 5px solid #1976D2; height: 100%;">
+                        <v-card class="pa-4 d-flex align-center filter-card"
+                               :class="{ 'filter-card-active': activeFilterCard === 'up_to_date' }"
+                               outlined
+                               style="border-left: 5px solid #1976D2; height: 100%; cursor: pointer;"
+                               @click="setActiveFilter('up_to_date')">
                             <div>
                                 <div class="text-overline mb-0">{{ lang.financial_up_to_date || 'Al día (financiero)' }}</div>
                                 <div class="d-flex align-center" style="gap:6px">
@@ -47,6 +56,7 @@ Vue.component('studenttable', {
                                             <div>becado: <b>{{ counts.becado }}</b></div>
                                             <div>convenio: <b>{{ counts.convenio }}</b></div>
                                             <div style="margin-top:6px;color:#777;font-size:11px">Becados y convenios cuentan como "Al día".</div>
+                                            <div style="margin-top:6px;color:#1976D2;font-size:11px"><b>Click para filtrar la tabla.</b></div>
                                         </div>
                                     </v-tooltip>
                                 </div>
@@ -56,7 +66,11 @@ Vue.component('studenttable', {
                         </v-card>
                     </v-col>
                     <v-col cols="12" md="3" class="px-1 mb-2">
-                        <v-card class="pa-4 d-flex align-center" outlined style="border-left: 5px solid #E53935; height: 100%;">
+                        <v-card class="pa-4 d-flex align-center filter-card"
+                               :class="{ 'filter-card-active': activeFilterCard === 'in_arrears' }"
+                               outlined
+                               style="border-left: 5px solid #E53935; height: 100%; cursor: pointer;"
+                               @click="setActiveFilter('in_arrears')">
                             <div>
                                 <div class="text-overline mb-0">{{ lang.financial_in_arrears || 'En mora' }}</div>
                                 <div class="d-flex align-center" style="gap:6px">
@@ -67,6 +81,7 @@ Vue.component('studenttable', {
                                         </template>
                                         <div style="font-size:12px;line-height:1.6">
                                             <div>Estudiantes con <em>facturas vencidas</em> en Odoo más allá del periodo de gracia configurado.</div>
+                                            <div style="margin-top:6px;color:#1976D2;font-size:11px"><b>Click para filtrar la tabla.</b></div>
                                         </div>
                                     </v-tooltip>
                                 </div>
@@ -76,7 +91,11 @@ Vue.component('studenttable', {
                         </v-card>
                     </v-col>
                     <v-col cols="12" md="3" class="px-1 mb-2">
-                        <v-card class="pa-4 d-flex align-center" outlined style="border-left: 5px solid #FB8C00; height: 100%;">
+                        <v-card class="pa-4 d-flex align-center filter-card"
+                               :class="{ 'filter-card-active': activeFilterCard === 'pending' }"
+                               outlined
+                               style="border-left: 5px solid #FB8C00; height: 100%; cursor: pointer;"
+                               @click="setActiveFilter('pending')">
                             <div>
                                 <div class="text-overline mb-0">{{ lang.financial_pending || 'Pendientes / sin contrato' }}</div>
                                 <div class="d-flex align-center" style="gap:6px">
@@ -90,6 +109,7 @@ Vue.component('studenttable', {
                                             <div>sin_contrato: <b>{{ counts.sin_contrato }}</b></div>
                                             <div>sin fila financiera: <b>{{ counts.pendiente }}</b></div>
                                             <div style="margin-top:6px;color:#777;font-size:11px">El snapshot aún no se ha sincronizado, o el partner no existe en Odoo.</div>
+                                            <div style="margin-top:6px;color:#1976D2;font-size:11px"><b>Click para filtrar la tabla.</b></div>
                                         </div>
                                     </v-tooltip>
                                 </div>
@@ -103,6 +123,9 @@ Vue.component('studenttable', {
                     <v-icon size="12" :color="countsOffline ? 'error' : 'grey'">mdi-circle-medium</v-icon>
                     <span v-if="countsOffline">{{ (lang.financial_indicator_offline || 'Indicador offline — reintentando en {$a}s').replace('{$a}', countsRetryIn) }}</span>
                     <span v-else-if="countsLoading">{{ lang.financial_refresh_indicator || 'Actualizando...' }}</span>
+                    <span v-else-if="activeFilterCard !== 'all'">
+                        Filtro activo: <b>{{ activeFilterLabel }}</b> · Última actualización: {{ countsUpdatedAtLabel }} ({{ countsAge }}s)
+                    </span>
                     <span v-else>Última actualización: {{ countsUpdatedAtLabel }} ({{ countsAge }}s)</span>
                 </div>
             </v-col>
@@ -656,6 +679,8 @@ Vue.component('studenttable', {
             countsTimer: null,
             countsBackoffTimer: null,
             countsAbortController: null,
+            // Card-based filter: 'all' (default), 'up_to_date', 'in_arrears', 'pending'.
+            activeFilterCard: 'all',
             options: {
                 page: 1,
                 itemsPerPage: 15,
@@ -720,6 +745,15 @@ Vue.component('studenttable', {
             const mm = String(d.getMinutes()).padStart(2, '0');
             const ss = String(d.getSeconds()).padStart(2, '0');
             return `${hh}:${mm}:${ss}`;
+        },
+        activeFilterLabel() {
+            const map = {
+                'all': 'Todos',
+                'up_to_date': this.lang.financial_up_to_date || 'Al día (financiero)',
+                'in_arrears': this.lang.financial_in_arrears || 'En mora',
+                'pending': this.lang.financial_pending || 'Pendientes / sin contrato',
+            };
+            return map[this.activeFilterCard] || map['all'];
         },
         headers() {
             const lang = this.lang;
@@ -954,6 +988,36 @@ Vue.component('studenttable', {
          * and shows the offline indicator. On success, clears offline flag
          * and resets backoff.
          */
+        /**
+         * Card click handler: activa un filtro en la tabla de estudiantes
+         * basado en la card financiera clickeada. Mapea la card al valor
+         * que el WS get_student_info reconoce via parameters.financial_status.
+         *
+         *   'all'         -> ''           (sin filtro)
+         *   'up_to_date'  -> 'up_to_date' (al_dia OR becado OR convenio)
+         *   'in_arrears'  -> 'mora'       (solo mora)
+         *   'pending'     -> 'pending'    (sin fila financiera OR sin_contrato_o_usuario)
+         */
+        setActiveFilter(cardKey) {
+            if (this.activeFilterCard === cardKey) {
+                // Click sobre la card ya activa: toggle a 'all'.
+                cardKey = 'all';
+            }
+            this.activeFilterCard = cardKey;
+
+            const map = {
+                'all':        '',
+                'up_to_date': 'up_to_date',
+                'in_arrears': 'mora',
+                'pending':    'pending',
+            };
+            this.filters.financialStatus = map[cardKey] || '';
+
+            // Reset paginación y refrescar.
+            this.options.page = 1;
+            this.applyFilters();
+        },
+
         async fetchCounts(isManual = false) {
             // Si el usuario esta editando (focus en input), no recargamos
             // para no perder lo que esta escribiendo.

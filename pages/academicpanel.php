@@ -181,6 +181,20 @@ echo <<<EOT
       flex-direction: column;
       gap: 0.25rem;
     }
+    /* Financial breakdown filter cards: clickable + active state. */
+    .filter-card {
+      transition: transform .15s ease, box-shadow .15s ease;
+    }
+    .filter-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.10);
+    }
+    .filter-card-active {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 18px rgba(0,0,0,0.18) !important;
+      outline: 3px solid currentColor;
+      outline-offset: -1px;
+    }
   </style>
   
   <script>
