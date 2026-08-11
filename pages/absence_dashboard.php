@@ -1808,6 +1808,10 @@ foreach ($all_ids as $cid) {
 }
 
 // ── Output ─────────────────────────────────────────────────────────────────────
+// BUILD MARKER — visible in View Source to confirm the new UI is being served.
+// Increment this string whenever you change absence_dashboard.php so users can
+// verify in view-source that their browser is not showing a stale cached copy.
+echo "<!-- ABSENCE_DASHBOARD_BUILD:2026-08-11-attendance-support-v1 -->\n";
 echo $OUTPUT->header();
 $sesskey  = sesskey();
 $ajax_url = (new moodle_url('/local/grupomakro_core/pages/absence_dashboard.php'))->out(false);
