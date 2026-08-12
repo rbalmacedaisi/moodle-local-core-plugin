@@ -703,10 +703,15 @@ list($fsClause, $fsParams) = local_grupomakro_translate_financial_filter($params
         // totalResults:
         //   - Con filtro financiero: universo activo + filtro
         //     (mantiene comportamiento original: 73 mora activos, 323 al_dia, etc.)
-        //   - Sin filtro (Mostrar todos / Estudiantes Activos): TODOS
-        //     los lpu con rol=student (966), sin importar clase ni status.
-        //     Asi al hacer click en "Mostrar todos" el usuario ve TODOS los
-        //     matriculados, no solo los activos.
+        //   - Con filtro 'active' (card Estudiantes Activos): universo
+        //     activo sin filtro financiero (398). El usuario quiere que
+        //     click en "Estudiantes Activos" filtre a 398.
+        //   - Sin filtro (Mostrar todos / vacio): TODOS los lpu con
+        //     rol=student (966). El usuario quiere ver TODOS los
+        //     matriculados al "Mostrar todos".
+        $useActiveUniverse = !empty($tableOnlyConditions)
+            || (isset($params['financial_status']) && $params['financial_status'] === 'active');
+
         if (!empty($tableOnlyConditions)) {
             $financialClause = implode(' AND ', $tableOnlyConditions);
             $totalSql = $activeuniverseql . ' AND (' . $financialClause . ')';
@@ -719,6 +724,16 @@ list($fsClause, $fsParams) = local_grupomakro_translate_financial_filter($params
                     $tableOnlyParams
                 )
             );
+        } elseif ($useActiveUniverse) {
+            // Filter 'active' (sin filtro financiero): universo activo = 398.
+            $totalresults = (int)$DB->count_records_sql(
+                $activeuniverseql,
+                array_merge(
+                    $sqlparams,
+                    ['lpu_chk_role' => 'student'],
+                    $tc_fid ? ['tc_fid_chk' => $tc_fid] : []
+                )
+            );
         } else {
             // Sin filtro: TODOS los lpu (sin EXISTS). Eso es lo que el
             // usuario pidio: al "Mostrar todos" ver TODOS los matriculados.
@@ -729,9 +744,10 @@ list($fsClause, $fsParams) = local_grupomakro_translate_financial_filter($params
         }
 
         // pageusers:
-        //   - Con filtro: universo activo + filtro (comportamiento original)
+        //   - Con filtro financiero o 'active': universo activo + filtro
         //   - Sin filtro: TODOS los lpu (966), query simple
-        if (!empty($tableOnlyConditions)) {
+        if ($useActiveUniverse) {
+            // Universo activo (con o sin filtro financiero encima).
             $pageusersSql = "SELECT DISTINCT u.id, u.firstname, u.lastname
                    $fromsql
                    $tableWhereclause

@@ -6,10 +6,10 @@ template: `
                 <v-row no-gutters>
                     <v-col cols="12" md="3" class="px-1 mb-2">
                         <v-card class="pa-4 d-flex align-center filter-card"
-                               :class="{ 'filter-card-active': activeFilterCard === 'all' }"
+                               :class="{ 'filter-card-active': activeFilterCard === 'active' }"
                                outlined
                                style="border-left: 5px solid #4CAF50; height: 100%; cursor: pointer;"
-                               @click.stop="setActiveFilter('all')">
+                               @click.stop="setActiveFilter('active')">
                             <div>
                                 <div class="text-overline mb-0">Estudiantes Activos</div>
                                 <div class="d-flex align-center" style="gap:6px">
@@ -699,8 +699,9 @@ template: `
             countsTimer: null,
             countsBackoffTimer: null,
             countsAbortController: null,
-            // Card-based filter: 'all' (default), 'up_to_date', 'in_arrears', 'pending'.
-            activeFilterCard: 'all',
+            // Card-based filter: 'active' (universo activo, 398), 'all' (mostrar todos, 966),
+            // 'up_to_date' (323), 'in_arrears' (73), 'pending' (1).
+            activeFilterCard: 'active',
             options: {
                 page: 1,
                 itemsPerPage: 15,
@@ -768,12 +769,13 @@ template: `
         },
         activeFilterLabel() {
             const map = {
-                'all': 'Todos',
+                'all': 'Mostrar todos',
+                'active': 'Estudiantes Activos',
                 'up_to_date': this.lang.financial_up_to_date || 'Al día (financiero)',
                 'in_arrears': this.lang.financial_in_arrears || 'En mora',
                 'pending': this.lang.financial_pending || 'Pendientes / sin contrato',
             };
-            return map[this.activeFilterCard] || map['all'];
+            return map[this.activeFilterCard] || map['active'];
         },
         headers() {
             const lang = this.lang;
@@ -1026,12 +1028,13 @@ template: `
          *   'pending'     -> 'pending'    (sin fila financiera OR sin_contrato_o_usuario)
          */
         setActiveFilter(cardKey) {
-            // La card 'all' SIEMPRE resetea (intuitivo: click en ella
-            // significa 'mostrar todos', sin importar si ya esta activa).
+            // Logica de toggle entre cards:
+            //   - Click en 'all' (boton Mostrar todos): siempre va a 'all'.
+            //   - Click en una card ya activa: toggle a 'all' (reset).
+            //   - Click en otra card: cambia a esa.
             if (cardKey === 'all') {
                 this.activeFilterCard = 'all';
             } else if (this.activeFilterCard === cardKey) {
-                // Click sobre la card ya activa (no 'all'): toggle a 'all'.
                 this.activeFilterCard = 'all';
                 cardKey = 'all';
             } else {
@@ -1040,6 +1043,7 @@ template: `
 
             const map = {
                 'all':        '',
+                'active':     'active',
                 'up_to_date': 'up_to_date',
                 'in_arrears': 'mora',
                 'pending':    'pending',
