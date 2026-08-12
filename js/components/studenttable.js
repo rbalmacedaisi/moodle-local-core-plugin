@@ -9,14 +9,14 @@ template: `
                                :class="{ 'filter-card-active': activeFilterCard === 'all' }"
                                outlined
                                style="border-left: 5px solid #4CAF50; height: 100%; cursor: pointer;"
-                               @click="setActiveFilter('all')">
+                               @click.stop="setActiveFilter('all')">
                             <div>
                                 <div class="text-overline mb-0">Estudiantes Activos</div>
                                 <div class="d-flex align-center" style="gap:6px">
                                     <span class="text-h4 font-weight-bold success--text">{{ activeUsers }}</span>
                                     <v-tooltip max-width="340" right>
                                         <template v-slot:activator="{ on, attrs }">
-                                            <v-icon v-bind="attrs" v-on="on" size="18" color="grey darken-1" style="cursor:pointer;margin-top:2px">mdi-information-outline</v-icon>
+                                            <v-icon v-bind="attrs" v-on="on" @click.stop="" size="18" color="grey darken-1" style="cursor:pointer;margin-top:2px">mdi-information-outline</v-icon>
                                         </template>
                                         <div style="font-size:12px;line-height:1.6">
                                             <div style="font-weight:700;margin-bottom:6px">¿Cómo se calcula?</div>
@@ -42,14 +42,14 @@ template: `
                                :class="{ 'filter-card-active': activeFilterCard === 'up_to_date' }"
                                outlined
                                style="border-left: 5px solid #1976D2; height: 100%; cursor: pointer;"
-                               @click="setActiveFilter('up_to_date')">
+                               @click.stop="setActiveFilter('up_to_date')">
                             <div>
                                 <div class="text-overline mb-0">{{ lang.financial_up_to_date || 'Al día (financiero)' }}</div>
                                 <div class="d-flex align-center" style="gap:6px">
                                     <span class="text-h4 font-weight-bold primary--text">{{ counts.upToDate }}</span>
                                     <v-tooltip max-width="340" right>
                                         <template v-slot:activator="{ on, attrs }">
-                                            <v-icon v-bind="attrs" v-on="on" size="18" color="grey darken-1" style="cursor:pointer;margin-top:2px">mdi-information-outline</v-icon>
+                                            <v-icon v-bind="attrs" v-on="on" @click.stop="" size="18" color="grey darken-1" style="cursor:pointer;margin-top:2px">mdi-information-outline</v-icon>
                                         </template>
                                         <div style="font-size:12px;line-height:1.6">
                                             <div>al_dia: <b>{{ counts.al_dia }}</b></div>
@@ -70,14 +70,14 @@ template: `
                                :class="{ 'filter-card-active': activeFilterCard === 'in_arrears' }"
                                outlined
                                style="border-left: 5px solid #E53935; height: 100%; cursor: pointer;"
-                               @click="setActiveFilter('in_arrears')">
+                               @click.stop="setActiveFilter('in_arrears')">
                             <div>
                                 <div class="text-overline mb-0">{{ lang.financial_in_arrears || 'En mora' }}</div>
                                 <div class="d-flex align-center" style="gap:6px">
                                     <span class="text-h4 font-weight-bold error--text">{{ counts.mora }}</span>
                                     <v-tooltip max-width="340" right>
                                         <template v-slot:activator="{ on, attrs }">
-                                            <v-icon v-bind="attrs" v-on="on" size="18" color="grey darken-1" style="cursor:pointer;margin-top:2px">mdi-information-outline</v-icon>
+                                            <v-icon v-bind="attrs" v-on="on" @click.stop="" size="18" color="grey darken-1" style="cursor:pointer;margin-top:2px">mdi-information-outline</v-icon>
                                         </template>
                                         <div style="font-size:12px;line-height:1.6">
                                             <div>Estudiantes con <em>facturas vencidas</em> en Odoo más allá del periodo de gracia configurado.</div>
@@ -95,14 +95,14 @@ template: `
                                :class="{ 'filter-card-active': activeFilterCard === 'pending' }"
                                outlined
                                style="border-left: 5px solid #FB8C00; height: 100%; cursor: pointer;"
-                               @click="setActiveFilter('pending')">
+                               @click.stop="setActiveFilter('pending')">
                             <div>
                                 <div class="text-overline mb-0">{{ lang.financial_pending || 'Pendientes / sin contrato' }}</div>
                                 <div class="d-flex align-center" style="gap:6px">
                                     <span class="text-h4 font-weight-bold warning--text">{{ counts.pending }}</span>
                                     <v-tooltip max-width="340" right>
                                         <template v-slot:activator="{ on, attrs }">
-                                            <v-icon v-bind="attrs" v-on="on" size="18" color="grey darken-1" style="cursor:pointer;margin-top:2px">mdi-information-outline</v-icon>
+                                            <v-icon v-bind="attrs" v-on="on" @click.stop="" size="18" color="grey darken-1" style="cursor:pointer;margin-top:2px">mdi-information-outline</v-icon>
                                         </template>
                                         <div style="font-size:12px;line-height:1.6">
                                             <div style="font-weight:700;margin-bottom:6px">¿Qué significa?</div>
@@ -119,13 +119,26 @@ template: `
                         </v-card>
                     </v-col>
                 </v-row>
-                <div class="caption grey--text text-right pr-2" style="font-size:11px">
+                <div class="caption grey--text pr-2 d-flex align-center justify-end" style="font-size:11px; gap:8px">
+                    <template v-if="activeFilterCard !== 'all'">
+                        <v-chip
+                            x-small
+                            color="primary"
+                            text-color="white"
+                            close-icon="mdi-close"
+                            @click:close="setActiveFilter('all')"
+                            class="mr-1"
+                        >
+                            Filtro: {{ activeFilterLabel }}
+                        </v-chip>
+                        <a href="#" @click.prevent="setActiveFilter('all')" style="color:#1976D2; text-decoration:none; font-weight:600">
+                            Mostrar todos
+                        </a>
+                        <span class="mx-2 grey--text">·</span>
+                    </template>
                     <v-icon size="12" :color="countsOffline ? 'error' : 'grey'">mdi-circle-medium</v-icon>
                     <span v-if="countsOffline">{{ (lang.financial_indicator_offline || 'Indicador offline — reintentando en {$a}s').replace('{$a}', countsRetryIn) }}</span>
                     <span v-else-if="countsLoading">{{ lang.financial_refresh_indicator || 'Actualizando...' }}</span>
-                    <span v-else-if="activeFilterCard !== 'all'">
-                        Filtro activo: <b>{{ activeFilterLabel }}</b> · Última actualización: {{ countsUpdatedAtLabel }} ({{ countsAge }}s)
-                    </span>
                     <span v-else>Última actualización: {{ countsUpdatedAtLabel }} ({{ countsAge }}s)</span>
                 </div>
             </v-col>
@@ -999,11 +1012,17 @@ template: `
          *   'pending'     -> 'pending'    (sin fila financiera OR sin_contrato_o_usuario)
          */
         setActiveFilter(cardKey) {
-            if (this.activeFilterCard === cardKey) {
-                // Click sobre la card ya activa: toggle a 'all'.
+            // La card 'all' SIEMPRE resetea (intuitivo: click en ella
+            // significa 'mostrar todos', sin importar si ya esta activa).
+            if (cardKey === 'all') {
+                this.activeFilterCard = 'all';
+            } else if (this.activeFilterCard === cardKey) {
+                // Click sobre la card ya activa (no 'all'): toggle a 'all'.
+                this.activeFilterCard = 'all';
                 cardKey = 'all';
+            } else {
+                this.activeFilterCard = cardKey;
             }
-            this.activeFilterCard = cardKey;
 
             const map = {
                 'all':        '',
@@ -1013,9 +1032,17 @@ template: `
             };
             this.filters.financialStatus = map[cardKey] || '';
 
-            // Reset paginación y refrescar.
+            // Reset paginacion y refrescar la tabla.
             this.options.page = 1;
             this.applyFilters();
+        },
+
+        /**
+         * Helper: limpia el filtro financiero (equivalente a click en
+         * 'Estudiantes Activos' o el boton 'Mostrar todos').
+         */
+        clearFinancialFilter() {
+            this.setActiveFilter('all');
         },
 
         async fetchCounts(isManual = false) {
