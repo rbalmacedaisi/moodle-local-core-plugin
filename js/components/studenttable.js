@@ -851,6 +851,13 @@ template: `
         'options.itemsPerPage': function() {
             this.getDataFromApi();
         },
+        'filters.financialStatus': function(newval, oldval) {
+            // Safety net: si por algun motivo setActiveFilter() no
+            // gatilla un fetch, este watch lo garantiza.
+            if (newval !== oldval && this.fetchStudentList) {
+                this.fetchStudentList();
+            }
+        },
         classId: {
             handler() {
                 if (this.options.page !== 1) {
@@ -1039,9 +1046,28 @@ template: `
             };
             this.filters.financialStatus = map[cardKey] || '';
 
-            // Reset paginacion y refrescar la tabla.
-            this.options.page = 1;
-            this.applyFilters();
+            // Cerrar el dialog de filtros si esta abierto.
+            this.filterDialog = false;
+
+            // Reset paginacion a 1 (forzando reactividad de Vue aunque
+            // ya estuviese en 1).
+            this.$set(this.options, 'page', 1);
+
+            // IMPORTANTE: no dependemos del watch de options.page (Vue
+            // no dispara si el valor no cambia). Llamamos directamente
+            // a fetchStudentList() que SIEMPRE hace fetch.
+            this.fetchStudentList();
+        },
+
+        /**
+         * Fetch directo de la lista de estudiantes, sin depender del
+         * watch de options.page. Usado por los card-filters, el chip
+         * "clear" y el link "Mostrar todos".
+         */
+        fetchStudentList() {
+            // Forzar el nonce para invalidar cualquier respuesta en vuelo.
+            this.fetchNonce++;
+            this.getDataFromApi();
         },
 
         /**
