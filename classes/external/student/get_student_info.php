@@ -700,9 +700,13 @@ list($fsClause, $fsParams) = local_grupomakro_translate_financial_filter($params
             )
         );
 
-        // totalResults = universo activo + filtro financiero (si hay).
-        // Asi si filtras por 'up_to_date', el totalResults coincide con la
-        // card 'Al dia'. Si no hay filtro, totalResults == activeuserscount.
+        // totalResults:
+        //   - Con filtro financiero: universo activo + filtro
+        //     (mantiene comportamiento original: 73 mora activos, 323 al_dia, etc.)
+        //   - Sin filtro (Mostrar todos / Estudiantes Activos): TODOS
+        //     los lpu con rol=student (966), sin importar clase ni status.
+        //     Asi al hacer click en "Mostrar todos" el usuario ve TODOS los
+        //     matriculados, no solo los activos.
         if (!empty($tableOnlyConditions)) {
             $financialClause = implode(' AND ', $tableOnlyConditions);
             $totalSql = $activeuniverseql . ' AND (' . $financialClause . ')';
@@ -716,43 +720,62 @@ list($fsClause, $fsParams) = local_grupomakro_translate_financial_filter($params
                 )
             );
         } else {
-            $totalresults = $activeuserscount;
+            // Sin filtro: TODOS los lpu (sin EXISTS). Eso es lo que el
+            // usuario pidio: al "Mostrar todos" ver TODOS los matriculados.
+            $totalresults = (int)$DB->count_records_sql(
+                "SELECT COUNT(DISTINCT u.id) $fromsql $whereclause",
+                $sqlparams
+            );
         }
 
-        // pageusers = universo activo + filtro financiero (misma semantica que
-// totalresults) con paginacion.
-        $pageusersSql = "SELECT DISTINCT u.id, u.firstname, u.lastname
-               $fromsql
-               $tableWhereclause
-               AND NOT EXISTS (
-                   SELECT 1 FROM {local_learning_users} lpu_chk
-                    WHERE lpu_chk.userid = u.id
-                      AND lpu_chk.userrolename = :lpu_chk_role
-                      AND COALESCE(lpu_chk.status, 'activo') <> 'activo'
-               )
-               AND EXISTS (
-                   SELECT 1
-                     FROM {gmk_course_progre} cp_act
-                     JOIN {gmk_class} gc_act ON gc_act.id = cp_act.classid
-                     $tc_join_sql
-                    WHERE cp_act.userid = u.id
-                      AND cp_act.status IN (1, 2, 3)
-                      AND gc_act.approved = 1
-                      AND gc_act.closed   = 0
-                      $tc_where_sql
-               )
-           ORDER BY u.firstname ASC, u.lastname ASC, u.id ASC";
-        $pageusersParams = array_merge(
-            $allParams,
-            ['lpu_chk_role' => 'student'],
-            $tc_fid ? ['tc_fid_chk' => $tc_fid] : []
-        );
-        $pageusers = $DB->get_records_sql(
-            $pageusersSql,
-            $pageusersParams,
-            $offset,
-            $resultsperpage
-        );
+        // pageusers:
+        //   - Con filtro: universo activo + filtro (comportamiento original)
+        //   - Sin filtro: TODOS los lpu (966), query simple
+        if (!empty($tableOnlyConditions)) {
+            $pageusersSql = "SELECT DISTINCT u.id, u.firstname, u.lastname
+                   $fromsql
+                   $tableWhereclause
+                   AND NOT EXISTS (
+                       SELECT 1 FROM {local_learning_users} lpu_chk
+                        WHERE lpu_chk.userid = u.id
+                          AND lpu_chk.userrolename = :lpu_chk_role
+                          AND COALESCE(lpu_chk.status, 'activo') <> 'activo'
+                   )
+                   AND EXISTS (
+                       SELECT 1
+                         FROM {gmk_course_progre} cp_act
+                         JOIN {gmk_class} gc_act ON gc_act.id = cp_act.classid
+                         $tc_join_sql
+                        WHERE cp_act.userid = u.id
+                           AND cp_act.status IN (1, 2, 3)
+                           AND gc_act.approved = 1
+                           AND gc_act.closed   = 0
+                           $tc_where_sql
+                   )
+               ORDER BY u.firstname ASC, u.lastname ASC, u.id ASC";
+            $pageusers = $DB->get_records_sql(
+                $pageusersSql,
+                array_merge(
+                    $allParams,
+                    ['lpu_chk_role' => 'student'],
+                    $tc_fid ? ['tc_fid_chk' => $tc_fid] : []
+                ),
+                $offset,
+                $resultsperpage
+            );
+        } else {
+            // Sin filtro: TODOS los lpu, query simple.
+            $pageusersSql = "SELECT DISTINCT u.id, u.firstname, u.lastname
+                   $fromsql
+                   $tableWhereclause
+               ORDER BY u.firstname ASC, u.lastname ASC, u.id ASC";
+            $pageusers = $DB->get_records_sql(
+                $pageusersSql,
+                $allParams,
+                $offset,
+                $resultsperpage
+            );
+        }
 
         if (empty($pageusers)) {
             return [
