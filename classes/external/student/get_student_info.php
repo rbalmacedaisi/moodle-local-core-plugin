@@ -54,6 +54,13 @@ if (!function_exists('local_grupomakro_translate_financial_filter')) {
         if ($f === '' || strtolower($f) === 'all') {
             return [null, []];
         }
+        if ($f === 'active') {
+            // 'active' = universo activo (clase vigente + status=activo),
+            // sin filtro financiero. La card "Estudiantes Activos" usa esto.
+            // Devolvemos 1=1 (no agrega filtro financiero) y dejamos que
+            // el caller aplique el universo activo via $useActiveUniverse.
+            return ['1=1', []];
+        }
         if ($f === 'up_to_date') {
             // Incluye los aliases historicos de cada bucket para que el
             // filtro coincida exactamente con la suma de las cards
