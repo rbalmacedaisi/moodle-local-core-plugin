@@ -120,7 +120,7 @@ template: `
                     </v-col>
                 </v-row>
                 <div class="caption grey--text pr-2 d-flex align-center justify-end" style="font-size:11px; gap:8px">
-                    <template v-if="activeFilterCard !== 'all'">
+                    <span v-if="activeFilterCard !== 'all'" class="d-flex align-center" style="gap:6px">
                         <v-chip
                             x-small
                             color="primary"
@@ -131,11 +131,18 @@ template: `
                         >
                             Filtro: {{ activeFilterLabel }}
                         </v-chip>
-                        <a href="#" @click.prevent="setActiveFilter('all')" style="color:#1976D2; text-decoration:none; font-weight:600">
+                        <a href="#" @click.prevent="setActiveFilter('all')"
+                           style="color:#1976D2; text-decoration:none; font-weight:600">
                             Mostrar todos
                         </a>
                         <span class="mx-2 grey--text">·</span>
-                    </template>
+                    </span>
+                    <a v-else href="#"
+                       @click.prevent
+                       style="color:#9E9E9E; text-decoration:none; font-weight:500; cursor:default"
+                       title="Mostrar todos los estudiantes (sin filtro financiero)">
+                        Mostrar todos
+                    </a>
                     <v-icon size="12" :color="countsOffline ? 'error' : 'grey'">mdi-circle-medium</v-icon>
                     <span v-if="countsOffline">{{ (lang.financial_indicator_offline || 'Indicador offline — reintentando en {$a}s').replace('{$a}', countsRetryIn) }}</span>
                     <span v-else-if="countsLoading">{{ lang.financial_refresh_indicator || 'Actualizando...' }}</span>
