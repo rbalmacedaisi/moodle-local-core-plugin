@@ -50,6 +50,7 @@ $statusLabels = [
 
 $fieldStatus = $DB->get_record('user_info_field', ['shortname' => 'studentstatus']);
 $fieldDoc = $DB->get_record('user_info_field', ['shortname' => 'documentnumber']);
+$fieldJourney = $DB->get_record('user_info_field', ['shortname' => 'gmkjourney']);
 
 $sqlParams = [];
 
@@ -96,8 +97,16 @@ if ($withgrades) {
     }
 
     if (!empty($financial_status)) {
-        $sqlConditions[] = "fs.status = :financial_status";
-        $sqlParams['financial_status'] = $financial_status;
+        // El JS envía tanto valores crudos de fs.status (al_dia, mora,
+        // sin_contrato_o_usuario) como nombres lógicos de las cards
+        // financieras (up_to_date, in_arrears, pending, active). Usamos el
+        // mismo helper que el endpoint de la tabla para traducir los nombres
+        // lógicos a SQL, así el export refleja 1:1 lo que el usuario ve.
+        list($fsClause, $fsParams) = local_grupomakro_translate_financial_filter($financial_status);
+        if ($fsClause !== null) {
+            $sqlConditions[] = $fsClause;
+            $sqlParams = array_merge($sqlParams, $fsParams);
+        }
     }
 
     $whereClause = "WHERE " . implode(' AND ', $sqlConditions);
@@ -276,10 +285,18 @@ if ($withgrades) {
             $sqlParams = array_merge($sqlParams, $inparams);
         }
     }
-    
+
     if (!empty($financial_status)) {
-        $sqlConditions[] = "fs.status = :financial_status";
-        $sqlParams['financial_status'] = $financial_status;
+        // El JS envía tanto valores crudos de fs.status (al_dia, mora,
+        // sin_contrato_o_usuario) como nombres lógicos de las cards
+        // financieras (up_to_date, in_arrears, pending, active). Usamos el
+        // mismo helper que el endpoint de la tabla para traducir los nombres
+        // lógicos a SQL, así el export refleja 1:1 lo que el usuario ve.
+        list($fsClause, $fsParams) = local_grupomakro_translate_financial_filter($financial_status);
+        if ($fsClause !== null) {
+            $sqlConditions[] = $fsClause;
+            $sqlParams = array_merge($sqlParams, $fsParams);
+        }
     }
 
     $whereClause = "WHERE " . implode(' AND ', $sqlConditions);
@@ -334,11 +351,19 @@ if ($withgrades) {
         }
 
         if (!isset($userData[$user->userid])) {
+            // Journey (mismo custom field que la tabla: shortname=gmkjourney).
+            $journey = '';
+            if ($fieldJourney) {
+                $val = $DB->get_field('user_info_data', 'data', ['fieldid' => $fieldJourney->id, 'userid' => $user->userid]);
+                if ($val !== false && !empty($val)) $journey = $val;
+            }
+
             $row = new stdClass();
             $row->id = $user->userid;
             $row->fullname = $user->firstname . ' ' . $user->lastname;
             $row->email = $user->email;
             $row->identification = $finalID;
+            $row->journey = $journey;
             $row->careers = [];
             $row->periods = [];
             $row->subperiods = $user->subperiodname ?: '--';
@@ -358,8 +383,8 @@ if ($withgrades) {
         $data[] = $row;
     }
 
-    $columns = ['id', 'fullname', 'email', 'identification', 'careers', 'periods', 'subperiods', 'student_status', 'financial_status'];
-    $headers = ['ID Moodle', 'Nombre Completo', 'Email', 'Identificación', 'Carreras', 'Cuatrimestres', 'Bloque', 'Estado Estudiante', 'Estado Financiero'];
+    $columns = ['id', 'fullname', 'email', 'identification', 'journey', 'careers', 'periods', 'subperiods', 'student_status', 'financial_status'];
+    $headers = ['ID Moodle', 'Nombre Completo', 'Email', 'Identificación', 'Jornada', 'Carreras', 'Cuatrimestres', 'Bloque', 'Estado Estudiante', 'Estado Financiero'];
 }
 
 $columnsWithHeaders = array_combine($columns, $headers);
