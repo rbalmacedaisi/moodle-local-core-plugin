@@ -13,7 +13,7 @@ global $DB;
 $planid   = optional_param('planid', '', PARAM_RAW);
 $periodid = optional_param('periodid', '', PARAM_RAW);
 $status_filter = optional_param('status', '', PARAM_TEXT);
-$financial_status_filter = optional_param('financial_status', '', PARAM_TEXT); 
+$financial_status_filter = optional_param('financial_status', '', PARAM_TEXT);
 $search = optional_param('search', '', PARAM_RAW);
 
 $sqlParams = ['userrolename' => 'student'];
@@ -45,8 +45,16 @@ if (!empty($periodid)) {
 }
 
 if (!empty($financial_status_filter)) {
-    $sqlConditions[] = "fs.status = :financial_status_filter";
-    $sqlParams['financial_status_filter'] = $financial_status_filter;
+    // El JS envía tanto valores crudos de fs.status (al_dia, mora,
+    // sin_contrato_o_usuario) como nombres lógicos de las cards
+    // financieras (up_to_date, in_arrears, pending, active). Usamos el
+    // mismo helper que el endpoint de la tabla para traducir los nombres
+    // lógicos a SQL, así el export refleja 1:1 lo que el usuario ve.
+    list($fsClause, $fsParams) = local_grupomakro_translate_financial_filter($financial_status_filter);
+    if ($fsClause !== null) {
+        $sqlConditions[] = $fsClause;
+        $sqlParams = array_merge($sqlParams, $fsParams);
+    }
 }
 
 $whereClause = "WHERE " . implode(' AND ', $sqlConditions);
@@ -67,16 +75,17 @@ $query = "
 
 $fieldStatus = $DB->get_record('user_info_field', array('shortname' => 'studentstatus'));
 $fieldDoc = $DB->get_record('user_info_field', array('shortname' => 'documentnumber'));
+$fieldJourney = $DB->get_record('user_info_field', array('shortname' => 'gmkjourney'));
 
-// Columns
-$columns = ['id', 'fullname', 'email', 'identification', 'career', 'period', 'block', 'status', 'academic_status', 'financial_status'];
-$headers = ['ID Moodle', 'Nombre Completo', 'Email', 'Identificación', 'Carrera', 'Cuatrimestre', 'Bloque', 'Estado', 'Estado Académico', 'Estado Financiero'];
+// Columns (Jornada añadida entre Identificación y Carrera, mismo orden que la tabla).
+$columns = ['id', 'fullname', 'email', 'identification', 'journey', 'career', 'period', 'block', 'status', 'academic_status', 'financial_status'];
+$headers = ['ID Moodle', 'Nombre Completo', 'Email', 'Identificación', 'Jornada', 'Carrera', 'Cuatrimestre', 'Bloque', 'Estado', 'Estado Académico', 'Estado Financiero'];
 
 // Prepare Iterator
 $data = [];
 foreach ($recordset as $user) {
     // Status Logic
-    $status = 'Activo'; 
+    $status = 'Activo';
     if ($fieldStatus) {
         $val = $DB->get_field('user_info_data', 'data', ['fieldid' => $fieldStatus->id, 'userid' => $user->userid]);
         if ($val !== false && !empty($val)) $status = $val;
@@ -97,6 +106,13 @@ foreach ($recordset as $user) {
     }
     $finalID = !empty($docNumber) ? $docNumber : $user->idnumber;
 
+    // Journey (mismo custom field que la tabla: shortname=gmkjourney).
+    $journey = '';
+    if ($fieldJourney) {
+        $val = $DB->get_field('user_info_data', 'data', ['fieldid' => $fieldJourney->id, 'userid' => $user->userid]);
+        if ($val !== false && !empty($val)) $journey = $val;
+    }
+
     // Search filter matching JS
     if (!empty($search)) {
         $fullName = $user->firstname . ' ' . $user->lastname;
@@ -115,6 +131,7 @@ foreach ($recordset as $user) {
     $row->fullname = $user->firstname . ' ' . $user->lastname;
     $row->email = $user->email;
     $row->identification = $finalID;
+    $row->journey = $journey;
     $row->career = $user->career;
 
     // Period
@@ -140,7 +157,7 @@ foreach ($recordset as $user) {
     $data[] = $row;
 }
 $recordset->close();
-    
+
 // Correct approach for Moodle dataformat:
 // Columns should be [key => Label]
 $columnsWithHeaders = array_combine($columns, $headers);
@@ -151,7 +168,7 @@ if (ob_get_length()) {
 
 \core\dataformat::download_data(
     'estudiantes_grupomakro_' . date('Y-m-d'),
-    'excel', 
+    'excel',
     $columnsWithHeaders,
     $data
 );

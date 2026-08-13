@@ -33,64 +33,9 @@ use external_value;
 use stdClass;
 use Exception;
 
-/**
- * Helper: mapea los valores logicos del filtro financiero (los que la UI
- * de academicpanel envia al hacer click en las cards) a SQL ejecutable.
- *
- *   'all'         -> sin filtro (string vacio)
- *   'up_to_date'  -> fs.status IN ('al_dia', 'becado', 'convenio')
- *   'in_arrears'  -> fs.status = 'mora'
- *   'pending'     -> fs.id IS NULL OR fs.status = 'sin_contrato_o_usuario'
- *   cualquier otro valor -> fs.status = :value (compatibilidad con filtro
- *                                              del dropdown existente)
- *
- * Devuelve un array con 2 elementos:
- *   [string $sqlClause, array $params]
- * Si $sqlClause es null, no hay filtro.
- */
-if (!function_exists('local_grupomakro_translate_financial_filter')) {
-    function local_grupomakro_translate_financial_filter(string $filter): array {
-        $f = trim($filter);
-        if ($f === '' || strtolower($f) === 'all') {
-            return [null, []];
-        }
-        if ($f === 'active') {
-            // 'active' = universo activo (clase vigente + status=activo),
-            // sin filtro financiero. La card "Estudiantes Activos" usa esto.
-            // Devolvemos 1=1 (no agrega filtro financiero) y dejamos que
-            // el caller aplique el universo activo via $useActiveUniverse.
-            return ['1=1', []];
-        }
-        if ($f === 'up_to_date') {
-            // Incluye los aliases historicos de cada bucket para que el
-            // filtro coincida exactamente con la suma de las cards
-            // (get_financial_counts mapea contrato_especial -> convenio,
-            // sincontrato -> sin_contrato, etc).
-            return [
-                "fs.status IN ('al_dia', 'becado', 'convenio', 'contrato_especial')",
-                [],
-            ];
-        }
-        if ($f === 'in_arrears') {
-            return [
-                "fs.status = :financial_status",
-                ['financial_status' => 'mora'],
-            ];
-        }
-        if ($f === 'pending') {
-            // Incluye el alias sincontrato (typo historico) ademas del
-            // canonico sin_contrato_o_usuario.
-            return [
-                "(fs.id IS NULL OR fs.status IN ('sin_contrato_o_usuario', 'sincontrato'))",
-                [],
-            ];
-        }
-        return [
-            "fs.status = :financial_status",
-            ['financial_status' => $f],
-        ];
-    }
-}
+// local_grupomakro_translate_financial_filter() se define en locallib.php
+// (namespace global) para que tanto este endpoint (namespaced) como las
+// paginas de export (namespace global) puedan usarla sin duplicar codigo.
 
 
 defined('MOODLE_INTERNAL') || die();
