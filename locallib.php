@@ -168,7 +168,9 @@ if (!function_exists('local_grupomakro_active_universe_clause')) {
             $tc_where_sql = "AND _tc_chk.instanceid IS NULL";
         }
 
-        $clause = "AND NOT EXISTS (
+        // La clausula se devuelve SIN el "AND" inicial: el caller la concatena
+        // con implode(' AND ', $conditions) en su WHERE.
+        $clause = "NOT EXISTS (
                 SELECT 1 FROM {local_learning_users} lpu_chk
                  WHERE lpu_chk.userid = u.id
                    AND lpu_chk.userrolename = :lpu_chk_role
