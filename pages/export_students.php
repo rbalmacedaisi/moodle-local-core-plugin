@@ -55,6 +55,17 @@ if (!empty($financial_status_filter)) {
         $sqlConditions[] = $fsClause;
         $sqlParams = array_merge($sqlParams, $fsParams);
     }
+
+    // Cualquier filtro financiero no vacio (incluyendo 'active' / 'up_to_date'
+    // / card values) dispara el "universo activo" en la tabla — replica esa
+    // misma logica aca. Sin esto, el export retornaba TODOS los lpu con
+    // student (1478) en lugar del universo activo (~398) cuando el usuario
+    // seleccionaba "Estudiantes Activos", incluyendo inactivos/retirados.
+    if (local_grupomakro_needs_active_universe($financial_status_filter)) {
+        list($auClause, $auParams) = local_grupomakro_active_universe_clause();
+        $sqlConditions[] = $auClause;
+        $sqlParams = array_merge($sqlParams, $auParams);
+    }
 }
 
 $whereClause = "WHERE " . implode(' AND ', $sqlConditions);

@@ -107,6 +107,16 @@ if ($withgrades) {
             $sqlConditions[] = $fsClause;
             $sqlParams = array_merge($sqlParams, $fsParams);
         }
+
+        // Cualquier filtro financiero no vacio dispara el "universo activo"
+        // en la tabla — replica esa logica aca. Sin esto, el export retornaba
+        // TODOS los lpu con student en lugar del subconjunto activo cuando
+        // el usuario seleccionaba "Estudiantes Activos" / "Al dia" / etc.
+        if (local_grupomakro_needs_active_universe($financial_status)) {
+            list($auClause, $auParams) = local_grupomakro_active_universe_clause();
+            $sqlConditions[] = $auClause;
+            $sqlParams = array_merge($sqlParams, $auParams);
+        }
     }
 
     $whereClause = "WHERE " . implode(' AND ', $sqlConditions);
@@ -296,6 +306,16 @@ if ($withgrades) {
         if ($fsClause !== null) {
             $sqlConditions[] = $fsClause;
             $sqlParams = array_merge($sqlParams, $fsParams);
+        }
+
+        // Cualquier filtro financiero no vacio dispara el "universo activo"
+        // en la tabla — replica esa logica aca. Sin esto, el export retornaba
+        // TODOS los lpu con student en lugar del subconjunto activo cuando
+        // el usuario seleccionaba "Estudiantes Activos" / "Al dia" / etc.
+        if (local_grupomakro_needs_active_universe($financial_status)) {
+            list($auClause, $auParams) = local_grupomakro_active_universe_clause();
+            $sqlConditions[] = $auClause;
+            $sqlParams = array_merge($sqlParams, $auParams);
         }
     }
 

@@ -116,6 +116,80 @@ if (!function_exists('local_grupomakro_translate_financial_filter')) {
     }
 }
 
+if (!function_exists('local_grupomakro_needs_active_universe')) {
+    /**
+     * Devuelve true si el filtro financiero debe disparar el universo activo
+     * (misma logica que la tabla en get_student_info::execute_optimized):
+     * cualquier valor no vacio y distinto de 'all'/'empty' activa el universo.
+     *
+     * @param string $financial_status Valor crudo enviado por la UI.
+     * @return bool
+     */
+    function local_grupomakro_needs_active_universe(string $financial_status): bool {
+        $f = trim($financial_status);
+        if ($f === '' || strtolower($f) === 'all') {
+            return false;
+        }
+        return true;
+    }
+}
+
+if (!function_exists('local_grupomakro_active_universe_clause')) {
+    /**
+     * Devuelve el fragmento SQL (con placeholders nombrados) que aplica el
+     * "universo activo" de la tabla de estudiantes:
+     *
+     *   1. El estudiante NO tiene ninguna fila en local_learning_users con
+     *      status academico distinto de 'activo' (aplazado/retirado/etc).
+     *   2. El estudiante SI esta matriculado (gmk_course_progre.status en
+     *      1-3) en al menos una clase aprobada, no cerrada, y que NO sea
+     *      un curso transversal (customfield shortname=tc).
+     *
+     * Misma logica que el activeUsers/totalResults de la tabla (ver
+     * execute_optimized). Usa subqueries EXISTS para no requerir JOINs
+     * adicionales en el FROM del caller.
+     *
+     * Devuelve [string $clause, array $params].
+     */
+    function local_grupomakro_active_universe_clause(): array {
+        global $DB;
+
+        $tc_fid = (int)($DB->get_field('customfield_field', 'id', ['shortname' => 'tc']) ?: 0);
+
+        $params = ['lpu_chk_role' => 'student'];
+        $tc_join_sql = '';
+        $tc_where_sql = '';
+        if ($tc_fid) {
+            $params['tc_fid_chk'] = $tc_fid;
+            $tc_join_sql = "LEFT JOIN {customfield_data} _tc_chk
+                      ON _tc_chk.instanceid = gc_act.corecourseid
+                     AND _tc_chk.fieldid = :tc_fid_chk
+                     AND _tc_chk.value = '1'";
+            $tc_where_sql = "AND _tc_chk.instanceid IS NULL";
+        }
+
+        $clause = "AND NOT EXISTS (
+                SELECT 1 FROM {local_learning_users} lpu_chk
+                 WHERE lpu_chk.userid = u.id
+                   AND lpu_chk.userrolename = :lpu_chk_role
+                   AND COALESCE(lpu_chk.status, 'activo') <> 'activo'
+            )
+            AND EXISTS (
+                SELECT 1
+                  FROM {gmk_course_progre} cp_act
+                  JOIN {gmk_class} gc_act ON gc_act.id = cp_act.classid
+                  $tc_join_sql
+                 WHERE cp_act.userid = u.id
+                   AND cp_act.status IN (1, 2, 3)
+                   AND gc_act.approved = 1
+                   AND gc_act.closed   = 0
+                   $tc_where_sql
+            )";
+
+        return [$clause, $params];
+    }
+}
+
 // ===========================================================================
 // Planning-board edit lock (single-editor concurrency guard).
 // Only one user may edit/publish a period's board at a time. State is stored in
