@@ -19,6 +19,12 @@ $definitions = [
         'ttl' => 300, // 5 minutes: instructors with disponibility, low churn
     ],
     // === Calendar / schedule caches (added 2026-08 to fix slow get_class_events) ===
+    // NOTE (2026-08-15): the eight definitions below are currently UNUSED. get_class_events() was
+    // rewritten to bulk-prefetch from the DB instead, and their only accessor (gmk_muc() in
+    // locallib.php) is not called anywhere. They are kept because the definitions are harmless and
+    // the prefetch path may adopt them again, but do NOT add invalidation code for them: what the
+    // calendar and the dashboard actually serve lives in teacher_calendar_events and
+    // teacher_dashboard, both invalidated by gmk_invalidate_schedule_caches().
     // Cached enriched gmk_class record keyed by class id. Short TTL because
     // attendance session edits and enrolment changes can shift capacity/days.
     'gmkclass_enriched' => [

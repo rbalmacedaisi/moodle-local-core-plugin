@@ -341,6 +341,81 @@ if (!function_exists('gmk_muc_factories')) {
     }
 }
 
+if (!function_exists('gmk_invalidate_schedule_caches')) {
+    /**
+     * Invalidates the caches that actually serve schedule data, after a session mutation.
+     *
+     * Two MUC caches hold rendered schedule data for up to 120 seconds:
+     *   - teacher_calendar_events: the enriched calendar payload behind schedules.php and the
+     *     teacher dashboard calendar. Its keys embed the visible date range of each viewer, so the
+     *     entries touching a given class cannot be enumerated: the whole cache is purged (once per
+     *     request, since a purge is global anyway).
+     *   - teacher_dashboard: keyed by uid_<userid>_d_<Ymd>, so it is invalidated per affected user
+     *     (class instructor, group members and site admins) rather than purged wholesale, because
+     *     rebuilding it is expensive for teachers with many classes.
+     *
+     * Before this existed, rescheduling/deleting/copying a session left both views showing stale
+     * data until the TTL expired. The old invalidation targeted gmkclass_enriched / gmkbbbatrel,
+     * which no code reads (their only accessor, gmk_muc(), is unused), so it had no effect.
+     *
+     * @param int|null $classid Class whose participants must be invalidated. When empty, only the
+     *                          calendar cache is purged.
+     */
+    function gmk_invalidate_schedule_caches($classid = null): void {
+        global $DB;
+
+        if (!class_exists('\cache')) {
+            return;
+        }
+
+        static $calendarpurged = false;
+
+        try {
+            if (!$calendarpurged) {
+                \cache::make('local_grupomakro_core', 'teacher_calendar_events')->purge();
+                $calendarpurged = true;
+            }
+
+            $userids = [];
+            $classid = (int)$classid;
+            if ($classid > 0) {
+                $class = $DB->get_record('gmk_class', ['id' => $classid], 'id,instructorid,groupid');
+                if ($class) {
+                    if (!empty($class->instructorid)) {
+                        $userids[(int)$class->instructorid] = (int)$class->instructorid;
+                    }
+                    if (!empty($class->groupid)) {
+                        $members = $DB->get_records('groups_members', ['groupid' => (int)$class->groupid], '', 'id,userid');
+                        foreach ($members as $gm) {
+                            $userids[(int)$gm->userid] = (int)$gm->userid;
+                        }
+                    }
+                }
+            }
+            // Admin dashboards aggregate every class, so they go stale on any class change.
+            foreach (explode(',', (string)get_config('moodle', 'siteadmins')) as $adminid) {
+                $adminid = (int)trim($adminid);
+                if ($adminid > 0) {
+                    $userids[$adminid] = $adminid;
+                }
+            }
+
+            if (!empty($userids)) {
+                $dashboard = \cache::make('local_grupomakro_core', 'teacher_dashboard');
+                $day = date('Ymd');
+                foreach ($userids as $uid) {
+                    $dashboard->delete('uid_' . $uid . '_d_' . $day);
+                }
+            }
+
+            gmk_log('INFO: gmk_invalidate_schedule_caches class=' . $classid
+                . ' dashboards=' . count($userids));
+        } catch (\Throwable $e) {
+            gmk_log('WARNING: gmk_invalidate_schedule_caches fallo: ' . $e->getMessage());
+        }
+    }
+}
+
 if (!function_exists('gmk_get_user_passed_course_map_fast')) {
     /**
      * Fast pass/fail map by course using grade_items/grade_grades directly.
@@ -3591,6 +3666,10 @@ function create_class_activities($class, $updating = false, $forceRebuildDates =
         }
         rebuild_course_cache((int)$class->corecourseid, true);
     }
+
+    // Publishing/regenerating rewrites every session: drop the cached calendar and dashboard
+    // payloads so the class shows its new sessions immediately.
+    gmk_invalidate_schedule_caches((int)$class->id);
 
     return ['status' => 'created'];
 }
@@ -6856,6 +6935,10 @@ function reschedule_class_activity($params)
     if (!empty($oldSessionDateStr) && !empty($newSessionDateStr) && $oldSessionDateStr !== $newSessionDateStr) {
         gmk_sync_schedule_dates_after_reschedule((int)$params['classId'], $oldSessionDateStr, $newSessionDateStr);
     }
+
+    // Drop the cached calendar/dashboard payloads so the new date shows up immediately instead of
+    // after the 120s TTL.
+    gmk_invalidate_schedule_caches((int)$params['classId']);
 
     return true;
 }
@@ -11794,11 +11877,8 @@ function gmk_copy_class_activity(array $params): array {
     if (!empty($class->corecourseid) && function_exists('rebuild_course_cache')) {
         rebuild_course_cache((int)$class->corecourseid, true);
     }
-    // Invalidate class enriched cache so the calendar refreshes.
-    if (class_exists('\cache')) {
-        $cache = \cache::make('local_grupomakro_core', 'gmkclass_enriched');
-        $cache->delete($class->id);
-    }
+    // Invalidate the caches that actually serve the calendar and the dashboard.
+    gmk_invalidate_schedule_caches((int)$class->id);
 
     gmk_log('INFO: gmk_copy_class_activity class ' . $class->id
         . ' copied session ' . $sourceSessId . ' into ' . count($created) . ' new sessions');
@@ -11992,14 +12072,7 @@ function gmk_delete_class_activity(array $params): array {
     if (!empty($class->corecourseid) && function_exists('rebuild_course_cache')) {
         rebuild_course_cache((int)$class->corecourseid, true);
     }
-    if (class_exists('\cache')) {
-        $cache = \cache::make('local_grupomakro_core', 'gmkclass_enriched');
-        $cache->delete($class->id);
-        if ($bbbCmid) {
-            $relCache = \cache::make('local_grupomakro_core', 'gmkbbbatrel');
-            $relCache->delete($bbbCmid);
-        }
-    }
+    gmk_invalidate_schedule_caches((int)$classId);
 
     gmk_log('INFO: gmk_delete_class_activity class=' . $classId . ' session=' . $sessionId
         . ' bbbcmid=' . ($bbbCmid ?? 'null') . ' logs=' . $logCount);
