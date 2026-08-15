@@ -262,7 +262,9 @@ class assign_activity extends external_api {
 
             $cansubmit = (has_capability('mod/assign:submit', $cmcontext) || is_siteadmin()) ? 1 : 0;
             // Due date is a hard cutoff: once it passes, submissions are closed
-            // even if Moodle would otherwise allow late submissions.
+            // even if Moodle would otherwise allow late submissions. The dates below are the
+            // ones that apply to THIS student (exceptions + extension), not the global ones.
+            $effectivedates = self::effective_dates($assign, $assignrecord, (int)$USER->id);
             $duedatepassed = self::due_date_has_passed($assign, $assignrecord, (int)$USER->id);
             $submissionsopen = ($cansubmit && $assign->submissions_open((int)$USER->id) && !$duedatepassed) ? 1 : 0;
             $assignmentintro = self::resolve_assignment_intro($assignrecord, $cm, $cmcontext);
@@ -274,9 +276,9 @@ class assign_activity extends external_api {
                 'name' => (string)$cm->name,
                 'intro' => $assignmentintro,
                 'description' => $assignmentintro,
-                'allowsubmissionsfromdate' => (int)$assignrecord->allowsubmissionsfromdate,
-                'duedate' => (int)$assignrecord->duedate,
-                'cutoffdate' => (int)$assignrecord->cutoffdate,
+                'allowsubmissionsfromdate' => (int)$effectivedates['allowsubmissionsfromdate'],
+                'duedate' => (int)$effectivedates['duedate'],
+                'cutoffdate' => (int)$effectivedates['cutoffdate'],
                 'submissiondrafts' => (int)$assignrecord->submissiondrafts,
                 'plugins' => [
                     'fileEnabled' => $plugins['file'] ? 1 : 0,
@@ -358,20 +360,62 @@ class assign_activity extends external_api {
      * @return bool true when the (extended) due date has passed.
      */
     protected static function due_date_has_passed($assign, $assignrecord, int $userid): bool {
-        $duedate = (int)$assignrecord->duedate;
+        $dates = self::effective_dates($assign, $assignrecord, $userid);
+        $duedate = (int)$dates['duedate'];
         if ($duedate <= 0) {
             return false; // No due date configured → this rule does not apply.
         }
-        $effective = $duedate;
+        return time() > $duedate;
+    }
+
+    /**
+     * Resolves the dates that actually apply to a given student.
+     *
+     * $assignrecord is the raw {assign} row, so it carries the dates configured for everybody.
+     * Two mechanisms can move them for a single student, and both must be honoured:
+     *
+     *   - User/group EXCEPTIONS (assign_overrides, "Excepciones de usuario/grupo"). mod_assign only
+     *     merges them into the instance when update_effective_access() is called explicitly —
+     *     neither get_instance() nor submissions_open() do it on their own. Without that call the
+     *     LXP kept reading the global due date, so a student with an exception still saw the
+     *     assignment closed.
+     *   - Individual EXTENSIONS (assign_user_flags.extensionduedate, "Conceder prórroga"), which
+     *     can only push the due date further.
+     *
+     * @param \assign   $assign
+     * @param \stdClass $assignrecord Raw {assign} row.
+     * @param int       $userid
+     * @return array{allowsubmissionsfromdate:int,duedate:int,cutoffdate:int}
+     */
+    protected static function effective_dates($assign, $assignrecord, int $userid): array {
+        $dates = [
+            'allowsubmissionsfromdate' => (int)$assignrecord->allowsubmissionsfromdate,
+            'duedate'                  => (int)$assignrecord->duedate,
+            'cutoffdate'               => (int)$assignrecord->cutoffdate,
+        ];
+
+        try {
+            $assign->update_effective_access($userid);
+            $instance = $assign->get_instance($userid);
+            foreach (array_keys($dates) as $key) {
+                if (isset($instance->{$key})) {
+                    $dates[$key] = (int)$instance->{$key};
+                }
+            }
+        } catch (\Throwable $e) {
+            // Overrides unreadable: keep the assignment-wide dates.
+        }
+
         try {
             $flags = $assign->get_user_flags($userid, false);
             if ($flags && !empty($flags->extensionduedate)) {
-                $effective = max($effective, (int)$flags->extensionduedate);
+                $dates['duedate'] = max((int)$dates['duedate'], (int)$flags->extensionduedate);
             }
         } catch (\Throwable $e) {
-            // If flags can't be read, fall back to the plain due date.
+            // Flags unreadable: keep the dates resolved so far.
         }
-        return time() > $effective;
+
+        return $dates;
     }
 
     public static function submit_activity($courseId, $moduleId, $comment = '', $draftItemId = 0, $textDraftItemId = 0) {
