@@ -5152,9 +5152,48 @@ try {
 
                     if (!$already_in_quiz) {
                         quiz_add_quiz_question($newq->id, $quiz, 0, $question->defaultmark);
-                        
+
                         // Force update sumgrades
                         quiz_update_sumgrades($quiz);
+                    }
+                } else {
+                    // EDITING a question that is already in the quiz.
+                    //
+                    // Saving the question only writes defaultmark into a NEW VERSION of the question
+                    // in the question bank. The points that actually count inside the quiz live in
+                    // quiz_slots.maxmark, and that is also what the editor displays. Without the
+                    // block below the teacher changes the points, the save succeeds, and the value
+                    // shown never moves.
+                    $slotrec = $DB->get_record_sql("
+                        SELECT s.*
+                        FROM {quiz_slots} s
+                        JOIN {question_references} qr ON qr.itemid = s.id
+                        JOIN {question_bank_entries} qbe ON qbe.id = qr.questionbankentryid
+                        JOIN {question_versions} qv ON qv.questionbankentryid = qbe.id
+                        WHERE s.quizid = :quizid
+                        AND qv.questionid = :questionid
+                        AND qr.component = 'mod_quiz'
+                        AND qr.questionarea = 'slot'
+                        ORDER BY s.slot ASC
+                    ", ['quizid' => $quiz->id, 'questionid' => $newq->id], IGNORE_MULTIPLE);
+
+                    if ($slotrec && abs((float)$question->defaultmark - (float)$slotrec->maxmark) > 1e-7) {
+                        $course = $DB->get_record('course', ['id' => $quiz->course], '*', MUST_EXIST);
+                        $quizobj = new quiz($quiz, $cm, $course);
+                        $structure = $quizobj->get_structure();
+                        $slot = $structure->get_slot_by_id($slotrec->id);
+
+                        // Same sequence mod_quiz itself runs in edit_rest.php ('updatemaxmark').
+                        // update_slot_maxmark() also pushes the new max mark into the attempts that
+                        // already exist (question_engine::set_max_mark_in_attempts), and the calls
+                        // after it recompute totals and the gradebook.
+                        if ($structure->update_slot_maxmark($slot, (float)$question->defaultmark)) {
+                            quiz_delete_previews($quiz);
+                            quiz_update_sumgrades($quiz);
+                            quiz_update_all_attempt_sumgrades($quiz);
+                            quiz_update_all_final_grades($quiz);
+                            quiz_update_grades($quiz, 0, true);
+                        }
                     }
                 }
 
