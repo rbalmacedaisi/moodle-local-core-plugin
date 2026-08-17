@@ -2014,7 +2014,34 @@ try {
             $enrollment_id = required_param('enrollmentId', PARAM_INT);
             $enr = $DB->get_record('gmk_module_enrollment', ['id' => $enrollment_id], '*', MUST_EXIST);
             $mclass = $DB->get_record('gmk_class', ['id' => $enr->classid],
-                'id, corecourseid, gradecategoryid', MUST_EXIST);
+                'id, corecourseid, gradecategoryid, coursesectionid', MUST_EXIST);
+
+            // Shared builder: turns grade_items rows into the payload the dialog expects.
+            $build_module_activities = function($items) use ($DB, $enr) {
+                $out = [];
+                foreach ($items as $it) {
+                    $name = trim((string)$it->itemname);
+                    if ($name === '' && $it->itemtype === 'mod' && !empty($it->itemmodule)) {
+                        $name = (string)$DB->get_field($it->itemmodule, 'name',
+                            ['id' => (int)$it->iteminstance]);
+                    }
+                    $current = null;
+                    if ((float)$it->grademax > 0) {
+                        $gg = $DB->get_record('grade_grades',
+                            ['itemid' => (int)$it->id, 'userid' => (int)$enr->userid], 'finalgrade');
+                        if ($gg && $gg->finalgrade !== null) {
+                            $current = min(round(((float)$gg->finalgrade / (float)$it->grademax) * 100, 2), 100.0);
+                        }
+                    }
+                    $out[] = [
+                        'itemid'        => (int)$it->id,
+                        'name'          => ($name !== '' ? $name : 'Actividad'),
+                        'grademax'      => (float)$it->grademax,
+                        'current_grade' => $current,
+                    ];
+                }
+                return $out;
+            };
 
             $activities = [];
             if ((int)$mclass->corecourseid > 0) {
@@ -2034,28 +2061,36 @@ try {
                    ORDER BY gi.sortorder ASC, gi.id ASC",
                     $act_params
                 );
-                foreach ($items as $it) {
-                    $name = trim((string)$it->itemname);
-                    if ($name === '' && $it->itemtype === 'mod' && !empty($it->itemmodule)) {
-                        $name = (string)$DB->get_field($it->itemmodule, 'name',
-                            ['id' => (int)$it->iteminstance]);
-                    }
-                    $current = null;
-                    if ((float)$it->grademax > 0) {
-                        $gg = $DB->get_record('grade_grades',
-                            ['itemid' => (int)$it->id, 'userid' => (int)$enr->userid], 'finalgrade');
-                        if ($gg && $gg->finalgrade !== null) {
-                            $current = min(round(((float)$gg->finalgrade / (float)$it->grademax) * 100, 2), 100.0);
-                        }
-                    }
-                    $activities[] = [
-                        'itemid'        => (int)$it->id,
-                        'name'          => ($name !== '' ? $name : 'Actividad'),
-                        'grademax'      => (float)$it->grademax,
-                        'current_grade' => $current,
-                    ];
-                }
+                $activities = $build_module_activities($items);
             }
+
+            // FALLBACK: the module's own grade category is usually EMPTY, because the activity is
+            // created in the class section but its grade item stays in the course root category
+            // instead of being moved to the class category. The lookup above then returns nothing
+            // and the UI reports "el modulo no tiene actividades calificables configuradas", even
+            // though the activity exists and is graded.
+            //
+            // The activities of a class always live in its own course section, so resolve them from
+            // there. Scoping by section (not by course) is what keeps this correct on courses shared
+            // by many classes, where the course-wide list would return every activity of the course.
+            if (empty($activities) && (int)$mclass->coursesectionid > 0) {
+                $items = $DB->get_records_sql(
+                    "SELECT gi.id, gi.itemname, gi.itemtype, gi.itemmodule, gi.iteminstance,
+                            gi.grademax, gi.grademin
+                       FROM {course_modules} cm
+                       JOIN {modules} m ON m.id = cm.module
+                       JOIN {grade_items} gi ON gi.itemmodule = m.name
+                                            AND gi.iteminstance = cm.instance
+                                            AND gi.courseid = cm.course
+                      WHERE cm.section = :sectionid
+                        AND cm.deletioninprogress = 0
+                        AND gi.itemtype = 'mod'
+                   ORDER BY gi.sortorder ASC, gi.id ASC",
+                    ['sectionid' => (int)$mclass->coursesectionid]
+                );
+                $activities = $build_module_activities($items);
+            }
+
             $response = ['status' => 'success', 'data' => ['activities' => $activities]];
             break;
 
@@ -2099,8 +2134,29 @@ try {
                 $DB->set_field('gmk_module_enrollment', 'timemodified', $now_t,      ['id' => $enrollment_id]);
 
                 $mod_class = $DB->get_record('gmk_class', ['id' => $enrollment_rec->classid],
-                    'id, corecourseid, gradecategoryid');
+                    'id, corecourseid, gradecategoryid, coursesectionid');
                 $module_grade = null;
+
+                // Grade items that belong to this module. The module's grade category is often
+                // empty (the activity's grade item stays in the course root category), so the
+                // class section is the reliable source. Used both to validate submitted grades and
+                // to auto-resolve the grade when none are submitted.
+                $module_section_items = [];
+                if ($mod_class && (int)$mod_class->coursesectionid > 0) {
+                    $module_section_items = $DB->get_records_sql(
+                        "SELECT gi.id, gi.grademax
+                           FROM {course_modules} cm
+                           JOIN {modules} m ON m.id = cm.module
+                           JOIN {grade_items} gi ON gi.itemmodule = m.name
+                                                AND gi.iteminstance = cm.instance
+                                                AND gi.courseid = cm.course
+                          WHERE cm.section = :sectionid
+                            AND cm.deletioninprogress = 0
+                            AND gi.itemtype = 'mod'
+                       ORDER BY gi.id ASC",
+                        ['sectionid' => (int)$mod_class->coursesectionid]
+                    );
+                }
 
                 // ── Manual entry path ──────────────────────────────────────────────
                 // The admin may submit grades (0-100) and weights for the module's
@@ -2124,6 +2180,14 @@ try {
                           WHERE courseid = :cid AND itemtype IN ('mod', 'manual') $allow_cat_sql",
                         $allow_params
                     );
+                    // The dialog may legitimately offer items resolved from the class section when
+                    // the grade category is empty; accept those too or the save would silently skip
+                    // every row.
+                    foreach ($module_section_items as $sid => $sitem) {
+                        if (!isset($allowed_items[$sid])) {
+                            $allowed_items[$sid] = (object)['id' => $sid];
+                        }
+                    }
 
                     $sum_w = 0.0; $sum_gw = 0.0;
                     foreach ($grades_in as $g) {
@@ -2150,18 +2214,26 @@ try {
 
                 // ── Auto-resolve fallback ──────────────────────────────────────────
                 // No grades submitted: resolve from the single activity in the category.
-                if ($module_grade === null && $mod_class
-                        && (int)$mod_class->gradecategoryid > 0 && (int)$mod_class->corecourseid > 0) {
-                    $gi = $DB->get_record_sql(
-                        "SELECT gi.id, gi.grademax
-                           FROM {grade_items} gi
-                          WHERE gi.categoryid = :catid
-                            AND gi.courseid   = :cid
-                            AND gi.itemtype  IN ('mod', 'manual')
-                       ORDER BY gi.id ASC
-                          LIMIT 1",
-                        ['catid' => (int)$mod_class->gradecategoryid, 'cid' => (int)$mod_class->corecourseid]
-                    );
+                if ($module_grade === null && $mod_class && (int)$mod_class->corecourseid > 0) {
+                    $gi = null;
+                    if ((int)$mod_class->gradecategoryid > 0) {
+                        $gi = $DB->get_record_sql(
+                            "SELECT gi.id, gi.grademax
+                               FROM {grade_items} gi
+                              WHERE gi.categoryid = :catid
+                                AND gi.courseid   = :cid
+                                AND gi.itemtype  IN ('mod', 'manual')
+                           ORDER BY gi.id ASC
+                              LIMIT 1",
+                            ['catid' => (int)$mod_class->gradecategoryid, 'cid' => (int)$mod_class->corecourseid]
+                        );
+                    }
+                    // Empty category: use the activity that lives in the class section, otherwise
+                    // the enrollment would be closed without registering the grade the student
+                    // actually has.
+                    if (!$gi && !empty($module_section_items)) {
+                        $gi = reset($module_section_items);
+                    }
                     if ($gi && (float)$gi->grademax > 0) {
                         $gg = $DB->get_record('grade_grades',
                             ['itemid' => (int)$gi->id, 'userid' => (int)$enrollment_rec->userid]);
