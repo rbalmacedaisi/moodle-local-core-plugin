@@ -706,10 +706,12 @@ function absd_run_absence_inactivation_check(): array {
         'skipped_exempt'    => 0,
         'skipped_financial' => 0,
         'reactivated'       => 0,
+        'classes_processed' => 0,
         'errors'            => [],
     ];
     $reactivated_uids = []; // track cross-class to avoid double-counting
     $nowts = time();
+    $threshold = absd_get_block_threshold();
 
     // Studentstatus field id.
     $studentstatus_fieldid = (int)($DB->get_field('user_info_field', 'id', ['shortname' => 'studentstatus']) ?: 0);
@@ -722,87 +724,124 @@ function absd_run_absence_inactivation_check(): array {
         ['now' => $nowts]
     );
 
+    // Pass 1 — build per-user × per-class cursando picture:
+    //   userid => [classid => absence_count, ...]
+    // The inactivation decision is "inactivate iff the user has >= threshold
+    // absences in EVERY one of their cursando classes" — that's the rule the
+    // dashboard / cron were supposed to enforce. The previous per-class loop
+    // mis-applied it: inactivating on the first class that hit the threshold,
+    // even when the user's other classes were still well attended.
+    $userclassabs  = []; // [uid][cid] => int
+    $userclassids  = []; // [uid] => [cid => cid]
+    $classenrolled = []; // [cid] => [uid => uid]  (for suspended / financial pre-fetch)
+
     foreach ($classes as $class) {
         $cid = (int)$class->id;
         try {
             $pastsessionids  = absd_get_class_past_session_ids($class, $nowts);
             $takensessionids = absd_get_taken_session_ids($pastsessionids);
-
             if (empty($takensessionids)) {
                 continue;
             }
-
             $enrolleduserids = absd_get_class_enrolled_userids($cid);
             if (empty($enrolleduserids)) {
                 continue;
             }
+            $summary['classes_processed']++;
 
             $studentabs = absd_get_student_absences($takensessionids, $enrolleduserids);
-
-            // Pre-fetch financial status for all enrolled students in this class.
-            $enrolled_array = array_values($enrolleduserids);
-            [$_fs_insql, $_fs_params] = $DB->get_in_or_equal($enrolled_array, SQL_PARAMS_NAMED, 'fsuid');
-            $_financial_map = [];
-            foreach ($DB->get_records_sql(
-                "SELECT userid, status FROM {gmk_financial_status} WHERE userid $_fs_insql",
-                $_fs_params
-            ) as $_fr) {
-                $_financial_map[(int)$_fr->userid] = (string)$_fr->status;
-            }
-
-            // Pre-fetch which of these students are currently suspended.
-            [$_sus_insql, $_sus_params] = $DB->get_in_or_equal($enrolled_array, SQL_PARAMS_NAMED, 'susuid');
-            $_suspended_uids = [];
-            foreach ($DB->get_records_sql(
-                "SELECT id FROM {user} WHERE suspended = 1 AND id $_sus_insql",
-                $_sus_params
-            ) as $_ur) {
-                $_suspended_uids[(int)$_ur->id] = true;
-            }
-
             foreach ($enrolleduserids as $uid) {
                 $uid = (int)$uid;
-                $fin_status = $_financial_map[$uid] ?? 'none';
-                $is_financially_current = ($fin_status === 'al_dia' || $fin_status === 'becado');
-
-                // Reactivate: student is suspended but is now financially current.
-                if ($is_financially_current && !empty($_suspended_uids[$uid]) && !isset($reactivated_uids[$uid])) {
-                    absd_mark_user_active($uid, $studentstatus_fieldid);
-                    $reactivated_uids[$uid] = true;
-                    $summary['reactivated']++;
-                    // Also remove from suspended map so the inactivation block below
-                    // won't try to mark them inactive again in this same pass.
-                    unset($_suspended_uids[$uid]);
-                }
-
-                $abs = $studentabs[$uid] ?? 0;
-                if ($abs <= 2) {
-                    continue;
-                }
-                $summary['processed']++;
-
-                if (absd_is_user_exempt($uid, $cid)) {
-                    $summary['skipped_exempt']++;
-                    continue;
-                }
-
-                // Skip inactivation if the student is financially up to date.
-                if ($is_financially_current) {
-                    $summary['skipped_financial']++;
-                    continue;
-                }
-
-                // Verify the user record still exists before writing.
-                if (!$DB->record_exists('user', ['id' => $uid, 'deleted' => 0])) {
-                    continue;
-                }
-
-                absd_mark_user_inactive($uid, $studentstatus_fieldid);
-                $summary['marked_inactive']++;
+                $userclassids[$uid][$cid] = $cid;
+                $userclassabs[$uid][$cid] = (int)($studentabs[$uid] ?? 0);
+                $classenrolled[$cid][$uid] = $uid;
             }
         } catch (Throwable $e) {
             $summary['errors'][] = "Clase {$cid}: " . $e->getMessage();
         }
+    }
+
+    if (empty($userclassids)) {
+        return $summary;
+    }
+
+    // Pre-fetch financial status and suspended flag for every user we touched.
+    $alluids = array_keys($userclassids);
+    [$all_insql, $all_params] = $DB->get_in_or_equal($alluids, SQL_PARAMS_NAMED, 'absuid');
+
+    $financial_map = [];
+    foreach ($DB->get_records_sql(
+        "SELECT userid, status FROM {gmk_financial_status} WHERE userid $all_insql",
+        $all_params
+    ) as $_fr) {
+        $financial_map[(int)$_fr->userid] = (string)$_fr->status;
+    }
+
+    $suspended_uids = [];
+    foreach ($DB->get_records_sql(
+        "SELECT id FROM {user} WHERE suspended = 1 AND id $all_insql",
+        $all_params
+    ) as $_ur) {
+        $suspended_uids[(int)$_ur->id] = true;
+    }
+
+    // Pass 2 — per-user decisions.
+    foreach ($userclassids as $uid => $cidmap) {
+        $uid = (int)$uid;
+        $fin_status = $financial_map[$uid] ?? 'none';
+        $is_financially_current = ($fin_status === 'al_dia' || $fin_status === 'becado');
+
+        // Reactivate first: if the student is currently suspended and is now
+        // financially current, lift the global inactivation immediately and
+        // skip the absence-based pass for this user in this run.
+        if ($is_financially_current
+                && !empty($suspended_uids[$uid])
+                && !isset($reactivated_uids[$uid])) {
+            absd_mark_user_active($uid, $studentstatus_fieldid);
+            $reactivated_uids[$uid] = true;
+            $summary['reactivated']++;
+            unset($suspended_uids[$uid]);
+            // Continue: a reactivated student should NOT also be re-inactivated
+            // by the absence branch on this same pass.
+            continue;
+        }
+
+        // Count how many of the user's cursando classes hit the threshold.
+        // Global exemption ('all') bypasses the entire inactivation check.
+        $totalclasses = count($cidmap);
+        if ($totalclasses <= 0) {
+            continue;
+        }
+        if (absd_is_user_exempt($uid, 0)) {
+            $summary['skipped_exempt']++;
+            continue;
+        }
+        if ($is_financially_current) {
+            $summary['skipped_financial']++;
+            continue;
+        }
+
+        $overthreshold = 0;
+        foreach ($cidmap as $cid => $_ignore) {
+            if (($userclassabs[$uid][$cid] ?? 0) >= $threshold) {
+                $overthreshold++;
+            }
+        }
+        // Strict all-classes rule: user is inactivated only when EVERY cursando
+        // class has at least $threshold absences.
+        if ($overthreshold < $totalclasses) {
+            continue;
+        }
+
+        $summary['processed']++;
+
+        // Verify the user record still exists before writing.
+        if (!$DB->record_exists('user', ['id' => $uid, 'deleted' => 0])) {
+            continue;
+        }
+
+        absd_mark_user_inactive($uid, $studentstatus_fieldid);
+        $summary['marked_inactive']++;
     }
 
     return $summary;
