@@ -694,6 +694,15 @@ $functions = array(
         'ajax' => true,
         'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
     ),
+    'local_grupomakro_withdraw_from_course' => array(
+        'classname'   => 'local_grupomakro_core\external\schedule\withdraw_from_course',
+        'methodname'  => 'execute',
+        'description' => 'Fully withdraw a student from a Moodle course: removes every class group membership, drops module_enrollment rows, resets all gmk_course_progre rows for (user, course) to Disponible, unenrols from the course and deletes the student role. Intended to be the default action of the Retirar button so the user does not have to know which class to withdraw from.',
+        'type'        => 'write',
+        'capabilities'=> '',
+        'ajax'        => true,
+        'services'    => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
     'local_grupomakro_reopen_assignment' => array(
         'classname'   => 'local_grupomakro_core\external\teacher\reopen_assignment',
         'methodname'  => 'execute',

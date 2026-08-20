@@ -92,6 +92,39 @@ class enroll_module {
             }
         }
 
+        // ── 1c. Course guard: refuse if the student already has this course loaded ──
+        // The module is for recovery (or first-time study). A student who is currently
+        // Cursando/Aprobada the course through the regular path must withdraw the
+        // course first. Failed records (Reprobada / Reprobado / Pendiente Reválida)
+        // are explicitly allowed because the module IS the recovery path.
+        $existingCourseRows = $DB->get_records('gmk_course_progre',
+            ['userid' => $userId, 'courseid' => $coreCourseId]);
+        $blockingStatuses = [];
+        foreach ($existingCourseRows as $ecr) {
+            $st = (int)$ecr->status;
+            // Allowed: 0 (No disponible), 1 (Disponible), 5 (Reprobada),
+            //         6 (Pendiente Reválida), 7 (Reprobado), 99 (Migración Pendiente).
+            // Blocked: 2 (Cursando), 3 (Aprobada), 4 (Aprobada).
+            if (in_array($st, [2, 3, 4], true)) {
+                $blockingStatuses[] = $st;
+            }
+        }
+        if (!empty($blockingStatuses)) {
+            $statusLabels = [
+                2 => 'Cursando', 3 => 'Aprobada', 4 => 'Aprobada',
+            ];
+            $uniqueLabels = array_values(array_unique(array_map(
+                fn($s) => $statusLabels[$s] ?? (string)$s, $blockingStatuses
+            )));
+            $stateLabel = implode('/', $uniqueLabels);
+            return [
+                'status'           => 'error',
+                'message'          => "No se puede matricular a " . fullname($user) . " en el módulo de <b>{$course->fullname}</b>: la asignatura ya está cargada en su plan con estado '<b>{$stateLabel}</b>'. Para inscribirse al módulo primero debe retirar la asignatura (excepto si está Reprobada).",
+                'duedate'          => 0,
+                'requires_payment' => false,
+            ];
+        }
+
         // ── 2. Get the last period that has already started ───────────────────────
         $academicPeriod = $DB->get_record_sql(
             "SELECT id, name FROM {gmk_academic_periods}

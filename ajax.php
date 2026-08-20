@@ -2308,6 +2308,19 @@ try {
             ];
             break;
 
+        case 'local_grupomakro_withdraw_from_course':
+            require_sesskey();
+            require_capability('moodle/site:config', $context);
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/schedule/withdraw_from_course.php');
+            $corecourseid = required_param('coreCourseId', PARAM_INT);
+            $userid       = required_param('userId', PARAM_INT);
+            $result = \local_grupomakro_core\external\schedule\withdraw_from_course::execute($userid, $corecourseid);
+            $response = [
+                'status' => 'success',
+                'data'   => $result,
+            ];
+            break;
+
         case 'local_grupomakro_homologate_course_grade':
             require_sesskey();
             require_capability('moodle/site:config', $context);

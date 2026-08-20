@@ -310,6 +310,10 @@ Vue.component('grademodal', {
                                                                         <v-icon small class="mr-2" color="blue darken-1">mdi-school-outline</v-icon>
                                                                         <v-list-item-title>Retirar de clase regular</v-list-item-title>
                                                                     </v-list-item>
+                                                                    <v-list-item @click="withdrawFromCourse(course, 'course')">
+                                                                        <v-icon small class="mr-2" color="error">mdi-close-circle-outline</v-icon>
+                                                                        <v-list-item-title>Retirar asignatura completa</v-list-item-title>
+                                                                    </v-list-item>
                                                                 </v-list>
                                                             </v-menu>
                                                             <v-btn
@@ -318,7 +322,7 @@ Vue.component('grademodal', {
                                                                 color="error"
                                                                 :loading="withdrawingCourseKey === getCourseKey(course)"
                                                                 :disabled="!!withdrawingCourseKey"
-                                                                @click.stop="withdrawFromCourse(course)"
+                                                                @click.stop="withdrawFromCourse(course, 'course')"
                                                             >
                                                                 Retirar
                                                             </v-btn>
@@ -3562,10 +3566,67 @@ Vue.component('grademodal', {
         async withdrawFromCourse(course, mode) {
             const regularClassId = this._regularClassId(course);
             const moduleClassId  = Number(course && course.module_classid  ? course.module_classid  : 0);
+            const courseId       = Number(course && course.courseid        ? course.courseid       : 0);
 
-            // Resolve which enrollment to withdraw. When the student has both and the
-            // caller did not specify, default to the module (least destructive: keeps
-            // the regular class). Explicit mode comes from the "Retirar" menu.
+            // ── Full course withdrawal (default for the simple "Retirar" button) ──
+            // The user expects "Retirar" to remove the entire subject from the
+            // student's plan, not just one of the class memberships. The
+            // submenu still lets admins do surgical class withdrawal via
+            // mode='module' or mode='regular'.
+            if (mode === 'course' || (!mode && (!regularClassId || !moduleClassId))) {
+                if (!courseId || this.withdrawingCourseKey) return;
+                const courseName = course.coursename || 'esta asignatura';
+                const studentName = this.studentName;
+                const confirmed = await (async () => {
+                    if (window.Swal) {
+                        const result = await window.Swal.fire({
+                            icon: 'warning',
+                            title: '¿Retirar asignatura completa?',
+                            html: `<b>${studentName}</b> será <b>retirado completamente</b> de <b>${courseName}</b>. ` +
+                                  `Se des-matriculará del curso en Moodle, se eliminarán todas sus inscripciones y ` +
+                                  `el estado volverá a <em>Disponible</em> para poder inscribirse nuevamente.`,
+                            showCancelButton: true,
+                            confirmButtonColor: '#d33',
+                            cancelButtonColor: '#6c757d',
+                            confirmButtonText: 'Sí, retirar',
+                            cancelButtonText: 'Cancelar',
+                        });
+                        return result.isConfirmed;
+                    }
+                    return window.confirm(`¿Retirar a ${studentName} completamente de ${courseName}?`);
+                })();
+                if (!confirmed) return;
+                this.withdrawingCourseKey = this.getCourseKey(course);
+                try {
+                    const url = window.wsUrl || (window.location.origin + '/local/grupomakro_core/ajax.php');
+                    const response = await window.axios.get(url, {
+                        params: {
+                            action:       'local_grupomakro_withdraw_from_course',
+                            sesskey:      M.cfg.sesskey,
+                            userId:       Number(this.dataStudent.id),
+                            coreCourseId: courseId,
+                        },
+                    });
+                    const payload = response && response.data ? response.data : {};
+                    const result  = (payload.status === 'success' && payload.data) ? payload.data : payload;
+                    if (result.status === 'ok') {
+                        this.showMessage('success', result.message || 'Estudiante retirado completamente.');
+                        await this.getpensum();
+                    } else {
+                        this.showMessage('error', result.message || 'No se pudo retirar al estudiante.');
+                    }
+                } catch (error) {
+                    console.error('Error withdrawing student (full course):', error);
+                    this.showMessage('error', 'Error al retirar al estudiante.');
+                } finally {
+                    this.withdrawingCourseKey = null;
+                }
+                return;
+            }
+
+            // ── Surgical class withdrawal (kept for admins via submenu) ──
+            // Resolve which enrollment to withdraw when the student has both
+            // and the caller did not specify.
             let isModuleWithdrawal;
             if (mode === 'module') {
                 isModuleWithdrawal = true;
