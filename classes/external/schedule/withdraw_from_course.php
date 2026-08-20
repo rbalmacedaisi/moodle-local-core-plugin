@@ -60,22 +60,18 @@ class withdraw_from_course extends external_api {
             }
         }
 
-        // ── 2. Delete module_enrollment rows for this course ────────────────────
+        // ── 2. Delete module_enrollment / queue / pre_registration rows ──────────
+        // (use delete_records_select with IN clause to handle arrays properly)
         $moduleIds = array_keys($classGroups);
         if (!empty($moduleIds)) {
-            $DB->delete_records('gmk_module_enrollment',
-                ['userid' => $userId, 'classid' => $moduleIds]);
-        }
-
-        // ── 3. Clean queue and pre_registration ─────────────────────────────────
-        if (!empty($moduleIds)) {
             list($csSql, $csParams) = $DB->get_in_or_equal($moduleIds, SQL_PARAMS_NAMED, 'clsid');
+            $whereParams = ['uid' => $userId] + $csParams;
+            $DB->delete_records_select('gmk_module_enrollment',
+                "userid = :uid AND classid $csSql", $whereParams);
             $DB->delete_records_select('gmk_class_queue',
-                "userid = :uid AND classid $csSql",
-                ['uid' => $userId] + $csParams);
+                "userid = :uid AND classid $csSql", $whereParams);
             $DB->delete_records_select('gmk_class_pre_registration',
-                "userid = :uid AND classid $csSql",
-                ['uid' => $userId] + $csParams);
+                "userid = :uid AND classid $csSql", $whereParams);
         }
 
         // ── 4. Snapshot progre rows, then reset them all to "Disponible" ───────
