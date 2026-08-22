@@ -869,7 +869,23 @@ function get_potential_class_teachers($params)
         $incomingClassSchedule = explode('/', $classDays);
         $incomingTimestampRange = convert_time_range_to_timestamp_range([$initTime, $endTime]);
 
-        $learningPlanTeachers = array_filter(array_map(function ($teacher) use ($incomingClassSchedule, $incomingTimestampRange, $weekdays, $classDays, $params) {
+        // Resolve the incoming class's date range once so the conflict loop below
+        // can skip already-assigned classes whose period does not overlap with the
+        // incoming one. Mirrors the date-range pre-check used by
+        // check_class_schedule_availability(); without this, two classes sharing the
+        // same classdays pattern + time slot but with non-overlapping date ranges
+        // (e.g. consecutive periods) are wrongly treated as conflicting.
+        $incomingInitDateTS = 0;
+        $incomingEndDateTS = 0;
+        if (!empty($params['classId'])) {
+            $incomingClassRow = $DB->get_record('gmk_class', ['id' => $params['classId']], 'initdate,enddate');
+            if ($incomingClassRow) {
+                $incomingInitDateTS = (int)$incomingClassRow->initdate;
+                $incomingEndDateTS  = (int)$incomingClassRow->enddate;
+            }
+        }
+
+        $learningPlanTeachers = array_filter(array_map(function ($teacher) use ($incomingClassSchedule, $incomingTimestampRange, $weekdays, $classDays, $params, $incomingInitDateTS, $incomingEndDateTS) {
             $availableDays = [];
             $dispResult = get_teachers_disponibility(['instructorId' => $teacher->userid]);
             $dispEntry = isset($dispResult[$teacher->userid]) && is_object($dispResult[$teacher->userid]) ? $dispResult[$teacher->userid] : null;
@@ -906,6 +922,18 @@ function get_potential_class_teachers($params)
                 unset($alreadyAsignedClasses[$params['classId']]);
             }
             foreach ($alreadyAsignedClasses as $alreadyAsignedClass) {
+                // Date-range pre-check: if both the incoming class and the existing
+                // one have initdate/enddate populated and their periods do not
+                // overlap, this existing class cannot possibly conflict with the
+                // incoming one regardless of classdays or time slot.
+                $existingInitDateTS = (int)($alreadyAsignedClass->initdate ?? 0);
+                $existingEndDateTS  = (int)($alreadyAsignedClass->enddate  ?? 0);
+                if ($incomingInitDateTS > 0 && $incomingEndDateTS > 0
+                    && $existingInitDateTS > 0 && $existingEndDateTS > 0
+                    && ($incomingInitDateTS > $existingEndDateTS || $incomingEndDateTS < $existingInitDateTS)) {
+                    continue;
+                }
+
                 $alreadyAsignedClassSchedule = explode('/', $alreadyAsignedClass->classdays);
                 $classInitTime = $alreadyAsignedClass->inittimets;
                 $classEndTime = $alreadyAsignedClass->endtimets;
