@@ -59,7 +59,8 @@ class get_potential_class_teachers extends external_api {
                 'endTime' => new external_value(PARAM_TEXT, 'Class end time', VALUE_DEFAULT,null),
                 'classDays' => new external_value(PARAM_TEXT, 'Class days', VALUE_DEFAULT,null),
                 'learningPlanId' => new external_value(PARAM_TEXT, 'LearnningPlanId', VALUE_REQUIRED),
-                'classId' => new external_value(PARAM_TEXT, 'LearnningPlanId', VALUE_DEFAULT,NULL)
+                'classId' => new external_value(PARAM_TEXT, 'LearnningPlanId', VALUE_DEFAULT,NULL),
+                'role' => new external_value(PARAM_TEXT, 'Which teacher slot are we listing candidates for? "main" (default) or "support". When "support", the current main + current support are excluded from the list.', VALUE_DEFAULT, 'main'),
             ]
         );
     }
@@ -75,9 +76,10 @@ class get_potential_class_teachers extends external_api {
             $endTime,
             $classDays,
             $learningPlanId,
-            $classId
+            $classId,
+            $role = 'main'
         ) {
-        
+
         try{
             // Validate the parameters passed to the function.
             $params = self::validate_parameters(self::execute_parameters(), [
@@ -87,6 +89,7 @@ class get_potential_class_teachers extends external_api {
                 'classDays' => $classDays,
                 'learningPlanId' => $learningPlanId,
                 'classId' => $classId,
+                'role' => $role,
             ]);
 
             $potentialTeachers =  get_potential_class_teachers($params);

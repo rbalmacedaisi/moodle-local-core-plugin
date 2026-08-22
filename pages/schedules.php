@@ -63,8 +63,23 @@ if (!$userRole) {
 if (!$userRole) {
   throw new moodle_exception('nopermissiontoseeschedules', $plugin_name);
 }
-//Build a instructor filter if the user is an instructor
-$classInstructorFilter = $userRole === 'teacher' ? ['instructorid' => $USER->id] : [];
+//Build a instructor filter if the user is an instructor.
+// Support teachers (gmk_class.supportinstructorid) get the same visibility as
+// the main instructor: their schedule shows every class where they hold either
+// role. The dual-key approach keeps the filter pure SQL and fast (single query).
+if ($userRole === 'teacher') {
+    $classInstructorFilter = [];
+    $classInstructorIds = $DB->get_records_select(
+        'gmk_class',
+        '(instructorid = :uid OR supportinstructorid = :uid2)',
+        ['uid' => (int)$USER->id, 'uid2' => (int)$USER->id],
+        '',
+        'id'
+    );
+    $classInstructorFilter = empty($classInstructorIds) ? ['id' => -1] : ['id' => array_keys($classInstructorIds)];
+} else {
+    $classInstructorFilter = [];
+}
 
 $coursesWithCreatedClasses = [];
 $classRows = $DB->get_records('gmk_class', $classInstructorFilter, '', 'DISTINCT corecourseid');

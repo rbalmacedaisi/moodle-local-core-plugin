@@ -246,6 +246,53 @@ window.Vue.component('editclass', {
                             </v-list-item-group>
                         </v-list>
                     </div>
+
+                    {{! Support teacher — same shape as the main teacher list, but the checkbox
+                        is read-only when the current user lacks the capability. Same selected
+                        index pattern (classData.supportTeacherIndex) and same reset-on-classId. }}
+                    <div class="d-flex px-3 mt-6">
+                        <h6>{{lang.support_teacher}}
+                            <i class="mdi mdi-help-circle-outline" :title="lang.support_teacher_help"></i>
+                        </h6>
+                    </div>
+                    <input ref="hiddenSupportTeacherInput" style="visibility:hidden;">
+                    <v-list dense two-line>
+                        <v-list-item-group v-model="classData.supportTeacherIndex">
+                            <template v-for="(item, index) in supportTeachers">
+                                <v-list-item :disabled="!canEditSupportTeacher" color="info">
+                                    <template v-slot:default="{ active }">
+                                        <v-list-item-icon>
+                                            <v-icon>mdi-account-supervisor</v-icon>
+                                        </v-list-item-icon>
+                                        <v-list-item-content>
+                                            <v-list-item-title>{{ item.fullname }} <span v-if="String(item.id) === supportTeacherId">(Actual)</span></v-list-item-title>
+                                            <v-list-item-subtitle class="text-caption" v-text="item.email"></v-list-item-subtitle>
+                                        </v-list-item-content>
+                                        <v-list-item-action>
+                                            <v-checkbox
+                                              :input-value="active"
+                                              :disabled="!canEditSupportTeacher"
+                                              color="info"
+                                            ></v-checkbox>
+                                        </v-list-item-action>
+                                    </template>
+                                </v-list-item>
+                            </template>
+                            <v-list-item v-if="canEditSupportTeacher && supportTeachers.length > 0" @click="classData.supportTeacherIndex = undefined">
+                                <template v-slot:default="{ active }">
+                                    <v-list-item-icon>
+                                        <v-icon>mdi-close-circle-outline</v-icon>
+                                    </v-list-item-icon>
+                                    <v-list-item-content>
+                                        <v-list-item-title>{{lang.select_no_support_teacher}}</v-list-item-title>
+                                    </v-list-item-content>
+                                    <v-list-item-action>
+                                        <v-checkbox :input-value="classData.supportTeacherIndex === undefined" color="grey"></v-checkbox>
+                                    </v-list-item-action>
+                                </template>
+                            </v-list-item>
+                        </v-list-item-group>
+                    </v-list>
                     
                     <div class="d-flex card-footer bg-transparent px-0">
                         <div class="spacer"></div>
@@ -303,7 +350,7 @@ window.Vue.component('editclass', {
                     sunday: false
                 }
             },
-            filledInputs: false,
+filledInputs: false,
             classTypes: [],
             classRooms: [],
             learningPlans: [],
@@ -312,6 +359,14 @@ window.Vue.component('editclass', {
             courses: [],
             teachers: [],
             classTeacherId: undefined,
+            // Support teacher: optional second teacher with the same Moodle-level
+            // capabilities as classTeacherId for this class only. Admin/director
+            // managed via the local/grupomakro_core:editsupportteacher capability.
+            // The dropdown is disabled when canEditSupportTeacher is false so non-admin
+            // users see who the support teacher is without being able to change it.
+            supportTeachers: [],
+            supportTeacherId: undefined,
+            canEditSupportTeacher: false,
             reschedulingActivity: false,
             errorMessage: undefined,
             rescheduleMessage: undefined,
@@ -405,6 +460,20 @@ window.Vue.component('editclass', {
 
             // CRITICAL: Ensure we find the teacher index after setting the teachers list
             this.classData.teacherIndex = this.teachers.findIndex(teacher => String(teacher.id) === String(this.classTeacherId));
+
+            // Support teacher (optional). Same loading pattern: the page renders
+            // a pre-filtered list excluding the current main + current support
+            // (PHP side) and a pre-selected option for the existing support
+            // teacher if any. The dropdown is disabled server-side when the
+            // current user lacks the capability, so the JS just respects the
+            // flag and never tries to POST a different value.
+            this.supportTeachers = rawTemplatedata.classSupportTeachers || [];
+            this.canEditSupportTeacher = !!rawTemplatedata.canEditSupportTeacher;
+            this.supportTeacherId = rawTemplatedata.supportTeacherId
+                ? String(rawTemplatedata.supportTeacherId) : undefined;
+            this.classData.supportTeacherIndex = this.supportTeachers.findIndex(
+                teacher => String(teacher.id) === this.supportTeacherId
+            );
 
 
             if (rawTemplatedata.reschedulingActivity) {
@@ -667,8 +736,19 @@ window.Vue.component('editclass', {
         showClassRoomSelector() {
             return Number(this.classData.type) !== 1;
         },
-        selectedClassTeacher() {
+selectedClassTeacher() {
             return this.teachers[this.classData.teacherIndex]
+        },
+        selectedSupportTeacher() {
+            if (!this.canEditSupportTeacher) {
+                return null;
+            }
+            // When no option is selected (cleared) the index is undefined; v-list-item-group
+            // returns -1 when nothing matches, in which case we treat the choice as "no support".
+            if (this.classData.supportTeacherIndex === undefined || this.classData.supportTeacherIndex < 0) {
+                return null;
+            }
+            return this.supportTeachers[this.classData.supportTeacherIndex] || null;
         },
         getLearningPlanPeriodsParameters() {
             return {
@@ -719,9 +799,16 @@ window.Vue.component('editclass', {
                 sessionId: this.activityRescheduleData.sessionId
             }
         },
-        saveClassParameters() {
+saveClassParameters() {
             const { id, name, type, learningPlanId, periodId, academicPeriodId, courseId, initTime, endTime, classroomCapacity } = this.classData
             const selectedRoomId = this.showClassRoomSelector ? (this.selectedClassRoom?.value || 0) : 0;
+            // Support teacher id: 0 if cleared, the selected candidate id otherwise.
+            // The canEditSupportTeacher gate is enforced server-side in
+            // update_class.php; the JS still posts 0 when the user lacks the
+            // capability so non-admin edits never silently change the support role.
+            const supportId = this.canEditSupportTeacher
+                ? (this.selectedSupportTeacher ? Number(this.selectedSupportTeacher.id) : 0)
+                : 0;
             return {
                 ...wsDefaultParams,
                 wsfunction: 'local_grupomakro_update_class',
@@ -733,6 +820,7 @@ window.Vue.component('editclass', {
                 academicPeriodId,
                 courseId,
                 instructorId: this.selectedClassTeacher ? this.selectedClassTeacher.id : (this.classTeacherId || 0),
+                supportTeacherId: supportId,
                 initTime,
                 endTime,
                 initDate: this.classData.initDate,

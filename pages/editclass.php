@@ -173,9 +173,29 @@ $classPotentialTeachers = array_values(array_map(function ($potentialTeacher) us
     $teacherData->id =$potentialTeacher->id;
     $teacherData->selected = (int)$potentialTeacher->id === (int)$class->instructorid;
 
-    
+
     return $teacherData;
 },$classPotentialTeachers));
+
+// Support teacher candidates (admin/director managed). The dropdown excludes the
+// current main + current support so the admin cannot accidentally pick the same
+// user twice. Pre-populated here so the page renders the right "selected"
+// option without a second roundtrip on first paint.
+$canEditSupportTeacher = has_capability('local/grupomakro_core:editsupportteacher', $context);
+$classSupportTeachers = [];
+if ($canEditSupportTeacher) {
+    $supportParams = $params;
+    $supportParams['role'] = 'support';
+    $supportCandidates = get_potential_class_teachers($supportParams);
+    $classSupportTeachers = array_values(array_map(function ($potentialTeacher) use ($class) {
+        $teacherData = new stdClass();
+        $teacherData->fullname = $potentialTeacher->fullname;
+        $teacherData->email = $potentialTeacher->email;
+        $teacherData->id = $potentialTeacher->id;
+        $teacherData->selected = (int)$potentialTeacher->id === (int)($class->supportinstructorid ?? 0);
+        return $teacherData;
+    }, $supportCandidates));
+}
 
 $classRooms = get_classrooms();
 
@@ -229,6 +249,9 @@ $strings->class_start_time = get_string('class_start_time', $plugin_name);
 $strings->class_end_time = get_string('class_end_time', $plugin_name);
 $strings->class_days = get_string('class_days', $plugin_name);
 $strings->class_available_instructors = get_string('class_available_instructors', $plugin_name);
+$strings->support_teacher = get_string('support_teacher', $plugin_name);
+$strings->support_teacher_help = get_string('support_teacher_help', $plugin_name);
+$strings->select_no_support_teacher = get_string('select_no_support_teacher', $plugin_name);
 $strings->see_availability = get_string('see_availability', $plugin_name);
 
 $strings->class_name_placeholder = get_string('class_name_placeholder', $plugin_name);
@@ -273,6 +296,9 @@ $templatedata = json_encode([
     'classLectivePeriods' => $classLectivePeriods,
     'classCourses'=>$classCourses,
     'classTeachers'=>$classPotentialTeachers,
+    'classSupportTeachers'=>$classSupportTeachers,
+    'supportTeacherId'=> (int)($class->supportinstructorid ?? 0),
+    'canEditSupportTeacher'=> $canEditSupportTeacher,
     'initTime'=> $class->inittime,
     'endTime'=>$class->endtime,
     'initDate'=> $class->initdate ? date('Y-m-d', $class->initdate) : null,

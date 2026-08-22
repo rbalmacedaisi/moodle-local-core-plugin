@@ -45,8 +45,15 @@ class user_login_handler {
         $log_file = $CFG->dirroot . '/local/grupomakro_core/redirect_debug.log';
         $log_msg = date('Y-m-d H:i:s') . " - [Handler: user_login_handler] Login Event for User ID: $userid\n";
 
-        // 1. Check for ACTIVE classes (Target: Teacher Dashboard)
-        $has_active_classes = $DB->record_exists('gmk_class', ['instructorid' => $userid, 'closed' => 0]);
+        // 1. Check for ACTIVE classes (Target: Teacher Dashboard). Support teachers
+        // (gmk_class.supportinstructorid) get the same redirect treatment.
+        $has_active_classes = $DB->record_exists_sql(
+            "SELECT 1 FROM {gmk_class}
+              WHERE (instructorid = :uid OR supportinstructorid = :uid)
+                AND closed = 0
+              LIMIT 1",
+            ['uid' => (int)$userid]
+        );
         $log_msg .= " - Has Active Classes: " . ($has_active_classes ? 'YES' : 'NO') . "\n";
 
         if ($has_active_classes) {
@@ -56,7 +63,12 @@ class user_login_handler {
         }
 
         // 2. Check for INACTIVE Teacher status (Target: Inactive Dashboard)
-        $has_past_classes = $DB->record_exists('gmk_class', ['instructorid' => $userid]);
+        $has_past_classes = $DB->record_exists_sql(
+            "SELECT 1 FROM {gmk_class}
+              WHERE (instructorid = :uid OR supportinstructorid = :uid)
+              LIMIT 1",
+            ['uid' => (int)$userid]
+        );
         $has_skills = $DB->record_exists('gmk_teacher_skill_relation', ['userid' => $userid]);
         $has_availability = $DB->record_exists('gmk_teacher_disponibility', ['userid' => $userid]);
 

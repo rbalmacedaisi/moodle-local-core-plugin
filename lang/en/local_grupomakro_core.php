@@ -450,6 +450,11 @@ $string['init_date'] = 'Start Date';
 $string['end_date'] = 'End Date';
 $string['class_available_instructors'] = 'Class available instructors';
 $string['see_availability'] = 'See availability';
+$string['support_teacher'] = 'Support teacher';
+$string['support_teacher_help'] = 'Teacher with the same capabilities as the main instructor for this class (course editing, BBB moderator, attendance grading). Admin/director only.';
+$string['select_no_support_teacher'] = 'No support teacher';
+$string['support_teacher_invalid'] = 'The selected support teacher does not exist, is suspended, or has been deleted.';
+$string['support_teacher_same_as_main'] = 'The support teacher cannot be the same as the main instructor.';
 
 //Class creation and edition input placeholders
 

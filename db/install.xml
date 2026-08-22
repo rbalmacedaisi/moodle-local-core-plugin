@@ -81,6 +81,7 @@
         <FIELD NAME="typelabel" TYPE="char" LENGTH="15" NOTNULL="false" SEQUENCE="false"/>
         <FIELD NAME="corecourseid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
         <FIELD NAME="instructorlpid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="supportinstructorid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Optional support teacher with the same Moodle-level capabilities as instructorid for this class only. Admin/director managed."/>
         <FIELD NAME="inithourformatted" TYPE="char" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
         <FIELD NAME="endhourformatted" TYPE="char" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
         <FIELD NAME="inittimets" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>

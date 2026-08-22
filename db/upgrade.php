@@ -3004,6 +3004,34 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20260818000, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20260826000) {
+        // Support teacher: optional second teacher per class with the same
+        // Moodle-level capabilities as the main instructor for this class only.
+        // Admin/director managed; UI in pages/editclass.php adds a second
+        // <select> for it. See locallib.php::update_class() and
+        // gmk_sync_bbb_moderator_rules_for_class() for the runtime effects.
+        $table = new xmldb_table('gmk_class');
+        $field = new xmldb_field(
+            'supportinstructorid',
+            XMLDB_TYPE_INTEGER,
+            '10',
+            null,
+            null,
+            null,
+            null,
+            'instructorlpid'
+        );
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+        $index = new xmldb_index('supportinstructorid_idx', XMLDB_INDEX_NOTUNIQUE, ['supportinstructorid']);
+        if (!$dbman->index_exists($table, $index)) {
+            $dbman->add_index($table, $index);
+        }
+
+        upgrade_plugin_savepoint(true, 20260826000, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

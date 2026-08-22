@@ -62,6 +62,7 @@ class create_class extends external_api {
                 'periodId' => new external_value(PARAM_INT, 'Id of the period when the class is going to be dictated defined in the leaerning pland and ',VALUE_REQUIRED),
                 'courseId' => new external_value(PARAM_INT, 'Course id for the class',VALUE_REQUIRED),
                 'instructorId' => new external_value(PARAM_INT, 'Id of the class instructor',VALUE_REQUIRED),
+                'supportTeacherId' => new external_value(PARAM_INT, 'Optional support teacher (admin/director managed). 0 = no support teacher.', VALUE_DEFAULT, 0),
                 'initTime' => new external_value(PARAM_TEXT, 'The init time of the class'),
                 'endTime' => new external_value(PARAM_TEXT, 'The end time of the class'),
                 'initDate' => new external_value(PARAM_TEXT, 'The start date of the class (YYYY-MM-DD)', VALUE_DEFAULT, ''),
@@ -85,8 +86,9 @@ class create_class extends external_api {
         int $type,
         int $learningPlanId,
         int $periodId,
-        int $courseId,
+int $courseId,
         int $instructorId,
+        int $supportTeacherId = 0,
         string $initTime,
         string $endTime,
         string $initDate = '',
@@ -105,6 +107,7 @@ class create_class extends external_api {
             'periodId' =>$periodId,
             'courseId' =>$courseId,
             'instructorId' =>$instructorId,
+            'supportTeacherId' => $supportTeacherId,
             'initTime'=>$initTime,
             'endTime'=>$endTime,
             'initDate'=>$initDate,
@@ -114,9 +117,34 @@ class create_class extends external_api {
             'classroomCapacity'=>$classroomCapacity,
             'academicPeriodId'=>$academicPeriodId
         ]);
-        
-        try{;
-            check_class_schedule_availability($params['instructorId'],$params['classDays'], $params['initTime'] ,$params['endTime'],$params['classroomId'], null, $params['initDate'], $params['endDate']);
+
+        try{
+            // Validate support teacher (if set) and avoid main == support.
+            if (!empty($supportTeacherId) && intval($supportTeacherId) > 0) {
+                $su = core_user::get_user($supportTeacherId);
+                if (!$su || $su->suspended === '1' || $su->deleted === '1') {
+                    throw new Exception('El docente de apoyo no existe, está suspendido o fue eliminado.');
+                }
+                if ((int)$supportTeacherId === (int)$instructorId) {
+                    $supportTeacherId = 0;
+                }
+            }
+
+            $instructorIds = array_values(array_filter([
+                (int)$instructorId,
+                (int)$supportTeacherId,
+            ], fn($id) => $id > 0));
+            check_class_schedule_availability(
+                $instructorIds,
+                $params['classDays'],
+                $params['initTime'],
+                $params['endTime'],
+                $params['classroomId'],
+                null,
+                $params['initDate'],
+                $params['endDate']
+            );
+            $params['supportTeacherId'] = (int)$supportTeacherId;
             $classId = create_class($params);
 
             // Return the result.
