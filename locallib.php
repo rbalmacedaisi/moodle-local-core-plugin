@@ -52,6 +52,32 @@ if (!function_exists('gmk_log')) {
     }
 }
 
+/**
+ * Check if the given user is the main instructor or the support teacher of a class.
+ *
+ * The support teacher (gmk_class.supportinstructorid) was introduced alongside the
+ * main instructor and shares all of its class-level capabilities (attendance grading,
+ * BBB moderator, group membership, course editingteacher). Anywhere the codebase asks
+ * "is this user the instructor of this class?", the answer should be YES for either
+ * role. This helper centralises that check so we don't sprinkle the OR clause across
+ * the codebase.
+ *
+ * @param stdClass|array $class gmk_class row (must have instructorid; supportinstructorid optional).
+ * @param int $userid Moodle user id to test.
+ * @return bool True if $userid matches either instructorid or supportinstructorid.
+ */
+function gmk_user_is_class_instructor_or_support($class, int $userid): bool {
+    if ($userid <= 0 || !$class) {
+        return false;
+    }
+    $main = (int)($class->instructorid ?? 0);
+    if ($main === $userid) {
+        return true;
+    }
+    $support = (int)($class->supportinstructorid ?? ($class['supportinstructorid'] ?? 0));
+    return $support > 0 && $support === $userid;
+}
+
 if (!function_exists('local_grupomakro_translate_financial_filter')) {
     /**
      * Helper: mapea los valores logicos del filtro financiero (los que la UI
@@ -379,10 +405,16 @@ if (!function_exists('gmk_invalidate_schedule_caches')) {
             $userids = [];
             $classid = (int)$classid;
             if ($classid > 0) {
-                $class = $DB->get_record('gmk_class', ['id' => $classid], 'id,instructorid,groupid');
+                $class = $DB->get_record('gmk_class', ['id' => $classid], 'id,instructorid,supportinstructorid,groupid');
                 if ($class) {
                     if (!empty($class->instructorid)) {
                         $userids[(int)$class->instructorid] = (int)$class->instructorid;
+                    }
+                    // Support teacher (if any) gets the same dashboard / calendar
+                    // refresh treatment as the main instructor — they need to see
+                    // (and stop seeing) this class in their own widgets.
+                    if (!empty($class->supportinstructorid)) {
+                        $userids[(int)$class->supportinstructorid] = (int)$class->supportinstructorid;
                     }
                     if (!empty($class->groupid)) {
                         $members = $DB->get_records('groups_members', ['groupid' => (int)$class->groupid], '', 'id,userid');
@@ -4153,8 +4185,15 @@ function list_classes($filters)
         if (!empty($class->corecourseid)) {
             $coreCourseIds[(int)$class->corecourseid] = (int)$class->corecourseid;
         }
+        // Support teacher (gmk_class.supportinstructorid) shares the same set
+        // of capabilities as the main instructor (attendance grading, BBB,
+        // group membership, course editingteacher), so we prefetch them in the
+        // same bulk pass and resolve them under the same in-memory map.
         if (!empty($class->instructorid)) {
             $instructorIds[(int)$class->instructorid] = (int)$class->instructorid;
+        }
+        if (!empty($class->supportinstructorid)) {
+            $instructorIds[(int)$class->supportinstructorid] = (int)$class->supportinstructorid;
         }
         if (!empty($class->learningplanid)) {
             $learningPlanIds[(int)$class->learningplanid] = (int)$class->learningplanid;
@@ -4426,6 +4465,19 @@ function list_classes($filters)
             $classInstructor = $instructorsById[(int)$class->instructorid];
             if (!empty($classInstructor)) {
                 $class->instructorName = $classInstructor->firstname . ' ' . $classInstructor->lastname;
+            }
+        }
+
+        // Same idea for the support teacher (optional). Same in-memory map populated
+        // by the bulk prefetch above. Empty string (not 'No asignado') when null so
+        // the UI can distinguish "no support teacher" from "main not assigned".
+        $class->supportInstructorName = '';
+        $class->supportInstructorId   = (int)($class->supportinstructorid ?? 0);
+        if (!empty($class->supportinstructorid)
+            && isset($instructorsById[(int)$class->supportinstructorid])) {
+            $supportInstructor = $instructorsById[(int)$class->supportinstructorid];
+            if (!empty($supportInstructor)) {
+                $class->supportInstructorName = $supportInstructor->firstname . ' ' . $supportInstructor->lastname;
             }
         }
 

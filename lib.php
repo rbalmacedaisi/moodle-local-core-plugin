@@ -53,16 +53,25 @@ function local_grupomakro_core_user_home_redirect(&$url) {
         return;
     }
 
-    // 1. Check for Active Teachers (Existing Logic)
-    $is_active_teacher = $DB->record_exists('gmk_class', ['instructorid' => $USER->id, 'closed' => 0]);
+    // 1. Check for Active Teachers (Existing Logic). A "teacher" here is either the
+    // main instructor or the support teacher (gmk_class.supportinstructorid) — both
+    // get the same redirect-to-dashboard treatment so the support teacher lands on
+    // their classes too.
+    $is_active_teacher = $DB->record_exists_sql(
+        "SELECT 1 FROM {gmk_class}
+          WHERE (instructorid = :uid OR supportinstructorid = :uid)
+            AND closed = 0
+          LIMIT 1",
+        ['uid' => (int)$USER->id]
+    );
 
     if ($is_active_teacher) {
         $dashboard_path = '/local/grupomakro_core/pages/teacher_dashboard.php';
         $quiz_editor_path = '/local/grupomakro_core/pages/quiz_editor.php';
-        
+
         $current_script = $_SERVER['SCRIPT_NAME'];
-        
-        if (strpos($current_script, $dashboard_path) === false && 
+
+        if (strpos($current_script, $dashboard_path) === false &&
             strpos($current_script, $quiz_editor_path) === false) {
             redirect(new moodle_url($dashboard_path));
         }
@@ -71,7 +80,12 @@ function local_grupomakro_core_user_home_redirect(&$url) {
 
     // 2. Check for Inactive Teachers (New Logic)
     // Only redirect if they are actively trying to access Home or Dashboard (caller ensures this)
-    $has_past = $DB->record_exists('gmk_class', ['instructorid' => $USER->id]);
+    $has_past = $DB->record_exists_sql(
+        "SELECT 1 FROM {gmk_class}
+          WHERE (instructorid = :uid OR supportinstructorid = :uid)
+          LIMIT 1",
+        ['uid' => (int)$USER->id]
+    );
     $has_skills = $DB->record_exists('gmk_teacher_skill_relation', ['userid' => $USER->id]);
     $has_disp = $DB->record_exists('gmk_teacher_disponibility', ['userid' => $USER->id]);
 

@@ -166,7 +166,7 @@ if (!function_exists('gmk_forum_manage_context')) {
         $coursecontext = context_course::instance($course->id);
         $cmcontext = context_module::instance($cm->id);
         $canmanage = is_siteadmin()
-            || ((int)$class->instructorid === (int)$USER->id)
+            || gmk_user_is_class_instructor_or_support($class, (int)$USER->id)
             || has_capability('moodle/course:manageactivities', $coursecontext);
 
         if (!$canmanage) {
@@ -1575,10 +1575,16 @@ try {
                 // calendar shows events for all 60+ courses).
                 $scopeUserid = $userid > 0 ? $userid : (int)$USER->id;
                 $isScopeAdmin = is_siteadmin($scopeUserid);
-                $scopeWhere = $isScopeAdmin ? '' : ' AND c.instructorid = :instructorid';
+                // Support teachers (gmk_class.supportinstructorid) see the same
+                // calendar scope as the main instructor. Match either column so
+                // a user with the support role is filtered to "their" classes.
+                $scopeWhere = $isScopeAdmin
+                    ? ''
+                    : ' AND (c.instructorid = :instructorid OR c.supportinstructorid = :instructorid2)';
                 $scopeParams = [];
                 if (!$isScopeAdmin) {
-                    $scopeParams['instructorid'] = $scopeUserid;
+                    $scopeParams['instructorid']  = $scopeUserid;
+                    $scopeParams['instructorid2'] = $scopeUserid;
                 }
                 $activeClasses = $DB->get_records_sql(
                     "SELECT c.id FROM {gmk_class} c WHERE c.closed = 0 $scopeWhere",
@@ -4511,7 +4517,13 @@ try {
             // Permission Logic with Fallback
             if (!has_capability('mod/quiz:manage', $context)) {
                 $course = $DB->get_record('course', ['id' => $cm->course], '*', MUST_EXIST);
-                $is_gmk_instructor = $DB->record_exists('gmk_class', ['corecourseid' => $course->id, 'instructorid' => $USER->id]);
+                $is_gmk_instructor = $DB->record_exists_sql(
+                    "SELECT 1 FROM {gmk_class}
+                      WHERE corecourseid = :cid
+                        AND (instructorid = :uid OR supportinstructorid = :uid)
+                      LIMIT 1",
+                    ['cid' => (int)$course->id, 'uid' => (int)$USER->id]
+                );
                 if (!$is_gmk_instructor) {
                     require_capability('mod/quiz:manage', $context);
                 }
@@ -4583,7 +4595,13 @@ try {
                 if (!has_capability('mod/quiz:manage', $context)) {
                     $course = $DB->get_record('course', ['id' => $cm->course], '*', MUST_EXIST);
                     // FIXED: Removed closed => 0 constraint to allow editing in closed classes if needed by instructor
-                    $is_gmk_instructor = $DB->record_exists('gmk_class', ['corecourseid' => $course->id, 'instructorid' => $USER->id]);
+                    $is_gmk_instructor = $DB->record_exists_sql(
+                        "SELECT 1 FROM {gmk_class}
+                          WHERE corecourseid = :cid
+                            AND (instructorid = :uid OR supportinstructorid = :uid)
+                          LIMIT 1",
+                        ['cid' => (int)$course->id, 'uid' => (int)$USER->id]
+                    );
                     if (!$is_gmk_instructor) {
                         require_capability('mod/quiz:manage', $context);
                     }
