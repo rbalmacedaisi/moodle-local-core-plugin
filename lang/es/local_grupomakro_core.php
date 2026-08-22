@@ -448,6 +448,11 @@ $string['init_date'] = 'Fecha de Inicio';
 $string['end_date'] = 'Fecha de Finalización';
 $string['class_available_instructors'] = 'Instructores disponibles para la clase';
 $string['see_availability'] = 'Ver disponibilidad';
+$string['support_teacher'] = 'Docente de apoyo';
+$string['support_teacher_help'] = 'Docente con las mismas capacidades que el titular en esta clase (edita el curso, modera el BBB, marca asistencia y califica). Solo administradores/directores pueden asignarlo.';
+$string['select_no_support_teacher'] = 'Sin docente de apoyo';
+$string['support_teacher_invalid'] = 'El docente de apoyo seleccionado no existe, está suspendido o fue eliminado.';
+$string['support_teacher_same_as_main'] = 'El docente de apoyo no puede ser el mismo que el titular.';
 
 //Class creation and edition input placeholders
 

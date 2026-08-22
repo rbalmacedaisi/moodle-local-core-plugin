@@ -191,17 +191,35 @@
                             </div>
                         </div>
                         
-                        {{! Field to select the Instructors }}
+{{! Field to select the Instructors }}
                         <div id="instructor-fieldset" class="col-sm-12 col-md-6 form-group py-2">
                             <label class="w-100" for="instructor">{{#str}}instructor, local_grupomakro_core {{/str}}</label>
                             <select name="instructor" id="instructor" class="form-control" required>
                                 <option value=''>{{#str}}select_instructor, local_grupomakro_core {{/str}}</option>
                                  {{#teachers}}
-                                <option class="teacherValue" {{selected}} value="{{value}}">{{label}}</option>
+                                <option class="teacherValue" {{selected}} value="{{value">{{label}}</option>
                                 {{/teachers}}
                             </select>
                         </div>
                         {{! End Field to select the Instructors }}
+
+                        {{! Field to select the support teacher (admin/director managed). Same
+                            capabilities as the main instructor for this class only. Disabled
+                            when the current user lacks the editsupportteacher capability. }}
+                        <div id="support-teacher-fieldset" class="col-sm-12 col-md-6 form-group py-2">
+                            <label class="w-100" for="supportTeacher">
+                                {{#str}}support_teacher, local_grupomakro_core {{/str}}
+                                <i class="mdi mdi-help-circle-outline" title="{{#str}}support_teacher_help, local_grupomakro_core {{/str}}"></i>
+                            </label>
+                            <select name="supportTeacher" id="supportTeacher" class="form-control"
+                                {{^canEditSupportTeacher}}disabled{{/canEditSupportTeacher}}>
+                                <option value=''>{{#str}}select_no_support_teacher, local_grupomakro_core {{/str}}</option>
+                                {{#classSupportTeachers}}
+                                <option class="supportTeacherValue" {{selected}} value="{{id}}">{{fullname}}</option>
+                                {{/classSupportTeachers}}
+                            </select>
+                        </div>
+                        {{! End Field to select the support teacher }}
                         
                         {{! End Section to choose class days }}
                         {{/reschedulingActivity}}

@@ -231,7 +231,7 @@ window.Vue.component('createclass', {
                                                 <v-list-item-title>{{ teacher.fullname }}</v-list-item-title>
                                                 <v-list-item-subtitle class="text-caption" v-text="teacher.email"></v-list-item-subtitle>
                                             </v-list-item-content>
-                                    
+
                                             <v-list-item-action>
                                                 <v-checkbox
                                                   :input-value="active"
@@ -241,6 +241,64 @@ window.Vue.component('createclass', {
                                         </template>
                                     </v-list-item>
                                 </template>
+                            </v-list-item-group>
+                        </v-list>
+                    </form>
+
+                    {{! Support teacher (admin/director only). Same UI as editclass:
+                        v-list-item-group driven, rendered disabled when the user
+                        can't edit. Non-admin users see the field but cannot post
+                        changes. }}
+                    <form v-if="canEditSupportTeacher || true" class="px-3 mt-4">
+                        <h6>
+                            {{lang.support_teacher}}
+                            <i class="mdi mdi-help-circle-outline" :title="lang.support_teacher_help"></i>
+                        </h6>
+                        <v-list dense two-line>
+                            <v-list-item-group v-model="classData.supportTeacherIndex">
+                                <v-list-item v-if="!supportTeachers.length" :disabled="true">
+                                    <template v-slot:default>
+                                        <v-list-item-icon>
+                                            <v-icon>mdi-account-supervisor</v-icon>
+                                        </v-list-item-icon>
+                                        <v-list-item-content>
+                                            <v-list-item-title class="grey--text">{{lang.select_no_support_teacher}}</v-list-item-title>
+                                        </v-list-item-content>
+                                    </template>
+                                </v-list-item>
+                                <template v-for="teacher in supportTeachers">
+                                    <v-list-item :disabled="!canEditSupportTeacher" color="info">
+                                        <template v-slot:default="{ active }">
+                                            <v-list-item-icon>
+                                                <v-icon>mdi-account-supervisor</v-icon>
+                                            </v-list-item-icon>
+                                            <v-list-item-content>
+                                                <v-list-item-title>{{ teacher.fullname }}</v-list-item-title>
+                                                <v-list-item-subtitle class="text-caption" v-text="teacher.email"></v-list-item-subtitle>
+                                            </v-list-item-content>
+                                            <v-list-item-action>
+                                                <v-checkbox
+                                                  :input-value="active"
+                                                  :disabled="!canEditSupportTeacher"
+                                                  color="info"
+                                                ></v-checkbox>
+                                            </v-list-item-action>
+                                        </template>
+                                    </v-list-item>
+                                </template>
+                                <v-list-item v-if="canEditSupportTeacher && supportTeachers.length > 0" @click="classData.supportTeacherIndex = undefined">
+                                    <template v-slot:default="{ active }">
+                                        <v-list-item-icon>
+                                            <v-icon>mdi-close-circle-outline</v-icon>
+                                        </v-list-item-icon>
+                                        <v-list-item-content>
+                                            <v-list-item-title>{{lang.select_no_support_teacher}}</v-list-item-title>
+                                        </v-list-item-content>
+                                        <v-list-item-action>
+                                            <v-checkbox :input-value="classData.supportTeacherIndex === undefined" color="grey"></v-checkbox>
+                                        </v-list-item-action>
+                                    </template>
+                                </v-list-item>
                             </v-list-item-group>
                         </v-list>
                     </form>
@@ -262,7 +320,7 @@ window.Vue.component('createclass', {
         return {
             menuInitDate: false,
             menuEndDate: false,
-            classData: {
+classData: {
                 name: undefined,
                 type: undefined,
                 classRoomIndex: undefined,
@@ -271,6 +329,8 @@ window.Vue.component('createclass', {
                 academicPeriodId: undefined,
                 courseId: undefined,
                 teacherIndex: undefined,
+                // Support teacher (admin/director only). undefined = none selected.
+                supportTeacherIndex: undefined,
                 initTime: undefined,
                 endTime: undefined,
                 initDate: new Date().toISOString().substr(0, 10), // Default to today
@@ -288,6 +348,12 @@ window.Vue.component('createclass', {
             periods: [],
             courses: [],
             teachers: [],
+            // Support teacher (admin/director only). Populated lazily by
+            // loadSupportTeachers() once the learning plan + course are set;
+            // empty in the initial fillInputs() because we don't have classId yet.
+            supportTeachers: [],
+            supportTeacherId: undefined,
+            canEditSupportTeacher: false,
             savingClass: false,
             showErrorDialog: false,
             errorMessage: undefined,
@@ -316,6 +382,8 @@ window.Vue.component('createclass', {
                     this.periods = [];
                     this.classData.teacherIndex = undefined;
                     this.teachers = [];
+                    this.supportTeachers = [];
+                    this.classData.supportTeacherIndex = undefined;
                 }
                 this.classData.periodId = undefined
                 this.classData.courseId = undefined
@@ -363,6 +431,30 @@ window.Vue.component('createclass', {
             }
             catch (error) {
                 console.error('Error fetching teachers:', error)
+            }
+            // Refresh the support teacher candidates too (admin/director only).
+            // Same parameters but role=support so the WS excludes the current
+            // main teacher from the response. We don't fail the whole call if
+            // the support list returns empty: non-admin users just see an empty
+            // dropdown and the field is rendered disabled.
+            try {
+                const params = { ...this.getPotentialTeachersParameters, role: 'support' };
+                const resp = await window.axios.get(wsurl, { params });
+                if (resp && resp.data && resp.data.teachers) {
+                    let st = resp.data.teachers;
+                    st = typeof st === 'string' ? JSON.parse(st) : st;
+                    this.supportTeachers = st.map((t) => ({
+                        email: t.email, fullname: t.fullname, id: t.id
+                    }));
+                    this.canEditSupportTeacher = true;
+                } else {
+                    this.supportTeachers = [];
+                    this.canEditSupportTeacher = false;
+                }
+            } catch (supportErr) {
+                console.warn('Could not load support teacher candidates:', supportErr);
+                this.supportTeachers = [];
+                this.canEditSupportTeacher = false;
             }
         },
         async saveClass() {
@@ -476,16 +568,35 @@ window.Vue.component('createclass', {
                 classId: this.classData.id,
             }
         },
-        selectedClassTeacher() {
+selectedClassTeacher() {
             return this.teachers[this.classData.teacherIndex]
+        },
+        selectedSupportTeacher() {
+            if (!this.canEditSupportTeacher) {
+                return null;
+            }
+            const idx = this.classData.supportTeacherIndex;
+            if (idx === undefined || idx === null || idx < 0) {
+                return null;
+            }
+            return this.supportTeachers[idx] || null;
         },
         showClassRoomSelector() {
             return Number(this.classData.type) !== 1;
         },
-        saveClassParameters() {
+saveClassParameters() {
             const { name, type, learningPlanId, periodId, academicPeriodId, courseId, initTime, endTime, initDate, endDate } = this.classData
             const selectedRoomId = this.showClassRoomSelector ? (this.selectedClassRoom?.value || 0) : 0;
             const selectedRoomCapacity = this.showClassRoomSelector ? (this.selectedClassRoom?.capacity || 40) : 40;
+            // Support teacher (admin/director only): 0 if no selection or no permission.
+            // Server-side enforcement: even if a non-admin user could somehow set
+            // a value here, update_class/create_class WS ignore it unless the
+            // caller has the editsupportteacher capability.
+            const supportId = this.canEditSupportTeacher
+                ? (this.selectedSupportTeacher?.id
+                    ? Number(this.selectedSupportTeacher.id)
+                    : 0)
+                : 0;
             return {
                 ...wsDefaultParams,
                 wsfunction: 'local_grupomakro_create_class',
@@ -496,6 +607,7 @@ window.Vue.component('createclass', {
                 academicPeriodId,
                 courseId,
                 instructorId: this.selectedClassTeacher?.id,
+                supportTeacherId: supportId,
                 initTime,
                 endTime,
                 initDate,
