@@ -149,4 +149,12 @@ $capabilities = array(
             'manager' => CAP_ALLOW,
         ),
     ),
+    'local/grupomakro_core:editsupportteacher' => array(
+        'riskbitmask' => RISK_PERSONAL,
+        'captype' => 'write',
+        'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array(
+            'manager' => CAP_ALLOW,
+        ),
+    ),
 );
