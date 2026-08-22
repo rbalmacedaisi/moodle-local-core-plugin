@@ -663,16 +663,25 @@ function get_teachers_disponibility($params)
     return $teachersDisponibility;
 }
 
-function check_class_schedule_availability($instructorId, $classDays, $initTime, $endTime, $classroomId = '', $classId = null, $initDate = null, $endDate = null)
+function check_class_schedule_availability($instructorIds, $classDays, $initTime, $endTime, $classroomId = '', $classId = null, $initDate = null, $endDate = null)
 {
     //Check the instructor availability
     global $DB;
-    
+
+    // Back-compat: accept either a single int or an array of ids (so the
+    // support teacher can be validated alongside the main instructor).
+    if (!is_array($instructorIds)) {
+        $instructorIds = $instructorIds > 0 ? [(int)$instructorIds] : [];
+    } else {
+        $instructorIds = array_values(array_filter(array_map('intval', $instructorIds),
+            fn($id) => $id > 0));
+    }
+
     // Guard: If no instructor is assigned, skip all availability checks
-    if (empty($instructorId) || intval($instructorId) <= 0) {
+    if (empty($instructorIds)) {
         return true;
     }
-    
+
     $weekdays = array(
         0 => 'Lunes',
         1 => 'Martes',
@@ -691,62 +700,65 @@ function check_class_schedule_availability($instructorId, $classDays, $initTime,
     $incomingInitDateTS = $initDate ? strtotime($initDate) : 0;
     $incomingEndDateTS = $endDate ? strtotime($endDate) : 0;
 
-    $availabilityRecords = get_teachers_disponibility(['instructorId' => $instructorId])[$instructorId]->disponibilityRecords;
-
-    for ($i = 0; $i < 7; $i++) {
-
-        if ($incomingClassSchedule[$i] === "1" && !array_key_exists($weekdays[$i], $availabilityRecords)) {
-            $errorString = "El instructor no esta disponible el día " . $weekdays[$i];
-            $errors[] = $errorString;
-        } else if ($incomingClassSchedule[$i] === "1" && array_key_exists($weekdays[$i], $availabilityRecords)) {
-            $foundedAvailableRange = false;
-            foreach ($availabilityRecords[$weekdays[$i]] as $timeRange) {
-                $availabilityTimestampRange = convert_time_range_to_timestamp_range(explode(', ', $timeRange));
-                if ($incomingTimestampRange["initTS"] >= $availabilityTimestampRange["initTS"] && $incomingTimestampRange["endTS"] <= $availabilityTimestampRange["endTS"]) {
-                    $foundedAvailableRange = true;
-                    break;
-                }
-            }
-            if (!$foundedAvailableRange) {
-                $errorString = "El instructor no esta disponible el día " . $weekdays[$i] . " en el horario: " . $initTime . " - " . $endTime;
-                $errors[] = $errorString;
-            }
-        }
-    }
-    $alreadyAsignedClasses = list_classes(['instructorid' => strval($instructorId)]);
-
-    if ($classId) {
-        unset($alreadyAsignedClasses[$classId]);
-    }
-
-    foreach ($alreadyAsignedClasses as $alreadyAsignedClass) {
-        
-        // Date Range Check: Skip if ranges do not overlap
-        // Only check if both incoming and existing have valid dates. If any are missing, assume checking is required (or maybe assume overlap).
-        // Let's assume strict checking: if dates are provided, we check.
-        $existingInitDateTS = $alreadyAsignedClass->initdate;
-        $existingEndDateTS = $alreadyAsignedClass->enddate;
-
-        // Overlap Condition: (StartA <= EndB) and (EndA >= StartB)
-        // If dates are 0 or null, we treat them as 'always active' or maybe we should default to skipping?
-        // Let's assume if dates are set ( > 0 ), we check for non-overlap.
-        
-        if ($incomingInitDateTS > 0 && $incomingEndDateTS > 0 && $existingInitDateTS > 0 && $existingEndDateTS > 0) {
-            // Check if they DO NOT overlap
-            if ($incomingInitDateTS > $existingEndDateTS || $incomingEndDateTS < $existingInitDateTS) {
-                continue; // No date overlap, so no time conflict is possible.
-            }
+    // Validate availability AND schedule conflicts for every instructor (main + support).
+    // The "main instructor" wording in the error strings is intentional for the main
+    // pass; we re-run for support teachers below with a slightly different message so
+    // the caller can tell who failed. Errors are merged and returned.
+    $instructorLabel = 'El instructor';
+    foreach ($instructorIds as $instructorPos => $instructorId) {
+        if ($instructorPos > 0) {
+            $instructorLabel = 'El docente de apoyo';
         }
 
-        $alreadyAsignedClassSchedule = explode('/', $alreadyAsignedClass->classdays);
-        $classInitTime = $alreadyAsignedClass->inittimets;
-        $classEndTime = $alreadyAsignedClass->endtimets;
+        $availabilityRecords = get_teachers_disponibility(['instructorId' => $instructorId])[$instructorId]->disponibilityRecords;
 
         for ($i = 0; $i < 7; $i++) {
-            if ($incomingClassSchedule[$i] == $alreadyAsignedClassSchedule[$i] && $incomingClassSchedule[$i] === '1') {
-                if (($incomingTimestampRange["initTS"] >= $classInitTime && $incomingTimestampRange["endTS"] <= $classEndTime) || ($incomingTimestampRange["initTS"] < $classInitTime && $incomingTimestampRange["endTS"] > $classInitTime) || ($incomingTimestampRange["initTS"] < $classEndTime && $incomingTimestampRange["endTS"] > $classEndTime)) {
-                    $errorString = "La clase " . $alreadyAsignedClass->name . ": " . $weekdays[$i] . " (" . $alreadyAsignedClass->inithourformatted . " - " . $alreadyAsignedClass->endhourformatted . ") se cruza con el horario escogido";
+            if ($incomingClassSchedule[$i] === "1" && !array_key_exists($weekdays[$i], $availabilityRecords)) {
+                $errorString = "$instructorLabel no esta disponible el día " . $weekdays[$i];
+                $errors[] = $errorString;
+            } else if ($incomingClassSchedule[$i] === "1" && array_key_exists($weekdays[$i], $availabilityRecords)) {
+                $foundedAvailableRange = false;
+                foreach ($availabilityRecords[$weekdays[$i]] as $timeRange) {
+                    $availabilityTimestampRange = convert_time_range_to_timestamp_range(explode(', ', $timeRange));
+                    if ($incomingTimestampRange["initTS"] >= $availabilityTimestampRange["initTS"] && $incomingTimestampRange["endTS"] <= $availabilityTimestampRange["endTS"]) {
+                        $foundedAvailableRange = true;
+                        break;
+                    }
+                }
+                if (!$foundedAvailableRange) {
+                    $errorString = "$instructorLabel no esta disponible el día " . $weekdays[$i] . " en el horario: " . $initTime . " - " . $endTime;
                     $errors[] = $errorString;
+                }
+            }
+        }
+
+        $alreadyAsignedClasses = list_classes(['instructorid' => strval($instructorId)]);
+
+        if ($classId) {
+            unset($alreadyAsignedClasses[$classId]);
+        }
+
+        foreach ($alreadyAsignedClasses as $alreadyAsignedClass) {
+            // Date Range Check: Skip if ranges do not overlap
+            $existingInitDateTS = $alreadyAsignedClass->initdate;
+            $existingEndDateTS = $alreadyAsignedClass->enddate;
+
+            if ($incomingInitDateTS > 0 && $incomingEndDateTS > 0 && $existingInitDateTS > 0 && $existingEndDateTS > 0) {
+                if ($incomingInitDateTS > $existingEndDateTS || $incomingEndDateTS < $existingInitDateTS) {
+                    continue;
+                }
+            }
+
+            $alreadyAsignedClassSchedule = explode('/', $alreadyAsignedClass->classdays);
+            $classInitTime = $alreadyAsignedClass->inittimets;
+            $classEndTime = $alreadyAsignedClass->endtimets;
+
+            for ($i = 0; $i < 7; $i++) {
+                if ($incomingClassSchedule[$i] == $alreadyAsignedClassSchedule[$i] && $incomingClassSchedule[$i] === '1') {
+                    if (($incomingTimestampRange["initTS"] >= $classInitTime && $incomingTimestampRange["endTS"] <= $classEndTime) || ($incomingTimestampRange["initTS"] < $classInitTime && $incomingTimestampRange["endTS"] > $classInitTime) || ($incomingTimestampRange["initTS"] < $classEndTime && $incomingTimestampRange["endTS"] > $classEndTime)) {
+                        $errorString = "$instructorLabel ya tiene la clase '" . $alreadyAsignedClass->name . "' el " . $weekdays[$i] . " (" . $alreadyAsignedClass->inithourformatted . " - " . $alreadyAsignedClass->endhourformatted . ") que se cruza con el horario escogido";
+                        $errors[] = $errorString;
+                    }
                 }
             }
         }
@@ -806,6 +818,26 @@ function get_potential_class_teachers($params)
 
     //Get the learning plan teachers and complete fullname, email and skills attributes
     $learningPlanTeachers = $DB->get_records("local_learning_users", ['learningplanid' => $params['learningPlanId'], 'userroleid' => 4]);
+
+    // When listing support-teacher candidates, exclude the current main
+    // instructor and the current support teacher (the same person can't fill
+    // both roles, and the current support would otherwise be the obvious
+    // "selected" option).
+    $supportRole = ($params['role'] ?? 'main') === 'support';
+    if ($supportRole && !empty($params['classId'])) {
+        $cur = $DB->get_record('gmk_class', ['id' => $params['classId']],
+            'instructorid,supportinstructorid');
+        $excludeIds = array_filter([
+            (int)($cur->instructorid ?? 0),
+            (int)($cur->supportinstructorid ?? 0),
+        ]);
+        if (!empty($excludeIds)) {
+            $learningPlanTeachers = array_filter(
+                $learningPlanTeachers,
+                fn($t) => !in_array((int)$t->userid, $excludeIds, true)
+            );
+        }
+    }
 
     $learningPlanTeachers = array_map(function ($teacher) use ($DB, $teacherSkills) {
         try {
@@ -1072,6 +1104,18 @@ function create_class($classParams)
         $newClass->periodid       = (int)$classParams["academicPeriodId"];
         $newClass->courseid       = $classParams["courseId"];
         $newClass->instructorid   = $classParams["instructorId"];
+        // Optional support teacher (admin/director managed). 0 / null = none.
+        // We accept both array keys for backward compatibility with older callers.
+        $newSupportId = 0;
+        if (isset($classParams['supportTeacherId'])) {
+            $newSupportId = (int)$classParams['supportTeacherId'];
+        } elseif (isset($classParams['supportInstructorId'])) {
+            $newSupportId = (int)$classParams['supportInstructorId'];
+        }
+        if ($newSupportId > 0 && $newSupportId === (int)$newClass->instructorid) {
+            $newSupportId = 0;
+        }
+        $newClass->supportinstructorid = $newSupportId > 0 ? $newSupportId : null;
         $newClass->inittime       = $classParams["initTime"];
         $newClass->endtime        = $classParams["endTime"];
         $newClass->initdate       = isset($classParams["initDate"]) ? strtotime($classParams["initDate"]) : 0;
@@ -1209,6 +1253,29 @@ function create_class_group($class)
             }
         } else {
             gmk_log("WARNING: Instructor {$class->instructorid} not found or suspended, skipping group assignment");
+        }
+    }
+
+    // Support teacher (optional). Same Moodle-level capabilities as the main
+    // instructor for this class only: editingteacher in the course + group
+    // member + BBB moderator (the latter is handled by gmk_sync_bbb_moderator_rules_for_class()).
+    $supportId = (int)($class->supportinstructorid ?? 0);
+    if ($supportId > 0 && $supportId !== (int)($class->instructorid ?? 0)) {
+        $supportExists = $GLOBALS['DB']->record_exists('user', [
+            'id' => $supportId, 'deleted' => 0, 'suspended' => 0
+        ]);
+        if ($supportExists) {
+            $enrolplugin = enrol_get_plugin('manual');
+            $courseInstance = get_manual_enroll($class->corecourseid);
+            $teacherRoleId = $GLOBALS['DB']->get_field('role', 'id', ['shortname' => 'editingteacher']);
+            if ($enrolplugin && $courseInstance && $teacherRoleId) {
+                $enrolplugin->enrol_user($courseInstance, $supportId, $teacherRoleId);
+            }
+            if (!groups_add_member($newClassGroup->id, $supportId)) {
+                gmk_log("WARNING: Could not add support teacher {$supportId} to group {$newClassGroup->id}");
+            }
+        } else {
+            gmk_log("WARNING: Support teacher {$supportId} not found or suspended, skipping group assignment");
         }
     }
     return $newClassGroup->id;
@@ -3710,7 +3777,7 @@ function create_big_blue_button_activity($class, $initDateTS, $endDateTS, $BBBmo
     $bbbActivityDefinition->type                            = '0';
     $bbbActivityDefinition->name                            = $class->name . '-' . $class->id . '-' . $initDateTS;
     $bbbActivityDefinition->welcome                         = "Le damos la bienvenida a la sala de clases online de la clase " . $class->name;
-    $bbbActivityDefinition->participants                    = '[{"selectiontype":"user","selectionid":' . $class->instructorid . ',"role":"moderator"},{"selectiontype":"all","selectionid":"all","role":"viewer"}]';
+    $bbbActivityDefinition->participants                    = gmk_build_bbb_participants_json($class);
     $bbbActivityDefinition->openingtime                     = $initDateTS - 600;
     $bbbActivityDefinition->closingtime                     = $endDateTS;
     $bbbActivityDefinition->cmidnumber                      = substr($class->name . '-' . $class->id . '-' . $initDateTS, 0, 100);
@@ -4910,6 +4977,7 @@ function update_class($classParams)
     $class = $DB->get_record('gmk_class', ['id' => $classParams['classId']]);
     $oldClass = clone $class; // Save copy for diff comparison
     $classOldInstructorId = $class->instructorid;
+    $classOldSupportInstructorId = (int)($class->supportinstructorid ?? 0);
 
     $class->name           = $classParams["name"];
     $class->type           = $classParams["type"];
@@ -4926,6 +4994,16 @@ function update_class($classParams)
     }
     $class->courseid       = $classParams["courseId"];
     $class->instructorid   = $classParams["instructorId"];
+    // Optional support teacher (admin/director only). 0/null clears it.
+    // When support equals main, we treat it as "no support" — having the same
+    // user in both roles is meaningless and double-enrolls them in BBB.
+    if (array_key_exists('supportTeacherId', $classParams)) {
+        $newSupportId = (int)$classParams['supportTeacherId'];
+        if ($newSupportId > 0 && $newSupportId === (int)$class->instructorid) {
+            $newSupportId = 0;
+        }
+        $class->supportinstructorid = $newSupportId > 0 ? $newSupportId : null;
+    }
     $class->inittime       = $classParams["initTime"];
     $class->endtime        = $classParams["endTime"];
     $class->initdate       = isset($classParams["initDate"]) ? strtotime($classParams["initDate"]) : 0;
@@ -4957,8 +5035,10 @@ function update_class($classParams)
 
     $classUpdated = $DB->update_record('gmk_class', $class);
 
-    // Keep BBB participant moderator in sync with class instructor.
-    if ((int)$class->instructorid !== (int)$classOldInstructorId) {
+    // Keep BBB participant moderator in sync with class instructor (and support
+    // teacher). gmk_build_bbb_participants_json() already includes both.
+    if ((int)$class->instructorid !== (int)$classOldInstructorId
+        || (int)($class->supportinstructorid ?? 0) !== $classOldSupportInstructorId) {
         gmk_sync_bbb_moderator_rules_for_class((int)$class->id);
     }
 
@@ -4968,8 +5048,20 @@ function update_class($classParams)
         (int)$class->periodid !== (int)$oldClass->periodid ||
         (int)($class->classroomid ?? 0) !== (int)($oldClass->classroomid ?? 0)
     );
-    if ((int)($class->groupid ?? 0) > 0 && ($class->instructorid !== $classOldInstructorId || $groupIdentityChanged)) {
-        update_class_group($class, $classOldInstructorId);
+    if ((int)($class->groupid ?? 0) > 0 && (
+        $class->instructorid !== $classOldInstructorId
+        || (int)($class->supportinstructorid ?? 0) !== $classOldSupportInstructorId
+        || $groupIdentityChanged
+    )) {
+        update_class_group($class, $classOldInstructorId, $classOldSupportInstructorId);
+    }
+
+    // When the support teacher changes, ensure they're enrolled in the Moodle
+    // course as editingteacher so they pick up all the same capabilities as the
+    // main instructor (attendance grading, BBB, group membership is handled in
+    // update_class_group above).
+    if ((int)($class->supportinstructorid ?? 0) !== $classOldSupportInstructorId) {
+        gmk_sync_support_teacher_enrollment($class, $classOldSupportInstructorId);
     }
 
     // Keep schedule rows aligned with classroom selected in editclass, even if
@@ -4990,6 +5082,8 @@ function update_class($classParams)
     
     // Performance Optimization: Only recreate activities if schedule parameters changed
     // Activities creation involves nuking old modules and creating new ones (very slow).
+    // Note: support teacher change is NOT here — it does not change the schedule or
+    // activity set, only the BBB participant rules (handled above).
     $scheduleChanged = (
         $class->type != $oldClass->type ||
         $class->instructorid != $oldClass->instructorid ||
@@ -5013,7 +5107,7 @@ function update_class($classParams)
     }
 }
 
-function update_class_group($class, $oldInstructorId)
+function update_class_group($class, $oldInstructorId, $oldSupportInstructorId = 0)
 {
     global $DB;
 
@@ -5053,7 +5147,92 @@ function update_class_group($class, $oldInstructorId)
         }
     }
 
+    // Same handling for support teacher. The main instructor is intentionally
+    // re-added (idempotent) if the support change accidentally targets them —
+    // groups_add_member handles deduplication internally.
+    $newSupportId = (int)($class->supportinstructorid ?? 0);
+    if ((int)$oldSupportInstructorId !== $newSupportId) {
+        if ($oldSupportInstructorId > 0 && $oldSupportInstructorId !== (int)$class->instructorid) {
+            groups_remove_member((int)$class->groupid, (int)$oldSupportInstructorId);
+        }
+        if ($newSupportId > 0 && $newSupportId !== (int)$class->instructorid) {
+            groups_add_member((int)$class->groupid, $newSupportId);
+        }
+    }
+
     return $updatedClassGroup->updatedGroup;
+}
+
+/**
+ * Sync course enrollment for the support teacher of a class.
+ *
+ * Ensures the support teacher is enrolled in the class's Moodle course as
+ * editingteacher, matching the main instructor's role. Group membership is
+ * handled separately by update_class_group(); BBB moderator sync by
+ * gmk_sync_bbb_moderator_rules_for_class().
+ *
+ * @param stdClass $class gmk_class row (must include supportinstructorid + corecourseid).
+ * @param int $oldSupportInstructorId Previous supportinstructorid (0 if none).
+ * @return array{enrolled:int,unenrolled:int,skipped:int,errors:array<int,string>}
+ */
+function gmk_sync_support_teacher_enrollment(stdClass $class, int $oldSupportInstructorId = 0): array {
+    global $DB;
+    $result = ['enrolled' => 0, 'unenrolled' => 0, 'skipped' => 0, 'errors' => []];
+
+    $coreCourseId = (int)($class->corecourseid ?? 0);
+    $newSupportId = (int)($class->supportinstructorid ?? 0);
+    $mainId       = (int)($class->instructorid ?? 0);
+
+    if ($coreCourseId <= 0) {
+        $result['errors'][] = 'missing_corecourseid';
+        return $result;
+    }
+
+    $enrolplugin   = enrol_get_plugin('manual');
+    $teacherRoleId = $DB->get_field('role', 'id', ['shortname' => 'editingteacher']);
+    if (!$enrolplugin || !$teacherRoleId) {
+        $result['errors'][] = 'missing_enrol_or_role';
+        return $result;
+    }
+
+    // Unenroll the previous support teacher (if any) — leaving them enrolled
+    // as editingteacher of the course is OK (they can keep access to other
+    // classes), but if they're suspended/removed we don't want a dangling
+    // role assignment. We leave the choice conservative: only unenroll when
+    // the user explicitly opted out (i.e. they were support and now are not).
+    if ($oldSupportInstructorId > 0
+        && $oldSupportInstructorId !== $mainId
+        && $oldSupportInstructorId !== $newSupportId) {
+        // No-op unenroll: editingteacher is a per-course capability; if the
+        // user is support for OTHER classes of the same course, they should
+        // remain enrolled. We therefore do NOT actively unenroll — only flag
+        // via gmk_log that the previous support lost the class.
+        gmk_log("INFO: support teacher {$oldSupportInstructorId} removed from class {$class->id} (course {$coreCourseId})");
+    }
+
+    if ($newSupportId <= 0 || $newSupportId === $mainId) {
+        $result['skipped']++;
+        return $result;
+    }
+
+    $coreUser = core_user::get_user($newSupportId);
+    if (!$coreUser || $coreUser->suspended === '1' || $coreUser->deleted === '1') {
+        $result['errors'][] = 'support_teacher_invalid:' . $newSupportId;
+        $result['skipped']++;
+        return $result;
+    }
+
+    $courseInstance = get_manual_enroll($coreCourseId);
+    if (!$courseInstance) {
+        $result['errors'][] = 'no_manual_enrol_instance:' . $coreCourseId;
+        return $result;
+    }
+
+    $enrolplugin->enrol_user($courseInstance, $newSupportId, $teacherRoleId);
+    $result['enrolled']++;
+    gmk_log("INFO: support teacher {$newSupportId} enrolled as editingteacher in course {$coreCourseId} (class {$class->id})");
+
+    return $result;
 }
 
 function fill_computed_class_values($class, $classParams)
@@ -7437,6 +7616,33 @@ function get_class_events($userId = null, $initDate = null, $endDate = null)
 /**
  * Sync BBB participants rules for all BBB modules linked to a class.
  * Sets current class instructor as explicit moderator and all users as viewer.
+ * If the class has a support teacher (gmk_class.supportinstructorid), they are
+ * added as an additional moderator — they receive the same BBB privileges as
+ * the main instructor for sessions of this class only.
+ *
+ * @param int $classid
+ * @return array{updated:int,skipped:int,errors:array<int,string>}
+ */
+function gmk_build_bbb_participants_json(stdClass $class): string {
+    $moderators = [];
+    $mainId = (int)($class->instructorid ?? 0);
+    if ($mainId > 0) {
+        $moderators[] = ['selectiontype' => 'user', 'selectionid' => $mainId, 'role' => 'moderator'];
+    }
+    $supportId = (int)($class->supportinstructorid ?? 0);
+    if ($supportId > 0 && $supportId !== $mainId) {
+        $moderators[] = ['selectiontype' => 'user', 'selectionid' => $supportId, 'role' => 'moderator'];
+    }
+    $moderators[] = ['selectiontype' => 'all', 'selectionid' => 'all', 'role' => 'viewer'];
+    return json_encode($moderators);
+}
+
+/**
+ * Sync BBB participants rules for all BBB modules linked to a class.
+ * Sets current class instructor as explicit moderator and all users as viewer.
+ * If the class has a support teacher (gmk_class.supportinstructorid), they are
+ * added as an additional moderator — they receive the same BBB privileges as
+ * the main instructor for sessions of this class only.
  *
  * @param int $classid
  * @return array{updated:int,skipped:int,errors:array<int,string>}
@@ -7528,18 +7734,7 @@ function gmk_sync_bbb_moderator_rules_for_class(int $classid): array
         }
     }
 
-    $participants = json_encode([
-        [
-            'selectiontype' => 'user',
-            'selectionid' => (int)$class->instructorid,
-            'role' => 'moderator',
-        ],
-        [
-            'selectiontype' => 'all',
-            'selectionid' => 'all',
-            'role' => 'viewer',
-        ],
-    ]);
+    $participants = gmk_build_bbb_participants_json($class);
 
     foreach ($cmids as $cmid) {
         $cm = $DB->get_record_sql(

@@ -62,6 +62,7 @@ class update_class extends external_api {
                 'periodId' => new external_value(PARAM_INT, 'Id of the period when the class is going to be dictated defined in the leaerning pland and '),
                 'courseId' => new external_value(PARAM_INT, 'Course id for the class'),
                 'instructorId' => new external_value(PARAM_INT, 'Id of the class instructor'),
+                'supportTeacherId' => new external_value(PARAM_INT, 'Optional support teacher (admin/director managed). 0 = no support teacher.', VALUE_DEFAULT, 0),
                 'initTime' => new external_value(PARAM_TEXT, 'Init hour for the class'),
                 'endTime' => new external_value(PARAM_TEXT, 'End hour of the class'),
                 'initDate' => new external_value(PARAM_TEXT, 'The start date of the class (YYYY-MM-DD)', VALUE_DEFAULT, ''),
@@ -86,8 +87,9 @@ class update_class extends external_api {
         int $type,
         int $learningPlanId,
         int $periodId,
-        int $courseId,
+int $courseId,
         int $instructorId,
+        int $supportTeacherId = 0,
         string $initTime,
         string $endTime,
         string $initDate = '',
@@ -108,6 +110,7 @@ class update_class extends external_api {
             'periodId' =>$periodId,
             'courseId' =>$courseId,
             'instructorId' =>$instructorId,
+            'supportTeacherId' => $supportTeacherId,
             'initTime'=>$initTime,
             'endTime'=>$endTime,
             'initDate'=>$initDate,
@@ -117,13 +120,29 @@ class update_class extends external_api {
             'classroomCapacity'=>$classroomCapacity,
             'academicPeriodId'=>$academicPeriodId
         ]);
-        
+
         try{
-            // Only check availability if an instructor is actually assigned
-            if (!empty($instructorId) && intval($instructorId) > 0) {
-                check_class_schedule_availability($instructorId, $classDays, $initTime, $endTime, (string)($classroomId ?? ''), $classId, $initDate, $endDate);
+            // Validate the support teacher is a real Moodle user (if set).
+            if (!empty($supportTeacherId) && intval($supportTeacherId) > 0) {
+                $su = core_user::get_user($supportTeacherId);
+                if (!$su || $su->suspended === '1' || $su->deleted === '1') {
+                    throw new Exception('El docente de apoyo no existe, está suspendido o fue eliminado.');
+                }
+                if ((int)$supportTeacherId === (int)$instructorId) {
+                    // Same user as main instructor — treat as "no support".
+                    $supportTeacherId = 0;
+                }
             }
-            
+
+            // Check availability + conflicts for main AND support teachers.
+            $instructorIds = array_values(array_filter([
+                (int)$instructorId,
+                (int)$supportTeacherId,
+            ], fn($id) => $id > 0));
+            if (!empty($instructorIds)) {
+                check_class_schedule_availability($instructorIds, $classDays, $initTime, $endTime, (string)($classroomId ?? ''), $classId, $initDate, $endDate);
+            }
+
             update_class($params);
             
             // Return the result.
