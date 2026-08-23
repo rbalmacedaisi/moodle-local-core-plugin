@@ -25,12 +25,12 @@ foreach ($courses as $c) {
     $ctx = context_course::instance($c->id);
     $is_standard_manager = has_capability('mod/quiz:manage', $ctx);
     $is_gmk_instructor = $DB->record_exists_sql(
-    "SELECT 1 FROM {gmk_class}
-      WHERE corecourseid = :cid
-        AND (instructorid = :uid OR supportinstructorid = :uid)
-      LIMIT 1",
-    ['cid' => (int)$c->id, 'uid' => (int)$USER->id]
-);
+        "SELECT 1 FROM {gmk_class}
+          WHERE corecourseid = :cid
+            AND (instructorid = :uid OR supportinstructorid = :uid2)
+          LIMIT 1",
+        ['cid' => (int)$c->id, 'uid' => (int)$USER->id, 'uid2' => (int)$USER->id]
+    );
 
     if ($is_standard_manager || $is_gmk_instructor) {
         $valid_course = $c;

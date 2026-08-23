@@ -57,12 +57,16 @@ function local_grupomakro_core_user_home_redirect(&$url) {
     // main instructor or the support teacher (gmk_class.supportinstructorid) — both
     // get the same redirect-to-dashboard treatment so the support teacher lands on
     // their classes too.
+    // IMPORTANT: Moodle's record_exists_sql counts placeholders literally — two
+    // `:uid` references need two distinct array keys (`uid` and `uid2`), otherwise
+    // it throws "Número incorrecto de parámetros de consulta" and the redirect
+    // is silently swallowed (the event handler never completes).
     $is_active_teacher = $DB->record_exists_sql(
         "SELECT 1 FROM {gmk_class}
-          WHERE (instructorid = :uid OR supportinstructorid = :uid)
+          WHERE (instructorid = :uid OR supportinstructorid = :uid2)
             AND closed = 0
           LIMIT 1",
-        ['uid' => (int)$USER->id]
+        ['uid' => (int)$USER->id, 'uid2' => (int)$USER->id]
     );
 
     if ($is_active_teacher) {
@@ -82,9 +86,9 @@ function local_grupomakro_core_user_home_redirect(&$url) {
     // Only redirect if they are actively trying to access Home or Dashboard (caller ensures this)
     $has_past = $DB->record_exists_sql(
         "SELECT 1 FROM {gmk_class}
-          WHERE (instructorid = :uid OR supportinstructorid = :uid)
+          WHERE (instructorid = :uid OR supportinstructorid = :uid2)
           LIMIT 1",
-        ['uid' => (int)$USER->id]
+        ['uid' => (int)$USER->id, 'uid2' => (int)$USER->id]
     );
     $has_skills = $DB->record_exists('gmk_teacher_skill_relation', ['userid' => $USER->id]);
     $has_disp = $DB->record_exists('gmk_teacher_disponibility', ['userid' => $USER->id]);

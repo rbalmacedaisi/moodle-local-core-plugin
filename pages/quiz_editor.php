@@ -24,13 +24,13 @@ if (!has_capability('mod/quiz:manage', $context)) {
     // Fallback: Check if user is the instructor of the class linked to this course
     // This supports the custom plugin's permission model if it differs from Moodle roles.
     $is_gmk_instructor = $DB->record_exists_sql(
-    "SELECT 1 FROM {gmk_class}
-      WHERE corecourseid = :cid
-        AND (instructorid = :uid OR supportinstructorid = :uid)
-        AND closed = 0
-      LIMIT 1",
-    ['cid' => (int)$course->id, 'uid' => (int)$USER->id]
-);
+        "SELECT 1 FROM {gmk_class}
+          WHERE corecourseid = :cid
+            AND (instructorid = :uid OR supportinstructorid = :uid2)
+            AND closed = 0
+          LIMIT 1",
+        ['cid' => (int)$course->id, 'uid' => (int)$USER->id, 'uid2' => (int)$USER->id]
+    );
     
     if (!$is_gmk_instructor) {
         require_capability('mod/quiz:manage', $context); // This will throw the exception if fallback fails

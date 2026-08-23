@@ -505,15 +505,19 @@ class local_grupomakro_core_observer
         // lib.php::local_grupomakro_core_myprofile_navigation — main + support both
         // count as "this user is teaching", so the support teacher gets the same
         // redirect-to-dashboard treatment.
+        // IMPORTANT: Moodle's record_exists_sql counts placeholders literally — two
+        // `:uid` references need two distinct array keys (`uid` and `uid2`), otherwise
+        // it throws "Número incorrecto de parámetros de consulta" and the redirect
+        // is silently swallowed (the event handler never completes).
         $has_active_classes = $DB->record_exists_sql(
             "SELECT 1 FROM {gmk_class}
-              WHERE (instructorid = :uid OR supportinstructorid = :uid)
+              WHERE (instructorid = :uid OR supportinstructorid = :uid2)
                 AND closed = 0
               LIMIT 1",
-            ['uid' => (int)$userid]
+            ['uid' => (int)$userid, 'uid2' => (int)$userid]
         );
         $log_msg .= " - Has Active Classes: " . ($has_active_classes ? 'YES' : 'NO') . "\n";
-        
+
         if ($has_active_classes) {
             file_put_contents($log_file, $log_msg . " - REDIRECTING to Teacher Dashboard\n", FILE_APPEND);
             $url = new \moodle_url('/local/grupomakro_core/pages/teacher_dashboard.php');
@@ -523,9 +527,9 @@ class local_grupomakro_core_observer
         // 2. Check for INACTIVE Teacher status (Target: Inactive Dashboard)
         $has_past_classes = $DB->record_exists_sql(
             "SELECT 1 FROM {gmk_class}
-              WHERE (instructorid = :uid OR supportinstructorid = :uid)
+              WHERE (instructorid = :uid OR supportinstructorid = :uid2)
               LIMIT 1",
-            ['uid' => (int)$userid]
+            ['uid' => (int)$userid, 'uid2' => (int)$userid]
         );
         $has_skills = $DB->record_exists('gmk_teacher_skill_relation', ['userid' => $userid]);
         $has_availability = $DB->record_exists('gmk_teacher_disponibility', ['userid' => $userid]);

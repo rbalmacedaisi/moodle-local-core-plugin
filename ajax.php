@@ -4513,16 +4513,16 @@ try {
             
             // Validate context (teacher)
             $context = context_module::instance($cmid);
-            
+
             // Permission Logic with Fallback
             if (!has_capability('mod/quiz:manage', $context)) {
                 $course = $DB->get_record('course', ['id' => $cm->course], '*', MUST_EXIST);
                 $is_gmk_instructor = $DB->record_exists_sql(
                     "SELECT 1 FROM {gmk_class}
                       WHERE corecourseid = :cid
-                        AND (instructorid = :uid OR supportinstructorid = :uid)
+                        AND (instructorid = :uid OR supportinstructorid = :uid2)
                       LIMIT 1",
-                    ['cid' => (int)$course->id, 'uid' => (int)$USER->id]
+                    ['cid' => (int)$course->id, 'uid' => (int)$USER->id, 'uid2' => (int)$USER->id]
                 );
                 if (!$is_gmk_instructor) {
                     require_capability('mod/quiz:manage', $context);
@@ -4598,9 +4598,9 @@ try {
                     $is_gmk_instructor = $DB->record_exists_sql(
                         "SELECT 1 FROM {gmk_class}
                           WHERE corecourseid = :cid
-                            AND (instructorid = :uid OR supportinstructorid = :uid)
+                            AND (instructorid = :uid OR supportinstructorid = :uid2)
                           LIMIT 1",
-                        ['cid' => (int)$course->id, 'uid' => (int)$USER->id]
+                        ['cid' => (int)$course->id, 'uid' => (int)$USER->id, 'uid2' => (int)$USER->id]
                     );
                     if (!$is_gmk_instructor) {
                         require_capability('mod/quiz:manage', $context);
