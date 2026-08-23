@@ -509,11 +509,12 @@ class local_grupomakro_core_observer
         // `:uid` references need two distinct array keys (`uid` and `uid2`), otherwise
         // it throws "Número incorrecto de parámetros de consulta" and the redirect
         // is silently swallowed (the event handler never completes).
+        // ALSO: don't add our own LIMIT clause — record_exists_sql appends its own
+        // "LIMIT 0, 1" and two stacked LIMITs produce a SQL syntax error.
         $has_active_classes = $DB->record_exists_sql(
             "SELECT 1 FROM {gmk_class}
               WHERE (instructorid = :uid OR supportinstructorid = :uid2)
-                AND closed = 0
-              LIMIT 1",
+                AND closed = 0",
             ['uid' => (int)$userid, 'uid2' => (int)$userid]
         );
         $log_msg .= " - Has Active Classes: " . ($has_active_classes ? 'YES' : 'NO') . "\n";
@@ -527,8 +528,7 @@ class local_grupomakro_core_observer
         // 2. Check for INACTIVE Teacher status (Target: Inactive Dashboard)
         $has_past_classes = $DB->record_exists_sql(
             "SELECT 1 FROM {gmk_class}
-              WHERE (instructorid = :uid OR supportinstructorid = :uid2)
-              LIMIT 1",
+              WHERE (instructorid = :uid OR supportinstructorid = :uid2)",
             ['uid' => (int)$userid, 'uid2' => (int)$userid]
         );
         $has_skills = $DB->record_exists('gmk_teacher_skill_relation', ['userid' => $userid]);

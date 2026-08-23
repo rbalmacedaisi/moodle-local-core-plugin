@@ -27,8 +27,7 @@ foreach ($courses as $c) {
     $is_gmk_instructor = $DB->record_exists_sql(
         "SELECT 1 FROM {gmk_class}
           WHERE corecourseid = :cid
-            AND (instructorid = :uid OR supportinstructorid = :uid2)
-          LIMIT 1",
+            AND (instructorid = :uid OR supportinstructorid = :uid2)",
         ['cid' => (int)$c->id, 'uid' => (int)$USER->id, 'uid2' => (int)$USER->id]
     );
 

@@ -27,8 +27,7 @@ if (!has_capability('mod/quiz:manage', $context)) {
         "SELECT 1 FROM {gmk_class}
           WHERE corecourseid = :cid
             AND (instructorid = :uid OR supportinstructorid = :uid2)
-            AND closed = 0
-          LIMIT 1",
+            AND closed = 0",
         ['cid' => (int)$course->id, 'uid' => (int)$USER->id, 'uid2' => (int)$USER->id]
     );
     
