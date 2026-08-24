@@ -245,10 +245,10 @@ window.Vue.component('createclass', {
                         </v-list>
                     </form>
 
-                    {{! Support teacher (admin/director only). Same UI as editclass:
+                    <!-- Support teacher (admin/director only). Same UI as editclass:
                         v-list-item-group driven, rendered disabled when the user
                         can't edit. Non-admin users see the field but cannot post
-                        changes. }}
+                        changes. -->
                     <form v-if="canEditSupportTeacher || true" class="px-3 mt-4">
                         <h6>
                             {{lang.support_teacher}}

@@ -247,9 +247,9 @@ window.Vue.component('editclass', {
                         </v-list>
                     </div>
 
-                    {{! Support teacher — same shape as the main teacher list, but the checkbox
+                    <!-- Support teacher — same shape as the main teacher list, but the checkbox
                         is read-only when the current user lacks the capability. Same selected
-                        index pattern (classData.supportTeacherIndex) and same reset-on-classId. }}
+                        index pattern (classData.supportTeacherIndex) and same reset-on-classId. -->
                     <div class="d-flex px-3 mt-6">
                         <h6>{{lang.support_teacher}}
                             <i class="mdi mdi-help-circle-outline" :title="lang.support_teacher_help"></i>
