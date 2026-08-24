@@ -272,18 +272,21 @@ Vue.component('announcements', {
             this.statsTotals = { total_recipients: 0, total_acked: 0, percent: 0 };
             this.loadingStats = true;
             try {
-                const res = await window.axios.get(ajaxUrl, { params: {
-                    action: 'local_grupomakro_get_admin_message_stats',
-                    sesskey,
-                    messageid: m.id,
-                }});
-                const data = ((res.data || {}).data) || {};
-                this.statsRows = Array.isArray(data.stats) ? data.stats : [];
-                this.statsTotals = {
-                    total_recipients: data.total_recipients || 0,
-                    total_acked:      data.total_acked || 0,
-                    percent:          data.percent || 0,
-                };
+                const res = await window.axios.post(ajaxUrl + '?action=local_grupomakro_get_admin_message_stats&sesskey=' + encodeURIComponent(sesskey), {
+                    args: { messageid: m.id },
+                });
+                const body = res.data || {};
+                if (body.status === 'success') {
+                    const data = body.data || {};
+                    this.statsRows = Array.isArray(data.stats) ? data.stats : [];
+                    this.statsTotals = {
+                        total_recipients: data.total_recipients || 0,
+                        total_acked:      data.total_acked || 0,
+                        percent:          data.percent || 0,
+                    };
+                } else {
+                    this.showMessage('error', body.message || 'No se pudieron cargar las estadísticas.');
+                }
             } catch (e) {
                 this.showMessage('error', 'No se pudieron cargar las estadísticas.');
             } finally {
@@ -297,16 +300,19 @@ Vue.component('announcements', {
             this.recipientSearch = '';
             this.loadingRecipients = true;
             try {
-                const res = await window.axios.get(ajaxUrl, { params: {
-                    action: 'local_grupomakro_list_admin_message_recipients',
-                    sesskey,
-                    messageid: m.id,
-                }});
-                const data = ((res.data || {}).data) || {};
-                this.recipients = (Array.isArray(data.recipients) ? data.recipients : []).map(r => ({
-                    ...r,
-                    _stateLabel: r.acked ? 'Aceptado' : (r.timeacknowledged ? 'Visto' : 'Pendiente'),
-                }));
+                const res = await window.axios.post(ajaxUrl + '?action=local_grupomakro_list_admin_message_recipients&sesskey=' + encodeURIComponent(sesskey), {
+                    args: { messageid: m.id },
+                });
+                const body = res.data || {};
+                if (body.status === 'success') {
+                    const data = body.data || {};
+                    this.recipients = (Array.isArray(data.recipients) ? data.recipients : []).map(r => ({
+                        ...r,
+                        _stateLabel: r.acked ? 'Aceptado' : (r.timeacknowledged ? 'Visto' : 'Pendiente'),
+                    }));
+                } else {
+                    this.showMessage('error', body.message || 'No se pudieron cargar los destinatarios.');
+                }
             } catch (e) {
                 this.showMessage('error', 'No se pudieron cargar los destinatarios.');
             } finally {
