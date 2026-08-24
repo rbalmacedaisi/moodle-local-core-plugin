@@ -44,11 +44,18 @@ class get_dashboard_data extends external_api {
             return $cached;
         }
 
-        // 1. Get Active Classes
+        // 1. Get Active Classes. A "teacher" here is BOTH the main instructor
+        // (c.instructorid) AND the support teacher (c.supportinstructorid) — both
+        // get the same dashboard so the support teacher can grade, mark attendance
+        // and see events for the classes they share with the main instructor.
+        // Two distinct placeholders (:instructorid, :instructorid2) because Moodle
+        // counts named placeholders literally.
         $now = time();
         $is_admin = is_siteadmin($params['userid']);
 
-        $where_instructor = $is_admin ? "" : " AND c.instructorid = :instructorid";
+        $where_instructor = $is_admin
+            ? ''
+            : ' AND (c.instructorid = :instructorid OR c.supportinstructorid = :instructorid2)';
         $sql = "SELECT c.*
                 FROM {gmk_class} c
                 WHERE c.closed = 0
@@ -56,9 +63,10 @@ class get_dashboard_data extends external_api {
 
         $query_params = [];
         if (!$is_admin) {
-            $query_params['instructorid'] = $params['userid'];
+            $query_params['instructorid']  = (int)$params['userid'];
+            $query_params['instructorid2'] = (int)$params['userid'];
         }
-        
+
         $classes = $DB->get_records_sql($sql, $query_params);
         
         $active_classes = [];
