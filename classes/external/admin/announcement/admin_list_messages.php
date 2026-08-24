@@ -62,6 +62,7 @@ class admin_list_messages extends external_api {
         $msgstructure = new external_single_structure([
             'id'                  => new external_value(PARAM_INT,    'Message id'),
             'title'               => new external_value(PARAM_TEXT,   'Title'),
+            'messagetext'         => new external_value(PARAM_RAW,    'HTML message body'),
             'messagetype'         => new external_value(PARAM_ALPHA,  'info|warning'),
             'audience_scope'      => new external_value(PARAM_ALPHA,  'all|career|group'),
             'audience_careerid'   => new external_value(PARAM_INT,    'Career id'),

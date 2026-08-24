@@ -514,7 +514,7 @@ class announcement_manager {
     public static function list_messages(): array {
         global $DB;
 
-        $sql = "SELECT m.id, m.title, m.messagetype, m.audience_scope, m.audience_careerid,
+        $sql = "SELECT m.id, m.title, m.messagetext, m.messagetype, m.audience_scope, m.audience_careerid,
                        m.audience_groupid, m.priority, m.require_ack, m.ack_label,
                        m.starts_at, m.ends_at, m.timecreated, m.timemodified,
                        m.authorid, m.active,
@@ -531,6 +531,7 @@ class announcement_manager {
             $out[] = [
                 'id'                  => (int)$r->id,
                 'title'               => (string)$r->title,
+                'messagetext'         => (string)($r->messagetext ?? ''),
                 'messagetype'         => (string)$r->messagetype,
                 'audience_scope'      => (string)$r->audience_scope,
                 'audience_careerid'   => (int)$r->audience_careerid,
