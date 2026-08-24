@@ -32,6 +32,7 @@ use external_single_structure;
 use external_value;
 use stdClass;
 use Exception;
+use core_user;
 
 defined('MOODLE_INTERNAL') || die();
 

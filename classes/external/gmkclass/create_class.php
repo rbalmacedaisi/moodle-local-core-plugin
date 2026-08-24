@@ -33,6 +33,7 @@ use external_value;
 use stdClass;
 use DateTime;
 use Exception;
+use core_user;
 
 defined('MOODLE_INTERNAL') || die();
 
