@@ -157,6 +157,35 @@ Vue.component('announcements', {
             this.formErrors = {};
             this.createDialog = true;
         },
+        duplicateFrom(m) {
+            if (!m) return;
+            this.form = {
+                title: '(Copia) ' + (m.title || ''),
+                messagetext: m.messagetext || '',
+                messagetype: m.messagetype || 'info',
+                audience_scope: m.audience_scope || 'all',
+                audience_careerid: m.audience_careerid || 0,
+                audience_groupid: m.audience_groupid || 0,
+                require_ack: !!m.require_ack,
+                ack_label: m.ack_label || 'He leído y estoy de acuerdo',
+                priority: m.priority || 50,
+                starts_at: m.starts_at || 0,
+                ends_at: m.ends_at || 0,
+                has_window: !!(m.starts_at || m.ends_at),
+                starts_date: m.starts_at ? this.tsToDatetimeLocal(m.starts_at) : '',
+                ends_date: m.ends_at ? this.tsToDatetimeLocal(m.ends_at) : '',
+            };
+            this.formErrors = {};
+            this.createDialog = true;
+            this.showMessage('info', 'Plantilla cargada. Revisa los datos y publica.');
+        },
+        tsToDatetimeLocal(ts) {
+            if (!ts) return '';
+            const d = new Date(ts * 1000);
+            const pad = (n) => String(n).padStart(2, '0');
+            return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate())
+                 + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+        },
         async save() {
             this.formErrors = {};
             if (!this.form.title || this.form.title.trim() === '') {
@@ -397,6 +426,10 @@ Vue.component('announcements', {
               </v-btn>
               <v-btn icon small color="primary" title="Destinatarios" @click="openRecipients(item)">
                 <v-icon small>mdi-account-multiple-outline</v-icon>
+              </v-btn>
+              <v-btn v-if="canmanage" icon small color="deep-purple accent-2"
+                     title="Duplicar como plantilla" @click="duplicateFrom(item)">
+                <v-icon small>mdi-content-copy</v-icon>
               </v-btn>
               <v-btn v-if="canmanage" icon small :color="item.active ? 'grey' : 'green darken-2'"
                      :title="item.active ? 'Desactivar' : 'Activar'" @click="toggleActive(item)">
