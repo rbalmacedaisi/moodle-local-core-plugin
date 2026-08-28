@@ -576,7 +576,6 @@ class planning_manager {
         $period = null;
         $configSettings = new \stdClass();
         $configInheritedFrom = '';
-        $careers = [];
 
         if ($periodRec) {
             $period = [
@@ -622,17 +621,6 @@ class planning_manager {
                     }
                 }
             }
-
-            // Careers linked to this period, so the "isolated careers" picker is
-            // populated before any demand analysis has run.
-            $lpIds = json_decode($periodRec->learningplans, true);
-            if ($lpIds && is_array($lpIds)) {
-                list($insql, $inparams) = $DB->get_in_or_equal($lpIds);
-                $plans = $DB->get_records_select('local_learning_plans', "id $insql", $inparams, 'name ASC', 'id, name');
-                foreach ($plans as $pl) {
-                    $careers[] = $pl->name;
-                }
-            }
         }
 
         // Format holidays
@@ -648,8 +636,7 @@ class planning_manager {
             'loads' => array_values($loads),
             'period' => $period,
             'configSettings' => $configSettings,
-            'configInheritedFrom' => $configInheritedFrom,
-            'careers' => $careers
+            'configInheritedFrom' => $configInheritedFrom
         ];
     }
 
