@@ -703,10 +703,10 @@ Vue.component('wellness-dashboard', {
                     { text: 'Otro', value: 'other' }
                   ]" label="Tipo" dense hide-details></v-select>
                 </v-col>
-                <v-col cols="5"><v-text-field v-model="a.label" label="Etiqueta" dense hide-details></v-col>
+                <v-col cols="5"><v-text-field v-model="a.label" label="Etiqueta" dense hide-details /></v-col>
                 <v-col cols="3">
-                  <v-text-field v-if="a.kind === 'link'" v-model="a.url" label="URL" dense hide-details></v-text-field>
-                  <v-text-field v-else v-model="a.file_path" label="Ruta de archivo" dense hide-details></v-text-field>
+                  <v-text-field v-if="a.kind === 'link'" v-model="a.url" label="URL" dense hide-details />
+                  <v-text-field v-else v-model="a.file_path" label="Ruta de archivo" dense hide-details />
                 </v-col>
                 <v-col cols="1"><v-btn icon small @click="removeAttachment(i)"><v-icon>mdi-delete</v-icon></v-btn></v-col>
               </v-row>
