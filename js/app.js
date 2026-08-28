@@ -10,8 +10,16 @@ const wsStaticParams = {
   moodlewsrestformat: 'json',
 }
 // Parameters to send with the API request.
+//
+// wstoken: the admin page sets window.themeToken (= sesskey) in the
+// inline <script>. Older pages or pages that don't set it leave it
+// undefined; in that case initVueApp() short-circuits to the
+// 'useThemeDefaults' branch and emits a single warning into the
+// console before mounting the app normally. Both names are tolerated
+// for backward compatibility with pages that historically set
+// window.token.
 const getThemeSettingsParams = {
-  wstoken: window.themeToken,
+  wstoken: window.themeToken || window.token,
   moodlewsrestformat: 'json',
   wsfunction: 'local_soluttolms_core_get_theme_settings',
   themename: 'soluttolmsadmin'
@@ -33,6 +41,33 @@ function mountVueApp() {
     return;
   }
 
+  // Surface any setup error to the page itself so the user does not get a
+  // blank screen. The page may already have a partial render (Moodle
+  // chrome, the inline <div id="gmk-app">); we replace the contents of
+  // that div with a styled error card so the operator can read the
+  // failure without opening devtools.
+  function showFatal(message) {
+    try {
+      const html = '<div style="padding:24px;margin:16px;border:2px solid #b71c1c;border-radius:6px;background:#ffebee;color:#b71c1c;font-family:system-ui">'
+        + '<h3 style="margin:0 0 8px 0">Vue app failed to mount</h3>'
+        + '<pre style="white-space:pre-wrap;margin:0;font-family:monospace">' + String(message).replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c])) + '</pre>'
+        + '</div>';
+      appElement.innerHTML = html;
+    } catch (e) { /* swallow */ }
+  }
+  window.addEventListener('error', function (ev) {
+    if (ev && ev.error) {
+      console.error('global error:', ev.error);
+      showFatal(ev.error.stack || ev.error.message || String(ev.error));
+    }
+  });
+  window.addEventListener('unhandledrejection', function (ev) {
+    if (ev && ev.reason) {
+      console.error('unhandled rejection:', ev.reason);
+      showFatal((ev.reason && ev.reason.stack) || (ev.reason && ev.reason.message) || String(ev.reason));
+    }
+  });
+
   // Add SweetAlert2 to Vue prototype
   if (typeof Swal !== 'undefined') {
     window.Vue.prototype.$swal = Swal;
@@ -40,7 +75,9 @@ function mountVueApp() {
     console.warn('SweetAlert2 is not loaded. Alerts will not work.');
   }
 
-  const app = new window.Vue({
+  let app;
+  try {
+    app = new window.Vue({
     el: '#gmk-app',
     vuetify: new window.Vuetify({
       treeShake: true,
@@ -69,6 +106,11 @@ function mountVueApp() {
     created() {},
     methods: {},
   });
+  } catch (e) {
+    console.error('mountVueApp failed:', e);
+    showFatal(e && (e.stack || e.message) || String(e));
+    return;
+  }
 
   // Set up a MutationObserver to detect changes in light/dark mode
   const observer = new window.MutationObserver((mutations) => {

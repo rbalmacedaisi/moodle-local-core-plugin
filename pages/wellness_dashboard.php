@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 // This file is part of Moodle - http://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
@@ -20,7 +20,7 @@
  * Mounts a Vue component (`wellnessDashboard`) that surfaces three tabs:
  *   - Convenios (partners)
  *   - Eventos
- *   - Formularios dinámicos
+ *   - Formularios dinÃ¡micos
  *
  * @package    local_grupomakro_core
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -41,7 +41,7 @@ require_capability('local/grupomakro_core:manage_wellness', $context);
 
 $plugin_name  = 'local_grupomakro_core';
 // Cache-bust by JS file mtime. One-shot suffix `time()` is appended to
-// force every browser to re-fetch ON THIS DEPLOY ONLY — the previous
+// force every browser to re-fetch ON THIS DEPLOY ONLY â€” the previous
 // `?v=` (1787934245) was cached and the broken v-text-field in
 // wellnessDashboard.js kept being served. After this deploy, the suffix
 // can be removed: subsequent deploys that change the JS will have a new
@@ -87,7 +87,8 @@ echo <<<EOT
   // emits a "no themeToken" warning into the console. Setting it to the
   // current session key makes the theme fetch take the normal path and
   // silences the warning.
-  window.token = $sesskey;
+  window.themeToken = $sesskey;
+  window.token = $sesskey;  // legacy alias, harmless
 </script>
 EOT;
 

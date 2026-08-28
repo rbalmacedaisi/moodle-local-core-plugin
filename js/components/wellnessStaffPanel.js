@@ -1,10 +1,10 @@
-/**
+﻿/**
  * Admin staff roster (RF-03 / RF-09.3).
  *
  * Vue 2 + Vuetify 2. Mounted by pages/wellness_staff_panel.php.
  *
  * Features:
- *  - Table of every rolekey (psicólogo titular/suplente, Talento Humano,
+ *  - Table of every rolekey (psicÃ³logo titular/suplente, Talento Humano,
  *    Bienestar Estudiantil) with linked Moodle user + email override.
  *  - Dialog with v-autocomplete to pick the new user (calls the existing
  *    local_grupomakro_search_users WS).
@@ -45,7 +45,7 @@ Vue.component('staff-panel', {
                 const res = await axios.post(ajaxUrl, {
                     action: 'local_grupomakro_admin_list_staff',
                     args: {},
-                }, { params: { sesskey } })
+                }, { params: { sesskey }, timeout: 30000 })
                 if (res.data && res.data.status === 'success' && res.data.data) {
                     this.roles = res.data.data.roles || []
                     const cat = {}
@@ -83,7 +83,7 @@ Vue.component('staff-panel', {
                 const res = await axios.post(ajaxUrl, {
                     action: 'local_grupomakro_search_users',
                     args: { query: value, limit: 8 },
-                }, { params: { sesskey } })
+                }, { params: { sesskey }, timeout: 30000 })
                 if (res.data && res.data.status === 'success' && res.data.data) {
                     this.userOptions = res.data.data.users || []
                 }
@@ -112,7 +112,7 @@ Vue.component('staff-panel', {
                         notify_on_request: this.form.notify_on_request,
                         notify_on_change: this.form.notify_on_change,
                     },
-                }, { params: { sesskey } })
+                }, { params: { sesskey }, timeout: 30000 })
                 if (res.data && res.data.status === 'success') {
                     this.toast('Personal actualizado.')
                     this.dialog = false
@@ -133,7 +133,7 @@ Vue.component('staff-panel', {
                 const res = await axios.post(ajaxUrl, {
                     action: 'local_grupomakro_admin_staff_history',
                     args: { rolekey: role.rolekey },
-                }, { params: { sesskey } })
+                }, { params: { sesskey }, timeout: 30000 })
                 if (res.data && res.data.status === 'success' && res.data.data) {
                     this.historyRows = res.data.data.history || []
                 }
@@ -142,16 +142,16 @@ Vue.component('staff-panel', {
             }
         },
         formatDate(ts) {
-            if (!ts) return '—'
+            if (!ts) return 'â€”'
             return new Date(ts * 1000).toLocaleString()
         },
     },
     template: `
 <v-container fluid>
   <v-alert type="info" text class="mb-4">
-    Cada rol está mapeado a un usuario Moodle con login. El <strong>email override</strong>
-    es opcional: si se define, las notificaciones salen a esa dirección (útil para bandejas
-    genéricas del área como <em>bienestar&#64;isi.edu.pa</em>); si se deja vacío, se usa el email del usuario.
+    Cada rol estÃ¡ mapeado a un usuario Moodle con login. El <strong>email override</strong>
+    es opcional: si se define, las notificaciones salen a esa direcciÃ³n (Ãºtil para bandejas
+    genÃ©ricas del Ã¡rea como <em>bienestar&#64;isi.edu.pa</em>); si se deja vacÃ­o, se usa el email del usuario.
     Todos los cambios quedan auditados.
   </v-alert>
 
@@ -181,18 +181,18 @@ Vue.component('staff-panel', {
       </template>
       <template v-slot:item.effective_email="{ item }">
         <span v-if="item.effective_email">{{ item.effective_email }}</span>
-        <span v-else class="grey--text caption">(vacío)</span>
+        <span v-else class="grey--text caption">(vacÃ­o)</span>
       </template>
       <template v-slot:item._notif="{ item }">
         <v-chip x-small :color="item.notify_on_request ? 'green' : 'grey'" class="mr-1" dark>
-          {{ item.notify_on_request ? 'Solicitudes' : '—' }}
+          {{ item.notify_on_request ? 'Solicitudes' : 'â€”' }}
         </v-chip>
         <v-chip x-small :color="item.notify_on_change ? 'blue' : 'grey'" dark>
-          {{ item.notify_on_change ? 'Cambios' : '—' }}
+          {{ item.notify_on_change ? 'Cambios' : 'â€”' }}
         </v-chip>
       </template>
       <template v-slot:item.active="{ item }">
-        <v-chip :color="item.active ? 'green' : 'grey'" small dark>{{ item.active ? 'Sí' : 'No' }}</v-chip>
+        <v-chip :color="item.active ? 'green' : 'grey'" small dark>{{ item.active ? 'SÃ­' : 'No' }}</v-chip>
       </template>
       <template v-slot:item._actions="{ item }">
         <v-btn icon small @click="openEdit(item)"><v-icon>mdi-pencil</v-icon></v-btn>
@@ -205,7 +205,7 @@ Vue.component('staff-panel', {
   <v-dialog v-model="dialog" max-width="640" scrollable>
     <v-card>
       <v-card-title v-if="editing">
-        Editar — {{ catalog[editing.rolekey] || editing.rolekey }}
+        Editar â€” {{ catalog[editing.rolekey] || editing.rolekey }}
       </v-card-title>
       <v-card-text>
         <v-autocomplete
@@ -233,8 +233,8 @@ Vue.component('staff-panel', {
           </template>
         </v-autocomplete>
 
-        <v-text-field v-model="form.role_label" label="Etiqueta visible" hint="Ej: Dulce Jurado — Talento Humano" persistent-hint></v-text-field>
-        <v-text-field v-model="form.email_override" label="Email override" hint="Si se deja vacío, se usa el email del usuario Moodle seleccionado." persistent-hint></v-text-field>
+        <v-text-field v-model="form.role_label" label="Etiqueta visible" hint="Ej: Dulce Jurado â€” Talento Humano" persistent-hint></v-text-field>
+        <v-text-field v-model="form.email_override" label="Email override" hint="Si se deja vacÃ­o, se usa el email del usuario Moodle seleccionado." persistent-hint></v-text-field>
 
         <v-switch v-model="form.notify_on_request" label="Recibir copia cuando un estudiante solicita cita" inset></v-switch>
         <v-switch v-model="form.notify_on_change" label="Recibir copia en cambios de estado (confirmar / cancelar / modificar)" inset></v-switch>
@@ -251,7 +251,7 @@ Vue.component('staff-panel', {
   <v-dialog v-model="historyDialog" max-width="720" scrollable>
     <v-card v-if="historyRole">
       <v-card-title>
-        Historial — {{ catalog[historyRole.rolekey] || historyRole.rolekey }}
+        Historial â€” {{ catalog[historyRole.rolekey] || historyRole.rolekey }}
         <v-spacer></v-spacer>
         <v-btn icon @click="historyDialog = false"><v-icon>mdi-close</v-icon></v-btn>
       </v-card-title>
@@ -268,10 +268,10 @@ Vue.component('staff-panel', {
             </template>
             <div class="text-body-2">
               <strong>{{ h.changed_by_name }}</strong>
-              cambió de
+              cambiÃ³ de
               <span v-if="h.old_fullname">{{ h.old_fullname }}</span><span v-else class="grey--text">(sin asignar)</span>
               <span v-if="h.old_email"> &lt;{{ h.old_email }}&gt;</span>
-              → <strong>{{ h.new_fullname || '(sin asignar)' }}</strong>
+              â†’ <strong>{{ h.new_fullname || '(sin asignar)' }}</strong>
               <span v-if="h.new_email"> &lt;{{ h.new_email }}&gt;</span>
             </div>
           </v-timeline-item>

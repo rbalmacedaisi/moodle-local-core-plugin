@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 // This file is part of Moodle - http://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
@@ -30,14 +30,14 @@ $context = context_system::instance();
 $PAGE->set_url(new moodle_url('/local/grupomakro_core/pages/wellness_staff_panel.php'));
 $PAGE->set_context($context);
 $PAGE->set_title('Bienestar: Personal');
-$PAGE->set_heading('Bienestar — Personal asignado');
+$PAGE->set_heading('Bienestar â€” Personal asignado');
 $PAGE->set_pagelayout('admin');
 
 require_capability('local/grupomakro_core:manage_psychology_appointments', $context);
 
 // Cache-bust by JS file mtime (see wellness_dashboard.php for rationale).
 // One-shot `time()` suffix forces every browser to re-fetch on this
-// deploy — the previous `?v=` (1787934245) was cached and the broken
+// deploy â€” the previous `?v=` (1787934245) was cached and the broken
 // v-text-field kept being served. After this deploy the suffix can be
 // removed: a new mtime alone is enough to bust the cache.
 $jsfile = $CFG->dirroot . '/local/grupomakro_core/js/components/wellnessStaffPanel.js';
@@ -80,7 +80,8 @@ echo <<<EOT
   // emits a "no themeToken" warning into the console. Setting it to the
   // current session key makes the theme fetch take the normal path and
   // silences the warning.
-  window.token = $sesskey;
+  window.themeToken = $sesskey;
+  window.token = $sesskey;  // legacy alias, harmless
 </script>
 EOT;
 

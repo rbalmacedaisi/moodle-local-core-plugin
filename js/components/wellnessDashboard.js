@@ -1,11 +1,11 @@
-/**
+﻿/**
  * Wellness admin dashboard.
  *
  * Vue 2 component mounted by /local/grupomakro_core/pages/wellness_dashboard.php.
  * Three tabs:
- *   1. Convenios (RF-09.1) — CRUD over gmk_wellness_partner
- *   2. Eventos (RF-09.2) — CRUD over gmk_wellness_event + attachments + registrations export
- *   3. Formularios dinámicos (RF-06) — list of dynamic forms with schema preview
+ *   1. Convenios (RF-09.1) â€” CRUD over gmk_wellness_partner
+ *   2. Eventos (RF-09.2) â€” CRUD over gmk_wellness_event + attachments + registrations export
+ *   3. Formularios dinÃ¡micos (RF-06) â€” list of dynamic forms with schema preview
  *
  * The component calls the existing ajax.php dispatcher with the
  * `local_grupomakro_*` actions defined in db/services.php.
@@ -144,7 +144,7 @@ Vue.component('wellness-dashboard', {
                 const res = await axios.post(ajaxUrl, {
                     action: 'local_grupomakro_admin_list_wellness_partners',
                     args: {}
-                }, { params: { sesskey } });
+                }, { params: { sesskey }, timeout: 30000 });
                 if (res.data && res.data.status === 'success' && res.data.data) {
                     this.partners = res.data.data.partners || [];
                     this.partnerCategories = res.data.data.categories || [];
@@ -163,7 +163,7 @@ Vue.component('wellness-dashboard', {
                 const res = await axios.post(ajaxUrl, {
                     action: 'local_grupomakro_admin_list_wellness_events',
                     args: {}
-                }, { params: { sesskey } });
+                }, { params: { sesskey }, timeout: 30000 });
                 if (res.data && res.data.status === 'success' && res.data.data) {
                     this.events = res.data.data.events || [];
                 }
@@ -178,7 +178,7 @@ Vue.component('wellness-dashboard', {
                 const res = await axios.post(ajaxUrl, {
                     action: 'local_grupomakro_admin_list_wellness_dynamic_forms',
                     args: {}
-                }, { params: { sesskey } });
+                }, { params: { sesskey }, timeout: 30000 });
                 if (res.data && res.data.status === 'success' && res.data.data) {
                     this.forms = res.data.data.forms || [];
                 }
@@ -187,7 +187,7 @@ Vue.component('wellness-dashboard', {
             }
         },
 
-        // ── Partners ────────────────────────────────────────────────────
+        // â”€â”€ Partners â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         openPartnerDialog(p) {
             this.partner = p ? Object.assign(this._blankPartner(), p, {
                 startdate_ts: p.startdate || 0,
@@ -218,7 +218,7 @@ Vue.component('wellness-dashboard', {
                 const res = await axios.post(ajaxUrl, {
                     action: 'local_grupomakro_admin_save_wellness_partner',
                     args
-                }, { params: { sesskey } });
+                }, { params: { sesskey }, timeout: 30000 });
                 if (res.data && res.data.status === 'success') {
                     this.toast('Convenio guardado.');
                     this.partnerDialog = false;
@@ -237,7 +237,7 @@ Vue.component('wellness-dashboard', {
                 const res = await axios.post(ajaxUrl, {
                     action: 'local_grupomakro_admin_toggle_wellness_partner_active',
                     args: { id: p.id, active: !p.active }
-                }, { params: { sesskey } });
+                }, { params: { sesskey }, timeout: 30000 });
                 if (res.data && res.data.status === 'success') {
                     this.toast(p.active ? 'Convenio desactivado' : 'Convenio activado');
                     await this.refreshPartners();
@@ -245,14 +245,14 @@ Vue.component('wellness-dashboard', {
             } catch (e) { this.toast('Error: ' + (e.message || e), 'error'); }
         },
 
-        // ── Carnets ─────────────────────────────────────────────
+        // â”€â”€ Carnets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         async onCarnetUserQuery(value) {
             if (!value || value.length < 2) { this.carnetUserOptions = []; return }
             try {
                 const res = await axios.post(ajaxUrl, {
                     action: 'local_grupomakro_search_users',
                     args: { query: value, limit: 8 },
-                }, { params: { sesskey } });
+                }, { params: { sesskey }, timeout: 30000 });
                 if (res.data && res.data.status === 'success' && res.data.data) {
                     this.carnetUserOptions = res.data.data.users || [];
                 }
@@ -264,7 +264,7 @@ Vue.component('wellness-dashboard', {
                 const res = await axios.post(ajaxUrl, {
                     action: 'local_grupomakro_admin_manage_carnet',
                     args: { action: this.carnetAction, userid: this.carnetUserid },
-                }, { params: { sesskey } });
+                }, { params: { sesskey }, timeout: 30000 });
                 if (res.data && res.data.status === 'success') {
                     this.toast('Carnet actualizado.')
                 } else {
@@ -273,7 +273,7 @@ Vue.component('wellness-dashboard', {
             } catch (e) { this.toast('Error: ' + (e.message || e), 'error'); }
         },
 
-        // ── Events ──────────────────────────────────────────────────────
+        // â”€â”€ Events â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         openEventDialog(e) {
             this.eventAttachments = e && e.id ? [] : [];
             this.event = e ? Object.assign(this._blankEvent(), e, {
@@ -320,7 +320,7 @@ Vue.component('wellness-dashboard', {
                 const res = await axios.post(ajaxUrl, {
                     action: 'local_grupomakro_admin_save_wellness_event',
                     args
-                }, { params: { sesskey } });
+                }, { params: { sesskey }, timeout: 30000 });
                 if (res.data && res.data.status === 'success') {
                     this.toast('Evento guardado.');
                     this.eventDialog = false;
@@ -339,7 +339,7 @@ Vue.component('wellness-dashboard', {
                 const res = await axios.post(ajaxUrl, {
                     action: 'local_grupomakro_admin_toggle_wellness_event_active',
                     args: { id: e.id, active: !e.active }
-                }, { params: { sesskey } });
+                }, { params: { sesskey }, timeout: 30000 });
                 if (res.data && res.data.status === 'success') {
                     await this.refreshEvents();
                 }
@@ -358,7 +358,7 @@ Vue.component('wellness-dashboard', {
                 const res = await axios.post(ajaxUrl, {
                     action: 'local_grupomakro_admin_export_event_registrations',
                     args: { eventid: e.id }
-                }, { params: { sesskey } });
+                }, { params: { sesskey }, timeout: 30000 });
                 if (res.data && res.data.status === 'success' && res.data.data && res.data.data.csv) {
                     const blob = new Blob([res.data.data.csv], { type: 'text/csv;charset=utf-8' });
                     const url = URL.createObjectURL(blob);
@@ -375,14 +375,14 @@ Vue.component('wellness-dashboard', {
             } catch (err) { this.toast('Error: ' + (err.message || err), 'error'); }
         },
 
-        // ── Helpers ────────────────────────────────────────────────────
+        // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         _fmtDateTimeLocal(ts) {
             const d = new Date(ts * 1000);
             const pad = n => String(n).padStart(2, '0');
             return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
         },
         formatDate(ts) {
-            if (!ts) return '—';
+            if (!ts) return 'â€”';
             const d = new Date(ts * 1000);
             return d.toLocaleString();
         },
@@ -400,7 +400,7 @@ Vue.component('wellness-dashboard', {
         <v-icon left>mdi-calendar-star</v-icon> Eventos
       </v-tab>
       <v-tab value="forms">
-        <v-icon left>mdi-clipboard-text-outline</v-icon> Formularios dinámicos
+        <v-icon left>mdi-clipboard-text-outline</v-icon> Formularios dinÃ¡micos
       </v-tab>
       <v-tab value="carnets">
         <v-icon left>mdi-card-account-details-outline</v-icon> Carnets
@@ -408,7 +408,7 @@ Vue.component('wellness-dashboard', {
     </v-tabs>
 
   <v-window v-model="tab" class="mt-4">
-    <!-- ── PARTNERS ────────────────────────────────────────────── -->
+    <!-- â”€â”€ PARTNERS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
     <v-window-item value="partners">
       <v-card>
         <v-card-title>
@@ -421,7 +421,7 @@ Vue.component('wellness-dashboard', {
         <v-data-table
           :headers="[
             { text: 'Nombre', value: 'name' },
-            { text: 'Categoría', value: 'category_name' },
+            { text: 'CategorÃ­a', value: 'category_name' },
             { text: 'Beneficio', value: 'benefit_description' },
             { text: 'Vigente', value: 'period', sortable: false },
             { text: 'Activo', value: 'active', align: 'center' },
@@ -434,7 +434,7 @@ Vue.component('wellness-dashboard', {
         >
           <template v-slot:item.period="{ item }">
             <span v-if="item.startdate && item.enddate">
-              {{ formatDate(item.startdate) }} <br> → {{ formatDate(item.enddate) }}
+              {{ formatDate(item.startdate) }} <br> â†’ {{ formatDate(item.enddate) }}
             </span>
             <span v-else-if="item.startdate">Desde {{ formatDate(item.startdate) }}</span>
             <span v-else-if="item.enddate">Hasta {{ formatDate(item.enddate) }}</span>
@@ -442,7 +442,7 @@ Vue.component('wellness-dashboard', {
           </template>
           <template v-slot:item.active="{ item }">
             <v-chip :color="item.active ? 'green' : 'grey'" small dark>
-              {{ item.active ? 'Sí' : 'No' }}
+              {{ item.active ? 'SÃ­' : 'No' }}
             </v-chip>
           </template>
           <template v-slot:item._actions="{ item }">
@@ -455,12 +455,12 @@ Vue.component('wellness-dashboard', {
       </v-card>
     </v-window-item>
 
-    <!-- ── EVENTS ─────────────────────────────────────────────── -->
+    <!-- â”€â”€ EVENTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
     <v-window-item value="events">
       <v-card>
         <v-card-title>
           <v-text-field v-model="eventSearch" label="Buscar evento" prepend-inner-icon="mdi-magnify" hide-details clearable></v-text-field>
-          <v-select v-model="eventCategoryFilter" :items="eventCategoryItems" label="Categoría" hide-details style="max-width:220px" class="ml-3"></v-select>
+          <v-select v-model="eventCategoryFilter" :items="eventCategoryItems" label="CategorÃ­a" hide-details style="max-width:220px" class="ml-3"></v-select>
           <v-spacer></v-spacer>
           <v-btn color="primary" @click="openEventDialog(null)">
             <v-icon left>mdi-plus</v-icon> Nuevo evento
@@ -468,8 +468,8 @@ Vue.component('wellness-dashboard', {
         </v-card-title>
         <v-data-table
           :headers="[
-            { text: 'Título', value: 'title' },
-            { text: 'Categoría', value: 'category' },
+            { text: 'TÃ­tulo', value: 'title' },
+            { text: 'CategorÃ­a', value: 'category' },
             { text: 'Inicio', value: 'startdate' },
             { text: 'Fin', value: 'enddate' },
             { text: 'Modalidad', value: 'modality' },
@@ -488,7 +488,7 @@ Vue.component('wellness-dashboard', {
           <template v-slot:item.enddate="{ item }">{{ formatDate(item.enddate) }}</template>
           <template v-slot:item.active="{ item }">
             <v-chip :color="item.active ? 'green' : 'grey'" small dark>
-              {{ item.active ? 'Sí' : 'No' }}
+              {{ item.active ? 'SÃ­' : 'No' }}
             </v-chip>
           </template>
           <template v-slot:item._actions="{ item }">
@@ -502,10 +502,10 @@ Vue.component('wellness-dashboard', {
       </v-card>
     </v-window-item>
 
-    <!-- ── CARNETS (RF-07 / RF-09.4) ──────────────────────────────── -->
+    <!-- â”€â”€ CARNETS (RF-07 / RF-09.4) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
     <v-window-item value="carnets">
       <v-card>
-        <v-card-title>Gestión de carnets digitales</v-card-title>
+        <v-card-title>GestiÃ³n de carnets digitales</v-card-title>
         <v-card-text>
           <v-row dense>
             <v-col cols="12" md="6">
@@ -540,11 +540,11 @@ Vue.component('wellness-dashboard', {
                 { text: 'Reactivar', value: 'reinstate' },
                 { text: 'Regenerar token QR (comprometido)', value: 'regenerate_token' },
                 { text: 'Marcar como egresado', value: 'graduate' },
-              ]" label="Acción"></v-select>
+              ]" label="AcciÃ³n"></v-select>
             </v-col>
           </v-row>
           <v-alert type="info" text class="mt-3">
-            Las acciones se registran en la auditoría de la fila correspondiente. Para regenerar token,
+            Las acciones se registran en la auditorÃ­a de la fila correspondiente. Para regenerar token,
             notifica al estudiante por otro canal (correo, llamada) para que re-descargue el carnet.
           </v-alert>
         </v-card-text>
@@ -555,27 +555,27 @@ Vue.component('wellness-dashboard', {
             :disabled="!carnetUserid"
             @click="onCarnetAction"
           >
-            Aplicar acción
+            Aplicar acciÃ³n
           </v-btn>
         </v-card-actions>
       </v-card>
     </v-window-item>
 
-    <!-- ── FORMS ───────────────────────────────────────────────── -->
+    <!-- â”€â”€ FORMS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
     <v-window-item value="forms">
       <v-card>
-        <v-card-title>Formularios dinámicos</v-card-title>
+        <v-card-title>Formularios dinÃ¡micos</v-card-title>
         <v-card-text>
           <v-alert type="info" text>
-            Los formularios dinámicos se crean desde la base de datos (tabla
+            Los formularios dinÃ¡micos se crean desde la base de datos (tabla
             <code>gmk_wellness_dynamic_form</code>). Este panel es solo de
-            lectura en esta fase. La edición se habilita en una iteración
+            lectura en esta fase. La ediciÃ³n se habilita en una iteraciÃ³n
             posterior.
           </v-alert>
           <v-data-table
             :headers="[
               { text: 'ID', value: 'id' },
-              { text: 'Título', value: 'title' },
+              { text: 'TÃ­tulo', value: 'title' },
               { text: 'Evento', value: 'event_title' },
               { text: 'Respuestas', value: 'response_count', align: 'center' },
               { text: 'Activo', value: 'active', align: 'center' }
@@ -586,7 +586,7 @@ Vue.component('wellness-dashboard', {
           >
             <template v-slot:item.active="{ item }">
               <v-chip :color="item.active ? 'green' : 'grey'" small dark>
-                {{ item.active ? 'Sí' : 'No' }}
+                {{ item.active ? 'SÃ­' : 'No' }}
               </v-chip>
             </template>
           </v-data-table>
@@ -601,7 +601,7 @@ Vue.component('wellness-dashboard', {
       <v-card-title>{{ partner.id ? 'Editar convenio' : 'Nuevo convenio' }}</v-card-title>
       <v-card-text>
         <v-text-field v-model="partner.name" label="Nombre de la empresa" required></v-text-field>
-        <v-select v-model="partner.categoryid" :items="categoryItems" label="Categoría" required></v-select>
+        <v-select v-model="partner.categoryid" :items="categoryItems" label="CategorÃ­a" required></v-select>
         <v-textarea v-model="partner.benefit_description" label="Beneficio / descuento" rows="2" required></v-textarea>
         <v-textarea v-model="partner.conditions" label="Condiciones de uso" rows="2"></v-textarea>
         <v-textarea v-model="partner.requirements" label="Requisitos" rows="2"></v-textarea>
@@ -618,7 +618,7 @@ Vue.component('wellness-dashboard', {
             <v-text-field v-model="partner.contact_label" label="Tipo de contacto"></v-text-field>
           </v-col>
           <v-col cols="8">
-            <v-text-field v-model="partner.contact_value" label="Valor (teléfono, email, URL)"></v-text-field>
+            <v-text-field v-model="partner.contact_value" label="Valor (telÃ©fono, email, URL)"></v-text-field>
           </v-col>
         </v-row>
         <v-text-field v-model.number="partner.sort" label="Orden" type="number"></v-text-field>
@@ -637,9 +637,9 @@ Vue.component('wellness-dashboard', {
     <v-card>
       <v-card-title>{{ event.id ? 'Editar evento' : 'Nuevo evento' }}</v-card-title>
       <v-card-text>
-        <v-text-field v-model="event.title" label="Título" required></v-text-field>
-        <v-text-field v-model="event.summary" label="Resumen (una línea)"></v-text-field>
-        <v-textarea v-model="event.description" label="Descripción" rows="3"></v-textarea>
+        <v-text-field v-model="event.title" label="TÃ­tulo" required></v-text-field>
+        <v-text-field v-model="event.summary" label="Resumen (una lÃ­nea)"></v-text-field>
+        <v-textarea v-model="event.description" label="DescripciÃ³n" rows="3"></v-textarea>
         <v-row>
           <v-col cols="4">
             <v-select v-model="event.category" :items="[
@@ -648,7 +648,7 @@ Vue.component('wellness-dashboard', {
               { text: 'Taller', value: 'taller' },
               { text: 'Charla', value: 'charla' },
               { text: 'Otro', value: 'otro' }
-            ]" label="Categoría"></v-select>
+            ]" label="CategorÃ­a"></v-select>
           </v-col>
           <v-col cols="4">
             <v-select v-model="event.modality" :items="[
@@ -669,7 +669,7 @@ Vue.component('wellness-dashboard', {
             <v-text-field v-model="event.enddate" label="Fin" type="datetime-local"></v-text-field>
           </v-col>
         </v-row>
-        <v-text-field v-model="event.location" label="Ubicación"></v-text-field>
+        <v-text-field v-model="event.location" label="UbicaciÃ³n"></v-text-field>
         <v-text-field v-model="event.virtual_url" label="URL sala virtual (Zoom, Teams, etc.)"></v-text-field>
         <v-row>
           <v-col cols="6">
@@ -679,7 +679,7 @@ Vue.component('wellness-dashboard', {
             <v-text-field v-model="event.organizer_email" label="Email del organizador"></v-text-field>
           </v-col>
         </v-row>
-        <v-switch v-model="event.requires_registration" label="Requiere inscripción" inset></v-switch>
+        <v-switch v-model="event.requires_registration" label="Requiere inscripciÃ³n" inset></v-switch>
         <v-switch v-model="event.allow_waitlist" label="Permitir lista de espera cuando se llene" inset></v-switch>
         <v-switch v-model="event.active" label="Activo" inset></v-switch>
 
@@ -688,7 +688,7 @@ Vue.component('wellness-dashboard', {
           <strong>Material adjunto</strong>
           <v-spacer></v-spacer>
           <v-btn small color="primary" outlined @click="addAttachment">
-            <v-icon left small>mdi-plus</v-icon> Añadir adjunto
+            <v-icon left small>mdi-plus</v-icon> AÃ±adir adjunto
           </v-btn>
         </div>
         <v-list dense>
@@ -698,7 +698,7 @@ Vue.component('wellness-dashboard', {
                 <v-col cols="3">
                   <v-select v-model="a.kind" :items="[
                     { text: 'Folleto', value: 'handout' },
-                    { text: 'Grabación', value: 'recording' },
+                    { text: 'GrabaciÃ³n', value: 'recording' },
                     { text: 'Enlace', value: 'link' },
                     { text: 'Otro', value: 'other' }
                   ]" label="Tipo" dense hide-details></v-select>
