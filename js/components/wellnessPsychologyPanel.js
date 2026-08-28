@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Admin psychology panel: agenda + slots editor (RF-09.3).
  *
  * Two tabs:

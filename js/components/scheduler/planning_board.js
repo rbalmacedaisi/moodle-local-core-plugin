@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Planning Board Component (Vue 3 + Tailwind)
  * Interactive drag-and-drop interface for scheduling classes.
  */
