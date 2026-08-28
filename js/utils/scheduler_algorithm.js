@@ -22,6 +22,63 @@
         return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
     };
 
+    const DEFAULT_SHIFT_WINDOWS = {
+        'Diurna': { start: '07:00', end: '18:00' },
+        'Nocturna': { start: '18:00', end: '22:00' },
+        'Sabatina': { start: '07:00', end: '17:00' }
+    };
+
+    /**
+     * Normalize the period config settings into a plain object.
+     *
+     * The backend has historically returned this payload in two shapes: a decoded
+     * object (planning_manager) and a raw JSON string (external/admin/scheduler).
+     * On top of that, an old bug spread a string into the config object and left
+     * numeric character keys ("0","1","2"...) persisted in the DB. Consumers here
+     * used optional chaining on the raw value, so a string silently resolved to
+     * undefined and every parameter fell back to the hardcoded defaults.
+     *
+     * @param {object|string} raw
+     * @returns {object} Always a plain object, never a string.
+     */
+    const normalizeConfig = (raw) => {
+        let cfg = raw;
+        if (typeof cfg === 'string') {
+            if (!cfg.trim()) return {};
+            try { cfg = JSON.parse(cfg); } catch (e) { return {}; }
+        }
+        if (!cfg || typeof cfg !== 'object' || Array.isArray(cfg)) return {};
+
+        // Drop the numeric character keys left behind by the old string-spread bug.
+        const clean = {};
+        Object.keys(cfg).forEach(k => {
+            if (!/^\d+$/.test(k)) clean[k] = cfg[k];
+        });
+        return clean;
+    };
+
+    /**
+     * Resolve the effective scheduling window for a shift: the shift window
+     * clamped by the global start/end bounds defined in the config panel.
+     *
+     * @param {object} cfg - Normalized config settings
+     * @param {string} shift - 'Diurna' | 'Nocturna' | 'Sabatina'
+     * @returns {{start:number,end:number}} Window in minutes from midnight
+     */
+    const getShiftWindowMins = (cfg, shift) => {
+        const windows = cfg.shiftWindows || DEFAULT_SHIFT_WINDOWS;
+        const win = windows[shift] || windows['Diurna'] || DEFAULT_SHIFT_WINDOWS['Diurna'];
+
+        let start = toMins(win.start);
+        let end = toMins(win.end);
+
+        // Global bounds act as hard limits over every shift window.
+        if (cfg.startTime) start = Math.max(start, toMins(cfg.startTime));
+        if (cfg.endTime) end = Math.min(end, toMins(cfg.endTime));
+
+        return { start, end, days: win.days };
+    };
+
     const parseTimeRange = (range) => {
         if (!range) return null;
         const parts = range.toLowerCase().split(/[-–—,]| a /).map(p => p.trim());
@@ -100,7 +157,11 @@
 
     const autoPlace = (schedules, context) => {
         const nextSchedules = JSON.parse(JSON.stringify(schedules));
-        const intervalMins = context.configSettings?.intervalMinutes || 10;
+        const cfg = normalizeConfig(context.configSettings);
+        const intervalMins = cfg.intervalMinutes || 10;
+        // Default session length from the config panel ("Duración de clase").
+        // Only applies to subjects with no load/intensity defined.
+        const defaultDurationMins = parseInt(cfg.sessionDuration, 10) || 120;
 
         // Normalize loads to use consistent camelCase property names
         // DB returns snake_case (subjectname, total_hours), client sends camelCase (subjectName, totalHours)
@@ -111,7 +172,7 @@
         }));
 
         // Unify holiday source: priority to context.holidays (live table)
-        const holidays = context.holidays || context.configSettings?.holidays || [];
+        const holidays = context.holidays || cfg.holidays || [];
         const holidaySet = new Set(holidays.map(h => h.formatted_date || h.date));
         const dayMap = ['Domingo', 'Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado'];
         const allDatesByDay = { 'Lunes': [], 'Martes': [], 'Miercoles': [], 'Jueves': [], 'Viernes': [], 'Sabado': [], 'Domingo': [] };
@@ -130,14 +191,8 @@
         const effectiveWeeks = getEffectiveWeeks(context.period);
         const studentNameMap = new Map();
         if (context.students) context.students.forEach(s => studentNameMap.set(s.id, s.name));
-        const shiftWindows = context.configSettings?.shiftWindows || {
-            'Diurna': { start: '07:00', end: '18:00' },
-            'Nocturna': { start: '18:00', end: '22:00' },
-            'Sabatina': { start: '07:00', end: '17:00' }
-        };
-
-        const lunchStart = toMins(context.configSettings?.lunchStart || '12:00');
-        const lunchEnd = toMins(context.configSettings?.lunchEnd || '13:00');
+        const lunchStart = toMins(cfg.lunchStart || '12:00');
+        const lunchEnd = toMins(cfg.lunchEnd || '13:00');
 
         const roomUsage = new Map();
         const teacherUsage = new Map();
@@ -241,7 +296,7 @@
                 return;
             }
 
-            let durationMins = 120;
+            let durationMins = defaultDurationMins;
             let maxSessions = null;
             let dynamicDuration = false; // Flag: recalculate duration per-day based on actual sessions
             const loadData = normalizedLoads.find(l => l.subjectName === s.subjectName);
@@ -256,12 +311,16 @@
             }
             s.durationMins = durationMins;
 
-            const win = shiftWindows[s.shift] || shiftWindows['Diurna'];
-            const winStart = toMins(win.start);
-            const winEnd = toMins(win.end);
+            const win = getShiftWindowMins(cfg, s.shift);
+            const winStart = win.start;
+            const winEnd = win.end;
+            if (winEnd <= winStart) {
+                s.warning = `Ventana de jornada inválida (${formatTime(winStart)}-${formatTime(winEnd)})`;
+                return;
+            }
             let winDays = ['Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes'];
             if (s.shift === 'Sabatina') winDays = ['Sabado'];
-            else if (win && win.days) winDays = win.days;
+            else if (win.days) winDays = win.days;
 
             const validRooms = (context.classrooms || [])
                 .filter(r => r.active != 0 && r.capacity >= s.studentCount)
@@ -490,7 +549,7 @@
         const sStart = toMins(schedule.start);
         const sEnd = toMins(schedule.end);
         const sDates = new Set(schedule.assignedDates || []);
-        const intervalMins = context?.configSettings?.intervalMinutes || 10;
+        const intervalMins = normalizeConfig(context?.configSettings).intervalMinutes || 10;
 
         return (other) => {
             if (other.id === schedule.id) return false;
@@ -637,7 +696,7 @@
      */
     const getDatesForDay = (day, context, subperiod = 0) => {
         if (!day || day === 'N/A' || !context?.period?.start || !context?.period?.end) return [];
-        const holidays = context.holidays || context.configSettings?.holidays || [];
+        const holidays = context.holidays || normalizeConfig(context.configSettings).holidays || [];
         const holidaySet = new Set(holidays.map(h => h.formatted_date || h.date));
         const dayMap = ['Domingo', 'Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado'];
         const dates = [];
@@ -668,6 +727,9 @@
         formatTime,
         parseTimeRange,
         getEffectiveWeeks,
+        normalizeConfig,
+        getShiftWindowMins,
+        DEFAULT_SHIFT_WINDOWS,
         checkTeacherAvailability,
         checkTeacherSkills
     };

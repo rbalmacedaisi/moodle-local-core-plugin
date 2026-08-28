@@ -5,6 +5,12 @@
 
 window.SchedulerComponents = window.SchedulerComponents || {};
 
+const GMK_DEFAULT_SHIFT_WINDOWS = {
+    Diurna: { start: '07:00', end: '18:00' },
+    Nocturna: { start: '18:00', end: '22:00' },
+    Sabatina: { start: '07:00', end: '17:00' }
+};
+
 window.SchedulerComponents.GeneralConfig = {
     template: `
         <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 animate-in fade-in duration-300">
@@ -12,6 +18,9 @@ window.SchedulerComponents.GeneralConfig = {
                 <h3 class="font-bold text-slate-700 flex items-center gap-2">
                     <i data-lucide="clock" class="w-5 h-5 text-orange-500"></i>
                     Parámetros Generales de Horario
+                    <span v-if="periodName" class="ml-1 px-2 py-0.5 rounded bg-slate-100 text-slate-600 text-[10px] font-bold uppercase tracking-wide">
+                        {{ periodName }}
+                    </span>
                 </h3>
                 <button 
                     @click="saveConfig" 
@@ -23,6 +32,32 @@ window.SchedulerComponents.GeneralConfig = {
                 </button>
             </div>
             
+            <div class="mb-4 p-3 bg-blue-50 text-blue-800 border border-blue-200 rounded-lg flex items-start gap-3">
+                <span class="mt-0.5"><i data-lucide="info" class="w-4 h-4"></i></span>
+                <p class="text-xs">
+                    Estos parámetros se guardan <strong>por periodo académico</strong>, no a nivel de sitio.
+                    Aplican al periodo <strong>{{ periodName || ('#' + periodId) }}</strong>: si va a proyectar
+                    horarios de otro periodo en el Planificador, guárdelos también allí.
+                </p>
+            </div>
+
+            <div v-if="inheritedFrom" class="mb-4 p-3 bg-amber-50 text-amber-800 border border-amber-200 rounded-lg flex items-start gap-3">
+                <span class="mt-0.5"><i data-lucide="alert-triangle" class="w-4 h-4"></i></span>
+                <p class="text-xs">
+                    Este periodo <strong>todavía no tiene parámetros propios</strong>. Se muestran los heredados de
+                    <strong>{{ inheritedFrom }}</strong> y son los que usará la proyección.
+                    Pulse <strong>Guardar Parámetros</strong> para fijarlos en este periodo.
+                </p>
+            </div>
+
+            <div v-if="windowWarnings.length" class="mb-4 p-3 bg-orange-50 text-orange-800 border border-orange-200 rounded-lg flex items-start gap-3">
+                <span class="mt-0.5"><i data-lucide="alert-circle" class="w-4 h-4"></i></span>
+                <div class="text-xs space-y-1">
+                    <p class="font-bold">Los límites globales recortan estas jornadas:</p>
+                    <p v-for="w in windowWarnings" :key="w">{{ w }}</p>
+                </div>
+            </div>
+
             <div v-if="storeState.error" class="mb-6 p-4 bg-red-50 text-red-700 border border-red-200 rounded-lg flex items-start gap-3">
                 <span class="mt-0.5"><i data-lucide="alert-circle" class="w-5 h-5"></i></span>
                 <p class="text-sm font-medium">{{ storeState.error }}</p>
@@ -72,6 +107,10 @@ window.SchedulerComponents.GeneralConfig = {
                             </div>
                         </div>
                     </div>
+                    <p class="-mt-3 text-[10px] text-slate-400 italic">
+                        Los límites globales recortan cualquier ventana de jornada: ninguna clase se ubicará antes del
+                        inicio global ni después del fin global.
+                    </p>
 
                     <!-- LUNCH HOUR RANGE -->
                     <div class="p-4 bg-orange-50 rounded-lg border border-orange-100">
@@ -180,11 +219,7 @@ window.SchedulerComponents.GeneralConfig = {
                 endTime: '22:00',
                 lunchStart: '12:00',
                 lunchEnd: '13:00',
-                shiftWindows: {
-                    Diurna: { start: '07:00', end: '18:00' },
-                    Nocturna: { start: '18:00', end: '22:00' },
-                    Sabatina: { start: '07:00', end: '17:00' }
-                },
+                shiftWindows: JSON.parse(JSON.stringify(GMK_DEFAULT_SHIFT_WINDOWS)),
                 isolatedCareers: []
             }
         };
@@ -194,7 +229,29 @@ window.SchedulerComponents.GeneralConfig = {
             return window.schedulerStore ? window.schedulerStore.state : {};
         },
         globalConfig() {
-            return this.storeState.context?.configSettings || {};
+            return this.normalizeConfig(this.storeState.context?.configSettings);
+        },
+        periodName() {
+            return this.storeState.context?.period?.name || '';
+        },
+        inheritedFrom() {
+            return this.storeState.context?.configInheritedFrom || '';
+        },
+        windowWarnings() {
+            const warnings = [];
+            const gStart = this.localConfig.startTime;
+            const gEnd = this.localConfig.endTime;
+            const windows = this.localConfig.shiftWindows || {};
+            Object.keys(windows).forEach(shift => {
+                const win = windows[shift] || {};
+                if (gStart && win.start && win.start < gStart) {
+                    warnings.push(`${shift}: empieza ${win.start}, se recorta al inicio global ${gStart}.`);
+                }
+                if (gEnd && win.end && win.end > gEnd) {
+                    warnings.push(`${shift}: termina ${win.end}, se recorta al fin global ${gEnd}.`);
+                }
+            });
+            return warnings;
         },
         availableCareers() {
             // Priority 1: Careers from context (available even before demand analysis)
@@ -209,27 +266,25 @@ window.SchedulerComponents.GeneralConfig = {
     watch: {
         globalConfig: {
             handler(newVal) {
-                if (newVal && Object.keys(newVal).length > 0) {
-                    // Deep merge to default structure
-                    this.localConfig = JSON.parse(JSON.stringify({ ...this.localConfig, ...newVal }));
+                if (!newVal || Object.keys(newVal).length === 0) return;
 
-                    // Ensure arrays and objects exist
-                    if (!this.localConfig.isolatedCareers) {
-                        this.localConfig.isolatedCareers = [];
-                    }
-                    if (!this.localConfig.shiftWindows) {
-                        this.localConfig.shiftWindows = {
-                            Diurna: { start: '07:00', end: '18:00' },
-                            Nocturna: { start: '18:00', end: '22:00' },
-                            Sabatina: { start: '07:00', end: '17:00' }
-                        };
-                    } else {
-                        ['Diurna', 'Nocturna', 'Sabatina'].forEach(shift => {
-                            if (!this.localConfig.shiftWindows[shift]) {
-                                this.localConfig.shiftWindows[shift] = { start: '07:00', end: '22:00' };
-                            }
-                        });
-                    }
+                // newVal is already normalized (object, no numeric character keys).
+                // Merge onto the defaults so a partial blob keeps sane values.
+                this.localConfig = JSON.parse(JSON.stringify({ ...this.localConfig, ...newVal }));
+
+                // Ensure arrays and objects exist
+                if (!Array.isArray(this.localConfig.isolatedCareers)) {
+                    this.localConfig.isolatedCareers = [];
+                }
+                if (!this.localConfig.shiftWindows || typeof this.localConfig.shiftWindows !== 'object') {
+                    this.localConfig.shiftWindows = JSON.parse(JSON.stringify(GMK_DEFAULT_SHIFT_WINDOWS));
+                } else {
+                    Object.keys(GMK_DEFAULT_SHIFT_WINDOWS).forEach(shift => {
+                        const win = this.localConfig.shiftWindows[shift];
+                        if (!win || !win.start || !win.end) {
+                            this.localConfig.shiftWindows[shift] = { ...GMK_DEFAULT_SHIFT_WINDOWS[shift] };
+                        }
+                    });
                 }
             },
             deep: true,
@@ -248,6 +303,25 @@ window.SchedulerComponents.GeneralConfig = {
         }
     },
     methods: {
+        /**
+         * configSettings may still arrive as a raw JSON string from older callers.
+         * Spreading a string here is what once persisted numeric character keys
+         * ("0","1","2"...) into the period config, so parse it defensively.
+         */
+        normalizeConfig(raw) {
+            if (window.SchedulerAlgorithm?.normalizeConfig) {
+                return window.SchedulerAlgorithm.normalizeConfig(raw);
+            }
+            let cfg = raw;
+            if (typeof cfg === 'string') {
+                if (!cfg.trim()) return {};
+                try { cfg = JSON.parse(cfg); } catch (e) { return {}; }
+            }
+            if (!cfg || typeof cfg !== 'object' || Array.isArray(cfg)) return {};
+            const clean = {};
+            Object.keys(cfg).forEach(k => { if (!/^\d+$/.test(k)) clean[k] = cfg[k]; });
+            return clean;
+        },
         async loadInitialData() {
             if (this.periodId && window.schedulerStore) {
                 // If context is completely missing or empty, fetch it so settings populate
@@ -267,9 +341,15 @@ window.SchedulerComponents.GeneralConfig = {
         async saveConfig() {
             if (!this.periodId || !window.schedulerStore) return;
 
-            // Clean up config object
-            const configToSave = JSON.parse(JSON.stringify(this.localConfig));
+            // Clean up config object (drops any leftover numeric character keys)
+            const configToSave = this.normalizeConfig(JSON.parse(JSON.stringify(this.localConfig)));
             await window.schedulerStore.saveConfigSettings(this.periodId, configToSave);
+
+            // Refresh context so the "inherited" banner clears once the period has
+            // its own settings.
+            if (!window.schedulerStore.state.error) {
+                await window.schedulerStore.loadContext(this.periodId);
+            }
         }
     }
 };

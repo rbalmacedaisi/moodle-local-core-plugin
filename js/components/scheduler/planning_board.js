@@ -849,8 +849,6 @@ window.SchedulerComponents.PlanningBoard = {
         return {
             search: '',
             days: ['Lunes', 'Martes', 'Mi\u00e9rcoles', 'Jueves', 'Viernes', 'S\u00e1bado'],
-            startHour: 7,
-            endHour: 22,
             draggedClass: null,
             // Resize state
             resizingClass: null,
@@ -1091,6 +1089,47 @@ window.SchedulerComponents.PlanningBoard = {
             const schedulerDay = this.toSchedulerDay(this.selectedClass.day);
             if (!schedulerDay) return 0;
             return window.SchedulerAlgorithm.getDatesForDay(schedulerDay, this.storeState.context, this.selectedClass.subperiod || 0).length;
+        },
+        // Board axis follows the global bounds from the period config so the grid
+        // shows the same window the auto-placement algorithm actually uses.
+        boardConfig() {
+            const raw = this.storeState.context?.configSettings;
+            if (window.SchedulerAlgorithm?.normalizeConfig) {
+                return window.SchedulerAlgorithm.normalizeConfig(raw);
+            }
+            return (raw && typeof raw === 'object' && !Array.isArray(raw)) ? raw : {};
+        },
+        // Earliest/latest hour already occupied on the board. The axis must cover
+        // them even when they fall outside the configured window, otherwise cards
+        // placed by an older projection would render off-grid.
+        placedHourRange() {
+            let min = null;
+            let max = null;
+            for (const c of this.allClasses) {
+                if (!c.start || !c.end || c.day === 'N/A') continue;
+                const sm = this._toMins(c.start);
+                const em = this._toMins(c.end);
+                if (min === null || sm < min) min = sm;
+                if (max === null || em > max) max = em;
+            }
+            return { min, max };
+        },
+        startHour() {
+            const h = parseInt(String(this.boardConfig.startTime || '').split(':')[0], 10);
+            let start = Number.isFinite(h) ? h : 7;
+            const placed = this.placedHourRange.min;
+            if (placed !== null) start = Math.min(start, Math.floor(placed / 60));
+            return Math.max(0, start);
+        },
+        endHour() {
+            const parts = String(this.boardConfig.endTime || '').split(':');
+            let end = parseInt(parts[0], 10);
+            if (!Number.isFinite(end)) end = 22;
+            // Keep the last hour visible when the bound is not on the hour (e.g. 22:30)
+            else if (parseInt(parts[1], 10) > 0) end += 1;
+            const placed = this.placedHourRange.max;
+            if (placed !== null) end = Math.max(end, Math.ceil(placed / 60));
+            return Math.min(24, Math.max(end, this.startHour + 1));
         },
         timeSlots() {
             const slots = [];

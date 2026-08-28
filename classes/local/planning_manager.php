@@ -575,6 +575,8 @@ class planning_manager {
         $periodRec = $DB->get_record('gmk_academic_periods', ['id' => $periodId]);
         $period = null;
         $configSettings = new \stdClass();
+        $configInheritedFrom = '';
+        $careers = [];
 
         if ($periodRec) {
             $period = [
@@ -594,10 +596,41 @@ class planning_manager {
                 ];
             }
 
-            if (!empty($periodRec->configsettings)) {
-                $decoded = json_decode($periodRec->configsettings);
-                if ($decoded) {
-                    $configSettings = $decoded;
+            $configSettings = self::decode_scheduler_config($periodRec->configsettings);
+
+            // A brand new period has no configsettings of its own, and the
+            // scheduling algorithm would silently fall back to its hardcoded
+            // defaults (Diurna 07:00, 10 min interval, 12:00-13:00 lunch) -- which
+            // is never what the user configured. Inherit the most recent previous
+            // period that does have settings, and flag it so the UI can say so.
+            if (!self::scheduler_config_is_usable($configSettings)) {
+                $previous = $DB->get_records_select(
+                    'gmk_academic_periods',
+                    'startdate < :startdate AND configsettings IS NOT NULL',
+                    ['startdate' => $periodRec->startdate],
+                    'startdate DESC',
+                    'id, name, configsettings',
+                    0,
+                    10
+                );
+                foreach ($previous as $prev) {
+                    $candidate = self::decode_scheduler_config($prev->configsettings);
+                    if (self::scheduler_config_is_usable($candidate)) {
+                        $configSettings = $candidate;
+                        $configInheritedFrom = $prev->name;
+                        break;
+                    }
+                }
+            }
+
+            // Careers linked to this period, so the "isolated careers" picker is
+            // populated before any demand analysis has run.
+            $lpIds = json_decode($periodRec->learningplans, true);
+            if ($lpIds && is_array($lpIds)) {
+                list($insql, $inparams) = $DB->get_in_or_equal($lpIds);
+                $plans = $DB->get_records_select('local_learning_plans', "id $insql", $inparams, 'name ASC', 'id, name');
+                foreach ($plans as $pl) {
+                    $careers[] = $pl->name;
                 }
             }
         }
@@ -614,8 +647,47 @@ class planning_manager {
             'holidays' => $formattedHolidays,
             'loads' => array_values($loads),
             'period' => $period,
-            'configSettings' => $configSettings
+            'configSettings' => $configSettings,
+            'configInheritedFrom' => $configInheritedFrom,
+            'careers' => $careers
         ];
+    }
+
+    /**
+     * Decode the JSON blob stored in gmk_academic_periods.configsettings.
+     *
+     * Drops the numeric character keys ("0","1","2"...) that an old front-end bug
+     * persisted when it spread a JSON string into the settings object -- see the
+     * 2026-I row. Always returns an object so callers can read properties safely.
+     *
+     * @param string|null $raw
+     * @return \stdClass
+     */
+    private static function decode_scheduler_config($raw) {
+        if (empty($raw)) {
+            return new \stdClass();
+        }
+        $decoded = json_decode($raw);
+        if (!is_object($decoded)) {
+            return new \stdClass();
+        }
+        $clean = new \stdClass();
+        foreach (get_object_vars($decoded) as $key => $value) {
+            if (!preg_match('/^\d+$/', (string)$key)) {
+                $clean->$key = $value;
+            }
+        }
+        return $clean;
+    }
+
+    /**
+     * A config blob is only usable if it actually carries scheduling parameters.
+     *
+     * @param \stdClass $config
+     * @return bool
+     */
+    private static function scheduler_config_is_usable($config) {
+        return !empty($config->shiftWindows) || !empty($config->startTime);
     }
 
     /**

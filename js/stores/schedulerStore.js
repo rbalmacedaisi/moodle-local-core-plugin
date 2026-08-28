@@ -70,11 +70,38 @@
 
         async loadContext(periodId) {
             const res = await this._fetch('local_grupomakro_get_scheduler_context', { periodid: periodId });
+            // configSettings arrives either decoded (planning_manager) or as a raw
+            // JSON string (external/admin/scheduler). Every consumer reads it with
+            // optional chaining, so a string silently resolves to undefined and the
+            // whole panel falls back to the hardcoded defaults (07:00, 10 min...).
+            // Normalize once, here, so nobody downstream has to care.
+            if (res) {
+                res.configSettings = this._normalizeConfig(res.configSettings);
+            }
             this.state.context = res;
             // Ensure period dates are available for duration calculation
             if (res.period) {
                 this.state.activePeriodDates = res.period;
             }
+        },
+
+        /**
+         * Coerce configSettings into a plain object (parses JSON strings and drops
+         * the numeric character keys left by the old string-spread bug).
+         */
+        _normalizeConfig(raw) {
+            if (window.SchedulerAlgorithm?.normalizeConfig) {
+                return window.SchedulerAlgorithm.normalizeConfig(raw);
+            }
+            let cfg = raw;
+            if (typeof cfg === 'string') {
+                if (!cfg.trim()) return {};
+                try { cfg = JSON.parse(cfg); } catch (e) { return {}; }
+            }
+            if (!cfg || typeof cfg !== 'object' || Array.isArray(cfg)) return {};
+            const clean = {};
+            Object.keys(cfg).forEach(k => { if (!/^\d+$/.test(k)) clean[k] = cfg[k]; });
+            return clean;
         },
 
         async loadPlans() {
@@ -324,7 +351,7 @@
                 let idCounter = 1;
 
                 const demand = this.state.demand || {};
-                const configSettings = this.state.context.configSettings || {};
+                const configSettings = this._normalizeConfig(this.state.context.configSettings);
                 const isolatedCareers = new Set(configSettings.isolatedCareers || []);
 
                 if (!demand || Object.keys(demand).length === 0) {
@@ -577,7 +604,7 @@
                     holidays: this.state.context.holidays || [],
                     loads: this.state.context.loads || [],
                     period: this.state.activePeriodDates || {},
-                    configSettings: this.state.context.configSettings || {},
+                    configSettings: this._normalizeConfig(this.state.context.configSettings),
                     students: this.state.students || []
                 });
 
@@ -919,7 +946,7 @@
          */
         _reconcileDraftWithDemand(draftItems, existingItems = []) {
             const demand = this.state.demand || {};
-            const configSettings = this.state.context?.configSettings || {};
+            const configSettings = this._normalizeConfig(this.state.context?.configSettings);
             const isolatedCareers = new Set(configSettings.isolatedCareers || []);
 
             // Build current demand map: aggKey -> { students[], careers, levels, courseid, subperiod, shift, plan_map, plan_scores }
@@ -1278,7 +1305,7 @@
                 });
 
                 // Keep local state in sync
-                this.state.context.configSettings = settings;
+                this.state.context.configSettings = this._normalizeConfig(settings);
                 this.state.successMessage = "Configuración guardada correctamente";
             } catch (e) {
                 console.error("Save config error:", e);
