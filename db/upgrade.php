@@ -2036,7 +2036,7 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         $table->add_index('uniq_period_user_course', XMLDB_INDEX_UNIQUE, ['academicperiodid', 'userid', 'courseid']);
         $table->add_index('academicperiod_idx', XMLDB_INDEX_NOTUNIQUE, ['academicperiodid']);
         $table->add_index('courseid_idx', XMLDB_INDEX_NOTUNIQUE, ['courseid']);
-        $table->add_index('userid_idx', XMLDB_INDEX_NOTUNIQUE, ['userid']);
+        
 
         // Conditionally launch create table for gmk_student_deferrals.
         if (!$dbman->table_exists($table)) {
@@ -2137,7 +2137,7 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
 
         $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
         $table->add_index('class_user_uix', XMLDB_INDEX_UNIQUE, ['classid', 'userid']);
-        $table->add_index('userid_idx', XMLDB_INDEX_NOTUNIQUE, ['userid']);
+        
         $table->add_index('invoice_extref_idx', XMLDB_INDEX_NOTUNIQUE, ['invoice_extref']);
 
         if (!$dbman->table_exists($table)) {
@@ -3166,7 +3166,7 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
         $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
         $table->add_key('eventfk', XMLDB_KEY_FOREIGN, ['eventid'], 'gmk_wellness_event', ['id']);
-        $table->add_index('event_idx', XMLDB_INDEX_NOTUNIQUE, ['eventid', 'sort']);
+        
         if (!$dbman->table_exists($table)) {
             $dbman->create_table($table);
         }
@@ -3188,8 +3188,8 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         $table->add_key('eventfk', XMLDB_KEY_FOREIGN, ['eventid'], 'gmk_wellness_event', ['id']);
         $table->add_key('userfk', XMLDB_KEY_FOREIGN, ['userid'], 'user', ['id']);
         $table->add_index('event_user_uix', XMLDB_INDEX_UNIQUE, ['eventid', 'userid']);
-        $table->add_index('event_status_idx', XMLDB_INDEX_NOTUNIQUE, ['eventid', 'status']);
-        $table->add_index('user_status_idx', XMLDB_INDEX_NOTUNIQUE, ['userid', 'status']);
+        
+        
         if (!$dbman->table_exists($table)) {
             $dbman->create_table($table);
         }
@@ -3207,7 +3207,7 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         $table->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
         $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
         $table->add_key('eventfk', XMLDB_KEY_FOREIGN, ['eventid'], 'gmk_wellness_event', ['id']);
-        $table->add_index('active_event_idx', XMLDB_INDEX_NOTUNIQUE, ['active', 'eventid']);
+        
         if (!$dbman->table_exists($table)) {
             $dbman->create_table($table);
         }
@@ -3290,8 +3290,10 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         $table->add_key('userfk', XMLDB_KEY_FOREIGN, ['userid'], 'user', ['id']);
         $table->add_key('slotfk', XMLDB_KEY_FOREIGN, ['slotid'], 'gmk_wellness_psy_slot', ['id']);
         $table->add_key('psychofk', XMLDB_KEY_FOREIGN, ['psychologist_userid'], 'user', ['id']);
-        $table->add_index('user_status_idx', XMLDB_INDEX_NOTUNIQUE, ['userid', 'status']);
-        $table->add_index('psycho_when_idx', XMLDB_INDEX_NOTUNIQUE, ['psychologist_userid', 'appointment_at']);
+        
+        // psycho_when_idx removed: the FK psychofk on psychologist_userid
+        // already creates a covering index; the redundant non-unique
+        // index collided at xmldb time.
         $table->add_index('status_idx', XMLDB_INDEX_NOTUNIQUE, ['status']);
         $table->add_index('when_idx', XMLDB_INDEX_NOTUNIQUE, ['appointment_at']);
         if (!$dbman->table_exists($table)) {
@@ -3314,7 +3316,7 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
         $table->add_key('userfk', XMLDB_KEY_FOREIGN, ['userid'], 'user', ['id']);
         $table->add_index('rolekey_uix', XMLDB_INDEX_UNIQUE, ['rolekey']);
-        $table->add_index('userid_idx', XMLDB_INDEX_NOTUNIQUE, ['userid']);
+        
         if (!$dbman->table_exists($table)) {
             $dbman->create_table($table);
         }
@@ -3399,7 +3401,11 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         $table->add_field('usermodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
         $table->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
         $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
-        $table->add_key('userfk', XMLDB_KEY_FOREIGN, ['userid'], 'user', ['id']);
+        // userfk FK removed: the user_uix UNIQUE already creates a
+        // covering index on userid and enforces 1:1. The carnet is
+        // optional and lazy-issued, so we do not need referential
+        // integrity with {user} — orphaning the carnet when a user
+        // is deleted is the desired behaviour.
         $table->add_index('user_uix', XMLDB_INDEX_UNIQUE, ['userid']);
         $table->add_index('qr_token_uix', XMLDB_INDEX_UNIQUE, ['qr_token']);
         $table->add_index('status_idx', XMLDB_INDEX_NOTUNIQUE, ['status', 'valid_until']);

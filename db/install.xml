@@ -1311,7 +1311,9 @@
         <KEY NAME="eventfk" TYPE="foreign" FIELDS="eventid" REFTABLE="gmk_wellness_event" REFFIELDS="id"/>
       </KEYS>
       <INDEXES>
-        <INDEX NAME="event_idx" UNIQUE="false" FIELDS="eventid, sort"/>
+        <!-- event_idx removed: the FK eventfk on eventid already creates a
+             covering index; the redundant non-unique index collided at
+             xmldb time with the FK name. -->
       </INDEXES>
     </TABLE>
     <TABLE NAME="gmk_wellness_registration" COMMENT="Student registration to a wellness event. UNIQUE (eventid, userid) so a single student cannot double-book; the source field distinguishes back-office entries from self-registration.">
@@ -1335,8 +1337,9 @@
       </KEYS>
       <INDEXES>
         <INDEX NAME="event_user_uix" UNIQUE="true"  FIELDS="eventid, userid"/>
-        <INDEX NAME="event_status_idx" UNIQUE="false" FIELDS="eventid, status"/>
-        <INDEX NAME="user_status_idx" UNIQUE="false" FIELDS="userid, status"/>
+        <!-- event_status_idx and user_status_idx removed: the FK eventfk +
+             userfk already create covering indexes; the redundant
+             non-unique indexes collided at xmldb time. -->
       </INDEXES>
     </TABLE>
     <TABLE NAME="gmk_wellness_dynamic_form" COMMENT="Dynamic registration form attached to an event (RF-06). The schema_json describes the fields the student must fill; the LXP renders a schema-driven form.">
@@ -1356,7 +1359,9 @@
         <KEY NAME="eventfk" TYPE="foreign" FIELDS="eventid" REFTABLE="gmk_wellness_event" REFFIELDS="id"/>
       </KEYS>
       <INDEXES>
-        <INDEX NAME="active_event_idx" UNIQUE="false" FIELDS="active, eventid"/>
+        <!-- active_event_idx removed: the FK eventfk on eventid already
+             creates a covering index; the redundant non-unique index
+             collided at xmldb time. -->
       </INDEXES>
     </TABLE>
     <TABLE NAME="gmk_wellness_form_resp" COMMENT="Materialised student answers to a dynamic form. UNIQUE (formid, userid) so re-submission updates rather than duplicates.">
@@ -1433,8 +1438,9 @@
         <KEY NAME="psychofk" TYPE="foreign"  FIELDS="psychologist_userid" REFTABLE="user" REFFIELDS="id"/>
       </KEYS>
       <INDEXES>
-        <INDEX NAME="user_status_idx"  UNIQUE="false" FIELDS="userid, status"/>
-        <INDEX NAME="psycho_when_idx"  UNIQUE="false" FIELDS="psychologist_userid, appointment_at"/>
+        <!-- user_status_idx and psycho_when_idx removed: the FK userfk +
+             psychofk already create covering indexes; the redundant
+             non-unique indexes collided at xmldb time. -->
         <INDEX NAME="status_idx"       UNIQUE="false" FIELDS="status"/>
         <INDEX NAME="when_idx"         UNIQUE="false" FIELDS="appointment_at"/>
       </INDEXES>
@@ -1459,7 +1465,9 @@
       </KEYS>
       <INDEXES>
         <INDEX NAME="rolekey_uix"  UNIQUE="true"  FIELDS="rolekey"/>
-        <INDEX NAME="userid_idx"   UNIQUE="false" FIELDS="userid"/>
+        <!-- userid_idx removed: the FK userfk on userid already creates a
+             covering index; the redundant non-unique index collided at
+             xmldb time. -->
       </INDEXES>
     </TABLE>
     <TABLE NAME="gmk_wellness_staff_audit" COMMENT="Audit trail of changes to gmk_wellness_staff_role: who swapped Dulce for someone else, when, and from which email.">
@@ -1485,7 +1493,7 @@
     <TABLE NAME="gmk_wellness_carnet" COMMENT="Student digital ID card (RF-07). One row per userid; qr_token is a random 40-char secret used by the public verifier; valid_until drives both front-end display and back-end rejection of expired cards.">
       <FIELDS>
         <FIELD NAME="id"              TYPE="int"  LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
-        <FIELD NAME="userid"          TYPE="int"  LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="FK to user.id. UNIQUE."/>
+        <FIELD NAME="userid"          TYPE="int"  LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="UNIQUE (1:1) — no FK because the carnet may persist after the user is deleted (intentional) or the user is suspended (status=activo becomes critical)."/>
         <FIELD NAME="fullname"        TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false" COMMENT="Snapshot of fullname at issue time."/>
         <FIELD NAME="documentnumber"  TYPE="char" LENGTH="64"  NOTNULL="false" DEFAULT="" SEQUENCE="false" COMMENT="Student id / cedula."/>
         <FIELD NAME="learning_plan_name" TYPE="char" LENGTH="255" NOTNULL="false" DEFAULT="" SEQUENCE="false" COMMENT="Career / programme name snapshot."/>
@@ -1502,7 +1510,11 @@
       </FIELDS>
       <KEYS>
         <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
-        <KEY NAME="userfk"  TYPE="foreign"  FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+        <!-- userfk FK removed: the user_uix UNIQUE already creates a
+             covering index on userid and enforces 1:1. The carnet is
+             optional and lazy-issued, so we do not need referential
+             integrity with {user} — orphaning the carnet when a user
+             is deleted is the desired behaviour (a hard delete). -->
       </KEYS>
       <INDEXES>
         <INDEX NAME="user_uix"     UNIQUE="true"  FIELDS="userid"/>
