@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 // This file is part of Moodle - http://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
@@ -20,7 +20,7 @@
  * Mounts a Vue component (`wellnessDashboard`) that surfaces three tabs:
  *   - Convenios (partners)
  *   - Eventos
- *   - Formularios dinÃ¡micos
+ *   - Formularios dinámicos
  *
  * @package    local_grupomakro_core
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later

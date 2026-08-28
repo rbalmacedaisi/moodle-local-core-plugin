@@ -1,11 +1,11 @@
-﻿/**
+/**
  * Wellness admin dashboard.
  *
  * Vue 2 component mounted by /local/grupomakro_core/pages/wellness_dashboard.php.
  * Three tabs:
- *   1. Convenios (RF-09.1) â€” CRUD over gmk_wellness_partner
- *   2. Eventos (RF-09.2) â€” CRUD over gmk_wellness_event + attachments + registrations export
- *   3. Formularios dinÃ¡micos (RF-06) â€” list of dynamic forms with schema preview
+ *   1. Convenios (RF-09.1) — CRUD over gmk_wellness_partner
+ *   2. Eventos (RF-09.2) — CRUD over gmk_wellness_event + attachments + registrations export
+ *   3. Formularios dinámicos (RF-06) — list of dynamic forms with schema preview
  *
  * The component calls the existing ajax.php dispatcher with the
  * `local_grupomakro_*` actions defined in db/services.php.
@@ -382,7 +382,7 @@ Vue.component('wellness-dashboard', {
             return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
         },
         formatDate(ts) {
-            if (!ts) return 'â€”';
+            if (!ts) return '—';
             const d = new Date(ts * 1000);
             return d.toLocaleString();
         },
@@ -400,7 +400,7 @@ Vue.component('wellness-dashboard', {
         <v-icon left>mdi-calendar-star</v-icon> Eventos
       </v-tab>
       <v-tab value="forms">
-        <v-icon left>mdi-clipboard-text-outline</v-icon> Formularios dinÃ¡micos
+        <v-icon left>mdi-clipboard-text-outline</v-icon> Formularios dinámicos
       </v-tab>
       <v-tab value="carnets">
         <v-icon left>mdi-card-account-details-outline</v-icon> Carnets
@@ -421,7 +421,7 @@ Vue.component('wellness-dashboard', {
         <v-data-table
           :headers="[
             { text: 'Nombre', value: 'name' },
-            { text: 'CategorÃ­a', value: 'category_name' },
+            { text: 'Categoría', value: 'category_name' },
             { text: 'Beneficio', value: 'benefit_description' },
             { text: 'Vigente', value: 'period', sortable: false },
             { text: 'Activo', value: 'active', align: 'center' },
@@ -442,7 +442,7 @@ Vue.component('wellness-dashboard', {
           </template>
           <template v-slot:item.active="{ item }">
             <v-chip :color="item.active ? 'green' : 'grey'" small dark>
-              {{ item.active ? 'SÃ­' : 'No' }}
+              {{ item.active ? 'Sí' : 'No' }}
             </v-chip>
           </template>
           <template v-slot:item._actions="{ item }">
@@ -460,7 +460,7 @@ Vue.component('wellness-dashboard', {
       <v-card>
         <v-card-title>
           <v-text-field v-model="eventSearch" label="Buscar evento" prepend-inner-icon="mdi-magnify" hide-details clearable></v-text-field>
-          <v-select v-model="eventCategoryFilter" :items="eventCategoryItems" label="CategorÃ­a" hide-details style="max-width:220px" class="ml-3"></v-select>
+          <v-select v-model="eventCategoryFilter" :items="eventCategoryItems" label="Categoría" hide-details style="max-width:220px" class="ml-3"></v-select>
           <v-spacer></v-spacer>
           <v-btn color="primary" @click="openEventDialog(null)">
             <v-icon left>mdi-plus</v-icon> Nuevo evento
@@ -468,8 +468,8 @@ Vue.component('wellness-dashboard', {
         </v-card-title>
         <v-data-table
           :headers="[
-            { text: 'TÃ­tulo', value: 'title' },
-            { text: 'CategorÃ­a', value: 'category' },
+            { text: 'Título', value: 'title' },
+            { text: 'Categoría', value: 'category' },
             { text: 'Inicio', value: 'startdate' },
             { text: 'Fin', value: 'enddate' },
             { text: 'Modalidad', value: 'modality' },
@@ -488,7 +488,7 @@ Vue.component('wellness-dashboard', {
           <template v-slot:item.enddate="{ item }">{{ formatDate(item.enddate) }}</template>
           <template v-slot:item.active="{ item }">
             <v-chip :color="item.active ? 'green' : 'grey'" small dark>
-              {{ item.active ? 'SÃ­' : 'No' }}
+              {{ item.active ? 'Sí' : 'No' }}
             </v-chip>
           </template>
           <template v-slot:item._actions="{ item }">
@@ -505,7 +505,7 @@ Vue.component('wellness-dashboard', {
     <!-- â”€â”€ CARNETS (RF-07 / RF-09.4) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
     <v-window-item value="carnets">
       <v-card>
-        <v-card-title>GestiÃ³n de carnets digitales</v-card-title>
+        <v-card-title>Gestión de carnets digitales</v-card-title>
         <v-card-text>
           <v-row dense>
             <v-col cols="12" md="6">
@@ -540,11 +540,11 @@ Vue.component('wellness-dashboard', {
                 { text: 'Reactivar', value: 'reinstate' },
                 { text: 'Regenerar token QR (comprometido)', value: 'regenerate_token' },
                 { text: 'Marcar como egresado', value: 'graduate' },
-              ]" label="AcciÃ³n"></v-select>
+              ]" label="Acción"></v-select>
             </v-col>
           </v-row>
           <v-alert type="info" text class="mt-3">
-            Las acciones se registran en la auditorÃ­a de la fila correspondiente. Para regenerar token,
+            Las acciones se registran en la auditoría de la fila correspondiente. Para regenerar token,
             notifica al estudiante por otro canal (correo, llamada) para que re-descargue el carnet.
           </v-alert>
         </v-card-text>
@@ -555,7 +555,7 @@ Vue.component('wellness-dashboard', {
             :disabled="!carnetUserid"
             @click="onCarnetAction"
           >
-            Aplicar acciÃ³n
+            Aplicar acción
           </v-btn>
         </v-card-actions>
       </v-card>
@@ -564,18 +564,18 @@ Vue.component('wellness-dashboard', {
     <!-- â”€â”€ FORMS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
     <v-window-item value="forms">
       <v-card>
-        <v-card-title>Formularios dinÃ¡micos</v-card-title>
+        <v-card-title>Formularios dinámicos</v-card-title>
         <v-card-text>
           <v-alert type="info" text>
-            Los formularios dinÃ¡micos se crean desde la base de datos (tabla
+            Los formularios dinámicos se crean desde la base de datos (tabla
             <code>gmk_wellness_dynamic_form</code>). Este panel es solo de
-            lectura en esta fase. La ediciÃ³n se habilita en una iteraciÃ³n
+            lectura en esta fase. La edición se habilita en una iteración
             posterior.
           </v-alert>
           <v-data-table
             :headers="[
               { text: 'ID', value: 'id' },
-              { text: 'TÃ­tulo', value: 'title' },
+              { text: 'Título', value: 'title' },
               { text: 'Evento', value: 'event_title' },
               { text: 'Respuestas', value: 'response_count', align: 'center' },
               { text: 'Activo', value: 'active', align: 'center' }
@@ -586,7 +586,7 @@ Vue.component('wellness-dashboard', {
           >
             <template v-slot:item.active="{ item }">
               <v-chip :color="item.active ? 'green' : 'grey'" small dark>
-                {{ item.active ? 'SÃ­' : 'No' }}
+                {{ item.active ? 'Sí' : 'No' }}
               </v-chip>
             </template>
           </v-data-table>
@@ -601,7 +601,7 @@ Vue.component('wellness-dashboard', {
       <v-card-title>{{ partner.id ? 'Editar convenio' : 'Nuevo convenio' }}</v-card-title>
       <v-card-text>
         <v-text-field v-model="partner.name" label="Nombre de la empresa" required></v-text-field>
-        <v-select v-model="partner.categoryid" :items="categoryItems" label="CategorÃ­a" required></v-select>
+        <v-select v-model="partner.categoryid" :items="categoryItems" label="Categoría" required></v-select>
         <v-textarea v-model="partner.benefit_description" label="Beneficio / descuento" rows="2" required></v-textarea>
         <v-textarea v-model="partner.conditions" label="Condiciones de uso" rows="2"></v-textarea>
         <v-textarea v-model="partner.requirements" label="Requisitos" rows="2"></v-textarea>
@@ -618,7 +618,7 @@ Vue.component('wellness-dashboard', {
             <v-text-field v-model="partner.contact_label" label="Tipo de contacto"></v-text-field>
           </v-col>
           <v-col cols="8">
-            <v-text-field v-model="partner.contact_value" label="Valor (telÃ©fono, email, URL)"></v-text-field>
+            <v-text-field v-model="partner.contact_value" label="Valor (teléfono, email, URL)"></v-text-field>
           </v-col>
         </v-row>
         <v-text-field v-model.number="partner.sort" label="Orden" type="number"></v-text-field>
@@ -637,9 +637,9 @@ Vue.component('wellness-dashboard', {
     <v-card>
       <v-card-title>{{ event.id ? 'Editar evento' : 'Nuevo evento' }}</v-card-title>
       <v-card-text>
-        <v-text-field v-model="event.title" label="TÃ­tulo" required></v-text-field>
-        <v-text-field v-model="event.summary" label="Resumen (una lÃ­nea)"></v-text-field>
-        <v-textarea v-model="event.description" label="DescripciÃ³n" rows="3"></v-textarea>
+        <v-text-field v-model="event.title" label="Título" required></v-text-field>
+        <v-text-field v-model="event.summary" label="Resumen (una línea)"></v-text-field>
+        <v-textarea v-model="event.description" label="Descripción" rows="3"></v-textarea>
         <v-row>
           <v-col cols="4">
             <v-select v-model="event.category" :items="[
@@ -648,7 +648,7 @@ Vue.component('wellness-dashboard', {
               { text: 'Taller', value: 'taller' },
               { text: 'Charla', value: 'charla' },
               { text: 'Otro', value: 'otro' }
-            ]" label="CategorÃ­a"></v-select>
+            ]" label="Categoría"></v-select>
           </v-col>
           <v-col cols="4">
             <v-select v-model="event.modality" :items="[
@@ -669,7 +669,7 @@ Vue.component('wellness-dashboard', {
             <v-text-field v-model="event.enddate" label="Fin" type="datetime-local"></v-text-field>
           </v-col>
         </v-row>
-        <v-text-field v-model="event.location" label="UbicaciÃ³n"></v-text-field>
+        <v-text-field v-model="event.location" label="Ubicación"></v-text-field>
         <v-text-field v-model="event.virtual_url" label="URL sala virtual (Zoom, Teams, etc.)"></v-text-field>
         <v-row>
           <v-col cols="6">
@@ -679,7 +679,7 @@ Vue.component('wellness-dashboard', {
             <v-text-field v-model="event.organizer_email" label="Email del organizador"></v-text-field>
           </v-col>
         </v-row>
-        <v-switch v-model="event.requires_registration" label="Requiere inscripciÃ³n" inset></v-switch>
+        <v-switch v-model="event.requires_registration" label="Requiere inscripción" inset></v-switch>
         <v-switch v-model="event.allow_waitlist" label="Permitir lista de espera cuando se llene" inset></v-switch>
         <v-switch v-model="event.active" label="Activo" inset></v-switch>
 
@@ -688,7 +688,7 @@ Vue.component('wellness-dashboard', {
           <strong>Material adjunto</strong>
           <v-spacer></v-spacer>
           <v-btn small color="primary" outlined @click="addAttachment">
-            <v-icon left small>mdi-plus</v-icon> AÃ±adir adjunto
+            <v-icon left small>mdi-plus</v-icon> Añadir adjunto
           </v-btn>
         </div>
         <v-list dense>
@@ -698,7 +698,7 @@ Vue.component('wellness-dashboard', {
                 <v-col cols="3">
                   <v-select v-model="a.kind" :items="[
                     { text: 'Folleto', value: 'handout' },
-                    { text: 'GrabaciÃ³n', value: 'recording' },
+                    { text: 'Grabación', value: 'recording' },
                     { text: 'Enlace', value: 'link' },
                     { text: 'Otro', value: 'other' }
                   ]" label="Tipo" dense hide-details></v-select>

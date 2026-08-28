@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 // This file is part of Moodle - http://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
@@ -30,7 +30,7 @@ $context = context_system::instance();
 $PAGE->set_url(new moodle_url('/local/grupomakro_core/pages/wellness_staff_panel.php'));
 $PAGE->set_context($context);
 $PAGE->set_title('Bienestar: Personal');
-$PAGE->set_heading('Bienestar â€” Personal asignado');
+$PAGE->set_heading('Bienestar — Personal asignado');
 $PAGE->set_pagelayout('admin');
 
 require_capability('local/grupomakro_core:manage_psychology_appointments', $context);
