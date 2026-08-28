@@ -159,6 +159,108 @@ class revalida_manager {
         return $out;
     }
 
+    /** @var int Days after a class starts before an incomplete gradebook is reported. */
+    const WEIGHTS_GRACE_DAYS = 21;
+
+    /**
+     * Weight status of a class gradebook category: the sum of the item weights
+     * and whether it totals 100%.
+     *
+     * Shared by the teacher dashboard warning, the grades grid and
+     * validate_weights() so every surface quotes the same number. Classes
+     * whose category uses an aggregation other than "weighted mean" (10) or
+     * "simple weighted mean" (11) are reported as not applicable, because
+     * aggregationcoef is not a percentage there.
+     *
+     * @param int $classid
+     * @return array{applicable:bool, pct:float, ok:bool, items:int, unweighted:int, reason:string}
+     */
+    public static function get_weights_status(int $classid): array {
+        global $DB;
+
+        $none = ['applicable' => false, 'pct' => 0.0, 'ok' => false,
+                 'items' => 0, 'unweighted' => 0, 'reason' => ''];
+
+        $class = $DB->get_record('gmk_class', ['id' => $classid], 'id,gradecategoryid');
+        if (!$class || empty($class->gradecategoryid)) {
+            return array_merge($none, ['reason' => 'La clase no tiene categoría de calificaciones configurada.']);
+        }
+
+        $aggregation = (int)$DB->get_field('grade_categories', 'aggregation',
+            ['id' => (int)$class->gradecategoryid]);
+        if ($aggregation !== 10 && $aggregation !== 11) {
+            // Not a weighted aggregation: aggregationcoef is not a percentage,
+            // so there is nothing meaningful to warn about.
+            return $none;
+        }
+
+        $cols = self::get_gradeable_columns_for_class($classid);
+        if (empty($cols)) {
+            return array_merge($none, [
+                'applicable' => true,
+                'reason' => 'No hay actividades calificables en esta clase.',
+            ]);
+        }
+
+        $pct = 0.0;
+        $unweighted = 0;
+        foreach ($cols as $col) {
+            $w = (float)($col['weight_pct'] ?? 0);
+            $pct += $w;
+            if ($w <= 0) {
+                $unweighted++;
+            }
+        }
+        $pct = round($pct, 2);
+        $ok = (abs($pct - 100.0) <= 0.5);
+
+        return [
+            'applicable'  => true,
+            'pct'         => $pct,
+            'ok'          => $ok,
+            'items'       => count($cols),
+            'unweighted'  => $unweighted,
+            'reason'      => $ok ? '' : "Las ponderaciones suman {$pct}% — deben sumar 100%.",
+        ];
+    }
+
+    /**
+     * Whether a class should be flagged to its teacher for an incomplete
+     * gradebook: weights don't total 100% and the class started more than
+     * WEIGHTS_GRACE_DAYS ago (default: after week 3).
+     *
+     * @param stdClass $class  Needs id + initdate.
+     * @param int|null $now
+     * @return bool
+     */
+    public static function weights_warning_due(stdClass $class, ?int $now = null): bool {
+        $now = $now ?? time();
+        $initdate = (int)($class->initdate ?? 0);
+        if ($initdate <= 0 || $now < $initdate + (self::WEIGHTS_GRACE_DAYS * DAYSECS)) {
+            return false;
+        }
+        $status = self::get_weights_status((int)$class->id);
+        return $status['applicable'] && !$status['ok'];
+    }
+
+    /**
+     * Deep link to the gradebook setup screen where the teacher edits the
+     * weights of their class category.
+     *
+     * @param stdClass $class  Needs corecourseid (falls back to courseid).
+     * @return string
+     */
+    public static function gradebook_setup_url(stdClass $class): string {
+        $courseid = (int)($class->corecourseid ?? 0);
+        if ($courseid <= 0) {
+            $courseid = (int)($class->courseid ?? 0);
+        }
+        if ($courseid <= 0) {
+            return '';
+        }
+        return (new \moodle_url('/grade/edit/tree/index.php', ['id' => $courseid]))->out(false);
+    }
+
     /**
      * Whether the academic calendar window for teacher-driven revalidation
      * scheduling is currently open for the given class. Uses the configured
@@ -517,6 +619,11 @@ class revalida_manager {
         if ($grade === null) {
             return ['ok' => false, 'error' => 'El estudiante no tiene nota final.', 'record' => null];
         }
+        // Round to one decimal, exactly like the teacher's grades grid does
+        // before deciding eligibility. Without this a 70.94 shown as "70.9"
+        // (eligible on screen) was rejected here as "not eligible" and the
+        // student was silently dropped from the batch.
+        $grade = round((float)$grade, 1);
 
         if (!$extemporaneous && !self::is_eligible((float)$grade, (int)($progre->practicalhours ?? 0))) {
             // Defensive: only eligible students in the regular path. The
@@ -556,10 +663,18 @@ class revalida_manager {
 
         if ($existing) {
             $rec->id = (int)$existing->id;
+            // A new session date is new information for the student, so the
+            // notice is re-armed. An idempotent re-schedule with the same date
+            // keeps the previous alert_sent_at and stays silent.
+            $rec->alert_sent_at = ((int)$existing->sessionstart !== (int)$sessionstart)
+                ? 0
+                : (int)($existing->alert_sent_at ?? 0);
         } else {
             $rec->payment_state = 'unpaid';
             $rec->paidat        = 0;
             $rec->createdby     = $actorid;
+            $rec->alert_sent_at = 0;
+            $rec->alert_dismissed_at = 0;
             $rec->timecreated   = $now;
         }
 
@@ -597,8 +712,125 @@ class revalida_manager {
             $rec->invoice_error = $e->getMessage();
         }
 
+        // Tell the student. Best-effort: a messaging failure must never undo a
+        // scheduled revalidation, but it is logged so it can be chased.
+        try {
+            self::notify_student_scheduled($rec, $class);
+        } catch (\Throwable $e) {
+            \gmk_log('WARNING: revalida student notice failed revalidationid=' . $rec->id
+                . ' msg=' . $e->getMessage());
+        }
+
         $rec->bbb_url = self::bbb_url((int)$rec->bbbcmid);
         return ['ok' => true, 'error' => null, 'record' => $rec];
+    }
+
+    /**
+     * Notifies the student that a revalidation was scheduled for them, with the
+     * session date and the payment link.
+     *
+     * Sent once per scheduling: alert_sent_at guards against the message being
+     * re-sent when the teacher re-runs an idempotent schedule, but a change of
+     * session date re-opens it because the student needs the new date. Sending
+     * also clears alert_dismissed_at so the LXP popup comes back for a genuinely
+     * new notice.
+     *
+     * @param stdClass $rec    The persisted gmk_revalidations row.
+     * @param stdClass $class
+     * @return bool True when a message was sent.
+     */
+    private static function notify_student_scheduled(stdClass $rec, stdClass $class): bool {
+        global $DB;
+
+        // create_single_revalidation() resets alert_sent_at when the session
+        // date changes, so a non-zero value here means "this student was already
+        // told about this session".
+        if ((int)($rec->alert_sent_at ?? 0) > 0) {
+            return false;
+        }
+
+        $user = \core_user::get_user((int)$rec->userid);
+        if (!$user || $user->deleted || $user->suspended) {
+            return false;
+        }
+
+        $coursename = self::class_display_name($class);
+        $sessiondate = !empty($rec->sessionstart)
+            ? userdate((int)$rec->sessionstart, get_string('strftimedaydatetime', 'langconfig'))
+            : '';
+        $cost = (string)(get_config('local_grupomakro_core', 'revalida_cost') ?: '');
+
+        $strdata = (object)[
+            'coursename'  => $coursename,
+            'sessiondate' => $sessiondate,
+            'cost'        => $cost,
+        ];
+        $subject = get_string('msg:revalidation_scheduled:subject', 'local_grupomakro_core', $coursename);
+        $body = get_string('msg:revalidation_scheduled:body', 'local_grupomakro_core', $strdata);
+
+        $paylink = (string)($rec->payment_link ?? '');
+        if ($paylink !== '') {
+            $plain = $body . "\n\n" . get_string('msg:revalidation_scheduled:paylink', 'local_grupomakro_core')
+                . ': ' . $paylink;
+            $html = '<p>' . s($body) . '</p><p><a href="' . s($paylink) . '">'
+                . s(get_string('msg:revalidation_scheduled:paylink', 'local_grupomakro_core')) . '</a></p>';
+        } else {
+            // The invoice call failed or is still in flight: say so instead of
+            // sending a payment notice with no way to pay.
+            $nolink = get_string('msg:revalidation_scheduled:nopaylink', 'local_grupomakro_core');
+            $plain = $body . "\n\n" . $nolink;
+            $html = '<p>' . s($body) . '</p><p>' . s($nolink) . '</p>';
+        }
+
+        $message = new \core\message\message();
+        $message->component = 'local_grupomakro_core';
+        $message->name = 'revalidation_scheduled';
+        $message->userfrom = \core_user::get_noreply_user();
+        $message->userto = $user;
+        $message->subject = $subject;
+        $message->fullmessage = $plain;
+        $message->fullmessageformat = FORMAT_PLAIN;
+        $message->fullmessagehtml = $html;
+        $message->smallmessage = $subject;
+        $message->notification = 1;
+        $message->contexturl = $paylink !== ''
+            ? $paylink
+            : (new \moodle_url('/'))->out(false);
+        $message->contexturlname = get_string('msg:revalidation_scheduled:contexturlname', 'local_grupomakro_core');
+
+        if (!message_send($message)) {
+            return false;
+        }
+
+        $now = time();
+        $rec->alert_sent_at = $now;
+        $rec->alert_dismissed_at = 0;
+        $DB->update_record('gmk_revalidations', (object)[
+            'id' => (int)$rec->id,
+            'alert_sent_at' => $now,
+            'alert_dismissed_at' => 0,
+            'timemodified' => $now,
+        ]);
+        return true;
+    }
+
+    /**
+     * Human-readable subject name for messaging: the Moodle course fullname when
+     * available, falling back to the class name.
+     *
+     * @param stdClass $class
+     * @return string
+     */
+    private static function class_display_name(stdClass $class): string {
+        global $DB;
+        $courseid = (int)($class->corecourseid ?? 0) ?: (int)($class->courseid ?? 0);
+        if ($courseid > 0) {
+            $fullname = $DB->get_field('course', 'fullname', ['id' => $courseid]);
+            if (!empty($fullname)) {
+                return (string)$fullname;
+            }
+        }
+        return (string)($class->name ?? '');
     }
 
     /**
@@ -675,6 +907,73 @@ class revalida_manager {
         }
 
         return ['ok' => true, 'error' => null, 'result' => $rec->result, 'finalgrade' => $finalgrade];
+    }
+
+    /**
+     * Retries the Odoo invoice for a revalidation whose invoice call failed when
+     * it was scheduled.
+     *
+     * Without this a failed invoice left the row permanently stuck: there was no
+     * payment link for the student and save_grade() refuses to store a grade
+     * until the invoice is paid, so the revalidation could never be completed.
+     * The call is idempotent on the Odoo side (ref REVALID_REQ:<id>).
+     *
+     * @param int $revalidationid
+     * @return array{ok:bool, error:?string, payment_link:string, invoice_number:string}
+     */
+    public static function retry_invoice(int $revalidationid): array {
+        global $DB;
+
+        $rec = $DB->get_record('gmk_revalidations', ['id' => $revalidationid], '*', MUST_EXIST);
+        if (!empty($rec->invoice_id) && !empty($rec->payment_link)) {
+            return [
+                'ok' => true,
+                'error' => null,
+                'payment_link' => (string)$rec->payment_link,
+                'invoice_number' => (string)$rec->invoice_number,
+            ];
+        }
+
+        try {
+            $invoice = self::create_invoice($rec, (int)$rec->userid);
+        } catch (\Throwable $e) {
+            \gmk_log('WARNING: revalida invoice retry failed revalidationid=' . $revalidationid
+                . ' msg=' . $e->getMessage());
+            return [
+                'ok' => false,
+                'error' => 'No se pudo generar la factura: ' . $e->getMessage(),
+                'payment_link' => '',
+                'invoice_number' => '',
+            ];
+        }
+
+        $now = time();
+        $rec->invoice_extref = self::REVALID_REF_PREFIX . $rec->id;
+        $rec->invoice_id     = (string)($invoice['invoice_id'] ?? '');
+        $rec->invoice_number = (string)($invoice['invoice_number'] ?? '');
+        $rec->payment_link   = (string)($invoice['payment_link'] ?? '');
+        $rec->timemodified   = $now;
+        // The first notice went out without a payment link (or never went out at
+        // all), so re-arm it now that the student has something to pay with.
+        $rec->alert_sent_at = 0;
+        $DB->update_record('gmk_revalidations', $rec);
+
+        $class = $DB->get_record('gmk_class', ['id' => (int)$rec->classid], '*', IGNORE_MISSING);
+        if ($class) {
+            try {
+                self::notify_student_scheduled($rec, $class);
+            } catch (\Throwable $e) {
+                \gmk_log('WARNING: revalida notice after invoice retry failed revalidationid='
+                    . $revalidationid . ' msg=' . $e->getMessage());
+            }
+        }
+
+        return [
+            'ok' => true,
+            'error' => null,
+            'payment_link' => (string)$rec->payment_link,
+            'invoice_number' => (string)$rec->invoice_number,
+        ];
     }
 
     /**
@@ -758,19 +1057,15 @@ class revalida_manager {
      * @return string|null Error message or null when valid.
      */
     private static function validate_weights(stdClass $class): ?string {
-        global $DB;
-        if (empty($class->gradecategoryid)) {
-            return 'La clase no tiene categoría de calificaciones configurada.';
+        // Single source of truth: get_weights_status() is the same computation
+        // the teacher dashboard warning and the grades grid quote, so the
+        // percentage the teacher reads is the percentage validated here.
+        $status = self::get_weights_status((int)$class->id);
+        if (!$status['applicable']) {
+            return $status['reason'] !== '' ? $status['reason'] : null;
         }
-        $gitems = $DB->get_records_select('grade_items',
-            "categoryid = :cat AND itemtype IN ('mod','manual') AND itemnumber = 0",
-            ['cat' => $class->gradecategoryid], '', 'id, aggregationcoef');
-        if (empty($gitems)) {
-            return 'No hay actividades calificables en esta clase.';
-        }
-        $wsum = array_sum(array_column((array)$gitems, 'aggregationcoef'));
-        if (abs($wsum - 100.0) > 0.5) {
-            return "Las ponderaciones suman {$wsum}% — deben sumar 100% antes de programar reválidas.";
+        if (!$status['ok']) {
+            return $status['reason'] . ' Corríjalas antes de programar reválidas.';
         }
         return null;
     }

@@ -1122,3 +1122,205 @@ $string['statuschange_invoices_overdue_block_aplazar'] = 'There are overdue invo
 $string['statuschange_confirm_irreversible'] = 'This action cannot be undone.';
 $string['statuschange_confirm_logged'] = 'It will be recorded in the student\'s academic history with your username.';
 $string['statuschange_history_title'] = 'Academic history';
+
+// ── Incomplete gradebook weights ─────────────────────────────────────────────
+$string['task:warn_incomplete_gradebook_weights'] = 'Warn teachers about incomplete gradebook weights';
+$string['messageprovider:gradebook_weights_incomplete'] = 'Incomplete gradebook weights warning';
+$string['msg:gradebook_weights_incomplete:subject'] = 'Pending weights in {$a} of your classes';
+$string['msg:gradebook_weights_incomplete:intro'] = 'The gradebook weights of {$a} of your classes do not total 100%. Until they do, the system cannot compute your students\' final grade nor identify who is entitled to a revalidation. Fix them from each class gradebook:';
+$string['msg:gradebook_weights_incomplete:contexturlname'] = 'Go to my class dashboard';
+$string['gradebook_weights_incomplete_title'] = 'Incomplete weights';
+$string['gradebook_weights_incomplete_hint'] = 'Without 100% the final grade is not computed and revalidations cannot be scheduled.';
+$string['gradebook_weights_open_link'] = 'Open gradebook';
+
+// ── Revalidation notice to the student ───────────────────────────────────────
+$string['messageprovider:revalidation_scheduled'] = 'Revalidation scheduled notice';
+$string['msg:revalidation_scheduled:subject'] = 'Revalidation scheduled: {$a}';
+$string['msg:revalidation_scheduled:body'] = 'Your teacher scheduled a revalidation for «{$a->coursename}» on {$a->sessiondate}. To sit it you must pay the revalidation fee (B/. {$a->cost}) before the session. If you already paid, ignore this message.';
+$string['msg:revalidation_scheduled:paylink'] = 'Pay the revalidation';
+$string['msg:revalidation_scheduled:nopaylink'] = 'Your revalidation invoice is being generated. Contact the finance desk if you do not receive the payment link.';
+$string['msg:revalidation_scheduled:contexturlname'] = 'View my revalidations';
+
+// -- Wellness module (student wellness + teacher evaluation) ---------------
+$string['wellness_dashboard_menu'] = 'Student wellness';
+$string['wellness_partners_menu'] = 'Wellness: Partners';
+$string['wellness_events_menu'] = 'Wellness: Events';
+$string['wellness_dynamic_forms_menu'] = 'Wellness: Dynamic forms';
+
+$string['wellness_partner_name_required'] = 'Partner name is required.';
+$string['wellness_partner_category_required'] = 'Please select a valid category.';
+$string['wellness_partner_benefit_required'] = 'Please describe the benefit or discount.';
+$string['wellness_partner_not_found'] = 'Partner not found.';
+
+$string['wellness_event_title_required'] = 'Event title is required.';
+$string['wellness_event_start_required'] = 'Event start date is required.';
+$string['wellness_event_end_before_start'] = 'End date cannot be before start date.';
+$string['wellness_event_not_found'] = 'Event not found.';
+
+$string['wellness_form_title_required'] = 'Form title is required.';
+$string['wellness_form_schema_required'] = 'Form schema is required.';
+$string['wellness_form_schema_empty'] = 'Schema must include at least one field.';
+$string['wellness_form_field_invalid'] = 'A field in the schema is invalid (check name, label and type).';
+$string['wellness_form_field_duplicate'] = 'Two fields share the same name in the schema.';
+$string['wellness_form_field_options_required'] = 'Selection fields must include options.';
+$string['wellness_form_not_found'] = 'Form not found.';
+
+$string['wellness:lxp:hub_title'] = 'Student Wellness';
+$string['wellness:lxp:partners_title'] = 'Partners and Benefits';
+$string['wellness:lxp:events_title'] = 'Sports, recreational and integration events';
+$string['wellness:lxp:my_registrations'] = 'My registrations';
+$string['wellness:lxp:search_partners'] = 'Search by name or benefit';
+$string['wellness:lxp:filter_all_categories'] = 'All categories';
+$string['wellness:lxp:no_partners'] = 'No partners are currently active.';
+$string['wellness:lxp:no_events'] = 'No upcoming events.';
+$string['wellness:lxp:register_button'] = 'Register';
+$string['wellness:lxp:registered_button'] = 'Registered';
+$string['wellness:lxp:waitlist_button'] = 'On waitlist';
+$string['wellness:lxp:cancel_button'] = 'Cancel registration';
+$string['wellness:lxp:registration_full'] = 'The event is full and does not accept a waitlist.';
+$string['wellness:lxp:registration_closed'] = 'Registration is closed.';
+$string['wellness:lxp:view_details'] = 'View details';
+$string['wellness:lxp:category_deportivo'] = 'Sports';
+$string['wellness:lxp:category_feria']      = 'Fair';
+$string['wellness:lxp:category_taller']    = 'Workshop';
+$string['wellness:lxp:category_charla']    = 'Talk';
+$string['wellness:lxp:category_otro']      = 'Other';
+$string['wellness:lxp:modality_presencial'] = 'In person';
+$string['wellness:lxp:modality_virtual']    = 'Virtual';
+$string['wellness:lxp:modality_mixto']      = 'Hybrid';
+$string['wellness:lxp:validity_permanent'] = 'Permanently valid';
+$string['wellness:lxp:validity_window']    = 'Valid from {$a->from} to {$a->to}';
+$string['wellness:lxp:validity_from']       = 'Valid since {$a}';
+$string['wellness:lxp:validity_until']      = 'Valid until {$a}';
+$string['wellness:lxp:capacity_unlimited']  = 'Unlimited capacity';
+$string['wellness:lxp:capacity_remaining']  = '{$a->remaining} of {$a->total} spots left';
+$string['wellness:lxp:capacity_full']       = 'Full';
+$string['wellness:lxp:registration_open']   = 'Registration open';
+$string['wellness:lxp:registration_closed_state'] = 'Registration closed';
+$string['wellness:lxp:open_virtual_room']   = 'Open virtual room';
+$string['wellness:lxp:download_handout']    = 'Download material';
+$string['wellness:lxp:status_pendiente']        = 'Pending';
+$string['wellness:lxp:status_confirmada']       = 'Confirmed';
+$string['wellness:lxp:status_modificada']       = 'Modified';
+$string['wellness:lxp:status_cancelada']        = 'Cancelled';
+$string['wellness:lxp:status_atendida']         = 'Attended';
+$string['wellness:lxp:status_no_asistio']       = 'Did not attend';
+$string['wellness:lxp:status_lista_de_espera']  = 'Waitlist';
+$string['wellness:lxp:calendar_title']      = 'Wellness calendar';
+$string['wellness:lxp:dynamic_form_required'] = 'Please fill all required fields before submitting.';
+$string['wellness:lxp:dynamic_form_submitted'] = 'Form submitted successfully.';
+$string['wellness:lxp:dynamic_form_updated']  = 'Your answers have been updated.';
+
+// -- Teacher evaluation (RF-08) ------------------------------------------
+$string['eval:popup_title']    = 'Rate the class';
+$string['eval:popup_subtitle'] = 'Please rate {$a->coursename} taught by {$a->teacher} on {$a->classdate}.';
+$string['eval:stars_label']     = 'Rating';
+$string['eval:stars_help']      = 'Select 1 to 5 stars.';
+$string['eval:comment_label']   = 'Comment (optional)';
+$string['eval:comment_help']    = 'Maximum {$a} characters.';
+$string['eval:submit']          = 'Submit evaluation';
+$string['eval:skip']            = 'Skip';
+$string['eval:thanks']          = 'Thank you for your evaluation!';
+$string['eval:already_done']    = 'You already evaluated this class.';
+$string['eval:skipped']         = 'Got it. We will remind you next time.';
+$string['eval:must_pick_stars']  = 'Pick at least one star before submitting.';
+
+// -- Wellness psychology (RF-03, RF-09.3) --------------------------------
+$string['wellness_psychologist_required'] = 'Please select a valid specialist.';
+$string['wellness_weekday_invalid']       = 'Invalid weekday.';
+$string['wellness_time_required']          = 'Start and end times are required and must be HH:MM.';
+$string['wellness_end_before_start']       = 'End time must be later than start time.';
+$string['wellness_slot_not_found']         = 'Selected slot no longer exists.';
+$string['wellness_slot_inactive']          = 'Selected slot is no longer available.';
+$string['wellness_slot_not_yet_valid']      = 'This slot is not yet in effect.';
+$string['wellness_slot_expired']            = 'This slot is no longer in effect.';
+$string['wellness_slot_in_past']            = 'Cannot book slots in the past.';
+
+$string['wellness_staff_rolekey_required']  = 'rolekey is required.';
+$string['wellness_staff_email_invalid']     = 'Email override is invalid.';
+$string['wellness_staff_user_invalid']      = 'Selected user does not exist or was deleted.';
+$string['wellness_staff_duplicate_active']  = 'Another active row already exists for this rolekey.';
+$string['wellness_staff_no_target']         = 'Bind a Moodle user or an explicit email override. Only leaving both empty is invalid.';
+
+$string['wellness:psychology:hub_title']              = 'Psychology and Support';
+$string['wellness:psychology:request_title']           = 'Request a psychology appointment';
+$string['wellness:psychology:my_appointments']        = 'My psychology appointments';
+$string['wellness:psychology:available_slots']        = 'Available slots';
+$string['wellness:psychology:step_pick']              = 'Choose a slot';
+$string['wellness:psychology:step_confirm']           = 'Confirm your request';
+$string['wellness:psychology:reason_label']           = 'Reason for the appointment';
+$string['wellness:psychology:reason_help']            = 'Briefly tell the specialist why you are requesting the appointment. Only the Psychology team and you will see this message.';
+$string['wellness:psychology:modality_label']         = 'Modality';
+$string['wellness:psychology:duration_label']         = 'Duration';
+$string['wellness:psychology:minutes']                = '{$a} minutes';
+$string['wellness:psychology:location_label']         = 'Location / room';
+$string['wellness:psychology:cancel_by_student']      = 'Cancel appointment';
+$string['wellness:psychology:cancel_confirm']         = 'Do you want to cancel this appointment? This action cannot be undone.';
+$string['wellness:psychology:no_slots']               = 'No slots are available right now.';
+$string['wellness:psychology:request_ok']             = 'Appointment requested. We will confirm by email shortly.';
+$string['wellness:psychology:request_ok_duplicate']   = 'You already had a pending request for that slot.';
+$string['wellness:psychology:status_pendiente']       = 'Pending confirmation';
+$string['wellness:psychology:status_confirmada']      = 'Confirmed';
+$string['wellness:psychology:status_modificada']      = 'Modified';
+$string['wellness:psychology:status_cancelada']       = 'Cancelled';
+$string['wellness:psychology:status_atendida']        = 'Attended';
+$string['wellness:psychology:status_no_asistio']      = 'No show';
+
+$string['messageprovider:wellness_appointment_received']             = 'Psychology appointment: request received';
+$string['messageprovider:wellness_appointment_staff_notification']  = 'Psychology appointment: staff notification (HR / Wellness)';
+$string['messageprovider:wellness_appointment_confirmed']            = 'Psychology appointment: confirmed / modified';
+$string['messageprovider:wellness_appointment_cancelled']            = 'Psychology appointment: cancelled';
+
+$string['msg:wellness_appointment_received:subject'] = 'We received your Psychology appointment request';
+$string['msg:wellness_appointment_received:body']    = 'Hi {$a->studentname},<br><br>We received your request for an appointment with the Psychology team.<br><strong>Date and time:</strong> {$a->date} at {$a->time}<br><strong>Modality:</strong> {$a->modality}<br><strong>Estimated duration:</strong> {$a->duration} minutes<br><strong>Reason:</strong> {$a->reason}<br><br>We will email you a confirmation as soon as the team validates availability.';
+
+$string['msg:wellness_appointment_staff_notification:subject'] = 'New Psychology appointment request';
+$string['msg:wellness_appointment_staff_notification:body']    = 'Student <strong>{$a->studentname}</strong> requested a Psychology appointment.<br><br><strong>Date and time:</strong> {$a->date} at {$a->time}<br><strong>Modality:</strong> {$a->modality}<br><strong>Estimated duration:</strong> {$a->duration} minutes<br><strong>Reason:</strong> {$a->reason}<br><br>Manage the appointment from the Psychology panel.';
+
+$string['msg:wellness_appointment_confirmed:subject'] = 'Your Psychology appointment was {$a->newstatus}';
+$string['msg:wellness_appointment_confirmed:body']    = 'Hi {$a->studentname},<br><br>Your Psychology appointment was <strong>{$a->newstatus}</strong>.<br><strong>Date and time:</strong> {$a->date} at {$a->time}<br><strong>Modality:</strong> {$a->modality}<br><strong>Estimated duration:</strong> {$a->duration} minutes<br><br>Previous status: {$a->oldstatus}. If you need to modify or cancel, please contact us.';
+
+$string['msg:wellness_appointment_cancelled:subject'] = 'Your Psychology appointment was cancelled';
+$string['msg:wellness_appointment_cancelled:body']    = 'Hi {$a->studentname},<br><br>Your Psychology appointment scheduled for {$a->date} at {$a->time} was cancelled.<br><strong>Reason:</strong> {$a->cancelreason}<br><br>If you need to reschedule, request a new appointment from the Psychology section of your student portal.';
+
+$string['wellness:staff:panel_title']      = 'Wellness staff';
+$string['wellness:staff:role_label']       = 'Role';
+$string['wellness:staff:user_label']       = 'Moodle user';
+$string['wellness:staff:email_label']      = 'Destination email';
+$string['wellness:staff:override_help']    = 'If set, notifications go to this address (useful for shared mailboxes). If empty, the user\'s Moodle email is used.';
+$string['wellness:staff:notify_request']    = 'Notify on new requests';
+$string['wellness:staff:notify_change']     = 'Notify on status changes';
+$string['wellness:staff:history_title']     = 'Change history';
+
+// -- Wellness carnet (RF-07, RF-09.4) ---------------------------------------
+$string['wellness_carnet_user_invalid'] = 'User does not exist or was deleted.';
+$string['wellness_carnet_egresado']     = 'Cannot issue a carnet to a graduated student.';
+
+$string['wellness:lxp:carnet_title']           = 'My digital ID card';
+$string['wellness:lxp:carnet_subtitle']        = 'Official credential issued by the Instituto Superior de Ingenier�a. The QR can be scanned by anyone to verify validity.';
+$string['wellness:lxp:carnet_status_activo']   = 'Active';
+$string['wellness:lxp:carnet_status_vencido']  = 'Expired';
+$string['wellness:lxp:carnet_status_suspendido'] = 'Suspended';
+$string['wellness:lxp:carnet_status_egresado'] = 'Graduated';
+$string['wellness:lxp:carnet_field_name']       = 'Name';
+$string['wellness:lxp:carnet_field_document']   = 'ID number';
+$string['wellness:lxp:carnet_field_program']    = 'Academic programme';
+$string['wellness:lxp:carnet_field_admission']  = 'Admission date';
+$string['wellness:lxp:carnet_field_valid_from'] = 'Valid from';
+$string['wellness:lxp:carnet_field_valid_until'] = 'Valid until';
+$string['wellness:lxp:carnet_qr_help']          = 'Ask someone to scan this code to validate your carnet. Only your name and programme are shown to the verifier.';
+$string['wellness:lxp:carnet_no_photo']         = 'No photo uploaded � using your Moodle profile picture.';
+
+$string['carnet:verify:title']           = '{$id} � Carnet verifier';
+$string['carnet:verify:brand']           = 'Instituto Superior de Ingenier�a';
+$string['carnet:verify:plan']            = 'Programme';
+$string['carnet:verify:valid_until']     = 'Valid until';
+$string['carnet:verify:was_valid_until'] = 'Expired on';
+$string['carnet:verify:result:active']    = 'Carnet valid';
+$string['carnet:verify:result:expired']   = 'Carnet expired';
+$string['carnet:verify:result:suspended'] = 'Carnet suspended';
+$string['carnet:verify:result:egresado']  = 'Student graduated';
+$string['carnet:verify:result:invalid']   = 'Carnet invalid';
+$string['carnet:verify:invalid_title']   = 'Could not verify';
+$string['carnet:verify:invalid_help']    = 'Make sure the QR code is complete and the carnet has not been revoked.';
+$string['carnet:verify:footer']          = 'Public verifier of {$id} � no personal information is stored.';

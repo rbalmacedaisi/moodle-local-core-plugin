@@ -3635,23 +3635,42 @@ try {
             $revalida_gradeable_cols = array_filter($columns, function ($c) {
                 return empty($c['is_total']) && (float)($c['weight_pct'] ?? 0) > 0;
             });
+            // Two numbers per student, on purpose:
+            //   final_grade     — every column counts, ungraded ones as 0. This is
+            //                     the gradebook total the teacher already sees.
+            //   projected_grade — only the columns that actually have a grade,
+            //                     with their weights renormalised to 100%. This is
+            //                     where the student is heading if the rest is graded
+            //                     at the same level.
+            // Mid-period the first one is depressed by pending grading, so
+            // eligibility is decided on final_grade AND a complete gradebook,
+            // while the projection is what tells the teacher who is coming.
             $revalida_grades = [];
+            $revalida_projected = [];
             foreach ($userids as $guid) {
                 $has = false;
                 $sum = 0.0;
+                $gradedweight = 0.0;
+                $gradedsum = 0.0;
                 foreach ($revalida_gradeable_cols as $col) {
                     $raw = $grades_map[$guid][$col['id']] ?? null;
-                    if ($raw !== null && $raw !== '-') {
-                        $has = true;
-                    }
-                    $grade = ($raw === null || $raw === '-') ? 0.0 : (float)$raw;
+                    $weight = (float)$col['weight_pct'];
                     $max = (float)($col['max_grade'] ?? 0);
                     if ($max <= 0) {
                         $max = 100.0;
                     }
-                    $sum += ($grade / $max) * (float)$col['weight_pct'];
+                    if ($raw !== null && $raw !== '-') {
+                        $has = true;
+                        $gradedweight += $weight;
+                        $gradedsum += ((float)$raw / $max) * $weight;
+                    }
+                    $grade = ($raw === null || $raw === '-') ? 0.0 : (float)$raw;
+                    $sum += ($grade / $max) * $weight;
                 }
                 $revalida_grades[$guid] = $has ? round($sum * 10) / 10 : null;
+                $revalida_projected[$guid] = ($has && $gradedweight > 0)
+                    ? round(($gradedsum / $gradedweight) * 100 * 10) / 10
+                    : null;
             }
 
             $grades_data = [];
@@ -3671,8 +3690,10 @@ try {
 
                 $rv_uid = (int)$student->id;
                 $rv_grade = isset($revalida_grades[$rv_uid]) ? (float)$revalida_grades[$rv_uid] : null;
+                $rv_projected = isset($revalida_projected[$rv_uid]) ? (float)$revalida_projected[$rv_uid] : null;
                 $rv_ph = $revalida_practical[$rv_uid] ?? 0;
                 $student_row['final_grade'] = $rv_grade;
+                $student_row['projected_grade'] = $rv_projected;
                 $student_row['practicalhours'] = (int)$rv_ph;
 
                 // Eligibility is based ONLY on the institutional rule
@@ -3683,11 +3704,26 @@ try {
                 // activities_graded below so the banner can quote real
                 // numbers per student.
                 $gradeablecols = array_values($revalida_gradeable_cols);
-                $student_row['activities_graded'] =
-                    \local_grupomakro_core\local\revalida_manager::all_activities_graded(
-                        (int)$classid, $rv_uid, $gradeablecols);
-                $student_row['revalid_eligible'] = ($rv_grade !== null)
+                $activitiesgraded = \local_grupomakro_core\local\revalida_manager::all_activities_graded(
+                    (int)$classid, $rv_uid, $gradeablecols);
+                $student_row['activities_graded'] = $activitiesgraded;
+
+                $matchesrule = ($rv_grade !== null)
                     && \local_grupomakro_core\local\revalida_manager::is_eligible($rv_grade, (int)$rv_ph);
+                $projectedmatches = ($rv_projected !== null)
+                    && \local_grupomakro_core\local\revalida_manager::is_eligible($rv_projected, (int)$rv_ph);
+                $allgraded = !empty($activitiesgraded['all_graded']);
+
+                // Eligible = meets the institutional rule AND the gradebook is
+                // complete. With grading still pending the total is depressed by
+                // the zeros, so a student is only offered for scheduling once
+                // every activity has a grade.
+                $student_row['revalid_eligible'] = $matchesrule && $allgraded;
+
+                // Watch list: the rule matches on either number but the gradebook
+                // isn't complete yet. Shown to the teacher as "pendiente de
+                // calificar" — visible, but not selectable.
+                $student_row['revalid_watch'] = !$allgraded && ($matchesrule || $projectedmatches);
                 if (isset($revalida_records[$rv_uid])) {
                     $rvr = $revalida_records[$rv_uid];
                     $student_row['revalidation'] = [
@@ -3709,11 +3745,26 @@ try {
                 $grades_data[] = $student_row;
             }
 
+            // Gradebook deep link + weight status travel with the payload so the
+            // grid can point the teacher straight at the screen where the
+            // weights are fixed, instead of just telling them they're wrong.
+            $gradeclass = $DB->get_record('gmk_class', ['id' => (int)$classid],
+                'id, courseid, corecourseid', IGNORE_MISSING);
+            $weightstatus = \local_grupomakro_core\local\revalida_manager::get_weights_status((int)$classid);
+
             $response = [
                 'status' => 'success',
                 'data' => [
                     'columns' => $columns,
-                    'students' => $grades_data
+                    'students' => $grades_data,
+                    'gradebook_url' => $gradeclass
+                        ? \local_grupomakro_core\local\revalida_manager::gradebook_setup_url($gradeclass)
+                        : '',
+                    'weights' => [
+                        'pct' => (float)$weightstatus['pct'],
+                        'ok' => !empty($weightstatus['ok']),
+                        'applicable' => !empty($weightstatus['applicable']),
+                    ],
                 ]
             ];
             break;
@@ -3783,6 +3834,20 @@ try {
             require_capability('moodle/grade:edit', context_course::instance((int)$rev->corecourseid));
             $result = \local_grupomakro_core\local\revalida_manager::save_grade($revalidationid, (float)$grade, (int)$USER->id);
             $response = ['status' => $result['ok'] ? 'success' : 'error', 'data' => $result, 'message' => $result['error']];
+            break;
+
+        case 'local_grupomakro_retry_revalid_invoice':
+            require_sesskey();
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/revalida_manager.php');
+            $revalidationid = required_param('revalidationId', PARAM_INT);
+            $rev = $DB->get_record('gmk_revalidations', ['id' => $revalidationid], '*', MUST_EXIST);
+            require_capability('moodle/grade:edit', context_course::instance((int)$rev->corecourseid));
+            $result = \local_grupomakro_core\local\revalida_manager::retry_invoice($revalidationid);
+            $response = [
+                'status' => $result['ok'] ? 'success' : 'error',
+                'data' => $result,
+                'message' => $result['error'],
+            ];
             break;
 
         case 'local_grupomakro_verify_revalid_payment':

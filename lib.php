@@ -148,6 +148,12 @@ function local_grupomakro_core_extend_navigation(global_navigation $navigation) 
             '|/local/grupomakro_core/pages/absence_dashboard.php';
         $CFG->custommenuitems .= PHP_EOL . '-📣 ' . get_string('announcements_menu', 'local_grupomakro_core') .
             '|/local/grupomakro_core/pages/announcements.php';
+        $CFG->custommenuitems .= PHP_EOL . '-🤝 ' . get_string('wellness_dashboard_menu', 'local_grupomakro_core') .
+            '|/local/grupomakro_core/pages/wellness_dashboard.php';
+        $CFG->custommenuitems .= PHP_EOL . '-🧠 ' . 'Bienestar: Psicología (agenda)' .
+            '|/local/grupomakro_core/pages/wellness_psychology_panel.php';
+        $CFG->custommenuitems .= PHP_EOL . '-👥 ' . 'Bienestar: Personal asignado' .
+            '|/local/grupomakro_core/pages/wellness_staff_panel.php';
         $CFG->custommenuitems .= PHP_EOL . '-👩‍🏫 ' . get_string('admin_teachers_management', 'local_grupomakro_core') .
             '|/local/grupomakro_core/pages/teachers.php';
         $CFG->custommenuitems .= PHP_EOL . '-📂 Gestor de Cursos' .
@@ -231,6 +237,36 @@ function local_grupomakro_core_before_http_headers() {
 }
 
 /**
+ * Inject the Wellness dashboard menu entry for users with the
+ * manage_wellness capability (e.g. custom Bienestar role), even when they
+ * are not siteadmins.
+ */
+function local_grupomakro_core_wellness_menu_inject() {
+    global $CFG, $PAGE;
+
+    if (!isloggedin() || isguestuser() || is_siteadmin()) {
+        return;
+    }
+
+    try {
+        if (!has_capability('local/grupomakro_core:manage_wellness',
+            context_system::instance(), null, false)) {
+            return;
+        }
+    } catch (Exception $e) {
+        return;
+    }
+
+    $existing = isset($CFG->custommenuitems) ? (string)$CFG->custommenuitems : '';
+    if (strpos($existing, '/local/grupomakro_core/pages/wellness_dashboard.php') !== false) {
+        return; // Already added.
+    }
+    $CFG->custommenuitems = trim($existing) . PHP_EOL . '-🤝 '
+        . get_string('wellness_dashboard_menu', 'local_grupomakro_core')
+        . '|/local/grupomakro_core/pages/wellness_dashboard.php';
+}
+
+/**
  * Serves plugin files stored under our component (diploma backgrounds and
  * generated diploma PDFs). Without this callback Moodle rejects every
  * /pluginfile.php request hitting our component, even when the file exists.
@@ -253,6 +289,9 @@ function local_grupomakro_core_pluginfile($course, $cm, $context, $filearea, arr
     }
 
     // File areas served by this plugin and their required capability.
+    // F-16: wellness_carnet_photo filearea removed (no write side yet);
+    // the carnet uses user.picture profile photo as fallback via
+    // wellness_carnet_manager::photo_url().
     $areas = [
         'diploma_background' => 'local/grupomakro_core:managediplomas',
         'diploma_document'   => 'local/grupomakro_core:viewdiplomas',
@@ -290,6 +329,16 @@ function local_grupomakro_core_pluginfile($course, $cm, $context, $filearea, arr
 
     if (!$file->is_visible()) {
         require_capability($requiredcap, $context);
+    }
+
+    // Carnet photos are per-user: only the owner (or a manager) can fetch them.
+    // The carnet filearea is keyed by userid, so $itemid MUST equal $USER->id
+    // when the requester is a regular student.
+    if ($filearea === 'wellness_carnet_photo') {
+        $canmanage = has_capability('local/grupomakro_core:manage_wellness', context_system::instance());
+        if (!$canmanage && (int)$itemid !== (int)$USER->id) {
+            return false;
+        }
     }
 
     send_stored_file($file, 0, 0, $forcedownload, $options);

@@ -889,6 +889,8 @@
         <FIELD NAME="paidat"         TYPE="int"    LENGTH="10"  NOTNULL="true"  DEFAULT="0"  SEQUENCE="false"/>
         <FIELD NAME="status"         TYPE="char"   LENGTH="20"  NOTNULL="true"  DEFAULT="scheduled" SEQUENCE="false" COMMENT="scheduled|graded|consolidated"/>
         <FIELD NAME="createdby"      TYPE="int"    LENGTH="10"  NOTNULL="true"  DEFAULT="0"  SEQUENCE="false"/>
+        <FIELD NAME="alert_sent_at"  TYPE="int"    LENGTH="10"  NOTNULL="true"  DEFAULT="0"  SEQUENCE="false" COMMENT="When the scheduled-revalidation notice was sent to the student"/>
+        <FIELD NAME="alert_dismissed_at" TYPE="int" LENGTH="10" NOTNULL="true"  DEFAULT="0"  SEQUENCE="false" COMMENT="When the student dismissed the LXP popup (0 = still showing)"/>
         <FIELD NAME="timecreated"    TYPE="int"    LENGTH="10"  NOTNULL="true"  DEFAULT="0"  SEQUENCE="false"/>
         <FIELD NAME="timemodified"   TYPE="int"    LENGTH="10"  NOTNULL="true"  DEFAULT="0"  SEQUENCE="false"/>
       </FIELDS>
@@ -1208,6 +1210,304 @@
         <INDEX NAME="state_idx" UNIQUE="false" FIELDS="state"/>
         <INDEX NAME="vat_idx"   UNIQUE="false" FIELDS="partner_vat"/>
         <INDEX NAME="received_at_idx" UNIQUE="false" FIELDS="last_received_at"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="gmk_wellness_partner_category" COMMENT="Categories for student-benefit partners (Salud, Retail, Tecnologia, Educacion, etc). Seeded by admin and shown in the catalog filter dropdown.">
+      <FIELDS>
+        <FIELD NAME="id"            TYPE="int"  LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="name"          TYPE="char" LENGTH="64" NOTNULL="true"/>
+        <FIELD NAME="slug"          TYPE="char" LENGTH="64" NOTNULL="false" SEQUENCE="false" COMMENT="URL-safe version of the name (auto-derived if empty)."/>
+        <FIELD NAME="sort"          TYPE="int"  LENGTH="4"  NOTNULL="true" DEFAULT="0"  SEQUENCE="false"/>
+        <FIELD NAME="active"        TYPE="int"  LENGTH="1"  NOTNULL="true" DEFAULT="1"  SEQUENCE="false"/>
+        <FIELD NAME="usermodified"  TYPE="int"  LENGTH="10" NOTNULL="true" DEFAULT="0"  SEQUENCE="false"/>
+        <FIELD NAME="timecreated"   TYPE="int"  LENGTH="10" NOTNULL="true" DEFAULT="0"  SEQUENCE="false"/>
+        <FIELD NAME="timemodified"  TYPE="int"  LENGTH="10" NOTNULL="true" DEFAULT="0"  SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="active_sort_idx" UNIQUE="false" FIELDS="active, sort"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="gmk_wellness_partner" COMMENT="Corporate or institutional partners offering student benefits (RF-01). Visibility in the LXP is gated by active=1 and the validity window.">
+      <FIELDS>
+        <FIELD NAME="id"                  TYPE="int"  LENGTH="10" NOTNULL="true"  SEQUENCE="true"/>
+        <FIELD NAME="name"                TYPE="char" LENGTH="255" NOTNULL="true"/>
+        <FIELD NAME="categoryid"          TYPE="int"  LENGTH="10" NOTNULL="true"  DEFAULT="0" SEQUENCE="false" COMMENT="FK to gmk_wellness_partner_category.id"/>
+        <FIELD NAME="benefit_description" TYPE="text" LENGTH="medium" NOTNULL="true" SEQUENCE="false" COMMENT="Short description of the benefit (one or two lines)."/>
+        <FIELD NAME="conditions"          TYPE="text" LENGTH="medium" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="requirements"        TYPE="text" LENGTH="medium" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="startdate"           TYPE="int"  LENGTH="10" NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="Unix ts when the benefit becomes valid. 0 = always."/>
+        <FIELD NAME="enddate"             TYPE="int"  LENGTH="10" NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="Unix ts when the benefit expires. 0 = never."/>
+        <FIELD NAME="contact_label"       TYPE="char" LENGTH="64"  NOTNULL="false" DEFAULT="" SEQUENCE="false" COMMENT="e.g. Telefono, WhatsApp, Sitio web, Correo."/>
+        <FIELD NAME="contact_value"       TYPE="char" LENGTH="255" NOTNULL="false" DEFAULT="" SEQUENCE="false"/>
+        <FIELD NAME="logo_path"           TYPE="char" LENGTH="255" NOTNULL="false" DEFAULT="" SEQUENCE="false" COMMENT="Pluginfile path within the wellness_partner filearea."/>
+        <FIELD NAME="sort"                TYPE="int"  LENGTH="4"  NOTNULL="true"  DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="active"              TYPE="int"  LENGTH="1"  NOTNULL="true"  DEFAULT="1" SEQUENCE="false"/>
+        <FIELD NAME="usermodified"        TYPE="int"  LENGTH="10" NOTNULL="true"  DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timecreated"         TYPE="int"  LENGTH="10" NOTNULL="true"  DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timemodified"        TYPE="int"  LENGTH="10" NOTNULL="true"  DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary"   TYPE="primary" FIELDS="id"/>
+        <KEY NAME="categoryfk" TYPE="foreign" FIELDS="categoryid" REFTABLE="gmk_wellness_partner_category" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="active_idx"   UNIQUE="false" FIELDS="active"/>
+        <INDEX NAME="category_idx" UNIQUE="false" FIELDS="categoryid, active"/>
+        <INDEX NAME="dates_idx"    UNIQUE="false" FIELDS="startdate, enddate"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="gmk_wellness_event" COMMENT="Wellness events: sports tournaments, fairs, talks and workshops (RF-02, RF-04, RF-05). Drives the wellness calendar and the LXP catalog.">
+      <FIELDS>
+        <FIELD NAME="id"                    TYPE="int"     LENGTH="10"   NOTNULL="true"  SEQUENCE="true"/>
+        <FIELD NAME="title"                 TYPE="char"    LENGTH="255"  NOTNULL="true"/>
+        <FIELD NAME="summary"               TYPE="char"    LENGTH="255"  NOTNULL="false" SEQUENCE="false" COMMENT="One-line teaser shown on cards."/>
+        <FIELD NAME="description"           TYPE="text"    LENGTH="long" NOTNULL="true"/>
+        <FIELD NAME="category"              TYPE="char"    LENGTH="32"   NOTNULL="true"  DEFAULT="otro" SEQUENCE="false" COMMENT="deportivo|feria|taller|charla|otro"/>
+        <FIELD NAME="startdate"             TYPE="int"     LENGTH="10"   NOTNULL="true"  DEFAULT="0"  SEQUENCE="false"/>
+        <FIELD NAME="enddate"               TYPE="int"     LENGTH="10"   NOTNULL="true"  DEFAULT="0"  SEQUENCE="false"/>
+        <FIELD NAME="modality"              TYPE="char"    LENGTH="16"   NOTNULL="true"  DEFAULT="presencial" SEQUENCE="false" COMMENT="presencial|virtual|mixto"/>
+        <FIELD NAME="location"              TYPE="char"    LENGTH="255"  NOTNULL="false" DEFAULT="" SEQUENCE="false"/>
+        <FIELD NAME="virtual_url"           TYPE="char"    LENGTH="255"  NOTNULL="false" DEFAULT="" SEQUENCE="false"/>
+        <FIELD NAME="capacity"              TYPE="int"     LENGTH="10"   NOTNULL="true"  DEFAULT="0" SEQUENCE="false" COMMENT="0 = unlimited."/>
+        <FIELD NAME="requires_registration" TYPE="int"     LENGTH="1"    NOTNULL="true"  DEFAULT="1" SEQUENCE="false"/>
+        <FIELD NAME="allow_waitlist"        TYPE="int"     LENGTH="1"    NOTNULL="true"  DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="registration_opens_at" TYPE="int"     LENGTH="10"   NOTNULL="false" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="registration_closes_at" TYPE="int"    LENGTH="10"   NOTNULL="false" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="organizer_name"        TYPE="char"    LENGTH="128"  NOTNULL="false" DEFAULT="" SEQUENCE="false"/>
+        <FIELD NAME="organizer_email"       TYPE="char"    LENGTH="255"  NOTNULL="false" DEFAULT="" SEQUENCE="false"/>
+        <FIELD NAME="cover_path"            TYPE="char"    LENGTH="255"  NOTNULL="false" DEFAULT="" SEQUENCE="false"/>
+        <FIELD NAME="active"                TYPE="int"     LENGTH="1"    NOTNULL="true"  DEFAULT="1" SEQUENCE="false"/>
+        <FIELD NAME="usermodified"          TYPE="int"     LENGTH="10"   NOTNULL="true"  DEFAULT="0"  SEQUENCE="false"/>
+        <FIELD NAME="timecreated"           TYPE="int"     LENGTH="10"   NOTNULL="true"  DEFAULT="0"  SEQUENCE="false"/>
+        <FIELD NAME="timemodified"          TYPE="int"     LENGTH="10"   NOTNULL="true"  DEFAULT="0"  SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="active_idx"    UNIQUE="false" FIELDS="active"/>
+        <INDEX NAME="startdate_idx" UNIQUE="false" FIELDS="startdate"/>
+        <INDEX NAME="category_idx"  UNIQUE="false" FIELDS="category, active"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="gmk_wellness_event_attachment" COMMENT="Downloadable material attached to a wellness event: handout, recording, link to virtual room.">
+      <FIELDS>
+        <FIELD NAME="id"        TYPE="int"  LENGTH="10"  NOTNULL="true"  SEQUENCE="true"/>
+        <FIELD NAME="eventid"   TYPE="int"  LENGTH="10"  NOTNULL="true"  DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="kind"      TYPE="char" LENGTH="32"  NOTNULL="true"  DEFAULT="handout" SEQUENCE="false" COMMENT="handout|recording|link|other"/>
+        <FIELD NAME="label"     TYPE="char" LENGTH="128" NOTNULL="false" DEFAULT="" SEQUENCE="false"/>
+        <FIELD NAME="url"       TYPE="char" LENGTH="255" NOTNULL="false" DEFAULT="" SEQUENCE="false" COMMENT="External URL (when kind=link) or pluginfile URL."/>
+        <FIELD NAME="file_path" TYPE="char" LENGTH="255" NOTNULL="false" DEFAULT="" SEQUENCE="false"/>
+        <FIELD NAME="mimetype"  TYPE="char" LENGTH="64"  NOTNULL="false" DEFAULT="" SEQUENCE="false"/>
+        <FIELD NAME="filesize"  TYPE="int"  LENGTH="10"  NOTNULL="true"  DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="sort"      TYPE="int"  LENGTH="4"   NOTNULL="true"  DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="eventfk" TYPE="foreign" FIELDS="eventid" REFTABLE="gmk_wellness_event" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="event_idx" UNIQUE="false" FIELDS="eventid, sort"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="gmk_wellness_registration" COMMENT="Student registration to a wellness event. UNIQUE (eventid, userid) so a single student cannot double-book; the source field distinguishes back-office entries from self-registration.">
+      <FIELDS>
+        <FIELD NAME="id"             TYPE="int"  LENGTH="10"  NOTNULL="true"  SEQUENCE="true"/>
+        <FIELD NAME="eventid"        TYPE="int"  LENGTH="10"  NOTNULL="true"  DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="userid"         TYPE="int"  LENGTH="10"  NOTNULL="true"  DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="status"         TYPE="char" LENGTH="32"  NOTNULL="true"  DEFAULT="confirmada" SEQUENCE="false" COMMENT="confirmada|lista_de_espera|cancelada|asistio|no_asistio"/>
+        <FIELD NAME="modality"       TYPE="char" LENGTH="16"  NOTNULL="false" DEFAULT="" SEQUENCE="false" COMMENT="presencial|virtual — the modality the student picked if the event is mixto."/>
+        <FIELD NAME="registered_at"  TYPE="int"  LENGTH="10"  NOTNULL="true"  DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="attended_at"    TYPE="int"  LENGTH="10"  NOTNULL="false" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="cancelled_at"   TYPE="int"  LENGTH="10"  NOTNULL="false" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="source"         TYPE="char" LENGTH="16"  NOTNULL="true"  DEFAULT="lxp" SEQUENCE="false" COMMENT="lxp|backoffice"/>
+        <FIELD NAME="registered_by"  TYPE="int"  LENGTH="10"  NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="userid of the staff that performed the registration, if source=backoffice."/>
+        <FIELD NAME="notes"          TYPE="text" LENGTH="medium" NOTNULL="false" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary"  TYPE="primary" FIELDS="id"/>
+        <KEY NAME="eventfk"  TYPE="foreign" FIELDS="eventid" REFTABLE="gmk_wellness_event" REFFIELDS="id"/>
+        <KEY NAME="userfk"   TYPE="foreign" FIELDS="userid"  REFTABLE="user"          REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="event_user_uix" UNIQUE="true"  FIELDS="eventid, userid"/>
+        <INDEX NAME="event_status_idx" UNIQUE="false" FIELDS="eventid, status"/>
+        <INDEX NAME="user_status_idx" UNIQUE="false" FIELDS="userid, status"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="gmk_wellness_dynamic_form" COMMENT="Dynamic registration form attached to an event (RF-06). The schema_json describes the fields the student must fill; the LXP renders a schema-driven form.">
+      <FIELDS>
+        <FIELD NAME="id"            TYPE="int"  LENGTH="10" NOTNULL="true"  SEQUENCE="true"/>
+        <FIELD NAME="eventid"       TYPE="int"  LENGTH="10" NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="Optional FK to gmk_wellness_event.id. NULL means the form is reusable across events."/>
+        <FIELD NAME="title"         TYPE="char" LENGTH="255" NOTNULL="true"/>
+        <FIELD NAME="description"   TYPE="text" LENGTH="medium" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="schema_json"   TYPE="text" LENGTH="long" NOTNULL="true" SEQUENCE="false" COMMENT="JSON Schema (https://json-schema.org) describing the form fields. Required keys: fields[]; each field has {name,label,type,required,options?}."/>
+        <FIELD NAME="active"        TYPE="int"  LENGTH="1"  NOTNULL="true" DEFAULT="1" SEQUENCE="false"/>
+        <FIELD NAME="usermodified"  TYPE="int"  LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timecreated"   TYPE="int"  LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timemodified"  TYPE="int"  LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="eventfk" TYPE="foreign" FIELDS="eventid" REFTABLE="gmk_wellness_event" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="active_event_idx" UNIQUE="false" FIELDS="active, eventid"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="gmk_wellness_dynamic_form_response" COMMENT="Materialised student answers to a dynamic form. UNIQUE (formid, userid) so re-submission updates rather than duplicates.">
+      <FIELDS>
+        <FIELD NAME="id"            TYPE="int"  LENGTH="10" NOTNULL="true"  SEQUENCE="true"/>
+        <FIELD NAME="formid"        TYPE="int"  LENGTH="10" NOTNULL="true"  DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="userid"        TYPE="int"  LENGTH="10" NOTNULL="true"  DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="eventid"       TYPE="int"  LENGTH="10" NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="Snapshot of the form's eventid at submission time."/>
+        <FIELD NAME="answers_json"  TYPE="text" LENGTH="long" NOTNULL="true" SEQUENCE="false" COMMENT="JSON object {field_name: value}."/>
+        <FIELD NAME="submitted_at"  TYPE="int"  LENGTH="10" NOTNULL="true"  DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="formfk"  TYPE="foreign" FIELDS="formid" REFTABLE="gmk_wellness_dynamic_form" REFFIELDS="id"/>
+        <KEY NAME="userfk"  TYPE="foreign" FIELDS="userid" REFTABLE="user"                   REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="form_user_uix" UNIQUE="true" FIELDS="formid, userid"/>
+        <INDEX NAME="form_event_idx" UNIQUE="false" FIELDS="eventid"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="gmk_wellness_psychology_schedule_slot" COMMENT="Recurring availability slots published by the psychology specialist. A slot defines a weekday + time range during which students can request appointments.">
+      <FIELDS>
+        <FIELD NAME="id"                  TYPE="int"  LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="psychologist_userid" TYPE="int"  LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="FK to user.id (must hold manage_psychology_appointments or be in the gmk_wellness_staff_role table with rolekey=psicologo_*)."/>
+        <FIELD NAME="weekday"             TYPE="int"  LENGTH="1"  NOTNULL="true" DEFAULT="1" SEQUENCE="false" COMMENT="0=Sunday … 6=Saturday."/>
+        <FIELD NAME="starttime"           TYPE="char" LENGTH="5"  NOTNULL="true" SEQUENCE="false" COMMENT="HH:MM (24h)."/>
+        <FIELD NAME="endtime"             TYPE="char" LENGTH="5"  NOTNULL="true" SEQUENCE="false" COMMENT="HH:MM (24h)."/>
+        <FIELD NAME="modality"            TYPE="char" LENGTH="16" NOTNULL="true" DEFAULT="presencial" SEQUENCE="false" COMMENT="presencial|virtual|mixto."/>
+        <FIELD NAME="duration_minutes"    TYPE="int"  LENGTH="4"  NOTNULL="true" DEFAULT="45" SEQUENCE="false" COMMENT="Default duration per appointment created from this slot."/>
+        <FIELD NAME="location"            TYPE="char" LENGTH="255" NOTNULL="false" DEFAULT="" SEQUENCE="false" COMMENT="Office / virtual room URL."/>
+        <FIELD NAME="active"              TYPE="int"  LENGTH="1"  NOTNULL="true" DEFAULT="1" SEQUENCE="false"/>
+        <FIELD NAME="valid_from"          TYPE="int"  LENGTH="10" NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="Unix ts; 0 = always."/>
+        <FIELD NAME="valid_until"         TYPE="int"  LENGTH="10" NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="Unix ts; 0 = never."/>
+        <FIELD NAME="usermodified"        TYPE="int"  LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timecreated"         TYPE="int"  LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timemodified"        TYPE="int"  LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary"     TYPE="primary" FIELDS="id"/>
+        <KEY NAME="psychofk"    TYPE="foreign"  FIELDS="psychologist_userid" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="psycho_active_idx" UNIQUE="false" FIELDS="psychologist_userid, active"/>
+        <INDEX NAME="psycho_weekday_idx" UNIQUE="false" FIELDS="weekday, starttime"/>
+        <INDEX NAME="psycho_validity_idx" UNIQUE="false" FIELDS="valid_from, valid_until"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="gmk_wellness_psychology_appointment" COMMENT="Psychology appointments requested by students. status transitions: pendiente → confirmada | modificada | cancelada → atendida | no_asistio.">
+      <FIELDS>
+        <FIELD NAME="id"                  TYPE="int"  LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="userid"              TYPE="int"  LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Student who requested the appointment."/>
+        <FIELD NAME="slotid"              TYPE="int"  LENGTH="10" NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="FK to gmk_wellness_psychology_schedule_slot.id. NULL when booked ad-hoc."/>
+        <FIELD NAME="psychologist_userid" TYPE="int"  LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Snapshot of the assigned specialist at booking time."/>
+        <FIELD NAME="appointment_at"      TYPE="int"  LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Unix ts of the appointment (already adjusted to the chosen slot's weekday)."/>
+        <FIELD NAME="duration_minutes"    TYPE="int"  LENGTH="4"  NOTNULL="true" DEFAULT="45" SEQUENCE="false"/>
+        <FIELD NAME="modality"            TYPE="char" LENGTH="16" NOTNULL="true" DEFAULT="presencial" SEQUENCE="false" COMMENT="presencial|virtual."/>
+        <FIELD NAME="reason"              TYPE="text" LENGTH="medium" NOTNULL="true" SEQUENCE="false" COMMENT="Reason for the appointment (free text)."/>
+        <FIELD NAME="status"              TYPE="char" LENGTH="32" NOTNULL="true" DEFAULT="pendiente" SEQUENCE="false" COMMENT="pendiente|confirmada|modificada|cancelada|atendida|no_asistio."/>
+        <FIELD NAME="status_changed_at"  TYPE="int"  LENGTH="10" NOTNULL="false" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="status_changed_by"  TYPE="int"  LENGTH="10" NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="Moodle userid that performed the last status change (staff or system)."/>
+        <FIELD NAME="attendees_notes"     TYPE="text" LENGTH="medium" NOTNULL="false" SEQUENCE="false" COMMENT="Internal notes added by the specialist after the appointment."/>
+        <FIELD NAME="student_notified_at" TYPE="int"  LENGTH="10" NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="Unix ts; updated whenever a notification is sent to the student."/>
+        <FIELD NAME="staff_notified_at"   TYPE="int"  LENGTH="10" NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="Unix ts; updated whenever a notification is sent to the staff."/>
+        <FIELD NAME="cancelled_by"        TYPE="int"  LENGTH="10" NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="0 = system; otherwise Moodle userid (student or staff)."/>
+        <FIELD NAME="cancel_reason"       TYPE="text" LENGTH="medium" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="timecreated"         TYPE="int"  LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timemodified"        TYPE="int"  LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary"  TYPE="primary" FIELDS="id"/>
+        <KEY NAME="userfk"   TYPE="foreign"  FIELDS="userid"  REFTABLE="user"          REFFIELDS="id"/>
+        <KEY NAME="slotfk"   TYPE="foreign"  FIELDS="slotid"  REFTABLE="gmk_wellness_psychology_schedule_slot" REFFIELDS="id"/>
+        <KEY NAME="psychofk" TYPE="foreign"  FIELDS="psychologist_userid" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="user_status_idx"  UNIQUE="false" FIELDS="userid, status"/>
+        <INDEX NAME="psycho_when_idx"  UNIQUE="false" FIELDS="psychologist_userid, appointment_at"/>
+        <INDEX NAME="status_idx"       UNIQUE="false" FIELDS="status"/>
+        <INDEX NAME="when_idx"         UNIQUE="false" FIELDS="appointment_at"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="gmk_wellness_staff_role" COMMENT="Editable mapping of wellness operational rolekeys to Moodle users + explicit institutional email. Replaces the legacy wellness_psychology_email_dulce / _jorge settings. UNIQUE (rolekey, active) ensures at most one active row per rolekey.">
+      <FIELDS>
+        <FIELD NAME="id"                TYPE="int"  LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="rolekey"           TYPE="char" LENGTH="64"  NOTNULL="true" SEQUENCE="false" COMMENT="psicologo_titular|psicologo_suplente|talento_humano|bienestar_jefe|bienestar_asistente. UNIQUE — historical changes are kept in gmk_wellness_staff_audit, not here."/>
+        <FIELD NAME="role_label"        TYPE="char" LENGTH="128" NOTNULL="false" DEFAULT="" SEQUENCE="false" COMMENT="Display label e.g. Dulce Jurado — Talento Humano."/>
+        <FIELD NAME="userid"            TYPE="int"  LENGTH="10" NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="FK to user.id. 0 means the role is unassigned (no email will be sent)."/>
+        <FIELD NAME="email_override"    TYPE="char" LENGTH="255" NOTNULL="false" DEFAULT="" SEQUENCE="false" COMMENT="Explicit institutional email. When empty, user.email is used. Use this when notifications should go to a shared mailbox instead of the personal account."/>
+        <FIELD NAME="notify_on_request" TYPE="int"  LENGTH="1"  NOTNULL="true" DEFAULT="1" SEQUENCE="false" COMMENT="Send notifications on new appointments."/>
+        <FIELD NAME="notify_on_change"  TYPE="int"  LENGTH="1"  NOTNULL="true" DEFAULT="1" SEQUENCE="false" COMMENT="Send notifications on status changes."/>
+        <FIELD NAME="active"            TYPE="int"  LENGTH="1"  NOTNULL="true" DEFAULT="1" SEQUENCE="false"/>
+        <FIELD NAME="usermodified"      TYPE="int"  LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timecreated"       TYPE="int"  LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timemodified"      TYPE="int"  LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="userfk"  TYPE="foreign"  FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="rolekey_uix"  UNIQUE="true"  FIELDS="rolekey"/>
+        <INDEX NAME="userid_idx"   UNIQUE="false" FIELDS="userid"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="gmk_wellness_staff_audit" COMMENT="Audit trail of changes to gmk_wellness_staff_role: who swapped Dulce for someone else, when, and from which email.">
+      <FIELDS>
+        <FIELD NAME="id"            TYPE="int"  LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="rolekey"       TYPE="char" LENGTH="64"  NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="old_userid"    TYPE="int"  LENGTH="10" NOTNULL="false" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="new_userid"    TYPE="int"  LENGTH="10" NOTNULL="false" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="old_email"     TYPE="char" LENGTH="255" NOTNULL="false" DEFAULT="" SEQUENCE="false"/>
+        <FIELD NAME="new_email"     TYPE="char" LENGTH="255" NOTNULL="false" DEFAULT="" SEQUENCE="false"/>
+        <FIELD NAME="changed_by"    TYPE="int"  LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Moodle userid of the admin who made the change."/>
+        <FIELD NAME="changed_at"    TYPE="int"  LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="note"          TYPE="text" LENGTH="medium" NOTNULL="false" SEQUENCE="false" COMMENT="Optional reason / handoff note from the admin."/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary"  TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="rolekey_at_idx" UNIQUE="false" FIELDS="rolekey, changed_at"/>
+        <INDEX NAME="changed_by_idx" UNIQUE="false" FIELDS="changed_by"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="gmk_wellness_carnet" COMMENT="Student digital ID card (RF-07). One row per userid; qr_token is a random 40-char secret used by the public verifier; valid_until drives both front-end display and back-end rejection of expired cards.">
+      <FIELDS>
+        <FIELD NAME="id"              TYPE="int"  LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="userid"          TYPE="int"  LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="FK to user.id. UNIQUE."/>
+        <FIELD NAME="fullname"        TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false" COMMENT="Snapshot of fullname at issue time."/>
+        <FIELD NAME="documentnumber"  TYPE="char" LENGTH="64"  NOTNULL="false" DEFAULT="" SEQUENCE="false" COMMENT="Student id / cedula."/>
+        <FIELD NAME="learning_plan_name" TYPE="char" LENGTH="255" NOTNULL="false" DEFAULT="" SEQUENCE="false" COMMENT="Career / programme name snapshot."/>
+        <FIELD NAME="admission_date"  TYPE="int"  LENGTH="10" NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="Unix ts; 0 = unknown."/>
+        <FIELD NAME="valid_from"      TYPE="int"  LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Unix ts."/>
+        <FIELD NAME="valid_until"     TYPE="int"  LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Unix ts; default = issued_at + wellness_carnet_validity_months (12 by default)."/>
+        <FIELD NAME="status"          TYPE="char" LENGTH="32"  NOTNULL="true" DEFAULT="activo" SEQUENCE="false" COMMENT="activo|suspendido|egresado."/>
+        <FIELD NAME="qr_token"        TYPE="char" LENGTH="64"  NOTNULL="true" SEQUENCE="false" COMMENT="Random secret used in the QR URL. UNIQUE — regenerate to invalidate an old card."/>
+        <FIELD NAME="photo_path"      TYPE="char" LENGTH="255" NOTNULL="false" DEFAULT="" SEQUENCE="false" COMMENT="Pluginfile path within the wellness_carnet_photo filearea. Empty = falls back to user.picture profile photo."/>
+        <FIELD NAME="issued_at"       TYPE="int"  LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="revoked_at"      TYPE="int"  LENGTH="10" NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="Unix ts; non-zero when the carnet was suspended/revoked."/>
+        <FIELD NAME="usermodified"    TYPE="int"  LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timemodified"    TYPE="int"  LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="userfk"  TYPE="foreign"  FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="user_uix"     UNIQUE="true"  FIELDS="userid"/>
+        <INDEX NAME="qr_token_uix" UNIQUE="true" FIELDS="qr_token"/>
+        <INDEX NAME="status_idx"  UNIQUE="false" FIELDS="status, valid_until"/>
       </INDEXES>
     </TABLE>
   </TABLES>

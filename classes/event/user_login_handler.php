@@ -5,6 +5,7 @@ namespace local_grupomakro_core\event;
 defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/wellness_carnet_manager.php');
 
 /**
  * Event handler for user login events.
@@ -37,9 +38,17 @@ class user_login_handler {
         // Grace period: grant first-login access until end of month
         self::maybe_create_grace_period($userid);
 
+        // Auto-issue the digital carnet on login (RF-07 / RF-09.4).
+        // Soft-fail so a broken carnet table never blocks the login flow.
+        self::maybe_issue_wellness_carnet($userid);
+
+        // Refresh financial status snapshot from Odoo (best-effort, throttled).
+
         // Refresh financial status snapshot from Odoo (best-effort, throttled).
         // Failures are swallowed: a broken proxy must NEVER block a login.
         self::maybe_refresh_financial_status($userid);
+
+        // DEBUG LOGGING
 
         // DEBUG LOGGING
         $log_file = $CFG->dirroot . '/local/grupomakro_core/redirect_debug.log';
@@ -202,6 +211,44 @@ class user_login_handler {
             }
         } catch (\Throwable $e) {
             error_log("[grupomakro_core] login sync EXCEPTION userid=$userid: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Auto-issue the digital carnet on login (RF-07 / RF-09.4).
+     *
+     * Gated by:
+     *  - the wellness_carnet_auto_issue_on_login setting (off by default).
+     *  - the user having usertype == 'Estudiante' (same gate as the other
+     *    student-only flows in this handler).
+     *
+     * Idempotent: the manager short-circuits when a carnet already
+     * exists for the userid. Any failure is swallowed — a broken carnet
+     * table must NEVER block the login flow.
+     */
+    public static function maybe_issue_wellness_carnet(int $userid): void {
+        if (!get_config('local_grupomakro_core', 'wellness_carnet_auto_issue_on_login')) {
+            return;
+        }
+
+        // Only students — fail-closed. When the usertype custom profile field is
+        // missing or unreadable, we do NOT issue a carnet (would be a
+        // student-ID given to a teacher/admin by mistake).
+        global $DB;
+        $usertypefieldid = $DB->get_field('user_info_field', 'id', ['shortname' => 'usertype']);
+        if (!$usertypefieldid) {
+            return;
+        }
+        $usertype = $DB->get_field('user_info_data', 'data',
+            ['userid' => $userid, 'fieldid' => $usertypefieldid]);
+        if ($usertype !== 'Estudiante') {
+            return;
+        }
+
+        try {
+            \local_grupomakro_core\local\wellness_carnet_manager::issue($userid, 0);
+        } catch (\Throwable $e) {
+            error_log("[grupomakro_core] carnet auto-issue FAILED userid=$userid: " . $e->getMessage());
         }
     }
 }

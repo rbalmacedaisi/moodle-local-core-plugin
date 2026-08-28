@@ -38,7 +38,10 @@ class get_dashboard_data extends external_api {
         // instead of recomputing everything (which previously took 15-20s for
         // teachers with many classes).
         $cache = \cache::make('local_grupomakro_core', 'teacher_dashboard');
-        $cachekey = 'uid_' . (int)$params['userid'] . '_d_' . date('Ymd');
+        // The 'w2' marker is part of the key so a deploy that changes the payload
+        // shape (here: the gradebook-weights fields) never serves a stale cached
+        // array that lacks them.
+        $cachekey = 'uid_' . (int)$params['userid'] . '_w2_d_' . date('Ymd');
         $cached = $cache->get($cachekey);
         if ($cached !== false && is_array($cached)) {
             return $cached;
@@ -103,7 +106,19 @@ class get_dashboard_data extends external_api {
                 }
             }
             $class_data->schedule_text = implode('/', $active_days) ?: 'S/D';
-            
+
+            // Gradebook weights: surfaced so the dashboard can warn the teacher
+            // when the class category doesn't total 100%. Only reported once the
+            // class is past its grace period (week 3) — before that an
+            // in-progress gradebook is expected, not a problem.
+            $weights = \local_grupomakro_core\local\revalida_manager::get_weights_status((int)$class->id);
+            $class_data->weights_pct = (float)$weights['pct'];
+            $class_data->weights_ok = !empty($weights['ok']);
+            $class_data->weights_applicable = !empty($weights['applicable']);
+            $class_data->weights_unweighted_items = (int)$weights['unweighted'];
+            $class_data->weights_warning = \local_grupomakro_core\local\revalida_manager::weights_warning_due($class, $now);
+            $class_data->gradebook_url = \local_grupomakro_core\local\revalida_manager::gradebook_setup_url($class);
+
             $active_classes[] = $class_data;
         }
 
@@ -220,7 +235,13 @@ class get_dashboard_data extends external_api {
                             'student_count' => new external_value(PARAM_INT, 'Student count', VALUE_OPTIONAL),
                             'initdate' => new external_value(PARAM_INT, 'Start date', VALUE_OPTIONAL),
                             'enddate' => new external_value(PARAM_INT, 'End date', VALUE_OPTIONAL),
-                            'schedule_text' => new external_value(PARAM_TEXT, 'Formatted schedule', VALUE_OPTIONAL)
+                            'schedule_text' => new external_value(PARAM_TEXT, 'Formatted schedule', VALUE_OPTIONAL),
+                            'weights_pct' => new external_value(PARAM_FLOAT, 'Sum of gradebook item weights (%)', VALUE_OPTIONAL),
+                            'weights_ok' => new external_value(PARAM_BOOL, 'True when weights total 100%', VALUE_OPTIONAL),
+                            'weights_applicable' => new external_value(PARAM_BOOL, 'False when the category is not weight-aggregated', VALUE_OPTIONAL),
+                            'weights_unweighted_items' => new external_value(PARAM_INT, 'Items with weight 0', VALUE_OPTIONAL),
+                            'weights_warning' => new external_value(PARAM_BOOL, 'True when weights are incomplete past the grace period', VALUE_OPTIONAL),
+                            'gradebook_url' => new external_value(PARAM_RAW, 'Deep link to the gradebook setup screen', VALUE_OPTIONAL)
                         )
                     )
                 ),

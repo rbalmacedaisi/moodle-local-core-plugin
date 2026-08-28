@@ -180,6 +180,20 @@ Vue.component('grades-grid', {
 
                     <v-alert v-if="!weightsComplete" type="warning" dense text class="mb-3">
                         Las ponderaciones deben sumar 100% (actual: {{ totalWeight }}%) antes de poder programar reválidas.
+                        <a :href="gradebookSetupUrl" target="_blank" rel="noopener"
+                           v-if="gradebookSetupUrl" class="font-weight-bold">Abrir libro de calificaciones</a>
+                    </v-alert>
+
+                    <!-- Pending grading: these students match the 60–70.9 rule on
+                         their current or projected grade, but their gradebook is
+                         still incomplete, so the number isn't final and they can't
+                         be scheduled yet. -->
+                    <v-alert v-if="pendingGradingRevalidaStudents.length > 0" type="info" dense text class="mb-3">
+                        <strong>{{ pendingGradingRevalidaStudents.length }}</strong>
+                        estudiante(s) podrían entrar a reválida, pero aún tienen actividades sin calificar.
+                        La nota que se muestra cuenta como 0 lo no calificado; la línea azul
+                        (<em>proy.</em>) es la proyección sobre lo ya calificado. Termine de calificar
+                        para poder seleccionarlos.
                     </v-alert>
 
                     <v-simple-table dense class="revalida-table">
@@ -197,14 +211,22 @@ Vue.component('grades-grid', {
                             <tbody>
                                 <tr v-for="student in revalidaStudents" :key="'rv-' + student.id">
                                     <td>
+                                        <!-- Only students whose gradebook is complete can be
+                                             selected: with grading pending the final grade is
+                                             depressed by the ungraded zeros, so the rule would
+                                             be evaluated on a number that isn't final yet. -->
                                         <v-checkbox
-                                            v-if="!student.revalidation"
+                                            v-if="!student.revalidation && student.revalid_eligible"
                                             v-model="selectedRevalids"
                                             :value="student.id"
                                             :disabled="!weightsComplete || schedulingRevalids || !windowOpen"
                                             hide-details dense class="ma-0 pa-0"
                                         ></v-checkbox>
-                                        <v-icon v-else small color="green">mdi-check-circle</v-icon>
+                                        <v-icon v-else-if="student.revalidation" small color="green">mdi-check-circle</v-icon>
+                                        <v-icon v-else small color="amber darken-2"
+                                            title="Faltan actividades por calificar: no se puede programar todavía">
+                                            mdi-progress-clock
+                                        </v-icon>
                                     </td>
                                     <td>
                                         <div class="text-body-2 font-weight-medium">
@@ -219,7 +241,17 @@ Vue.component('grades-grid', {
                                         </div>
                                         <div class="text-caption grey--text">{{ student.email }}</div>
                                     </td>
-                                    <td class="text-center">{{ formatGrade(student.final_grade) }}</td>
+                                    <td class="text-center">
+                                        <div class="font-weight-medium">{{ formatGrade(student.final_grade) }}</div>
+                                        <!-- Projection over what is already graded. Only worth
+                                             showing while the gradebook is incomplete: once
+                                             everything is graded both numbers are the same. -->
+                                        <div v-if="!isGradebookComplete(student) && student.projected_grade !== null && student.projected_grade !== undefined"
+                                             class="text-caption blue--text text--darken-2"
+                                             title="Proyección sobre las actividades ya calificadas">
+                                            proy. {{ formatGrade(student.projected_grade) }}
+                                        </div>
+                                    </td>
                                     <td>
                                         <template v-if="student.revalidation">
                                             <v-chip x-small label :color="revalidChipColor(student.revalidation)" class="white--text">
@@ -228,6 +260,14 @@ Vue.component('grades-grid', {
                                             <v-chip x-small label class="ml-1"
                                                 :color="student.revalidation.payment_state === 'paid' ? 'green lighten-4' : 'red lighten-4'">
                                                 {{ student.revalidation.payment_state === 'paid' ? 'Pagada' : 'Sin pagar' }}
+                                            </v-chip>
+                                        </template>
+                                        <template v-else-if="!student.revalid_eligible">
+                                            <v-chip x-small label color="amber lighten-4">
+                                                Pendiente de calificar
+                                                <template v-if="student.activities_graded && student.activities_graded.missing">
+                                                    ({{ student.activities_graded.missing }})
+                                                </template>
                                             </v-chip>
                                         </template>
                                         <span v-else class="text-caption grey--text">Sin programar</span>
@@ -248,6 +288,15 @@ Vue.component('grades-grid', {
                                                     <v-icon x-small color="blue">mdi-receipt</v-icon>
                                                     Factura {{ student.revalidation.invoice_number || '' }}
                                                 </a>
+                                                <!-- No payment link means the Odoo invoice call failed when the
+                                                     revalidation was scheduled. Without a retry the row is stuck:
+                                                     the student can't pay and the grade can't be saved. -->
+                                                <v-btn v-else x-small text color="orange darken-2"
+                                                    :loading="!!retryingInvoice[student.revalidation.id]"
+                                                    @click="retryRevalidInvoice(student)">
+                                                    <v-icon x-small left>mdi-receipt-text-plus</v-icon>
+                                                    Generar factura
+                                                </v-btn>
                                                 <v-btn v-if="student.revalidation.payment_state !== 'paid'" x-small text color="primary"
                                                     :loading="!!verifyingPayment[student.revalidation.id]"
                                                     @click="verifyRevalidPayment(student)">
@@ -334,7 +383,9 @@ Vue.component('grades-grid', {
             revalidGradeInputs: {},        // { revalidationId: value }
             savingRevalidGrade: {},        // { revalidationId: bool }
             verifyingPayment: {},          // { revalidationId: bool }
+            retryingInvoice: {},           // { revalidationId: bool }
             windowInfo: null,              // { open, start, end, source, now } from revalida_manager::get_window_info
+            gradebookSetupUrl: '',         // deep link to /grade/edit/tree for this class course
         };
     },
     directives: {
@@ -380,9 +431,20 @@ Vue.component('grades-grid', {
         weightsComplete() {
             return Math.round(this.totalWeight) === 100;
         },
-        // Students eligible for revalida OR already having a revalida record.
+        // Students the revalidation section cares about: those that already
+        // meet the rule with a complete gradebook (selectable), those heading
+        // that way but with grading still pending (visible, not selectable),
+        // and those that already have a revalidation record.
         revalidaStudents() {
-            return this.students.filter(s => s.revalid_eligible || s.revalidation);
+            return this.students.filter(s => s.revalid_eligible || s.revalid_watch || s.revalidation);
+        },
+        // Selectable subset — drives the "Programar reválidas" button state.
+        selectableRevalidaStudents() {
+            return this.revalidaStudents.filter(s => s.revalid_eligible && !s.revalidation);
+        },
+        // Students shown only because their gradebook is still incomplete.
+        pendingGradingRevalidaStudents() {
+            return this.revalidaStudents.filter(s => !s.revalidation && !s.revalid_eligible);
         },
         // Count of eligible students whose gradebook still has ungraded
         // activities. Surfaced as an info hint in the banner — does NOT
@@ -473,6 +535,16 @@ Vue.component('grades-grid', {
         }
     },
     methods: {
+        // True when every gradable activity has a grade for this student. When
+        // the backend didn't ship activities_graded (older payload) we assume
+        // complete, so nothing is hidden by mistake.
+        isGradebookComplete(student) {
+            const a = student && student.activities_graded;
+            if (!a || typeof a.total !== 'number' || a.total === 0) {
+                return true;
+            }
+            return !a.missing;
+        },
         injectStyles() {
             const styleId = 'grades-grid-styles';
             if (document.getElementById(styleId)) return;
@@ -714,6 +786,9 @@ Vue.component('grades-grid', {
 
                 if (response.data && response.data.status === 'success') {
                     this.columns = response.data.data.columns;
+                    // Deep link to the gradebook setup screen, shipped by the
+                    // backend so the weights warning can offer a way to fix it.
+                    this.gradebookSetupUrl = response.data.data.gradebook_url || '';
                     const apiStudents = response.data.data.students;
                     if (Array.isArray(apiStudents)) {
                         this.students = apiStudents;
@@ -912,6 +987,32 @@ Vue.component('grades-grid', {
             const d = new Date(ts * 1000);
             if (isNaN(d.getTime())) return '—';
             return d.toLocaleDateString('es-PA', { day: '2-digit', month: 'short', year: 'numeric' });
+        },
+        // Regenerates the Odoo invoice for a revalidation created while the
+        // invoice call was failing. Idempotent on the Odoo side.
+        async retryRevalidInvoice(student) {
+            const rev = student && student.revalidation;
+            if (!rev || !rev.id) {
+                return;
+            }
+            this.$set(this.retryingInvoice, rev.id, true);
+            try {
+                const r = await axios.post(window.wsUrl, {
+                    action: 'local_grupomakro_retry_revalid_invoice',
+                    args: { revalidationId: rev.id },
+                    sesskey: window.Y.config.sesskey
+                });
+                if (r.data && r.data.status === 'success') {
+                    await this.fetchGrades();
+                } else {
+                    alert((r.data && r.data.message) || 'No se pudo generar la factura.');
+                }
+            } catch (e) {
+                console.error('[GradesGrid] retryRevalidInvoice', e);
+                alert('No se pudo generar la factura. Intente nuevamente.');
+            } finally {
+                this.$set(this.retryingInvoice, rev.id, false);
+            }
         },
         async fetchWindowInfo() {
             try {

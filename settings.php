@@ -290,6 +290,37 @@ if ($hassiteconfig) {
     $ADMIN->add('grupomakrocore_plugin', $bulkEnrollPage);
     $ADMIN->add('grupomakrocore_plugin', $diplomaGenerationPage);
     $ADMIN->add('grupomakrocore_plugin', $diplomaTemplatesPage);
+
+    // Wellness admin dashboard (RF-09). Gated by manage_wellness capability
+    // so it can be assigned to a custom "Bienestar" role without granting
+    // full siteadmin rights.
+    $wellnessDashboardPage = new admin_externalpage(
+        'grupomakro_core_wellness_dashboard',
+        $emojititle("\u{1F91D}", get_string('wellness_dashboard_menu', 'local_grupomakro_core')),
+        new moodle_url('/local/grupomakro_core/pages/wellness_dashboard.php'),
+        'local/grupomakro_core:manage_wellness'
+    );
+
+    // Wellness psychology panel (RF-09.3)
+    $wellnessPsychologyPanelPage = new admin_externalpage(
+        'grupomakro_core_wellness_psychology_panel',
+        $emojititle("\u{1F9E0}", 'Bienestar: Psicología (agenda)'),
+        new moodle_url('/local/grupomakro_core/pages/wellness_psychology_panel.php'),
+        'local/grupomakro_core:manage_psychology_appointments'
+    );
+
+    // Wellness staff roster panel (RF-03 / RF-09.3)
+    $wellnessStaffPanelPage = new admin_externalpage(
+        'grupomakro_core_wellness_staff_panel',
+        $emojititle("\u{1F465}", 'Bienestar: Personal asignado'),
+        new moodle_url('/local/grupomakro_core/pages/wellness_staff_panel.php'),
+        'local/grupomakro_core:manage_psychology_appointments'
+    );
+
+    $ADMIN->add('grupomakrocore_plugin', $wellnessDashboardPage);
+    $ADMIN->add('grupomakrocore_plugin', $wellnessPsychologyPanelPage);
+    $ADMIN->add('grupomakrocore_plugin', $wellnessStaffPanelPage);
+
     $ADMIN->add('grupomakrocore_plugin', $financialPlanningPage);
     $ADMIN->add('grupomakrocore_plugin', $debugStudentActivityVisibilityPage);
     $ADMIN->add('grupomakrocore_plugin', $debugBbbTeacherJoinPage);
@@ -306,6 +337,36 @@ if ($hassiteconfig) {
     ));
 
     $ADMIN->add('localplugins', new admin_category('grupomakrocore', new lang_string('pluginname', 'local_grupomakro_core')));
+
+    // ── Wellness settings page (RF-09.4 carnet parameters) ────────────────────
+    $wellnessSettingsPage = new admin_settingpage(
+        'wellness_settingspage',
+        'Bienestar: parámetros'
+    );
+    if ($ADMIN->fulltree) {
+        $wellnessSettingsPage->add(new admin_setting_configtext(
+            'local_grupomakro_core/wellness_carnet_validity_months',
+            'Carnet digital: meses de vigencia',
+            'Vigencia por defecto cuando se emite un carnet (RF-07). Mínimo 1, recomendado 12.',
+            '12',
+            PARAM_INT
+        ));
+        $wellnessSettingsPage->add(new admin_setting_configtext(
+            'local_grupomakro_core/wellness_carnet_logo_url',
+            'Carnet digital: logo institucional (URL)',
+            'URL pública del logo que se mostrará en el carnet. Vacío = sin logo.',
+            '',
+            PARAM_URL
+        ));
+        $wellnessSettingsPage->add(new admin_setting_configcheckbox(
+            'local_grupomakro_core/wellness_carnet_auto_issue_on_login',
+            'Carnet digital: emitir automáticamente al primer inicio de sesión',
+            'Si está activo, el carnet se emite en el primer login del estudiante sin necesidad de que lo pida desde el LXP.',
+            1
+        ));
+    }
+    $ADMIN->add('grupomakrocore', $wellnessSettingsPage);
+
     /********
      * Settings page: General Settings.
      */

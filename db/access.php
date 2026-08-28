@@ -82,12 +82,14 @@ $capabilities = array(
             'user' => CAP_ALLOW,
         ),
     ),
+    // Director-level dashboard: lists revalidations across every class in the
+    // institute, so it stays with management roles. Teachers manage their own
+    // revalidations from the grades grid of their class instead.
     'local/grupomakro_core:view_revalidations_dashboard' => array(
         'captype' => 'read',
         'contextlevel' => CONTEXT_SYSTEM,
         'archetypes' => array(
             'manager' => CAP_ALLOW,
-            'editingteacher' => CAP_ALLOW,
         ),
     ),
     'local/grupomakro_core:create_extemporaneous_revalidations' => array(
@@ -151,6 +153,31 @@ $capabilities = array(
     ),
     'local/grupomakro_core:editsupportteacher' => array(
         'riskbitmask' => RISK_PERSONAL,
+        'captype' => 'write',
+        'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array(
+            'manager' => CAP_ALLOW,
+        ),
+    ),
+    // ── Wellness module (RF-01..06, RF-09.1, RF-09.2) ────────────────────
+    'local/grupomakro_core:view_wellness' => array(
+        'captype' => 'read',
+        'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array(
+            'user' => CAP_ALLOW,
+        ),
+    ),
+    'local/grupomakro_core:manage_wellness' => array(
+        'captype' => 'write',
+        'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array(
+            'manager' => CAP_ALLOW,
+        ),
+    ),
+    // ── Wellness psychology (RF-03, RF-09.3) ───────────────────────────────
+    // Manager + custom 'psicologo' archetype (created via admin/roles).
+    // Holders can manage the agenda and the staff roster.
+    'local/grupomakro_core:manage_psychology_appointments' => array(
         'captype' => 'write',
         'contextlevel' => CONTEXT_SYSTEM,
         'archetypes' => array(

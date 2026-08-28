@@ -163,6 +163,39 @@ class get_student_learning_plan_pensum extends external_api
             $activeModuleByCoreCourseId = [];
             $activeRegularClassByCoreCourseId = [];
 
+            // Consolidated revalidations for this student in this plan, keyed by
+            // corecourseid. A passed revalidation sets the institutional grade to
+            // revalida_manager::PASS_FINAL_GRADE and that number exists nowhere in
+            // the gradebook, so it has to be injected here or the pensum would
+            // display the pre-revalidation total on a subject marked Aprobada.
+            // A failed revalidation keeps the original grade, so only 'approved'
+            // rows override anything.
+            $revalidationGradeByCourseId = [];
+            // learningplanid is copied from gmk_course_progre when the row is
+            // created and can legitimately be 0 on older enrolments, so a strict
+            // plan match would silently drop those. Accept the row when it
+            // matches the requested plan OR carries no plan at all.
+            $revalidationRows = $DB->get_records_select(
+                'gmk_revalidations',
+                "userid = :userid AND result = :result AND (learningplanid = :lpid OR learningplanid = 0)",
+                [
+                    'userid' => (int)$params['userId'],
+                    'lpid'   => (int)$params['learningPlanId'],
+                    'result' => 'approved',
+                ],
+                'timemodified ASC',
+                'id, corecourseid, revalidgrade, timemodified'
+            );
+            foreach ($revalidationRows as $revrow) {
+                $revcourseid = (int)$revrow->corecourseid;
+                if ($revcourseid > 0) {
+                    // Ordered by timemodified ASC, so the newest revalidation for
+                    // a repeated subject is the one that survives.
+                    $revalidationGradeByCourseId[$revcourseid] =
+                        (float)\local_grupomakro_core\local\revalida_manager::PASS_FINAL_GRADE;
+                }
+            }
+
             if (!empty($userPensumCourses)) {
                 $learningcourseids = [];
                 $corecourseids = [];
@@ -822,6 +855,23 @@ class get_student_learning_plan_pensum extends external_api
                 $progressclassid = !empty($userPensumCourse->progressclassid) ? (int)$userPensumCourse->progressclassid : 0;
                 $progressgroupid = !empty($userPensumCourse->progressgroupid) ? (int)$userPensumCourse->progressgroupid : 0;
                 $courseidkey = (int)$userPensumCourse->courseid;
+
+                // -2) Absolute top priority: a CONSOLIDATED REVALIDATION. When a
+                // student passes a revalidation the institutional grade becomes
+                // PASS_FINAL_GRADE (71) and the subject is Aprobada. That number
+                // lives in gmk_revalidations + gmk_course_progre, never in the
+                // gradebook (the revalidation exam is not a gradebook item), so
+                // without this branch the pensum would keep recomputing the
+                // original class total and show the pre-revalidation grade on an
+                // approved subject. Must stay above the module/manual branches:
+                // a revalidation is the last academic act on the subject.
+                if (array_key_exists($courseidkey, $revalidationGradeByCourseId)) {
+                    $revcandidate = (float)$revalidationGradeByCourseId[$courseidkey];
+                    if ($revcandidate >= 0 && $revcandidate <= 100) {
+                        $coursegrade = $revcandidate;
+                        $gradesource = 'revalidation';
+                    }
+                }
 
                 // -1) Top priority: an independent MODULE grade for this course. A student who took
                 // the subject as a module must be graded by the module, which wins over the manual

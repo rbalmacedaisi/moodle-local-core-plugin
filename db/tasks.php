@@ -24,6 +24,18 @@
 
 $tasks = [
     [
+        // Monday 07:00: nudge teachers whose class gradebook weights still
+        // don't total 100% after week 3. Weekly on purpose — the dashboard
+        // banner is the always-on channel, this is the reminder.
+        'classname' => 'local_grupomakro_core\task\warn_incomplete_gradebook_weights',
+        'blocking' => 0,
+        'minute' => '0',
+        'hour' => '7',
+        'day' => '*',
+        'month' => '*',
+        'dayofweek' => '1',
+    ],
+    [
         'classname' => 'local_grupomakro_core\task\inactive_users',
         'blocking' => 0,
         'minute' => '0',

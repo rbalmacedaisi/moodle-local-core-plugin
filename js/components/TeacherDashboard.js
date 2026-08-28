@@ -40,6 +40,30 @@ const TeacherDashboard = {
                             <v-icon left>mdi-calendar</v-icon> Calendario
                         </v-btn>
                     </div>
+                    <!-- Summary banner: one line for every class whose gradebook
+                         weights don't total 100% past week 3. Rendered above the
+                         cards so the teacher sees it without scrolling. -->
+                    <v-alert v-if="classesMissingWeights.length > 0"
+                             type="error" dense text prominent class="mb-4 rounded-lg">
+                        <div class="text-subtitle-2 font-weight-bold mb-1">
+                            {{ classesMissingWeights.length === 1
+                                ? 'Una de tus clases no tiene las ponderaciones al 100%'
+                                : classesMissingWeights.length + ' de tus clases no tienen las ponderaciones al 100%' }}
+                        </div>
+                        <div class="text-caption mb-2">
+                            Mientras el libro de calificaciones no sume 100%, el sistema no puede calcular
+                            la nota final de tus estudiantes ni identificar quiénes tienen derecho a reválida.
+                        </div>
+                        <div v-for="c in classesMissingWeights" :key="'w-' + c.id" class="mb-1">
+                            <v-icon x-small color="red darken-2" class="mr-1">mdi-alert-circle-outline</v-icon>
+                            <span class="text-caption font-weight-medium">{{ c.name || c.course_fullname }}</span>
+                            <span class="text-caption grey--text text--darken-1">
+                                — suma {{ formatWeightPct(c.weights_pct) }}%
+                            </span>
+                            <a href="#" class="text-caption font-weight-bold ml-1"
+                               @click.stop.prevent="openGradebook(c)">Corregir ahora</a>
+                        </div>
+                    </v-alert>
                     <v-row>
                         <!-- Cards: 1/row on mobile, 2 on sm, 3 on md, 4 on lg+, so
                              wider screens don't leave most of the row empty. -->
@@ -81,6 +105,24 @@ const TeacherDashboard = {
                                         </div>
                                     </div>
                                 </v-card-text>
+                                <!-- Gradebook weights warning. Only rendered past the
+                                     grace period (week 3) so an in-progress gradebook
+                                     is never flagged. The link opens the gradebook
+                                     setup screen; @click.stop keeps the card's
+                                     goToClass from firing underneath it. -->
+                                <div v-if="classItem.weights_warning"
+                                     class="px-3 py-2 red lighten-5"
+                                     style="border-top:1px solid rgba(0,0,0,.08)">
+                                    <div class="d-flex align-start">
+                                        <v-icon small color="red darken-2" class="mr-2 mt-1">mdi-scale-balance</v-icon>
+                                        <div class="text-caption red--text text--darken-4" style="line-height:1.45">
+                                            <strong>Ponderaciones incompletas ({{ formatWeightPct(classItem.weights_pct) }}%).</strong>
+                                            Sin el 100% no se calcula la nota final ni se pueden programar reválidas.
+                                            <a href="#" class="font-weight-bold red--text text--darken-4"
+                                               @click.stop.prevent="openGradebook(classItem)">Abrir libro de calificaciones</a>
+                                        </div>
+                                    </div>
+                                </div>
                                 <v-btn block color="primary" tile height="40" class="font-weight-bold">
                                     Gestionar Clase <v-icon right small>mdi-arrow-right</v-icon>
                                 </v-btn>
@@ -278,6 +320,13 @@ const TeacherDashboard = {
         lang() {
             return window.strings || {};
         },
+        // Classes the backend flagged as "weights don't total 100% and the
+        // grace period is over". The backend owns the rule (initdate + 21d and
+        // weight-aggregated categories only); the UI just lists what it gets.
+        classesMissingWeights() {
+            const classes = (this.dashboardData && this.dashboardData.active_classes) || [];
+            return classes.filter(c => c && c.weights_warning);
+        },
         upcomingSessions() {
             const now = Math.floor(Date.now() / 1000);
             const todayStr = new Date().toDateString();
@@ -398,6 +447,21 @@ const TeacherDashboard = {
         this.fetchDashboardData();
     },
     methods: {
+        // Weight percentages come from the gradebook as floats; show at most one
+        // decimal so "85" doesn't render as "85.00" and "33.33" stays readable.
+        formatWeightPct(pct) {
+            const n = Number(pct || 0);
+            return Number.isInteger(n) ? String(n) : n.toFixed(1);
+        },
+        // Opens the gradebook setup screen for the class course in a new tab so
+        // the teacher doesn't lose the dashboard state.
+        openGradebook(classItem) {
+            const url = classItem && classItem.gradebook_url;
+            if (!url) {
+                return;
+            }
+            window.open(url, '_blank', 'noopener');
+        },
         async fetchDashboardData() {
             this.loading = true;
             try {

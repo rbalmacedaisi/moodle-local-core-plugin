@@ -32,12 +32,12 @@ $PAGE->requires->js(new moodle_url('https://cdnjs.cloudflare.com/ajax/libs/Vue.D
 $PAGE->requires->js(new moodle_url('https://unpkg.com/axios/dist/axios.min.js'), true);
 
 // Load components (Standard JS files)
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/TeacherDashboard.js?v=20260728002'), true);
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/TeacherDashboard.js?v=20260827000'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/ActivityCreationWizard.js?v=20260326001'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/ManageClass.js?v=20260713001_rev-revalida-cap'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/studenttable.js?v=20251231049'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/TeacherStudentTable.js?v=20260312001'), true);
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/GradesGrid.js?v=20260312010'), true);
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/GradesGrid.js?v=20260827000'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/GradebookManager.js?v=20260312012'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/grademodal.js?v=20260317002'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/attendancemodal.js?v=20251231049'), true);

@@ -81,6 +81,7 @@ class course_grade_resolver
 
     /** Codes returned in the "source" field. Keep stable for logs/tests. */
     const SOURCE_NONE                       = 'none';
+    const SOURCE_REVALIDATION               = 'revalidation';
     const SOURCE_MODULE_PRIORITY            = 'module_priority';
     const SOURCE_MANUAL_NOTA_FINAL_INTEGRADA = 'manual_nota_final_integrada';
     const SOURCE_MANUAL_NOTA_FINAL_INTEGRADA_SAME_NAME = 'manual_nota_final_integrada_same_name';
@@ -457,6 +458,16 @@ class course_grade_resolver
         $coursegrade = null;
         $gradesource = self::SOURCE_NONE;
 
+        // -2) Absolute top priority: a CONSOLIDATED REVALIDATION. Mirrors the
+        // same branch in get_student_learning_plan_pensum — a passed
+        // revalidation sets the institutional grade to PASS_FINAL_GRADE and
+        // that value exists only in gmk_revalidations / gmk_course_progre,
+        // never in the gradebook.
+        $revalidationgrade = self::revalidation_grade($DB, $userid, $corecourseid, $learningPlanId);
+        if ($revalidationgrade !== null) {
+            return [$revalidationgrade, self::SOURCE_REVALIDATION, false];
+        }
+
         // -1) Top priority: MODULE grade for this course.
         $moduleGradeCandidate = null;
         if ($progressclassid > 0 && !empty($moduleClassIds[$progressclassid]) && array_key_exists($progressclassid, $classGradeByClassId)) {
@@ -543,6 +554,37 @@ class course_grade_resolver
         }
 
         return [$coursegrade, $gradesource, $isModuleGrade];
+    }
+
+    /**
+     * Consolidated revalidation grade for (student, course, plan), or null when
+     * the student has no passed revalidation for that subject.
+     *
+     * Only 'approved' rows matter: a failed revalidation keeps the original
+     * grade, which the rest of the cascade already resolves. learningplanid can
+     * be 0 on older rows (it is copied from gmk_course_progre), so those are
+     * accepted rather than silently dropped.
+     */
+    private static function revalidation_grade($DB, int $userid, int $corecourseid, int $learningPlanId): ?float
+    {
+        if ($userid <= 0 || $corecourseid <= 0) {
+            return null;
+        }
+        $exists = $DB->record_exists_select(
+            'gmk_revalidations',
+            "userid = :userid AND corecourseid = :ccid AND result = :result
+             AND (learningplanid = :lpid OR learningplanid = 0)",
+            [
+                'userid' => $userid,
+                'ccid'   => $corecourseid,
+                'result' => 'approved',
+                'lpid'   => $learningPlanId,
+            ]
+        );
+        if (!$exists) {
+            return null;
+        }
+        return (float)\local_grupomakro_core\local\revalida_manager::PASS_FINAL_GRADE;
     }
 
     /**

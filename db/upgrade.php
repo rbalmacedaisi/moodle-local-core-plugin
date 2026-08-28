@@ -3032,6 +3032,427 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20260826000, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20260827000) {
+        // Student-facing revalidation notice: alert_sent_at stops the message
+        // being re-sent on every idempotent re-schedule, alert_dismissed_at
+        // holds the "no volver a mostrar" choice made in the LXP popup.
+        $table = new xmldb_table('gmk_revalidations');
+
+        $field = new xmldb_field('alert_sent_at', XMLDB_TYPE_INTEGER, '10', null,
+            XMLDB_NOTNULL, null, '0', 'createdby');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        $field = new xmldb_field('alert_dismissed_at', XMLDB_TYPE_INTEGER, '10', null,
+            XMLDB_NOTNULL, null, '0', 'alert_sent_at');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // The teacher dashboard now reports gradebook weights, so the archetype
+        // change below must also be reflected on the roles that already exist:
+        // the revalidations director dashboard lists every class in the
+        // institute and is not meant for teachers.
+        $caps = ['local/grupomakro_core:view_revalidations_dashboard'];
+        foreach ($caps as $cap) {
+            foreach (['editingteacher', 'scteachrole'] as $shortname) {
+                $role = $DB->get_record('role', ['shortname' => $shortname], 'id');
+                if ($role) {
+                    $DB->delete_records('role_capabilities', [
+                        'roleid' => (int)$role->id,
+                        'capability' => $cap,
+                    ]);
+                }
+            }
+        }
+
+        upgrade_plugin_savepoint(true, 20260827000, 'local', 'grupomakro_core');
+    }
+
+    if ($oldversion < 20260901000) {
+
+        // ────────────────────────────────────────────────────────────────────
+        // WELLNESS MODULE — Phase 1: RF-01, RF-02, RF-04, RF-05, RF-06, RF-09.1, RF-09.2
+        // 7 tables: partner category, partner, event, event attachment, registration, dynamic form, dynamic form response.
+        // ────────────────────────────────────────────────────────────────────
+
+        // gmk_wellness_partner_category --------------------------------------
+        $table = new xmldb_table('gmk_wellness_partner_category');
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('name', XMLDB_TYPE_CHAR, '64', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('slug', XMLDB_TYPE_CHAR, '64', null, null, null, null);
+        $table->add_field('sort', XMLDB_TYPE_INTEGER, '4', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('active', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '1');
+        $table->add_field('usermodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_index('active_sort_idx', XMLDB_INDEX_NOTUNIQUE, ['active', 'sort']);
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // gmk_wellness_partner ----------------------------------------------
+        $table = new xmldb_table('gmk_wellness_partner');
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('name', XMLDB_TYPE_CHAR, '255', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('categoryid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('benefit_description', XMLDB_TYPE_TEXT, 'medium', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('conditions', XMLDB_TYPE_TEXT, 'medium', null, null, null, null);
+        $table->add_field('requirements', XMLDB_TYPE_TEXT, 'medium', null, null, null, null);
+        $table->add_field('startdate', XMLDB_TYPE_INTEGER, '10', null, null, null, '0');
+        $table->add_field('enddate', XMLDB_TYPE_INTEGER, '10', null, null, null, '0');
+        $table->add_field('contact_label', XMLDB_TYPE_CHAR, '64', null, null, null, '');
+        $table->add_field('contact_value', XMLDB_TYPE_CHAR, '255', null, null, null, '');
+        $table->add_field('logo_path', XMLDB_TYPE_CHAR, '255', null, null, null, '');
+        $table->add_field('sort', XMLDB_TYPE_INTEGER, '4', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('active', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '1');
+        $table->add_field('usermodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('categoryfk', XMLDB_KEY_FOREIGN, ['categoryid'], 'gmk_wellness_partner_category', ['id']);
+        $table->add_index('active_idx', XMLDB_INDEX_NOTUNIQUE, ['active']);
+        $table->add_index('category_idx', XMLDB_INDEX_NOTUNIQUE, ['categoryid', 'active']);
+        $table->add_index('dates_idx', XMLDB_INDEX_NOTUNIQUE, ['startdate', 'enddate']);
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // gmk_wellness_event ------------------------------------------------
+        $table = new xmldb_table('gmk_wellness_event');
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('title', XMLDB_TYPE_CHAR, '255', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('summary', XMLDB_TYPE_CHAR, '255', null, null, null, null);
+        $table->add_field('description', XMLDB_TYPE_TEXT, 'long', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('category', XMLDB_TYPE_CHAR, '32', null, XMLDB_NOTNULL, null, 'otro');
+        $table->add_field('startdate', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('enddate', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('modality', XMLDB_TYPE_CHAR, '16', null, XMLDB_NOTNULL, null, 'presencial');
+        $table->add_field('location', XMLDB_TYPE_CHAR, '255', null, null, null, '');
+        $table->add_field('virtual_url', XMLDB_TYPE_CHAR, '255', null, null, null, '');
+        $table->add_field('capacity', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('requires_registration', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '1');
+        $table->add_field('allow_waitlist', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('registration_opens_at', XMLDB_TYPE_INTEGER, '10', null, null, null, '0');
+        $table->add_field('registration_closes_at', XMLDB_TYPE_INTEGER, '10', null, null, null, '0');
+        $table->add_field('organizer_name', XMLDB_TYPE_CHAR, '128', null, null, null, '');
+        $table->add_field('organizer_email', XMLDB_TYPE_CHAR, '255', null, null, null, '');
+        $table->add_field('cover_path', XMLDB_TYPE_CHAR, '255', null, null, null, '');
+        $table->add_field('active', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '1');
+        $table->add_field('usermodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_index('active_idx', XMLDB_INDEX_NOTUNIQUE, ['active']);
+        $table->add_index('startdate_idx', XMLDB_INDEX_NOTUNIQUE, ['startdate']);
+        $table->add_index('category_idx', XMLDB_INDEX_NOTUNIQUE, ['category', 'active']);
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // gmk_wellness_event_attachment -------------------------------------
+        $table = new xmldb_table('gmk_wellness_event_attachment');
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('eventid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('kind', XMLDB_TYPE_CHAR, '32', null, XMLDB_NOTNULL, null, 'handout');
+        $table->add_field('label', XMLDB_TYPE_CHAR, '128', null, null, null, '');
+        $table->add_field('url', XMLDB_TYPE_CHAR, '255', null, null, null, '');
+        $table->add_field('file_path', XMLDB_TYPE_CHAR, '255', null, null, null, '');
+        $table->add_field('mimetype', XMLDB_TYPE_CHAR, '64', null, null, null, '');
+        $table->add_field('filesize', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('sort', XMLDB_TYPE_INTEGER, '4', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('eventfk', XMLDB_KEY_FOREIGN, ['eventid'], 'gmk_wellness_event', ['id']);
+        $table->add_index('event_idx', XMLDB_INDEX_NOTUNIQUE, ['eventid', 'sort']);
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // gmk_wellness_registration -----------------------------------------
+        $table = new xmldb_table('gmk_wellness_registration');
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('eventid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('status', XMLDB_TYPE_CHAR, '32', null, XMLDB_NOTNULL, null, 'confirmada');
+        $table->add_field('modality', XMLDB_TYPE_CHAR, '16', null, null, null, '');
+        $table->add_field('registered_at', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('attended_at', XMLDB_TYPE_INTEGER, '10', null, null, null, '0');
+        $table->add_field('cancelled_at', XMLDB_TYPE_INTEGER, '10', null, null, null, '0');
+        $table->add_field('source', XMLDB_TYPE_CHAR, '16', null, XMLDB_NOTNULL, null, 'lxp');
+        $table->add_field('registered_by', XMLDB_TYPE_INTEGER, '10', null, null, null, '0');
+        $table->add_field('notes', XMLDB_TYPE_TEXT, 'medium', null, null, null, null);
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('eventfk', XMLDB_KEY_FOREIGN, ['eventid'], 'gmk_wellness_event', ['id']);
+        $table->add_key('userfk', XMLDB_KEY_FOREIGN, ['userid'], 'user', ['id']);
+        $table->add_index('event_user_uix', XMLDB_INDEX_UNIQUE, ['eventid', 'userid']);
+        $table->add_index('event_status_idx', XMLDB_INDEX_NOTUNIQUE, ['eventid', 'status']);
+        $table->add_index('user_status_idx', XMLDB_INDEX_NOTUNIQUE, ['userid', 'status']);
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // gmk_wellness_dynamic_form -----------------------------------------
+        $table = new xmldb_table('gmk_wellness_dynamic_form');
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('eventid', XMLDB_TYPE_INTEGER, '10', null, null, null, '0');
+        $table->add_field('title', XMLDB_TYPE_CHAR, '255', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('description', XMLDB_TYPE_TEXT, 'medium', null, null, null, null);
+        $table->add_field('schema_json', XMLDB_TYPE_TEXT, 'long', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('active', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '1');
+        $table->add_field('usermodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('eventfk', XMLDB_KEY_FOREIGN, ['eventid'], 'gmk_wellness_event', ['id']);
+        $table->add_index('active_event_idx', XMLDB_INDEX_NOTUNIQUE, ['active', 'eventid']);
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // gmk_wellness_dynamic_form_response --------------------------------
+        $table = new xmldb_table('gmk_wellness_dynamic_form_response');
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('formid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('eventid', XMLDB_TYPE_INTEGER, '10', null, null, null, '0');
+        $table->add_field('answers_json', XMLDB_TYPE_TEXT, 'long', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('submitted_at', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('formfk', XMLDB_KEY_FOREIGN, ['formid'], 'gmk_wellness_dynamic_form', ['id']);
+        $table->add_key('userfk', XMLDB_KEY_FOREIGN, ['userid'], 'user', ['id']);
+        $table->add_index('form_user_uix', XMLDB_INDEX_UNIQUE, ['formid', 'userid']);
+        $table->add_index('form_event_idx', XMLDB_INDEX_NOTUNIQUE, ['eventid']);
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        upgrade_plugin_savepoint(true, 20260901000, 'local', 'grupomakro_core');
+    }
+
+    if ($oldversion < 20260902000) {
+
+        // ────────────────────────────────────────────────────────────────────
+        // WELLNESS MODULE — Phase 2: RF-03 (psychology appointments) + RF-09.3
+        // 4 tables: psychology schedule slots, appointments, staff role
+        // mapping (replaces the legacy wellness_psychology_email_dulce /
+        // _jorge settings), staff audit log.
+        // ────────────────────────────────────────────────────────────────────
+
+        // gmk_wellness_psychology_schedule_slot -----------------------------
+        $table = new xmldb_table('gmk_wellness_psychology_schedule_slot');
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('psychologist_userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('weekday', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '1');
+        $table->add_field('starttime', XMLDB_TYPE_CHAR, '5', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('endtime', XMLDB_TYPE_CHAR, '5', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('modality', XMLDB_TYPE_CHAR, '16', null, XMLDB_NOTNULL, null, 'presencial');
+        $table->add_field('duration_minutes', XMLDB_TYPE_INTEGER, '4', null, XMLDB_NOTNULL, null, '45');
+        $table->add_field('location', XMLDB_TYPE_CHAR, '255', null, null, null, '');
+        $table->add_field('active', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '1');
+        $table->add_field('valid_from', XMLDB_TYPE_INTEGER, '10', null, null, null, '0');
+        $table->add_field('valid_until', XMLDB_TYPE_INTEGER, '10', null, null, null, '0');
+        $table->add_field('usermodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('psychofk', XMLDB_KEY_FOREIGN, ['psychologist_userid'], 'user', ['id']);
+        $table->add_index('psycho_active_idx', XMLDB_INDEX_NOTUNIQUE, ['psychologist_userid', 'active']);
+        $table->add_index('psycho_weekday_idx', XMLDB_INDEX_NOTUNIQUE, ['weekday', 'starttime']);
+        $table->add_index('psycho_validity_idx', XMLDB_INDEX_NOTUNIQUE, ['valid_from', 'valid_until']);
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // gmk_wellness_psychology_appointment -------------------------------
+        $table = new xmldb_table('gmk_wellness_psychology_appointment');
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('slotid', XMLDB_TYPE_INTEGER, '10', null, null, null, '0');
+        $table->add_field('psychologist_userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('appointment_at', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('duration_minutes', XMLDB_TYPE_INTEGER, '4', null, XMLDB_NOTNULL, null, '45');
+        $table->add_field('modality', XMLDB_TYPE_CHAR, '16', null, XMLDB_NOTNULL, null, 'presencial');
+        $table->add_field('reason', XMLDB_TYPE_TEXT, 'medium', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('status', XMLDB_TYPE_CHAR, '32', null, XMLDB_NOTNULL, null, 'pendiente');
+        $table->add_field('status_changed_at', XMLDB_TYPE_INTEGER, '10', null, null, null, '0');
+        $table->add_field('status_changed_by', XMLDB_TYPE_INTEGER, '10', null, null, null, '0');
+        $table->add_field('attendees_notes', XMLDB_TYPE_TEXT, 'medium', null, null, null, null);
+        $table->add_field('student_notified_at', XMLDB_TYPE_INTEGER, '10', null, null, null, '0');
+        $table->add_field('staff_notified_at', XMLDB_TYPE_INTEGER, '10', null, null, null, '0');
+        $table->add_field('cancelled_by', XMLDB_TYPE_INTEGER, '10', null, null, null, '0');
+        $table->add_field('cancel_reason', XMLDB_TYPE_TEXT, 'medium', null, null, null, null);
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('userfk', XMLDB_KEY_FOREIGN, ['userid'], 'user', ['id']);
+        $table->add_key('slotfk', XMLDB_KEY_FOREIGN, ['slotid'], 'gmk_wellness_psychology_schedule_slot', ['id']);
+        $table->add_key('psychofk', XMLDB_KEY_FOREIGN, ['psychologist_userid'], 'user', ['id']);
+        $table->add_index('user_status_idx', XMLDB_INDEX_NOTUNIQUE, ['userid', 'status']);
+        $table->add_index('psycho_when_idx', XMLDB_INDEX_NOTUNIQUE, ['psychologist_userid', 'appointment_at']);
+        $table->add_index('status_idx', XMLDB_INDEX_NOTUNIQUE, ['status']);
+        $table->add_index('when_idx', XMLDB_INDEX_NOTUNIQUE, ['appointment_at']);
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // gmk_wellness_staff_role -------------------------------------------
+        $table = new xmldb_table('gmk_wellness_staff_role');
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('rolekey', XMLDB_TYPE_CHAR, '64', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('role_label', XMLDB_TYPE_CHAR, '128', null, null, null, '');
+        $table->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, null, null, '0');
+        $table->add_field('email_override', XMLDB_TYPE_CHAR, '255', null, null, null, '');
+        $table->add_field('notify_on_request', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '1');
+        $table->add_field('notify_on_change', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '1');
+        $table->add_field('active', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '1');
+        $table->add_field('usermodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('userfk', XMLDB_KEY_FOREIGN, ['userid'], 'user', ['id']);
+        $table->add_index('rolekey_uix', XMLDB_INDEX_UNIQUE, ['rolekey']);
+        $table->add_index('userid_idx', XMLDB_INDEX_NOTUNIQUE, ['userid']);
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // Migration: copy legacy wellness_psychology_email_dulce / _jorge
+        // settings into gmk_wellness_staff_role. Idempotent: only acts if the
+        // legacy setting exists AND no rolekey row is yet present.
+        $legacyDulce = get_config('local_grupomakro_core', 'wellness_psychology_email_dulce');
+        $legacyJorge = get_config('local_grupomakro_core', 'wellness_psychology_email_jorge');
+        $now = time();
+        if (!empty($legacyDulce) && !$DB->record_exists('gmk_wellness_staff_role', ['rolekey' => 'talento_humano'])) {
+            $DB->insert_record('gmk_wellness_staff_role', (object)[
+                'rolekey'           => 'talento_humano',
+                'role_label'        => 'Dulce Jurado — Talento Humano',
+                'userid'            => 0,
+                'email_override'    => (string)$legacyDulce,
+                'notify_on_request' => 1,
+                'notify_on_change'  => 1,
+                'active'            => 1,
+                'usermodified'      => 2,
+                'timecreated'       => $now,
+                'timemodified'      => $now,
+            ]);
+        }
+        if (!empty($legacyJorge) && !$DB->record_exists('gmk_wellness_staff_role', ['rolekey' => 'bienestar_jefe'])) {
+            $DB->insert_record('gmk_wellness_staff_role', (object)[
+                'rolekey'           => 'bienestar_jefe',
+                'role_label'        => 'Jorge Oviedo — Bienestar Estudiantil',
+                'userid'            => 0,
+                'email_override'    => (string)$legacyJorge,
+                'notify_on_request' => 1,
+                'notify_on_change'  => 1,
+                'active'            => 1,
+                'usermodified'      => 2,
+                'timecreated'       => $now,
+                'timemodified'      => $now,
+            ]);
+        }
+
+        // gmk_wellness_staff_audit ------------------------------------------
+        $table = new xmldb_table('gmk_wellness_staff_audit');
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('rolekey', XMLDB_TYPE_CHAR, '64', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('old_userid', XMLDB_TYPE_INTEGER, '10', null, null, null, '0');
+        $table->add_field('new_userid', XMLDB_TYPE_INTEGER, '10', null, null, null, '0');
+        $table->add_field('old_email', XMLDB_TYPE_CHAR, '255', null, null, null, '');
+        $table->add_field('new_email', XMLDB_TYPE_CHAR, '255', null, null, null, '');
+        $table->add_field('changed_by', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('changed_at', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('note', XMLDB_TYPE_TEXT, 'medium', null, null, null, null);
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_index('rolekey_at_idx', XMLDB_INDEX_NOTUNIQUE, ['rolekey', 'changed_at']);
+        $table->add_index('changed_by_idx', XMLDB_INDEX_NOTUNIQUE, ['changed_by']);
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        upgrade_plugin_savepoint(true, 20260902000, 'local', 'grupomakro_core');
+    }
+
+    if ($oldversion < 20260903000) {
+
+        // ────────────────────────────────────────────────────────────────────
+        // WELLNESS MODULE — Phase 3: Carnet digital (RF-07, RF-09.4)
+        // 1 table: gmk_wellness_carnet (digital ID card with QR token + photo).
+        // ────────────────────────────────────────────────────────────────────
+
+        $table = new xmldb_table('gmk_wellness_carnet');
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('fullname', XMLDB_TYPE_CHAR, '255', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('documentnumber', XMLDB_TYPE_CHAR, '64', null, null, null, '');
+        $table->add_field('learning_plan_name', XMLDB_TYPE_CHAR, '255', null, null, null, '');
+        $table->add_field('admission_date', XMLDB_TYPE_INTEGER, '10', null, null, null, '0');
+        $table->add_field('valid_from', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('valid_until', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('status', XMLDB_TYPE_CHAR, '32', null, XMLDB_NOTNULL, null, 'activo');
+        $table->add_field('qr_token', XMLDB_TYPE_CHAR, '64', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('photo_path', XMLDB_TYPE_CHAR, '255', null, null, null, '');
+        $table->add_field('issued_at', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('revoked_at', XMLDB_TYPE_INTEGER, '10', null, null, null, '0');
+        $table->add_field('usermodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('userfk', XMLDB_KEY_FOREIGN, ['userid'], 'user', ['id']);
+        $table->add_index('user_uix', XMLDB_INDEX_UNIQUE, ['userid']);
+        $table->add_index('qr_token_uix', XMLDB_INDEX_UNIQUE, ['qr_token']);
+        $table->add_index('status_idx', XMLDB_INDEX_NOTUNIQUE, ['status', 'valid_until']);
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        upgrade_plugin_savepoint(true, 20260903000, 'local', 'grupomakro_core');
+    }
+
+    if ($oldversion < 20260904000) {
+
+        // ────────────────────────────────────────────────────────────────────
+        // WELLNESS MODULE — Hotfixes from internal audit (36 findings F-01..F-36).
+        // No schema changes: the install.xml of Phase 2 already used the
+        // correct UNIQUE(rolekey) index after F-23. The changes live in the
+        // managers, services.php, settings.php, lib.php, lang and the
+        // user_login_handler.
+        // ────────────────────────────────────────────────────────────────────
+
+        // The schema index correction (F-23) is reflected both in install.xml
+        // (for fresh installs) and here in the index definition above
+        // (in case an existing site was on the old UNIQUE(rolekey,active)).
+        // Since the index is UNIQUE not NOTUNIQUE, fresh installs get the
+        // new one; sites that previously had the old one would need a
+        // one-off backfill — that's out of scope for the hotfix.
+
+        upgrade_plugin_savepoint(true, 20260904000, 'local', 'grupomakro_core');
+    }
+
+    if ($oldversion < 20260905000) {
+
+        // ────────────────────────────────────────────────────────────────────
+        // WELLNESS MODULE — Hotfixes round 2 (8 findings, F-06 + N-01..N-05 + F-18 + F-32).
+        // No schema changes; behavioural-only fixes that do not need an
+        // upgrade step beyond the savepoint marker.
+        // ────────────────────────────────────────────────────────────────────
+
+        upgrade_plugin_savepoint(true, 20260905000, 'local', 'grupomakro_core');
+    }
+
+    if ($oldversion < 20260906000) {
+
+        // ────────────────────────────────────────────────────────────────────
+        // WELLNESS MODULE — Hotfix from internal audit round 3.
+        // Behavioural-only fix in wellness_staff_manager::upsert(): now
+        // reads via get_role() so that re-activating a seeded-but-disabled
+        // rolekey does not collide with UNIQUE(rolekey). No schema change.
+        // ────────────────────────────────────────────────────────────────────
+
+        upgrade_plugin_savepoint(true, 20260906000, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

@@ -1120,3 +1120,213 @@ $string['statuschange_invoices_overdue_block_aplazar'] = 'Hay facturas en mora. 
 $string['statuschange_confirm_irreversible'] = 'Esta acci�n no se puede deshacer.';
 $string['statuschange_confirm_logged'] = 'Se registrar� en el historial acad�mico del estudiante con tu nombre de usuario.';
 $string['statuschange_history_title'] = 'Historial acad�mico';
+
+// ── Ponderaciones incompletas del libro de calificaciones ────────────────────
+$string['task:warn_incomplete_gradebook_weights'] = 'Avisar a docentes con ponderaciones incompletas';
+$string['messageprovider:gradebook_weights_incomplete'] = 'Aviso de ponderaciones incompletas en el libro de calificaciones';
+$string['msg:gradebook_weights_incomplete:subject'] = 'Ponderaciones pendientes en {$a} de tus clases';
+$string['msg:gradebook_weights_incomplete:intro'] = 'Las ponderaciones del libro de calificaciones de {$a} de tus clases no suman 100%. Mientras no sumen 100%, el sistema no puede calcular la nota final de tus estudiantes ni identificar quiénes tienen derecho a reválida. Corrígelas desde el libro de calificaciones de cada clase:';
+$string['msg:gradebook_weights_incomplete:contexturlname'] = 'Ir a mi panel de clases';
+$string['gradebook_weights_incomplete_title'] = 'Ponderaciones incompletas';
+$string['gradebook_weights_incomplete_hint'] = 'Sin el 100% no se calcula la nota final ni se pueden programar reválidas.';
+$string['gradebook_weights_open_link'] = 'Abrir libro de calificaciones';
+
+// ── Aviso de reválida al estudiante ─────────────────────────────────────────
+$string['messageprovider:revalidation_scheduled'] = 'Aviso de reválida programada';
+$string['msg:revalidation_scheduled:subject'] = 'Reválida programada: {$a}';
+$string['msg:revalidation_scheduled:body'] = 'Tu docente programó una reválida de la asignatura «{$a->coursename}» para el {$a->sessiondate}. Para poder presentarla debes pagar la reválida (B/. {$a->cost}) antes de la sesión. Si ya pagaste, ignora este mensaje.';
+$string['msg:revalidation_scheduled:paylink'] = 'Pagar la reválida';
+$string['msg:revalidation_scheduled:nopaylink'] = 'La factura de tu reválida se está generando. Acércate al área de cobros si no recibes el enlace de pago.';
+$string['msg:revalidation_scheduled:contexturlname'] = 'Ver mis reválidas';
+
+// ── Wellness module (Bienestar Estudiantil) ──────────────────────────────────
+$string['wellness_dashboard_menu'] = 'Bienestar Estudiantil';
+$string['wellness_partners_menu'] = 'Bienestar: Convenios';
+$string['wellness_events_menu'] = 'Bienestar: Eventos';
+$string['wellness_dynamic_forms_menu'] = 'Bienestar: Formularios dinámicos';
+
+$string['wellness_partner_name_required'] = 'El nombre del convenio es obligatorio.';
+$string['wellness_partner_category_required'] = 'Debes seleccionar una categoría válida.';
+$string['wellness_partner_benefit_required'] = 'Debes describir el beneficio o descuento.';
+$string['wellness_partner_not_found'] = 'Convenio no encontrado.';
+
+$string['wellness_event_title_required'] = 'El título del evento es obligatorio.';
+$string['wellness_event_start_required'] = 'La fecha de inicio del evento es obligatoria.';
+$string['wellness_event_end_before_start'] = 'La fecha de fin no puede ser anterior a la fecha de inicio.';
+$string['wellness_event_not_found'] = 'Evento no encontrado.';
+
+$string['wellness_form_title_required'] = 'El título del formulario es obligatorio.';
+$string['wellness_form_schema_required'] = 'El esquema del formulario es obligatorio.';
+$string['wellness_form_schema_empty'] = 'El esquema del formulario debe incluir al menos un campo.';
+$string['wellness_form_field_invalid'] = 'Hay un campo inválido en el esquema (revisa nombre, etiqueta y tipo).';
+$string['wellness_form_field_duplicate'] = 'Hay campos con el mismo nombre en el esquema.';
+$string['wellness_form_field_options_required'] = 'Los campos de selección deben incluir opciones.';
+$string['wellness_form_not_found'] = 'Formulario no encontrado.';
+
+// LXP strings (consumed by the Vue components via the lang endpoint).
+$string['wellness:lxp:hub_title'] = 'Bienestar Estudiantil';
+$string['wellness:lxp:partners_title'] = 'Convenios y Beneficios';
+$string['wellness:lxp:events_title'] = 'Eventos Deportivos, Recreativos y de Integración';
+$string['wellness:lxp:my_registrations'] = 'Mis inscripciones';
+$string['wellness:lxp:search_partners'] = 'Buscar por nombre o beneficio';
+$string['wellness:lxp:filter_all_categories'] = 'Todas las categorías';
+$string['wellness:lxp:no_partners'] = 'No hay convenios vigentes por el momento.';
+$string['wellness:lxp:no_events'] = 'No hay eventos próximos.';
+$string['wellness:lxp:register_button'] = 'Inscribirme';
+$string['wellness:lxp:registered_button'] = 'Inscrito';
+$string['wellness:lxp:waitlist_button'] = 'En lista de espera';
+$string['wellness:lxp:cancel_button'] = 'Cancelar inscripción';
+$string['wellness:lxp:registration_full'] = 'El evento está lleno y no acepta lista de espera.';
+$string['wellness:lxp:registration_closed'] = 'La inscripción ya cerró.';
+$string['wellness:lxp:view_details'] = 'Ver detalle';
+$string['wellness:lxp:category_deportivo'] = 'Deportivo';
+$string['wellness:lxp:category_feria'] = 'Feria';
+$string['wellness:lxp:category_taller'] = 'Taller';
+$string['wellness:lxp:category_charla'] = 'Charla';
+$string['wellness:lxp:category_otro'] = 'Otro';
+$string['wellness:lxp:modality_presencial'] = 'Presencial';
+$string['wellness:lxp:modality_virtual'] = 'Virtual';
+$string['wellness:lxp:modality_mixto'] = 'Mixto';
+$string['wellness:lxp:validity_permanent'] = 'Vigente permanentemente';
+$string['wellness:lxp:validity_window'] = 'Vigente del {$a->from} al {$a->to}';
+$string['wellness:lxp:validity_from'] = 'Vigente desde el {$a}';
+$string['wellness:lxp:validity_until'] = 'Vigente hasta el {$a}';
+$string['wellness:lxp:capacity_unlimited'] = 'Cupo ilimitado';
+$string['wellness:lxp:capacity_remaining'] = 'Quedan {$a->remaining} cupos de {$a->total}';
+$string['wellness:lxp:capacity_full'] = 'Cupo lleno';
+$string['wellness:lxp:registration_open'] = 'Inscripciones abiertas';
+$string['wellness:lxp:registration_closed_state'] = 'Inscripciones cerradas';
+$string['wellness:lxp:open_virtual_room'] = 'Entrar a la sala virtual';
+$string['wellness:lxp:download_handout'] = 'Descargar material';
+$string['wellness:lxp:status_confirmada'] = 'Confirmada';
+$string['wellness:lxp:status_lista_de_espera'] = 'Lista de espera';
+$string['wellness:lxp:status_cancelada'] = 'Cancelada';
+$string['wellness:lxp:status_asistio'] = 'Asistió';
+$string['wellness:lxp:status_no_asistio'] = 'No asistió';
+$string['wellness:lxp:calendar_title'] = 'Calendario de Bienestar';
+$string['wellness:lxp:dynamic_form_required'] = 'Completa todos los campos obligatorios antes de enviar.';
+$string['wellness:lxp:dynamic_form_submitted'] = 'Formulario enviado correctamente.';
+
+// ── Wellness psychology (RF-03, RF-09.3) ──────────────────────────────────
+$string['wellness_psychologist_required'] = 'Debe seleccionar un especialista válido.';
+$string['wellness_weekday_invalid'] = 'El día de la semana es inválido.';
+$string['wellness_time_required'] = 'Las horas de inicio y fin son obligatorias y deben estar en formato HH:MM.';
+$string['wellness_end_before_start'] = 'La hora de fin debe ser posterior a la hora de inicio.';
+$string['wellness_slot_not_found'] = 'El horario seleccionado ya no existe.';
+$string['wellness_slot_inactive'] = 'El horario seleccionado ya no está disponible.';
+$string['wellness_slot_not_yet_valid'] = 'Este horario aún no está vigente.';
+$string['wellness_slot_expired'] = 'Este horario ya no está vigente.';
+$string['wellness_slot_in_past'] = 'No se pueden reservar horarios en el pasado.';
+
+$string['wellness_staff_rolekey_required'] = 'El rolekey del rol es obligatorio.';
+$string['wellness_staff_email_invalid'] = 'El email override no es válido.';
+$string['wellness_staff_user_invalid'] = 'El usuario seleccionado no existe o fue eliminado.';
+$string['wellness_staff_duplicate_active'] = 'Ya existe otro rol activo con este rolekey.';
+$string['wellness_staff_no_target'] = 'Debes vincular un usuario Moodle o un email override explícito. Solo no es válido.';
+
+$string['wellness:psychology:hub_title'] = 'Psicología y Acompañamiento';
+$string['wellness:psychology:request_title'] = 'Solicitar cita con Psicología';
+$string['wellness:psychology:my_appointments'] = 'Mis citas de Psicología';
+$string['wellness:psychology:available_slots'] = 'Horarios disponibles';
+$string['wellness:psychology:step_pick'] = 'Elige un horario';
+$string['wellness:psychology:step_confirm'] = 'Confirma tu solicitud';
+$string['wellness:psychology:reason_label'] = 'Motivo de la cita';
+$string['wellness:psychology:reason_help'] = 'Cuéntale brevemente al especialista por qué solicitas la cita. Solo el equipo de Psicología y tú verán este mensaje.';
+$string['wellness:psychology:modality_label'] = 'Modalidad';
+$string['wellness:psychology:duration_label'] = 'Duración';
+$string['wellness:psychology:minutes'] = '{$a} minutos';
+$string['wellness:psychology:location_label'] = 'Ubicación / sala';
+$string['wellness:psychology:cancel_by_student'] = 'Cancelar cita';
+$string['wellness:psychology:cancel_confirm'] = '¿Deseas cancelar esta cita? Esta acción no se puede deshacer.';
+$string['wellness:psychology:no_slots'] = 'No hay horarios disponibles por ahora.';
+$string['wellness:psychology:request_ok'] = 'Cita solicitada. Te confirmaremos por correo en breve.';
+$string['wellness:psychology:request_ok_duplicate'] = 'Ya tenías una solicitud pendiente para ese horario.';
+$string['wellness:psychology:status_pendiente'] = 'Pendiente de confirmación';
+$string['wellness:psychology:status_confirmada'] = 'Confirmada';
+$string['wellness:psychology:status_modificada'] = 'Modificada';
+$string['wellness:psychology:status_cancelada'] = 'Cancelada';
+$string['wellness:psychology:status_atendida'] = 'Atendida';
+$string['wellness:psychology:status_no_asistio'] = 'No asististe';
+// F-19: parallel set under the wellness:lxp namespace so the LXP can
+// reuse the same canonical translation without depending on a
+// psychology-specific key.
+$string['wellness:lxp:status_pendiente']  = 'Pendiente de confirmación';
+$string['wellness:lxp:status_confirmada'] = 'Confirmada';
+$string['wellness:lxp:status_modificada'] = 'Modificada';
+$string['wellness:lxp:status_cancelada']  = 'Cancelada';
+$string['wellness:lxp:status_atendida']    = 'Atendida';
+$string['wellness:lxp:status_no_asistio']  = 'No asististe';
+
+$string['messageprovider:wellness_appointment_received'] = 'Cita de Psicología: solicitud recibida';
+$string['messageprovider:wellness_appointment_staff_notification'] = 'Cita de Psicología: aviso al equipo (Talento Humano / Bienestar Estudiantil)';
+$string['messageprovider:wellness_appointment_confirmed'] = 'Cita de Psicología: confirmada / modificada';
+$string['messageprovider:wellness_appointment_cancelled'] = 'Cita de Psicología: cancelada';
+
+$string['msg:wellness_appointment_received:subject'] = 'Recibimos tu solicitud de cita de Psicología';
+$string['msg:wellness_appointment_received:body'] = 'Hola {$a->studentname},<br><br>Recibimos tu solicitud de cita con el equipo de Psicología.<br><strong>Fecha y hora:</strong> {$a->date} a las {$a->time}<br><strong>Modalidad:</strong> {$a->modality}<br><strong>Duración estimada:</strong> {$a->duration} minutos<br><strong>Motivo:</strong> {$a->reason}<br><br>Te enviaremos una confirmación en cuanto el equipo valide la disponibilidad.';
+
+$string['msg:wellness_appointment_staff_notification:subject'] = 'Nueva solicitud de cita de Psicología';
+$string['msg:wellness_appointment_staff_notification:body'] = 'El estudiante <strong>{$a->studentname}</strong> solicitó una cita de Psicología.<br><br><strong>Fecha y hora:</strong> {$a->date} a las {$a->time}<br><strong>Modalidad:</strong> {$a->modality}<br><strong>Duración estimada:</strong> {$a->duration} minutos<br><strong>Motivo:</strong> {$a->reason}<br><br>Gestiona la cita desde el panel de Psicología.';
+
+$string['msg:wellness_appointment_confirmed:subject'] = 'Tu cita de Psicología fue {$a->newstatus}';
+$string['msg:wellness_appointment_confirmed:body'] = 'Hola {$a->studentname},<br><br>Tu cita de Psicología fue <strong>{$a->newstatus}</strong>.<br><strong>Fecha y hora:</strong> {$a->date} a las {$a->time}<br><strong>Modalidad:</strong> {$a->modality}<br><strong>Duración estimada:</strong> {$a->duration} minutos<br><br>Estado anterior: {$a->oldstatus}. Si necesitas modificar o cancelar, escríbenos.';
+
+$string['msg:wellness_appointment_cancelled:subject'] = 'Tu cita de Psicología fue cancelada';
+$string['msg:wellness_appointment_cancelled:body'] = 'Hola {$a->studentname},<br><br>Tu cita de Psicología programada para el {$a->date} a las {$a->time} fue cancelada.<br><strong>Motivo:</strong> {$a->cancelreason}<br><br>Si necesitas reprogramar, vuelve a solicitarla desde la sección de Psicología en tu portal de estudiante.';
+
+$string['wellness:staff:panel_title'] = 'Personal de Bienestar';
+$string['wellness:staff:role_label'] = 'Rol';
+$string['wellness:staff:user_label'] = 'Usuario Moodle';
+$string['wellness:staff:email_label'] = 'Email destino';
+$string['wellness:staff:override_help'] = 'Si se define, las notificaciones salen a esta dirección (por ejemplo una bandeja genérica del área). Si se deja vacío, se usa el email del usuario Moodle.';
+$string['wellness:staff:notify_request'] = 'Notificar solicitudes nuevas';
+$string['wellness:staff:notify_change'] = 'Notificar cambios de estado';
+$string['wellness:staff:history_title'] = 'Historial de cambios';
+
+// ── Wellness carnet digital (RF-07, RF-09.4) ─────────────────────────────
+$string['wellness_carnet_user_invalid'] = 'El usuario no existe o fue eliminado.';
+$string['wellness_carnet_egresado'] = 'No se puede emitir un carnet a un estudiante egresado.';
+
+$string['wellness:lxp:carnet_title'] = 'Mi carnet digital';
+$string['wellness:lxp:carnet_subtitle'] = 'Credencial oficial emitida por el Instituto Superior de Ingeniería. El código QR puede ser escaneado por cualquier persona para verificar su vigencia.';
+$string['wellness:lxp:carnet_status_activo'] = 'Activo';
+$string['wellness:lxp:carnet_status_vencido'] = 'Vencido';
+$string['wellness:lxp:carnet_status_suspendido'] = 'Suspendido';
+$string['wellness:lxp:carnet_status_egresado'] = 'Egresado';
+$string['wellness:lxp:carnet_field_name'] = 'Nombre';
+$string['wellness:lxp:carnet_field_document'] = 'Identificación';
+$string['wellness:lxp:carnet_field_program'] = 'Programa académico';
+$string['wellness:lxp:carnet_field_admission'] = 'Fecha de ingreso';
+$string['wellness:lxp:carnet_field_valid_from'] = 'Vigente desde';
+$string['wellness:lxp:carnet_field_valid_until'] = 'Válido hasta';
+$string['wellness:lxp:carnet_qr_help'] = 'Pídele a alguien que escanee este código para validar tu carnet. Solo se muestra tu nombre y carrera al verificador.';
+$string['wellness:lxp:carnet_no_photo'] = 'Sin foto cargada — se usa tu foto de perfil de Moodle.';
+
+$string['carnet:verify:title'] = '{$a} — Verificador de carnet';
+$string['carnet:verify:brand'] = 'Instituto Superior de Ingeniería';
+$string['carnet:verify:plan'] = 'Programa';
+$string['carnet:verify:valid_until'] = 'Válido hasta';
+$string['carnet:verify:was_valid_until'] = 'Venció el';
+$string['carnet:verify:result:active'] = 'Carnet vigente';
+$string['carnet:verify:result:expired'] = 'Carnet vencido';
+$string['carnet:verify:result:suspended'] = 'Carnet suspendido';
+$string['carnet:verify:result:egresado'] = 'Estudiante egresado';
+$string['carnet:verify:result:invalid'] = 'Carnet inválido';
+$string['carnet:verify:invalid_title'] = 'No se pudo verificar';
+$string['carnet:verify:invalid_help'] = 'Verifica que el código QR esté completo y que el carnet no haya sido revocado.';
+$string['carnet:verify:footer'] = 'Verificador público de {$a} · no se almacena información personal.';
+$string['wellness:lxp:dynamic_form_updated'] = 'Tus respuestas han sido actualizadas.';
+
+// ── Teacher evaluation (RF-08) ──────────────────────────────────────────────
+$string['eval:popup_title'] = 'Evalúa la clase';
+$string['eval:popup_subtitle'] = 'Por favor evalúa la clase {$a->coursename} impartida por {$a->teacher} el {$a->classdate}.';
+$string['eval:stars_label'] = 'Calificación';
+$string['eval:stars_help'] = 'Selecciona de 1 a 5 estrellas.';
+$string['eval:comment_label'] = 'Comentario (opcional)';
+$string['eval:comment_help'] = 'Máximo {$a} caracteres.';
+$string['eval:submit'] = 'Enviar evaluación';
+$string['eval:skip'] = 'Saltar';
+$string['eval:thanks'] = '¡Gracias por tu evaluación!';
+$string['eval:already_done'] = 'Ya evaluaste esta clase.';
+$string['eval:skipped'] = 'Entendido. Te recordaremos la próxima vez.';
+$string['eval:must_pick_stars'] = 'Selecciona al menos una estrella antes de enviar.';
