@@ -30,7 +30,7 @@ $PAGE->set_url(new moodle_url('/local/grupomakro_core/pages/wellness_psychology_
 $PAGE->set_context($context);
 $PAGE->set_title('Bienestar: PsicologÃ­a');
 $PAGE->set_heading('Bienestar â€” PsicologÃ­a');
-$PAGE->set_pagelayout('admin');
+$PAGE->set_pagelayout('standard');
 
 require_capability('local/grupomakro_core:manage_psychology_appointments', $context);
 
