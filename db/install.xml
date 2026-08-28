@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8" ?>
+﻿<?xml version="1.0" encoding="UTF-8" ?>
 <XMLDB PATH="local/grupomakro_core/db" VERSION="20240710" COMMENT="XMLDB file for Moodle local/grupomakro_core"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd"
@@ -848,7 +848,7 @@
         <INDEX NAME="userid_classid" UNIQUE="false" FIELDS="userid, classid"/>
       </INDEXES>
     </TABLE>
-    <TABLE NAME="gmk_class_closure_log" COMMENT="Audit log for class closures — records who closed, when, and the grade summary at closure time">
+    <TABLE NAME="gmk_class_closure_log" COMMENT="Audit log for class closures â€” records who closed, when, and the grade summary at closure time">
       <FIELDS>
         <FIELD NAME="id"         TYPE="int"  LENGTH="10" NOTNULL="true"  SEQUENCE="true"/>
         <FIELD NAME="classid"    TYPE="int"  LENGTH="10" NOTNULL="true"  DEFAULT="0"    SEQUENCE="false"/>
@@ -1084,7 +1084,7 @@
         <FIELD NAME="audience_careerid"   TYPE="int"    LENGTH="10"   NOTNULL="false" DEFAULT="0"   SEQUENCE="false" COMMENT="learning_plan.id when scope=career"/>
         <FIELD NAME="audience_groupid"    TYPE="int"    LENGTH="10"   NOTNULL="false" DEFAULT="0"   SEQUENCE="false" COMMENT="group.id when scope=group"/>
         <FIELD NAME="require_ack"         TYPE="int"    LENGTH="1"    NOTNULL="true"  DEFAULT="1"   SEQUENCE="false" COMMENT="1 = the student must acknowledge; 0 = informational only"/>
-        <FIELD NAME="ack_label"           TYPE="char"   LENGTH="255"  NOTNULL="false" DEFAULT="He leído y estoy de acuerdo" SEQUENCE="false"/>
+        <FIELD NAME="ack_label"           TYPE="char"   LENGTH="255"  NOTNULL="false" DEFAULT="He leÃ­do y estoy de acuerdo" SEQUENCE="false"/>
         <FIELD NAME="priority"            TYPE="int"    LENGTH="4"    NOTNULL="true"  DEFAULT="50"  SEQUENCE="false" COMMENT="Higher value = higher precedence. Default 50 beats absence alerts (default 10)."/>
         <FIELD NAME="starts_at"           TYPE="int"    LENGTH="10"   NOTNULL="false" DEFAULT="0"   SEQUENCE="false" COMMENT="Optional unix timestamp before which the broadcast is hidden."/>
         <FIELD NAME="ends_at"             TYPE="int"    LENGTH="10"   NOTNULL="false" DEFAULT="0"   SEQUENCE="false" COMMENT="Optional unix timestamp after which the broadcast stops surfacing."/>
@@ -1212,7 +1212,7 @@
         <INDEX NAME="received_at_idx" UNIQUE="false" FIELDS="last_received_at"/>
       </INDEXES>
     </TABLE>
-    <TABLE NAME="gmk_wellness_partner_category" COMMENT="Categories for student-benefit partners (Salud, Retail, Tecnologia, Educacion, etc). Seeded by admin and shown in the catalog filter dropdown.">
+    <TABLE NAME="gmk_wellness_partner_cats" COMMENT="Categories for student-benefit partners (Salud, Retail, Tecnologia, Educacion, etc). Seeded by admin and shown in the catalog filter dropdown.">
       <FIELDS>
         <FIELD NAME="id"            TYPE="int"  LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
         <FIELD NAME="name"          TYPE="char" LENGTH="64" NOTNULL="true"/>
@@ -1234,7 +1234,7 @@
       <FIELDS>
         <FIELD NAME="id"                  TYPE="int"  LENGTH="10" NOTNULL="true"  SEQUENCE="true"/>
         <FIELD NAME="name"                TYPE="char" LENGTH="255" NOTNULL="true"/>
-        <FIELD NAME="categoryid"          TYPE="int"  LENGTH="10" NOTNULL="true"  DEFAULT="0" SEQUENCE="false" COMMENT="FK to gmk_wellness_partner_category.id"/>
+        <FIELD NAME="categoryid"          TYPE="int"  LENGTH="10" NOTNULL="true"  DEFAULT="0" SEQUENCE="false" COMMENT="FK to gmk_wellness_partner_cats.id"/>
         <FIELD NAME="benefit_description" TYPE="text" LENGTH="medium" NOTNULL="true" SEQUENCE="false" COMMENT="Short description of the benefit (one or two lines)."/>
         <FIELD NAME="conditions"          TYPE="text" LENGTH="medium" NOTNULL="false" SEQUENCE="false"/>
         <FIELD NAME="requirements"        TYPE="text" LENGTH="medium" NOTNULL="false" SEQUENCE="false"/>
@@ -1251,7 +1251,7 @@
       </FIELDS>
       <KEYS>
         <KEY NAME="primary"   TYPE="primary" FIELDS="id"/>
-        <KEY NAME="categoryfk" TYPE="foreign" FIELDS="categoryid" REFTABLE="gmk_wellness_partner_category" REFFIELDS="id"/>
+        <KEY NAME="categoryfk" TYPE="foreign" FIELDS="categoryid" REFTABLE="gmk_wellness_partner_cats" REFFIELDS="id"/>
       </KEYS>
       <INDEXES>
         <INDEX NAME="active_idx"   UNIQUE="false" FIELDS="active"/>
@@ -1293,7 +1293,7 @@
         <INDEX NAME="category_idx"  UNIQUE="false" FIELDS="category, active"/>
       </INDEXES>
     </TABLE>
-    <TABLE NAME="gmk_wellness_event_attachment" COMMENT="Downloadable material attached to a wellness event: handout, recording, link to virtual room.">
+    <TABLE NAME="gmk_wellness_event_files" COMMENT="Downloadable material attached to a wellness event: handout, recording, link to virtual room.">
       <FIELDS>
         <FIELD NAME="id"        TYPE="int"  LENGTH="10"  NOTNULL="true"  SEQUENCE="true"/>
         <FIELD NAME="eventid"   TYPE="int"  LENGTH="10"  NOTNULL="true"  DEFAULT="0" SEQUENCE="false"/>
@@ -1320,7 +1320,7 @@
         <FIELD NAME="eventid"        TYPE="int"  LENGTH="10"  NOTNULL="true"  DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="userid"         TYPE="int"  LENGTH="10"  NOTNULL="true"  DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="status"         TYPE="char" LENGTH="32"  NOTNULL="true"  DEFAULT="confirmada" SEQUENCE="false" COMMENT="confirmada|lista_de_espera|cancelada|asistio|no_asistio"/>
-        <FIELD NAME="modality"       TYPE="char" LENGTH="16"  NOTNULL="false" DEFAULT="" SEQUENCE="false" COMMENT="presencial|virtual — the modality the student picked if the event is mixto."/>
+        <FIELD NAME="modality"       TYPE="char" LENGTH="16"  NOTNULL="false" DEFAULT="" SEQUENCE="false" COMMENT="presencial|virtual â€” the modality the student picked if the event is mixto."/>
         <FIELD NAME="registered_at"  TYPE="int"  LENGTH="10"  NOTNULL="true"  DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="attended_at"    TYPE="int"  LENGTH="10"  NOTNULL="false" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="cancelled_at"   TYPE="int"  LENGTH="10"  NOTNULL="false" DEFAULT="0" SEQUENCE="false"/>
@@ -1359,7 +1359,7 @@
         <INDEX NAME="active_event_idx" UNIQUE="false" FIELDS="active, eventid"/>
       </INDEXES>
     </TABLE>
-    <TABLE NAME="gmk_wellness_dynamic_form_response" COMMENT="Materialised student answers to a dynamic form. UNIQUE (formid, userid) so re-submission updates rather than duplicates.">
+    <TABLE NAME="gmk_wellness_form_resp" COMMENT="Materialised student answers to a dynamic form. UNIQUE (formid, userid) so re-submission updates rather than duplicates.">
       <FIELDS>
         <FIELD NAME="id"            TYPE="int"  LENGTH="10" NOTNULL="true"  SEQUENCE="true"/>
         <FIELD NAME="formid"        TYPE="int"  LENGTH="10" NOTNULL="true"  DEFAULT="0" SEQUENCE="false"/>
@@ -1378,11 +1378,11 @@
         <INDEX NAME="form_event_idx" UNIQUE="false" FIELDS="eventid"/>
       </INDEXES>
     </TABLE>
-    <TABLE NAME="gmk_wellness_psychology_schedule_slot" COMMENT="Recurring availability slots published by the psychology specialist. A slot defines a weekday + time range during which students can request appointments.">
+    <TABLE NAME="gmk_wellness_psy_slot" COMMENT="Recurring availability slots published by the psychology specialist. A slot defines a weekday + time range during which students can request appointments.">
       <FIELDS>
         <FIELD NAME="id"                  TYPE="int"  LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
         <FIELD NAME="psychologist_userid" TYPE="int"  LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="FK to user.id (must hold manage_psychology_appointments or be in the gmk_wellness_staff_role table with rolekey=psicologo_*)."/>
-        <FIELD NAME="weekday"             TYPE="int"  LENGTH="1"  NOTNULL="true" DEFAULT="1" SEQUENCE="false" COMMENT="0=Sunday … 6=Saturday."/>
+        <FIELD NAME="weekday"             TYPE="int"  LENGTH="1"  NOTNULL="true" DEFAULT="1" SEQUENCE="false" COMMENT="0=Sunday â€¦ 6=Saturday."/>
         <FIELD NAME="starttime"           TYPE="char" LENGTH="5"  NOTNULL="true" SEQUENCE="false" COMMENT="HH:MM (24h)."/>
         <FIELD NAME="endtime"             TYPE="char" LENGTH="5"  NOTNULL="true" SEQUENCE="false" COMMENT="HH:MM (24h)."/>
         <FIELD NAME="modality"            TYPE="char" LENGTH="16" NOTNULL="true" DEFAULT="presencial" SEQUENCE="false" COMMENT="presencial|virtual|mixto."/>
@@ -1405,11 +1405,11 @@
         <INDEX NAME="psycho_validity_idx" UNIQUE="false" FIELDS="valid_from, valid_until"/>
       </INDEXES>
     </TABLE>
-    <TABLE NAME="gmk_wellness_psychology_appointment" COMMENT="Psychology appointments requested by students. status transitions: pendiente → confirmada | modificada | cancelada → atendida | no_asistio.">
+    <TABLE NAME="gmk_wellness_psy_appts" COMMENT="Psychology appointments requested by students. status transitions: pendiente â†’ confirmada | modificada | cancelada â†’ atendida | no_asistio.">
       <FIELDS>
         <FIELD NAME="id"                  TYPE="int"  LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
         <FIELD NAME="userid"              TYPE="int"  LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Student who requested the appointment."/>
-        <FIELD NAME="slotid"              TYPE="int"  LENGTH="10" NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="FK to gmk_wellness_psychology_schedule_slot.id. NULL when booked ad-hoc."/>
+        <FIELD NAME="slotid"              TYPE="int"  LENGTH="10" NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="FK to gmk_wellness_psy_slot.id. NULL when booked ad-hoc."/>
         <FIELD NAME="psychologist_userid" TYPE="int"  LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Snapshot of the assigned specialist at booking time."/>
         <FIELD NAME="appointment_at"      TYPE="int"  LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Unix ts of the appointment (already adjusted to the chosen slot's weekday)."/>
         <FIELD NAME="duration_minutes"    TYPE="int"  LENGTH="4"  NOTNULL="true" DEFAULT="45" SEQUENCE="false"/>
@@ -1429,7 +1429,7 @@
       <KEYS>
         <KEY NAME="primary"  TYPE="primary" FIELDS="id"/>
         <KEY NAME="userfk"   TYPE="foreign"  FIELDS="userid"  REFTABLE="user"          REFFIELDS="id"/>
-        <KEY NAME="slotfk"   TYPE="foreign"  FIELDS="slotid"  REFTABLE="gmk_wellness_psychology_schedule_slot" REFFIELDS="id"/>
+        <KEY NAME="slotfk"   TYPE="foreign"  FIELDS="slotid"  REFTABLE="gmk_wellness_psy_slot" REFFIELDS="id"/>
         <KEY NAME="psychofk" TYPE="foreign"  FIELDS="psychologist_userid" REFTABLE="user" REFFIELDS="id"/>
       </KEYS>
       <INDEXES>
@@ -1442,8 +1442,8 @@
     <TABLE NAME="gmk_wellness_staff_role" COMMENT="Editable mapping of wellness operational rolekeys to Moodle users + explicit institutional email. Replaces the legacy wellness_psychology_email_dulce / _jorge settings. UNIQUE (rolekey, active) ensures at most one active row per rolekey.">
       <FIELDS>
         <FIELD NAME="id"                TYPE="int"  LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
-        <FIELD NAME="rolekey"           TYPE="char" LENGTH="64"  NOTNULL="true" SEQUENCE="false" COMMENT="psicologo_titular|psicologo_suplente|talento_humano|bienestar_jefe|bienestar_asistente. UNIQUE — historical changes are kept in gmk_wellness_staff_audit, not here."/>
-        <FIELD NAME="role_label"        TYPE="char" LENGTH="128" NOTNULL="false" DEFAULT="" SEQUENCE="false" COMMENT="Display label e.g. Dulce Jurado — Talento Humano."/>
+        <FIELD NAME="rolekey"           TYPE="char" LENGTH="64"  NOTNULL="true" SEQUENCE="false" COMMENT="psicologo_titular|psicologo_suplente|talento_humano|bienestar_jefe|bienestar_asistente. UNIQUE â€” historical changes are kept in gmk_wellness_staff_audit, not here."/>
+        <FIELD NAME="role_label"        TYPE="char" LENGTH="128" NOTNULL="false" DEFAULT="" SEQUENCE="false" COMMENT="Display label e.g. Dulce Jurado â€” Talento Humano."/>
         <FIELD NAME="userid"            TYPE="int"  LENGTH="10" NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="FK to user.id. 0 means the role is unassigned (no email will be sent)."/>
         <FIELD NAME="email_override"    TYPE="char" LENGTH="255" NOTNULL="false" DEFAULT="" SEQUENCE="false" COMMENT="Explicit institutional email. When empty, user.email is used. Use this when notifications should go to a shared mailbox instead of the personal account."/>
         <FIELD NAME="notify_on_request" TYPE="int"  LENGTH="1"  NOTNULL="true" DEFAULT="1" SEQUENCE="false" COMMENT="Send notifications on new appointments."/>
@@ -1493,7 +1493,7 @@
         <FIELD NAME="valid_from"      TYPE="int"  LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Unix ts."/>
         <FIELD NAME="valid_until"     TYPE="int"  LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Unix ts; default = issued_at + wellness_carnet_validity_months (12 by default)."/>
         <FIELD NAME="status"          TYPE="char" LENGTH="32"  NOTNULL="true" DEFAULT="activo" SEQUENCE="false" COMMENT="activo|suspendido|egresado."/>
-        <FIELD NAME="qr_token"        TYPE="char" LENGTH="64"  NOTNULL="true" SEQUENCE="false" COMMENT="Random secret used in the QR URL. UNIQUE — regenerate to invalidate an old card."/>
+        <FIELD NAME="qr_token"        TYPE="char" LENGTH="64"  NOTNULL="true" SEQUENCE="false" COMMENT="Random secret used in the QR URL. UNIQUE â€” regenerate to invalidate an old card."/>
         <FIELD NAME="photo_path"      TYPE="char" LENGTH="255" NOTNULL="false" DEFAULT="" SEQUENCE="false" COMMENT="Pluginfile path within the wellness_carnet_photo filearea. Empty = falls back to user.picture profile photo."/>
         <FIELD NAME="issued_at"       TYPE="int"  LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="revoked_at"      TYPE="int"  LENGTH="10" NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="Unix ts; non-zero when the carnet was suspended/revoked."/>

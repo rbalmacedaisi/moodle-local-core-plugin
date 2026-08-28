@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 // This file is part of Moodle - http://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
@@ -23,7 +23,7 @@
  *    "fields": [
  *      {
  *        "name":     "dietary_preference",
- *        "label":    "Restricción alimentaria",
+ *        "label":    "RestricciÃ³n alimentaria",
  *        "type":     "text|textarea|select|multiselect|checkbox|number|date",
  *        "required": true,
  *        "options":  ["Vegetariano", "Vegano", "Sin gluten"],
@@ -60,7 +60,7 @@ class wellness_dynamic_form_manager {
         global $DB;
         $rows = $DB->get_records_sql(
             "SELECT f.*, e.title AS event_title,
-                    (SELECT COUNT(*) FROM {gmk_wellness_dynamic_form_response} r
+                    (SELECT COUNT(*) FROM {gmk_wellness_form_resp} r
                       WHERE r.formid = f.id) AS response_count
                FROM {gmk_wellness_dynamic_form} f
           LEFT JOIN {gmk_wellness_event} e ON e.id = f.eventid
@@ -174,7 +174,7 @@ class wellness_dynamic_form_manager {
             return ['ok' => false, 'error' => 'invalid_answers', 'field_errors' => $errors];
         }
 
-        $existing = $DB->get_record('gmk_wellness_dynamic_form_response',
+        $existing = $DB->get_record('gmk_wellness_form_resp',
             ['formid' => $formid, 'userid' => $userid]);
         $now = time();
         $payload = [
@@ -186,10 +186,10 @@ class wellness_dynamic_form_manager {
         ];
         if ($existing) {
             $payload['id'] = (int)$existing->id;
-            $DB->update_record('gmk_wellness_dynamic_form_response', (object)$payload);
+            $DB->update_record('gmk_wellness_form_resp', (object)$payload);
             return ['ok' => true, 'responseid' => (int)$existing->id];
         }
-        $newid = (int)$DB->insert_record('gmk_wellness_dynamic_form_response', (object)$payload);
+        $newid = (int)$DB->insert_record('gmk_wellness_form_resp', (object)$payload);
         return ['ok' => true, 'responseid' => $newid];
     }
 

@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 // This file is part of Moodle - http://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
@@ -16,7 +16,7 @@
 
 /**
  * Manager for wellness events: CRUD over gmk_wellness_event +
- * gmk_wellness_event_attachment, plus the public catalogue used by the LXP
+ * gmk_wellness_event_files, plus the public catalogue used by the LXP
  * (RF-02, RF-04, RF-05, RF-09.2).
  *
  * @package    local_grupomakro_core
@@ -177,7 +177,7 @@ class wellness_event_manager {
      */
     public static function list_attachments(int $eventid): array {
         global $DB;
-        $rows = $DB->get_records('gmk_wellness_event_attachment',
+        $rows = $DB->get_records('gmk_wellness_event_files',
             ['eventid' => $eventid], 'sort, id');
         return array_values(array_map(function ($r) {
             $r->id         = (int)$r->id;
@@ -262,14 +262,14 @@ class wellness_event_manager {
             // because the LXP always sends the full ordered list. Avoids
             // orphaned rows from drags/edits.
             if (array_key_exists('attachments', $payload)) {
-                $DB->delete_records('gmk_wellness_event_attachment', ['eventid' => $id]);
+                $DB->delete_records('gmk_wellness_event_files', ['eventid' => $id]);
                 $sort = 0;
                 foreach ((array)$payload['attachments'] as $att) {
                     $kind = strtolower(trim((string)($att['kind'] ?? 'handout')));
                     if (!in_array($kind, ['handout', 'recording', 'link', 'other'], true)) {
                         $kind = 'handout';
                     }
-                    $DB->insert_record('gmk_wellness_event_attachment', (object)[
+                    $DB->insert_record('gmk_wellness_event_files', (object)[
                         'eventid'    => $id,
                         'kind'       => $kind,
                         'label'      => mb_substr((string)($att['label'] ?? ''), 0, 128),

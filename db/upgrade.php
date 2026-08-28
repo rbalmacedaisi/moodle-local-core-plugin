@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 // This file is part of Moodle - https://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
@@ -19,7 +19,7 @@
  *
  * @package     local_grupomakro_core
  * @category    upgrade
- * @copyright   2022 Gilson Ricnón <gilson.rincon@soluttoconsulting.com>
+ * @copyright   2022 Gilson RicnÃ³n <gilson.rincon@soluttoconsulting.com>
  * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -1745,9 +1745,9 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         // Seed predefined datasets for v1.
         $now = time();
         $datasets = [
-            ['code' => 'asignaturas_cursadas', 'name' => 'Asignaturas cursadas', 'description' => 'Lista de asignaturas, nota y créditos por estudiante.'],
-            ['code' => 'resumen_creditos', 'name' => 'Resumen de créditos', 'description' => 'Totales de créditos cursados y aprobados.'],
-            ['code' => 'periodo_actual', 'name' => 'Periodo actual', 'description' => 'Resumen del periodo académico actual del estudiante.'],
+            ['code' => 'asignaturas_cursadas', 'name' => 'Asignaturas cursadas', 'description' => 'Lista de asignaturas, nota y crÃ©ditos por estudiante.'],
+            ['code' => 'resumen_creditos', 'name' => 'Resumen de crÃ©ditos', 'description' => 'Totales de crÃ©ditos cursados y aprobados.'],
+            ['code' => 'periodo_actual', 'name' => 'Periodo actual', 'description' => 'Resumen del periodo acadÃ©mico actual del estudiante.'],
         ];
         foreach ($datasets as $dataset) {
             if (!$DB->record_exists('gmk_letter_dataset_def', ['code' => $dataset['code']])) {
@@ -2049,7 +2049,7 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
     // 20260424001 - FASE 4: Crear tabla gmk_course_projections para proyecciones de asignaturas por jornada
     if ($oldversion < 20260424001) {
         // Define table gmk_course_projections to be created.
-        // Esta tabla almacena la proyección de una asignatura para un subperiodo específico y jornada.
+        // Esta tabla almacena la proyecciÃ³n de una asignatura para un subperiodo especÃ­fico y jornada.
         // Permite hacer drag-drop desde el panel de asignaturas hacia los bloques de bimestre.
         $table = new xmldb_table('gmk_course_projections');
 
@@ -2072,10 +2072,10 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         $table->add_key('usermodified', XMLDB_KEY_FOREIGN, ['usermodified'], 'user', ['id']);
 
         // Adding indexes to table gmk_course_projections.
-        // La combinación learning_courses_id + subperiodid + jornada debe ser única
+        // La combinaciÃ³n learning_courses_id + subperiodid + jornada debe ser Ãºnica
         $table->add_index('idx_lc_sp_jornada', XMLDB_INDEX_UNIQUE, ['learning_courses_id', 'subperiodid', 'jornada']);
         $table->add_index('idx_jornada', XMLDB_INDEX_NOTUNIQUE, ['jornada']);
-        // Nota: No agregamos índice para subperiodid porque ya existe como parte de la FK
+        // Nota: No agregamos Ã­ndice para subperiodid porque ya existe como parte de la FK
 
         // Conditionally launch create table for gmk_course_projections.
         if (!$dbman->table_exists($table)) {
@@ -2400,7 +2400,7 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
     }
 
     if ($oldversion < 20260701001) {
-        // Mitigación de despliegue a mitad de período: el feature flag de
+        // MitigaciÃ³n de despliegue a mitad de perÃ­odo: el feature flag de
         // blocking se introduce como setting separado (enable_absence_blocking)
         // y se mantiene apagado hasta que se decida activar. No requiere
         // cambios de esquema; la guarda se aplica en absence_helpers.
@@ -2524,19 +2524,19 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
     }
 
     if ($oldversion < 20260803000) {
-        // ────────────────────────────────────────────────────────────────────
+        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         // Admin broadcast messages (info / warning to student LXP).
         //
-        // gmk_admin_message           – the publishable announcement
-        // gmk_admin_message_ack       – per-user acknowledgement rows
-        // gmk_admin_message_user      – materialised audience so we can
+        // gmk_admin_message           â€“ the publishable announcement
+        // gmk_admin_message_ack       â€“ per-user acknowledgement rows
+        // gmk_admin_message_user      â€“ materialised audience so we can
         //                               group stats by career without
         //                               recomputing audience every load.
         //
         // These tables give the academic area a delivery channel for
         // administrative notices that take precedence over the absence
         // alert system (priority column on the message row).
-        // ────────────────────────────────────────────────────────────────────
+        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         // gmk_admin_message
         $table = new xmldb_table('gmk_admin_message');
@@ -3072,13 +3072,13 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
 
     if ($oldversion < 20260901000) {
 
-        // ────────────────────────────────────────────────────────────────────
-        // WELLNESS MODULE — Phase 1: RF-01, RF-02, RF-04, RF-05, RF-06, RF-09.1, RF-09.2
+        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // WELLNESS MODULE â€” Phase 1: RF-01, RF-02, RF-04, RF-05, RF-06, RF-09.1, RF-09.2
         // 7 tables: partner category, partner, event, event attachment, registration, dynamic form, dynamic form response.
-        // ────────────────────────────────────────────────────────────────────
+        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-        // gmk_wellness_partner_category --------------------------------------
-        $table = new xmldb_table('gmk_wellness_partner_category');
+        // gmk_wellness_partner_cats --------------------------------------
+        $table = new xmldb_table('gmk_wellness_partner_cats');
         $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
         $table->add_field('name', XMLDB_TYPE_CHAR, '64', null, XMLDB_NOTNULL, null, null);
         $table->add_field('slug', XMLDB_TYPE_CHAR, '64', null, null, null, null);
@@ -3112,7 +3112,7 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
         $table->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
         $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
-        $table->add_key('categoryfk', XMLDB_KEY_FOREIGN, ['categoryid'], 'gmk_wellness_partner_category', ['id']);
+        $table->add_key('categoryfk', XMLDB_KEY_FOREIGN, ['categoryid'], 'gmk_wellness_partner_cats', ['id']);
         $table->add_index('active_idx', XMLDB_INDEX_NOTUNIQUE, ['active']);
         $table->add_index('category_idx', XMLDB_INDEX_NOTUNIQUE, ['categoryid', 'active']);
         $table->add_index('dates_idx', XMLDB_INDEX_NOTUNIQUE, ['startdate', 'enddate']);
@@ -3152,8 +3152,8 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
             $dbman->create_table($table);
         }
 
-        // gmk_wellness_event_attachment -------------------------------------
-        $table = new xmldb_table('gmk_wellness_event_attachment');
+        // gmk_wellness_event_files -------------------------------------
+        $table = new xmldb_table('gmk_wellness_event_files');
         $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
         $table->add_field('eventid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
         $table->add_field('kind', XMLDB_TYPE_CHAR, '32', null, XMLDB_NOTNULL, null, 'handout');
@@ -3212,8 +3212,8 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
             $dbman->create_table($table);
         }
 
-        // gmk_wellness_dynamic_form_response --------------------------------
-        $table = new xmldb_table('gmk_wellness_dynamic_form_response');
+        // gmk_wellness_form_resp --------------------------------
+        $table = new xmldb_table('gmk_wellness_form_resp');
         $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
         $table->add_field('formid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
         $table->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
@@ -3234,15 +3234,15 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
 
     if ($oldversion < 20260902000) {
 
-        // ────────────────────────────────────────────────────────────────────
-        // WELLNESS MODULE — Phase 2: RF-03 (psychology appointments) + RF-09.3
+        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // WELLNESS MODULE â€” Phase 2: RF-03 (psychology appointments) + RF-09.3
         // 4 tables: psychology schedule slots, appointments, staff role
         // mapping (replaces the legacy wellness_psychology_email_dulce /
         // _jorge settings), staff audit log.
-        // ────────────────────────────────────────────────────────────────────
+        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-        // gmk_wellness_psychology_schedule_slot -----------------------------
-        $table = new xmldb_table('gmk_wellness_psychology_schedule_slot');
+        // gmk_wellness_psy_slot -----------------------------
+        $table = new xmldb_table('gmk_wellness_psy_slot');
         $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
         $table->add_field('psychologist_userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
         $table->add_field('weekday', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '1');
@@ -3266,8 +3266,8 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
             $dbman->create_table($table);
         }
 
-        // gmk_wellness_psychology_appointment -------------------------------
-        $table = new xmldb_table('gmk_wellness_psychology_appointment');
+        // gmk_wellness_psy_appts -------------------------------
+        $table = new xmldb_table('gmk_wellness_psy_appts');
         $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
         $table->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
         $table->add_field('slotid', XMLDB_TYPE_INTEGER, '10', null, null, null, '0');
@@ -3288,7 +3288,7 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         $table->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
         $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
         $table->add_key('userfk', XMLDB_KEY_FOREIGN, ['userid'], 'user', ['id']);
-        $table->add_key('slotfk', XMLDB_KEY_FOREIGN, ['slotid'], 'gmk_wellness_psychology_schedule_slot', ['id']);
+        $table->add_key('slotfk', XMLDB_KEY_FOREIGN, ['slotid'], 'gmk_wellness_psy_slot', ['id']);
         $table->add_key('psychofk', XMLDB_KEY_FOREIGN, ['psychologist_userid'], 'user', ['id']);
         $table->add_index('user_status_idx', XMLDB_INDEX_NOTUNIQUE, ['userid', 'status']);
         $table->add_index('psycho_when_idx', XMLDB_INDEX_NOTUNIQUE, ['psychologist_userid', 'appointment_at']);
@@ -3328,7 +3328,7 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         if (!empty($legacyDulce) && !$DB->record_exists('gmk_wellness_staff_role', ['rolekey' => 'talento_humano'])) {
             $DB->insert_record('gmk_wellness_staff_role', (object)[
                 'rolekey'           => 'talento_humano',
-                'role_label'        => 'Dulce Jurado — Talento Humano',
+                'role_label'        => 'Dulce Jurado â€” Talento Humano',
                 'userid'            => 0,
                 'email_override'    => (string)$legacyDulce,
                 'notify_on_request' => 1,
@@ -3342,7 +3342,7 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         if (!empty($legacyJorge) && !$DB->record_exists('gmk_wellness_staff_role', ['rolekey' => 'bienestar_jefe'])) {
             $DB->insert_record('gmk_wellness_staff_role', (object)[
                 'rolekey'           => 'bienestar_jefe',
-                'role_label'        => 'Jorge Oviedo — Bienestar Estudiantil',
+                'role_label'        => 'Jorge Oviedo â€” Bienestar Estudiantil',
                 'userid'            => 0,
                 'email_override'    => (string)$legacyJorge,
                 'notify_on_request' => 1,
@@ -3377,10 +3377,10 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
 
     if ($oldversion < 20260903000) {
 
-        // ────────────────────────────────────────────────────────────────────
-        // WELLNESS MODULE — Phase 3: Carnet digital (RF-07, RF-09.4)
+        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // WELLNESS MODULE â€” Phase 3: Carnet digital (RF-07, RF-09.4)
         // 1 table: gmk_wellness_carnet (digital ID card with QR token + photo).
-        // ────────────────────────────────────────────────────────────────────
+        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         $table = new xmldb_table('gmk_wellness_carnet');
         $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
@@ -3412,43 +3412,43 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
 
     if ($oldversion < 20260904000) {
 
-        // ────────────────────────────────────────────────────────────────────
-        // WELLNESS MODULE — Hotfixes from internal audit (36 findings F-01..F-36).
+        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // WELLNESS MODULE â€” Hotfixes from internal audit (36 findings F-01..F-36).
         // No schema changes: the install.xml of Phase 2 already used the
         // correct UNIQUE(rolekey) index after F-23. The changes live in the
         // managers, services.php, settings.php, lib.php, lang and the
         // user_login_handler.
-        // ────────────────────────────────────────────────────────────────────
+        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         // The schema index correction (F-23) is reflected both in install.xml
         // (for fresh installs) and here in the index definition above
         // (in case an existing site was on the old UNIQUE(rolekey,active)).
         // Since the index is UNIQUE not NOTUNIQUE, fresh installs get the
         // new one; sites that previously had the old one would need a
-        // one-off backfill — that's out of scope for the hotfix.
+        // one-off backfill â€” that's out of scope for the hotfix.
 
         upgrade_plugin_savepoint(true, 20260904000, 'local', 'grupomakro_core');
     }
 
     if ($oldversion < 20260905000) {
 
-        // ────────────────────────────────────────────────────────────────────
-        // WELLNESS MODULE — Hotfixes round 2 (8 findings, F-06 + N-01..N-05 + F-18 + F-32).
+        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // WELLNESS MODULE â€” Hotfixes round 2 (8 findings, F-06 + N-01..N-05 + F-18 + F-32).
         // No schema changes; behavioural-only fixes that do not need an
         // upgrade step beyond the savepoint marker.
-        // ────────────────────────────────────────────────────────────────────
+        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         upgrade_plugin_savepoint(true, 20260905000, 'local', 'grupomakro_core');
     }
 
     if ($oldversion < 20260906000) {
 
-        // ────────────────────────────────────────────────────────────────────
-        // WELLNESS MODULE — Hotfix from internal audit round 3.
+        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // WELLNESS MODULE â€” Hotfix from internal audit round 3.
         // Behavioural-only fix in wellness_staff_manager::upsert(): now
         // reads via get_role() so that re-activating a seeded-but-disabled
         // rolekey does not collide with UNIQUE(rolekey). No schema change.
-        // ────────────────────────────────────────────────────────────────────
+        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         upgrade_plugin_savepoint(true, 20260906000, 'local', 'grupomakro_core');
     }

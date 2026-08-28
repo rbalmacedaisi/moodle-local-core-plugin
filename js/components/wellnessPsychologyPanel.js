@@ -1,9 +1,9 @@
-/**
+﻿/**
  * Admin psychology panel: agenda + slots editor (RF-09.3).
  *
  * Two tabs:
  *   1. Agenda (filterable by psychologist / status / date range)
- *   2. Slots (CRUD over gmk_wellness_psychology_schedule_slot)
+ *   2. Slots (CRUD over gmk_wellness_psy_slot)
  *
  * Vue 2 + Vuetify 2, mounted by /local/grupomakro_core/pages/wellness_psychology_panel.php.
  */
@@ -47,7 +47,7 @@ Vue.component('psychology-panel', {
                 { text: 'Modificada', value: 'modificada' },
                 { text: 'Cancelada', value: 'cancelada' },
                 { text: 'Atendida', value: 'atendida' },
-                { text: 'No asistió', value: 'no_asistio' },
+                { text: 'No asistiÃ³', value: 'no_asistio' },
             ]
         },
         weekdayItems() {
@@ -55,10 +55,10 @@ Vue.component('psychology-panel', {
                 { text: 'Domingo', value: 0 },
                 { text: 'Lunes', value: 1 },
                 { text: 'Martes', value: 2 },
-                { text: 'Miércoles', value: 3 },
+                { text: 'MiÃ©rcoles', value: 3 },
                 { text: 'Jueves', value: 4 },
                 { text: 'Viernes', value: 5 },
-                { text: 'Sábado', value: 6 },
+                { text: 'SÃ¡bado', value: 6 },
             ]
         },
         modalityItems() {
@@ -85,7 +85,7 @@ Vue.component('psychology-panel', {
                 modificada: 'Modificada',
                 cancelada:  'Cancelada',
                 atendida:   'Atendida',
-                no_asistio: 'No asistió',
+                no_asistio: 'No asistiÃ³',
             })[s] || s
         },
         modalityLabel() {
@@ -98,7 +98,7 @@ Vue.component('psychology-panel', {
                     map.set(a.psychologist_userid, a.psychologist_name || ('#' + a.psychologist_userid))
                 }
             }
-            return [{ text: 'Todos los psicólogos', value: 0 },
+            return [{ text: 'Todos los psicÃ³logos', value: 0 },
                 ...Array.from(map, ([id, name]) => ({ text: name, value: id }))]
         },
     },
@@ -160,7 +160,7 @@ Vue.component('psychology-panel', {
             this.snack = { show: true, color, text }
         },
         formatDate(ts) {
-            if (!ts) return '—'
+            if (!ts) return 'â€”'
             return new Date(ts * 1000).toLocaleString()
         },
         weekdayLabel(w) {
@@ -256,7 +256,7 @@ Vue.component('psychology-panel', {
 
   <v-window v-model="tab" class="mt-4">
 
-    <!-- ── AGENDA ────────────────────────────────────────────── -->
+    <!-- â”€â”€ AGENDA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
     <v-window-item value="agenda">
       <v-card>
         <v-card-title>
@@ -271,7 +271,7 @@ Vue.component('psychology-panel', {
           :headers="[
             { text: 'Fecha', value: 'appointment_at' },
             { text: 'Estudiante', value: 'student_fullname' },
-            { text: 'Psicólogo', value: 'psychologist_name' },
+            { text: 'PsicÃ³logo', value: 'psychologist_name' },
             { text: 'Modalidad', value: 'modality' },
             { text: 'Estado', value: 'status' },
             { text: 'Motivo', value: 'reason', sortable: false },
@@ -300,7 +300,7 @@ Vue.component('psychology-panel', {
       </v-card>
     </v-window-item>
 
-    <!-- ── SLOTS ────────────────────────────────────────────── -->
+    <!-- â”€â”€ SLOTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
     <v-window-item value="slots">
       <v-card>
         <v-card-title>
@@ -312,13 +312,13 @@ Vue.component('psychology-panel', {
         </v-card-title>
         <v-data-table
           :headers="[
-            { text: 'Psicólogo', value: 'psychologist_name' },
-            { text: 'Día', value: 'weekday' },
+            { text: 'PsicÃ³logo', value: 'psychologist_name' },
+            { text: 'DÃ­a', value: 'weekday' },
             { text: 'Inicio', value: 'starttime' },
             { text: 'Fin', value: 'endtime' },
-            { text: 'Duración', value: 'duration_minutes' },
+            { text: 'DuraciÃ³n', value: 'duration_minutes' },
             { text: 'Modalidad', value: 'modality' },
-            { text: 'Ubicación', value: 'location', sortable: false },
+            { text: 'UbicaciÃ³n', value: 'location', sortable: false },
             { text: 'Activo', value: 'active', align: 'center' },
             { text: 'Acciones', value: '_actions', sortable: false, align: 'center' },
           ]"
@@ -328,7 +328,7 @@ Vue.component('psychology-panel', {
           <template v-slot:item.weekday="{ item }">{{ weekdayLabel(item.weekday) }}</template>
           <template v-slot:item.modality="{ item }">{{ modalityLabel(item.modality) }}</template>
           <template v-slot:item.active="{ item }">
-            <v-chip :color="item.active ? 'green' : 'grey'" small dark>{{ item.active ? 'Sí' : 'No' }}</v-chip>
+            <v-chip :color="item.active ? 'green' : 'grey'" small dark>{{ item.active ? 'SÃ­' : 'No' }}</v-chip>
           </template>
           <template v-slot:item._actions="{ item }">
             <v-btn icon small @click="openSlotDialog(item)"><v-icon>mdi-pencil</v-icon></v-btn>
@@ -346,12 +346,12 @@ Vue.component('psychology-panel', {
   <v-dialog v-model="statusDialog" max-width="600" scrollable>
     <v-card>
       <v-card-title v-if="statusAppt">
-        Cambiar estado — {{ statusAppt.student_firstname }} {{ statusAppt.student_lastname }}
-        <div class="caption grey--text">{{ formatDate(statusAppt.appointment_at) }} · {{ modalityLabel(statusAppt.modality) }}</div>
+        Cambiar estado â€” {{ statusAppt.student_firstname }} {{ statusAppt.student_lastname }}
+        <div class="caption grey--text">{{ formatDate(statusAppt.appointment_at) }} Â· {{ modalityLabel(statusAppt.modality) }}</div>
       </v-card-title>
       <v-card-text>
         <v-select v-model="statusNew" :items="statusItems.filter(x => x.value !== '')" label="Nuevo estado"></v-select>
-        <v-textarea v-if="statusNew === 'cancelada'" v-model="statusReason" label="Motivo de cancelación" rows="2"></v-textarea>
+        <v-textarea v-if="statusNew === 'cancelada'" v-model="statusReason" label="Motivo de cancelaciÃ³n" rows="2"></v-textarea>
         <v-textarea v-model="statusNotes" label="Notas del especialista" rows="3"></v-textarea>
       </v-card-text>
       <v-card-actions>
@@ -367,8 +367,8 @@ Vue.component('psychology-panel', {
     <v-card>
       <v-card-title>{{ slot.id ? 'Editar slot' : 'Nuevo slot' }}</v-card-title>
       <v-card-text>
-        <v-text-field v-model.number="slot.psychologist_userid" label="ID Psicólogo (userid)" type="number" hint="Use el admin de Staff para mapear el usuario correctamente." persistent-hint></v-text-field>
-        <v-select v-model="slot.weekday" :items="weekdayItems" label="Día"></v-select>
+        <v-text-field v-model.number="slot.psychologist_userid" label="ID PsicÃ³logo (userid)" type="number" hint="Use el admin de Staff para mapear el usuario correctamente." persistent-hint></v-text-field>
+        <v-select v-model="slot.weekday" :items="weekdayItems" label="DÃ­a"></v-select>
         <v-row>
           <v-col cols="6"><v-text-field v-model="slot.starttime" label="Hora inicio (HH:MM)"></v-text-field></v-col>
           <v-col cols="6"><v-text-field v-model="slot.endtime" label="Hora fin (HH:MM)"></v-text-field></v-col>
@@ -378,10 +378,10 @@ Vue.component('psychology-panel', {
             <v-select v-model="slot.modality" :items="modalityItems" label="Modalidad"></v-select>
           </v-col>
           <v-col cols="6">
-            <v-text-field v-model.number="slot.duration_minutes" label="Duración (min)" type="number"></v-text-field>
+            <v-text-field v-model.number="slot.duration_minutes" label="DuraciÃ³n (min)" type="number"></v-text-field>
           </v-col>
         </v-row>
-        <v-text-field v-model="slot.location" label="Ubicación / sala virtual"></v-text-field>
+        <v-text-field v-model="slot.location" label="UbicaciÃ³n / sala virtual"></v-text-field>
         <v-switch v-model="slot.active" label="Activo" inset></v-switch>
       </v-card-text>
       <v-card-actions>

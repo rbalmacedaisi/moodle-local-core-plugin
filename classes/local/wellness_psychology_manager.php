@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 // This file is part of Moodle - http://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
@@ -52,7 +52,7 @@ class wellness_psychology_manager {
     public static function list_slots(bool $activeOnly = true): array {
         global $DB;
         $where = $activeOnly ? ['active' => 1] : [];
-        $rows = $DB->get_records('gmk_wellness_psychology_schedule_slot', $where,
+        $rows = $DB->get_records('gmk_wellness_psy_slot', $where,
             'psychologist_userid, weekday, starttime');
         return array_values(array_map(function ($r) {
             $r->id                  = (int)$r->id;
@@ -107,25 +107,25 @@ class wellness_psychology_manager {
         ];
         $id = (int)($payload['id'] ?? 0);
         if ($id > 0) {
-            if (!$DB->record_exists('gmk_wellness_psychology_schedule_slot', ['id' => $id])) {
+            if (!$DB->record_exists('gmk_wellness_psy_slot', ['id' => $id])) {
                 throw new \moodle_exception('wellness_slot_not_found', 'local_grupomakro_core');
             }
             $record->id = $id;
-            $record->timecreated = (int)$DB->get_field('gmk_wellness_psychology_schedule_slot', 'timecreated', ['id' => $id]);
-            $DB->update_record('gmk_wellness_psychology_schedule_slot', $record);
+            $record->timecreated = (int)$DB->get_field('gmk_wellness_psy_slot', 'timecreated', ['id' => $id]);
+            $DB->update_record('gmk_wellness_psy_slot', $record);
             return $id;
         }
         $record->timecreated = $now;
-        return (int)$DB->insert_record('gmk_wellness_psychology_schedule_slot', $record);
+        return (int)$DB->insert_record('gmk_wellness_psy_slot', $record);
     }
 
     public static function set_slot_active(int $id, int $active): bool {
         global $DB;
-        if (!$DB->record_exists('gmk_wellness_psychology_schedule_slot', ['id' => $id])) {
+        if (!$DB->record_exists('gmk_wellness_psy_slot', ['id' => $id])) {
             return false;
         }
-        $DB->set_field('gmk_wellness_psychology_schedule_slot', 'active', $active ? 1 : 0, ['id' => $id]);
-        $DB->set_field('gmk_wellness_psychology_schedule_slot', 'timemodified', time(), ['id' => $id]);
+        $DB->set_field('gmk_wellness_psy_slot', 'active', $active ? 1 : 0, ['id' => $id]);
+        $DB->set_field('gmk_wellness_psy_slot', 'timemodified', time(), ['id' => $id]);
         return true;
     }
 
@@ -163,7 +163,7 @@ class wellness_psychology_manager {
         global $DB;
         $now = $now ?: time();
         $from = max($from, $now);
-        $slots = $DB->get_records('gmk_wellness_psychology_schedule_slot',
+        $slots = $DB->get_records('gmk_wellness_psy_slot',
             ['psychologist_userid' => $psychologistUserid, 'active' => 1],
             'weekday, starttime');
 
@@ -178,7 +178,7 @@ class wellness_psychology_manager {
         // collapsed multiple booked occurrences into one).
         $busy = $DB->get_records_sql(
             "SELECT id, slotid, appointment_at
-               FROM {gmk_wellness_psychology_appointment}
+               FROM {gmk_wellness_psy_appts}
               WHERE slotid $insql
                 AND status IN ('pendiente', 'confirmada', 'modificada')",
             $inparams
@@ -260,7 +260,7 @@ class wellness_psychology_manager {
             return ['ok' => false, 'error' => 'user_invalid'];
         }
 
-        $slot = $DB->get_record('gmk_wellness_psychology_schedule_slot', ['id' => $slotid]);
+        $slot = $DB->get_record('gmk_wellness_psy_slot', ['id' => $slotid]);
         if (!$slot || (int)$slot->active !== 1) {
             return ['ok' => false, 'error' => 'slot_inactive'];
         }
@@ -301,7 +301,7 @@ class wellness_psychology_manager {
             $trans = $DB->start_delegated_transaction();
 
             $existing = $DB->get_record_sql(
-                "SELECT id FROM {gmk_wellness_psychology_appointment}
+                "SELECT id FROM {gmk_wellness_psy_appts}
                   WHERE slotid = ? AND appointment_at = ?
                     AND status IN ('pendiente', 'confirmada', 'modificada')
                   LIMIT 1",
@@ -315,7 +315,7 @@ class wellness_psychology_manager {
             // F-20: include appointment_at in the dedup check so the
             // student can request a *future* occurrence of the same slot
             // without colliding with a previous one.
-            $existingStudent = $DB->get_record('gmk_wellness_psychology_appointment',
+            $existingStudent = $DB->get_record('gmk_wellness_psy_appts',
                 ['slotid' => $slotid, 'userid' => $studentid,
                  'appointment_at' => $occurrenceStart, 'status' => 'pendiente']);
             if ($existingStudent) {
@@ -335,7 +335,7 @@ class wellness_psychology_manager {
                 'timecreated'         => $now,
                 'timemodified'        => $now,
             ];
-            $row->id = (int)$DB->insert_record('gmk_wellness_psychology_appointment', $row);
+            $row->id = (int)$DB->insert_record('gmk_wellness_psy_appts', $row);
 
             $trans->allow_commit();
         } catch (\Throwable $e) {
@@ -350,7 +350,7 @@ class wellness_psychology_manager {
         }
 
         // Fire notifications (outside the txn so a mail failure doesn't
-        // undo the booking). Failures are silent — the appointment row is
+        // undo the booking). Failures are silent â€” the appointment row is
         // the source of truth.
         $vars = [
             'studentname' => fullname($USER),
@@ -377,7 +377,7 @@ class wellness_psychology_manager {
                        a.timecreated,
                        u.firstname AS psycho_firstname,
                        u.lastname  AS psycho_lastname
-                  FROM {gmk_wellness_psychology_appointment} a
+                  FROM {gmk_wellness_psy_appts} a
              LEFT JOIN {user} u ON u.id = a.psychologist_userid
                  WHERE a.userid = :uid
               ORDER BY a.appointment_at DESC";
@@ -437,7 +437,7 @@ class wellness_psychology_manager {
                        stu.firstname AS student_firstname,
                        stu.lastname  AS student_lastname,
                        stu.email     AS student_email
-                  FROM {gmk_wellness_psychology_appointment} a
+                  FROM {gmk_wellness_psy_appts} a
              LEFT JOIN {user} u  ON u.id  = a.psychologist_userid
              LEFT JOIN {user} stu ON stu.id = a.userid
                  WHERE $where
@@ -481,7 +481,7 @@ class wellness_psychology_manager {
         int $newOccurrenceStart = 0
     ): array {
         global $DB;
-        $row = $DB->get_record('gmk_wellness_psychology_appointment', ['id' => $appointmentid]);
+        $row = $DB->get_record('gmk_wellness_psy_appts', ['id' => $appointmentid]);
         if (!$row) {
             return ['ok' => false, 'error' => 'appointment_not_found'];
         }
@@ -515,7 +515,7 @@ class wellness_psychology_manager {
             $update->cancelled_by = $authorid;
             $update->cancelled_at = $now;
         }
-        $DB->update_record('gmk_wellness_psychology_appointment', $update);
+        $DB->update_record('gmk_wellness_psy_appts', $update);
 
         // Notify the student only when the status changed (or when the
         // occurrence was modified), to avoid duplicate emails on idempotent
@@ -561,7 +561,7 @@ class wellness_psychology_manager {
      */
     public static function student_cancel(int $appointmentid, int $userid, string $reason = ''): array {
         global $DB;
-        $row = $DB->get_record('gmk_wellness_psychology_appointment', ['id' => $appointmentid]);
+        $row = $DB->get_record('gmk_wellness_psy_appts', ['id' => $appointmentid]);
         if (!$row || (int)$row->userid !== $userid) {
             return ['ok' => false, 'error' => 'not_owner'];
         }
@@ -569,7 +569,7 @@ class wellness_psychology_manager {
             return ['ok' => false, 'error' => 'not_cancellable'];
         }
         $now = time();
-        $DB->update_record('gmk_wellness_psychology_appointment', (object)[
+        $DB->update_record('gmk_wellness_psy_appts', (object)[
             'id'                => (int)$row->id,
             'status'            => 'cancelada',
             'cancelled_by'      => $userid,

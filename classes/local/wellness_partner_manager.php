@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 // This file is part of Moodle - http://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
@@ -17,7 +17,7 @@
 /**
  * Manager for the wellness partner directory (RF-01, RF-09.1).
  *
- * CRUD over gmk_wellness_partner_category and gmk_wellness_partner plus the
+ * CRUD over gmk_wellness_partner_cats and gmk_wellness_partner plus the
  * catalogue read paths the LXP needs (search by keyword + filter by category,
  * visibility window, fileareas for logos).
  *
@@ -32,7 +32,7 @@ defined('MOODLE_INTERNAL') || die();
 class wellness_partner_manager {
 
     /**
-     * Allowed values for the gmk_wellness_partner_category table.
+     * Allowed values for the gmk_wellness_partner_cats table.
      */
     public static function allowed_categories(): array {
         return ['salud', 'retail', 'tecnologia', 'educacion', 'ocio', 'transporte', 'otro'];
@@ -47,8 +47,8 @@ class wellness_partner_manager {
     public static function seed_categories(): array {
         return [
             ['key' => 'salud',       'label' => 'Salud',         'sort' => 10],
-            ['key' => 'educacion',   'label' => 'Educación',     'sort' => 20],
-            ['key' => 'tecnologia',  'label' => 'Tecnología',    'sort' => 30],
+            ['key' => 'educacion',   'label' => 'EducaciÃ³n',     'sort' => 20],
+            ['key' => 'tecnologia',  'label' => 'TecnologÃ­a',    'sort' => 30],
             ['key' => 'retail',      'label' => 'Retail',        'sort' => 40],
             ['key' => 'transporte',  'label' => 'Transporte',    'sort' => 50],
             ['key' => 'ocio',        'label' => 'Ocio y cultura','sort' => 60],
@@ -64,7 +64,7 @@ class wellness_partner_manager {
      */
     public static function seed_categories_if_empty(): int {
         global $DB;
-        if ($DB->record_exists('gmk_wellness_partner_category', [])) {
+        if ($DB->record_exists('gmk_wellness_partner_cats', [])) {
             return 0;
         }
         $now = time();
@@ -79,7 +79,7 @@ class wellness_partner_manager {
                 'timecreated'  => $now,
                 'timemodified' => $now,
             ];
-            $DB->insert_record('gmk_wellness_partner_category', $record);
+            $DB->insert_record('gmk_wellness_partner_cats', $record);
             $created++;
         }
         return $created;
@@ -106,7 +106,7 @@ class wellness_partner_manager {
                        p.sort, p.timecreated,
                        c.name AS category_name, c.slug AS category_slug
                   FROM {gmk_wellness_partner} p
-                  JOIN {gmk_wellness_partner_category} c ON c.id = p.categoryid
+                  JOIN {gmk_wellness_partner_cats} c ON c.id = p.categoryid
                  WHERE p.active = 1
                    AND c.active = 1
                    AND (p.startdate = 0 OR p.startdate <= :now1)
@@ -148,7 +148,7 @@ class wellness_partner_manager {
         global $DB;
         $sql = "SELECT p.*, c.name AS category_name, c.slug AS category_slug
                   FROM {gmk_wellness_partner} p
-                  JOIN {gmk_wellness_partner_category} c ON c.id = p.categoryid
+                  JOIN {gmk_wellness_partner_cats} c ON c.id = p.categoryid
               ORDER BY c.sort, p.sort, p.name";
         $rows = $DB->get_records_sql($sql);
         return array_values(array_map(function ($r) {
@@ -171,7 +171,7 @@ class wellness_partner_manager {
      */
     public static function list_categories(): array {
         global $DB;
-        $rows = $DB->get_records('gmk_wellness_partner_category',
+        $rows = $DB->get_records('gmk_wellness_partner_cats',
             ['active' => 1], 'sort, name', 'id, name, slug');
         $out = [];
         foreach ($rows as $r) {
@@ -208,7 +208,7 @@ class wellness_partner_manager {
             throw new \moodle_exception('wellness_partner_name_required', 'local_grupomakro_core');
         }
         $categoryid = (int)($payload['categoryid'] ?? 0);
-        if ($categoryid <= 0 || !$DB->record_exists('gmk_wellness_partner_category', ['id' => $categoryid])) {
+        if ($categoryid <= 0 || !$DB->record_exists('gmk_wellness_partner_cats', ['id' => $categoryid])) {
             throw new \moodle_exception('wellness_partner_category_required', 'local_grupomakro_core');
         }
         $benefit = trim((string)($payload['benefit_description'] ?? ''));
