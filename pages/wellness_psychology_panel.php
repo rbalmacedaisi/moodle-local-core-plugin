@@ -30,20 +30,16 @@ $PAGE->set_url(new moodle_url('/local/grupomakro_core/pages/wellness_psychology_
 $PAGE->set_context($context);
 $PAGE->set_title('Bienestar: PsicologÃ­a');
 $PAGE->set_heading('Bienestar â€” PsicologÃ­a');
-$PAGE->set_pagelayout('standard');
+$PAGE->set_pagelayout('admin');
 
 require_capability('local/grupomakro_core:manage_psychology_appointments', $context);
 
-// Cache-bust by JS file mtime (see wellness_dashboard.php for rationale).
-// One-shot `time()` suffix forces every browser to re-fetch on this
-// deploy â€” the previous `?v=` (1787934245) was cached and the broken
-// v-text-field kept being served. After this deploy the suffix can be
-// removed: a new mtime alone is enough to bust the cache.
+// Cache-bust by JS file mtime. The mtime changes on every pull, so the
+// browser is forced to re-fetch whenever the JS itself is updated.
 $jsfile = $CFG->dirroot . '/local/grupomakro_core/js/components/wellnessPsychologyPanel.js';
 $appjsfile = $CFG->dirroot . '/local/grupomakro_core/js/app.js';
-$deploystamp = (string)time();
-$assetversion = (file_exists($jsfile) ? (int)filemtime($jsfile) : (int)time()) . '-' . $deploystamp;
-$assetversion_app = (file_exists($appjsfile) ? (int)filemtime($appjsfile) : (int)time()) . '-' . $deploystamp;
+$assetversion = file_exists($jsfile) ? (int)filemtime($jsfile) : (int)time();
+$assetversion_app = file_exists($appjsfile) ? (int)filemtime($appjsfile) : (int)time();
 $ajaxUrl = json_encode($CFG->wwwroot . '/local/grupomakro_core/ajax.php');
 $sesskey = json_encode(sesskey());
 $wwwroot = json_encode($CFG->wwwroot);
@@ -74,13 +70,6 @@ echo <<<EOT
   var ajaxUrl = $ajaxUrl;
   var sesskey = $sesskey;
   var wwwroot = $wwwroot;
-  // app.js's initVueApp() reads window.token to decide whether to fetch the
-  // active theme. If it is undefined, the JS still mounts the app but
-  // emits a "no themeToken" warning into the console. Setting it to the
-  // current session key makes the theme fetch take the normal path and
-  // silences the warning.
-  window.themeToken = $sesskey;
-  window.token = $sesskey;  // legacy alias, harmless
 </script>
 EOT;
 

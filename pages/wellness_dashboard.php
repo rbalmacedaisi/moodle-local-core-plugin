@@ -35,22 +35,12 @@ $PAGE->set_url(new moodle_url('/local/grupomakro_core/pages/wellness_dashboard.p
 $PAGE->set_context($context);
 $PAGE->set_title('Bienestar Estudiantil');
 $PAGE->set_heading('Bienestar Estudiantil');
-$PAGE->set_pagelayout('standard');
+$PAGE->set_pagelayout('admin');
 
 require_capability('local/grupomakro_core:manage_wellness', $context);
 
 $plugin_name  = 'local_grupomakro_core';
-// Cache-bust by JS file mtime. One-shot suffix `time()` is appended to
-// force every browser to re-fetch ON THIS DEPLOY ONLY â€” the previous
-// `?v=` (1787934245) was cached and the broken v-text-field in
-// wellnessDashboard.js kept being served. After this deploy, the suffix
-// can be removed: subsequent deploys that change the JS will have a new
-// mtime and `?v=` will change automatically.
-$jsfile = $CFG->dirroot . '/local/grupomakro_core/js/components/wellnessDashboard.js';
-$appjsfile = $CFG->dirroot . '/local/grupomakro_core/js/app.js';
-$deploystamp = (string)time();
-$assetversion = (file_exists($jsfile) ? (int)filemtime($jsfile) : (int)time()) . '-' . $deploystamp;
-$assetversion_app = (file_exists($appjsfile) ? (int)filemtime($appjsfile) : (int)time()) . '-' . $deploystamp;
+$assetversion = !empty($CFG->themerev) ? (int)$CFG->themerev : 1;
 
 $ajaxUrl = json_encode($CFG->wwwroot . '/local/grupomakro_core/ajax.php');
 $sesskey = json_encode(sesskey());
@@ -82,13 +72,6 @@ echo <<<EOT
   var ajaxUrl = $ajaxUrl;
   var sesskey = $sesskey;
   var wwwroot = $wwwroot;
-  // app.js's initVueApp() reads window.token to decide whether to fetch the
-  // active theme. If it is undefined, the JS still mounts the app but
-  // emits a "no themeToken" warning into the console. Setting it to the
-  // current session key makes the theme fetch take the normal path and
-  // silences the warning.
-  window.themeToken = $sesskey;
-  window.token = $sesskey;  // legacy alias, harmless
 </script>
 EOT;
 
