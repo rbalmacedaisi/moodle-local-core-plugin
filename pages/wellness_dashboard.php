@@ -40,14 +40,17 @@ $PAGE->set_pagelayout('admin');
 require_capability('local/grupomakro_core:manage_wellness', $context);
 
 $plugin_name  = 'local_grupomakro_core';
-// Cache-bust by JS file mtime. The browser was serving a stale version
-// of wellnessDashboard.js because $CFG->themerev is sticky across deploys;
-// by hashing the file's mtime into the cache-buster, any change to the
-// JS forces browsers to re-fetch.
+// Cache-bust by JS file mtime. One-shot suffix `time()` is appended to
+// force every browser to re-fetch ON THIS DEPLOY ONLY — the previous
+// `?v=` (1787934245) was cached and the broken v-text-field in
+// wellnessDashboard.js kept being served. After this deploy, the suffix
+// can be removed: subsequent deploys that change the JS will have a new
+// mtime and `?v=` will change automatically.
 $jsfile = $CFG->dirroot . '/local/grupomakro_core/js/components/wellnessDashboard.js';
 $appjsfile = $CFG->dirroot . '/local/grupomakro_core/js/app.js';
-$assetversion = file_exists($jsfile) ? (int)filemtime($jsfile) : (int)time();
-$assetversion_app = file_exists($appjsfile) ? (int)filemtime($appjsfile) : (int)time();
+$deploystamp = (string)time();
+$assetversion = (file_exists($jsfile) ? (int)filemtime($jsfile) : (int)time()) . '-' . $deploystamp;
+$assetversion_app = (file_exists($appjsfile) ? (int)filemtime($appjsfile) : (int)time()) . '-' . $deploystamp;
 
 $ajaxUrl = json_encode($CFG->wwwroot . '/local/grupomakro_core/ajax.php');
 $sesskey = json_encode(sesskey());

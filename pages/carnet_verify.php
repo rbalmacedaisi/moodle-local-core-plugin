@@ -36,6 +36,16 @@
 require_once(__DIR__ . '/../../../config.php');
 require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/wellness_carnet_manager.php');
 
+// The verifier is intentionally public (no require_login). Without it,
+// $PAGE->context is never set, so format_string() and $OUTPUT->header()
+// emit a "Coding problem: $PAGE->context was not set" notice. We give
+// $PAGE a system context explicitly so the rest of the page renders clean.
+$context = context_system::instance();
+$PAGE->set_context($context);
+$PAGE->set_url(new moodle_url('/local/grupomakro_core/pages/carnet_verify.php'));
+$PAGE->set_pagelayout('embedded');
+$PAGE->set_title('Carnet verifier');
+
 $userid = optional_param('u', 0, PARAM_INT);
 $token  = optional_param('t', '', PARAM_RAW);
 

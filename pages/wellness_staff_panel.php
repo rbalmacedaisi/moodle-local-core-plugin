@@ -36,10 +36,15 @@ $PAGE->set_pagelayout('admin');
 require_capability('local/grupomakro_core:manage_psychology_appointments', $context);
 
 // Cache-bust by JS file mtime (see wellness_dashboard.php for rationale).
+// One-shot `time()` suffix forces every browser to re-fetch on this
+// deploy — the previous `?v=` (1787934245) was cached and the broken
+// v-text-field kept being served. After this deploy the suffix can be
+// removed: a new mtime alone is enough to bust the cache.
 $jsfile = $CFG->dirroot . '/local/grupomakro_core/js/components/wellnessStaffPanel.js';
 $appjsfile = $CFG->dirroot . '/local/grupomakro_core/js/app.js';
-$assetversion = file_exists($jsfile) ? (int)filemtime($jsfile) : (int)time();
-$assetversion_app = file_exists($appjsfile) ? (int)filemtime($appjsfile) : (int)time();
+$deploystamp = (string)time();
+$assetversion = (file_exists($jsfile) ? (int)filemtime($jsfile) : (int)time()) . '-' . $deploystamp;
+$assetversion_app = (file_exists($appjsfile) ? (int)filemtime($appjsfile) : (int)time()) . '-' . $deploystamp;
 $ajaxUrl = json_encode($CFG->wwwroot . '/local/grupomakro_core/ajax.php');
 $sesskey = json_encode(sesskey());
 $wwwroot = json_encode($CFG->wwwroot);
