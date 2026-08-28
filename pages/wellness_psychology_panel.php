@@ -74,6 +74,12 @@ echo <<<EOT
   var ajaxUrl = $ajaxUrl;
   var sesskey = $sesskey;
   var wwwroot = $wwwroot;
+  // app.js's initVueApp() reads window.token to decide whether to fetch the
+  // active theme. If it is undefined, the JS still mounts the app but
+  // emits a "no themeToken" warning into the console. Setting it to the
+  // current session key makes the theme fetch take the normal path and
+  // silences the warning.
+  window.token = $sesskey;
 </script>
 EOT;
 
