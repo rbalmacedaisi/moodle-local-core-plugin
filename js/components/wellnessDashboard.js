@@ -393,23 +393,23 @@ Vue.component('wellness-dashboard', {
     template: `
 <v-container fluid>
 <v-tabs v-model="tab" background-color="primary" dark grow>
-      <v-tab value="partners">
+      <v-tab href="#partners">
         <v-icon left>mdi-handshake-outline</v-icon> Convenios
       </v-tab>
-      <v-tab value="events">
+      <v-tab href="#events">
         <v-icon left>mdi-calendar-star</v-icon> Eventos
       </v-tab>
-      <v-tab value="forms">
+      <v-tab href="#forms">
         <v-icon left>mdi-clipboard-text-outline</v-icon> Formularios dinámicos
       </v-tab>
-      <v-tab value="carnets">
+      <v-tab href="#carnets">
         <v-icon left>mdi-card-account-details-outline</v-icon> Carnets
       </v-tab>
     </v-tabs>
 
-  <v-window v-model="tab" class="mt-4">
+  <v-tabs-items v-model="tab" class="mt-4">
     <!-- â”€â”€ PARTNERS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
-    <v-window-item value="partners">
+    <v-tab-item value="partners">
       <v-card>
         <v-card-title>
           <v-text-field v-model="partnerSearch" label="Buscar por nombre o beneficio" prepend-inner-icon="mdi-magnify" hide-details clearable></v-text-field>
@@ -453,10 +453,10 @@ Vue.component('wellness-dashboard', {
           </template>
         </v-data-table>
       </v-card>
-    </v-window-item>
+    </v-tab-item>
 
     <!-- â”€â”€ EVENTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
-    <v-window-item value="events">
+    <v-tab-item value="events">
       <v-card>
         <v-card-title>
           <v-text-field v-model="eventSearch" label="Buscar evento" prepend-inner-icon="mdi-magnify" hide-details clearable></v-text-field>
@@ -500,10 +500,10 @@ Vue.component('wellness-dashboard', {
           </template>
         </v-data-table>
       </v-card>
-    </v-window-item>
+    </v-tab-item>
 
     <!-- â”€â”€ CARNETS (RF-07 / RF-09.4) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
-    <v-window-item value="carnets">
+    <v-tab-item value="carnets">
       <v-card>
         <v-card-title>Gestión de carnets digitales</v-card-title>
         <v-card-text>
@@ -559,10 +559,10 @@ Vue.component('wellness-dashboard', {
           </v-btn>
         </v-card-actions>
       </v-card>
-    </v-window-item>
+    </v-tab-item>
 
     <!-- â”€â”€ FORMS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
-    <v-window-item value="forms">
+    <v-tab-item value="forms">
       <v-card>
         <v-card-title>Formularios dinámicos</v-card-title>
         <v-card-text>
@@ -592,8 +592,8 @@ Vue.component('wellness-dashboard', {
           </v-data-table>
         </v-card-text>
       </v-card>
-    </v-window-item>
-  </v-window>
+    </v-tab-item>
+  </v-tabs-items>
 
   <!-- Partner dialog -->
   <v-dialog v-model="partnerDialog" max-width="700" scrollable>

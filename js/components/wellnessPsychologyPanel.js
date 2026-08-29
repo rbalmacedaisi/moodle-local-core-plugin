@@ -246,18 +246,18 @@ Vue.component('psychology-panel', {
     template: `
 <v-container fluid>
   <v-tabs v-model="tab" background-color="primary" dark grow>
-    <v-tab value="agenda">
+    <v-tab href="#agenda">
       <v-icon left>mdi-calendar-clock</v-icon> Agenda
     </v-tab>
-    <v-tab value="slots">
+    <v-tab href="#slots">
       <v-icon left>mdi-clock-outline</v-icon> Horarios recurrentes
     </v-tab>
   </v-tabs>
 
-  <v-window v-model="tab" class="mt-4">
+  <v-tabs-items v-model="tab" class="mt-4">
 
     <!-- Ã¢â€â‚¬Ã¢â€â‚¬ AGENDA Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ -->
-    <v-window-item value="agenda">
+    <v-tab-item value="agenda">
       <v-card>
         <v-card-title>
           <v-select v-model="fPsycho" :items="psychologistOptions" label="Especialista" hide-details style="max-width:240px"></v-select>
@@ -298,10 +298,10 @@ Vue.component('psychology-panel', {
           </template>
         </v-data-table>
       </v-card>
-    </v-window-item>
+    </v-tab-item>
 
     <!-- Ã¢â€â‚¬Ã¢â€â‚¬ SLOTS Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ -->
-    <v-window-item value="slots">
+    <v-tab-item value="slots">
       <v-card>
         <v-card-title>
           <span class="text-h6">Slots publicados</span>
@@ -338,9 +338,9 @@ Vue.component('psychology-panel', {
           </template>
         </v-data-table>
       </v-card>
-    </v-window-item>
+    </v-tab-item>
 
-  </v-window>
+  </v-tabs-items>
 
   <!-- Status dialog -->
   <v-dialog v-model="statusDialog" max-width="600" scrollable>
