@@ -23,6 +23,92 @@ $periodid = optional_param('periodid', '', PARAM_TEXT);
 $status   = optional_param('status',   '', PARAM_TEXT);
 $search   = optional_param('search',   '', PARAM_TEXT);
 
+/**
+ * Narrows a roster with the same filters the teacher dashboard student tab exposes.
+ *
+ * The dialog that triggers this export sends plan / period / status / search
+ * alongside the class id; they used to be read and then ignored, so the PDF
+ * always covered the whole class regardless of what the teacher had filtered.
+ *
+ * @param int[]  $userids   Roster to narrow.
+ * @param string $planid    Comma-separated learning plan ids.
+ * @param string $periodid  Comma-separated period ids.
+ * @param string $status    Student status ('studentstatus' profile field), partial match.
+ * @param string $search    Free text over name, email, document and phone.
+ * @return int[]
+ */
+function expcls_filter_userids(array $userids, string $planid, string $periodid,
+                               string $status, string $search): array {
+    global $DB;
+
+    if (empty($userids)) {
+        return [];
+    }
+
+    $planids   = array_values(array_filter(array_map('trim', explode(',', $planid)), 'is_numeric'));
+    $periodids = array_values(array_filter(array_map('trim', explode(',', $periodid)), 'is_numeric'));
+    $status    = trim($status);
+    $search    = trim($search);
+
+    if (empty($planids) && empty($periodids) && $status === '' && $search === '') {
+        return $userids;
+    }
+
+    list($uinsql, $params) = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED, 'fu');
+    $where = ["u.id $uinsql", 'u.deleted = 0'];
+    $joins = '';
+
+    // Only join the plan table when actually filtering by it: a student without
+    // a local_learning_users row must not silently drop out of the roster.
+    if (!empty($planids) || !empty($periodids)) {
+        $joins .= ' JOIN {local_learning_users} lpu ON lpu.userid = u.id ';
+        if (!empty($planids)) {
+            list($insql, $inparams) = $DB->get_in_or_equal($planids, SQL_PARAMS_NAMED, 'fplan');
+            $where[] = "lpu.learningplanid $insql";
+            $params  = array_merge($params, $inparams);
+        }
+        if (!empty($periodids)) {
+            list($insql, $inparams) = $DB->get_in_or_equal($periodids, SQL_PARAMS_NAMED, 'fperiod');
+            $where[] = "lpu.currentperiodid $insql";
+            $params  = array_merge($params, $inparams);
+        }
+    }
+
+    $joins .= ' LEFT JOIN {user_info_data} statusud
+                       ON statusud.userid = u.id AND statusud.fieldid = :statusfieldid ';
+    $joins .= ' LEFT JOIN {user_info_data} docud
+                       ON docud.userid = u.id AND docud.fieldid = :docfieldid ';
+    $params['statusfieldid'] = (int)$DB->get_field('user_info_field', 'id', ['shortname' => 'studentstatus']);
+    $params['docfieldid']    = (int)$DB->get_field('user_info_field', 'id', ['shortname' => 'documentnumber']);
+
+    if ($status !== '') {
+        $where[] = "LOWER(COALESCE(statusud.data, 'Activo')) LIKE :fstatus";
+        $params['fstatus'] = '%' . \core_text::strtolower($status) . '%';
+    }
+
+    if ($search !== '') {
+        $needle       = '%' . \core_text::strtolower($search) . '%';
+        $fullnameexpr = 'LOWER(' . $DB->sql_fullname('u.firstname', 'u.lastname') . ')';
+        $where[] = "(
+                $fullnameexpr LIKE :fsname
+                OR LOWER(COALESCE(u.email, '')) LIKE :fsemail
+                OR LOWER(COALESCE(docud.data, u.idnumber, '')) LIKE :fsdoc
+                OR LOWER(COALESCE(u.phone1, '')) LIKE :fsphone
+            )";
+        $params['fsname']  = $needle;
+        $params['fsemail'] = $needle;
+        $params['fsdoc']   = $needle;
+        $params['fsphone'] = $needle;
+    }
+
+    $rows = $DB->get_fieldset_sql(
+        'SELECT DISTINCT u.id FROM {user} u ' . $joins . ' WHERE ' . implode(' AND ', $where),
+        $params
+    );
+
+    return array_values(array_unique(array_map('intval', $rows)));
+}
+
 // ── Class info ────────────────────────────────────────────────────────────────
 $class     = null;
 $cname     = 'Todas las clases';
@@ -71,6 +157,13 @@ $userids = ($classid > 0)
 
 if (empty($userids)) {
     print_error('No students found for this class or class not specified.');
+}
+
+// Apply the filters carried over from the student tab dialog.
+$userids = expcls_filter_userids($userids, $planid, $periodid, $status, $search);
+
+if (empty($userids)) {
+    print_error('No students match the selected filters for this class.');
 }
 
 // ── Sessions ──────────────────────────────────────────────────────────────────
@@ -222,10 +315,14 @@ if ($course_id_for_grades > 0 && $classcategoryid > 0 && !empty($userids)) {
             $att_grademax = (float)$gi->grademax;
             if ($att_attid <= 0 || $att_grademax <= 0) continue;
 
+            // Same exclusion as gmk_batch_weighted_grades(): revalidation-week
+            // sessions are not part of the attendance grade, so the printed
+            // record has to match the consolidated grade.
             $att_totalrow = $DB->get_record_sql(
                 "SELECT COUNT(s.id) AS total
                    FROM {attendance_sessions} s
                   WHERE s.attendanceid = :attid
+                    AND COALESCE(s.is_revalida, 0) = 0
                     AND s.sessdate + s.duration < :now
                     AND (
                         EXISTS (SELECT 1 FROM {attendance_log} l WHERE l.sessionid = s.id)
@@ -244,6 +341,7 @@ if ($course_id_for_grades > 0 && $classcategoryid > 0 && !empty($userids)) {
                    JOIN {attendance_log} al ON al.sessionid = s.id AND al.studentid $att_stuinsql
                    LEFT JOIN {attendance_statuses} ast ON ast.id = al.statusid
                   WHERE s.attendanceid = :attid2
+                    AND COALESCE(s.is_revalida, 0) = 0
                     AND s.sessdate + s.duration < :now2
                     AND (
                         EXISTS (SELECT 1 FROM {attendance_log} l2 WHERE l2.sessionid = s.id)

@@ -1390,21 +1390,125 @@ function absd_get_class_past_session_ids(stdClass $class, int $nowts): array {
 }
 
 /**
- * Returns enrolled user ids for a class (Cursando only, status = 2).
+ * Removes users holding a teaching role from a class roster.
+ *
+ * The class instructor plus anyone with teacher/editingteacher in the class
+ * course: they can sit in the class group but must never be counted or graded
+ * as students.
+ *
+ * @param int[]         $userids
+ * @param stdClass|null $class    Record with instructorid / corecourseid / courseid.
+ * @return int[]
+ */
+function absd_strip_class_teachers(array $userids, $class): array {
+    global $DB;
+
+    if (empty($userids) || empty($class)) {
+        return $userids;
+    }
+
+    $exclude = [];
+    if (!empty($class->instructorid)) {
+        $exclude[(int)$class->instructorid] = true;
+    }
+
+    $coursectxid = (int)($class->corecourseid ?: $class->courseid);
+    if ($coursectxid > 0) {
+        list($insql, $params) = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED, 'tu');
+        $params['ctxcourse']   = CONTEXT_COURSE;
+        $params['coursectxid'] = $coursectxid;
+        $teachers = $DB->get_fieldset_sql(
+            "SELECT DISTINCT ra.userid
+               FROM {role_assignments} ra
+               JOIN {role} r      ON r.id = ra.roleid
+               JOIN {context} ctx ON ctx.id = ra.contextid
+              WHERE ra.userid $insql
+                AND ctx.contextlevel = :ctxcourse
+                AND ctx.instanceid = :coursectxid
+                AND r.shortname IN ('teacher', 'editingteacher')",
+            $params
+        );
+        foreach ($teachers as $t) {
+            $exclude[(int)$t] = true;
+        }
+    }
+
+    if (empty($exclude)) {
+        return $userids;
+    }
+
+    return array_values(array_filter($userids, static function ($uid) use ($exclude) {
+        return !isset($exclude[(int)$uid]);
+    }));
+}
+
+/**
+ * Returns the student user ids that make up a class roster.
+ *
+ * Union of the two ways a student can belong to a class, because neither one
+ * alone is complete:
+ *
+ *  - Group membership, which is what the teacher dashboard student tab lists
+ *    and what the attendance activity is scoped to. On its own it misses
+ *    students whose group row was never created.
+ *  - gmk_course_progre rows for the class with status = 2 (Cursando), the
+ *    previous sole source. On its own it silently dropped real students when
+ *    the row already carried a closing status (4 aprobada / 5 reprobada), when
+ *    the row for the subject still pointed at an earlier class, or when the
+ *    student attends the regular class but is enrolled through the MODULO
+ *    class, so the row lives on that other classid.
+ *
+ * Taking the union means the roster can only grow, never lose someone who used
+ * to be listed. Teachers are stripped out afterwards.
  *
  * @param int $classid
  * @return int[]
  */
 function absd_get_class_enrolled_userids(int $classid): array {
     global $DB;
-    $userids = $DB->get_fieldset_sql(
-        "SELECT DISTINCT userid
-           FROM {gmk_course_progre}
-          WHERE classid = :classid
-            AND status = 2",
+
+    $class = $DB->get_record(
+        'gmk_class',
+        ['id' => $classid],
+        'id, groupid, instructorid, corecourseid, courseid',
+        IGNORE_MISSING
+    );
+
+    $groupids = [];
+    if ($class && !empty($class->groupid)) {
+        $groupids = $DB->get_fieldset_sql(
+            "SELECT DISTINCT gm.userid
+               FROM {groups_members} gm
+               JOIN {user} u ON u.id = gm.userid
+              WHERE gm.groupid = :groupid
+                AND u.deleted = 0",
+            ['groupid' => (int)$class->groupid]
+        );
+    }
+
+    $progreids = $DB->get_fieldset_sql(
+        "SELECT DISTINCT cp.userid
+           FROM {gmk_course_progre} cp
+           JOIN {user} u ON u.id = cp.userid
+          WHERE cp.classid = :classid
+            AND cp.status = 2
+            AND u.deleted = 0",
         ['classid' => $classid]
     );
-    return array_values(array_unique(array_filter(array_map('intval', $userids))));
+
+    $userids = array_values(array_unique(array_filter(array_map(
+        'intval',
+        array_merge($groupids, $progreids)
+    ))));
+
+    if (empty($userids)) {
+        return [];
+    }
+
+    $userids = absd_strip_class_teachers($userids, $class);
+    sort($userids);
+
+    return $userids;
 }
 
 /**
