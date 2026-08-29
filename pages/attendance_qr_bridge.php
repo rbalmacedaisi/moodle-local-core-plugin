@@ -733,14 +733,90 @@ $existinglog = $DB->get_record('attendance_log', [
     'studentid' => (int)$USER->id,
 ], 'id,statusid,timetaken', IGNORE_MULTIPLE);
 if ($existinglog) {
+    // Having a row is NOT the same as being present. A status with grade 0 is an absence —
+    // typically the one written by the automatic session close when nobody registered. This
+    // used to answer "asistencia ya registrada" over that absence, so the student got a
+    // success screen while staying marked absent (audit 29-08-2026, sesion 9207).
+    $existingstatus = $DB->get_record('attendance_statuses',
+        ['id' => (int)$existinglog->statusid], 'id,grade,description');
+    $countsaspresent = $existingstatus && (float)$existingstatus->grade > 0;
+
+    if ($countsaspresent) {
+        gmk_qr_finish(
+            'success',
+            'already_marked',
+            'Asistencia ya registrada previamente para esta sesion.',
+            $target,
+            $sessionid,
+            (int)$USER->id,
+            ['attendance_log_id' => (int)$existinglog->id]
+        );
+    }
+
+    // The student is marked absent. If the self-marking window is still open the scan is
+    // valid and must replace that absence; take_from_student() refuses to touch an existing
+    // row ("Already recorded do not save"), so the replacement is written here.
+    [$canreplace, $replacereason] = attendance_can_student_mark($session);
+    if (!$canreplace) {
+        gmk_qr_finish(
+            'error',
+            'absent_window_closed',
+            'En esta sesion figuras como ausente y el plazo para registrarte ya cerro. '
+                . 'Muestra esta pantalla a tu docente para que revise tu asistencia.',
+            $target,
+            $sessionid,
+            (int)$USER->id,
+            [
+                'attendance_log_id' => (int)$existinglog->id,
+                'existing_status'   => $existingstatus ? (string)$existingstatus->description : '',
+                'attendance_reason' => (string)$replacereason,
+            ]
+        );
+    }
+
+    $replacepageparams = new stdClass();
+    $replacepageparams->sessid    = (int)$sessionid;
+    $replacepageparams->grouptype = 0;
+    $replacestructure = new mod_attendance_structure($attendance, $cm, $course, $replacepageparams);
+    $replacestatusid = attendance_session_get_highest_status($replacestructure, $session);
+    if (empty($replacestatusid)) {
+        gmk_qr_finish(
+            'error',
+            'no_valid_status',
+            'No hay un estado de asistencia valido para registrar.',
+            $target,
+            $sessionid,
+            (int)$USER->id
+        );
+    }
+
+    $replacement = new stdClass();
+    $replacement->id        = (int)$existinglog->id;
+    $replacement->statusid  = (int)$replacestatusid;
+    $replacement->statusset = implode(',', array_keys((array)$replacestructure->get_statuses()));
+    $replacement->timetaken = time();
+    $replacement->takenby   = (int)$USER->id;
+    $replacement->remarks   = get_string('set_by_student', 'mod_attendance');
+    $replacement->ipaddress = getremoteaddr(null);
+    $DB->update_record('attendance_log', $replacement);
+
+    try {
+        $replacestructure->update_users_grade([(int)$USER->id]);
+    } catch (Throwable $gradeerr) {
+        // Never fail the scan because of a grade recalculation problem.
+    }
+
     gmk_qr_finish(
         'success',
-        'already_marked',
-        'Asistencia ya registrada previamente para esta sesion.',
+        'absence_replaced',
+        'Asistencia registrada. Se corrigio la ausencia que figuraba en esta sesion.',
         $target,
         $sessionid,
         (int)$USER->id,
-        ['attendance_log_id' => (int)$existinglog->id]
+        [
+            'attendance_log_id' => (int)$existinglog->id,
+            'previous_status'   => $existingstatus ? (string)$existingstatus->description : '',
+        ]
     );
 }
 
@@ -895,7 +971,18 @@ try {
 ob_end_clean();
 
 if (!$success) {
-    if ($DB->record_exists('attendance_log', ['sessionid' => (int)$sessionid, 'studentid' => (int)$USER->id])) {
+    // Same rule as above: a row only means success when its status actually counts as
+    // attendance. take_from_student() returns false when a row already exists, so without
+    // this check a failed mark over an absence was reported to the student as success.
+    $postlog = $DB->get_record_sql(
+        "SELECT l.id, st.grade, st.description
+           FROM {attendance_log} l
+           LEFT JOIN {attendance_statuses} st ON st.id = l.statusid
+          WHERE l.sessionid = :sid AND l.studentid = :uid",
+        ['sid' => (int)$sessionid, 'uid' => (int)$USER->id],
+        IGNORE_MULTIPLE
+    );
+    if ($postlog && (float)$postlog->grade > 0) {
         gmk_qr_finish(
             'success',
             'already_marked',
@@ -903,6 +990,19 @@ if (!$success) {
             $target,
             $sessionid,
             (int)$USER->id
+        );
+    }
+    if ($postlog) {
+        gmk_qr_finish(
+            'error',
+            'mark_failed_absent',
+            'No fue posible registrar tu asistencia y en esta sesion figuras como ausente. '
+                . 'Muestra esta pantalla a tu docente para que revise tu asistencia.',
+            $target,
+            $sessionid,
+            (int)$USER->id,
+            ['attendance_log_id' => (int)$postlog->id,
+             'existing_status'   => (string)$postlog->description]
         );
     }
     gmk_qr_finish(
