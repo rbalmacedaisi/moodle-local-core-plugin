@@ -3476,6 +3476,47 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20260907000, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20260908000) {
+
+        // -------------------------------------------------------------------
+        // WELLNESS FASE 4 - Evaluacion docente post-sesion (RF-08).
+        // Decisiones de producto confirmadas con el cliente:
+        //   * SIN ANONIMATO: se guarda y se muestra el userid del estudiante.
+        //   * Disparador POR SESION: una evaluacion por (sesion, estudiante).
+        // Filtros acordados: se excluyen las clases de modulo
+        // (gmk_class.is_module = 1) y las sesiones de revalida.
+        // -------------------------------------------------------------------
+        $table = new xmldb_table('gmk_wellness_teacher_eval');
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('classid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('sessionid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('sessiondate', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('corecourseid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('instructorid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('status', XMLDB_TYPE_CHAR, '16', null, XMLDB_NOTNULL, null, 'enviada');
+        $table->add_field('rating_overall', XMLDB_TYPE_INTEGER, '2', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('rating_clarity', XMLDB_TYPE_INTEGER, '2', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('rating_punctuality', XMLDB_TYPE_INTEGER, '2', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('comment', XMLDB_TYPE_TEXT, 'medium', null, null, null, null);
+        $table->add_field('submitted_at', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('userfk', XMLDB_KEY_FOREIGN, ['userid'], 'user', ['id']);
+        // Una sola fila por (sesion, estudiante): enviar o descartar ocupa el
+        // hueco, de modo que el popup no vuelve a aparecer.
+        $table->add_index('session_user_uix', XMLDB_INDEX_UNIQUE, ['sessionid', 'userid']);
+        $table->add_index('class_status_idx', XMLDB_INDEX_NOTUNIQUE, ['classid', 'status']);
+        $table->add_index('instructor_date_idx', XMLDB_INDEX_NOTUNIQUE, ['instructorid', 'sessiondate']);
+        $table->add_index('user_status_idx', XMLDB_INDEX_NOTUNIQUE, ['userid', 'status']);
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        upgrade_plugin_savepoint(true, 20260908000, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 
