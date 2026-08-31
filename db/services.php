@@ -1644,6 +1644,15 @@ $functions = array(
         'ajax'        => true,
         'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
     ],
+    'local_grupomakro_admin_upload_wellness_image' => [
+        'classname'   => 'local_grupomakro_core\external\admin\wellness\admin_upload_wellness_image',
+        'methodname'  => 'execute',
+        'description' => 'Sube la imagen de portada de un convenio, evento o formulario dinamico y guarda su URL.',
+        'type'        => 'write',
+        'capabilities'=> 'local/grupomakro_core:manage_wellness',
+        'ajax'        => true,
+        'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
+    ],
     'local_grupomakro_admin_manage_carnet' => [
         'classname'   => 'local_grupomakro_core\external\admin\wellness\admin_manage_carnet',
         'methodname'  => 'execute',

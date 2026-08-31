@@ -58,6 +58,7 @@ class get_dynamic_form extends external_api {
                 'eventid'     => (int)$form->eventid,
                 'title'       => (string)$form->title,
                 'description' => (string)$form->description,
+            'cover_path'  => (string)($form->cover_path ?? ''),
                 'schema'      => $form->schema,
                 'active'      => (int)$form->active,
             ],
@@ -71,6 +72,7 @@ class get_dynamic_form extends external_api {
                 'eventid'     => new external_value(PARAM_INT,  'Event id (0 when reusable)'),
                 'title'       => new external_value(PARAM_TEXT, 'Title'),
                 'description' => new external_value(PARAM_RAW,  'Description'),
+            'cover_path'  => new external_value(PARAM_RAW,  'URL absoluta de la portada (vacio = sin portada)'),
                 'schema'      => new external_single_structure([
                     'fields' => new external_value(PARAM_RAW, 'JSON array of field definitions'),
                 ]),

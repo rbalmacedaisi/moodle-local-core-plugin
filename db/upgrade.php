@@ -3459,6 +3459,23 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20260906000, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20260907000) {
+
+        // -------------------------------------------------------------------
+        // WELLNESS - Imagen de portada para formularios dinamicos (RF-06).
+        // Convenios y eventos ya tenian logo_path / cover_path; el formulario
+        // no. Se guarda la URL absoluta de pluginfile para que la LXP (otro
+        // dominio) la resuelva tal cual.
+        // -------------------------------------------------------------------
+        $table = new xmldb_table('gmk_wellness_dynamic_form');
+        $field = new xmldb_field('cover_path', XMLDB_TYPE_CHAR, '255', null, null, null, '', 'schema_json');
+        if ($dbman->table_exists($table) && !$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        upgrade_plugin_savepoint(true, 20260907000, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

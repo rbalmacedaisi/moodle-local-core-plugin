@@ -1324,3 +1324,10 @@ $string['carnet:verify:result:invalid']   = 'Carnet invalid';
 $string['carnet:verify:invalid_title']   = 'Could not verify';
 $string['carnet:verify:invalid_help']    = 'Make sure the QR code is complete and the carnet has not been revoked.';
 $string['carnet:verify:footer']          = 'Public verifier of {$id} � no personal information is stored.';
+
+// Wellness: cover image upload (RF-01/02/06).
+$string['wellness_image_kind_invalid'] = 'Invalid cover kind.';
+$string['wellness_image_item_invalid'] = 'Target record does not exist; save it first, then upload the cover.';
+$string['wellness_image_format_invalid'] = 'Invalid format. Use JPG, PNG or WebP.';
+$string['wellness_image_too_big'] = 'The image exceeds the 3 MB limit.';
+$string['wellness_image_too_small'] = 'The image is too small ({$a->w}x{$a->h} px). Minimum is {$a->minw}x{$a->minh} px.';

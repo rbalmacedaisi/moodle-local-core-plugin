@@ -1330,3 +1330,10 @@ $string['eval:thanks'] = '¡Gracias por tu evaluación!';
 $string['eval:already_done'] = 'Ya evaluaste esta clase.';
 $string['eval:skipped'] = 'Entendido. Te recordaremos la próxima vez.';
 $string['eval:must_pick_stars'] = 'Selecciona al menos una estrella antes de enviar.';
+
+// Bienestar: subida de imagenes de portada (RF-01/02/06).
+$string['wellness_image_kind_invalid'] = 'Tipo de portada no valido.';
+$string['wellness_image_item_invalid'] = 'El registro destino no existe; guarda primero y vuelve a subir la portada.';
+$string['wellness_image_format_invalid'] = 'Formato no valido. Usa JPG, PNG o WebP.';
+$string['wellness_image_too_big'] = 'La imagen supera el maximo de 3 MB.';
+$string['wellness_image_too_small'] = 'La imagen es demasiado pequena ({$a->w}x{$a->h} px). El minimo es {$a->minw}x{$a->minh} px.';

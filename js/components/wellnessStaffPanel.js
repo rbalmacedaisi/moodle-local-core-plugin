@@ -299,7 +299,7 @@ Vue.component('staff-panel', {
               cambió de
               <span v-if="h.old_fullname">{{ h.old_fullname }}</span><span v-else class="grey--text">(sin asignar)</span>
               <span v-if="h.old_email"> &lt;{{ h.old_email }}&gt;</span>
-              â†’ <strong>{{ h.new_fullname || '(sin asignar)' }}</strong>
+              → <strong>{{ h.new_fullname || '(sin asignar)' }}</strong>
               <span v-if="h.new_email"> &lt;{{ h.new_email }}&gt;</span>
             </div>
           </v-timeline-item>

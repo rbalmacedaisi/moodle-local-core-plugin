@@ -3572,10 +3572,17 @@ try {
                     $att_grademax = $attinfo['grademax'];
                     if ($att_grademax <= 0) continue;
 
+                    // Revalidation-week sessions are excluded from BOTH the
+                    // denominator and the numerator, exactly like
+                    // gmk_batch_weighted_grades() (the function the class close
+                    // uses) and the student gradebook already do. Without this
+                    // filter the teacher's grid quoted a different attendance %
+                    // than the grade that actually gets consolidated.
                     $att_totalrow = $DB->get_record_sql(
                         "SELECT COUNT(s.id) AS total
                            FROM {attendance_sessions} s
                           WHERE s.attendanceid = :attid
+                            AND COALESCE(s.is_revalida, 0) = 0
                             AND s.sessdate + s.duration < :now
                             AND (
                                 EXISTS (SELECT 1 FROM {attendance_log} l WHERE l.sessionid = s.id)
@@ -3594,6 +3601,7 @@ try {
                            JOIN {attendance_log} al ON al.sessionid = s.id AND al.studentid $att_stuinsql
                            LEFT JOIN {attendance_statuses} ast ON ast.id = al.statusid
                           WHERE s.attendanceid = :attid2
+                            AND COALESCE(s.is_revalida, 0) = 0
                             AND s.sessdate + s.duration < :now2
                             AND (
                                 EXISTS (SELECT 1 FROM {attendance_log} l2 WHERE l2.sessionid = s.id)

@@ -292,6 +292,25 @@ function local_grupomakro_core_pluginfile($course, $cm, $context, $filearea, arr
     // F-16: wellness_carnet_photo filearea removed (no write side yet);
     // the carnet uses user.picture profile photo as fallback via
     // wellness_carnet_manager::photo_url().
+    // Portadas de Bienestar (convenios, eventos, formularios). Son imagenes
+    // promocionales, sin datos personales, y las consume la LXP desde OTRO
+    // dominio (students.isi.edu.pa): con SameSite=Lax el navegador no manda la
+    // cookie de Moodle en una peticion de <img> cross-site, asi que exigir
+    // sesion las dejaria rotas. Se sirven publicas a proposito.
+    $publicareas = ['wellness_partner_logo', 'wellness_event_cover', 'wellness_form_cover'];
+    if (in_array($filearea, $publicareas, true)) {
+        $itemid   = array_shift($args);
+        $filename = array_pop($args);
+        $filepath = $args ? '/' . implode('/', $args) . '/' : '/';
+        $fs = get_file_storage();
+        $file = $fs->get_file($context->id, 'local_grupomakro_core', $filearea, (int)$itemid, $filepath, $filename);
+        if (!$file || $file->is_directory()) {
+            return false;
+        }
+        send_stored_file($file, 60 * 60 * 24, 0, false, $options);
+        return true;
+    }
+
     $areas = [
         'diploma_background' => 'local/grupomakro_core:managediplomas',
         'diploma_document'   => 'local/grupomakro_core:viewdiplomas',

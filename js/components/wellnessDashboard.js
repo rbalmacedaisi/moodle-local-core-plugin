@@ -15,6 +15,9 @@ Vue.component('wellness-dashboard', {
         return {
             tab: 'partners',
             loading: false,
+            partnerImage: null,
+            eventImage: null,
+            imageUploading: false,
             snack: { show: false, color: 'success', text: '' },
 
             // Partners
@@ -187,8 +190,9 @@ Vue.component('wellness-dashboard', {
             }
         },
 
-        // â”€â”€ Partners â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // -- Partners ------------------
         openPartnerDialog(p) {
+            this.partnerImage = null;
             this.partner = p ? Object.assign(this._blankPartner(), p, {
                 startdate_ts: p.startdate || 0,
                 enddate_ts:   p.enddate   || 0,
@@ -196,6 +200,37 @@ Vue.component('wellness-dashboard', {
                 enddate:      p.enddate   ? this._fmtDateTimeLocal(p.enddate)   : '',
             }) : this._blankPartner();
             this.partnerDialog = true;
+        },
+        // Lee el fichero como data URL y lo manda al WS de portada. Se llama
+        // DESPUES de guardar, porque el endpoint necesita el id del registro.
+        readAsDataUrl(file) {
+            return new Promise((resolve, reject) => {
+                const fr = new FileReader();
+                fr.onload = () => resolve(fr.result);
+                fr.onerror = () => reject(new Error('No se pudo leer el archivo'));
+                fr.readAsDataURL(file);
+            });
+        },
+        async uploadCover(kind, itemid, file) {
+            if (!file || !itemid) return null;
+            this.imageUploading = true;
+            try {
+                const content = await this.readAsDataUrl(file);
+                const res = await axios.post(ajaxUrl, {
+                    action: 'local_grupomakro_admin_upload_wellness_image',
+                    args: { kind, itemid, content },
+                }, { params: { sesskey }, timeout: 60000 });
+                if (res.data && res.data.status === 'success' && res.data.data) {
+                    return res.data.data.url;
+                }
+                this.toast(res.data && res.data.message ? res.data.message : 'No se pudo subir la portada', 'error');
+                return null;
+            } catch (e) {
+                this.toast('Error al subir la portada: ' + (e.message || e), 'error');
+                return null;
+            } finally {
+                this.imageUploading = false;
+            }
         },
         async savePartner() {
             this.partnerSaving = true;
@@ -220,6 +255,11 @@ Vue.component('wellness-dashboard', {
                     args
                 }, { params: { sesskey }, timeout: 30000 });
                 if (res.data && res.data.status === 'success') {
+                    const newid = (res.data.data && res.data.data.id) || this.partner.id || 0;
+                    if (this.partnerImage) {
+                        await this.uploadCover('partner', newid, this.partnerImage);
+                        this.partnerImage = null;
+                    }
                     this.toast('Convenio guardado.');
                     this.partnerDialog = false;
                     await this.refreshPartners();
@@ -245,7 +285,7 @@ Vue.component('wellness-dashboard', {
             } catch (e) { this.toast('Error: ' + (e.message || e), 'error'); }
         },
 
-        // â”€â”€ Carnets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // -- Carnets ------------------
         async onCarnetUserQuery(value) {
             if (!value || value.length < 2) { this.carnetUserOptions = []; return }
             try {
@@ -273,8 +313,9 @@ Vue.component('wellness-dashboard', {
             } catch (e) { this.toast('Error: ' + (e.message || e), 'error'); }
         },
 
-        // â”€â”€ Events â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // -- Events ------------------
         openEventDialog(e) {
+            this.eventImage = null;
             this.eventAttachments = e && e.id ? [] : [];
             this.event = e ? Object.assign(this._blankEvent(), e, {
                 startdate_ts: e.startdate || 0,
@@ -322,6 +363,11 @@ Vue.component('wellness-dashboard', {
                     args
                 }, { params: { sesskey }, timeout: 30000 });
                 if (res.data && res.data.status === 'success') {
+                    const newid = (res.data.data && res.data.data.id) || this.event.id || 0;
+                    if (this.eventImage) {
+                        await this.uploadCover('event', newid, this.eventImage);
+                        this.eventImage = null;
+                    }
                     this.toast('Evento guardado.');
                     this.eventDialog = false;
                     await this.refreshEvents();
@@ -375,7 +421,7 @@ Vue.component('wellness-dashboard', {
             } catch (err) { this.toast('Error: ' + (err.message || err), 'error'); }
         },
 
-        // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // -- Helpers ------------------
         _fmtDateTimeLocal(ts) {
             const d = new Date(ts * 1000);
             const pad = n => String(n).padStart(2, '0');
@@ -408,7 +454,7 @@ Vue.component('wellness-dashboard', {
     </v-tabs>
 
   <v-tabs-items v-model="tab" class="mt-4">
-    <!-- â”€â”€ PARTNERS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+    <!-- -- PARTNERS ------------------ -->
     <v-tab-item value="partners">
       <v-card>
         <v-card-title>
@@ -434,7 +480,7 @@ Vue.component('wellness-dashboard', {
         >
           <template v-slot:item.period="{ item }">
             <span v-if="item.startdate && item.enddate">
-              {{ formatDate(item.startdate) }} <br> â†’ {{ formatDate(item.enddate) }}
+              {{ formatDate(item.startdate) }} <br> → {{ formatDate(item.enddate) }}
             </span>
             <span v-else-if="item.startdate">Desde {{ formatDate(item.startdate) }}</span>
             <span v-else-if="item.enddate">Hasta {{ formatDate(item.enddate) }}</span>
@@ -455,7 +501,7 @@ Vue.component('wellness-dashboard', {
       </v-card>
     </v-tab-item>
 
-    <!-- â”€â”€ EVENTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+    <!-- -- EVENTS ------------------ -->
     <v-tab-item value="events">
       <v-card>
         <v-card-title>
@@ -502,7 +548,7 @@ Vue.component('wellness-dashboard', {
       </v-card>
     </v-tab-item>
 
-    <!-- â”€â”€ CARNETS (RF-07 / RF-09.4) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+    <!-- -- CARNETS (RF-07 / RF-09.4) ------------------ -->
     <v-tab-item value="carnets">
       <v-card>
         <v-card-title>Gestión de carnets digitales</v-card-title>
@@ -561,7 +607,7 @@ Vue.component('wellness-dashboard', {
       </v-card>
     </v-tab-item>
 
-    <!-- â”€â”€ FORMS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+    <!-- -- FORMS ------------------ -->
     <v-tab-item value="forms">
       <v-card>
         <v-card-title>Formularios dinámicos</v-card-title>
@@ -622,6 +668,24 @@ Vue.component('wellness-dashboard', {
           </v-col>
         </v-row>
         <v-text-field v-model.number="partner.sort" label="Orden" type="number"></v-text-field>
+        <v-divider class="my-3"></v-divider>
+        <div class="text-subtitle-2 mb-1">Logo / portada del convenio</div>
+        <v-alert dense text type="info" class="mb-2">
+          Tamaño recomendado <strong>600 x 600 px</strong> (cuadrado). Mínimo 300 x 300 px.
+          Formatos JPG, PNG o WebP, hasta 3 MB. Es la imagen que ve el estudiante en la tarjeta del convenio.
+        </v-alert>
+        <v-img v-if="partner.logo_path" :src="partner.logo_path" max-height="120" contain class="mb-2 grey lighten-4"></v-img>
+        <v-file-input
+          v-model="partnerImage"
+          accept="image/jpeg,image/png,image/webp"
+          label="Subir logo (se guarda al pulsar Guardar)"
+          prepend-icon="mdi-image"
+          show-size
+          clearable
+          :loading="imageUploading"
+          hint="Si dejas este campo vacío se conserva la imagen actual."
+          persistent-hint
+        ></v-file-input>
         <v-switch v-model="partner.active" label="Activo" inset></v-switch>
       </v-card-text>
       <v-card-actions>
@@ -681,6 +745,24 @@ Vue.component('wellness-dashboard', {
         </v-row>
         <v-switch v-model="event.requires_registration" label="Requiere inscripción" inset></v-switch>
         <v-switch v-model="event.allow_waitlist" label="Permitir lista de espera cuando se llene" inset></v-switch>
+        <v-divider class="my-3"></v-divider>
+        <div class="text-subtitle-2 mb-1">Imagen de portada del evento</div>
+        <v-alert dense text type="info" class="mb-2">
+          Tamaño recomendado <strong>1200 x 630 px</strong> (relación 1.91:1). Mínimo 600 x 315 px.
+          Formatos JPG, PNG o WebP, hasta 3 MB. Se muestra al estudiante en la tarjeta y en el detalle del evento.
+        </v-alert>
+        <v-img v-if="event.cover_path" :src="event.cover_path" max-height="160" contain class="mb-2 grey lighten-4"></v-img>
+        <v-file-input
+          v-model="eventImage"
+          accept="image/jpeg,image/png,image/webp"
+          label="Subir portada (se guarda al pulsar Guardar)"
+          prepend-icon="mdi-image"
+          show-size
+          clearable
+          :loading="imageUploading"
+          hint="Si dejas este campo vacío se conserva la imagen actual."
+          persistent-hint
+        ></v-file-input>
         <v-switch v-model="event.active" label="Activo" inset></v-switch>
 
         <v-divider class="my-3"></v-divider>

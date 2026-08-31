@@ -11615,12 +11615,17 @@ function gmk_get_student_attendance_summary($userid, $classid) {
         }
         
         list($insql, $inparams) = $DB->get_in_or_equal($absence_status_ids, SQL_PARAMS_NAMED, 'abs');
-        $sql = "SELECT COUNT(l.id) 
+        // Revalidation-week sessions never count as an absence, the same rule
+        // absd_get_class_past_session_ids() applies to the alert/blocking
+        // system. Without this the teacher-facing counter reported one more
+        // absence than the system that actually alerts and blocks.
+        $sql = "SELECT COUNT(l.id)
                 FROM {attendance_log} l
                 JOIN {attendance_sessions} s ON s.id = l.sessionid
                 WHERE l.studentid = :userid
                   AND s.attendanceid = :attid
                   AND s.groupid = :groupid
+                  AND COALESCE(s.is_revalida, 0) = 0
                   AND l.statusid $insql";
                   
         $inparams['userid'] = $userid;

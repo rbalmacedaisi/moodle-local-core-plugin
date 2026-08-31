@@ -120,6 +120,9 @@ class wellness_dynamic_form_manager {
             'title'        => mb_substr($title, 0, 255),
             'description'  => (string)($payload['description'] ?? ''),
             'schema_json'  => json_encode($schema, JSON_UNESCAPED_UNICODE),
+            // La portada la escribe admin_upload_wellness_image; aqui solo se
+            // conserva o se limpia, nunca se inventa.
+            'cover_path'   => mb_substr((string)($payload['cover_path'] ?? ''), 0, 255),
             'active'       => !empty($payload['active']) ? 1 : 0,
             'usermodified' => $authorid,
             'timemodified' => $now,
