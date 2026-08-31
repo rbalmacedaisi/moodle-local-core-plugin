@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * Debug page: absence mapping and attendance linkage diagnostics.
  *
