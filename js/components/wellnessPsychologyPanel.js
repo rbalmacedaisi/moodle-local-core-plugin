@@ -22,6 +22,7 @@ Vue.component('psychology-panel', {
             // Data
             appointments: [],
             slots: [],
+            psychologists: [],
             specialists: [], // unique psychologist list derived from appointments
             loading: false,
             // Status change dialog
@@ -151,6 +152,9 @@ Vue.component('psychology-panel', {
                 }, { params: { sesskey }, timeout: 30000 })
                 if (res.data && res.data.status === 'success' && res.data.data) {
                     this.slots = res.data.data.slots || []
+                    this.psychologists = res.data.data.psychologists || []
+                } else {
+                    this.toast(res.data && res.data.message ? res.data.message : 'No se pudieron cargar los horarios', 'error')
                 }
             } catch (e) {
                 this.toast('Error al cargar slots: ' + (e.message || e), 'error')
@@ -216,12 +220,16 @@ Vue.component('psychology-panel', {
                         slot: JSON.stringify(this.slot),
                     },
                 }, { params: { sesskey }, timeout: 30000 })
-                if (res.data && res.data.status === 'success') {
-                    this.toast('Slot guardado.')
+                const d = res.data || {}
+                if (d.status === 'success' && d.data && d.data.ok) {
+                    this.toast('Horario guardado.')
                     this.slotDialog = false
                     await this.refreshSlots()
                 } else {
-                    this.toast(res.data && res.data.message ? res.data.message : 'Error', 'error')
+                    // El WS devuelve ok:false con el motivo dentro de data.error;
+                    // el envoltorio de ajax.php sigue siendo status:'success'.
+                    const msg = (d.data && d.data.error) || d.message || 'No se pudo guardar el horario'
+                    this.toast(msg, 'error')
                 }
             } catch (e) {
                 this.toast('Error: ' + (e.message || e), 'error')
@@ -235,8 +243,11 @@ Vue.component('psychology-panel', {
                     action: 'local_grupomakro_admin_save_psychology_slots',
                     args: { action: 'toggle', slotid: s.id, active: !s.active },
                 }, { params: { sesskey }, timeout: 30000 })
-                if (res.data && res.data.status === 'success') {
+                const d = res.data || {}
+                if (d.status === 'success' && d.data && d.data.ok) {
                     await this.refreshSlots()
+                } else {
+                    this.toast((d.data && d.data.error) || d.message || 'No se pudo cambiar el estado', 'error')
                 }
             } catch (e) {
                 this.toast('Error: ' + (e.message || e), 'error')
@@ -367,7 +378,24 @@ Vue.component('psychology-panel', {
     <v-card>
       <v-card-title>{{ slot.id ? 'Editar slot' : 'Nuevo slot' }}</v-card-title>
       <v-card-text>
-        <v-text-field v-model.number="slot.psychologist_userid" label="ID Psicólogo (userid)" type="number" hint="Use el admin de Staff para mapear el usuario correctamente." persistent-hint></v-text-field>
+        <v-select
+          v-model="slot.psychologist_userid"
+          :items="psychologists"
+          item-text="fullname"
+          item-value="id"
+          label="Psicólogo/a"
+          prepend-inner-icon="mdi-account"
+          :hint="psychologists.length ? 'Salen los usuarios con permiso para gestionar citas y los asignados a un rol de psicología en el panel de Personal.' : 'No hay candidatos: asigna el rol psicologo_titular en el panel de Personal, o da la capability manage_psychology_appointments.'"
+          persistent-hint
+          no-data-text="Sin candidatos disponibles"
+        >
+          <template v-slot:item="{ item }">
+            <v-list-item-content>
+              <v-list-item-title>{{ item.fullname }}</v-list-item-title>
+              <v-list-item-subtitle>{{ item.email }} · {{ item.source }}</v-list-item-subtitle>
+            </v-list-item-content>
+          </template>
+        </v-select>
         <v-select v-model="slot.weekday" :items="weekdayItems" label="Día"></v-select>
         <v-row>
           <v-col cols="6"><v-text-field v-model="slot.starttime" label="Hora inicio (HH:MM)"></v-text-field></v-col>

@@ -64,12 +64,15 @@ class admin_save_psychology_slots extends external_api {
                 $id = \local_grupomakro_core\local\wellness_psychology_manager::upsert_slot(
                     $decoded, (int)$USER->id);
             } catch (\moodle_exception $e) {
-                return ['ok' => false, 'error' => $e->getMessage(), 'slots' => []];
+                return ['ok' => false, 'id' => 0, 'error' => $e->getMessage(),
+                        'slots' => self::slot_rows(), 'psychologists' => self::psychologist_options()];
             }
             return [
                 'ok'    => true,
                 'id'    => (int)$id,
+                'error' => '',
                 'slots' => self::slot_rows(),
+                'psychologists' => self::psychologist_options(),
             ];
         }
         if ($action === 'toggle') {
@@ -78,15 +81,60 @@ class admin_save_psychology_slots extends external_api {
             return [
                 'ok'    => $ok,
                 'id'    => (int)$params['slotid'],
+                'error' => '',
                 'slots' => self::slot_rows(),
+                'psychologists' => self::psychologist_options(),
             ];
         }
         // list (default)
         return [
             'ok'    => true,
             'id'    => 0,
+            'error' => '',
             'slots' => self::slot_rows(),
+            'psychologists' => self::psychologist_options(),
         ];
+    }
+
+
+    /**
+     * Candidatos para el desplegable de especialista: quien tenga la capability
+     * de gestionar citas, mas quien este asignado a los rolekeys de psicologia
+     * en el panel de personal (aunque no tenga la capability todavia).
+     */
+    private static function psychologist_options(): array {
+        global $DB;
+        $context = context_system::instance();
+        $out = [];
+
+        foreach (get_users_by_capability($context,
+                'local/grupomakro_core:manage_psychology_appointments',
+                'u.id, u.firstname, u.lastname, u.email') as $u) {
+            $out[(int)$u->id] = [
+                'id'       => (int)$u->id,
+                'fullname' => trim($u->firstname . ' ' . $u->lastname),
+                'email'    => (string)$u->email,
+                'source'   => 'capacidad',
+            ];
+        }
+
+        $sql = "SELECT u.id, u.firstname, u.lastname, u.email, r.rolekey
+                  FROM {gmk_wellness_staff_role} r
+                  JOIN {user} u ON u.id = r.userid
+                 WHERE r.userid > 0 AND u.deleted = 0 AND u.suspended = 0
+                   AND " . $DB->sql_like('r.rolekey', ':pref', false);
+        foreach ($DB->get_records_sql($sql, ['pref' => 'psicologo%']) as $u) {
+            $out[(int)$u->id] = [
+                'id'       => (int)$u->id,
+                'fullname' => trim($u->firstname . ' ' . $u->lastname),
+                'email'    => (string)$u->email,
+                'source'   => 'rol asignado',
+            ];
+        }
+
+        $rows = array_values($out);
+        usort($rows, function ($a, $b) { return strcasecmp($a['fullname'], $b['fullname']); });
+        return $rows;
     }
 
     private static function slot_rows(): array {
@@ -140,6 +188,12 @@ class admin_save_psychology_slots extends external_api {
             'id'    => new external_value(PARAM_INT,  'Touched slot id (0 for list)'),
             'error' => new external_value(PARAM_TEXT, 'Error code on failure'),
             'slots' => new external_multiple_structure($row, 'Updated slots catalogue'),
+            'psychologists' => new external_multiple_structure(new external_single_structure([
+                'id'       => new external_value(PARAM_INT,  'userid'),
+                'fullname' => new external_value(PARAM_TEXT, 'Nombre completo'),
+                'email'    => new external_value(PARAM_TEXT, 'Email'),
+                'source'   => new external_value(PARAM_TEXT, 'rol asignado | capacidad'),
+            ]), 'Candidatos para el desplegable de especialista'),
         ]);
     }
 }
