@@ -47,8 +47,8 @@ class wellness_partner_manager {
     public static function seed_categories(): array {
         return [
             ['key' => 'salud',       'label' => 'Salud',         'sort' => 10],
-            ['key' => 'educacion',   'label' => 'EducaciÃ³n',     'sort' => 20],
-            ['key' => 'tecnologia',  'label' => 'TecnologÃ­a',    'sort' => 30],
+            ['key' => 'educacion',   'label' => 'Educación',     'sort' => 20],
+            ['key' => 'tecnologia',  'label' => 'Tecnología',    'sort' => 30],
             ['key' => 'retail',      'label' => 'Retail',        'sort' => 40],
             ['key' => 'transporte',  'label' => 'Transporte',    'sort' => 50],
             ['key' => 'ocio',        'label' => 'Ocio y cultura','sort' => 60],

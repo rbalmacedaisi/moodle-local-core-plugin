@@ -350,7 +350,7 @@ class wellness_psychology_manager {
         }
 
         // Fire notifications (outside the txn so a mail failure doesn't
-        // undo the booking). Failures are silent â€” the appointment row is
+        // undo the booking). Failures are silent — the appointment row is
         // the source of truth.
         $vars = [
             'studentname' => fullname($USER),

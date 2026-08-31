@@ -42,7 +42,7 @@ class wellness_mailer {
 
     /**
      * Send a notification to the staff members currently bound to the given
-     * rolekey (and, when relevant, to additional rolekeys â€” for instance a
+     * rolekey (and, when relevant, to additional rolekeys — for instance a
      * new request notifies both talento_humano and bienestar_jefe).
      *
      * @param int   $appointmentId  Used to update staff_notified_at.
@@ -210,7 +210,7 @@ class wellness_mailer {
         if (trim($emailOverride) === '') {
             return false;
         }
-        // F-06: email_to_user()'s guard is `empty($user->id)` â€” falsy when
+        // F-06: email_to_user()'s guard is `empty($user->id)` — falsy when
         // id is 0/null/''. The core itself uses -1 as the conventional
         // "synthetic recipient" id (see core_user::get_user(); when no row
         // exists). We populate the other fields email_to_user() touches

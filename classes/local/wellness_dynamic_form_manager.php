@@ -23,7 +23,7 @@
  *    "fields": [
  *      {
  *        "name":     "dietary_preference",
- *        "label":    "RestricciÃ³n alimentaria",
+ *        "label":    "Restricción alimentaria",
  *        "type":     "text|textarea|select|multiselect|checkbox|number|date",
  *        "required": true,
  *        "options":  ["Vegetariano", "Vegano", "Sin gluten"],

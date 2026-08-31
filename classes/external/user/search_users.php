@@ -18,23 +18,35 @@ class search_users extends external_api {
     public static function execute_parameters() {
         return new external_function_parameters([
             'query' => new external_value(PARAM_TEXT, 'Search query (name, email)'),
+            // Optional: callers that render a short dropdown (e.g. the wellness
+            // staff roster) ask for fewer rows. Omitted by older callers.
+            'limit' => new external_value(PARAM_INT, 'Max rows (1-50)', VALUE_DEFAULT, 20),
         ]);
     }
 
     /**
      * Execute.
      */
-    public static function execute($query) {
+    public static function execute($query, $limit = 20) {
         global $DB, $CFG;
 
-        $params = self::validate_parameters(self::execute_parameters(), ['query' => $query]);
+        $params = self::validate_parameters(self::execute_parameters(),
+            ['query' => $query, 'limit' => $limit]);
         $query = trim($params['query']);
+        $limit = min(50, max(1, (int)$params['limit']));
 
         $context = context_system::instance();
         self::validate_context($context);
-        require_capability('moodle/site:config', $context); // Admin only for now
+        // Site admins keep full access. The wellness back-office needs the same
+        // picker to assign staff, and those pages are gated by their own
+        // capabilities, so accept either of them instead of forcing siteadmin.
+        if (!has_capability('moodle/site:config', $context)
+            && !has_capability('local/grupomakro_core:manage_wellness', $context)
+            && !has_capability('local/grupomakro_core:manage_psychology_appointments', $context)) {
+            require_capability('moodle/site:config', $context);
+        }
 
-        if (strlen($query) < 3) {
+        if (\core_text::strlen($query) < 3) {
             return []; // Minimum 3 chars
         }
 
@@ -46,7 +58,7 @@ class search_users extends external_api {
                 ORDER BY firstname ASC, lastname ASC";
         
         $q = '%' . $DB->sql_like_escape($query) . '%';
-        $users = $DB->get_records_sql($sql, ['q1'=>$q, 'q2'=>$q, 'q3'=>$q, 'q4'=>$q], 0, 20);
+        $users = $DB->get_records_sql($sql, ['q1'=>$q, 'q2'=>$q, 'q3'=>$q, 'q4'=>$q], 0, $limit);
 
         $result = [];
         foreach ($users as $u) {

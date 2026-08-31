@@ -37,7 +37,7 @@ class wellness_registration_manager {
 
     /**
      * Seconds we'll wait to acquire the lock before giving up with
-     * busy_retry. This is NOT a lock lifetime â€” the actual lifetime is
+     * busy_retry. This is NOT a lock lifetime — the actual lifetime is
      * managed by the lock factory and survives until release() in finally.
      */
     private const LOCK_WAIT_SECONDS = 10;

@@ -29,6 +29,7 @@ Vue.component('staff-panel', {
             },
             userSearch: '',
             userOptions: [],
+            userLoading: false,
             historyDialog: false,
             historyRole: null,
             historyRows: [],
@@ -78,17 +79,38 @@ Vue.component('staff-panel', {
             this.dialog = true
         },
         async onUserQuery(value) {
-            if (!value || value.length < 2) { this.userOptions = []; return }
+            // El WS exige 3 caracteres; por debajo ni siquiera consultamos.
+            if (!value || value.length < 3) {
+                this.userOptions = this.form.userid
+                    ? this.userOptions.filter(u => u.id === this.form.userid)
+                    : []
+                return
+            }
+            this.userLoading = true
             try {
                 const res = await axios.post(ajaxUrl, {
                     action: 'local_grupomakro_search_users',
-                    args: { query: value, limit: 8 },
+                    args: { query: value, limit: 20 },
                 }, { params: { sesskey }, timeout: 30000 })
-                if (res.data && res.data.status === 'success' && res.data.data) {
-                    this.userOptions = res.data.data.users || []
+                if (res.data && res.data.status === 'success') {
+                    // local_grupomakro_search_users devuelve un ARRAY PLANO,
+                    // no un objeto {users: [...]}.
+                    const rows = Array.isArray(res.data.data) ? res.data.data : []
+                    // Conservamos el usuario ya seleccionado aunque no salga en
+                    // los resultados, para que v-autocomplete no pierda la etiqueta.
+                    const current = this.userOptions.find(u => u.id === this.form.userid)
+                    const merged = rows.slice()
+                    if (current && !merged.some(u => u.id === current.id)) merged.unshift(current)
+                    this.userOptions = merged
+                } else {
+                    this.userOptions = []
+                    this.toast(res.data && res.data.message ? res.data.message : 'No se pudo buscar usuarios', 'error')
                 }
             } catch (e) {
-                // Soft-fail: keep the current selection.
+                this.userOptions = []
+                this.toast('Error al buscar usuarios: ' + (e.message || e), 'error')
+            } finally {
+                this.userLoading = false
             }
         },
         pickUser(u) {
@@ -107,8 +129,9 @@ Vue.component('staff-panel', {
                     args: {
                         rolekey: this.form.rolekey,
                         role_label: this.form.role_label,
-                        userid: this.form.userid,
-                        email_override: this.form.email_override,
+                        // v-autocomplete deja null al limpiar; el WS espera PARAM_INT.
+                        userid: Number(this.form.userid) || 0,
+                        email_override: this.form.email_override || '',
                         notify_on_request: this.form.notify_on_request,
                         notify_on_change: this.form.notify_on_change,
                     },
@@ -212,15 +235,20 @@ Vue.component('staff-panel', {
           v-model="form.userid"
           :items="userOptions"
           :search-input.sync="userSearch"
+          :loading="userLoading"
           item-text="fullname"
           item-value="id"
           label="Usuario Moodle"
-          placeholder="Buscar por nombre, apellido o email"
+          placeholder="Escribe al menos 3 letras del nombre, apellido o email"
           prepend-inner-icon="mdi-account-search"
           @update:search-input="onUserQuery"
           clearable
           @click:clear="clearUser"
-          return-object
+          :filter="() => true"
+          no-filter
+          :no-data-text="userSearch && userSearch.length >= 3 ? 'Sin coincidencias' : 'Escribe al menos 3 caracteres'"
+          hint="La búsqueda se hace en el servidor por nombre, apellido, email o usuario."
+          persistent-hint
         >
           <template v-slot:item="{ item }">
             <v-list-item-content>
