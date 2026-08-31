@@ -1331,3 +1331,5 @@ $string['wellness_image_item_invalid'] = 'Target record does not exist; save it 
 $string['wellness_image_format_invalid'] = 'Invalid format. Use JPG, PNG or WebP.';
 $string['wellness_image_too_big'] = 'The image exceeds the 3 MB limit.';
 $string['wellness_image_too_small'] = 'The image is too small ({$a->w}x{$a->h} px). Minimum is {$a->minw}x{$a->minh} px.';
+
+$string['wellness_slot_has_appointments'] = 'Cannot delete: this slot has {$a} upcoming booked appointment(s). Deactivate it instead to stop offering it without affecting those bookings.';

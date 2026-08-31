@@ -23,6 +23,9 @@ Vue.component('psychology-panel', {
             appointments: [],
             slots: [],
             psychologists: [],
+            deleteDialog: false,
+            slotToDelete: null,
+            deleting: false,
             specialists: [], // unique psychologist list derived from appointments
             loading: false,
             // Status change dialog
@@ -237,6 +240,34 @@ Vue.component('psychology-panel', {
                 this.slotSaving = false
             }
         },
+        askDeleteSlot(s) {
+            this.slotToDelete = s
+            this.deleteDialog = true
+        },
+        async confirmDeleteSlot() {
+            if (!this.slotToDelete) return
+            this.deleting = true
+            try {
+                const res = await axios.post(ajaxUrl, {
+                    action: 'local_grupomakro_admin_save_psychology_slots',
+                    args: { action: 'delete', slotid: this.slotToDelete.id },
+                }, { params: { sesskey }, timeout: 30000 })
+                const d = res.data || {}
+                if (d.status === 'success' && d.data && d.data.ok) {
+                    this.slots = d.data.slots || []
+                    this.deleteDialog = false
+                    this.slotToDelete = null
+                    this.toast('Horario eliminado.')
+                } else {
+                    // Motivo tipico: el horario tiene citas futuras reservadas.
+                    this.toast((d.data && d.data.error) || d.message || 'No se pudo eliminar el horario', 'error')
+                }
+            } catch (e) {
+                this.toast('Error al eliminar: ' + (e.message || e), 'error')
+            } finally {
+                this.deleting = false
+            }
+        },
         async toggleSlot(s) {
             try {
                 const res = await axios.post(ajaxUrl, {
@@ -342,9 +373,12 @@ Vue.component('psychology-panel', {
             <v-chip :color="item.active ? 'green' : 'grey'" small dark>{{ item.active ? 'Sí' : 'No' }}</v-chip>
           </template>
           <template v-slot:item._actions="{ item }">
-            <v-btn icon small @click="openSlotDialog(item)"><v-icon>mdi-pencil</v-icon></v-btn>
-            <v-btn icon small @click="toggleSlot(item)">
+            <v-btn icon small title="Editar" @click="openSlotDialog(item)"><v-icon>mdi-pencil</v-icon></v-btn>
+            <v-btn icon small :title="item.active ? 'Desactivar' : 'Activar'" @click="toggleSlot(item)">
               <v-icon>{{ item.active ? 'mdi-toggle-switch' : 'mdi-toggle-switch-off-outline' }}</v-icon>
+            </v-btn>
+            <v-btn icon small color="error" title="Eliminar" @click="askDeleteSlot(item)">
+              <v-icon>mdi-delete</v-icon>
             </v-btn>
           </template>
         </v-data-table>
@@ -416,6 +450,28 @@ Vue.component('psychology-panel', {
         <v-spacer></v-spacer>
         <v-btn text @click="slotDialog = false">Cancelar</v-btn>
         <v-btn color="primary" :loading="slotSaving" @click="saveSlot">Guardar</v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
+
+  <v-dialog v-model="deleteDialog" max-width="460">
+    <v-card v-if="slotToDelete">
+      <v-card-title class="error--text">Eliminar horario</v-card-title>
+      <v-card-text>
+        Vas a eliminar el horario de
+        <strong>{{ slotToDelete.psychologist_name || ('#' + slotToDelete.psychologist_userid) }}</strong>
+        los <strong>{{ weekdayLabel(slotToDelete.weekday) }}</strong>
+        de <strong>{{ slotToDelete.starttime }} a {{ slotToDelete.endtime }}</strong>.
+        <div class="mt-2 caption grey--text">
+          Esta accion no se puede deshacer. Si el horario ya tiene citas futuras reservadas
+          no se podra eliminar: en ese caso desactivalo, que deja de ofrecerse sin afectar
+          las citas ya agendadas.
+        </div>
+      </v-card-text>
+      <v-card-actions>
+        <v-spacer></v-spacer>
+        <v-btn text @click="deleteDialog = false">Cancelar</v-btn>
+        <v-btn color="error" :loading="deleting" @click="confirmDeleteSlot">Eliminar</v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>

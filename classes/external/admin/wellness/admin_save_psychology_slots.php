@@ -38,7 +38,7 @@ class admin_save_psychology_slots extends external_api {
 
     public static function execute_parameters() {
         return new external_function_parameters([
-            'action' => new external_value(PARAM_ALPHA,'list|upsert|toggle', VALUE_DEFAULT, 'list'),
+            'action' => new external_value(PARAM_ALPHA,'list|upsert|toggle|delete', VALUE_DEFAULT, 'list'),
             'slot'   => new external_value(PARAM_RAW, 'JSON-encoded object for upsert (ignored by list/toggle)', VALUE_DEFAULT, '{}'),
             'slotid' => new external_value(PARAM_INT, 'Slot id (for toggle)', VALUE_DEFAULT, 0),
             'active' => new external_value(PARAM_BOOL,'New active flag (for toggle)', VALUE_DEFAULT, true),
@@ -75,6 +75,28 @@ class admin_save_psychology_slots extends external_api {
                 'psychologists' => self::psychologist_options(),
             ];
         }
+        if ($action === 'delete') {
+            $res = \local_grupomakro_core\local\wellness_psychology_manager::delete_slot(
+                (int)$params['slotid']);
+            $msg = '';
+            if (empty($res['ok'])) {
+                $code = (string)($res['error'] ?? '');
+                if ($code === 'slot_has_appointments') {
+                    $msg = get_string('wellness_slot_has_appointments', 'local_grupomakro_core',
+                        (int)($res['blocking'] ?? 0));
+                } else {
+                    $msg = get_string('wellness_slot_not_found', 'local_grupomakro_core');
+                }
+            }
+            return [
+                'ok'    => !empty($res['ok']),
+                'id'    => (int)$params['slotid'],
+                'error' => $msg,
+                'slots' => self::slot_rows(),
+                'psychologists' => self::psychologist_options(),
+            ];
+        }
+
         if ($action === 'toggle') {
             $ok = \local_grupomakro_core\local\wellness_psychology_manager::set_slot_active(
                 (int)$params['slotid'], (int)$params['active'] ? 1 : 0);

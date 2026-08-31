@@ -1337,3 +1337,5 @@ $string['wellness_image_item_invalid'] = 'El registro destino no existe; guarda 
 $string['wellness_image_format_invalid'] = 'Formato no valido. Usa JPG, PNG o WebP.';
 $string['wellness_image_too_big'] = 'La imagen supera el maximo de 3 MB.';
 $string['wellness_image_too_small'] = 'La imagen es demasiado pequena ({$a->w}x{$a->h} px). El minimo es {$a->minw}x{$a->minh} px.';
+
+$string['wellness_slot_has_appointments'] = 'No se puede eliminar: el horario tiene {$a} cita(s) futura(s) reservada(s). Desactivalo para dejar de ofrecerlo sin afectar esas citas.';

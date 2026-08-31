@@ -119,6 +119,38 @@ class wellness_psychology_manager {
         return (int)$DB->insert_record('gmk_wellness_psy_slot', $record);
     }
 
+    /**
+     * Elimina un horario recurrente.
+     *
+     * Se niega si el horario todavia tiene citas FUTURAS en un estado vivo
+     * (pendiente / confirmada / modificada): borrarlo dejaria a esos alumnos
+     * con una cita sin franja. En ese caso lo correcto es desactivarlo, que
+     * deja de ofrecer nuevas ocurrencias sin tocar las ya reservadas.
+     *
+     * Las citas pasadas o cerradas no bloquean el borrado: la fila de la cita
+     * guarda su propia fecha, duracion, modalidad y especialista, asi que el
+     * historial sobrevive aunque desaparezca la franja que la origino.
+     *
+     * @return array{ok:bool, error?:string, blocking?:int}
+     */
+    public static function delete_slot(int $id): array {
+        global $DB;
+        if (!$DB->record_exists('gmk_wellness_psy_slot', ['id' => $id])) {
+            return ['ok' => false, 'error' => 'slot_not_found'];
+        }
+        $blocking = $DB->count_records_select('gmk_wellness_psy_appts',
+            "slotid = :sid AND appointment_at >= :now
+               AND status IN ('pendiente', 'confirmada', 'modificada')",
+            ['sid' => $id, 'now' => time()]);
+        if ($blocking > 0) {
+            return ['ok' => false, 'error' => 'slot_has_appointments', 'blocking' => (int)$blocking];
+        }
+        // Las citas historicas se desligan pero se conservan.
+        $DB->set_field('gmk_wellness_psy_appts', 'slotid', 0, ['slotid' => $id]);
+        $DB->delete_records('gmk_wellness_psy_slot', ['id' => $id]);
+        return ['ok' => true];
+    }
+
     public static function set_slot_active(int $id, int $active): bool {
         global $DB;
         if (!$DB->record_exists('gmk_wellness_psy_slot', ['id' => $id])) {
