@@ -57,11 +57,19 @@ $members = []; $progre = [];
 foreach ($DB->get_recordset_sql("SELECT DISTINCT groupid, userid FROM {groups_members}") as $g) $members[$g->groupid][(int)$g->userid] = true;
 foreach ($DB->get_recordset_sql("SELECT DISTINCT classid, userid FROM {gmk_course_progre} WHERE classid > 0") as $p) $progre[$p->classid][(int)$p->userid] = true;
 
-$g2 = []; $keep = ["matriculado"=>0, "sin_aprobar"=>0];
+$g2 = []; $keep = ["matriculado"=>0, "sin_aprobar"=>0, "matriculable"=>0];
 foreach ($rows as $r) {
     $uid = (int)$r->userid;
     if (isset($members[$r->groupid][$uid]) || isset($progre[$r->classid][$uid])) { $keep["matriculado"]++; continue; }
     if ((int)$r->approved !== 1 && (int)$r->closed !== 1) { $keep["sin_aprobar"]++; continue; }
+    // Una clase APROBADA y AUN ABIERTA sigue siendo matriculable a mano: su roster
+    // es justamente la lista que usa local_grupomakro_enroll_period_pending para
+    // ofrecer a esos alumnos. Borrarla perderia esa lista, asi que se conserva y el
+    // orden en que se ejecuten limpieza e inscripcion deja de importar.
+    if ((int)$r->closed !== 1 && ((int)$r->enddate === 0 || $r->enddate >= $now)) {
+        $keep["matriculable"]++;
+        continue;
+    }
     $g2[] = (int)$r->id;
 }
 
@@ -69,13 +77,14 @@ printf("\n=== A BORRAR ===\n  %-34s %8d\n  %-34s %8d\n  %-34s %8d\n",
   "1. clase inexistente (borrada)", count($g1),
   "2. aprobada/cerrada sin matricular", count($g2),
   "TOTAL", count($g1)+count($g2));
-printf("\n=== A CONSERVAR ===\n  %-34s %8d\n  %-34s %8d\n  %-34s %8d\n",
+printf("\n=== A CONSERVAR ===\n  %-34s %8d\n  %-34s %8d\n  %-34s %8d\n  %-34s %8d\n",
   "alumno matriculado (roster real)", $keep["matriculado"],
   "clase sin aprobar (plan vigente)", $keep["sin_aprobar"],
-  "TOTAL", $keep["matriculado"]+$keep["sin_aprobar"]);
+  "clase abierta, aun matriculable", $keep["matriculable"],
+  "TOTAL", $keep["matriculado"]+$keep["sin_aprobar"]+$keep["matriculable"]);
 
 $ids = array_merge(array_map("intval",$g1), $g2);
-if (count($ids) + $keep["matriculado"] + $keep["sin_aprobar"] !== $antes["queue_total"]) {
+if (count($ids) + $keep["matriculado"] + $keep["sin_aprobar"] + $keep["matriculable"] !== $antes["queue_total"]) {
     echo "\n!!! el reparto no suma el total — abortando\n"; exit(1);
 }
 echo "\n  control: borrar + conservar == total  OK\n";
