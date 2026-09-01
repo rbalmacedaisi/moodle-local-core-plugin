@@ -161,6 +161,10 @@ class get_student_learning_plan_pensum extends external_api
             $moduleGroupIds = [];
             $membershipClassIsModuleByCourseId = [];
             $activeModuleByCoreCourseId = [];
+            // Any module enrolment, whatever its state. Drives the "Módulo" badge only: a student
+            // who FINISHED the module still took the subject as one, and the active-only map above
+            // (which governs the Retirar button) drops them the moment it is completed.
+            $moduleEnrolledByCoreCourseId = [];
             $activeRegularClassByCoreCourseId = [];
 
             // Consolidated revalidations for this student in this plan, keyed by
@@ -797,6 +801,19 @@ class get_student_learning_plan_pensum extends external_api
                         $activeModuleByCoreCourseId[(int)$mer->corecourseid] = (int)$mer->classid;
                     }
 
+                    // Same lookup without the state filter, for the badge (see declaration above).
+                    $meAllRows = $DB->get_records_sql(
+                        "SELECT c.corecourseid, me.classid
+                           FROM {gmk_module_enrollment} me
+                           JOIN {gmk_class} c ON c.id = me.classid
+                          WHERE me.userid = :meuserid2
+                            AND c.corecourseid $meinCoreSql",
+                        ['meuserid2' => (int)$params['userId']] + $meinCoreParams
+                    );
+                    foreach ($meAllRows as $mer) {
+                        $moduleEnrolledByCoreCourseId[(int)$mer->corecourseid] = (int)$mer->classid;
+                    }
+
                     // Active REGULAR (non-module) class membership per core course. Used by
                     // the modal to offer a SEPARATE "Retirar de clase regular" action when a
                     // student is in both a module and a regular class of the same subject
@@ -1013,6 +1030,14 @@ class get_student_learning_plan_pensum extends external_api
                 // active enrollment is the authoritative "this is a module" signal and
                 // must drive the label, restoring the badge for new enrollees.
                 if (!empty($userPensumCourse->module_classid)) {
+                    $userPensumCourse->is_module = 1;
+                }
+
+                // ...and it must survive completion: module_classid only holds ACTIVE enrolments
+                // (it drives the Retirar button), so once the student finishes the module the badge
+                // used to disappear and the subject looked like a regular class.
+                if (empty($userPensumCourse->is_module)
+                        && !empty($moduleEnrolledByCoreCourseId[$courseidkey])) {
                     $userPensumCourse->is_module = 1;
                 }
 

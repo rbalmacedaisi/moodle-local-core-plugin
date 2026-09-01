@@ -53,6 +53,35 @@ class enroll_module {
         $user = $DB->get_record('user', ['id' => $userId, 'deleted' => 0], 'id,firstname,lastname', MUST_EXIST);
         $course = $DB->get_record('course', ['id' => $coreCourseId], 'id,fullname,shortname', MUST_EXIST);
 
+        // The caller may omit the learning plan. Leaving it at 0 poisons the progress row: the
+        // pensum is rendered per plan, so a row with learningplanid = 0 is invisible there and the
+        // student keeps showing the stale plan row (audit 2026-09-01: 136 rows in that state, e.g.
+        // a module passed with 88 still displayed as "Cursando 70"). Resolve it from the student's
+        // active plans, preferring one that actually contains this subject.
+        if ($learningPlanId <= 0) {
+            $learningPlanId = (int)$DB->get_field_sql(
+                "SELECT lu.learningplanid
+                   FROM {local_learning_users} lu
+                   JOIN {local_learning_courses} lc ON lc.learningplanid = lu.learningplanid
+                                                   AND lc.courseid = :courseid
+                  WHERE lu.userid = :userid AND lu.status = :st
+               ORDER BY lu.learningplanid ASC",
+                ['courseid' => $coreCourseId, 'userid' => $userId, 'st' => 'activo'],
+                IGNORE_MULTIPLE
+            );
+            if ($learningPlanId <= 0) {
+                // Subject not mapped to any of their plans: fall back to any active plan so the
+                // row is still reachable from the pensum.
+                $learningPlanId = (int)$DB->get_field_sql(
+                    "SELECT learningplanid FROM {local_learning_users}
+                      WHERE userid = :userid AND status = :st
+                   ORDER BY learningplanid ASC",
+                    ['userid' => $userId, 'st' => 'activo'],
+                    IGNORE_MULTIPLE
+                );
+            }
+        }
+
         // ── 1a. Status guard: refused for retirado/aplazado students ────────────
         $blockingCodes = $DB->get_records('local_learning_users',
             ['userid' => $userId],
@@ -322,10 +351,23 @@ class enroll_module {
             'courseid'       => $coreCourseId,
             'classid'        => $classId,
             'learningplanid' => $learningPlanId,
-        ]);
+        ], '*', IGNORE_MULTIPLE);
+
+        // The pensum keys subjects by (plan, subject), so a second row for the same pair makes the
+        // displayed grade non-deterministic and can hide the module result behind the stale plan
+        // row. When the student already has a row for this subject in this plan, reuse it and point
+        // it at the module class instead of inserting a duplicate.
+        if (!$moduleProgress && $currentProgress) {
+            $moduleProgress = $currentProgress;
+        }
+
         if ($moduleProgress) {
-            $DB->set_field('gmk_course_progre', 'status', 2, ['id' => $moduleProgress->id]);
-            $DB->set_field('gmk_course_progre', 'timemodified', $now, ['id' => $moduleProgress->id]);
+            $reuse = new \stdClass();
+            $reuse->id           = $moduleProgress->id;
+            $reuse->classid      = $classId;
+            $reuse->status       = 2; // COURSE_IN_PROGRESS
+            $reuse->timemodified = $now;
+            $DB->update_record('gmk_course_progre', $reuse);
         } else {
             $newProgress = new \stdClass();
             $newProgress->userid         = $userId;
