@@ -3517,6 +3517,76 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20260908000, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20260909000) {
+        // Scheduler parameters become GLOBAL.
+        //
+        // Shift windows, lunch, interval, session duration, subject loads and
+        // holidays used to be scoped per academic period, so every new period was
+        // born empty and the planner silently fell back to its hardcoded defaults.
+        // Seed the global scope from the most recent period that actually has
+        // data, and leave the per-period rows in place as history.
+        $scope = \local_grupomakro_core\local\scheduler_settings::GLOBAL_SCOPE;
+
+        // --- 1. Config blob -> plugin config ---
+        if (!\local_grupomakro_core\local\scheduler_settings::config_is_usable(
+                \local_grupomakro_core\local\scheduler_settings::decode_config(
+                    get_config('local_grupomakro_core', 'scheduler_config')))) {
+            $periods = $DB->get_records_select(
+                'gmk_academic_periods',
+                'configsettings IS NOT NULL',
+                [],
+                'startdate DESC',
+                'id, name, configsettings'
+            );
+            foreach ($periods as $prev) {
+                $candidate = \local_grupomakro_core\local\scheduler_settings::decode_config($prev->configsettings);
+                if (\local_grupomakro_core\local\scheduler_settings::config_is_usable($candidate)) {
+                    \local_grupomakro_core\local\scheduler_settings::save_config($candidate);
+                    break;
+                }
+            }
+        }
+
+        // --- 2. Subject loads and holidays -> academicperiodid = 0 ---
+        // Copy from the newest period that has rows. Idempotent: skipped entirely
+        // once the global scope is populated.
+        $seed = function($table) use ($DB, $scope) {
+            if ($DB->record_exists($table, ['academicperiodid' => $scope])) {
+                return 0;
+            }
+            $source = $DB->get_records_sql(
+                "SELECT t.academicperiodid, MAX(p.startdate) AS startdate
+                   FROM {" . $table . "} t
+                   JOIN {gmk_academic_periods} p ON p.id = t.academicperiodid
+                  WHERE t.academicperiodid <> :scope
+               GROUP BY t.academicperiodid
+               ORDER BY startdate DESC",
+                ['scope' => $scope],
+                0,
+                1
+            );
+            if (empty($source)) {
+                return 0;
+            }
+            $sourceid = (int)reset($source)->academicperiodid;
+            $copied = 0;
+            foreach ($DB->get_records($table, ['academicperiodid' => $sourceid]) as $row) {
+                unset($row->id);
+                $row->academicperiodid = $scope;
+                $row->timecreated = time();
+                $row->timemodified = time();
+                $DB->insert_record($table, $row);
+                $copied++;
+            }
+            return $copied;
+        };
+
+        $seed('gmk_subject_loads');
+        $seed('gmk_holidays');
+
+        upgrade_plugin_savepoint(true, 20260909000, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

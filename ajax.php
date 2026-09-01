@@ -6692,10 +6692,12 @@ try {
             break;
 
         case 'local_grupomakro_save_scheduler_config':
-            $periodid = required_param('periodid', PARAM_INT);
-            $holidays = isset($_POST['holidays']) && is_array($_POST['holidays']) ? $_POST['holidays'] : [];
-            $loads = isset($_POST['loads']) && is_array($_POST['loads']) ? $_POST['loads'] : [];
+            $periodid = optional_param('periodid', 0, PARAM_INT);
             $configsettings = optional_param('configsettings', '', PARAM_RAW);
+            // holidays/loads are no longer written here: they are global and have
+            // their own endpoints. Anything the client sends is ignored.
+            $holidays = [];
+            $loads = [];
             
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/admin/scheduler.php');
             $result = \local_grupomakro_core\external\admin\scheduler::save_scheduler_config($periodid, $holidays, $loads, $configsettings);
@@ -7282,20 +7284,16 @@ try {
             break;
 
         case 'local_grupomakro_get_holidays':
-            $periodid = required_param('academicperiodid', PARAM_INT);
-            $holidays = $DB->get_records('gmk_holidays', ['academicperiodid' => $periodid], 'date ASC');
-            $data = [];
-            foreach ($holidays as $h) {
-                $h->formatted_date = date('Y-m-d', $h->date);
-                $data[] = $h;
-            }
+            // Holidays are GLOBAL: one list of dates, each period consumes the ones
+            // inside its own range. academicperiodid is accepted but ignored.
+            $data = \local_grupomakro_core\local\scheduler_settings::get_holidays();
             $response = ['status' => 'success', 'data' => $data];
             break;
 
         case 'local_grupomakro_save_holiday':
             $id = optional_param('id', 0, PARAM_INT);
             $record = new stdClass();
-            $record->academicperiodid = required_param('academicperiodid', PARAM_INT);
+            $record->academicperiodid = \local_grupomakro_core\local\scheduler_settings::GLOBAL_SCOPE;
             $record->date = required_param('date', PARAM_INT); // Expecting timestamp
             $record->name = optional_param('name', '', PARAM_TEXT);
             $record->type = optional_param('type', 'feriado', PARAM_TEXT);
@@ -7319,7 +7317,8 @@ try {
             break;
 
         case 'local_grupomakro_save_subject_loads':
-            $periodid = required_param('academicperiodid', PARAM_INT);
+            // Subject loads are GLOBAL. academicperiodid is accepted but ignored.
+            $periodid = \local_grupomakro_core\local\scheduler_settings::GLOBAL_SCOPE;
             $loadsJson = required_param('loads', PARAM_RAW);
             $loads = json_decode($loadsJson, true);
             
@@ -7473,7 +7472,8 @@ try {
             break;
 
         case 'local_grupomakro_upload_holidays_excel':
-            $periodid = required_param('academicperiodid', PARAM_INT);
+            // Holidays are GLOBAL. academicperiodid is accepted but ignored.
+            $periodid = \local_grupomakro_core\local\scheduler_settings::GLOBAL_SCOPE;
             
             if (empty($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
                 throw new Exception('No se recibiÃƒÆ’Ã‚Â³ un archivo vÃƒÆ’Ã‚Â¡lido.');

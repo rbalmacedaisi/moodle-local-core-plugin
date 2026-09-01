@@ -3592,13 +3592,8 @@ function create_class_activities($class, $updating = false, $forceRebuildDates =
     $preservedBBBRelations = [];
 
     // Build holiday set for fast lookup (YYYY-MM-DD strings).
-    $holidaySet = [];
-    if (!empty($class->periodid)) {
-        $periodHolidays = $DB->get_records('gmk_holidays', ['academicperiodid' => $class->periodid], '', 'date');
-        foreach ($periodHolidays as $h) {
-            $holidaySet[date('Y-m-d', $h->date)] = true;
-        }
-    }
+    // Holidays are global: one list of dates covering every period.
+    $holidaySet = \local_grupomakro_core\local\scheduler_settings::get_holiday_dateset();
 
     // Try to use planning-board session records (assigned_dates + excluded_dates).
     $scheduleRecords = $DB->get_records('gmk_class_schedules', ['classid' => $class->id], 'id ASC');

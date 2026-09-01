@@ -1042,28 +1042,33 @@ window.SchedulerComponents.PlanningBoard = {
                 c.levelDisplay.toLowerCase().includes(s)
             );
         },
+        // Subject name -> load entry. Uses the SAME canonical form as the placement
+        // algorithm (SchedulerAlgorithm.normalizeSubjectName) so the board and
+        // autoPlace can never disagree about which subject has a load.
         loadsMap() {
             const loads = this.storeState.context?.loads || [];
             const map = {};
-            // Helper: strip nomenclature wrapper "PERIOD (S) SUBJECT (TYPE) ROOM" -> "SUBJECT"
-            const stripNomenclature = (name) => name
-                .replace(/^\S+[\-\u2013\u2014]\S+\s+\([A-Z]\)\s+/i, '') // remove "2026-II (S) "
-                .replace(/\s+\((PRESENCIAL|VIRTUAL|MIXTA)\).*$/i, '') // remove " (PRESENCIAL) AULA X"
-                .trim();
+            const algo = window.SchedulerAlgorithm;
+            const canon = algo && algo.normalizeSubjectName
+                ? algo.normalizeSubjectName
+                : (n) => String(n || '').toUpperCase().trim();
+
+            const byCanon = new Map();
             loads.forEach(l => {
                 const raw = (l.subjectname || l.subjectName || '').trim();
                 if (!raw) return;
                 map[raw] = l;
                 map[raw.toUpperCase()] = l;
+                const key = canon(raw);
+                if (key && !byCanon.has(key)) byCanon.set(key, l);
             });
-            // Also index by the nomenclature-stripped version of each schedule's subjectName
-            // so that "2026-II (S) INGLÉS I (PRESENCIAL) AULA L" resolves to the "INGLÉS I" load entry.
-            // We do this by iterating generatedSchedules and mapping their full name -> load entry.
-            const schedules = this.storeState.generatedSchedules || [];
-            schedules.forEach(cls => {
+
+            // Also index each schedule's own subjectName, so a name carrying the
+            // nomenclature wrapper resolves to the bare subject's load entry.
+            (this.storeState.generatedSchedules || []).forEach(cls => {
                 if (!cls.subjectName || map[cls.subjectName]) return; // already indexed
-                const stripped = stripNomenclature(cls.subjectName.toUpperCase());
-                if (map[stripped]) map[cls.subjectName] = map[stripped];
+                const hit = byCanon.get(canon(cls.subjectName));
+                if (hit) map[cls.subjectName] = hit;
             });
             return map;
         },

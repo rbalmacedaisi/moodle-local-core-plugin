@@ -1295,12 +1295,12 @@
         async saveConfigSettings(periodId, settings) {
             this.state.loading = true;
             try {
-                // The backend requires holidays and loads to be passed too, otherwise they might get wiped depending on implementation
-                // Alternatively, we pass them as they are in the context
+                // Only the config blob travels here. Holidays and subject loads are
+                // global and have their own endpoints; this call used to resend them
+                // and the backend wiped+reinserted both tables from whatever the
+                // client happened to hold, so a stale context deleted them.
                 await this._fetch('local_grupomakro_save_scheduler_config', {
                     periodid: periodId,
-                    holidays: this.state.context.holidays || [],
-                    loads: this.state.context.loads || [],
                     configsettings: JSON.stringify(settings)
                 });
 

@@ -22,6 +22,44 @@
         return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
     };
 
+    /**
+     * Canonical form of a subject name, for matching a schedule against its load.
+     *
+     * A schedule's subjectName may carry the nomenclature wrapper the planner adds
+     * ("2026-V (S) INGLES I (PRESENCIAL) AULA L") while the load is stored under the
+     * bare subject ("INGLES I"). The board already matched this way; autoPlace used a
+     * strict === and silently found no load, so the subject fell back to the default
+     * duration and never got its maxSessions cap.
+     *
+     * @param {string} name
+     * @returns {string}
+     */
+    const normalizeSubjectName = (name) => {
+        if (!name) return '';
+        return String(name)
+            .toUpperCase()
+            .replace(/^\S+[\-–—]\S+\s+\([A-Z]\)\s+/i, '')   // "2026-V (S) "
+            .replace(/\s+\((PRESENCIAL|VIRTUAL|MIXTA)\).*$/i, '')      // " (PRESENCIAL) AULA X"
+            .replace(/\s+/g, ' ')
+            .trim();
+    };
+
+    /**
+     * Index subject loads by canonical name. Later duplicates do not overwrite the
+     * first, so the catalogue order decides which one wins deterministically.
+     *
+     * @param {Array} loads Normalized loads ({subjectName, totalHours, intensity})
+     * @returns {Map<string, object>}
+     */
+    const buildLoadIndex = (loads) => {
+        const index = new Map();
+        (loads || []).forEach(l => {
+            const key = normalizeSubjectName(l.subjectName);
+            if (key && !index.has(key)) index.set(key, l);
+        });
+        return index;
+    };
+
     const DEFAULT_SHIFT_WINDOWS = {
         'Diurna': { start: '07:00', end: '18:00' },
         'Nocturna': { start: '18:00', end: '22:00' },
@@ -170,6 +208,8 @@
             totalHours: parseFloat(l.totalHours || l.total_hours || 0),
             intensity: parseFloat(l.intensity || 0)
         }));
+        const loadIndex = buildLoadIndex(normalizedLoads);
+        const findLoad = (subjectName) => loadIndex.get(normalizeSubjectName(subjectName)) || null;
 
         // Unify holiday source: priority to context.holidays (live table)
         const holidays = context.holidays || cfg.holidays || [];
@@ -270,7 +310,7 @@
 
                 // Handle Intensive Courses (maxSessions)
                 let maxSessions = null;
-                const loadData = normalizedLoads.find(l => l.subjectName === s.subjectName);
+                const loadData = findLoad(s.subjectName);
                 if (loadData && loadData.intensity && loadData.totalHours) {
                     maxSessions = Math.ceil(loadData.totalHours / loadData.intensity);
                 }
@@ -299,7 +339,7 @@
             let durationMins = defaultDurationMins;
             let maxSessions = null;
             let dynamicDuration = false; // Flag: recalculate duration per-day based on actual sessions
-            const loadData = normalizedLoads.find(l => l.subjectName === s.subjectName);
+            const loadData = findLoad(s.subjectName);
             if (loadData) {
                 if (loadData.intensity) {
                     durationMins = Math.round(loadData.intensity * 60);
@@ -728,6 +768,8 @@
         parseTimeRange,
         getEffectiveWeeks,
         normalizeConfig,
+        normalizeSubjectName,
+        buildLoadIndex,
         getShiftWindowMins,
         DEFAULT_SHIFT_WINDOWS,
         checkTeacherAvailability,

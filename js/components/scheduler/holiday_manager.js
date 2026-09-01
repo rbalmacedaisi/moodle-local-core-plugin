@@ -11,8 +11,14 @@ window.SchedulerComponents.HolidayManager = {
         <div class="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden mt-6">
             <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                 <div>
-                    <h3 class="font-bold text-slate-800">Calendario de Festivos / Excepciones</h3>
-                    <p class="text-xs text-slate-500">Días que se excluirán del cálculo de horas teóricas.</p>
+                    <h3 class="font-bold text-slate-800">
+                        Calendario de Festivos / Excepciones
+                        <span class="ml-1 px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold uppercase tracking-wide align-middle">Global</span>
+                    </h3>
+                    <p class="text-xs text-slate-500">
+                        Días que se excluirán del cálculo de horas teóricas. La lista es única para toda la
+                        institución: cada periodo usa automáticamente las fechas que caen dentro de su rango.
+                    </p>
                 </div>
                 <div class="flex items-center gap-2">
                     <input type="file" ref="excelInput" accept=".xlsx,.xls" @change="handleExcelUpload" class="hidden" />
@@ -40,7 +46,7 @@ window.SchedulerComponents.HolidayManager = {
                 
                 <div v-else-if="holidays.length === 0" class="text-center py-12 border-2 border-dashed border-slate-100 rounded-xl">
                     <i data-lucide="coffee" class="w-12 h-12 text-slate-200 mx-auto mb-3"></i>
-                    <p class="text-slate-400 text-sm italic">Sin festivos registrados para este periodo.</p>
+                    <p class="text-slate-400 text-sm italic">Sin festivos registrados.</p>
                 </div>
 
                 <div v-else class="space-y-2">

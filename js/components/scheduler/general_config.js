@@ -18,8 +18,8 @@ window.SchedulerComponents.GeneralConfig = {
                 <h3 class="font-bold text-slate-700 flex items-center gap-2">
                     <i data-lucide="clock" class="w-5 h-5 text-orange-500"></i>
                     Parámetros Generales de Horario
-                    <span v-if="periodName" class="ml-1 px-2 py-0.5 rounded bg-slate-100 text-slate-600 text-[10px] font-bold uppercase tracking-wide">
-                        {{ periodName }}
+                    <span class="ml-1 px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold uppercase tracking-wide">
+                        Global
                     </span>
                 </h3>
                 <button 
@@ -35,18 +35,9 @@ window.SchedulerComponents.GeneralConfig = {
             <div class="mb-4 p-3 bg-blue-50 text-blue-800 border border-blue-200 rounded-lg flex items-start gap-3">
                 <span class="mt-0.5"><i data-lucide="info" class="w-4 h-4"></i></span>
                 <p class="text-xs">
-                    Estos parámetros se guardan <strong>por periodo académico</strong>, no a nivel de sitio.
-                    Aplican al periodo <strong>{{ periodName || ('#' + periodId) }}</strong>: si va a proyectar
-                    horarios de otro periodo en el Planificador, guárdelos también allí.
-                </p>
-            </div>
-
-            <div v-if="inheritedFrom" class="mb-4 p-3 bg-amber-50 text-amber-800 border border-amber-200 rounded-lg flex items-start gap-3">
-                <span class="mt-0.5"><i data-lucide="alert-triangle" class="w-4 h-4"></i></span>
-                <p class="text-xs">
-                    Este periodo <strong>todavía no tiene parámetros propios</strong>. Se muestran los heredados de
-                    <strong>{{ inheritedFrom }}</strong> y son los que usará la proyección.
-                    Pulse <strong>Guardar Parámetros</strong> para fijarlos en este periodo.
+                    Estos parámetros son <strong>únicos para toda la institución</strong>: se definen una sola vez y
+                    aplican a todos los periodos académicos, incluidos los que se creen en el futuro.
+                    No hace falta configurarlos periodo a periodo.
                 </p>
             </div>
 
@@ -233,9 +224,6 @@ window.SchedulerComponents.GeneralConfig = {
         },
         periodName() {
             return this.storeState.context?.period?.name || '';
-        },
-        inheritedFrom() {
-            return this.storeState.context?.configInheritedFrom || '';
         },
         windowWarnings() {
             const warnings = [];

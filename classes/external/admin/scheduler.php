@@ -25,63 +25,19 @@ class scheduler extends external_api {
     }
 
     public static function get_scheduler_context($periodid) {
-        global $DB;
         $context = \context_system::instance();
         self::validate_context($context);
         require_capability('moodle/site:config', $context);
 
-        // 1. Get Classrooms
-        $classrooms = $DB->get_records('gmk_classrooms', ['active' => 1], 'name ASC');
+        // Delegate to the single implementation so this endpoint cannot drift from
+        // the one ajax.php actually reaches.
+        $data = \local_grupomakro_core\local\planning_manager::get_scheduler_context($periodid);
 
-        // 2. Get Holidays for this period
-        $holidays = $DB->get_records('gmk_holidays', ['academicperiodid' => $periodid], 'date ASC');
+        // This external function declares configSettings as a raw JSON string.
+        $data['configSettings'] = json_encode($data['configSettings']);
+        $data['careers'] = [];
 
-        // 3. Get Subject Loads for this period
-        $loads = $DB->get_records('gmk_subject_loads', ['academicperiodid' => $periodid], 'subjectname ASC');
-
-        // 4. Get Period Record and Careers
-        $periodRec = $DB->get_record('gmk_academic_periods', ['id' => $periodid]);
-        $period = null;
-        $configSettings = '';
-        $careers = [];
-
-        if ($periodRec) {
-            $period = [
-                'id' => $periodRec->id,
-                'name' => $periodRec->name,
-                'start' => date('Y-m-d', $periodRec->startdate),
-                'end' => date('Y-m-d', $periodRec->enddate)
-            ];
-            $configSettings = $periodRec->configsettings ?: '';
-
-            // Add subperiod date ranges from academic calendar
-            $calendar = $DB->get_record('gmk_academic_calendar', ['academicperiodid' => $periodid]);
-            if ($calendar && $calendar->hassubperiods) {
-                $period['subperiods'] = [
-                    1 => ['start' => date('Y-m-d', $calendar->block1start), 'end' => date('Y-m-d', $calendar->block1end)],
-                    2 => ['start' => date('Y-m-d', $calendar->block2start), 'end' => date('Y-m-d', $calendar->block2end)]
-                ];
-            }
-
-            // Extract Careers from linked learning plans
-            $lpIds = json_decode($periodRec->learningplans, true);
-            if ($lpIds && is_array($lpIds)) {
-                list($insql, $inparams) = $DB->get_in_or_equal($lpIds);
-                $plans = $DB->get_records_select('local_learning_plans', "id $insql", $inparams, 'name ASC', 'id, name');
-                foreach ($plans as $p) {
-                    $careers[] = $p->name;
-                }
-            }
-        }
-
-        return [
-            'classrooms' => array_values($classrooms),
-            'holidays' => array_values($holidays),
-            'loads' => array_values($loads),
-            'period' => $period,
-            'configSettings' => $configSettings,
-            'careers' => $careers
-        ];
+        return $data;
     }
 
     public static function get_scheduler_context_returns() {
@@ -151,51 +107,29 @@ class scheduler extends external_api {
         ]);
     }
 
+    /**
+     * Persist the GLOBAL scheduling parameters.
+     *
+     * This used to also wipe and reinsert gmk_subject_loads and gmk_holidays for
+     * the period from whatever the client happened to send. Its only caller is
+     * the "Guardar Parametros" button, which has nothing to do with either table,
+     * so a stale client context silently deleted a period's loads and holidays.
+     * Both now have their own endpoints and their own global scope; this one only
+     * writes the config blob.
+     *
+     * $periodid, $holidays and $loads are kept for backwards compatibility with
+     * older clients and are ignored.
+     */
     public static function save_scheduler_config($periodid, $holidays, $loads, $configsettings = '') {
-        global $DB;
         $context = \context_system::instance();
         self::validate_context($context);
         require_capability('moodle/site:config', $context);
 
-        $transaction = $DB->start_delegated_transaction();
-
-        try {
-            // Replace Holidays
-            $DB->delete_records('gmk_holidays', ['academicperiodid' => $periodid]);
-            foreach ($holidays as $h) {
-                $rec = (object)$h;
-                $rec->academicperiodid = $periodid;
-                $rec->usermodified = $GLOBALS['USER']->id;
-                $rec->timecreated = time();
-                $rec->timemodified = time();
-                $DB->insert_record('gmk_holidays', $rec);
-            }
-
-            // Replace Loads
-            // Note: This wipes custom loads. Be careful if UI doesn't send all.
-            // Assuming UI sends full list of configured loads.
-            $DB->delete_records('gmk_subject_loads', ['academicperiodid' => $periodid]);
-            foreach ($loads as $l) {
-                $rec = (object)$l;
-                $rec->academicperiodid = $periodid;
-                $rec->usermodified = $GLOBALS['USER']->id;
-                $rec->timecreated = time();
-                $rec->timemodified = time();
-                $DB->insert_record('gmk_subject_loads', $rec);
-            }
-
-            // Update configuration settings in period if provided
-            if ($configsettings !== '') {
-                $DB->set_field('gmk_academic_periods', 'configsettings', $configsettings, ['id' => $periodid]);
-            }
-
-            $transaction->allow_commit();
-            return true;
-
-        } catch (\Exception $e) {
-            $transaction->rollback($e);
+        if ($configsettings === '') {
             return false;
         }
+
+        return \local_grupomakro_core\local\scheduler_settings::save_config($configsettings);
     }
 
     public static function save_scheduler_config_returns() {
