@@ -6934,6 +6934,112 @@ try {
             ];
             break;
 
+        case 'local_grupomakro_enroll_period_pending':
+            // Enrols the students that were PLANNED into an already-approved class but
+            // never actually enrolled.
+            //
+            // Republishing the board rewrites a class roster (gmk_class_queue) even when
+            // the class is already approved, but bulk_approve_period only ever looks at
+            // classes with approved = 0, so anybody added after the approval was left
+            // planned and never enrolled -- and stayed that way indefinitely.
+            //
+            // This is an EXPLICIT action: saving or publishing the board must never
+            // enrol anybody. It only enrols; it never sets approved and never creates
+            // Moodle activities.
+            //
+            // apply=0 (default) reports what would happen without touching anything.
+            raise_memory_limit(MEMORY_HUGE);
+            core_php_time_limit::raise(600);
+
+            if (!is_siteadmin() && !has_capability('moodle/site:config', context_system::instance())) {
+                $response = ['status' => 'error', 'message' => 'Sin permisos para inscribir.'];
+                break;
+            }
+
+            $periodid = required_param('periodid', PARAM_INT);
+            $apply    = optional_param('apply', 0, PARAM_INT);
+            $onlyclassid = optional_param('classid', 0, PARAM_INT);
+
+            $params = ['periodid' => $periodid, 'approved' => 1, 'closed' => 0];
+            if ($onlyclassid > 0) {
+                $params['id'] = $onlyclassid;
+            }
+            $classes = $DB->get_records('gmk_class', $params);
+
+            $report = [];
+            $pendingtotal = 0;
+            foreach ($classes as $class) {
+                $instructorid = (int)($class->instructorid ?? 0);
+                $prereg = $DB->get_fieldset_select('gmk_class_pre_registration', 'userid', 'classid = ?', [$class->id]);
+                $queued = $DB->get_fieldset_select('gmk_class_queue', 'userid', 'classid = ?', [$class->id]);
+
+                // Already enrolled: group membership or a progress row bound to this class.
+                $enrolled = [];
+                if (!empty($class->groupid)) {
+                    foreach ($DB->get_fieldset_select('groups_members', 'userid', 'groupid = ?', [$class->groupid]) as $uid) {
+                        $enrolled[(int)$uid] = true;
+                    }
+                }
+                foreach ($DB->get_fieldset_select('gmk_course_progre', 'userid', 'classid = ?', [$class->id]) as $uid) {
+                    $enrolled[(int)$uid] = true;
+                }
+
+                $pending = [];
+                foreach (array_merge((array)$prereg, (array)$queued) as $uid) {
+                    $uid = (int)$uid;
+                    if (!$uid || isset($enrolled[$uid]) || ($instructorid && $uid === $instructorid)) {
+                        continue;
+                    }
+                    if (!$DB->record_exists('user', ['id' => $uid, 'deleted' => 0])) {
+                        continue;
+                    }
+                    $pending[$uid] = $uid;
+                }
+                if (empty($pending)) {
+                    continue;
+                }
+
+                $names = [];
+                foreach ($DB->get_records_list('user', 'id', array_values($pending), 'lastname ASC', 'id, firstname, lastname, idnumber') as $u) {
+                    $names[] = ['userid' => (int)$u->id, 'name' => fullname($u), 'idnumber' => (string)$u->idnumber];
+                }
+
+                $entry = [
+                    'classid'  => (int)$class->id,
+                    'name'     => (string)$class->name,
+                    'pending'  => count($pending),
+                    'students' => $names,
+                    'enrolled' => 0,
+                ];
+                $pendingtotal += count($pending);
+
+                if ($apply) {
+                    $objs = [];
+                    foreach ($pending as $uid) {
+                        $o = new stdClass();
+                        $o->userid = $uid;
+                        $objs[] = $o;
+                    }
+                    try {
+                        $res = enrolApprovedScheduleStudents($objs, $class);
+                        $entry['enrolled'] = count(array_filter($res));
+                    } catch (Exception $e) {
+                        $entry['error'] = $e->getMessage();
+                        gmk_log('enroll_period_pending error classid=' . $class->id . ' ' . $e->getMessage());
+                    }
+                }
+                $report[] = $entry;
+            }
+
+            $response = ['status' => 'success', 'data' => [
+                'applied'        => (bool)$apply,
+                'classes'        => $report,
+                'classes_count'  => count($report),
+                'pending_total'  => $pendingtotal,
+                'enrolled_total' => array_sum(array_column($report, 'enrolled')),
+            ]];
+            break;
+
         case 'local_grupomakro_bulk_approve_period':
             raise_memory_limit(MEMORY_HUGE);
             core_php_time_limit::raise(600);

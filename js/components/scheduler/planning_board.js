@@ -24,6 +24,20 @@ window.SchedulerComponents.PlanningBoard = {
                 </span>
                 <button @click="reloadBoard" class="shrink-0 px-3 py-1 bg-white text-blue-700 rounded-lg hover:bg-blue-50 transition-colors">Recargar ahora</button>
              </div>
+             <div v-if="pendingEnrollmentSummary.total > 0" class="shrink-0 bg-cyan-50 border-b border-cyan-200 px-4 py-2 flex items-center justify-between gap-3 text-cyan-900 text-xs">
+                <span class="flex items-center gap-2">
+                    <i data-lucide="user-plus" class="w-4 h-4 shrink-0"></i>
+                    <span>
+                        <strong>{{ pendingEnrollmentSummary.total }}</strong> estudiante(s) planificados sin inscribir
+                        en <strong>{{ pendingEnrollmentSummary.classes }}</strong> ficha(s) ya publicada(s).
+                        Republicar una ficha reescribe su planificacion pero no inscribe a nadie.
+                    </span>
+                </span>
+                <button @click="enrollPeriodPending" :disabled="enrollingPeriodPending || boardReadOnly"
+                    class="shrink-0 px-3 py-1 bg-cyan-600 text-white font-bold rounded-lg hover:bg-cyan-700 disabled:opacity-50 transition-colors">
+                    {{ enrollingPeriodPending ? 'Inscribiendo...' : 'Revisar e inscribir' }}
+                </button>
+             </div>
              <div class="flex h-full">
                 <!-- Unassigned List (Left) -->
                 <div class="w-1/4 h-full flex flex-col border-r border-gray-200 bg-slate-50">
@@ -850,6 +864,7 @@ window.SchedulerComponents.PlanningBoard = {
             search: '',
             days: ['Lunes', 'Martes', 'Mi\u00e9rcoles', 'Jueves', 'Viernes', 'S\u00e1bado'],
             draggedClass: null,
+            enrollingPeriodPending: false,
             // Resize state
             resizingClass: null,
             resizeStartY: 0,
@@ -910,6 +925,20 @@ window.SchedulerComponents.PlanningBoard = {
         },
         allClasses() {
             return this.storeState.generatedSchedules || [];
+        },
+        // Students planned into an already-published class of THIS period that were
+        // never enrolled. Republishing rewrites a class roster even when the class is
+        // already approved, and the approval pass only looks at unapproved classes, so
+        // they would otherwise stay planned-but-not-enrolled forever and unnoticed.
+        pendingEnrollmentSummary() {
+            let total = 0;
+            let classes = 0;
+            this.allClasses.forEach(cls => {
+                if (cls.isExternal) return;
+                const n = this.getPendingEnrollmentCount(cls);
+                if (n > 0) { total += n; classes++; }
+            });
+            return { total, classes };
         },
         canManageCurrentStudents() {
             return this.canManageEnrollment(this.currentStudentsClass);
@@ -1380,6 +1409,55 @@ window.SchedulerComponents.PlanningBoard = {
             if (!cls || cls.isExternal) return false;
             const classId = Number(cls.id || 0);
             return classId > 0;
+        },
+        // Explicit, operator-driven enrolment of everyone planned into an already
+        // approved class of this period but never enrolled. Runs a dry pass first and
+        // shows exactly what it will do before touching anything. Nothing here is
+        // wired to saving or publishing: those must never enrol.
+        async enrollPeriodPending() {
+            const periodId = window.schedulerStore?.state?.activePeriod;
+            if (!periodId || this.enrollingPeriodPending) return;
+
+            const NL = String.fromCharCode(10);
+            this.enrollingPeriodPending = true;
+            try {
+                const preview = await window.schedulerStore._fetch('local_grupomakro_enroll_period_pending', {
+                    periodid: periodId,
+                    apply: 0
+                });
+                const classes = preview?.classes || [];
+                if (!classes.length) {
+                    alert('No hay estudiantes planificados sin inscribir en fichas publicadas de este periodo.');
+                    return;
+                }
+
+                const detail = classes.slice(0, 15).map(c => '  - ' + c.name + ': ' + c.pending).join(NL);
+                const more = classes.length > 15 ? NL + '  ... y ' + (classes.length - 15) + ' ficha(s) mas' : '';
+                const ok = confirm(
+                    'Se inscribiran ' + preview.pending_total + ' estudiante(s) en ' + classes.length + ' ficha(s):' + NL + NL +
+                    detail + more + NL + NL +
+                    'No se aprueba ninguna ficha ni se crean actividades: solo se inscribe. Continuar?'
+                );
+                if (!ok) return;
+
+                const res = await window.schedulerStore._fetch('local_grupomakro_enroll_period_pending', {
+                    periodid: periodId,
+                    apply: 1
+                });
+                const failed = (res?.classes || []).filter(c => c.error);
+                let msg = 'Inscritos ' + (res?.enrolled_total || 0) + ' de ' + preview.pending_total + '.';
+                if (failed.length) {
+                    msg += NL + NL + failed.length + ' ficha(s) con error:' + NL +
+                        failed.slice(0, 5).map(c => '  - ' + c.name + ': ' + c.error).join(NL);
+                }
+                alert(msg);
+
+                await window.schedulerStore.loadGeneratedSchedules(periodId);
+            } catch (e) {
+                alert('Error al inscribir pendientes: ' + (e.message || 'desconocido'));
+            } finally {
+                this.enrollingPeriodPending = false;
+            }
         },
         getPendingEnrollmentCount(cls) {
             return Math.max(0, Number(cls?.pendingEnrollmentCount || 0));
