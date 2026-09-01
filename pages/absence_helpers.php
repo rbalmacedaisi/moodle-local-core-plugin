@@ -1019,20 +1019,32 @@ function absd_log_history(int $userid, int $classid, int $countafter, int $level
  * Resolve the current (or next) alert level for a given absence count.
  *  0 = none, 1 = info shown, 2 = warning popup, 3 = blocked.
  *
+ * The intermediate levels are relative to the configured threshold: the
+ * warning popup always fires on the last absence before the block, and any
+ * earlier absence shows the informational notice. Hard-coding them to 1 and 2
+ * only worked while the threshold was 3 — with a threshold of 5 a student on
+ * 3 or 4 absences fell back to level 0 and got no warning at all, right when
+ * they most needed it.
+ *
+ * With threshold 3 this returns exactly what the previous version did
+ * (1 -> 1, 2 -> 2, 3+ -> 3).
+ *
  * @param int $absences
  * @return int
  */
 function absd_level_for_count(int $absences): int {
-    if ($absences >= absd_get_block_threshold()) {
+    $threshold = absd_get_block_threshold();
+    if ($absences >= $threshold) {
         return 3;
     }
-    if ($absences === 2) {
+    if ($absences <= 0) {
+        return 0;
+    }
+    // Last absence before the block (threshold 3 -> 2, threshold 5 -> 4).
+    if ($absences >= $threshold - 1) {
         return 2;
     }
-    if ($absences === 1) {
-        return 1;
-    }
-    return 0;
+    return 1;
 }
 
 /**
