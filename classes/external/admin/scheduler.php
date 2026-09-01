@@ -1972,8 +1972,17 @@ class scheduler extends external_api {
             // already-enrolled students. The board IS the enrollment tool:
             // it must show who still needs to be enrolled.
             // ----------------------------------------------------------------
+            // ONLY for classes of the period being planned. When $includeoverlaps is
+            // on, this loop also walks classes of OTHER periods that overlap in dates,
+            // and those must show their real enrolment and nothing else: injecting the
+            // current projection into them put students who are not (and never will be)
+            // in that class inside its student list, which inflated its headcount and
+            // made the collision detector flag every projected student against their own
+            // projection -- the class of the period being planned and the external class
+            // of the same corecourse+shift both contained them.
+            $isExternalClass = ($finalPeriodId !== (int)$periodid && $finalPeriodId !== 0);
             $projKey = ((int)($c->corecourseid ?? 0)) . '|' . ($c->shift ?? '');
-            $projectedStudents = $projectedStudentsByKey[$projKey] ?? [];
+            $projectedStudents = $isExternalClass ? [] : ($projectedStudentsByKey[$projKey] ?? []);
             $enrolledStudentCount = count($classStudentIds);
             $mergedStudentIds = array_values(array_unique(array_merge($classStudentIds, $projectedStudents)));
 
@@ -2006,7 +2015,7 @@ class scheduler extends external_api {
                 'typeLabel' => $c->typelabel ?? 'Presencial',
                 'learningplanid' => (int)($c->learningplanid ?? 0),
                 'periodid' => $finalPeriodId,
-                'isExternal' => ($finalPeriodId !== (int)$periodid && $finalPeriodId !== 0),
+                'isExternal' => $isExternalClass,
                 'initdate' => (int)($c->initdate ?? 0),
                 'enddate' => (int)($c->enddate ?? 0),
                 'sessions' => $sessArr,
