@@ -1932,9 +1932,16 @@ class scheduler extends external_api {
                 $enrolledUserIds
             )));
 
+            // Two separate lists, because a pre-registration or an approval-queue
+            // entry is a REQUEST, not an enrolment: nobody has taken that seat yet and
+            // the student's time is not occupied by it.
+            //   $classStudentIds     = enrolled + requested (what the board must act on)
+            //   $enrolledStudentIds  = only really enrolled (group membership / progress)
             $classStudentIds = [];
+            $enrolledStudentIds = [];
             $validUserIds = [];
             if (!empty($classUserIds)) {
+                $enrolledSet = array_flip(array_map('intval', $enrolledUserIds));
                 $userRows = $DB->get_records_list('user', 'id', $classUserIds, '', 'id, idnumber, deleted');
                 foreach ($classUserIds as $uid) {
                     $uid = (int)$uid;
@@ -1943,9 +1950,14 @@ class scheduler extends external_api {
                     }
                     $validUserIds[$uid] = $uid;
                     $idnumber = trim((string)$userRows[$uid]->idnumber);
-                    $classStudentIds[] = ($idnumber !== '') ? $idnumber : (string)$uid;
+                    $token = ($idnumber !== '') ? $idnumber : (string)$uid;
+                    $classStudentIds[] = $token;
+                    if (isset($enrolledSet[$uid])) {
+                        $enrolledStudentIds[] = $token;
+                    }
                 }
                 $classStudentIds = array_values(array_unique($classStudentIds));
+                $enrolledStudentIds = array_values(array_unique($enrolledStudentIds));
             }
 
             $countValid = static function(array $ids, array $validSet) {
@@ -1983,8 +1995,18 @@ class scheduler extends external_api {
             $isExternalClass = ($finalPeriodId !== (int)$periodid && $finalPeriodId !== 0);
             $projKey = ((int)($c->corecourseid ?? 0)) . '|' . ($c->shift ?? '');
             $projectedStudents = $isExternalClass ? [] : ($projectedStudentsByKey[$projKey] ?? []);
-            $enrolledStudentCount = count($classStudentIds);
-            $mergedStudentIds = array_values(array_unique(array_merge($classStudentIds, $projectedStudents)));
+
+            // A class of ANOTHER period is shown only to reveal genuine clashes, so it
+            // must carry exactly the students whose time it really occupies: those
+            // actually enrolled. Including pre-registrations and approval-queue entries
+            // put students inside a class they were merely REQUESTED for -- 22 of the 41
+            // in 2026-IV (S) INGLES II were queue-only -- and every one of them collided
+            // against their own projection for the period being planned.
+            // For the period being planned the full list stays: the board is the
+            // enrolment tool and must show who is still pending.
+            $baseStudentIds = $isExternalClass ? $enrolledStudentIds : $classStudentIds;
+            $enrolledStudentCount = count($enrolledStudentIds);
+            $mergedStudentIds = array_values(array_unique(array_merge($baseStudentIds, $projectedStudents)));
 
             $result[] = [
                 'id' => (int)$c->id,
