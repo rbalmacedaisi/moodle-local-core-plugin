@@ -16,6 +16,7 @@
  *     --batch=N     estudiantes por llamada al proxy (default 15)
  *     --throttle=S  segundos de pausa entre batches (default 2)
  *     --max=N       procesar a lo sumo N estudiantes (0 = todos, default 0)
+ *     --only-active excluir suspendidos (default: se incluyen)
  *     --dry-run     no toca la BD; solo cuenta y mide
  *     --logfile=PATH  además de STDERR, append a un archivo de log
  *
@@ -39,6 +40,7 @@ list($options, $unrecognized) = cli_get_params(
         'batch'     => 15,
         'throttle'  => 2,
         'max'       => 0,
+        'only-active' => false,
         'dry-run'   => false,
         'logfile'   => '',
         'help'      => false,
@@ -47,6 +49,7 @@ list($options, $unrecognized) = cli_get_params(
         'b' => 'batch',
         't' => 'throttle',
         'm' => 'max',
+        'a' => 'only-active',
         'd' => 'dry-run',
         'l' => 'logfile',
         'h' => 'help',
@@ -65,6 +68,8 @@ Opciones:
   --batch=N     estudiantes por llamada al proxy (default 15)
   --throttle=S  segundos de pausa entre batches (default 2)
   --max=N       procesar a lo sumo N estudiantes (0 = todos, default 0)
+  --only-active excluir usuarios suspendidos (default: se incluyen, igual
+                que el cron residual, para que la tabla no quede a medias)
   --dry-run     no toca la BD; solo cuenta y mide
   --logfile=PATH  append de log a un archivo además de STDERR
   -h, --help    muestra esta ayuda
@@ -81,6 +86,7 @@ Ejemplos:
 $batch     = max(1, (int)$options['batch']);
 $throttle  = max(0, (int)$options['throttle']);
 $max       = max(0, (int)$options['max']);
+$onlyactive = !empty($options['only-active']);
 $dryrun    = !empty($options['dry-run']);
 $logfile   = (string)$options['logfile'];
 
@@ -113,10 +119,11 @@ core_php_time_limit::raise(0); // Sin límite; el proceso puede correr horas.
 
 bs_log("=== Bootstrap financiero Moodle → Odoo ===", $logfile);
 bs_log(sprintf(
-    "batch=%d throttle=%ds max=%d dry-run=%s",
+    "batch=%d throttle=%ds max=%d only-active=%s dry-run=%s",
     $batch,
     $throttle,
     $max,
+    $onlyactive ? 'SI' : 'no',
     $dryrun ? 'SI' : 'no'
 ), $logfile);
 
@@ -127,13 +134,19 @@ if (!$fieldDoc) {
     exit(1);
 }
 
+// Por defecto se incluyen los suspendidos: el cron residual tampoco los
+// filtra, y excluirlos dejaba la tabla permanentemente a medias — sus filas
+// nunca se refrescaban y figuraban como stale para siempre. Los usuarios
+// borrados si se excluyen siempre.
+$suspendedclause = $onlyactive ? 'AND u.suspended = 0' : '';
+
 $sql = "SELECT u.id, d.data AS documentnumber
           FROM {user} u
           JOIN {user_info_data} d
             ON d.userid = u.id
            AND d.fieldid = :fieldid
          WHERE u.deleted = 0
-           AND u.suspended = 0
+           $suspendedclause
            AND d.data IS NOT NULL
            AND d.data != ''
       ORDER BY u.id ASC";
