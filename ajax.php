@@ -2136,9 +2136,9 @@ try {
                 ]];
             } else if ($update_action === 'complete') {
                 require_once($CFG->libdir . '/gradelib.php');
-                $DB->set_field('gmk_module_enrollment', 'status',       'completed', ['id' => $enrollment_id]);
-                $DB->set_field('gmk_module_enrollment', 'timemodified', $now_t,      ['id' => $enrollment_id]);
-
+                // The enrollment is closed at the very end, once the grade is resolved. Closing
+                // it up front used to shut ungraded submissions out of the panel with no grade
+                // ever recorded.
                 $mod_class = $DB->get_record('gmk_class', ['id' => $enrollment_rec->classid],
                     'id, corecourseid, gradecategoryid, coursesectionid');
                 $module_grade = null;
@@ -2252,10 +2252,59 @@ try {
                     }
                 }
 
-                // Update gmk_course_progre with the resolved status and grade.
+                // No grade resolved but the student did submit: refuse to close. A closed
+                // enrollment disappears from the panel and the grade can never be registered
+                // afterwards, which is how students ended up showing "Disponible" while holding
+                // a delivered assignment.
+                if ($module_grade === null && !empty($module_section_items)) {
+                    $pending_activity = '';
+                    foreach ($module_section_items as $sitemid => $sitem) {
+                        $gi_rec = $DB->get_record('grade_items', ['id' => $sitemid],
+                            'id, itemmodule, iteminstance, itemname');
+                        if (!$gi_rec || $gi_rec->itemmodule !== 'assign') {
+                            continue;
+                        }
+                        if ($DB->record_exists('assign_submission', [
+                                'assignment' => (int)$gi_rec->iteminstance,
+                                'userid'     => (int)$enrollment_rec->userid,
+                                'status'     => 'submitted'])) {
+                            $pending_activity = (string)$gi_rec->itemname;
+                            break;
+                        }
+                    }
+                    if ($pending_activity !== '') {
+                        $response = ['status' => 'error', 'data' => ['message' =>
+                            'El estudiante entregó «' . $pending_activity . '» y la actividad '
+                            . 'aún no está calificada. Califíquela y vuelva a completar el '
+                            . 'módulo: la inscripción sigue activa y la asignatura queda en '
+                            . '"Cursando".']];
+                        break;
+                    }
+                }
+
+                $DB->set_field('gmk_module_enrollment', 'status',       'completed', ['id' => $enrollment_id]);
+                $DB->set_field('gmk_module_enrollment', 'timemodified', $now_t,      ['id' => $enrollment_id]);
+
+                // Update gmk_course_progre with the resolved status and grade. The row is
+                // normally the one bound to this class, but enrollments created before the
+                // progress row was reused left it unbound, so fall back to the student's row
+                // for this subject inside a plan that is actually theirs.
                 $progre = $DB->get_record('gmk_course_progre',
                     ['userid' => (int)$enrollment_rec->userid, 'classid' => (int)$enrollment_rec->classid],
                     'id, status');
+                if (!$progre && $mod_class && (int)$mod_class->corecourseid > 0) {
+                    $progre = $DB->get_record_sql(
+                        "SELECT p.id, p.status
+                           FROM {gmk_course_progre} p
+                           JOIN {local_learning_users} lu ON lu.userid = p.userid
+                                AND lu.learningplanid = p.learningplanid
+                                AND lu.status = 'activo'
+                          WHERE p.userid = :uid AND p.courseid = :cid
+                       ORDER BY p.id ASC",
+                        ['uid' => (int)$enrollment_rec->userid, 'cid' => (int)$mod_class->corecourseid],
+                        IGNORE_MULTIPLE
+                    );
+                }
                 if ($progre && $module_grade !== null) {
                     $new_status = gmk_classify_student_grade($module_grade, 0);
                     $DB->execute(
