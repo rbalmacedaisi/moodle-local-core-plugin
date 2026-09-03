@@ -3587,6 +3587,18 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20260909000, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20261001000) {
+
+        // Credit report: register the new view_credit_report capability
+        // declared in db/access.php so pages/credit_report.php's
+        // require_capability() call does not fail on existing installs.
+        // update_capabilities() is idempotent: it is a no-op for caps
+        // already registered and creates only the missing ones.
+        update_capabilities('local_grupomakro_core');
+
+        upgrade_plugin_savepoint(true, 20261001000, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

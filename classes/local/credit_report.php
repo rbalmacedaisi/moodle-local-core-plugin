@@ -33,6 +33,7 @@ use local_sc_learningplans\local\credit_resolver;
 defined('MOODLE_INTERNAL') || die();
 
 require_once($GLOBALS['CFG']->dirroot . '/local/grupomakro_core/classes/external/student/get_student_learning_plan_pensum.php');
+require_once($GLOBALS['CFG']->dirroot . '/local/grupomakro_core/classes/local/grade_scale.php');
 require_once($GLOBALS['CFG']->dirroot . '/local/sc_learningplans/classes/local/credit_resolver.php');
 
 /**
@@ -42,6 +43,14 @@ class credit_report {
 
     /** @var int[] Course statuses considered "with academic history" (used by the 'enrolled' scope). */
     const ENROLLED_STATUSES = [2, 3, 4, 5, 6, 7];
+
+    /**
+     * @var int[] Course statuses with a final grade on record (approved, failed, pending
+     * revalidation). These are the ones that get a letter grade and weigh on the academic
+     * index; "Cursando" (2) is deliberately out, because its grade is still partial and a
+     * mid-term 30 would print "F - Fracasa" on an official document.
+     */
+    const CLOSED_STATUSES = [3, 4, 5, 6, 7];
 
     /**
      * Build the credit report structure for a student.
@@ -76,12 +85,29 @@ class credit_report {
             }
         }
 
+        $scale = grade_scale::points_scale();
+
         $careers = [];
         foreach ($plans as $pid => $pname) {
-            $career = self::build_career($userid, (int)$pid, (string)$pname, $scope);
+            $career = self::build_career($userid, (int)$pid, (string)$pname, $scope, $scale);
             if ($career !== null) {
                 $careers[] = $career;
             }
+        }
+
+        // Overall academic index across every plan of the student (the "índice general"
+        // printed at the foot of the document). Recomputed from the raw weighted sums so
+        // it is a real credit-weighted index, not the average of the per-career indexes.
+        $totalpoints = 0.0;
+        $totalcredits = 0;
+        $totalcourses = 0;
+        $totaluncredited = 0;
+        foreach ($careers as $career) {
+            $idx = $career['summary']['index'];
+            $totalpoints     += (float)$idx['points'];
+            $totalcredits    += (int)$idx['credits'];
+            $totalcourses    += (int)$idx['courses'];
+            $totaluncredited += (int)$idx['uncredited'];
         }
 
         return [
@@ -89,6 +115,33 @@ class credit_report {
             'generatedat' => date('d/m/Y H:i'),
             'scope'       => $scope,
             'careers'     => $careers,
+            'index'       => self::index_block($totalpoints, $totalcredits, $totalcourses, $totaluncredited, $scale),
+            'scale'       => $scale,
+            'legend'      => grade_scale::legend($scale),
+        ];
+    }
+
+    /**
+     * Shape the academic index block shared by careers and the document footer.
+     *
+     * @param float $points     Sum of (index points x credits).
+     * @param int   $credits    Sum of the credits that weighed.
+     * @param int   $courses    Number of subjects that weighed.
+     * @param int   $uncredited Closed subjects left out because they carry 0 credits.
+     * @param int   $scale      Points scale in use (3 or 4).
+     * @return array
+     */
+    private static function index_block(float $points, int $credits, int $courses, int $uncredited, int $scale): array {
+        $value = $credits > 0 ? round($points / $credits, 2) : null;
+        return [
+            'value'      => $value,
+            'display'    => grade_scale::format_index($value),
+            'scale'      => $scale,
+            'scaletext'  => number_format((float)$scale, 2),
+            'points'     => round($points, 2),
+            'credits'    => $credits,
+            'courses'    => $courses,
+            'uncredited' => $uncredited,
         ];
     }
 
@@ -99,9 +152,10 @@ class credit_report {
      * @param int    $planid
      * @param string $careername
      * @param string $scope
+     * @param int    $scale Points scale for the academic index (3 or 4).
      * @return array|null Null when the plan has no reportable cuatrimestres.
      */
-    private static function build_career(int $userid, int $planid, string $careername, string $scope): ?array {
+    private static function build_career(int $userid, int $planid, string $careername, string $scope, int $scale): ?array {
         global $DB;
 
         // Reuse the pensum resolver: it returns courses with resolved grade/status/credits.
@@ -137,6 +191,14 @@ class credit_report {
         $sumapproved = 0;
         $sumincourse = 0;
 
+        // Academic index accumulators. Deliberately fed BEFORE the scope filter below:
+        // if they depended on the "Todas / Solo cursadas" toggle the same student would
+        // get two different indexes out of the same report.
+        $indexpoints = 0.0;
+        $indexcredits = 0;
+        $indexcourses = 0;
+        $indexuncredited = 0;
+
         // Order cuatrimestres by periodid (numeric key of the pensum object).
         $periodids = array_map('intval', array_keys($pensum));
         sort($periodids);
@@ -155,9 +217,6 @@ class credit_report {
 
             foreach ($rawcourses as $c) {
                 $status = (int)($c['status'] ?? 0);
-                if ($scope === 'enrolled' && !in_array($status, self::ENROLLED_STATUSES, true)) {
-                    continue;
-                }
 
                 $courseid = (int)($c['courseid'] ?? 0);
                 $credits = (int)($c['credits'] ?? 0);
@@ -169,13 +228,38 @@ class credit_report {
                 $isapproved = ($statuslabel === 'Aprobada');
                 $isincourse = ($statuslabel === 'Cursando');
 
+                // Letter grade only for subjects with a final grade on record.
+                $isclosed = in_array($status, self::CLOSED_STATUSES, true);
+                $band = $isclosed ? grade_scale::band_for($c['grade'] ?? null) : null;
+
+                if ($band !== null) {
+                    if ($credits > 0) {
+                        $indexpoints  += ((float)($band['points'][$scale] ?? 0)) * $credits;
+                        $indexcredits += $credits;
+                        $indexcourses++;
+                    } else {
+                        // No credit definition for this (plan, course): it would weigh 0 and
+                        // silently vanish from the average, so it is counted for the footnote.
+                        $indexuncredited++;
+                    }
+                }
+
+                if ($scope === 'enrolled' && !in_array($status, self::ENROLLED_STATUSES, true)) {
+                    continue;
+                }
+
                 $courses[] = [
-                    'coursename'  => (string)($c['coursename'] ?? 'Asignatura'),
-                    'credits'     => $credits,
-                    'statusLabel' => $statuslabel,
-                    'statusColor' => (string)($c['statusColor'] ?? '#5e35b1'),
-                    'grade'       => (string)($c['grade'] ?? '-'),
-                    'is_module'   => !empty($c['is_module']) ? 1 : 0,
+                    'coursename'   => (string)($c['coursename'] ?? 'Asignatura'),
+                    'credits'      => $credits,
+                    'status'       => $status,
+                    'statusLabel'  => $statuslabel,
+                    'statusColor'  => (string)($c['statusColor'] ?? '#5e35b1'),
+                    'grade'        => (string)($c['grade'] ?? '-'),
+                    'is_module'    => !empty($c['is_module']) ? 1 : 0,
+                    'is_closed'    => $isclosed ? 1 : 0,
+                    'letter'       => $band ? $band['letter'] : '',
+                    'letterconcept' => $band ? $band['concept'] : '',
+                    'lettercolor'  => $band ? $band['color'] : '',
                 ];
 
                 $cuatritotal += $credits;
@@ -220,6 +304,7 @@ class credit_report {
                 'pending'  => $pending,
                 'total'    => $sumtotal,
                 'pct'      => $pct,
+                'index'    => self::index_block($indexpoints, $indexcredits, $indexcourses, $indexuncredited, $scale),
             ],
         ];
     }

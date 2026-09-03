@@ -184,4 +184,16 @@ $capabilities = array(
             'manager' => CAP_ALLOW,
         ),
     ),
+
+    // ── Credit report (informe de créditos) ────────────────────────────────
+    // Required by pages/credit_report.php. Default to 'manager' so existing
+    // siteadmins keep their level of access; per-role bundle for the
+    // gmk_* operational roles will be assigned in a later upgrade.
+    'local/grupomakro_core:view_credit_report' => array(
+        'captype' => 'read',
+        'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array(
+            'manager' => CAP_ALLOW,
+        ),
+    ),
 );

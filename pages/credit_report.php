@@ -34,11 +34,14 @@
 
 require_once(__DIR__ . '/../../../config.php');
 require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/credit_report.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/grade_scale.php');
+
+use local_grupomakro_core\local\grade_scale;
 
 require_login();
 require_sesskey();
 $context = context_system::instance();
-require_capability('moodle/site:config', $context);
+require_capability('local/grupomakro_core:view_credit_report', $context);
 
 $userid = required_param('userId', PARAM_INT);
 $planid = optional_param('planId', 0, PARAM_INT);
@@ -130,12 +133,32 @@ function cr_logo_binary(array $areas): ?array {
 
 /**
  * Colour (hex, no #) for a numeric grade.
+ *
+ * Uses the canonical institutional threshold (> 70.9, same as
+ * gmk_classify_student_grade) so the colour never disagrees with the letter
+ * printed next to it: a flat 70.00 is a D and must not read as green.
  */
 function cr_grade_color(string $grade, array $design): string {
-    if (!is_numeric($grade)) {
+    if (grade_scale::to_float($grade) === null) {
         return $design['grey'];
     }
-    return ((float)$grade >= 70.0) ? $design['green'] : $design['red'];
+    return grade_scale::is_passing($grade) ? $design['green'] : $design['red'];
+}
+
+/**
+ * Text and colour for the letter cell of a course row.
+ *
+ * @param array $course Course entry from the builder.
+ * @param array $design Shared palette.
+ * @return array{0:string,1:string} [letter, hex colour without #]
+ */
+function cr_letter_cell(array $course, array $design): array {
+    $letter = (string)($course['letter'] ?? '');
+    if ($letter === '') {
+        return ['--', $design['grey']];
+    }
+    $color = (string)($course['lettercolor'] ?? '');
+    return [$letter, $color !== '' ? $color : $design['grey']];
 }
 
 if ($format === 'xlsx') {
@@ -240,10 +263,11 @@ function cr_render_pdf(array $data, array $design, string $scopelabel, string $f
             // Courses table.
             $html .= '<table cellpadding="3" cellspacing="0" border="0.4" style="font-size:8.5px;">';
             $html .= '<tr bgcolor="#' . $design['thead_bg'] . '">';
-            $html .= '<th width="55%" align="left"><b>Asignatura</b></th>';
-            $html .= '<th width="13%" align="center"><b>Créditos</b></th>';
-            $html .= '<th width="20%" align="center"><b>Estado</b></th>';
-            $html .= '<th width="12%" align="center"><b>Nota</b></th>';
+            $html .= '<th width="44%" align="left"><b>Asignatura</b></th>';
+            $html .= '<th width="11%" align="center"><b>Créditos</b></th>';
+            $html .= '<th width="19%" align="center"><b>Estado</b></th>';
+            $html .= '<th width="13%" align="center"><b>Nota</b></th>';
+            $html .= '<th width="13%" align="center"><b>Letra</b></th>';
             $html .= '</tr>';
 
             $i = 0;
@@ -252,34 +276,75 @@ function cr_render_pdf(array $data, array $design, string $scopelabel, string $f
                 $name = $e($course['coursename']) . (!empty($course['is_module']) ? ' <i>(M)</i>' : '');
                 $gradecolor = '#' . cr_grade_color($course['grade'], $design);
                 $gradetext = ($course['grade'] === '' || $course['grade'] === '-' || $course['grade'] === '--') ? '--' : $e($course['grade']);
+                list($lettertext, $letterhex) = cr_letter_cell($course, $design);
                 $html .= '<tr bgcolor="' . $bg . '">';
-                $html .= '<td width="55%">' . $name . '</td>';
-                $html .= '<td width="13%" align="center">' . (int)$course['credits'] . '</td>';
-                $html .= '<td width="20%" align="center"><span style="color:' . $e($course['statusColor']) . ';font-weight:bold;">' . $e($course['statusLabel']) . '</span></td>';
-                $html .= '<td width="12%" align="center"><span style="color:' . $gradecolor . ';font-weight:bold;">' . $gradetext . '</span></td>';
+                $html .= '<td width="44%">' . $name . '</td>';
+                $html .= '<td width="11%" align="center">' . (int)$course['credits'] . '</td>';
+                $html .= '<td width="19%" align="center"><span style="color:' . $e($course['statusColor']) . ';font-weight:bold;">' . $e($course['statusLabel']) . '</span></td>';
+                $html .= '<td width="13%" align="center"><span style="color:' . $gradecolor . ';font-weight:bold;">' . $gradetext . '</span></td>';
+                $html .= '<td width="13%" align="center"><span style="color:#' . $letterhex . ';font-weight:bold;">' . $e($lettertext) . '</span></td>';
                 $html .= '</tr>';
                 $i++;
             }
 
             // Subtotal row.
             $html .= '<tr bgcolor="#' . $design['subtotal_bg'] . '">';
-            $html .= '<td width="55%" align="right"><b>Subtotal cuatrimestre</b></td>';
-            $html .= '<td width="13%" align="center"><b>' . (int)$sub['total'] . '</b></td>';
-            $html .= '<td width="32%" align="center"><b>Aprobados: ' . (int)$sub['approved'] . '</b></td>';
+            $html .= '<td width="44%" align="right"><b>Subtotal cuatrimestre</b></td>';
+            $html .= '<td width="11%" align="center"><b>' . (int)$sub['total'] . '</b></td>';
+            $html .= '<td width="45%" align="center"><b>Aprobados: ' . (int)$sub['approved'] . '</b></td>';
             $html .= '</tr>';
             $html .= '</table><br/>';
         }
 
         // Global summary box for the career.
         $s = $career['summary'];
+        $idx = $s['index'];
         $html .= '<table cellpadding="6" cellspacing="0"><tr>';
         $html .= '<td bgcolor="#' . $design['summary_bg'] . '"><span style="color:#FFFFFF;font-size:9px;font-weight:bold;">RESUMEN &nbsp;&mdash;&nbsp; '
             . 'Créditos aprobados: ' . (int)$s['approved']
             . ' &nbsp;|&nbsp; En curso: ' . (int)$s['incourse']
             . ' &nbsp;|&nbsp; Pendientes: ' . (int)$s['pending']
             . ' &nbsp;|&nbsp; Total del plan: ' . (int)$s['total']
-            . ' &nbsp;|&nbsp; Avance: ' . $e($s['pct']) . '%</span></td>';
+            . ' &nbsp;|&nbsp; Avance: ' . $e($s['pct']) . '%'
+            . ' &nbsp;|&nbsp; Índice: ' . $e($idx['display']) . ' / ' . $e($idx['scaletext'])
+            . '</span></td>';
         $html .= '</tr></table><br/><br/>';
+    }
+
+    // ── Closing block: cumulative academic index + scale legend ──────────────
+    if (!empty($data['careers'])) {
+        $gidx = $data['index'];
+        $html .= '<table cellpadding="6" cellspacing="0" border="0.4"><tr>';
+        $html .= '<td bgcolor="#' . $design['career_bg'] . '" width="62%"><span style="color:#FFFFFF;font-size:10px;font-weight:bold;">ÍNDICE ACADÉMICO ACUMULADO</span><br/>'
+            . '<span style="color:#DCE7F7;font-size:7.5px;">Ponderado por créditos sobre ' . (int)$gidx['courses'] . ' asignatura(s) con calificación final ('
+            . (int)$gidx['credits'] . ' créditos).</span></td>';
+        $html .= '<td bgcolor="#' . $design['career_bg'] . '" width="38%" align="center"><span style="color:#FFFFFF;font-size:18px;font-weight:bold;">'
+            . $e($gidx['display']) . '</span><span style="color:#DCE7F7;font-size:9px;"> / ' . $e($gidx['scaletext']) . '</span></td>';
+        $html .= '</tr></table>';
+
+        if ((int)$gidx['uncredited'] > 0) {
+            $html .= '<p style="font-size:7px;color:#' . $design['grey'] . ';">Nota: ' . (int)$gidx['uncredited']
+                . ' asignatura(s) con calificación final no ponderan porque no tienen créditos definidos en el plan.</p>';
+        }
+
+        $html .= '<br/><span style="font-size:8.5px;font-weight:bold;color:#' . $design['cuatri_txt'] . ';">Escala de calificación</span><br/>';
+        $html .= '<table cellpadding="3" cellspacing="0" border="0.4" style="font-size:8px;">';
+        $html .= '<tr bgcolor="#' . $design['thead_bg'] . '">';
+        $html .= '<th width="30%" align="center"><b>Calificación numérica</b></th>';
+        $html .= '<th width="15%" align="center"><b>Letras</b></th>';
+        $html .= '<th width="35%" align="left"><b>Concepto</b></th>';
+        $html .= '<th width="20%" align="center"><b>Puntos índice</b></th>';
+        $html .= '</tr>';
+        foreach ($data['legend'] as $band) {
+            $html .= '<tr>';
+            $html .= '<td width="30%" align="center">' . $e($band['range']) . '</td>';
+            $html .= '<td width="15%" align="center"><span style="color:#' . $e($band['color']) . ';font-weight:bold;">' . $e($band['letter']) . '</span></td>';
+            $html .= '<td width="35%">' . $e($band['concept']) . '</td>';
+            $html .= '<td width="20%" align="center">' . $e($band['points']) . '</td>';
+            $html .= '</tr>';
+        }
+        $html .= '</table>';
+        $html .= '<p style="font-size:7px;color:#' . $design['grey'] . ';">Las asignaturas en curso no reciben calificación en letras ni ponderan en el índice hasta el cierre del período.</p>';
     }
 
     $pdf->writeHTML($html, true, false, true, false, '');
@@ -309,6 +374,8 @@ function cr_render_xlsx(array $data, array $design, string $scopelabel, string $
     $sheet->getColumnDimension('B')->setWidth(12);
     $sheet->getColumnDimension('C')->setWidth(22);
     $sheet->getColumnDimension('D')->setWidth(12);
+    $sheet->getColumnDimension('E')->setWidth(10);
+    $sheet->getColumnDimension('F')->setWidth(20);
 
     $student = $data['student'];
     $r = 1;
@@ -351,10 +418,10 @@ function cr_render_xlsx(array $data, array $design, string $scopelabel, string $
 
     // Header: white background with a blue border (logo + text are dark/blue on white).
     $headerstart = $r;
-    $sheet->mergeCells("A{$r}:D{$r}");
+    $sheet->mergeCells("A{$r}:F{$r}");
     $sheet->setCellValue("A{$r}", 'Instituto Superior ISI — Informe de Créditos');
-    $fill("A{$r}:D{$r}", 'FFFFFF');
-    $fontcolor("A{$r}:D{$r}", $design['header_bg'], true);
+    $fill("A{$r}:F{$r}", 'FFFFFF');
+    $fontcolor("A{$r}:F{$r}", $design['header_bg'], true);
     $sheet->getStyle("A{$r}")->getFont()->setSize(14);
     $sheet->getStyle("A{$r}")->getAlignment()->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
     if ($haslogo) {
@@ -362,12 +429,12 @@ function cr_render_xlsx(array $data, array $design, string $scopelabel, string $
     }
     $sheet->getRowDimension($r)->setRowHeight(30);
     $r++;
-    $sheet->mergeCells("A{$r}:D{$r}");
+    $sheet->mergeCells("A{$r}:F{$r}");
     $sheet->setCellValue("A{$r}", 'Generado: ' . $data['generatedat'] . '  |  Alcance: ' . $scopelabel);
-    $fill("A{$r}:D{$r}", 'FFFFFF');
-    $fontcolor("A{$r}:D{$r}", '5A5A5A');
+    $fill("A{$r}:F{$r}", 'FFFFFF');
+    $fontcolor("A{$r}:F{$r}", '5A5A5A');
     // Blue outline around the whole header block.
-    $sheet->getStyle("A{$headerstart}:D{$r}")->getBorders()->getOutline()
+    $sheet->getStyle("A{$headerstart}:F{$r}")->getBorders()->getOutline()
         ->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_MEDIUM)
         ->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color('FF' . $design['header_bg']));
     $r += 2;
@@ -394,10 +461,10 @@ function cr_render_xlsx(array $data, array $design, string $scopelabel, string $
 
     foreach ($data['careers'] as $career) {
         // Career header.
-        $sheet->mergeCells("A{$r}:D{$r}");
+        $sheet->mergeCells("A{$r}:F{$r}");
         $sheet->setCellValue("A{$r}", $career['career']);
-        $fill("A{$r}:D{$r}", $design['career_bg']);
-        $fontcolor("A{$r}:D{$r}", 'FFFFFF', true);
+        $fill("A{$r}:F{$r}", $design['career_bg']);
+        $fontcolor("A{$r}:F{$r}", 'FFFFFF', true);
         $sheet->getStyle("A{$r}")->getFont()->setSize(12);
         $sheet->getRowDimension($r)->setRowHeight(20);
         $r++;
@@ -405,12 +472,13 @@ function cr_render_xlsx(array $data, array $design, string $scopelabel, string $
         foreach ($career['cuatrimestres'] as $cuatri) {
             $sub = $cuatri['subtotal'];
             // Cuatrimestre section header.
-            $sheet->mergeCells("A{$r}:C{$r}");
+            $sheet->mergeCells("A{$r}:D{$r}");
             $sheet->setCellValue("A{$r}", $cuatri['name']);
-            $sheet->setCellValue("D{$r}", $sub['approved'] . ' / ' . $sub['total']);
-            $fill("A{$r}:D{$r}", $design['cuatri_bg']);
-            $fontcolor("A{$r}:D{$r}", $design['cuatri_txt'], true);
-            $sheet->getStyle("D{$r}")->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_RIGHT);
+            $sheet->mergeCells("E{$r}:F{$r}");
+            $sheet->setCellValue("E{$r}", $sub['approved'] . ' / ' . $sub['total']);
+            $fill("A{$r}:F{$r}", $design['cuatri_bg']);
+            $fontcolor("A{$r}:F{$r}", $design['cuatri_txt'], true);
+            $sheet->getStyle("E{$r}")->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_RIGHT);
             $r++;
 
             // Table header.
@@ -418,22 +486,35 @@ function cr_render_xlsx(array $data, array $design, string $scopelabel, string $
             $sheet->setCellValue("B{$r}", 'Créditos');
             $sheet->setCellValue("C{$r}", 'Estado');
             $sheet->setCellValue("D{$r}", 'Nota');
-            $fill("A{$r}:D{$r}", $design['thead_bg']);
-            $sheet->getStyle("A{$r}:D{$r}")->getFont()->setBold(true);
-            $borderall("A{$r}:D{$r}");
-            $sheet->getStyle("B{$r}:D{$r}")->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+            $sheet->setCellValue("E{$r}", 'Letra');
+            $sheet->setCellValue("F{$r}", 'Concepto');
+            $fill("A{$r}:F{$r}", $design['thead_bg']);
+            $sheet->getStyle("A{$r}:F{$r}")->getFont()->setBold(true);
+            $borderall("A{$r}:F{$r}");
+            $sheet->getStyle("B{$r}:F{$r}")->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
             $r++;
 
             $i = 0;
             foreach ($cuatri['courses'] as $course) {
                 $name = $course['coursename'] . (!empty($course['is_module']) ? ' (M)' : '');
                 $gradetext = ($course['grade'] === '' || $course['grade'] === '-' || $course['grade'] === '--') ? '--' : $course['grade'];
+                list($lettertext, $letterhex) = cr_letter_cell($course, $design);
                 $sheet->setCellValue("A{$r}", $name);
                 $sheet->setCellValueExplicit("B{$r}", (int)$course['credits'], \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_NUMERIC);
                 $sheet->setCellValue("C{$r}", $course['statusLabel']);
-                $sheet->setCellValue("D{$r}", $gradetext);
+                // Numeric grades stay numeric (sortable in Excel) but keep the two decimals
+                // of the PDF; '--' is written as plain text.
+                $gradevalue = grade_scale::to_float($course['grade']);
+                if ($gradevalue === null) {
+                    $sheet->setCellValue("D{$r}", $gradetext);
+                } else {
+                    $sheet->setCellValueExplicit("D{$r}", $gradevalue, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_NUMERIC);
+                    $sheet->getStyle("D{$r}")->getNumberFormat()->setFormatCode('0.00');
+                }
+                $sheet->setCellValue("E{$r}", $lettertext);
+                $sheet->setCellValue("F{$r}", (string)($course['letterconcept'] ?? ''));
                 if ($i % 2 === 1) {
-                    $fill("A{$r}:D{$r}", $design['zebra_bg']);
+                    $fill("A{$r}:F{$r}", $design['zebra_bg']);
                 }
                 // Status colour (strip leading # from the hex coming from the builder).
                 $statushex = ltrim($course['statusColor'], '#');
@@ -441,8 +522,9 @@ function cr_render_xlsx(array $data, array $design, string $scopelabel, string $
                     $fontcolor("C{$r}", strtoupper($statushex), true);
                 }
                 $fontcolor("D{$r}", cr_grade_color($course['grade'], $design), true);
-                $borderall("A{$r}:D{$r}");
-                $sheet->getStyle("B{$r}:D{$r}")->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+                $fontcolor("E{$r}", $letterhex, true);
+                $borderall("A{$r}:F{$r}");
+                $sheet->getStyle("B{$r}:E{$r}")->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
                 $r++;
                 $i++;
             }
@@ -450,30 +532,87 @@ function cr_render_xlsx(array $data, array $design, string $scopelabel, string $
             // Subtotal row.
             $sheet->setCellValue("A{$r}", 'Subtotal cuatrimestre');
             $sheet->setCellValueExplicit("B{$r}", (int)$sub['total'], \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_NUMERIC);
-            $sheet->mergeCells("C{$r}:D{$r}");
+            $sheet->mergeCells("C{$r}:F{$r}");
             $sheet->setCellValue("C{$r}", 'Aprobados: ' . (int)$sub['approved']);
-            $fill("A{$r}:D{$r}", $design['subtotal_bg']);
-            $sheet->getStyle("A{$r}:D{$r}")->getFont()->setBold(true);
+            $fill("A{$r}:F{$r}", $design['subtotal_bg']);
+            $sheet->getStyle("A{$r}:F{$r}")->getFont()->setBold(true);
             $sheet->getStyle("A{$r}")->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_RIGHT);
-            $sheet->getStyle("B{$r}:D{$r}")->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
-            $borderall("A{$r}:D{$r}");
+            $sheet->getStyle("B{$r}:F{$r}")->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+            $borderall("A{$r}:F{$r}");
             $r += 2;
         }
 
         // Global summary box.
         $s = $career['summary'];
-        $sheet->mergeCells("A{$r}:D{$r}");
+        $idx = $s['index'];
+        $sheet->mergeCells("A{$r}:F{$r}");
         $sheet->setCellValue("A{$r}",
             'RESUMEN  —  Créditos aprobados: ' . (int)$s['approved']
             . '  |  En curso: ' . (int)$s['incourse']
             . '  |  Pendientes: ' . (int)$s['pending']
             . '  |  Total del plan: ' . (int)$s['total']
-            . '  |  Avance: ' . $s['pct'] . '%');
-        $fill("A{$r}:D{$r}", $design['summary_bg']);
-        $fontcolor("A{$r}:D{$r}", 'FFFFFF', true);
+            . '  |  Avance: ' . $s['pct'] . '%'
+            . '  |  Índice: ' . $idx['display'] . ' / ' . $idx['scaletext']);
+        $fill("A{$r}:F{$r}", $design['summary_bg']);
+        $fontcolor("A{$r}:F{$r}", 'FFFFFF', true);
         $sheet->getRowDimension($r)->setRowHeight(20);
         $r += 2;
     }
+
+    // ── Closing block: cumulative academic index + scale legend ──────────────
+    $gidx = $data['index'];
+    $sheet->mergeCells("A{$r}:D{$r}");
+    $sheet->setCellValue("A{$r}", 'ÍNDICE ACADÉMICO ACUMULADO');
+    $sheet->mergeCells("E{$r}:F{$r}");
+    $sheet->setCellValue("E{$r}", $gidx['display'] . ' / ' . $gidx['scaletext']);
+    $fill("A{$r}:F{$r}", $design['career_bg']);
+    $fontcolor("A{$r}:F{$r}", 'FFFFFF', true);
+    $sheet->getStyle("A{$r}")->getFont()->setSize(12);
+    $sheet->getStyle("E{$r}")->getFont()->setSize(14);
+    $sheet->getStyle("E{$r}")->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+    $sheet->getRowDimension($r)->setRowHeight(24);
+    $r++;
+    $sheet->mergeCells("A{$r}:F{$r}");
+    $sheet->setCellValue("A{$r}", 'Ponderado por créditos sobre ' . (int)$gidx['courses']
+        . ' asignatura(s) con calificación final (' . (int)$gidx['credits'] . ' créditos).'
+        . ((int)$gidx['uncredited'] > 0
+            ? '  ' . (int)$gidx['uncredited'] . ' asignatura(s) con calificación final no ponderan por no tener créditos definidos en el plan.'
+            : ''));
+    $fontcolor("A{$r}:F{$r}", $design['grey']);
+    $r += 2;
+
+    // Scale legend.
+    $sheet->mergeCells("A{$r}:F{$r}");
+    $sheet->setCellValue("A{$r}", 'Escala de calificación');
+    $fontcolor("A{$r}:F{$r}", $design['cuatri_txt'], true);
+    $r++;
+    $sheet->setCellValue("A{$r}", 'Calificación numérica');
+    $sheet->setCellValue("B{$r}", 'Letras');
+    $sheet->mergeCells("C{$r}:D{$r}");
+    $sheet->setCellValue("C{$r}", 'Concepto');
+    $sheet->mergeCells("E{$r}:F{$r}");
+    $sheet->setCellValue("E{$r}", 'Puntos índice');
+    $fill("A{$r}:F{$r}", $design['thead_bg']);
+    $sheet->getStyle("A{$r}:F{$r}")->getFont()->setBold(true);
+    $borderall("A{$r}:F{$r}");
+    $r++;
+    foreach ($data['legend'] as $band) {
+        $sheet->setCellValue("A{$r}", $band['range']);
+        $sheet->setCellValue("B{$r}", $band['letter']);
+        $sheet->mergeCells("C{$r}:D{$r}");
+        $sheet->setCellValue("C{$r}", $band['concept']);
+        $sheet->mergeCells("E{$r}:F{$r}");
+        // Written as text so the legend keeps the "3.00" form instead of collapsing to 3.
+        $sheet->setCellValueExplicit("E{$r}", $band['points'], \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+        $fontcolor("B{$r}", $band['color'], true);
+        $borderall("A{$r}:F{$r}");
+        $sheet->getStyle("A{$r}:B{$r}")->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+        $sheet->getStyle("E{$r}")->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+        $r++;
+    }
+    $sheet->mergeCells("A{$r}:F{$r}");
+    $sheet->setCellValue("A{$r}", 'Las asignaturas en curso no reciben calificación en letras ni ponderan en el índice hasta el cierre del período.');
+    $fontcolor("A{$r}:F{$r}", $design['grey']);
 
     cr_stream_xlsx($ss, $filebase);
 }
