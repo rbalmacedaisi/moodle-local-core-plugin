@@ -309,6 +309,9 @@ class planning_manager {
             'planning_projections' => array_values($planningProjections),
             'deferrals' => self::get_deferrals($periodId),
             'student_deferrals' => self::get_student_deferrals($periodId),
+            // Piso de columna por periodo de ingreso. Se calcula aqui y viaja al
+            // frontend para que la matriz y el tablero no puedan discrepar.
+            'entry_period_offsets' => self::get_entry_period_offsets($periodId),
             'period_mappings' => $mapArray
         ];
     }
@@ -720,6 +723,7 @@ class planning_manager {
 
         // Student-specific deferrals override cohort deferrals for the same subject.
         $studentDeferralsByCourse = self::get_student_deferrals($effectivePeriodId);
+        $entryOffsets = self::get_entry_period_offsets($effectivePeriodId);
 
         // --- Paso 2: Asignaturas confirmadas para abrir (status=1) y omitidas (status=2) ---
         //
@@ -787,7 +791,7 @@ $cohortKey  = self::build_cohort_key($career, $shift, $stu);
                  $targetIdx = ($studentTargetIdx !== null)
                     ? (int)$studentTargetIdx
                     : ($deferralsByCourse[$courseId][$cohortKey] ?? -1);
-                 $naturalIdx = self::get_natural_period_index($stu, $subj);
+                 $naturalIdx = self::get_natural_period_index($stu, $subj, $entryOffsets[$stu['entry_period'] ?? ''] ?? 0);
                  $resolvedIdx = ($targetIdx >= 0) ? $targetIdx : $naturalIdx;
 
                  // Omitida (status=2) => exclusión total de proyección.
@@ -925,7 +929,7 @@ if (preg_match('/Bimestre\s+(II|I)/', $cohortKey, $m)) {
                 $targetIdx = ($studentTargetIdx !== null)
                     ? (int)$studentTargetIdx
                     : ($deferralsByCourse[$courseId][$cohortKey] ?? -1);
-                $naturalIdx = self::get_natural_period_index($stu, $subj);
+                $naturalIdx = self::get_natural_period_index($stu, $subj, $entryOffsets[$stu['entry_period'] ?? ''] ?? 0);
                 $resolvedIdx = ($targetIdx >= 0) ? $targetIdx : $naturalIdx;
 
                  // Mismos filtros que en el Paso 3 (period-aware)
@@ -1018,6 +1022,7 @@ if (preg_match('/Bimestre\s+(II|I)/', $cohortKey, $m)) {
         $deferralsByCourse = [];
         $deferralsCount = 0;
         $rawDeferrals = $DB->get_records('gmk_academic_deferrals', ['academicperiodid' => $periodId]);
+        $entryOffsets = self::get_entry_period_offsets($periodId);
         foreach ($rawDeferrals as $d) {
             $dCohortKey = "{$d->career} - {$d->shift} - {$d->current_level}";
             if (!isset($deferralsByCourse[$d->courseid])) {
@@ -1077,7 +1082,7 @@ if (preg_match('/Bimestre\s+(II|I)/', $cohortKey, $m)) {
                 }
 
                 $targetIdx = $deferralsByCourse[$courseId][$cohortKey] ?? -1;
-                $naturalIdx = self::get_natural_period_index($stu, $subj);
+                $naturalIdx = self::get_natural_period_index($stu, $subj, $entryOffsets[$stu['entry_period'] ?? ''] ?? 0);
                 $resolvedIdx = ($targetIdx >= 0) ? $targetIdx : $naturalIdx;
 
                 if ($targetIdx > 0) {
@@ -1229,9 +1234,46 @@ if (preg_match('/Bimestre\s+(II|I)/', $cohortKey, $m)) {
      * Compute natural projection period index for a pending subject.
      * 0 => P-I, 1 => P-II, ..., 5 => P-VI.
      */
-    private static function get_natural_period_index($stu, $subj) {
+    /**
+     * Desplazamiento minimo de columna que impone el periodo de INGRESO del alumno.
+     *
+     * La columna P-I de una base es el propio periodo base, que normalmente ya esta
+     * en curso. Un alumno que ingresa mas tarde no puede cursar ahi: proyectarlo a
+     * P-I lo deja fuera del tablero del periodo en el que si empieza. Devuelve, por
+     * nombre de periodo de ingreso, cuantas columnas hay que avanzar como minimo.
+     *
+     * @param int $basePeriodId
+     * @return array ['2026-V' => 1, ...]
+     */
+    public static function get_entry_period_offsets($basePeriodId) {
+        global $DB;
+        $orden = [];
+        $i = 0;
+        foreach ($DB->get_records('gmk_academic_periods', null, 'startdate ASC, id ASC', 'id, name') as $ap) {
+            $orden[(int)$ap->id] = ['idx' => $i++, 'name' => (string)$ap->name];
+        }
+        $basePeriodId = (int)$basePeriodId;
+        if (!isset($orden[$basePeriodId])) {
+            return [];
+        }
+        $baseIdx = $orden[$basePeriodId]['idx'];
+        $out = [];
+        foreach ($orden as $info) {
+            $delta = $info['idx'] - $baseIdx;
+            $out[$info['name']] = ($delta > 0) ? min(5, $delta) : 0;
+        }
+        return $out;
+    }
+
+    /**
+     * @param array $stu
+     * @param array $subj
+     * @param int   $minIndex Piso impuesto por el periodo de ingreso (ver get_entry_period_offsets)
+     */
+    private static function get_natural_period_index($stu, $subj, $minIndex = 0) {
+        $minIndex = max(0, min(5, (int)$minIndex));
         if (!empty($subj['isPriority'])) {
-            return 0;
+            return $minIndex;
         }
 
         list($planningLevel, $planningBimestre) = self::get_student_planning_state($stu);
@@ -1239,7 +1281,7 @@ if (preg_match('/Bimestre\s+(II|I)/', $cohortKey, $m)) {
         $subjectSemester = isset($subj['semester']) ? (int)$subj['semester'] : 0;
         $subjectBimestre = isset($subj['bimestre']) ? (int)$subj['bimestre'] : 1;
         if ($subjectSemester <= 0) {
-            return 0;
+            return $minIndex;
         }
         if ($subjectBimestre !== 2) {
             $subjectBimestre = 1;
@@ -1249,8 +1291,8 @@ if (preg_match('/Bimestre\s+(II|I)/', $cohortKey, $m)) {
         $subjectAbs = (($subjectSemester - 1) * 2) + $subjectBimestre;
         $idx = $subjectAbs - $cohortAbs;
 
-        if ($idx < 0) {
-            return 0;
+        if ($idx < $minIndex) {
+            return $minIndex;
         }
         if ($idx > 5) {
             return 5;
@@ -1531,6 +1573,7 @@ if (preg_match('/Bimestre\s+(II|I)/', $cohortKey, $m)) {
             $deferralsByCourse[$d->courseid][$dCohortKey] = (int)$d->target_period_index;
         }
         $studentDeferralsByCourse = self::get_student_deferrals($effectivePeriodId);
+        $entryOffsets = self::get_entry_period_offsets($effectivePeriodId);
 
         // Career => max curricular level, for graduation-window warnings
         // ("this student MUST take the subject now — end of academic cycle").
@@ -1575,7 +1618,7 @@ if (preg_match('/Bimestre\s+(II|I)/', $cohortKey, $m)) {
                 $targetIdx = ($studentTargetIdx !== null)
                     ? (int)$studentTargetIdx
                     : ($deferralsByCourse[$courseId][$cohortKey] ?? -1);
-                $naturalIdx = self::get_natural_period_index($stu, $subj);
+                $naturalIdx = self::get_natural_period_index($stu, $subj, $entryOffsets[$stu['entry_period'] ?? ''] ?? 0);
                 $resolvedIdx = ($targetIdx >= 0) ? $targetIdx : $naturalIdx;
                 $resolvedIdx = max(0, min(5, (int)$resolvedIdx));
 

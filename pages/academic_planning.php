@@ -1232,6 +1232,10 @@ const app = createApp({
             const searchTerm = ref('');
             const impactPeriodFilter = ref(0); // 0=P-I ... 5=P-VI
             const periodMappings = reactive({});
+            // Piso de columna por periodo de ingreso, calculado en el backend
+            // (planning_manager::get_entry_period_offsets) para que matriz y tablero
+            // usen exactamente el mismo criterio.
+            const entryPeriodOffsets = reactive({});
 
             // Placed courses: Set of corecourseid (Moodle course.id) that have a scheduled draft card
             const placedCoursesSet = ref(new Set());
@@ -1535,6 +1539,8 @@ const loadInitial = async () => {
                         // Clear periodMappings in-place and copy the new entries so
                         // Vue's reactivity tracks the property changes (replacing the
                         // ref's value previously left v-model stale on reload).
+                        Object.keys(entryPeriodOffsets).forEach(k => delete entryPeriodOffsets[k]);
+                        Object.assign(entryPeriodOffsets, res.entry_period_offsets || {});
                         Object.keys(periodMappings).forEach(k => delete periodMappings[k]);
                         Object.assign(periodMappings, res.period_mappings || {});
                         // Normalize: every column slot exists with 0 = "sin asociar".
@@ -1600,20 +1606,29 @@ const loadInitial = async () => {
 
 
         // --- CORE LOGIC (Ported from React) ---
+        // Columna minima que impone el periodo de ingreso del alumno: uno que entra
+        // despues de la base no puede proyectarse a P-I, que es la base misma y ya
+        // esta en curso.
+        function minIndexForStudent(stu) {
+            const v = parseInt(entryPeriodOffsets[stu && stu.entry_period]) || 0;
+            return Math.max(0, Math.min(5, v));
+        }
+
         function getNaturalProjectionPeriodIndex(stu, subj) {
+            const minIdx = minIndexForStudent(stu);
             const stuPlanningLevel = parseInt(stu.planningLevel) || 1;
             const stuBim = (String(stu.planningBimestre || '').toUpperCase().includes('II')) ? 2 : 1;
 
             const subjSemester = parseInt(subj.semester) || parseInt(subj.semester_num) || 0;
             const subjBimRaw = parseInt(subj.bimestre);
             const subjBim = subjBimRaw === 2 ? 2 : 1;
-            if (subjSemester <= 0) return 0;
+            if (subjSemester <= 0) return minIdx;
 
             const cohortAbs = ((stuPlanningLevel - 1) * 2) + stuBim;
             const subjAbs = ((subjSemester - 1) * 2) + subjBim;
             const idx = subjAbs - cohortAbs;
 
-            if (idx < 0) return 0;
+            if (idx < minIdx) return minIdx;
             if (idx > 5) return 5;
             return idx;
         }
@@ -1803,9 +1818,12 @@ const loadInitial = async () => {
                          let deferKey = `${subj.name}_${stu.cohortKey}`;
                          let studentDefKey = `${subj.id}_${stu.dbId || stu.id}`;
                          let hasStudentDef = studentDeferredGroups[studentDefKey] !== undefined;
+                         // Sin decision explicita, el piso lo pone el periodo de ingreso:
+                         // antes era 0 fijo y un alumno nuevo caia en P-I, que es la base y ya
+                         // esta en curso.
                          let deferral = hasStudentDef
                             ? parseInt(studentDeferredGroups[studentDefKey])
-                            : (deferredGroups[deferKey] !== undefined ? parseInt(deferredGroups[deferKey]) : 0); // 0 = P-I
+                            : (deferredGroups[deferKey] !== undefined ? parseInt(deferredGroups[deferKey]) : minIndexForStudent(stu));
                          if (!Number.isInteger(deferral) || isNaN(deferral)) deferral = 0;
                          if (deferral < 0) deferral = 0;
                          if (deferral > 5) deferral = 5;
@@ -1895,6 +1913,9 @@ const loadInitial = async () => {
                          // Check for manual deferrals
                          let deferKey = `${s.name}_${coh.key}`;
                          let actualPeriod = deferredGroups[deferKey] !== undefined ? deferredGroups[deferKey] : pIdx;
+                         // Nunca por debajo del piso que impone el ingreso del cohorte.
+                         const cohMin = minIndexForStudent({ entry_period: coh.entryPeriod });
+                         if (parseInt(actualPeriod) < cohMin) actualPeriod = cohMin;
                          
                          let pKey = 'countP' + (actualPeriod + 1);
                          if (subjectsMap[s.name][pKey] !== undefined) {
