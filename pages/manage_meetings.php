@@ -6,7 +6,7 @@ require_once($CFG->libdir . '/adminlib.php');
 admin_externalpage_setup('grupomakro_core_manage_meetings', '', null, '', array('pagelayout' => 'admin'));
 
 // Check permissions
-require_capability('moodle/site:config', context_system::instance());
+require_capability('local/grupomakro_core:manage_meetings', context_system::instance());
 
 $PAGE->set_url(new moodle_url('/local/grupomakro_core/pages/manage_meetings.php'));
 $PAGE->set_title('Administrar Sesiones de Invitados');

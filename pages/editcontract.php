@@ -28,6 +28,7 @@ require_once($CFG->libdir . '/adminlib.php');
 $plugin_name = 'local_grupomakro_core';
 
 require_login();
+require_capability('local/grupomakro_core:manage_orders', context_system::instance());
 
 $context = context_system::instance();
 $PAGE->set_context($context);

@@ -6,7 +6,7 @@ global $DB;
 
 $context = context_system::instance();
 require_login();
-require_capability('moodle/site:config', $context);
+require_capability('local/grupomakro_core:manage_debug', $context);
 
 $action = optional_param('action', '', PARAM_ALPHA);
 $target_plan = 13; // Acuicultura

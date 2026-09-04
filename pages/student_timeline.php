@@ -7,6 +7,7 @@ require_once($CFG->libdir . '/externallib.php');
 $plugin_name = 'local_grupomakro_core';
 $assetversion = !empty($CFG->themerev) ? (int)$CFG->themerev : 1;
 require_login();
+require_capability('local/grupomakro_core:view_student_timeline', context_system::instance());
 
 $PAGE->set_url($CFG->wwwroot . '/local/grupomakro_core/pages/student_timeline.php');
 $context = context_system::instance();

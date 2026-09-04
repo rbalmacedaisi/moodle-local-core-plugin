@@ -1,12 +1,9 @@
 <?php
 require_once(__DIR__ . '/../../../config.php');
 require_login();
+require_capability('local/grupomakro_core:bulk_enroll', context_system::instance());
 require_once($CFG->libdir . '/adminlib.php');
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
-
-if (!is_siteadmin()) {
-    throw new moodle_exception('nopermissions', 'error', '', 'Bulk enroll');
-}
 
 $PAGE->set_url($CFG->wwwroot . '/local/grupomakro_core/pages/bulk_enroll.php');
 $PAGE->set_context(context_system::instance());

@@ -29,6 +29,7 @@ require_once($CFG->libdir . '/externallib.php');
 $plugin_name = 'local_grupomakro_core';
 
 require_login();
+require_capability('local/grupomakro_core:manage_schedules', context_system::instance());
 
 $id = required_param('id', PARAM_INT);
 $periodsid = required_param('periodsid', PARAM_RAW);

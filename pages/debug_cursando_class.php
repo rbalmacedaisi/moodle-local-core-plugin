@@ -9,7 +9,7 @@ global $DB, $PAGE, $OUTPUT;
 
 $context = context_system::instance();
 require_login();
-require_capability('moodle/site:config', $context);
+require_capability('local/grupomakro_core:manage_debug', $context);
 
 $pageurl = new moodle_url('/local/grupomakro_core/pages/debug_cursando_class.php');
 $PAGE->set_url($pageurl);

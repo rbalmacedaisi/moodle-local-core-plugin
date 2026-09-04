@@ -29,6 +29,7 @@ require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 $plugin_name = 'local_grupomakro_core';
 
 require_login();
+require_capability('local/grupomakro_core:manage_institutional_contracts', context_system::instance());
 
 $context = context_system::instance();
 $PAGE->set_context($context);

@@ -4,7 +4,7 @@ global $DB, $OUTPUT;
 
 $context = context_system::instance();
 require_login();
-require_capability('moodle/site:config', $context);
+require_capability('local/grupomakro_core:manage_debug', $context);
 
 $PAGE->set_url('/local/grupomakro_core/pages/diagnose_periods.php');
 $PAGE->set_context($context);

@@ -27,6 +27,7 @@ require_once(__DIR__ . '/../../../config.php');
 $plugin_name = 'local_grupomakro_core';
 
 require_login();
+require_capability('local/grupomakro_core:manage_institutional_contracts', context_system::instance());
 
 $PAGE->set_url($CFG->wwwroot . '/local/grupomakro_core/pages/contractmanagement.php');
 

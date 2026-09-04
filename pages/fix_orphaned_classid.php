@@ -11,7 +11,7 @@ if (!file_exists($config_path)) $config_path = __DIR__ . '/../../../../config.ph
 require_once($config_path);
 
 require_login();
-require_capability('moodle/site:config', context_system::instance());
+require_capability('local/grupomakro_core:manage_debug', context_system::instance());
 
 if (!function_exists('get_manual_enroll')) {
     function get_manual_enroll($courseid) {

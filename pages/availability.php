@@ -24,6 +24,7 @@
 
 require_once(__DIR__ . '/../../../config.php');
 require_login();
+require_capability('local/grupomakro_core:manage_teacher_availability', context_system::instance());
 
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 require_once($CFG->libdir . '/adminlib.php');

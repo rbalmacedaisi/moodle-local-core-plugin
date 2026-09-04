@@ -37,6 +37,7 @@ require_once $CFG->dirroot. '/local/grupomakro_core/classes/local/class_query_ma
 $plugin_name = 'local_grupomakro_core';
 
 require_login();
+require_capability('local/grupomakro_core:view_classmanagement', context_system::instance());
 
 $PAGE->set_url($CFG->wwwroot . '/local/grupomakro_core/pages/classmanagement.php');
 

@@ -18,7 +18,7 @@ require_once($CFG->libdir . '/gradelib.php');
 
 require_login();
 $context = context_system::instance();
-require_capability('moodle/site:config', $context);
+require_capability('local/grupomakro_core:manage_debug', $context);
 
 $courseid = optional_param('courseid', 0, PARAM_INT);
 $classid = optional_param('classid', 0, PARAM_INT);

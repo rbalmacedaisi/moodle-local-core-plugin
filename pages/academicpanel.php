@@ -29,6 +29,7 @@ require_once($CFG->libdir . '/externallib.php');
 $plugin_name = 'local_grupomakro_core';
 $assetversion = !empty($CFG->themerev) ? (int)$CFG->themerev : 1;
 require_login();
+require_capability('local/grupomakro_core:view_academic_panel', context_system::instance());
 
 $PAGE->set_url($CFG->wwwroot . '/local/grupomakro_core/pages/academicpanel.php');
 
@@ -217,6 +218,6 @@ $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/academicoffer.js?v=' . $assetversion));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/curriculum.js?v=' . $assetversion));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/revalidatestudents.js?v=' . $assetversion));
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/grademodal.js?v=' . $assetversion . '_20260722_withdrawmenu'));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/grademodal.js?v=' . $assetversion . '_20260902_letterscale'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/app.js?v=' . $assetversion));
 echo $OUTPUT->footer();

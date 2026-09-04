@@ -20,7 +20,7 @@ require_once(__DIR__ . '/../../../config.php');
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 
 require_login();
-require_capability('moodle/site:config', context_system::instance());
+require_capability('local/grupomakro_core:manage_financial_webhooks', context_system::instance());
 
 $action  = optional_param('action', '', PARAM_ALPHA);
 $dlqid   = optional_param('id', 0, PARAM_INT);

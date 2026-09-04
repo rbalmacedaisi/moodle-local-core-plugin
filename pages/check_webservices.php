@@ -4,7 +4,7 @@ if (!file_exists($config_path)) $config_path = __DIR__ . '/../../../config.php';
 if (!file_exists($config_path)) $config_path = __DIR__ . '/../../../../config.php';
 require_once($config_path);
 require_login();
-require_capability('moodle/site:config', context_system::instance());
+require_capability('local/grupomakro_core:manage_debug', context_system::instance());
 
 $PAGE->set_url('/local/grupomakro_core/pages/check_webservices.php');
 $PAGE->set_context(context_system::instance());

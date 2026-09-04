@@ -69,6 +69,11 @@ class get_user_status extends external_api {
         // Global variables.
         global $DB;
 
+        // Defence-in-depth: re-assert the service-level cap inside the
+        // function so the lookup cannot be invoked if a future change to
+        // db/services.php removes the cap field.
+        require_capability('local/grupomakro_core:manage_users', context_system::instance());
+
         // Validate the parameters passed to the function.
         $params = self::validate_parameters(self::execute_parameters(), [
             'userid' => $userid

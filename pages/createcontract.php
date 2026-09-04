@@ -29,8 +29,8 @@ $plugin_name = 'local_grupomakro_core';
 
 require_login();
 
-// Requiere the grupomakro_core:seeallorders capability.
-require_capability('local/grupomakro_core:seeallorders', context_system::instance());
+// Requiere the grupomakro_core:manage_orders capability.
+require_capability('local/grupomakro_core:manage_orders', context_system::instance());
 
 $PAGE->set_url($CFG->wwwroot . '/local/grupomakro_core/pages/contractmanagement.php');
 

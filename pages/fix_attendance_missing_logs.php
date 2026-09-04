@@ -15,7 +15,7 @@ global $DB, $PAGE, $OUTPUT, $CFG;
 
 $context = context_system::instance();
 require_login();
-require_capability('moodle/site:config', $context);
+require_capability('local/grupomakro_core:manage_debug', $context);
 
 $PAGE->set_url('/local/grupomakro_core/pages/fix_attendance_missing_logs.php');
 $PAGE->set_context($context);

@@ -91,10 +91,11 @@ Vue.component('grademodal', {
                                             <template v-slot:default>
                                                 <thead>
                                                     <tr class="blue-grey lighten-5">
-                                                        <th class="text-left py-2" style="width:55%">Asignatura</th>
+                                                        <th class="text-left py-2" style="width:48%">Asignatura</th>
                                                         <th class="text-center py-2">Créditos</th>
                                                         <th class="text-center py-2">Estado</th>
                                                         <th class="text-right py-2">Nota</th>
+                                                        <th class="text-center py-2">Letra</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
@@ -107,12 +108,15 @@ Vue.component('grademodal', {
                                                         <td class="text-center">
                                                             <v-chip x-small :color="course.statusColor" dark label class="font-weight-bold">{{ course.statusLabel }}</v-chip>
                                                         </td>
-                                                        <td class="text-right font-weight-bold" :class="getGradeColor(course.grade)">{{ formatGrade(course.grade) }}</td>
+                                                        <td class="text-right font-weight-bold" :class="getCreditGradeColor(course.grade)">{{ formatGrade(course.grade) }}</td>
+                                                        <td class="text-center font-weight-bold" :class="getLetterColor(course.letter)">
+                                                            <span :title="course.letterconcept">{{ course.letter || '--' }}</span>
+                                                        </td>
                                                     </tr>
                                                     <tr class="grey lighten-3">
                                                         <td class="text-right font-weight-bold py-1">Subtotal cuatrimestre</td>
                                                         <td class="text-center font-weight-bold py-1">{{ cuatri.subtotal.total }}</td>
-                                                        <td class="text-center font-weight-bold py-1" colspan="2">Aprobados: {{ cuatri.subtotal.approved }}</td>
+                                                        <td class="text-center font-weight-bold py-1" colspan="3">Aprobados: {{ cuatri.subtotal.approved }}</td>
                                                     </tr>
                                                 </tbody>
                                             </template>
@@ -125,7 +129,56 @@ Vue.component('grademodal', {
                                         <span class="text-caption mr-3">En curso: <b>{{ career.summary.incourse }}</b></span>
                                         <span class="text-caption mr-3">Pendientes: <b>{{ career.summary.pending }}</b></span>
                                         <span class="text-caption mr-3">Total: <b>{{ career.summary.total }}</b></span>
-                                        <span class="text-caption">Avance: <b>{{ career.summary.pct }}%</b></span>
+                                        <span class="text-caption mr-3">Avance: <b>{{ career.summary.pct }}%</b></span>
+                                        <span class="text-caption" v-if="career.summary.index">
+                                            Índice: <b>{{ career.summary.index.display }}</b> / {{ career.summary.index.scaletext }}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div v-if="creditReport && creditReport.index && creditReport.careers && creditReport.careers.length" class="mt-4">
+                                    <div class="d-flex align-center pa-3 rounded blue darken-4 white--text">
+                                        <div class="flex-grow-1">
+                                            <div class="text-subtitle-2 font-weight-bold">ÍNDICE ACADÉMICO ACUMULADO</div>
+                                            <div class="text-caption blue--text text--lighten-4">
+                                                Ponderado por créditos sobre {{ creditReport.index.courses }} asignatura(s) con calificación final
+                                                ({{ creditReport.index.credits }} créditos).
+                                                <template v-if="creditReport.index.uncredited > 0">
+                                                    {{ creditReport.index.uncredited }} asignatura(s) no ponderan por no tener créditos definidos en el plan.
+                                                </template>
+                                            </div>
+                                        </div>
+                                        <div class="text-right">
+                                            <span class="text-h5 font-weight-bold">{{ creditReport.index.display }}</span>
+                                            <span class="text-caption"> / {{ creditReport.index.scaletext }}</span>
+                                        </div>
+                                    </div>
+
+                                    <div class="mt-3">
+                                        <div class="text-caption font-weight-bold blue--text text--darken-3 mb-1">Escala de calificación</div>
+                                        <v-simple-table dense class="elevation-1 rounded">
+                                            <template v-slot:default>
+                                                <thead>
+                                                    <tr class="blue-grey lighten-5">
+                                                        <th class="text-center py-1">Calificación numérica</th>
+                                                        <th class="text-center py-1">Letras</th>
+                                                        <th class="text-left py-1">Concepto</th>
+                                                        <th class="text-center py-1">Puntos índice</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <tr v-for="(band, bi) in (creditReport.legend || [])" :key="'band' + bi">
+                                                        <td class="text-center text-caption py-1">{{ band.range }}</td>
+                                                        <td class="text-center font-weight-bold py-1" :class="getLetterColor(band.letter)">{{ band.letter }}</td>
+                                                        <td class="text-left text-caption py-1">{{ band.concept }}</td>
+                                                        <td class="text-center text-caption py-1">{{ band.points }}</td>
+                                                    </tr>
+                                                </tbody>
+                                            </template>
+                                        </v-simple-table>
+                                        <div class="text-caption grey--text mt-1 font-italic">
+                                            Las asignaturas en curso no reciben calificación en letras ni ponderan en el índice hasta el cierre del período.
+                                        </div>
                                     </div>
                                 </div>
                             </template>
@@ -1245,6 +1298,28 @@ Vue.component('grademodal', {
             const raw = String(grade == null ? '' : grade).trim();
             if (raw === '' || raw === '-' || raw === '--') return '--';
             return raw;
+        },
+        // Informe de créditos: usa el umbral institucional (> 70.9, el mismo de
+        // gmk_classify_student_grade) para que el color no contradiga la letra que
+        // va al lado — un 70.00 es D y no puede verse en verde.
+        getCreditGradeColor(grade) {
+            const val = parseFloat(grade);
+            if (isNaN(val)) return 'grey--text';
+            return val > 70.9 ? 'success--text' : 'error--text';
+        },
+        getLetterColor(letter) {
+            switch (String(letter || '')) {
+                case 'A':
+                case 'B':
+                case 'C':
+                    return 'success--text';
+                case 'D':
+                    return 'orange--text text--darken-3';
+                case 'F':
+                    return 'error--text';
+                default:
+                    return 'grey--text';
+            }
         },
         async fetchRevalidations() {
             if (!this.dataStudent || !this.dataStudent.id) return;

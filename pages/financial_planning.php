@@ -12,7 +12,7 @@ require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 
 require_login();
 $context = context_system::instance();
-require_capability('moodle/site:config', $context);
+require_capability('local/grupomakro_core:view_financial_planning', $context);
 
 $PAGE->set_url(new moodle_url('/local/grupomakro_core/pages/financial_planning.php'));
 $PAGE->set_context($context);

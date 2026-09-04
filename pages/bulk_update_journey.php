@@ -2,7 +2,7 @@
 require_once('../../../config.php');
 require_login();
 $context = context_system::instance();
-require_capability('moodle/site:config', $context);
+require_capability('local/grupomakro_core:manage_users', $context);
 
 $PAGE->set_url(new moodle_url('/local/grupomakro_core/pages/bulk_update_journey.php'));
 $PAGE->set_context($context);

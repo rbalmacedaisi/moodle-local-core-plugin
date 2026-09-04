@@ -27,6 +27,12 @@ class unenroll_student extends external_api {
     public static function execute($product_name, $username) {
         global $DB;
 
+        // Defence-in-depth: Odoo integration WS. Service-level cap
+        // `manage_debug` (set in db/services.php) is checked by the WS
+        // framework; we re-assert it here so a config change cannot
+        // accidentally expose these system-level operations to non-TI users.
+        require_capability('local/grupomakro_core:manage_debug', context_system::instance());
+
         // Validation
         $params = self::validate_parameters(self::execute_parameters(), array(
             'product_name' => $product_name,

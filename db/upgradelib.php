@@ -68,6 +68,37 @@ function create_roles() {
 
     /** End of role "administrative" definition */
 
+    /**
+     * Operational roles for the workflow matrix (added in 20261001000).
+     *
+     * Each role is scoped at CONTEXT_SYSTEM because all the admin pages they
+     * gate are system-level. The 'user' archetype gives every holder basic
+     * per-user permissions (login, edit own profile, view own grades) — the
+     * GMK-specific capabilities are layered on top by
+     * assign_capabilities_to_internal_roles() (filled in a later PR).
+     *
+     * Idempotent: get_record() before create_role() so re-running this on
+     * an existing installation is a no-op for roles that are already there.
+     */
+    $operational_roles = [
+        'gmk_director_academico'  => 'Director Académico',
+        'gmk_secretaria_academica' => 'Secretaría Académica',
+        'gmk_registros_academicos' => 'Registros Académicos',
+        'gmk_soporte_ti'           => 'Soporte TI',
+        'gmk_bienestar'            => 'Coordinador de Bienestar',
+        'gmk_psicologo'            => 'Psicólogo/a',
+    ];
+    foreach ($operational_roles as $shortname => $name) {
+        $role = $DB->get_record('role', ['shortname' => $shortname]);
+        if (!$role) {
+            create_role($name, $shortname, '', 'user');
+            $role = $DB->get_record('role', ['shortname' => $shortname]);
+        }
+        if ($role) {
+            set_role_contextlevels($role->id, [CONTEXT_SYSTEM]);
+        }
+    }
+
     // Assign all needed capabilities to the custom roles needed by this plugin.
     assign_capabilities_to_internal_roles();
 }
@@ -367,6 +398,12 @@ function create_custom_user_fields() {
 /**
  * Assign all needed capabilities to the custom roles needed by this plugin.
  *
+ * Idempotent: re-running on an existing install (a) applies any new
+ * capability definitions declared in db/access.php via update_capabilities(),
+ * (b) re-applies the assignment to the legacy 'administrative' role, and
+ * (c) re-applies the bundle for each of the 5 operational roles created
+ * in 20261001000. assign_capability() is itself idempotent.
+ *
  * @return void
  */
 function assign_capabilities_to_internal_roles() {
@@ -375,22 +412,198 @@ function assign_capabilities_to_internal_roles() {
     // First we need tu update the capabilities definition for this plugin.
     update_capabilities('local_grupomakro_core');
 
-    // Let's assign required capabilities to the "administrative" role.
-    $role = $DB->get_record('role', array('shortname' => 'administrative'));
-    if (!$role) {
-        return;
-    }
     $context = context_system::instance();
     $permission = CAP_ALLOW;
-    $capabilities = [
-        'local/grupomakro_core:seeallorders',
-        'local/grupomakro_core:manageletters',
-        'local/grupomakro_core:managerequests',
-        'local/grupomakro_core:viewallletterrequests',
-        'local/grupomakro_core:viewabsencedashboard',
+
+    // Legacy 'administrative' role: kept for backward compatibility with
+    // users already assigned to it. The bundle is narrow (5 caps) and is
+    // not affected by the workflow matrix.
+    $administrative = $DB->get_record('role', array('shortname' => 'administrative'));
+    if ($administrative) {
+        $legacy_caps = [
+            'local/grupomakro_core:seeallorders',
+            'local/grupomakro_core:manageletters',
+            'local/grupomakro_core:managerequests',
+            'local/grupomakro_core:viewallletterrequests',
+            'local/grupomakro_core:viewabsencedashboard',
+        ];
+        foreach ($legacy_caps as $capability) {
+            assign_capability($capability, $permission, $administrative->id, $context->id);
+        }
+    }
+
+    // Workflow matrix: capability bundle per operational role (added in
+    // 20261001001). Each entry is the complete target state for that
+    // role; future PRs that add new caps just append to the relevant
+    // role(s) here. The matrix itself is the source of truth for
+    // per-role access — db/access.php only declares defaults.
+    //
+    // Bulk_delete_users and import_grades are deliberately NOT in any
+    // operational role (product decision PR1 Q4 + Q6). Those pages stay
+    // gated by moodle/site:config.
+    $role_caps = [
+        'gmk_director_academico' => [
+            // Workflow 1 — Academic structure (full)
+            'local/grupomakro_core:manage_academic_calendar',
+            'local/grupomakro_core:manage_academic_planning',
+            'local/grupomakro_core:view_academic_demand_gaps',
+            'local/grupomakro_core:view_overlap_analytics',
+            'local/grupomakro_core:view_student_timeline',
+            'local/grupomakro_core:manage_student_timeline',
+            'local/grupomakro_core:manage_schedules',
+            'local/grupomakro_core:manage_teacher_availability',
+            // Workflow 2 — Classes and teachers (full)
+            'local/grupomakro_core:view_classmanagement',
+            'local/grupomakro_core:manage_classes',
+            'local/grupomakro_core:manage_courses',
+            'local/grupomakro_core:manage_meetings',
+            'local/grupomakro_core:manage_teachers',
+            'local/grupomakro_core:editsupportteacher',
+            'local/grupomakro_core:manage_modules',
+            // Workflow 3 — Students and enrollment
+            'local/grupomakro_core:manage_users',
+            'local/grupomakro_core:bulk_enroll',
+            'local/grupomakro_core:import_users',
+            'local/grupomakro_core:export_students',
+            'local/grupomakro_core:view_student_population',
+            'local/grupomakro_core:view_active_students_by_class',
+            'local/grupomakro_core:view_academic_panel',
+            'local/grupomakro_core:view_revalidations_dashboard',
+            'local/grupomakro_core:create_extemporaneous_revalidations',
+            // Workflow 4 — Attendance, grades, movements
+            'local/grupomakro_core:viewabsencedashboard',
+            'local/grupomakro_core:view_attendance_pdf',
+            'local/grupomakro_core:bulk_attendance_actions',
+            'local/grupomakro_core:view_grade_report',
+            'local/grupomakro_core:view_failed_subjects_report',
+            'local/grupomakro_core:enrol_from_failed_subjects_report',
+            'local/grupomakro_core:view_movement_audit',
+            'local/grupomakro_core:annul_movement',
+            'local/grupomakro_core:manageacademicstatus',
+            // Workflow 5 — Letters, contracts, institutions
+            'local/grupomakro_core:seeallorders',
+            'local/grupomakro_core:viewallletterrequests',
+            'local/grupomakro_core:view_credit_report',
+            'local/grupomakro_core:view_financial_planning',
+            'local/grupomakro_core:manage_orders',
+            'local/grupomakro_core:manage_institutional_contracts',
+            'local/grupomakro_core:manage_institutions',
+            // Workflow 6 — Diplomas (manage + view)
+            'local/grupomakro_core:managediplomas',
+            'local/grupomakro_core:viewdiplomas',
+            // Workflow 7 — Announcements (view only — manage goes to gmk_bienestar)
+            'local/grupomakro_core:viewannouncements',
+            // Workflow 8 — selective oversight (config + health read)
+            'local/grupomakro_core:manage_financial_config',
+            'local/grupomakro_core:view_financial_health',
+        ],
+        'gmk_secretaria_academica' => [
+            // Workflow 1 — Operational scheduling (no structural decisions)
+            'local/grupomakro_core:manage_academic_calendar',
+            'local/grupomakro_core:view_academic_demand_gaps',
+            'local/grupomakro_core:view_overlap_analytics',
+            'local/grupomakro_core:view_student_timeline',
+            'local/grupomakro_core:manage_schedules',
+            'local/grupomakro_core:manage_teacher_availability',
+            // Workflow 2 — Classes and teachers (full)
+            'local/grupomakro_core:view_classmanagement',
+            'local/grupomakro_core:manage_classes',
+            'local/grupomakro_core:manage_courses',
+            'local/grupomakro_core:manage_meetings',
+            'local/grupomakro_core:manage_teachers',
+            'local/grupomakro_core:editsupportteacher',
+            'local/grupomakro_core:manage_modules',
+            // Workflow 3 — Students (operational)
+            'local/grupomakro_core:manage_users',
+            'local/grupomakro_core:bulk_enroll',
+            'local/grupomakro_core:import_users',
+            'local/grupomakro_core:export_students',
+            'local/grupomakro_core:view_student_population',
+            'local/grupomakro_core:view_active_students_by_class',
+            'local/grupomakro_core:view_academic_panel',
+            'local/grupomakro_core:view_revalidations_dashboard',
+            'local/grupomakro_core:manageacademicstatus',
+            // Workflow 4 — Attendance, grades (no annul_movement, no create_extemporaneous_revalidations)
+            'local/grupomakro_core:viewabsencedashboard',
+            'local/grupomakro_core:view_attendance_pdf',
+            'local/grupomakro_core:bulk_attendance_actions',
+            'local/grupomakro_core:view_grade_report',
+            'local/grupomakro_core:view_failed_subjects_report',
+            'local/grupomakro_core:enrol_from_failed_subjects_report',
+            'local/grupomakro_core:view_movement_audit',
+            // Workflow 5 — Letters (request management, no orders/contracts)
+            'local/grupomakro_core:viewallletterrequests',
+            'local/grupomakro_core:managerequests',
+            // Workflow 6 — Diplomas (view only, per Q1)
+            'local/grupomakro_core:viewdiplomas',
+            // Workflow 7 — View announcements only
+            'local/grupomakro_core:viewannouncements',
+        ],
+        'gmk_registros_academicos' => [
+            // Workflow 3 — Student record management
+            'local/grupomakro_core:manage_users',
+            'local/grupomakro_core:export_students',
+            'local/grupomakro_core:view_student_population',
+            'local/grupomakro_core:view_active_students_by_class',
+            // Workflow 4 — View attendance and grades (read-only)
+            'local/grupomakro_core:viewabsencedashboard',
+            'local/grupomakro_core:view_attendance_pdf',
+            'local/grupomakro_core:view_grade_report',
+            // Workflow 5 — Letters, contracts (full — this is the workflow)
+            'local/grupomakro_core:seeallorders',
+            'local/grupomakro_core:viewallletterrequests',
+            'local/grupomakro_core:manageletters',
+            'local/grupomakro_core:managerequests',
+            'local/grupomakro_core:view_credit_report',
+            'local/grupomakro_core:view_financial_planning',
+            'local/grupomakro_core:manage_orders',
+            'local/grupomakro_core:manage_institutional_contracts',
+            // Workflow 6 — Diplomas (full)
+            'local/grupomakro_core:managediplomas',
+            'local/grupomakro_core:viewdiplomas',
+            // Workflow 7 — View announcements only
+            'local/grupomakro_core:viewannouncements',
+        ],
+        'gmk_soporte_ti' => [
+            // Workflow 8 — Infrastructure and integrations (full)
+            'local/grupomakro_core:view_log',
+            'local/grupomakro_core:view_financial_health',
+            'local/grupomakro_core:manage_financial_webhooks',
+            'local/grupomakro_core:manage_financial_config',
+            'local/grupomakro_core:manage_debug',
+            // Workflow 2 — BBB reset only (limited support for virtual classes)
+            'local/grupomakro_core:manage_meetings',
+        ],
+        'gmk_bienestar' => [
+            // Workflow 7 — Wellness (full)
+            'local/grupomakro_core:manage_wellness',
+            'local/grupomakro_core:manage_psychology_appointments',
+            'local/grupomakro_core:manageannouncements',
+            'local/grupomakro_core:viewannouncements',
+            // view_wellness is granted to the 'user' archetype so every
+            // logged-in student can read the wellness feed; this role
+            // covers the management side only.
+        ],
+        'gmk_psicologo' => [
+            // Workflow 7 — Psicología: solo la agenda psicológica. No
+            // puede crear eventos, convenios ni gestionar el resto del
+            // módulo (eso queda en manos del Coordinador de Bienestar).
+            'local/grupomakro_core:manage_psychology_appointments',
+        ],
     ];
-    foreach ($capabilities as $capability) {
-        assign_capability($capability, $permission, $role->id, $context->id);
+
+    foreach ($role_caps as $shortname => $caps) {
+        $role = $DB->get_record('role', ['shortname' => $shortname]);
+        if (!$role) {
+            // Role not yet created (e.g. partial upgrade). create_roles()
+            // runs in the previous upgrade step (20261001000), so this
+            // should not happen, but skip silently rather than abort
+            // the whole upgrade.
+            continue;
+        }
+        foreach ($caps as $capability) {
+            assign_capability($capability, $permission, $role->id, $context->id);
+        }
     }
 }
 

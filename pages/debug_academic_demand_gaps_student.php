@@ -12,7 +12,7 @@ require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 
 require_login();
 $context = context_system::instance();
-require_capability('moodle/site:config', $context);
+require_capability('local/grupomakro_core:manage_debug', $context);
 
 $q = optional_param('q', '', PARAM_RAW_TRIMMED);
 $userid = optional_param('userid', 0, PARAM_INT);

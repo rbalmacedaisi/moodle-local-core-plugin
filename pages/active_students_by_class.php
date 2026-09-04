@@ -12,6 +12,7 @@ require_once($CFG->libdir . '/adminlib.php');
 require_once($CFG->libdir . '/dataformatlib.php');
 
 require_login();
+require_capability('local/grupomakro_core:view_active_students_by_class', context_system::instance());
 admin_externalpage_setup('grupomakro_core_active_students_by_class');
 
 $title = get_string('active_students_by_class_page', 'local_grupomakro_core');

@@ -8,7 +8,7 @@ use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 require_login();
-require_capability('moodle/site:config', context_system::instance());
+require_capability('local/grupomakro_core:export_students', context_system::instance());
 
 $planid = optional_param('planid', '', PARAM_RAW);
 $periodid = optional_param('periodid', '', PARAM_RAW);

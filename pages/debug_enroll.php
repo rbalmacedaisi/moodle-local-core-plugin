@@ -1,7 +1,7 @@
 <?php
 require_once('../../../config.php');
 require_login();
-require_capability('moodle/site:config', context_system::instance());
+require_capability('local/grupomakro_core:manage_debug', context_system::instance());
 
 $PAGE->set_context(context_system::instance());
 $PAGE->set_url('/local/grupomakro_core/pages/debug_enroll.php');

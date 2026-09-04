@@ -222,6 +222,36 @@ El avance del estudiante entre periodos (ej. Cuatrimestre 1 -> Cuatrimestre 2) s
 *   **Mecanismo:** El sistema evalúa si **todas** las materias obligatorias (`isrequired=1`) del periodo actual están aprobadas. Si es así, actualiza automáticamente el campo `currentperiodid` en la tabla `local_learning_users`.
 *   **Notas:** Existe una variante `sync_student_period_by_count` usada en migraciones que calcula el periodo basándose en el conteo total de materias aprobadas vs la capacidad del plan.
 
+## 7. Sistema de Roles y Capacidades (workflow matrix)
+
+A partir de la versión `20261001007`, el plugin define **6 roles operativos custom** que reemplazan el esquema previo de "todos los usuarios de gestión son siteadmins":
+
+| Rol | # caps | Uso |
+|---|---:|---|
+| `manager` | 587 | Super-admins (2-3 personas). Conservado del esquema nativo de Moodle. |
+| `gmk_director_academico` | 45 | Director Académico. |
+| `gmk_secretaria_academica` | 33 | Secretaría Académica. |
+| `gmk_registros_academicos` | 18 | Registros, Cartas, Diplomas, Contratos. |
+| `gmk_soporte_ti` | 6 | Soporte TI, debug, integraciones Odoo/Express. |
+| `gmk_bienestar` | 4 | Coordinador del módulo Wellness. |
+| `gmk_psicologo` | 1 | Psicólogo/a (solo agenda psicológica). |
+
+**Documentación de referencia**:
+
+- **`docs/role-matrix.md`** — Referencia completa: cada rol con sus caps, las páginas del admin tree que desbloquea, los Web Services que puede invocar, y la matriz consolidada rol × cap.
+- **`docs/role-matrix-quickref.md`** — Quick reference (1 página): tabla de "quién puede hacer qué" y el mapping de personas a roles.
+
+**Archivos del plugin donde vive la matriz**:
+
+- `db/access.php` — declaración de capabilities.
+- `db/upgradelib.php` — `create_roles()` (definición de roles) y `assign_capabilities_to_internal_roles()` (bundle por rol).
+- `db/upgrade.php` — upgrade steps versionados.
+- `db/services.php` — capabilities a nivel servicio de cada Web Service.
+- `settings.php` — capability del 4º parámetro de `admin_externalpage()` (admin tree).
+- `classes/external/*.php` — `require_capability()` de defense-in-depth dentro de cada WS.
+- `pages/*.php` — `require_capability()` a nivel página.
+- `cli/migrate_siteadmins_to_roles.php` — script de migración inicial (PR7).
+
 ## 6. Calendario Académico (`gmk_academic_calendar`)
 
 ### Propósito y Uso

@@ -10,7 +10,7 @@ global $DB, $OUTPUT, $PAGE;
 
 require_login();
 $context = context_system::instance();
-require_capability('moodle/site:config', $context);
+require_capability('local/grupomakro_core:manage_debug', $context);
 
 admin_externalpage_setup('grupomakro_core_debug_approved_zero_grade');
 

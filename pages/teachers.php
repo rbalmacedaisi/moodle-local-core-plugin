@@ -16,6 +16,7 @@ if (file_exists($CFG->dirroot . '/vendor/autoload.php')) {
 
 // Permissions
 admin_externalpage_setup('grupomakro_core_teachers_management');
+require_capability('local/grupomakro_core:manage_teachers', context_system::instance());
 
 $PAGE->set_url('/local/grupomakro_core/pages/teachers.php');
 $PAGE->set_title(get_string('admin_teachers_management', 'local_grupomakro_core'));

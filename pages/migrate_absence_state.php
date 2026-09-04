@@ -15,7 +15,7 @@ require_once(__DIR__ . '/../../../config.php');
 require_once(__DIR__ . '/absence_helpers.php');
 
 require_login();
-require_capability('moodle/site:config', context_system::instance());
+require_capability('local/grupomakro_core:manage_debug', context_system::instance());
 
 $nowts = time();
 $dryrun = optional_param('dryrun', 0, PARAM_INT) === 1;

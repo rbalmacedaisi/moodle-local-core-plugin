@@ -39,11 +39,9 @@ foreach ($courses as $c) {
 }
 
 if (!$valid_course) {
-    // Fallback to system if admin, otherwise die
+    // Fallback to system if user has manage_debug cap, otherwise die
     $context = context_system::instance();
-    if (!is_siteadmin()) {
-        die("Error: No tienes permisos de gestión (Moodle o GMK) en ningún curso.");
-    }
+    require_capability('local/grupomakro_core:manage_debug', $context);
 }
 
 $PAGE->set_url('/local/grupomakro_core/pages/test_quiz_types.php');

@@ -5,6 +5,7 @@ require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 require_once($CFG->libdir . '/dataformatlib.php');
 
 require_login();
+require_capability('local/grupomakro_core:export_students', context_system::instance());
 // Remove headers as download_as_dataformat handles them
 // $context = context_system::instance();
 

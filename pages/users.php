@@ -29,6 +29,7 @@ require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 $plugin_name = 'local_grupomakro_core';
 
 require_login();
+require_capability('local/grupomakro_core:manage_users', context_system::instance());
 
 
 $id = required_param('courseid', PARAM_INT);

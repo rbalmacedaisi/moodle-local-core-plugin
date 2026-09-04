@@ -15,7 +15,7 @@ require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 
 require_login();
 $context = context_system::instance();
-require_capability('moodle/site:config', $context);
+require_capability('local/grupomakro_core:manage_debug', $context);
 
 // ── AJAX: restaurar enrollment individual ────────────────────────────────────
 $ajax = optional_param('ajax', '', PARAM_ALPHANUMEXT);

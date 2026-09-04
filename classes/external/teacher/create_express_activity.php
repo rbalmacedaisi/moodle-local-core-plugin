@@ -65,6 +65,8 @@ class create_express_activity extends external_api {
         $forummessage = '',
         $forumcreateinitial = true
     ) {
+        global $DB;
+
         $params = self::validate_parameters(self::execute_parameters(), array(
             'classid' => $classid,
             'type' => $type,
@@ -88,6 +90,14 @@ class create_express_activity extends external_api {
 
         $context = \context_system::instance();
         self::validate_context($context);
+
+        // Defence-in-depth: the function creates an activity in the class's
+        // course. The caller must have the standard activity-management cap in
+        // that course context. The class's course is resolved by the helper
+        // below, so we perform the check after the lookup.
+        $classrecord = $DB->get_record('gmk_class', ['id' => $params['classid']], 'id, courseid, instructorid, supportinstructorid', MUST_EXIST);
+        $coursecontext = \context_course::instance($classrecord->courseid);
+        require_capability('moodle/course:manageactivities', $coursecontext);
 
         // Convert alpha type to Moodle module name if necessary
         $modmap = ['bbb' => 'bigbluebuttonbn', 'assignment' => 'assign', 'task' => 'assign', 'resource' => 'resource', 'quiz' => 'quiz', 'forum' => 'forum'];

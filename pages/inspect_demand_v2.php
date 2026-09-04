@@ -6,7 +6,7 @@ global $DB;
 
 $context = context_system::instance();
 require_login();
-require_capability('moodle/site:config', $context);
+require_capability('local/grupomakro_core:manage_debug', $context);
 
 echo "<html><body style='font-family:sans-serif; background:#f4f4f9; padding:20px;'>";
 echo "<h1>Diagnóstico de Demanda v2 - Hora: " . date('H:i:s') . "</h1>";

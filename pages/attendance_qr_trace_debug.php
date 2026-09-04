@@ -15,7 +15,7 @@ require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/teacher/at
 use local_grupomakro_core\external\teacher\attendance_manager;
 
 require_login();
-require_capability('moodle/site:config', context_system::instance());
+require_capability('local/grupomakro_core:manage_debug', context_system::instance());
 
 $PAGE->set_url(new moodle_url('/local/grupomakro_core/pages/attendance_qr_trace_debug.php'));
 $PAGE->set_context(context_system::instance());

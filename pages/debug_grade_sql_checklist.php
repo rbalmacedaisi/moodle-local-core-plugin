@@ -16,7 +16,7 @@ require_once($config_path);
 
 require_login();
 $sysctx = context_system::instance();
-require_capability('moodle/site:config', $sysctx);
+require_capability('local/grupomakro_core:manage_debug', $sysctx);
 
 $courseid = optional_param('courseid', 0, PARAM_INT);
 $classid = optional_param('classid', 0, PARAM_INT);

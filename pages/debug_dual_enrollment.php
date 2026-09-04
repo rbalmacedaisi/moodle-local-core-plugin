@@ -13,7 +13,7 @@ require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/progress_mana
 
 require_login();
 $context = context_system::instance();
-require_capability('moodle/site:config', $context);
+require_capability('local/grupomakro_core:manage_debug', $context);
 
 global $DB;
 

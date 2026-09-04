@@ -77,10 +77,13 @@ class update_student_status extends external_api {
             'value' => $value
         ]);
 
-        // Validate context and capability
+        // Validate context and capability.
+        // Service-level cap is `manageacademicstatus` (db/services.php) but
+        // the function-level check uses the same cap to be consistent and
+        // to provide defence-in-depth.
         $context = context_system::instance();
         self::validate_context($context);
-        require_capability('moodle/site:config', $context);
+        require_capability('local/grupomakro_core:manageacademicstatus', $context);
 
         // Validate field name
         $allowedFields = ['studentstatus', 'academicstatus'];

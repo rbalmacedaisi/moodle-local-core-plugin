@@ -6,9 +6,7 @@ require_once($CFG->dirroot . '/user/externallib.php'); // Keep just in case help
 
 // Permissions
 admin_externalpage_setup('grupomakro_core_import_users');
-if (!is_siteadmin()) {
-    print_error('onlyadmins', 'error');
-}
+require_capability('local/grupomakro_core:import_users', context_system::instance());
 
 $PAGE->set_url('/local/grupomakro_core/pages/import_users.php');
 $PAGE->set_title('Importar Usuarios Masivamente');

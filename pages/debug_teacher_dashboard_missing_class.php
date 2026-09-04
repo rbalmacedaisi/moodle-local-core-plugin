@@ -8,7 +8,7 @@ global $DB, $PAGE, $OUTPUT, $USER;
 
 require_login();
 $syscontext = context_system::instance();
-require_capability('moodle/site:config', $syscontext);
+require_capability('local/grupomakro_core:manage_debug', $syscontext);
 
 $PAGE->set_url(new moodle_url('/local/grupomakro_core/pages/debug_teacher_dashboard_missing_class.php'));
 $PAGE->set_context($syscontext);

@@ -5,7 +5,7 @@ require_once($CFG->libdir . '/adminlib.php');
 global $DB;
 
 require_login();
-require_capability('moodle/site:config', context_system::instance());
+require_capability('local/grupomakro_core:manage_debug', context_system::instance());
 
 $action = optional_param('action', '', PARAM_ALPHA);
 $confirm = optional_param('confirm', 0, PARAM_INT);

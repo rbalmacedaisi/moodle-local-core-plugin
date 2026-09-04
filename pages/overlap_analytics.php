@@ -6,7 +6,7 @@ require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/schedule/w
 
 admin_externalpage_setup('grupomakro_core_overlap_analytics');
 $context = context_system::instance();
-require_capability('moodle/site:config', $context);
+require_capability('local/grupomakro_core:view_overlap_analytics', $context);
 
 $PAGE->set_url(new moodle_url('/local/grupomakro_core/pages/overlap_analytics.php'));
 $PAGE->set_title('Analitica de solapamientos');

@@ -30,7 +30,7 @@ $PAGE->set_title('Gestión de Módulos');
 $PAGE->set_heading('Gestión de Módulos');
 $PAGE->set_pagelayout('admin');
 
-require_capability('moodle/site:config', $context);
+require_capability('local/grupomakro_core:manage_modules', $context);
 
 $token   = json_encode(get_logged_user_token());
 $ajaxUrl = json_encode($CFG->wwwroot . '/local/grupomakro_core/ajax.php');

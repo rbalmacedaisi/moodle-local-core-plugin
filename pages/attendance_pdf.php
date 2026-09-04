@@ -13,6 +13,7 @@ require_once(__DIR__ . '/../../../config.php');
 require_once(__DIR__ . '/absence_helpers.php');
 
 require_login();
+require_capability('local/grupomakro_core:view_attendance_pdf', context_system::instance());
 require_sesskey();
 
 $classid = required_param('classid', PARAM_INT);

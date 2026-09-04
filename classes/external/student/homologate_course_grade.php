@@ -137,7 +137,9 @@ class homologate_course_grade extends external_api
 
         $context = context_system::instance();
         self::validate_context($context);
-        require_capability('moodle/site:config', $context);
+        // Defence-in-depth: matches the service-level cap (manage_classes)
+        // so a future change to db/services.php cannot bypass the gate.
+        require_capability('local/grupomakro_core:manage_classes', $context);
 
         $userId         = (int)$params['userId'];
         $learningPlanId = (int)$params['learningPlanId'];

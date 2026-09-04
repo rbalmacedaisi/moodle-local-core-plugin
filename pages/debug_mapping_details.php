@@ -5,7 +5,7 @@ require_once(__DIR__ . '/../locallib.php');
 require_login();
 $context = context_system::instance();
 $PAGE->set_context($context); // CRITICAL: Fix for user_picture crashes
-require_capability('moodle/site:config', $context);
+require_capability('local/grupomakro_core:manage_debug', $context);
 
 $classid = optional_param('class_id', 0, PARAM_INT);
 

@@ -87,6 +87,13 @@ class create_user extends external_api {
         // Global variables.
         global $DB;
 
+        // Defence-in-depth: this WS creates users in Moodle. The
+        // service-level cap `manage_users` (set in db/services.php) is
+        // checked at system context by the WS framework, but we re-assert
+        // it here so a future change to the service config cannot bypass
+        // the gate.
+        require_capability('local/grupomakro_core:manage_users', context_system::instance());
+
         // Validate the parameters passed to the function.
         $params = self::validate_parameters(self::execute_parameters(), [
             'firstname' => $firstname,
@@ -97,7 +104,7 @@ class create_user extends external_api {
             'documenttype' => $documenttype,
             'documentnumber' => $documentnumber,
         ]);
-        
+
 
         // Let's validate the following rules:
         // 1. There is a role called "caregiver"

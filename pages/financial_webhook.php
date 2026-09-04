@@ -253,7 +253,7 @@ $action = optional_param('action', '', PARAM_ALPHA);
 try {
     // -- Modo stats (GET): devuelve métricas para health check.
     if ($action === 'stats') {
-        require_capability('moodle/site:config', context_system::instance());
+        require_capability('local/grupomakro_core:manage_financial_webhooks', context_system::instance());
         $stats = [
             'success'              => true,
             'dlq_pending'          => (int)$DB->count_records('gmk_financial_webhook_dlq', ['state' => 'pending']),
@@ -277,7 +277,7 @@ try {
 
     // -- Modo retry (POST): reprocesa una fila de la DLQ por id.
     if ($action === 'retry') {
-        require_capability('moodle/site:config', context_system::instance());
+        require_capability('local/grupomakro_core:manage_financial_webhooks', context_system::instance());
         $dlqid = required_param('id', PARAM_INT);
         $row   = $DB->get_record('gmk_financial_webhook_dlq', ['id' => $dlqid], '*', MUST_EXIST);
         if ($row->state !== 'pending') {
@@ -314,7 +314,7 @@ try {
 
     // -- Modo resolve (POST): marca una fila de la DLQ como resuelta manualmente.
     if ($action === 'resolve') {
-        require_capability('moodle/site:config', context_system::instance());
+        require_capability('local/grupomakro_core:manage_financial_webhooks', context_system::instance());
         $dlqid = required_param('id', PARAM_INT);
         $row   = $DB->get_record('gmk_financial_webhook_dlq', ['id' => $dlqid], '*', MUST_EXIST);
         $row->state = 'resolved';

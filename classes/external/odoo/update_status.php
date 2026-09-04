@@ -26,6 +26,12 @@ class update_status extends external_api {
     public static function execute($username, $status, $reason = '') {
         global $DB, $USER;
 
+        // Defence-in-depth: Odoo integration WS. See unenroll_student.php
+        // for the rationale. The system-level integration with Odoo
+        // suspends/unsuspends Moodle users, which is a destructive
+        // operation; require an explicit `manage_debug` at function level.
+        require_capability('local/grupomakro_core:manage_debug', context_system::instance());
+
         // Validation
         $params = self::validate_parameters(self::execute_parameters(), array(
             'username'     => $username,

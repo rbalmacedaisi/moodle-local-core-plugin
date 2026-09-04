@@ -4,7 +4,7 @@ require_once($CFG->libdir . '/adminlib.php');
 
 admin_externalpage_setup('grupomakro_core_debug_overlap_student');
 $context = context_system::instance();
-require_capability('moodle/site:config', $context);
+require_capability('local/grupomakro_core:manage_debug', $context);
 
 $PAGE->set_url(new moodle_url('/local/grupomakro_core/pages/debug_overlap_student_trace.php'));
 $PAGE->set_title('Debug overlap student trace');

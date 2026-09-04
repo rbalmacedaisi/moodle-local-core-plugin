@@ -28,6 +28,7 @@ require_once($CFG->libdir . '/externallib.php');
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 
 require_login();
+require_capability('local/grupomakro_core:manage_academic_calendar', context_system::instance());
 
 $plugin_name = 'local_grupomakro_core';
 

@@ -17,7 +17,7 @@ require_once(__DIR__ . '/../../../config.php');
 require_once(__DIR__ . '/absence_helpers.php');
 
 require_login();
-require_capability('local/grupomakro_core:viewabsencedashboard', context_system::instance());
+require_capability('local/grupomakro_core:bulk_attendance_actions', context_system::instance());
 
 $dryrun = optional_param('dryrun', 0, PARAM_INT) === 1;
 $nowts  = time();

@@ -15,7 +15,7 @@ require_once($CFG->libdir . '/dataformatlib.php');
 
 require_login();
 $context = context_system::instance();
-require_capability('moodle/site:config', $context);
+require_capability('local/grupomakro_core:export_students', $context);
 
 // A full "export todo" spans ~28k pensum rows that are buffered, run through the
 // in-memory grade resolver (which pre-loads grade_items/grade_grades/classes) and

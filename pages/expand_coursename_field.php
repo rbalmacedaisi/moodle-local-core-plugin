@@ -13,7 +13,7 @@ require_once($CFG->libdir . '/ddllib.php');
 
 require_login();
 $context = context_system::instance();
-require_capability('moodle/site:config', $context);
+require_capability('local/grupomakro_core:manage_debug', $context);
 
 global $DB;
 

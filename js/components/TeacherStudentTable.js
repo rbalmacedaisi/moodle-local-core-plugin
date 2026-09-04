@@ -208,6 +208,14 @@ Vue.component('teacher-student-table', {
                          </v-btn>
                     </template>
 
+                    <template v-slot:item.financial_status="{ item }">
+                         <v-chip :color="getFinancialSimpleColor(item.financial_status)" dark small label
+                             class="text-uppercase text-caption font-weight-bold"
+                             style="letter-spacing: 0.05em !important;">
+                              {{ getFinancialSimpleLabel(item.financial_status) }}
+                         </v-chip>
+                    </template>
+
                     <template v-slot:item.grade="{ item }">
                         <v-btn small color="primary" class="elevation-0 text-capitalize font-weight-bold" @click="gradeDialog(item)">
                              notas
@@ -256,6 +264,7 @@ Vue.component('teacher-student-table', {
             { text: 'Bloque', value: 'subperiods', sortable: false, width: '200px' },
             { text: 'Teléfono', value: 'phone', sortable: false, width: '150px' },
             { text: 'Inasistencias', value: 'absences', sortable: false, width: '120px' },
+            { text: 'Estado Financiero', value: 'financial_status', sortable: false, width: '150px' },
             { text: lang.status || 'Estado', value: 'status', sortable: false, },
         ];
 
@@ -409,6 +418,7 @@ Vue.component('teacher-student-table', {
                                 img: element.profileimage,
                                 phone: element.phone,
                                 absences: element.absences || 0,
+                                financial_status: element.financial_status || 'unknown',
                                 currentgrade: element.currentgrade || '--'
                             });
                         });
@@ -916,6 +926,12 @@ Vue.component('teacher-student-table', {
             if (status === 'inactivo' || status === 'suspendido' || status === 'retirado') return 'error';
             if (status === 'graduado' || status === 'egresado') return 'primary';
             return 'grey';
+        },
+        getFinancialSimpleLabel(status) {
+            return (status && status.toLowerCase() === 'mora') ? 'En mora' : 'Activo';
+        },
+        getFinancialSimpleColor(status) {
+            return (status && status.toLowerCase() === 'mora') ? 'error' : 'success';
         },
         async pollLog(interval = 3000) {
             try {

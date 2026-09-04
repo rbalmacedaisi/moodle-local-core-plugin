@@ -31,6 +31,12 @@ class get_dashboard_data extends external_api {
         $context = \context_system::instance();
         self::validate_context($context);
 
+        // Defence-in-depth: a teacher can only load their own dashboard.
+        // Siteadmins can load any user's dashboard for support purposes.
+        if ($USER->id != $params['userid'] && !is_siteadmin()) {
+            throw new \moodle_exception('nopermissions', 'error', '', 'view another user\'s dashboard');
+        }
+
         // Cache the assembled dashboard payload (active_classes + pending_tasks +
         // health_status). The calendar events intentionally live elsewhere — see
         // local_grupomakro_calendar_get_calendar_events — so this cache stays

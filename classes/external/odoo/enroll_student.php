@@ -31,6 +31,12 @@ class enroll_student extends external_api {
     public static function execute($product_name, $username, $role_id = 5, $period_name = '') {
         global $DB, $CFG;
 
+        // Defence-in-depth: Odoo integration WS. See unenroll_student.php
+        // for the rationale. Enrols the user into a learning plan, which
+        // is a state-changing operation. Require `manage_debug` at function
+        // level so a future change to the service config cannot bypass it.
+        require_capability('local/grupomakro_core:manage_debug', context_system::instance());
+
         $logfile = $CFG->dirroot . '/local/grupomakro_core/odoo_sync_debug.log';
         $logmsg = date('Y-m-d H:i:s') . " - Enroll request: username=$username, product=$product_name, role=$role_id, period=$period_name\n";
 

@@ -12,7 +12,7 @@ require_once($CFG->libdir . '/adminlib.php');
 // Security check: Only admins should run this.
 require_login();
 $context = context_system::instance();
-require_capability('moodle/site:config', $context);
+require_capability('local/grupomakro_core:manage_debug', $context);
 
 echo $OUTPUT->header();
 echo $OUTPUT->heading("Reparación de Registros de Clase (gmk_class)");

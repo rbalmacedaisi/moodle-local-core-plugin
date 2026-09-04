@@ -3,7 +3,7 @@ require_once(__DIR__ . '/../../../config.php');
 require_once($CFG->libdir . '/adminlib.php');
 
 require_login();
-require_capability('moodle/site:config', context_system::instance());
+require_capability('local/grupomakro_core:manage_debug', context_system::instance());
 
 $classid = optional_param('classid', 0, PARAM_INT);
 $classfilter = trim((string)optional_param('classfilter', '', PARAM_TEXT));

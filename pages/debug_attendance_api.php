@@ -20,7 +20,7 @@ if (file_exists($att_locallib)) require_once($att_locallib);
 require_login();
 $context = context_system::instance();
 // Removed explicit capability check to allow instructors to see this debug page
-// require_capability('moodle/site:config', $context);
+// require_capability('local/grupomakro_core:manage_debug', $context);
 
 $PAGE->set_url('/local/grupomakro_core/pages/debug_attendance_api.php');
 $PAGE->set_context($context);

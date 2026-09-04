@@ -10,7 +10,7 @@ global $DB, $PAGE, $OUTPUT;
 
 require_login();
 $syscontext = context_system::instance();
-require_capability('moodle/site:config', $syscontext);
+require_capability('local/grupomakro_core:manage_debug', $syscontext);
 admin_externalpage_setup('grupomakro_core_debug_assign_submission_visibility');
 
 $PAGE->set_url(new moodle_url('/local/grupomakro_core/pages/debug_assign_submission_visibility.php'));
