@@ -568,6 +568,10 @@ window.SchedulerComponents.PlanningBoard = {
                                     <td class="px-4 py-2 font-mono text-xs text-slate-500">{{ stu.id }}</td>
                                     <td class="px-4 py-2 font-medium text-slate-800">
                                         {{ stu.name }}
+                                        <button @click.stop="openGradesModal(stu)" title="Ver notas"
+                                            class="ml-2 align-middle px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded text-[10px] font-bold hover:bg-indigo-100 transition-colors">
+                                            Notas
+                                        </button>
                                         <div v-if="currentStudentOverlaps[String(stu.id)]" class="mt-1 flex flex-wrap gap-1">
                                             <span v-for="(ov, oi) in currentStudentOverlaps[String(stu.id)]" :key="oi"
                                                   class="text-[10px] bg-red-50 text-red-700 border border-red-200 rounded px-1.5 py-0.5 font-normal leading-tight"
@@ -857,6 +861,57 @@ window.SchedulerComponents.PlanningBoard = {
                 </div>
             </div>
 
+
+            <!-- Notas del estudiante: mismo contenido y mismo endpoint que el modal de la matriz. -->
+            <div v-if="showGradesModal" class="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+                <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden">
+                    <div class="p-4 border-b border-slate-200 bg-indigo-50 flex justify-between items-center">
+                        <div>
+                            <h4 class="font-bold text-indigo-900">Notas: {{ gradesStudent ? gradesStudent.name : '' }}</h4>
+                            <p class="text-xs text-indigo-600">{{ gradesStudent ? gradesStudent.id : '' }}</p>
+                        </div>
+                        <button @click="showGradesModal = false" class="p-1 hover:bg-indigo-200 rounded-full transition-colors">
+                            <i data-lucide="x" class="w-5 h-5 text-indigo-400"></i>
+                        </button>
+                    </div>
+                    <div class="p-4 max-h-[60vh] overflow-y-auto">
+                        <div v-if="gradesLoading" class="py-10 text-center text-slate-400 text-sm">Cargando notas...</div>
+                        <div v-else-if="gradesError" class="py-10 text-center text-red-600 text-sm">{{ gradesError }}</div>
+                        <div v-else-if="gradesData.length === 0" class="py-10 text-center text-slate-400 text-sm">No se encontraron notas o el estudiante no tiene plan activo.</div>
+                        <table v-else class="w-full text-xs text-left">
+                            <thead class="bg-slate-50 sticky top-0 font-bold uppercase text-slate-500">
+                                <tr>
+                                    <th class="p-2 border-b">Asignatura</th>
+                                    <th class="p-2 border-b text-center">Nivel</th>
+                                    <th class="p-2 border-b text-center">Nota</th>
+                                    <th class="p-2 border-b text-center">Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                <tr v-for="g in gradesData" :key="g.courseid" class="hover:bg-slate-50">
+                                    <td class="p-2">{{ g.coursename || g.name }}</td>
+                                    <td class="p-2 text-center">{{ g.semester || g.level || '-' }}</td>
+                                    <td class="p-2 text-center font-bold" :class="parseFloat(g.grade || g.finalgrade || 0) >= 71 ? 'text-green-700' : 'text-red-600'">{{ g.grade || g.finalgrade || '-' }}</td>
+                                    <td class="p-2 text-center">
+                                        <span class="px-1.5 py-0.5 rounded text-[10px] font-bold" :class="{
+                                            'bg-green-100 text-green-800': String(g.status) === '4' || String(g.status) === '3',
+                                            'bg-blue-100 text-blue-800': String(g.status) === '2',
+                                            'bg-yellow-100 text-yellow-800': String(g.status) === '1' || String(g.status) === '0',
+                                            'bg-red-100 text-red-800': String(g.status) === '5',
+                                            'bg-purple-100 text-purple-800': String(g.status) === '99'
+                                        }">
+                                            {{ {0:'No Disponible', 1:'Disponible', 2:'Cursando', 3:'Completado', 4:'Aprobado', 5:'Reprobado', 99:'Migracion Pend.'}[String(g.status)] || g.status }}
+                                        </span>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="p-4 bg-slate-50 border-t border-slate-200 text-center">
+                        <button @click="showGradesModal = false" class="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-bold transition-colors">Cerrar</button>
+                    </div>
+                </div>
+            </div>
         </div>
     `,
     data() {
@@ -865,6 +920,11 @@ window.SchedulerComponents.PlanningBoard = {
             days: ['Lunes', 'Martes', 'Mi\u00e9rcoles', 'Jueves', 'Viernes', 'S\u00e1bado'],
             draggedClass: null,
             enrollingPeriodPending: false,
+            showGradesModal: false,
+            gradesStudent: null,
+            gradesData: [],
+            gradesLoading: false,
+            gradesError: '',
             // Resize state
             resizingClass: null,
             resizeStartY: 0,
@@ -1457,6 +1517,57 @@ window.SchedulerComponents.PlanningBoard = {
                 alert('Error al inscribir pendientes: ' + (e.message || 'desconocido'));
             } finally {
                 this.enrollingPeriodPending = false;
+            }
+        },
+        // Notas del estudiante: replica el modal de la matriz dentro del tablero,
+        // contra el mismo endpoint. El plan de estudios no viaja en las filas del
+        // listado, asi que se resuelve contra la lista de la demanda (storeState.students),
+        // que si trae dbId y planid.
+        async openGradesModal(stu) {
+            this.gradesStudent = stu;
+            this.gradesData = [];
+            this.gradesError = '';
+            this.gradesLoading = true;
+            this.showGradesModal = true;
+            try {
+                const all = this.storeState.students || [];
+                const dbId = Number(stu.dbId || stu.userid || 0);
+                const sid = String(stu.idnumber || stu.id || '').trim();
+                let ref = null;
+                if (dbId > 0) ref = all.find(s => Number(s.dbId || 0) === dbId);
+                if (!ref && sid) ref = all.find(s => String(s.id || '').trim() === sid);
+
+                const userId = dbId > 0 ? dbId : Number((ref && ref.dbId) || 0);
+                const planId = Number((ref && ref.planid) || 0);
+                if (!userId || !planId) {
+                    this.gradesError = 'No se pudo resolver el plan de estudios de este estudiante.';
+                    return;
+                }
+
+                const res = await window.schedulerStore._fetch('local_grupomakro_get_student_learning_plan_pensum', {
+                    userId: userId,
+                    learningPlanId: planId
+                });
+
+                let rows = [];
+                if (res && res.pensum) {
+                    const pensum = (typeof res.pensum === 'string') ? JSON.parse(res.pensum) : res.pensum;
+                    Object.values(pensum || {}).forEach(period => {
+                        if (period && Array.isArray(period.courses)) {
+                            period.courses.forEach(c => rows.push(Object.assign({}, c, { level: period.periodName || '-' })));
+                        }
+                    });
+                } else if (Array.isArray(res)) {
+                    rows = res;
+                } else if (res && res.courses) {
+                    rows = res.courses;
+                }
+                this.gradesData = rows;
+            } catch (e) {
+                this.gradesError = 'Error al cargar las notas: ' + (e.message || 'desconocido');
+            } finally {
+                this.gradesLoading = false;
+                if (window.lucide) window.lucide.createIcons();
             }
         },
         getPendingEnrollmentCount(cls) {
