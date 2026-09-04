@@ -619,6 +619,64 @@ function gmk_qr_finish($status, $reasoncode, $message, array $target, $sessionid
     gmk_qr_redirect_to_student_ui($status, $reasoncode, $message, $target, $sessionid, $traceid);
 }
 
+/**
+ * Ends the scan by sending the student to the payment-restriction page instead
+ * of the scan result. Used when the attendance is NOT recorded because of the
+ * student's financial state: showing them a "scan failed" screen would hide the
+ * actual reason and send them to the academic office for a billing matter.
+ *
+ * @param string $reasoncode
+ * @param string $motivo    Value the LXP page expects in ?motivo=
+ * @param string $message
+ * @param array  $target
+ * @param int    $sessionid
+ * @param int    $userid
+ * @param array  $extra
+ * @return void
+ */
+function gmk_qr_finish_payment_restricted($reasoncode, $motivo, $message, array $target, $sessionid, $userid, array $extra = []) {
+    $traceid = gmk_qr_trace_id();
+    gmk_qr_log_decision($traceid, 'error', $reasoncode, $message, (int)$sessionid, (int)$userid, $target, $extra);
+    gmk_qr_clear_pending_cookie((int)$sessionid);
+
+    $base = gmk_qr_student_app_base_url();
+    $url = new moodle_url($base . '/restriccion-pago', [
+        'motivo'  => (string)$motivo,
+        'origen'  => 'qr',
+        'sessid'  => (int)$sessionid,
+        'traceid' => (string)$traceid,
+    ]);
+    redirect($url);
+}
+
+/**
+ * Whether the student is barred from self-registering attendance because of
+ * their financial state.
+ *
+ * Reads the Odoo-synced snapshot in gmk_financial_status, which is refreshed on
+ * every login (see event\user_login_handler) — and the QR flow forces a login,
+ * so the value is fresh by the time we get here.
+ *
+ * Deliberately fail-open: only an explicit 'mora' blocks. A missing row, an
+ * empty status or an unknown value lets the scan through, because a failed sync
+ * with Odoo must never leave a whole classroom unable to mark attendance. The
+ * decision is logged either way.
+ *
+ * @param int $userid
+ * @return array{blocked:bool, status:string}
+ */
+function gmk_qr_payment_block_state($userid) {
+    global $DB;
+
+    $status = (string)$DB->get_field('gmk_financial_status', 'status', ['userid' => (int)$userid], IGNORE_MULTIPLE);
+    $blocking = ['mora'];
+
+    return [
+        'blocked' => in_array(strtolower(trim($status)), $blocking, true),
+        'status'  => $status,
+    ];
+}
+
 $sessionid = required_param('sessid', PARAM_INT);
 $qrpass = optional_param('qrpass', '', PARAM_RAW_TRIMMED);
 $gmkqrtoken = optional_param('gmkqr', '', PARAM_RAW_TRIMMED);
@@ -725,6 +783,24 @@ if (!empty($session->groupid) && !groups_is_member((int)$session->groupid, $USER
         $sessionid,
         (int)$USER->id,
         ['groupid' => (int)$session->groupid]
+    );
+}
+
+// Financial gate: a student in arrears cannot self-register attendance. This
+// check lives HERE, in the bridge, and not only in the student app: the app
+// only guards its own pages, and this URL has already been in the student's
+// browser, so a frontend-only rule would be trivial to bypass by reloading it.
+// Placed before any write so nothing is recorded when the student is blocked.
+$paymentstate = gmk_qr_payment_block_state((int)$USER->id);
+if (!is_siteadmin() && !empty($paymentstate['blocked'])) {
+    gmk_qr_finish_payment_restricted(
+        'payment_restricted',
+        'mora',
+        'Tienes facturas pendientes de pago. Regulariza tu situacion para poder registrar tu asistencia.',
+        $target,
+        $sessionid,
+        (int)$USER->id,
+        ['financial_status' => (string)$paymentstate['status']]
     );
 }
 
