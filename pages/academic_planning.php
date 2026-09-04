@@ -45,7 +45,7 @@ echo $OUTPUT->header();
 <!-- Scheduler Module Scripts -->
 <script src="../js/utils/scheduler_algorithm.js?v=<?= time() ?>"></script>
 <script src="../js/utils/pdfExport.js?v=<?= time() ?>"></script>
-<script src="../js/stores/schedulerStore.js?v=global-settings-1"></script>
+<script src="../js/stores/schedulerStore.js?v=count-sync-1"></script>
 
 <script src="../js/components/scheduler/projections_modal.js?v=<?= time() ?>"></script>
 <script src="../js/components/scheduler/demand_view.js?v=<?= time() ?>"></script>

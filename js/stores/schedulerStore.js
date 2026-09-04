@@ -1115,9 +1115,18 @@
                             const kept = { ...item };
                             // Draft-only placed cards can carry stale studentIds from previous
                             // periods. Keep the card placement, but clear assigned identities.
-                            if (!isPersisted && Array.isArray(kept.studentIds) && kept.studentIds.length > 0) {
-                                console.log(`DEBUG Reconcile: Clearing ${kept.studentIds.length} stale studentIds on non-persisted placed item "${item.subjectName}" (${key}).`);
-                                kept.studentIds = [];
+                            if (!isPersisted) {
+                                if (Array.isArray(kept.studentIds) && kept.studentIds.length > 0) {
+                                    console.log(`DEBUG Reconcile: Clearing ${kept.studentIds.length} stale studentIds on non-persisted placed item "${item.subjectName}" (${key}).`);
+                                    kept.studentIds = [];
+                                }
+                                // El conteo tiene que seguir SIEMPRE a la lista. Antes solo se
+                                // vaciaban los ids y studentCount se quedaba con el valor viejo:
+                                // la ficha anunciaba N alumnos y al abrir el listado no habia
+                                // ninguno ("No hay informacion de estudiantes disponible").
+                                // Tambien corrige las fichas ya guardadas con esa desincronizacion,
+                                // porque la rama anterior solo entraba si aun quedaban ids.
+                                kept.studentCount = 0;
                             }
                             result.push(this._withCanonicalSubjectName(kept));
                         } else {
