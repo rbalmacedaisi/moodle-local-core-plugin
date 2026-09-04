@@ -196,4 +196,139 @@ $capabilities = array(
             'manager' => CAP_ALLOW,
         ),
     ),
+
+    // ── WORKFLOW MATRIX PR2: capabilities for the gmk_* operational roles ──
+    // Added here so create_roles()/assign_capabilities_to_internal_roles()
+    // (db/upgradelib.php) can hand each one to its owning role. All are
+    // 'manager' archetype by retrocompatibility: siteadmins keep the same
+    // level of access they had under moodle/site:config, and the role-by-role
+    // bundle is applied by PR2. PR3+ then gates the pages with these caps.
+    'local/grupomakro_core:manage_users' => array(
+        'captype' => 'write', 'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array('manager' => CAP_ALLOW),
+    ),
+    'local/grupomakro_core:manage_courses' => array(
+        'captype' => 'write', 'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array('manager' => CAP_ALLOW),
+    ),
+    'local/grupomakro_core:manage_schedules' => array(
+        'captype' => 'write', 'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array('manager' => CAP_ALLOW),
+    ),
+    'local/grupomakro_core:manage_teachers' => array(
+        'captype' => 'write', 'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array('manager' => CAP_ALLOW),
+    ),
+    'local/grupomakro_core:manage_teacher_availability' => array(
+        'captype' => 'write', 'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array('manager' => CAP_ALLOW),
+    ),
+    'local/grupomakro_core:manage_institutions' => array(
+        'captype' => 'write', 'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array('manager' => CAP_ALLOW),
+    ),
+    'local/grupomakro_core:manage_institutional_contracts' => array(
+        'captype' => 'write', 'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array('manager' => CAP_ALLOW),
+    ),
+    'local/grupomakro_core:manage_meetings' => array(
+        'captype' => 'write', 'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array('manager' => CAP_ALLOW),
+    ),
+    'local/grupomakro_core:manage_modules' => array(
+        'captype' => 'write', 'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array('manager' => CAP_ALLOW),
+    ),
+    'local/grupomakro_core:manage_orders' => array(
+        'captype' => 'write', 'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array('manager' => CAP_ALLOW),
+    ),
+    'local/grupomakro_core:manage_academic_calendar' => array(
+        'captype' => 'write', 'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array('manager' => CAP_ALLOW),
+    ),
+    'local/grupomakro_core:manage_academic_planning' => array(
+        'captype' => 'write', 'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array('manager' => CAP_ALLOW),
+    ),
+    'local/grupomakro_core:manage_student_timeline' => array(
+        'captype' => 'write', 'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array('manager' => CAP_ALLOW),
+    ),
+    'local/grupomakro_core:manage_financial_config' => array(
+        'captype' => 'write', 'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array('manager' => CAP_ALLOW),
+    ),
+    'local/grupomakro_core:manage_financial_webhooks' => array(
+        'captype' => 'write', 'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array('manager' => CAP_ALLOW),
+    ),
+    'local/grupomakro_core:manage_debug' => array(
+        'captype' => 'write', 'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array('manager' => CAP_ALLOW),
+    ),
+    'local/grupomakro_core:import_users' => array(
+        'captype' => 'write', 'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array('manager' => CAP_ALLOW),
+    ),
+    'local/grupomakro_core:bulk_enroll' => array(
+        'captype' => 'write', 'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array('manager' => CAP_ALLOW),
+    ),
+    'local/grupomakro_core:bulk_attendance_actions' => array(
+        'captype' => 'write', 'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array('manager' => CAP_ALLOW),
+    ),
+    'local/grupomakro_core:export_students' => array(
+        'captype' => 'read', 'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array('manager' => CAP_ALLOW),
+    ),
+    'local/grupomakro_core:view_academic_panel' => array(
+        'captype' => 'read', 'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array('manager' => CAP_ALLOW),
+    ),
+    'local/grupomakro_core:view_classmanagement' => array(
+        'captype' => 'read', 'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array('manager' => CAP_ALLOW),
+    ),
+    'local/grupomakro_core:view_student_timeline' => array(
+        'captype' => 'read', 'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array('manager' => CAP_ALLOW),
+    ),
+    'local/grupomakro_core:view_student_population' => array(
+        'captype' => 'read', 'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array('manager' => CAP_ALLOW),
+    ),
+    'local/grupomakro_core:view_active_students_by_class' => array(
+        'captype' => 'read', 'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array('manager' => CAP_ALLOW),
+    ),
+    'local/grupomakro_core:view_attendance_pdf' => array(
+        'captype' => 'read', 'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array('manager' => CAP_ALLOW),
+    ),
+    'local/grupomakro_core:view_overlap_analytics' => array(
+        'captype' => 'read', 'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array('manager' => CAP_ALLOW),
+    ),
+    'local/grupomakro_core:view_academic_demand_gaps' => array(
+        'captype' => 'read', 'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array('manager' => CAP_ALLOW),
+    ),
+    'local/grupomakro_core:view_log' => array(
+        'captype' => 'read', 'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array('manager' => CAP_ALLOW),
+    ),
+    'local/grupomakro_core:view_financial_health' => array(
+        'captype' => 'read', 'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array('manager' => CAP_ALLOW),
+    ),
+    'local/grupomakro_core:view_financial_planning' => array(
+        'captype' => 'read', 'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array('manager' => CAP_ALLOW),
+    ),
+    'local/grupomakro_core:view_grade_report' => array(
+        'captype' => 'read', 'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array('manager' => CAP_ALLOW),
+    ),
 );
