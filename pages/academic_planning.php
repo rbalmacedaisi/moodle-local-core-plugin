@@ -1982,11 +1982,18 @@ const loadInitial = async () => {
                 const pendingForSelectedPeriod = (stu.pendingSubjects || []).filter(s => {
                     if (ignoredSubjects[s.name]) return false;
                     if (!s.isPreRequisiteMet) return false;
+                    // El movimiento INDIVIDUAL (hecho desde el tablero) prevalece sobre el
+                    // del grupo, igual que en el conteo de la fila de la matriz. Sin esto,
+                    // esta vista seguia mostrando al alumno en su periodo natural aunque ya
+                    // se le hubiera movido: la fila decia 68 en P-I y 17 en P-IV mientras el
+                    // listado seguia contando los 85 en P-I.
                     const deferKey = `${s.name}_${stu.cohortKey}`;
-                    const hasDeferral = deferredGroups[deferKey] !== undefined;
-                    const deferredIdx = hasDeferral ? parseInt(deferredGroups[deferKey]) : null;
+                    const studentDefKey = `${s.id}_${stu.dbId || stu.id}`;
+                    const rawIdx = studentDeferredGroups[studentDefKey] !== undefined
+                        ? parseInt(studentDeferredGroups[studentDefKey])
+                        : (deferredGroups[deferKey] !== undefined ? parseInt(deferredGroups[deferKey]) : null);
                     const naturalIdx = getNaturalProjectionPeriodIndex(stu, s);
-                    const effectiveIdx = Number.isInteger(deferredIdx) ? deferredIdx : naturalIdx;
+                    const effectiveIdx = Number.isInteger(rawIdx) ? rawIdx : naturalIdx;
                     return effectiveIdx === selectedImpactIdx;
                 });
 
