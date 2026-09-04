@@ -711,18 +711,36 @@ foreach ($chunks as $chunkIdx => $chunk_sids) {
         }
 
         // ── Session cells ─────────────────────────────────────────────────────
+        // Se imprime el ACRÓNIMO real del estado (P / R / FJ / FI). Antes se
+        // colapsaba a P/A según "grade > 0", con lo que un Retraso o una Falta
+        // Justificada salían impresos como "P" y eran indistinguibles de una
+        // asistencia: el dato existía en la base pero desaparecía justo en el
+        // documento que se usa como evidencia.
         foreach ($chunk_sids as $sid) {
             $entry = $matrix[$uid][$sid] ?? null;
             if ($entry === null || !($entry['has_log'] ?? false)) {
                 pdfFill($pdf, $C['future_bg']); pdfText($pdf, $C['future_fg']);
                 $pdf->Cell($sessColW, 7.5, '–', 'LTB', 0, 'C', true);
-            } elseif ($entry['present']) {
-                pdfFill($pdf, $C['present_bg']); pdfText($pdf, $C['present_fg']);
-                $pdf->Cell($sessColW, 7.5, 'P', 'LTB', 0, 'C', true);
-            } else {
-                pdfFill($pdf, $C['absent_bg']); pdfText($pdf, $C['absent_fg']);
-                $pdf->Cell($sessColW, 7.5, 'A', 'LTB', 0, 'C', true);
+                continue;
             }
+            $acronym = trim((string)($entry['acronym'] ?? ''));
+            $ispresent = !empty($entry['present']);
+            if ($acronym === '') {
+                // Estado sin acrónimo configurado: se cae al comportamiento previo.
+                $acronym = $ispresent ? 'P' : 'A';
+            }
+            if (!$ispresent) {
+                // Falta (injustificada o cualquier estado con nota 0).
+                pdfFill($pdf, $C['absent_bg']); pdfText($pdf, $C['absent_fg']);
+            } else if (strcasecmp($acronym, 'P') === 0) {
+                // Asistencia plena.
+                pdfFill($pdf, $C['present_bg']); pdfText($pdf, $C['present_fg']);
+            } else {
+                // Cuenta como asistido pero NO es asistencia plena (Retraso,
+                // Falta Justificada): ámbar para que se distinga de un presente.
+                pdfFill($pdf, $C['note_warn']); pdfText($pdf, $C['note_warn_fg']);
+            }
+            $pdf->Cell($sessColW, 7.5, $acronym, 'LTB', 0, 'C', true);
         }
 
         // ── Total ausencias ───────────────────────────────────────────────────
@@ -740,6 +758,39 @@ foreach ($chunks as $chunkIdx => $chunk_sids) {
         $pdf->Ln();
     }
 }
+
+// ── Leyenda de estados ────────────────────────────────────────────────────────
+// Necesaria desde que la tabla imprime el acrónimo real: sin ella "R" y "FJ"
+// no significan nada para quien recibe el informe.
+$pdf->Ln(3);
+$pdf->SetX($pdf->getMargins()['left']);
+$pdf->SetFont($PDF_FONT, 'B', 6.5);
+pdfText($pdf, $C['muted']);
+$pdf->Cell(14, 5, 'Estados:', 0, 0, 'L', false);
+$legend = [
+    ['P',  'Presente',            $C['present_bg'], $C['present_fg']],
+    ['R',  'Retraso',             $C['note_warn'],  $C['note_warn_fg']],
+    ['FJ', 'Falta justificada',   $C['note_warn'],  $C['note_warn_fg']],
+    ['FI', 'Falta injustificada', $C['absent_bg'],  $C['absent_fg']],
+    ['-',  'Sin registrar',       $C['future_bg'],  $C['future_fg']],
+];
+foreach ($legend as $item) {
+    list($code, $label, $bg, $fg) = $item;
+    pdfFill($pdf, $bg); pdfText($pdf, $fg);
+    $pdf->SetFont($PDF_FONT, 'B', 6.5);
+    $pdf->Cell(7, 5, $code, 'LTBR', 0, 'C', true);
+    pdfText($pdf, $C['muted']);
+    $pdf->SetFont($PDF_FONT, '', 6.5);
+    $pdf->Cell(strlen($label) * 1.5 + 4, 5, ' ' . $label, 0, 0, 'L', false);
+}
+$pdf->Ln(6);
+$pdf->SetX($pdf->getMargins()['left']);
+$pdf->SetFont($PDF_FONT, 'I', 6);
+pdfText($pdf, $C['muted']);
+// Se dice explícitamente porque el porcentaje no lo deja ver: el Retraso suma
+// como asistido en el cálculo, así que 3 retrasos NO restan asistencia.
+$pdf->Cell(0, 4, 'El porcentaje de asistencia cuenta como asistido tanto Presente como Retraso y Falta justificada. '
+    . 'Solo la Falta injustificada resta.', 0, 1, 'L', false);
 
 $safeName = preg_replace('/[^a-zA-Z0-9_-]/', '_', $cname);
 $filename = 'Asistencia_' . $safeName . '_' . date('Ymd') . '.pdf';

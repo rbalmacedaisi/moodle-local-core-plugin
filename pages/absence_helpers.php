@@ -567,7 +567,9 @@ function absd_get_student_session_matrix(array $sessionids, array $userids): arr
     list($uinsql, $uinparams)     = $DB->get_in_or_equal($userids,   SQL_PARAMS_NAMED, 'mat_usr');
     $params = array_merge($sessparams, $uinparams);
 
-    $sql = "SELECT l.studentid, l.sessionid, COALESCE(ast.grade, 0) AS grade
+    $sql = "SELECT l.studentid, l.sessionid, COALESCE(ast.grade, 0) AS grade,
+                   COALESCE(ast.acronym, '') AS acronym,
+                   COALESCE(ast.description, '') AS description
               FROM {attendance_log} l
               JOIN (
                     SELECT studentid, sessionid, MAX(id) AS maxid
@@ -583,7 +585,18 @@ function absd_get_student_session_matrix(array $sessionids, array $userids): arr
     foreach ($rs as $row) {
         $uid = (int)$row->studentid;
         $sid = (int)$row->sessionid;
-        $matrix[$uid][$sid] = ['present' => ((float)$row->grade > 0), 'has_log' => true];
+        // 'present' se conserva para los consumidores existentes (es un booleano
+        // "cuenta como asistido": Retraso y Falta Justificada valen > 0 y por
+        // tanto son present=true). Se añaden el acrónimo y la nota para que los
+        // informes puedan DISTINGUIR P / R / FJ / FI en vez de colapsarlo todo a
+        // presente/ausente, que ocultaba los retrasos por completo.
+        $matrix[$uid][$sid] = [
+            'present'     => ((float)$row->grade > 0),
+            'has_log'     => true,
+            'acronym'     => (string)($row->acronym ?? ''),
+            'description' => (string)($row->description ?? ''),
+            'grade'       => (float)$row->grade,
+        ];
     }
     $rs->close();
 
