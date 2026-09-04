@@ -5817,7 +5817,8 @@ try {
                     $mx_sql = "SELECT l.studentid, l.sessionid,
                                       COALESCE(ast.acronym, '-') AS acronym,
                                       COALESCE(ast.description, 'Sin registrar') AS description,
-                                      COALESCE(ast.grade, 0) AS grade
+                                      COALESCE(ast.grade, 0) AS grade,
+                                      COALESCE(l.takenby, 0) AS takenby
                                  FROM {attendance_log} l
                                  JOIN (
                                        SELECT studentid, sessionid, MAX(id) AS maxid
@@ -5839,9 +5840,34 @@ try {
                             'acronym'     => (string)$mx_row->acronym,
                             'description' => (string)$mx_row->description,
                             'grade'       => (float)$mx_row->grade,
+                            // Who recorded it: the grid only offers "deshacer" on
+                            // marks made by the teacher looking at it.
+                            'takenby'     => (int)$mx_row->takenby,
+                            'mine'        => ((int)$mx_row->takenby === (int)$USER->id),
                         ];
                     }
                     $mx_rs->close();
+                }
+
+                // Statuses the teacher may actually set (everything but presence).
+                require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/teacher_attendance.php');
+                $selectable_out = [];
+                foreach (\local_grupomakro_core\local\teacher_attendance::selectable_statuses($attendanceid) as $st) {
+                    $selectable_out[] = [
+                        'id'          => (int)$st->id,
+                        'acronym'     => (string)$st->acronym,
+                        'description' => (string)$st->description,
+                        'grade'       => (float)$st->grade,
+                    ];
+                }
+                $canmark = false;
+                if (!empty($class->attendancemoduleid)) {
+                    try {
+                        $canmark = has_capability('mod/attendance:takeattendances',
+                            context_module::instance((int)$class->attendancemoduleid));
+                    } catch (Throwable $ignored) {
+                        $canmark = false;
+                    }
                 }
 
                 $response = [
@@ -5849,6 +5875,8 @@ try {
                     'sessions'    => $sessions_out,
                     'students'    => $students_out,
                     'statuses'    => $statuses_out,
+                    'selectable'  => $selectable_out,
+                    'can_mark'    => $canmark,
                     'matrix'      => $matrix_out,
                     'taken_count' => count($taken_session_ids),
                     'total_count' => count($all_session_ids),
@@ -5867,6 +5895,44 @@ try {
                 $response = ['status' => 'error', 'message' => $e->getMessage()];
              }
              break;
+
+        case 'local_grupomakro_teacher_mark_attendance':
+            // Teacher marks a student ABSENT or LATE in one session. Marking
+            // present is rejected by teacher_attendance::mark() — presence only
+            // comes from the QR scan or the BBB presence poll.
+            require_sesskey();
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/teacher_attendance.php');
+            try {
+                $result = \local_grupomakro_core\local\teacher_attendance::mark(
+                    required_param('classid', PARAM_INT),
+                    required_param('sessionid', PARAM_INT),
+                    required_param('studentid', PARAM_INT),
+                    required_param('statusid', PARAM_INT),
+                    trim((string)optional_param('remarks', '', PARAM_TEXT))
+                );
+                $response = ['status' => 'success', 'data' => $result];
+            } catch (Throwable $e) {
+                $response = ['status' => 'error', 'message' => $e->getMessage()];
+            }
+            break;
+
+        case 'local_grupomakro_teacher_undo_attendance':
+            // Reverts a mark the same teacher made, restoring the previous state
+            // (including "present" or "no record"). It is a restoration, never a
+            // new grant, so the no-marking-present rule stays intact.
+            require_sesskey();
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/teacher_attendance.php');
+            try {
+                $result = \local_grupomakro_core\local\teacher_attendance::undo(
+                    required_param('classid', PARAM_INT),
+                    required_param('sessionid', PARAM_INT),
+                    required_param('studentid', PARAM_INT)
+                );
+                $response = ['status' => 'success', 'data' => $result];
+            } catch (Throwable $e) {
+                $response = ['status' => 'error', 'message' => $e->getMessage()];
+            }
+            break;
 
         case 'local_grupomakro_toggle_session_revalida':
             // Flip the is_revalida flag on a single attendance_session row.
