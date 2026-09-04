@@ -539,10 +539,38 @@ function absd_get_student_absences(array $sessionids, array $userids): array {
     }
     $rs->close();
 
+    // "N retrasos = una falta". Se resuelve la clase a partir de las sesiones
+    // recibidas (todas pertenecen a la misma actividad de asistencia), y la
+    // regla solo suma faltas en las clases a las que alcanza por fecha.
+    // locallib se carga aquí (no en la cabecera del archivo) para no arrastrar
+    // todo el módulo en cada include de este helper; es idempotente y locallib
+    // no incluye a su vez este archivo, así que no hay ciclo.
+    require_once($GLOBALS['CFG']->dirroot . '/local/grupomakro_core/locallib.php');
+    $extrabyuser = [];
+    $firstsession = reset($sessionids);
+    $attendanceid = (int)$DB->get_field('attendance_sessions', 'attendanceid', ['id' => (int)$firstsession]);
+    if ($attendanceid > 0) {
+        $cmid = $DB->get_field_sql(
+            "SELECT cm.id FROM {course_modules} cm
+               JOIN {modules} m ON m.id = cm.module AND m.name = :mod
+              WHERE cm.instance = :inst",
+            ['mod' => 'attendance', 'inst' => $attendanceid],
+            IGNORE_MULTIPLE
+        );
+        $classid = $cmid ? (int)$DB->get_field('gmk_class', 'id', ['attendancemoduleid' => (int)$cmid], IGNORE_MULTIPLE) : 0;
+        if ($classid > 0 && \gmk_late_rule_applies($classid)) {
+            $lates = \gmk_count_lates_by_user($attendanceid, $userids);
+            foreach ($lates as $luid => $lcount) {
+                $extrabyuser[(int)$luid] = \gmk_late_rule_extra_absences($classid, (int)$lcount);
+            }
+        }
+    }
+
     $map = [];
     foreach ($userids as $uid) {
         $uid     = (int)$uid;
         $present = $presentbyuser[$uid] ?? 0;
+        $present = max(0, $present - (int)($extrabyuser[$uid] ?? 0));
         $map[$uid] = max(0, $totalsessions - $present);
     }
     return $map;

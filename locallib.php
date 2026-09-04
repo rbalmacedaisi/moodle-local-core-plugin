@@ -9830,9 +9830,18 @@ function gmk_batch_weighted_grades(int $classId, array $userIds): array {
         );
 
         $giId = (int)$gi->id;
+        // "N retrasos = una falta": se descuentan del recuento de presentes, y
+        // solo en las clases a las que la regla alcanza (ver gmk_late_rule_applies).
+        $lateByUser = gmk_late_rule_applies($classId)
+            ? gmk_count_lates_by_user($attid, $userIds, $attNow)
+            : [];
         foreach ($presentRows as $pr) {
-            $gradeByUserItem[(int)$pr->studentid][$giId] =
-                round(((int)$pr->present / $attTotal) * $gmax, 2);
+            $uidp = (int)$pr->studentid;
+            $present = (int)$pr->present;
+            if (!empty($lateByUser)) {
+                $present = max(0, $present - gmk_late_rule_extra_absences($classId, (int)($lateByUser[$uidp] ?? 0)));
+            }
+            $gradeByUserItem[$uidp][$giId] = round(($present / $attTotal) * $gmax, 2);
         }
         // Students with no attendance log at all count as 0 present.
         foreach ($userIds as $uid) {
@@ -9866,6 +9875,117 @@ function gmk_batch_weighted_grades(int $classId, array $userIds): array {
         }
     }
     return $result;
+}
+
+/**
+ * Whether the "N lates make one absence" rule applies to a given class.
+ *
+ * The rule is dated on purpose: it only touches classes that START on or after
+ * the configured effective date. That way past periods keep the grades they
+ * were closed with, and no historical record has to be rewritten — the same
+ * query returns the old number for an old class and the new one for a new class.
+ *
+ * @param int $classId
+ * @return bool
+ */
+function gmk_late_rule_applies(int $classId): bool {
+    global $DB;
+    static $cache = [];
+
+    if (isset($cache[$classId])) {
+        return $cache[$classId];
+    }
+
+    $n = (int)get_config('local_grupomakro_core', 'late_to_absence_count');
+    if ($n <= 0) {
+        return $cache[$classId] = false;
+    }
+    $fromraw = trim((string)get_config('local_grupomakro_core', 'late_to_absence_from'));
+    if ($fromraw === '') {
+        return $cache[$classId] = false;
+    }
+    $from = strtotime($fromraw . ' 00:00:00');
+    if ($from === false) {
+        return $cache[$classId] = false;
+    }
+    $initdate = (int)$DB->get_field('gmk_class', 'initdate', ['id' => $classId]);
+    // A class with no start date is treated as historical: never penalised
+    // retroactively by a rule it could not have known about.
+    if ($initdate <= 0) {
+        return $cache[$classId] = false;
+    }
+    return $cache[$classId] = ($initdate >= $from);
+}
+
+/**
+ * How many extra absences a number of lates produces for a class, under the
+ * "N lates make one absence" rule. Returns 0 when the rule does not apply.
+ *
+ * @param int $classId
+ * @param int $lateCount
+ * @return int
+ */
+function gmk_late_rule_extra_absences(int $classId, int $lateCount): int {
+    if ($lateCount <= 0 || !gmk_late_rule_applies($classId)) {
+        return 0;
+    }
+    $n = (int)get_config('local_grupomakro_core', 'late_to_absence_count');
+    if ($n <= 0) {
+        return 0;
+    }
+    return (int)floor($lateCount / $n);
+}
+
+/**
+ * Counts a student's lates in a class, over the sessions that count for
+ * attendance (revalidation sessions excluded, same as everywhere else).
+ *
+ * A "late" is any status that still counts as attended (grade > 0) but is not
+ * the presence status (the top grade of the set) — i.e. Retraso and Falta
+ * Justificada. Resolving it by grade rather than by acronym keeps it working
+ * if the status set is renamed.
+ *
+ * @param int $attendanceId
+ * @param array $userIds
+ * @param int|null $before
+ * @return array<int,int> userid => late count
+ */
+function gmk_count_lates_by_user(int $attendanceId, array $userIds, ?int $before = null): array {
+    global $DB;
+
+    $out = array_fill_keys(array_map('intval', $userIds), 0);
+    if (empty($userIds) || $attendanceId <= 0) {
+        return $out;
+    }
+    $before = $before ?? time();
+
+    $maxgrade = $DB->get_field_sql(
+        "SELECT MAX(grade) FROM {attendance_statuses}
+          WHERE attendanceid = :aid AND visible = 1 AND deleted = 0",
+        ['aid' => $attendanceId]
+    );
+    if ($maxgrade === false || $maxgrade === null) {
+        return $out;
+    }
+
+    list($uinsql, $uinparams) = $DB->get_in_or_equal(array_map('intval', $userIds), SQL_PARAMS_NAMED, 'lt');
+    $rows = $DB->get_records_sql(
+        "SELECT al.studentid, COUNT(DISTINCT s.id) AS lates
+           FROM {attendance_sessions} s
+           JOIN {attendance_log} al ON al.sessionid = s.id AND al.studentid $uinsql
+           JOIN {attendance_statuses} ast ON ast.id = al.statusid
+          WHERE s.attendanceid = :aid
+            AND COALESCE(s.is_revalida, 0) = 0
+            AND s.sessdate + s.duration < :now
+            AND ast.grade > 0
+            AND ast.grade < :maxgrade
+       GROUP BY al.studentid",
+        array_merge($uinparams, ['aid' => $attendanceId, 'now' => $before, 'maxgrade' => $maxgrade])
+    );
+    foreach ($rows as $r) {
+        $out[(int)$r->studentid] = (int)$r->lates;
+    }
+    return $out;
 }
 
 /**

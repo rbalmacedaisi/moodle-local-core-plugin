@@ -728,6 +728,30 @@ if ($hassiteconfig) {
             PARAM_RAW
         ));
 
+        // ── Regla: N retrasos equivalen a una falta ───────────────────────────
+        // La regla se aplica SOLO a clases que empiezan en/después de la fecha
+        // de vigencia, de modo que los períodos ya cursados conservan sus notas
+        // sin necesidad de tocar un solo registro histórico.
+        $settingspage->add(new admin_setting_configtext(
+            'local_grupomakro_core/late_to_absence_count',
+            'Retrasos que equivalen a una falta',
+            'Cada N retrasos se descuenta una asistencia en el cálculo del porcentaje y en el conteo de '
+            . 'inasistencias. Use 0 para desactivar la regla. Solo aplica a las clases que inician en o después '
+            . 'de la fecha de vigencia configurada abajo.',
+            '3',
+            PARAM_INT
+        ));
+
+        $settingspage->add(new admin_setting_configtext(
+            'local_grupomakro_core/late_to_absence_from',
+            'Retrasos: fecha de vigencia',
+            'Fecha (AAAA-MM-DD) desde la que aplica la regla anterior, comparada contra la fecha de inicio de '
+            . 'cada clase. Las clases que empezaron antes conservan el cálculo histórico (el retraso cuenta '
+            . 'como asistencia). Vacío = la regla no se aplica a ninguna clase.',
+            '2026-09-15',
+            PARAM_TEXT
+        ));
+
         $settingspage->add(new admin_setting_configtext(
             'local_grupomakro_core/bbb_attendance_late_ratio',
             'Asistencia BBB: umbral Retraso',
