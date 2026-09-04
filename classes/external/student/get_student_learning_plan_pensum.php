@@ -841,6 +841,24 @@ class get_student_learning_plan_pensum extends external_api
                 }
             }
             
+            // Nombre de la CLASE (grupo) en la que el alumno esta cursando cada asignatura.
+            // El pensum solo llevaba el nombre de la asignatura; el modal de notas necesita
+            // saber en que grupo concreto esta para poder mostrarlo al pasar el raton.
+            $classNameById = [];
+            $classIdsWanted = [];
+            foreach ($userPensumCourses as $pc) {
+                $cid = (int)($pc->progressclassid ?? 0);
+                if ($cid > 0) {
+                    $classIdsWanted[$cid] = $cid;
+                }
+            }
+            if (!empty($classIdsWanted)) {
+                list($cnSql, $cnParams) = $DB->get_in_or_equal(array_values($classIdsWanted), SQL_PARAMS_NAMED, 'cn');
+                foreach ($DB->get_records_select('gmk_class', "id $cnSql", $cnParams, '', 'id, name') as $cl) {
+                    $classNameById[(int)$cl->id] = (string)$cl->name;
+                }
+            }
+
             $groupedUserPensumCourses = [];
             foreach ($userPensumCourses as $userPensumCourse) {
                 // If status is null (no progress record), default to 0 (No disponible) or suitable default
@@ -1040,6 +1058,12 @@ class get_student_learning_plan_pensum extends external_api
                         && !empty($moduleEnrolledByCoreCourseId[$courseidkey])) {
                     $userPensumCourse->is_module = 1;
                 }
+
+                $pcClassId = (int)($userPensumCourse->progressclassid ?? 0);
+                $userPensumCourse->class_id   = $pcClassId;
+                $userPensumCourse->class_name = ($pcClassId > 0 && isset($classNameById[$pcClassId]))
+                    ? $classNameById[$pcClassId]
+                    : '';
 
                 $userPensumCourse->statusLabel = self::STATUS_LABEL[$userPensumCourse->status] ?? 'No disponible';
                 $userPensumCourse->statusColor = self::STATUS_COLOR[$userPensumCourse->status] ?? '#5e35b1';

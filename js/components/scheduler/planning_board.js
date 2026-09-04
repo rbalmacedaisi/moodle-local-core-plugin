@@ -893,14 +893,23 @@ window.SchedulerComponents.PlanningBoard = {
                                     <td class="p-2 text-center">{{ g.semester || g.level || '-' }}</td>
                                     <td class="p-2 text-center font-bold" :class="parseFloat(g.grade || g.finalgrade || 0) >= 71 ? 'text-green-700' : 'text-red-600'">{{ g.grade || g.finalgrade || '-' }}</td>
                                     <td class="p-2 text-center">
-                                        <span class="px-1.5 py-0.5 rounded text-[10px] font-bold" :class="{
-                                            'bg-green-100 text-green-800': String(g.status) === '4' || String(g.status) === '3',
-                                            'bg-blue-100 text-blue-800': String(g.status) === '2',
-                                            'bg-yellow-100 text-yellow-800': String(g.status) === '1' || String(g.status) === '0',
-                                            'bg-red-100 text-red-800': String(g.status) === '5',
-                                            'bg-purple-100 text-purple-800': String(g.status) === '99'
-                                        }">
-                                            {{ {0:'No Disponible', 1:'Disponible', 2:'Cursando', 3:'Completado', 4:'Aprobado', 5:'Reprobado', 99:'Migracion Pend.'}[String(g.status)] || g.status }}
+                                        <!-- Al pasar el raton sobre "Cursando" se muestra la clase (grupo)
+                                             concreta en la que esta el alumno, no el nombre de la asignatura. -->
+                                        <span class="relative inline-block group">
+                                            <span class="px-1.5 py-0.5 rounded text-[10px] font-bold" :class="{
+                                                'bg-green-100 text-green-800': String(g.status) === '4' || String(g.status) === '3',
+                                                'bg-blue-100 text-blue-800 cursor-help': String(g.status) === '2',
+                                                'bg-yellow-100 text-yellow-800': String(g.status) === '1' || String(g.status) === '0',
+                                                'bg-red-100 text-red-800': String(g.status) === '5',
+                                                'bg-purple-100 text-purple-800': String(g.status) === '99'
+                                            }">
+                                                {{ {0:'No Disponible', 1:'Disponible', 2:'Cursando', 3:'Completado', 4:'Aprobado', 5:'Reprobado', 99:'Migracion Pend.'}[String(g.status)] || g.status }}
+                                            </span>
+                                            <span v-if="String(g.status) === '2' && g.class_name"
+                                                  class="pointer-events-none hidden group-hover:block absolute z-[130] left-1/2 -translate-x-1/2 bottom-full mb-1.5 w-max max-w-[18rem] px-2.5 py-1.5 rounded-lg bg-slate-900 text-white text-[10px] font-normal leading-snug shadow-xl text-left whitespace-normal">
+                                                <span class="block text-slate-400 uppercase tracking-wide text-[9px] font-bold mb-0.5">Grupo</span>
+                                                {{ g.class_name }}
+                                            </span>
                                         </span>
                                     </td>
                                 </tr>
