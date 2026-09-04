@@ -1152,20 +1152,35 @@
                         if (sid) demandSet.add(sid);
                     });
 
+                    // Un alumno no puede estar en dos grupos hermanos a la vez: si lo esta,
+                    // detectConflicts lo ve en las dos fichas y reporta que choca consigo
+                    // mismo. Antes se podaba solo contra la demanda, sin mirar si otra
+                    // hermana ya lo tenia, asi que un solapamiento guardado sobrevivia
+                    // indefinidamente. Ahora se queda en la primera que lo reclama, y las
+                    // fichas ya publicadas reclaman antes que las de borrador porque son
+                    // donde el alumno puede estar matriculado de verdad.
+                    const claimOrder = items
+                        .map((it, i) => i)
+                        .sort((a, b) => (isPersistedSchedule(items[b]) ? 1 : 0) - (isPersistedSchedule(items[a]) ? 1 : 0));
+
                     let prunedOutOfDemand = 0;
-                    const prunedItemStudents = itemStudents.map(list => {
-                        const kept = [];
-                        list.forEach(rawId => {
+                    let prunedDuplicated = 0;
+                    const claimed = new Set();
+                    const prunedItemStudents = items.map(() => []);
+                    claimOrder.forEach(i => {
+                        itemStudents[i].forEach(rawId => {
                             const sid = toStudentIdentityKey(rawId);
                             if (!sid) return;
-                            if (demandSet.has(sid)) {
-                                kept.push(rawId);
-                            } else {
-                                prunedOutOfDemand++;
-                            }
+                            if (!demandSet.has(sid)) { prunedOutOfDemand++; return; }
+                            if (claimed.has(sid)) { prunedDuplicated++; return; }
+                            claimed.add(sid);
+                            prunedItemStudents[i].push(rawId);
                         });
-                        return kept;
                     });
+                    if (prunedDuplicated > 0) {
+                        console.log('DEBUG Reconcile: ' + prunedDuplicated + ' alumno(s) estaban en mas de un grupo hermano de "'
+                            + (items[0] && items[0].subjectName || key) + '" (' + key + '); se dejan solo en el primero.');
+                    }
 
                     const assignedSet = new Set();
                     prunedItemStudents.forEach(list => {
