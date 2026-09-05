@@ -861,7 +861,7 @@ Vue.component('teacher-student-table', {
                             const gv = (grade !== null && grade !== undefined) ? parseFloat(grade) : NaN;
                             doc.setFontSize(7);
                             if (!isNaN(gv)) {
-                                doc.setTextColor(gv >= 70 ? 27 : 183, gv >= 70 ? 94 : 28, gv >= 70 ? 32 : 28);
+                                doc.setTextColor(gv >= 71 ? 27 : 183, gv >= 71 ? 94 : 28, gv >= 71 ? 32 : 28);
                                 doc.setFont('helvetica', 'bold');
                                 doc.text(String(grade), x + actColW / 2, y + 4, { align: 'center' });
                             } else {
@@ -887,7 +887,7 @@ Vue.component('teacher-student-table', {
                             fgv = Math.round(wSum * 10) / 10;
                         }
                         if (fgv !== null) {
-                            doc.setTextColor(fgv >= 70 ? 27 : 183, fgv >= 70 ? 94 : 28, fgv >= 70 ? 32 : 28);
+                            doc.setTextColor(fgv >= 71 ? 27 : 183, fgv >= 71 ? 94 : 28, fgv >= 71 ? 32 : 28);
                             doc.setFont('helvetica', 'bold');
                             doc.setFontSize(8);
                             doc.text(fgv.toFixed(1), x + colFinal / 2, y + 4, { align: 'center' });

@@ -231,7 +231,7 @@ Vue.component('grademodal', {
                                 <div class="d-flex justify-end align-center mt-2 pa-2 rounded blue darken-4">
                                     <span class="white--text text-body-2 mr-3 font-weight-medium">Nota Final:</span>
                                     <span class="text-h6 font-weight-bold"
-                                          :class="gradebookFinalGrade !== null ? (gradebookFinalGrade >= 70 ? 'light-green--text text--lighten-3' : 'red--text text--lighten-3') : 'white--text'">
+                                          :class="gradebookFinalGrade !== null ? (gradebookFinalGrade >= 71 ? 'light-green--text text--lighten-3' : 'red--text text--lighten-3') : 'white--text'">
                                         {{ gradebookFinalGrade !== null ? gradebookFinalGrade.toFixed(1) : '--' }}
                                     </span>
                                 </div>
@@ -1292,7 +1292,7 @@ Vue.component('grademodal', {
         getGradeColor(grade) {
             const val = parseFloat(grade);
             if (isNaN(val)) return 'grey--text';
-            return val >= 70 ? 'success--text' : 'error--text';
+            return val >= 71 ? 'success--text' : 'error--text';
         },
         formatGrade(grade) {
             const raw = String(grade == null ? '' : grade).trim();
@@ -2774,7 +2774,7 @@ Vue.component('grademodal', {
                                 margin + gb1 + 2, y + 4);
                             const gv = parseFloat(item.grade);
                             if (!isNaN(gv)) {
-                                doc.setTextColor(gv >= 70 ? 27 : 183, gv >= 70 ? 94 : 28, gv >= 70 ? 32 : 28);
+                                doc.setTextColor(gv >= 71 ? 27 : 183, gv >= 71 ? 94 : 28, gv >= 71 ? 32 : 28);
                             } else {
                                 doc.setTextColor(100, 100, 100);
                             }
@@ -2798,7 +2798,7 @@ Vue.component('grademodal', {
                     doc.text('Nota Final:', margin + 2, y + 5.5);
                     const finalGv = this.gradebookFinalGrade;
                     if (finalGv !== null) {
-                        doc.setTextColor(finalGv >= 70 ? 144 : 255, finalGv >= 70 ? 238 : 100, finalGv >= 70 ? 144 : 100);
+                        doc.setTextColor(finalGv >= 71 ? 144 : 255, finalGv >= 71 ? 238 : 100, finalGv >= 71 ? 144 : 100);
                     }
                     doc.text(finalGv !== null ? finalGv.toFixed(1) : '--', margin + gb1 + gb2 + 2, y + 5.5);
                     y += 10;
@@ -2854,7 +2854,7 @@ Vue.component('grademodal', {
                                 doc.text(String(course.statusLabel || ''), margin + c1 + 2, y + 4);
                                 const gv = parseFloat(course.grade);
                                 if (!isNaN(gv)) {
-                                    doc.setTextColor(gv >= 70 ? 27 : 183, gv >= 70 ? 94 : 28, gv >= 70 ? 32 : 28);
+                                    doc.setTextColor(gv >= 71 ? 27 : 183, gv >= 71 ? 94 : 28, gv >= 71 ? 32 : 28);
                                 } else {
                                     doc.setTextColor(100, 100, 100);
                                 }
@@ -3051,7 +3051,7 @@ Vue.component('grademodal', {
                             // Grade (coloured)
                             const cgv = parseFloat(course.grade);
                             if (!isNaN(cgv)) {
-                                doc.setTextColor(cgv >= 70 ? 27 : 183, cgv >= 70 ? 94 : 28, cgv >= 70 ? 32 : 28);
+                                doc.setTextColor(cgv >= 71 ? 27 : 183, cgv >= 71 ? 94 : 28, cgv >= 71 ? 32 : 28);
                             } else {
                                 doc.setTextColor(80, 80, 80);
                             }
@@ -3103,7 +3103,7 @@ Vue.component('grademodal', {
                                     // Nota (coloured)
                                     const agv = parseFloat(act.grade);
                                     if (!isNaN(agv)) {
-                                        doc.setTextColor(agv >= 70 ? 27 : 183, agv >= 70 ? 94 : 28, agv >= 70 ? 32 : 28);
+                                        doc.setTextColor(agv >= 71 ? 27 : 183, agv >= 71 ? 94 : 28, agv >= 71 ? 32 : 28);
                                     } else {
                                         doc.setTextColor(100, 100, 100);
                                     }
