@@ -461,6 +461,18 @@ if ($hassiteconfig) {
             PARAM_URL
         ));
 
+        // Feature flag: LXP "Selección de Horarios" section + student self-enrolment.
+        // Ships OFF: enrolment is handled exclusively by the Academic Directorate,
+        // so get_student_active_classes returns no classes and student_class_enrol
+        // rejects every request (defence in depth against direct WS calls).
+        // Tick the box to hand schedule picking back to students.
+        $settingspage->add(new admin_setting_configcheckbox(
+            'local_grupomakro_core/enable_student_schedule_selection',
+            new lang_string('enable_student_schedule_selection', 'local_grupomakro_core'),
+            new lang_string('enable_student_schedule_selection_desc', 'local_grupomakro_core'),
+            0
+        ));
+
         // Feature flag: enables the staged per-class absence alert system.
         // When disabled, the legacy 3-absence auto-suspend cron keeps running.
         $settingspage->add(new admin_setting_configcheckbox(

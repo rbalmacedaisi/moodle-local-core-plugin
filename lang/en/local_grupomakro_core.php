@@ -260,6 +260,11 @@ $string['overdue_grace_days_desc'] = 'Number of days after the due date before r
 $string['absence_alert_planids'] = 'Learning plans that generate absence alerts';
 $string['absence_alert_planids_desc'] = 'Select the learning plans from which absence alerts should be generated. If none are selected, alerts are generated for all plans (default behaviour). Excluded plans will not produce visual alerts, notifications, or cron recomputations for their classes.';
 
+// LXP schedule selection (student self-enrolment).
+$string['enable_student_schedule_selection'] = 'Allow students to pick schedules and enrol from the LXP';
+$string['enable_student_schedule_selection_desc'] = 'Ships OFF: while enrolment is handled exclusively by the Academic Directorate, the "Schedule Selection" section does not appear in the student portal and the enrolment endpoint rejects any attempt, even when the web service is called directly. Turning it on lets students see planned subjects (classes not yet approved) again and self-enrol or join the queue.';
+$string['schedule_selection_disabled'] = 'Self-enrolment from the student portal is disabled. Enrolment is handled by the Academic Directorate.';
+
 $string['absence_info_subject'] = '{$a}: first absence recorded';
 $string['absence_info_body'] = 'We recorded your first absence in the subject "{$a->coursename}". At the third absence you may lose access to the resources and tracking for this subject. If you have a justification, please visit the academic department to present it.';
 $string['absence_warning_subject'] = '{$a}: second absence recorded';

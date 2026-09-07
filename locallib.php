@@ -9015,6 +9015,27 @@ function get_classrooms()
     }, $records));
 }
 
+/**
+ * Whether students may pick schedules and enrol themselves from the LXP.
+ *
+ * Controlled by the admin setting local_grupomakro_core/enable_student_schedule_selection.
+ * When off, enrolment is handled exclusively by the Academic Directorate: the LXP
+ * "Selección de Horarios" section receives an empty class list and the enrolment
+ * web service refuses every request. Defaults to OFF, including when the setting
+ * has never been saved.
+ *
+ * @return bool True only when an admin has explicitly enabled LXP self-enrolment.
+ */
+function gmk_student_schedule_selection_enabled(): bool {
+    $enabled = get_config('local_grupomakro_core', 'enable_student_schedule_selection');
+    // Never configured yet => stay OFF. The flag ships disabled on purpose, so a
+    // missing row must not silently hand enrolment back to the students.
+    if ($enabled === false || $enabled === null || $enabled === '') {
+        return false;
+    }
+    return (bool)(int)$enabled;
+}
+
 function student_get_active_classes($userId, $courseId = null)
 {
     global $DB;

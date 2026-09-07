@@ -167,6 +167,11 @@ $string['overdue_grace_days_desc'] = 'Número de días después del vencimiento 
 $string['absence_alert_planids'] = 'Planes que generan alertas de inasistencia';
 $string['absence_alert_planids_desc'] = 'Selecciona los planes de aprendizaje desde los cuales se generarán alertas de inasistencia. Si no se selecciona ninguno, se generan alertas para todos los planes (comportamiento por defecto). Los planes excluidos no producirán alertas visuales, ni notificaciones, ni recálculos por el cron para sus clases.';
 
+// Selección de horarios en el LXP (auto-inscripción del estudiante).
+$string['enable_student_schedule_selection'] = 'Permitir que el estudiante elija horario e inscriba clases desde el LXP';
+$string['enable_student_schedule_selection_desc'] = 'Viene DESACTIVADO: mientras la matrícula la realiza únicamente la Dirección Académica, la sección "Selección de Horarios" no aparece en el portal del estudiante y el endpoint de inscripción rechaza cualquier intento, incluso si se llama directamente al web service. Al activarlo, el estudiante vuelve a ver las asignaturas planificadas (clases aún no aprobadas) y puede auto-inscribirse o entrar en la cola.';
+$string['schedule_selection_disabled'] = 'La inscripción de asignaturas desde el portal del estudiante está deshabilitada. La matrícula la gestiona la Dirección Académica.';
+
 // Bulk exempt / clear period exemptions (mid-period deploy mitigation).
 $string['bulk_exempt_legacy_title'] = 'Eximir estudiantes con 3+ inasistencias acumuladas';
 $string['bulk_exempt_legacy_desc'] = 'Marca como exentos del nuevo sistema de bloqueo a todos los estudiantes que ya tengan 3 o más inasistencias acumuladas. Se recomienda ejecutar este script al desplegar el sistema a mitad de período, para que solo los estudiantes que lleguen al umbral después del despliegue sean bloqueados. La acción es reversible: la lista de exentos se limpia al iniciar el siguiente período.';

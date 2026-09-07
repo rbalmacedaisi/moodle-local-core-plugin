@@ -86,6 +86,16 @@ class student_class_enrol extends external_api {
         $enrolResult=false;
         $courseAlternativeClasses = false;
         try{
+            // Kill switch: same flag that hides the LXP schedule selection section.
+            // Enforced here too so a stale client (or a direct WS call with a valid
+            // token) cannot enrol or queue a student behind the Directorate's back.
+            if (!gmk_student_schedule_selection_enabled()) {
+                return [
+                    'status' => -1,
+                    'message' => get_string('schedule_selection_disabled', 'local_grupomakro_core'),
+                ];
+            }
+
             $selectedClass = list_classes(['id'=>$classId])[$classId];
             $selectedClassFull = $selectedClass->classFull;
             

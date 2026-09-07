@@ -76,6 +76,17 @@ class get_student_active_classes extends external_api {
         ]);
         
         try{
+            // Kill switch: when the Academic Directorate owns enrolment, the LXP
+            // must not offer the "Selección de Horarios" section at all. Returning
+            // an empty class list hides the whole section client-side.
+            if (!gmk_student_schedule_selection_enabled()) {
+                return ['userAvailableCourseClasses' => json_encode([
+                    'userDayFilter' => null,
+                    'finalEnrolmentDate' => null,
+                    'classes' => [],
+                ])];
+            }
+
             $requesteduserid = !empty($params['id']) ? (int)$params['id'] : 0;
             $currentuserid = !empty($USER->id) ? (int)$USER->id : 0;
 

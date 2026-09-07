@@ -3629,6 +3629,20 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20261001018, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20261001019) {
+        // LXP schedule selection ships DISABLED: while the Academic Directorate
+        // owns enrolment, students must not pick schedules for classes that are
+        // still being planned. Written explicitly (instead of leaning on the
+        // setting default) so the box renders unticked and the state is auditable
+        // in mdl_config_plugins. An existing value is never overwritten, so a
+        // later re-run of this upgrade cannot undo an admin's decision.
+        if (get_config('local_grupomakro_core', 'enable_student_schedule_selection') === false) {
+            set_config('enable_student_schedule_selection', 0, 'local_grupomakro_core');
+        }
+
+        upgrade_plugin_savepoint(true, 20261001019, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 
