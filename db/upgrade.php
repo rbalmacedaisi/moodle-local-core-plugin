@@ -3599,6 +3599,36 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20261001000, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20261001018) {
+        // Guest meeting host: records which browser claimed the moderator role for
+        // each RUN of a guest BBB meeting (BBB createTime identifies the run), so
+        // the first person to open the guest link joins as moderator and everybody
+        // after them joins as viewer. The unique index on runkey is what makes the
+        // claim atomic when two people open the link at the same instant.
+        $table = new xmldb_table('gmk_guest_meeting_host');
+        $table->add_field('id',           XMLDB_TYPE_INTEGER, '10',  null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('cmid',         XMLDB_TYPE_INTEGER, '10',  null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('meetingid',    XMLDB_TYPE_CHAR,    '100', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('createtime',   XMLDB_TYPE_CHAR,    '32',  null, XMLDB_NOTNULL, null, null);
+        $table->add_field('runkey',       XMLDB_TYPE_CHAR,    '40',  null, XMLDB_NOTNULL, null, null);
+        $table->add_field('hosttoken',    XMLDB_TYPE_CHAR,    '64',  null, XMLDB_NOTNULL, null, null);
+        $table->add_field('hostname',     XMLDB_TYPE_CHAR,    '255', null, null, null, null);
+        $table->add_field('userid',       XMLDB_TYPE_INTEGER, '10',  null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timecreated',  XMLDB_TYPE_INTEGER, '10',  null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timemodified', XMLDB_TYPE_INTEGER, '10',  null, XMLDB_NOTNULL, null, '0');
+
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_index('runkey_uix',      XMLDB_INDEX_UNIQUE,    ['runkey']);
+        $table->add_index('cmid_idx',        XMLDB_INDEX_NOTUNIQUE, ['cmid']);
+        $table->add_index('timecreated_idx', XMLDB_INDEX_NOTUNIQUE, ['timecreated']);
+
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        upgrade_plugin_savepoint(true, 20261001018, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

@@ -15,6 +15,12 @@ const MeetingManager = {
                 </v-card-title>
                 
                 <v-card-text class="pt-4">
+                    <v-alert dense text type="info" class="mb-4">
+                        La <strong>primera persona que abra el link</strong> entra como <strong>anfitrion (moderador)</strong>
+                        de esa sesion; el resto entra como participante. Desde la lista de usuarios el anfitrion puede
+                        usar <em>Convertir en presentador</em> para dejar proyectar a quien necesite.
+                        Cada vez que la reunion se vuelve a iniciar el rol se reparte de nuevo.
+                    </v-alert>
                     <v-data-table
                         :headers="headers"
                         :items="meetings"
