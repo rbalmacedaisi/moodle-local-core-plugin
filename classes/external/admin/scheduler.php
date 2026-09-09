@@ -498,7 +498,12 @@ class scheduler extends external_api {
             if ($preserveexisting) {
                 gmk_log("INFO: preserveexisting=true, skipping destructive cleanup for period {$periodid}");
             } else if (!empty($validIds)) {
-                $placeholders = implode(',', array_fill(0, count($validIds), '?'));
+                // La lista de ids a CONSERVAR debe usar parametros con nombre: estas
+                // consultas ya llevan :now y :pid, y mezclar ':nombre' con '?' hace que
+                // Moodle lance "Mixed types of sql query parameters" y aborte la
+                // publicacion entera. Ademas array_merge renumeraba las claves numericas
+                // de $validIds, con lo que el binding tampoco habria cuadrado.
+                list($notInSql, $notInParams) = $DB->get_in_or_equal($validIds, SQL_PARAMS_NAMED, 'keep', false);
                 // First, mark module enrollments as expired for classes that are about to be deleted.
                 $DB->execute(
                     "UPDATE {gmk_module_enrollment}
@@ -506,10 +511,10 @@ class scheduler extends external_api {
                       WHERE classid IN (
                           SELECT id FROM {gmk_class}
                            WHERE periodid = :pid
-                             AND id NOT IN ($placeholders)
+                             AND id $notInSql
                       )
                         AND status = 'active'",
-                    array_merge(['now' => time(), 'pid' => $periodid], $validIds)
+                    array_merge(['now' => time(), 'pid' => $periodid], $notInParams)
                 );
                 // Reset enrolled_classid on invoice requests so they don't point to a now-deleted class.
                 $DB->execute(
@@ -518,14 +523,14 @@ class scheduler extends external_api {
                       WHERE enrolled_classid IN (
                           SELECT id FROM {gmk_class}
                            WHERE periodid = :pid
-                             AND id NOT IN ($placeholders)
+                             AND id $notInSql
                       )",
-                    array_merge(['now' => time(), 'pid' => $periodid], $validIds)
+                    array_merge(['now' => time(), 'pid' => $periodid], $notInParams)
                 );
                 $DB->delete_records_select(
                     'gmk_class',
-                    "periodid = ? AND id NOT IN ($placeholders)",
-                    array_merge([$periodid], $validIds)
+                    "periodid = :pid AND id $notInSql",
+                    array_merge(['pid' => $periodid], $notInParams)
                 );
             } else if ($processablePayloadCount > 0 || empty($data)) {
                 // No programmed ids in payload → wipe all classes of this period
@@ -1256,8 +1261,20 @@ class scheduler extends external_api {
 
         } catch (\Exception $e) {
             $transaction->rollback($e);
-            gmk_log("ERROR en save_generation_result: " . $e->getMessage());
-            return $e->getMessage();
+            // El mensaje pelado de una dml_exception ("Tipos mezclados de parametros de
+            // consulta SQL") no dice donde ocurrio, y gmk_log es no-op salvo con
+            // GMK_DEBUG_LOG, asi que el detalle se perdia por completo y el error llegaba
+            // al usuario sin nada accionable. Se adjunta origen y, si es una excepcion de
+            // Moodle, su debuginfo (que en las de BD lleva el SQL), y se deja constancia
+            // en el error_log del servidor pase lo que pase.
+            $detalle = $e->getMessage() . ' [' . basename($e->getFile()) . ':' . $e->getLine() . ']';
+            if ($e instanceof \moodle_exception && !empty($e->debuginfo)) {
+                $detalle .= ' -- ' . preg_replace('/\s+/', ' ', (string)$e->debuginfo);
+            }
+            error_log('GMK save_generation_result ERROR: ' . $detalle);
+            error_log('GMK save_generation_result TRACE: ' . $e->getTraceAsString());
+            gmk_log("ERROR en save_generation_result: " . $detalle);
+            return $detalle;
         }
 
         // PHASE 2: Create Moodle structures (groups, sections, activities) OUTSIDE the transaction.
