@@ -43,6 +43,53 @@ function local_grupomakro_core_guard_blocked_course(int $courseid): void {
 }
 
 /**
+ * Resolve the landing page a staff user should be sent to after login.
+ *
+ * Before this existed, every gmk_* role was redirected blindly to
+ * academicpanel.php, which requires view_academic_panel. Only Director and
+ * Secretaría hold that capability, so Registros Académicos, Soporte TI,
+ * Bienestar, Psicólogo and the legacy 'administrative' role landed on
+ * "Lo sentimos, pero no tiene los permisos para hacer esto
+ * ([[grupomakro_core:view_academic_panel]])" the moment they logged in.
+ *
+ * The map is ordered from "most panel-like" to "most specific": the first
+ * entry whose capability the user holds wins. Adding a capability to a role
+ * in db/upgradelib.php is enough for that role to get a sensible landing —
+ * no change needed here unless the new role's workflow has no page listed.
+ *
+ * @return moodle_url|null Landing URL, or null when the user holds none of
+ *                         these capabilities (students and teachers keep
+ *                         their own flow further down the redirect chain).
+ */
+function local_grupomakro_core_get_staff_landing_url(): ?moodle_url {
+    $context = context_system::instance();
+
+    // capability => page, in priority order.
+    $candidates = [
+        'view_academic_panel'            => 'academicpanel.php',
+        'manage_wellness'                => 'wellness_dashboard.php',
+        'manage_psychology_appointments' => 'wellness_psychology_panel.php',
+        'managerequests'                 => 'letterrequests.php',
+        'manageletters'                  => 'lettertypes.php',
+        'view_student_population'        => 'student_population.php',
+        'viewabsencedashboard'           => 'absence_dashboard.php',
+        'manage_meetings'                => 'manage_meetings.php',
+        'manage_financial_config'        => 'bypass_financial.php',
+        'manage_debug'                   => 'check_webservices.php',
+    ];
+
+    foreach ($candidates as $capability => $page) {
+        // Fourth arg false: never throw for a guest / not-logged-in user,
+        // this runs on every page load through extend_navigation.
+        if (has_capability('local/grupomakro_core:' . $capability, $context, null, false)) {
+            return new moodle_url('/local/grupomakro_core/pages/' . $page);
+        }
+    }
+
+    return null;
+}
+
+/**
  * Redirect teachers to their dashboard when they access the site home or personal area.
  * This is a catch-all strategy using multiple Moodle hooks.
  */
@@ -58,14 +105,15 @@ function local_grupomakro_core_user_home_redirect(&$url) {
     // hit /my/ or the LXP and are shown "no tienes contrato" because the LXP
     // is the student interface. Route them to the academic panel which IS the
     // proper landing for any gmk-capable user.
-    $is_gmk_admin = has_capability('local/grupomakro_core:manage_classes', context_system::instance(), $USER->id)
-        || has_capability('local/grupomakro_core:manageacademicstatus', context_system::instance(), $USER->id)
-        || has_capability('local/grupomakro_core:manageletters', context_system::instance(), $USER->id)
-        || has_capability('local/grupomakro_core:manage_wellness', context_system::instance(), $USER->id);
-    if ($is_gmk_admin) {
-        $admin_path = '/local/grupomakro_core/pages/academicpanel.php';
-        if (strpos($_SERVER['SCRIPT_NAME'], $admin_path) === false) {
-            redirect(new moodle_url($admin_path));
+    // The landing is resolved per capability instead of being hard-coded to
+    // academicpanel.php: that page needs view_academic_panel, which only
+    // Director and Secretaría hold, so every other staff role used to be
+    // redirected straight into a "no tiene los permisos" error page.
+    $landing = local_grupomakro_core_get_staff_landing_url();
+    if ($landing !== null) {
+        $landing_path = $landing->out_as_local_url(false);
+        if (strpos($_SERVER['SCRIPT_NAME'], basename(parse_url($landing_path, PHP_URL_PATH))) === false) {
+            redirect($landing);
         }
         return;
     }

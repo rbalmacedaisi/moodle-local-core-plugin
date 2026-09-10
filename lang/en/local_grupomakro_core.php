@@ -1338,3 +1338,57 @@ $string['wellness_image_too_big'] = 'The image exceeds the 3 MB limit.';
 $string['wellness_image_too_small'] = 'The image is too small ({$a->w}x{$a->h} px). Minimum is {$a->minw}x{$a->minh} px.';
 
 $string['wellness_slot_has_appointments'] = 'Cannot delete: this slot has {$a} upcoming booked appointment(s). Deactivate it instead to stop offering it without affecting those bookings.';
+
+// Capability names shown by Moodle in the roles UI and in permission error
+// messages. Without these, required_capability_exception renders the raw
+// identifier ([[grupomakro_core:view_academic_panel]]) and emits an
+// "Invalid get_string() identifier" debugging warning on screen.
+$string['grupomakro_core:annul_movement'] = 'Annul a registered academic movement';
+$string['grupomakro_core:bulk_attendance_actions'] = 'Run bulk attendance actions';
+$string['grupomakro_core:bulk_enroll'] = 'Bulk enrol into a learning plan';
+$string['grupomakro_core:create_extemporaneous_revalidations'] = 'Create revalidations outside the time window';
+$string['grupomakro_core:editsupportteacher'] = 'Edit the support teacher of a class';
+$string['grupomakro_core:enrol_from_failed_subjects_report'] = 'Enrol from the failed subjects report';
+$string['grupomakro_core:export_students'] = 'Export student data';
+$string['grupomakro_core:import_users'] = 'Import users';
+$string['grupomakro_core:manage_academic_calendar'] = 'Manage the academic calendar';
+$string['grupomakro_core:manage_academic_planning'] = 'Manage academic planning';
+$string['grupomakro_core:manage_courses'] = 'Manage courses';
+$string['grupomakro_core:manage_debug'] = 'Access debug and diagnostic pages';
+$string['grupomakro_core:manage_financial_config'] = 'Manage financial configuration';
+$string['grupomakro_core:manage_financial_webhooks'] = 'Manage financial webhooks';
+$string['grupomakro_core:manage_institutional_contracts'] = 'Manage institutional contracts';
+$string['grupomakro_core:manage_institutions'] = 'Manage institutions';
+$string['grupomakro_core:manage_meetings'] = 'Manage virtual sessions';
+$string['grupomakro_core:manage_modules'] = 'Manage independent modules';
+$string['grupomakro_core:manage_orders'] = 'Manage orders';
+$string['grupomakro_core:manage_psychology_appointments'] = 'Manage the psychology schedule';
+$string['grupomakro_core:manage_schedules'] = 'Manage schedules';
+$string['grupomakro_core:manage_student_timeline'] = 'Manage the student timeline';
+$string['grupomakro_core:manage_teacher_availability'] = 'Manage teacher availability';
+$string['grupomakro_core:manage_teachers'] = 'Manage teachers';
+$string['grupomakro_core:manage_users'] = 'Manage users';
+$string['grupomakro_core:manage_wellness'] = 'Manage the wellness module';
+$string['grupomakro_core:manageacademicstatus'] = 'Manage student academic status';
+$string['grupomakro_core:manageannouncements'] = 'Manage announcements';
+$string['grupomakro_core:managediplomas'] = 'Manage diplomas and templates';
+$string['grupomakro_core:verifydiplomas'] = 'Verify diplomas';
+$string['grupomakro_core:view_academic_demand_gaps'] = 'View academic demand gaps';
+$string['grupomakro_core:view_academic_panel'] = 'View the academic panel';
+$string['grupomakro_core:view_active_students_by_class'] = 'View active students by class';
+$string['grupomakro_core:view_attendance_pdf'] = 'View the attendance PDF report';
+$string['grupomakro_core:view_classmanagement'] = 'View class management';
+$string['grupomakro_core:view_credit_report'] = 'View the credit report';
+$string['grupomakro_core:view_failed_subjects_report'] = 'View the failed subjects report';
+$string['grupomakro_core:view_financial_health'] = 'View financial health';
+$string['grupomakro_core:view_financial_planning'] = 'View teacher financial planning';
+$string['grupomakro_core:view_grade_report'] = 'View the grade report';
+$string['grupomakro_core:view_log'] = 'View the system log';
+$string['grupomakro_core:view_movement_audit'] = 'View the academic movement audit';
+$string['grupomakro_core:view_overlap_analytics'] = 'View overlap analytics';
+$string['grupomakro_core:view_revalidations_dashboard'] = 'View the revalidations dashboard';
+$string['grupomakro_core:view_student_population'] = 'View the student population';
+$string['grupomakro_core:view_student_timeline'] = 'View the student timeline';
+$string['grupomakro_core:view_wellness'] = 'View the wellness module';
+$string['grupomakro_core:viewannouncements'] = 'View announcements';
+$string['grupomakro_core:viewdiplomas'] = 'View diplomas';

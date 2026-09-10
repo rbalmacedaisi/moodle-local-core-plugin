@@ -28,7 +28,24 @@ require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 require_once($CFG->libdir . '/externallib.php');
 $plugin_name = 'local_grupomakro_core';
 $assetversion = !empty($CFG->themerev) ? (int)$CFG->themerev : 1;
+require_once($CFG->dirroot . '/local/grupomakro_core/lib.php');
 require_login();
+
+// Compatibility shim for the LXP. The bundle currently in production has the
+// post-login redirect hard-coded to this page (middleware/authenticated.js),
+// so every staff role lands here first. Only Director and Secretaría hold
+// view_academic_panel; Registros Académicos, Soporte TI, Bienestar, Psicólogo
+// and the legacy 'administrative' role used to get
+// required_capability_exception right after logging in. Bounce them to the
+// landing that matches their own capabilities instead. Users who hold none of
+// the staff capabilities (students) fall through to the require_capability
+// below and get the normal permission error.
+if (!has_capability('local/grupomakro_core:view_academic_panel', context_system::instance())) {
+    $landing = local_grupomakro_core_get_staff_landing_url();
+    if ($landing !== null) {
+        redirect($landing);
+    }
+}
 require_capability('local/grupomakro_core:view_academic_panel', context_system::instance());
 
 $PAGE->set_url($CFG->wwwroot . '/local/grupomakro_core/pages/academicpanel.php');
