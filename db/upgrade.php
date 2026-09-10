@@ -3664,6 +3664,13 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20261001020, 'local', 'grupomakro_core');
     }
 
+    // 20261001021 y 20261001022: solo bump de version. Los cambios los recoge
+    // purge_caches al recargar clases WS / JS de Vue. Aqui no hay schema que
+    // migrar.
+    if ($oldversion < 20261001022) {
+        upgrade_plugin_savepoint(true, 20261001022, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

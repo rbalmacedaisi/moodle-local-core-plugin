@@ -1593,6 +1593,33 @@ $functions = array(
         'ajax'        => true,
         'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
     ],
+    'local_grupomakro_admin_save_wellness_dynamic_form' => [
+        'classname'   => 'local_grupomakro_core\external\admin\wellness\admin_save_dynamic_form',
+        'methodname'  => 'execute',
+        'description' => 'Admin upsert a wellness dynamic form (RF-06).',
+        'type'        => 'write',
+        'capabilities'=> 'local/grupomakro_core:manage_wellness',
+        'ajax'        => true,
+        'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
+    ],
+    'local_grupomakro_admin_toggle_wellness_dynamic_form_active' => [
+        'classname'   => 'local_grupomakro_core\external\admin\wellness\admin_toggle_dynamic_form_active',
+        'methodname'  => 'execute',
+        'description' => 'Toggle active flag on a wellness dynamic form (RF-06).',
+        'type'        => 'write',
+        'capabilities'=> 'local/grupomakro_core:manage_wellness',
+        'ajax'        => true,
+        'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
+    ],
+    'local_grupomakro_admin_list_wellness_dynamic_form_responses' => [
+        'classname'   => 'local_grupomakro_core\external\admin\wellness\admin_list_dynamic_form_responses',
+        'methodname'  => 'execute',
+        'description' => 'List submitted responses for a dynamic form (RF-06).',
+        'type'        => 'read',
+        'capabilities'=> 'local/grupomakro_core:manage_wellness',
+        'ajax'        => true,
+        'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
+    ],
 
     // ── Wellness psychology — student (RF-03) ────────────────────────────────
     'local_grupomakro_get_psychology_slots' => [

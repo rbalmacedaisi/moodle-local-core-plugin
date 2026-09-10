@@ -38,9 +38,18 @@ Vue.component('wellness-dashboard', {
             regDialog: false,
             regEvent: null,
             registrations: [],
-            // Forms
+            // Forms (RF-06 / RF-09.2) — full editor (was read-only until 20261001022)
             forms: [],
-            formSchemaPreview: {},
+            formDialog: false,
+            formSaving: false,
+            form: this._blankForm(),
+            formCoverImage: null,
+            // View responses side-panel
+            responsesDialog: false,
+            responsesLoading: false,
+            responsesFormId: 0,
+            responsesFormTitle: '',
+            responses: [],
             // Carnet admin (RF-07 / RF-09.4)
             carnetUserid: 0,
             carnetUserSearch: '',
@@ -78,6 +87,48 @@ Vue.component('wellness-dashboard', {
                 { text: 'Charla', value: 'charla' },
                 { text: 'Otro', value: 'otro' },
             ];
+        },
+        // Active events for the form editor's event selector (plus a "ninguno"
+        // entry for reusable forms not tied to a specific event).
+        eventItems() {
+            const opts = [{ text: '(Ninguno — formulario reutilizable)', value: 0 }];
+            (this.events || []).forEach(e => {
+                if (e.active) {
+                    opts.push({ text: e.title, value: e.id });
+                }
+            });
+            return opts;
+        },
+        // Live preview of the form the admin is editing, rendered through the
+        // same shape DynamicFormRenderer.vue uses on the LXP side.
+        formPreviewFields() {
+            try {
+                const parsed = JSON.parse(this.form.schema_json || '{"fields":[]}');
+                return Array.isArray(parsed.fields) ? parsed.fields : [];
+            } catch (_e) {
+                return [];
+            }
+        },
+        formSchemaError() {
+            if (!this.form.schema_json) return '';
+            try {
+                const parsed = JSON.parse(this.form.schema_json);
+                if (!parsed || typeof parsed !== 'object') return 'El schema debe ser un objeto JSON';
+                if (!Array.isArray(parsed.fields) || parsed.fields.length === 0) {
+                    return 'Agrega al menos un campo al schema';
+                }
+                const seen = {};
+                for (const f of parsed.fields) {
+                    if (!f.name || !f.label || !f.type) {
+                        return 'Cada campo necesita name, label y type';
+                    }
+                    if (seen[f.name]) return `Nombre de campo duplicado: ${f.name}`;
+                    seen[f.name] = true;
+                }
+                return '';
+            } catch (e) {
+                return `JSON inválido: ${e.message}`;
+            }
         },
     },
     mounted() {
@@ -135,6 +186,31 @@ Vue.component('wellness-dashboard', {
                 active: true,
             };
         },
+        _blankForm() {
+            return {
+                id: 0,
+                title: '',
+                description: '',
+                eventid: 0,
+                schema_json: JSON.stringify({ fields: [] }, null, 2),
+                cover_path: '',
+                active: true,
+            };
+        },
+        // Field catalogue for the schema editor. Order matters: it's the order
+        // shown in the v-select inside the field row.
+        formFieldTypes() {
+            return [
+                { text: 'Texto corto', value: 'text' },
+                { text: 'Texto largo', value: 'textarea' },
+                { text: 'Selección única', value: 'select' },
+                { text: 'Selección múltiple', value: 'multiselect' },
+                { text: 'Casilla de verificación', value: 'checkbox' },
+                { text: 'Número', value: 'number' },
+                { text: 'Fecha', value: 'date' },
+                { text: 'Correo electrónico', value: 'email' },
+            ];
+        },
         toast(text, color = 'success') {
             this.snack = { show: true, color, text };
         },
@@ -188,6 +264,212 @@ Vue.component('wellness-dashboard', {
             } catch (e) {
                 this.toast('Error al cargar formularios: ' + (e.message || e), 'error');
             }
+        },
+
+        // -- Forms editor (RF-06 / RF-09.2) ---------------------------------
+        // The schema editor builds the JSON manually instead of a JSON-input
+        // textarea so non-technical users don't have to touch raw JSON. We
+        // serialise back to JSON at save time and the server re-validates with
+        // wellness_dynamic_form_manager::validate_schema().
+        _readFormSchema() {
+            let parsed;
+            try {
+                parsed = JSON.parse(this.form.schema_json || '{"fields":[]}');
+            } catch (_e) {
+                parsed = { fields: [] };
+            }
+            if (!parsed || typeof parsed !== 'object') parsed = { fields: [] };
+            if (!Array.isArray(parsed.fields)) parsed.fields = [];
+            return parsed;
+        },
+        _writeFormSchema(schema) {
+            this.form.schema_json = JSON.stringify(schema, null, 2);
+        },
+        addFormField() {
+            const schema = this._readFormSchema();
+            schema.fields.push({
+                name: '',
+                label: '',
+                type: 'text',
+                required: false,
+                options: [],
+                max: 0,
+                min: 0,
+            });
+            this._writeFormSchema(schema);
+        },
+        removeFormField(idx) {
+            const schema = this._readFormSchema();
+            schema.fields.splice(idx, 1);
+            this._writeFormSchema(schema);
+        },
+        moveFormField(idx, dir) {
+            const schema = this._readFormSchema();
+            const j = idx + dir;
+            if (j < 0 || j >= schema.fields.length) return;
+            const tmp = schema.fields[idx];
+            schema.fields[idx] = schema.fields[j];
+            schema.fields[j] = tmp;
+            this._writeFormSchema(schema);
+        },
+        addFormFieldOption(idx) {
+            const schema = this._readFormSchema();
+            if (!schema.fields[idx]) return;
+            if (!Array.isArray(schema.fields[idx].options)) schema.fields[idx].options = [];
+            schema.fields[idx].options.push('');
+            this._writeFormSchema(schema);
+        },
+        removeFormFieldOption(idx, optIdx) {
+            const schema = this._readFormSchema();
+            if (!schema.fields[idx] || !Array.isArray(schema.fields[idx].options)) return;
+            schema.fields[idx].options.splice(optIdx, 1);
+            this._writeFormSchema(schema);
+        },
+        openFormDialog(f) {
+            this.formCoverImage = null;
+            if (f) {
+                // Deep-copy so the cancel button restores the original.
+                let parsedSchema = { fields: [] };
+                try {
+                    parsedSchema = JSON.parse(f.schema_json || '{"fields":[]}');
+                    if (!parsedSchema || typeof parsedSchema !== 'object') parsedSchema = { fields: [] };
+                    if (!Array.isArray(parsedSchema.fields)) parsedSchema.fields = [];
+                } catch (_e) {
+                    parsedSchema = { fields: [] };
+                }
+                this.form = {
+                    id: f.id,
+                    title: f.title,
+                    description: f.description || '',
+                    eventid: f.eventid || 0,
+                    schema_json: JSON.stringify(parsedSchema, null, 2),
+                    cover_path: f.cover_path || '',
+                    active: !!f.active,
+                };
+            } else {
+                this.form = this._blankForm();
+            }
+            this.formDialog = true;
+        },
+        async saveForm() {
+            if (!this.form.title || this.form.title.trim() === '') {
+                this.toast('Título obligatorio.', 'error');
+                return;
+            }
+            const schemaError = this.formSchemaError;
+            if (schemaError) {
+                this.toast(schemaError, 'error');
+                return;
+            }
+            this.formSaving = true;
+            try {
+                const args = {
+                    id: this.form.id || 0,
+                    title: this.form.title,
+                    description: this.form.description || '',
+                    eventid: this.form.eventid || 0,
+                    schema_json: this.form.schema_json,
+                    cover_path: this.form.cover_path || '',
+                    active: !!this.form.active,
+                };
+                const res = await axios.post(ajaxUrl, {
+                    action: 'local_grupomakro_admin_save_wellness_dynamic_form',
+                    args
+                }, { params: { sesskey }, timeout: 30000 });
+                if (res.data && res.data.status === 'success' && res.data.data && res.data.data.ok) {
+                    const newid = res.data.data.id || this.form.id;
+                    // Portada: subir solo si el usuario eligio una nueva.
+                    if (this.formCoverImage && newid) {
+                        const url = await this.uploadCover('form', newid, this.formCoverImage);
+                        if (url) this.form.cover_path = url;
+                    }
+                    this.toast('Formulario guardado.');
+                    this.formDialog = false;
+                    await this.refreshForms();
+                } else {
+                    this.toast((res.data && res.data.message) || 'Error al guardar el formulario.', 'error');
+                }
+            } catch (e) {
+                this.toast('Error al guardar: ' + (e.message || e), 'error');
+            } finally {
+                this.formSaving = false;
+            }
+        },
+        async toggleFormActive(f) {
+            try {
+                const res = await axios.post(ajaxUrl, {
+                    action: 'local_grupomakro_admin_toggle_wellness_dynamic_form_active',
+                    args: { id: f.id, active: !f.active }
+                }, { params: { sesskey }, timeout: 20000 });
+                if (res.data && res.data.status === 'success' && res.data.data && res.data.data.ok) {
+                    f.active = !f.active ? 1 : 0;
+                    this.toast(f.active ? 'Formulario activado.' : 'Formulario desactivado.');
+                    await this.refreshForms();
+                } else {
+                    this.toast((res.data && res.data.message) || 'No se pudo cambiar el estado.', 'error');
+                }
+            } catch (e) {
+                this.toast('Error: ' + (e.message || e), 'error');
+            }
+        },
+        async viewFormResponses(f) {
+            this.responsesFormId = f.id;
+            this.responsesFormTitle = f.title;
+            this.responses = [];
+            this.responsesDialog = true;
+            this.responsesLoading = true;
+            try {
+                const res = await axios.post(ajaxUrl, {
+                    action: 'local_grupomakro_admin_list_wellness_dynamic_form_responses',
+                    args: { formid: f.id }
+                }, { params: { sesskey }, timeout: 30000 });
+                if (res.data && res.data.status === 'success' && res.data.data) {
+                    this.responses = res.data.data.responses || [];
+                } else {
+                    this.toast((res.data && res.data.message) || 'No se pudieron cargar las respuestas.', 'error');
+                }
+            } catch (e) {
+                this.toast('Error al cargar respuestas: ' + (e.message || e), 'error');
+            } finally {
+                this.responsesLoading = false;
+            }
+        },
+        exportFormResponsesCsv() {
+            // CSV manual para no depender de un WS adicional: el admin descarga
+            // las respuestas que ya vio en pantalla.
+            const rows = [['ID', 'Estudiante', 'Email', 'Enviado', 'Respuestas (JSON)']];
+            this.responses.forEach(r => {
+                rows.push([
+                    r.id,
+                    r.student_name || '',
+                    r.email || '',
+                    new Date(Number(r.submitted_at) * 1000).toISOString(),
+                    JSON.stringify(r.answers || {})
+                ]);
+            });
+            const escape = (v) => {
+                const s = String(v == null ? '' : v);
+                if (/[",\n]/.test(s)) {
+                    return '"' + s.replace(/"/g, '""') + '"';
+                }
+                return s;
+            };
+            const csv = rows.map(row => row.map(escape).join(',')).join('\n');
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'formulario_' + this.responsesFormId + '_respuestas.csv';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        },
+        formatAnswer(value) {
+            if (value === null || value === undefined || value === '') return '—';
+            if (Array.isArray(value)) return value.join(', ');
+            if (typeof value === 'boolean') return value ? 'Sí' : 'No';
+            return String(value);
         },
 
         // -- Partners ------------------
@@ -607,16 +889,21 @@ Vue.component('wellness-dashboard', {
       </v-card>
     </v-tab-item>
 
-    <!-- -- FORMS ------------------ -->
+    <!-- -- FORMS (RF-06 / RF-09.2) ------------------ -->
     <v-tab-item value="forms">
       <v-card>
-        <v-card-title>Formularios dinámicos</v-card-title>
+        <v-card-title class="d-flex align-center">
+          <span>Formularios dinámicos</span>
+          <v-spacer></v-spacer>
+          <v-btn color="primary" depressed @click="openFormDialog(null)">
+            <v-icon left>mdi-plus</v-icon> Nuevo formulario
+          </v-btn>
+        </v-card-title>
         <v-card-text>
-          <v-alert type="info" text>
-            Los formularios dinámicos se crean desde la base de datos (tabla
-            <code>gmk_wellness_dynamic_form</code>). Este panel es solo de
-            lectura en esta fase. La edición se habilita en una iteración
-            posterior.
+          <v-alert type="info" text class="mb-3">
+            Define un schema (lista de campos) que el estudiante verá en el LXP
+            cuando abra el evento asociado. El backend valida la estructura al
+            guardar.
           </v-alert>
           <v-data-table
             :headers="[
@@ -624,16 +911,38 @@ Vue.component('wellness-dashboard', {
               { text: 'Título', value: 'title' },
               { text: 'Evento', value: 'event_title' },
               { text: 'Respuestas', value: 'response_count', align: 'center' },
-              { text: 'Activo', value: 'active', align: 'center' }
+              { text: 'Activo', value: 'active', align: 'center' },
+              { text: 'Acciones', value: 'actions', sortable: false, align: 'center', width: 220 }
             ]"
             :items="forms"
             :loading="loading"
             dense
           >
+            <template v-slot:item.event_title="{ item }">
+              <span v-if="item.event_title">{{ item.event_title }}</span>
+              <span v-else class="grey--text text--darken-1 font-italic">(Reutilizable)</span>
+            </template>
             <template v-slot:item.active="{ item }">
               <v-chip :color="item.active ? 'green' : 'grey'" small dark>
                 {{ item.active ? 'Sí' : 'No' }}
               </v-chip>
+            </template>
+            <template v-slot:item.actions="{ item }">
+              <v-btn icon small @click="openFormDialog(item)" title="Editar">
+                <v-icon>mdi-pencil</v-icon>
+              </v-btn>
+              <v-btn icon small @click="viewFormResponses(item)" title="Ver respuestas">
+                <v-icon>mdi-format-list-bulleted</v-icon>
+              </v-btn>
+              <v-btn
+                icon small
+                :title="item.active ? 'Desactivar' : 'Activar'"
+                @click="toggleFormActive(item)"
+              >
+                <v-icon :color="item.active ? 'amber darken-2' : 'green'">
+                  {{ item.active ? 'mdi-toggle-switch' : 'mdi-toggle-switch-off' }}
+                </v-icon>
+              </v-btn>
             </template>
           </v-data-table>
         </v-card-text>
@@ -801,6 +1110,315 @@ Vue.component('wellness-dashboard', {
         <v-btn text @click="eventDialog = false">Cancelar</v-btn>
         <v-btn color="primary" :loading="eventSaving" @click="saveEvent">Guardar</v-btn>
       </v-card-actions>
+    </v-card>
+  </v-dialog>
+
+  <!-- -- Form dialog (create / edit) ------------------ -->
+  <v-dialog v-model="formDialog" max-width="1000" scrollable persistent>
+    <v-card>
+      <v-card-title class="d-flex align-center">
+        <v-icon left color="primary">mdi-form-select</v-icon>
+        {{ form.id ? 'Editar formulario' : 'Nuevo formulario' }}
+      </v-card-title>
+      <v-divider></v-divider>
+      <v-card-text style="max-height: 70vh;">
+        <v-row dense>
+          <v-col cols="12" md="8">
+            <v-text-field
+              v-model="form.title"
+              label="Título del formulario"
+              required dense outlined
+              :rules="[v => !!v || 'obligatorio']"
+            />
+          </v-col>
+          <v-col cols="12" md="4">
+            <v-select
+              v-model="form.eventid"
+              :items="eventItems"
+              label="Evento asociado"
+              dense outlined clearable
+            />
+          </v-col>
+        </v-row>
+        <v-textarea
+          v-model="form.description"
+          label="Descripción (instrucciones para el estudiante)"
+          rows="2" outlined dense
+        />
+
+        <v-divider class="my-4"></v-divider>
+        <div class="d-flex align-center mb-2">
+          <strong>Campos del formulario</strong>
+          <v-spacer></v-spacer>
+          <v-btn small color="primary" outlined @click="addFormField">
+            <v-icon left small>mdi-plus</v-icon> Agregar campo
+          </v-btn>
+        </div>
+        <v-alert v-if="formSchemaError" type="error" dense text class="mb-3">
+          {{ formSchemaError }}
+        </v-alert>
+
+        <div v-if="formPreviewFields.length === 0" class="text-center pa-4 grey--text text--darken-1">
+          Aún no hay campos. Pulsa "Agregar campo" para empezar.
+        </div>
+
+        <v-card
+          v-for="(field, idx) in formPreviewFields"
+          :key="idx"
+          class="mb-3" outlined
+        >
+          <v-card-text>
+            <v-row dense>
+              <v-col cols="12" md="3">
+                <v-text-field
+                  v-model="field.name"
+                  label="Nombre técnico"
+                  hint="Sin espacios, único en el formulario"
+                  persistent-hint dense outlined
+                  :rules="[v => /^[a-z][a-z0-9_]*$/.test(v) || 'Solo minúsculas, números y _; debe empezar con letra']"
+                />
+              </v-col>
+              <v-col cols="12" md="4">
+                <v-text-field
+                  v-model="field.label"
+                  label="Etiqueta visible"
+                  dense outlined
+                  :rules="[v => !!v || 'obligatorio']"
+                />
+              </v-col>
+              <v-col cols="12" md="3">
+                <v-select
+                  v-model="field.type"
+                  :items="formFieldTypes()"
+                  label="Tipo de campo"
+                  dense outlined
+                />
+              </v-col>
+              <v-col cols="12" md="2" class="d-flex align-center">
+                <v-switch
+                  v-model="field.required"
+                  label="Obligatorio" dense inset
+                  hide-details
+                />
+              </v-col>
+            </v-row>
+
+            <v-row v-if="field.type === 'select' || field.type === 'multiselect'" dense class="mt-2">
+              <v-col cols="12">
+                <div class="d-flex align-center mb-1">
+                  <strong class="caption">Opciones</strong>
+                  <v-spacer></v-spacer>
+                  <v-btn x-small outlined color="primary" @click="addFormFieldOption(idx)">
+                    <v-icon left x-small>mdi-plus</v-icon> Opción
+                  </v-btn>
+                </div>
+                <v-row v-for="(opt, optIdx) in field.options" :key="optIdx" dense class="mb-1">
+                  <v-col>
+                    <v-text-field
+                      v-model="field.options[optIdx]"
+                      dense outlined hide-details
+                      :placeholder="'Opción ' + (optIdx + 1)"
+                    />
+                  </v-col>
+                  <v-col cols="auto">
+                    <v-btn icon small @click="removeFormFieldOption(idx, optIdx)">
+                      <v-icon>mdi-close</v-icon>
+                    </v-btn>
+                  </v-col>
+                </v-row>
+                <div v-if="!field.options || field.options.length === 0" class="caption grey--text">
+                  Agrega al menos una opción.
+                </div>
+              </v-col>
+            </v-row>
+
+            <v-row v-if="field.type === 'text' || field.type === 'textarea'" dense class="mt-2">
+              <v-col cols="6" md="3">
+                <v-text-field
+                  v-model.number="field.max"
+                  label="Máx. caracteres (0 = sin límite)"
+                  type="number" min="0" dense outlined
+                />
+              </v-col>
+            </v-row>
+
+            <v-row v-if="field.type === 'number'" dense class="mt-2">
+              <v-col cols="6" md="3">
+                <v-text-field
+                  v-model.number="field.min"
+                  label="Valor mínimo" type="number" dense outlined
+                />
+              </v-col>
+              <v-col cols="6" md="3">
+                <v-text-field
+                  v-model.number="field.max"
+                  label="Valor máximo" type="number" dense outlined
+                />
+              </v-col>
+            </v-row>
+
+            <div class="d-flex mt-2">
+              <v-btn icon small :disabled="idx === 0" @click="moveFormField(idx, -1)" title="Subir">
+                <v-icon>mdi-arrow-up</v-icon>
+              </v-btn>
+              <v-btn icon small :disabled="idx === formPreviewFields.length - 1" @click="moveFormField(idx, 1)" title="Bajar">
+                <v-icon>mdi-arrow-down</v-icon>
+              </v-btn>
+              <v-spacer></v-spacer>
+              <v-btn icon small color="red" @click="removeFormField(idx)" title="Eliminar campo">
+                <v-icon>mdi-delete</v-icon>
+              </v-btn>
+            </div>
+          </v-card-text>
+        </v-card>
+
+        <v-divider class="my-4"></v-divider>
+
+        <div class="d-flex align-center mb-2">
+          <strong>Vista previa (lo que verá el estudiante)</strong>
+        </div>
+        <v-card outlined class="pa-3 grey lighten-4">
+          <div v-if="formPreviewFields.length === 0" class="caption grey--text text--darken-1">
+            Agrega campos para ver el preview.
+          </div>
+          <div v-for="(field, idx) in formPreviewFields" :key="'prev-' + idx" class="mb-3">
+            <div v-if="field.type === 'checkbox'">
+              <v-checkbox
+                :label="field.label + (field.required ? ' *' : '')"
+                disabled
+                hide-details
+              />
+            </div>
+            <div v-else-if="field.type === 'textarea'">
+              <v-textarea
+                :label="field.label + (field.required ? ' *' : '')"
+                disabled rows="2" outlined dense
+              />
+            </div>
+            <div v-else-if="field.type === 'select'">
+              <v-select
+                :label="field.label + (field.required ? ' *' : '')"
+                :items="(field.options || []).filter(o => o && o.trim())"
+                disabled outlined dense
+              />
+            </div>
+            <div v-else-if="field.type === 'multiselect'">
+              <v-select
+                :label="field.label + (field.required ? ' *' : '')"
+                :items="(field.options || []).filter(o => o && o.trim())"
+                multiple chips disabled outlined dense
+              />
+            </div>
+            <div v-else-if="field.type === 'number'">
+              <v-text-field
+                :label="field.label + (field.required ? ' *' : '')"
+                type="number" disabled outlined dense
+              />
+            </div>
+            <div v-else-if="field.type === 'date'">
+              <v-text-field
+                :label="field.label + (field.required ? ' *' : '')"
+                type="date" disabled outlined dense
+              />
+            </div>
+            <div v-else>
+              <v-text-field
+                :label="field.label + (field.required ? ' *' : '')"
+                :type="field.type === 'email' ? 'email' : 'text'"
+                disabled outlined dense
+              />
+            </div>
+          </div>
+        </v-card>
+
+        <v-divider class="my-4"></v-divider>
+
+        <div class="text-subtitle-2 mb-1">Portada del formulario (opcional)</div>
+        <v-alert dense text type="info" class="mb-2">
+          Tamaño recomendado <strong>1200 x 630 px</strong>. JPG, PNG o WebP hasta 3 MB.
+        </v-alert>
+        <v-img v-if="form.cover_path" :src="form.cover_path" max-height="140" contain class="mb-2 grey lighten-4"></v-img>
+        <v-file-input
+          v-model="formCoverImage"
+          accept="image/jpeg,image/png,image/webp"
+          label="Subir portada"
+          prepend-icon="mdi-image"
+          show-size clearable
+          :loading="imageUploading"
+          hint="Si lo dejas vacío se conserva la portada actual."
+          persistent-hint
+        ></v-file-input>
+        <v-switch v-model="form.active" label="Formulario activo" inset></v-switch>
+      </v-card-text>
+      <v-divider></v-divider>
+      <v-card-actions class="px-4 py-3">
+        <v-btn text @click="formDialog = false" :disabled="formSaving">Cancelar</v-btn>
+        <v-spacer></v-spacer>
+        <v-btn
+          color="primary" depressed
+          :loading="formSaving"
+          :disabled="!!formSchemaError"
+          @click="saveForm"
+        >
+          <v-icon left small>mdi-content-save</v-icon> Guardar
+        </v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
+
+  <!-- -- Responses viewer ------------------ -->
+  <v-dialog v-model="responsesDialog" max-width="900" scrollable>
+    <v-card>
+      <v-card-title class="d-flex align-center">
+        <v-icon left color="primary">mdi-format-list-bulleted</v-icon>
+        Respuestas: {{ responsesFormTitle }}
+        <v-spacer></v-spacer>
+        <v-btn icon @click="responsesDialog = false">
+          <v-icon>mdi-close</v-icon>
+        </v-btn>
+      </v-card-title>
+      <v-divider></v-divider>
+      <v-card-text style="max-height: 65vh;">
+        <div class="d-flex align-center mb-3">
+          <v-chip small color="primary" class="mr-2">{{ responses.length }} respuestas</v-chip>
+          <v-spacer></v-spacer>
+          <v-btn
+            small outlined color="primary"
+            :disabled="responses.length === 0"
+            @click="exportFormResponsesCsv"
+          >
+            <v-icon left small>mdi-download</v-icon> Exportar CSV
+          </v-btn>
+        </div>
+        <v-alert v-if="responsesLoading" type="info" dense>Cargando...</v-alert>
+        <v-alert v-else-if="responses.length === 0" type="info" dense>
+          Aún no hay respuestas para este formulario.
+        </v-alert>
+        <v-card
+          v-for="r in responses" :key="r.id" outlined class="mb-3"
+        >
+          <v-card-text>
+            <div class="d-flex align-center">
+              <strong>{{ r.student_name || ('#' + r.userid) }}</strong>
+              <span class="caption grey--text ml-2">{{ r.email }}</span>
+              <v-spacer></v-spacer>
+              <span class="caption grey--text text--darken-1">
+                {{ new Date(Number(r.submitted_at) * 1000).toLocaleString('es-PA') }}
+              </span>
+            </div>
+            <v-divider class="my-2"></v-divider>
+            <div v-if="r.answers && Object.keys(r.answers).length">
+              <div v-for="(v, k) in r.answers" :key="k" class="mb-1">
+                <span class="caption grey--text">{{ k }}:</span>
+                <span class="ml-2">{{ formatAnswer(v) }}</span>
+              </div>
+            </div>
+            <div v-else class="caption grey--text text--darken-1 font-italic">
+              (Respuesta vacía)
+            </div>
+          </v-card-text>
+        </v-card>
+      </v-card-text>
     </v-card>
   </v-dialog>
 
