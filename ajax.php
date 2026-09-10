@@ -8734,9 +8734,18 @@ try {
                         if (!empty($wrapper['error'])) {
                             $exc = is_object($wrapper['exception'] ?? null)
                                 ? $wrapper['exception'] : null;
+                            // Prefer debuginfo when present so the admin sees the
+                            // offending field name (validate_parameters throws
+                            // invalid_parameter_exception with only a generic
+                            // message in getMessage() and the param info in
+                            // debuginfo).
+                            $msg = $exc->message ?? 'unknown error';
+                            if (!empty($exc->debuginfo) && $exc->debuginfo !== $exc->message) {
+                                $msg = $msg . ' [' . $exc->debuginfo . ']';
+                            }
                             $response = [
                                 'status' => 'error',
-                                'message' => $exc->message ?? 'unknown error',
+                                'message' => $msg,
                                 'data' => null,
                             ];
                         } else {
