@@ -652,16 +652,29 @@ Vue.component('wellness-dashboard', {
                     active: this.event.active,
                     attachments: JSON.stringify(this.eventAttachments),
                 };
-                const res = await axios.post(ajaxUrl, {
-                    action: 'local_grupomakro_admin_save_wellness_event',
-                    args
-                }, { params: { sesskey }, timeout: 30000 });
+                const res = await fetch(ajaxUrl + '?sesskey=' + encodeURIComponent(sesskey), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'local_grupomakro_admin_save_wellness_event',
+                        args
+                    }),
+                    credentials: 'same-origin'
+                });
                 // TEMP debug to diagnose the M_ID console error
-                if (typeof console !== 'undefined') {
-                    console.log('[saveEvent] response:', JSON.stringify(res.data));
+                let resData;
+                try {
+                    resData = await res.json();
+                } catch (parseErr) {
+                    const txt = await res.text();
+                    console.error('[saveEvent] non-JSON response:', txt.slice(0, 500));
+                    throw new Error('La respuesta no es JSON. Probable sesion expirada.');
                 }
-                if (res.data && res.data.status === 'success') {
-                    const newid = (res.data.data && res.data.data.id) || this.event.id || 0;
+                if (typeof console !== 'undefined') {
+                    console.log('[saveEvent] response:', JSON.stringify(resData));
+                }
+                if (resData && resData.status === 'success') {
+                    const newid = (resData.data && resData.data.id) || this.event.id || 0;
                     if (this.eventImage) {
                         await this.uploadCover('event', newid, this.eventImage);
                         this.eventImage = null;
@@ -670,7 +683,7 @@ Vue.component('wellness-dashboard', {
                     this.eventDialog = false;
                     await this.refreshEvents();
                 } else {
-                    this.toast(res.data && res.data.message ? res.data.message : 'Error al guardar', 'error');
+                    this.toast(resData && resData.message ? resData.message : 'Error al guardar', 'error');
                 }
             } catch (e) {
                 this.toast('Error al guardar: ' + (e.message || e), 'error');
