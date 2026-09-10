@@ -36,6 +36,7 @@ Vue.component('wellness-dashboard', {
             event: this._blankEvent(),
             eventAttachments: [],
             regDialog: false,
+            registrationsSearch: '',
             regEvent: null,
             // BBB guest-room state (RF-04): while a request is in flight
             // we disable both buttons to avoid a second click creating a
@@ -135,6 +136,25 @@ Vue.component('wellness-dashboard', {
             } catch (e) {
                 return `JSON inválido: ${e.message}`;
             }
+        },
+        registrationsHeaders() {
+            return [
+                { text: 'ID',            value: 'id',            width: 70 },
+                { text: 'Nombre',        value: 'fullname' },
+                { text: 'Usuario',       value: 'username' },
+                { text: 'Email',         value: 'email' },
+                { text: 'Estado',        value: 'status' },
+                { text: 'Modalidad',     value: 'modality', align: 'center', width: 110 },
+                { text: 'Inscrito',      value: 'registered_at', width: 170 },
+                { text: 'Origen',        value: 'source', align: 'center', width: 110 },
+                { text: '',              value: 'actions', sortable: false, align: 'center', width: 50 },
+            ];
+        },
+        filteredRegistrations() {
+            // v-data-table applies its own :search filter, but having the
+            // computed lets the template access the full list for the
+            // status counters above the table.
+            return this.registrations || [];
         },
     },
     mounted() {
@@ -809,9 +829,64 @@ Vue.component('wellness-dashboard', {
             this.regEvent = e;
             this.registrations = [];
             this.regDialog = true;
-            // Reuse the admin list_partners handler? No, we need a separate
-            // fetch: list registrations for an event. Phase 1 keeps this
-            // dialog simple: we show registered_count and offer a CSV export.
+            try {
+                const res = await this.callWs('local_grupomakro_admin_list_event_registrations', { eventid: e.id });
+                if (res && res.status === 'success' && res.data && res.data.registrations) {
+                    this.registrations = res.data.registrations;
+                } else {
+                    this.toast((res && res.message) || 'No se pudieron cargar los inscritos.', 'error');
+                }
+            } catch (e) {
+                this.toast('Error al cargar inscritos: ' + (e.message || e), 'error');
+            }
+        },
+        async cancelRegistrationAsAdmin(r) {
+            const name = r.fullname || ('usuario #' + r.userid);
+            if (!confirm('Desinscribir a "' + name + '" del evento?\n\nQuedara registrado en auditoria como cancelacion de backoffice.')) return;
+            try {
+                const res = await this.callWs('local_grupomakro_admin_cancel_event_registration', {
+                    eventid: r.eventid, userid: r.userid,
+                });
+                if (res && res.status === 'success') {
+                    this.toast(res.already ? 'La inscripcion ya estaba cancelada.' : 'Inscripcion cancelada.');
+                    // Update the row locally so the dialog reflects the change
+                    // without a round-trip; we'll re-fetch if the user closes
+                    // and reopens.
+                    const i = this.registrations.findIndex(x => x.id === r.id);
+                    if (i !== -1) {
+                        this.$set(this.registrations[i], 'status', 'cancelada');
+                        this.$set(this.registrations[i], 'cancelled_at', Math.floor(Date.now() / 1000));
+                    }
+                    // Reflect the new count in the events table badge.
+                    this.event.registered_count = Math.max(0, (this.event.registered_count || 0) - 1);
+                    await this.refreshEvents();
+                } else {
+                    this.toast((res && res.message) || 'No se pudo cancelar la inscripcion.', 'error');
+                }
+            } catch (e) {
+                this.toast('Error al cancelar: ' + (e.message || e), 'error');
+            }
+        },
+        regStatusColor(s) {
+            return ({
+                'confirmada': 'green',
+                'asistio': 'success',
+                'lista_de_espera': 'orange darken-2',
+                'cancelada': 'grey',
+                'no_asistio': 'red',
+            })[s] || 'grey';
+        },
+        countByStatus(status) {
+            return (this.registrations || []).filter(r => r && r.status === status).length;
+        },
+        regStatusLabel(s) {
+            return ({
+                'confirmada': 'Confirmada',
+                'asistio': 'Asistio',
+                'lista_de_espera': 'Lista de espera',
+                'cancelada': 'Cancelada',
+                'no_asistio': 'No asistio',
+            })[s] || s;
         },
         async exportCsv(e) {
             try {
@@ -949,6 +1024,18 @@ Vue.component('wellness-dashboard', {
             </v-chip>
           </template>
           <template v-slot:item._actions="{ item }">
+            <v-btn icon small @click="openRegistrations(item)" title="Ver inscritos / desinscribir">
+              <v-badge
+                v-if="item.registered_count > 0"
+                :content="String(item.registered_count)"
+                :value="item.registered_count"
+                color="primary"
+                overlap
+              >
+                <v-icon>mdi-account-group</v-icon>
+              </v-badge>
+              <v-icon v-else>mdi-account-group-outline</v-icon>
+            </v-btn>
             <v-btn icon small @click="openEventDialog(item)" title="Editar">
               <v-icon>mdi-pencil</v-icon>
             </v-btn>
@@ -1085,6 +1172,79 @@ Vue.component('wellness-dashboard', {
       </v-card>
     </v-tab-item>
   </v-tabs-items>
+
+  <!-- Registrations dialog (per-event) -->
+  <v-dialog v-model="regDialog" max-width="1000" scrollable>
+    <v-card>
+      <v-card-title class="d-flex align-center">
+        <v-icon left color="primary">mdi-account-group</v-icon>
+        <span class="title">Inscritos: {{ regEvent ? regEvent.title : '' }}</span>
+        <v-spacer></v-spacer>
+        <v-btn icon @click="regDialog = false"><v-icon>mdi-close</v-icon></v-btn>
+      </v-card-title>
+      <v-divider></v-divider>
+      <v-card-text style="max-height: 70vh;">
+        <v-row dense class="mb-3">
+          <v-col cols="12" md="3">
+            <v-chip color="green" dark small>Confirmadas: {{ countByStatus('confirmada') + countByStatus('asistio') }}</v-chip>
+          </v-col>
+          <v-col cols="12" md="3">
+            <v-chip color="orange darken-2" dark small>Lista de espera: {{ countByStatus('lista_de_espera') }}</v-chip>
+          </v-col>
+          <v-col cols="12" md="3">
+            <v-chip color="grey" dark small>Canceladas: {{ countByStatus('cancelada') }}</v-chip>
+          </v-col>
+          <v-col cols="12" md="3">
+            <v-chip color="red" dark small>No asistio: {{ countByStatus('no_asistio') }}</v-chip>
+          </v-col>
+        </v-row>
+        <v-text-field
+          v-model="registrationsSearch"
+          prepend-inner-icon="mdi-magnify"
+          label="Buscar por nombre, email o usuario"
+          outlined dense clearable
+          class="mb-3"
+        />
+        <v-data-table
+          :headers="registrationsHeaders"
+          :items="filteredRegistrations"
+          :search="registrationsSearch"
+          :items-per-page="15"
+          dense
+        >
+          <template v-slot:item.status="{ item }">
+            <v-chip :color="regStatusColor(item.status)" dark small>
+              {{ regStatusLabel(item.status) }}
+            </v-chip>
+          </template>
+          <template v-slot:item.modality="{ item }">
+            <span :class="item.modality ? '' : 'grey--text text--darken-1 font-italic'">
+              {{ item.modality || '—' }}
+            </span>
+          </template>
+          <template v-slot:item.source="{ item }">
+            <v-chip small outlined :color="item.source === 'backoffice' ? 'amber darken-2' : 'blue-grey'">
+              {{ item.source }}
+            </v-chip>
+          </template>
+          <template v-slot:item.registered_at="{ item }">
+            {{ new Date(Number(item.registered_at) * 1000).toLocaleString('es-PA') }}
+          </template>
+          <template v-slot:item.actions="{ item }">
+            <v-btn
+              v-if="item.status !== 'cancelada'"
+              icon small color="red"
+              title="Desinscribir"
+              @click="cancelRegistrationAsAdmin(item)"
+            >
+              <v-icon>mdi-account-minus</v-icon>
+            </v-btn>
+            <v-icon v-else color="grey" title="Ya cancelada">mdi-cancel</v-icon>
+          </template>
+        </v-data-table>
+      </v-card-text>
+    </v-card>
+  </v-dialog>
 
   <!-- Partner dialog -->
   <v-dialog v-model="partnerDialog" max-width="700" scrollable>
