@@ -79,9 +79,9 @@ function local_grupomakro_core_get_staff_landing_url(): ?moodle_url {
     ];
 
     foreach ($candidates as $capability => $page) {
-        // Fourth arg false: never throw for a guest / not-logged-in user,
-        // this runs on every page load through extend_navigation.
-        if (has_capability('local/grupomakro_core:' . $capability, $context, null, false)) {
+        // $doanything stays at its default true: the fourth argument of
+        // has_capability() is the siteadmin override, not a "don't throw" flag.
+        if (has_capability('local/grupomakro_core:' . $capability, $context)) {
             return new moodle_url('/local/grupomakro_core/pages/' . $page);
         }
     }
@@ -275,8 +275,10 @@ function local_grupomakro_core_extend_navigation(global_navigation $navigation) 
                 $fullcap = ($capability[0] === '@')
                     ? substr($capability, 1)
                     : 'local/grupomakro_core:' . $capability;
-                // Fourth arg false: this runs on every page load, never throw.
-                if (has_capability($fullcap, $syscontext, null, false)) {
+                // $doanything is left at its default true so site admins keep
+                // seeing every entry: passing false there turns OFF the
+                // siteadmin override and blanked their whole menu.
+                if (has_capability($fullcap, $syscontext)) {
                     $visible[] = '-' . $label . '|/local/grupomakro_core/pages/' . $page;
                 }
             }

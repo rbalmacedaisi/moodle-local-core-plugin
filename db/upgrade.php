@@ -3697,6 +3697,15 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20261001023, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20261001028) {
+        // Grant view_academic_panel to every staff role: the academic panel is
+        // now the default landing for all of them, so each one needs to be able
+        // to open it. assign_capabilities_to_internal_roles() is idempotent and
+        // re-applies the whole matrix.
+        assign_capabilities_to_internal_roles();
+        upgrade_plugin_savepoint(true, 20261001028, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

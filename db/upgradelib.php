@@ -426,6 +426,8 @@ function assign_capabilities_to_internal_roles() {
             'local/grupomakro_core:managerequests',
             'local/grupomakro_core:viewallletterrequests',
             'local/grupomakro_core:viewabsencedashboard',
+            // Same landing rule as the operational roles above.
+            'local/grupomakro_core:view_academic_panel',
         ];
         foreach ($legacy_caps as $capability) {
             assign_capability($capability, $permission, $administrative->id, $context->id);
@@ -540,6 +542,10 @@ function assign_capabilities_to_internal_roles() {
             'local/grupomakro_core:viewannouncements',
         ],
         'gmk_registros_academicos' => [
+            // Everyone on staff lands on the academic panel after login, so the
+            // view capability goes to every operational role even when the rest
+            // of that workflow does not.
+            'local/grupomakro_core:view_academic_panel',
             // Workflow 3 — Student record management
             'local/grupomakro_core:manage_users',
             'local/grupomakro_core:export_students',
@@ -565,6 +571,10 @@ function assign_capabilities_to_internal_roles() {
             'local/grupomakro_core:viewannouncements',
         ],
         'gmk_soporte_ti' => [
+            // Everyone on staff lands on the academic panel after login, so the
+            // view capability goes to every operational role even when the rest
+            // of that workflow does not.
+            'local/grupomakro_core:view_academic_panel',
             // Workflow 8 — Infrastructure and integrations (full)
             'local/grupomakro_core:view_log',
             'local/grupomakro_core:view_financial_health',
@@ -575,6 +585,10 @@ function assign_capabilities_to_internal_roles() {
             'local/grupomakro_core:manage_meetings',
         ],
         'gmk_bienestar' => [
+            // Everyone on staff lands on the academic panel after login, so the
+            // view capability goes to every operational role even when the rest
+            // of that workflow does not.
+            'local/grupomakro_core:view_academic_panel',
             // Workflow 7 — Wellness (full)
             'local/grupomakro_core:manage_wellness',
             'local/grupomakro_core:manage_psychology_appointments',
@@ -585,6 +599,10 @@ function assign_capabilities_to_internal_roles() {
             // covers the management side only.
         ],
         'gmk_psicologo' => [
+            // Everyone on staff lands on the academic panel after login, so the
+            // view capability goes to every operational role even when the rest
+            // of that workflow does not.
+            'local/grupomakro_core:view_academic_panel',
             // Workflow 7 — Psicología: solo la agenda psicológica. No
             // puede crear eventos, convenios ni gestionar el resto del
             // módulo (eso queda en manos del Coordinador de Bienestar).
