@@ -38,6 +38,15 @@ echo $OUTPUT->header();
      Debe declararse ANTES de cargar los componentes para que planning_board.js lo lea en data(). -->
 <script>
     window.GMK_IS_SITEADMIN = <?php echo is_siteadmin() ? 'true' : 'false'; ?>;
+    // "Publicar Todo" used to be gated on is_siteadmin(), which locked out the
+    // Director Academico even though planning the offer is his job. It is gated
+    // on the capability the page itself requires instead. Secretaria Academica
+    // does not hold manage_academic_planning, so the board stays out of reach
+    // for the roles that were never meant to publish it.
+    window.GMK_CAN_PUBLISH_BOARD = <?php
+        echo (is_siteadmin()
+            || has_capability('local/grupomakro_core:manage_academic_planning', $context))
+            ? 'true' : 'false'; ?>;
     window.GMK_USER_ID = <?php echo (int)$USER->id; ?>;
     window.GMK_USER_NAME = <?php echo json_encode(fullname($USER)); ?>;
 </script>

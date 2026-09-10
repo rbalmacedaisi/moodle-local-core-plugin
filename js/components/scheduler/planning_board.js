@@ -170,7 +170,7 @@ window.SchedulerComponents.PlanningBoard = {
                                 <i data-lucide="save" class="w-3 h-3"></i>
                                 {{ saving ? 'Guardando...' : 'Guardar Borrador' }}
                              </button>
-                             <button v-if="isSiteadmin" @click="publishSchedules" :disabled="saving || publishing || boardReadOnly" class="flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-sm transition-colors disabled:opacity-50" title="Solo el Administrador puede publicar todo el tablero">
+                             <button v-if="canPublishBoard" @click="publishSchedules" :disabled="saving || publishing || boardReadOnly" class="flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-sm transition-colors disabled:opacity-50" title="Publicar todas las fichas programadas del tablero">
                                 <i data-lucide="send" class="w-3 h-3"></i>
                                 {{ publishing ? 'Publicando...' : 'Publicar Horarios' }}
                              </button>
@@ -944,6 +944,12 @@ window.SchedulerComponents.PlanningBoard = {
             publishing: false,
             // --- Candado de edición / rol ---
             isSiteadmin: (typeof window !== 'undefined' && window.GMK_IS_SITEADMIN === true),
+            // Publishing the whole board is gated on the planning capability, not on
+            // being a site admin: the Director Academico plans the offer and has to
+            // be able to publish it. Falls back to the old flag if the page did not
+            // declare the new one (stale cached markup).
+            canPublishBoard: (typeof window !== 'undefined'
+                && (window.GMK_CAN_PUBLISH_BOARD === true || window.GMK_IS_SITEADMIN === true)),
             boardReadOnly: false,      // true cuando otro usuario tiene el candado
             lockMine: false,           // true cuando YO tengo el candado (control de edición)
             lockHolderName: '',        // nombre de quien tiene el candado (si no soy yo)
@@ -2867,8 +2873,8 @@ window.SchedulerComponents.PlanningBoard = {
 
         async publishSchedules() {
             if (!window.schedulerStore) return;
-            if (!this.isSiteadmin) {
-                alert('Solo un Administrador puede usar "Publicar Todo". Publica las fichas de forma individual.');
+            if (!this.canPublishBoard) {
+                alert('No tienes permiso para usar "Publicar Todo". Publica las fichas de forma individual.');
                 return;
             }
             if (this.boardReadOnly) {
