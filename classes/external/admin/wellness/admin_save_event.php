@@ -99,9 +99,22 @@ class admin_save_event extends external_api {
         $attJson = json_decode((string)$params['attachments'], true);
         $payload['attachments'] = is_array($attJson) ? $attJson : [];
 
+        // TEMP debug: write the payload we actually receive so we can see what
+        // the frontend is sending. Deleted once the M_ID error is diagnosed.
+        file_put_contents(
+            '/var/www/html/moodle/local/grupomakro_core/debug_save_event.log',
+            date('c') . " userid=" . $USER->id . " payload=" . json_encode($payload) . "\n",
+            FILE_APPEND
+        );
+
         try {
             $newid = \local_grupomakro_core\local\wellness_event_manager::upsert($payload, (int)$USER->id);
         } catch (\moodle_exception $e) {
+            file_put_contents(
+                '/var/www/html/moodle/local/grupomakro_core/debug_save_event.log',
+                date('c') . " EXCEPTION " . get_class($e) . ": " . $e->getMessage() . "\n",
+                FILE_APPEND
+            );
             throw new Exception($e->getMessage());
         }
         return ['ok' => true, 'id' => (int)$newid];
