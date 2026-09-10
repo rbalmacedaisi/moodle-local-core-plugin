@@ -1614,7 +1614,7 @@ Vue.component('wellness-dashboard', {
     </v-card>
   </v-dialog>
 
-  <v-snackbar v-model="snack.show" :color="snack.color" timeout="3500" top>
+  <v-snackbar v-model="snack.show" :color="snack.color" timeout="5000" right bottom multi-line>
     {{ snack.text }}
   </v-snackbar>
 </v-container>

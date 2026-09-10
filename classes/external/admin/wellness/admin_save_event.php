@@ -65,7 +65,13 @@ class admin_save_event extends external_api {
             'organizer_name'         => new external_value(PARAM_TEXT, 'Organizer name', VALUE_DEFAULT, ''),
             'organizer_email'        => new external_value(PARAM_TEXT, 'Organizer email', VALUE_DEFAULT, ''),
             'cover_path'             => new external_value(PARAM_TEXT, 'Cover image pluginfile path', VALUE_DEFAULT, ''),
-            'active'                 => new external_value(PARAM_BOOL,  'Active flag', VALUE_DEFAULT, true),
+            'active'                 => new external_value(PARAM_BOOL, 'Active flag', VALUE_DEFAULT, true),
+            // bbb_cmid: 0 = no BBB room attached to this event, otherwise the
+            // course module id of the bigbluebuttonbn created in the site
+            // front page. Required so an event edit preserves the room:
+            // Moodle 4.x rejects unknown keys with "Unexpected keys (X)
+            // detected in parameter array".
+            'bbb_cmid'               => new external_value(PARAM_INT,  'BBB course module id (0 = no room)', VALUE_DEFAULT, 0),
             'attachments'            => new external_value(PARAM_RAW,   'JSON array of attachment objects', VALUE_DEFAULT, '[]'),
         ]);
     }
@@ -77,7 +83,7 @@ class admin_save_event extends external_api {
         $capacity = 0, $requires_registration = true, $allow_waitlist = false,
         $registration_opens_at = 0, $registration_closes_at = 0,
         $organizer_name = '', $organizer_email = '', $cover_path = '',
-        $active = true, $attachments = '[]'
+        $active = true, $bbb_cmid = 0, $attachments = '[]'
     ) {
         global $USER;
         // TEMP: log the raw args BEFORE validate_parameters so we can see what
@@ -115,7 +121,8 @@ class admin_save_event extends external_api {
                 'registration_opens_at' => $registration_opens_at,
                 'registration_closes_at' => $registration_closes_at,
                 'organizer_name' => $organizer_name, 'organizer_email' => $organizer_email,
-                'cover_path' => $cover_path, 'active' => $active, 'attachments' => $attachments,
+                'cover_path' => $cover_path, 'active' => $active, 'bbb_cmid' => $bbb_cmid,
+                'attachments' => $attachments,
             ]);
         } catch (\invalid_parameter_exception $e) {
             file_put_contents(
