@@ -228,13 +228,10 @@ Vue.component('wellness-dashboard', {
         async refreshPartners() {
             this.loading = true;
             try {
-                const res = await axios.post(ajaxUrl, {
-                    action: 'local_grupomakro_admin_list_wellness_partners',
-                    args: {}
-                }, { params: { sesskey }, timeout: 30000 });
-                if (res.data && res.data.status === 'success' && res.data.data) {
-                    this.partners = res.data.data.partners || [];
-                    this.partnerCategories = res.data.data.categories || [];
+                const res = await this.callWs('local_grupomakro_admin_list_wellness_partners', {});
+                if (res && res.status === 'success' && res.data) {
+                    this.partners = res.data.partners || [];
+                    this.partnerCategories = res.data.categories || [];
                 } else {
                     this.toast('No se pudieron cargar los convenios', 'error');
                 }
@@ -247,12 +244,9 @@ Vue.component('wellness-dashboard', {
         async refreshEvents() {
             this.loading = true;
             try {
-                const res = await axios.post(ajaxUrl, {
-                    action: 'local_grupomakro_admin_list_wellness_events',
-                    args: {}
-                }, { params: { sesskey }, timeout: 30000 });
-                if (res.data && res.data.status === 'success' && res.data.data) {
-                    this.events = res.data.data.events || [];
+                const res = await this.callWs('local_grupomakro_admin_list_wellness_events', {});
+                if (res && res.status === 'success' && res.data) {
+                    this.events = res.data.events || [];
                 }
             } catch (e) {
                 this.toast('Error al cargar eventos: ' + (e.message || e), 'error');
@@ -262,12 +256,9 @@ Vue.component('wellness-dashboard', {
         },
         async refreshForms() {
             try {
-                const res = await axios.post(ajaxUrl, {
-                    action: 'local_grupomakro_admin_list_wellness_dynamic_forms',
-                    args: {}
-                }, { params: { sesskey }, timeout: 30000 });
-                if (res.data && res.data.status === 'success' && res.data.data) {
-                    this.forms = res.data.data.forms || [];
+                const res = await this.callWs('local_grupomakro_admin_list_wellness_dynamic_forms', {});
+                if (res && res.status === 'success' && res.data) {
+                    this.forms = res.data.forms || [];
                 }
             } catch (e) {
                 this.toast('Error al cargar formularios: ' + (e.message || e), 'error');
@@ -380,12 +371,9 @@ Vue.component('wellness-dashboard', {
                     cover_path: this.form.cover_path || '',
                     active: !!this.form.active,
                 };
-                const res = await axios.post(ajaxUrl, {
-                    action: 'local_grupomakro_admin_save_wellness_dynamic_form',
-                    args
-                }, { params: { sesskey }, timeout: 30000 });
-                if (res.data && res.data.status === 'success' && res.data.data && res.data.data.ok) {
-                    const newid = res.data.data.id || this.form.id;
+                const res = await this.callWs('local_grupomakro_admin_save_wellness_dynamic_form', args);
+                if (res && res.status === 'success' && res.data && res.data.ok) {
+                    const newid = res.data.id || this.form.id;
                     // Portada: subir solo si el usuario eligio una nueva.
                     if (this.formCoverImage && newid) {
                         const url = await this.uploadCover('form', newid, this.formCoverImage);
@@ -395,7 +383,7 @@ Vue.component('wellness-dashboard', {
                     this.formDialog = false;
                     await this.refreshForms();
                 } else {
-                    this.toast((res.data && res.data.message) || 'Error al guardar el formulario.', 'error');
+                    this.toast((res && res.message) || 'Error al guardar el formulario.', 'error');
                 }
             } catch (e) {
                 this.toast('Error al guardar: ' + (e.message || e), 'error');
@@ -405,16 +393,13 @@ Vue.component('wellness-dashboard', {
         },
         async toggleFormActive(f) {
             try {
-                const res = await axios.post(ajaxUrl, {
-                    action: 'local_grupomakro_admin_toggle_wellness_dynamic_form_active',
-                    args: { id: f.id, active: !f.active }
-                }, { params: { sesskey }, timeout: 20000 });
-                if (res.data && res.data.status === 'success' && res.data.data && res.data.data.ok) {
+                const res = await this.callWs('local_grupomakro_admin_toggle_wellness_dynamic_form_active', { id: f.id, active: !f.active });
+                if (res && res.status === 'success' && res.data && res.data.ok) {
                     f.active = !f.active ? 1 : 0;
                     this.toast(f.active ? 'Formulario activado.' : 'Formulario desactivado.');
                     await this.refreshForms();
                 } else {
-                    this.toast((res.data && res.data.message) || 'No se pudo cambiar el estado.', 'error');
+                    this.toast((res && res.message) || 'No se pudo cambiar el estado.', 'error');
                 }
             } catch (e) {
                 this.toast('Error: ' + (e.message || e), 'error');
@@ -427,14 +412,11 @@ Vue.component('wellness-dashboard', {
             this.responsesDialog = true;
             this.responsesLoading = true;
             try {
-                const res = await axios.post(ajaxUrl, {
-                    action: 'local_grupomakro_admin_list_wellness_dynamic_form_responses',
-                    args: { formid: f.id }
-                }, { params: { sesskey }, timeout: 30000 });
-                if (res.data && res.data.status === 'success' && res.data.data) {
-                    this.responses = res.data.data.responses || [];
+                const res = await this.callWs('local_grupomakro_admin_list_wellness_dynamic_form_responses', { formid: f.id });
+                if (res && res.status === 'success' && res.data) {
+                    this.responses = res.data.responses || [];
                 } else {
-                    this.toast((res.data && res.data.message) || 'No se pudieron cargar las respuestas.', 'error');
+                    this.toast((res && res.message) || 'No se pudieron cargar las respuestas.', 'error');
                 }
             } catch (e) {
                 this.toast('Error al cargar respuestas: ' + (e.message || e), 'error');
@@ -506,14 +488,11 @@ Vue.component('wellness-dashboard', {
             this.imageUploading = true;
             try {
                 const content = await this.readAsDataUrl(file);
-                const res = await axios.post(ajaxUrl, {
-                    action: 'local_grupomakro_admin_upload_wellness_image',
-                    args: { kind, itemid, content },
-                }, { params: { sesskey }, timeout: 60000 });
-                if (res.data && res.data.status === 'success' && res.data.data) {
-                    return res.data.data.url;
+                const res = await this.callWs('local_grupomakro_admin_upload_wellness_image', { kind, itemid, content },);
+                if (res && res.status === 'success' && res.data) {
+                    return res.data.url;
                 }
-                this.toast(res.data && res.data.message ? res.data.message : 'No se pudo subir la portada', 'error');
+                this.toast(res && res.message ? res.message : 'No se pudo subir la portada', 'error');
                 return null;
             } catch (e) {
                 this.toast('Error al subir la portada: ' + (e.message || e), 'error');
@@ -540,12 +519,9 @@ Vue.component('wellness-dashboard', {
                     sort: this.partner.sort,
                     active: !!this.partner.active,
                 };
-                const res = await axios.post(ajaxUrl, {
-                    action: 'local_grupomakro_admin_save_wellness_partner',
-                    args
-                }, { params: { sesskey }, timeout: 30000 });
-                if (res.data && res.data.status === 'success') {
-                    const newid = (res.data.data && res.data.data.id) || this.partner.id || 0;
+                const res = await this.callWs('local_grupomakro_admin_save_wellness_partner', args);
+                if (res && res.status === 'success') {
+                    const newid = (res.data && res.data.id) || this.partner.id || 0;
                     if (this.partnerImage) {
                         await this.uploadCover('partner', newid, this.partnerImage);
                         this.partnerImage = null;
@@ -554,7 +530,7 @@ Vue.component('wellness-dashboard', {
                     this.partnerDialog = false;
                     await this.refreshPartners();
                 } else {
-                    this.toast(res.data && res.data.message ? res.data.message : 'Error al guardar', 'error');
+                    this.toast(res && res.message ? res.message : 'Error al guardar', 'error');
                 }
             } catch (e) {
                 this.toast('Error al guardar: ' + (e.message || e), 'error');
@@ -564,11 +540,8 @@ Vue.component('wellness-dashboard', {
         },
         async togglePartnerActive(p) {
             try {
-                const res = await axios.post(ajaxUrl, {
-                    action: 'local_grupomakro_admin_toggle_wellness_partner_active',
-                    args: { id: p.id, active: !p.active }
-                }, { params: { sesskey }, timeout: 30000 });
-                if (res.data && res.data.status === 'success') {
+                const res = await this.callWs('local_grupomakro_admin_toggle_wellness_partner_active', { id: p.id, active: !p.active });
+                if (res && res.status === 'success') {
                     this.toast(p.active ? 'Convenio desactivado' : 'Convenio activado');
                     await this.refreshPartners();
                 }
@@ -579,26 +552,20 @@ Vue.component('wellness-dashboard', {
         async onCarnetUserQuery(value) {
             if (!value || value.length < 2) { this.carnetUserOptions = []; return }
             try {
-                const res = await axios.post(ajaxUrl, {
-                    action: 'local_grupomakro_search_users',
-                    args: { query: value, limit: 8 },
-                }, { params: { sesskey }, timeout: 30000 });
-                if (res.data && res.data.status === 'success' && res.data.data) {
-                    this.carnetUserOptions = res.data.data.users || [];
+                const res = await this.callWs('local_grupomakro_search_users', { query: value, limit: 8 },);
+                if (res && res.status === 'success' && res.data) {
+                    this.carnetUserOptions = res.data.users || [];
                 }
             } catch (e) { /* soft-fail */ }
         },
         async onCarnetAction() {
             if (!this.carnetUserid) return
             try {
-                const res = await axios.post(ajaxUrl, {
-                    action: 'local_grupomakro_admin_manage_carnet',
-                    args: { action: this.carnetAction, userid: this.carnetUserid },
-                }, { params: { sesskey }, timeout: 30000 });
-                if (res.data && res.data.status === 'success') {
+                const res = await this.callWs('local_grupomakro_admin_manage_carnet', { action: this.carnetAction, userid: this.carnetUserid },);
+                if (res && res.status === 'success') {
                     this.toast('Carnet actualizado.')
                 } else {
-                    this.toast(res.data && res.data.message ? res.data.message : 'Error', 'error')
+                    this.toast(res && res.message ? res.message : 'Error', 'error')
                 }
             } catch (e) { this.toast('Error: ' + (e.message || e), 'error'); }
         },
@@ -693,14 +660,42 @@ Vue.component('wellness-dashboard', {
         },
         async toggleEventActive(e) {
             try {
-                const res = await axios.post(ajaxUrl, {
-                    action: 'local_grupomakro_admin_toggle_wellness_event_active',
-                    args: { id: e.id, active: !e.active }
-                }, { params: { sesskey }, timeout: 30000 });
-                if (res.data && res.data.status === 'success') {
+                const res = await this.callWs('local_grupomakro_admin_toggle_wellness_event_active', { id: e.id, active: !e.active });
+                if (res && res.status === 'success') {
                     await this.refreshEvents();
                 }
             } catch (err) { this.toast('Error: ' + (err.message || err), 'error'); }
+        },
+        async deleteEvent(e) {
+            // Two-step confirmation because the action is destructive: it
+            // also tears down the BBB room if any, drops registrations and
+            // detaches dynamic forms. Active=false is the reversible path;
+            // this one isn't.
+            const count = (e.registered_count || 0);
+            const hasBbb = !!e.bbb_cmid;
+            const lines = [
+                'Vas a eliminar el evento "' + (e.title || '') + '" definitivamente.',
+            ];
+            if (count > 0) {
+                lines.push('Se borraran ' + count + ' inscripcion(es) asociada(s).');
+            }
+            if (hasBbb) {
+                lines.push('Se eliminara la sala BBB asociada (link de invitado quedara inactivo).');
+            }
+            lines.push('');
+            lines.push('Esta accion NO se puede deshacer.');
+            if (!confirm(lines.join('\n'))) return;
+            try {
+                const res = await this.callWs('local_grupomakro_admin_delete_wellness_event', { id: e.id });
+                if (res && res.status === 'success') {
+                    this.toast('Evento eliminado.');
+                    await this.refreshEvents();
+                } else {
+                    this.toast((res && res.message) || 'No se pudo eliminar el evento.', 'error');
+                }
+            } catch (err) {
+                this.toast('Error al eliminar: ' + (err.message || err), 'error');
+            }
         },
         // -- BBB guest link (RF-04) -------------------------------------------
         async createBbbForEvent() {
@@ -710,12 +705,9 @@ Vue.component('wellness-dashboard', {
             }
             this.bbbCreating = true;
             try {
-                const res = await axios.post(ajaxUrl, {
-                    action: 'local_grupomakro_admin_create_wellness_event_bbb',
-                    args: { eventid: this.event.id }
-                }, { params: { sesskey }, timeout: 60000 });
-                const data = res.data && res.data.data;
-                if (res.data && res.data.status === 'success' && data && data.ok) {
+                const res = await this.callWs('local_grupomakro_admin_create_wellness_event_bbb', { eventid: this.event.id });
+                const data = res.data && res.data;
+                if (res && res.status === 'success' && data && data.ok) {
                     this.event.bbb_cmid = data.cmid;
                     this.event.bbb_guest_url = data.guest_url;
                     if (data.already) {
@@ -724,7 +716,7 @@ Vue.component('wellness-dashboard', {
                         this.toast('Sala BBB creada. Comparte el link con los asistentes.');
                     }
                 } else {
-                    this.toast((res.data && res.data.message) || 'No se pudo crear la sala BBB.', 'error');
+                    this.toast((res && res.message) || 'No se pudo crear la sala BBB.', 'error');
                 }
             } catch (e) {
                 this.toast('Error al crear la sala: ' + (e.message || e), 'error');
@@ -739,22 +731,52 @@ Vue.component('wellness-dashboard', {
             }
             this.bbbDeleting = true;
             try {
-                const res = await axios.post(ajaxUrl, {
-                    action: 'local_grupomakro_admin_delete_wellness_event_bbb',
-                    args: { eventid: this.event.id }
-                }, { params: { sesskey }, timeout: 60000 });
-                if (res.data && res.data.status === 'success' && res.data.data && res.data.data.ok) {
+                const res = await this.callWs('local_grupomakro_admin_delete_wellness_event_bbb', { eventid: this.event.id });
+                if (res && res.status === 'success' && res.data && res.data.ok) {
                     this.event.bbb_cmid = 0;
                     this.event.bbb_guest_url = '';
                     this.toast('Sala BBB eliminada.');
                 } else {
-                    this.toast((res.data && res.data.message) || 'No se pudo eliminar la sala.', 'error');
+                    this.toast((res && res.message) || 'No se pudo eliminar la sala.', 'error');
                 }
             } catch (e) {
                 this.toast('Error al eliminar la sala: ' + (e.message || e), 'error');
             } finally {
                 this.bbbDeleting = false;
             }
+        },
+        // POST to ajax.php with a JSON body, returning the parsed
+        // {status, data, message} envelope. Native fetch bypasses the
+        // YUI XMLHttpRequest.prototype patching that triggered the
+        // 'Cannot read properties of undefined (reading M_ID)' console
+        // error on every axios call (200.js:1:761, after minification
+        // = Vue's _isMounted).
+        async callWs(action, args = {}, opts = {}) {
+            const timeout = opts.timeout || 30000;
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), timeout);
+            let res;
+            try {
+                res = await fetch(ajaxUrl + '?sesskey=' + encodeURIComponent(sesskey), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action, args }),
+                    credentials: 'same-origin',
+                    signal: controller.signal
+                });
+            } catch (e) {
+                clearTimeout(timer);
+                throw new Error(e.message || 'fetch failed');
+            }
+            clearTimeout(timer);
+            let body;
+            try {
+                body = await res.json();
+            } catch (parseErr) {
+                const txt = await res.text().catch(() => '');
+                throw new Error('Respuesta no JSON (' + res.status + '): ' + txt.slice(0, 200));
+            }
+            return body;
         },
         copyToClipboard(text) {
             if (!text) return;
@@ -793,12 +815,9 @@ Vue.component('wellness-dashboard', {
         },
         async exportCsv(e) {
             try {
-                const res = await axios.post(ajaxUrl, {
-                    action: 'local_grupomakro_admin_export_event_registrations',
-                    args: { eventid: e.id }
-                }, { params: { sesskey }, timeout: 30000 });
-                if (res.data && res.data.status === 'success' && res.data.data && res.data.data.csv) {
-                    const blob = new Blob([res.data.data.csv], { type: 'text/csv;charset=utf-8' });
+                const res = await this.callWs('local_grupomakro_admin_export_event_registrations', { eventid: e.id });
+                if (res && res.status === 'success' && res.data && res.data.csv) {
+                    const blob = new Blob([res.data.csv], { type: 'text/csv;charset=utf-8' });
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
@@ -930,10 +949,17 @@ Vue.component('wellness-dashboard', {
             </v-chip>
           </template>
           <template v-slot:item._actions="{ item }">
-            <v-btn icon small @click="openEventDialog(item)"><v-icon>mdi-pencil</v-icon></v-btn>
-            <v-btn icon small @click="exportCsv(item)" title="Exportar CSV"><v-icon>mdi-download</v-icon></v-btn>
-            <v-btn icon small @click="toggleEventActive(item)">
+            <v-btn icon small @click="openEventDialog(item)" title="Editar">
+              <v-icon>mdi-pencil</v-icon>
+            </v-btn>
+            <v-btn icon small @click="exportCsv(item)" title="Exportar CSV">
+              <v-icon>mdi-download</v-icon>
+            </v-btn>
+            <v-btn icon small @click="toggleEventActive(item)" :title="item.active ? 'Desactivar' : 'Activar'">
               <v-icon>{{ item.active ? 'mdi-toggle-switch' : 'mdi-toggle-switch-off-outline' }}</v-icon>
+            </v-btn>
+            <v-btn icon small color="red" @click="deleteEvent(item)" title="Eliminar definitivamente">
+              <v-icon>mdi-delete</v-icon>
             </v-btn>
           </template>
         </v-data-table>
@@ -1620,3 +1646,4 @@ Vue.component('wellness-dashboard', {
 </v-container>
 `
 });
+

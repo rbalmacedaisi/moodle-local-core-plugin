@@ -1583,6 +1583,15 @@ $functions = array(
         'ajax'        => true,
         'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
     ],
+    'local_grupomakro_admin_delete_wellness_event' => [
+        'classname'   => 'local_grupomakro_core\external\admin\wellness\admin_delete_wellness_event',
+        'methodname'  => 'execute',
+        'description' => 'Hard-delete a wellness event + its registrations, files and BBB room (RF-09.2).',
+        'type'        => 'write',
+        'capabilities'=> 'local/grupomakro_core:manage_wellness',
+        'ajax'        => true,
+        'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
+    ],
     'local_grupomakro_admin_export_event_registrations' => [
         'classname'   => 'local_grupomakro_core\external\admin\wellness\admin_export_event_registrations',
         'methodname'  => 'execute',

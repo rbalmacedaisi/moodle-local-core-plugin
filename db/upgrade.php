@@ -3671,6 +3671,12 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20261001022, 'local', 'grupomakro_core');
     }
 
+    // 20261001024: no schema changes; the new admin_delete_wellness_event WS is
+    // picked up by purge_caches via services.php.
+    if ($oldversion < 20261001024) {
+        upgrade_plugin_savepoint(true, 20261001024, 'local', 'grupomakro_core');
+    }
+
     if ($oldversion < 20261001023) {
         // WELLNESS EVENTS: link de invitado BBB (RF-04). Antes el admin solo
         // podia pegar una URL externa (Zoom, Teams) en el campo virtual_url.
