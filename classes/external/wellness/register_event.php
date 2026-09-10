@@ -66,7 +66,7 @@ class register_event extends external_api {
             'ok'            => new external_value(PARAM_BOOL, 'True when registration succeeded'),
             'status'        => new external_value(PARAM_TEXT, 'confirmada | lista_de_espera | (empty on error)'),
             'registrationid'=> new external_value(PARAM_INT,  'Id of the registration row'),
-            'error'         => new external_value(PARAM_TEXT, 'Error code if ok=false'),
+            'error'         => new external_value(PARAM_TEXT, 'Error code if ok=false', VALUE_DEFAULT),
             'eventid'       => new external_value(PARAM_INT,  'Echoed event id'),
             'userid'        => new external_value(PARAM_INT,  'Echoed user id'),
         ]);

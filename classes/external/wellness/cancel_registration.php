@@ -55,8 +55,8 @@ class cancel_registration extends external_api {
     public static function execute_returns() {
         return new external_single_structure([
             'ok'      => new external_value(PARAM_BOOL, 'True on success'),
-            'already' => new external_value(PARAM_BOOL, 'True when the registration was already cancelled'),
-            'error'   => new external_value(PARAM_TEXT, 'Error code'),
+            'already' => new external_value(PARAM_BOOL, 'True when the registration was already cancelled', VALUE_DEFAULT),
+            'error'   => new external_value(PARAM_TEXT, 'Error code', VALUE_DEFAULT),
         ]);
     }
 }

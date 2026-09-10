@@ -82,7 +82,7 @@ class request_psychology_appointment extends external_api {
         return new external_single_structure([
             'ok'          => new external_value(PARAM_BOOL, 'True when the booking succeeded'),
             'duplicate'   => new external_value(PARAM_BOOL, 'True when the student had a pendiente request for the same slot'),
-            'error'       => new external_value(PARAM_TEXT, 'Error code when ok=false'),
+            'error'       => new external_value(PARAM_TEXT, 'Error code when ok=false', VALUE_DEFAULT),
             'slotid'      => new external_value(PARAM_INT,  'Echoed slot id'),
             'appointment' => new external_single_structure([
                 'id'                 => new external_value(PARAM_INT, 'Appointment id'),

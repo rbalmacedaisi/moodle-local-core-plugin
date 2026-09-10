@@ -58,7 +58,7 @@ class dismiss_teacher_eval extends external_api {
     public static function execute_returns() {
         return new external_single_structure([
             'ok'    => new external_value(PARAM_BOOL, 'True si se registro el descarte'),
-            'error' => new external_value(PARAM_TEXT, 'Codigo de error si ok=false'),
+            'error' => new external_value(PARAM_TEXT, 'Codigo de error si ok=false', VALUE_DEFAULT),
         ]);
     }
 }

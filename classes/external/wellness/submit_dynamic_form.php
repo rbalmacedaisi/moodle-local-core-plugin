@@ -64,7 +64,7 @@ class submit_dynamic_form extends external_api {
         return new external_single_structure([
             'ok'         => new external_value(PARAM_BOOL, 'True on success'),
             'responseid' => new external_value(PARAM_INT,  'Response row id'),
-            'error'      => new external_value(PARAM_TEXT, 'Error code'),
+            'error'      => new external_value(PARAM_TEXT, 'Error code', VALUE_DEFAULT),
             'formid'     => new external_value(PARAM_INT,  'Echoed form id'),
             'userid'     => new external_value(PARAM_INT,  'Echoed user id'),
         ]);
