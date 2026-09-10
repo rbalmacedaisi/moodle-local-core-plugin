@@ -3712,6 +3712,12 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20261001028, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20261001031) {
+        // Bienestar gains the read-only Attendance and Grades reports.
+        assign_capabilities_to_internal_roles();
+        upgrade_plugin_savepoint(true, 20261001031, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

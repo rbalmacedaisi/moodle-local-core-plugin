@@ -585,6 +585,14 @@ function assign_capabilities_to_internal_roles() {
             'local/grupomakro_core:manage_meetings',
         ],
         'gmk_bienestar' => [
+            // Workflow 4 — Attendance and grades, read only. Bienestar follows
+            // absences, dropouts and academic performance as part of student
+            // welfare. Acting on those reports is deliberately left out:
+            // enrol_from_failed_subjects_report and the revalidations
+            // dashboard stay with Direccion Academica.
+            'local/grupomakro_core:viewabsencedashboard',
+            'local/grupomakro_core:view_grade_report',
+            'local/grupomakro_core:view_failed_subjects_report',
             // Everyone on staff lands on the academic panel after login, so the
             // view capability goes to every operational role even when the rest
             // of that workflow does not.
