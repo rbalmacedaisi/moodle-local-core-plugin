@@ -184,57 +184,114 @@ function local_grupomakro_core_extend_navigation(global_navigation $navigation) 
     global $PAGE, $CFG;
     
     // 1. Admin menu handling (from original locallib.php)
-    if (is_siteadmin()) {
-        $CFG->custommenuitems = 'Planificación';
-        $CFG->custommenuitems .= PHP_EOL . '-' . 'Planificación Académica' .
-            '|/local/grupomakro_core/pages/academic_planning.php';
+    //
+    // The menu is built from the caller's capabilities, not from is_siteadmin().
+    // It used to be wrapped in `if (is_siteadmin())`, so the workflow-matrix
+    // roles could reach their pages by URL but saw no links at all: Secretaria
+    // Academica holds 33 capabilities and rendered exactly 2 entries. Site
+    // admins are unaffected — has_capability() returns true for them on every
+    // capability, so they still get the full menu.
+    //
+    // Each entry is [capability, page, label]. A category whose entries are all
+    // filtered out is dropped entirely rather than rendered as an empty
+    // dropdown. To expose a new page, add a row here with the capability its
+    // own require_capability() call checks — the role bundles themselves live
+    // in db/upgradelib.php.
+    if (isloggedin() && !isguestuser()) {
+        $syscontext = context_system::instance();
+        $pluginname = 'local_grupomakro_core';
 
-        // Gestión Académica dropdown menu
-        $CFG->custommenuitems .= PHP_EOL . get_string('admin_category_label', 'local_grupomakro_core');
-        $CFG->custommenuitems .= PHP_EOL . '-📘 ' . get_string('class_management', 'local_grupomakro_core') .
-            '|/local/grupomakro_core/pages/classmanagement.php';
-        $CFG->custommenuitems .= PHP_EOL . '-🗓️ ' . get_string('class_schedules', 'local_grupomakro_core') .
-            '|/local/grupomakro_core/pages/schedules.php';
-        $CFG->custommenuitems .= PHP_EOL . '-🧑‍🏫 ' . get_string('availability_panel', 'local_grupomakro_core') .
-            '|/local/grupomakro_core/pages/availabilitypanel.php';
-        $CFG->custommenuitems .= PHP_EOL . '-📆 ' . get_string('availability_calendar', 'local_grupomakro_core') .
-            '|/local/grupomakro_core/pages/availability.php';
-        $CFG->custommenuitems .= PHP_EOL . '-🕒 ' . get_string('schedules_panel', 'local_grupomakro_core') .
-            '|/local/grupomakro_core/pages/schedulepanel.php';
-        $CFG->custommenuitems .= PHP_EOL . '-🎯 ' . get_string('academic_director_panel', 'local_grupomakro_core') .
-            '|/local/grupomakro_core/pages/academicpanel.php';
-        $CFG->custommenuitems .= PHP_EOL . '-🧾 ' . get_string('revalidations_director_menu', 'local_grupomakro_core') .
-            '|/local/grupomakro_core/pages/revalidations_director.php';
-        $CFG->custommenuitems .= PHP_EOL . '-📝 ' . get_string('fsr_menu', 'local_grupomakro_core') .
-            '|/local/grupomakro_core/pages/failed_subjects_report.php';
-        $CFG->custommenuitems .= PHP_EOL . '-📚 Gestión de Módulos Independientes' .
-            '|/local/grupomakro_core/pages/module_management.php';
-        $CFG->custommenuitems .= PHP_EOL . '-📊 ' . get_string('absence_dashboard', 'local_grupomakro_core') .
-            '|/local/grupomakro_core/pages/absence_dashboard.php';
-        $CFG->custommenuitems .= PHP_EOL . '-📣 ' . get_string('announcements_menu', 'local_grupomakro_core') .
-            '|/local/grupomakro_core/pages/announcements.php';
-        $CFG->custommenuitems .= PHP_EOL . '-🤝 ' . get_string('wellness_dashboard_menu', 'local_grupomakro_core') .
-            '|/local/grupomakro_core/pages/wellness_dashboard.php';
-        $CFG->custommenuitems .= PHP_EOL . '-🧠 ' . 'Bienestar: Psicología (agenda)' .
-            '|/local/grupomakro_core/pages/wellness_psychology_panel.php';
-        $CFG->custommenuitems .= PHP_EOL . '-👥 ' . 'Bienestar: Personal asignado' .
-            '|/local/grupomakro_core/pages/wellness_staff_panel.php';
-        $CFG->custommenuitems .= PHP_EOL . '-👩‍🏫 ' . get_string('admin_teachers_management', 'local_grupomakro_core') .
-            '|/local/grupomakro_core/pages/teachers.php';
-        $CFG->custommenuitems .= PHP_EOL . '-📂 Gestor de Cursos' .
-            '|/local/grupomakro_core/pages/manage_courses.php';
-        $CFG->custommenuitems .= PHP_EOL . '-🔀 Gestor de Homologaciones' .
-            '|/local/grupomakro_core/pages/homologation_manager.php';
-        $CFG->custommenuitems .= PHP_EOL . '-🎥 Gestor de Sesiones Virtuales' .
-            '|/local/grupomakro_core/pages/manage_meetings.php';
-        $CFG->custommenuitems .= PHP_EOL . '-📋 Matrícula Masiva a Plan' .
-            '|/local/grupomakro_core/pages/bulk_enroll.php';
-        $CFG->custommenuitems .= PHP_EOL . '-🔍 Analítica de Solapamientos' .
-            '|/local/grupomakro_core/pages/overlap_analytics.php';
-        $CFG->custommenuitems .= PHP_EOL . '-🎓 ' . get_string('diploma_generation', 'local_grupomakro_core') .
-            '|/local/grupomakro_core/pages/diplomageneration.php';
-        $CFG->custommenuitems .= PHP_EOL . '-🖼️ ' . get_string('diploma_templates', 'local_grupomakro_core') .
-            '|/local/grupomakro_core/pages/diplomatemplates.php';
+        $menu = [
+            'Planificación' => [
+                ['manage_academic_planning', 'academic_planning.php', '📅 Planificación Académica'],
+                ['manage_academic_calendar', 'academiccalendar.php', '🗓️ Calendario Académico'],
+                ['view_academic_demand_gaps', 'academic_demand_gaps.php', '📉 Brechas de Demanda'],
+                ['view_overlap_analytics', 'overlap_analytics.php', '🔍 Analítica de Solapamientos'],
+            ],
+            get_string('admin_category_label', $pluginname) => [
+                ['view_academic_panel', 'academicpanel.php', '🎯 ' . get_string('academic_director_panel', $pluginname)],
+                ['view_classmanagement', 'classmanagement.php', '📘 ' . get_string('class_management', $pluginname)],
+                ['manage_schedules', 'schedules.php', '🗓️ ' . get_string('class_schedules', $pluginname)],
+                ['manage_schedules', 'schedulepanel.php', '🕒 ' . get_string('schedules_panel', $pluginname)],
+                ['manage_teacher_availability', 'availabilitypanel.php', '🧑‍🏫 ' . get_string('availability_panel', $pluginname)],
+                ['manage_teacher_availability', 'availability.php', '📆 ' . get_string('availability_calendar', $pluginname)],
+                ['manage_teachers', 'teachers.php', '👩‍🏫 ' . get_string('admin_teachers_management', $pluginname)],
+                ['manage_courses', 'manage_courses.php', '📂 Gestor de Cursos'],
+                ['manage_modules', 'module_management.php', '📚 Gestión de Módulos Independientes'],
+                ['manage_meetings', 'manage_meetings.php', '🎥 Gestor de Sesiones Virtuales'],
+                ['bulk_enroll', 'bulk_enroll.php', '📋 Matrícula Masiva a Plan'],
+                // Homologations are still gated by moodle/site:config on the page
+                // itself, so the link must use that same check or every
+                // operational role would click into a permission error.
+                ['@moodle/site:config', 'homologation_manager.php', '🔀 Gestor de Homologaciones'],
+            ],
+            'Estudiantes' => [
+                ['view_student_population', 'student_population.php', '👥 Población Estudiantil'],
+                ['view_active_students_by_class', 'active_students_by_class.php', '🧑‍🎓 Activos por Clase'],
+                ['view_student_timeline', 'student_timeline.php', '🧭 Línea de Tiempo'],
+                ['manage_users', 'users.php', '👤 Gestión de Usuarios'],
+                ['import_users', 'import_users.php', '⬆️ Importar Usuarios'],
+            ],
+            'Asistencia y Notas' => [
+                ['viewabsencedashboard', 'absence_dashboard.php', '📊 ' . get_string('absence_dashboard', $pluginname)],
+                ['view_grade_report', 'grade_report.php', '📈 Informe de Calificaciones'],
+                ['view_failed_subjects_report', 'failed_subjects_report.php', '📝 ' . get_string('fsr_menu', $pluginname)],
+                ['view_revalidations_dashboard', 'revalidations_director.php', '🧾 ' . get_string('revalidations_director_menu', $pluginname)],
+            ],
+            'Cartas, Contratos y Diplomas' => [
+                ['managerequests', 'letterrequests.php', '📬 Bandeja de Cartas'],
+                ['manageletters', 'lettertypes.php', '🗂️ Catálogo de Cartas'],
+                ['manage_orders', 'orders.php', '🧾 Órdenes'],
+                ['manage_institutions', 'institutionmanagement.php', '🏢 Instituciones'],
+                ['manage_institutional_contracts', 'institutionalcontracts.php', '📄 Contratos Institucionales'],
+                ['view_credit_report', 'credit_report.php', '💳 Informe de Créditos'],
+                ['view_financial_planning', 'financial_planning.php', '💰 Análisis Financiero Docente'],
+                ['viewdiplomas', 'diplomageneration.php', '🎓 ' . get_string('diploma_generation', $pluginname)],
+                ['managediplomas', 'diplomatemplates.php', '🖼️ ' . get_string('diploma_templates', $pluginname)],
+            ],
+            'Bienestar' => [
+                ['manage_wellness', 'wellness_dashboard.php', '🤝 ' . get_string('wellness_dashboard_menu', $pluginname)],
+                ['manage_psychology_appointments', 'wellness_psychology_panel.php', '🧠 Psicología (agenda)'],
+                ['manage_psychology_appointments', 'wellness_staff_panel.php', '👥 Personal asignado'],
+                ['manageannouncements', 'announcements.php', '📣 ' . get_string('announcements_menu', $pluginname)],
+            ],
+            'Sistema' => [
+                ['manage_debug', 'check_webservices.php', '🔌 Verificar Web Services'],
+                ['view_log', 'view_log.php', '📜 Registro del Sistema'],
+                ['manage_financial_config', 'bypass_financial.php', '💵 Bypass Financiero'],
+                ['manage_financial_config', 'grace_period.php', '⏳ Período de Gracia'],
+            ],
+        ];
+
+        $lines = [];
+        foreach ($menu as $category => $entries) {
+            $visible = [];
+            foreach ($entries as $entry) {
+                list($capability, $page, $label) = $entry;
+                // A '@' prefix means the capability is not one of ours.
+                $fullcap = ($capability[0] === '@')
+                    ? substr($capability, 1)
+                    : 'local/grupomakro_core:' . $capability;
+                // Fourth arg false: this runs on every page load, never throw.
+                if (has_capability($fullcap, $syscontext, null, false)) {
+                    $visible[] = '-' . $label . '|/local/grupomakro_core/pages/' . $page;
+                }
+            }
+            if ($visible) {
+                $lines[] = $category;
+                $lines = array_merge($lines, $visible);
+            }
+        }
+
+        // Prepend rather than replace: the site-level custommenuitems setting is
+        // empty today, but overwriting it would silently drop any menu an admin
+        // configures later. Users with no staff capability at all produce no
+        // lines and keep the site menu untouched.
+        if ($lines) {
+            $existing = isset($CFG->custommenuitems) ? trim((string)$CFG->custommenuitems) : '';
+            $CFG->custommenuitems = implode(PHP_EOL, $lines)
+                . ($existing !== '' ? PHP_EOL . $existing : '');
+        }
     }
 
     // 2. Redirection logic
