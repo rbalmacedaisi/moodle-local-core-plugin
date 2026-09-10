@@ -24,7 +24,18 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-if ($hassiteconfig) {
+// The admin tree entries below are registered for every logged-in user, not
+// only for holders of moodle/site:config. Each admin_externalpage already
+// declares the capability its page needs and Moodle hides the ones the user
+// cannot open. While this block was wrapped in `if ($hassiteconfig)` the tree
+// was never built at all for the workflow-matrix roles, so
+// admin_externalpage_setup() -- which locates the page inside that tree --
+// threw "Acceso denegado" on every page that calls it, even after the page's
+// own require_capability() had already passed.
+//
+// The settings pages further down stay behind $hassiteconfig: those write
+// site configuration and are genuinely admin-only.
+if (isloggedin() && !isguestuser()) {
     $ADMIN->add('courses', new admin_category('grupomakrocore_plugin', new lang_string('admin_category_label', 'local_grupomakro_core')));
     $emojititle = static function(string $emoji, string $label): string {
         return $emoji . ' ' . $label;
@@ -384,6 +395,19 @@ if ($hassiteconfig) {
         'local/grupomakro_core:manage_debug'
     ));
 
+    // grade_report.php used to call admin_externalpage_setup() with the
+    // import_grades node, which is admin-only, so view_grade_report holders got
+    // "Acceso denegado" from the tree even though the page itself let them in.
+    $ADMIN->add('grupomakrocore_plugin', new admin_externalpage(
+        'grupomakro_core_grade_report',
+        $emojititle("\u{1F4C8}", 'Informe de Calificaciones'),
+        new moodle_url('/local/grupomakro_core/pages/grade_report.php'),
+        'local/grupomakro_core:view_grade_report'
+    ));
+}
+
+// Settings pages: these write site configuration, so they stay admin-only.
+if ($hassiteconfig) {
     $ADMIN->add('localplugins', new admin_category('grupomakrocore', new lang_string('pluginname', 'local_grupomakro_core')));
 
     // ── Wellness settings page (RF-09.4 carnet parameters) ────────────────────
