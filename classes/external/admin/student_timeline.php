@@ -27,7 +27,7 @@ class student_timeline extends external_api {
         global $DB;
         $context = \context_system::instance();
         self::validate_context($context);
-        require_capability('moodle/site:config', $context);
+        require_capability('local/grupomakro_core:view_student_timeline', $context);
 
         // Exclude teacher-role accounts from the student count. Some users
         // (e.g. administrative and teaching staff like editingteacher /
@@ -106,7 +106,7 @@ class student_timeline extends external_api {
         global $DB, $CFG;
         $context = \context_system::instance();
         self::validate_context($context);
-        require_capability('moodle/site:config', $context);
+        require_capability('local/grupomakro_core:view_student_timeline', $context);
 
         // 1. Career info
         $career = $DB->get_record('local_learning_plans', ['id' => $learningplanid], 'id, name, shortname, periodcount');
@@ -398,7 +398,7 @@ class student_timeline extends external_api {
         global $DB;
         $context = \context_system::instance();
         self::validate_context($context);
-        require_capability('moodle/site:config', $context);
+        require_capability('local/grupomakro_core:view_student_timeline', $context);
 
         // Get the subperiod info (position)
         $subperiod = $DB->get_record('local_learning_subperiods', ['id' => $subperiodid], 'id, periodid, position');
@@ -501,7 +501,7 @@ class student_timeline extends external_api {
         global $DB;
         $context = \context_system::instance();
         self::validate_context($context);
-        require_capability('moodle/site:config', $context);
+        require_capability('local/grupomakro_core:manage_student_timeline', $context);
 
         // Get the field ID for 'periodo_ingreso'
         $field = $DB->get_record('user_info_field', ['shortname' => 'periodo_ingreso']);
@@ -551,7 +551,7 @@ class student_timeline extends external_api {
         global $DB;
         $context = \context_system::instance();
         self::validate_context($context);
-        require_capability('moodle/site:config', $context);
+        require_capability('local/grupomakro_core:view_student_timeline', $context);
 
         // Get all courses for this learning plan
         $sql = "SELECT lc.id, lc.courseid, lc.isrequired, lc.position, lc.credits,
@@ -684,7 +684,7 @@ class student_timeline extends external_api {
         global $DB;
         $context = \context_system::instance();
         self::validate_context($context);
-        require_capability('moodle/site:config', $context);
+        require_capability('local/grupomakro_core:view_student_timeline', $context);
 
         // Get all courses for this learning plan
         $sql = "SELECT lc.id, lc.courseid, lc.isrequired, lc.position, lc.credits,
@@ -924,7 +924,7 @@ class student_timeline extends external_api {
         global $DB, $USER;
         $context = \context_system::instance();
         self::validate_context($context);
-        require_capability('moodle/site:config', $context);
+        require_capability('local/grupomakro_core:manage_student_timeline', $context);
 
         // Check if record already exists
         $existing = $DB->get_record('gmk_course_projections', [
@@ -1013,7 +1013,7 @@ class student_timeline extends external_api {
         global $DB;
         $context = \context_system::instance();
         self::validate_context($context);
-        require_capability('moodle/site:config', $context);
+        require_capability('local/grupomakro_core:manage_student_timeline', $context);
 
         $deleted = $DB->delete_records('gmk_course_projections', [
             'learning_courses_id' => $learning_courses_id,
@@ -1071,7 +1071,7 @@ class student_timeline extends external_api {
         global $DB;
         $context = \context_system::instance();
         self::validate_context($context);
-        require_capability('moodle/site:config', $context);
+        require_capability('local/grupomakro_core:view_student_timeline', $context);
 
         // Get all subperiods for the learning plan with their period info
         $sql_subperiods = "SELECT sp.id as sp_id, sp.name as sp_name, sp.position as sp_pos,
@@ -1234,7 +1234,7 @@ class student_timeline extends external_api {
         global $DB, $USER;
         $context = \context_system::instance();
         self::validate_context($context);
-        require_capability('moodle/site:config', $context);
+        require_capability('local/grupomakro_core:manage_student_timeline', $context);
 
         $parameters = self::validate_parameters(
             self::bulk_reassign_students_intake_period_parameters(),
@@ -1671,7 +1671,7 @@ class student_timeline extends external_api {
         global $DB;
         $context = \context_system::instance();
         self::validate_context($context);
-        require_capability('moodle/site:config', $context);
+        require_capability('local/grupomakro_core:manage_student_timeline', $context);
 
         $intake_period = ($intake_period === '' || $intake_period === null) ? null : $intake_period;
         $periodid      = (int)$periodid;
@@ -1897,7 +1897,7 @@ class student_timeline extends external_api {
         global $DB, $USER;
         $context = \context_system::instance();
         self::validate_context($context);
-        require_capability('moodle/site:config', $context);
+        require_capability('local/grupomakro_core:manage_student_timeline', $context);
 
         // Normalize target cohort.
         $target_intake_period = trim((string)$target_intake_period);
@@ -2326,7 +2326,7 @@ class student_timeline extends external_api {
         global $DB;
         $context = \context_system::instance();
         self::validate_context($context);
-        require_capability('moodle/site:config', $context);
+        require_capability('local/grupomakro_core:view_student_timeline', $context);
 
         // Active status filter. The DB stores lowercase Spanish values
         // (activo, suspendido, retirado, egresado). We keep the same
@@ -2530,7 +2530,7 @@ class student_timeline extends external_api {
         global $DB, $USER;
         $context = \context_system::instance();
         self::validate_context($context);
-        require_capability('moodle/site:config', $context);
+        require_capability('local/grupomakro_core:manage_student_timeline', $context);
 
         $parameters = self::validate_parameters(
             self::bulk_update_students_academic_period_parameters(),

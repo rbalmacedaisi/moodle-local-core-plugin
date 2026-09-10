@@ -27,7 +27,7 @@ class scheduler extends external_api {
     public static function get_scheduler_context($periodid) {
         $context = \context_system::instance();
         self::validate_context($context);
-        require_capability('moodle/site:config', $context);
+        require_capability('local/grupomakro_core:manage_schedules', $context);
 
         // Delegate to the single implementation so this endpoint cannot drift from
         // the one ajax.php actually reaches.
@@ -123,7 +123,7 @@ class scheduler extends external_api {
     public static function save_scheduler_config($periodid, $holidays, $loads, $configsettings = '') {
         $context = \context_system::instance();
         self::validate_context($context);
-        require_capability('moodle/site:config', $context);
+        require_capability('local/grupomakro_core:manage_schedules', $context);
 
         if ($configsettings === '') {
             return false;
@@ -148,7 +148,7 @@ class scheduler extends external_api {
         global $DB, $CFG;
         $context = \context_system::instance();
         self::validate_context($context);
-        require_capability('moodle/site:config', $context);
+        require_capability('local/grupomakro_core:manage_schedules', $context);
 
         require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/planning_manager.php');
 
@@ -399,7 +399,7 @@ class scheduler extends external_api {
         global $DB;
         $context = \context_system::instance();
         self::validate_context($context);
-        require_capability('moodle/site:config', $context);
+        require_capability('local/grupomakro_core:manage_schedules', $context);
         
         $DB->delete_records('gmk_academic_projections', ['academicperiodid' => $periodid]);
         
@@ -433,7 +433,7 @@ class scheduler extends external_api {
         global $DB;
         $context = \context_system::instance();
         self::validate_context($context);
-        require_capability('moodle/site:config', $context);
+        require_capability('local/grupomakro_core:manage_schedules', $context);
         
         $data = is_string($schedules) ? json_decode($schedules, true) : $schedules;
         if (!is_array($data)) {
@@ -1682,7 +1682,7 @@ class scheduler extends external_api {
         global $DB, $CFG;
         $context = \context_system::instance();
         self::validate_context($context);
-        require_capability('moodle/site:config', $context);
+        require_capability('local/grupomakro_core:manage_schedules', $context);
 
         if (function_exists('gmk_log')) {
             gmk_log("DEBUG: get_generated_schedules(periodid=$periodid, includeoverlaps=$includeoverlaps)");

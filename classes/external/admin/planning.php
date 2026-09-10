@@ -41,7 +41,7 @@ class planning extends external_api {
         
         $context = \context_system::instance();
         self::validate_context($context);
-        require_capability('moodle/site:config', $context);
+        require_capability('local/grupomakro_core:manage_academic_planning', $context);
         
         $filterData = json_decode($params['filters'], true) ?: [];
         
@@ -272,7 +272,7 @@ class planning extends external_api {
         global $DB;
          $context = \context_system::instance();
         self::validate_context($context);
-        require_capability('moodle/site:config', $context);
+        require_capability('local/grupomakro_core:manage_academic_planning', $context);
         
         $periods = $DB->get_records('gmk_academic_periods', [], 'startdate DESC');
 
@@ -414,7 +414,7 @@ class planning extends external_api {
         global $DB;
         $context = \context_system::instance();
         self::validate_context($context);
-        require_capability('moodle/site:config', $context);
+        require_capability('local/grupomakro_core:manage_academic_planning', $context);
         
         $rec = new stdClass();
         $rec->name = $name;
@@ -510,7 +510,7 @@ class planning extends external_api {
         global $DB;
          $context = \context_system::instance();
         self::validate_context($context);
-        require_capability('moodle/site:config', $context);
+        require_capability('local/grupomakro_core:manage_academic_planning', $context);
 
         // SINGLE-BASE GUARD: si este periodo ya está asociado como columna P-N
         // de otra base en gmk_planning_period_maps, la demanda del scheduler se
@@ -640,7 +640,7 @@ class planning extends external_api {
         global $DB;
         $context = \context_system::instance();
         self::validate_context($context);
-        require_capability('moodle/site:config', $context);
+        require_capability('local/grupomakro_core:manage_academic_planning', $context);
 
         $periodid = (int)$periodid;
         $maps = $DB->get_records('gmk_planning_period_maps', ['target_period_id' => $periodid]);
@@ -776,7 +776,7 @@ class planning extends external_api {
         global $DB;
         $context = \context_system::instance();
         self::validate_context($context);
-        require_capability('moodle/site:config', $context);
+        require_capability('local/grupomakro_core:manage_academic_planning', $context);
 
         $llu = $DB->get_record('local_learning_users', ['userid' => $userid, 'learningplanid' => $learningplanid]);
         if (!$llu) {
@@ -821,7 +821,7 @@ class planning extends external_api {
         global $DB;
         $context = \context_system::instance();
         self::validate_context($context);
-        require_capability('moodle/site:config', $context);
+        require_capability('local/grupomakro_core:manage_academic_planning', $context);
         
         $DB->delete_records('gmk_academic_period_lps', ['academicperiodid' => $id]);
         $DB->delete_records('gmk_academic_calendar', ['academicperiodid' => (string)$id]);
