@@ -124,7 +124,11 @@ class admin_save_event extends external_api {
                 . " debuginfo=" . ($e->debuginfo ?? '') . "\n",
                 FILE_APPEND
             );
-            throw $e;
+            // Re-throw with a field-name hint so the admin sees WHICH field
+            // is the offender in the toast (the moodle exception's getMessage()
+            // is the generic 'Invalid parameter value detected').
+            $hint = $e->debuginfo ?: 'campo desconocido';
+            throw new \moodle_exception('errorinvalidparam', 'webservice', '', $hint);
         }
         $context = context_system::instance();
         self::validate_context($context);
