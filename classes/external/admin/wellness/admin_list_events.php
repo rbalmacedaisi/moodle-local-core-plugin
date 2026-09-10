@@ -58,6 +58,10 @@ class admin_list_events extends external_api {
                     'modality'               => (string)$r->modality,
                     'location'               => (string)$r->location,
                     'virtual_url'            => (string)$r->virtual_url,
+                    // bbb_cmid = 0 cuando el evento aun no tiene sala; cuando
+                    // vale >0 el panel muestra el link de invitado derivado.
+                    'bbb_cmid'               => (int)($r->bbb_cmid ?? 0),
+                    'bbb_guest_url'          => (string)($r->bbb_guest_url ?? ''),
                     'capacity'               => (int)$r->capacity,
                     'requires_registration'  => (int)$r->requires_registration,
                     'allow_waitlist'         => (int)$r->allow_waitlist,
@@ -86,6 +90,8 @@ class admin_list_events extends external_api {
             'modality'               => new external_value(PARAM_TEXT, 'Modality'),
             'location'               => new external_value(PARAM_TEXT, 'Location'),
             'virtual_url'            => new external_value(PARAM_TEXT, 'Virtual URL'),
+            'bbb_cmid'               => new external_value(PARAM_INT,  'BBB course module id (0 = no room)'),
+            'bbb_guest_url'          => new external_value(PARAM_TEXT, 'Guest join URL (empty when no room)'),
             'capacity'               => new external_value(PARAM_INT,  'Capacity (0 = unlimited)'),
             'requires_registration'  => new external_value(PARAM_INT,  '0/1'),
             'allow_waitlist'         => new external_value(PARAM_INT,  '0/1'),

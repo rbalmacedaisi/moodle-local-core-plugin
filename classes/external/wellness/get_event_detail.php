@@ -95,6 +95,7 @@ class get_event_detail extends external_api {
             'modality'               => new external_value(PARAM_ALPHA,'presencial|virtual|mixto'),
             'location'               => new external_value(PARAM_TEXT, 'Location'),
             'virtual_url'            => new external_value(PARAM_TEXT, 'Virtual room URL'),
+            'bbb_guest_url'          => new external_value(PARAM_TEXT, 'BBB guest join URL'),
             'capacity'               => new external_value(PARAM_INT,  '0 = unlimited'),
             'requires_registration'  => new external_value(PARAM_INT,  '0/1'),
             'allow_waitlist'         => new external_value(PARAM_INT,  '0/1'),

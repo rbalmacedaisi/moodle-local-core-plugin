@@ -37,6 +37,12 @@ Vue.component('wellness-dashboard', {
             eventAttachments: [],
             regDialog: false,
             regEvent: null,
+            // BBB guest-room state (RF-04): while a request is in flight
+            // we disable both buttons to avoid a second click creating a
+            // duplicate room (the WS is idempotent but the user would still
+            // see two toast messages and a confusing state).
+            bbbCreating: false,
+            bbbDeleting: false,
             registrations: [],
             // Forms (RF-06 / RF-09.2) — full editor (was read-only until 20261001022)
             forms: [],
@@ -175,6 +181,8 @@ Vue.component('wellness-dashboard', {
                 modality: 'presencial',
                 location: '',
                 virtual_url: '',
+                bbb_cmid: 0,
+                bbb_guest_url: '',
                 capacity: 0,
                 requires_registration: true,
                 allow_waitlist: false,
@@ -629,6 +637,10 @@ Vue.component('wellness-dashboard', {
                     modality: this.event.modality,
                     location: this.event.location,
                     virtual_url: this.event.virtual_url,
+                    // Enviamos bbb_cmid explicitamente para que un eventual
+                    // cambio (que el frontend no expone hoy) viaje al server;
+                    // el manager lo aceptara solo si viene esta clave.
+                    bbb_cmid: this.event.bbb_cmid || 0,
                     capacity: this.event.capacity,
                     requires_registration: this.event.requires_registration,
                     allow_waitlist: this.event.allow_waitlist,
@@ -672,6 +684,87 @@ Vue.component('wellness-dashboard', {
                     await this.refreshEvents();
                 }
             } catch (err) { this.toast('Error: ' + (err.message || err), 'error'); }
+        },
+        // -- BBB guest link (RF-04) -------------------------------------------
+        async createBbbForEvent() {
+            if (!this.event.id) {
+                this.toast('Guarda primero el evento para poder generar la sala.', 'error');
+                return;
+            }
+            this.bbbCreating = true;
+            try {
+                const res = await axios.post(ajaxUrl, {
+                    action: 'local_grupomakro_admin_create_wellness_event_bbb',
+                    args: { eventid: this.event.id }
+                }, { params: { sesskey }, timeout: 60000 });
+                const data = res.data && res.data.data;
+                if (res.data && res.data.status === 'success' && data && data.ok) {
+                    this.event.bbb_cmid = data.cmid;
+                    this.event.bbb_guest_url = data.guest_url;
+                    if (data.already) {
+                        this.toast('Este evento ya tenía una sala; mostrando el link existente.');
+                    } else {
+                        this.toast('Sala BBB creada. Comparte el link con los asistentes.');
+                    }
+                } else {
+                    this.toast((res.data && res.data.message) || 'No se pudo crear la sala BBB.', 'error');
+                }
+            } catch (e) {
+                this.toast('Error al crear la sala: ' + (e.message || e), 'error');
+            } finally {
+                this.bbbCreating = false;
+            }
+        },
+        async deleteBbbForEvent() {
+            if (!this.event.bbb_cmid) return;
+            if (!confirm('¿Eliminar la sala BBB del evento? El link de invitado dejara de funcionar.')) {
+                return;
+            }
+            this.bbbDeleting = true;
+            try {
+                const res = await axios.post(ajaxUrl, {
+                    action: 'local_grupomakro_admin_delete_wellness_event_bbb',
+                    args: { eventid: this.event.id }
+                }, { params: { sesskey }, timeout: 60000 });
+                if (res.data && res.data.status === 'success' && res.data.data && res.data.data.ok) {
+                    this.event.bbb_cmid = 0;
+                    this.event.bbb_guest_url = '';
+                    this.toast('Sala BBB eliminada.');
+                } else {
+                    this.toast((res.data && res.data.message) || 'No se pudo eliminar la sala.', 'error');
+                }
+            } catch (e) {
+                this.toast('Error al eliminar la sala: ' + (e.message || e), 'error');
+            } finally {
+                this.bbbDeleting = false;
+            }
+        },
+        copyToClipboard(text) {
+            if (!text) return;
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text)
+                    .then(() => this.toast('Link copiado al portapapeles.'))
+                    .catch(() => this._fallbackCopy(text));
+            } else {
+                this._fallbackCopy(text);
+            }
+        },
+        _fallbackCopy(text) {
+            // Para navegadores antiguos / iframes sin clipboard API.
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            try {
+                document.execCommand('copy');
+                this.toast('Link copiado al portapapeles.');
+            } catch (_e) {
+                this.toast('No se pudo copiar. Selecciona y copia manualmente.', 'error');
+            } finally {
+                document.body.removeChild(ta);
+            }
         },
         async openRegistrations(e) {
             this.regEvent = e;
@@ -1043,7 +1136,89 @@ Vue.component('wellness-dashboard', {
           </v-col>
         </v-row>
         <v-text-field v-model="event.location" label="Ubicación"></v-text-field>
-        <v-text-field v-model="event.virtual_url" label="URL sala virtual (Zoom, Teams, etc.)"></v-text-field>
+
+        <!--
+          Sesión virtual: el admin puede generar una sala BBB con link de
+          invitado (patron manage_meetings.php) o pegar una URL externa para
+          Zoom/Teams/otra. La sala BBB tiene prioridad en el LXP: si existe
+          el bbb_guest_url, el estudiante ve ese boton y nunca ve el
+          virtual_url.
+        -->
+        <v-card outlined class="mb-3">
+          <v-card-text>
+            <div class="d-flex align-center mb-2">
+              <v-icon left color="primary">mdi-video</v-icon>
+              <strong>Sala virtual</strong>
+              <v-spacer></v-spacer>
+              <v-chip v-if="event.bbb_cmid" small color="green" dark>BBB activo</v-chip>
+              <v-chip v-else small color="grey lighten-1">Sin sala BBB</v-chip>
+            </div>
+
+            <div v-if="event.bbb_cmid && event.bbb_guest_url" class="mb-3">
+              <v-text-field
+                v-model="event.bbb_guest_url"
+                label="Link de invitado"
+                readonly outlined dense
+                prepend-inner-icon="mdi-link-variant"
+                :hint="'Primer participante en entrar = anfitrión. cmid=' + event.bbb_cmid"
+                persistent-hint
+              />
+              <div class="d-flex mt-2">
+                <v-btn
+                  small color="primary" depressed
+                  @click="copyToClipboard(event.bbb_guest_url)"
+                >
+                  <v-icon left small>mdi-content-copy</v-icon> Copiar link
+                </v-btn>
+                <v-btn
+                  small color="grey" outlined
+                  :href="event.bbb_guest_url" target="_blank" rel="noopener"
+                  class="ml-2"
+                >
+                  <v-icon left small>mdi-open-in-new</v-icon> Probar
+                </v-btn>
+                <v-spacer></v-spacer>
+                <v-btn
+                  small color="red" outlined
+                  :loading="bbbDeleting" :disabled="bbbDeleting"
+                  @click="deleteBbbForEvent"
+                >
+                  <v-icon left small>mdi-delete</v-icon> Eliminar sala
+                </v-btn>
+              </div>
+            </div>
+
+            <div v-else class="mb-3">
+              <v-alert dense text type="info" class="mb-2">
+                Genera una sala BBB con link de invitado: cualquier persona con
+                el link puede unirse, y la primera en entrar queda como
+                anfitriona (igual que en el Gestor de Sesiones Virtuales).
+                <strong>Primero guarda el evento.</strong>
+              </v-alert>
+              <v-btn
+                color="primary" depressed
+                :loading="bbbCreating" :disabled="bbbCreating || !event.id"
+                @click="createBbbForEvent"
+              >
+                <v-icon left>mdi-video-plus</v-icon>
+                Generar link de invitado
+              </v-btn>
+              <span v-if="!event.id" class="caption ml-3 grey--text">
+                Guarda el evento antes de generar la sala.
+              </span>
+            </div>
+
+            <v-divider class="my-3"></v-divider>
+            <v-text-field
+              v-model="event.virtual_url"
+              label="O pegar URL externa (Zoom, Teams, Meet, etc.)"
+              hint="Si generaste una sala BBB, esta URL se ignora en el LXP."
+              persistent-hint
+              outlined dense
+              prepend-inner-icon="mdi-link"
+            />
+          </v-card-text>
+        </v-card>
         <v-row>
           <v-col cols="6">
             <v-text-field v-model="event.organizer_name" label="Organizador"></v-text-field>

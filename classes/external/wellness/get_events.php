@@ -80,6 +80,10 @@ class get_events extends external_api {
             'modality'               => (string)$r->modality,
             'location'               => (string)($r->location ?? ''),
             'virtual_url'            => (string)($r->virtual_url ?? ''),
+            // bbb_guest_url se prefiere sobre virtual_url cuando existe, asi
+            // el estudiante ve un solo boton "Unirse" que apunta a la sala
+            // BBB con el flujo de invitado. virtual_url queda como fallback.
+            'bbb_guest_url'          => (string)($r->bbb_guest_url ?? ''),
             'capacity'               => (int)$r->capacity,
             'requires_registration'  => (int)$r->requires_registration,
             'allow_waitlist'         => (int)$r->allow_waitlist,
@@ -106,6 +110,7 @@ class get_events extends external_api {
             'modality'               => new external_value(PARAM_ALPHA,'presencial|virtual|mixto'),
             'location'               => new external_value(PARAM_TEXT, 'Location'),
             'virtual_url'            => new external_value(PARAM_TEXT, 'Virtual room URL'),
+            'bbb_guest_url'          => new external_value(PARAM_TEXT, 'BBB guest join URL (preferred over virtual_url when set)'),
             'capacity'               => new external_value(PARAM_INT,  '0 = unlimited'),
             'requires_registration'  => new external_value(PARAM_INT,  '0/1'),
             'allow_waitlist'         => new external_value(PARAM_INT,  '0/1'),

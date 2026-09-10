@@ -60,6 +60,7 @@ class wellness_event_manager {
 
         $sql = "SELECT e.id, e.title, e.summary, e.description, e.category,
                        e.startdate, e.enddate, e.modality, e.location, e.virtual_url,
+                       e.bbb_cmid,
                        e.capacity, e.requires_registration, e.allow_waitlist,
                        e.registration_opens_at, e.registration_closes_at,
                        e.organizer_name, e.organizer_email, e.cover_path,
@@ -103,6 +104,12 @@ class wellness_event_manager {
             $r->allow_waitlist         = (int)$r->allow_waitlist;
             $r->registration_opens_at  = (int)$r->registration_opens_at;
             $r->registration_closes_at = (int)$r->registration_closes_at;
+            $r->bbb_cmid               = (int)($r->bbb_cmid ?? 0);
+            // Resolve to a real URL here so the LXP can use it as the join
+            // button without needing a second round trip. Resolved at read
+            // time so an admin who deletes the room out-of-band sees '' and
+            // the LXP falls back to virtual_url (Zoom, Teams, etc.).
+            $r->bbb_guest_url          = self::resolve_guest_url($r->bbb_cmid);
             $r->timecreated            = (int)$r->timecreated;
 
             $r->registration_open = self::is_registration_open($r, $now);
@@ -135,12 +142,33 @@ class wellness_event_manager {
             $r->allow_waitlist         = (int)$r->allow_waitlist;
             $r->registration_opens_at  = (int)$r->registration_opens_at;
             $r->registration_closes_at = (int)$r->registration_closes_at;
+            $r->bbb_cmid               = (int)($r->bbb_cmid ?? 0);
+            $r->bbb_guest_url          = self::resolve_guest_url($r->bbb_cmid);
             $r->active                 = (int)$r->active;
             $r->registered_count       = (int)($r->registered_count ?? 0);
             $r->timecreated            = (int)$r->timecreated;
             $r->timemodified           = (int)$r->timemodified;
             return $r;
         }, $rows));
+    }
+
+    /**
+     * Build the guest join URL for a bbb_cmid, or '' if the cmid is 0 or the
+     * course module no longer exists. Centralised so list_for_admin() and the
+     * create/delete WS all surface the same link the manager page uses.
+     */
+    public static function resolve_guest_url(int $bbbcmid): string {
+        global $CFG;
+        if ($bbbcmid <= 0) {
+            return '';
+        }
+        // Cheap existence check: if the cm row is gone, the BBB was deleted
+        // out-of-band and we MUST NOT hand out a stale link.
+        $exists = get_coursemodule_from_id('bigbluebuttonbn', $bbbcmid, 0, false, IGNORE_MISSING);
+        if (!$exists) {
+            return '';
+        }
+        return $CFG->wwwroot . '/local/grupomakro_core/pages/guest_join.php?id=' . $bbbcmid;
     }
 
     /**
@@ -230,6 +258,15 @@ class wellness_event_manager {
             'modality'              => $modality,
             'location'              => mb_substr((string)($payload['location'] ?? ''), 0, 255),
             'virtual_url'           => mb_substr((string)($payload['virtual_url'] ?? ''), 0, 255),
+            // 0 = sin sala BBB. Cuando se genera un link de invitado se
+            // guarda aqui el cmid del bigbluebuttonbn creado en la portada.
+            // Solo se respeta el valor del payload si viene la clave; asi el
+            // upsert NO clobbera la sala cuando el admin edita el evento y
+            // se olvida de mandar el campo. Las dos operaciones (save_event
+            // y create_bbb) son independientes.
+            'bbb_cmid'              => array_key_exists('bbb_cmid', $payload)
+                ? max(0, (int)$payload['bbb_cmid'])
+                : 0,
             'capacity'              => max(0, (int)($payload['capacity'] ?? 0)),
             'requires_registration' => !empty($payload['requires_registration']) ? 1 : 0,
             'allow_waitlist'        => !empty($payload['allow_waitlist']) ? 1 : 0,

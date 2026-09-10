@@ -3671,6 +3671,26 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20261001022, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20261001023) {
+        // WELLNESS EVENTS: link de invitado BBB (RF-04). Antes el admin solo
+        // podia pegar una URL externa (Zoom, Teams) en el campo virtual_url.
+        // Ahora cada evento puede tener su propia sala BBB con link de
+        // invitado (patron /local/grupomakro_core/pages/guest_join.php?id=cmid)
+        // reutilizando la infraestructura BBB de manage_meetings.php. La
+        // columna guarda el cmid del bigbluebuttonbn creado en la portada;
+        // 0 = el evento aun no tiene sala asignada.
+        $table = new xmldb_table('gmk_wellness_event');
+        $field = new xmldb_field('bbb_cmid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+        $index = new xmldb_index('bbb_cmid_idx', XMLDB_INDEX_NOTUNIQUE, ['bbb_cmid']);
+        if (!$dbman->index_exists($table, $index)) {
+            $dbman->add_index($table, $index);
+        }
+        upgrade_plugin_savepoint(true, 20261001023, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 
