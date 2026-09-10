@@ -656,6 +656,10 @@ Vue.component('wellness-dashboard', {
                     action: 'local_grupomakro_admin_save_wellness_event',
                     args
                 }, { params: { sesskey }, timeout: 30000 });
+                // TEMP debug to diagnose the M_ID console error
+                if (typeof console !== 'undefined') {
+                    console.log('[saveEvent] response:', JSON.stringify(res.data));
+                }
                 if (res.data && res.data.status === 'success') {
                     const newid = (res.data.data && res.data.data.id) || this.event.id || 0;
                     if (this.eventImage) {
