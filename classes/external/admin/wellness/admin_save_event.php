@@ -80,17 +80,52 @@ class admin_save_event extends external_api {
         $active = true, $attachments = '[]'
     ) {
         global $USER;
-        $params = self::validate_parameters(self::execute_parameters(), [
-            'id' => $id, 'title' => $title, 'summary' => $summary, 'description' => $description,
-            'category' => $category, 'startdate' => $startdate, 'enddate' => $enddate,
-            'modality' => $modality, 'location' => $location, 'virtual_url' => $virtual_url,
-            'capacity' => $capacity, 'requires_registration' => $requires_registration,
-            'allow_waitlist' => $allow_waitlist,
-            'registration_opens_at' => $registration_opens_at,
-            'registration_closes_at' => $registration_closes_at,
-            'organizer_name' => $organizer_name, 'organizer_email' => $organizer_email,
-            'cover_path' => $cover_path, 'active' => $active, 'attachments' => $attachments,
-        ]);
+        // TEMP: log the raw args BEFORE validate_parameters so we can see what
+        // the frontend sent. validate_parameters() throws on the first bad
+        // value, so the only way to know which field is the offender is to log
+        // everything that came in.
+        file_put_contents(
+            '/var/www/html/moodle/local/grupomakro_core/debug_save_event.log',
+            date('c') . " userid=" . $USER->id
+            . " id=" . var_export($id, true)
+            . " title=" . var_export($title, true)
+            . " category=" . var_export($category, true)
+            . " startdate=" . var_export($startdate, true)
+            . " enddate=" . var_export($enddate, true)
+            . " modality=" . var_export($modality, true)
+            . " virtual_url=" . var_export($virtual_url, true)
+            . " capacity=" . var_export($capacity, true)
+            . " requires_registration=" . var_export($requires_registration, true)
+            . " allow_waitlist=" . var_export($allow_waitlist, true)
+            . " regopen=" . var_export($registration_opens_at, true)
+            . " regclose=" . var_export($registration_closes_at, true)
+            . " active=" . var_export($active, true)
+            . " attachments=" . var_export($attachments, true)
+            . "\n",
+            FILE_APPEND
+        );
+
+        try {
+            $params = self::validate_parameters(self::execute_parameters(), [
+                'id' => $id, 'title' => $title, 'summary' => $summary, 'description' => $description,
+                'category' => $category, 'startdate' => $startdate, 'enddate' => $enddate,
+                'modality' => $modality, 'location' => $location, 'virtual_url' => $virtual_url,
+                'capacity' => $capacity, 'requires_registration' => $requires_registration,
+                'allow_waitlist' => $allow_waitlist,
+                'registration_opens_at' => $registration_opens_at,
+                'registration_closes_at' => $registration_closes_at,
+                'organizer_name' => $organizer_name, 'organizer_email' => $organizer_email,
+                'cover_path' => $cover_path, 'active' => $active, 'attachments' => $attachments,
+            ]);
+        } catch (\invalid_parameter_exception $e) {
+            file_put_contents(
+                '/var/www/html/moodle/local/grupomakro_core/debug_save_event.log',
+                date('c') . " VALIDATION_FAILED " . $e->getMessage()
+                . " debuginfo=" . ($e->debuginfo ?? '') . "\n",
+                FILE_APPEND
+            );
+            throw $e;
+        }
         $context = context_system::instance();
         self::validate_context($context);
         require_capability('local/grupomakro_core:manage_wellness', $context);
