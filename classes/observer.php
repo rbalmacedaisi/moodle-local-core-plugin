@@ -289,12 +289,10 @@ class local_grupomakro_core_observer
             $cmid = (int)$eventData['contextinstanceid'];
 
             $courseModInfo = get_fast_modinfo($courseid);
-            if (empty($courseModInfo->cms[$cmid])) {
-                return true;
-            }
-            $moduleInfo = $courseModInfo->get_cm($cmid);
-            $moduleSectionInfo = $moduleInfo->get_section_info();
-            $sectionId = (int)$moduleSectionInfo->__get('id');
+            $moduleInfo = !empty($courseModInfo->cms[$cmid])
+                ? $courseModInfo->get_cm($cmid)
+                : $DB->get_record('course_modules', ['id' => $cmid], '*', MUST_EXIST);
+            $sectionId = (int)$moduleInfo->section;
 
             $class = $DB->get_record_sql(
                 "SELECT *

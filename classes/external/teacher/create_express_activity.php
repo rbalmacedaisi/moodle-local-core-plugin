@@ -92,12 +92,25 @@ class create_express_activity extends external_api {
         self::validate_context($context);
 
         // Defence-in-depth: the function creates an activity in the class's
-        // course. The caller must have the standard activity-management cap in
-        // that course context. The class's course is resolved by the helper
-        // below, so we perform the check after the lookup.
+        // course. Acceptance criteria (any one is sufficient):
+        //   (a) Caller has the standard activity-management cap in that
+        //       course context (i.e. editingteacher role in the course).
+        //   (b) Caller is the gmk_class instructor or supportinstructor of
+        //       this specific class (gmk_class.instructorid /
+        //       supportinstructorid — this is the soft-tracking field).
+        //   (c) Caller is a gmk admin (manage_classes cap at system context).
+        // Plain `moodle/course:manageactivities` is too strict: many teachers
+        // are listed as instructor of a gmk_class without holding the
+        // editingteacher role in the Moodle course, and they MUST still be
+        // able to create their activities. Hence the explicit fallback on
+        // (b)/(c).
         $classrecord = $DB->get_record('gmk_class', ['id' => $params['classid']], 'id, courseid, instructorid, supportinstructorid', MUST_EXIST);
         $coursecontext = \context_course::instance($classrecord->courseid);
-        require_capability('moodle/course:manageactivities', $coursecontext);
+        if (!gmk_user_is_class_instructor_or_support($classrecord, $USER->id)
+            && !has_capability('moodle/course:manageactivities', $coursecontext)
+            && !has_capability('local/grupomakro_core:manage_classes', context_system::instance())) {
+            throw new moodle_exception('nopermissions', 'error', '', 'create activity in class');
+        }
 
         // Convert alpha type to Moodle module name if necessary
         $modmap = ['bbb' => 'bigbluebuttonbn', 'assignment' => 'assign', 'task' => 'assign', 'resource' => 'resource', 'quiz' => 'quiz', 'forum' => 'forum'];

@@ -3643,6 +3643,27 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20261001019, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20261001020) {
+        // WITHDRAWAL OPTIONS: amplía el menú del customfield studentstatus
+        // para que admita los valores institucionales que sincroniza Odoo
+        // (aplazado/retirado/suspendido/desertor/graduado/egresado). Es
+        // idempotente: solo reemplaza param1 si la opción ya existía.
+        $options = "activo\n\r"
+                 . "inactivo\n\r"
+                 . "aplazado\n\r"
+                 . "retirado\n\r"
+                 . "suspendido\n\r"
+                 . "desertor\n\r"
+                 . "graduado\n\r"
+                 . "egresado";
+        $field = $DB->get_record('user_info_field', ['shortname' => 'studentstatus']);
+        if ($field) {
+            $field->param1 = $options;
+            $DB->update_record('user_info_field', $field);
+        }
+        upgrade_plugin_savepoint(true, 20261001020, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 
