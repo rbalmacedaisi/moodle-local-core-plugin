@@ -201,6 +201,9 @@ function local_grupomakro_core_extend_navigation(global_navigation $navigation) 
         $syscontext = context_system::instance();
         $pluginname = 'local_grupomakro_core';
 
+        // A couple of lang strings already start with their own emoji
+        // (revalidations_director_menu, announcements_menu), so those entries
+        // carry no prefix here — adding one renders it twice.
         $menu = [
             'Planificación' => [
                 ['manage_academic_planning', 'academic_planning.php', '📅 Planificación Académica'],
@@ -236,7 +239,7 @@ function local_grupomakro_core_extend_navigation(global_navigation $navigation) 
                 ['viewabsencedashboard', 'absence_dashboard.php', '📊 ' . get_string('absence_dashboard', $pluginname)],
                 ['view_grade_report', 'grade_report.php', '📈 Informe de Calificaciones'],
                 ['view_failed_subjects_report', 'failed_subjects_report.php', '📝 ' . get_string('fsr_menu', $pluginname)],
-                ['view_revalidations_dashboard', 'revalidations_director.php', '🧾 ' . get_string('revalidations_director_menu', $pluginname)],
+                ['view_revalidations_dashboard', 'revalidations_director.php', get_string('revalidations_director_menu', $pluginname)],
             ],
             'Cartas, Contratos y Diplomas' => [
                 ['managerequests', 'letterrequests.php', '📬 Bandeja de Cartas'],
@@ -253,7 +256,7 @@ function local_grupomakro_core_extend_navigation(global_navigation $navigation) 
                 ['manage_wellness', 'wellness_dashboard.php', '🤝 ' . get_string('wellness_dashboard_menu', $pluginname)],
                 ['manage_psychology_appointments', 'wellness_psychology_panel.php', '🧠 Psicología (agenda)'],
                 ['manage_psychology_appointments', 'wellness_staff_panel.php', '👥 Personal asignado'],
-                ['manageannouncements', 'announcements.php', '📣 ' . get_string('announcements_menu', $pluginname)],
+                ['manageannouncements', 'announcements.php', get_string('announcements_menu', $pluginname)],
             ],
             'Sistema' => [
                 ['manage_debug', 'check_webservices.php', '🔌 Verificar Web Services'],
