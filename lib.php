@@ -53,6 +53,23 @@ function local_grupomakro_core_user_home_redirect(&$url) {
         return;
     }
 
+    // 0. Check for GMK ADMIN role (workflow matrix PR1+). Without this, the
+    // new matrix roles (gmk_director_academico, gmk_secretaria_academica, etc.)
+    // hit /my/ or the LXP and are shown "no tienes contrato" because the LXP
+    // is the student interface. Route them to the academic panel which IS the
+    // proper landing for any gmk-capable user.
+    $is_gmk_admin = has_capability('local/grupomakro_core:manage_classes', context_system::instance(), $USER->id)
+        || has_capability('local/grupomakro_core:manageacademicstatus', context_system::instance(), $USER->id)
+        || has_capability('local/grupomakro_core:manageletters', context_system::instance(), $USER->id)
+        || has_capability('local/grupomakro_core:manage_wellness', context_system::instance(), $USER->id);
+    if ($is_gmk_admin) {
+        $admin_path = '/local/grupomakro_core/pages/academicpanel.php';
+        if (strpos($_SERVER['SCRIPT_NAME'], $admin_path) === false) {
+            redirect(new moodle_url($admin_path));
+        }
+        return;
+    }
+
     // 1. Check for Active Teachers (Existing Logic). A "teacher" here is either the
     // main instructor or the support teacher (gmk_class.supportinstructorid) — both
     // get the same redirect-to-dashboard treatment so the support teacher lands on

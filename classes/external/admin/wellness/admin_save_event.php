@@ -46,13 +46,21 @@ class admin_save_event extends external_api {
             'mimetype'  => new external_value(PARAM_TEXT, 'MIME type', VALUE_DEFAULT, ''),
             'filesize'  => new external_value(PARAM_INT,  'Filesize bytes', VALUE_DEFAULT, 0),
         ]);
+        // Order MUST match the execute() signature below. Moodle binds the
+        // params positionally: after validate_parameters returns the
+        // associative array, call_external_function strips the keys with
+        // array_values and passes the values in spec order to execute(). Any
+        // mismatch here causes execute() to receive the wrong field in each
+        // named slot, which then trips validate_parameters() with the
+        // confusing "the value is <some other field>, the server was
+        // expecting <type> type" error.
         return new external_function_parameters([
-            'id'                     => new external_value(PARAM_INT,   '0 to create', VALUE_DEFAULT, 0),
             'title'                  => new external_value(PARAM_TEXT, 'Title', VALUE_REQUIRED),
+            'startdate'              => new external_value(PARAM_INT,   'Start unix ts', VALUE_REQUIRED),
+            'id'                     => new external_value(PARAM_INT,   '0 to create', VALUE_DEFAULT, 0),
             'summary'                => new external_value(PARAM_TEXT, 'Teaser', VALUE_DEFAULT, ''),
             'description'            => new external_value(PARAM_RAW,  'Body', VALUE_DEFAULT, ''),
             'category'               => new external_value(PARAM_ALPHA,'deportivo|feria|taller|charla|otro', VALUE_DEFAULT, 'otro'),
-            'startdate'              => new external_value(PARAM_INT,   'Start unix ts', VALUE_REQUIRED),
             'enddate'                => new external_value(PARAM_INT,   'End unix ts', VALUE_DEFAULT, 0),
             'modality'               => new external_value(PARAM_ALPHA,'presencial|virtual|mixto', VALUE_DEFAULT, 'presencial'),
             'location'               => new external_value(PARAM_TEXT, 'Location', VALUE_DEFAULT, ''),
@@ -86,57 +94,19 @@ class admin_save_event extends external_api {
         $active = true, $bbb_cmid = 0, $attachments = '[]'
     ) {
         global $USER;
-        // TEMP: log the raw args BEFORE validate_parameters so we can see what
-        // the frontend sent. validate_parameters() throws on the first bad
-        // value, so the only way to know which field is the offender is to log
-        // everything that came in.
-        file_put_contents(
-            '/var/www/html/moodle/local/grupomakro_core/debug_save_event.log',
-            date('c') . " userid=" . $USER->id
-            . " id=" . var_export($id, true)
-            . " title=" . var_export($title, true)
-            . " category=" . var_export($category, true)
-            . " startdate=" . var_export($startdate, true)
-            . " enddate=" . var_export($enddate, true)
-            . " modality=" . var_export($modality, true)
-            . " virtual_url=" . var_export($virtual_url, true)
-            . " capacity=" . var_export($capacity, true)
-            . " requires_registration=" . var_export($requires_registration, true)
-            . " allow_waitlist=" . var_export($allow_waitlist, true)
-            . " regopen=" . var_export($registration_opens_at, true)
-            . " regclose=" . var_export($registration_closes_at, true)
-            . " active=" . var_export($active, true)
-            . " attachments=" . var_export($attachments, true)
-            . "\n",
-            FILE_APPEND
-        );
 
-        try {
-            $params = self::validate_parameters(self::execute_parameters(), [
-                'id' => $id, 'title' => $title, 'summary' => $summary, 'description' => $description,
-                'category' => $category, 'startdate' => $startdate, 'enddate' => $enddate,
-                'modality' => $modality, 'location' => $location, 'virtual_url' => $virtual_url,
-                'capacity' => $capacity, 'requires_registration' => $requires_registration,
-                'allow_waitlist' => $allow_waitlist,
-                'registration_opens_at' => $registration_opens_at,
-                'registration_closes_at' => $registration_closes_at,
-                'organizer_name' => $organizer_name, 'organizer_email' => $organizer_email,
-                'cover_path' => $cover_path, 'active' => $active, 'bbb_cmid' => $bbb_cmid,
-                'attachments' => $attachments,
-            ]);
-        } catch (\invalid_parameter_exception $e) {
-            file_put_contents(
-                '/var/www/html/moodle/local/grupomakro_core/debug_save_event.log',
-                date('c') . " VALIDATION_FAILED " . $e->getMessage()
-                . " debuginfo=" . ($e->debuginfo ?? '') . "\n",
-                FILE_APPEND
-            );
-            // Re-throw with a field-name hint so the admin sees WHICH field
-            // is the offender in the toast (the moodle exception's getMessage()
-            // is the generic 'Invalid parameter value detected').
-            $hint = $e->debuginfo ?: 'campo desconocido';
-            throw new \moodle_exception('errorinvalidparam', 'webservice', '', $hint);
-        }
+        $params = self::validate_parameters(self::execute_parameters(), [
+            'id' => $id, 'title' => $title, 'summary' => $summary, 'description' => $description,
+            'category' => $category, 'startdate' => $startdate, 'enddate' => $enddate,
+            'modality' => $modality, 'location' => $location, 'virtual_url' => $virtual_url,
+            'capacity' => $capacity, 'requires_registration' => $requires_registration,
+            'allow_waitlist' => $allow_waitlist,
+            'registration_opens_at' => $registration_opens_at,
+            'registration_closes_at' => $registration_closes_at,
+            'organizer_name' => $organizer_name, 'organizer_email' => $organizer_email,
+            'cover_path' => $cover_path, 'active' => $active, 'bbb_cmid' => $bbb_cmid,
+            'attachments' => $attachments,
+        ]);
         $context = context_system::instance();
         self::validate_context($context);
         require_capability('local/grupomakro_core:manage_wellness', $context);
@@ -145,22 +115,9 @@ class admin_save_event extends external_api {
         $attJson = json_decode((string)$params['attachments'], true);
         $payload['attachments'] = is_array($attJson) ? $attJson : [];
 
-        // TEMP debug: write the payload we actually receive so we can see what
-        // the frontend is sending. Deleted once the M_ID error is diagnosed.
-        file_put_contents(
-            '/var/www/html/moodle/local/grupomakro_core/debug_save_event.log',
-            date('c') . " userid=" . $USER->id . " payload=" . json_encode($payload) . "\n",
-            FILE_APPEND
-        );
-
         try {
             $newid = \local_grupomakro_core\local\wellness_event_manager::upsert($payload, (int)$USER->id);
         } catch (\moodle_exception $e) {
-            file_put_contents(
-                '/var/www/html/moodle/local/grupomakro_core/debug_save_event.log',
-                date('c') . " EXCEPTION " . get_class($e) . ": " . $e->getMessage() . "\n",
-                FILE_APPEND
-            );
             throw new Exception($e->getMessage());
         }
         return ['ok' => true, 'id' => (int)$newid];

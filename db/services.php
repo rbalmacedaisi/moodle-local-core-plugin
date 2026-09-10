@@ -774,6 +774,14 @@ $functions = array(
         'ajax'        => true,
         'services'    => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
     ),
+    'local_grupomakro_get_gmk_roles' => array(
+        'classname'   => 'local_grupomakro_core\external\user\get_gmk_roles',
+        'methodname'  => 'execute',
+        'description' => 'Return the caller\'s gmk_* roles at system context plus the siteadmin flag. Used by the LXP to skip student-side restrictions for staff.',
+        'type'        => 'read',
+        'ajax'        => true,
+        'services'    => array(MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'),
+    ),
     'local_grupomakro_manual_enroll' => array(
         'classname'   => 'local_grupomakro_core\external\schedule\manual_enroll',
         'methodname'  => 'execute',

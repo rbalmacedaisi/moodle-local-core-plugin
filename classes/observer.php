@@ -488,61 +488,18 @@ class local_grupomakro_core_observer
 
     /**
      * Redirect teachers to their dashboard upon login.
-     * Innovative Feature: Automatic Redirection.
+     *
+     * DEPRECATED: The canonical implementation is in
+     * \local_grupomakro_core\event\user_login_handler::user_loggedin. This
+     * duplicate exists in db/events.php because the migration to the new event
+     * handler class wasn't completed; leaving it as a no-op prevents the two
+     * callbacks from racing (which could cause one to redirect and the other to
+     * fail with "headers already sent"). All routing logic lives in the
+     * event/user_login_handler.php file. See PR9 + role-matrix workflow.
      */
     public static function user_loggedin(\core\event\user_loggedin $event) {
-        global $DB, $PAGE, $CFG;
-        
-        $userid = $event->userid;
-        
-        // DEBUG LOGGING
-        $log_file = $CFG->dirroot . '/local/grupomakro_core/redirect_debug.log';
-        $log_msg = date('Y-m-d H:i:s') . " - Login Event for User ID: $userid\n";
-        
-        // 1. Check for ACTIVE classes (Target: Teacher Dashboard). Same dual-role check as
-        // lib.php::local_grupomakro_core_myprofile_navigation — main + support both
-        // count as "this user is teaching", so the support teacher gets the same
-        // redirect-to-dashboard treatment.
-        // IMPORTANT: Moodle's record_exists_sql counts placeholders literally — two
-        // `:uid` references need two distinct array keys (`uid` and `uid2`), otherwise
-        // it throws "Número incorrecto de parámetros de consulta" and the redirect
-        // is silently swallowed (the event handler never completes).
-        // ALSO: don't add our own LIMIT clause — record_exists_sql appends its own
-        // "LIMIT 0, 1" and two stacked LIMITs produce a SQL syntax error.
-        $has_active_classes = $DB->record_exists_sql(
-            "SELECT 1 FROM {gmk_class}
-              WHERE (instructorid = :uid OR supportinstructorid = :uid2)
-                AND closed = 0",
-            ['uid' => (int)$userid, 'uid2' => (int)$userid]
-        );
-        $log_msg .= " - Has Active Classes: " . ($has_active_classes ? 'YES' : 'NO') . "\n";
-
-        if ($has_active_classes) {
-            file_put_contents($log_file, $log_msg . " - REDIRECTING to Teacher Dashboard\n", FILE_APPEND);
-            $url = new \moodle_url('/local/grupomakro_core/pages/teacher_dashboard.php');
-            redirect($url);
-        }
-
-        // 2. Check for INACTIVE Teacher status (Target: Inactive Dashboard)
-        $has_past_classes = $DB->record_exists_sql(
-            "SELECT 1 FROM {gmk_class}
-              WHERE (instructorid = :uid OR supportinstructorid = :uid2)",
-            ['uid' => (int)$userid, 'uid2' => (int)$userid]
-        );
-        $has_skills = $DB->record_exists('gmk_teacher_skill_relation', ['userid' => $userid]);
-        $has_availability = $DB->record_exists('gmk_teacher_disponibility', ['userid' => $userid]);
-
-        $log_msg .= " - Past Classes: " . ($has_past_classes ? 'YES' : 'NO') . "\n";
-        $log_msg .= " - Skills: " . ($has_skills ? 'YES' : 'NO') . "\n";
-        $log_msg .= " - Availability: " . ($has_availability ? 'YES' : 'NO') . "\n";
-
-        if ($has_past_classes || $has_skills || $has_availability) {
-            file_put_contents($log_file, $log_msg . " - REDIRECTING to Inactive Dashboard\n", FILE_APPEND);
-            $url = new \moodle_url('/local/grupomakro_core/pages/inactive_teacher_dashboard.php');
-            redirect($url);
-        }
-        
-        file_put_contents($log_file, $log_msg . " - NO REDIRECT (Standard Moodle Behavior)\n", FILE_APPEND);
+        // No-op. Real handler is in \local_grupomakro_core\event\user_login_handler.
+        return;
     }
 
     /**

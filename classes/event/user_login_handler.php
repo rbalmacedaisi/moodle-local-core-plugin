@@ -43,16 +43,27 @@ class user_login_handler {
         self::maybe_issue_wellness_carnet($userid);
 
         // Refresh financial status snapshot from Odoo (best-effort, throttled).
-
-        // Refresh financial status snapshot from Odoo (best-effort, throttled).
-        // Failures are swallowed: a broken proxy must NEVER block a login.
         self::maybe_refresh_financial_status($userid);
 
-        // DEBUG LOGGING
-
-        // DEBUG LOGGING
         $log_file = $CFG->dirroot . '/local/grupomakro_core/redirect_debug.log';
         $log_msg = date('Y-m-d H:i:s') . " - [Handler: user_login_handler] Login Event for User ID: $userid\n";
+
+        // 0. Check for GMK ADMIN role. Without this, the new matrix roles
+        // (gmk_director_academico, gmk_secretaria_academica, etc.) fall through
+        // to the default Moodle redirect and end up at the student LXP, which
+        // has no record of them and shows "no tienes contrato". Siteadmins
+        // (manager archetype) are also routed to the academic panel since the
+        // panel is the proper landing for any gmk-capable user.
+        $is_gmk_admin = has_capability('local/grupomakro_core:manage_classes', context_system::instance(), $userid)
+            || has_capability('local/grupomakro_core:manageacademicstatus', context_system::instance(), $userid)
+            || has_capability('local/grupomakro_core:manageletters', context_system::instance(), $userid)
+            || has_capability('local/grupomakro_core:manage_wellness', context_system::instance(), $userid)
+            || has_capability('moodle/site:config', context_system::instance(), $userid);
+        if ($is_gmk_admin) {
+            file_put_contents($log_file, $log_msg . " - REDIRECTING to Academic Panel (gmk admin)\n", FILE_APPEND);
+            $url = new \moodle_url('/local/grupomakro_core/pages/academicpanel.php');
+            redirect($url);
+        }
 
         // 1. Check for ACTIVE classes (Target: Teacher Dashboard). Support teachers
         // (gmk_class.supportinstructorid) get the same redirect treatment.
