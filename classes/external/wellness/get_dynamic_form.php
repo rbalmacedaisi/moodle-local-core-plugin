@@ -50,7 +50,10 @@ class get_dynamic_form extends external_api {
         $form = \local_grupomakro_core\local\wellness_dynamic_form_manager::get_for_event(
             (int)$params['eventid']);
         if (!$form) {
-            return ['form' => null];
+            // La clave se OMITE (no se manda null): 'form' es un
+            // external_single_structure y clean_returnvalue rechaza null con
+            // "Only arrays/objects accepted". Va declarada VALUE_OPTIONAL.
+            return [];
         }
         return [
             'form' => [
@@ -58,7 +61,7 @@ class get_dynamic_form extends external_api {
                 'eventid'     => (int)$form->eventid,
                 'title'       => (string)$form->title,
                 'description' => (string)$form->description,
-            'cover_path'  => (string)($form->cover_path ?? ''),
+                'cover_path'  => (string)($form->cover_path ?? ''),
                 'schema'      => $form->schema,
                 'active'      => (int)$form->active,
             ],
@@ -72,12 +75,12 @@ class get_dynamic_form extends external_api {
                 'eventid'     => new external_value(PARAM_INT,  'Event id (0 when reusable)'),
                 'title'       => new external_value(PARAM_TEXT, 'Title'),
                 'description' => new external_value(PARAM_RAW,  'Description'),
-            'cover_path'  => new external_value(PARAM_RAW,  'URL absoluta de la portada (vacio = sin portada)'),
+                'cover_path'  => new external_value(PARAM_RAW,  'URL absoluta de la portada (vacio = sin portada)'),
                 'schema'      => new external_single_structure([
                     'fields' => new external_value(PARAM_RAW, 'JSON array of field definitions'),
                 ]),
                 'active'      => new external_value(PARAM_INT, '0/1'),
-            ], 'null when the event has no active form attached'),
+            ], 'Formulario del evento; la clave se omite cuando el evento no tiene ninguno activo', VALUE_OPTIONAL),
         ]);
     }
 }
