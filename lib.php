@@ -223,10 +223,7 @@ function local_grupomakro_core_extend_navigation(global_navigation $navigation) 
                 ['manage_modules', 'module_management.php', '📚 Gestión de Módulos Independientes'],
                 ['manage_meetings', 'manage_meetings.php', '🎥 Gestor de Sesiones Virtuales'],
                 ['bulk_enroll', 'bulk_enroll.php', '📋 Matrícula Masiva a Plan'],
-                // Homologations are still gated by moodle/site:config on the page
-                // itself, so the link must use that same check or every
-                // operational role would click into a permission error.
-                ['@moodle/site:config', 'homologation_manager.php', '🔀 Gestor de Homologaciones'],
+                ['manage_homologations', 'homologation_manager.php', '🔀 Gestor de Homologaciones'],
             ],
             'Estudiantes' => [
                 ['view_student_population', 'student_population.php', '👥 Población Estudiantil'],

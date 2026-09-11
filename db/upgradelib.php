@@ -445,6 +445,9 @@ function assign_capabilities_to_internal_roles() {
     // gated by moodle/site:config.
     $role_caps = [
         'gmk_director_academico' => [
+            // Homologations: the Director already ran these through
+            // manage_classes before they got their own capability.
+            'local/grupomakro_core:manage_homologations',
             // Workflow 1 — Academic structure (full)
             'local/grupomakro_core:manage_academic_calendar',
             'local/grupomakro_core:manage_academic_planning',
@@ -500,6 +503,11 @@ function assign_capabilities_to_internal_roles() {
             'local/grupomakro_core:view_financial_health',
         ],
         'gmk_secretaria_academica' => [
+            // Full academic panel: schedule download and credit report were
+            // gated on moodle/site:config and are now on their own
+            // capabilities, plus the homologation button inside the grade modal.
+            'local/grupomakro_core:view_credit_report',
+            'local/grupomakro_core:manage_homologations',
             // Workflow 1 — Operational scheduling (no structural decisions)
             'local/grupomakro_core:manage_academic_calendar',
             'local/grupomakro_core:view_academic_demand_gaps',
@@ -542,6 +550,19 @@ function assign_capabilities_to_internal_roles() {
             'local/grupomakro_core:viewannouncements',
         ],
         'gmk_registros_academicos' => [
+            // Same academic-panel bundle as Secretaria (status changes, manual
+            // enrolment, independent modules, revalidations dashboard, movement
+            // audit, homologations) plus the Course Manager. manage_courses also
+            // covers reverting an approval and toggling a class through
+            // require_any_capability, so manage_classes/manage_schedules are not
+            // handed over with it.
+            'local/grupomakro_core:manageacademicstatus',
+            'local/grupomakro_core:bulk_enroll',
+            'local/grupomakro_core:manage_modules',
+            'local/grupomakro_core:view_revalidations_dashboard',
+            'local/grupomakro_core:view_movement_audit',
+            'local/grupomakro_core:manage_homologations',
+            'local/grupomakro_core:manage_courses',
             // Everyone on staff lands on the academic panel after login, so the
             // view capability goes to every operational role even when the rest
             // of that workflow does not.

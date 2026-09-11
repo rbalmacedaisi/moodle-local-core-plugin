@@ -85,7 +85,7 @@ class get_course_absences_detail extends external_api
 
         $context = context_system::instance();
         self::validate_context($context);
-        require_capability('moodle/site:config', $context);
+        require_capability('local/grupomakro_core:viewabsencedashboard', $context);
 
         $userId       = (int)$params['userId'];
         $coreCourseId = (int)$params['coreCourseId'];

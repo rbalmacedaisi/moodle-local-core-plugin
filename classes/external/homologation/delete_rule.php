@@ -36,7 +36,7 @@ class delete_rule {
     public static function execute(int $id): array {
         global $DB;
 
-        require_capability('moodle/site:config', context_system::instance());
+        require_capability('local/grupomakro_core:manage_homologations', context_system::instance());
 
         if ($id <= 0) {
             return ['status' => 'error', 'message' => 'Id de regla inválido.'];

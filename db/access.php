@@ -129,6 +129,19 @@ $capabilities = array(
             'editingteacher' => CAP_ALLOW,
         ),
     ),
+    // Homologations: applying a homologated grade to a student, reverting one,
+    // and managing the homologation rule catalogue. These flows used to be
+    // gated on moodle/site:config directly in ajax.php and in the external
+    // classes, which meant only site admins could run them regardless of what
+    // the role matrix said.
+    'local/grupomakro_core:manage_homologations' => array(
+        'riskbitmask' => RISK_DATALOSS,
+        'captype' => 'write',
+        'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array(
+            'manager' => CAP_ALLOW,
+        ),
+    ),
     'local/grupomakro_core:view_movement_audit' => array(
         'captype' => 'read',
         'contextlevel' => CONTEXT_SYSTEM,

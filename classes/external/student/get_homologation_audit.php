@@ -87,7 +87,7 @@ class get_homologation_audit extends external_api
 
         $context = context_system::instance();
         self::validate_context($context);
-        require_capability('moodle/site:config', $context);
+        require_capability('local/grupomakro_core:view_movement_audit', $context);
 
         $userId         = (int)$params['userId'];
         $coreCourseId   = (int)$params['coreCourseId'];

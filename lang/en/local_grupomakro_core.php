@@ -1392,3 +1392,4 @@ $string['grupomakro_core:view_student_timeline'] = 'View the student timeline';
 $string['grupomakro_core:view_wellness'] = 'View the wellness module';
 $string['grupomakro_core:viewannouncements'] = 'View announcements';
 $string['grupomakro_core:viewdiplomas'] = 'View diplomas';
+$string['grupomakro_core:manage_homologations'] = 'Manage homologations';

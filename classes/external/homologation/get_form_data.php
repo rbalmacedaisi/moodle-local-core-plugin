@@ -40,7 +40,7 @@ class get_form_data {
     public static function execute(): array {
         global $DB;
 
-        require_capability('moodle/site:config', context_system::instance());
+        require_capability('local/grupomakro_core:manage_homologations', context_system::instance());
 
         $plans = [];
         $planrows = $DB->get_records('local_learning_plans', null, 'name ASC', 'id, name');

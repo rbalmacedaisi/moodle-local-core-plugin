@@ -43,7 +43,7 @@ class search_users extends external_api {
         if (!has_capability('moodle/site:config', $context)
             && !has_capability('local/grupomakro_core:manage_wellness', $context)
             && !has_capability('local/grupomakro_core:manage_psychology_appointments', $context)) {
-            require_capability('moodle/site:config', $context);
+            require_capability('local/grupomakro_core:manage_users', $context);
         }
 
         if (\core_text::strlen($query) < 3) {

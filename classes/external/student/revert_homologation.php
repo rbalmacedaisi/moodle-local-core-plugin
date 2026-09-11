@@ -114,7 +114,7 @@ class revert_homologation extends external_api
         self::validate_context($context);
         // Defence-in-depth: matches the service-level cap (manage_classes)
         // so a future change to db/services.php cannot bypass the gate.
-        require_capability('local/grupomakro_core:manage_classes', $context);
+        require_capability('local/grupomakro_core:manage_homologations', $context);
 
         $userId         = (int)$params['userId'];
         $learningPlanId = (int)$params['learningPlanId'];

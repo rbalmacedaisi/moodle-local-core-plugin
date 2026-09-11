@@ -3718,6 +3718,15 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20261001031, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20261001032) {
+        // New manage_homologations capability + wider bundles for Secretaria
+        // Academica and Registros Academicos. update_capabilities() inside
+        // assign_capabilities_to_internal_roles() registers the new definition
+        // from db/access.php before the matrix is re-applied.
+        assign_capabilities_to_internal_roles();
+        upgrade_plugin_savepoint(true, 20261001032, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

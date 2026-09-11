@@ -41,7 +41,7 @@ class manual_enroll extends external_api {
 
         $context = context_system::instance();
         self::validate_context($context);
-        require_capability('moodle/site:config', $context); 
+        require_capability('local/grupomakro_core:bulk_enroll', $context); 
 
         $class = $DB->get_record('gmk_class', ['id' => $params['classId']], '*', MUST_EXIST);
 

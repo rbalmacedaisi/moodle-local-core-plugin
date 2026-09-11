@@ -45,7 +45,7 @@ class withdraw_student extends external_api {
 
         $context = context_system::instance();
         self::validate_context($context);
-        require_capability('moodle/site:config', $context);
+        require_capability('local/grupomakro_core:manageacademicstatus', $context);
 
         $classId = (int)$params['classId'];
         $userId = (int)$params['userId'];

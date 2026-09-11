@@ -36,7 +36,7 @@ class list_rules {
     public static function execute(): array {
         global $DB;
 
-        require_capability('moodle/site:config', context_system::instance());
+        require_capability('local/grupomakro_core:manage_homologations', context_system::instance());
 
         $rows = $DB->get_records('gmk_homologation_rules', null, 'id ASC');
         if (empty($rows)) {

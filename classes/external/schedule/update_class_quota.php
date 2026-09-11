@@ -30,7 +30,7 @@ class update_class_quota extends external_api {
 
         $context = context_system::instance();
         self::validate_context($context);
-        require_capability('moodle/site:config', $context);
+        require_capability('local/grupomakro_core:manage_classes', $context);
 
         if ($params['newQuota'] < 1) {
             return ['status' => 'error', 'message' => 'El cupo debe ser al menos 1.', 'promoted' => 0];

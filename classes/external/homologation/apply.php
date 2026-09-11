@@ -42,7 +42,7 @@ class apply {
      * @return array {status, applied, errors, results, summary}
      */
     public static function execute(array $rules = []): array {
-        require_capability('moodle/site:config', context_system::instance());
+        require_capability('local/grupomakro_core:manage_homologations', context_system::instance());
 
         if (empty($rules)) {
             $rules = homologation_engine::load_active_rules();

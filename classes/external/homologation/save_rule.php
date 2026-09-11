@@ -46,7 +46,7 @@ class save_rule {
     ): array {
         global $DB, $USER;
 
-        require_capability('moodle/site:config', context_system::instance());
+        require_capability('local/grupomakro_core:manage_homologations', context_system::instance());
 
         if ($originPlanId <= 0 || $originCourseId <= 0 || $destPlanId <= 0 || $destCourseId <= 0) {
             return ['status' => 'error', 'message' => 'Selección incompleta: falta plan o asignatura.'];

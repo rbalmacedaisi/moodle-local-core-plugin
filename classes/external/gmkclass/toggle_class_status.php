@@ -37,7 +37,10 @@ class toggle_class_status extends external_api {
 
         $context = context_system::instance();
         self::validate_context($context);
-        require_capability('moodle/site:config', $context);
+        require_any_capability([
+            'local/grupomakro_core:manage_courses',
+            'local/grupomakro_core:manage_classes',
+        ], $context);
 
         // Closing must go through gmk_close_class_with_grade_recalc to ensure
         // grade recalculation, validation, transaction safety and audit logging.

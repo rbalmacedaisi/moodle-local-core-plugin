@@ -47,7 +47,7 @@ class enroll_module {
         global $DB, $USER;
 
         $context = context_system::instance();
-        require_capability('moodle/site:config', $context);
+        require_capability('local/grupomakro_core:manage_modules', $context);
 
         // ── 1. Validate user and course ──────────────────────────────────────────
         $user = $DB->get_record('user', ['id' => $userId, 'deleted' => 0], 'id,firstname,lastname', MUST_EXIST);

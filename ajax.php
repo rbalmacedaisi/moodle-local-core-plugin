@@ -1631,7 +1631,7 @@ try {
             break;
 
         case 'local_grupomakro_get_active_classes_for_course':
-            require_capability('moodle/site:config', $context);
+            require_capability('local/grupomakro_core:bulk_enroll', $context);
             $userid = required_param('userId', PARAM_INT);
             $corecourseid = required_param('coreCourseId', PARAM_INT);
             $learningcourseid = optional_param('learningCourseId', 0, PARAM_INT);
@@ -1775,7 +1775,7 @@ try {
 
         case 'local_grupomakro_manual_enroll':
             require_sesskey();
-            require_capability('moodle/site:config', $context);
+            require_capability('local/grupomakro_core:bulk_enroll', $context);
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/schedule/manual_enroll.php');
             $classid = required_param('classId', PARAM_INT);
             $userid = required_param('userId', PARAM_INT);
@@ -1789,7 +1789,7 @@ try {
 
         case 'local_grupomakro_enroll_module':
             require_sesskey();
-            require_capability('moodle/site:config', $context);
+            require_capability('local/grupomakro_core:manage_modules', $context);
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/schedule/enroll_module.php');
             $userid         = required_param('userId',       PARAM_INT);
             $corecourseid   = required_param('coreCourseId', PARAM_INT);
@@ -1809,7 +1809,7 @@ try {
 
         case 'local_grupomakro_request_module_invoice':
             require_sesskey();
-            require_capability('moodle/site:config', $context);
+            require_capability('local/grupomakro_core:manage_modules', $context);
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/module_invoice_manager.php');
             $userid         = required_param('userId',          PARAM_INT);
             $corecourseid   = required_param('coreCourseId',    PARAM_INT);
@@ -1830,7 +1830,7 @@ try {
 
         case 'local_grupomakro_refresh_module_payment':
             require_sesskey();
-            require_capability('moodle/site:config', $context);
+            require_capability('local/grupomakro_core:manage_modules', $context);
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/module_invoice_manager.php');
             $requestid = required_param('requestId', PARAM_INT);
             $result    = \local_grupomakro_core\local\module_invoice_manager::refresh_payment($requestid);
@@ -1842,7 +1842,7 @@ try {
 
         case 'local_grupomakro_cancel_module_request':
             require_sesskey();
-            require_capability('moodle/site:config', $context);
+            require_capability('local/grupomakro_core:manage_modules', $context);
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/module_invoice_manager.php');
             $requestid = required_param('requestId', PARAM_INT);
             $result    = \local_grupomakro_core\local\module_invoice_manager::cancel($requestid, (int)$USER->id);
@@ -1853,7 +1853,7 @@ try {
             break;
 
         case 'local_grupomakro_get_module_requests':
-            require_capability('moodle/site:config', $context);
+            require_capability('local/grupomakro_core:manage_modules', $context);
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/module_invoice_manager.php');
             $statusfilter = optional_param('statusFilter', '', PARAM_TEXT);
             $usersearch   = optional_param('userSearch',  '', PARAM_TEXT);
@@ -1916,7 +1916,7 @@ try {
             break;
 
         case 'local_grupomakro_get_student_period':
-            require_capability('moodle/site:config', $context);
+            require_capability('local/grupomakro_core:manageacademicstatus', $context);
             required_param('userId', PARAM_INT); // Mantener compatibilidad con el caller actual.
             $now = time();
             $sp_period = $DB->get_record_sql(
@@ -1968,7 +1968,7 @@ try {
             break;
 
         case 'local_grupomakro_get_module_list':
-            require_capability('moodle/site:config', $context);
+            require_capability('local/grupomakro_core:manage_modules', $context);
             $periodid = optional_param('periodId', 0, PARAM_INT);
             $where    = 'gc.is_module = 1';
             $params_q = [];
@@ -1994,7 +1994,7 @@ try {
             break;
 
         case 'local_grupomakro_get_module_students':
-            require_capability('moodle/site:config', $context);
+            require_capability('local/grupomakro_core:manage_modules', $context);
             $classid_m = required_param('classId', PARAM_INT);
             $module_students = $DB->get_records_sql(
                 "SELECT gme.id, gme.userid, gme.enrolldate, gme.duedate, gme.status,
@@ -2015,7 +2015,7 @@ try {
             // Returns the gradable activities of a module (course/grade category) with the
             // student's current grade normalized to 0-100. Used to decide whether the grading
             // dialog must be shown when marking the enrollment as completed.
-            require_capability('moodle/site:config', $context);
+            require_capability('local/grupomakro_core:manage_modules', $context);
             require_once($CFG->libdir . '/gradelib.php');
             $enrollment_id = required_param('enrollmentId', PARAM_INT);
             $enr = $DB->get_record('gmk_module_enrollment', ['id' => $enrollment_id], '*', MUST_EXIST);
@@ -2102,7 +2102,7 @@ try {
 
         case 'local_grupomakro_delete_module':
             require_sesskey();
-            require_capability('moodle/site:config', $context);
+            require_capability('local/grupomakro_core:manage_modules', $context);
             $classid_m = required_param('classId', PARAM_INT);
             $module_class = $DB->get_record('gmk_class', ['id' => $classid_m, 'is_module' => 1], '*', MUST_EXIST);
             $deleted_enrollments = (int)$DB->count_records('gmk_module_enrollment', ['classid' => (int)$module_class->id]);
@@ -2118,7 +2118,7 @@ try {
 
         case 'local_grupomakro_update_module_enrollment':
             require_sesskey();
-            require_capability('moodle/site:config', $context);
+            require_capability('local/grupomakro_core:manage_modules', $context);
             $enrollment_id  = required_param('enrollmentId', PARAM_INT);
             $update_action  = required_param('updateAction',  PARAM_ALPHA);
             $enrollment_rec = $DB->get_record('gmk_module_enrollment', ['id' => $enrollment_id], '*', MUST_EXIST);
@@ -2351,7 +2351,7 @@ try {
 
         case 'local_grupomakro_withdraw_student':
             require_sesskey();
-            require_capability('moodle/site:config', $context);
+            require_capability('local/grupomakro_core:manageacademicstatus', $context);
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/schedule/withdraw_student.php');
             $classid = required_param('classId', PARAM_INT);
             $userid  = required_param('userId', PARAM_INT);
@@ -2365,7 +2365,7 @@ try {
 
         case 'local_grupomakro_withdraw_from_course':
             require_sesskey();
-            require_capability('moodle/site:config', $context);
+            require_capability('local/grupomakro_core:manageacademicstatus', $context);
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/schedule/withdraw_from_course.php');
             $corecourseid = required_param('coreCourseId', PARAM_INT);
             $userid       = required_param('userId', PARAM_INT);
@@ -2378,7 +2378,7 @@ try {
 
         case 'local_grupomakro_homologate_course_grade':
             require_sesskey();
-            require_capability('moodle/site:config', $context);
+            require_capability('local/grupomakro_core:manage_homologations', $context);
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/student/homologate_course_grade.php');
             $userid         = required_param('userId',         PARAM_INT);
             $learningplanid = required_param('learningPlanId', PARAM_INT);
@@ -2402,20 +2402,20 @@ try {
 
         // ---- Homologation Manager ------------------------------------------------
         case 'local_grupomakro_homolmgr_get_form_data':
-            require_capability('moodle/site:config', $context);
+            require_capability('local/grupomakro_core:manage_homologations', $context);
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/homologation/get_form_data.php');
             $response = ['status' => 'success', 'data' => \local_grupomakro_core\external\homologation\get_form_data::execute()];
             break;
 
         case 'local_grupomakro_homolmgr_list_rules':
-            require_capability('moodle/site:config', $context);
+            require_capability('local/grupomakro_core:manage_homologations', $context);
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/homologation/list_rules.php');
             $response = ['status' => 'success', 'data' => \local_grupomakro_core\external\homologation\list_rules::execute()];
             break;
 
         case 'local_grupomakro_homolmgr_save_rule':
             require_sesskey();
-            require_capability('moodle/site:config', $context);
+            require_capability('local/grupomakro_core:manage_homologations', $context);
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/homologation/save_rule.php');
             $result = \local_grupomakro_core\external\homologation\save_rule::execute(
                 required_param('originPlanId', PARAM_INT),
@@ -2429,14 +2429,14 @@ try {
 
         case 'local_grupomakro_homolmgr_delete_rule':
             require_sesskey();
-            require_capability('moodle/site:config', $context);
+            require_capability('local/grupomakro_core:manage_homologations', $context);
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/homologation/delete_rule.php');
             $result = \local_grupomakro_core\external\homologation\delete_rule::execute(required_param('id', PARAM_INT));
             $response = ['status' => $result['status'] === 'error' ? 'error' : 'success', 'data' => $result];
             break;
 
         case 'local_grupomakro_homolmgr_preview':
-            require_capability('moodle/site:config', $context);
+            require_capability('local/grupomakro_core:manage_homologations', $context);
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/homologation/preview.php');
             $rulesraw = optional_param('rules', '', PARAM_RAW);
             $rules = $rulesraw !== '' ? json_decode($rulesraw, true) : [];
@@ -2449,7 +2449,7 @@ try {
 
         case 'local_grupomakro_homolmgr_apply':
             require_sesskey();
-            require_capability('moodle/site:config', $context);
+            require_capability('local/grupomakro_core:manage_homologations', $context);
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/homologation/apply.php');
             $rulesraw = optional_param('rules', '', PARAM_RAW);
             $rules = $rulesraw !== '' ? json_decode($rulesraw, true) : [];
@@ -2461,7 +2461,7 @@ try {
             break;
 
         case 'local_grupomakro_get_course_absences_detail':
-            require_capability('moodle/site:config', $context);
+            require_capability('local/grupomakro_core:viewabsencedashboard', $context);
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/student/get_course_absences_detail.php');
             $userid       = required_param('userId',       PARAM_INT);
             $corecourseid = required_param('coreCourseId', PARAM_INT);
@@ -2474,7 +2474,7 @@ try {
 
         case 'local_grupomakro_revert_homologation':
             require_sesskey();
-            require_capability('moodle/site:config', $context);
+            require_capability('local/grupomakro_core:manage_homologations', $context);
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/student/revert_homologation.php');
             $userid         = required_param('userId',         PARAM_INT);
             $learningplanid = required_param('learningPlanId', PARAM_INT);
@@ -2493,7 +2493,7 @@ try {
             break;
 
         case 'local_grupomakro_get_homologation_audit':
-            require_capability('moodle/site:config', $context);
+            require_capability('local/grupomakro_core:view_movement_audit', $context);
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/student/get_homologation_audit.php');
             $userid         = required_param('userId',         PARAM_INT);
             $corecourseid   = required_param('coreCourseId',   PARAM_INT);
@@ -2547,7 +2547,7 @@ try {
 
         case 'local_grupomakro_get_class_stats':
             require_sesskey();
-            require_capability('moodle/site:config', $context);
+            require_capability('local/grupomakro_core:manage_courses', $context);
             $classid = required_param('classId', PARAM_INT);
             $stats   = gmk_get_class_dashboard_stats($classid);
             $response = ['status' => 'success', 'data' => $stats];
@@ -2555,7 +2555,7 @@ try {
 
         case 'local_grupomakro_get_credit_report':
             require_sesskey();
-            require_capability('moodle/site:config', $context);
+            require_capability('local/grupomakro_core:view_credit_report', $context);
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/credit_report.php');
             $userid = required_param('userId', PARAM_INT);
             $planid = optional_param('planId', 0, PARAM_INT);
@@ -2566,7 +2566,7 @@ try {
 
         case 'local_grupomakro_close_class_period':
             require_sesskey();
-            require_capability('moodle/site:config', $context);
+            require_capability('local/grupomakro_core:manage_courses', $context);
             $classid = required_param('classId', PARAM_INT);
             $result  = gmk_close_class_with_grade_recalc($classid);
             $response = ['status' => 'success', 'data' => $result];
@@ -2574,7 +2574,7 @@ try {
 
         case 'local_grupomakro_fix_attendance_setunmarked':
             require_sesskey();
-            require_capability('moodle/site:config', $context);
+            require_capability('local/grupomakro_core:manage_courses', $context);
             $attendances = $DB->get_records('attendance', [], '', 'id');
             $fixed = 0;
             foreach ($attendances as $att) {
@@ -2586,7 +2586,7 @@ try {
 
         case 'local_grupomakro_close_period':
             require_sesskey();
-            require_capability('moodle/site:config', $context);
+            require_capability('local/grupomakro_core:manage_courses', $context);
             $periodid = required_param('periodId', PARAM_INT);
             $fp = $DB->get_record('gmk_academic_periods', ['id' => $periodid]);
             if (!$fp) {
@@ -2631,7 +2631,7 @@ try {
 
         case 'local_grupomakro_get_student_schedule_pdf_data':
             require_sesskey();
-            require_capability('moodle/site:config', $context);
+            require_capability('local/grupomakro_core:view_academic_panel', $context);
             $userid = required_param('userId', PARAM_INT);
             $periodfilter = optional_param('periodId', 0, PARAM_INT);
             $includeoverlapping = optional_param('includeOverlapping', 1, PARAM_INT) ? 1 : 0;
@@ -3919,7 +3919,7 @@ try {
 
         case 'local_grupomakro_get_revalidations_for_user':
             require_sesskey();
-            require_capability('moodle/site:config', $context);
+            require_capability('local/grupomakro_core:view_revalidations_dashboard', $context);
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/revalida_manager.php');
             $userid = required_param('userId', PARAM_INT);
             $records = \local_grupomakro_core\local\revalida_manager::get_for_user($userid);
@@ -6369,7 +6369,7 @@ try {
             break;
 
         case 'local_grupomakro_get_guest_meetings':
-            require_capability('moodle/site:config', context_system::instance());
+            require_capability('local/grupomakro_core:manage_meetings', context_system::instance());
             
             // Get all BBB activities with guest=1
             // We assume they are in site context (course 1) usually, but we can list all.
@@ -6405,7 +6405,7 @@ try {
             break;
 
         case 'local_grupomakro_get_meeting_recordings':
-            require_capability('moodle/site:config', context_system::instance());
+            require_capability('local/grupomakro_core:manage_meetings', context_system::instance());
             $cmid = required_param('cmid', PARAM_INT);
 
             // Reuse mod_bigbluebuttonbn's own recording API so meetingID resolution,
@@ -6472,7 +6472,7 @@ try {
             break;
 
         case 'local_grupomakro_sync_meeting_recordings':
-            require_capability('moodle/site:config', context_system::instance());
+            require_capability('local/grupomakro_core:manage_meetings', context_system::instance());
             $cmid = required_param('cmid', PARAM_INT);
 
             $bbbinstance = \mod_bigbluebuttonbn\instance::get_from_cmid($cmid);
@@ -6526,7 +6526,7 @@ try {
             break;
 
         case 'local_grupomakro_delete_guest_meeting':
-            require_capability('moodle/site:config', context_system::instance());
+            require_capability('local/grupomakro_core:manage_meetings', context_system::instance());
             $cmid = required_param('cmid', PARAM_INT);
             course_delete_module($cmid);
             $response = ['status' => 'success'];
@@ -8427,7 +8427,7 @@ try {
             break;
 
         case 'local_grupomakro_renovar_student':
-            require_capability('moodle/site:config', $context);
+            require_capability('local/grupomakro_core:manageacademicstatus', $context);
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/progress_manager.php');
 
             $userid = required_param('userid', PARAM_INT);

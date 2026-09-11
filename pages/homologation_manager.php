@@ -33,7 +33,7 @@ $assetversion = !empty($CFG->themerev) ? (int)$CFG->themerev : 1;
 
 require_login();
 $context = context_system::instance();
-require_capability('moodle/site:config', $context);
+require_capability('local/grupomakro_core:manage_homologations', $context);
 
 $PAGE->set_url(new moodle_url('/local/grupomakro_core/pages/homologation_manager.php'));
 $PAGE->set_context($context);

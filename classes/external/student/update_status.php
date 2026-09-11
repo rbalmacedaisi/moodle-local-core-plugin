@@ -49,7 +49,7 @@ class update_status extends external_api {
              self::validate_context($context);
         }
         
-        require_capability('moodle/site:config', \context_system::instance()); // Security check - restrict to admins/managers
+        require_capability('local/grupomakro_core:manageacademicstatus', \context_system::instance()); // Security check - restrict to admins/managers
 
         $result = local_grupomakro_sync_financial_status($targetUserIds);
 
