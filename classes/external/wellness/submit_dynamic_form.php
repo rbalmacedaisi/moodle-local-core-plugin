@@ -57,16 +57,37 @@ class submit_dynamic_form extends external_api {
         }
         $r = \local_grupomakro_core\local\wellness_dynamic_form_manager::submit(
             (int)$params['formid'], (int)$USER->id, $decoded);
-        return $r + ['formid' => (int)$params['formid'], 'userid' => (int)$USER->id];
+
+        // Forma FIJA, pase lo que pase. `submit()` devuelve `field_errors`
+        // cuando las respuestas no validan, y en ese caso no devuelve
+        // `responseid`: devolver eso tal cual chocaba con execute_returns() y
+        // Moodle lanzaba invalid_response_exception, asi que al alumno le
+        // reventaba el envio en vez de decirle que campo le falta.
+        $fielderrors = [];
+        if (!empty($r['field_errors']) && is_array($r['field_errors'])) {
+            $fielderrors = $r['field_errors'];
+        }
+        return [
+            'ok'           => !empty($r['ok']),
+            'responseid'   => (int)($r['responseid'] ?? 0),
+            'error'        => (string)($r['error'] ?? ''),
+            // Mapa campo -> codigo de error, como JSON: el numero y el nombre
+            // de los campos los decide cada formulario, asi que no se puede
+            // declarar una estructura fija.
+            'field_errors' => json_encode((object)$fielderrors, JSON_UNESCAPED_UNICODE),
+            'formid'       => (int)$params['formid'],
+            'userid'       => (int)$USER->id,
+        ];
     }
 
     public static function execute_returns() {
         return new external_single_structure([
-            'ok'         => new external_value(PARAM_BOOL, 'True on success'),
-            'responseid' => new external_value(PARAM_INT,  'Response row id'),
-            'error'      => new external_value(PARAM_TEXT, 'Error code', VALUE_DEFAULT),
-            'formid'     => new external_value(PARAM_INT,  'Echoed form id'),
-            'userid'     => new external_value(PARAM_INT,  'Echoed user id'),
+            'ok'           => new external_value(PARAM_BOOL, 'True on success'),
+            'responseid'   => new external_value(PARAM_INT,  'Response row id, 0 on failure'),
+            'error'        => new external_value(PARAM_TEXT, 'Error code, empty on success'),
+            'field_errors' => new external_value(PARAM_RAW,  'JSON map field -> error code'),
+            'formid'       => new external_value(PARAM_INT,  'Echoed form id'),
+            'userid'       => new external_value(PARAM_INT,  'Echoed user id'),
         ]);
     }
 }

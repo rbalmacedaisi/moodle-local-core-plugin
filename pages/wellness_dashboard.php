@@ -76,6 +76,8 @@ echo <<<EOT
 EOT;
 
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/wellnessDashboard.js?v=' . $assetversion));
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/app.js?v=' . $assetversion_app));
+// `$assetversion_app` no existia: el ?v= salia vacio y app.js se servia
+// desde la cache del navegador aunque cambiara.
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/app.js?v=' . $assetversion));
 
 echo $OUTPUT->footer();

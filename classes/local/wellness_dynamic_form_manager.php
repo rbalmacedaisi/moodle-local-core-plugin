@@ -27,13 +27,18 @@
  *        "type":     "text|textarea|select|multiselect|checkbox|number|date",
  *        "required": true,
  *        "options":  ["Vegetariano", "Vegano", "Sin gluten"],
- *        "max":      100,        // text|textarea
- *        "min":      0,          // number
+ *        "help":     "Se muestra bajo el campo, al estudiante",
+ *        "max":      100,        // text|textarea: caracteres. number: valor
+ *        "min":      0,          // number: valor minimo
  *        "pattern":  "^[0-9]+$"  // text
  *      },
  *      ...
  *    ]
  *  }
+ *
+ * Todas esas restricciones se EXIGEN en validate_answers(). El cliente las
+ * refleja para que el alumno las vea mientras escribe, pero la ultima palabra
+ * es siempre del servidor.
  *
  * @package    local_grupomakro_core
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -255,6 +260,12 @@ class wellness_dynamic_form_manager {
             $required = !empty($f['required']);
             $value = $answers[$name] ?? null;
             $isEmpty = ($value === null || $value === '' || $value === []);
+            // Un checkbox obligatorio se marca para aceptar algo (terminos,
+            // consentimiento). Sin esto `false` no contaba como vacio y se
+            // podia enviar el formulario sin aceptar nada.
+            if ($type === 'checkbox' && $value === false) {
+                $isEmpty = true;
+            }
 
             if ($required && $isEmpty) {
                 $errors[$name] = 'required';
@@ -269,10 +280,24 @@ class wellness_dynamic_form_manager {
                 case 'textarea':
                     if (!is_string($value)) {
                         $errors[$name] = 'not_string';
-                    } else {
-                        $max = (int)($f['max'] ?? 0);
-                        if ($max > 0 && mb_strlen($value) > $max) {
-                            $errors[$name] = 'too_long';
+                        break;
+                    }
+                    $max = (int)($f['max'] ?? 0);
+                    if ($max > 0 && mb_strlen($value) > $max) {
+                        $errors[$name] = 'too_long';
+                        break;
+                    }
+                    // El patron lo escribe quien crea el formulario, asi que
+                    // se comprueba que sea una regex usable ANTES de aplicarla:
+                    // una mal escrita no puede tumbar el envio del alumno.
+                    $pattern = trim((string)($f['pattern'] ?? ''));
+                    if ($pattern !== '') {
+                        $delimited = '/' . str_replace('/', '\\/', $pattern) . '/u';
+                        if (@preg_match($delimited, '') === false) {
+                            debugging('wellness: patron invalido en el campo ' . $name,
+                                DEBUG_DEVELOPER);
+                        } else if (!preg_match($delimited, $value)) {
+                            $errors[$name] = 'pattern_mismatch';
                         }
                     }
                     break;
@@ -284,6 +309,14 @@ class wellness_dynamic_form_manager {
                 case 'number':
                     if (!is_numeric($value)) {
                         $errors[$name] = 'not_numeric';
+                        break;
+                    }
+                    // `max = 0` significa "sin limite", igual que en el editor.
+                    $num = 0 + $value;
+                    if (isset($f['min']) && $f['min'] !== '' && $num < (float)$f['min']) {
+                        $errors[$name] = 'too_small';
+                    } else if (!empty($f['max']) && $num > (float)$f['max']) {
+                        $errors[$name] = 'too_big';
                     }
                     break;
                 case 'date':

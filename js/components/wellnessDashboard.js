@@ -50,6 +50,9 @@ Vue.component('wellness-dashboard', {
             formDialog: false,
             formSaving: false,
             form: this._blankForm(),
+            // Los campos del schema viven AQUI, en data reactivo, no en un
+            // computed derivado de schema_json: ver la nota en addFormField.
+            formFields: [],
             formCoverImage: null,
             // View responses side-panel
             responsesDialog: false,
@@ -106,36 +109,39 @@ Vue.component('wellness-dashboard', {
             });
             return opts;
         },
-        // Live preview of the form the admin is editing, rendered through the
-        // same shape DynamicFormRenderer.vue uses on the LXP side.
-        formPreviewFields() {
-            try {
-                const parsed = JSON.parse(this.form.schema_json || '{"fields":[]}');
-                return Array.isArray(parsed.fields) ? parsed.fields : [];
-            } catch (_e) {
-                return [];
-            }
-        },
         formSchemaError() {
-            if (!this.form.schema_json) return '';
-            try {
-                const parsed = JSON.parse(this.form.schema_json);
-                if (!parsed || typeof parsed !== 'object') return 'El schema debe ser un objeto JSON';
-                if (!Array.isArray(parsed.fields) || parsed.fields.length === 0) {
-                    return 'Agrega al menos un campo al schema';
+            const fields = this.formFields || [];
+            if (fields.length === 0) return 'Agrega al menos un campo al formulario';
+            const seen = {};
+            for (const f of fields) {
+                if (!f.name || !f.label || !f.type) {
+                    return 'Cada campo necesita nombre técnico, etiqueta y tipo';
                 }
-                const seen = {};
-                for (const f of parsed.fields) {
-                    if (!f.name || !f.label || !f.type) {
-                        return 'Cada campo necesita name, label y type';
+                if (!/^[a-z][a-z0-9_]*$/.test(f.name)) {
+                    return `Nombre técnico inválido: ${f.name} (solo minúsculas, números y _)`;
+                }
+                if (seen[f.name]) return `Nombre de campo duplicado: ${f.name}`;
+                seen[f.name] = true;
+                if (f.type === 'select' || f.type === 'multiselect') {
+                    const opts = (f.options || []).filter(o => o && String(o).trim() !== '');
+                    if (opts.length === 0) {
+                        return `El campo "${f.label}" necesita al menos una opción`;
                     }
-                    if (seen[f.name]) return `Nombre de campo duplicado: ${f.name}`;
-                    seen[f.name] = true;
+                    if (new Set(opts).size !== opts.length) {
+                        return `El campo "${f.label}" tiene opciones repetidas`;
+                    }
                 }
-                return '';
-            } catch (e) {
-                return `JSON inválido: ${e.message}`;
+                if (f.type === 'number'
+                    && f.min !== null && f.min !== '' && f.max !== null && f.max !== ''
+                    && Number(f.max) !== 0 && Number(f.min) > Number(f.max)) {
+                    return `En "${f.label}" el mínimo no puede ser mayor que el máximo`;
+                }
+                if (f.type === 'text' && f.pattern) {
+                    try { new RegExp(f.pattern); }
+                    catch (_e) { return `El patrón de "${f.label}" no es una expresión regular válida`; }
+                }
             }
+            return '';
         },
         registrationsHeaders() {
             return [
@@ -215,12 +221,13 @@ Vue.component('wellness-dashboard', {
             };
         },
         _blankForm() {
+            // Sin `schema_json`: los campos viven en `formFields` y el JSON se
+            // arma al guardar con _buildSchemaJson().
             return {
                 id: 0,
                 title: '',
                 description: '',
                 eventid: 0,
-                schema_json: JSON.stringify({ fields: [] }, null, 2),
                 cover_path: '',
                 active: true,
             };
@@ -286,63 +293,174 @@ Vue.component('wellness-dashboard', {
         },
 
         // -- Forms editor (RF-06 / RF-09.2) ---------------------------------
-        // The schema editor builds the JSON manually instead of a JSON-input
-        // textarea so non-technical users don't have to touch raw JSON. We
-        // serialise back to JSON at save time and the server re-validates with
-        // wellness_dynamic_form_manager::validate_schema().
-        _readFormSchema() {
-            let parsed;
-            try {
-                parsed = JSON.parse(this.form.schema_json || '{"fields":[]}');
-            } catch (_e) {
-                parsed = { fields: [] };
-            }
-            if (!parsed || typeof parsed !== 'object') parsed = { fields: [] };
-            if (!Array.isArray(parsed.fields)) parsed.fields = [];
-            return parsed;
-        },
-        _writeFormSchema(schema) {
-            this.form.schema_json = JSON.stringify(schema, null, 2);
-        },
-        addFormField() {
-            const schema = this._readFormSchema();
-            schema.fields.push({
+        // El editor construye el JSON por el usuario, para que nadie tenga que
+        // tocar el schema a mano. Los campos viven en `this.formFields`, que es
+        // data REACTIVO, y solo se serializan a JSON al guardar.
+        //
+        // Antes vivian en un computed que hacia JSON.parse de `schema_json`:
+        // devolvia objetos nuevos y no reactivos en cada evaluacion, asi que
+        // `v-model="field.type"` mutaba un objeto de usar y tirar. Cambiar el
+        // tipo no repintaba nada -por eso el formulario no se amoldaba- y lo
+        // tecleado no volvia al JSON, asi que se perdia al guardar; agregar
+        // otro campo reescribia `schema_json` y borraba lo anterior.
+
+        /** Un campo nuevo, con todas las claves que el editor puede tocar. */
+        _blankField() {
+            return {
                 name: '',
                 label: '',
                 type: 'text',
+                _lastType: 'text',
                 required: false,
+                help: '',
                 options: [],
                 max: 0,
                 min: 0,
-            });
-            this._writeFormSchema(schema);
+                pattern: '',
+            };
+        },
+        /** Rellena las claves que falten sin pisar las que vienen del schema. */
+        _normaliseField(f) {
+            const base = this._blankField();
+            const out = Object.assign(base, f || {});
+            out.options = Array.isArray(out.options) ? out.options.slice() : [];
+            out.required = !!out.required;
+            out._lastType = out.type;
+            return out;
+        },
+        /** Qué extras admite cada tipo. Manda tanto en el editor como al limpiar. */
+        fieldTypeSupports(type) {
+            switch (type) {
+                case 'text':        return { options: false, max: true,  min: false, pattern: true };
+                case 'textarea':    return { options: false, max: true,  min: false, pattern: false };
+                case 'number':      return { options: false, max: true,  min: true,  pattern: false };
+                case 'select':
+                case 'multiselect': return { options: true,  max: false, min: false, pattern: false };
+                default:            return { options: false, max: false, min: false, pattern: false };
+            }
+        },
+        /**
+         * Al cambiar el tipo se limpian los extras que ese tipo no usa.
+         *
+         * Sin esto, un campo que empezo siendo "seleccion unica" y acaba en
+         * "texto" seguiria arrastrando sus opciones dentro del schema: basura
+         * invisible en el editor que el dia de manana confunde a quien lo lea.
+         */
+        onFieldTypeChange(idx) {
+            const f = this.formFields[idx];
+            if (!f) return;
+            const soporta = this.fieldTypeSupports(f.type);
+            if (!soporta.options) f.options = [];
+            if (!soporta.min) f.min = 0;
+            if (!soporta.pattern) f.pattern = '';
+            if (!soporta.max) {
+                f.max = 0;
+            } else if (this._maxMeaning(f._lastType) !== this._maxMeaning(f.type)) {
+                // `max` significa CARACTERES en texto y VALOR en numero.
+                // Arrastrarlo al cruzar de uno a otro deja un "maximo 10"
+                // convertido en "10 caracteres" sin avisar: parece configurado
+                // y dice otra cosa. Mejor reiniciarlo.
+                f.max = 0;
+            }
+            if (soporta.options && f.options.length === 0) f.options.push('');
+            this.$set(f, '_lastType', f.type);
+        },
+        /** Que mide `max` para ese tipo: caracteres, valor, o nada. */
+        _maxMeaning(type) {
+            if (type === 'text' || type === 'textarea') return 'caracteres';
+            if (type === 'number') return 'valor';
+            return '';
+        },
+        addFormField() {
+            this.formFields.push(this._blankField());
         },
         removeFormField(idx) {
-            const schema = this._readFormSchema();
-            schema.fields.splice(idx, 1);
-            this._writeFormSchema(schema);
+            this.formFields.splice(idx, 1);
         },
         moveFormField(idx, dir) {
-            const schema = this._readFormSchema();
             const j = idx + dir;
-            if (j < 0 || j >= schema.fields.length) return;
-            const tmp = schema.fields[idx];
-            schema.fields[idx] = schema.fields[j];
-            schema.fields[j] = tmp;
-            this._writeFormSchema(schema);
+            if (j < 0 || j >= this.formFields.length) return;
+            // splice y no asignacion por indice: en Vue 2 `arr[i] = x` no es
+            // reactivo y la lista no se repintaria.
+            const [movido] = this.formFields.splice(idx, 1);
+            this.formFields.splice(j, 0, movido);
         },
         addFormFieldOption(idx) {
-            const schema = this._readFormSchema();
-            if (!schema.fields[idx]) return;
-            if (!Array.isArray(schema.fields[idx].options)) schema.fields[idx].options = [];
-            schema.fields[idx].options.push('');
-            this._writeFormSchema(schema);
+            const f = this.formFields[idx];
+            if (!f) return;
+            if (!Array.isArray(f.options)) this.$set(f, 'options', []);
+            f.options.push('');
         },
         removeFormFieldOption(idx, optIdx) {
-            const schema = this._readFormSchema();
-            if (!schema.fields[idx] || !Array.isArray(schema.fields[idx].options)) return;
-            schema.fields[idx].options.splice(optIdx, 1);
-            this._writeFormSchema(schema);
+            const f = this.formFields[idx];
+            if (!f || !Array.isArray(f.options)) return;
+            f.options.splice(optIdx, 1);
+        },
+        /** Serializa los campos al contrato que espera el servidor. */
+        _buildSchemaJson() {
+            const fields = (this.formFields || []).map(f => {
+                const soporta = this.fieldTypeSupports(f.type);
+                const out = {
+                    name: String(f.name || '').trim(),
+                    label: String(f.label || '').trim(),
+                    type: f.type,
+                    required: !!f.required,
+                };
+                const ayuda = String(f.help || '').trim();
+                if (ayuda) out.help = ayuda;
+                if (soporta.options) {
+                    out.options = (f.options || [])
+                        .map(o => String(o == null ? '' : o).trim())
+                        .filter(o => o !== '');
+                }
+                if (soporta.max && Number(f.max) > 0) out.max = Number(f.max);
+                if (soporta.min && Number(f.min) !== 0) out.min = Number(f.min);
+                if (soporta.pattern && String(f.pattern || '').trim()) {
+                    out.pattern = String(f.pattern).trim();
+                }
+                return out;
+            });
+            return JSON.stringify({ fields }, null, 2);
+        },
+        /** Que opcion del selector de formato corresponde a este campo. */
+        patternModeOf(f) {
+            if (f._patternMode) return f._patternMode;
+            return this.formPatternPresets().some(p => p.value === f.pattern)
+                ? f.pattern
+                : '__custom__';
+        },
+        onPatternPresetChange(f, valor) {
+            // `_patternMode` es solo del editor: _buildSchemaJson copia unicamente
+            // las claves del contrato, asi que nunca llega al servidor.
+            this.$set(f, '_patternMode', valor);
+            if (valor !== '__custom__') {
+                f.pattern = valor;
+            }
+        },
+        /** Pista de rango para la vista previa de un numero. */
+        previewRangeHint(f) {
+            const min = Number(f.min) || 0;
+            const max = Number(f.max) || 0;
+            if (min && max) return `Entre ${min} y ${max}`;
+            if (min) return `Mínimo ${min}`;
+            if (max) return `Máximo ${max}`;
+            return '';
+        },
+        /** Pista de formato para la vista previa de un texto con patrón. */
+        previewPatternHint(f) {
+            if (!f.pattern) return '';
+            const preset = this.formPatternPresets().find(p => p.value === f.pattern);
+            return preset ? preset.text : 'Formato: ' + f.pattern;
+        },
+        /** Patrones listos para el tipo texto, para no pedir regex a nadie. */
+        formPatternPresets() {
+            return [
+                { text: 'Sin restricción', value: '' },
+                { text: 'Solo números', value: '^[0-9]+$' },
+                { text: 'Solo letras y espacios', value: '^[A-Za-zÁÉÍÓÚáéíóúÑñ ]+$' },
+                { text: 'Cédula panameña (ej. 8-123-4567)', value: '^[0-9A-Z]+-[0-9]+-[0-9]+$' },
+                { text: 'Teléfono (7 u 8 dígitos)', value: '^[0-9]{7,8}$' },
+            ];
         },
         openFormDialog(f) {
             this.formCoverImage = null;
@@ -361,12 +479,13 @@ Vue.component('wellness-dashboard', {
                     title: f.title,
                     description: f.description || '',
                     eventid: f.eventid || 0,
-                    schema_json: JSON.stringify(parsedSchema, null, 2),
                     cover_path: f.cover_path || '',
                     active: !!f.active,
                 };
+                this.formFields = parsedSchema.fields.map(x => this._normaliseField(x));
             } else {
                 this.form = this._blankForm();
+                this.formFields = [];
             }
             this.formDialog = true;
         },
@@ -387,7 +506,7 @@ Vue.component('wellness-dashboard', {
                     title: this.form.title,
                     description: this.form.description || '',
                     eventid: this.form.eventid || 0,
-                    schema_json: this.form.schema_json,
+                    schema_json: this._buildSchemaJson(),
                     cover_path: this.form.cover_path || '',
                     active: !!this.form.active,
                 };
@@ -1536,12 +1655,12 @@ Vue.component('wellness-dashboard', {
           {{ formSchemaError }}
         </v-alert>
 
-        <div v-if="formPreviewFields.length === 0" class="text-center pa-4 grey--text text--darken-1">
+        <div v-if="formFields.length === 0" class="text-center pa-4 grey--text text--darken-1">
           Aún no hay campos. Pulsa "Agregar campo" para empezar.
         </div>
 
         <v-card
-          v-for="(field, idx) in formPreviewFields"
+          v-for="(field, idx) in formFields"
           :key="idx"
           class="mb-3" outlined
         >
@@ -1568,8 +1687,9 @@ Vue.component('wellness-dashboard', {
                 <v-select
                   v-model="field.type"
                   :items="formFieldTypes()"
-                  label="Tipo de campo"
+                  label="Tipo de respuesta"
                   dense outlined
+                  @change="onFieldTypeChange(idx)"
                 />
               </v-col>
               <v-col cols="12" md="2" class="d-flex align-center">
@@ -1615,7 +1735,24 @@ Vue.component('wellness-dashboard', {
                 <v-text-field
                   v-model.number="field.max"
                   label="Máx. caracteres (0 = sin límite)"
-                  type="number" min="0" dense outlined
+                  type="number" min="0" dense outlined hide-details
+                />
+              </v-col>
+              <v-col v-if="field.type === 'text'" cols="12" md="5">
+                <v-select
+                  :value="patternModeOf(field)"
+                  :items="formPatternPresets().concat([{ text: 'Personalizado…', value: '__custom__' }])"
+                  label="Formato aceptado"
+                  dense outlined hide-details
+                  @change="v => onPatternPresetChange(field, v)"
+                />
+              </v-col>
+              <v-col v-if="field.type === 'text' && patternModeOf(field) === '__custom__'" cols="12" md="4">
+                <v-text-field
+                  v-model="field.pattern"
+                  label="Expresión regular"
+                  hint="Ej. ^[0-9]{4}$"
+                  persistent-hint dense outlined
                 />
               </v-col>
             </v-row>
@@ -1624,13 +1761,24 @@ Vue.component('wellness-dashboard', {
               <v-col cols="6" md="3">
                 <v-text-field
                   v-model.number="field.min"
-                  label="Valor mínimo" type="number" dense outlined
+                  label="Valor mínimo" type="number" dense outlined hide-details
                 />
               </v-col>
               <v-col cols="6" md="3">
                 <v-text-field
                   v-model.number="field.max"
-                  label="Valor máximo" type="number" dense outlined
+                  label="Valor máximo (0 = sin límite)" type="number" dense outlined hide-details
+                />
+              </v-col>
+            </v-row>
+
+            <v-row dense class="mt-2">
+              <v-col cols="12">
+                <v-text-field
+                  v-model="field.help"
+                  label="Texto de ayuda (opcional)"
+                  hint="Se muestra bajo el campo, al estudiante"
+                  persistent-hint dense outlined
                 />
               </v-col>
             </v-row>
@@ -1639,7 +1787,7 @@ Vue.component('wellness-dashboard', {
               <v-btn icon small :disabled="idx === 0" @click="moveFormField(idx, -1)" title="Subir">
                 <v-icon>mdi-arrow-up</v-icon>
               </v-btn>
-              <v-btn icon small :disabled="idx === formPreviewFields.length - 1" @click="moveFormField(idx, 1)" title="Bajar">
+              <v-btn icon small :disabled="idx === formFields.length - 1" @click="moveFormField(idx, 1)" title="Bajar">
                 <v-icon>mdi-arrow-down</v-icon>
               </v-btn>
               <v-spacer></v-spacer>
@@ -1656,34 +1804,38 @@ Vue.component('wellness-dashboard', {
           <strong>Vista previa (lo que verá el estudiante)</strong>
         </div>
         <v-card outlined class="pa-3 grey lighten-4">
-          <div v-if="formPreviewFields.length === 0" class="caption grey--text text--darken-1">
+          <div v-if="formFields.length === 0" class="caption grey--text text--darken-1">
             Agrega campos para ver el preview.
           </div>
-          <div v-for="(field, idx) in formPreviewFields" :key="'prev-' + idx" class="mb-3">
+          <div v-for="(field, idx) in formFields" :key="'prev-' + idx" class="mb-3">
             <div v-if="field.type === 'checkbox'">
               <v-checkbox
                 :label="field.label + (field.required ? ' *' : '')"
+                :hint="field.help" :persistent-hint="!!field.help"
                 disabled
-                hide-details
               />
             </div>
             <div v-else-if="field.type === 'textarea'">
               <v-textarea
                 :label="field.label + (field.required ? ' *' : '')"
+                :counter="field.max > 0 ? field.max : false"
+                :hint="field.help" :persistent-hint="!!field.help"
                 disabled rows="2" outlined dense
               />
             </div>
             <div v-else-if="field.type === 'select'">
               <v-select
                 :label="field.label + (field.required ? ' *' : '')"
-                :items="(field.options || []).filter(o => o && o.trim())"
+                :items="(field.options || []).filter(o => o && String(o).trim())"
+                :hint="field.help" :persistent-hint="!!field.help"
                 disabled outlined dense
               />
             </div>
             <div v-else-if="field.type === 'multiselect'">
               <v-select
                 :label="field.label + (field.required ? ' *' : '')"
-                :items="(field.options || []).filter(o => o && o.trim())"
+                :items="(field.options || []).filter(o => o && String(o).trim())"
+                :hint="field.help" :persistent-hint="!!field.help"
                 multiple chips disabled outlined dense
               />
             </div>
@@ -1691,19 +1843,25 @@ Vue.component('wellness-dashboard', {
               <v-text-field
                 :label="field.label + (field.required ? ' *' : '')"
                 type="number" disabled outlined dense
+                :hint="field.help || previewRangeHint(field)"
+                :persistent-hint="!!(field.help || previewRangeHint(field))"
               />
             </div>
             <div v-else-if="field.type === 'date'">
               <v-text-field
                 :label="field.label + (field.required ? ' *' : '')"
                 type="date" disabled outlined dense
+                :hint="field.help" :persistent-hint="!!field.help"
               />
             </div>
             <div v-else>
               <v-text-field
                 :label="field.label + (field.required ? ' *' : '')"
                 :type="field.type === 'email' ? 'email' : 'text'"
+                :counter="field.max > 0 ? field.max : false"
                 disabled outlined dense
+                :hint="field.help || previewPatternHint(field)"
+                :persistent-hint="!!(field.help || previewPatternHint(field))"
               />
             </div>
           </div>
