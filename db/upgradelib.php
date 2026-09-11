@@ -503,6 +503,10 @@ function assign_capabilities_to_internal_roles() {
             'local/grupomakro_core:view_financial_health',
         ],
         'gmk_secretaria_academica' => [
+            // Academic planner: Secretaria already held manage_schedules (the
+            // board's web services) but not the capability academic_planning.php
+            // itself requires, so the page was closed to her.
+            'local/grupomakro_core:manage_academic_planning',
             // Full academic panel: schedule download and credit report were
             // gated on moodle/site:config and are now on their own
             // capabilities, plus the homologation button inside the grade modal.
@@ -550,6 +554,12 @@ function assign_capabilities_to_internal_roles() {
             'local/grupomakro_core:viewannouncements',
         ],
         'gmk_registros_academicos' => [
+            // Class schedules page. manage_schedules opens schedules.php and its
+            // calendar; the edit actions on that page (copy activity, reschedule,
+            // delete session, reschedule notice) are gated on manage_classes, so
+            // both are needed for the page to be usable.
+            'local/grupomakro_core:manage_schedules',
+            'local/grupomakro_core:manage_classes',
             // Same academic-panel bundle as Secretaria (status changes, manual
             // enrolment, independent modules, revalidations dashboard, movement
             // audit, homologations) plus the Course Manager. manage_courses also

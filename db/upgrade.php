@@ -3727,6 +3727,13 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20261001032, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20261001033) {
+        // Secretaria Academica gains the academic planner; Registros Academicos
+        // gains the class schedules page and its edit actions.
+        assign_capabilities_to_internal_roles();
+        upgrade_plugin_savepoint(true, 20261001033, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 
