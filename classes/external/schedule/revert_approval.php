@@ -37,10 +37,15 @@ class revert_approval extends external_api {
 
         $context = context_system::instance();
         self::validate_context($context);
-        require_any_capability([
+        // Moodle has has_any_capability() but no require_any_capability(); the
+        // fallback require_capability() raises the standard exception naming the
+        // primary capability when neither is held.
+        if (!has_any_capability([
             'local/grupomakro_core:manage_courses',
             'local/grupomakro_core:manage_schedules',
-        ], $context); 
+        ], $context)) {
+            require_capability('local/grupomakro_core:manage_courses', $context);
+        } 
 
         $class = $DB->get_record('gmk_class', ['id' => $params['classId']], '*', MUST_EXIST);
 
