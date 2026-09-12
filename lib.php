@@ -220,7 +220,6 @@ function local_grupomakro_core_extend_navigation(global_navigation $navigation) 
                 ['manage_teacher_availability', 'availabilitypanel.php', '🧑‍🏫 ' . get_string('availability_panel', $pluginname)],
                 ['manage_teacher_availability', 'availability.php', '📆 ' . get_string('availability_calendar', $pluginname)],
                 ['manage_teachers', 'teachers.php', '👩‍🏫 ' . get_string('admin_teachers_management', $pluginname)],
-                ['manage_teachers', 'inactive_teacher_dashboard.php', '🧑‍💼 Estado Docente'],
                 ['manage_courses', 'manage_courses.php', '📂 Gestor de Cursos'],
                 ['manage_modules', 'module_management.php', '📚 Gestión de Módulos Independientes'],
                 ['manage_classes', 'createclass.php', '➕ ' . get_string('create_class', $pluginname)],

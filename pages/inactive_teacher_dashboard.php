@@ -8,7 +8,13 @@ require_once(__DIR__ . '/../../../config.php');
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 
 require_login();
-require_capability('local/grupomakro_core:manage_teachers', context_system::instance());
+// No capability check: this is the teacher's own landing page, shown by
+// local_grupomakro_core_user_home_redirect() to a recognised teacher who has
+// no active classes. It renders nothing but fullname($USER) and links to the
+// caller's own profile and logout, so there is nothing here to protect.
+// It used to require manage_teachers, an admin capability no teacher holds,
+// so the redirect landed them on "no tiene los permisos (Gestionar docentes)"
+// instead of the page written for them.
 
 $PAGE->set_url(new moodle_url('/local/grupomakro_core/pages/inactive_teacher_dashboard.php'));
 $PAGE->set_context(context_system::instance());

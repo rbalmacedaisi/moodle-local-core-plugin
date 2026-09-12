@@ -8,7 +8,9 @@ require_once(__DIR__ . '/../../../config.php');
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 
 require_login();
-require_capability('local/grupomakro_core:manage_teachers', context_system::instance());
+// No capability check: "Mi Perfil" reads only $USER (own record, own picture,
+// own sesskey), so it is the caller's own page. Requiring manage_teachers here
+// locked every teacher out of their own profile.
 
 // Ensure user is an instructor or admin
 // Logic to check roles could be added here
