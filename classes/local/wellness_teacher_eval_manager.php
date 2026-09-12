@@ -45,6 +45,18 @@ class wellness_teacher_eval_manager {
     /** Cuantos dias hacia atras se puede evaluar una sesion ya ocurrida. */
     public const WINDOW_DAYS = 14;
 
+    /**
+     * Minimo de respuestas para que el promedio de un docente se considere
+     * representativo. Por debajo se marca low_sample: una media de 5,0 sobre
+     * una sola respuesta no es comparable con 4,2 sobre cuarenta, y presentar
+     * ambas como equivalentes es la forma mas rapida de tomar una decision
+     * injusta con un docente.
+     */
+    public const MIN_SAMPLE = 5;
+
+    /** Media por debajo de la cual, YA con muestra suficiente, se marca para revisar. */
+    public const ATTENTION_THRESHOLD = 3.0;
+
     /** Tope de pendientes que se devuelven de una vez al portal. */
     public const MAX_PENDING = 5;
 
@@ -248,7 +260,14 @@ class wellness_teacher_eval_manager {
         }, $rows));
     }
 
-    /** Promedios por docente en un rango. */
+    /**
+     * Promedios por docente, con el contexto necesario para interpretarlos:
+     * tamano de la muestra, distribucion de notas, cuantos dejaron comentario
+     * y cuando fue la ultima evaluacion.
+     *
+     * Un promedio sin su "n" enganya: 5,0 sobre una respuesta no es
+     * comparable con 4,2 sobre cuarenta. Por eso se devuelve low_sample.
+     */
     public static function aggregates(int $from = 0, int $to = 0): array {
         global $DB;
         $where = "ev.status = :st";
@@ -262,6 +281,16 @@ class wellness_teacher_eval_manager {
                     AVG(ev.rating_overall) AS avg_overall,
                     AVG(ev.rating_clarity) AS avg_clarity,
                     AVG(ev.rating_punctuality) AS avg_punctuality,
+                    MIN(ev.rating_overall) AS min_overall,
+                    MAX(ev.rating_overall) AS max_overall,
+                    MAX(ev.sessiondate) AS last_eval,
+                    COUNT(DISTINCT ev.classid) AS classes_count,
+                    SUM(CASE WHEN ev.comment IS NOT NULL AND ev.comment <> '' THEN 1 ELSE 0 END) AS with_comments,
+                    SUM(CASE WHEN ev.rating_overall = 1 THEN 1 ELSE 0 END) AS d1,
+                    SUM(CASE WHEN ev.rating_overall = 2 THEN 1 ELSE 0 END) AS d2,
+                    SUM(CASE WHEN ev.rating_overall = 3 THEN 1 ELSE 0 END) AS d3,
+                    SUM(CASE WHEN ev.rating_overall = 4 THEN 1 ELSE 0 END) AS d4,
+                    SUM(CASE WHEN ev.rating_overall = 5 THEN 1 ELSE 0 END) AS d5,
                     t.firstname, t.lastname
                FROM {gmk_wellness_teacher_eval} ev
           LEFT JOIN {user} t ON t.id = ev.instructorid
@@ -270,15 +299,159 @@ class wellness_teacher_eval_manager {
            ORDER BY avg_overall DESC", $params);
 
         return array_values(array_map(function ($r) {
+            $total = (int)$r->total;
             return (object)[
                 'instructorid'    => (int)$r->instructorid,
                 'teacher_name'    => trim(($r->firstname ?? '') . ' ' . ($r->lastname ?? '')),
-                'total'           => (int)$r->total,
+                'total'           => $total,
                 'avg_overall'     => round((float)$r->avg_overall, 2),
                 'avg_clarity'     => round((float)$r->avg_clarity, 2),
                 'avg_punctuality' => round((float)$r->avg_punctuality, 2),
+                'min_overall'     => (int)$r->min_overall,
+                'max_overall'     => (int)$r->max_overall,
+                'last_eval'       => (int)$r->last_eval,
+                'classes_count'   => (int)$r->classes_count,
+                'with_comments'   => (int)$r->with_comments,
+                'dist'            => [(int)$r->d1, (int)$r->d2, (int)$r->d3, (int)$r->d4, (int)$r->d5],
+                // Por debajo de este umbral el promedio no es representativo.
+                'low_sample'      => $total < self::MIN_SAMPLE,
+                'needs_attention' => $total >= self::MIN_SAMPLE
+                                     && (float)$r->avg_overall < self::ATTENTION_THRESHOLD,
             ];
         }, $rows));
+    }
+
+    /**
+     * Indicadores del instituto en su conjunto.
+     *
+     * La participacion es el indicador que decide si el resto sirve: un
+     * promedio calculado sobre el 5% de las sesiones no representa nada.
+     * Se miden dos cosas distintas y complementarias:
+     *   - tasa de respuesta: de los popups que el alumno ATENDIO
+     *     (respondio o descarto), cuantos respondio.
+     *   - cobertura: de todas las oportunidades ELEGIBLES del periodo,
+     *     cuantas acabaron en evaluacion.
+     */
+    public static function global_kpis(int $from = 0, int $to = 0): object {
+        global $DB;
+        $where = '1=1';
+        $params = [];
+        if ($from > 0) { $where .= ' AND ev.sessiondate >= :fr'; $params['fr'] = $from; }
+        if ($to > 0)   { $where .= ' AND ev.sessiondate <= :to'; $params['to'] = $to; }
+
+        $r = $DB->get_record_sql(
+            "SELECT SUM(CASE WHEN ev.status = 'enviada' THEN 1 ELSE 0 END) AS sent,
+                    SUM(CASE WHEN ev.status = 'descartada' THEN 1 ELSE 0 END) AS dismissed,
+                    COUNT(DISTINCT CASE WHEN ev.status = 'enviada' THEN ev.instructorid END) AS teachers,
+                    COUNT(DISTINCT CASE WHEN ev.status = 'enviada' THEN ev.userid END) AS students,
+                    COUNT(DISTINCT CASE WHEN ev.status = 'enviada' THEN ev.classid END) AS classes,
+                    AVG(CASE WHEN ev.status = 'enviada' THEN ev.rating_overall END) AS avg_overall,
+                    AVG(CASE WHEN ev.status = 'enviada' THEN ev.rating_clarity END) AS avg_clarity,
+                    AVG(CASE WHEN ev.status = 'enviada' THEN ev.rating_punctuality END) AS avg_punctuality,
+                    SUM(CASE WHEN ev.status = 'enviada' AND ev.comment IS NOT NULL AND ev.comment <> '' THEN 1 ELSE 0 END) AS with_comments,
+                    SUM(CASE WHEN ev.status = 'enviada' AND ev.rating_overall = 1 THEN 1 ELSE 0 END) AS d1,
+                    SUM(CASE WHEN ev.status = 'enviada' AND ev.rating_overall = 2 THEN 1 ELSE 0 END) AS d2,
+                    SUM(CASE WHEN ev.status = 'enviada' AND ev.rating_overall = 3 THEN 1 ELSE 0 END) AS d3,
+                    SUM(CASE WHEN ev.status = 'enviada' AND ev.rating_overall = 4 THEN 1 ELSE 0 END) AS d4,
+                    SUM(CASE WHEN ev.status = 'enviada' AND ev.rating_overall = 5 THEN 1 ELSE 0 END) AS d5
+               FROM {gmk_wellness_teacher_eval} ev
+              WHERE $where", $params);
+
+        $sent = (int)($r->sent ?? 0);
+        $dismissed = (int)($r->dismissed ?? 0);
+        $acted = $sent + $dismissed;
+        $eligible = self::count_eligible_opportunities($from, $to);
+
+        return (object)[
+            'sent'            => $sent,
+            'dismissed'       => $dismissed,
+            'eligible'        => $eligible,
+            // De lo que el alumno atendio, cuanto respondio.
+            'response_rate'   => $acted > 0 ? round($sent * 100 / $acted, 1) : 0.0,
+            // De todas las oportunidades del periodo, cuantas se evaluaron.
+            'coverage_rate'   => $eligible > 0 ? round($sent * 100 / $eligible, 1) : 0.0,
+            'teachers'        => (int)($r->teachers ?? 0),
+            'students'        => (int)($r->students ?? 0),
+            'classes'         => (int)($r->classes ?? 0),
+            'avg_overall'     => round((float)($r->avg_overall ?? 0), 2),
+            'avg_clarity'     => round((float)($r->avg_clarity ?? 0), 2),
+            'avg_punctuality' => round((float)($r->avg_punctuality ?? 0), 2),
+            'with_comments'   => (int)($r->with_comments ?? 0),
+            'dist'            => [(int)($r->d1 ?? 0), (int)($r->d2 ?? 0), (int)($r->d3 ?? 0),
+                                  (int)($r->d4 ?? 0), (int)($r->d5 ?? 0)],
+        ];
+    }
+
+    /**
+     * Cuantas oportunidades de evaluacion hubo en el periodo: pares
+     * (sesion, estudiante) que cumplen las mismas reglas que el popup.
+     *
+     * Es el denominador de la cobertura. Aplica los mismos filtros que
+     * get_pending_for_student, incluida la exclusion de revalidas, que aqui
+     * se resuelve con NOT EXISTS y una ventana de +-12 h alrededor de la
+     * sesion (equivalente a "el mismo dia" sin recurrir a funciones de fecha
+     * propias de un motor concreto).
+     */
+    public static function count_eligible_opportunities(int $from = 0, int $to = 0): int {
+        global $DB;
+        $where = 'c.is_module = 0 AND c.instructorid > 0 AND s.sessdate <= :now';
+        $params = ['now' => time()];
+        if ($from > 0) { $where .= ' AND s.sessdate >= :fr'; $params['fr'] = $from; }
+        if ($to > 0)   { $where .= ' AND s.sessdate <= :to'; $params['to'] = $to; }
+
+        return (int)$DB->count_records_sql(
+            "SELECT COUNT(1)
+               FROM {gmk_class} c
+               JOIN {course_modules} cm ON cm.id = c.attendancemoduleid
+               JOIN {attendance} a ON a.id = cm.instance
+               JOIN {attendance_sessions} s ON s.attendanceid = a.id
+               JOIN {groups_members} gm ON gm.groupid = c.groupid
+              WHERE $where
+                AND NOT EXISTS (
+                      SELECT 1 FROM {gmk_revalidations} rv
+                       WHERE rv.classid = c.id AND rv.userid = gm.userid
+                         AND rv.sessionstart > s.sessdate - 43200
+                         AND rv.sessionstart < s.sessdate + 43200)", $params);
+    }
+
+    /**
+     * Serie mensual: volumen y promedio. Sirve para ver si la percepcion
+     * mejora o empeora, que es lo que de verdad se puede accionar.
+     *
+     * Se agrupa en PHP y no con funciones de fecha del motor para no atar
+     * la consulta a MySQL.
+     */
+    public static function trend(int $from = 0, int $to = 0): array {
+        global $DB;
+        $where = "ev.status = :st";
+        $params = ['st' => self::STATUS_SENT];
+        if ($from > 0) { $where .= ' AND ev.sessiondate >= :fr'; $params['fr'] = $from; }
+        if ($to > 0)   { $where .= ' AND ev.sessiondate <= :to'; $params['to'] = $to; }
+
+        $rows = $DB->get_records_sql(
+            "SELECT ev.id, ev.sessiondate, ev.rating_overall
+               FROM {gmk_wellness_teacher_eval} ev
+              WHERE $where
+           ORDER BY ev.sessiondate ASC", $params);
+
+        $buckets = [];
+        foreach ($rows as $r) {
+            $key = date('Y-m', (int)$r->sessiondate);
+            if (!isset($buckets[$key])) {
+                $buckets[$key] = ['n' => 0, 'sum' => 0];
+            }
+            $buckets[$key]['n']++;
+            $buckets[$key]['sum'] += (int)$r->rating_overall;
+        }
+        $out = [];
+        foreach ($buckets as $key => $b) {
+            $out[] = (object)[
+                'period' => $key,
+                'total'  => $b['n'],
+                'avg'    => $b['n'] > 0 ? round($b['sum'] / $b['n'], 2) : 0.0,
+            ];
+        }
+        return $out;
     }
 
     // -- helpers ------------------------------------------------------------
