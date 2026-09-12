@@ -46,6 +46,14 @@ class admin_list_partners extends external_api {
         self::validate_context($context);
         require_capability('local/grupomakro_core:manage_wellness', $context);
 
+        // Siembra las categorias canonicas la primera vez que se abre el panel.
+        // El metodo existia desde el principio pero no lo llamaba nadie, asi que
+        // la tabla quedaba vacia, el desplegable "Categoria" del dialogo salia
+        // sin opciones y guardar un convenio moria en "Debes seleccionar una
+        // categoria valida". Es idempotente: si ya hay filas, no toca nada.
+        // Mismo patron que admin_list_staff con seed_canonical_roles_if_empty().
+        \local_grupomakro_core\local\wellness_partner_manager::seed_categories_if_empty();
+
         $rows = \local_grupomakro_core\local\wellness_partner_manager::list_for_admin();
         $cats = \local_grupomakro_core\local\wellness_partner_manager::list_categories();
 
