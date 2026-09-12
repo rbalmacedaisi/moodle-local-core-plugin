@@ -311,6 +311,7 @@
           range: '90d'
         },
         rangeOptions: [
+          { text: 'Últimos 7 días', value: '7d' },
           { text: 'Últimos 30 días', value: '30d' },
           { text: 'Últimos 90 días', value: '90d' },
           { text: 'Último año', value: '365d' },
@@ -395,6 +396,7 @@
         const now = Math.floor(Date.now() / 1000);
         const day = 86400;
         switch (this.filters.range) {
+          case '7d': return { from: now - 7 * day, to: now };
           case '30d': return { from: now - 30 * day, to: now };
           case '90d': return { from: now - 90 * day, to: now };
           case '365d': return { from: now - 365 * day, to: now };
