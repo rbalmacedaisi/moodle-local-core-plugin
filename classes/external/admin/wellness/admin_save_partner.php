@@ -38,11 +38,15 @@ require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/wellness_part
 class admin_save_partner extends external_api {
 
     public static function execute_parameters() {
+        // OJO con el ORDEN: Moodle valida los argumentos por nombre, los ordena
+        // segun ESTA declaracion y luego invoca execute() POSICIONALMENTE. Si
+        // este orden no coincide con el de la firma de execute(), cada valor
+        // aterriza en la variable equivocada. Debe ir igual que la firma.
         return new external_function_parameters([
-            'id'                  => new external_value(PARAM_INT,  '0 to create', VALUE_DEFAULT, 0),
             'name'                => new external_value(PARAM_TEXT, 'Partner name', VALUE_REQUIRED),
             'categoryid'          => new external_value(PARAM_INT,  'Category id', VALUE_REQUIRED),
             'benefit_description' => new external_value(PARAM_RAW,  'Benefit', VALUE_REQUIRED),
+            'id'                  => new external_value(PARAM_INT,  '0 to create', VALUE_DEFAULT, 0),
             'conditions'          => new external_value(PARAM_RAW,  'Conditions', VALUE_DEFAULT, ''),
             'requirements'        => new external_value(PARAM_RAW,  'Requirements', VALUE_DEFAULT, ''),
             'startdate'           => new external_value(PARAM_INT,  'Unix ts (0 = always)', VALUE_DEFAULT, 0),

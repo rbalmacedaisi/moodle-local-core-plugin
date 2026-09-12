@@ -43,12 +43,16 @@ require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/wellness_dyna
 class admin_save_dynamic_form extends external_api {
 
     public static function execute_parameters() {
+        // OJO con el ORDEN: Moodle valida los argumentos por nombre, los ordena
+        // segun ESTA declaracion y luego invoca execute() POSICIONALMENTE. Si
+        // este orden no coincide con el de la firma de execute(), cada valor
+        // aterriza en la variable equivocada. Debe ir igual que la firma.
         return new external_function_parameters([
-            'id'          => new external_value(PARAM_INT,  '0 to create, otherwise the form id', VALUE_DEFAULT, 0),
             'title'       => new external_value(PARAM_TEXT, 'Form title', VALUE_REQUIRED),
+            'schema_json' => new external_value(PARAM_RAW,  'JSON with shape {fields:[...]}', VALUE_REQUIRED),
+            'id'          => new external_value(PARAM_INT,  '0 to create, otherwise the form id', VALUE_DEFAULT, 0),
             'description' => new external_value(PARAM_RAW,  'Free-text description', VALUE_DEFAULT, ''),
             'eventid'     => new external_value(PARAM_INT,  'Event id (0 = standalone / reusable)', VALUE_DEFAULT, 0),
-            'schema_json' => new external_value(PARAM_RAW,  'JSON with shape {fields:[...]}', VALUE_REQUIRED),
             'cover_path'  => new external_value(PARAM_TEXT, 'Absolute pluginfile URL (or empty)', VALUE_DEFAULT, ''),
             'active'      => new external_value(PARAM_BOOL, 'Active flag', VALUE_DEFAULT, true),
         ]);
