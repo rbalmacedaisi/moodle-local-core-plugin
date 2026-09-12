@@ -366,9 +366,18 @@ if (isloggedin() && !isguestuser()) {
         'local/grupomakro_core:manage_psychology_appointments'
     );
 
-    $ADMIN->add('grupomakrocore_plugin', $wellnessDashboardPage);
-    $ADMIN->add('grupomakrocore_plugin', $wellnessPsychologyPanelPage);
-    $ADMIN->add('grupomakrocore_plugin', $wellnessStaffPanelPage);
+    // Bienestar vive en su propia subcategoria. Antes sus pantallas quedaban
+    // sueltas entre las casi 70 entradas planas de Gestion Academica, asi que
+    // encontrarlas era cuestion de suerte. Agrupadas, el equipo de Bienestar
+    // ve su area de un vistazo y el resto del menu deja de crecer.
+    $ADMIN->add('grupomakrocore_plugin', new admin_category(
+        'grupomakrocore_wellness',
+        $emojititle("\u{1F91D}", 'Bienestar Estudiantil')
+    ));
+
+    $ADMIN->add('grupomakrocore_wellness', $wellnessDashboardPage);
+    $ADMIN->add('grupomakrocore_wellness', $wellnessPsychologyPanelPage);
+    $ADMIN->add('grupomakrocore_wellness', $wellnessStaffPanelPage);
 
     // RF-08: reportes de evaluación docente (Coordinación Académica).
     $wellnessTeacherEvalsPage = new admin_externalpage(
@@ -377,7 +386,7 @@ if (isloggedin() && !isguestuser()) {
         new moodle_url('/local/grupomakro_core/pages/wellness_teacher_evals.php'),
         'local/grupomakro_core:manage_wellness'
     );
-    $ADMIN->add('grupomakrocore_plugin', $wellnessTeacherEvalsPage);
+    $ADMIN->add('grupomakrocore_wellness', $wellnessTeacherEvalsPage);
 
     // ------------------------------------------------------------------
     // Paginas que ya existian pero no estaban enlazadas en ningun menu:
