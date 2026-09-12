@@ -426,25 +426,32 @@
         }
         self.loading = true;
         const r = self.rangeFromTo;
-        const params = new URLSearchParams();
-        params.append('wstoken', window.themeToken);
-        params.append('wsfunction', 'local_grupomakro_admin_list_teacher_evals');
-        params.append('moodlewsrestformat', 'json');
-        params.append('instructorid', '0');
-        params.append('classid', '0');
-        params.append('from', String(r.from));
-        params.append('to', String(r.to));
 
-        const url = window.location.origin + '/webservice/rest/server.php';
-        window.axios.post(url, params, { timeout: 15000 })
+        // Se llama por ajax.php con la sesskey de la sesion, igual que el
+        // resto de paneles de Bienestar. Antes usaba
+        // /webservice/rest/server.php con window.themeToken, un token que
+        // esta pagina NUNCA define (solo emite ajaxUrl y sesskey), asi que
+        // el panel fallaba siempre con "Ficha (token) no valida" y no
+        // llegaba a mostrar un solo dato.
+        window.axios.post(ajaxUrl, {
+          action: 'local_grupomakro_admin_list_teacher_evals',
+          args: {
+            instructorid: 0,
+            classid: 0,
+            from: r.from,
+            to: r.to
+          }
+        }, { params: { sesskey: sesskey }, timeout: 15000 })
           .then(function (resp) {
-            if (resp.data && resp.data.exception) {
-              throw new Error(resp.data.message || resp.data.errorcode || 'WS error');
+            const body = resp.data || {};
+            if (body.status !== 'success') {
+              throw new Error(body.message || 'WS error');
             }
-            self.evaluations = (resp.data && resp.data.evaluations) || [];
-            self.aggregates = (resp.data && resp.data.aggregates) || [];
-            self.kpis = (resp.data && resp.data.kpis) || null;
-            self.trend = (resp.data && resp.data.trend) || [];
+            const d = body.data || {};
+            self.evaluations = d.evaluations || [];
+            self.aggregates = d.aggregates || [];
+            self.kpis = d.kpis || null;
+            self.trend = d.trend || [];
             self.notify('Datos actualizados.', 'success');
           })
           .catch(function (err) {
