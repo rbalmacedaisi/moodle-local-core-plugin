@@ -216,11 +216,14 @@ function local_grupomakro_core_extend_navigation(global_navigation $navigation) 
                 ['view_classmanagement', 'classmanagement.php', '📘 ' . get_string('class_management', $pluginname)],
                 ['manage_schedules', 'schedules.php', '🗓️ ' . get_string('class_schedules', $pluginname)],
                 ['manage_schedules', 'schedulepanel.php', '🕒 ' . get_string('schedules_panel', $pluginname)],
+                ['manage_schedules', 'schedule_weekly_view.php', '📅 Vista Semanal de Horarios'],
                 ['manage_teacher_availability', 'availabilitypanel.php', '🧑‍🏫 ' . get_string('availability_panel', $pluginname)],
                 ['manage_teacher_availability', 'availability.php', '📆 ' . get_string('availability_calendar', $pluginname)],
                 ['manage_teachers', 'teachers.php', '👩‍🏫 ' . get_string('admin_teachers_management', $pluginname)],
+                ['manage_teachers', 'inactive_teacher_dashboard.php', '🧑‍💼 Estado Docente'],
                 ['manage_courses', 'manage_courses.php', '📂 Gestor de Cursos'],
                 ['manage_modules', 'module_management.php', '📚 Gestión de Módulos Independientes'],
+                ['manage_classes', 'createclass.php', '➕ ' . get_string('create_class', $pluginname)],
                 ['manage_meetings', 'manage_meetings.php', '🎥 Gestor de Sesiones Virtuales'],
                 ['bulk_enroll', 'bulk_enroll.php', '📋 Matrícula Masiva a Plan'],
                 ['manage_homologations', 'homologation_manager.php', '🔀 Gestor de Homologaciones'],
@@ -230,6 +233,7 @@ function local_grupomakro_core_extend_navigation(global_navigation $navigation) 
                 ['view_active_students_by_class', 'active_students_by_class.php', '🧑‍🎓 Activos por Clase'],
                 ['view_student_timeline', 'student_timeline.php', '🧭 Línea de Tiempo'],
                 ['manage_users', 'users.php', '👤 Gestión de Usuarios'],
+                ['manage_users', 'bulk_update_journey.php', '🔁 Actualización Masiva de Jornada'],
                 ['import_users', 'import_users.php', '⬆️ Importar Usuarios'],
             ],
             'Asistencia y Notas' => [
@@ -244,6 +248,8 @@ function local_grupomakro_core_extend_navigation(global_navigation $navigation) 
                 ['manage_orders', 'orders.php', '🧾 Órdenes'],
                 ['manage_institutions', 'institutionmanagement.php', '🏢 Instituciones'],
                 ['manage_institutional_contracts', 'institutionalcontracts.php', '📄 Contratos Institucionales'],
+                ['manage_institutional_contracts', 'contractmanagement.php', '📑 ' . get_string('contract_management', $pluginname)],
+                ['manage_orders', 'createcontract.php', '🖊️ ' . get_string('create_contract', $pluginname)],
                 ['view_credit_report', 'credit_report.php', '💳 Informe de Créditos'],
                 ['view_financial_planning', 'financial_planning.php', '💰 Análisis Financiero Docente'],
                 ['viewdiplomas', 'diplomageneration.php', '🎓 ' . get_string('diploma_generation', $pluginname)],
@@ -253,6 +259,7 @@ function local_grupomakro_core_extend_navigation(global_navigation $navigation) 
                 ['manage_wellness', 'wellness_dashboard.php', '🤝 ' . get_string('wellness_dashboard_menu', $pluginname)],
                 ['manage_psychology_appointments', 'wellness_psychology_panel.php', '🧠 Psicología (agenda)'],
                 ['manage_psychology_appointments', 'wellness_staff_panel.php', '👥 Personal asignado'],
+                ['manage_wellness', 'wellness_teacher_evals.php', '⭐ Evaluación Docente'],
                 ['manageannouncements', 'announcements.php', get_string('announcements_menu', $pluginname)],
             ],
             'Sistema' => [
@@ -260,6 +267,8 @@ function local_grupomakro_core_extend_navigation(global_navigation $navigation) 
                 ['view_log', 'view_log.php', '📜 Registro del Sistema'],
                 ['manage_financial_config', 'bypass_financial.php', '💵 Bypass Financiero'],
                 ['manage_financial_config', 'grace_period.php', '⏳ Período de Gracia'],
+                ['manage_financial_config', 'financial_source.php', '🏦 Fuente de Datos Financieros'],
+                ['manage_financial_webhooks', 'financial_webhook_dlq.php', '📮 DLQ — Webhooks financieros'],
             ],
         ];
 
