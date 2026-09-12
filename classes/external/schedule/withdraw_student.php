@@ -35,7 +35,11 @@ class withdraw_student extends external_api {
     }
 
     public static function execute($classId, $userId, $learningPlanId = 0) {
-        global $DB;
+        // $USER is written into gmk_academic_movement.usermodified further down.
+        // It was missing here, so $USER resolved to an undefined local and the
+        // (int) cast turned it into 0: the withdrawal was recorded with no
+        // author instead of failing loudly.
+        global $DB, $USER;
 
         $params = self::validate_parameters(self::execute_parameters(), [
             'classId' => $classId,

@@ -65,7 +65,11 @@ class create_express_activity extends external_api {
         $forummessage = '',
         $forumcreateinitial = true
     ) {
-        global $DB;
+        // $USER is needed by the instructor/support check below. It was missing
+        // from this global, so $USER->id resolved to null on an undefined local
+        // and gmk_user_is_class_instructor_or_support() rejected it on its int
+        // type hint: "Argument 2 ... must be of the type int, null given".
+        global $DB, $USER;
 
         $params = self::validate_parameters(self::execute_parameters(), array(
             'classid' => $classid,
