@@ -345,7 +345,12 @@ if (isloggedin() && !isguestuser()) {
     // full siteadmin rights.
     $wellnessDashboardPage = new admin_externalpage(
         'grupomakro_core_wellness_dashboard',
-        $emojititle("\u{1F91D}", get_string('wellness_dashboard_menu', 'local_grupomakro_core')),
+        // Etiqueta propia, no la del string: dentro de la categoria
+        // "Bienestar Estudiantil" repetir ese mismo nombre confundia
+        // (se veia Bienestar Estudiantil > Bienestar Estudiantil). El
+        // string sigue usandose tal cual en lib.php para el aterrizaje
+        // del personal y la navegacion.
+        $emojititle("\u{1F91D}", 'Convenios, eventos y carnets'),
         new moodle_url('/local/grupomakro_core/pages/wellness_dashboard.php'),
         'local/grupomakro_core:manage_wellness'
     );
@@ -353,7 +358,7 @@ if (isloggedin() && !isguestuser()) {
     // Wellness psychology panel (RF-09.3)
     $wellnessPsychologyPanelPage = new admin_externalpage(
         'grupomakro_core_wellness_psychology_panel',
-        $emojititle("\u{1F9E0}", 'Bienestar: Psicología (agenda)'),
+        $emojititle("\u{1F9E0}", 'Psicología (agenda)'),
         new moodle_url('/local/grupomakro_core/pages/wellness_psychology_panel.php'),
         'local/grupomakro_core:manage_psychology_appointments'
     );
@@ -361,7 +366,7 @@ if (isloggedin() && !isguestuser()) {
     // Wellness staff roster panel (RF-03 / RF-09.3)
     $wellnessStaffPanelPage = new admin_externalpage(
         'grupomakro_core_wellness_staff_panel',
-        $emojititle("\u{1F465}", 'Bienestar: Personal asignado'),
+        $emojititle("\u{1F465}", 'Personal asignado'),
         new moodle_url('/local/grupomakro_core/pages/wellness_staff_panel.php'),
         'local/grupomakro_core:manage_psychology_appointments'
     );
@@ -382,7 +387,7 @@ if (isloggedin() && !isguestuser()) {
     // RF-08: reportes de evaluación docente (Coordinación Académica).
     $wellnessTeacherEvalsPage = new admin_externalpage(
         'grupomakro_core_wellness_teacher_evals',
-        $emojititle("\u{1F4CB}", 'Bienestar: Evaluación docente'),
+        $emojititle("\u{1F4CB}", 'Evaluación docente'),
         new moodle_url('/local/grupomakro_core/pages/wellness_teacher_evals.php'),
         'local/grupomakro_core:manage_wellness'
     );
