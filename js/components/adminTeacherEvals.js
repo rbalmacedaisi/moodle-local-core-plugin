@@ -65,6 +65,136 @@
           </v-card-text>
         </v-card>
 
+
+        <!-- ===== Indicadores del periodo ===== -->
+        <v-row v-if="kpis" dense class="mb-1">
+          <v-col cols="12" sm="6" md="3">
+            <v-card outlined class="pa-3 text-center">
+              <div class="caption grey--text text-uppercase">Participación</div>
+              <div class="text-h4 font-weight-bold" :class="participationColor + '--text'">
+                {{ kpis.coverage_rate }}%
+              </div>
+              <div class="caption grey--text">
+                {{ kpis.sent }} de {{ kpis.eligible }} oportunidades
+              </div>
+            </v-card>
+          </v-col>
+          <v-col cols="12" sm="6" md="3">
+            <v-card outlined class="pa-3 text-center">
+              <div class="caption grey--text text-uppercase">Promedio institucional</div>
+              <div class="text-h4 font-weight-bold" :class="ratingColor(kpis.avg_overall) + '--text'">
+                {{ kpis.avg_overall ? kpis.avg_overall.toFixed(2) : '—' }}
+              </div>
+              <div class="caption grey--text">
+                claridad {{ kpis.avg_clarity ? kpis.avg_clarity.toFixed(1) : '—' }} ·
+                puntualidad {{ kpis.avg_punctuality ? kpis.avg_punctuality.toFixed(1) : '—' }}
+              </div>
+            </v-card>
+          </v-col>
+          <v-col cols="12" sm="6" md="3">
+            <v-card outlined class="pa-3 text-center">
+              <div class="caption grey--text text-uppercase">Evaluaciones</div>
+              <div class="text-h4 font-weight-bold">{{ kpis.sent }}</div>
+              <div class="caption grey--text">
+                {{ kpis.with_comments }} con comentario · {{ kpis.dismissed }} descartadas
+              </div>
+            </v-card>
+          </v-col>
+          <v-col cols="12" sm="6" md="3">
+            <v-card outlined class="pa-3 text-center">
+              <div class="caption grey--text text-uppercase">Alcance</div>
+              <div class="text-h4 font-weight-bold">{{ kpis.teachers }}</div>
+              <div class="caption grey--text">
+                docentes · {{ kpis.students }} estudiantes · {{ kpis.classes }} clases
+              </div>
+            </v-card>
+          </v-col>
+        </v-row>
+
+        <!-- Sin datos: explicar por que, en vez de dejar tablas vacias -->
+        <v-alert
+          v-if="kpis && kpis.sent === 0"
+          type="info"
+          text
+          dense
+          class="mb-4"
+        >
+          Todavía no hay ninguna evaluación en este periodo.
+          Hubo <strong>{{ kpis.eligible }}</strong> oportunidades elegibles
+          (sesiones de clase que un estudiante podía evaluar), así que el circuito
+          está activo y esperando respuestas. El popup aparece en el portal del
+          estudiante tras el retardo configurado en <em>Bienestar: parámetros</em>.
+        </v-alert>
+
+        <!-- Docentes que requieren atencion -->
+        <v-alert
+          v-if="attentionList.length"
+          type="warning"
+          text
+          dense
+          class="mb-4"
+        >
+          <strong>{{ attentionList.length }}</strong>
+          docente(s) con promedio por debajo de
+          {{ kpis ? kpis.attention_threshold : 3 }}
+          y al menos {{ kpis ? kpis.min_sample : 5 }} respuestas:
+          <span v-for="(a, i) in attentionList" :key="a.instructorid">
+            <strong>{{ a.teacher_name }}</strong> ({{ a.avg_overall.toFixed(2) }}<span>)</span><span v-if="i < attentionList.length - 1">, </span>
+          </span>
+        </v-alert>
+
+        <!-- Distribucion y tendencia -->
+        <v-row v-if="kpis && kpis.sent > 0" dense class="mb-2">
+          <v-col cols="12" md="7">
+            <v-card outlined class="pa-3">
+              <div class="subtitle-2 mb-2">Distribución de la nota general</div>
+              <div v-for="b in distBars" :key="b.score" class="d-flex align-center mb-1">
+                <div style="width:28px" class="caption">{{ b.score }}★</div>
+                <v-progress-linear
+                  :value="b.pct"
+                  :color="b.color"
+                  height="14"
+                  rounded
+                  class="flex-grow-1 mx-2"
+                ></v-progress-linear>
+                <div style="width:92px" class="caption text-right">
+                  {{ b.count }} ({{ b.pct }}%)
+                </div>
+              </div>
+              <div class="caption grey--text mt-2">
+                Dos docentes con la misma media pueden tener repartos muy distintos;
+                aquí se ve si la nota es pareja o está polarizada.
+              </div>
+            </v-card>
+          </v-col>
+          <v-col cols="12" md="5">
+            <v-card outlined class="pa-3">
+              <div class="subtitle-2 mb-2">Evolución mensual</div>
+              <v-simple-table dense v-if="trendRows.length">
+                <template v-slot:default>
+                  <thead>
+                    <tr>
+                      <th class="text-left">Mes</th>
+                      <th class="text-center">Evaluaciones</th>
+                      <th class="text-center">Promedio</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="t in trendRows" :key="t.period">
+                      <td>{{ t.period }}</td>
+                      <td class="text-center">{{ t.total }}</td>
+                      <td class="text-center">
+                        <v-chip x-small dark :color="ratingColor(t.avg)">{{ t.avg.toFixed(2) }}</v-chip>
+                      </td>
+                    </tr>
+                  </tbody>
+                </template>
+              </v-simple-table>
+              <div v-else class="caption grey--text">Sin datos suficientes todavía.</div>
+            </v-card>
+          </v-col>
+        </v-row>
+
         <v-card v-if="aggregates.length" class="mb-4" elevation="2">
           <v-card-title class="text-subtitle-1">
             <v-icon left color="primary">mdi-chart-bar</v-icon>
@@ -78,6 +208,22 @@
             dense
             class="elevation-0"
           >
+            <template v-slot:item.teacher_name="{ item }">
+              {{ item.teacher_name }}
+              <v-tooltip bottom v-if="item.low_sample">
+                <template v-slot:activator="{ on, attrs }">
+                  <v-icon x-small color="grey" v-bind="attrs" v-on="on" class="ml-1">mdi-alert-circle-outline</v-icon>
+                </template>
+                <span>Muestra pequeña: el promedio aún no es comparable.</span>
+              </v-tooltip>
+              <v-icon x-small color="warning" v-if="item.needs_attention" class="ml-1">mdi-flag</v-icon>
+            </template>
+            <template v-slot:item.dist="{ item }">
+              <span class="caption">{{ item.dist }}</span>
+            </template>
+            <template v-slot:item.last_eval="{ item }">
+              <span class="caption">{{ item.last_eval ? formatDate(item.last_eval) : '—' }}</span>
+            </template>
             <template v-slot:item.avg_overall="{ item }">
               <v-chip :color="ratingColor(item.avg_overall)" small dark label class="font-weight-bold">
                 {{ formatAvg(item.avg_overall) }}
@@ -157,6 +303,8 @@
         loading: false,
         evaluations: [],
         aggregates: [],
+        kpis: null,
+        trend: [],
         search: '',
         filters: {
           instructorName: '',
@@ -180,7 +328,10 @@
           { text: 'Evaluaciones', value: 'total', align: 'center' },
           { text: 'General', value: 'avg_overall', align: 'center' },
           { text: 'Claridad', value: 'avg_clarity', align: 'center' },
-          { text: 'Puntualidad', value: 'avg_punctuality', align: 'center' }
+          { text: 'Puntualidad', value: 'avg_punctuality', align: 'center' },
+          { text: 'Distribución', value: 'dist', align: 'center', sortable: false, width: 140 },
+          { text: 'Comentarios', value: 'with_comments', align: 'center' },
+          { text: 'Última', value: 'last_eval', align: 'center', width: 110 }
         ];
       },
       detailHeaders() {
@@ -194,6 +345,37 @@
           { text: 'Puntualidad', value: 'rating_punctuality', align: 'center', width: 100 },
           { text: 'Comentario', value: 'comment' }
         ];
+      },
+      // Docentes con media baja Y muestra suficiente. El segundo requisito
+      // es el que evita senalar a alguien por una unica mala nota.
+      attentionList() {
+        return (this.aggregates || []).filter(function (a) { return a.needs_attention; });
+      },
+      // Reparto de notas 1-5 del instituto, en porcentaje, para la barra.
+      distBars() {
+        var raw = (this.kpis && this.kpis.dist) ? String(this.kpis.dist).split(',') : [];
+        var nums = raw.map(function (n) { return parseInt(n, 10) || 0; });
+        var total = nums.reduce(function (a, b) { return a + b; }, 0);
+        var colors = ['red darken-2', 'deep-orange', 'amber darken-2', 'light-green darken-1', 'green darken-2'];
+        return nums.map(function (n, i) {
+          return {
+            score: i + 1,
+            count: n,
+            pct: total > 0 ? Math.round(n * 1000 / total) / 10 : 0,
+            color: colors[i]
+          };
+        });
+      },
+      // Ultimos 12 meses de la serie, del mas reciente al mas antiguo.
+      trendRows() {
+        return (this.trend || []).slice(-12).reverse();
+      },
+      participationColor() {
+        if (!this.kpis) return 'grey';
+        var r = this.kpis.coverage_rate;
+        if (r >= 50) return 'green darken-2';
+        if (r >= 20) return 'amber darken-2';
+        return 'red darken-2';
       },
       filteredAggregates() {
         const q = (this.filters.instructorName || '').trim().toLowerCase();
@@ -261,6 +443,8 @@
             }
             self.evaluations = (resp.data && resp.data.evaluations) || [];
             self.aggregates = (resp.data && resp.data.aggregates) || [];
+            self.kpis = (resp.data && resp.data.kpis) || null;
+            self.trend = (resp.data && resp.data.trend) || [];
             self.notify('Datos actualizados.', 'success');
           })
           .catch(function (err) {
