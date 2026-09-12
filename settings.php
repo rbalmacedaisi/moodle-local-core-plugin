@@ -379,6 +379,125 @@ if (isloggedin() && !isguestuser()) {
     );
     $ADMIN->add('grupomakrocore_plugin', $wellnessTeacherEvalsPage);
 
+    // ------------------------------------------------------------------
+    // Paginas que ya existian pero no estaban enlazadas en ningun menu:
+    // solo se podia llegar a ellas escribiendo la URL a mano. Se registran
+    // aqui, cada una con la misma capability que la propia pagina exige,
+    // para que aparezcan a quien corresponde y no a los demas.
+    // ------------------------------------------------------------------
+    $gmkAcademicPlanningPage = new admin_externalpage(
+        'grupomakro_core_academic_planning',
+        $emojititle("\u{1F5D3}", 'Planificador Académico'),
+        new moodle_url('/local/grupomakro_core/pages/academic_planning.php'),
+        'local/grupomakro_core:manage_academic_planning'
+    );
+    $ADMIN->add('grupomakrocore_plugin', $gmkAcademicPlanningPage);
+    $gmkAcademicCalendarPage = new admin_externalpage(
+        'grupomakro_core_academic_calendar',
+        $emojititle("\u{1F4C5}", 'Calendario Académico'),
+        new moodle_url('/local/grupomakro_core/pages/academiccalendar.php'),
+        'local/grupomakro_core:manage_academic_calendar'
+    );
+    $ADMIN->add('grupomakrocore_plugin', $gmkAcademicCalendarPage);
+    $gmkScheduleApprovalPage = new admin_externalpage(
+        'grupomakro_core_schedule_approval',
+        $emojititle("\u{2705}", 'Aprobación de Horarios'),
+        new moodle_url('/local/grupomakro_core/pages/scheduleapproval.php'),
+        'local/grupomakro_core:manage_schedules'
+    );
+    $ADMIN->add('grupomakrocore_plugin', $gmkScheduleApprovalPage);
+    $gmkAnnouncementsPage = new admin_externalpage(
+        'grupomakro_core_announcements',
+        $emojititle("\u{1F4E2}", 'Mensajes a Estudiantes'),
+        new moodle_url('/local/grupomakro_core/pages/announcements.php'),
+        'local/grupomakro_core:manageannouncements'
+    );
+    $ADMIN->add('grupomakrocore_plugin', $gmkAnnouncementsPage);
+    $gmkRevalidationsDirectorPage = new admin_externalpage(
+        'grupomakro_core_revalidations_director',
+        $emojititle("\u{1F501}", 'Reválidas (Dirección Académica)'),
+        new moodle_url('/local/grupomakro_core/pages/revalidations_director.php'),
+        'local/grupomakro_core:view_revalidations_dashboard'
+    );
+    $ADMIN->add('grupomakrocore_plugin', $gmkRevalidationsDirectorPage);
+    $gmkFailedSubjectsPage = new admin_externalpage(
+        'grupomakro_core_failed_subjects',
+        $emojititle("\u{1F4C9}", 'Informe de Materias Reprobadas'),
+        new moodle_url('/local/grupomakro_core/pages/failed_subjects_report.php'),
+        'local/grupomakro_core:view_failed_subjects_report'
+    );
+    $ADMIN->add('grupomakrocore_plugin', $gmkFailedSubjectsPage);
+    $gmkCreditReportPage = new admin_externalpage(
+        'grupomakro_core_credit_report',
+        $emojititle("\u{1F393}", 'Informe de Créditos'),
+        new moodle_url('/local/grupomakro_core/pages/credit_report.php'),
+        'local/grupomakro_core:view_credit_report'
+    );
+    $ADMIN->add('grupomakrocore_plugin', $gmkCreditReportPage);
+    $gmkHomologationManagerPage = new admin_externalpage(
+        'grupomakro_core_homologation_manager',
+        $emojititle("\u{1F501}", 'Homologaciones'),
+        new moodle_url('/local/grupomakro_core/pages/homologation_manager.php'),
+        'local/grupomakro_core:manage_homologations'
+    );
+    $ADMIN->add('grupomakrocore_plugin', $gmkHomologationManagerPage);
+    $gmkOrdersPage = new admin_externalpage(
+        'grupomakro_core_orders',
+        $emojititle("\u{1F4C4}", 'Contratos / Órdenes'),
+        new moodle_url('/local/grupomakro_core/pages/orders.php'),
+        'local/grupomakro_core:manage_orders'
+    );
+    $ADMIN->add('grupomakrocore_plugin', $gmkOrdersPage);
+    $gmkContractManagementPage = new admin_externalpage(
+        'grupomakro_core_contract_management',
+        $emojititle("\u{1F3E2}", 'Contratos Institucionales'),
+        new moodle_url('/local/grupomakro_core/pages/contractmanagement.php'),
+        'local/grupomakro_core:manage_institutional_contracts'
+    );
+    $ADMIN->add('grupomakrocore_plugin', $gmkContractManagementPage);
+    $gmkFinancialSourcePage = new admin_externalpage(
+        'grupomakro_core_financial_source',
+        $emojititle("\u{1F4B3}", 'Fuente de Datos Financieros'),
+        new moodle_url('/local/grupomakro_core/pages/financial_source.php'),
+        'local/grupomakro_core:manage_financial_config'
+    );
+    $ADMIN->add('grupomakrocore_plugin', $gmkFinancialSourcePage);
+    $gmkFinancialDlqPage = new admin_externalpage(
+        'grupomakro_core_financial_dlq',
+        $emojititle("\u{26A0}", 'Webhooks Financieros Fallidos'),
+        new moodle_url('/local/grupomakro_core/pages/financial_webhook_dlq.php'),
+        'local/grupomakro_core:manage_financial_webhooks'
+    );
+    $ADMIN->add('grupomakrocore_plugin', $gmkFinancialDlqPage);
+    $gmkExportStudentsPage = new admin_externalpage(
+        'grupomakro_core_export_students',
+        $emojititle("\u{1F4E4}", 'Exportar Estudiantes'),
+        new moodle_url('/local/grupomakro_core/pages/export_students.php'),
+        'local/grupomakro_core:export_students'
+    );
+    $ADMIN->add('grupomakrocore_plugin', $gmkExportStudentsPage);
+    $gmkExportGradesPage = new admin_externalpage(
+        'grupomakro_core_export_grades',
+        $emojititle("\u{1F4E4}", 'Exportar Notas Consolidadas'),
+        new moodle_url('/local/grupomakro_core/pages/export_consolidated_grades.php'),
+        'local/grupomakro_core:export_students'
+    );
+    $ADMIN->add('grupomakrocore_plugin', $gmkExportGradesPage);
+    $gmkBulkJourneyPage = new admin_externalpage(
+        'grupomakro_core_bulk_journey',
+        $emojititle("\u{1F504}", 'Actualización Masiva de Jornada'),
+        new moodle_url('/local/grupomakro_core/pages/bulk_update_journey.php'),
+        'local/grupomakro_core:manage_users'
+    );
+    $ADMIN->add('grupomakrocore_plugin', $gmkBulkJourneyPage);
+    $gmkViewLogPage = new admin_externalpage(
+        'grupomakro_core_view_log',
+        $emojititle("\u{1F4DC}", 'Visor de Logs'),
+        new moodle_url('/local/grupomakro_core/pages/view_log.php'),
+        'local/grupomakro_core:view_log'
+    );
+    $ADMIN->add('grupomakrocore_plugin', $gmkViewLogPage);
+
     $ADMIN->add('grupomakrocore_plugin', $financialPlanningPage);
     $ADMIN->add('grupomakrocore_plugin', $debugStudentActivityVisibilityPage);
     $ADMIN->add('grupomakrocore_plugin', $debugBbbTeacherJoinPage);
