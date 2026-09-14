@@ -8,6 +8,7 @@ require_once($CFG->libdir . '/externallib.php');
 require_once($CFG->dirroot . '/local/sc_learningplans/external/user/delete_learning_user.php');
 
 use external_api;
+use context_system;
 use external_function_parameters;
 use external_value;
 use external_single_structure;

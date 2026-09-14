@@ -27,6 +27,7 @@ namespace local_grupomakro_core\local\diplomas;
 defined('MOODLE_INTERNAL') || die();
 
 use context_system;
+use core_text;
 use core_user;
 use dml_exception;
 use moodle_exception;
