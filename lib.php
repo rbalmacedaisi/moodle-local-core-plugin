@@ -315,7 +315,17 @@ function local_grupomakro_core_extend_navigation(global_navigation $navigation) 
         $is_home = $PAGE->url->compare(new moodle_url('/'), URL_MATCH_BASE);
         $is_dashboard = $PAGE->url->compare(new moodle_url('/my/'), URL_MATCH_BASE);
 
-        if ($is_home || $is_dashboard) {
+        // Moodle's exception handler rebuilds $PAGE, and from then on $PAGE->url
+        // no longer names the page that actually ran: an exception thrown inside
+        // schedules.php surfaced as a 303 to the academic panel, hiding the real
+        // message. SCRIPT_NAME always names the PHP file being executed, so both
+        // have to agree before this takes over the request.
+        $script = (string)($_SERVER['SCRIPT_NAME'] ?? '');
+        $isentrypoint = ($script === ''
+            || substr($script, -10) === '/index.php'
+            || strpos($script, '/my/') !== false);
+
+        if (($is_home || $is_dashboard) && $isentrypoint) {
             $dummy = null;
             local_grupomakro_core_user_home_redirect($dummy);
         }

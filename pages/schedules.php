@@ -49,7 +49,15 @@ $token    = json_encode((is_string($rawToken) && $rawToken !== '') ? $rawToken :
 $rawTheme = json_decode(get_theme_token());
 $themeToken = json_encode((is_string($rawTheme) && $rawTheme !== '') ? $rawTheme : '');
 
-$userRole = is_siteadmin() ? 'admin' : false;
+// Access to this page is already gated by manage_schedules above. $userRole
+// only decides the FILTER: 'admin' sees every class, 'teacher' sees their own.
+// It used to be is_siteadmin() or a role whose shortname contains "teacher",
+// which bypasses the capability system entirely - so Registros Academicos,
+// Secretaria Academica, Bienestar and even the Director Academico matched
+// neither branch, fell into the exception below and got bounced to the
+// academic panel instead of seeing the schedules.
+$userRole = (is_siteadmin() || has_capability('local/grupomakro_core:manage_schedules', $context))
+    ? 'admin' : false;
 
 if (!$userRole) {
   //Check if the user is an Instructor
