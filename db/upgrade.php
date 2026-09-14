@@ -3740,6 +3740,12 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20261001037, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20261001042) {
+        // Bienestar can read the student's Moodle profile.
+        assign_capabilities_to_internal_roles();
+        upgrade_plugin_savepoint(true, 20261001042, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

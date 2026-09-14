@@ -23,6 +23,17 @@
  */
 defined('MOODLE_INTERNAL') || die();
 
+// This file is require_once'd from inside functions in a dozen places (ajax.php,
+// absence_helpers.php, the scheduled tasks, several external classes). An
+// included file inherits the SCOPE of whoever included it, so in those cases the
+// $CFG below is not the global one unless the caller happened to declare it —
+// which produced, on absence_dashboard.php:
+//   Notice: Undefined variable: CFG ... locallib.php on line 26
+//   Fatal error: require_once(): Failed opening required '/group/lib.php'
+// Importing it here fixes every caller at once and is a no-op when this file is
+// included at global scope, as the pages do.
+global $CFG;
+
 require_once($CFG->dirroot . '/group/lib.php');
 require_once($CFG->dirroot . '/grade/lib.php');
 require_once($CFG->dirroot . '/user/lib.php');

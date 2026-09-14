@@ -616,6 +616,15 @@ function assign_capabilities_to_internal_roles() {
             'local/grupomakro_core:manage_meetings',
         ],
         'gmk_bienestar' => [
+            // Read the student's Moodle profile. The absence dashboard links to
+            // /user/profile.php and Bienestar follows up on the students it
+            // flags there, but no gmk_* role held a single CORE capability, so
+            // those links failed. These three are READ ONLY: viewing a profile
+            // and the participant lists. Editing a profile needs
+            // moodle/user:update, which is deliberately NOT granted here.
+            'moodle/site:viewparticipants',
+            'moodle/user:viewdetails',
+            'moodle/user:viewalldetails',
             // Class schedules, read only. manage_schedules opens schedules.php
             // and its calendar; the edit actions there (reschedule, copy,
             // delete session) are gated on manage_classes, which Bienestar does
