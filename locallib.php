@@ -8033,6 +8033,7 @@ if (!function_exists('gmk_complete_class_event_information_fast')) {
         $event->instructorlpid = $gmkClass->instructorlpid;
         $event->instructorid = $gmkClass->instructorid;
         $event->groupid = $gmkClass->groupid;
+        $event->groupname = gmk_group_name($event->groupid);
         $event->classroomid = !empty($gmkClass->classroomid) ? (int)$gmkClass->classroomid : 0;
         $event->classroomName = !empty($gmkClass->classroomName) ? (string)$gmkClass->classroomName : 'Sin aula';
         $event->room = $event->classroomName;
@@ -8201,6 +8202,7 @@ if (!function_exists('gmk_complete_class_event_information_bbb_fast')) {
         }
         $event->classId = (int)$gmkClass->id;
         $event->groupid = (int)($gmkClass->groupid ?? 0);
+        $event->groupname = gmk_group_name($event->groupid);
         $event->classroomid = !empty($gmkClass->classroomid) ? (int)$gmkClass->classroomid : 0;
         $event->classroomName = !empty($gmkClass->classroomName) ? (string)$gmkClass->classroomName : 'Sin aula';
         $event->room = $event->classroomName;
@@ -8310,6 +8312,7 @@ if (!function_exists('gmk_complete_generic_module_event_information_fast')) {
             $event->courseShortName = $gmkClass->course->shortname ?? '';
             $event->classId = (int)$gmkClass->id;
             $event->groupid = (int)($gmkClass->groupid ?? 0);
+            $event->groupname = gmk_group_name($event->groupid);
             $event->classroomid = !empty($gmkClass->classroomid) ? (int)$gmkClass->classroomid : 0;
             $event->classroomName = !empty($gmkClass->classroomName) ? (string)$gmkClass->classroomName : 'Sin aula';
             $event->room = $event->classroomName;
@@ -8353,6 +8356,31 @@ if (!function_exists('gmk_complete_generic_module_event_information_fast')) {
 
         return $event;
     }
+}
+
+/**
+ * Name of a Moodle group, resolved once per request.
+ *
+ * The schedule card detail shows which group a class session belongs to. Every
+ * event-enrichment path calls this, and each of those runs once per calendar
+ * event, so the lookup is memoised: a class repeats the same group across all
+ * of its sessions and a week of calendar holds far more events than groups.
+ *
+ * @param int|string|null $groupid groups.id, 0 or null when the class has none.
+ * @return string The group name, or '' when there is no group or it is gone.
+ */
+function gmk_group_name($groupid): string {
+    global $DB;
+    static $names = [];
+    $id = (int)$groupid;
+    if ($id <= 0) {
+        return '';
+    }
+    if (!array_key_exists($id, $names)) {
+        $name = $DB->get_field('groups', 'name', ['id' => $id]);
+        $names[$id] = ($name === false) ? '' : (string)$name;
+    }
+    return $names[$id];
 }
 
 function complete_class_event_information($event, &$fetchedClasses)
@@ -8439,19 +8467,7 @@ function complete_class_event_information($event, &$fetchedClasses)
     $event->instructorlpid = $gmkClass->instructorlpid;
     $event->instructorid = $gmkClass->instructorid;
     $event->groupid = $gmkClass->groupid;
-    // Name of the Moodle group backing this class, shown in the schedule card
-    // detail. Cached per request: this runs once per calendar event and every
-    // session of the same class repeats the same group.
-    static $gmkgroupnames = [];
-    $gmkgroupid = (int)($gmkClass->groupid ?? 0);
-    if ($gmkgroupid > 0) {
-        if (!array_key_exists($gmkgroupid, $gmkgroupnames)) {
-            $gmkgroupnames[$gmkgroupid] = (string)$DB->get_field('groups', 'name', ['id' => $gmkgroupid]);
-        }
-        $event->groupname = $gmkgroupnames[$gmkgroupid];
-    } else {
-        $event->groupname = '';
-    }
+    $event->groupname = gmk_group_name($event->groupid);
     $event->classroomid = !empty($gmkClass->classroomid) ? (int)$gmkClass->classroomid : 0;
     $event->classroomName = !empty($gmkClass->classroomName) ? (string)$gmkClass->classroomName : 'Sin aula';
     $event->room = $event->classroomName;
@@ -11309,6 +11325,7 @@ function complete_class_event_information_bbb($event, &$fetchedClasses)
     }
     $event->classId = (int)$gmkClass->id;
     $event->groupid = (int)($gmkClass->groupid ?? 0);
+    $event->groupname = gmk_group_name($event->groupid);
     $event->classroomid = !empty($gmkClass->classroomid) ? (int)$gmkClass->classroomid : 0;
     $event->classroomName = !empty($gmkClass->classroomName) ? (string)$gmkClass->classroomName : 'Sin aula';
     $event->room = $event->classroomName;
@@ -11410,6 +11427,7 @@ function complete_generic_module_event_information($event, &$fetchedClasses) {
         $event->courseShortName = $gmkClass->course->shortname ?? '';
         $event->classId = $gmkClass->id;
         $event->groupid = $gmkClass->groupid;
+        $event->groupname = gmk_group_name($event->groupid);
         $event->classroomid = !empty($gmkClass->classroomid) ? (int)$gmkClass->classroomid : 0;
         $event->classroomName = !empty($gmkClass->classroomName) ? (string)$gmkClass->classroomName : 'Sin aula';
         $event->room = $event->classroomName;
