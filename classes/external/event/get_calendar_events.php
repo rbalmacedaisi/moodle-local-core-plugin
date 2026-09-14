@@ -73,7 +73,18 @@ class get_calendar_events extends external_api
         try {
             $requesteduserid = !empty($params['userId']) ? (int)$params['userId'] : 0;
             $currentuserid = !empty($USER->id) ? (int)$USER->id : 0;
-            $isadmin = $currentuserid > 0 ? is_siteadmin($currentuserid) : false;
+            // "Admin" here means "may see the whole timetable, not just their own
+            // classes". Deciding that with is_siteadmin() alone ignored the
+            // capability system: Registros Academicos, Secretaria, Bienestar and
+            // the Director hold manage_schedules and open schedules.php, but this
+            // endpoint scoped them to their own userid — and since none of them
+            // teaches, it returned zero events and the page rendered with no
+            // cards. manage_schedules is exactly the capability schedules.php
+            // itself requires, so it is the right test here too.
+            $isadmin = $currentuserid > 0
+                && (is_siteadmin($currentuserid)
+                    || has_capability('local/grupomakro_core:manage_schedules',
+                        \context_system::instance(), $currentuserid));
 
             // Admin behavior:
             // - userId provided -> scope to that user.
