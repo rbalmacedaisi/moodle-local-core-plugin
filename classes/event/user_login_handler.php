@@ -31,7 +31,7 @@ class user_login_handler {
      * @param \core\event\user_loggedin $event
      */
     public static function user_loggedin(\core\event\user_loggedin $event) {
-        global $DB, $CFG;
+        global $DB, $CFG, $USER, $SESSION;
 
         $userid = $event->userid;
 
@@ -54,15 +54,35 @@ class user_login_handler {
         // has no record of them and shows "no tienes contrato". Siteadmins
         // (manager archetype) are also routed to the academic panel since the
         // panel is the proper landing for any gmk-capable user.
-        $is_gmk_admin = has_capability('local/grupomakro_core:manage_classes', \context_system::instance(), $userid)
-            || has_capability('local/grupomakro_core:manageacademicstatus', \context_system::instance(), $userid)
-            || has_capability('local/grupomakro_core:manageletters', \context_system::instance(), $userid)
-            || has_capability('local/grupomakro_core:manage_wellness', \context_system::instance(), $userid)
-            || has_capability('moodle/site:config', \context_system::instance(), $userid);
-        if ($is_gmk_admin) {
-            file_put_contents($log_file, $log_msg . " - REDIRECTING to Academic Panel (gmk admin)\n", FILE_APPEND);
-            $url = new \moodle_url('/local/grupomakro_core/pages/academicpanel.php');
-            redirect($url);
+        // Respect an explicit destination first. When someone opens a deep link
+        // while logged out, Moodle stores it in $SESSION->wantsurl and
+        // login/index.php sends them there once the login completes. This
+        // handler runs BEFORE that, and its redirect() threw the destination
+        // away: Registros Academicos opening schedules.php was bounced to the
+        // academic panel. Only pick a landing when the user is just coming in.
+        if (self::user_asked_for_a_specific_page()) {
+            file_put_contents($log_file, $log_msg . " - honouring wantsurl, no redirect\n", FILE_APPEND);
+            return;
+        }
+
+        // Route staff to the landing that matches their capabilities. This was a
+        // fixed path plus an arbitrary list of four capabilities, so a role
+        // without view_academic_panel was sent to a page it cannot open.
+        // local_grupomakro_core_get_staff_landing_url() is the same resolver
+        // user_home_redirect() uses, and returns null for anyone who is not
+        // staff, so teachers fall through to the checks below.
+        require_once($CFG->dirroot . '/local/grupomakro_core/lib.php');
+        $previoususer = $USER;
+        $loginuser = $DB->get_record('user', ['id' => $userid]);
+        if ($loginuser) {
+            $USER = $loginuser;
+        }
+        $landing = local_grupomakro_core_get_staff_landing_url();
+        $USER = $previoususer;
+        if ($landing !== null) {
+            file_put_contents($log_file,
+                $log_msg . " - REDIRECTING to " . $landing->out(false) . " (staff)\n", FILE_APPEND);
+            redirect($landing);
         }
 
         // 1. Check for ACTIVE classes (Target: Teacher Dashboard). Support teachers
@@ -261,5 +281,32 @@ class user_login_handler {
         } catch (\Throwable $e) {
             error_log("[grupomakro_core] carnet auto-issue FAILED userid=$userid: " . $e->getMessage());
         }
+    }
+
+    /**
+     * Whether the user was heading somewhere specific before logging in.
+     *
+     * Moodle keeps that destination in $SESSION->wantsurl. The front page, the
+     * dashboard and the login pages do not count: those mean "just log me in",
+     * which is when this plugin gets to choose the landing page.
+     *
+     * @return bool True when a real destination is pending.
+     */
+    protected static function user_asked_for_a_specific_page(): bool {
+        global $SESSION, $CFG;
+        $wants = isset($SESSION->wantsurl) ? (string)$SESSION->wantsurl : '';
+        if ($wants === '') {
+            return false;
+        }
+        $path = (string)parse_url($wants, PHP_URL_PATH);
+        $root = (string)parse_url($CFG->wwwroot, PHP_URL_PATH);
+        $rel = ltrim(substr($path, strlen($root)), '/');
+        if ($rel === '' || $rel === 'index.php') {
+            return false;
+        }
+        if (strpos($rel, 'my/') === 0 || strpos($rel, 'login/') === 0) {
+            return false;
+        }
+        return true;
     }
 }
