@@ -6781,7 +6781,12 @@ try {
             break;
 
         case 'local_grupomakro_get_instructors_with_disponibility':
-            if (!is_siteadmin()) {
+            // This feeds the instructor filter on schedules.php, which is gated by
+            // manage_schedules. Testing is_siteadmin() alone answered 'forbidden'
+            // to Registros Academicos, Secretaria, Bienestar and the Director, so
+            // the dropdown stayed empty for everyone but a site admin.
+            if (!is_siteadmin()
+                    && !has_capability('local/grupomakro_core:manage_schedules', $context)) {
                 $response = ['status' => 'error', 'message' => 'forbidden'];
                 break;
             }
