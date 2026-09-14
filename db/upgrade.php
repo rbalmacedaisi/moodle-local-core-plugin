@@ -3746,6 +3746,12 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20261001042, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20261001047) {
+        // Registros Academicos gains the academic planner with all its functions.
+        assign_capabilities_to_internal_roles();
+        upgrade_plugin_savepoint(true, 20261001047, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

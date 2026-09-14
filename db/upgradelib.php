@@ -554,6 +554,17 @@ function assign_capabilities_to_internal_roles() {
             'local/grupomakro_core:viewannouncements',
         ],
         'gmk_registros_academicos' => [
+            // Academic planner, with every function. An audit of the 38 actions
+            // the board calls showed it needs four capabilities, not just the
+            // one the page checks: manage_academic_planning (page + planning
+            // web services + "Publicar Todo"), manage_schedules (the board's
+            // scheduler services), manage_teacher_availability
+            // (get_teachers_disponibility) and view_classmanagement
+            // (get_course_students_by_class_schedule). bulk_enroll, needed by
+            // enroll_period_pending, this role already had.
+            'local/grupomakro_core:manage_academic_planning',
+            'local/grupomakro_core:manage_teacher_availability',
+            'local/grupomakro_core:view_classmanagement',
             // Class schedules page. manage_schedules opens schedules.php and its
             // calendar; the edit actions on that page (copy activity, reschedule,
             // delete session, reschedule notice) are gated on manage_classes, so

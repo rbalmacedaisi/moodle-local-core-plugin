@@ -7071,7 +7071,11 @@ try {
             raise_memory_limit(MEMORY_HUGE);
             core_php_time_limit::raise(600);
 
-            if (!is_siteadmin() && !has_capability('moodle/site:config', context_system::instance())) {
+            // Mass-enrolling a period's pending students is a bulk_enroll operation;
+            // testing only for a site admin kept it out of reach of the roles that
+            // actually run the planner.
+            if (!is_siteadmin()
+                    && !has_capability('local/grupomakro_core:bulk_enroll', $context)) {
                 $response = ['status' => 'error', 'message' => 'Sin permisos para inscribir.'];
                 break;
             }
@@ -7278,9 +7282,15 @@ try {
             if (!is_array($schedules)) $schedules = [];
 
             // "Publicar Todo" = full publish (preserveexisting=0): destructive, may recreate/reconcile
-            // the whole period. Restricted to site admins. Individual publish (preserveexisting=1)
-            // stays open to coordinators.
-            if (!$preserveexisting && !is_siteadmin()) {
+            // the whole period. Individual publish (preserveexisting=1) stays open to coordinators.
+            //
+            // Gated on manage_academic_planning, which is what academic_planning.php
+            // requires to open and what the button itself checks via
+            // GMK_CAN_PUBLISH_BOARD. While this tested is_siteadmin() the two halves
+            // disagreed: the Director saw the button and the server refused the write.
+            if (!$preserveexisting
+                    && !is_siteadmin()
+                    && !has_capability('local/grupomakro_core:manage_academic_planning', $context)) {
                 $response = ['status' => 'error',
                     'message' => 'Solo un Administrador puede usar "Publicar Todo". Publica las fichas de forma individual.'];
                 break;
