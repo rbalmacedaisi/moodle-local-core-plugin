@@ -212,7 +212,7 @@ echo <<<EOT
   </style>
 EOT;
 
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/app.js?v=cpfix4'));
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/ClassSchedule.cpfix.js?v=cpfix4'));
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/dialogconfirm.js?v=cpfix4'));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/app.js?v=cpfix5'));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/ClassSchedule.cpfix.js?v=cpfix5'));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/dialogconfirm.js?v=cpfix5'));
 echo $OUTPUT->footer();

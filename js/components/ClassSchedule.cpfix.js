@@ -638,6 +638,12 @@ window.Vue.component('classschedule', {
                                 </v-avatar>
                                 <span v-html="selectedEvent.instructor"></span>
                             </div>
+                            <div v-if="selectedEvent.groupname" class="d-flex align-center">
+                                <v-avatar size="36px" class="mr-2">
+                                    <v-icon>mdi-account-multiple</v-icon>
+                                </v-avatar>
+                                <span v-html="selectedEvent.groupname"></span>
+                            </div>
                             <div v-if="selectedEvent.room" class="d-flex align-center">
                                 <v-avatar size="36px" class="mr-2">
                                     <v-icon>mdi-map-marker</v-icon>
@@ -1420,7 +1426,7 @@ window.Vue.component('classschedule', {
             }
         },
         formattedEvents() {
-            return this.events?.map(({ coursename, instructorName, typelabel, color, start, end, classDaysES, timeRange, modulename, moduleId, bigBlueButtonActivityUrl, attendanceActivityUrl, classId, className, sessionId, instructorid, visible, courseid, classroomName, room }) => ({
+            return this.events?.map(({ coursename, instructorName, typelabel, color, start, end, classDaysES, timeRange, modulename, moduleId, bigBlueButtonActivityUrl, attendanceActivityUrl, classId, className, sessionId, instructorid, visible, courseid, classroomName, room, groupname }) => ({
                 name: coursename,
                 instructorId: instructorid,
                 instructor: instructorName,
@@ -1441,6 +1447,7 @@ window.Vue.component('classschedule', {
                 sessionId,
                 visible,
                 courseid,
+                groupname,
             }))
         },
         // This method returns an array of events filtered based on the selections made by the user. 

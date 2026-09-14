@@ -8439,6 +8439,19 @@ function complete_class_event_information($event, &$fetchedClasses)
     $event->instructorlpid = $gmkClass->instructorlpid;
     $event->instructorid = $gmkClass->instructorid;
     $event->groupid = $gmkClass->groupid;
+    // Name of the Moodle group backing this class, shown in the schedule card
+    // detail. Cached per request: this runs once per calendar event and every
+    // session of the same class repeats the same group.
+    static $gmkgroupnames = [];
+    $gmkgroupid = (int)($gmkClass->groupid ?? 0);
+    if ($gmkgroupid > 0) {
+        if (!array_key_exists($gmkgroupid, $gmkgroupnames)) {
+            $gmkgroupnames[$gmkgroupid] = (string)$DB->get_field('groups', 'name', ['id' => $gmkgroupid]);
+        }
+        $event->groupname = $gmkgroupnames[$gmkgroupid];
+    } else {
+        $event->groupname = '';
+    }
     $event->classroomid = !empty($gmkClass->classroomid) ? (int)$gmkClass->classroomid : 0;
     $event->classroomName = !empty($gmkClass->classroomName) ? (string)$gmkClass->classroomName : 'Sin aula';
     $event->room = $event->classroomName;
