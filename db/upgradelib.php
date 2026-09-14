@@ -616,6 +616,11 @@ function assign_capabilities_to_internal_roles() {
             'local/grupomakro_core:manage_meetings',
         ],
         'gmk_bienestar' => [
+            // Class schedules, read only. manage_schedules opens schedules.php
+            // and its calendar; the edit actions there (reschedule, copy,
+            // delete session) are gated on manage_classes, which Bienestar does
+            // not get - they follow the timetable, they do not change it.
+            'local/grupomakro_core:manage_schedules',
             // Workflow 4 — Attendance and grades, read only. Bienestar follows
             // absences, dropouts and academic performance as part of student
             // welfare. Acting on those reports is deliberately left out:

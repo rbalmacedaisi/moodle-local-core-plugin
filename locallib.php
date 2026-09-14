@@ -70,11 +70,20 @@ function gmk_user_is_class_instructor_or_support($class, int $userid): bool {
     if ($userid <= 0 || !$class) {
         return false;
     }
+    // Normalise first. The array fallback used to be written as
+    //   $class->supportinstructorid ?? ($class['supportinstructorid'] ?? 0)
+    // but ?? evaluates its right side whenever the left is null, so an OBJECT
+    // whose supportinstructorid is NULL - 329 of the 330 rows in gmk_class -
+    // fell through to the array access and died with "Cannot use object of type
+    // stdClass as array". It also never worked for a real array, since
+    // $array->instructorid is not an array read.
+    $class = is_array($class) ? (object)$class : $class;
+
     $main = (int)($class->instructorid ?? 0);
     if ($main === $userid) {
         return true;
     }
-    $support = (int)($class->supportinstructorid ?? ($class['supportinstructorid'] ?? 0));
+    $support = (int)($class->supportinstructorid ?? 0);
     return $support > 0 && $support === $userid;
 }
 
