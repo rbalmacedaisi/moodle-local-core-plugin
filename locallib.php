@@ -7434,9 +7434,9 @@ function get_class_events($userId = null, $initDate = null, $endDate = null)
             "SELECT id, classid, bbbmoduleid, attendancemoduleid, attendancesessionid,
                     attendanceid, bbbid
                FROM {gmk_bbb_attendance_relation}
-              WHERE attendanceid $ainInsql",
-            $ainInparams,
-            'id DESC'
+              WHERE attendanceid $ainInsql
+           ORDER BY id DESC",
+            $ainInparams
         );
         foreach ($relationRows as $rr) {
             $key1 = (int)$rr->attendanceid . '|' . (int)$rr->attendancesessionid;
@@ -7462,9 +7462,9 @@ function get_class_events($userId = null, $initDate = null, $endDate = null)
             "SELECT id, classid, bbbmoduleid, attendancemoduleid, attendancesessionid,
                     attendanceid, bbbid
                FROM {gmk_bbb_attendance_relation}
-              WHERE bbbid $binInsql",
-            $binInparams,
-            'id DESC'
+              WHERE bbbid $binInsql
+           ORDER BY id DESC",
+            $binInparams
         );
         foreach ($bbbRelRows as $rr) {
             $relationByBbbid[(int)$rr->bbbid][(int)$rr->id] = $rr;
