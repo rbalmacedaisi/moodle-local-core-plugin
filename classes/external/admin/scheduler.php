@@ -2039,6 +2039,11 @@ class scheduler extends external_api {
                 'studentIds' => $mergedStudentIds,
                 'studentCount' => count($mergedStudentIds),
                 'enrolledStudentCount' => $enrolledStudentCount,
+                // La LISTA, no solo el conteo: el front la necesita para no podar de la
+                // ficha a quien ya esta matriculado. La demanda deja de proyectar a un
+                // alumno en cuanto se matricula, y sin esta lista el store lo borraba del
+                // tablero y ocultaba sus choques de horario reales.
+                'enrolledStudentIds' => $enrolledStudentIds,
                 'projectedStudentCount' => count($projectedStudents),
                 'preRegisteredCount' => (int)$preRegisteredCount,
                 'queuedCount' => (int)$queuedCount,

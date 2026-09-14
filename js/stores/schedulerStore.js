@@ -1146,6 +1146,22 @@
                     const demandStudents = mergeStudentIds(currentDemand.students || []);
                     const itemStudents = items.map(item => mergeStudentIds(item.studentIds || []));
 
+                    // Alumnos REALMENTE matriculados en cada ficha (grupo o gmk_course_progre).
+                    // La demanda solo proyecta a quien le FALTA cursar la asignatura, asi que
+                    // en cuanto un alumno se matricula desaparece de ella. Podar por demanda a
+                    // secas borraba del tablero justo a los que ya tienen la clase asignada:
+                    // detectConflicts se quedaba sin nadie que cruzar entre dos fichas y los
+                    // choques REALES pasaban desapercibidos (INGLES I vs PELIGROS AMBIENTALES
+                    // DEL BUCEO compartian 12 alumnos y el tablero no avisaba de ninguno).
+                    const itemEnrolled = items.map(item => {
+                        const set = new Set();
+                        (item.enrolledStudentIds || []).forEach(rawId => {
+                            const sid = toStudentIdentityKey(rawId);
+                            if (sid) set.add(sid);
+                        });
+                        return set;
+                    });
+
                     const demandSet = new Set();
                     demandStudents.forEach(rawId => {
                         const sid = toStudentIdentityKey(rawId);
@@ -1171,7 +1187,9 @@
                         itemStudents[i].forEach(rawId => {
                             const sid = toStudentIdentityKey(rawId);
                             if (!sid) return;
-                            if (!demandSet.has(sid)) { prunedOutOfDemand++; return; }
+                            // Un matriculado de esta ficha se conserva aunque ya no este en la
+                            // demanda: su plaza esta ocupada de verdad y su tiempo cuenta.
+                            if (!demandSet.has(sid) && !itemEnrolled[i].has(sid)) { prunedOutOfDemand++; return; }
                             if (claimed.has(sid)) { prunedDuplicated++; return; }
                             claimed.add(sid);
                             prunedItemStudents[i].push(rawId);
