@@ -1448,8 +1448,20 @@ window.Vue.component('classschedule', {
         // If any class type has been selected, it returns the events related to that class type. 
         // If no selection has been made, returns all events. 
         filteredEvents() {
-            const selectedInstructorsIds = this.selectedInstructors.map(instructor => instructor.id)
-            const selectedCoursesIds = this.selectedCourses.map(course => course.id)
+            // The ids have to be normalised before comparing. The events endpoint
+            // returns instructorid and courseid as STRINGS ('3020', '35') while the
+            // instructor and course pickers hold integers, and Array.includes()
+            // compares with === - so the filter matched 0 of 57 events and every
+            // card disappeared the moment a teacher was picked.
+            // v-combobox also allows free text, which arrives as a plain string
+            // with no .id; Number() turns that into NaN and it is dropped here.
+            const toId = (item) => {
+                const raw = (item !== null && typeof item === 'object') ? item.id : item;
+                const n = Number(raw);
+                return Number.isFinite(n) ? n : null;
+            };
+            const selectedInstructorsIds = this.selectedInstructors.map(toId).filter(id => id !== null)
+            const selectedCoursesIds = this.selectedCourses.map(toId).filter(id => id !== null)
             // Only show class sessions — exclude tasks, assignments and deadline events.
             let filteredEvents = (this.formattedEvents || []).filter(e =>
                 e.modulename === 'attendance' || e.modulename === 'bigbluebuttonbn'
@@ -1458,10 +1470,10 @@ window.Vue.component('classschedule', {
                 return filteredEvents;
             }
             if (selectedInstructorsIds.length) {
-                filteredEvents = filteredEvents.filter(event => selectedInstructorsIds.includes(event.instructorId))
+                filteredEvents = filteredEvents.filter(event => selectedInstructorsIds.includes(Number(event.instructorId)))
             }
             if (selectedCoursesIds.length) {
-                filteredEvents = filteredEvents.filter(event => selectedCoursesIds.includes(event.courseid))
+                filteredEvents = filteredEvents.filter(event => selectedCoursesIds.includes(Number(event.courseid)))
             }
             return filteredEvents;
         },
