@@ -113,7 +113,7 @@ class create_express_activity extends external_api {
         if (!gmk_user_is_class_instructor_or_support($classrecord, $USER->id)
             && !has_capability('moodle/course:manageactivities', $coursecontext)
             && !has_capability('local/grupomakro_core:manage_classes', \context_system::instance())) {
-            throw new moodle_exception('nopermissions', 'error', '', 'create activity in class');
+            throw new \moodle_exception('nopermissions', 'error', '', 'create activity in class');
         }
 
         // Convert alpha type to Moodle module name if necessary

@@ -1416,7 +1416,7 @@ public static function generate_diplomas(int $templateid, array $items, int $act
                     'verification_url' => $verificationurl,
                 ];
                 $success++;
-            } catch (Throwable $e) {
+            } catch (\Throwable $e) {
                 // Log to error log so admins can debug future failures.
                 debugging(
                     'diploma generate_diplomas failed for user=' . $userid . ' plan=' . $lpid
@@ -1529,7 +1529,7 @@ public static function generate_diplomas(int $templateid, array $items, int $act
                     'verification_url' => $verificationurl,
                 ];
                 $success++;
-            } catch (Throwable $e) {
+            } catch (\Throwable $e) {
                 debugging(
                     'diploma generate_course_certificates failed for user=' . $userid
                     . ' course=' . $courseid . ' template=' . $templateid . ': ' . $e->getMessage()

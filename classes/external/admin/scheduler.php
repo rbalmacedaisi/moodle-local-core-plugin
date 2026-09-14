@@ -1310,7 +1310,7 @@ class scheduler extends external_api {
                         $DB->set_field('gmk_class', 'groupid', $groupId, ['id' => $classid]);
                         $classRec->groupid = $groupId;
                         gmk_log("INFO FASE2: Grupo creado/reparado para clase $classid: groupid=$groupId");
-                    } catch (Throwable $ge) {
+                    } catch (\Throwable $ge) {
                         gmk_log("WARNING FASE2: No se pudo crear grupo para clase $classid: " . $ge->getMessage());
                         continue;
                     }
@@ -1324,7 +1324,7 @@ class scheduler extends external_api {
                         $DB->set_field('gmk_class', 'coursesectionid', $sectionId, ['id' => $classid]);
                         $classRec->coursesectionid = $sectionId;
                         gmk_log("INFO FASE2: Sección creada para clase $classid: sectionid=$sectionId");
-                    } catch (Throwable $se) {
+                    } catch (\Throwable $se) {
                         gmk_log("WARNING FASE2: No se pudo crear sección para clase $classid: " . $se->getMessage());
                         continue;
                     }
@@ -1364,13 +1364,13 @@ class scheduler extends external_api {
                         }
                     }
                     gmk_log("INFO FASE2: Actividades " . ($hasActivities ? "recreadas" : "creadas") . " para clase $classid");
-                } catch (Throwable $ae) {
+                } catch (\Throwable $ae) {
                     gmk_log("WARNING FASE2: No se pudieron crear actividades para clase $classid: " . $ae->getMessage());
                 }
             }
 
             gmk_log("FASE 2 completa para Periodo $periodid");
-        } catch (Throwable $phase2err) {
+        } catch (\Throwable $phase2err) {
             // Phase 2 failure is non-fatal — plugin DB data was already committed.
             gmk_log("WARNING FASE2 error global para Periodo $periodid: " . $phase2err->getMessage());
         }

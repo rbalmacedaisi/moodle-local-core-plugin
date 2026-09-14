@@ -184,7 +184,7 @@ class renderer {
             $registered = \TCPDF_FONTS::addTTFfont($ttf, 'TrueTypeUnicode');
             $cache[$key] = $registered;
             return $registered;
-        } catch (Throwable $e) {
+        } catch (\Throwable $e) {
             debugging('diploma custom font registration failed for ' . $key
                 . ': ' . $e->getMessage(), DEBUG_NORMAL);
             return null;
