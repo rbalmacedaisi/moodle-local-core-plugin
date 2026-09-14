@@ -108,8 +108,17 @@ class create_express_activity extends external_api {
         // editingteacher role in the Moodle course, and they MUST still be
         // able to create their activities. Hence the explicit fallback on
         // (b)/(c).
-        $classrecord = $DB->get_record('gmk_class', ['id' => $params['classid']], 'id, courseid, instructorid, supportinstructorid', MUST_EXIST);
-        $coursecontext = \context_course::instance($classrecord->courseid);
+        // gmk_class.courseid is the SUBJECT id (local_learning_courses.id), not a
+        // Moodle course. The Moodle course is corecourseid — which is what
+        // local_grupomakro_create_express_activity() itself uses further down.
+        // Reading courseid here meant context_course::instance() looked up a
+        // course that does not exist ("No se puede encontrar registro de datos en
+        // la tabla course") for 88 of the 134 open classes, and silently resolved
+        // to an UNRELATED course for the other 46, where the two id ranges happen
+        // to overlap — so the manageactivities check ran against the wrong course.
+        $classrecord = $DB->get_record('gmk_class', ['id' => $params['classid']],
+            'id, courseid, corecourseid, instructorid, supportinstructorid', MUST_EXIST);
+        $coursecontext = \context_course::instance($classrecord->corecourseid);
         if (!gmk_user_is_class_instructor_or_support($classrecord, $USER->id)
             && !has_capability('moodle/course:manageactivities', $coursecontext)
             && !has_capability('local/grupomakro_core:manage_classes', \context_system::instance())) {

@@ -227,7 +227,11 @@ class attendance_manager extends external_api {
         
         // if (!$att) { ... } // Removed old check
 
-        $cm = get_coursemodule_from_instance('attendance', $att->id, $class->courseid);
+        // Look the cm up in the course the attendance row actually lives in.
+        // $class->courseid is the SUBJECT id, not a Moodle course, so the search
+        // above almost always falls through to corecourseid - and passing
+        // $class->courseid here then matched nothing and left $cm false.
+        $cm = get_coursemodule_from_instance('attendance', $att->id, $att->course);
         
         // Init Structure
         // $att_structure = new mod_attendance_structure($att, $cm, $class->courseid, \context_module::instance($cm->id));
