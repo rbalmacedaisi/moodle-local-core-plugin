@@ -503,6 +503,17 @@ function assign_capabilities_to_internal_roles() {
             'local/grupomakro_core:view_financial_health',
         ],
         'gmk_secretaria_academica' => [
+            // Student/user profile: view and edit the Moodle user record. These are
+            // CORE capabilities; no gmk_* role held any until now, which is why
+            // profile links failed for this role. moodle/user:update is what
+            // /user/editadvanced.php checks and it reaches any non-siteadmin
+            // account, not only students - Moodle keeps site admins out of reach
+            // but there is no way to narrow this to a single role.
+            'moodle/site:viewparticipants',
+            'moodle/user:viewdetails',
+            'moodle/user:viewalldetails',
+            'moodle/user:editprofile',
+            'moodle/user:update',
             // Academic planner: Secretaria already held manage_schedules (the
             // board's web services) but not the capability academic_planning.php
             // itself requires, so the page was closed to her.
