@@ -1545,5 +1545,33 @@
         <INDEX NAME="timecreated_idx" UNIQUE="false" FIELDS="timecreated"/>
       </INDEXES>
     </TABLE>
+    <TABLE NAME="gmk_group_curriculum" COMMENT="Malla por grupo: que asignaturas ve cada cohorte en cada nivel. El grupo es derivado (plan+cohorte+jornada), no hay entidad de grupo. source=2 permite excluir una asignatura del plan sin tocar local_learning_courses.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="learningplanid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="intake_period" TYPE="char" LENGTH="64" NOTNULL="true" SEQUENCE="false" COMMENT="Cohorte: campo de perfil periodo_ingreso, p.ej. 2026-V"/>
+        <FIELD NAME="jornada" TYPE="char" LENGTH="32" NOTNULL="true" DEFAULT="" SEQUENCE="false" COMMENT="Vacio = aplica a todas las jornadas"/>
+        <FIELD NAME="periodid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="local_learning_periods.id: nivel del plan"/>
+        <FIELD NAME="subperiodid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="academicperiodid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="gmk_academic_periods.id donde se dicta. NULL = sin ubicar"/>
+        <FIELD NAME="source" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="0=heredada del plan, 1=anadida a mano, 2=excluida"/>
+        <FIELD NAME="status" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="0=planificada, 1=confirmada, 2=cancelada"/>
+        <FIELD NAME="notes" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="usermodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="usermodified" TYPE="foreign" FIELDS="usermodified" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_group_course" UNIQUE="true" FIELDS="learningplanid, intake_period, jornada, periodid, courseid"/>
+        <INDEX NAME="idx_plan_intake" UNIQUE="false" FIELDS="learningplanid, intake_period"/>
+        <INDEX NAME="idx_academicperiod" UNIQUE="false" FIELDS="academicperiodid"/>
+        <INDEX NAME="idx_course" UNIQUE="false" FIELDS="courseid"/>
+      </INDEXES>
+    </TABLE>
   </TABLES>
 </XMLDB>

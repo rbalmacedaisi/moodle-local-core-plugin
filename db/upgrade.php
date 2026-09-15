@@ -3752,6 +3752,67 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20261001047, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20261001052) {
+        // MALLA POR GRUPO. Hasta ahora "que asignatura ve cada grupo en cada periodo"
+        // no se declaraba en ningun sitio: se DEDUCIA con una formula implementada tres
+        // veces (planning_manager::get_natural_period_index, su copia en JS, y la
+        // simulacion de oleada de la matriz), y las tres se desincronizaron en
+        // produccion. Esta tabla permite declararlo explicitamente.
+        //
+        // El grupo es una cohorte DERIVADA -no hay entidad de grupo-, asi que se
+        // identifica por columnas de valor: (learningplanid, intake_period, jornada)
+        // mas el nivel (periodid) en que ese grupo cursa la asignatura.
+        //
+        // gmk_course_projections no servia: su unica clave es
+        // (learning_courses_id, subperiodid, jornada), no tiene cohorte ni periodo
+        // lectivo, y al colgar de local_learning_courses impide anadir a un grupo una
+        // asignatura que no este en el plan. Se deja intacta hasta retirar
+        // academic_planning.php.
+        $table = new xmldb_table('gmk_group_curriculum');
+
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('learningplanid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        // Cohorte = el campo de perfil periodo_ingreso ('2026-V'). Es texto, no FK.
+        $table->add_field('intake_period', XMLDB_TYPE_CHAR, '64', null, XMLDB_NOTNULL, null, null);
+        // Cadena vacia = la fila aplica a todas las jornadas del grupo.
+        $table->add_field('jornada', XMLDB_TYPE_CHAR, '32', null, XMLDB_NOTNULL, null, '');
+        // Nivel del PLAN en que el grupo cursa la asignatura (cuatrimestre).
+        $table->add_field('periodid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('subperiodid', XMLDB_TYPE_INTEGER, '10', null, null, null, null);
+        $table->add_field('courseid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        // Periodo lectivo real en que se dictara. NULL = aun sin ubicar en el calendario.
+        $table->add_field('academicperiodid', XMLDB_TYPE_INTEGER, '10', null, null, null, null);
+        // 0 = heredada del plan, 1 = anadida a mano, 2 = excluida para este grupo.
+        // El 2 es lo que evita que el plan sea camisa de fuerza sin tocar
+        // local_learning_courses (escribir ahi rematricula a todo el plan y manda correo).
+        $table->add_field('source', XMLDB_TYPE_INTEGER, '2', null, XMLDB_NOTNULL, null, '0');
+        // 0 = planificada, 1 = confirmada, 2 = cancelada.
+        $table->add_field('status', XMLDB_TYPE_INTEGER, '2', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('notes', XMLDB_TYPE_CHAR, '255', null, null, null, null);
+        $table->add_field('usermodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('usermodified', XMLDB_KEY_FOREIGN, ['usermodified'], 'user', ['id']);
+
+        // Una asignatura no puede estar dos veces en el mismo grupo y nivel.
+        $table->add_index('idx_group_course', XMLDB_INDEX_UNIQUE,
+            ['learningplanid', 'intake_period', 'jornada', 'periodid', 'courseid']);
+        // La consulta dominante: la malla completa de una cohorte.
+        $table->add_index('idx_plan_intake', XMLDB_INDEX_NOTUNIQUE, ['learningplanid', 'intake_period']);
+        // Para la demanda del scheduler: todo lo que cae en un periodo lectivo.
+        $table->add_index('idx_academicperiod', XMLDB_INDEX_NOTUNIQUE, ['academicperiodid']);
+        // Para detectar asignaturas comunes entre grupos.
+        $table->add_index('idx_course', XMLDB_INDEX_NOTUNIQUE, ['courseid']);
+
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        upgrade_plugin_savepoint(true, 20261001052, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

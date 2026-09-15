@@ -2617,4 +2617,448 @@ class student_timeline extends external_api {
             'new_period_name' => new external_value(PARAM_TEXT, 'Nombre del periodo lectivo destino'),
         ]);
     }
+
+    // ==================================================================
+    // MALLA POR GRUPO (gmk_group_curriculum)
+    //
+    // Declara explicitamente que asignaturas ve cada cohorte en cada nivel.
+    // Sustituye a deducirlo con una formula: esa formula esta implementada tres
+    // veces (planning_manager::get_natural_period_index, su copia en JS y la
+    // simulacion de oleada de la matriz) y las tres se han desincronizado.
+    //
+    // El grupo es DERIVADO: la tupla (learningplanid, intake_period, jornada).
+    // jornada = '' significa "todas las jornadas de esa cohorte".
+    // ==================================================================
+
+    /**
+     * Normaliza la jornada a la forma canonica que se guarda en la malla.
+     *
+     * El campo de perfil gmkjourney admite Diurna/Nocturna/Sabatina/Dominical, pero
+     * en Odoo se ha visto llegar 'Sabatino' y variaciones de caja. Cualquier valor
+     * no reconocido se guarda como cadena vacia = "aplica a todas".
+     *
+     * @param string|null $jornada
+     * @return string
+     */
+    private static function normalize_jornada($jornada) {
+        $j = trim((string)$jornada);
+        if ($j === '' || strcasecmp($j, 'ALL') === 0 || strcasecmp($j, 'TODAS') === 0) {
+            return '';
+        }
+        foreach (['Diurna', 'Nocturna', 'Sabatina', 'Dominical'] as $valid) {
+            if (strcasecmp($j, $valid) === 0) {
+                return $valid;
+            }
+        }
+        // 'Sabatino' y demas variantes caen aqui: se normalizan por prefijo.
+        foreach (['Diurna', 'Nocturna', 'Sabatina', 'Dominical'] as $valid) {
+            if (stripos($j, substr($valid, 0, 5)) === 0) {
+                return $valid;
+            }
+        }
+        return '';
+    }
+
+    /**
+     * Lee la malla declarada de un grupo, agrupada por nivel del plan.
+     *
+     * Devuelve tambien las asignaturas del plan que ese grupo tiene EXCLUIDAS
+     * (source=2), porque la UI necesita poder volver a activarlas.
+     *
+     * @param int $learningplanid
+     * @param string $intake_period
+     * @param string $jornada
+     * @return array
+     */
+    public static function get_group_curriculum($learningplanid, $intake_period, $jornada = '') {
+        global $DB;
+        $context = \context_system::instance();
+        self::validate_context($context);
+        require_capability('local/grupomakro_core:view_student_timeline', $context);
+
+        $jornada = self::normalize_jornada($jornada);
+
+        // Una sola consulta con los joins necesarios: la malla completa de una carrera
+        // puede rondar el centenar de filas y no justifica un query por asignatura
+        // (el error de get_courses_with_projections, que hace 2-3 por curso en un loop).
+        $sql = "SELECT gc.id, gc.periodid, gc.subperiodid, gc.courseid, gc.academicperiodid,
+                       gc.source, gc.status, gc.notes,
+                       c.fullname AS coursename, c.shortname AS courseshortname,
+                       lp.name AS levelname,
+                       ap.name AS academicperiodname
+                  FROM {gmk_group_curriculum} gc
+                  JOIN {course} c ON c.id = gc.courseid
+             LEFT JOIN {local_learning_periods} lp ON lp.id = gc.periodid
+             LEFT JOIN {gmk_academic_periods} ap ON ap.id = gc.academicperiodid
+                 WHERE gc.learningplanid = :lpid
+                   AND gc.intake_period = :intake
+                   AND gc.jornada = :jornada
+              ORDER BY gc.periodid, c.fullname";
+
+        $params = ['lpid' => $learningplanid, 'intake' => $intake_period, 'jornada' => $jornada];
+
+        $levels = [];
+        $total = 0;
+        $excluded = 0;
+        $rs = $DB->get_recordset_sql($sql, $params);
+        foreach ($rs as $r) {
+            $pid = (int)$r->periodid;
+            if (!isset($levels[$pid])) {
+                $levels[$pid] = [
+                    'periodid'   => $pid,
+                    'level_name' => $r->levelname !== null ? $r->levelname : "Nivel {$pid}",
+                    'courses'    => [],
+                ];
+            }
+            $levels[$pid]['courses'][] = [
+                'id'                 => (int)$r->id,
+                'courseid'           => (int)$r->courseid,
+                'coursename'         => $r->coursename,
+                'courseshortname'    => (string)$r->courseshortname,
+                'subperiodid'        => $r->subperiodid !== null ? (int)$r->subperiodid : 0,
+                'academicperiodid'   => $r->academicperiodid !== null ? (int)$r->academicperiodid : 0,
+                'academicperiodname' => (string)($r->academicperiodname ?? ''),
+                'source'             => (int)$r->source,
+                'status'             => (int)$r->status,
+                'credits'            => (int)credit_resolver::resolve((int)$learningplanid, (int)$r->courseid),
+                'notes'              => (string)($r->notes ?? ''),
+            ];
+            $total++;
+            if ((int)$r->source === 2) {
+                $excluded++;
+            }
+        }
+        $rs->close();
+
+        return [
+            'learningplanid' => (int)$learningplanid,
+            'intake_period'  => $intake_period,
+            'jornada'        => $jornada,
+            'seeded'         => $total > 0,
+            'total_courses'  => $total,
+            'excluded_count' => $excluded,
+            'levels'         => array_values($levels),
+        ];
+    }
+
+    public static function get_group_curriculum_parameters() {
+        return new external_function_parameters([
+            'learningplanid' => new external_value(PARAM_INT, 'ID del plan de aprendizaje (carrera)'),
+            'intake_period'  => new external_value(PARAM_TEXT, 'Cohorte (periodo_ingreso), p.ej. 2026-V'),
+            'jornada'        => new external_value(PARAM_TEXT, 'Jornada; vacio = todas', false, ''),
+        ]);
+    }
+
+    public static function get_group_curriculum_returns() {
+        return new external_single_structure([
+            'learningplanid' => new external_value(PARAM_INT, 'Plan'),
+            'intake_period'  => new external_value(PARAM_TEXT, 'Cohorte'),
+            'jornada'        => new external_value(PARAM_TEXT, 'Jornada normalizada'),
+            'seeded'         => new external_value(PARAM_BOOL, 'true si el grupo ya tiene malla declarada'),
+            'total_courses'  => new external_value(PARAM_INT, 'Total de filas'),
+            'excluded_count' => new external_value(PARAM_INT, 'Cuantas estan excluidas (source=2)'),
+            'levels'         => new external_multiple_structure(
+                new external_single_structure([
+                    'periodid'   => new external_value(PARAM_INT, 'Nivel del plan'),
+                    'level_name' => new external_value(PARAM_TEXT, 'Nombre del nivel'),
+                    'courses'    => new external_multiple_structure(
+                        new external_single_structure([
+                            'id'                 => new external_value(PARAM_INT, 'ID de la fila de malla'),
+                            'courseid'           => new external_value(PARAM_INT, 'Curso'),
+                            'coursename'         => new external_value(PARAM_TEXT, 'Nombre'),
+                            'courseshortname'    => new external_value(PARAM_TEXT, 'Nombre corto'),
+                            'subperiodid'        => new external_value(PARAM_INT, 'Bimestre (0 si no aplica)'),
+                            'academicperiodid'   => new external_value(PARAM_INT, 'Periodo lectivo (0 si sin ubicar)'),
+                            'academicperiodname' => new external_value(PARAM_TEXT, 'Nombre del periodo lectivo'),
+                            'source'             => new external_value(PARAM_INT, '0=plan, 1=anadida, 2=excluida'),
+                            'status'             => new external_value(PARAM_INT, '0=planificada, 1=confirmada, 2=cancelada'),
+                            'credits'            => new external_value(PARAM_INT, 'Creditos resueltos'),
+                            'notes'              => new external_value(PARAM_TEXT, 'Notas'),
+                        ])
+                    ),
+                ])
+            ),
+        ]);
+    }
+
+    /**
+     * Siembra la malla de un grupo copiando las asignaturas OBLIGATORIAS del plan.
+     *
+     * Es idempotente: no pisa ninguna fila existente, de modo que se puede volver a
+     * llamar tras anadir asignaturas al plan sin perder los ajustes del grupo
+     * (incluidas las exclusiones source=2).
+     *
+     * Solo siembra obligatorias. Las optativas del plan se matriculan hoy en bloque a
+     * todo el mundo (libs/userlib.php:232-234), asi que meterlas por defecto en la
+     * malla de todos los grupos falsearia la demanda; se anaden a mano si hacen falta.
+     *
+     * @param int $learningplanid
+     * @param string $intake_period
+     * @param string $jornada
+     * @return array
+     */
+    public static function seed_group_curriculum($learningplanid, $intake_period, $jornada = '') {
+        global $DB, $USER;
+        $context = \context_system::instance();
+        self::validate_context($context);
+        require_capability('local/grupomakro_core:manage_student_timeline', $context);
+
+        $jornada = self::normalize_jornada($jornada);
+        $now = time();
+
+        // Asignaturas obligatorias del plan que apuntan a un nivel real.
+        $planrows = $DB->get_records_select(
+            'local_learning_courses',
+            'learningplanid = :lpid AND isrequired = 1 AND periodid IS NOT NULL AND periodid > 0',
+            ['lpid' => $learningplanid],
+            'periodid, position',
+            'id, courseid, periodid, subperiodid'
+        );
+
+        // Lo ya declarado, para no pisarlo.
+        $existing = [];
+        $rs = $DB->get_recordset('gmk_group_curriculum',
+            ['learningplanid' => $learningplanid, 'intake_period' => $intake_period, 'jornada' => $jornada],
+            '', 'id, periodid, courseid');
+        foreach ($rs as $e) {
+            $existing[$e->periodid . '|' . $e->courseid] = true;
+        }
+        $rs->close();
+
+        $inserted = 0;
+        $skipped = 0;
+        $records = [];
+        foreach ($planrows as $p) {
+            $key = ((int)$p->periodid) . '|' . ((int)$p->courseid);
+            if (isset($existing[$key])) {
+                $skipped++;
+                continue;
+            }
+            $rec = new \stdClass();
+            $rec->learningplanid   = (int)$learningplanid;
+            $rec->intake_period    = $intake_period;
+            $rec->jornada          = $jornada;
+            $rec->periodid         = (int)$p->periodid;
+            $rec->subperiodid      = !empty($p->subperiodid) ? (int)$p->subperiodid : null;
+            $rec->courseid         = (int)$p->courseid;
+            $rec->academicperiodid = null;   // se ubica en el calendario mas adelante
+            $rec->source           = 0;      // heredada del plan
+            $rec->status           = 0;      // planificada
+            $rec->notes            = null;
+            $rec->usermodified     = (int)$USER->id;
+            $rec->timecreated      = $now;
+            $rec->timemodified     = $now;
+            $records[] = $rec;
+            $existing[$key] = true;  // evita duplicados si el plan trae la misma pareja dos veces
+            $inserted++;
+        }
+
+        if (!empty($records)) {
+            $DB->insert_records('gmk_group_curriculum', $records);
+        }
+
+        return [
+            'success'        => true,
+            'inserted_count' => $inserted,
+            'skipped_count'  => $skipped,
+            'message'        => $inserted > 0
+                ? "Malla sembrada: {$inserted} asignatura(s) copiada(s) del plan"
+                    . ($skipped > 0 ? ", {$skipped} ya estaban declaradas" : '')
+                : ($skipped > 0
+                    ? "La malla ya estaba completa ({$skipped} asignaturas)"
+                    : 'El plan no tiene asignaturas obligatorias con nivel asignado'),
+        ];
+    }
+
+    public static function seed_group_curriculum_parameters() {
+        return new external_function_parameters([
+            'learningplanid' => new external_value(PARAM_INT, 'ID del plan (carrera)'),
+            'intake_period'  => new external_value(PARAM_TEXT, 'Cohorte (periodo_ingreso)'),
+            'jornada'        => new external_value(PARAM_TEXT, 'Jornada; vacio = todas', false, ''),
+        ]);
+    }
+
+    public static function seed_group_curriculum_returns() {
+        return new external_single_structure([
+            'success'        => new external_value(PARAM_BOOL, 'Exito'),
+            'inserted_count' => new external_value(PARAM_INT, 'Filas creadas'),
+            'skipped_count'  => new external_value(PARAM_INT, 'Filas que ya existian'),
+            'message'        => new external_value(PARAM_TEXT, 'Mensaje'),
+        ]);
+    }
+
+    /**
+     * Anade o actualiza una asignatura en la malla de un grupo.
+     *
+     * Si la asignatura no pertenece al plan, se marca source=1 (anadida a mano): asi el
+     * plan deja de ser camisa de fuerza sin tocar local_learning_courses, cuya escritura
+     * rematricula a todos los alumnos del plan y envia correo
+     * (sc_learningplans/external/course/save_learning_course.php:144-157).
+     *
+     * Reactivar una asignatura excluida es llamar aqui de nuevo: pasa de source=2 a 0.
+     *
+     * @return array
+     */
+    public static function set_group_course($learningplanid, $intake_period, $jornada,
+                                            $periodid, $courseid, $subperiodid = 0,
+                                            $academicperiodid = 0, $status = 0, $notes = null) {
+        global $DB, $USER;
+        $context = \context_system::instance();
+        self::validate_context($context);
+        require_capability('local/grupomakro_core:manage_student_timeline', $context);
+
+        $jornada = self::normalize_jornada($jornada);
+        $now = time();
+
+        if (!$DB->record_exists('course', ['id' => $courseid])) {
+            throw new \moodle_exception('invalidcourseid', 'error', '', null, "courseid={$courseid}");
+        }
+
+        // ¿Pertenece al plan? Decide el valor de source al crear.
+        $inplan = $DB->record_exists('local_learning_courses',
+            ['learningplanid' => $learningplanid, 'courseid' => $courseid]);
+
+        $existing = $DB->get_record('gmk_group_curriculum', [
+            'learningplanid' => $learningplanid,
+            'intake_period'  => $intake_period,
+            'jornada'        => $jornada,
+            'periodid'       => $periodid,
+            'courseid'       => $courseid,
+        ]);
+
+        if ($existing) {
+            $existing->subperiodid      = !empty($subperiodid) ? (int)$subperiodid : null;
+            $existing->academicperiodid = !empty($academicperiodid) ? (int)$academicperiodid : null;
+            $existing->status           = (int)$status;
+            // Reactivar: una fila excluida vuelve a su origen real.
+            if ((int)$existing->source === 2) {
+                $existing->source = $inplan ? 0 : 1;
+            }
+            if ($notes !== null) {
+                $existing->notes = $notes;
+            }
+            $existing->timemodified = $now;
+            $existing->usermodified = (int)$USER->id;
+            $DB->update_record('gmk_group_curriculum', $existing);
+            $id = (int)$existing->id;
+            $action = 'updated';
+        } else {
+            $rec = new \stdClass();
+            $rec->learningplanid   = (int)$learningplanid;
+            $rec->intake_period    = $intake_period;
+            $rec->jornada          = $jornada;
+            $rec->periodid         = (int)$periodid;
+            $rec->subperiodid      = !empty($subperiodid) ? (int)$subperiodid : null;
+            $rec->courseid         = (int)$courseid;
+            $rec->academicperiodid = !empty($academicperiodid) ? (int)$academicperiodid : null;
+            $rec->source           = $inplan ? 0 : 1;
+            $rec->status           = (int)$status;
+            $rec->notes            = $notes;
+            $rec->usermodified     = (int)$USER->id;
+            $rec->timecreated      = $now;
+            $rec->timemodified     = $now;
+            $id = (int)$DB->insert_record('gmk_group_curriculum', $rec);
+            $action = 'created';
+        }
+
+        return [
+            'success' => true,
+            'id'      => $id,
+            'action'  => $action,
+            'source'  => $inplan ? 0 : 1,
+            'message' => $action === 'created' ? 'Asignatura anadida a la malla del grupo'
+                                               : 'Asignatura actualizada en la malla del grupo',
+        ];
+    }
+
+    public static function set_group_course_parameters() {
+        return new external_function_parameters([
+            'learningplanid'   => new external_value(PARAM_INT, 'Plan'),
+            'intake_period'    => new external_value(PARAM_TEXT, 'Cohorte'),
+            'jornada'          => new external_value(PARAM_TEXT, 'Jornada; vacio = todas'),
+            'periodid'         => new external_value(PARAM_INT, 'Nivel del plan'),
+            'courseid'         => new external_value(PARAM_INT, 'Curso'),
+            'subperiodid'      => new external_value(PARAM_INT, 'Bimestre (0 = ninguno)', false, 0),
+            'academicperiodid' => new external_value(PARAM_INT, 'Periodo lectivo (0 = sin ubicar)', false, 0),
+            'status'           => new external_value(PARAM_INT, '0=planificada, 1=confirmada, 2=cancelada', false, 0),
+            'notes'            => new external_value(PARAM_TEXT, 'Notas', false, null),
+        ]);
+    }
+
+    public static function set_group_course_returns() {
+        return new external_single_structure([
+            'success' => new external_value(PARAM_BOOL, 'Exito'),
+            'id'      => new external_value(PARAM_INT, 'ID de la fila'),
+            'action'  => new external_value(PARAM_TEXT, 'created|updated'),
+            'source'  => new external_value(PARAM_INT, '0=del plan, 1=anadida a mano'),
+            'message' => new external_value(PARAM_TEXT, 'Mensaje'),
+        ]);
+    }
+
+    /**
+     * Quita una asignatura de la malla de un grupo.
+     *
+     * Si venia del plan (source=0) NO se borra: se marca source=2 (excluida), para que
+     * una nueva siembra no la reintroduzca y para poder reactivarla. Si se habia anadido
+     * a mano (source=1) se borra sin mas.
+     *
+     * @return array
+     */
+    public static function unset_group_course($learningplanid, $intake_period, $jornada, $periodid, $courseid) {
+        global $DB, $USER;
+        $context = \context_system::instance();
+        self::validate_context($context);
+        require_capability('local/grupomakro_core:manage_student_timeline', $context);
+
+        $jornada = self::normalize_jornada($jornada);
+
+        $existing = $DB->get_record('gmk_group_curriculum', [
+            'learningplanid' => $learningplanid,
+            'intake_period'  => $intake_period,
+            'jornada'        => $jornada,
+            'periodid'       => $periodid,
+            'courseid'       => $courseid,
+        ]);
+
+        if (!$existing) {
+            return [
+                'success' => false,
+                'action'  => 'none',
+                'message' => 'La asignatura no estaba en la malla de este grupo',
+            ];
+        }
+
+        if ((int)$existing->source === 1) {
+            $DB->delete_records('gmk_group_curriculum', ['id' => $existing->id]);
+            $action = 'deleted';
+            $message = 'Asignatura anadida a mano: eliminada de la malla';
+        } else {
+            $existing->source       = 2;
+            $existing->timemodified = time();
+            $existing->usermodified = (int)$USER->id;
+            $DB->update_record('gmk_group_curriculum', $existing);
+            $action = 'excluded';
+            $message = 'Asignatura del plan marcada como excluida para este grupo';
+        }
+
+        return ['success' => true, 'action' => $action, 'message' => $message];
+    }
+
+    public static function unset_group_course_parameters() {
+        return new external_function_parameters([
+            'learningplanid' => new external_value(PARAM_INT, 'Plan'),
+            'intake_period'  => new external_value(PARAM_TEXT, 'Cohorte'),
+            'jornada'        => new external_value(PARAM_TEXT, 'Jornada; vacio = todas'),
+            'periodid'       => new external_value(PARAM_INT, 'Nivel del plan'),
+            'courseid'       => new external_value(PARAM_INT, 'Curso'),
+        ]);
+    }
+
+    public static function unset_group_course_returns() {
+        return new external_single_structure([
+            'success' => new external_value(PARAM_BOOL, 'Exito'),
+            'action'  => new external_value(PARAM_TEXT, 'excluded|deleted|none'),
+            'message' => new external_value(PARAM_TEXT, 'Mensaje'),
+        ]);
+    }
 }
