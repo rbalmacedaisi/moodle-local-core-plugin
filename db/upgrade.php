@@ -3813,10 +3813,10 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20261001052, 'local', 'grupomakro_core');
     }
 
-    if ($oldversion < 20261001051) {
+    if ($oldversion < 20261001053) {
         // Secretaria Academica can view and edit user profiles.
         assign_capabilities_to_internal_roles();
-        upgrade_plugin_savepoint(true, 20261001051, 'local', 'grupomakro_core');
+        upgrade_plugin_savepoint(true, 20261001053, 'local', 'grupomakro_core');
     }
 
     return true;
