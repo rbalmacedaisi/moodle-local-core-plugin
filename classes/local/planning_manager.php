@@ -1291,9 +1291,18 @@ if (preg_match('/Bimestre\s+(II|I)/', $cohortKey, $m)) {
         $subjectAbs = (($subjectSemester - 1) * 2) + $subjectBimestre;
         $idx = $subjectAbs - $cohortAbs;
 
-        if ($idx < $minIndex) {
-            return $minIndex;
+        // El periodo de ingreso DESPLAZA la proyeccion entera, no le pone un suelo.
+        // Usarlo como suelo (max) aplastaba dos bimestres en la misma columna: a un
+        // alumno que ingresa despues de la base, las asignaturas que cursa ahora
+        // subian al minimo y las del bimestre siguiente, que ya valian ese mismo
+        // numero, se quedaban donde estaban. Resultado: el tablero le proyectaba el
+        // bimestre actual Y el siguiente al mismo periodo -que ademas chocaban entre
+        // si en horario- y quedaba una columna por detras de lo que pinta la matriz.
+        if ($idx < 0) {
+            $idx = 0;
         }
+        $idx += $minIndex;
+
         if ($idx > 5) {
             return 5;
         }

@@ -1644,9 +1644,13 @@ const loadInitial = async () => {
 
             const cohortAbs = ((stuPlanningLevel - 1) * 2) + stuBim;
             const subjAbs = ((subjSemester - 1) * 2) + subjBim;
-            const idx = subjAbs - cohortAbs;
+            let idx = subjAbs - cohortAbs;
 
-            if (idx < minIdx) return minIdx;
+            // El periodo de ingreso DESPLAZA la proyeccion, no le pone un suelo.
+            // Misma correccion que en planning_manager::get_natural_period_index():
+            // con max() el bimestre actual y el siguiente caian en la misma columna.
+            if (idx < 0) idx = 0;
+            idx += minIdx;
             if (idx > 5) return 5;
             return idx;
         }
