@@ -638,6 +638,12 @@ function assign_capabilities_to_internal_roles() {
             'local/grupomakro_core:manage_meetings',
         ],
         'gmk_bienestar' => [
+            // Export the student list from the academic panel. The same
+            // capability also covers export_consolidated_grades.php, the other
+            // export button on that table - both pages check export_students,
+            // so there is no way to grant one without the other. Bienestar
+            // already reads grades through view_grade_report.
+            'local/grupomakro_core:export_students',
             // Read the student's Moodle profile. The absence dashboard links to
             // /user/profile.php and Bienestar follows up on the students it
             // flags there, but no gmk_* role held a single CORE capability, so

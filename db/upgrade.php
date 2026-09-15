@@ -3819,6 +3819,12 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20261001053, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20261001054) {
+        // Bienestar can export the student list from the academic panel.
+        assign_capabilities_to_internal_roles();
+        upgrade_plugin_savepoint(true, 20261001054, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 
