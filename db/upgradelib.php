@@ -445,6 +445,15 @@ function assign_capabilities_to_internal_roles() {
     // gated by moodle/site:config.
     $role_caps = [
         'gmk_director_academico' => [
+            // CORE: cada clase vive en una seccion restringida a SU grupo
+            // (create_class_activities escribe availability {"type":"group"} en
+            // las 141 secciones de clase abiertas). Quien no pertenece al grupo
+            // no supera la restriccion: cm_info marca available=false y Moodle
+            // responde "esta actividad esta actualmente oculta y no la puede ver"
+            // aunque la actividad este visible y sin restriccion propia. Esta
+            // capability es justo la que permite ver el contenido sin cumplir las
+            // restricciones de acceso; es de lectura y no salta las de capability.
+            'moodle/course:ignoreavailabilityrestrictions',
             // CORE: modo de edicion del curso. manageactivities es lo que
             // enciende el boton de Modo de edicion -moodle_page::user_allowed_editing()
             // lo consulta- y permite crear, editar y borrar actividades.
@@ -530,6 +539,15 @@ function assign_capabilities_to_internal_roles() {
             'local/grupomakro_core:view_financial_health',
         ],
         'gmk_secretaria_academica' => [
+            // CORE: cada clase vive en una seccion restringida a SU grupo
+            // (create_class_activities escribe availability {"type":"group"} en
+            // las 141 secciones de clase abiertas). Quien no pertenece al grupo
+            // no supera la restriccion: cm_info marca available=false y Moodle
+            // responde "esta actividad esta actualmente oculta y no la puede ver"
+            // aunque la actividad este visible y sin restriccion propia. Esta
+            // capability es justo la que permite ver el contenido sin cumplir las
+            // restricciones de acceso; es de lectura y no salta las de capability.
+            'moodle/course:ignoreavailabilityrestrictions',
             // CORE: libro de calificaciones y actividades, con edicion.
             // course:view es lo que deja entrar al curso sin estar matriculado;
             // sin ella no se abre ni el libro ni el curso. grade:edit y

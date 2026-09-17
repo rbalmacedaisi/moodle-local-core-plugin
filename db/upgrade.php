@@ -3857,6 +3857,13 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20261001062, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20261001063) {
+        // Director y Secretaria: ver el contenido de las secciones de clase, que
+        // estan restringidas al grupo de cada clase.
+        assign_capabilities_to_internal_roles();
+        upgrade_plugin_savepoint(true, 20261001063, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 
