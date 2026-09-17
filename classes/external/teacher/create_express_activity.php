@@ -40,7 +40,10 @@ class create_express_activity extends external_api {
                 'grademethod' => new external_value(PARAM_INT, 'Grading method (1=Highest, 2=Avg)', VALUE_DEFAULT, 1),
                 'forumtopic' => new external_value(PARAM_TEXT, 'Initial forum topic title', VALUE_DEFAULT, ''),
                 'forummessage' => new external_value(PARAM_RAW, 'Initial forum topic message', VALUE_DEFAULT, ''),
-                'forumcreateinitial' => new external_value(PARAM_BOOL, 'Create initial discussion topic', VALUE_DEFAULT, true)
+                'forumcreateinitial' => new external_value(PARAM_BOOL, 'Create initial discussion topic', VALUE_DEFAULT, true),
+                'enableGroupGrading' => new external_value(PARAM_BOOL, 'Permitir calificacion grupal (assign/quiz)', VALUE_DEFAULT, false),
+                'groupMode' => new external_value(PARAM_ALPHA, 'open o fixed', VALUE_DEFAULT, 'open'),
+                'groupMaxmembers' => new external_value(PARAM_INT, 'Cupo maximo por grupo', VALUE_DEFAULT, 5)
             )
         );
     }
@@ -63,13 +66,12 @@ class create_express_activity extends external_api {
         $grademethod = 1,
         $forumtopic = '',
         $forummessage = '',
-        $forumcreateinitial = true
+        $forumcreateinitial = true,
+        $enableGroupGrading = false,
+        $groupMode = 'open',
+        $groupMaxmembers = 5
     ) {
-        // $USER is needed by the instructor/support check below. It was missing
-        // from this global, so $USER->id resolved to null on an undefined local
-        // and gmk_user_is_class_instructor_or_support() rejected it on its int
-        // type hint: "Argument 2 ... must be of the type int, null given".
-        global $DB, $USER;
+        global $DB;
 
         $params = self::validate_parameters(self::execute_parameters(), array(
             'classid' => $classid,
@@ -89,7 +91,10 @@ class create_express_activity extends external_api {
             'grademethod' => $grademethod,
             'forumtopic' => $forumtopic,
             'forummessage' => $forummessage,
-            'forumcreateinitial' => $forumcreateinitial
+            'forumcreateinitial' => $forumcreateinitial,
+            'enableGroupGrading' => $enableGroupGrading,
+            'groupMode' => $groupMode,
+            'groupMaxmembers' => $groupMaxmembers
         ));
 
         $context = \context_system::instance();
@@ -147,20 +152,48 @@ class create_express_activity extends external_api {
 
         try {
             $result = local_grupomakro_create_express_activity($params['classid'], $modname, $params['name'], $params['intro'], $extra);
-            
+
             // Tags are applied by the ajax.php caller after execute() returns the cmid.
 
-            // Handle Grade Category for quizzes/assignments if created successfully
-            // (Wait, local_grupomakro_create_express_activity might handle basic grading, but explicit category assignment might need extra logic 
-            // if not covered in locallib. For now check if locallib handles gradecat. 
-            // Reviewing typical usage: extra['gradecat'] is passed, assume locallib handles it or we'll need to check locallib later.
-            // But user focus is tags now.)
+            // Calificacion grupal (introducida en 20261001057): solo se persiste el
+            // flag para actividades de tipo assign o quiz que asi lo pidan.
+            $groupresult = null;
+            if (!empty($params['enableGroupGrading']) && in_array($modname, ['assign', 'quiz'], true)) {
+                $cmid = (int)$result->coursemodule;
+                if ($cmid > 0) {
+                    try {
+                        $flagrec = new stdClass();
+                        $flagrec->cmid        = $cmid;
+                        $flagrec->modname     = $modname;
+                        $flagrec->enabled     = 1;
+                        $flagrec->mode        = in_array((string)$params['groupMode'], ['open', 'fixed'], true)
+                            ? (string)$params['groupMode'] : 'open';
+                        $flagrec->maxmembers  = max(1, (int)$params['groupMaxmembers']);
+                        $flagrec->timecreated = time();
+                        // Idempotente: respeta el flag existente si ya estaba.
+                        $existing = $DB->get_record('gmk_activity_grading_flag',
+                            ['cmid' => $cmid], '*', IGNORE_MISSING);
+                        if (!$existing) {
+                            $DB->insert_record('gmk_activity_grading_flag', $flagrec);
+                        }
+                        $groupresult = [
+                            'enabled'    => 1,
+                            'mode'       => $flagrec->mode,
+                            'maxmembers' => (int)$flagrec->maxmembers,
+                        ];
+                    } catch (\Throwable $e) {
+                        // No abortamos la creacion: la actividad se creo, solo fallaba el flag.
+                        $groupresult = ['error' => $e->getMessage()];
+                    }
+                }
+            }
 
             return array(
                 'status' => 'success',
                 'message' => 'Activity created successfully',
                 'cmid' => $result->coursemodule,
-                'forumdiscussionid' => !empty($result->forumdiscussionid) ? (int)$result->forumdiscussionid : 0
+                'forumdiscussionid' => !empty($result->forumdiscussionid) ? (int)$result->forumdiscussionid : 0,
+                'groupgrading' => $groupresult
             );
         } catch (\Throwable $e) {
             return array(
@@ -178,7 +211,17 @@ class create_express_activity extends external_api {
                 'status' => new external_value(PARAM_ALPHA, 'success or error'),
                 'message' => new external_value(PARAM_TEXT, 'Error or success message'),
                 'cmid' => new external_value(PARAM_INT, 'Course module ID'),
-                'forumdiscussionid' => new external_value(PARAM_INT, 'Initial forum discussion ID', VALUE_DEFAULT, 0)
+                'forumdiscussionid' => new external_value(PARAM_INT, 'Initial forum discussion ID', VALUE_DEFAULT, 0),
+                'groupgrading' => new external_single_structure(
+                    array(
+                        'enabled'    => new external_value(PARAM_INT, '0|1', VALUE_OPTIONAL),
+                        'mode'       => new external_value(PARAM_TEXT, 'open|fixed', VALUE_OPTIONAL),
+                        'maxmembers' => new external_value(PARAM_INT, 'cupo', VALUE_OPTIONAL),
+                        'error'      => new external_value(PARAM_TEXT, 'mensaje de error si lo hubo', VALUE_OPTIONAL),
+                    ),
+                    'Estado de la habilitacion de calificacion grupal (null si no se solicito)',
+                    VALUE_OPTIONAL
+                )
             )
         );
     }

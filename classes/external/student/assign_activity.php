@@ -309,7 +309,21 @@ class assign_activity extends external_api {
                     'filearea' => 'draft',
                     'itemid' => (int)$draftitemid,
                 ],
+                // Calificacion grupal (introducida en 20261001057)
+                'enableGroupGrading' => false,
             ];
+
+            // Adjuntar flag de calificacion grupal si aplica. El componente Vue
+            // (ActivityGroupSelector) hace su propia llamada a
+            // local_grupomakro_activity_group_list_for_student, pero pasar el
+            // flag aqui evita una segunda llamada para saber si la UI debe
+            // siquiera renderizar el selector.
+            $gradingflag = gmk_get_activity_grading_flag((int)$cm->id);
+            if ($gradingflag && (int)$gradingflag->enabled === 1) {
+                $payload['enableGroupGrading'] = true;
+                $payload['groupMode'] = (string)$gradingflag->mode;
+                $payload['groupMaxmembers'] = (int)$gradingflag->maxmembers;
+            }
 
             return [
                 'status' => 1,

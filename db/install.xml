@@ -1573,5 +1573,65 @@
         <INDEX NAME="idx_course" UNIQUE="false" FIELDS="courseid"/>
       </INDEXES>
     </TABLE>
+
+    <TABLE NAME="gmk_activity_group" COMMENT="Grupos definidos por el docente para una actividad (tarea o cuestionario) que admite calificacion grupal. Independiente de mod_assign.groups / groups_members: aqui vive el modelo completo (nombre, cupo, modo). cmid + modname apuntan al course_module real, classid a gmk_class para permisos. mode='open' los estudiantes eligen, mode='fixed' el docente arma.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="cmid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="course_modules.id de la tarea o cuestionario"/>
+        <FIELD NAME="modname" TYPE="char" LENGTH="20" NOTNULL="true" SEQUENCE="false" COMMENT="assign | quiz"/>
+        <FIELD NAME="classid" TYPE="int" LENGTH="10" NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="gmk_class.id para chequeos de capacidad del docente"/>
+        <FIELD NAME="name" TYPE="char" LENGTH="120" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="maxmembers" TYPE="int" LENGTH="4" NOTNULL="true" DEFAULT="5" SEQUENCE="false" COMMENT="Cupo maximo del grupo"/>
+        <FIELD NAME="mode" TYPE="char" LENGTH="10" NOTNULL="true" DEFAULT="open" SEQUENCE="false" COMMENT="open = estudiante se une; fixed = solo docente arma"/>
+        <FIELD NAME="colorindex" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="1" SEQUENCE="false" COMMENT="1..5 mapea a gmk-group-1..5 en CSS"/>
+        <FIELD NAME="usermodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="usermodified" TYPE="foreign" FIELDS="usermodified" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_ag_cmid" UNIQUE="false" FIELDS="cmid"/>
+        <INDEX NAME="idx_ag_classid" UNIQUE="false" FIELDS="classid"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="gmk_activity_group_member" COMMENT="Pertenencia estudiante-grupo. Snapshot al unirse: borrar el grupo o reasignar al estudiante no pisa esta fila mientras la calificacion grupal siga activa. UNIQUE(groupid,userid) garantiza que un estudiante pertenece a un solo grupo por actividad.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="groupid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="gmk_activity_group.id"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="user.id del estudiante"/>
+        <FIELD NAME="joined_at" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="fk_agm_group" TYPE="foreign" FIELDS="groupid" REFTABLE="gmk_activity_group" REFFIELDS="id"/>
+        <KEY NAME="fk_agm_user" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_agm_group_user" UNIQUE="true" FIELDS="groupid, userid"/>
+        <INDEX NAME="idx_agm_user" UNIQUE="false" FIELDS="userid"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="gmk_activity_grading_flag" COMMENT="Flag de habilitacion de calificacion grupal por actividad. Se llena al crear la actividad desde el wizard. Solo se consulta: NO se permite actualizar despues para actividades existentes (decision de producto: solo actividades nuevas pueden ser grupales).">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="cmid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="modname" TYPE="char" LENGTH="20" NOTNULL="true" SEQUENCE="false" COMMENT="assign | quiz"/>
+        <FIELD NAME="enabled" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="1" SEQUENCE="false"/>
+        <FIELD NAME="mode" TYPE="char" LENGTH="10" NOTNULL="true" DEFAULT="open" SEQUENCE="false"/>
+        <FIELD NAME="maxmembers" TYPE="int" LENGTH="4" NOTNULL="true" DEFAULT="5" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_agf_cmid" UNIQUE="true" FIELDS="cmid"/>
+      </INDEXES>
+    </TABLE>
   </TABLES>
 </XMLDB>

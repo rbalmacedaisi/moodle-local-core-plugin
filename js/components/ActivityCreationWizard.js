@@ -84,6 +84,67 @@ const ActivityCreationWizard = {
                             </v-col>
                         </v-row>
 
+                        <!-- Calificacion grupal (introducida en 20261001057) -->
+                        <v-card
+                            v-if="isAssignment || isQuiz"
+                            outlined
+                            class="mt-3 mb-3 pa-3"
+                            :color="formData.enableGroupGrading ? 'blue lighten-5' : ''"
+                        >
+                            <div class="d-flex align-center">
+                                <v-icon color="primary" class="mr-2">mdi-account-group</v-icon>
+                                <v-switch
+                                    v-model="formData.enableGroupGrading"
+                                    :label="'Permitir calificación grupal'"
+                                    hide-details
+                                    dense
+                                    color="primary"
+                                    class="mt-0 pt-0"
+                                ></v-switch>
+                                <v-spacer></v-spacer>
+                                <v-chip v-if="formData.enableGroupGrading" x-small color="primary" dark>
+                                    Habilitada
+                                </v-chip>
+                            </div>
+                            <div v-if="formData.enableGroupGrading" class="mt-2">
+                                <v-row>
+                                    <v-col cols="12" sm="6">
+                                        <v-select
+                                            v-model="formData.groupMode"
+                                            :items="groupModeOptions"
+                                            label="Modo de agrupación"
+                                            outlined
+                                            dense
+                                            hide-details
+                                        ></v-select>
+                                    </v-col>
+                                    <v-col cols="12" sm="6">
+                                        <v-text-field
+                                            v-model.number="formData.groupMaxmembers"
+                                            label="Tamaño máximo por grupo"
+                                            type="number"
+                                            min="2"
+                                            outlined
+                                            dense
+                                            hide-details
+                                        ></v-text-field>
+                                    </v-col>
+                                </v-row>
+                                <div class="text-caption grey--text mt-2 d-flex align-center">
+                                    <v-icon x-small class="mr-1">mdi-information-outline</v-icon>
+                                    <span v-if="formData.groupMode === 'open'">
+                                        Los estudiantes se unen solos a un grupo desde el LXP hasta llenar el cupo.
+                                    </span>
+                                    <span v-else>
+                                        El docente arma los grupos manualmente desde Teacher Dashboard.
+                                    </span>
+                                </div>
+                                <div class="text-caption orange--text text--darken-2 mt-1">
+                                    Esta opción solo se puede definir al crear la actividad.
+                                </div>
+                            </div>
+                        </v-card>
+
                         <!-- Tags Input -->
                         <v-combobox
                             ref="lessonTagInput"
@@ -233,7 +294,11 @@ const ActivityCreationWizard = {
                 guest: false,
                 forumtopic: '',
                 forummessage: '',
-                forumcreateinitial: true
+                forumcreateinitial: true,
+                // Calificacion grupal (introducida en 20261001057)
+                enableGroupGrading: false,
+                groupMode: 'open',
+                groupMaxmembers: 5
             },
             loadingDetails: false,
             tagSearchInput: '',
@@ -289,6 +354,12 @@ const ActivityCreationWizard = {
                    this.activityType === 'assignment' || this.activityType === 'assign' ||
                    this.activityType === 'quiz' ||
                    this.activityType === 'forum';
+        },
+        groupModeOptions() {
+            return [
+                { text: 'Abierto (los estudiantes se unen)', value: 'open' },
+                { text: 'Fijo (el docente arma)',            value: 'fixed' }
+            ];
         }
     },
     methods: {
@@ -300,6 +371,10 @@ const ActivityCreationWizard = {
             this.filesToDelete = [];
             this.uploadingIndex = null;
             this.tagSearchInput = '';
+            // Reset de los campos de calificacion grupal (20261001057)
+            this.formData.enableGroupGrading = false;
+            this.formData.groupMode = 'open';
+            this.formData.groupMaxmembers = 5;
             this.$emit('close');
         },
         parseDatetimeLocalToTimestamp(value) {
@@ -514,7 +589,13 @@ const ActivityCreationWizard = {
                     forumtopic: this.isForum ? (this.formData.forumtopic || this.formData.name || '') : '',
                     forummessage: this.isForum ? (this.formData.forummessage || this.formData.intro || '') : '',
                     forumcreateinitial: this.isForum ? (this.formData.forumcreateinitial ? 1 : 0) : 0,
-                    draftitemids: draftitemids
+                    draftitemids: draftitemids,
+                    // Calificacion grupal (introducida en 20261001057)
+                    enableGroupGrading: (this.isAssignment || this.isQuiz) && this.formData.enableGroupGrading ? 1 : 0,
+                    groupMode: (this.isAssignment || this.isQuiz) && this.formData.enableGroupGrading
+                                ? (this.formData.groupMode || 'open') : 'open',
+                    groupMaxmembers: (this.isAssignment || this.isQuiz) && this.formData.enableGroupGrading
+                                ? Math.max(2, parseInt(this.formData.groupMaxmembers, 10) || 5) : 5
                 };
                 response = await axios.post(window.wsUrl, {
                     action: action,

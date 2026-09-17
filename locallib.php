@@ -45,6 +45,22 @@ require_once($CFG->libdir . '/externallib.php');
 require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/progress_manager.php');
 require_once($CFG->dirroot . '/user/profile/lib.php');
 
+if (!function_exists('gmk_log_strong')) {
+    /**
+     * Always-on logger that writes to PHP error_log regardless of debug flags.
+     *
+     * Use this for ERRORs and WARNINGs that must never be silent: failed BBB
+     * creation, broken class/attendance linkage, data integrity violations.
+     * The error_log entries show up in Apache error.log and CLI stderr and are
+     * shipped to CloudWatch / Datadog, so on-call sees them without needing
+     * GMK_DEBUG_LOG enabled.
+     */
+    function gmk_log_strong($level, $message) {
+        $prefix = '[gmk:' . strtoupper((string)$level) . ']';
+        @error_log($prefix . ' ' . $message);
+    }
+}
+
 if (!function_exists('gmk_log')) {
     /**
      * Helper function to log debug messages to a local file.
@@ -3369,6 +3385,14 @@ function gmk_cleanup_stale_bbb_for_class_before_rebuild($class): array
 function create_class_activities($class, $updating = false, $forceRebuildDates = false)
 {
     global $DB, $USER, $CFG;
+
+    // Wrap the entire creation flow in a transaction so that a partial failure
+    // (e.g. BBB cannot be created for a presencial class) rolls back ALL the
+    // course_modules / grade_items / attendance_sessions that we inserted so far,
+    // instead of leaving the class in a half-built state with orphan relations.
+    $tx = $DB->start_delegated_transaction();
+    $rolledback = false;
+    try {
     // if($classParams["classroomId"]!== ''){
     //         $classroomsReservations = createClassroomReservations($newClass);
     //     }
@@ -3704,7 +3728,22 @@ function create_class_activities($class, $updating = false, $forceRebuildDates =
                         $BBBCourseModulesInfo[] = $BBBCourseModuleInfo;
                         gmk_log("INFO: BBB recuperado para clase {$class->id} date {$dateStr}: cmid={$BBBCourseModuleInfo->coursemodule}");
                     } else {
-                        gmk_log("WARNING: BBB creation failed for class {$class->id} date {$dateStr}: " . $bbbErr->getMessage());
+                        // BBB is mandatory for presencial classes (type=0) and mixtas (type=2):
+                        // a session without a sala means the teacher cannot start class. Aborting
+                        // the whole create_class_activities call here rolls back any partial work
+                        // (DB transaction at the top of the function) and prevents the symptom
+                        // reported by docentes: "no hay sesion vinculada".
+                        $errMsg = $bbbErr->getMessage();
+                        gmk_log("WARNING: BBB creation failed for class {$class->id} date {$dateStr}: " . $errMsg);
+                        gmk_log_strong('error', "BBB creation failed classid={$class->id} courseid={$class->corecourseid} date={$dateStr} err={$errMsg}");
+                        if ((int)$class->type !== 1) {
+                            throw new \Exception(
+                                "No se pudo crear la sala BBB para la clase {$class->id} en la fecha {$dateStr}: {$errMsg}. "
+                                . "Para presenciales/mixtas el BBB es obligatorio; se aborto la creacion de actividades.",
+                                0,
+                                $bbbErr
+                            );
+                        }
                         $BBBCourseModuleInfo = null;
                     }
                 }
@@ -3746,7 +3785,17 @@ function create_class_activities($class, $updating = false, $forceRebuildDates =
                         $BBBCourseModulesInfo[] = $BBBCourseModuleInfo;
                         gmk_log("INFO: BBB recuperado para clase {$class->id} date {$dateStr}: cmid={$BBBCourseModuleInfo->coursemodule}");
                     } else {
-                        gmk_log("WARNING: BBB creation failed for class {$class->id} date {$dateStr}: " . $bbbErr->getMessage());
+                        $errMsg = $bbbErr->getMessage();
+                        gmk_log("WARNING: BBB creation failed for class {$class->id} date {$dateStr}: " . $errMsg);
+                        gmk_log_strong('error', "BBB creation failed classid={$class->id} courseid={$class->corecourseid} date={$dateStr} err={$errMsg}");
+                        if ((int)$class->type !== 1) {
+                            throw new \Exception(
+                                "No se pudo crear la sala BBB para la clase {$class->id} en la fecha {$dateStr}: {$errMsg}. "
+                                . "Para presenciales/mixtas el BBB es obligatorio; se aborto la creacion de actividades.",
+                                0,
+                                $bbbErr
+                            );
+                        }
                         $BBBCourseModuleInfo = null;
                     }
                 }
@@ -3771,6 +3820,14 @@ function create_class_activities($class, $updating = false, $forceRebuildDates =
 
     foreach ($attendanceSessions as $session) {
         $attendanceSessionId = $attendanceStructure->add_session($session);
+
+        // Defense in depth: do not persist a relation with NULL bbbmoduleid for
+        // presencial/mixta classes. The early throw above already prevents this in
+        // the normal flow; this guard catches any future code path that forgets.
+        if (!$session->bbbCourseModuleInfo && (int)$class->type !== 1) {
+            gmk_log_strong('error', "Aborting create_class_activities: attendance session {$attendanceSessionId} created without BBB link (classid={$class->id})");
+            throw new \Exception("Asistencia creada sin vinculo BBB para clase {$class->id}: sesion {$attendanceSessionId}. Rollback en transaccion superior.");
+        }
 
         $classAttendanceBBBRelation = new stdClass();
         $classAttendanceBBBRelation->attendancesessionid = $attendanceSessionId;
@@ -3813,7 +3870,28 @@ function create_class_activities($class, $updating = false, $forceRebuildDates =
     // payloads so the class shows its new sessions immediately.
     gmk_invalidate_schedule_caches((int)$class->id);
 
+    // Commit the whole creation as a single atomic unit. If anything earlier in
+    // this function threw (e.g. BBB creation failed for a presencial class) we
+    // already returned via the catch below; reaching this line means success.
+    $DB->commit_delegated_transaction($tx);
     return ['status' => 'created'];
+    } catch (\Throwable $createErr) {
+        // Any failure during class activity creation rolls back ALL inserts:
+        // course_modules, bigbluebuttonbn, attendance_sessions, grade_items,
+        // gmk_bbb_attendance_relation rows, etc. This is the root-cause fix
+        // for the "no hay sesion vinculada" symptom: a half-built class with
+        // bbbmoduleid=NULL relations can no longer persist past this point.
+        if (!$rolledback) {
+            try {
+                $DB->rollback_delegated_transaction($tx, $createErr);
+            } catch (\Throwable $rbErr) {
+                gmk_log_strong('error', "Rollback failed for class {$class->id}: " . $rbErr->getMessage());
+                $DB->force_transaction_rollback();
+            }
+        }
+        gmk_log_strong('error', "create_class_activities aborted classid={$class->id} courseid={$class->corecourseid}: " . $createErr->getMessage());
+        throw $createErr;
+    }
 }
 
 function create_big_blue_button_activity($class, $initDateTS, $endDateTS, $BBBmoduleId, $classSectionId)
@@ -11764,6 +11842,318 @@ function gmk_get_pending_grading_items($userid, $classid = 0, $status = 'pending
     return $results;
 }
 
+// =============================================================================
+// Calificacion grupal - helpers
+// =============================================================================
+//
+// Estas funciones dan soporte al sistema de grupos POR ACTIVIDAD introducido
+// en la version 20261001057. Es INDEPENDIENTE de Moodle groups/groups_members:
+// nunca tocamos assign.groupid ni quiz.groupid, asi que no colisiona con
+// gmk_class.groupid (que es el grupo de la clase, no de la actividad).
+//
+// Modelo:
+//   gmk_activity_group        -> cabecera del grupo (cmid, name, maxmembers, mode)
+//   gmk_activity_group_member -> pertenencia estudiante-grupo (snapshot)
+//   gmk_activity_grading_flag -> flag de habilitacion por cmid (solo lectura)
+
+/**
+ * Devuelve el flag de habilitacion de calificacion grupal para un cmid,
+ * o null si la actividad NO fue creada con esa opcion.
+ *
+ * @param int $cmid
+ * @return stdClass|null
+ */
+function gmk_get_activity_grading_flag(int $cmid): ?stdClass {
+    global $DB;
+    if ($cmid <= 0) {
+        return null;
+    }
+    try {
+        $row = $DB->get_record('gmk_activity_grading_flag', ['cmid' => $cmid], '*', IGNORE_MISSING);
+    } catch (\Exception $e) {
+        $row = null;
+    }
+    return $row ?: null;
+}
+
+/**
+ * Lista los grupos definidos para una actividad, con sus miembros ya
+ * resueltos (userid, fullname, email, picture, avatar url). Pensada para
+ * alimentar tanto el panel docente como la UI del estudiante.
+ *
+ * @param int $cmid
+ * @param string $modname 'assign' | 'quiz'
+ * @param int|null $foruserid Si se pasa, se rellena ademas el campo
+ *                           'current_user_is_member' para cada grupo y se
+ *                           marca 'user_current_group_id' a nivel del array.
+ * @return array
+ */
+function gmk_get_activity_groups(int $cmid, string $modname, ?int $foruserid = null): array {
+    global $DB, $PAGE;
+
+    $cmid = (int)$cmid;
+    if ($cmid <= 0 || !in_array($modname, ['assign', 'quiz'], true)) {
+        return [];
+    }
+
+    $groups = $DB->get_records('gmk_activity_group',
+        ['cmid' => $cmid, 'modname' => $modname], 'timecreated ASC, id ASC');
+    if (empty($groups)) {
+        return [];
+    }
+
+    $groupids = array_keys($groups);
+
+    // Traer todos los miembros de una sola vez (N+1 prevention).
+    list($insql, $params) = $DB->get_in_or_equal($groupids, SQL_PARAMS_NAMED, 'gid');
+    $members = $DB->get_records_sql(
+        "SELECT m.id AS memberid, m.groupid, m.userid, m.joined_at,
+                u.firstname, u.lastname, u.email, u.picture, u.imagealt,
+                u.firstnamephonetic, u.lastnamephonetic, u.middlename, u.alternatename
+           FROM {gmk_activity_group_member} m
+           JOIN {user} u ON u.id = m.userid
+          WHERE m.groupid $insql",
+        $params
+    );
+
+    // Indexar por groupid para asignacion rapida.
+    $membersbygroup = [];
+    foreach ($members as $m) {
+        $membersbygroup[(int)$m->groupid][] = $m;
+    }
+
+    $usercurrentgroupid = null;
+    $out = [];
+    foreach ($groups as $g) {
+        $memberlist = $membersbygroup[(int)$g->id] ?? [];
+        $memberpayload = [];
+        foreach ($memberlist as $m) {
+            $u = new stdClass();
+            $u->id = (int)$m->userid;
+            $u->userid = (int)$m->userid;
+            $u->fullname = fullname($m);
+            $u->email = $m->email;
+            $u->joined_at = (int)$m->joined_at;
+
+            // Avatar: misma logica que get_pending_grading.php
+            $userobj = new stdClass();
+            $userobj->id = (int)$m->userid;
+            $userobj->picture = $m->picture;
+            $userobj->firstname = $m->firstname;
+            $userobj->lastname = $m->lastname;
+            $userobj->imagealt = $m->imagealt;
+            $userobj->email = $m->email;
+            $userpicture = new \user_picture($userobj);
+            $userpicture->size = 1;
+            $u->avatar = $userpicture->get_url($PAGE)->out(false);
+
+            $memberpayload[] = $u;
+            if ($foruserid !== null && (int)$m->userid === $foruserid) {
+                $usercurrentgroupid = (int)$g->id;
+            }
+        }
+
+        $entry = [
+            'id'          => (int)$g->id,
+            'cmid'        => (int)$g->cmid,
+            'modname'     => (string)$g->modname,
+            'classid'     => (int)($g->classid ?? 0),
+            'name'        => (string)$g->name,
+            'maxmembers'  => (int)$g->maxmembers,
+            'mode'        => (string)$g->mode,
+            'colorindex'  => (int)$g->colorindex,
+            'membercount' => count($memberpayload),
+            'members'     => $memberpayload,
+            'isfull'      => count($memberpayload) >= (int)$g->maxmembers,
+            'isempty'     => count($memberpayload) === 0,
+        ];
+        if ($foruserid !== null) {
+            $entry['current_user_is_member'] = ($usercurrentgroupid === (int)$g->id);
+        }
+        $out[] = $entry;
+    }
+
+    return [
+        'groups' => $out,
+        'user_current_group_id' => $usercurrentgroupid,
+    ];
+}
+
+/**
+ * Resuelve el grupo al que pertenece un estudiante para una actividad dada,
+ * o 0 si no pertenece a ninguno.
+ *
+ * Es el "espejo" de gmk_get_activity_groups cuando solo necesitamos el id.
+ *
+ * @param int $cmid
+ * @param int $userid
+ * @return int 0 si no pertenece a ninguno, >0 = gmk_activity_group.id
+ */
+function gmk_get_user_activity_group(int $cmid, int $userid): int {
+    global $DB;
+    if ($cmid <= 0 || $userid <= 0) {
+        return 0;
+    }
+    $rec = $DB->get_record_sql(
+        "SELECT ag.id
+           FROM {gmk_activity_group_member} agm
+           JOIN {gmk_activity_group} ag ON ag.id = agm.groupid
+          WHERE ag.cmid = :cmid AND agm.userid = :userid",
+        ['cmid' => $cmid, 'userid' => $userid],
+        IGNORE_MISSING
+    );
+    return $rec ? (int)$rec->id : 0;
+}
+
+/**
+ * Une a un estudiante a un grupo, validando cupo y modo. Pensada para el
+ * flujo del estudiante; si el grupo esta en 'fixed' el servidor rechaza.
+ *
+ * Devuelve un array con 'status' ('ok'|'full'|'fixed'|'invalid'|'duplicate'|'error')
+ * y, segun el caso, datos utiles para el frontend.
+ *
+ * @param int $groupid
+ * @param int $userid
+ * @return array
+ */
+function gmk_join_activity_group(int $groupid, int $userid): array {
+    global $DB;
+
+    $groupid = (int)$groupid;
+    $userid  = (int)$userid;
+    if ($groupid <= 0 || $userid <= 0) {
+        return ['status' => 'invalid', 'message' => 'Parametros invalidos'];
+    }
+
+    $group = $DB->get_record('gmk_activity_group', ['id' => $groupid], '*', MUST_EXIST);
+    if ((string)$group->mode === 'fixed') {
+        return ['status' => 'fixed', 'message' => 'Este grupo lo asigna el docente.'];
+    }
+
+    // Ya esta en este grupo? idempotente.
+    $already = $DB->get_record('gmk_activity_group_member',
+        ['groupid' => $groupid, 'userid' => $userid], 'id', IGNORE_MISSING);
+    if ($already) {
+        return ['status' => 'duplicate', 'groupid' => $groupid];
+    }
+
+    // Ya pertenece a OTRO grupo de la misma actividad? -> sacar primero.
+    $other = $DB->get_record_sql(
+        "SELECT agm.groupid
+           FROM {gmk_activity_group_member} agm
+           JOIN {gmk_activity_group} ag ON ag.id = agm.groupid
+          WHERE ag.cmid = :cmid AND agm.userid = :userid AND ag.id <> :gid",
+        ['cmid' => (int)$group->cmid, 'userid' => $userid, 'gid' => $groupid],
+        IGNORE_MISSING
+    );
+    if ($other) {
+        $DB->delete_records('gmk_activity_group_member',
+            ['groupid' => (int)$other->groupid, 'userid' => $userid]);
+    }
+
+    // Cupo: SELECT count + INSERT sin transaccion seria un race; usamos
+    // count() bajo una transaccion corta para que dos inserciones
+    // simultaneas no superen el cupo.
+    $transaction = $DB->start_delegated_transaction();
+    try {
+        $count = $DB->count_records('gmk_activity_group_member', ['groupid' => $groupid]);
+        if ($count >= (int)$group->maxmembers) {
+            $DB->rollback_delegated_transaction($transaction);
+            return ['status' => 'full', 'message' => 'El grupo ya esta completo.'];
+        }
+        $rec = new stdClass();
+        $rec->groupid = $groupid;
+        $rec->userid = $userid;
+        $rec->joined_at = time();
+        $DB->insert_record('gmk_activity_group_member', $rec);
+        $DB->commit_delegated_transaction($transaction);
+    } catch (\Throwable $e) {
+        $DB->rollback_delegated_transaction($transaction);
+        return ['status' => 'error', 'message' => $e->getMessage()];
+    }
+
+    return ['status' => 'ok', 'groupid' => $groupid];
+}
+
+/**
+ * Saca a un estudiante de su grupo actual en una actividad.
+ * Solo aplica si el grupo esta en modo 'open' (los fijos no se pueden
+ * abandonar unilateralmente).
+ *
+ * @param int $cmid
+ * @param int $userid
+ * @return array
+ */
+function gmk_leave_activity_group(int $cmid, int $userid): array {
+    global $DB;
+
+    $cmid = (int)$cmid;
+    $userid = (int)$userid;
+    if ($cmid <= 0 || $userid <= 0) {
+        return ['status' => 'invalid'];
+    }
+
+    $groupid = gmk_get_user_activity_group($cmid, $userid);
+    if ($groupid <= 0) {
+        return ['status' => 'not_member'];
+    }
+
+    $group = $DB->get_record('gmk_activity_group', ['id' => $groupid], 'id, mode', MUST_EXIST);
+    if ((string)$group->mode === 'fixed') {
+        return ['status' => 'fixed', 'message' => 'No puedes salir de un grupo fijo.'];
+    }
+
+    $DB->delete_records('gmk_activity_group_member',
+        ['groupid' => $groupid, 'userid' => $userid]);
+
+    return ['status' => 'ok'];
+}
+
+/**
+ * Devuelve el resumen de notas de los miembros de un grupo para una tarea,
+ * usado por save_group_grade para detectar re-calificaciones.
+ *
+ * @param int $assignmentid
+ * @param int $groupid
+ * @return array Lista de {userid, currentgrade (o null), timemodified}
+ */
+function gmk_get_group_existing_grades(int $assignmentid, int $groupid): array {
+    global $DB;
+
+    $members = $DB->get_records('gmk_activity_group_member',
+        ['groupid' => $groupid], '', 'userid');
+    if (empty($members)) {
+        return [];
+    }
+
+    $userids = array_map('intval', array_keys($members));
+    list($insql, $params) = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED, 'uid');
+    $params['aid'] = (int)$assignmentid;
+
+    $rows = $DB->get_records_sql(
+        "SELECT g.userid, g.grade, g.timemodified
+           FROM {assign_grades} g
+          WHERE g.assignment = :aid
+            AND g.attemptnumber = -1
+            AND g.userid $insql",
+        $params
+    );
+
+    $out = [];
+    foreach ($userids as $uid) {
+        $out[] = [
+            'userid'        => $uid,
+            'currentgrade'  => isset($rows[$uid]) ? (float)$rows[$uid]->grade : null,
+            'timemodified'  => isset($rows[$uid]) ? (int)$rows[$uid]->timemodified : 0,
+        ];
+    }
+    return $out;
+}
+
+// =============================================================================
+// Fin calificacion grupal - helpers
+// =============================================================================
+
 /**
  * Get student attendance summary (absence count).
  * @param int $userid
@@ -11772,7 +12162,7 @@ function gmk_get_pending_grading_items($userid, $classid = 0, $status = 'pending
  */
 function gmk_get_student_attendance_summary($userid, $classid) {
     global $DB;
-    
+
     try {
         $class = $DB->get_record('gmk_class', ['id' => $classid], '*', MUST_EXIST);
         

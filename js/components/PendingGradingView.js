@@ -103,6 +103,17 @@ Vue.component('pending-grading-view', {
                             <v-chip x-small color="orange darken-1" dark class="mt-1" v-if="item.submissionstatus === 'reopened'">
                                 <v-icon x-small left>mdi-lock-open-variant-outline</v-icon>Reabierta
                             </v-chip>
+                            <v-chip
+                                v-if="item.groupinfo && item.groupinfo.id"
+                                x-small
+                                :color="'gmk-group-' + (item.groupinfo.colorindex || 1)"
+                                dark
+                                class="mt-1 ml-1"
+                            >
+                                <v-icon x-small left>mdi-account-group</v-icon>
+                                {{ item.groupinfo.name }}
+                                <span class="ml-1 caption">({{ item.groupinfo.membercount || 0 }})</span>
+                            </v-chip>
                             <div class="caption grey--text" v-if="!classId">
                                 <v-icon x-small class="mr-1">mdi-school</v-icon>
                                 {{ item.coursename }}

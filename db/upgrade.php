@@ -3832,6 +3832,78 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20261001056, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20261001057) {
+        // CALIFICACION GRUPAL: nuevo sistema de grupos por actividad, totalmente
+        // independiente de mod_assign.groups / groups_members. Tres tablas:
+        //   - gmk_activity_group:        cabecera del grupo (cmid, name, maxmembers, mode)
+        //   - gmk_activity_group_member: pertenencia estudiante-grupo (snapshot)
+        //   - gmk_activity_grading_flag: flag de habilitacion por cmid
+        //
+        // Los estudiantes se unen a un grupo desde el LXP, el docente arma/override
+        // desde Teacher Dashboard, y al calificar puede elegir Individual vs Grupal
+        // desde QuickGrader. Cuando ya hay notas grupales previas, se muestra
+        // advertencia con opciones "Atras" / "Continuar y sobrescribir" (no bloqueante).
+
+        // 1) gmk_activity_group
+        $agtable = new xmldb_table('gmk_activity_group');
+        $agtable->add_field('id',            XMLDB_TYPE_INTEGER, '10',  null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $agtable->add_field('cmid',          XMLDB_TYPE_INTEGER, '10',  null, XMLDB_NOTNULL, null, null);
+        $agtable->add_field('modname',       XMLDB_TYPE_CHAR,    '20',  null, XMLDB_NOTNULL, null, null);
+        $agtable->add_field('classid',       XMLDB_TYPE_INTEGER, '10',  null, null, null, '0');
+        $agtable->add_field('name',          XMLDB_TYPE_CHAR,    '120', null, XMLDB_NOTNULL, null, null);
+        $agtable->add_field('maxmembers',    XMLDB_TYPE_INTEGER, '4',   null, XMLDB_NOTNULL, null, '5');
+        $agtable->add_field('mode',          XMLDB_TYPE_CHAR,    '10',  null, XMLDB_NOTNULL, null, 'open');
+        $agtable->add_field('colorindex',    XMLDB_TYPE_INTEGER, '2',   null, XMLDB_NOTNULL, null, '1');
+        $agtable->add_field('usermodified',  XMLDB_TYPE_INTEGER, '10',  null, XMLDB_NOTNULL, null, '0');
+        $agtable->add_field('timecreated',   XMLDB_TYPE_INTEGER, '10',  null, XMLDB_NOTNULL, null, '0');
+        $agtable->add_field('timemodified',  XMLDB_TYPE_INTEGER, '10',  null, XMLDB_NOTNULL, null, '0');
+
+        $agtable->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $agtable->add_key('fk_ag_usermodified', XMLDB_KEY_FOREIGN, ['usermodified'], 'user', ['id']);
+        $agtable->add_index('idx_ag_cmid', XMLDB_INDEX_NOTUNIQUE, ['cmid']);
+        $agtable->add_index('idx_ag_classid', XMLDB_INDEX_NOTUNIQUE, ['classid']);
+
+        if (!$dbman->table_exists($agtable)) {
+            $dbman->create_table($agtable);
+        }
+
+        // 2) gmk_activity_group_member
+        $agm = new xmldb_table('gmk_activity_group_member');
+        $agm->add_field('id',        XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $agm->add_field('groupid',   XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $agm->add_field('userid',    XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $agm->add_field('joined_at', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+
+        $agm->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $agm->add_key('fk_agm_group', XMLDB_KEY_FOREIGN, ['groupid'], 'gmk_activity_group', ['id']);
+        $agm->add_key('fk_agm_user',  XMLDB_KEY_FOREIGN, ['userid'],  'user', ['id']);
+        $agm->add_index('idx_agm_group_user', XMLDB_INDEX_UNIQUE, ['groupid', 'userid']);
+        $agm->add_index('idx_agm_user', XMLDB_INDEX_NOTUNIQUE, ['userid']);
+
+        if (!$dbman->table_exists($agm)) {
+            $dbman->create_table($agm);
+        }
+
+        // 3) gmk_activity_grading_flag
+        $agf = new xmldb_table('gmk_activity_grading_flag');
+        $agf->add_field('id',         XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $agf->add_field('cmid',       XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $agf->add_field('modname',    XMLDB_TYPE_CHAR,    '20', null, XMLDB_NOTNULL, null, null);
+        $agf->add_field('enabled',    XMLDB_TYPE_INTEGER, '1',  null, XMLDB_NOTNULL, null, '1');
+        $agf->add_field('mode',       XMLDB_TYPE_CHAR,    '10', null, XMLDB_NOTNULL, null, 'open');
+        $agf->add_field('maxmembers', XMLDB_TYPE_INTEGER, '4',  null, XMLDB_NOTNULL, null, '5');
+        $agf->add_field('timecreated',XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+
+        $agf->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $agf->add_index('idx_agf_cmid', XMLDB_INDEX_UNIQUE, ['cmid']);
+
+        if (!$dbman->table_exists($agf)) {
+            $dbman->create_table($agf);
+        }
+
+        upgrade_plugin_savepoint(true, 20261001057, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 
