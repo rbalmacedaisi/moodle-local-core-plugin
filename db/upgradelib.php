@@ -522,6 +522,25 @@ function assign_capabilities_to_internal_roles() {
             'local/grupomakro_core:view_financial_health',
         ],
         'gmk_secretaria_academica' => [
+            // CORE: libro de calificaciones y actividades, con edicion.
+            // course:view es lo que deja entrar al curso sin estar matriculado;
+            // sin ella no se abre ni el libro ni el curso. grade:edit y
+            // singleview permiten MODIFICAR notas; manageactivities es lo que
+            // habilita el modo de edicion y crear/editar/borrar actividades.
+            // NO se conceden: grade:manage (categorias y ponderaciones, que
+            // recalculan la nota final de todo el curso), course:update (ajustes
+            // del curso), sectionvisibility/movesections (estructura de secciones)
+            // ni backup:backuptargetimport.
+            'moodle/course:view',
+            'moodle/course:viewparticipants',
+            'moodle/grade:viewall',
+            'gradereport/grader:view',
+            'gradereport/user:view',
+            'gradereport/singleview:view',
+            'moodle/grade:edit',
+            'moodle/course:manageactivities',
+            'moodle/course:activityvisibility',
+            'moodle/course:viewhiddenactivities',
             // CORE: crear una actividad dispara add_moduleinfo(), que crea el
             // evento de calendario del modulo y para eso exige
             // moodle/calendar:manageentries. Sin ella la publicacion del tablero
