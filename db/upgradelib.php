@@ -793,17 +793,24 @@ function assign_capabilities_to_internal_roles() {
     //
     // Resolved from the database rather than listed here so a module installed
     // later is covered without touching this file.
+    //
+    // mod/<modname>:view is the twin trap. cm_info::update_user_visible() calls
+    // is_user_access_restricted_by_capability(), which turns uservisible off for
+    // anyone lacking mod/<modname>:view -- so these roles could CREATE an activity
+    // and then be told "esta actividad esta actualmente oculta y no la puede ver".
     $editactivityroles = ['gmk_director_academico', 'gmk_secretaria_academica'];
-    $addinstancecaps = $DB->get_fieldset_sql(
-        "SELECT name FROM {capabilities} WHERE name LIKE :pattern ORDER BY name",
-        ['pattern' => 'mod/%:addinstance']
+    $modcaps = $DB->get_fieldset_sql(
+        "SELECT name FROM {capabilities}
+          WHERE name LIKE :addinstance OR name LIKE :view
+       ORDER BY name",
+        ['addinstance' => 'mod/%:addinstance', 'view' => 'mod/%:view']
     );
     foreach ($editactivityroles as $shortname) {
         $role = $DB->get_record('role', ['shortname' => $shortname]);
         if (!$role) {
             continue;
         }
-        foreach ($addinstancecaps as $capability) {
+        foreach ($modcaps as $capability) {
             assign_capability($capability, $permission, $role->id, $context->id);
         }
     }

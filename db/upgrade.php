@@ -3864,6 +3864,13 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20261001063, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20261001064) {
+        // Director y Secretaria: mod/<modname>:view, sin la cual Moodle apaga
+        // uservisible y la actividad que acaban de crear les sale "oculta".
+        assign_capabilities_to_internal_roles();
+        upgrade_plugin_savepoint(true, 20261001064, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 
