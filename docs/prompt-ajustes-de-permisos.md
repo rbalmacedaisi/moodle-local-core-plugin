@@ -3,7 +3,7 @@
 Pega el bloque de abajo a un agente cuando haya que dar (o quitar) acceso a un rol.
 Está escrito para alguien que **no conoce este proyecto**, así que es autocontenido.
 
-Actualizado al plugin **20261001062**.
+Actualizado al plugin **20261001064**.
 
 ---
 
@@ -78,9 +78,28 @@ comprueban permisos core por dentro y fallan de formas engañosas:
   Es también el error al copiar o reprogramar una sesión.
 - Abrir **cualquier curso o el libro de calificaciones** exige `moodle/course:view`; sin ella
   no abre aunque tengas todas las de `grade`.
-- El selector **"Añadir una actividad o recurso"** se llena con `mod/<modname>:addinstance`,
-  una por módulo (27 en este sitio). Con `moodle/course:manageactivities` el modo de edición
-  se enciende pero la lista sale **vacía**.
+- Las capabilities `mod/<modname>:*` son **una por módulo instalado** (27 aquí) y van **en
+  pareja**; conceder una sin la otra deja al rol a medio camino:
+  - `mod/<modname>:addinstance` llena el selector **"Añadir una actividad o recurso"**. Con
+    `moodle/course:manageactivities` el modo de edición se enciende pero la lista sale
+    **vacía**.
+  - `mod/<modname>:view` decide si se puede **abrir** lo creado.
+    `cm_info::update_user_visible()` apaga `uservisible` a quien no la tenga, y el rol crea
+    la actividad y acto seguido lee *"esta actividad está actualmente oculta y no la puede
+    ver"*.
+
+  Resuélvelas desde `{capabilities}` con `LIKE 'mod/%:addinstance'` y `LIKE 'mod/%:view'`,
+  no las enumeres.
+- **"Actividad oculta" — `visible`, `available` y `uservisible` son tres cosas distintas.**
+  Diagnostícalas en ese orden: `visible=0` lo arregla `moodle/course:viewhiddenactivities`;
+  `available=0` viene de una restricción de acceso, y aquí está casi siempre en la
+  **SECCIÓN**, no en el módulo — `create_class_activities` monta cada clase en su sección con
+  `availability {"type":"group","id":<groupid>}` para que cada alumno vea solo su clase, y lo
+  neutraliza `moodle/course:ignoreavailabilityrestrictions` (que no cambia `available`, solo
+  evita que apague `uservisible`); si los dos anteriores están bien y `uservisible` sigue en
+  0, es `mod/<modname>:view`.
+  Antes de dar por malo un caso de prueba mira `course_modules.deletioninprogress`: si vale 1
+  `uservisible` sale NO **hasta para el siteadmin** y el diagnóstico despista.
 - Ver/editar el **perfil** de un usuario necesita `moodle/user:viewdetails`,
   `moodle/user:viewalldetails` y, para editar, `moodle/user:update`.
 
