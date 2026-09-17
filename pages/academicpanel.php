@@ -112,8 +112,18 @@ $schedulePdfLogoUrl = json_encode($schedulePdfLogoUrl);
 $default_carrer_img = $CFG->wwwroot.'/local/grupomakro_core/pix/img-default.jpg';
 $default_carrer_img = json_encode($default_carrer_img);
 
-$isAdmin = is_siteadmin() ? 'true' : 'false';
-$isSuperAdmin = is_siteadmin() ? 'true' : 'false'; // For now, super admin is site admin
+// isAdmin gobierna, en la tabla de estudiantes, los menus de estado academico,
+// periodo, subperiodo, periodo lectivo y sus colores (7 v-if en studenttable.js).
+// Estaba atado a is_siteadmin(), asi que Secretaria Academica y Registros no
+// veian ninguno pese a tener manageacademicstatus: los endpoints les respondian
+// correctamente, pero la UI les escondia los botones. Se gobierna con la misma
+// capability que exigen esos endpoints.
+$isAdmin = (is_siteadmin()
+    || has_capability('local/grupomakro_core:manageacademicstatus', context_system::instance()))
+    ? 'true' : 'false';
+// isSuperAdmin se queda en is_siteadmin(): solo destapa las sincronizaciones
+// masivas (syncFinancialBulk, syncMigratedPeriods), que son otra cosa.
+$isSuperAdmin = is_siteadmin() ? 'true' : 'false';
 
 echo $OUTPUT->header();
 
