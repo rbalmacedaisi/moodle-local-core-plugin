@@ -3832,6 +3832,12 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20261001056, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20261001058) {
+        // Director Academico: consulta del libro de calificaciones nativo.
+        assign_capabilities_to_internal_roles();
+        upgrade_plugin_savepoint(true, 20261001058, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

@@ -445,6 +445,17 @@ function assign_capabilities_to_internal_roles() {
     // gated by moodle/site:config.
     $role_caps = [
         'gmk_director_academico' => [
+            // CORE: libro de calificaciones nativo de Moodle, en modo consulta.
+            // course:view es lo que permite entrar al curso sin estar matriculado
+            // -sin ella el gradebook ni siquiera se abre-, grade:viewall destapa
+            // las notas de todos y los dos gradereport son los informes en si.
+            // Editar notas exige moodle/grade:edit y reestructurar el libro
+            // moodle/grade:manage: ninguna de las dos se concede aqui.
+            'moodle/course:view',
+            'moodle/course:viewparticipants',
+            'moodle/grade:viewall',
+            'gradereport/grader:view',
+            'gradereport/user:view',
             // CORE: crear una actividad dispara add_moduleinfo(), que crea el
             // evento de calendario del modulo y para eso exige
             // moodle/calendar:manageentries. Sin ella la publicacion del tablero
