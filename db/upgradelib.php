@@ -445,6 +445,14 @@ function assign_capabilities_to_internal_roles() {
     // gated by moodle/site:config.
     $role_caps = [
         'gmk_director_academico' => [
+            // CORE: crear una actividad dispara add_moduleinfo(), que crea el
+            // evento de calendario del modulo y para eso exige
+            // moodle/calendar:manageentries. Sin ella la publicacion del tablero
+            // muere a media transaccion: la instancia de bigbluebuttonbn queda
+            // creada SIN su course_module y la fila de
+            // gmk_bbb_attendance_relation se queda con bbbmoduleid NULL, que es
+            // lo que el docente ve como "no hay sesion vinculada".
+            'moodle/calendar:manageentries',
             // Homologations: the Director already ran these through
             // manage_classes before they got their own capability.
             'local/grupomakro_core:manage_homologations',
@@ -503,6 +511,14 @@ function assign_capabilities_to_internal_roles() {
             'local/grupomakro_core:view_financial_health',
         ],
         'gmk_secretaria_academica' => [
+            // CORE: crear una actividad dispara add_moduleinfo(), que crea el
+            // evento de calendario del modulo y para eso exige
+            // moodle/calendar:manageentries. Sin ella la publicacion del tablero
+            // muere a media transaccion: la instancia de bigbluebuttonbn queda
+            // creada SIN su course_module y la fila de
+            // gmk_bbb_attendance_relation se queda con bbbmoduleid NULL, que es
+            // lo que el docente ve como "no hay sesion vinculada".
+            'moodle/calendar:manageentries',
             // Student/user profile: view and edit the Moodle user record. These are
             // CORE capabilities; no gmk_* role held any until now, which is why
             // profile links failed for this role. moodle/user:update is what
@@ -565,6 +581,14 @@ function assign_capabilities_to_internal_roles() {
             'local/grupomakro_core:viewannouncements',
         ],
         'gmk_registros_academicos' => [
+            // CORE: crear una actividad dispara add_moduleinfo(), que crea el
+            // evento de calendario del modulo y para eso exige
+            // moodle/calendar:manageentries. Sin ella la publicacion del tablero
+            // muere a media transaccion: la instancia de bigbluebuttonbn queda
+            // creada SIN su course_module y la fila de
+            // gmk_bbb_attendance_relation se queda con bbbmoduleid NULL, que es
+            // lo que el docente ve como "no hay sesion vinculada".
+            'moodle/calendar:manageentries',
             // Academic planner, with every function. An audit of the 38 actions
             // the board calls showed it needs four capabilities, not just the
             // one the page checks: manage_academic_planning (page + planning

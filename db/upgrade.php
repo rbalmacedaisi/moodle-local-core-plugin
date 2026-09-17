@@ -3825,6 +3825,13 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20261001054, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20261001056) {
+        // Roles that publish the board need moodle/calendar:manageentries, or
+        // add_moduleinfo() dies half way and leaves BBB rooms unlinked.
+        assign_capabilities_to_internal_roles();
+        upgrade_plugin_savepoint(true, 20261001056, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 
