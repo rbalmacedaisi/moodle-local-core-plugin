@@ -766,6 +766,29 @@ function assign_capabilities_to_internal_roles() {
             assign_capability($capability, $permission, $role->id, $context->id);
         }
     }
+
+    // The "Add an activity or resource" picker is filled from the
+    // mod/<modname>:addinstance capabilities, one per installed module. They are
+    // independent of moodle/course:manageactivities: with manageactivities alone
+    // the edit mode switches on but the picker comes up EMPTY, which is what the
+    // roles below hit. editingteacher and manager hold all of them.
+    //
+    // Resolved from the database rather than listed here so a module installed
+    // later is covered without touching this file.
+    $editactivityroles = ['gmk_director_academico', 'gmk_secretaria_academica'];
+    $addinstancecaps = $DB->get_fieldset_sql(
+        "SELECT name FROM {capabilities} WHERE name LIKE :pattern ORDER BY name",
+        ['pattern' => 'mod/%:addinstance']
+    );
+    foreach ($editactivityroles as $shortname) {
+        $role = $DB->get_record('role', ['shortname' => $shortname]);
+        if (!$role) {
+            continue;
+        }
+        foreach ($addinstancecaps as $capability) {
+            assign_capability($capability, $permission, $role->id, $context->id);
+        }
+    }
 }
 
 /**

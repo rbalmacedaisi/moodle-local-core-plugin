@@ -3850,6 +3850,13 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20261001061, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20261001062) {
+        // Director y Secretaria: mod/*:addinstance, o el selector de actividades
+        // sale vacio pese a tener el modo de edicion.
+        assign_capabilities_to_internal_roles();
+        upgrade_plugin_savepoint(true, 20261001062, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 
