@@ -445,6 +445,14 @@ function assign_capabilities_to_internal_roles() {
     // gated by moodle/site:config.
     $role_caps = [
         'gmk_director_academico' => [
+            // CORE: modo de edicion del curso. manageactivities es lo que
+            // enciende el boton de Modo de edicion -moodle_page::user_allowed_editing()
+            // lo consulta- y permite crear, editar y borrar actividades.
+            // El libro de calificaciones sigue en SOLO LECTURA para este rol:
+            // no se conceden moodle/grade:edit ni gradereport/singleview:view.
+            'moodle/course:manageactivities',
+            'moodle/course:activityvisibility',
+            'moodle/course:viewhiddenactivities',
             // CORE: libro de calificaciones nativo de Moodle, en modo consulta.
             // course:view es lo que permite entrar al curso sin estar matriculado
             // -sin ella el gradebook ni siquiera se abre-, grade:viewall destapa
