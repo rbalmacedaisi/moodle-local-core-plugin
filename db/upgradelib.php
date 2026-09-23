@@ -786,7 +786,7 @@ function assign_capabilities_to_internal_roles() {
             // mod/attendance:* permiten: view (abrir la actividad),
             // takeattendances (registrar asistencia, incluyendo nuevos registros),
             // changeattendances (modificar registros ya tomados por otros),
-            // manage (gestionar la actividad: descripcion, sesiones, agrupar) y
+            // manageattendances (gestionar la actividad: sesiones, agrupar) y
             // viewreports (ver reportes nativos). Decisiones de producto: NO se
             // da addinstance (Bienestar no crea nuevas actividades de asistencia,
             // eso sigue siendo del docente al crear la clase) ni export (la cap
@@ -794,12 +794,14 @@ function assign_capabilities_to_internal_roles() {
             // institucional de "no marcar presente" (PR 20261001009) es del
             // flujo del teacher dashboard, NO de la UI nativa de Moodle: aqui
             // Bienestar puede marcar cualquier estado, incluido presente.
+            // NOTA: en este sitio la cap se llama mod/attendance:manageattendances,
+            // NO mod/attendance:manage (esta ultima no existe en {capabilities}).
             'moodle/course:view',
             'moodle/course:viewparticipants',
             'mod/attendance:view',
             'mod/attendance:takeattendances',
             'mod/attendance:changeattendances',
-            'mod/attendance:manage',
+            'mod/attendance:manageattendances',
             'mod/attendance:viewreports',
             // Workflow 4 — Attendance and grades, read only. Bienestar follows
             // absences, dropouts and academic performance as part of student

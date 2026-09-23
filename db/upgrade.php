@@ -3929,7 +3929,8 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         // (moodle/course:view + viewparticipants) y opera sobre la actividad de
         // asistencia con las caps core mod/attendance:view, takeattendances
         // (registrar/modificar asistencia), changeattendances (modificar
-        // registros ya tomados por otros), manage (gestionar la actividad) y
+        // registros ya tomados por otros), manageattendances (gestionar la
+        // actividad) y
         // viewreports (ver reportes nativos). Decisiones: NO se da addinstance
         // (Bienestar no crea actividades de asistencia nuevas, eso sigue siendo
         // del docente al crear la clase) ni export (la cap del plugin ya cubre
