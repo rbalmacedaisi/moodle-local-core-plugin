@@ -1401,6 +1401,7 @@ try {
             break;
         
         case 'local_grupomakro_import_grade_chunk':
+            require_capability('local/grupomakro_core:import_grades', context_system::instance());
             require_once($CFG->libdir . '/gradelib.php');
             raise_memory_limit(MEMORY_HUGE);
             set_time_limit(300);
@@ -1531,6 +1532,7 @@ try {
             break;
 
         case 'local_grupomakro_import_grade_cleanup':
+            require_capability('local/grupomakro_core:import_grades', context_system::instance());
             $tmpfilename = required_param('filename', PARAM_FILE);
             $filepath = make_temp_directory('grupomakro_imports') . '/' . $tmpfilename;
             if (file_exists($filepath)) {

@@ -10,7 +10,7 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 
 admin_externalpage_setup('grupomakro_core_import_grades');
 require_login();
-require_capability('moodle/site:config', context_system::instance());
+require_capability('local/grupomakro_core:import_grades', context_system::instance());
 
 global $DB, $USER;
 

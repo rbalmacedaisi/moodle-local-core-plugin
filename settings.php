@@ -111,7 +111,8 @@ if (isloggedin() && !isguestuser()) {
     $importGradesPage = new admin_externalpage(
         'grupomakro_core_import_grades',
         $emojititle("\u{1F4DD}", 'Importar Notas (Q10)'),
-        new moodle_url('/local/grupomakro_core/pages/import_grades.php')
+        new moodle_url('/local/grupomakro_core/pages/import_grades.php'),
+        'local/grupomakro_core:import_grades'
     );
     $bulkDeletePage = new admin_externalpage(
         'grupomakro_core_bulk_delete_users',

@@ -31,7 +31,7 @@ El plugin reemplazó el esquema previo de "todos son siteadmins" por una matriz 
 ### 2.2 `gmk_director_academico` (Director Académico)
 
 - **Propósito**: oversight académico, decisiones estructurales, aprobaciones finales.
-- **Caps**: 45.
+- **Caps**: 63 manuales + loop `mod/*:addinstance,view` (~54 caps programáticos, uno por módulo instalado).
 - **Páginas clave que desbloquea** (entre otras):
   - `/local/grupomakro_core/pages/academicpanel.php` — Panel del Director (KPIs financieros, gestión de cohortes, cierre de período).
   - `/local/grupomakro_core/pages/schedulepanel.php` + `scheduleapproval.php` — Aprobación de horarios.
@@ -46,7 +46,7 @@ El plugin reemplazó el esquema previo de "todos son siteadmins" por una matriz 
 ### 2.3 `gmk_secretaria_academica` (Secretaría Académica)
 
 - **Propósito**: operación diaria académica — gestión de clases, horarios, asistencia, calificaciones, módulos independientes.
-- **Caps**: 33.
+- **Caps**: 58 manuales + loop `mod/*:addinstance,view` (~54 caps programáticos, uno por módulo instalado).
 - **Páginas clave**:
   - `classmanagement.php` — Listado paginado de todas las clases.
   - `createclass.php` / `editclass.php` — Crear/editar clases.
@@ -56,8 +56,9 @@ El plugin reemplazó el esquema previo de "todos son siteadmins" por una matriz 
   - `attendance_pdf.php` — PDFs de asistencia.
   - `module_management.php` — Módulos independientes.
   - `active_students_by_class.php`, `student_population.php` — Reportes.
-- **WS críticos**: `bulk_enroll`, `import_users`, `attendance_qr_*`, `reopen_assignment`, `save_grade`, `get_dashboard_data` (contexto del docente), `update_student_status` (cambios operativos), `student_class_revalid_enrol`.
-- **NO tiene acceso a**: `create_extemporaneous_revalidation` (solo Director), `annul_movement` (solo Director), `manage_orders`/`manage_institutional_contracts` (solo Registros), debug pages.
+  - `import_grades.php` — Importación masiva de notas desde Excel (Q10, desde `20261001067`).
+- **WS críticos**: `bulk_enroll`, `import_users`, `attendance_qr_*`, `reopen_assignment`, `save_grade`, `get_dashboard_data` (contexto del docente), `update_student_status` (cambios operativos), `student_class_revalid_enrol`, `local_grupomakro_import_grade_*` (desde `20261001067`).
+- **NO tiene acceso a**: `create_extemporaneous_revalidation` (solo Director), `annul_movement` (solo Director), `manage_orders`/`manage_institutional_contracts` (solo Registros), `course:update`/`sectionvisibility`/`movesections`/`backup:backuptargetimport` (intencional), debug pages.
 - **Quién lo usa hoy**: Jean Remice (j.remice@isi.edu.pa), Veronica Rangel (v.rangel@isi.edu.pa).
 
 ### 2.4 `gmk_registros_academicos` (Registros Académicos)
@@ -96,15 +97,16 @@ El plugin reemplazó el esquema previo de "todos son siteadmins" por una matriz 
 
 ### 2.6 `gmk_bienestar` (Coordinador de Bienestar)
 
-- **Propósito**: gestión integral del módulo Wellness — eventos, convenios, partners, avisos.
-- **Caps**: 4.
+- **Propósito**: gestión integral del módulo Wellness — eventos, convenios, partners, avisos — y **modificación de registros de asistencia** desde la UI nativa de Moodle (`/mod/attendance/view.php` y sub-páginas). El rol sigue al estudiante en su trayectoria académica y operativa.
+- **Caps**: 11 manuales + loop `mod/*:addinstance,view` (~54 caps programáticos, uno por módulo instalado).
 - **Páginas clave**:
   - `wellness_dashboard.php` — Panel del módulo.
   - `wellness_psychology_panel.php` — Agenda psicológica (también la maneja el rol Psicólogo, pero el coordinador también la ve).
   - `wellness_staff_panel.php` — Staff asignado.
   - `announcements.php` — Anuncios del módulo.
-- **WS críticos**: todos los `admin/wellness/*` (admin_save_event, admin_list_partners, admin_save_partner, etc.) + `manageannouncements` + `manage_psychology_appointments` (puede gestionar también la agenda psicológica).
-- **NO tiene acceso a**: nada académico, nada técnico.
+  - `/mod/attendance/view.php?id=CMID` — UI nativa de asistencia: tomar/modificar asistencia (desde `20261001068`).
+- **WS críticos**: todos los `admin/wellness/*` (admin_save_event, admin_list_partners, admin_save_partner, etc.) + `manageannouncements` + `manage_psychology_appointments` (puede gestionar también la agenda psicológica) + acceso directo a `mod/attendance:takeattendances` y `changeattendances` en cualquier curso.
+- **NO tiene acceso a**: creación de nuevas actividades de asistencia (`mod/attendance:addinstance` NO concedida, sigue siendo del docente al crear la clase), `mod/attendance:export` (cubierto por `view_attendance_pdf` del plugin), gradebook nativo (`moodle/grade:edit`/`moodle/grade:manage`), diplomas, debug.
 - **Quién lo usa hoy**: Jorge Oviedo (j.oviedo@isi.edu.pa).
 
 ### 2.7 `gmk_psicologo` (Psicólogo/a)
@@ -228,7 +230,7 @@ Estas son las páginas del admin tree. La columna "✓" indica que el rol ve la 
 | Módulos independientes (`module_management`) | ✓ | ✓ | | | | |
 | Docentes (`teachers`, `teacher_profile`, `inactive_teacher_dashboard`) | ✓ | ✓ | | | | |
 | Importar usuarios (`import_users`) | ✓ | ✓ | | | | |
-| Importar notas (`import_grades`) | | | | | | | (solo `manager`)
+| Importar notas (`import_grades`) | ✓ | | | | | | |
 | Eliminación masiva (`bulk_delete_users`) | | | | | | | (solo `manager`)
 | Gestión de cursos (`manage_courses`) | ✓ | ✓ | | | | |
 | Sesiones virtuales (`manage_meetings`, `sync_bbb_recordings`) | ✓ | ✓ | | ✓ | | |

@@ -3871,6 +3871,78 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20261001064, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20261001065) {
+        // Director Academico: edicion del libro de calificaciones nativo
+        // (moodle/grade:edit + gradereport/singleview:view) y reestructura del
+        // gradebook (moodle/grade:manage + moodle/grade:manageletters). Hasta
+        // 20261001058 el Director solo tenia acceso de consulta. Se concede
+        // ademas la nueva cap local/grupomakro_core:import_grades para abrirle
+        // import_grades.php y los dos endpoints AJAX, antes siteadmin-only por
+        // Q6. update_capabilities() registra la cap nueva por si el plugin se
+        // actualiza sin pasar por install/.
+        update_capabilities('local_grupomakro_core');
+        assign_capabilities_to_internal_roles();
+        upgrade_plugin_savepoint(true, 20261001065, 'local', 'grupomakro_core');
+    }
+
+    if ($oldversion < 20261001066) {
+        // Director Academico: revisar y actualizar entregas del modulo Assign.
+        // mod/assign:grade es la cap que save_grade.php y reopen_assignment.php
+        // piden a nivel de context_module, y la que abre la UI nativa de
+        // /mod/assign/view.php y /mod/assign/submissions.php. mod/assign:viewgrades
+        // es su pareja de lectura: ver las notas que otros docentes ya pusieron.
+        // mod/assign:view y mod/assign:addinstance ya estaban desde 20261001062
+        // y 20261001064 via el loop modcaps. Quedan fuera a proposito:
+        // mod/assign:editothersubmission (edita el archivo del alumno, no fue
+        // pedido) y mod/quiz:grade ("entregas" es de Assign; los quizzes son
+        // "intentos" y un flujo distinto con cap propia).
+        assign_capabilities_to_internal_roles();
+        upgrade_plugin_savepoint(true, 20261001066, 'local', 'grupomakro_core');
+    }
+
+    if ($oldversion < 20261001067) {
+        // Secretaria Academica iguala al Director en gradebook y entregas.
+        // Hasta 20261001060 el bundle era grade:edit + singleview:view +
+        // manageactivities; este PR anade moodle/grade:manage y
+        // moodle/grade:manageletters (reestructurar categorias y letras del
+        // gradebook - AVISO: grade:manage recalcula la nota final de TODOS
+        // los alumnos del curso al cambiar un peso), mod/assign:grade +
+        // mod/assign:viewgrades (calificar entregas individuales de tareas,
+        // los WS save_grade.php y reopen_assignment.php) y
+        // local/grupomakro_core:import_grades (importacion masiva desde
+        // Excel, antes solo Director). Esto revierte la decision original
+        // del PR 20261001060 que dejaba grade:manage y grade:manageletters
+        // fuera del bundle de Secretaria: homologar notas (manage_homologations)
+        // tenia que pedirselo al Director cada vez. Se mantienen fuera:
+        // course:update, sectionvisibility/movesections, backup:backuptargetimport,
+        // mod/assign:editothersubmission, mod/quiz:grade.
+        assign_capabilities_to_internal_roles();
+        upgrade_plugin_savepoint(true, 20261001067, 'local', 'grupomakro_core');
+    }
+
+    if ($oldversion < 20261001068) {
+        // Coordinador de Bienestar: modificar registros de asistencia desde la
+        // UI nativa de Moodle (/mod/attendance/view.php y take.php). Hasta
+        // aqui solo veia el dashboard del plugin (absence_dashboard, view_grade_
+        // report, view_failed_subjects_report) y los PDFs (view_attendance_pdf).
+        // A partir de este PR entra a cualquier curso sin estar matriculado
+        // (moodle/course:view + viewparticipants) y opera sobre la actividad de
+        // asistencia con las caps core mod/attendance:view, takeattendances
+        // (registrar/modificar asistencia), changeattendances (modificar
+        // registros ya tomados por otros), manage (gestionar la actividad) y
+        // viewreports (ver reportes nativos). Decisiones: NO se da addinstance
+        // (Bienestar no crea actividades de asistencia nuevas, eso sigue siendo
+        // del docente al crear la clase) ni export (la cap del plugin ya cubre
+        // la salida PDF). La regla institucional de "no marcar presente" del
+        // PR 20261001009 es del flujo del teacher dashboard, NO de la UI nativa
+        // de Moodle: Bienestar puede marcar cualquier estado, incluido presente.
+        // Esto es un cambio material respecto a la politica anterior: Bienestar
+        // ahora modifica datos academicos directamente. Si se quiere revertir,
+        // unassign_capability() en la UI de roles es suficiente.
+        assign_capabilities_to_internal_roles();
+        upgrade_plugin_savepoint(true, 20261001068, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

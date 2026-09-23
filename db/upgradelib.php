@@ -440,9 +440,10 @@ function assign_capabilities_to_internal_roles() {
     // role(s) here. The matrix itself is the source of truth for
     // per-role access — db/access.php only declares defaults.
     //
-    // Bulk_delete_users and import_grades are deliberately NOT in any
-    // operational role (product decision PR1 Q4 + Q6). Those pages stay
-    // gated by moodle/site:config.
+    // Bulk_delete_users stays deliberately out of every operational role
+    // (product decision PR1 Q4). import_grades was siteadmin-only through Q6;
+    // 20261001065 opens it to gmk_director_academico via the dedicated
+    // local/grupomakro_core:import_grades cap declared in db/access.php.
     $role_caps = [
         'gmk_director_academico' => [
             // CORE: cada clase vive en una seccion restringida a SU grupo
@@ -462,17 +463,37 @@ function assign_capabilities_to_internal_roles() {
             'moodle/course:manageactivities',
             'moodle/course:activityvisibility',
             'moodle/course:viewhiddenactivities',
-            // CORE: libro de calificaciones nativo de Moodle, en modo consulta.
+            // CORE: libro de calificaciones nativo de Moodle, ahora con EDICION.
             // course:view es lo que permite entrar al curso sin estar matriculado
-            // -sin ella el gradebook ni siquiera se abre-, grade:viewall destapa
-            // las notas de todos y los dos gradereport son los informes en si.
-            // Editar notas exige moodle/grade:edit y reestructurar el libro
-            // moodle/grade:manage: ninguna de las dos se concede aqui.
+            // -sin ella el gradebook ni siquiera se abre-; grade:viewall destapa
+            // las notas de todos; los dos gradereport son los informes en si.
+            // Edicion: moodle/grade:edit + gradereport/singleview:view permiten
+            // MODIFICAR notas (singleview abre la UX moderna para editar por
+            // estudiante); moodle/grade:manage + moodle/grade:manageletters permiten
+            // reestructurar categorias, ponderaciones y escalas. AVISO: cambiar
+            // un peso recalcula la nota final de TODOS los alumnos del curso.
+            // La importacion masiva (Q10) va por su propia cap -ver Workflow 4-
+            // para no exigir grade:manage solo para importar.
             'moodle/course:view',
             'moodle/course:viewparticipants',
             'moodle/grade:viewall',
             'gradereport/grader:view',
             'gradereport/user:view',
+            'gradereport/singleview:view',
+            'moodle/grade:edit',
+            'moodle/grade:manage',
+            'moodle/grade:manageletters',
+            // CORE: calificar entregas del modulo Assign (tareas). mod/assign:grade
+            // es la que pide save_grade.php y reopen_assignment.php a nivel de
+            // context_module, y la que abre la UI nativa de /mod/assign/view.php
+            // y /mod/assign/submissions.php. mod/assign:viewgrades es su pareja
+            // de lectura: permite ver las notas que otros docentes ya pusieron.
+            // mod/assign:view ya viene por el loop modcaps de mas abajo; editothersubmission
+            // se deja fuera a proposito porque edita el archivo subido por el alumno,
+            // no era lo pedido. NO incluye mod/quiz:grade: el flujo de "entregas"
+            // es de Assign, los quizzes son "intentos" y un flujo distinto.
+            'mod/assign:grade',
+            'mod/assign:viewgrades',
             // CORE: crear una actividad dispara add_moduleinfo(), que crea el
             // evento de calendario del modulo y para eso exige
             // moodle/calendar:manageentries. Sin ella la publicacion del tablero
@@ -521,6 +542,10 @@ function assign_capabilities_to_internal_roles() {
             'local/grupomakro_core:view_movement_audit',
             'local/grupomakro_core:annul_movement',
             'local/grupomakro_core:manageacademicstatus',
+            // Importacion masiva de notas (Q10) — antes siteadmin-only (Q6),
+            // ahora una cap propia. La propia cap cubre import_grades.php y las
+            // dos acciones AJAX local_grupomakro_import_grade_{chunk,cleanup}.
+            'local/grupomakro_core:import_grades',
             // Workflow 5 — Letters, contracts, institutions
             'local/grupomakro_core:seeallorders',
             'local/grupomakro_core:viewallletterrequests',
@@ -548,14 +573,21 @@ function assign_capabilities_to_internal_roles() {
             // capability es justo la que permite ver el contenido sin cumplir las
             // restricciones de acceso; es de lectura y no salta las de capability.
             'moodle/course:ignoreavailabilityrestrictions',
-            // CORE: libro de calificaciones y actividades, con edicion.
-            // course:view es lo que deja entrar al curso sin estar matriculado;
-            // sin ella no se abre ni el libro ni el curso. grade:edit y
-            // singleview permiten MODIFICAR notas; manageactivities es lo que
-            // habilita el modo de edicion y crear/editar/borrar actividades.
-            // NO se conceden: grade:manage (categorias y ponderaciones, que
-            // recalculan la nota final de todo el curso), course:update (ajustes
-            // del curso), sectionvisibility/movesections (estructura de secciones)
+            // CORE: libro de calificaciones, actividades y entregas, con edicion.
+            // Hasta 20261001060 el bloque era solo grade:edit + singleview:view
+            // + manageactivities; 20261001067 lo iguala al Director y anade
+            // grade:manage y grade:manageletters (reestructurar categorias y
+            // letras del gradebook) y mod/assign:grade + mod/assign:viewgrades
+            // (calificar entregas individuales de tareas). AVISO: grade:manage
+            // recalcula la nota final de TODOS los alumnos del curso al cambiar
+            // un peso o categoria - lo que se revirtio aqui respecto a la
+            // politica original del 20261001060 es que sin el poder de
+            // reestructurar el gradebook, homologar notas (manage_homologations)
+            // tenia que pedirselo al Director cada vez. course:view sigue
+            // siendo la que deja entrar al curso sin estar matriculado;
+            // grade:edit + singleview:view permiten MODIFICAR notas.
+            // Siguen fuera a proposito: course:update (ajustes del curso),
+            // sectionvisibility/movesections (estructura de secciones)
             // ni backup:backuptargetimport.
             'moodle/course:view',
             'moodle/course:viewparticipants',
@@ -564,6 +596,10 @@ function assign_capabilities_to_internal_roles() {
             'gradereport/user:view',
             'gradereport/singleview:view',
             'moodle/grade:edit',
+            'moodle/grade:manage',
+            'moodle/grade:manageletters',
+            'mod/assign:grade',
+            'mod/assign:viewgrades',
             'moodle/course:manageactivities',
             'moodle/course:activityvisibility',
             'moodle/course:viewhiddenactivities',
@@ -628,6 +664,9 @@ function assign_capabilities_to_internal_roles() {
             'local/grupomakro_core:view_failed_subjects_report',
             'local/grupomakro_core:enrol_from_failed_subjects_report',
             'local/grupomakro_core:view_movement_audit',
+            // Importacion masiva de notas (Q10) — igualada al Director desde
+            // 20261001067. Antes solo el Director y manager la tenian.
+            'local/grupomakro_core:import_grades',
             // Workflow 5 — Letters (request management, no orders/contracts)
             'local/grupomakro_core:viewallletterrequests',
             'local/grupomakro_core:managerequests',
@@ -738,11 +777,37 @@ function assign_capabilities_to_internal_roles() {
             // delete session) are gated on manage_classes, which Bienestar does
             // not get - they follow the timetable, they do not change it.
             'local/grupomakro_core:manage_schedules',
+            // CORE: entrar a cursos individuales y modificar asistencia desde la
+            // UI nativa de Moodle (/mod/attendance/view.php y sub-paginas como
+            // take.php / sessions.php). Hasta 20261001067 Bienestar solo veia el
+            // dashboard del plugin; a partir de 20261001068 entra a cursos sin
+            // estar matriculado (course:view + course:viewparticipants) y opera
+            // sobre la actividad de asistencia de cualquier curso. Las caps de
+            // mod/attendance:* permiten: view (abrir la actividad),
+            // takeattendances (registrar asistencia, incluyendo nuevos registros),
+            // changeattendances (modificar registros ya tomados por otros),
+            // manage (gestionar la actividad: descripcion, sesiones, agrupar) y
+            // viewreports (ver reportes nativos). Decisiones de producto: NO se
+            // da addinstance (Bienestar no crea nuevas actividades de asistencia,
+            // eso sigue siendo del docente al crear la clase) ni export (la cap
+            // del plugin view_attendance_pdf ya cubre la salida PDF). La regla
+            // institucional de "no marcar presente" (PR 20261001009) es del
+            // flujo del teacher dashboard, NO de la UI nativa de Moodle: aqui
+            // Bienestar puede marcar cualquier estado, incluido presente.
+            'moodle/course:view',
+            'moodle/course:viewparticipants',
+            'mod/attendance:view',
+            'mod/attendance:takeattendances',
+            'mod/attendance:changeattendances',
+            'mod/attendance:manage',
+            'mod/attendance:viewreports',
             // Workflow 4 — Attendance and grades, read only. Bienestar follows
             // absences, dropouts and academic performance as part of student
             // welfare. Acting on those reports is deliberately left out:
             // enrol_from_failed_subjects_report and the revalidations
-            // dashboard stay with Direccion Academica.
+            // dashboard stay with Direccion Academica. Las caps del core para
+            // MODIFICAR asistencia estan en el bloque de arriba (mod/attendance:*);
+            // aqui siguen las caps del plugin (vistas).
             'local/grupomakro_core:viewabsencedashboard',
             'local/grupomakro_core:view_grade_report',
             'local/grupomakro_core:view_failed_subjects_report',

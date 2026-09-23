@@ -288,6 +288,16 @@ $capabilities = array(
         'captype' => 'write', 'contextlevel' => CONTEXT_SYSTEM,
         'archetypes' => array('manager' => CAP_ALLOW),
     ),
+    // Import grades (Q10): bulk write of final grades from an Excel file.
+    // Risk: DATA LOSS + PERSONAL — overrides the "Nota Final Integrada" grade
+    // item per row and rewrites gmk_course_progre + status. Kept as its own
+    // cap so import_grades.php and the two AJAX endpoints can be granted
+    // independently of grade:manage (which also rewrites weights/categories).
+    'local/grupomakro_core:import_grades' => array(
+        'riskbitmask' => RISK_DATALOSS | RISK_PERSONAL,
+        'captype' => 'write', 'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array('manager' => CAP_ALLOW),
+    ),
     'local/grupomakro_core:bulk_attendance_actions' => array(
         'captype' => 'write', 'contextlevel' => CONTEXT_SYSTEM,
         'archetypes' => array('manager' => CAP_ALLOW),

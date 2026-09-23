@@ -48,7 +48,7 @@
 
 ## Decisiones de diseño críticas
 
-- **`bulk_delete_users` y `import_grades`**: SOLO `manager`. Nadie del equipo operativo.
+- **`bulk_delete_users`**: SOLO `manager`. **`import_grades`**: Director y `manager`.
 - **`annul_movement`**: SOLO Director. Secretaría no puede borrar lo que ya hizo.
 - **`create_extemporaneous_revalidation`**: SOLO Director. Secretaría ve revalidas pero no las crea fuera de ventana.
 - **Teachers usan WS a nivel curso**: las caps `mod/assign:grade` y `mod/quiz:grade` se chequean dentro de la función, no a nivel servicio. Los teachers NO necesitan rol `gmk_*` para usar `teacher/save_grade`.
