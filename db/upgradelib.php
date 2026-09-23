@@ -863,6 +863,16 @@ function assign_capabilities_to_internal_roles() {
             'mod/attendance:changeattendances',
             'mod/attendance:manageattendances',
             'mod/attendance:viewreports',
+            // CORE: sin estas dos, las caps de asistencia de arriba no servian
+            // (20261001070). Las 270 asistencias viven en secciones restringidas
+            // al grupo de su clase y en modo "grupos separados"; Bienestar no es
+            // miembro de ningun grupo, asi que cm_info marcaba la actividad como
+            // oculta (ignoreavailabilityrestrictions) y el modulo le mostraba 0
+            // sesiones (accessallgroups). viewfullnames muestra el nombre
+            // completo del alumno en take.php y en los reportes.
+            'moodle/course:ignoreavailabilityrestrictions',
+            'moodle/site:accessallgroups',
+            'moodle/site:viewfullnames',
             // Workflow 4 — Attendance and grades, read only. Bienestar follows
             // absences, dropouts and academic performance as part of student
             // welfare. Acting on those reports is deliberately left out:

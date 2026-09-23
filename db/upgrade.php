@@ -3960,6 +3960,17 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20261001069, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20261001070) {
+        // Coordinador de Bienestar: las caps de asistencia de 20261001068 no
+        // alcanzaban. Las 270 actividades de asistencia estan en secciones
+        // restringidas por grupo y en modo grupos separados, y Bienestar no es
+        // miembro de ningun grupo: la actividad salia oculta y con 0 sesiones.
+        // Se suman moodle/course:ignoreavailabilityrestrictions,
+        // moodle/site:accessallgroups y moodle/site:viewfullnames.
+        assign_capabilities_to_internal_roles();
+        upgrade_plugin_savepoint(true, 20261001070, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 
