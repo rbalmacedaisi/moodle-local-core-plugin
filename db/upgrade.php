@@ -3944,6 +3944,22 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20261001068, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20261001069) {
+        // Director Academico: ver envios, modo edicion y calificar/modificar
+        // cualquier actividad. Tenia mod/assign:grade pero la tabla de envios
+        // salia vacia: 1109 de 1175 tareas estan en "grupos separados" y sin
+        // moodle/site:accessallgroups el Director (miembro de ningun grupo)
+        // veia 0 grupos. Se suman accessallgroups, site:manageblocks (switch de
+        // edicion fuera de course/view.php), caps de gradebook para corregir
+        // notas (viewhidden, hide, lock/unlock, managegradingforms, history),
+        // Assign (extensiones, overrides, managegrades/releasegrades), Quiz
+        // (viewreports, grade, regrade, manage + banco de preguntas), forum:grade,
+        // Lesson y H5P. Fuera: quiz:deleteattempts, assign:editothersubmission,
+        // assign:revealidentities y las notificaciones por correo.
+        assign_capabilities_to_internal_roles();
+        upgrade_plugin_savepoint(true, 20261001069, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

@@ -458,8 +458,6 @@ function assign_capabilities_to_internal_roles() {
             // CORE: modo de edicion del curso. manageactivities es lo que
             // enciende el boton de Modo de edicion -moodle_page::user_allowed_editing()
             // lo consulta- y permite crear, editar y borrar actividades.
-            // El libro de calificaciones sigue en SOLO LECTURA para este rol:
-            // no se conceden moodle/grade:edit ni gradereport/singleview:view.
             'moodle/course:manageactivities',
             'moodle/course:activityvisibility',
             'moodle/course:viewhiddenactivities',
@@ -494,6 +492,68 @@ function assign_capabilities_to_internal_roles() {
             // es de Assign, los quizzes son "intentos" y un flujo distinto.
             'mod/assign:grade',
             'mod/assign:viewgrades',
+            // CORE: ver TODOS los envios. 1109 de las 1175 tareas estan en modo
+            // "grupos separados" (cada clase es un grupo) y el Director no es
+            // miembro de ninguno: sin accessallgroups groups_get_activity_allowed_groups()
+            // le devuelve 0 grupos y la tabla de calificacion de Assign sale vacia
+            // aunque tenga mod/assign:grade. Aplica a todos los modulos con grupos
+            // (foros, quizzes, asistencia), no solo a Assign.
+            'moodle/site:accessallgroups',
+            'moodle/site:viewfullnames',
+            // CORE: modo de edicion fuera de course/view.php. Esa pagina registra
+            // manageactivities como cap de edicion, pero en las paginas de la
+            // actividad y del gradebook moodle_page::user_allowed_editing() solo
+            // mira moodle/site:manageblocks, asi que el switch desaparecia.
+            'moodle/site:manageblocks',
+            'moodle/course:viewhiddensections',
+            'moodle/course:viewscales',
+            // CORE: modificar calificaciones ya puestas. viewhidden deja ver notas
+            // ocultas en el grader report; lock/unlock permiten corregir una nota
+            // bloqueada; hide oculta/muestra items; managegradingforms define y
+            // edita rubricas/guias de evaluacion de la actividad; history:view es
+            // el informe de auditoria de cambios de notas.
+            'moodle/grade:viewhidden',
+            'moodle/grade:hide',
+            'moodle/grade:lock',
+            'moodle/grade:unlock',
+            'moodle/grade:managegradingforms',
+            'gradereport/history:view',
+            // CORE Assign: prorrogas, anular/modificar notas y fechas por alumno.
+            // Fuera a proposito: editothersubmission (edita el archivo del alumno),
+            // revealidentities (ninguna tarea usa blindmarking) y
+            // receivegradernotifications (en contexto sistema le llegaria un
+            // correo por cada envio del sitio).
+            'mod/assign:grantextension',
+            'mod/assign:managegrades',
+            'mod/assign:releasegrades',
+            'mod/assign:manageoverrides',
+            'mod/assign:showhiddengrader',
+            // CORE Quiz (124 en el sitio): ver intentos, calificar preguntas de
+            // ensayo, recalificar y editar el cuestionario. Editar un quiz exige
+            // mod/quiz:manage + preview y las caps del banco de preguntas.
+            // Fuera: deleteattempts (destructivo) y los emailnotify*.
+            'mod/quiz:viewreports',
+            'mod/quiz:grade',
+            'mod/quiz:regrade',
+            'mod/quiz:manage',
+            'mod/quiz:preview',
+            'mod/quiz:viewoverrides',
+            'mod/quiz:manageoverrides',
+            'moodle/question:add',
+            'moodle/question:viewall',
+            'moodle/question:useall',
+            'moodle/question:editall',
+            'moodle/question:viewmine',
+            'moodle/question:usemine',
+            'moodle/question:editmine',
+            'moodle/question:flag',
+            // CORE: calificar el resto de actividades evaluables del sitio.
+            'mod/forum:grade',
+            'mod/lesson:grade',
+            'mod/lesson:viewreports',
+            'mod/lesson:edit',
+            'mod/lesson:manage',
+            'mod/h5pactivity:reviewattempts',
             // CORE: crear una actividad dispara add_moduleinfo(), que crea el
             // evento de calendario del modulo y para eso exige
             // moodle/calendar:manageentries. Sin ella la publicacion del tablero
