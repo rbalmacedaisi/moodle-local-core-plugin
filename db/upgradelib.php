@@ -915,6 +915,20 @@ function assign_capabilities_to_internal_roles() {
             'moodle/course:ignoreavailabilityrestrictions',
             'moodle/site:accessallgroups',
             'moodle/site:viewfullnames',
+            // CORE: modo de edicion y edicion de actividades (20261001072), el
+            // mismo bloque de edicion que Director y Secretaria pero SIN
+            // calificacion (grade:edit, mod/assign:grade, quiz:grade no van).
+            // manageactivities enciende el switch en course/view.php y deja
+            // crear/editar/borrar actividades; site:manageblocks lo enciende en
+            // las paginas de la actividad; calendar:manageentries evita que
+            // add_moduleinfo() muera a media transaccion. Las
+            // mod/<modname>:addinstance y :view llegan por $editactivityroles.
+            'moodle/course:manageactivities',
+            'moodle/course:activityvisibility',
+            'moodle/course:viewhiddenactivities',
+            'moodle/course:viewhiddensections',
+            'moodle/calendar:manageentries',
+            'moodle/site:manageblocks',
             // Workflow 4 — Attendance and grades, read only. Bienestar follows
             // absences, dropouts and academic performance as part of student
             // welfare. Acting on those reports is deliberately left out:
@@ -977,7 +991,7 @@ function assign_capabilities_to_internal_roles() {
     // is_user_access_restricted_by_capability(), which turns uservisible off for
     // anyone lacking mod/<modname>:view -- so these roles could CREATE an activity
     // and then be told "esta actividad esta actualmente oculta y no la puede ver".
-    $editactivityroles = ['gmk_director_academico', 'gmk_secretaria_academica'];
+    $editactivityroles = ['gmk_director_academico', 'gmk_secretaria_academica', 'gmk_bienestar'];
     $modcaps = $DB->get_fieldset_sql(
         "SELECT name FROM {capabilities}
           WHERE name LIKE :addinstance OR name LIKE :view

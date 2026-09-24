@@ -3981,6 +3981,19 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20261001071, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20261001072) {
+        // Coordinador de Bienestar: modo de edicion y edicion de actividades
+        // en cualquier curso. Entraba a course/view.php pero sin
+        // manageactivities no tenia el switch de edicion. Se suman
+        // manageactivities, activityvisibility, viewhiddenactivities,
+        // viewhiddensections, calendar:manageentries y site:manageblocks, y
+        // entra en $editactivityroles (mod/<modname>:addinstance y :view).
+        // Esto incluye mod/attendance:addinstance, que 20261001068 habia
+        // dejado fuera. Calificacion NO se incluye.
+        assign_capabilities_to_internal_roles();
+        upgrade_plugin_savepoint(true, 20261001072, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 
