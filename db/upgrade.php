@@ -3971,6 +3971,16 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20261001070, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20261001071) {
+        // Secretaria Academica recibe el mismo bundle que el Director en
+        // 20261001069: accessallgroups (sin ella la tabla de envios salia
+        // vacia en las tareas de grupos separados), site:manageblocks,
+        // correccion de notas en gradebook, Assign, Quiz + banco de
+        // preguntas, forum:grade, Lesson y H5P. Asistencia NO se incluye.
+        assign_capabilities_to_internal_roles();
+        upgrade_plugin_savepoint(true, 20261001071, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 
