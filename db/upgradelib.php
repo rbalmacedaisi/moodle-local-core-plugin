@@ -805,6 +805,19 @@ function assign_capabilities_to_internal_roles() {
             // gmk_bbb_attendance_relation se queda con bbbmoduleid NULL, que es
             // lo que el docente ve como "no hay sesion vinculada".
             'moodle/calendar:manageentries',
+            // CORE: ver y editar el perfil del estudiante (20261001075), el mismo
+            // bloque que Secretaria. viewdetails/viewalldetails abren
+            // /user/profile.php de cualquier usuario (user_can_view_profile);
+            // site:viewparticipants las listas de participantes. user:update es
+            // lo que exige /user/editadvanced.php para editar a otro usuario.
+            // AVISO: user:update llega a cualquier cuenta no-siteadmin -tambien
+            // personal y docentes- y permite cambiar su contrasena; Moodle no
+            // deja acotarla a estudiantes.
+            'moodle/site:viewparticipants',
+            'moodle/user:viewdetails',
+            'moodle/user:viewalldetails',
+            'moodle/user:editprofile',
+            'moodle/user:update',
             // Academic planner, with every function. An audit of the 38 actions
             // the board calls showed it needs four capabilities, not just the
             // one the page checks: manage_academic_planning (page + planning

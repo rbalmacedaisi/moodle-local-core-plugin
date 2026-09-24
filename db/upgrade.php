@@ -4014,6 +4014,15 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20261001074, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20261001075) {
+        // Registros Academicos: ver y editar el perfil del estudiante en
+        // /user/profile.php y /user/editadvanced.php. No tenia ninguna cap de
+        // usuario; recibe las mismas cinco que Secretaria (viewparticipants,
+        // viewdetails, viewalldetails, editprofile, update).
+        assign_capabilities_to_internal_roles();
+        upgrade_plugin_savepoint(true, 20261001075, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 
