@@ -929,6 +929,13 @@ function assign_capabilities_to_internal_roles() {
             'moodle/course:viewhiddensections',
             'moodle/calendar:manageentries',
             'moodle/site:manageblocks',
+            // CORE: /course/management.php (20261001073). Esa pagina redirige a
+            // course/index.php a quien no tenga category:manage ni course:create
+            // en alguna categoria; no hay cap de solo lectura. Decision de
+            // producto: category:manage -crear, mover, ocultar y borrar
+            // categorias y reordenar/ocultar cursos-, nivel de gestor. El acceso
+            // directo del menu vive en lib.php (entrada '@moodle/category:manage').
+            'moodle/category:manage',
             // Workflow 4 — Attendance and grades, read only. Bienestar follows
             // absences, dropouts and academic performance as part of student
             // welfare. Acting on those reports is deliberately left out:

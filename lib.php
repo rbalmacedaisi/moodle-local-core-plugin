@@ -221,6 +221,9 @@ function local_grupomakro_core_extend_navigation(global_navigation $navigation) 
                 ['manage_teacher_availability', 'availability.php', '📆 ' . get_string('availability_calendar', $pluginname)],
                 ['manage_teachers', 'teachers.php', '👩‍🏫 ' . get_string('admin_teachers_management', $pluginname)],
                 ['manage_courses', 'manage_courses.php', '📂 Gestor de Cursos'],
+                // Moodle core page, not ours: '@' marks a core capability and a
+                // leading '/' an absolute path under wwwroot.
+                ['@moodle/category:manage', '/course/management.php', '🗂️ ' . get_string('coursemgmt', 'admin')],
                 ['manage_modules', 'module_management.php', '📚 Gestión de Módulos Independientes'],
                 ['manage_classes', 'createclass.php', '➕ ' . get_string('create_class', $pluginname)],
                 ['manage_meetings', 'manage_meetings.php', '🎥 Gestor de Sesiones Virtuales'],
@@ -284,7 +287,8 @@ function local_grupomakro_core_extend_navigation(global_navigation $navigation) 
                 // seeing every entry: passing false there turns OFF the
                 // siteadmin override and blanked their whole menu.
                 if (has_capability($fullcap, $syscontext)) {
-                    $visible[] = '-' . $label . '|/local/grupomakro_core/pages/' . $page;
+                    $url = ($page[0] === '/') ? $page : '/local/grupomakro_core/pages/' . $page;
+                    $visible[] = '-' . $label . '|' . $url;
                 }
             }
             if ($visible) {

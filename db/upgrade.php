@@ -3994,6 +3994,15 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20261001072, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20261001073) {
+        // Coordinador de Bienestar: acceso a /course/management.php. La pagina
+        // exige moodle/category:manage o moodle/course:create; se eligio
+        // category:manage (gestion completa de categorias). El menu superior
+        // gana la entrada "Gestionar cursos y categorias" para quien la tenga.
+        assign_capabilities_to_internal_roles();
+        upgrade_plugin_savepoint(true, 20261001073, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 
