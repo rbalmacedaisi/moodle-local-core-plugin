@@ -702,6 +702,25 @@ function assign_capabilities_to_internal_roles() {
             'mod/lesson:edit',
             'mod/lesson:manage',
             'mod/h5pactivity:reviewattempts',
+            // 20261001074: mismos accesos que el Director. Estas 11 caps del
+            // plugin eran las unicas del Director que la Secretaria no tenia y
+            // son las que arman sus entradas del menu (ordenes, contratos,
+            // instituciones, diplomas, finanzas, movimientos, revalidaciones
+            // extemporaneas, linea de tiempo). category:manage abre
+            // /course/management.php y su acceso directo del menu, igual que
+            // a Bienestar en 20261001073.
+            'local/grupomakro_core:annul_movement',
+            'local/grupomakro_core:create_extemporaneous_revalidations',
+            'local/grupomakro_core:manage_financial_config',
+            'local/grupomakro_core:manage_institutional_contracts',
+            'local/grupomakro_core:manage_institutions',
+            'local/grupomakro_core:manage_orders',
+            'local/grupomakro_core:manage_student_timeline',
+            'local/grupomakro_core:managediplomas',
+            'local/grupomakro_core:seeallorders',
+            'local/grupomakro_core:view_financial_health',
+            'local/grupomakro_core:view_financial_planning',
+            'moodle/category:manage',
             'moodle/course:manageactivities',
             'moodle/course:activityvisibility',
             'moodle/course:viewhiddenactivities',

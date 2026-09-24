@@ -4003,6 +4003,17 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20261001073, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20261001074) {
+        // Secretaria Academica: mismos accesos que el Director. Recibe las 11
+        // caps del plugin que solo tenia el Director (menu de ordenes,
+        // contratos, instituciones, diplomas, finanzas, movimientos,
+        // revalidaciones extemporaneas y linea de tiempo) y
+        // moodle/category:manage para /course/management.php y su acceso
+        // directo en el menu. El gradebook ya era igual desde 20261001071.
+        assign_capabilities_to_internal_roles();
+        upgrade_plugin_savepoint(true, 20261001074, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 
