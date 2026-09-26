@@ -594,11 +594,36 @@ class planning extends external_api {
                 'courseid' => $item['courseid']
             ]);
             
+            // The matrix handles "Omitir" per subject, but rows are stored per
+            // (period, plan, course) and the client only sends the first plan of
+            // a course shared by several plans. Without this sync the other
+            // plan's status=2 row survived, and on reload any status=2 row
+            // re-ticks "Omitir" for the whole subject, so it could never be
+            // un-omitted (e.g. CURSO DE INGLES CONVERSACIONAL, plans 29 and 30).
+            $siblings = $DB->get_records_select('gmk_academic_planning',
+                'academicperiodid = :period AND courseid = :course AND learningplanid <> :plan',
+                ['period' => $academicperiodid, 'course' => $item['courseid'], 'plan' => $item['planid']]);
+
             if (!$item['checked']) {
                 if ($exists) {
                     $DB->delete_records('gmk_academic_planning', ['id' => $exists->id]);
                 }
+                foreach ($siblings as $sibling) {
+                    if ((int)$sibling->status === 2) {
+                        $DB->delete_records('gmk_academic_planning', ['id' => $sibling->id]);
+                    }
+                }
                 continue;
+            }
+
+            $siblingstatus = !empty($item['ignored']) ? 2 : 1;
+            foreach ($siblings as $sibling) {
+                if ((int)$sibling->status !== $siblingstatus) {
+                    $sibling->status = $siblingstatus;
+                    $sibling->timemodified = $now;
+                    $sibling->usermodified = $uid;
+                    $DB->update_record('gmk_academic_planning', $sibling);
+                }
             }
             
             if (!$exists) {
