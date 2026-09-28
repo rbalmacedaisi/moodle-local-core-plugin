@@ -554,6 +554,21 @@ function assign_capabilities_to_internal_roles() {
             'mod/lesson:edit',
             'mod/lesson:manage',
             'mod/h5pactivity:reviewattempts',
+            // CORE Asistencia nativa (20261001076). Con solo mod/attendance:view
+            // view.php le mostraba la vista de estudiante y mode=2 ("todos los
+            // cursos") reventaba con codingerror al no estar matriculado. Con
+            // estas caps view.php lo redirige a manage.php (sesiones) o al
+            // reporte. Mismo bloque que Bienestar desde 20261001068.
+            'mod/attendance:takeattendances',
+            'mod/attendance:changeattendances',
+            'mod/attendance:manageattendances',
+            'mod/attendance:viewreports',
+            // CORE BigBlueButton: instance::can_join() exige bigbluebuttonbn:join
+            // (y grupo visible, que ya cubre accessallgroups). Sin ella view.php
+            // corta con "Usted no tiene rol con permiso para unirse a esta
+            // sesion" y esconde tambien las grabaciones. Entra como espectador:
+            // el moderador sigue siendo el docente de la lista de participantes.
+            'mod/bigbluebuttonbn:join',
             // CORE: crear una actividad dispara add_moduleinfo(), que crea el
             // evento de calendario del modulo y para eso exige
             // moodle/calendar:manageentries. Sin ella la publicacion del tablero

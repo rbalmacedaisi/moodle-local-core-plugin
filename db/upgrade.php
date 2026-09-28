@@ -4023,6 +4023,16 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20261001075, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20261001076) {
+        // Director Academico: asistencia nativa y BigBlueButton desde la UI de
+        // Moodle. Solo tenia mod/attendance:view (vista de estudiante, mode=2
+        // con codingerror) y mod/bigbluebuttonbn:view sin :join ("no tiene rol
+        // con permiso para unirse", sin grabaciones). Se suman takeattendances,
+        // changeattendances, manageattendances, viewreports y bigbluebuttonbn:join.
+        assign_capabilities_to_internal_roles();
+        upgrade_plugin_savepoint(true, 20261001076, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 
