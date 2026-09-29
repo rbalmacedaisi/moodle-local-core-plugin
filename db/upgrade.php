@@ -4039,14 +4039,77 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         // estudiante (con snapshot de sus datos al crear) y gmk_wdr_seq
         // mantiene el correlativo RET-{YYYY}-{NNNN} con un row por ano, lock
         // pesimista al asignar.
-        $dbman->create_table_from_xmldb('gmk_wdr', __FILE__, 'install.xml');
-        $dbman->create_table_from_xmldb('gmk_wdr_seq', __FILE__, 'install.xml');
+        //
+        // Patrón idéntico al usado por los PRs anteriores del plugin (ver
+        // 20230306003, 20260701007, etc.): xmldb_table + add_field + add_key
+        // + $dbman->create_table(). NO existe create_table_from_xmldb()
+        // en la API de Moodle core, ese método fue el que reventó en el
+        // primer intento y abortó el step a mitad.
+        //
+        // Idempotente: cada create_table está envuelto en
+        // if (!$dbman->table_exists($table)) para que re-ejecuciones del
+        // step (por ejemplo si Moodle reintenta porque el upgrade
+        // falló) no revienten por tabla duplicada.
 
-        // (b) El Director General del ISI no estaba modelado como rol: la
-        // bandeja administrativa del modulo de Retiro lo necesita con las dos
-        // caps (view + manage). Lo creamos idempotente en create_roles() para
-        // instalaciones nuevas y re-aplicamos la matriz de caps en este step
-        // para sitios existentes.
+        $table = new xmldb_table('gmk_wdr');
+        $table->add_field('id',                       XMLDB_TYPE_INTEGER, '10',  null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('userid',                   XMLDB_TYPE_INTEGER, '10',  null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('request_number',           XMLDB_TYPE_CHAR,    '32',  null, XMLDB_NOTNULL, null, '');
+        $table->add_field('fullname',                 XMLDB_TYPE_CHAR,    '255', null, null, null, '');
+        $table->add_field('program',                  XMLDB_TYPE_CHAR,    '255', null, null, null, '');
+        $table->add_field('current_period',           XMLDB_TYPE_CHAR,    '128', null, null, null, '');
+        $table->add_field('last_period',              XMLDB_TYPE_CHAR,    '128', null, null, null, '');
+        $table->add_field('phone',                    XMLDB_TYPE_CHAR,    '64',  null, null, null, '');
+        $table->add_field('id_number',                XMLDB_TYPE_CHAR,    '64',  null, null, null, '');
+        $table->add_field('email',                    XMLDB_TYPE_CHAR,    '255', null, null, null, '');
+        $table->add_field('payment_mode',             XMLDB_TYPE_CHAR,    '32',  null, null, null, '');
+        $table->add_field('reason',                   XMLDB_TYPE_CHAR,    '32',  null, null, null, '');
+        $table->add_field('payment_option',           XMLDB_TYPE_CHAR,    '32',  null, null, null, '');
+        $table->add_field('payment_option_detail',    XMLDB_TYPE_CHAR,    '255', null, null, null, '');
+        $table->add_field('observations',             XMLDB_TYPE_TEXT,    null,  null, null, null);
+        $table->add_field('status',                   XMLDB_TYPE_CHAR,    '32',  null, XMLDB_NOTNULL, null, 'solicitada');
+        $table->add_field('received_da_at',           XMLDB_TYPE_INTEGER, '10',  null, null, null, '0');
+        $table->add_field('received_da_by',           XMLDB_TYPE_INTEGER, '10',  null, null, null, '0');
+        $table->add_field('received_admin_at',        XMLDB_TYPE_INTEGER, '10',  null, null, null, '0');
+        $table->add_field('received_admin_by',        XMLDB_TYPE_INTEGER, '10',  null, null, null, '0');
+        $table->add_field('scanned_pdf_path',         XMLDB_TYPE_CHAR,    '255', null, null, null, '');
+        $table->add_field('rejection_reason',         XMLDB_TYPE_TEXT,    null,  null, null, null);
+        $table->add_field('timecreated',              XMLDB_TYPE_INTEGER, '10',  null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timemodified',             XMLDB_TYPE_INTEGER, '10',  null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('usermodified',             XMLDB_TYPE_INTEGER, '10',  null, XMLDB_NOTNULL, null, '0');
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, array('id'));
+        $table->add_key('userfk',  XMLDB_KEY_FOREIGN, array('userid'), 'user', array('id'));
+        $table->add_index('reqnum_uix', XMLDB_INDEX_UNIQUE, array('request_number'));
+        $table->add_index('user_idx',   XMLDB_INDEX_NOTUNIQUE, array('userid'));
+        $table->add_index('status_idx', XMLDB_INDEX_NOTUNIQUE, array('status'));
+        $table->add_index('time_idx',   XMLDB_INDEX_NOTUNIQUE, array('timecreated'));
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        $table2 = new xmldb_table('gmk_wdr_seq');
+        $table2->add_field('id',           XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table2->add_field('year',         XMLDB_TYPE_INTEGER, '4',  null, XMLDB_NOTNULL, null, '0');
+        $table2->add_field('prefix',       XMLDB_TYPE_CHAR,    '32', null, XMLDB_NOTNULL, null, 'RET');
+        $table2->add_field('pad_length',   XMLDB_TYPE_INTEGER, '2',  null, XMLDB_NOTNULL, null, '4');
+        $table2->add_field('next_number',  XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '1');
+        $table2->add_field('timecreated',  XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table2->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table2->add_key('primary', XMLDB_KEY_PRIMARY, array('id'));
+        $table2->add_index('year_uix', XMLDB_INDEX_UNIQUE, array('year'));
+        if (!$dbman->table_exists($table2)) {
+            $dbman->create_table($table2);
+        }
+
+        // (b) Re-llamamos create_roles() + assign_capabilities_to_internal_roles()
+        //     tambien aqui para que el step sea idempotente y para cubrir el caso
+        //     del primer intento del upgrade donde create_roles() corrió y
+        //     gmk_director_general se creó, pero assign_capabilities_to_internal_roles()
+        //     NO terminó de asignar caps a los 3 roles administrativos
+        //     (gmk_registros_academicos solo recibió 1 de 2 caps). La segunda
+        //     pasada re-asigna todo correctamente. assign_capability() es
+        //     idempotente (UPDATE si existe, INSERT si no), por lo que es
+        //     seguro re-llamarlo.
         create_roles();
         assign_capabilities_to_internal_roles();
 
