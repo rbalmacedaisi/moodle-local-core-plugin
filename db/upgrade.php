@@ -4054,33 +4054,34 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         $table = new xmldb_table('gmk_wdr');
         $table->add_field('id',                       XMLDB_TYPE_INTEGER, '10',  null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
         $table->add_field('userid',                   XMLDB_TYPE_INTEGER, '10',  null, XMLDB_NOTNULL, null, '0');
-        $table->add_field('request_number',           XMLDB_TYPE_CHAR,    '32',  null, XMLDB_NOTNULL, null, '');
-        $table->add_field('fullname',                 XMLDB_TYPE_CHAR,    '255', null, null, null, '');
-        $table->add_field('program',                  XMLDB_TYPE_CHAR,    '255', null, null, null, '');
-        $table->add_field('current_period',           XMLDB_TYPE_CHAR,    '128', null, null, null, '');
-        $table->add_field('last_period',              XMLDB_TYPE_CHAR,    '128', null, null, null, '');
-        $table->add_field('phone',                    XMLDB_TYPE_CHAR,    '64',  null, null, null, '');
-        $table->add_field('id_number',                XMLDB_TYPE_CHAR,    '64',  null, null, null, '');
-        $table->add_field('email',                    XMLDB_TYPE_CHAR,    '255', null, null, null, '');
-        $table->add_field('payment_mode',             XMLDB_TYPE_CHAR,    '32',  null, null, null, '');
-        $table->add_field('reason',                   XMLDB_TYPE_CHAR,    '32',  null, null, null, '');
-        $table->add_field('payment_option',           XMLDB_TYPE_CHAR,    '32',  null, null, null, '');
-        $table->add_field('payment_option_detail',    XMLDB_TYPE_CHAR,    '255', null, null, null, '');
+        $table->add_field('request_number',           XMLDB_TYPE_CHAR,    '32',  null, XMLDB_NOTNULL, null, null);
+        $table->add_field('fullname',                 XMLDB_TYPE_CHAR,    '255', null, null, null, null);
+        $table->add_field('program',                  XMLDB_TYPE_CHAR,    '255', null, null, null, null);
+        $table->add_field('current_period',           XMLDB_TYPE_CHAR,    '128', null, null, null, null);
+        $table->add_field('last_period',              XMLDB_TYPE_CHAR,    '128', null, null, null, null);
+        $table->add_field('phone',                    XMLDB_TYPE_CHAR,    '64',  null, null, null, null);
+        $table->add_field('id_number',                XMLDB_TYPE_CHAR,    '64',  null, null, null, null);
+        $table->add_field('email',                    XMLDB_TYPE_CHAR,    '255', null, null, null, null);
+        $table->add_field('payment_mode',             XMLDB_TYPE_CHAR,    '32',  null, null, null, null);
+        $table->add_field('reason',                   XMLDB_TYPE_CHAR,    '32',  null, null, null, null);
+        $table->add_field('payment_option',           XMLDB_TYPE_CHAR,    '32',  null, null, null, null);
+        $table->add_field('payment_option_detail',    XMLDB_TYPE_CHAR,    '255', null, null, null, null);
         $table->add_field('observations',             XMLDB_TYPE_TEXT,    null,  null, null, null);
         $table->add_field('status',                   XMLDB_TYPE_CHAR,    '32',  null, XMLDB_NOTNULL, null, 'solicitada');
         $table->add_field('received_da_at',           XMLDB_TYPE_INTEGER, '10',  null, null, null, '0');
         $table->add_field('received_da_by',           XMLDB_TYPE_INTEGER, '10',  null, null, null, '0');
         $table->add_field('received_admin_at',        XMLDB_TYPE_INTEGER, '10',  null, null, null, '0');
         $table->add_field('received_admin_by',        XMLDB_TYPE_INTEGER, '10',  null, null, null, '0');
-        $table->add_field('scanned_pdf_path',         XMLDB_TYPE_CHAR,    '255', null, null, null, '');
+        $table->add_field('scanned_pdf_path',         XMLDB_TYPE_CHAR,    '255', null, null, null, null);
         $table->add_field('rejection_reason',         XMLDB_TYPE_TEXT,    null,  null, null, null);
         $table->add_field('timecreated',              XMLDB_TYPE_INTEGER, '10',  null, XMLDB_NOTNULL, null, '0');
         $table->add_field('timemodified',             XMLDB_TYPE_INTEGER, '10',  null, XMLDB_NOTNULL, null, '0');
         $table->add_field('usermodified',             XMLDB_TYPE_INTEGER, '10',  null, XMLDB_NOTNULL, null, '0');
         $table->add_key('primary', XMLDB_KEY_PRIMARY, array('id'));
         $table->add_key('userfk',  XMLDB_KEY_FOREIGN, array('userid'), 'user', array('id'));
+        // user_idx on userid removed: the FK userfk already creates a
+        // covering index on userid and adding another collides at xmldb time.
         $table->add_index('reqnum_uix', XMLDB_INDEX_UNIQUE, array('request_number'));
-        $table->add_index('user_idx',   XMLDB_INDEX_NOTUNIQUE, array('userid'));
         $table->add_index('status_idx', XMLDB_INDEX_NOTUNIQUE, array('status'));
         $table->add_index('time_idx',   XMLDB_INDEX_NOTUNIQUE, array('timecreated'));
         if (!$dbman->table_exists($table)) {
