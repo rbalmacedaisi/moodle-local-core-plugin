@@ -39,7 +39,7 @@ use local_grupomakro_core\local\wdr_manager;
 mtrace("=== Smoke test: wdr_manager (RET-01 / 20261001080) ===");
 
 // Strip any row we may have left from previous runs of this smoke.
-$DB->delete_records('gmk_wdr', ['reason' => 'A', 'observations' => '__smoketest__']);
+$DB->delete_records('gmk_wdr', ['reason' => 'A', $DB->sql_compare_text('observations') => "'__smoketest__'"]);
 $DB->delete_records('gmk_wdr_seq', ['year' => 2099]);
 
 // Force a known setting trio so we can assert literal values.
