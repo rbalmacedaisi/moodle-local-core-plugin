@@ -460,6 +460,11 @@ function local_grupomakro_core_pluginfile($course, $cm, $context, $filearea, arr
     $areas = [
         'diploma_background' => 'local/grupomakro_core:managediplomas',
         'diploma_document'   => 'local/grupomakro_core:viewdiplomas',
+        // RET-01 (20261001080): PDF firmado escaneado por el estudiante, archivado
+        // por la bandeja administrativa. La cap view (lectura) cubre al
+        // Director Academico, la Secretaria Academica y el Director General;
+        // upload se hace desde el admin con cap manage.
+        'withdrawal_requests' => 'local/grupomakro_core:view_wdr_requests',
     ];
     if (!isset($areas[$filearea])) {
         return false;

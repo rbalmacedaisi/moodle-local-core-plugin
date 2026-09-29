@@ -87,6 +87,10 @@ function create_roles() {
         'gmk_soporte_ti'           => 'Soporte TI',
         'gmk_bienestar'            => 'Coordinador de Bienestar',
         'gmk_psicologo'            => 'Psicólogo/a',
+        // Director General del ISI (anadido en 20261001080): solo consume la
+        // bandeja administrativa del modulo de Retiro del Programa (RET-01),
+        // no comparte las demas capacidades de los directores de area.
+        'gmk_director_general'     => 'Director General del ISI',
     ];
     foreach ($operational_roles as $shortname => $name) {
         $role = $DB->get_record('role', ['shortname' => $shortname]);
@@ -637,6 +641,11 @@ function assign_capabilities_to_internal_roles() {
             // Workflow 8 — selective oversight (config + health read)
             'local/grupomakro_core:manage_financial_config',
             'local/grupomakro_core:view_financial_health',
+            // RET-01: bandeja administrativa del modulo de Retiro del Programa
+            // (anadido en 20261001080). El Director Academico ve y gestiona
+            // todas las solicitudes porque firma el recibido academico del PDF.
+            'local/grupomakro_core:view_wdr_requests',
+            'local/grupomakro_core:manage_wdr_requests',
         ],
         'gmk_secretaria_academica' => [
             // CORE: cada clase vive en una seccion restringida a SU grupo
@@ -810,6 +819,12 @@ function assign_capabilities_to_internal_roles() {
             'local/grupomakro_core:viewdiplomas',
             // Workflow 7 — View announcements only
             'local/grupomakro_core:viewannouncements',
+            // RET-01: bandeja administrativa del modulo de Retiro del Programa
+            // (anadido en 20261001080). La Secretaria ve y gestiona las
+            // mismas solicitudes que el Director Academico: firma el sello
+            // y registra el recibido de Direccion Academica.
+            'local/grupomakro_core:view_wdr_requests',
+            'local/grupomakro_core:manage_wdr_requests',
         ],
         'gmk_registros_academicos' => [
             // CORE: crear una actividad dispara add_moduleinfo(), que crea el
@@ -1015,6 +1030,16 @@ function assign_capabilities_to_internal_roles() {
             // puede crear eventos, convenios ni gestionar el resto del
             // módulo (eso queda en manos del Coordinador de Bienestar).
             'local/grupomakro_core:manage_psychology_appointments',
+        ],
+        'gmk_director_general' => [
+            // Roll-out 20261001080: bandeja administrativa del modulo de
+            // Retiro del Programa (RET-01). Solo esta vista + escritura.
+            // No comparte el resto del bundle de Director Academico porque
+            // el alcance del Director General sobre Moodle es especificamente
+            // este flujo. Si en el futuro necesita mas superficie, se
+            // amplia aqui.
+            'local/grupomakro_core:view_wdr_requests',
+            'local/grupomakro_core:manage_wdr_requests',
         ],
     ];
 

@@ -4033,6 +4033,40 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20261001076, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20261001080) {
+        // ── RET-01: Solicitud de Retiro del Programa ──────────────────────────
+        // (a) Schema: dos tablas nuevas. gmk_wdr guarda cada solicitud del
+        // estudiante (con snapshot de sus datos al crear) y gmk_wdr_seq
+        // mantiene el correlativo RET-{YYYY}-{NNNN} con un row por ano, lock
+        // pesimista al asignar.
+        $dbman->create_table_from_xmldb('gmk_wdr', __FILE__, 'install.xml');
+        $dbman->create_table_from_xmldb('gmk_wdr_seq', __FILE__, 'install.xml');
+
+        // (b) El Director General del ISI no estaba modelado como rol: la
+        // bandeja administrativa del modulo de Retiro lo necesita con las dos
+        // caps (view + manage). Lo creamos idempotente en create_roles() para
+        // instalaciones nuevas y re-aplicamos la matriz de caps en este step
+        // para sitios existentes.
+        create_roles();
+        assign_capabilities_to_internal_roles();
+
+        // (c) Las settings retirement_request_prefix y retirement_request_pad_length
+        // son site-wide y necesitan un valor por defecto explicito sin pisar
+        // un valor ya existente. Como enable_student_schedule_selection en
+        // 20261001019: set_config sin overwrite.
+        if (get_config('local_grupomakro_core', 'retirement_request_prefix') === false) {
+            set_config('retirement_request_prefix', 'RET', 'local_grupomakro_core');
+        }
+        if (get_config('local_grupomakro_core', 'retirement_request_pad_length') === false) {
+            set_config('retirement_request_pad_length', 4, 'local_grupomakro_core');
+        }
+        if (get_config('local_grupomakro_core', 'retirement_template_version') === false) {
+            set_config('retirement_template_version', '2026.3', 'local_grupomakro_core');
+        }
+
+        upgrade_plugin_savepoint(true, 20261001080, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

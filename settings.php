@@ -513,6 +513,18 @@ if (isloggedin() && !isguestuser()) {
     );
     $ADMIN->add('grupomakrocore_plugin', $gmkViewLogPage);
 
+    // RET-01 (20261001080): Bandeja administrativa de Solicitudes de Retiro.
+    // La consumen Director Academico, Secretaria Academica y Director General.
+    // Se registra en la categoria plana (igual que revalidations_director y
+    // failed_subjects) y desde lib.php se enlaza al menu superior.
+    $gmkWithdrawalRequestsPage = new admin_externalpage(
+        'grupomakro_core_withdrawal_requests',
+        $emojititle("\u{1F3E2}", 'Solicitudes de Retiro (RET-01)'),
+        new moodle_url('/local/grupomakro_core/pages/withdrawal_requests.php'),
+        'local/grupomakro_core:view_wdr_requests'
+    );
+    $ADMIN->add('grupomakrocore_plugin', $gmkWithdrawalRequestsPage);
+
     $ADMIN->add('grupomakrocore_plugin', $financialPlanningPage);
     $ADMIN->add('grupomakrocore_plugin', $debugStudentActivityVisibilityPage);
     $ADMIN->add('grupomakrocore_plugin', $debugBbbTeacherJoinPage);
@@ -1004,6 +1016,34 @@ if ($hassiteconfig) {
                 ' ' => new lang_string('thousandssep_space', 'local_grupomakro_core'),
                 '' => new lang_string('thousandssep_none', 'local_grupomakro_core'),
             )
+        ));
+
+        // ── RET-01: Solicitud de Retiro del Programa (20261001080) ─────────────
+        // El correlativo se imprime arriba a la derecha del PDF en formato
+        // {prefix}-{YYYY}-{NNNN}. Cambiar el prefijo no afecta correlativos ya
+        // emitidos: gmk_wdr_seq guarda un snapshot del prefijo por ano.
+        // El pad_length es el numero de ceros a la izquierda del correlativo
+        // (4 -> "0001", 5 -> "00001").
+        $settingspage->add(new admin_setting_configtext(
+            'local_grupomakro_core/retirement_request_prefix',
+            new lang_string('retirement_request_prefix', 'local_grupomakro_core'),
+            new lang_string('retirement_request_prefix_desc', 'local_grupomakro_core'),
+            'RET',
+            PARAM_TEXT
+        ));
+        $settingspage->add(new admin_setting_configtext(
+            'local_grupomakro_core/retirement_request_pad_length',
+            new lang_string('retirement_request_pad_length', 'local_grupomakro_core'),
+            new lang_string('retirement_request_pad_length_desc', 'local_grupomakro_core'),
+            '4',
+            PARAM_INT
+        ));
+        $settingspage->add(new admin_setting_configtext(
+            'local_grupomakro_core/retirement_template_version',
+            new lang_string('retirement_template_version', 'local_grupomakro_core'),
+            new lang_string('retirement_template_version_desc', 'local_grupomakro_core'),
+            '2026.3',
+            PARAM_TEXT
         ));
     }
 

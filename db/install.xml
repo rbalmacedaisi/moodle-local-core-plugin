@@ -1545,6 +1545,70 @@
         <INDEX NAME="timecreated_idx" UNIQUE="false" FIELDS="timecreated"/>
       </INDEXES>
     </TABLE>
+    <!-- RET-01: Solicitud de Retiro del Programa (Fase 0 / 20261001080).
+         Cada fila es una solicitud que el estudiante inicia desde el LXP. La
+         bandeja administrativa en pages/withdrawal_requests.php la ve el
+         Director Academico, la Secretaria Academica y el Director General.
+         El numero correlativo se asigna en gmk_wdr_seq (un row por ano) usando
+         el prefijo retirement_request_prefix y el padding retirement_request_pad_length
+         configurables desde settings.php. -->
+    <TABLE NAME="gmk_wdr" COMMENT="RET-01: solicitud de retiro del programa. status=solicitada|pendiente_firma_presencial|firmada_digital|recibida_direccion_academica|recibida_direccion_administrativa|procesada|rechazada|cancelada.">
+      <FIELDS>
+        <FIELD NAME="id"                       TYPE="int"  LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="userid"                   TYPE="int"  LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="FK user.id. Estudiante que solicita el retiro."/>
+        <FIELD NAME="request_number"           TYPE="char" LENGTH="32" NOTNULL="true" SEQUENCE="false" COMMENT="Correlativo unico, formato RET-{YYYY}-{NNNN}, asignado por wdr_manager::generate_request_number()."/>
+        <FIELD NAME="fullname"                 TYPE="char" LENGTH="255" NOTNULL="false" DEFAULT="" SEQUENCE="false" COMMENT="Snapshot del nombre completo al crear la solicitud."/>
+        <FIELD NAME="program"                  TYPE="char" LENGTH="255" NOTNULL="false" DEFAULT="" SEQUENCE="false" COMMENT="Snapshot carrera/programa."/>
+        <FIELD NAME="current_period"           TYPE="char" LENGTH="128" NOTNULL="false" DEFAULT="" SEQUENCE="false" COMMENT="Periodo academico actual (texto libre)."/>
+        <FIELD NAME="last_period"              TYPE="char" LENGTH="128" NOTNULL="false" DEFAULT="" SEQUENCE="false" COMMENT="Periodo en el que ya no continuara."/>
+        <FIELD NAME="phone"                    TYPE="char" LENGTH="64"  NOTNULL="false" DEFAULT="" SEQUENCE="false"/>
+        <FIELD NAME="id_number"                TYPE="char" LENGTH="64"  NOTNULL="false" DEFAULT="" SEQUENCE="false" COMMENT="Cedula / pasaporte, snapshot."/>
+        <FIELD NAME="email"                    TYPE="char" LENGTH="255" NOTNULL="false" DEFAULT="" SEQUENCE="false" COMMENT="Email al momento de la solicitud."/>
+        <FIELD NAME="payment_mode"             TYPE="char" LENGTH="32"  NOTNULL="false" DEFAULT="" SEQUENCE="false" COMMENT="mensual|quincenal."/>
+        <FIELD NAME="reason"                   TYPE="char" LENGTH="32"  NOTNULL="false" DEFAULT="" SEQUENCE="false" COMMENT="A|B|C|D|E|F (motivos del PDF RET-01)."/>
+        <FIELD NAME="payment_option"           TYPE="char" LENGTH="32"  NOTNULL="false" DEFAULT="" SEQUENCE="false" COMMENT="cambio_carrera|transferencia_derechos|no_aplica."/>
+        <FIELD NAME="payment_option_detail"    TYPE="char" LENGTH="255" NOTNULL="false" DEFAULT="" SEQUENCE="false" COMMENT="Detalle libre para cambio_carrera / cedula tercero para transferencia_derechos."/>
+        <FIELD NAME="observations"             TYPE="text"                NOTNULL="false"                SEQUENCE="false"/>
+        <FIELD NAME="status"                   TYPE="char" LENGTH="32"  NOTNULL="true" DEFAULT="solicitada" SEQUENCE="false" COMMENT="solicitada|pendiente_firma_presencial|firmada_digital|recibida_direccion_academica|recibida_direccion_administrativa|procesada|rechazada|cancelada."/>
+        <FIELD NAME="received_da_at"           TYPE="int"  LENGTH="10"  NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="Unix ts firma/sello Direccion Academica."/>
+        <FIELD NAME="received_da_by"           TYPE="int"  LENGTH="10"  NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="userid de quien registro la firma de Direccion Academica."/>
+        <FIELD NAME="received_admin_at"        TYPE="int"  LENGTH="10"  NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="Unix ts firma/sello Direccion Administrativa."/>
+        <FIELD NAME="received_admin_by"        TYPE="int"  LENGTH="10"  NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="userid de quien registro la firma de Direccion Administrativa."/>
+        <FIELD NAME="scanned_pdf_path"         TYPE="char" LENGTH="255" NOTNULL="false" DEFAULT="" SEQUENCE="false" COMMENT="Ruta pluginfile del PDF firmado escaneado, archivado en filearea withdrawal_requests."/>
+        <FIELD NAME="rejection_reason"         TYPE="text"                NOTNULL="false"                SEQUENCE="false"/>
+        <FIELD NAME="timecreated"              TYPE="int"  LENGTH="10"  NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timemodified"             TYPE="int"  LENGTH="10"  NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="usermodified"             TYPE="int"  LENGTH="10"  NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary"  FIELDS="id"/>
+        <KEY NAME="userfk"  TYPE="foreign"  FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="reqnum_uix" UNIQUE="true"  FIELDS="request_number"/>
+        <INDEX NAME="user_idx"   UNIQUE="false" FIELDS="userid"/>
+        <INDEX NAME="status_idx" UNIQUE="false" FIELDS="status"/>
+        <INDEX NAME="time_idx"   UNIQUE="false" FIELDS="timecreated"/>
+      </INDEXES>
+    </TABLE>
+    <!-- Correlativo por ano: un row por ano (2026, 2027, ...). Lock pesimista al asignar. -->
+    <TABLE NAME="gmk_wdr_seq" COMMENT="Correlativo anual del formato RET-{YYYY}-{NNNN}. Una fila por ano. prefix snapshot para que cambiar el prefijo en settings.php no afecte correlativos ya emitidos.">
+      <FIELDS>
+        <FIELD NAME="id"          TYPE="int"  LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="year"        TYPE="int"  LENGTH="4"  NOTNULL="true" SEQUENCE="false" COMMENT="Ano unico (2026)."/>
+        <FIELD NAME="prefix"      TYPE="char" LENGTH="32" NOTNULL="true" DEFAULT="RET" SEQUENCE="false" COMMENT="Snapshot del prefijo activo al crear la fila de este ano."/>
+        <FIELD NAME="pad_length"  TYPE="int"  LENGTH="2"  NOTNULL="true" DEFAULT="4" SEQUENCE="false" COMMENT="Snapshot del padding de ceros (4 = 0001)."/>
+        <FIELD NAME="next_number" TYPE="int"  LENGTH="10" NOTNULL="true" DEFAULT="1" SEQUENCE="false" COMMENT="Proximo correlativo a asignar."/>
+        <FIELD NAME="timecreated" TYPE="int"  LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="year_uix" UNIQUE="true" FIELDS="year"/>
+      </INDEXES>
+    </TABLE>
     <TABLE NAME="gmk_group_curriculum" COMMENT="Malla por grupo: que asignaturas ve cada cohorte en cada nivel. El grupo es derivado (plan+cohorte+jornada), no hay entidad de grupo. source=2 permite excluir una asignatura del plan sin tocar local_learning_courses.">
       <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>

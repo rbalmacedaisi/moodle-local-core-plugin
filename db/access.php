@@ -354,4 +354,18 @@ $capabilities = array(
         'captype' => 'read', 'contextlevel' => CONTEXT_SYSTEM,
         'archetypes' => array('manager' => CAP_ALLOW),
     ),
+    // RET-01 (20261001080): Solicitud de Retiro del Programa. create es para
+    // estudiantes (archetype 'user') y los admin caps son de tipo manager.
+    'local/grupomakro_core:create_wdr_request' => array(
+        'captype' => 'write', 'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array('user' => CAP_ALLOW),
+    ),
+    'local/grupomakro_core:view_wdr_requests' => array(
+        'captype' => 'read', 'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array('manager' => CAP_ALLOW),
+    ),
+    'local/grupomakro_core:manage_wdr_requests' => array(
+        'captype' => 'write', 'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array('manager' => CAP_ALLOW),
+    ),
 );

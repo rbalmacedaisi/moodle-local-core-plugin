@@ -1872,4 +1872,83 @@ $functions = array(
         'ajax'        => true,
         'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
     ],
+
+    // ── RET-01: Solicitud de Retiro del Programa (20261001080) ─────────────────
+    // Flujo: el estudiante crea la solicitud desde el LXP (create_wdr_request),
+    // descarga el PDF RET-01 (download_pdf) y la gestiona desde su tabla
+    // (get_my_requests / get_request_detail). La bandeja administrativa
+    // (list / update_status / upload_scanned / get_scanned) la consumen
+    // Director Academico, Secretaria Academica y Director General.
+    'local_grupomakro_wdr_create_request' => [
+        'classname'   => 'local_grupomakro_core\external\wdr\create_request',
+        'methodname'  => 'execute',
+        'description' => 'Student creates a RET-01 withdrawal request; assigns the next request_number from gmk_wdr_seq.',
+        'type'        => 'write',
+        'capabilities'=> 'local/grupomakro_core:create_wdr_request',
+        'ajax'        => true,
+        'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
+    ],
+    'local_grupomakro_wdr_get_my_requests' => [
+        'classname'   => 'local_grupomakro_core\external\wdr\get_my_requests',
+        'methodname'  => 'execute',
+        'description' => 'List the calling student\'s RET-01 withdrawal requests.',
+        'type'        => 'read',
+        'capabilities'=> 'local/grupomakro_core:create_wdr_request',
+        'ajax'        => true,
+        'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
+    ],
+    'local_grupomakro_wdr_get_request_detail' => [
+        'classname'   => 'local_grupomakro_core\external\wdr\get_request_detail',
+        'methodname'  => 'execute',
+        'description' => 'Detail of a single RET-01 withdrawal request (student or admin).',
+        'type'        => 'read',
+        'capabilities'=> 'local/grupomakro_core:view_wdr_requests',
+        'ajax'        => true,
+        'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
+    ],
+    'local_grupomakro_wdr_download_pdf' => [
+        'classname'   => 'local_grupomakro_core\external\wdr\download_pdf',
+        'methodname'  => 'execute',
+        'description' => 'Generate the RET-01 PDF with the request_number stamped on the top-right and return base64.',
+        'type'        => 'read',
+        'capabilities'=> 'local/grupomakro_core:create_wdr_request',
+        'ajax'        => true,
+        'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
+    ],
+    'local_grupomakro_wdr_admin_list' => [
+        'classname'   => 'local_grupomakro_core\external\wdr\admin_list',
+        'methodname'  => 'execute',
+        'description' => 'Administrative inbox of RET-01 requests with status/date/search filters.',
+        'type'        => 'read',
+        'capabilities'=> 'local/grupomakro_core:view_wdr_requests',
+        'ajax'        => true,
+        'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
+    ],
+    'local_grupomakro_wdr_admin_update_status' => [
+        'classname'   => 'local_grupomakro_core\external\wdr\admin_update_status',
+        'methodname'  => 'execute',
+        'description' => 'Record DA/Admin receipt, reject with reason, or mark processed.',
+        'type'        => 'write',
+        'capabilities'=> 'local/grupomakro_core:manage_wdr_requests',
+        'ajax'        => true,
+        'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
+    ],
+    'local_grupomakro_wdr_admin_upload_scanned' => [
+        'classname'   => 'local_grupomakro_core\external\wdr\admin_upload_scanned',
+        'methodname'  => 'execute',
+        'description' => 'Upload the signed scanned PDF into the withdrawal_requests filearea.',
+        'type'        => 'write',
+        'capabilities'=> 'local/grupomakro_core:manage_wdr_requests',
+        'ajax'        => true,
+        'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
+    ],
+    'local_grupomakro_wdr_get_scanned' => [
+        'classname'   => 'local_grupomakro_core\external\wdr\get_scanned',
+        'methodname'  => 'execute',
+        'description' => 'Return the signed scanned PDF base64 (or null when not yet uploaded).',
+        'type'        => 'read',
+        'capabilities'=> 'local/grupomakro_core:view_wdr_requests',
+        'ajax'        => true,
+        'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
+    ],
 );
