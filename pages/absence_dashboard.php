@@ -794,17 +794,34 @@ if (optional_param('abs_ajax', 0, PARAM_INT)) {
                 ]
             ], JSON_UNESCAPED_UNICODE);
 
-        } elseif ($abs_action === 'mark_session_present') {
+        } elseif ($abs_action === 'mark_session_present' || $abs_action === 'mark_session_attendance') {
+            // Unified endpoint for dashboard-driven attendance marks.
+            // status_key:
+            //   present  -> justificación + soporte (PDF/imagen) OBLIGATORIOS
+            //   late     -> justificación OBLIGATORIA, sin soporte
+            //   excused  -> justificación + soporte OBLIGATORIOS (inasistencia justificada)
+            // El status se resuelve por ACRÓNIMO en attendance_statuses
+            // (P=Presente, R=Retraso, FJ=Falta justificada); si el módulo no
+            // tiene el acrónimo esperado, se devuelve un error claro en vez
+            // de grabar el equivalente "más parecido".
             $sessionid     = required_param('sessionid',     PARAM_INT);
             $userid        = required_param('userid',        PARAM_INT);
             $classid       = required_param('classid',       PARAM_INT);
             $justification = trim((string)required_param('justification', PARAM_TEXT));
+            $status_key    = strtolower(trim((string)optional_param('status_key', 'present', PARAM_ALPHA)));
+
+            if (!in_array($status_key, ['present', 'late', 'excused'], true)) {
+                echo json_encode(['ok' => false, 'message' => 'Tipo de marcación no soportado.']);
+                exit;
+            }
+
             if ($justification === '') {
                 echo json_encode(['ok' => false, 'message' => 'La justificación es obligatoria']);
                 exit;
             }
 
-            // Support file is mandatory: PDF, JPG or PNG up to 10MB.
+            // Support file handling: only required for present / excused.
+            $support_required = ($status_key !== 'late');
             $supporterror = '';
             $supportfile  = isset($_FILES['support_file']) ? $_FILES['support_file'] : null;
             $maxbytes     = 10 * 1024 * 1024;
@@ -815,7 +832,9 @@ if (optional_param('abs_ajax', 0, PARAM_INT)) {
                 'image/png',
             ];
             if (!$supportfile || (isset($supportfile['error']) && (int)$supportfile['error'] === UPLOAD_ERR_NO_FILE)) {
-                $supporterror = 'El archivo de soporte es obligatorio (PDF o imagen).';
+                if ($support_required) {
+                    $supporterror = 'El archivo de soporte es obligatorio (PDF o imagen).';
+                }
             } elseif (!empty($supportfile['error'])) {
                 $supporterror = 'Error al subir el archivo (código ' . (int)$supportfile['error'] . ').';
             } elseif (!is_uploaded_file($supportfile['tmp_name'])) {
@@ -854,21 +873,42 @@ if (optional_param('abs_ajax', 0, PARAM_INT)) {
             }
 
             $session = $DB->get_record('attendance_sessions', ['id' => $sessionid], '*', MUST_EXIST);
-            $present_status = $DB->get_record_sql(
-                "SELECT id, setnumber FROM {attendance_statuses} WHERE attendanceid = :aid AND grade > 0 ORDER BY grade DESC LIMIT 1",
-                ['aid' => $session->attendanceid]
+
+            // Resolve the destination status by ACRONYM within this attendance
+            // instance. The mod_attendance default status set ships with
+            // P (Presente), R (Retraso), FJ (Falta justificada) y FI
+            // (Falta injustificada) — pero un curso puede haber renombrado
+            // descripciones; el acrónimo es la única clave estable.
+            $acronym_by_key = [
+                'present' => 'P',
+                'late'    => 'R',
+                'excused' => 'FJ',
+            ];
+            $wanted_acronym = $acronym_by_key[$status_key];
+
+            $target_status = $DB->get_record_sql(
+                "SELECT id, setnumber, acronym, description, grade
+                   FROM {attendance_statuses}
+                  WHERE attendanceid = :aid AND UPPER(TRIM(acronym)) = :acr
+                  LIMIT 1",
+                ['aid' => $session->attendanceid, 'acr' => strtoupper($wanted_acronym)]
             );
-            if (!$present_status) {
-                echo json_encode(['ok' => false, 'message' => 'No se encontró estado de presencia para este módulo de asistencia']);
+            if (!$target_status) {
+                echo json_encode([
+                    'ok'      => false,
+                    'message' => 'Esta actividad de asistencia no tiene configurado el estado '
+                                 . $wanted_acronym . ' (' . $status_key . '). Revise la configuración del módulo de asistencia.',
+                ]);
                 exit;
             }
+
             $now       = time();
-            $statusset = (string)($present_status->setnumber ?? 0);
+            $statusset = (string)($target_status->setnumber ?? 0);
             $existing  = $DB->get_record('attendance_log', ['sessionid' => $sessionid, 'studentid' => $userid]);
             if ($existing) {
                 // Full audit: record WHO corroborated (takenby) — previously this
                 // path left takenby=0, making the mark untraceable.
-                $existing->statusid  = $present_status->id;
+                $existing->statusid  = $target_status->id;
                 $existing->statusset = $statusset;
                 $existing->remarks   = $justification;
                 $existing->timetaken = $now;
@@ -879,7 +919,7 @@ if (optional_param('abs_ajax', 0, PARAM_INT)) {
                 $log            = new stdClass();
                 $log->sessionid = $sessionid;
                 $log->studentid = $userid;
-                $log->statusid  = $present_status->id;
+                $log->statusid  = $target_status->id;
                 $log->statusset = $statusset;
                 $log->timetaken = $now;
                 $log->takenby   = $USER->id;
@@ -891,41 +931,47 @@ if (optional_param('abs_ajax', 0, PARAM_INT)) {
             // filearea (itemid = attendance_log.id, context = system). Previous
             // uploads are removed so the latest support always reflects the latest
             // justification. This keeps audit simple: one support per attendance_log row.
-            try {
-                $fs = get_file_storage();
-                $sysctx = context_system::instance();
-                $fs->delete_area_files($sysctx->id, 'local_grupomakro_core', 'attendance_support', $logid);
-                $clientname = (string)($supportfile['name'] ?? 'soporte');
-                $storedname = clean_param($clientname, PARAM_FILE);
-                if ($storedname === '') {
-                    $storedname = 'soporte_' . $logid . '.bin';
+            // For 'late' marks no file is uploaded; any previous support from a
+            // different mark is preserved (it documents a different status).
+            if ($support_required) {
+                try {
+                    $fs = get_file_storage();
+                    $sysctx = context_system::instance();
+                    $fs->delete_area_files($sysctx->id, 'local_grupomakro_core', 'attendance_support', $logid);
+                    $clientname = (string)($supportfile['name'] ?? 'soporte');
+                    $storedname = clean_param($clientname, PARAM_FILE);
+                    if ($storedname === '') {
+                        $storedname = 'soporte_' . $logid . '.bin';
+                    }
+                    $filerec = [
+                        'contextid' => $sysctx->id,
+                        'component' => 'local_grupomakro_core',
+                        'filearea'  => 'attendance_support',
+                        'itemid'    => $logid,
+                        'filepath'  => '/',
+                        'filename'  => $storedname,
+                        'userid'    => (int)$USER->id,
+                    ];
+                    $fs->create_file_from_pathname($filerec, $supportfile['tmp_name']);
+                } catch (Throwable $fileerr) {
+                    // Roll back the attendance_log write so the user can retry without
+                    // leaving an orphaned mark without support.
+                    if ($existing) {
+                        $existing->statusid  = 0;
+                        $existing->remarks   = '';
+                        $existing->takenby   = 0;
+                        $DB->update_record('attendance_log', $existing);
+                    } else {
+                        $DB->delete_records('attendance_log', ['id' => $logid]);
+                    }
+                    if (function_exists('gmk_log')) {
+                        gmk_log('ERROR: mark_session_attendance file save failed session=' . $sessionid
+                            . ' student=' . $userid . ' logid=' . $logid . ' status=' . $status_key
+                            . ': ' . $fileerr->getMessage());
+                    }
+                    echo json_encode(['ok' => false, 'message' => 'No se pudo guardar el archivo de soporte. Inténtalo nuevamente.']);
+                    exit;
                 }
-                $filerec = [
-                    'contextid' => $sysctx->id,
-                    'component' => 'local_grupomakro_core',
-                    'filearea'  => 'attendance_support',
-                    'itemid'    => $logid,
-                    'filepath'  => '/',
-                    'filename'  => $storedname,
-                    'userid'    => (int)$USER->id,
-                ];
-                $fs->create_file_from_pathname($filerec, $supportfile['tmp_name']);
-            } catch (Throwable $fileerr) {
-                // Roll back the attendance_log write so the user can retry without
-                // leaving an orphaned mark without support.
-                if ($existing) {
-                    $existing->statusid  = 0;
-                    $existing->remarks   = '';
-                    $existing->takenby   = 0;
-                    $DB->update_record('attendance_log', $existing);
-                } else {
-                    $DB->delete_records('attendance_log', ['id' => $logid]);
-                }
-                if (function_exists('gmk_log')) {
-                    gmk_log('ERROR: mark_session_present file save failed session=' . $sessionid . ' student=' . $userid . ' logid=' . $logid . ': ' . $fileerr->getMessage());
-                }
-                echo json_encode(['ok' => false, 'message' => 'No se pudo guardar el archivo de soporte. Inténtalo nuevamente.']);
-                exit;
             }
 
             // Trazabilidad: emitir el evento estándar de mod_attendance para que la
@@ -943,15 +989,18 @@ if (optional_param('abs_ajax', 0, PARAM_INT)) {
                 $attevent->add_record_snapshot('attendance_sessions', $session);
                 $attevent->trigger();
                 if (function_exists('gmk_log')) {
-                    gmk_log("INFO: mark_session_present operador={$USER->id} (" . fullname($USER) . ") session={$sessionid} student={$userid} class={$classid} via absence_dashboard");
+                    gmk_log("INFO: mark_session_attendance operador={$USER->id} (" . fullname($USER)
+                        . ") session={$sessionid} student={$userid} class={$classid} status={$status_key} via absence_dashboard");
                 }
             } catch (\Throwable $attlogerr) {
                 // Nunca fallar la marca por un problema de logging; registrar el fallo.
                 if (function_exists('gmk_log')) {
-                    gmk_log("WARNING: mark_session_present event/log failed session={$sessionid} student={$userid}: " . $attlogerr->getMessage());
+                    gmk_log("WARNING: mark_session_attendance event/log failed session={$sessionid} student={$userid}: " . $attlogerr->getMessage());
                 }
             }
-            // Recalculate absences for this student in this class
+            // Recalculate absences for this student in this class.
+            // Solo cuentan como ausencia los estados con grade = 0; P/R/FJ
+            // (grade > 0) cuentan como asistido a efectos del bloqueo.
             $class_obj = $DB->get_record('gmk_class', ['id' => $classid], '*', MUST_EXIST);
             $past_sids = absd_get_class_past_session_ids($class_obj, time());
             $new_absences = 0;
@@ -968,9 +1017,12 @@ if (optional_param('abs_ajax', 0, PARAM_INT)) {
                 $new_absences = max(0, count($past_sids) - $present_count);
             }
             echo json_encode([
-                'ok' => true,
-                'new_absences' => $new_absences,
-                'logid' => $logid,
+                'ok'            => true,
+                'new_absences'  => $new_absences,
+                'logid'         => $logid,
+                'status_key'    => $status_key,
+                'acronym'       => trim((string)$target_status->acronym),
+                'status_desc'   => trim((string)$target_status->description),
             ], JSON_UNESCAPED_UNICODE);
 
         } elseif ($abs_action === 'get_attendance_marks_history') {
@@ -2194,6 +2246,8 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
 }
 .absd-session-state.present { background:#dcfce7; color:#166534; }
 .absd-session-state.absent { background:#fee2e2; color:#991b1b; }
+.absd-session-state.late { background:#fef3c7; color:#92400e; }
+.absd-session-state.excused { background:#dbeafe; color:#1e40af; }
 .absd-empty { color: #94a3b8; font-size: 12px; font-style: italic; padding: 2px 0; }
 .absd-exempt-btn { background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 5px; padding: 2px 7px; cursor: pointer; line-height: 1; }
 .absd-exempt-btn.active { background: #fef3c7; border-color: #fbbf24; }
@@ -2212,6 +2266,29 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
     transition: background .15s;
 }
 .absd-mark-present-btn:hover { background: #bbf7d0; }
+
+/* New grouped mark buttons (Presente / Retraso / Justificada) */
+.absd-mark-group {
+    display: inline-flex; gap: 4px; flex-wrap: nowrap;
+}
+.absd-mark-btn {
+    padding: 4px 8px; border-radius: 6px; font-size: 10.5px;
+    font-weight: 600; cursor: pointer; white-space: nowrap;
+    border: 1px solid transparent; line-height: 1.2;
+    transition: background .15s, border-color .15s;
+}
+.absd-mark-present {
+    background: #dcfce7; color: #166534; border-color: #86efac;
+}
+.absd-mark-present:hover { background: #bbf7d0; }
+.absd-mark-late {
+    background: #fef3c7; color: #92400e; border-color: #fde68a;
+}
+.absd-mark-late:hover { background: #fde68a; }
+.absd-mark-excused {
+    background: #dbeafe; color: #1e40af; border-color: #93c5fd;
+}
+.absd-mark-excused:hover { background: #bfdbfe; }
 </style>
 
 <div class="absd-page">
@@ -2692,15 +2769,15 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
     </div>
 </div>
 
-<!-- ── Mark present justification modal ──────────────────────────────── -->
+<!-- ── Mark attendance justification modal (present / late / excused) ─ -->
 <div id="absdMarkPresentModal" class="absd-modal-overlay">
     <div class="absd-modal" style="max-width:520px">
         <div class="absd-modal-header">
-            <h2>Justificar asistencia</h2>
+            <h2 id="absdMarkAttendanceTitle">Justificar asistencia</h2>
             <button class="absd-modal-close" onclick="absdCloseMarkPresent()">&#10005;</button>
         </div>
         <div class="absd-modal-body">
-            <p style="color:#475569;font-size:13px;margin-bottom:12px">
+            <p id="absdMarkAttendanceIntro" style="color:#475569;font-size:13px;margin-bottom:12px">
                 Ingrese la justificación y adjunte el soporte (foto o PDF) para registrar esta asistencia.
                 <strong>Ambos campos son obligatorios.</strong>
             </p>
@@ -2710,16 +2787,18 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
             <textarea id="absdJustificationText" rows="3" style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;resize:vertical;box-sizing:border-box" placeholder="Justificación obligatoria..."></textarea>
             <p id="absdJustificationError" style="color:#dc2626;font-size:12px;margin-top:4px;display:none">&#9888; La justificación es obligatoria.</p>
 
-            <label for="absdSupportFile" style="display:block;font-size:12px;font-weight:600;color:#334155;margin:14px 0 4px">
-                Soporte (PDF, JPG o PNG · máx. 10 MB) <span style="color:#dc2626">*</span>
-            </label>
-            <input type="file" id="absdSupportFile" name="support_file"
-                   accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png"
-                   style="width:100%;padding:7px;border:1px solid #cbd5e1;border-radius:6px;font-size:12.5px;box-sizing:border-box;background:#f8fafc" />
-            <p id="absdSupportInfo" style="color:#64748b;font-size:11.5px;margin-top:4px">
-                Adjunte una foto del justificante o el PDF escaneado. El archivo se almacena junto al registro de asistencia.
-            </p>
-            <p id="absdSupportError" style="color:#dc2626;font-size:12px;margin-top:4px;display:none">&#9888; El archivo de soporte es obligatorio.</p>
+            <div id="absdSupportBlock">
+                <label for="absdSupportFile" style="display:block;font-size:12px;font-weight:600;color:#334155;margin:14px 0 4px">
+                    Soporte (PDF, JPG o PNG · máx. 10 MB) <span id="absdSupportRequired" style="color:#dc2626">*</span>
+                </label>
+                <input type="file" id="absdSupportFile" name="support_file"
+                       accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png"
+                       style="width:100%;padding:7px;border:1px solid #cbd5e1;border-radius:6px;font-size:12.5px;box-sizing:border-box;background:#f8fafc" />
+                <p id="absdSupportInfo" style="color:#64748b;font-size:11.5px;margin-top:4px">
+                    Adjunte una foto del justificante o el PDF escaneado. El archivo se almacena junto al registro de asistencia.
+                </p>
+                <p id="absdSupportError" style="color:#dc2626;font-size:12px;margin-top:4px;display:none">&#9888; El archivo de soporte es obligatorio.</p>
+            </div>
         </div>
         <div style="display:flex;justify-content:flex-end;gap:8px;padding:12px 20px 20px">
             <button onclick="absdCloseMarkPresent()" style="padding:7px 16px;border:1px solid #cbd5e1;border-radius:6px;background:#f8fafc;color:#475569;cursor:pointer;font-size:13px">Cancelar</button>
@@ -2905,6 +2984,7 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
     var absdCurrentObsName        = '';
     var absdCurrentSessionsUserId = 0;
     var absdMarkPresentSession    = null;
+    var absdMarkPresentStatusKey  = 'present';
 
     function esc(str) {
         return String(str)
@@ -3106,7 +3186,11 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
                 status = status ? (acronym + ' - ' + status) : acronym;
             }
             var actionCell = !s.present
-                ? '<button class="absd-mark-present-btn" onclick="absdOpenMarkPresent(' + s.sessionid + ')">Marcar presente</button>'
+                ? '<div class="absd-mark-group">' +
+                    '<button class="absd-mark-btn absd-mark-present" onclick="absdOpenMarkPresent(' + s.sessionid + ', \'present\')" title="Marcar asistencia">&#10003; Presente</button>' +
+                    '<button class="absd-mark-btn absd-mark-late" onclick="absdOpenMarkPresent(' + s.sessionid + ', \'late\')" title="Marcar retraso">&#9201; Retraso</button>' +
+                    '<button class="absd-mark-btn absd-mark-excused" onclick="absdOpenMarkPresent(' + s.sessionid + ', \'excused\')" title="Marcar inasistencia justificada">&#128221; Justificada</button>' +
+                  '</div>'
                 : '';
 
             html += '<tr data-sessionid="' + s.sessionid + '">' +
@@ -3959,17 +4043,61 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
             .finally(function(){ btn.disabled = false; btn.textContent = 'Guardar observación'; });
     };
 
-    // ── Marcar presente ──────────────────────────────────────────────────────
-    window.absdOpenMarkPresent = function(sessionid) {
+    // ── Marcar asistencia (Presente / Retraso / Justificada) ──────────────
+    // status_key: 'present' | 'late' | 'excused'
+    //   present  → justificación + soporte OBLIGATORIOS
+    //   late     → justificación OBLIGATORIA, sin soporte
+    //   excused  → justificación + soporte OBLIGATORIOS
+    var ABSD_ATTENDANCE_LABELS = {
+        present: { title: 'Justificar asistencia',
+                   intro: 'Ingrese la justificación y adjunte el soporte (foto o PDF) para registrar esta asistencia. <strong>Ambos campos son obligatorios.</strong>',
+                   confirm: '\u2713 Confirmar asistencia',
+                   submit:  'Subiendo soporte...',
+                   stateClass: 'present', stateLabel: 'Asistencia' },
+        late:    { title: 'Registrar retraso',
+                   intro: 'Ingrese el motivo del retraso. <strong>No requiere soporte adjunto.</strong>',
+                   confirm: '\u23F1 Registrar retraso',
+                   submit:  'Registrando...',
+                   stateClass: 'late',    stateLabel: 'Retraso' },
+        excused: { title: 'Justificar inasistencia',
+                   intro: 'Ingrese la justificación y adjunte el soporte (foto o PDF) para registrar la inasistencia justificada. <strong>Ambos campos son obligatorios.</strong>',
+                   confirm: '\u270D Confirmar justificaci\u00f3n',
+                   submit:  'Subiendo soporte...',
+                   stateClass: 'excused', stateLabel: 'Justificada' }
+    };
+
+    window.absdOpenMarkPresent = function(sessionid, statusKey) {
+        statusKey = statusKey || 'present';
+        if (!ABSD_ATTENDANCE_LABELS[statusKey]) { statusKey = 'present'; }
         absdMarkPresentSession = sessionid;
+        absdMarkPresentStatusKey = statusKey;
+
+        var labels = ABSD_ATTENDANCE_LABELS[statusKey];
+        var titleEl = document.getElementById('absdMarkAttendanceTitle');
+        var introEl = document.getElementById('absdMarkAttendanceIntro');
+        var confirmBtn = document.getElementById('absdMarkPresentConfirmBtn');
+        if (titleEl)   titleEl.textContent = labels.title;
+        if (introEl)   introEl.innerHTML    = labels.intro;
+        if (confirmBtn) {
+            confirmBtn.style.background = statusKey === 'late' ? '#d97706'
+                                       : statusKey === 'excused' ? '#2563eb'
+                                       : '#16a34a';
+            confirmBtn.textContent = labels.confirm;
+        }
+
         document.getElementById('absdJustificationText').value = '';
         document.getElementById('absdJustificationError').style.display = 'none';
         var fileInput = document.getElementById('absdSupportFile');
-        if (fileInput) {
-            fileInput.value = '';
-        }
+        if (fileInput) { fileInput.value = ''; }
         var supportErr = document.getElementById('absdSupportError');
         if (supportErr) supportErr.style.display = 'none';
+
+        // El bloque de soporte se oculta cuando el status_key no lo requiere (Retraso).
+        var supportBlock = document.getElementById('absdSupportBlock');
+        if (supportBlock) {
+            supportBlock.style.display = (statusKey === 'late') ? 'none' : '';
+        }
+
         document.getElementById('absdMarkPresentModal').classList.add('absd-modal-open');
     };
 
@@ -3984,6 +4112,10 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
     };
 
     window.absdConfirmMarkPresent = function() {
+        var statusKey = absdMarkPresentStatusKey || 'present';
+        var labels = ABSD_ATTENDANCE_LABELS[statusKey] || ABSD_ATTENDANCE_LABELS.present;
+        var supportRequired = (statusKey !== 'late');
+
         var justificationEl = document.getElementById('absdJustificationText');
         var justification = justificationEl ? justificationEl.value.trim() : '';
         var fileInput = document.getElementById('absdSupportFile');
@@ -3998,28 +4130,33 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
         } else if (justificationErr) {
             justificationErr.style.display = 'none';
         }
-        if (!file) {
-            if (supportErr) supportErr.style.display = 'block';
-            hasError = true;
-        } else {
-            var maxBytes = 10 * 1024 * 1024;
-            if (file.size > maxBytes) {
+        if (supportRequired) {
+            if (!file) {
                 if (supportErr) {
-                    supportErr.textContent = '\u26A0 El archivo supera el límite de 10 MB.';
+                    supportErr.textContent = '\u26A0 El archivo de soporte es obligatorio.';
                     supportErr.style.display = 'block';
                 }
                 hasError = true;
             } else {
-                var allowed = ['application/pdf', 'image/jpeg', 'image/png'];
-                if (file.type && allowed.indexOf(file.type.toLowerCase()) === -1) {
+                var maxBytes = 10 * 1024 * 1024;
+                if (file.size > maxBytes) {
                     if (supportErr) {
-                        supportErr.textContent = '\u26A0 Tipo de archivo no permitido. Solo PDF, JPG o PNG.';
+                        supportErr.textContent = '\u26A0 El archivo supera el límite de 10 MB.';
                         supportErr.style.display = 'block';
                     }
                     hasError = true;
-                } else if (supportErr) {
-                    supportErr.textContent = '\u26A0 El archivo de soporte es obligatorio.';
-                    supportErr.style.display = 'none';
+                } else {
+                    var allowed = ['application/pdf', 'image/jpeg', 'image/png'];
+                    if (file.type && allowed.indexOf(file.type.toLowerCase()) === -1) {
+                        if (supportErr) {
+                            supportErr.textContent = '\u26A0 Tipo de archivo no permitido. Solo PDF, JPG o PNG.';
+                            supportErr.style.display = 'block';
+                        }
+                        hasError = true;
+                    } else if (supportErr) {
+                        supportErr.textContent = '\u26A0 El archivo de soporte es obligatorio.';
+                        supportErr.style.display = 'none';
+                    }
                 }
             }
         }
@@ -4028,18 +4165,21 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
         }
 
         var btn = document.getElementById('absdMarkPresentConfirmBtn');
-        btn.disabled = true; btn.textContent = 'Subiendo soporte...';
+        btn.disabled = true; btn.textContent = labels.submit;
 
         // Multipart/form-data so the PHP endpoint can read $_FILES['support_file'].
         var formData = new FormData();
         formData.append('abs_ajax', '1');
-        formData.append('abs_action', 'mark_session_present');
+        formData.append('abs_action', 'mark_session_attendance');
+        formData.append('status_key', statusKey);
         formData.append('sessionid', String(absdMarkPresentSession));
         formData.append('userid',    String(absdCurrentSessionsUserId));
         formData.append('classid',   String(currentClassId));
         formData.append('justification', justification);
         formData.append('sesskey',   SESSKEY);
-        formData.append('support_file', file, file.name || 'soporte');
+        if (file) {
+            formData.append('support_file', file, file.name || 'soporte');
+        }
 
         fetch(AJAX_URL, { method: 'POST', body: formData, credentials: 'same-origin' })
             .then(function(r){
@@ -4056,11 +4196,22 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
                 });
             })
             .then(function(data){
-                // Actualizar fila en el modal de sesiones
+                // Actualizar fila en el modal de sesiones para reflejar el nuevo estado.
                 var row = document.querySelector('#absdSessionsTbody tr[data-sessionid="' + absdMarkPresentSession + '"]');
                 if (row) {
                     var span = row.querySelector('.absd-session-state');
-                    if (span) { span.className = 'absd-session-state present'; span.textContent = 'Asistencia'; }
+                    if (span) {
+                        span.className = 'absd-session-state ' + labels.stateClass;
+                        span.textContent = labels.stateLabel;
+                    }
+                    var statusCell = row.cells[5];
+                    if (statusCell) {
+                        var newAcronym = (data.acronym || '').trim();
+                        var newDesc    = (data.status_desc || '').trim();
+                        statusCell.textContent = newAcronym
+                            ? (newDesc ? newAcronym + ' - ' + newDesc : newAcronym)
+                            : (newDesc || labels.stateLabel);
+                    }
                     var lastCell = row.cells[row.cells.length - 1];
                     if (lastCell) lastCell.innerHTML = '';
                 }
@@ -4089,7 +4240,7 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
                 absdCloseMarkPresent();
             })
             .catch(function(err){ alert('Error: ' + err.message); })
-            .finally(function(){ btn.disabled = false; btn.textContent = '\u2713 Confirmar asistencia'; });
+            .finally(function(){ btn.disabled = false; btn.textContent = labels.confirm; });
     };
 
 })();
