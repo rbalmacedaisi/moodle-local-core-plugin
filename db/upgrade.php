@@ -4131,6 +4131,26 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20261001080, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20261001081) {
+        // ── RET-01 hotfix 3: completar caps en Registros Academicos ────────────
+        // El bump 20261001080 (primer deploy del modulo) corrio
+        // assign_capabilities_to_internal_roles() y dejo a Registros Academicos
+        // sin las caps view_wdr_requests / manage_wdr_requests: el array
+        // $role_caps de gmk_registros_academicos no las incluia. Detectado por
+        // una consulta directa a isi_role_capabilities despues del primer
+        // upgrade. Este nuevo step es idempotente: assign_capability() hace
+        // UPSERT sobre (roleid, contextid, capability), asi que llamarlo de
+        // nuevo no rompe ni duplica nada. Al final, los 4 roles administrativos
+        // (gmk_director_academico, gmk_secretaria_academica, gmk_registros_academicos,
+        // gmk_director_general) tendran las 2 caps de RET-01, y los demas
+        // roles solo mantendran la cap create_wdr_request que Moodle les
+        // otorga por archetype 'user'.
+        if (get_config('local_grupomakro_core', 'version') !== false) {
+            assign_capabilities_to_internal_roles();
+        }
+        upgrade_plugin_savepoint(true, 20261001081, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

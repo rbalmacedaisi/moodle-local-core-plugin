@@ -905,6 +905,11 @@ function assign_capabilities_to_internal_roles() {
             'local/grupomakro_core:viewdiplomas',
             // Workflow 7 — View announcements only
             'local/grupomakro_core:viewannouncements',
+            // RET-01: bandeja administrativa del modulo de Retiro del Programa
+            // (anadido en 20261001080). Registros Academicos ve y gestiona
+            // las solicitudes como Secretaria y Director Academico.
+            'local/grupomakro_core:view_wdr_requests',
+            'local/grupomakro_core:manage_wdr_requests',
         ],
         'gmk_soporte_ti' => [
             // Everyone on staff lands on the academic panel after login, so the
