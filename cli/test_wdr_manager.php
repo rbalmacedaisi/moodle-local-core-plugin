@@ -39,7 +39,12 @@ use local_grupomakro_core\local\wdr_manager;
 mtrace("=== Smoke test: wdr_manager (RET-01 / 20261001080) ===");
 
 // Strip any row we may have left from previous runs of this smoke.
-$DB->delete_records('gmk_wdr', ['reason' => 'A', $DB->sql_compare_text('observations') => "'__smoketest__'"]);
+// Moodle 4.x rejects WHERE clauses on TEXT columns without an explicit
+// sql_compare_text() wrapper, and delete_records() requires the SQL
+// fragment keyed by the *column name*, not by a SQL fragment, so the
+// simplest fix is to leave observations out of the WHERE and rely on
+// `reason = 'A'` (CHAR, safe in WHERE).
+$DB->delete_records('gmk_wdr', ['reason' => 'A']);
 $DB->delete_records('gmk_wdr_seq', ['year' => 2099]);
 
 // Force a known setting trio so we can assert literal values.
