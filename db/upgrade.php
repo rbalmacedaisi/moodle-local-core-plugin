@@ -4151,6 +4151,15 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20261001081, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20261001082) {
+        // Director Academico: acceso completo a /local/grupomakro_core/pages/
+        // announcements.php (Mensajes a estudiantes). Solo tenia
+        // viewannouncements y la pagina exige manageannouncements, que era
+        // exclusiva de Bienestar. Se le concede manageannouncements.
+        assign_capabilities_to_internal_roles();
+        upgrade_plugin_savepoint(true, 20261001082, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

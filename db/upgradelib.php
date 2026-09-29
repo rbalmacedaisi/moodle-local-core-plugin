@@ -636,7 +636,12 @@ function assign_capabilities_to_internal_roles() {
             // Workflow 6 — Diplomas (manage + view)
             'local/grupomakro_core:managediplomas',
             'local/grupomakro_core:viewdiplomas',
-            // Workflow 7 — Announcements (view only — manage goes to gmk_bienestar)
+            // Workflow 7 — Announcements. 20261001082: el Director tambien
+            // administra los mensajes a estudiantes (announcements.php exige
+            // manageannouncements; con solo view la pagina le negaba el acceso).
+            // manageannouncements cubre la pagina, crear mensajes,
+            // activar/desactivar, estadisticas y lista de destinatarios.
+            'local/grupomakro_core:manageannouncements',
             'local/grupomakro_core:viewannouncements',
             // Workflow 8 — selective oversight (config + health read)
             'local/grupomakro_core:manage_financial_config',
