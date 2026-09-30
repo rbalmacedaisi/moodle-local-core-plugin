@@ -10709,6 +10709,17 @@ function local_grupomakro_create_express_activity($classid, $type, $name, $intro
         'id' => gmk_get_module_id_by_name($type)
     ];
     
+    // CRITICAL: $moduleinfo->section must be the course_sections.id (PK), NOT the
+    // ordinal $section->section. Moodle's add_moduleinfo() does
+    //     SELECT * FROM {course_sections} WHERE id = $moduleinfo->section
+    // and would silently coerce a non-existent ordinal (e.g. 1, 2, 4) into NULL
+    // when the real section ids in production are 800+, raising:
+    //   "No se puede encontrar registro de datos en la tabla course_sections ...
+    //    WHERE id IS NULL".
+    // Match the pattern already used by create_big_blue_button_activity() / gmk_copy_class_activity()
+    // which separates (int)$DB->get_field('course_sections', 'section', ['id' => ...]) into
+    // its own $classSectionNumber variable before passing it to add_moduleinfo — but here the
+    // correct field to pass is the id, not the ordinal (see bugfix 2026-10-01).
     $moduleinfo = new stdClass();
     $moduleinfo->modulename = $type;
     $moduleinfo->module     = $module->id;
@@ -10716,7 +10727,7 @@ function local_grupomakro_create_express_activity($classid, $type, $name, $intro
     $moduleinfo->intro      = $intro;
     $moduleinfo->introformat = FORMAT_HTML;
     $moduleinfo->course     = $course->id;
-    $moduleinfo->section    = $section->section;
+    $moduleinfo->section    = (int)$section->id;
     $moduleinfo->visible    = 1;
     $moduleinfo->groupmode  = 1; // Separate groups
     
@@ -10894,7 +10905,8 @@ function local_grupomakro_create_express_activity($classid, $type, $name, $intro
         $minimal->intro = $intro;
         $minimal->introformat = FORMAT_HTML;
         $minimal->course = $course->id;
-        $minimal->section = $section->section;
+        // Same fix as line 10727: pass course_sections.id (PK), not the ordinal.
+        $minimal->section = (int)$section->id;
         $minimal->visible = 1;
         $minimal->groupmode = 1;
         $minimal->grade = 100;
