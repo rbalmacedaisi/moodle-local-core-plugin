@@ -10699,7 +10699,36 @@ function local_grupomakro_create_express_activity($classid, $type, $name, $intro
     } else {
         $class = $DB->get_record('gmk_class', ['id' => $classid], '*', MUST_EXIST);
         $course = get_course($class->corecourseid);
-        $section = $DB->get_record('course_sections', ['id' => $class->coursesectionid], '*', MUST_EXIST);
+
+        // coursesectionid can legitimately be NULL for classes that were never
+        // published to a Moodle course section (e.g. classes the director set
+        // up via the importador but did not yet wire into a section). The
+        // previous MUST_EXIST against id = NULL produced the user-facing error
+        // "Backend Error [assign-fix-v5]: No se puede encontrar registro de
+        // datos en la tabla course_sections ... WHERE id IS NULL". Fall back to
+        // the first section of the course (mirrors the front-page branch
+        // above) so the activity still saves. The subsequent
+        // gmk_ensure_cmid_in_section_sequence() call (in the caller) is the
+        // proper place to relocate the cmid once the class gets a real
+        // coursesectionid; this fix only stops the crash.
+        if (!empty($class->coursesectionid)) {
+            $section = $DB->get_record('course_sections', ['id' => $class->coursesectionid], '*', MUST_EXIST);
+        } else {
+            $section = $DB->get_record_select(
+                'course_sections',
+                'course = :courseid AND section <> 0',
+                ['courseid' => (int)$course->id],
+                '*',
+                IGNORE_MULTIPLE
+            );
+            if (!$section) {
+                // Last resort: even section 0 will do, never NULL.
+                $section = $DB->get_record('course_sections', ['course' => $course->id, 'section' => 0], '*', MUST_EXIST);
+            }
+            gmk_log('WARN: local_grupomakro_create_express_activity classid=' . (int)$classid
+                . ' (corecourseid=' . (int)$course->id . ') tiene coursesectionid=NULL; usando seccion fallback id='
+                . (int)$section->id . ' ordinal=' . (int)$section->section);
+        }
 
         // Always keep an internal class category available for gradable activities.
         $targetgradecat = gmk_get_or_create_class_grade_category($class);
