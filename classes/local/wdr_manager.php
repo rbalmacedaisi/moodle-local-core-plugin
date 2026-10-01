@@ -42,6 +42,17 @@
  *   rechazada               -> rejection_reason populated
  *   cancelada               -> student cancelled before being processed
  *
+ * Processing flow (process_withdrawal):
+ *   The Procesar button in the admin inbox invokes this method which:
+ *     1. Resolves the student's `documentnumber` (custom field).
+ *     2. Calls Express GET /api/odoo/wdr/pending-balance.
+ *     3. If hasBalance && !force && retirement_block_when_has_balance -> 409
+ *        (with balance payload so the UI can prompt for force+reason).
+ *     4. Else calls Express POST /api/odoo/wdr/process-retirement with
+ *        force+reason; on success updates the wdr row to `procesada` and
+ *        snapshots the audit columns (processed_at/by, process_odoo_*,
+ *        process_balance_*, process_*_updated).
+ *
  * @package    local_grupomakro_core
  * @copyright  2026 Solutto Consulting
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -419,5 +430,255 @@ class wdr_manager {
         $row = self::get($id);
         $generator = new \local_grupomakro_core\local\pdf\ret01_pdf_generator($row);
         return $generator->render();
+    }
+
+    /**
+     * Resolves the student's `documentnumber` (Moodle custom field) for
+     * the Odoo lookup. Empty string if missing — the caller is expected
+     * to treat that as a hard error since Odoo requires a VAT match.
+     *
+     * @return string The document number, or '' if missing.
+     */
+    public static function resolve_document_number(int $userid): string {
+        global $DB;
+        try {
+            $field = $DB->get_record('user_info_field', ['shortname' => 'documentnumber']);
+        } catch (\Throwable $e) {
+            return '';
+        }
+        if (!$field) {
+            return '';
+        }
+        $rec = $DB->get_record('user_info_data',
+            ['userid' => $userid, 'fieldid' => $field->id], 'data');
+        return $rec ? trim((string)$rec->data) : '';
+    }
+
+    /**
+     * Whether the global "block processing when balance is pending" setting
+     * is ON. Defaults to ON so the institutional rule survives a missing
+     * setting during a partial upgrade.
+     */
+    public static function block_when_has_balance(): bool {
+        $v = get_config('local_grupomakro_core', 'retirement_block_when_has_balance');
+        // get_config returns '0'/'1' strings for checkboxes; truthy covers both
+        // explicit ON and the legacy unset (defaults to ON).
+        return $v === null || $v === false || $v === '' ? true : (bool)(int)$v;
+    }
+
+    /**
+     * Reads the Express proxy URL from the same setting that
+     * local_grupomakro_sync_financial_status() uses, with a hard-coded
+     * fallback so the system works even if the setting was never saved.
+     *
+     * @return string URL with no trailing slash.
+     */
+    public static function odoo_proxy_url(): string {
+        $url = get_config('local_grupomakro_core', 'odoo_proxy_url');
+        if (empty($url)) {
+            $url = 'https://lms.isi.edu.pa:4000';
+        }
+        return rtrim((string)$url, '/');
+    }
+
+    /**
+     * Reads the shared X-Api-Key with the proxy. Empty string disables
+     * the header (matches Express's no-op middleware when the env var is
+     * unset on its side too).
+     */
+    public static function odoo_proxy_api_key(): string {
+        $v = get_config('local_grupomakro_core', 'odoo_proxy_api_key');
+        return is_string($v) ? trim($v) : '';
+    }
+
+    /**
+     * Performs a JSON request against the Express proxy with X-Api-Key
+     * when configured. Returns { status, body, error }. `body` is the
+     * decoded JSON when available, null otherwise.
+     *
+     * @param string $method  GET | POST
+     * @param string $path    Path-only URL fragment (e.g. "/api/odoo/wdr/pending-balance")
+     * @param array  $query   Query string parameters
+     * @param array  $payload JSON body (POST only)
+     * @return array{status:int, body:?array, error:?string}
+     */
+    public static function call_odoo_proxy(string $method, string $path, array $query = [], array $payload = []): array {
+        $url = self::odoo_proxy_url() . $path;
+        if (!empty($query)) {
+            $url .= '?' . http_build_query($query);
+        }
+        $headers = ['Content-Type: application/json', 'Accept: application/json'];
+        $apiKey = self::odoo_proxy_api_key();
+        if ($apiKey !== '') {
+            $headers[] = 'X-Api-Key: ' . $apiKey;
+        }
+
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false); // dev/cert-rollover; proxy is internal.
+        if (strtoupper($method) === 'POST') {
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+        } else {
+            curl_setopt($ch, CURLOPT_HTTPGET, true);
+        }
+
+        $raw = curl_exec($ch);
+        $errno = curl_errno($ch);
+        $errstr = curl_error($ch);
+        $http = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($errno !== 0 || $raw === false) {
+            return [
+                'status' => 0,
+                'body' => null,
+                'error' => $errstr !== '' ? $errstr : 'curl_errno_' . $errno,
+            ];
+        }
+
+        $body = null;
+        if (is_string($raw) && $raw !== '') {
+            $decoded = json_decode($raw, true);
+            if (json_last_error() === JSON_ERROR_NONE) {
+                $body = $decoded;
+            }
+        }
+        return ['status' => $http, 'body' => $body, 'error' => null];
+    }
+
+    /**
+     * Closes the retirement loop: drives the WDR state to `procesada`
+     * after consulting Odoo for the partner's pending balance and
+     * optionally forcing the override when balance > 0.
+     *
+     * Behaviour matrix (with retirement_block_when_has_balance=ON, default):
+     *
+     *   hasBalance=false, force=*            -> call Odoo, mark procesada.
+     *   hasBalance=true,  force=false        -> moodle_exception 'pendingbalance'.
+     *   hasBalance=true,  force=true, no len -> moodle_exception 'reasonrequired'.
+     *   hasBalance=true,  force=true, len>=10-> call Odoo, mark procesada + forced_*
+     *
+     * With retirement_block_when_has_balance=OFF:
+     *
+     *   hasBalance=true, force=false        -> call Odoo (admin opts out of the
+     *                                          institutional rule), proceeds.
+     *   hasBalance=true, force=true         -> same as above + audits forced_*.
+     *
+     * @param int    $id       WDR request id.
+     * @param int    $actorid  Admin userid clicking Procesar.
+     * @param bool   $force    True to bypass the balance block.
+     * @param string|null $reason  Required when force=true, must be >= 10 chars.
+     * @return \stdClass The updated wdr row.
+     * @throws \moodle_exception on validation errors or upstream failures.
+     */
+    public static function process_withdrawal(int $id, int $actorid, bool $force = false, ?string $reason = null): \stdClass {
+        global $DB;
+
+        $row = self::get($id);
+
+        // Only certain statuses are eligible for processing. We refuse
+        // anything already closed (procesada / rechazada / cancelada) and
+        // anything still waiting for the student (solicitada /
+        // pendiente_firma_presencial / firmada_digital).
+        $eligibleStates = ['recibida_direccion_academica', 'recibida_direccion_administrativa'];
+        if (!in_array($row->status, $eligibleStates, true)) {
+            throw new \moodle_exception('invalidwdrstatus', 'local_grupomakro_core', '', $row->status);
+        }
+
+        $documentNumber = self::resolve_document_number((int)$row->userid);
+        if ($documentNumber === '') {
+            throw new \moodle_exception('wdr_missing_document_number', 'local_grupomakro_core');
+        }
+
+        // 1. Consult balance.
+        $balanceResp = self::call_odoo_proxy('GET', '/api/odoo/wdr/pending-balance',
+            ['documentNumber' => $documentNumber]);
+        if ($balanceResp['error'] !== null || $balanceResp['status'] !== 200 || !is_array($balanceResp['body'])) {
+            throw new \moodle_exception('wdr_balance_check_failed', 'local_grupomakro_core',
+                '', $balanceResp['error'] ?? ('http_' . $balanceResp['status']));
+        }
+        $balance = $balanceResp['body'];
+        $hasBalance = (bool)($balance['hasBalance'] ?? false);
+        $balanceTotal = isset($balance['total']) ? (float)$balance['total'] : 0.0;
+        $balanceCurrency = isset($balance['currency']) ? (string)$balance['currency'] : '';
+
+        // 2. Block if needed.
+        if ($hasBalance && !$force && self::block_when_has_balance()) {
+            // Throw with extra data attached so the WS can serialise the
+            // balance to the inbox UI. moodle_exception supports ->a
+            // through $a and we pass a JSON-encoded payload so the API
+            // response can hint back.
+            $ex = new \moodle_exception('wdr_pending_balance', 'local_grupomakro_core', '',
+                json_encode([
+                    'documentNumber' => $documentNumber,
+                    'total'          => $balanceTotal,
+                    'currency'       => $balanceCurrency,
+                    'invoiceCount'   => $balance['invoiceCount'] ?? 0,
+                    'overdueCount'   => $balance['overdueCount'] ?? 0,
+                    'fetchedAt'      => $balance['fetchedAt'] ?? null,
+                ]));
+            // Custom: attach the body for the inbox rendering. moodle_exception
+            // doesn't have a native extension slot, but the WS can detect
+            // this code (wdr_pending_balance) and fetch the latest balance
+            // itself, so we just propagate the message; richer payload is
+            // exposed via admin_get_request_detail() which always queries
+            // /pending-balance on the client side anyway.
+            throw $ex;
+        }
+
+        // 3. If force=true, validate the justification.
+        if ($force) {
+            $reason = trim((string)$reason);
+            if ($reason === '' || mb_strlen($reason) < 10) {
+                throw new \moodle_exception('wdr_force_reason_required', 'local_grupomakro_core');
+            }
+        } else {
+            $reason = '';
+        }
+
+        // 4. Drive the wizard. Express enforces 'pending_balance' itself
+        // (defence-in-depth) so we still pass force + reason explicitly.
+        $actor = $DB->get_record('user', ['id' => $actorid], 'id, username, email, idnumber', MUST_EXIST);
+        $procResp = self::call_odoo_proxy('POST', '/api/odoo/wdr/process-retirement', [], [
+            'documentNumber'  => $documentNumber,
+            'wdrId'           => (int)$row->id,
+            'reason'          => $reason !== '' ? $reason : 'Retiro procesado por ' . $actor->username,
+            'force'           => $force,
+            'actor_username'  => $actor->username,
+            'actor_email'     => $actor->email,
+            'actor_moodle_id' => (int)$actor->id,
+        ]);
+
+        if ($procResp['status'] !== 200 || !is_array($procResp['body']) || empty($procResp['body']['success'])) {
+            $errCode = is_array($procResp['body']) ? ($procResp['body']['error'] ?? 'unknown') : 'no_body';
+            throw new \moodle_exception('wdr_process_failed', 'local_grupomakro_core',
+                '', $errCode . '|http_' . $procResp['status']);
+        }
+        $procBody = $procResp['body'];
+
+        // 5. Persist the audit + status.
+        $now = time();
+        $row->status = 'procesada';
+        $row->processed_at = $now;
+        $row->processed_by = $actorid;
+        $row->process_odoo_partner_id = isset($procBody['partner_id']) ? (int)$procBody['partner_id'] : 0;
+        $row->process_balance_total = $balanceTotal;
+        $row->process_balance_currency = $balanceCurrency;
+        $row->process_invoices_updated = isset($procBody['invoices_updated']) ? (int)$procBody['invoices_updated'] : 0;
+        $row->process_subs_updated = isset($procBody['subscriptions_updated']) ? (int)$procBody['subscriptions_updated'] : 0;
+        if ($force) {
+            $row->forced_at = $now;
+            $row->forced_by = $actorid;
+            $row->forced_reason = $reason;
+        }
+        $row->timemodified = $now;
+        $row->usermodified = $actorid;
+
+        $DB->update_record('gmk_wdr', $row);
+        return $row;
     }
 }

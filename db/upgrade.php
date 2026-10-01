@@ -4160,6 +4160,51 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20261001082, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20261001085) {
+        // RET-01 hotfix 4: el ciclo Procesar con chequeo de balance requiere
+        // seis columnas nuevas en gmk_wdr para guardar la auditoria completa
+        // del cierre (forzado, partner Odoo, balance, contadores Odoo) y la
+        // setting retirement_block_when_has_balance que controla si el chequeo
+        // bloquea al admin antes de invocar el wizard de Odoo. Las columnas
+        // son NOT NULL false con default 0/'' para que las filas existentes
+        // (si las hubiera) no rompan el ALTER. La setting queda en ON por
+        // default para alinear con la regla institucional de no permitir
+        // retiros con deuda pendiente sin justificacion firmada.
+        $dbman = $DB->get_manager();
+        $tcratable = new xmldb_table('gmk_wdr');
+        $fieldsToAdd = [
+            ['forced_at',                XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, false, null, '0'],
+            ['forced_by',                XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, false, null, '0'],
+            ['forced_reason',            XMLDB_TYPE_TEXT,    null, null, XMLDB_NOTNULL, false, null, null],
+            ['processed_at',             XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, false, null, '0'],
+            ['processed_by',             XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, false, null, '0'],
+            ['process_odoo_partner_id',  XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, false, null, '0'],
+            ['process_balance_total',    XMLDB_TYPE_NUMBER,  '20', '2', XMLDB_NOTNULL, false, null, '0'],
+            ['process_balance_currency', XMLDB_TYPE_CHAR,    '16', null, XMLDB_NOTNULL, false, null, ''],
+            ['process_invoices_updated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, false, null, '0'],
+            ['process_subs_updated',     XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, false, null, '0'],
+        ];
+        foreach ($fieldsToAdd as $f) {
+            $fld = new xmldb_field($f[0], $f[1], $f[2], $f[3], $f[5], $f[6], $f[7], $f[8]);
+            // XMLDB pities us when the fix is an add_field on a non-null
+            // NUMBER, so we explicitly stamp the type's default. For NUMBER the
+            // only sane default is '0'.
+            if ($f[1] === XMLDB_TYPE_NUMBER) {
+                $fld->set_decimal_places(2);
+            }
+            if (!$dbman->field_exists($tcratable, $fld)) {
+                $dbman->add_field($tcratable, $fld);
+            }
+        }
+
+        // Setting por defecto: ON (bloquear retiros con balance pendiente).
+        // Un admin que quiera desactivar el bloqueo (p.ej. para limpieza
+        // masiva de cohortes cerradas) lo hace en Configuracion general.
+        set_config('retirement_block_when_has_balance', 1, 'local_grupomakro_core');
+
+        upgrade_plugin_savepoint(true, 20261001085, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

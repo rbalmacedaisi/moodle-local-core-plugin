@@ -1045,6 +1045,12 @@ if ($hassiteconfig) {
             '2026.3',
             PARAM_TEXT
         ));
+        $settingspage->add(new admin_setting_configcheckbox(
+            'local_grupomakro_core/retirement_block_when_has_balance',
+            new lang_string('retirement_block_when_has_balance', 'local_grupomakro_core'),
+            new lang_string('retirement_block_when_has_balance_desc', 'local_grupomakro_core'),
+            1
+        ));
     }
 
     // Add the page to the settings tree.

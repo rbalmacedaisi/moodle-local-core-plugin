@@ -1942,6 +1942,15 @@ $functions = array(
         'ajax'        => true,
         'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
     ],
+    'local_grupomakro_wdr_admin_process_withdrawal' => [
+        'classname'   => 'local_grupomakro_core\external\wdr\admin_process_withdrawal',
+        'methodname'  => 'execute',
+        'description' => 'Close the retirement loop: drives the Odoo wizard (with balance check + optional force override). Marks the request as procesada and snapshots the audit columns.',
+        'type'        => 'write',
+        'capabilities'=> 'local/grupomakro_core:manage_wdr_requests',
+        'ajax'        => true,
+        'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
+    ],
     'local_grupomakro_wdr_get_scanned' => [
         'classname'   => 'local_grupomakro_core\external\wdr\get_scanned',
         'methodname'  => 'execute',

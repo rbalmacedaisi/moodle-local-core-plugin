@@ -1576,6 +1576,16 @@
         <FIELD NAME="received_admin_by"        TYPE="int"  LENGTH="10"  NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="userid de quien registro la firma de Direccion Administrativa."/>
         <FIELD NAME="scanned_pdf_path"         TYPE="char" LENGTH="255" NOTNULL="false" DEFAULT="" SEQUENCE="false" COMMENT="Ruta pluginfile del PDF firmado escaneado, archivado en filearea withdrawal_requests."/>
         <FIELD NAME="rejection_reason"         TYPE="text"                NOTNULL="false"                SEQUENCE="false"/>
+        <FIELD NAME="forced_at"                TYPE="int"  LENGTH="10"  NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="Unix ts cuando el admin forzo el procesamiento con balance pendiente."/>
+        <FIELD NAME="forced_by"                TYPE="int"  LENGTH="10"  NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="userid del admin que forzo el procesamiento."/>
+        <FIELD NAME="forced_reason"            TYPE="text"                NOTNULL="false"                SEQUENCE="false" COMMENT="Justificacion obligatoria cuando se fuerza el procesamiento con balance pendiente."/>
+        <FIELD NAME="processed_at"             TYPE="int"  LENGTH="10"  NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="Unix ts cuando el WDR manager completo el ciclo (despues de invocar el wizard Odoo)."/>
+        <FIELD NAME="processed_by"             TYPE="int"  LENGTH="10"  NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="userid del admin que hizo click en Procesar."/>
+        <FIELD NAME="process_odoo_partner_id"   TYPE="int"  LENGTH="10"  NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="res.partner.id de Odoo al momento del procesamiento (audit)."/>
+        <FIELD NAME="process_balance_total"     TYPE="number" LENGTH="20" DECIMALS="2" NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="Total del balance pendiente en el momento del procesamiento (en la moneda que reporto Odoo)."/>
+        <FIELD NAME="process_balance_currency"  TYPE="char" LENGTH="16"  NOTNULL="false" DEFAULT="" SEQUENCE="false" COMMENT="Codigo de moneda del balance que Odoo devolvio al momento del procesamiento."/>
+        <FIELD NAME="process_invoices_updated"  TYPE="int"  LENGTH="10"  NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="Cantidad de account.move que el wizard Odoo marco como retiradass."/>
+        <FIELD NAME="process_subs_updated"      TYPE="int"  LENGTH="10"  NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="Cantidad de suscripciones que el wizard Odoo desactivo al procesar el retiro."/>
         <FIELD NAME="timecreated"              TYPE="int"  LENGTH="10"  NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="timemodified"             TYPE="int"  LENGTH="10"  NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="usermodified"             TYPE="int"  LENGTH="10"  NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>

@@ -1410,9 +1410,18 @@ $string['retirement_request_pad_length'] = 'Ceros a la izquierda del correlativo
 $string['retirement_request_pad_length_desc'] = 'Cantidad de dígitos del correlativo: 4 = "0001", 5 = "00001". Mínimo 1, recomendado 4.';
 $string['retirement_template_version'] = 'Versión del formato RET-01';
 $string['retirement_template_version_desc'] = 'Etiqueta de versión que aparece debajo del identificador en el PDF (ej. "2026.3").';
+$string['retirement_block_when_has_balance'] = 'Bloquear Procesar cuando hay deuda pendiente';
+$string['retirement_block_when_has_balance_desc'] = 'Si está activo (recomendado), el botón Procesar de la bandeja administrativa se niega a invocar el retiro en Odoo mientras el estudiante tenga saldo pendiente (facturas posted y payment_state not_paid/partial). El admin puede forzar el cierre con justificación firmada. Desactívalo solo para limpiezas masivas donde ya sepas que los saldos son cero.';
 $string['wdr_title'] = 'Solicitud de Retiro del Programa';
 $string['wdr_menu_title'] = 'Gestiones Administrativas';
 $string['wdr_submenu_cartas'] = 'Solicitudes de Cartas';
+$string['wdr_submenu_retiros'] = 'Solicitudes de Retiro';
+$string['invalidwdrstatus'] = 'Esta solicitud no se puede procesar en su estado actual (estado: {$a}). Solo se procesan solicitudes recibidas por la Dirección Académica o la Dirección Administrativa.';
+$string['wdr_missing_document_number'] = 'El estudiante no tiene un número de documento registrado. Sincronízalo desde Odoo antes de procesar el retiro.';
+$string['wdr_balance_check_failed'] = 'No se pudo consultar el saldo pendiente en Odoo: {$a}. Verifica el proxy y la conectividad.';
+$string['wdr_pending_balance'] = 'El estudiante tiene saldo pendiente en Odoo. Para procesar el retiro debes marcar "Forzar con justificación" e indicar el motivo (mínimo 10 caracteres). Detalle: {$a}';
+$string['wdr_force_reason_required'] = 'Cuando fuerzas un retiro con saldo pendiente, la justificación es obligatoria y debe tener al menos 10 caracteres.';
+$string['wdr_process_failed'] = 'El proxy rechazó el procesamiento del retiro (error={$a}). Verifica el detalle en el log.';
 $string['wdr_submenu_retiro'] = 'Solicitud de Retiro';
 $string['wdr_step_notice'] = 'Aviso importante';
 $string['wdr_step_notice_text'] = 'Esta solicitud es un paso formal para el retiro del programa. Lea los puntos siguientes antes de continuar: el retiro surte efecto solo cuando Dirección Académica y Dirección Administrativa registran la firma y el sello de recibido, y el ISI no realiza devoluciones de dinero por matrícula ni por mensualidades, salvo las opciones señaladas en la sección 3 del formulario.';
