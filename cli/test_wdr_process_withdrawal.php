@@ -35,8 +35,14 @@ class wdr_proxy_mock {
         self::$queue = [];
         self::$error = null;
     }
-    public static function respond(...) {
-        foreach (func_get_args() as $a) self::$queue[] = $a;
+    public static function respond($response) {
+        // Single-arg form to stay compatible with PHP <5.6 variadics.
+        // Call once per expected call. To queue multiple, call repeatedly
+        // before invoking the method under test.
+        self::$queue[] = $response;
+    }
+    public static function setQueue(array $responses) {
+        self::$queue = $responses;
     }
     public static function fail($err) {
         self::$error = $err;
@@ -52,24 +58,24 @@ $rc = new ReflectionMethod('local_grupomakro_core\\local\\wdr_manager', 'call_od
 
 if (!class_exists('local_grupomakro_core\\local\\wdr_manager_test_proxy')) {
     eval('namespace local_grupomakro_core\\local; class wdr_manager_test_proxy extends wdr_manager {
-        public static function call_odoo_proxy(string $method, string $path, array $query = [], array $payload = []) {
-            if (wdr_proxy_mock::$error !== null) {
-                $err = wdr_proxy_mock::$error;
-                wdr_proxy_mock::$error = null;
-                return ["status" => 0, "body" => null, "error" => $err];
+        public static function call_odoo_proxy(string $method, string $path, array $query = array(), array $payload = array()): array {
+            if (\\wdr_proxy_mock::$error !== null) {
+                $err = \\wdr_proxy_mock::$error;
+                \\wdr_proxy_mock::$error = null;
+                return array("status" => 0, "body" => null, "error" => $err);
             }
-            if (!empty(wdr_proxy_mock::$queue)) {
-                $r = array_shift(wdr_proxy_mock::$queue);
+            if (!empty(\\wdr_proxy_mock::$queue)) {
+                $r = array_shift(\\wdr_proxy_mock::$queue);
                 return $r;
             }
             // Default: success stub.
-            return ["status" => 200, "body" => [
+            return array("status" => 200, "body" => array(
                 "success" => true, "action" => "retiro",
                 "partner_id" => 17, "partner_name" => "Mock Student",
                 "hasBalance" => false, "forced" => false,
                 "invoices_updated" => 1, "subscriptions_updated" => 1,
                 "moodle_updated" => true,
-            ], "error" => null];
+            ), "error" => null);
         }
     }');
 }

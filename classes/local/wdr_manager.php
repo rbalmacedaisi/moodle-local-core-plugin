@@ -595,7 +595,7 @@ class wdr_manager {
         }
 
         // 1. Consult balance.
-        $balanceResp = self::call_odoo_proxy('GET', '/api/odoo/wdr/pending-balance',
+        $balanceResp = static::call_odoo_proxy('GET', '/api/odoo/wdr/pending-balance',
             ['documentNumber' => $documentNumber]);
         if ($balanceResp['error'] !== null || $balanceResp['status'] !== 200 || !is_array($balanceResp['body'])) {
             throw new \moodle_exception('wdr_balance_check_failed', 'local_grupomakro_core',
@@ -643,7 +643,7 @@ class wdr_manager {
         // 4. Drive the wizard. Express enforces 'pending_balance' itself
         // (defence-in-depth) so we still pass force + reason explicitly.
         $actor = $DB->get_record('user', ['id' => $actorid], 'id, username, email, idnumber', MUST_EXIST);
-        $procResp = self::call_odoo_proxy('POST', '/api/odoo/wdr/process-retirement', [], [
+        $procResp = static::call_odoo_proxy('POST', '/api/odoo/wdr/process-retirement', [], [
             'documentNumber'  => $documentNumber,
             'wdrId'           => (int)$row->id,
             'reason'          => $reason !== '' ? $reason : 'Retiro procesado por ' . $actor->username,
