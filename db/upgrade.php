@@ -4173,25 +4173,22 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         $dbman = $DB->get_manager();
         $tcratable = new xmldb_table('gmk_wdr');
         $fieldsToAdd = [
-            ['forced_at',                XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, false, null, '0'],
-            ['forced_by',                XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, false, null, '0'],
+            ['forced_at',                XMLDB_TYPE_INTEGER, '10',  null, XMLDB_NOTNULL, false, null, '0'],
+            ['forced_by',                XMLDB_TYPE_INTEGER, '10',  null, XMLDB_NOTNULL, false, null, '0'],
             ['forced_reason',            XMLDB_TYPE_TEXT,    null, null, XMLDB_NOTNULL, false, null, null],
-            ['processed_at',             XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, false, null, '0'],
-            ['processed_by',             XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, false, null, '0'],
-            ['process_odoo_partner_id',  XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, false, null, '0'],
-            ['process_balance_total',    XMLDB_TYPE_NUMBER,  '20', '2', XMLDB_NOTNULL, false, null, '0'],
-            ['process_balance_currency', XMLDB_TYPE_CHAR,    '16', null, XMLDB_NOTNULL, false, null, ''],
-            ['process_invoices_updated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, false, null, '0'],
-            ['process_subs_updated',     XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, false, null, '0'],
+            ['processed_at',             XMLDB_TYPE_INTEGER, '10',  null, XMLDB_NOTNULL, false, null, '0'],
+            ['processed_by',             XMLDB_TYPE_INTEGER, '10',  null, XMLDB_NOTNULL, false, null, '0'],
+            ['process_odoo_partner_id',  XMLDB_TYPE_INTEGER, '10',  null, XMLDB_NOTNULL, false, null, '0'],
+            ['process_balance_total',    XMLDB_TYPE_NUMBER,  '20,2',null, XMLDB_NOTNULL, false, null, '0'],
+            ['process_balance_currency', XMLDB_TYPE_CHAR,    '16',  null, XMLDB_NOTNULL, false, null, ''],
+            ['process_invoices_updated', XMLDB_TYPE_INTEGER, '10',  null, XMLDB_NOTNULL, false, null, '0'],
+            ['process_subs_updated',     XMLDB_TYPE_INTEGER, '10',  null, XMLDB_NOTNULL, false, null, '0'],
         ];
         foreach ($fieldsToAdd as $f) {
-            $fld = new xmldb_field($f[0], $f[1], $f[2], $f[3], $f[5], $f[6], $f[7], $f[8]);
-            // XMLDB pities us when the fix is an add_field on a non-null
-            // NUMBER, so we explicitly stamp the type's default. For NUMBER the
-            // only sane default is '0'.
-            if ($f[1] === XMLDB_TYPE_NUMBER) {
-                $fld->set_decimal_places(2);
-            }
+            // xmldb_field::__construct signature is (name, type, precision,
+            // unsigned, notnull, sequence, default, previous). The precision
+            // for NUMBER accepts "length,decimals" combined.
+            $fld = new xmldb_field($f[0], $f[1], $f[2], $f[3], $f[4], $f[6], $f[7], $f[8]);
             if (!$dbman->field_exists($tcratable, $fld)) {
                 $dbman->add_field($tcratable, $fld);
             }
