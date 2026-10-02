@@ -328,6 +328,7 @@ Vue.component('psychology-panel', {
           :headers="[
             { text: 'Fecha', value: 'appointment_at' },
             { text: 'Estudiante', value: 'student_fullname' },
+            { text: 'Teléfono', value: 'student_phone1', sortable: false },
             { text: 'Psicólogo', value: 'psychologist_name' },
             { text: 'Modalidad', value: 'modality' },
             { text: 'Estado', value: 'status' },
@@ -342,6 +343,11 @@ Vue.component('psychology-panel', {
           <template v-slot:item.student_fullname="{ item }">
             {{ item.student_firstname }} {{ item.student_lastname }}
             <div class="caption grey--text">{{ item.student_email }}</div>
+          </template>
+          <template v-slot:item.student_phone1="{ item }">
+            <div v-if="item.student_phone1">{{ item.student_phone1 }}</div>
+            <div v-else-if="item.student_phone2" class="grey--text">{{ item.student_phone2 }}</div>
+            <span v-else class="grey--text text--lighten-2 caption">—</span>
           </template>
           <template v-slot:item.modality="{ item }">{{ modalityLabel(item.modality) }}</template>
           <template v-slot:item.status="{ item }">

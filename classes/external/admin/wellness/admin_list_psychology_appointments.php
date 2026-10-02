@@ -75,12 +75,14 @@ class admin_list_psychology_appointments extends external_api {
         if (!empty($userIds)) {
             [$insql, $inparams] = $DB->get_in_or_equal($userIds, SQL_PARAMS_NAMED, 'uid');
             foreach ($DB->get_records_sql(
-                "SELECT id, firstname, lastname, email FROM {user} WHERE id $insql", $inparams
+                "SELECT id, firstname, lastname, email, phone1, phone2 FROM {user} WHERE id $insql", $inparams
             ) as $u) {
                 $students[(int)$u->id] = [
                     'firstname' => (string)$u->firstname,
                     'lastname'  => (string)$u->lastname,
                     'email'     => (string)$u->email,
+                    'phone1'    => (string)($u->phone1 ?? ''),
+                    'phone2'    => (string)($u->phone2 ?? ''),
                 ];
             }
         }
@@ -93,6 +95,8 @@ class admin_list_psychology_appointments extends external_api {
                 'student_firstname'   => (string)($s['firstname'] ?? ''),
                 'student_lastname'    => (string)($s['lastname'] ?? ''),
                 'student_email'       => (string)($s['email'] ?? ''),
+                'student_phone1'      => (string)($s['phone1'] ?? ''),
+                'student_phone2'      => (string)($s['phone2'] ?? ''),
                 'slotid'              => (int)$r->slotid,
                 'psychologist_userid' => (int)$r->psychologist_userid,
                 'psychologist_name'   => (string)$r->psychologist_name,
@@ -127,6 +131,8 @@ class admin_list_psychology_appointments extends external_api {
             'student_firstname'   => new external_value(PARAM_TEXT,'Student firstname'),
             'student_lastname'    => new external_value(PARAM_TEXT,'Student lastname'),
             'student_email'       => new external_value(PARAM_TEXT,'Student email'),
+            'student_phone1'      => new external_value(PARAM_TEXT,'Student phone1 (moodle user.phone1)'),
+            'student_phone2'      => new external_value(PARAM_TEXT,'Student phone2 (moodle user.phone2)'),
             'slotid'              => new external_value(PARAM_INT,  'Slot id (0 when rescheduled ad-hoc)'),
             'psychologist_userid' => new external_value(PARAM_INT,  'Specialist userid'),
             'psychologist_name'   => new external_value(PARAM_TEXT,'Specialist display name'),
