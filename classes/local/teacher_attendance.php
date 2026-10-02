@@ -88,7 +88,7 @@ class teacher_attendance {
         require_capability('mod/attendance:takeattendances', $context);
 
         // And the acting user must actually run this class (admins excepted).
-        if (!is_siteadmin() && !\gmk_user_is_class_instructor_or_support((int)$USER->id, (int)$class->id)) {
+        if (!is_siteadmin() && !\gmk_user_is_class_instructor_or_support($class, (int)$USER->id)) {
             throw new \moodle_exception('No es docente de esta clase.');
         }
 
