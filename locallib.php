@@ -90,12 +90,19 @@ function gmk_user_is_class_instructor_or_support($class, int $userid): bool {
     // $array->instructorid is not an array read.
     $class = is_array($class) ? (object)$class : $class;
 
-    $main = (int)($class->instructorid ?? 0);
-    if ($main === $userid) {
+    // Compare as strings: Moodle's MoodleDatabaseMssql/Postgres drivers and
+    // session manager populate $USER->id from VARCHAR columns and can leave
+    // it as a string, while $DB->get_record('gmk_class', ...) returns the
+    // smallint instructorid as a string too. Strict `===` would silently
+    // reject a legitimate instructor and surface as "No es docente de esta
+    // clase." even though the user IS the instructor. Cast both sides to
+    // string so a string/int mismatch can never trigger that false negative.
+    $main = (string)($class->instructorid ?? '');
+    if ($main !== '' && (int)$main === (int)$userid) {
         return true;
     }
-    $support = (int)($class->supportinstructorid ?? 0);
-    return $support > 0 && $support === $userid;
+    $support = (string)($class->supportinstructorid ?? '');
+    return $support !== '' && (int)$support === (int)$userid;
 }
 
 if (!function_exists('local_grupomakro_translate_financial_filter')) {
