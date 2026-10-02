@@ -9,3 +9,9 @@ tmp/
 # Throwaway CLI one-off diagnostics (e.g. ad-hoc SQL probes). Don't commit
 # these; rerun via cli/ snapshots / debug paths instead.
 cli/diagnostic_*.php
+
+# Audit reports (Excel reports) and Excel's lock files (`~$filename.xlsx`).
+# Regenerate from the query in docs/staging if needed; do not commit.
+cli/*.xlsx
+cli/~$*
+cli/_archived/
