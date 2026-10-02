@@ -6784,11 +6784,13 @@ try {
 
         case 'local_grupomakro_get_instructors_with_disponibility':
             // This feeds the instructor filter on schedules.php, which is gated by
-            // manage_schedules. Testing is_siteadmin() alone answered 'forbidden'
-            // to Registros Academicos, Secretaria, Bienestar and the Director, so
-            // the dropdown stayed empty for everyone but a site admin.
+            // view_schedules (lectura). manage_schedules (escritura) tambien cuenta
+            // para mantener a los roles con escritura (Director, Bienestar,
+            // Registros, Secretaria, Soporte TI) que ya tenian acceso antes de
+            // anadirse view_schedules.
             if (!is_siteadmin()
-                    && !has_capability('local/grupomakro_core:manage_schedules', $context)) {
+                    && !has_capability('local/grupomakro_core:manage_schedules', $context)
+                    && !has_capability('local/grupomakro_core:view_schedules', $context)) {
                 $response = ['status' => 'error', 'message' => 'forbidden'];
                 break;
             }

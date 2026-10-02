@@ -4202,6 +4202,22 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20261001085, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20261001086) {
+        // Psicologo/a: acceso de solo lectura a schedules.php y al calendario
+        // global que pinta. Hasta ahora el rol solo veia el panel academico
+        // y la agenda psicologica; quedaba fuera del horario de clases aunque
+        // lo necesitaba para coordinarse con los estudiantes. Se crea la
+        // capability view_schedules (read, archetype user) en db/access.php
+        // y se anade al bundle; manage_schedules (escritura) NO se concede,
+        // asi que las acciones de copy/delete/reschedule siguen bloqueadas en
+        // db/services.php y en el require_capability() de cada WS.
+        // assign_capabilities_to_internal_roles() es idempotente y corre
+        // con $overwrite=false: solo anade, no revoca.
+        assign_capabilities_to_internal_roles();
+
+        upgrade_plugin_savepoint(true, 20261001086, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

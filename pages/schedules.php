@@ -24,7 +24,12 @@
 
 require_once(__DIR__ . '/../../../config.php');
 require_login();
-require_capability('local/grupomakro_core:manage_schedules', context_system::instance());
+// Acceso de lectura: el Psicologo/a y quien tenga view_schedules pueden
+// entrar a ver y filtrar el calendario de clases. La escritura (copiar,
+// borrar, reprogramar sesiones) sigue gateada por manage_schedules en
+// services.php y en los require_capability() de los propios WS, asi que
+// esta pagina solo controla que el usuario pueda VERLA.
+require_capability('local/grupomakro_core:view_schedules', context_system::instance());
 
 require_once($CFG->libdir . '/adminlib.php');
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
@@ -49,14 +54,19 @@ $token    = json_encode((is_string($rawToken) && $rawToken !== '') ? $rawToken :
 $rawTheme = json_decode(get_theme_token());
 $themeToken = json_encode((is_string($rawTheme) && $rawTheme !== '') ? $rawTheme : '');
 
-// Access to this page is already gated by manage_schedules above. $userRole
+// Access to this page is already gated by view_schedules above. $userRole
 // only decides the FILTER: 'admin' sees every class, 'teacher' sees their own.
-// It used to be is_siteadmin() or a role whose shortname contains "teacher",
-// which bypasses the capability system entirely - so Registros Academicos,
-// Secretaria Academica, Bienestar and even the Director Academico matched
-// neither branch, fell into the exception below and got bounced to the
-// academic panel instead of seeing the schedules.
-$userRole = (is_siteadmin() || has_capability('local/grupomakro_core:manage_schedules', $context))
+// Se concede 'admin' a quien ademas tenga manage_schedules (escritura) o sea
+// siteadmin; el Psicologo/a, que solo tiene view_schedules, tambien recibe
+// 'admin' para ver el calendario global, pero sus llamadas de escritura
+// (copy/delete/reschedule) seran rechazadas por el gate de manage_schedules
+// en services.php. Sin esto el Psicologo/a entraria y la pagina se
+// renderizaria con su propio userid, devolviendo 0 eventos (ninguna clase
+// propia) y un calendario vacio, igual que les pasaba a Registros y
+// Bienestar antes de la PR 20261001044.
+$userRole = (is_siteadmin()
+    || has_capability('local/grupomakro_core:manage_schedules', $context)
+    || has_capability('local/grupomakro_core:view_schedules', $context))
     ? 'admin' : false;
 
 if (!$userRole) {

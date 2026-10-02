@@ -214,9 +214,16 @@ function local_grupomakro_core_extend_navigation(global_navigation $navigation) 
             get_string('admin_category_label', $pluginname) => [
                 ['view_academic_panel', 'academicpanel.php', '🎯 ' . get_string('academic_director_panel', $pluginname)],
                 ['view_classmanagement', 'classmanagement.php', '📘 ' . get_string('class_management', $pluginname)],
-                ['manage_schedules', 'schedules.php', '🗓️ ' . get_string('class_schedules', $pluginname)],
-                ['manage_schedules', 'schedulepanel.php', '🕒 ' . get_string('schedules_panel', $pluginname)],
-                ['manage_schedules', 'schedule_weekly_view.php', '📅 Vista Semanal de Horarios'],
+                // Las 3 paginas de horarios exponen la misma informacion (calendario
+                // global, panel y vista semanal). El gate comun es view_schedules
+                // (lectura) para que roles como el Psicologo/a puedan verlas y
+                // filtrarlas; manage_schedules (escritura) sigue contando porque
+                // has_capability() evalua cada entrada y un rol con escritura
+                // cumple el filtro de lectura. La escritura de sesiones sigue
+                // exigiendo manage_schedules dentro de cada web service.
+                ['view_schedules', 'schedules.php', '🗓️ ' . get_string('class_schedules', $pluginname)],
+                ['view_schedules', 'schedulepanel.php', '🕒 ' . get_string('schedules_panel', $pluginname)],
+                ['view_schedules', 'schedule_weekly_view.php', '📅 Vista Semanal de Horarios'],
                 ['manage_teacher_availability', 'availabilitypanel.php', '🧑‍🏫 ' . get_string('availability_panel', $pluginname)],
                 ['manage_teacher_availability', 'availability.php', '📆 ' . get_string('availability_calendar', $pluginname)],
                 ['manage_teachers', 'teachers.php', '👩‍🏫 ' . get_string('admin_teachers_management', $pluginname)],

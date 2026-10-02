@@ -1036,6 +1036,14 @@ function assign_capabilities_to_internal_roles() {
             // view capability goes to every operational role even when the rest
             // of that workflow does not.
             'local/grupomakro_core:view_academic_panel',
+            // Acceso de SOLO LECTURA a schedules.php y al calendario global
+            // que la pagina pinta. El Psicologo/a entra a ver y filtrar los
+            // horarios de las clases (acompanamiento de estudiantes) sin
+            // capacidad de modificarlos: copy_activity, check_copy_conflicts,
+            // delete_session, approve_course_class_schedules,
+            // save_generation_result, etc. siguen exigiendo manage_schedules
+            // en db/services.php y en el require_capability() de cada WS.
+            'local/grupomakro_core:view_schedules',
             // Workflow 7 — Psicología: solo la agenda psicológica. No
             // puede crear eventos, convenios ni gestionar el resto del
             // módulo (eso queda en manos del Coordinador de Bienestar).

@@ -228,6 +228,16 @@ $capabilities = array(
         'captype' => 'write', 'contextlevel' => CONTEXT_SYSTEM,
         'archetypes' => array('manager' => CAP_ALLOW),
     ),
+    // Lectura del calendario global de clases (schedules.php) y de los web
+    // services de solo lectura que lo alimentan. NO habilita los de
+    // escritura (copy_activity, check_copy_conflicts, delete_session,
+    // approve_course_class_schedules, save_generation_result, ...): esos
+    // siguen exigiendo manage_schedules. Usado por el Psicologo/a para
+    // ver y filtrar horarios de las clases sin capacidad de modificarlos.
+    'local/grupomakro_core:view_schedules' => array(
+        'captype' => 'read', 'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array('user' => CAP_ALLOW),
+    ),
     'local/grupomakro_core:manage_teachers' => array(
         'captype' => 'write', 'contextlevel' => CONTEXT_SYSTEM,
         'archetypes' => array('manager' => CAP_ALLOW),

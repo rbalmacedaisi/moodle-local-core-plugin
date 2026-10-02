@@ -79,11 +79,15 @@ class get_calendar_events extends external_api
             // the Director hold manage_schedules and open schedules.php, but this
             // endpoint scoped them to their own userid — and since none of them
             // teaches, it returned zero events and the page rendered with no
-            // cards. manage_schedules is exactly the capability schedules.php
-            // itself requires, so it is the right test here too.
+            // cards. manage_schedules es la capability de escritura; view_schedules
+            // es la de lectura, anadida para que el Psicologo/a pueda ver y
+            // filtrar el calendario sin capacidad de modificarlo. Cualquiera
+            // de las dos (o siteadmin) habilita el alcance global aqui.
             $isadmin = $currentuserid > 0
                 && (is_siteadmin($currentuserid)
                     || has_capability('local/grupomakro_core:manage_schedules',
+                        \context_system::instance(), $currentuserid)
+                    || has_capability('local/grupomakro_core:view_schedules',
                         \context_system::instance(), $currentuserid));
 
             // Admin behavior:
