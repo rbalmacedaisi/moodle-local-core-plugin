@@ -2287,14 +2287,25 @@ try {
                 $DB->set_field('gmk_module_enrollment', 'status',       'completed', ['id' => $enrollment_id]);
                 $DB->set_field('gmk_module_enrollment', 'timemodified', $now_t,      ['id' => $enrollment_id]);
 
+                // Close the module class so it stops appearing in module_management and any
+                // pending-grade widgets. Without this, approved modules stay listed as
+                // open even after every student has been completed.
+                if ($mod_class && (int)$mod_class->id > 0 && empty($mod_class->closed)) {
+                    $DB->set_field('gmk_class', 'closed', 1, ['id' => (int)$mod_class->id]);
+                }
+
                 // Update gmk_course_progre with the resolved status and grade. The row is
-                // normally the one bound to this class, but enrollments created before the
-                // progress row was reused left it unbound, so fall back to the student's row
-                // for this subject inside a plan that is actually theirs.
+                // normally the one bound to this class. If none exists, fall back to the
+                // student's row in their REAL plan (a row with learningplanid=0 is an
+                // orphan from the old enroll_module bug and must NOT be updated).
                 $progre = $DB->get_record('gmk_course_progre',
                     ['userid' => (int)$enrollment_rec->userid, 'classid' => (int)$enrollment_rec->classid],
                     'id, status');
                 if (!$progre && $mod_class && (int)$mod_class->corecourseid > 0) {
+                    // Prefer the row that belongs to the student's real plan (matches
+                    // local_learning_users.status='activo' for the same user). Rows with
+                    // learningplanid=0 are orphan side-effects of the pre-2026-09-08
+                    // enroll_module bug — they must NOT receive the resolved grade.
                     $progre = $DB->get_record_sql(
                         "SELECT p.id, p.status
                            FROM {gmk_course_progre} p
@@ -2302,10 +2313,25 @@ try {
                                 AND lu.learningplanid = p.learningplanid
                                 AND lu.status = 'activo'
                           WHERE p.userid = :uid AND p.courseid = :cid
+                            AND p.learningplanid > 0
                        ORDER BY p.id ASC",
                         ['uid' => (int)$enrollment_rec->userid, 'cid' => (int)$mod_class->corecourseid],
                         IGNORE_MULTIPLE
                     );
+                    if (!$progre) {
+                        // Student isn't active in any plan for this subject — keep the
+                        // legacy fallback to any non-zero-planid row to avoid losing the
+                        // grade write, but still skip the orphan (learningplanid=0).
+                        $progre = $DB->get_record_sql(
+                            "SELECT p.id, p.status
+                               FROM {gmk_course_progre} p
+                              WHERE p.userid = :uid AND p.courseid = :cid
+                                AND p.learningplanid > 0
+                           ORDER BY p.id ASC",
+                            ['uid' => (int)$enrollment_rec->userid, 'cid' => (int)$mod_class->corecourseid],
+                            IGNORE_MULTIPLE
+                        );
+                    }
                 }
                 if ($progre && $module_grade !== null) {
                     $new_status = gmk_classify_student_grade($module_grade, 0);
@@ -2315,6 +2341,13 @@ try {
                           WHERE id = :id",
                         ['s' => $new_status, 'g' => $module_grade, 't' => $now_t, 'id' => $progre->id]
                     );
+                    // Now that the canonical row carries the resolved grade, drop any
+                    // orphan side-effect rows for the same (user, course) that the old
+                    // enroll_module bug left behind.
+                    $DB->delete_records('gmk_course_progre',
+                        ['userid' => (int)$enrollment_rec->userid,
+                         'courseid' => (int)$mod_class->corecourseid,
+                         'learningplanid' => 0]);
                 }
 
                 $grade_msg = $module_grade !== null
