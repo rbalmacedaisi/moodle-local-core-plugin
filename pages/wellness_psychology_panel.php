@@ -65,6 +65,24 @@ echo <<<EOT
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <style>
   .theme--light.v-application { background: transparent !important; }
+  /* Reason preview dialog (RF-09.3). El link en la celda de la agenda se
+     renderiza como una sola línea truncada, pero con cursor pointer y color
+     secundario para invitar a hacer clic. El motivo dentro del modal respeta
+     saltos de línea y permite seleccionar el texto. */
+  .reason-link {
+    cursor: pointer;
+    color: #1976d2;
+    text-decoration: none;
+    vertical-align: bottom;
+  }
+  .reason-link:hover { text-decoration: underline; }
+  .reason-full {
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 15px;
+    line-height: 1.5;
+    user-select: text;
+  }
 </style>
 <script>
   var ajaxUrl = $ajaxUrl;

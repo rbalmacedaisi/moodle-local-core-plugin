@@ -35,6 +35,10 @@ Vue.component('psychology-panel', {
             statusReason: '',
             statusNotes: '',
             statusSaving: false,
+            // Reason preview dialog (RF-09.3): abre el motivo completo sin
+            // truncarlo en la tabla de la agenda.
+            reasonDialog: false,
+            reasonAppt: null,
             // Slot dialog
             slotDialog: false,
             slotSaving: false,
@@ -179,6 +183,17 @@ Vue.component('psychology-panel', {
             this.statusReason = ''
             this.statusNotes = ''
             this.statusDialog = true
+        },
+        openReasonDialog(a) {
+            this.reasonAppt = a
+            this.reasonDialog = true
+        },
+        closeReasonDialog() {
+            this.reasonDialog = false
+            // No limpiamos reasonAppt a null inmediatamente: v-card-title usa v-if
+            // y mientras el modal cierra (animación) el v-if puede parpadear.
+            // Se limpia tras el cierre para que la próxima apertura sea limpia.
+            this.reasonAppt = null
         },
         async saveStatus() {
             if (!this.statusAppt) return
@@ -333,7 +348,15 @@ Vue.component('psychology-panel', {
             <v-chip :color="statusColor(item.status)" small dark>{{ statusLabel(item.status) }}</v-chip>
           </template>
           <template v-slot:item.reason="{ item }">
-            <div class="text-truncate" style="max-width:280px">{{ item.reason }}</div>
+            <a
+              v-if="item.reason"
+              href="#"
+              class="reason-link text-truncate d-inline-block"
+              style="max-width:280px"
+              :title="'Ver motivo completo'"
+              @click.prevent="openReasonDialog(item)"
+            >{{ item.reason }}</a>
+            <span v-else class="grey--text caption">—</span>
           </template>
           <template v-slot:item._actions="{ item }">
             <v-btn icon small @click="openStatusDialog(item)"><v-icon>mdi-pencil</v-icon></v-btn>
@@ -386,6 +409,27 @@ Vue.component('psychology-panel', {
     </v-tab-item>
 
   </v-tabs-items>
+
+  <!-- Reason dialog (RF-09.3): muestra el motivo completo de la cita -->
+  <v-dialog v-model="reasonDialog" max-width="640" scrollable>
+    <v-card>
+      <v-card-title v-if="reasonAppt">
+        Motivo de la cita
+        <div class="caption grey--text">
+          {{ reasonAppt.student_firstname }} {{ reasonAppt.student_lastname }}
+          · {{ formatDate(reasonAppt.appointment_at) }}
+          · {{ modalityLabel(reasonAppt.modality) }}
+        </div>
+      </v-card-title>
+      <v-card-text>
+        <div class="reason-full">{{ reasonAppt && reasonAppt.reason ? reasonAppt.reason : 'Sin motivo registrado.' }}</div>
+      </v-card-text>
+      <v-card-actions>
+        <v-spacer></v-spacer>
+        <v-btn text color="primary" @click="closeReasonDialog">Cerrar</v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
 
   <!-- Status dialog -->
   <v-dialog v-model="statusDialog" max-width="600" scrollable>
