@@ -17,8 +17,23 @@ use context_course;
 use mod_attendance_structure;
 
 class attendance_manager extends external_api {
-    /** @var int Lifetime in seconds for QR bridge tokens. */
-    private const QR_BRIDGE_TTL = 180;
+    /** @var int Default lifetime in seconds for QR bridge tokens when no admin override is set. */
+    private const QR_BRIDGE_TTL_DEFAULT = 40;
+
+    /**
+     * Lifetime in seconds for QR bridge tokens.
+     *
+     * Reads the `attendance_qr_ttl_seconds` admin setting (Configuracion general)
+     * with a fallback to QR_BRIDGE_TTL_DEFAULT (40s) when the setting is absent.
+     * A minimum of 30s is enforced to keep the QR realistically scannable.
+     */
+    private static function qr_bridge_ttl(): int {
+        $cfg = (int)get_config('local_grupomakro_core', 'attendance_qr_ttl_seconds');
+        if ($cfg < 30) {
+            $cfg = self::QR_BRIDGE_TTL_DEFAULT;
+        }
+        return $cfg;
+    }
 
     /**
      * Build the QR bridge URL.
@@ -126,7 +141,7 @@ class attendance_manager extends external_api {
         $payload = [
             'sid' => (int)$session->id,
             'iat' => $now,
-            'exp' => $now + self::QR_BRIDGE_TTL,
+            'exp' => $now + self::qr_bridge_ttl(),
             'nonce' => $nonce,
         ];
         $encodedpayload = self::base64url_encode(json_encode($payload));
@@ -470,11 +485,11 @@ class attendance_manager extends external_api {
             $html = self::render_qr_bridge_html($bridgeurl);
 
             return [
-                'status' => 'success', 
-                'html' => $html, 
+                'status' => 'success',
+                'html' => $html,
                 'password' => '',
                 'rotate' => 1,
-                'rotate_interval' => self::QR_BRIDGE_TTL
+                'rotate_interval' => self::qr_bridge_ttl()
             ];
         } catch (\Throwable $e) {
             return [

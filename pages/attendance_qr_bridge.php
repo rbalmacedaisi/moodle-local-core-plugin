@@ -919,10 +919,16 @@ $signedtokenflag = false;
 $signedtokenreason = 'missing';
 $signedtokenpayload = [];
 
-// Minimum grace period: 3 minutes (180 s) to allow students time to authenticate
+// Minimum grace period (seconds) to allow students time to authenticate
 // through the Vue LXP before the rotated QR is considered expired.
+// Reads the `attendance_qr_ttl_seconds` admin setting (Configuracion general)
+// with a floor of 30s so the QR is always realistically scannable.
 if (!defined('GMK_QR_MIN_EXPIRY_MARGIN')) {
-    define('GMK_QR_MIN_EXPIRY_MARGIN', 180);
+    $gmkqrconfiguredmargin = (int)get_config('local_grupomakro_core', 'attendance_qr_ttl_seconds');
+    if ($gmkqrconfiguredmargin < 30) {
+        $gmkqrconfiguredmargin = 40;
+    }
+    define('GMK_QR_MIN_EXPIRY_MARGIN', $gmkqrconfiguredmargin);
 }
 
 if ($gmkqrtoken !== '') {
