@@ -1619,7 +1619,7 @@
         <INDEX NAME="year_uix" UNIQUE="true" FIELDS="year"/>
       </INDEXES>
     </TABLE>
-    <TABLE NAME="gmk_group_curriculum" COMMENT="Malla por grupo: que asignaturas ve cada cohorte en cada nivel. El grupo es derivado (plan+cohorte+jornada), no hay entidad de grupo. source=2 permite excluir una asignatura del plan sin tocar local_learning_courses.">
+<TABLE NAME="gmk_group_curriculum" COMMENT="Malla por grupo: que asignaturas ve cada cohorte en cada nivel. El grupo es derivado (plan+cohorte+jornada), no hay entidad de grupo. source=2 permite excluir una asignatura del plan sin tocar local_learning_courses.">
       <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
         <FIELD NAME="learningplanid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
@@ -1645,6 +1645,26 @@
         <INDEX NAME="idx_plan_intake" UNIQUE="false" FIELDS="learningplanid, intake_period"/>
         <INDEX NAME="idx_academicperiod" UNIQUE="false" FIELDS="academicperiodid"/>
         <INDEX NAME="idx_course" UNIQUE="false" FIELDS="courseid"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="gmk_institute_ip_registry" COMMENT="Geofencing del QR de asistencia: IPs/CIDRs del instituto registrados con TTL. Poblados por el boton del docente, el script on-site y el recordatorio diario. La capa dinamica del check de origen (gmk_qr_institute_origin_allowed en attendance_qr_bridge.php) consulta esta tabla.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="ip" TYPE="char" LENGTH="64" NOTNULL="true" SEQUENCE="false" COMMENT="IPv4 o IPv6 literal"/>
+        <FIELD NAME="source" TYPE="char" LENGTH="32" NOTNULL="true" DEFAULT="auto_webhook" SEQUENCE="false" COMMENT="auto_webhook|teacher_button|manual"/>
+        <FIELD NAME="registered_by_userid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="registered_at" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="expires_at" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="label" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="registered_by_userid_fk" TYPE="foreign" FIELDS="registered_by_userid" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_ip_expires" UNIQUE="false" FIELDS="ip, expires_at"/>
+        <INDEX NAME="idx_expires" UNIQUE="false" FIELDS="expires_at"/>
       </INDEXES>
     </TABLE>
   </TABLES>

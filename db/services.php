@@ -719,6 +719,26 @@ $functions = array(
         'ajax'        => true,
         'services'    => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
     ),
+    // Geofencing del QR de asistencia: estado del registro de IPs del instituto
+    'local_grupomakro_get_institute_ip_status' => array(
+        'classname'   => 'local_grupomakro_core\external\institute_ip',
+        'methodname'  => 'get_status',
+        'description' => 'Estado del kill switch + IPs vigentes + contadores del registro dinamico de IPs del instituto',
+        'type'        => 'read',
+        'capabilities'  => '',
+        'ajax'        => true,
+        'services'    => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
+    // Geofencing del QR de asistencia: el docente registra su IP actual
+    'local_grupomakro_register_institute_ip' => array(
+        'classname'   => 'local_grupomakro_core\external\institute_ip',
+        'methodname'  => 'register',
+        'description' => 'Registra el REMOTE_ADDR actual del usuario como IP del instituto con el TTL configurado',
+        'type'        => 'write',
+        'capabilities'  => '',
+        'ajax'        => true,
+        'services'    => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
     // Odoo Integration Services
     'local_grupomakro_odoo_enroll_student' => array(
         'classname'   => 'local_grupomakro_core\external\odoo\enroll_student',

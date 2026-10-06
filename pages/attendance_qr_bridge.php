@@ -677,6 +677,103 @@ function gmk_qr_payment_block_state($userid) {
     ];
 }
 
+/**
+ * Check whether an IPv4/IPv6 address matches a single CIDR or exact match
+ * string. Accepts "1.2.3.4" (exact), "1.2.3.0/24" (IPv4 CIDR) and
+ * "2001:db8::/32" (IPv6 CIDR). Returns false on any parse error.
+ */
+function gmk_qr_ip_in_cidr($ip, $cidr) {
+    $cidr = trim((string)$cidr);
+    if ($cidr === '') {
+        return false;
+    }
+    if (strpos($cidr, '/') === false) {
+        return hash_equals($cidr, $ip);
+    }
+    [$subnet, $bits] = explode('/', $cidr, 2);
+    $bits = (int)$bits;
+    $ipbin = @inet_pton($ip);
+    $netbin = @inet_pton($subnet);
+    if ($ipbin === false || $netbin === false || strlen($ipbin) !== strlen($netbin)) {
+        return false;
+    }
+    if ($bits < 0 || $bits > (strlen($ipbin) * 8)) {
+        return false;
+    }
+    if ($bits === 0) {
+        return true;
+    }
+    $fullbytes = intdiv($bits, 8);
+    $rembits = $bits % 8;
+    if ($fullbytes > 0 && substr($ipbin, 0, $fullbytes) !== substr($netbin, 0, $fullbytes)) {
+        return false;
+    }
+    if ($rembits === 0) {
+        return true;
+    }
+    $mask = chr((0xff << (8 - $rembits)) & 0xff);
+    return (($ipbin[$fullbytes] & $mask) === ($netbin[$fullbytes] & $mask));
+}
+
+/**
+ * Static allowlist of institute IPs/CIDRs (Configuracion general).
+ * Returns true if REMOTE_ADDR matches any entry, or if the setting is empty.
+ */
+function gmk_qr_institute_static_match($remoteip) {
+    $raw = (string)get_config('local_grupomakro_core', 'attendance_qr_ip_allowlist');
+    $entries = preg_split('/[\s,]+/', $raw, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+    if (empty($entries)) {
+        return true; // No static allowlist configured = don't gate on this layer.
+    }
+    foreach ($entries as $entry) {
+        if (gmk_qr_ip_in_cidr($remoteip, $entry)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * Dynamic registry of institute IPs registered by the teacher button, the
+ * on-site cron script, or the daily email reminder link. Filled with a TTL.
+ * Returns true if REMOTE_ADDR matches any row whose `expires_at` is in the
+ * future.
+ */
+function gmk_qr_institute_dynamic_match($remoteip) {
+    global $DB;
+    $now = time();
+    $sql = "SELECT id FROM {gmk_institute_ip_registry}
+            WHERE ip = :ip AND expires_at > :now
+            ORDER BY expires_at DESC";
+    return $DB->record_exists_sql($sql, ['ip' => $remoteip, 'now' => $now]);
+}
+
+/**
+ * Combined decision: returns true if the student is allowed to mark attendance
+ * from the current REMOTE_ADDR under the institute origin policy.
+ *
+ *   - kill switch OFF  -> always allow (default OFF, no breakage)
+ *   - static allowlist OR dynamic registry match -> allow
+ *   - otherwise -> deny
+ */
+function gmk_qr_institute_origin_allowed() {
+    $enabled = (bool)get_config('local_grupomakro_core', 'attendance_qr_restrict_to_institute');
+    if (!$enabled) {
+        return true;
+    }
+    $remoteip = getremoteaddr(['WS_SERVER','HTTP_X_FORWARDED_FOR']);
+    if ($remoteip === '' || $remoteip === null) {
+        return false;
+    }
+    if (gmk_qr_institute_static_match($remoteip)) {
+        return true;
+    }
+    if (gmk_qr_institute_dynamic_match($remoteip)) {
+        return true;
+    }
+    return false;
+}
+
 $sessionid = required_param('sessid', PARAM_INT);
 $qrpass = optional_param('qrpass', '', PARAM_RAW_TRIMMED);
 $gmkqrtoken = optional_param('gmkqr', '', PARAM_RAW_TRIMMED);
@@ -744,6 +841,40 @@ if ($gmkqrtoken === '' && strpos($qrpass, 'gmk:') === 0) {
     $gmkqrtoken = substr($qrpass, 4);
     $qrpass = '';
     $GLOBALS['GMK_QR_DEBUG_PENDINGCOOKIE']['recovered'] = true;
+}
+
+// Institute origin gate (geofencing QR de asistencia). If the kill switch is
+// ON, the request must come from a REMOTE_ADDR listed in the static allowlist
+// or in the dynamic institute IP registry. Server-side only - a frontend-only
+// rule would be trivial to bypass. Placed after login+pending-cookie recovery
+// so we know who the student is when we log the decision, but before any DB
+// lookup of the session/course so a denied student pays zero cost.
+if (!is_siteadmin() && !gmk_qr_institute_origin_allowed()) {
+    gmk_qr_log_decision(
+        gmk_qr_trace_id(),
+        'block',
+        'not_in_institute',
+        'Origen del QR (REMOTE_ADDR) no esta dentro del perimetro del instituto.',
+        (int)$sessionid,
+        isset($USER->id) ? (int)$USER->id : 0,
+        ['classid' => 0, 'courseid' => 0, 'classname' => '', 'coursename' => ''],
+        ['remote_addr' => (string)getremoteaddr(['WS_SERVER','HTTP_X_FORWARDED_FOR'])]
+    );
+    $vuebase  = gmk_qr_student_app_base_url();
+    $vueparams = ['sessid' => (int)$sessionid];
+    if ($gmkqrtoken !== '') {
+        $vueparams['gmkqr'] = $gmkqrtoken;
+        $vueparams['qrpass'] = 'gmk:' . $gmkqrtoken;
+    }
+    if ($qrpass !== '') {
+        $vueparams['qrpass'] = $qrpass;
+    }
+    $vueparams['status'] = 'error';
+    $vueparams['reasoncode'] = 'not_in_institute';
+    $vueparams['traceid'] = gmk_qr_trace_id();
+    $vueparams['markedat'] = (string)time();
+    header('Location: ' . $vuebase . '/attendance/scan-result?' . http_build_query($vueparams));
+    exit;
 }
 
 $session = $DB->get_record('attendance_sessions', ['id' => $sessionid], '*', MUST_EXIST);

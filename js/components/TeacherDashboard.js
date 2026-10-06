@@ -40,6 +40,48 @@ const TeacherDashboard = {
                             <v-icon left>mdi-calendar</v-icon> Calendario
                         </v-btn>
                     </div>
+
+                    <!-- Geofencing del QR: estado del registro de IPs del instituto.
+                         Permite al docente registrar manualmente la IP actual del
+                         instituto (con TTL configurable) para que el QR de asistencia
+                         pueda ser escaneado desde la red del ISI. Solo visible si el
+                         kill switch esta activo; si esta apagado el feature no aplica. -->
+                    <v-card v-if="instituteIpStatus && instituteIpStatus.kill_switch"
+                            class="rounded-xl mb-4" color="orange-lighten-5">
+                        <v-card-title class="text-subtitle-2 font-weight-bold pb-1">
+                            <v-icon left color="orange darken-2" small>mdi-map-marker-radius</v-icon>
+                            IP del Instituto
+                        </v-card-title>
+                        <v-card-text class="pt-1 pb-2">
+                            <div class="text-caption mb-2 grey--text text--darken-2">
+                                Si tu QR dice "Origen fuera del instituto", registrá la IP actual.
+                                Queda activa {{ instituteIpStatus.ttl_hours || 48 }}h.
+                            </div>
+                            <div v-if="instituteIpStatus.active && instituteIpStatus.active.length > 0" class="mb-2">
+                                <div class="text-caption font-weight-bold mb-1">
+                                    IPs vigentes: {{ instituteIpStatus.active.length }}
+                                    <span v-if="instituteIpStatus.next_expiry > 0" class="grey--text">
+                                        · próxima expira en {{ expiryLabel(instituteIpStatus.next_expiry) }}
+                                    </span>
+                                </div>
+                                <div v-for="(row, i) in instituteIpStatus.active" :key="'ip-' + i" class="d-flex align-center text-caption">
+                                        <v-icon x-small color="green darken-2" class="mr-1">mdi-check-circle</v-icon>
+                                        <span class="font-weight-medium">{{ row.ip }}</span>
+                                        <span v-if="row.label" class="grey--text ml-1">— {{ row.label }}</span>
+                                    </div>
+                            </div>
+                            <div v-else class="text-caption grey--text mb-2">
+                                No hay IPs registradas.
+                            </div>
+                            <v-btn block color="orange darken-2" class="rounded-lg white--text"
+                                   :loading="instituteIpActionLoading"
+                                   @click="registerInstituteIp">
+                                <v-icon left small>mdi-map-marker-plus</v-icon>
+                                Registrar mi IP actual
+                            </v-btn>
+                        </v-card-text>
+                    </v-card>
+
                     <!-- Summary banner: one line for every class whose gradebook
                          weights don't total 100% past week 3. Rendered above the
                          cards so the teacher sees it without scrolling. -->
@@ -313,7 +355,12 @@ const TeacherDashboard = {
                 { label: 'Cursos Activos', value: 0, icon: 'mdi-book-open-page-variant', color: 'blue' },
                 { label: 'Estudiantes', value: 0, icon: 'mdi-account-group', color: 'orange' },
                 { label: 'Tareas Pendientes', value: 0, icon: 'mdi-alert-circle-outline', color: 'red' }
-            ]
+            ],
+            // Geofencing QR: snapshot del estado del registro de IPs del instituto.
+            // Null = a\u00fan no se cargo (no mostrar la card).
+            instituteIpStatus: null,
+            instituteIpLoading: false,
+            instituteIpActionLoading: false
         };
     },
     computed: {
@@ -445,6 +492,7 @@ const TeacherDashboard = {
     mounted() {
         this.injectStyles();
         this.fetchDashboardData();
+        this.loadInstituteIpStatus();
     },
     methods: {
         // Weight percentages come from the gradebook as floats; show at most one
@@ -562,6 +610,59 @@ const TeacherDashboard = {
         getHealthLabel(classId) {
             const colors = { 'green': 'Excelente', 'yellow': 'Atención', 'red': 'Crítico', 'grey': 'S/D' };
             return colors[this.getHealthColor(classId)] || 'Estable';
+        },
+        // Geofencing QR: formatea el tiempo restante hasta una expiracion (segundos).
+        expiryLabel(unixTs) {
+            if (!unixTs || unixTs <= 0) return '';
+            const delta = Math.max(0, unixTs - Math.floor(Date.now() / 1000));
+            if (delta < 60) return '<1 min';
+            if (delta < 3600) return Math.floor(delta / 60) + ' min';
+            if (delta < 86400) return Math.floor(delta / 3600) + 'h';
+            return Math.floor(delta / 86400) + 'd';
+        },
+        // Geofencing QR: pide al backend el estado del registro de IPs del instituto.
+        // Si el kill switch esta OFF, la card ni se muestra en el template.
+        async loadInstituteIpStatus() {
+            this.instituteIpLoading = true;
+            try {
+                const response = await axios.post(wsUrl, {
+                    action: 'local_grupomakro_get_institute_ip_status',
+                    args: {},
+                    ...wsStaticParams
+                });
+                if (response.data && response.data.status === 'success') {
+                    this.instituteIpStatus = response.data.data;
+                } else {
+                    this.instituteIpStatus = null;
+                }
+            } catch (error) {
+                console.warn('No se pudo cargar el estado de IPs del instituto:', error);
+                this.instituteIpStatus = null;
+            } finally {
+                this.instituteIpLoading = false;
+            }
+        },
+        // Geofencing QR: registra la IP REMOTE_ADDR actual como IP del instituto con TTL.
+        async registerInstituteIp() {
+            this.instituteIpActionLoading = true;
+            try {
+                const response = await axios.post(wsUrl, {
+                    action: 'local_grupomakro_register_institute_ip',
+                    args: { label: 'teacher_button' },
+                    ...wsStaticParams
+                });
+                if (response.data && response.data.status === 'success') {
+                    // Refresca la card
+                    await this.loadInstituteIpStatus();
+                } else {
+                    const msg = (response.data && response.data.message) || 'Error desconocido';
+                    console.warn('No se pudo registrar la IP:', msg);
+                }
+            } catch (error) {
+                console.warn('No se pudo registrar la IP:', error);
+            } finally {
+                this.instituteIpActionLoading = false;
+            }
         },
         formatSession(timestamp) {
             if (!timestamp) return 'No programada';

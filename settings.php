@@ -656,6 +656,72 @@ if ($hassiteconfig) {
             0
         ));
 
+        // Geofencing del QR de asistencia: el QR solo es valido si el
+        // REMOTE_ADDR del estudiante esta dentro del perimetro del instituto.
+        // Ships OFF para no romper nada hasta que TI configure las IPs.
+        $settingspage->add(new admin_setting_configcheckbox(
+            'local_grupomakro_core/attendance_qr_restrict_to_institute',
+            new lang_string('attendance_qr_restrict_to_institute', 'local_grupomakro_core'),
+            new lang_string('attendance_qr_restrict_to_institute_desc', 'local_grupomakro_core'),
+            0
+        ));
+
+        // Allowlist estatica de IPs/CIDRs del instituto. Coma o nueva linea.
+        // Si esta vacia, la capa estatica no restringe; solo aplica la capa
+        // dinamica (gmk_institute_ip_registry).
+        $settingspage->add(new admin_setting_configtextarea(
+            'local_grupomakro_core/attendance_qr_ip_allowlist',
+            new lang_string('attendance_qr_ip_allowlist', 'local_grupomakro_core'),
+            new lang_string('attendance_qr_ip_allowlist_desc', 'local_grupomakro_core'),
+            '',
+            PARAM_TEXT
+        ));
+
+        // TTL en horas de cada IP registrada dinamicamente. El script on-site,
+        // el boton del docente y el recordatorio diario vencen a este plazo.
+        $settingspage->add(new admin_setting_configtext(
+            'local_grupomakro_core/attendance_qr_dynamic_ip_ttl_hours',
+            new lang_string('attendance_qr_dynamic_ip_ttl_hours', 'local_grupomakro_core'),
+            new lang_string('attendance_qr_dynamic_ip_ttl_hours_desc', 'local_grupomakro_core'),
+            '48',
+            PARAM_INT
+        ));
+
+        // Email al que llega el recordatorio diario con el link one-time para
+        // registrar la IP desde un dispositivo del instituto.
+        $settingspage->add(new admin_setting_configtext(
+            'local_grupomakro_core/attendance_qr_admin_email',
+            new lang_string('attendance_qr_admin_email', 'local_grupomakro_core'),
+            new lang_string('attendance_qr_admin_email_desc', 'local_grupomakro_core'),
+            '',
+            PARAM_EMAIL
+        ));
+
+        // Token compartido para que el endpoint publico register_institute_ip.php
+        // acepte peticiones del script on-site. Se genera automaticamente la
+        // primera vez que se lee y queda fijo hasta rotacion manual.
+        $gmkQrInstituteToken = (string)get_config('local_grupomakro_core', 'attendance_qr_institute_token');
+        if ($gmkQrInstituteToken === '') {
+            $gmkQrInstituteToken = bin2hex(random_bytes(32));
+            set_config('attendance_qr_institute_token', $gmkQrInstituteToken, 'local_grupomakro_core');
+        }
+        $settingspage->add(new admin_setting_configtext(
+            'local_grupomakro_core/attendance_qr_institute_token',
+            new lang_string('attendance_qr_institute_token', 'local_grupomakro_core'),
+            new lang_string('attendance_qr_institute_token_desc', 'local_grupomakro_core'),
+            $gmkQrInstituteToken,
+            PARAM_RAW_TRIMMED
+        ));
+
+        // Hora (24h, TZ Panama) a la que se envia el recordatorio diario.
+        $settingspage->add(new admin_setting_configtext(
+            'local_grupomakro_core/attendance_qr_reminder_time',
+            new lang_string('attendance_qr_reminder_time', 'local_grupomakro_core'),
+            new lang_string('attendance_qr_reminder_time_desc', 'local_grupomakro_core'),
+            '06:00',
+            PARAM_TEXT
+        ));
+
         // Feature flag: enables the staged per-class absence alert system.
         // When disabled, the legacy 3-absence auto-suspend cron keeps running.
         $settingspage->add(new admin_setting_configcheckbox(

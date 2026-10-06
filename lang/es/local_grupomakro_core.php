@@ -1487,3 +1487,26 @@ $string['wdr_decl_2'] = 'Entiendo que esta solicitud debe ser recibida al menos 
 $string['wdr_decl_3'] = 'Me comprometo a cancelar cualquier saldo pendiente a la fecha de la solicitud, incluidos los recargos por mora aplicados (10% después de 3 días de la fecha de corte).';
 $string['wdr_decl_4'] = 'Entiendo que al retirarme pierdo la calidad de estudiante y que el ISI no devuelve dinero por matrícula ni por mensualidades, salvo las opciones indicadas en la sección 3 del formulario.';
 $string['wdr_decl_5'] = 'Declaro que la información de este formulario es verdadera.';
+
+// Geofencing del QR de asistencia.
+$string['attendance_qr_restrict_to_institute'] = 'Restringir el QR de asistencia al per\u00edmetro del instituto';
+$string['attendance_qr_restrict_to_institute_desc'] = 'Si est\u00e1 activo, el QR solo es v\u00e1lido si el REMOTE_ADDR del estudiante est\u00e1 dentro de la allowlist est\u00e1tica o del registro din\u00e1mico de IPs del instituto. Default OFF para no romper nada hasta que TI configure las IPs.';
+$string['attendance_qr_ip_allowlist'] = 'Allowlist est\u00e1tica de IPs/CIDRs del instituto';
+$string['attendance_qr_ip_allowlist_desc'] = 'Lista separada por comas o saltos de l\u00ednea. Ejemplos: 200.34.224.173, 192.168.1.0/24, 2001:db8::/32. Si est\u00e1 vac\u00eda la capa est\u00e1tica no restringe; solo aplica la capa din\u00e1mica.';
+$string['attendance_qr_dynamic_ip_ttl_hours'] = 'TTL de la capa din\u00e1mica (horas)';
+$string['attendance_qr_dynamic_ip_ttl_hours_desc'] = 'Horas que vive cada IP registrada din\u00e1micamente (bot\u00f3n del docente, script on-site, recordatorio diario). Default 48.';
+$string['attendance_qr_admin_email'] = 'Email del admin para el recordatorio diario';
+$string['attendance_qr_admin_email_desc'] = 'A esta direcci\u00f3n llega cada d\u00eda el link one-time para registrar la IP actual del instituto.';
+$string['attendance_qr_institute_token'] = 'Token del endpoint register_institute_ip.php';
+$string['attendance_qr_institute_token_desc'] = 'Token compartido que el script on-site y el link del email env\u00edan por header X-Institute-Token o ?token=. Se genera autom\u00e1ticamente la primera vez; rotar manualmente para revocar el anterior.';
+$string['attendance_qr_reminder_time'] = 'Hora del recordatorio diario (TZ Panam\u00e1)';
+$string['attendance_qr_reminder_time_desc'] = 'Formato HH:MM (24h). El cron corre cada 30 min y solo env\u00eda dentro de la hora exacta. Default 06:00.';
+$string['task:send_institute_ip_reminder'] = 'Recordatorio diario de la IP del instituto (geofencing QR)';
+$string['msg:institute_ip_reminder:subject'] = 'Registro de IP del instituto - ISI';
+$string['msg:institute_ip_reminder:body'] = 'Hola,
+
+Para que el QR de asistencia siga funcionando, abr\u00ed este enlace desde un dispositivo conectado a la red del ISI y deja que registre la IP p\u00fablica actual del instituto. Queda activa {$a->ttl} horas.
+
+{$a->url}
+
+Si no tienes acceso a la red del instituto ahora, avisale a TI para que use el bot\u00f3n del teacher_dashboard o el script on-site.

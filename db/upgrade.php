@@ -4218,6 +4218,47 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20261001086, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20261001091) {
+        // GEOFENCING QR DE ASISTENCIA. (a) Nueva tabla gmk_institute_ip_registry
+        // poblada por el boton del docente, el script on-site y el recordatorio
+        // diario. (b) Kill switch (attendance_qr_restrict_to_institute) por
+        // defecto OFF para no romper nada hasta que TI configure las IPs. (c)
+        // Token compartido (attendance_qr_institute_token) auto-generado la
+        // primera vez; el endpoint publico register_institute_ip.php lo
+        // exigira via header X-Institute-Token. (d) Defaults conservadores
+        // para los demas settings del feature.
+        $dbman = $DB->get_manager();
+        $table = new xmldb_table('gmk_institute_ip_registry');
+        if (!$dbman->table_exists($table)) {
+            $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, true, null);
+            $table->add_field('ip', XMLDB_TYPE_CHAR, '64', null, XMLDB_NOTNULL, false, null);
+            $table->add_field('source', XMLDB_TYPE_CHAR, '32', null, XMLDB_NOTNULL, false, 'auto_webhook');
+            $table->add_field('registered_by_userid', XMLDB_TYPE_INTEGER, '10', null, null, false, null);
+            $table->add_field('registered_at', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, false, '0');
+            $table->add_field('expires_at', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, false, '0');
+            $table->add_field('label', XMLDB_TYPE_CHAR, '255', null, null, false, null);
+            $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+            $table->add_key('registered_by_userid_fk', XMLDB_KEY_FOREIGN, ['registered_by_userid'], 'user', ['id']);
+            $table->add_index('idx_ip_expires', XMLDB_INDEX_NOTUNIQUE, ['ip', 'expires_at']);
+            $table->add_index('idx_expires', XMLDB_INDEX_NOTUNIQUE, ['expires_at']);
+            $dbman->create_table($table);
+        }
+        if (get_config('local_grupomakro_core', 'attendance_qr_restrict_to_institute') === false) {
+            set_config('attendance_qr_restrict_to_institute', 0, 'local_grupomakro_core');
+        }
+        if (get_config('local_grupomakro_core', 'attendance_qr_dynamic_ip_ttl_hours') === false) {
+            set_config('attendance_qr_dynamic_ip_ttl_hours', 48, 'local_grupomakro_core');
+        }
+        if (get_config('local_grupomakro_core', 'attendance_qr_reminder_time') === false) {
+            set_config('attendance_qr_reminder_time', '06:00', 'local_grupomakro_core');
+        }
+        if ((string)get_config('local_grupomakro_core', 'attendance_qr_institute_token') === '') {
+            set_config('attendance_qr_institute_token', bin2hex(random_bytes(32)), 'local_grupomakro_core');
+        }
+
+        upgrade_plugin_savepoint(true, 20261001091, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

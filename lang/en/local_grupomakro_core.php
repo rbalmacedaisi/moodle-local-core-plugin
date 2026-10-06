@@ -1481,3 +1481,26 @@ $string['wdr_decl_2'] = 'I understand that this request must be received at leas
 $string['wdr_decl_3'] = 'I commit to pay any pending balance at the date of this request, including late fees (10% after 3 days past the cut-off date).';
 $string['wdr_decl_4'] = 'I understand that by withdrawing I lose my student status, and that ISI does not refund tuition or monthly payments, except for the options listed in section 3 of the form.';
 $string['wdr_decl_5'] = 'I declare that the information in this form is true.';
+
+// Geofencing of the attendance QR.
+$string['attendance_qr_restrict_to_institute'] = 'Restrict the attendance QR to the institute perimeter';
+$string['attendance_qr_restrict_to_institute_desc'] = 'When enabled, the QR is only valid if the student\'s REMOTE_ADDR is in the static allowlist or in the dynamic institute IP registry. Ships OFF until IT configures the IPs.';
+$string['attendance_qr_ip_allowlist'] = 'Static allowlist of institute IPs/CIDRs';
+$string['attendance_qr_ip_allowlist_desc'] = 'Comma- or newline-separated list. Examples: 200.34.224.173, 192.168.1.0/24, 2001:db8::/32. If empty the static layer does not gate; only the dynamic registry applies.';
+$string['attendance_qr_dynamic_ip_ttl_hours'] = 'Dynamic layer TTL (hours)';
+$string['attendance_qr_dynamic_ip_ttl_hours_desc'] = 'How long each dynamically-registered IP stays valid (teacher button, on-site script, daily reminder). Default 48.';
+$string['attendance_qr_admin_email'] = 'Admin email for the daily reminder';
+$string['attendance_qr_admin_email_desc'] = 'Address that receives the daily one-time link to register the institute\'s current IP.';
+$string['attendance_qr_institute_token'] = 'Token for the register_institute_ip.php endpoint';
+$string['attendance_qr_institute_token_desc'] = 'Shared token expected by the on-site script and the email link via header X-Institute-Token or ?token=. Auto-generated on first read; rotate manually to revoke the old one.';
+$string['attendance_qr_reminder_time'] = 'Daily reminder time (Panama TZ)';
+$string['attendance_qr_reminder_time_desc'] = 'HH:MM 24h format. The cron runs every 30 min and only fires inside the configured hour. Default 06:00.';
+$string['task:send_institute_ip_reminder'] = 'Daily reminder of the institute IP (QR geofencing)';
+$string['msg:institute_ip_reminder:subject'] = 'Institute IP registration - ISI';
+$string['msg:institute_ip_reminder:body'] = 'Hi,
+
+For the attendance QR to keep working, open this link from a device connected to the ISI network and let it capture the institute\'s current public IP. It stays active for {$a->ttl} hours.
+
+{$a->url}
+
+If you don\'t have access to the institute network right now, ask IT to use the teacher_dashboard button or the on-site script.

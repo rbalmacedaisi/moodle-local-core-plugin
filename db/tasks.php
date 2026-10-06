@@ -124,4 +124,34 @@ $tasks = [
         'month' => '*',
         'dayofweek' => '*',
     ],
+    [
+        // Audita el vinculo BBB<->asistencia cada 6h. Borra relations cuyo
+        // classid ya no existe (basura referencial de migraciones viejas),
+        // re-sincroniza gmk_class.bbbmoduleids cuando esta desfasado de las
+        // relaciones reales, y notifica al docente cuando su clase abierta
+        // tiene sesiones con bbbmoduleid NULL (caso "no hay sesion
+        // vinculada" reportado el 2026-09-17).
+        'classname' => 'local_grupomakro_core\task\audit_bbb_linkage',
+        'blocking' => 0,
+        'minute' => '30',
+        'hour' => '*/6',
+        'day' => '*',
+        'month' => '*',
+        'dayofweek' => '*',
+    ],
+    [
+        // Geofencing QR de asistencia: envia el recordatorio diario al admin
+        // con el link one-time para registrar la IP actual del instituto. Solo
+        // envia si el kill switch esta ON y si attendance_qr_admin_email esta
+        // configurado. Tambien limpia filas expiradas del registro dinamico.
+        // La hora exacta se controla con attendance_qr_reminder_time (default
+        // 06:00 TZ Panama); aqui corre cada 30 min y el cron decide si toca.
+        'classname' => 'local_grupomakro_core\task\send_institute_ip_reminder',
+        'blocking' => 0,
+        'minute' => '*/30',
+        'hour' => '*',
+        'day' => '*',
+        'month' => '*',
+        'dayofweek' => '*',
+    ],
 ];
