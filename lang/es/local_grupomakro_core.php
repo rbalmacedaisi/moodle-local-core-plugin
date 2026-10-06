@@ -1510,3 +1510,4 @@ Para que el QR de asistencia siga funcionando, abr\u00ed este enlace desde un di
 {$a->url}
 
 Si no tienes acceso a la red del instituto ahora, avisale a TI para que use el bot\u00f3n del teacher_dashboard o el script on-site.
+';

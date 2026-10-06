@@ -1504,3 +1504,4 @@ For the attendance QR to keep working, open this link from a device connected to
 {$a->url}
 
 If you don\'t have access to the institute network right now, ask IT to use the teacher_dashboard button or the on-site script.
+';
