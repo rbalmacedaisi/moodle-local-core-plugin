@@ -34,12 +34,13 @@
  * @package    local_grupomakro_core
  */
 
-require_once('../../config.php');
+require_once(__DIR__ . '/../../../config.php');
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 
 global $DB;
 
-require_login(null, false, null, false, true);
+// Este endpoint se autentica por token, no por sesion Moodle. NO usar
+// require_login() porque la llaman scripts/curl sin cookie de sesion.
 
 // Header JSON
 header('Content-Type: application/json; charset=utf-8');
@@ -86,10 +87,15 @@ try {
     foreach ($existing as $row) {
         $DB->delete_records('gmk_institute_ip_registry', ['id' => $row->id]);
     }
+    // Si llega cookie de Moodle, registrar quien; si no, dejar null.
+    $registeredby = null;
+    if (isloggedin() && !empty($USER) && !empty($USER->id)) {
+        $registeredby = (int)$USER->id;
+    }
     $record = (object)[
         'ip' => $ip,
         'source' => 'auto_webhook',
-        'registered_by_userid' => isloggedin() ? (int)$USER->id : null,
+        'registered_by_userid' => $registeredby,
         'registered_at' => $now,
         'expires_at' => $expires,
         'label' => $label,
