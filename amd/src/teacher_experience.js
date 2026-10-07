@@ -135,6 +135,7 @@ window.TeacherExperience = {
         if (window.PendingGradingView) Vue.component('pending-grading-view', window.PendingGradingView);
         if (window.QuickGrader) Vue.component('quick-grader', window.QuickGrader);
         if (window.QuizEditor) Vue.component('quiz-editor', window.QuizEditor);
+        if (window.AssignmentExtensions) Vue.component('assignment-extensions', window.AssignmentExtensions);
 
         // Create Vue Application
         const mountPoint = document.getElementById('teacher-app');

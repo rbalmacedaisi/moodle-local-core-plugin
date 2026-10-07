@@ -4259,6 +4259,38 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20261001091, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20261001092) {
+        // PRORROGAS DE ENTREGA POR ACTIVIDAD/ESTUDIANTE DESDE TEACHER_DASHBOARD.
+        // (a) Nueva tabla gmk_assignment_extension_log que audita cada prorroga:
+        // quien, a quien, en que actividad, antes/despues, motivo. La prorroga
+        // en si vive en mdl_assign_overrides (user=NULL, userid=X, groupid=NULL)
+        // que es el mecanismo nativo de Moodle para excepciones por usuario.
+        // La tabla de auditoria propia resuelve el caso 'quien le dio cuando a
+        // quien y por que' sin depender de mantener los rows de Moodle para
+        // siempre (porque el docente los puede borrar).
+        $dbman = $DB->get_manager();
+        $table = new xmldb_table('gmk_assignment_extension_log');
+        if (!$dbman->table_exists($table)) {
+            $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, true, null);
+            $table->add_field('assignid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, false, '0');
+            $table->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, false, '0');
+            $table->add_field('old_duedate', XMLDB_TYPE_INTEGER, '10', null, null, false, null);
+            $table->add_field('new_duedate', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, false, '0');
+            $table->add_field('actor_userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, false, '0');
+            $table->add_field('reason', XMLDB_TYPE_TEXT, 'small', null, null, false, null);
+            $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, false, '0');
+            $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+            $table->add_key('assignid_fk', XMLDB_KEY_FOREIGN, ['assignid'], 'assign', ['id']);
+            $table->add_key('userid_fk', XMLDB_KEY_FOREIGN, ['userid'], 'user', ['id']);
+            $table->add_key('actor_userid_fk', XMLDB_KEY_FOREIGN, ['actor_userid'], 'user', ['id']);
+            $table->add_index('idx_assign_user', XMLDB_INDEX_NOTUNIQUE, ['assignid', 'userid']);
+            $table->add_index('idx_timecreated', XMLDB_INDEX_NOTUNIQUE, ['timecreated']);
+            $dbman->create_table($table);
+        }
+
+        upgrade_plugin_savepoint(true, 20261001092, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

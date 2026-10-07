@@ -1667,5 +1667,28 @@
         <INDEX NAME="idx_expires" UNIQUE="false" FIELDS="expires_at"/>
       </INDEXES>
     </TABLE>
+
+    <TABLE NAME="gmk_assignment_extension_log" COMMENT="Auditoria del feature de prorroga individual de entregas desde el dashboard docente. Una fila por modificacion; sirve para responder 'quien le dio cuando a quien y por que' sin tener que mirar los row de mdl_assign_overrides que se pueden borrar.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="assignid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="mdl_assign.id"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="mdl_user.id del estudiante favorecido"/>
+        <FIELD NAME="old_duedate" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="mdl_assign.duedate antes (NULL si no existia override)"/>
+        <FIELD NAME="new_duedate" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="mdl_assign.duedate que queda vigente"/>
+        <FIELD NAME="actor_userid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="mdl_user.id del docente que aplico la prorroga"/>
+        <FIELD NAME="reason" TYPE="text" LENGTH="small" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="assignid_fk" TYPE="foreign" FIELDS="assignid" REFTABLE="assign" REFFIELDS="id"/>
+        <KEY NAME="userid_fk" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+        <KEY NAME="actor_userid_fk" TYPE="foreign" FIELDS="actor_userid" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_assign_user" UNIQUE="false" FIELDS="assignid, userid"/>
+        <INDEX NAME="idx_timecreated" UNIQUE="false" FIELDS="timecreated"/>
+      </INDEXES>
+    </TABLE>
   </TABLES>
 </XMLDB>

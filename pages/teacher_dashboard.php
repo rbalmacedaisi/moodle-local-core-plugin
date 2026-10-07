@@ -50,6 +50,7 @@ $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/quizedi
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/QuizEditor.js?v=20260323003'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/AttendancePanel.js?v=20260709001'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/AttendanceMatrix.js?v=20260904001'), true);
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/AssignmentExtensions.js?v=20261001092'), true);
 
 // Load main experience module as standard JS (bypassing AMD build issues)
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/amd/src/teacher_experience.js?v=20260407001'), true);

@@ -168,6 +168,22 @@ const TeacherDashboard = {
                                 <v-btn block color="primary" tile height="40" class="font-weight-bold">
                                     Gestionar Clase <v-icon right small>mdi-arrow-right</v-icon>
                                 </v-btn>
+                                <!-- Excepciones de entrega: modal que permite al docente
+                                     asignar plazos individuales por actividad/estudiante.
+                                     @click.stop para no disparar goToClass. -->
+                                <div class="px-3 py-2" style="border-top:1px solid rgba(0,0,0,.08);">
+                                    <v-btn
+                                        block
+                                        outlined
+                                        color="orange darken-2"
+                                        class="rounded-lg"
+                                        height="36"
+                                        @click.stop="openAssignmentExtensions(classItem)"
+                                    >
+                                        <v-icon left small>mdi-calendar-clock</v-icon>
+                                        Excepciones de entrega
+                                    </v-btn>
+                                </div>
                             </v-card>
                         </v-col>
                     </v-row>
@@ -324,6 +340,14 @@ const TeacherDashboard = {
                     </v-card-text>
                 </v-card>
             </v-dialog>
+
+            <!-- Modal de excepciones de entrega por actividad/estudiante -->
+            <assignment-extensions
+                v-if="extensionsOpen && extensionsClass"
+                v-model="extensionsOpen"
+                :class-id="extensionsClass.id"
+                :class-info="extensionsClass"
+            ></assignment-extensions>
         </v-container>
     `,
     data() {
@@ -360,7 +384,10 @@ const TeacherDashboard = {
             // Null = a\u00fan no se cargo (no mostrar la card).
             instituteIpStatus: null,
             instituteIpLoading: false,
-            instituteIpActionLoading: false
+            instituteIpActionLoading: false,
+            // Modal de excepciones de entrega por actividad.
+            extensionsOpen: false,
+            extensionsClass: null
         };
     },
     computed: {
@@ -727,9 +754,18 @@ const TeacherDashboard = {
             // Placeholder logic for class images
             return 'https://images.unsplash.com/photo-1509062522246-3755977927d7?q=80&w=400';
         },
-        goToClass(classId) {
-            // Logic to navigate to ManageClass.js
+goToClass(classId) {
+            if (!classId) return;
             this.$emit('change-page', { page: 'manage-class', id: classId });
+        },
+        openAssignmentExtensions(classItem) {
+            if (!classItem || !classItem.id) return;
+            // El componente AssignmentExtensions vive en una ventana modal separada.
+            // Lo emitimos como change-page para mantener la misma arquitectura del
+            // dashboard, o lo abrimos directamente. Aqui optamos por abrirlo
+            // directo via un slot ref: el modal es parte del propio dashboard.
+            this.extensionsClass = classItem;
+            this.extensionsOpen = true;
         },
         injectStyles() {
             if (document.getElementById('teacher-dashboard-styles')) return;

@@ -10,6 +10,7 @@ use external_api;
 use external_function_parameters;
 use external_value;
 use external_single_structure;
+use local_grupomakro_core\local\assignment_extension_manager;
 
 class reopen_assignment extends external_api {
 
@@ -63,6 +64,22 @@ class reopen_assignment extends external_api {
             $flags->assignment = $assignmentid;
             $flags->userid     = $studentid;
             $DB->insert_record('assign_user_flags', $flags);
+        }
+
+        // Auditoria: registrar en gmk_assignment_extension_log para mantener
+        // una sola fuente de verdad con el feature de prorrogas individuales.
+        try {
+            assignment_extension_manager::set_user_override(
+                $assignmentid,
+                $studentid,
+                $flags->extensionduedate,
+                (int)$USER->id,
+                'reopen_assignment_button'
+            );
+        } catch (\Throwable $auditerror) {
+            // La auditoria no debe bloquear el re-open, pero la dejamos
+            // registrada para que el docenter pueda pedir diagnostico.
+            debugging('reopen_assignment audit log failed: ' . $auditerror->getMessage(), DEBUG_NORMAL);
         }
 
         // Reset completion so the activity appears as pending again in the LXP.
