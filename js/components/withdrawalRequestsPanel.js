@@ -328,7 +328,10 @@ Vue.component('withdrawal-requests-panel', {
   </v-card>
 
   <!-- Drawer with detail + actions -->
-  <v-navigation-drawer v-if="drawer.open" v-model="drawer.open" temporary right width="540">
+  <!-- Drawer persistente (sin temporary) para que NO tenga scrim/overlay
+       bloqueante. La visibilidad la controla el v-if. El usuario puede
+       seguir interactuando con la tabla detras del drawer. -->
+  <v-navigation-drawer v-if="drawer.open" v-model="drawer.open" right width="540" class="gmk-wdr-drawer">
     <v-toolbar flat>
       <v-toolbar-title>{{ drawer.row ? drawer.row.request_number : '' }}</v-toolbar-title>
       <v-spacer></v-spacer>
@@ -453,8 +456,24 @@ Vue.component('withdrawal-requests-panel', {
           Subir
         </v-btn>
       </v-card-actions>
-    </v-card>
-  </v-dialog>
+     </v-card>
+   </v-dialog>
 </v-container>
+<style>
+  /* Forzar que el drawer persistente se posicione a la derecha
+     del viewport, no del contenedor padre (v-container). Sin esto,
+     Vuetify lo posiciona relativo al v-card padre y aparece al fondo
+     del contenido. */
+  .gmk-wdr-drawer.v-navigation-drawer {
+    position: fixed !important;
+    top: 64px !important;
+    right: 0 !important;
+    height: calc(100vh - 64px) !important;
+    z-index: 1000;
+  }
+  .gmk-wdr-drawer .v-navigation-drawer__content {
+    height: 100%;
+  }
+</style>
 `,
 });
