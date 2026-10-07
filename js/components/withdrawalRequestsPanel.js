@@ -53,6 +53,27 @@ Vue.component('withdrawal-requests-panel', {
             scannedsrc: null,
         };
     },
+    computed: {
+        // Computed reactiva para el v-for del drawer. Pre-computar el objeto
+        // (en vez de declararlo inline en el template) garantiza que Vue
+        // detecte cambios cuando drawer.row se actualiza tras loadDetail.
+        drawerFields() {
+            const r = this.drawer.row;
+            if (!r) return {};
+            return {
+                'Estudiante': r.fullname,
+                'Cédula': r.id_number,
+                'Carrera/Programa': r.program,
+                'Motivo': r.reason,
+                'Opción de pago': r.payment_option,
+                'Detalle de pago': r.payment_option_detail,
+                'Período actual': r.current_period,
+                'Último período': r.last_period,
+                'Estado': r.status,
+                'Creada': this.formatDate(r.timecreated),
+            };
+        },
+    },
     created() { this.loadList(); },
     methods: {
         statusColor(s) {
@@ -319,29 +340,18 @@ Vue.component('withdrawal-requests-panel', {
       <v-tab>Archivo firmado</v-tab>
       <v-tab>Historial</v-tab>
     </v-tabs>
-    <v-tabs-items v-model="tab">
-      <v-tab-item>
+    <v-window v-model="tab" class="mt-2">
+      <v-window-item>
         <v-list dense>
-          <v-list-item v-for="(v,k) in {
-            Estudiante: drawer.row && drawer.row.fullname,
-            Cédula: drawer.row && drawer.row.id_number,
-            'Carrera/Programa': drawer.row && drawer.row.program,
-            Motivo: drawer.row && drawer.row.reason,
-            'Opción de pago': drawer.row && drawer.row.payment_option,
-            'Detalle de pago': drawer.row && drawer.row.payment_option_detail,
-            'Período actual': drawer.row && drawer.row.current_period,
-            'Último período': drawer.row && drawer.row.last_period,
-            Estado: drawer.row && drawer.row.status,
-            Creada: drawer.row && formatDate(drawer.row.timecreated)
-          }" :key="k">
+          <v-list-item v-for="(v, k) in drawerFields" :key="k + ':' + (drawer.row && drawer.row.id)">
             <v-list-item-content>
               <v-list-item-title>{{ k }}</v-list-item-title>
               <v-list-item-subtitle>{{ v || '—' }}</v-list-item-subtitle>
             </v-list-item-content>
           </v-list-item>
         </v-list>
-      </v-tab-item>
-      <v-tab-item>
+      </v-window-item>
+      <v-window-item>
         <v-card-text>
           <v-btn block color="primary" :disabled="!canmanage || submitting"
                  @click="doAction(drawer.row, 'record_da')">
@@ -363,8 +373,8 @@ Vue.component('withdrawal-requests-panel', {
             {{ 'Rechazar' }}
           </v-btn>
         </v-card-text>
-      </v-tab-item>
-      <v-tab-item>
+      </v-window-item>
+      <v-window-item>
         <v-card-text>
           <v-btn block color="primary" :disabled="!canmanage" @click="openUpload(drawer.row)">
             <v-icon left>mdi-upload</v-icon>
@@ -378,8 +388,8 @@ Vue.component('withdrawal-requests-panel', {
           </v-btn>
           <iframe v-if="scannedsrc" :src="scannedsrc" style="width:100%;height:60vh;margin-top:8px" frameborder="0"></iframe>
         </v-card-text>
-      </v-tab-item>
-      <v-tab-item>
+      </v-window-item>
+      <v-window-item>
         <v-card-text>
           <v-timeline dense>
             <v-timeline-item v-if="drawer.row" color="primary" small>
@@ -406,8 +416,8 @@ Vue.component('withdrawal-requests-panel', {
             </v-timeline-item>
           </v-timeline>
         </v-card-text>
-      </v-tab-item>
-    </v-tabs-items>
+      </v-window-item>
+    </v-window>
   </v-navigation-drawer>
 
   <!-- Reject dialog -->
