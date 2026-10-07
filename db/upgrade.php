@@ -4336,7 +4336,7 @@ if ($oldversion < 20261001093) {
 
         $agm->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
         $agm->add_key('fk_agm_group', XMLDB_KEY_FOREIGN, ['groupid'], 'gmk_activity_group', ['id']);
-        \->add_key('fk_agm_user',  XMLDB_KEY_FOREIGN, ['userid'],  'user', ['id']);
+        $agm->add_key('fk_agm_user',  XMLDB_KEY_FOREIGN, ['userid'],  'user', ['id']);
         $agm->add_index('idx_agm_group_user', XMLDB_INDEX_UNIQUE, ['groupid', 'userid']);
         // Note: NOT adding idx_agm_user on (userid) alone because MySQL
         // implicitly creates an index for the FK fk_agm_user on that column;
