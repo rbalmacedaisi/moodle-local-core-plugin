@@ -4,6 +4,7 @@ namespace local_grupomakro_core\external\teacher;
 defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->libdir . '/externallib.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 
 use external_api;
 use external_function_parameters;

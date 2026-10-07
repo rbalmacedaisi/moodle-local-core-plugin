@@ -15,6 +15,7 @@ use Exception;
 defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot . '/mod/assign/locallib.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 
 class assign_activity extends external_api {
 
