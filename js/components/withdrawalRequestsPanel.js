@@ -88,7 +88,7 @@ Vue.component('withdrawal-requests-panel', {
                     to:   this.filter.to   === '' || this.filter.to   == null ? 0 : this.filter.to,
                 });
                 const { data } = await this.callAjax('wdr_admin_list', filter);
-                if (data && data.status === 'ok') {
+                if (data && data.status === 'success') {
                     this.requests = data.data || [];
                 } else {
                     this.notify(data && data.message ? data.message : 'No se pudo cargar la bandeja.', 'error');
@@ -110,7 +110,7 @@ Vue.component('withdrawal-requests-panel', {
         async loadDetail(id) {
             try {
                 const { data } = await this.callAjax('wdr_get_request_detail', { id });
-                if (data && data.status === 'ok' && data.data) {
+                if (data && data.status === 'success' && data.data) {
                     this.drawer.row = Object.assign({}, this.drawer.row, data.data);
                 }
             } catch (e) {
@@ -123,7 +123,7 @@ Vue.component('withdrawal-requests-panel', {
             try {
                 const { data } = await this.callAjax('wdr_admin_update_status',
                     Object.assign({ id: row.id, action }, extra));
-                if (data && data.status === 'ok') {
+                if (data && data.status === 'success') {
                     this.notify('Estado actualizado.', 'success');
                     this.drawer.row.status = data.data.status;
                     row.status = data.data.status;
@@ -142,7 +142,7 @@ Vue.component('withdrawal-requests-panel', {
             if (!target) return;
             try {
                 const { data } = await this.callAjax('wdr_download_pdf', { id: target.id });
-                if (data && data.status === 'ok' && data.data && data.data.contentbase64) {
+                if (data && data.status === 'success' && data.data && data.data.contentbase64) {
                     const blob = new Blob(
                         [Uint8Array.from(atob(data.data.contentbase64), c => c.charCodeAt(0))],
                         { type: 'application/pdf' });
@@ -165,7 +165,7 @@ Vue.component('withdrawal-requests-panel', {
             if (!row || !row.has_scanned) return;
             try {
                 const { data } = await this.callAjax('wdr_get_scanned', { id: row.id });
-                if (data && data.status === 'ok' && data.data && data.data.available) {
+                if (data && data.status === 'success' && data.data && data.data.available) {
                     this.scannedsrc = 'data:' + data.data.mimetype + ';base64,' + data.data.contentbase64;
                 } else {
                     this.scannedsrc = null;
@@ -214,7 +214,7 @@ Vue.component('withdrawal-requests-panel', {
                     filename: f.name,
                     contentbase64: b64,
                 });
-                if (data && data.status === 'ok') {
+                if (data && data.status === 'success') {
                     this.notify('Copia firmada archivada.', 'success');
                     this.uploadDialog.open = false;
                     this.loadList();
