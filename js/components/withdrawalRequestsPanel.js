@@ -232,29 +232,29 @@ Vue.component('withdrawal-requests-panel', {
   <v-card outlined>
     <v-card-title>
       <div>
-        <div class="text-h6">{{ Bandeja RET-01 }}</div>
-        <div class="text-caption grey--text">{{ Director Académico · Secretaría Académica · Director General }}</div>
+        <div class="text-h6">{{ 'Bandeja RET-01' }}</div>
+        <div class="text-caption grey--text">{{ 'Director Académico · Secretaría Académica · Director General' }}</div>
       </div>
       <v-spacer></v-spacer>
-      <v-btn color="primary" text @click="loadList"><v-icon left>mdi-refresh</v-icon>{{ Refrescar }}</v-btn>
+      <v-btn color="primary" text @click="loadList"><v-icon left>mdi-refresh</v-icon>{{ 'Refrescar' }}</v-btn>
     </v-card-title>
     <v-divider></v-divider>
     <v-card-text>
       <v-row dense>
         <v-col cols="12" md="3">
           <v-select v-model="filter.status" :items="statuses" item-text="label" item-value="code"
-                    :label="Estado" outlined dense clearable></v-select>
+                    :label="'Estado'" outlined dense clearable></v-select>
         </v-col>
         <v-col cols="12" md="5">
           <v-text-field v-model="filter.search"
-            :label="Buscar (solicitud, nombre, cédula)"
+            :label="'Buscar (solicitud, nombre, cédula)'"
             outlined dense clearable></v-text-field>
         </v-col>
         <v-col cols="6" md="2">
-          <v-text-field v-model="filter.from" type="date" :label="Desde" outlined dense></v-text-field>
+          <v-text-field v-model="filter.from" type="date" :label="'Desde'" outlined dense></v-text-field>
         </v-col>
         <v-col cols="6" md="2">
-          <v-text-field v-model="filter.to" type="date" :label="Hasta" outlined dense></v-text-field>
+          <v-text-field v-model="filter.to" type="date" :label="'Hasta'" outlined dense></v-text-field>
         </v-col>
       </v-row>
 
@@ -278,15 +278,15 @@ Vue.component('withdrawal-requests-panel', {
         </template>
         <template v-slot:item.timecreated="{ item }">{{ formatDate(item.timecreated) }}</template>
         <template v-slot:item.actions="{ item }">
-          <v-btn icon small color="primary" :title="Ver detalle" @click="openDrawer(item)">
+          <v-btn icon small color="primary" :title="'Ver detalle'" @click="openDrawer(item)">
             <v-icon small>mdi-eye</v-icon>
           </v-btn>
-          <v-btn icon small color="success" :title="Descargar RET-01" @click="downloadPdf(item)">
+          <v-btn icon small color="success" :title="'Descargar RET-01'" @click="downloadPdf(item)">
             <v-icon small>mdi-download</v-icon>
           </v-btn>
         </template>
         <template v-slot:no-data>
-          <div class="py-6 text-center">{{ Sin solicitudes todavía. }}</div>
+          <div class="py-6 text-center">{{ 'Sin solicitudes todavía.' }}</div>
         </template>
       </v-data-table>
     </v-card-text>
@@ -331,22 +331,22 @@ Vue.component('withdrawal-requests-panel', {
         <v-card-text>
           <v-btn block color="primary" :disabled="!canmanage || submitting"
                  @click="doAction(drawer.row, 'record_da')">
-            {{ Registrar recibido Dir. Académica }}
+            {{ 'Registrar recibido Dir. Académica' }}
           </v-btn>
           <v-divider class="my-3"></v-divider>
           <v-btn block color="primary" :disabled="!canmanage || submitting"
                  @click="doAction(drawer.row, 'record_admin')">
-            {{ Registrar recibido Dir. Administrativa }}
+            {{ 'Registrar recibido Dir. Administrativa' }}
           </v-btn>
           <v-divider class="my-3"></v-divider>
           <v-btn block color="success" :disabled="!canmanage || submitting"
                  @click="doAction(drawer.row, 'process')">
-            {{ Marcar procesada }}
+            {{ 'Marcar procesada' }}
           </v-btn>
           <v-divider class="my-3"></v-divider>
           <v-btn block color="error" outlined :disabled="!canmanage || submitting"
                  @click="openRejectDialog(drawer.row)">
-            {{ Rechazar }}
+            {{ 'Rechazar' }}
           </v-btn>
         </v-card-text>
       </v-tab-item>
@@ -354,13 +354,13 @@ Vue.component('withdrawal-requests-panel', {
         <v-card-text>
           <v-btn block color="primary" :disabled="!canmanage" @click="openUpload(drawer.row)">
             <v-icon left>mdi-upload</v-icon>
-            {{ Subir PDF firmado }}
+            {{ 'Subir PDF firmado' }}
           </v-btn>
           <v-divider class="my-3"></v-divider>
           <v-btn block color="info" outlined :disabled="!drawer.row || !drawer.row.has_scanned"
                  @click="fetchScanned(drawer.row)">
             <v-icon left>mdi-eye</v-icon>
-            {{ Ver copia firmada }}
+            {{ 'Ver copia firmada' }}
           </v-btn>
           <iframe v-if="scannedsrc" :src="scannedsrc" style="width:100%;height:60vh;margin-top:8px" frameborder="0"></iframe>
         </v-card-text>
@@ -399,9 +399,9 @@ Vue.component('withdrawal-requests-panel', {
   <!-- Reject dialog -->
   <v-dialog v-model="rejectDialog.open" max-width="500">
     <v-card>
-      <v-card-title>{{ Rechazar }}</v-card-title>
+      <v-card-title>{{ 'Rechazar' }}</v-card-title>
       <v-card-text>
-        <v-textarea v-model="rejectDialog.reason" :label="Motivo del rechazo"
+        <v-textarea v-model="rejectDialog.reason" :label="'Motivo del rechazo'"
                     rows="3" outlined dense></v-textarea>
       </v-card-text>
       <v-card-actions>
@@ -415,9 +415,9 @@ Vue.component('withdrawal-requests-panel', {
   <!-- Upload dialog -->
   <v-dialog v-model="uploadDialog.open" max-width="560">
     <v-card>
-      <v-card-title>{{ Subir PDF firmado }}</v-card-title>
+      <v-card-title>{{ 'Subir PDF firmado' }}</v-card-title>
       <v-card-text>
-        <p class="text-caption">{{ PDF firmado, máx. 12 MB. Solo se acepta un archivo por solicitud. }}</p>
+        <p class="text-caption">{{ 'PDF firmado, máx. 12 MB. Solo se acepta un archivo por solicitud.' }}</p>
         <v-file-input v-model="uploadDialog.file" accept="application/pdf" :label="'PDF'" outlined dense
                       @change="pickFile"></v-file-input>
         <v-alert v-if="uploadDialog.error" type="error" dense outlined>{{ uploadDialog.error }}</v-alert>
