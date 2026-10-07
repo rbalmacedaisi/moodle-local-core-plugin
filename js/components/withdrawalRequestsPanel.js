@@ -303,7 +303,7 @@ Vue.component('withdrawal-requests-panel', {
   </v-card>
 
   <!-- Drawer with detail + actions -->
-  <v-navigation-drawer v-model="drawer.open" temporary right width="540">
+  <v-navigation-drawer v-if="drawer.open" v-model="drawer.open" temporary right width="540">
     <v-toolbar flat>
       <v-toolbar-title>{{ drawer.row ? drawer.row.request_number : '' }}</v-toolbar-title>
       <v-spacer></v-spacer>
