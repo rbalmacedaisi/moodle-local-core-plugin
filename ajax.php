@@ -39,25 +39,35 @@ if (!function_exists('gmk_log')) {
 $action = optional_param('action', '', PARAM_ALPHANUMEXT);
 header('Content-Type: application/json'); // Enforce JSON for this AJAX script
 
-// JSON Request Handling (for Axios)
-if (empty($action)) {
-    $rawInput = file_get_contents('php://input');
-    if (!empty($rawInput)) {
-        $jsonData = json_decode($rawInput, true);
-        if ($jsonData && isset($jsonData['action'])) {
+// JSON Request Handling (for Axios).
+// Parseamos el body SIEMPRE que llegue application/json, independiente de
+// si $action viene en la URL o en el body. Antes este bloque estaba
+// dentro de `if (empty($action))` lo que SKIPEABA el parseo cuando el
+// JS enviaba la action en el query string (patron usado por TODOS los
+// componentes Vue de este plugin: ajax.php?action=local_grupomakro_xxx).
+// Resultado: las keys del body (incluido sesskey) nunca llegaban a
+// $_POST, external_api::call_external_function() lanzaba
+// "Un parametro necesario (sesskey) faltaba" y el JS fallaba con
+// "Cannot read properties of undefined (reading 'M_ID')" porque la
+// respuesta era un HTML de error de Moodle en vez de JSON.
+$rawInput = file_get_contents('php://input');
+if (!empty($rawInput)) {
+    $jsonData = json_decode($rawInput, true);
+    if (is_array($jsonData)) {
+        // Si action viene en el body (legacy), usarlo como fallback solo
+        // si el param URL estaba vacio.
+        if (empty($action) && isset($jsonData['action']) && is_string($jsonData['action'])) {
             $action = clean_param($jsonData['action'], PARAM_ALPHANUMEXT);
-            
-            // Extract core fields
-            // Extract all root fields for compatibility with required_param/optional_param
-            foreach ($jsonData as $key => $value) {
+        }
+        // Extraer todas las root keys a $_POST/$_REQUEST para que
+        // optional_param/required_param las encuentre.
+        foreach ($jsonData as $key => $value) {
+            $_POST[$key] = $_REQUEST[$key] = $value;
+        }
+        // Flatten 'args' por compatibilidad con WS que esperan args anidados.
+        if (isset($jsonData['args']) && is_array($jsonData['args'])) {
+            foreach ($jsonData['args'] as $key => $value) {
                 $_POST[$key] = $_REQUEST[$key] = $value;
-            }
-
-            // Flatten 'args' for compatibility with required_param/optional_param
-            if (isset($jsonData['args']) && is_array($jsonData['args'])) {
-                foreach ($jsonData['args'] as $key => $value) {
-                    $_POST[$key] = $_REQUEST[$key] = $value;
-                }
             }
         }
     }
