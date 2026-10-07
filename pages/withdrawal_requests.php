@@ -61,7 +61,7 @@ echo <<<EOT
 <div id="gmk-app">
   <v-app class="transparent">
     <v-main>
-      <withdrawal-requests-panel :canmanage="$canmanage"></withdrawal-requests-panel>
+      <withdrawal-requests-panel :canmanage="<?= $canmanage ? 'true' : 'false' ?>"></withdrawal-requests-panel>
     </v-main>
   </v-app>
 </div>
