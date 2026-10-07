@@ -77,7 +77,17 @@ Vue.component('withdrawal-requests-panel', {
         async loadList() {
             this.loading = true;
             try {
-                const { data } = await this.callAjax('wdr_admin_list', this.filter);
+                // El date input envia string vacio cuando no hay filtro, pero
+                // admin_list::execute_parameters() declara from/to como
+                // PARAM_INT y el framework de WS de Moodle no convierte '' a 0
+                // automaticamente (solo aplica VALUE_DEFAULT cuando la key esta
+                // ausente). Coerce local a 0 antes de enviar para mantener
+                // v-model="filter.from" con string vacio en la UI.
+                const filter = Object.assign({}, this.filter, {
+                    from: this.filter.from === '' || this.filter.from == null ? 0 : this.filter.from,
+                    to:   this.filter.to   === '' || this.filter.to   == null ? 0 : this.filter.to,
+                });
+                const { data } = await this.callAjax('wdr_admin_list', filter);
                 if (data && data.status === 'ok') {
                     this.requests = data.data || [];
                 } else {
