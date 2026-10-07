@@ -51,43 +51,35 @@ $wwwroot = json_encode($CFG->wwwroot);
 
 $canmanage = has_capability('local/grupomakro_core:manage_wdr_requests', $context);
 
-// Forzar no-cache a nivel de HTTP para evitar que un proxy/CDN/browser
-// sirva una version vieja donde el heredoc no interpolaba las variables.
-// Moodle ya pone Cache-Control en el 303 de login, pero la respuesta
-// 200 final puede cachearse aguas abajo.
-header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
-header('Pragma: no-cache');
-header('Expires: Thu, 01 Jan 1970 00:00:00 GMT');
-
 echo $OUTPUT->header();
 
-// Estructura 100% PHP echo (NO heredoc) para que el browser reciba
-// las variables SIEMPRE interpoladas, sin riesgo de que un cache o un
-// parser raro deje el codigo PHP literal en el HTML.
-echo '<link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900" rel="stylesheet">';
-echo '<link href="https://cdn.jsdelivr.net/npm/@mdi/font@6.x/css/materialdesignicons.min.css" rel="stylesheet">';
-echo '<link href="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.css">';
-echo '<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">';
-echo '<meta http-equiv="Pragma" content="no-cache">';
-echo '<meta http-equiv="Expires" content="0">';
-echo '<div id="gmk-app">';
-echo '  <v-app class="transparent">';
-echo '    <v-main>';
-echo '      <withdrawal-requests-panel :canmanage="' . ($canmanage ? 'true' : 'false') . '"></withdrawal-requests-panel>';
-echo '    </v-main>';
-echo '  </v-app>';
-echo '</div>';
-echo '<script src="https://cdn.jsdelivr.net/npm/vue@2.x/dist/vue.js"></script>';
-echo '<script src="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.js"></script>';
-echo '<script src="https://unpkg.com/axios/dist/axios.min.js"></script>';
-echo '<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>';
-echo '<style>.theme--light.v-application { background: transparent !important; }</style>';
-echo '<script>';
-echo '  var ajaxUrl = ' . $ajaxUrl . ';';
-echo '  var sesskey = ' . $sesskey . ';';
-echo '  var wwwroot = ' . $wwwroot . ';';
-echo '  var GMK_IS_SITEADMIN = ' . ($canmanage ? 'true' : 'false') . ';';
-echo '</script>';
+echo <<<EOT
+<link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/@mdi/font@6.x/css/materialdesignicons.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.css">
+
+<div id="gmk-app">
+  <v-app class="transparent">
+    <v-main>
+      <withdrawal-requests-panel :canmanage="$canmanage"></withdrawal-requests-panel>
+    </v-main>
+  </v-app>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/vue@2.x/dist/vue.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.js"></script>
+<script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<style>
+  .theme--light.v-application { background: transparent !important; }
+</style>
+<script>
+  var ajaxUrl = $ajaxUrl;
+  var sesskey = $sesskey;
+  var wwwroot = $wwwroot;
+  var GMK_IS_SITEADMIN = $canmanage;
+</script>
+EOT;
 
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/withdrawalRequestsPanel.js?v=' . $assetversion));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/app.js?v=' . $assetversion));
