@@ -19,7 +19,11 @@
  */
 
 Vue.component('withdrawal-requests-panel', {
-    props: { canmanage: { type: Boolean, required: true } },
+    // type: [Boolean, Number] para tolerar el render del prop como 1/0
+    // cuando el PHP emite el booleano crudo dentro del heredoc
+    // (PHP true se imprime como "1"). announcements.js tiene el mismo
+    // problema pero nunca lo reporto porque nadie forzo el hard reload.
+    props: { canmanage: { type: [Boolean, Number], required: true } },
     data() {
         return {
             requests: [],
@@ -251,20 +255,20 @@ Vue.component('withdrawal-requests-panel', {
     <v-divider></v-divider>
     <v-card-text>
       <v-row dense>
-        <v-col cols="12" md="3">
+        <v-col cols="12" sm="6" md="3">
           <v-select v-model="filter.status" :items="statuses" item-text="label" item-value="code"
                     :label="'Estado'" outlined dense clearable></v-select>
         </v-col>
-        <v-col cols="12" md="5">
+        <v-col cols="12" sm="6" md="4">
           <v-text-field v-model="filter.search"
             :label="'Buscar (solicitud, nombre, cédula)'"
-            outlined dense clearable></v-text-field>
+            outlined dense clearable prepend-inner-icon="mdi-magnify"></v-text-field>
         </v-col>
-        <v-col cols="6" md="2">
-          <v-text-field v-model="filter.from" type="date" :label="'Desde'" outlined dense></v-text-field>
+        <v-col cols="6" sm="3" md="2.5">
+          <v-text-field v-model="filter.from" type="date" :label="'Desde'" outlined dense hide-details></v-text-field>
         </v-col>
-        <v-col cols="6" md="2">
-          <v-text-field v-model="filter.to" type="date" :label="'Hasta'" outlined dense></v-text-field>
+        <v-col cols="6" sm="3" md="2.5">
+          <v-text-field v-model="filter.to" type="date" :label="'Hasta'" outlined dense hide-details></v-text-field>
         </v-col>
       </v-row>
 
