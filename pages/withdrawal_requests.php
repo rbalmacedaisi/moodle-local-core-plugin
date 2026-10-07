@@ -50,18 +50,24 @@ $sesskey = json_encode(sesskey());
 $wwwroot = json_encode($CFG->wwwroot);
 
 $canmanage = has_capability('local/grupomakro_core:manage_wdr_requests', $context);
+// Para que el prop :canmanage de Vue sea un BOOLEAN (no Number) hay que
+// emitir la string literal "true" o "false" en el atributo. No se puede
+// usar <?= ?> dentro del heredoc (PHP no procesa short-echo tags dentro
+// de strings), asi que la expresion se computa antes y se inyecta via
+// interpolacion de variable en el heredoc.
+$canmanageJs = $canmanage ? 'true' : 'false';
 
 echo $OUTPUT->header();
 
 echo <<<EOT
 <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/@mdi/font@6.x/css/materialdesignicons.min.css" rel="stylesheet">
-<link href="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.css">
 
 <div id="gmk-app">
   <v-app class="transparent">
     <v-main>
-      <withdrawal-requests-panel :canmanage="<?= $canmanage ? 'true' : 'false' ?>"></withdrawal-requests-panel>
+      <withdrawal-requests-panel :canmanage="{$canmanageJs}"></withdrawal-requests-panel>
     </v-main>
   </v-app>
 </div>
