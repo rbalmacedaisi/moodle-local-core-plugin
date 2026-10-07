@@ -28,8 +28,8 @@ Vue.component('withdrawal-requests-panel', {
             filter: {
                 status: '',
                 search: '',
-                from: 0,
-                to: 0,
+                from: '',
+                to: '',
             },
             statuses: [
                 { code: '', label: 'Todos' },

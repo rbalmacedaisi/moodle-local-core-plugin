@@ -9000,6 +9000,20 @@ try {
                         $args = ($jsonData && isset($jsonData['args']) && is_array($jsonData['args']))
                             ? $jsonData['args']
                             : [];
+                        // Compat: algunos componentes Vue (notablemente
+                        // withdrawalRequestsPanel.js) envian el body directo
+                        // sin anidar bajo "args". En ese caso, las keys quedan
+                        // en $_POST (lineas 52-54 de este archivo las copian
+                        // ahi) y podemos reconstruir $args desde ahi. Excluimos
+                        // 'action' y 'sesskey' que son del dispatcher, no del WS.
+                        if (empty($args)) {
+                            foreach ($_POST as $k => $v) {
+                                if ($k === 'action' || $k === 'sesskey') {
+                                    continue;
+                                }
+                                $args[$k] = $v;
+                            }
+                        }
                         // external_api::call_external_function validates the
                         // parameter names and types against the WS's
                         // execute_parameters() definition, then invokes
