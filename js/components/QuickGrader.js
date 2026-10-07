@@ -191,7 +191,46 @@ const QuickGrader = {
                              {{ currentTask.modname === 'quiz' ? 'Calificar Pregunta' : 'Evaluar Tarea' }}
                          </v-card-title>
                          <v-divider></v-divider>
-                         
+
+                         <!-- Stepper Individual / Grupal (20261001057) -->
+                         <div v-if="supportsGroupGrading" class="pa-3 grey lighten-4">
+                             <div class="text-caption grey--text mb-1">Modo de calificación</div>
+                             <v-btn-toggle v-model="gradingMode" mandatory color="primary" dense>
+                                 <v-btn value="individual" small>
+                                     <v-icon left small>mdi-account</v-icon>Individual
+                                 </v-btn>
+                                 <v-btn value="group" small :disabled="!hasGroup">
+                                     <v-icon left small>mdi-account-group</v-icon>Grupal
+                                 </v-btn>
+                             </v-btn-toggle>
+                             <div v-if="gradingMode === 'group' && groupInfo" class="mt-2">
+                                 <v-chip x-small :color="'gmk-group-' + groupInfo.colorindex" dark class="mr-1">
+                                     <v-icon x-small left>mdi-account-group</v-icon>
+                                     {{ groupInfo.name }}
+                                 </v-chip>
+                                 <span class="caption grey--text">
+                                     {{ (groupInfo.members || []).length }} miembros
+                                 </span>
+                                 <div v-if="(groupInfo.members || []).length > 0" class="mt-2">
+                                     <v-chip
+                                         v-for="m in groupInfo.members"
+                                         :key="m.userid"
+                                         x-small class="mr-1 mb-1"
+                                     >
+                                         <v-avatar v-if="m.avatar" left size="18">
+                                             <img :src="m.avatar" :alt="m.fullname"/>
+                                         </v-avatar>
+                                         {{ shortName(m.fullname) }}
+                                     </v-chip>
+                                 </div>
+                             </div>
+                             <div v-else-if="gradingMode === 'group' && !hasGroup" class="text-caption orange--text text--darken-2 mt-2">
+                                 <v-icon x-small>mdi-alert-circle-outline</v-icon>
+                                 Este envío no tiene grupo asignado.
+                             </div>
+                         </div>
+                         <v-divider v-if="supportsGroupGrading"></v-divider>
+
                          <div class="pa-4 flex-grow-1 overflow-y-auto">
                              <v-form ref="form" v-model="valid">
                                  <div class="d-flex align-center mb-1">
@@ -210,7 +249,7 @@ const QuickGrader = {
 
                                  <v-textarea
                                      v-model="feedback"
-                                     label="Comentarios / Retroalimentación"
+                                     :label="gradingMode === 'group' ? 'Comentarios / Retroalimentación (común a todo el grupo)' : 'Comentarios / Retroalimentación'"
                                      outlined
                                      rows="8"
                                      placeholder="Escribe comentarios para el estudiante..."
@@ -250,7 +289,15 @@ const QuickGrader = {
                     </div>
                 </div>
             </v-card>
-            
+
+            <!-- Modal de confirmacion de re-calificacion grupal (20261001057) -->
+            <group-grade-confirm-modal
+                :visible="showGroupWarning"
+                :payload="groupWarningPayload"
+                @cancel="cancelGroupWarning"
+                @confirm="confirmGroupWarning"
+            />
+
         </v-dialog>
     `,
     data() {
@@ -268,6 +315,13 @@ const QuickGrader = {
             quizError: null,
             saveError: null,
             loadingAssignDetails: false,
+            // Calificacion grupal (20261001057)
+            gradingMode: 'individual',     // 'individual' | 'group'
+            groupInfo: null,               // info del grupo del envio (si hay)
+            enableGroupGrading: false,     // flag de la actividad
+            showGroupWarning: false,
+            groupWarningPayload: null,
+            pendingGroupSave: null,        // callback que se ejecuta al confirmar
             // File Preview specifics
             selectedFile: null,
             officeContent: '',
@@ -306,6 +360,13 @@ const QuickGrader = {
                 return this.selectedSlotIndex === this.quizData.questions.length - 1;
             }
             return true;
+        },
+        // Calificacion grupal (20261001057)
+        supportsGroupGrading() {
+            return this.enableGroupGrading === true && this.currentTask && this.currentTask.modname === 'assign';
+        },
+        hasGroup() {
+            return !!(this.groupInfo && this.groupInfo.id);
         }
     },
     watch: {
@@ -445,6 +506,13 @@ const QuickGrader = {
             this.reopenSuccess = '';
             this.quizData = { questions: [] };
             this.selectedSlotIndex = 0;
+            // Calificacion grupal (20261001057): limpiar el estado del grupo pero
+            // conservar enableGroupGrading (es propio de la actividad, no del envio).
+            this.gradingMode = 'individual';
+            this.groupInfo = null;
+            this.showGroupWarning = false;
+            this.groupWarningPayload = null;
+            this.pendingGroupSave = null;
             if (this.$refs.form) this.$refs.form.resetValidation();
         },
         async fetchQuizData() {
@@ -513,6 +581,15 @@ const QuickGrader = {
                     }
                     if (detail.currentfeedback) {
                         this.feedback = detail.currentfeedback;
+                    }
+                    // Calificacion grupal (20261001057)
+                    if (detail.enableGroupGrading) {
+                        this.enableGroupGrading = true;
+                        this.groupInfo = detail.groupinfo || null;
+                        // Pre-seleccionar modo Grupal si el envio tiene grupo.
+                        if (this.groupInfo && this.groupInfo.id) {
+                            this.gradingMode = 'group';
+                        }
                     }
                 } else {
                     console.warn('[GMK] assign detail not loaded', response.data);
@@ -634,6 +711,14 @@ const QuickGrader = {
         async saveAndNext() {
             if (!this.$refs.form.validate()) return;
 
+            // Calificacion grupal: si el envio pertenece a un grupo y el docente
+            // eligio modo Grupal, llamar al endpoint save_group_grade con la
+            // logica de pre-flight + confirm.
+            if (this.currentTask.modname === 'assign' && this.gradingMode === 'group' && this.hasGroup) {
+                await this.saveGroupGrade(false);
+                return;
+            }
+
             this.saving = true;
             this.saveError = null;
             try {
@@ -664,39 +749,11 @@ const QuickGrader = {
                 });
 
                 if (response.data.status === 'success') {
-                    if (this.currentTask.modname === 'quiz') {
-                        // Update local question state
-                        this.currentQuestion.needsgrading = false;
-                        this.currentQuestion.currentgrade = this.grade;
-
-                        if (!this.isLastQuestion) {
-                            this.selectedSlotIndex++;
-                            this.grade = this.currentQuestion.currentgrade || '';
-                            this.feedback = '';
-                        } else {
-                            // Capture next task BEFORE emitting grade-saved, so the parent's
-                            // optimistic filter doesn't affect allTasks before loadNext reads it.
-                            const savedId   = this.currentTask.id;
-                            const nextIdx   = this.currentIndex + 1;
-                            const nextTask  = this.allTasks[nextIdx] || null;
-                            this.$emit('grade-saved', savedId);
-                            if (nextTask) {
-                                this.$emit('update:task', nextTask);
-                            } else {
-                                this.close();
-                            }
-                        }
-                    } else {
-                        const savedId   = this.currentTask.id;
-                        const nextIdx   = this.currentIndex + 1;
-                        const nextTask  = this.allTasks[nextIdx] || null;
-                        this.$emit('grade-saved', savedId);
-                        if (nextTask) {
-                            this.$emit('update:task', nextTask);
-                        } else {
-                            this.close();
-                        }
-                    }
+                    this.afterSaveSuccess(response);
+                } else if (response.data.status === 'warning') {
+                    // No es el flujo esperado para save_grade individual, pero
+                    // por defensa lo manejamos.
+                    this.saveError = response.data.message || 'El servidor devolvió una advertencia inesperada.';
                 } else {
                     this.saveError = response.data.message || 'Error desconocido del servidor.';
                     console.error("Save Error Response:", response.data);
@@ -737,6 +794,84 @@ const QuickGrader = {
                 this.reopening = false;
             }
         },
+
+        // ===================================================================
+        // Calificacion grupal (20261001057)
+        // ===================================================================
+
+        async saveGroupGrade(confirm) {
+            if (!this.currentTask.assignmentid || !this.groupInfo || !this.groupInfo.id) {
+                this.saveError = 'No se puede calificar grupalmente: falta informacion del grupo.';
+                return;
+            }
+            this.saving = true;
+            this.saveError = null;
+            try {
+                const response = await axios.post(window.wsUrl, {
+                    action: 'local_grupomakro_save_group_grade',
+                    args: JSON.stringify({
+                        assignmentid: this.currentTask.assignmentid,
+                        groupid: this.groupInfo.id,
+                        grade: this.grade,
+                        feedback: this.feedback,
+                        confirm: confirm ? 1 : 0
+                    }),
+                    sesskey: M.cfg.sesskey
+                });
+                const data = response.data || {};
+                if (data.status === 'warning') {
+                    // Mostrar el modal de confirmacion no bloqueante.
+                    this.groupWarningPayload = data;
+                    this.pendingGroupSave = () => this.saveGroupGrade(true);
+                    this.showGroupWarning = true;
+                } else if (data.status === 'success') {
+                    this.afterSaveSuccess(response);
+                } else {
+                    this.saveError = data.message || 'Error desconocido del servidor.';
+                }
+            } catch (e) {
+                console.error('[GMK] saveGroupGrade error', e);
+                this.saveError = e.message || 'Error de conexion al guardar calificacion grupal.';
+            } finally {
+                this.saving = false;
+            }
+        },
+
+        cancelGroupWarning() {
+            this.showGroupWarning = false;
+            this.groupWarningPayload = null;
+            this.pendingGroupSave = null;
+        },
+
+        async confirmGroupWarning() {
+            this.showGroupWarning = false;
+            const fn = this.pendingGroupSave;
+            this.pendingGroupSave = null;
+            if (typeof fn === 'function') {
+                await fn();
+            }
+        },
+
+        afterSaveSuccess(response) {
+            // Comportamiento comun tras un save exitoso: avanzar al siguiente.
+            const savedId = this.currentTask.id;
+            const nextIdx = this.currentIndex + 1;
+            const nextTask = this.allTasks[nextIdx] || null;
+            this.$emit('grade-saved', savedId);
+            if (nextTask) {
+                this.$emit('update:task', nextTask);
+            } else {
+                this.close();
+            }
+        },
+
+        shortName(name) {
+            if (!name) return '';
+            const parts = name.split(' ');
+            if (parts.length === 1) return parts[0];
+            return parts[0] + ' ' + (parts[1] || '');
+        },
+
         loadNext() {
             const nextIdx = this.currentIndex + 1;
             if (nextIdx < this.allTasks.length) {

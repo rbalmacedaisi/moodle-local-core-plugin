@@ -233,6 +233,37 @@ body.gmk-full-frame .drawer-toggler {
     color: white !important;
 }
 
+/* ============================================================
+   Calificacion grupal (introducida en 20261001057)
+   ============================================================ */
+
+.activity-groups-panel .group-card {
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    border-left: 5px solid transparent;
+}
+.activity-groups-panel .group-card.group-color-1 { border-left-color: #1976D2; }
+.activity-groups-panel .group-card.group-color-2 { border-left-color: #4CAF50; }
+.activity-groups-panel .group-card.group-color-3 { border-left-color: #FF5252; }
+.activity-groups-panel .group-card.group-color-4 { border-left-color: #FB8C00; }
+.activity-groups-panel .group-card.group-color-5 { border-left-color: #9C27B0; }
+.activity-groups-panel .group-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+}
+
+.activity-groups-panel .member-list {
+    max-height: 140px;
+    overflow-y: auto;
+}
+
+.activity-groups-panel .group-card .v-chip--small {
+    margin-bottom: 2px;
+}
+
+.activity-groups-panel .v-autocomplete__content .v-list-item__title {
+    font-size: 13px;
+}
+
 /* Transitions */
 .list-enter-active,
 .list-leave-active {

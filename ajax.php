@@ -14,6 +14,17 @@ require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 use local_grupomakro_core\external\teacher\create_express_activity;
 use local_grupomakro_core\external\teacher\get_pending_grading;
 use local_grupomakro_core\external\teacher\save_grade;
+use local_grupomakro_core\external\teacher\save_group_grade;
+use local_grupomakro_core\external\teacher\save_group_quiz_grade;
+use local_grupomakro_core\external\teacher\activity_group_list;
+use local_grupomakro_core\external\teacher\activity_group_create;
+use local_grupomakro_core\external\teacher\activity_group_update_members;
+use local_grupomakro_core\external\teacher\activity_group_delete;
+use local_grupomakro_core\external\teacher\activity_group_set_mode;
+use local_grupomakro_core\external\teacher\activity_grading_flag_set;
+use local_grupomakro_core\external\student\activity_group_join;
+use local_grupomakro_core\external\student\activity_group_leave;
+use local_grupomakro_core\external\student\activity_group_list_for_student;
 use local_grupomakro_core\external\student\get_student_info;
 use local_grupomakro_core\external\student\update_status;
 use local_grupomakro_core\external\student\sync_progress;
@@ -921,6 +932,39 @@ try {
                     ],
                 ],
             ];
+
+            // Calificacion grupal (introducida en 20261001057): enriquecer
+            // la respuesta con el grupo al que pertenece este estudiante y
+            // el flag de habilitacion de la actividad. Solo si la actividad
+            // admite calificacion grupal.
+            try {
+                $flag = gmk_get_activity_grading_flag((int)$cm->id);
+                if ($flag && (int)$flag->enabled === 1) {
+                    $payload['data']['enableGroupGrading'] = true;
+                    $payload['data']['groupMode'] = (string)$flag->mode;
+                    $payload['data']['groupMaxmembers'] = (int)$flag->maxmembers;
+                    $gid = gmk_get_user_activity_group((int)$cm->id, (int)$studentid);
+                    if ($gid > 0) {
+                        $groups = gmk_get_activity_groups((int)$cm->id, 'assign', (int)$studentid);
+                        foreach ($groups['groups'] as $g) {
+                            if ((int)$g['id'] === $gid) {
+                                $payload['data']['groupinfo'] = [
+                                    'id'          => (int)$g['id'],
+                                    'name'        => (string)$g['name'],
+                                    'colorindex'  => (int)$g['colorindex'],
+                                    'mode'        => (string)$g['mode'],
+                                    'membercount' => (int)$g['membercount'],
+                                    'members'     => $g['members'],
+                                ];
+                                break;
+                            }
+                        }
+                    }
+                }
+            } catch (\Throwable $e) {
+                // No fallamos la respuesta por no tener info de grupo.
+            }
+
             break;
 
         case 'local_grupomakro_save_grade':
@@ -980,6 +1024,188 @@ try {
             $result = \local_grupomakro_core\external\teacher\reopen_assignment::execute(
                 (int)$data['assignmentid'],
                 (int)$data['studentid']
+            );
+            $response = [
+                'status'  => $result['status'],
+                'message' => $result['message'],
+            ];
+            break;
+
+        // =====================================================================
+        // CALIFICACION GRUPAL (introducida en 20261001057)
+        // =====================================================================
+
+        case 'local_grupomakro_activity_group_list':
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/teacher/activity_group_list.php');
+            $cmid    = required_param('cmid', PARAM_INT);
+            $modname = required_param('modname', PARAM_ALPHA);
+            $result  = \local_grupomakro_core\external\teacher\activity_group_list::execute($cmid, $modname);
+            $response = [
+                'status'  => $result['status'] ?? 'success',
+                'message' => $result['message'] ?? '',
+                'flag'    => $result['flag'] ?? null,
+                'groups'  => $result['groups'] ?? [],
+            ];
+            break;
+
+        case 'local_grupomakro_activity_group_list_for_student':
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/student/activity_group_list_for_student.php');
+            $cmid    = required_param('cmid', PARAM_INT);
+            $modname = required_param('modname', PARAM_ALPHA);
+            $result  = \local_grupomakro_core\external\student\activity_group_list_for_student::execute($cmid, $modname);
+            $response = [
+                'flag'                  => $result['flag'] ?? null,
+                'groups'                => $result['groups'] ?? [],
+                'user_current_group_id' => $result['user_current_group_id'] ?? 0,
+            ];
+            break;
+
+        case 'local_grupomakro_activity_group_create':
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/teacher/activity_group_create.php');
+            $args = required_param('args', PARAM_RAW);
+            $data = json_decode($args, true);
+            if (!$data) throw new moodle_exception('invalidjson');
+            $result = \local_grupomakro_core\external\teacher\activity_group_create::execute(
+                (int)$data['cmid'],
+                (string)$data['modname'],
+                (string)$data['name'],
+                isset($data['maxmembers']) ? (int)$data['maxmembers'] : 5,
+                isset($data['mode']) ? (string)$data['mode'] : 'open',
+                isset($data['memberids']) && is_array($data['memberids']) ? $data['memberids'] : []
+            );
+            $response = [
+                'status'  => $result['status'],
+                'message' => $result['message'],
+                'groupid' => $result['groupid'],
+            ];
+            break;
+
+        case 'local_grupomakro_activity_group_update_members':
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/teacher/activity_group_update_members.php');
+            $args = required_param('args', PARAM_RAW);
+            $data = json_decode($args, true);
+            if (!$data) throw new moodle_exception('invalidjson');
+            $result = \local_grupomakro_core\external\teacher\activity_group_update_members::execute(
+                (int)$data['groupid'],
+                isset($data['add']) && is_array($data['add']) ? $data['add'] : [],
+                isset($data['remove']) && is_array($data['remove']) ? $data['remove'] : []
+            );
+            $response = [
+                'status'   => $result['status'],
+                'message'  => $result['message'],
+                'added'    => $result['added'],
+                'removed'  => $result['removed'],
+                'rejected' => $result['rejected'],
+            ];
+            break;
+
+        case 'local_grupomakro_activity_group_delete':
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/teacher/activity_group_delete.php');
+            $args = required_param('args', PARAM_RAW);
+            $data = json_decode($args, true);
+            if (!$data) throw new moodle_exception('invalidjson');
+            $result = \local_grupomakro_core\external\teacher\activity_group_delete::execute(
+                (int)$data['groupid'],
+                !empty($data['force'])
+            );
+            $response = [
+                'status'  => $result['status'],
+                'message' => $result['message'],
+            ];
+            break;
+
+        case 'local_grupomakro_activity_group_set_mode':
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/teacher/activity_group_set_mode.php');
+            $args = required_param('args', PARAM_RAW);
+            $data = json_decode($args, true);
+            if (!$data) throw new moodle_exception('invalidjson');
+            $result = \local_grupomakro_core\external\teacher\activity_group_set_mode::execute(
+                (int)$data['groupid'],
+                (string)$data['mode'],
+                isset($data['maxmembers']) ? (int)$data['maxmembers'] : 0
+            );
+            $response = [
+                'status'  => $result['status'],
+                'message' => $result['message'],
+            ];
+            break;
+
+        case 'local_grupomakro_save_group_grade':
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/teacher/save_group_grade.php');
+            $args = required_param('args', PARAM_RAW);
+            $data = json_decode($args, true);
+            if (!$data) throw new moodle_exception('invalidjson');
+            $result = \local_grupomakro_core\external\teacher\save_group_grade::execute(
+                (int)$data['assignmentid'],
+                (int)$data['groupid'],
+                (float)$data['grade'],
+                isset($data['feedback']) ? (string)$data['feedback'] : '',
+                !empty($data['confirm'])
+            );
+            $response = [
+                'status'             => $result['status'],
+                'message'            => $result['message'],
+                'alreadygradedcount' => $result['alreadygradedcount'],
+                'alreadygraded'      => $result['alreadygraded'],
+                'pendingmembers'     => $result['pendingmembers'],
+                'gradedcount'        => $result['gradedcount'],
+            ];
+            break;
+
+        case 'local_grupomakro_save_group_quiz_grade':
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/teacher/save_group_quiz_grade.php');
+            $args = required_param('args', PARAM_RAW);
+            $data = json_decode($args, true);
+            if (!$data) throw new moodle_exception('invalidjson');
+            $result = \local_grupomakro_core\external\teacher\save_group_quiz_grade::execute(
+                (int)$data['groupid'],
+                (int)$data['slot'],
+                (float)$data['mark'],
+                isset($data['comment']) ? (string)$data['comment'] : '',
+                !empty($data['confirm'])
+            );
+            $response = [
+                'status'             => $result['status'],
+                'message'            => $result['message'],
+                'alreadygradedcount' => $result['alreadygradedcount'],
+                'alreadygraded'      => $result['alreadygraded'],
+                'pendingmembers'     => $result['pendingmembers'],
+                'gradedcount'        => $result['gradedcount'],
+            ];
+            break;
+
+        case 'local_grupomakro_activity_group_join':
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/student/activity_group_join.php');
+            $groupid = required_param('groupid', PARAM_INT);
+            $result  = \local_grupomakro_core\external\student\activity_group_join::execute($groupid);
+            $response = [
+                'status'  => $result['status'],
+                'message' => $result['message'] ?? '',
+                'groupid' => $result['groupid'] ?? 0,
+            ];
+            break;
+
+        case 'local_grupomakro_activity_group_leave':
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/student/activity_group_leave.php');
+            $cmid = required_param('cmid', PARAM_INT);
+            $result = \local_grupomakro_core\external\student\activity_group_leave::execute($cmid);
+            $response = [
+                'status'  => $result['status'],
+                'message' => $result['message'] ?? '',
+            ];
+            break;
+
+        case 'local_grupomakro_activity_grading_flag_set':
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/teacher/activity_grading_flag_set.php');
+            $args = required_param('args', PARAM_RAW);
+            $data = json_decode($args, true);
+            if (!$data) throw new moodle_exception('invalidjson');
+            $result = \local_grupomakro_core\external\teacher\activity_grading_flag_set::execute(
+                (int)$data['cmid'],
+                (string)$data['modname'],
+                isset($data['enabled']) ? (int)$data['enabled'] : 1,
+                isset($data['mode']) ? (string)$data['mode'] : 'open',
+                isset($data['maxmembers']) ? (int)$data['maxmembers'] : 5
             );
             $response = [
                 'status'  => $result['status'],

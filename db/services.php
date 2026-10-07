@@ -1240,7 +1240,7 @@ $functions = array(
         'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE],
     ],
     // Absence alert system (staged per-class)
-    // Student-facing revalidations for the LXP (popup + Reválidas page).
+    // Student-facing revalidations for the LXP (popup + Revâ”œÃ­lidas page).
     // Replaces local_grupomakro_student_get_revalids, which reads the
     // abandoned status-7 flow and always returns an empty list.
     'local_grupomakro_get_student_revalidations' => [
@@ -1306,7 +1306,7 @@ $functions = array(
         'ajax'        => true,
         'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
     ],
-    // ── Revalidations Director Dashboard ───────────────────────────────────
+    // Ã”Ã¶Ã‡Ã”Ã¶Ã‡ Revalidations Director Dashboard Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡
     'local_grupomakro_list_revalidations_director' => [
         'classname'   => 'local_grupomakro_core\external\admin\list_revalidations_director',
         'methodname'  => 'execute',
@@ -1361,7 +1361,7 @@ $functions = array(
         'ajax'        => true,
         'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
     ],
-    // ── Failed Subjects Report ────────────────────────────────────────────
+    // Ã”Ã¶Ã‡Ã”Ã¶Ã‡ Failed Subjects Report Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡
     'local_grupomakro_get_failed_subjects_periods' => [
         'classname'   => 'local_grupomakro_core\external\admin\failed_subjects\get_periods',
         'methodname'  => 'execute',
@@ -1425,7 +1425,7 @@ $functions = array(
         'ajax'        => true,
         'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
     ],
-    // ── Admin broadcast messages (info/warning to student LXP) ──────────────
+    // Ã”Ã¶Ã‡Ã”Ã¶Ã‡ Admin broadcast messages (info/warning to student LXP) Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡
     // These notifications take precedence over the absence alert system by
     // default (priority 50 vs. 10). The student-side endpoints are read/write
     // since they accept acknowledgements; the admin-side endpoints are
@@ -1548,7 +1548,7 @@ $functions = array(
         'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
     ],
 
-    // ── Wellness module — public / student ──────────────────────────────────
+    // Ã”Ã¶Ã‡Ã”Ã¶Ã‡ Wellness module Ã”Ã‡Ã¶ public / student Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡
     'local_grupomakro_get_wellness_partners' => [
         'classname'   => 'local_grupomakro_core\external\wellness\get_partners',
         'methodname'  => 'execute',
@@ -1631,7 +1631,7 @@ $functions = array(
         'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
     ],
 
-    // ── Wellness module — admin / back-office ───────────────────────────────
+    // Ã”Ã¶Ã‡Ã”Ã¶Ã‡ Wellness module Ã”Ã‡Ã¶ admin / back-office Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡
     'local_grupomakro_admin_list_wellness_partners' => [
         'classname'   => 'local_grupomakro_core\external\admin\wellness\admin_list_partners',
         'methodname'  => 'execute',
@@ -1777,7 +1777,7 @@ $functions = array(
         'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
     ],
 
-    // ── Wellness psychology — student (RF-03) ────────────────────────────────
+    // Ã”Ã¶Ã‡Ã”Ã¶Ã‡ Wellness psychology Ã”Ã‡Ã¶ student (RF-03) Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡
     'local_grupomakro_get_psychology_slots' => [
         'classname'   => 'local_grupomakro_core\external\wellness\get_psychology_slots',
         'methodname'  => 'execute',
@@ -1806,7 +1806,7 @@ $functions = array(
         'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
     ],
 
-    // ── Wellness psychology — admin (RF-09.3) ──────────────────────────────
+    // Ã”Ã¶Ã‡Ã”Ã¶Ã‡ Wellness psychology Ã”Ã‡Ã¶ admin (RF-09.3) Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡
     'local_grupomakro_admin_list_psychology_appointments' => [
         'classname'   => 'local_grupomakro_core\external\admin\wellness\admin_list_psychology_appointments',
         'methodname'  => 'execute',
@@ -1835,11 +1835,11 @@ $functions = array(
         'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
     ],
 
-    // ── Wellness staff roster (RF-03, RF-09.3 — editable personnel) ────────
+    // Ã”Ã¶Ã‡Ã”Ã¶Ã‡ Wellness staff roster (RF-03, RF-09.3 Ã”Ã‡Ã¶ editable personnel) Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡
     'local_grupomakro_admin_list_staff' => [
         'classname'   => 'local_grupomakro_core\external\admin\wellness\admin_list_staff',
         'methodname'  => 'execute',
-        'description' => 'Admin list of the editable wellness staff roster (psicólogo titular/suplente, Talento Humano, Bienestar Estudiantil).',
+        'description' => 'Admin list of the editable wellness staff roster (psicâ”œâ”‚logo titular/suplente, Talento Humano, Bienestar Estudiantil).',
         'type'        => 'read',
         'capabilities'  => 'local/grupomakro_core:manage_wellness',
         'ajax'        => true,
@@ -1864,7 +1864,7 @@ $functions = array(
         'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
     ],
 
-    // ── Wellness carnet (RF-07, RF-09.4) ─────────────────────────────────────
+    // Ã”Ã¶Ã‡Ã”Ã¶Ã‡ Wellness carnet (RF-07, RF-09.4) Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡
     'local_grupomakro_get_wellness_carnet' => [
         'classname'   => 'local_grupomakro_core\external\wellness\get_carnet',
         'methodname'  => 'execute',
@@ -1939,7 +1939,7 @@ $functions = array(
         'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
     ],
 
-    // ── RET-01: Solicitud de Retiro del Programa (20261001080) ─────────────────
+    // Ã”Ã¶Ã‡Ã”Ã¶Ã‡ RET-01: Solicitud de Retiro del Programa (20261001080) Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡
     // Flujo: el estudiante crea la solicitud desde el LXP (create_wdr_request),
     // descarga el PDF RET-01 (download_pdf) y la gestiona desde su tabla
     // (get_my_requests / get_request_detail). La bandeja administrativa
@@ -2026,4 +2026,104 @@ $functions = array(
         'ajax'        => true,
         'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
     ],
+    // Calificacion grupal (introducida en 20261001057)
+'local_grupomakro_activity_group_list' => array(
+        'classname'   => 'local_grupomakro_core\external\teacher\activity_group_list',
+        'methodname'  => 'execute',
+        'description' => 'Lista los grupos definidos para una actividad (tarea/cuestionario) con sus miembros. Vista docente.',
+        'type'        => 'read',
+        'capabilities'  => '',
+        'ajax'        => true,
+        'services'    => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
+'local_grupomakro_activity_group_create' => array(
+        'classname'   => 'local_grupomakro_core\external\teacher\activity_group_create',
+        'methodname'  => 'execute',
+        'description' => 'Crea un grupo nuevo para una actividad y, opcionalmente, le asigna estudiantes.',
+        'type'        => 'write',
+        'capabilities'  => '',
+        'ajax'        => true,
+        'services'    => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
+'local_grupomakro_activity_group_update_members' => array(
+        'classname'   => 'local_grupomakro_core\external\teacher\activity_group_update_members',
+        'methodname'  => 'execute',
+        'description' => 'Anade o saca estudiantes de un grupo existente (override docente).',
+        'type'        => 'write',
+        'capabilities'  => '',
+        'ajax'        => true,
+        'services'    => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
+'local_grupomakro_activity_group_delete' => array(
+        'classname'   => 'local_grupomakro_core\external\teacher\activity_group_delete',
+        'methodname'  => 'execute',
+        'description' => 'Elimina un grupo (solo si esta vacio, salvo force=1).',
+        'type'        => 'write',
+        'capabilities'  => '',
+        'ajax'        => true,
+        'services'    => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
+'local_grupomakro_activity_group_set_mode' => array(
+        'classname'   => 'local_grupomakro_core\external\teacher\activity_group_set_mode',
+        'methodname'  => 'execute',
+        'description' => 'Cambia el modo (open/fixed) y el cupo de un grupo.',
+        'type'        => 'write',
+        'capabilities'  => '',
+        'ajax'        => true,
+        'services'    => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
+'local_grupomakro_save_group_grade' => array(
+        'classname'   => 'local_grupomakro_core\external\teacher\save_group_grade',
+        'methodname'  => 'execute',
+        'description' => 'Aplica la misma calificacion a todos los miembros de un grupo para una tarea. Pre-flight detecta re-calificacion; el cliente debe re-llamar con confirm=1 para sobrescribir.',
+        'type'        => 'write',
+        'capabilities'  => '',
+        'ajax'        => true,
+        'services'    => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
+'local_grupomakro_save_group_quiz_grade' => array(
+        'classname'   => 'local_grupomakro_core\external\teacher\save_group_quiz_grade',
+        'methodname'  => 'execute',
+        'description' => 'Aplica la misma nota a la misma pregunta para todos los miembros de un grupo en un cuestionario. Misma semantica de re-calificacion que save_group_grade.',
+        'type'        => 'write',
+        'capabilities'  => '',
+        'ajax'        => true,
+        'services'    => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
+'local_grupomakro_activity_grading_flag_set' => array(
+        'classname'   => 'local_grupomakro_core\external\teacher\activity_grading_flag_set',
+        'methodname'  => 'execute',
+        'description' => 'Marca una actividad recien creada como habilitada para calificacion grupal. Solo se aplica al crear: NO modifica flags de actividades existentes.',
+        'type'        => 'write',
+        'capabilities'  => '',
+        'ajax'        => true,
+        'services'    => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
+'local_grupomakro_activity_group_list_for_student' => array(
+        'classname'   => 'local_grupomakro_core\external\student\activity_group_list_for_student',
+        'methodname'  => 'execute',
+        'description' => 'Lista los grupos disponibles para una actividad con la pertenencia del estudiante actual. Consumido por el LXPStudents.',
+        'type'        => 'read',
+        'capabilities'  => '',
+        'ajax'        => true,
+        'services'    => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
+'local_grupomakro_activity_group_join' => array(
+        'classname'   => 'local_grupomakro_core\external\student\activity_group_join',
+        'methodname'  => 'execute',
+        'description' => 'Une al estudiante actual a un grupo disponible (con validacion de cupo).',
+        'type'        => 'write',
+        'capabilities'  => '',
+        'ajax'        => true,
+        'services'    => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
+'local_grupomakro_activity_group_leave' => array(
+        'classname'   => 'local_grupomakro_core\external\student\activity_group_leave',
+        'methodname'  => 'execute',
+        'description' => 'Saca al estudiante actual de su grupo en una actividad (solo modo open).',
+        'type'        => 'write',
+        'capabilities'  => '',
+        'ajax'        => true,
+        'services'    => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
 );

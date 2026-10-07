@@ -33,7 +33,7 @@ $PAGE->requires->js(new moodle_url('https://unpkg.com/axios/dist/axios.min.js'),
 
 // Load components (Standard JS files)
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/TeacherDashboard.js?v=20260827000'), true);
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/ActivityCreationWizard.js?v=20260326001'), true);
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/ActivityCreationWizard.js?v=20261001057'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/ManageClass.js?v=20260713001_rev-revalida-cap'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/studenttable.js?v=20251231049'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/TeacherStudentTable.js?v=20260905001'), true);
@@ -41,8 +41,11 @@ $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/GradesG
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/GradebookManager.js?v=20260312012'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/grademodal.js?v=20260905001'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/attendancemodal.js?v=20251231049'), true);
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/PendingGradingView.js?v=20260320003'), true);
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/QuickGrader.js?v=20260409007'), true);
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/PendingGradingView.js?v=20261001057'), true);
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/QuickGrader.js?v=20261001057'), true);
+// Calificacion grupal (introducida en 20261001057)
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/ActivityGroupsPanel.js?v=20261001057'), true);
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/GroupGradeConfirmModal.js?v=20261001057'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/QuizCreationWizard.js?v=20260326001'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/quizeditor/QuestionBankDialog.js'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/quizeditor/TypeEditors.js'), true);

@@ -38,7 +38,7 @@ class get_pending_grading extends external_api {
 
         // Use helper from locallib.php
         $submissions = gmk_get_pending_grading_items($params['userid'], $params['classid'], $params['status']);
-        
+
         $result = [];
         $fs = get_file_storage();
 
@@ -238,7 +238,92 @@ class get_pending_grading extends external_api {
             $result[] = $item;
         }
 
+        // Enriquecer con info de grupo (introducida en 20261001057).
+        $groupmap = self::enrich_with_groups($result);
+        foreach ($result as $i => $item) {
+            $key = (int)$item->id . ':' . (string)$item->modname;
+            if (isset($groupmap[$key])) {
+                $item->groupinfo = $groupmap[$key];
+            }
+        }
+
         return $result;
+    }
+
+    /**
+     * Enriquecer los items pendientes con info de grupo (gmk_activity_group) si
+     * la actividad lo permite. Pensada para que el frontend muestre el chip
+     * "Pertenece al grupo X" en la lista y precargue el modo Grupal en QuickGrader.
+     *
+     * Devuelve un array paralelo: $groupsBySubmissionid[submissionid] = {
+     *     id, name, colorindex, mode, membercount
+     * } o null si el envio no tiene grupo.
+     */
+    public static function enrich_with_groups(array $items): array {
+        global $DB;
+
+        $out = [];
+        foreach ($items as $it) {
+            $key = (int)$it->id . ':' . (string)$it->modname;
+            $out[$key] = null;
+        }
+
+        // Reunir todos los (submission/attempt, cmid, userid) para resolver grupos en bloque.
+        $bypair = [];
+        foreach ($items as $it) {
+            if ($it->modname === 'assign') {
+                $cm = get_coursemodule_from_instance('assign', (int)$it->assignmentid, (int)$it->courseid, false, IGNORE_MISSING);
+                if ($cm) {
+                    $bypair[(int)$it->id] = ['cmid' => (int)$cm->id, 'userid' => (int)$it->studentid, 'modname' => 'assign'];
+                }
+            } else if ($it->modname === 'quiz') {
+                $cm = get_coursemodule_from_instance('quiz', (int)$it->assignmentid, 0, false, IGNORE_MISSING);
+                if ($cm) {
+                    $bypair[(int)$it->id] = ['cmid' => (int)$cm->id, 'userid' => (int)$it->studentid, 'modname' => 'quiz'];
+                }
+            }
+        }
+        if (empty($bypair)) {
+            return $out;
+        }
+
+        // Un solo JOIN para todos los items a la vez.
+        $cmids = array_values(array_unique(array_map(function ($x) { return $x['cmid']; }, $bypair)));
+        $userids = array_values(array_unique(array_map(function ($x) { return $x['userid']; }, $bypair)));
+        if (empty($cmids) || empty($userids)) {
+            return $out;
+        }
+        list($insql1, $p1) = $DB->get_in_or_equal($cmids, SQL_PARAMS_NAMED, 'cm');
+        list($insql2, $p2) = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED, 'uid');
+        $params = array_merge($p1, $p2);
+
+        $rows = $DB->get_records_sql(
+            "SELECT ag.id, ag.cmid, ag.modname, ag.name, ag.mode, ag.colorindex,
+                    agm.userid,
+                    (SELECT COUNT(*) FROM {gmk_activity_group_member} x WHERE x.groupid = ag.id) AS membercount
+               FROM {gmk_activity_group} ag
+               JOIN {gmk_activity_group_member} agm ON agm.groupid = ag.id
+              WHERE ag.cmid $insql1 AND agm.userid $insql2",
+            $params
+        );
+
+        $bykey = [];
+        foreach ($rows as $r) {
+            $bykey[(int)$r->cmid . ':' . (int)$r->userid] = [
+                'id'          => (int)$r->id,
+                'name'        => (string)$r->name,
+                'colorindex'  => (int)$r->colorindex,
+                'mode'        => (string)$r->mode,
+                'membercount' => (int)$r->membercount,
+            ];
+        }
+
+        foreach ($bypair as $itemid => $info) {
+            $found = $bykey[$info['cmid'] . ':' . $info['userid']] ?? null;
+            $outkey = $itemid . ':' . $info['modname'];
+            $out[$outkey] = $found;
+        }
+        return $out;
     }
 
     public static function execute_returns() {
@@ -272,6 +357,17 @@ class get_pending_grading extends external_api {
                                 'source' => new external_value(PARAM_TEXT, 'Source area (submission_file/onlinetext)', VALUE_OPTIONAL)
                             )
                         )
+                    ),
+                    'groupinfo' => new external_single_structure(
+                        array(
+                            'id'          => new external_value(PARAM_INT,  'group id', VALUE_OPTIONAL),
+                            'name'        => new external_value(PARAM_TEXT, 'Nombre del grupo', VALUE_OPTIONAL),
+                            'colorindex'  => new external_value(PARAM_INT,  '1..5', VALUE_OPTIONAL),
+                            'mode'        => new external_value(PARAM_TEXT, 'open|fixed', VALUE_OPTIONAL),
+                            'membercount' => new external_value(PARAM_INT,  'Cantidad de miembros', VALUE_OPTIONAL),
+                        ),
+                        'Info de grupo si el envio pertenece a uno (calificacion grupal). null si no.',
+                        VALUE_OPTIONAL
                     )
                 )
             )

@@ -19,7 +19,7 @@
  *
  * @package     local_grupomakro_core
  * @category    upgrade
- * @copyright   2022 Gilson RicnÃ³n <gilson.rincon@soluttoconsulting.com>
+ * @copyright   2022 Gilson Ricnâ”œÃ¢â”¬â”‚n <gilson.rincon@soluttoconsulting.com>
  * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -1745,9 +1745,9 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         // Seed predefined datasets for v1.
         $now = time();
         $datasets = [
-            ['code' => 'asignaturas_cursadas', 'name' => 'Asignaturas cursadas', 'description' => 'Lista de asignaturas, nota y crÃ©ditos por estudiante.'],
-            ['code' => 'resumen_creditos', 'name' => 'Resumen de crÃ©ditos', 'description' => 'Totales de crÃ©ditos cursados y aprobados.'],
-            ['code' => 'periodo_actual', 'name' => 'Periodo actual', 'description' => 'Resumen del periodo acadÃ©mico actual del estudiante.'],
+            ['code' => 'asignaturas_cursadas', 'name' => 'Asignaturas cursadas', 'description' => 'Lista de asignaturas, nota y crâ”œÃ¢â”¬Â®ditos por estudiante.'],
+            ['code' => 'resumen_creditos', 'name' => 'Resumen de crâ”œÃ¢â”¬Â®ditos', 'description' => 'Totales de crâ”œÃ¢â”¬Â®ditos cursados y aprobados.'],
+            ['code' => 'periodo_actual', 'name' => 'Periodo actual', 'description' => 'Resumen del periodo acadâ”œÃ¢â”¬Â®mico actual del estudiante.'],
         ];
         foreach ($datasets as $dataset) {
             if (!$DB->record_exists('gmk_letter_dataset_def', ['code' => $dataset['code']])) {
@@ -2049,7 +2049,7 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
     // 20260424001 - FASE 4: Crear tabla gmk_course_projections para proyecciones de asignaturas por jornada
     if ($oldversion < 20260424001) {
         // Define table gmk_course_projections to be created.
-        // Esta tabla almacena la proyecciÃ³n de una asignatura para un subperiodo especÃ­fico y jornada.
+        // Esta tabla almacena la proyecciâ”œÃ¢â”¬â”‚n de una asignatura para un subperiodo especâ”œÃ¢â”¬Â¡fico y jornada.
         // Permite hacer drag-drop desde el panel de asignaturas hacia los bloques de bimestre.
         $table = new xmldb_table('gmk_course_projections');
 
@@ -2072,10 +2072,10 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         $table->add_key('usermodified', XMLDB_KEY_FOREIGN, ['usermodified'], 'user', ['id']);
 
         // Adding indexes to table gmk_course_projections.
-        // La combinaciÃ³n learning_courses_id + subperiodid + jornada debe ser Ãºnica
+        // La combinaciâ”œÃ¢â”¬â”‚n learning_courses_id + subperiodid + jornada debe ser â”œÃ¢â”¬â•‘nica
         $table->add_index('idx_lc_sp_jornada', XMLDB_INDEX_UNIQUE, ['learning_courses_id', 'subperiodid', 'jornada']);
         $table->add_index('idx_jornada', XMLDB_INDEX_NOTUNIQUE, ['jornada']);
-        // Nota: No agregamos Ã­ndice para subperiodid porque ya existe como parte de la FK
+        // Nota: No agregamos â”œÃ¢â”¬Â¡ndice para subperiodid porque ya existe como parte de la FK
 
         // Conditionally launch create table for gmk_course_projections.
         if (!$dbman->table_exists($table)) {
@@ -2400,7 +2400,7 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
     }
 
     if ($oldversion < 20260701001) {
-        // MitigaciÃ³n de despliegue a mitad de perÃ­odo: el feature flag de
+        // Mitigaciâ”œÃ¢â”¬â”‚n de despliegue a mitad de perâ”œÃ¢â”¬Â¡odo: el feature flag de
         // blocking se introduce como setting separado (enable_absence_blocking)
         // y se mantiene apagado hasta que se decida activar. No requiere
         // cambios de esquema; la guarda se aplica en absence_helpers.
@@ -2524,19 +2524,19 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
     }
 
     if ($oldversion < 20260803000) {
-        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼
         // Admin broadcast messages (info / warning to student LXP).
         //
-        // gmk_admin_message           â€“ the publishable announcement
-        // gmk_admin_message_ack       â€“ per-user acknowledgement rows
-        // gmk_admin_message_user      â€“ materialised audience so we can
+        // gmk_admin_message           â”œÃ³Ã”Ã©Â¼Ã”Ã‡Â£ the publishable announcement
+        // gmk_admin_message_ack       â”œÃ³Ã”Ã©Â¼Ã”Ã‡Â£ per-user acknowledgement rows
+        // gmk_admin_message_user      â”œÃ³Ã”Ã©Â¼Ã”Ã‡Â£ materialised audience so we can
         //                               group stats by career without
         //                               recomputing audience every load.
         //
         // These tables give the academic area a delivery channel for
         // administrative notices that take precedence over the absence
         // alert system (priority column on the message row).
-        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼
 
         // gmk_admin_message
         $table = new xmldb_table('gmk_admin_message');
@@ -3072,10 +3072,10 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
 
     if ($oldversion < 20260901000) {
 
-        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        // WELLNESS MODULE â€” Phase 1: RF-01, RF-02, RF-04, RF-05, RF-06, RF-09.1, RF-09.2
+        // â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼
+        // WELLNESS MODULE â”œÃ³Ã”Ã©Â¼Ã”Ã‡Ã˜ Phase 1: RF-01, RF-02, RF-04, RF-05, RF-06, RF-09.1, RF-09.2
         // 7 tables: partner category, partner, event, event attachment, registration, dynamic form, dynamic form response.
-        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼
 
         // gmk_wellness_partner_cats --------------------------------------
         $table = new xmldb_table('gmk_wellness_partner_cats');
@@ -3234,12 +3234,12 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
 
     if ($oldversion < 20260902000) {
 
-        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        // WELLNESS MODULE â€” Phase 2: RF-03 (psychology appointments) + RF-09.3
+        // â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼
+        // WELLNESS MODULE â”œÃ³Ã”Ã©Â¼Ã”Ã‡Ã˜ Phase 2: RF-03 (psychology appointments) + RF-09.3
         // 4 tables: psychology schedule slots, appointments, staff role
         // mapping (replaces the legacy wellness_psychology_email_dulce /
         // _jorge settings), staff audit log.
-        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼
 
         // gmk_wellness_psy_slot -----------------------------
         $table = new xmldb_table('gmk_wellness_psy_slot');
@@ -3330,7 +3330,7 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         if (!empty($legacyDulce) && !$DB->record_exists('gmk_wellness_staff_role', ['rolekey' => 'talento_humano'])) {
             $DB->insert_record('gmk_wellness_staff_role', (object)[
                 'rolekey'           => 'talento_humano',
-                'role_label'        => 'Dulce Jurado â€” Talento Humano',
+                'role_label'        => 'Dulce Jurado â”œÃ³Ã”Ã©Â¼Ã”Ã‡Ã˜ Talento Humano',
                 'userid'            => 0,
                 'email_override'    => (string)$legacyDulce,
                 'notify_on_request' => 1,
@@ -3344,7 +3344,7 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         if (!empty($legacyJorge) && !$DB->record_exists('gmk_wellness_staff_role', ['rolekey' => 'bienestar_jefe'])) {
             $DB->insert_record('gmk_wellness_staff_role', (object)[
                 'rolekey'           => 'bienestar_jefe',
-                'role_label'        => 'Jorge Oviedo â€” Bienestar Estudiantil',
+                'role_label'        => 'Jorge Oviedo â”œÃ³Ã”Ã©Â¼Ã”Ã‡Ã˜ Bienestar Estudiantil',
                 'userid'            => 0,
                 'email_override'    => (string)$legacyJorge,
                 'notify_on_request' => 1,
@@ -3379,10 +3379,10 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
 
     if ($oldversion < 20260903000) {
 
-        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        // WELLNESS MODULE â€” Phase 3: Carnet digital (RF-07, RF-09.4)
+        // â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼
+        // WELLNESS MODULE â”œÃ³Ã”Ã©Â¼Ã”Ã‡Ã˜ Phase 3: Carnet digital (RF-07, RF-09.4)
         // 1 table: gmk_wellness_carnet (digital ID card with QR token + photo).
-        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼
 
         $table = new xmldb_table('gmk_wellness_carnet');
         $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
@@ -3404,7 +3404,7 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         // userfk FK removed: the user_uix UNIQUE already creates a
         // covering index on userid and enforces 1:1. The carnet is
         // optional and lazy-issued, so we do not need referential
-        // integrity with {user} — orphaning the carnet when a user
+        // integrity with {user} Ã”Ã‡Ã¶ orphaning the carnet when a user
         // is deleted is the desired behaviour.
         $table->add_index('user_uix', XMLDB_INDEX_UNIQUE, ['userid']);
         $table->add_index('qr_token_uix', XMLDB_INDEX_UNIQUE, ['qr_token']);
@@ -3418,43 +3418,43 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
 
     if ($oldversion < 20260904000) {
 
-        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        // WELLNESS MODULE â€” Hotfixes from internal audit (36 findings F-01..F-36).
+        // â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼
+        // WELLNESS MODULE â”œÃ³Ã”Ã©Â¼Ã”Ã‡Ã˜ Hotfixes from internal audit (36 findings F-01..F-36).
         // No schema changes: the install.xml of Phase 2 already used the
         // correct UNIQUE(rolekey) index after F-23. The changes live in the
         // managers, services.php, settings.php, lib.php, lang and the
         // user_login_handler.
-        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼
 
         // The schema index correction (F-23) is reflected both in install.xml
         // (for fresh installs) and here in the index definition above
         // (in case an existing site was on the old UNIQUE(rolekey,active)).
         // Since the index is UNIQUE not NOTUNIQUE, fresh installs get the
         // new one; sites that previously had the old one would need a
-        // one-off backfill â€” that's out of scope for the hotfix.
+        // one-off backfill â”œÃ³Ã”Ã©Â¼Ã”Ã‡Ã˜ that's out of scope for the hotfix.
 
         upgrade_plugin_savepoint(true, 20260904000, 'local', 'grupomakro_core');
     }
 
     if ($oldversion < 20260905000) {
 
-        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        // WELLNESS MODULE â€” Hotfixes round 2 (8 findings, F-06 + N-01..N-05 + F-18 + F-32).
+        // â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼
+        // WELLNESS MODULE â”œÃ³Ã”Ã©Â¼Ã”Ã‡Ã˜ Hotfixes round 2 (8 findings, F-06 + N-01..N-05 + F-18 + F-32).
         // No schema changes; behavioural-only fixes that do not need an
         // upgrade step beyond the savepoint marker.
-        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼
 
         upgrade_plugin_savepoint(true, 20260905000, 'local', 'grupomakro_core');
     }
 
     if ($oldversion < 20260906000) {
 
-        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        // WELLNESS MODULE â€” Hotfix from internal audit round 3.
+        // â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼
+        // WELLNESS MODULE â”œÃ³Ã”Ã©Â¼Ã”Ã‡Ã˜ Hotfix from internal audit round 3.
         // Behavioural-only fix in wellness_staff_manager::upsert(): now
         // reads via get_role() so that re-activating a seeded-but-disabled
         // rolekey does not collide with UNIQUE(rolekey). No schema change.
-        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼â”œÃ³Ã”Ã‡Ã˜Ã”Ã©Â¼
 
         upgrade_plugin_savepoint(true, 20260906000, 'local', 'grupomakro_core');
     }
@@ -3644,10 +3644,10 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
     }
 
     if ($oldversion < 20261001020) {
-        // WITHDRAWAL OPTIONS: amplía el menú del customfield studentstatus
+        // WITHDRAWAL OPTIONS: amplâ”œÂ¡a el menâ”œâ•‘ del customfield studentstatus
         // para que admita los valores institucionales que sincroniza Odoo
         // (aplazado/retirado/suspendido/desertor/graduado/egresado). Es
-        // idempotente: solo reemplaza param1 si la opción ya existía.
+        // idempotente: solo reemplaza param1 si la opciâ”œâ”‚n ya existâ”œÂ¡a.
         $options = "activo\n\r"
                  . "inactivo\n\r"
                  . "aplazado\n\r"
@@ -4034,22 +4034,22 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
     }
 
     if ($oldversion < 20261001080) {
-        // ── RET-01: Solicitud de Retiro del Programa ──────────────────────────
+        // Ã”Ã¶Ã‡Ã”Ã¶Ã‡ RET-01: Solicitud de Retiro del Programa Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡
         // (a) Schema: dos tablas nuevas. gmk_wdr guarda cada solicitud del
         // estudiante (con snapshot de sus datos al crear) y gmk_wdr_seq
         // mantiene el correlativo RET-{YYYY}-{NNNN} con un row por ano, lock
         // pesimista al asignar.
         //
-        // Patrón idéntico al usado por los PRs anteriores del plugin (ver
+        // Patrâ”œâ”‚n idâ”œÂ®ntico al usado por los PRs anteriores del plugin (ver
         // 20230306003, 20260701007, etc.): xmldb_table + add_field + add_key
         // + $dbman->create_table(). NO existe create_table_from_xmldb()
-        // en la API de Moodle core, ese método fue el que reventó en el
-        // primer intento y abortó el step a mitad.
+        // en la API de Moodle core, ese mâ”œÂ®todo fue el que reventâ”œâ”‚ en el
+        // primer intento y abortâ”œâ”‚ el step a mitad.
         //
-        // Idempotente: cada create_table está envuelto en
+        // Idempotente: cada create_table estâ”œÃ­ envuelto en
         // if (!$dbman->table_exists($table)) para que re-ejecuciones del
         // step (por ejemplo si Moodle reintenta porque el upgrade
-        // falló) no revienten por tabla duplicada.
+        // fallâ”œâ”‚) no revienten por tabla duplicada.
 
         $table = new xmldb_table('gmk_wdr');
         $table->add_field('id',                       XMLDB_TYPE_INTEGER, '10',  null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
@@ -4104,10 +4104,10 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
 
         // (b) Re-llamamos create_roles() + assign_capabilities_to_internal_roles()
         //     tambien aqui para que el step sea idempotente y para cubrir el caso
-        //     del primer intento del upgrade donde create_roles() corrió y
-        //     gmk_director_general se creó, pero assign_capabilities_to_internal_roles()
-        //     NO terminó de asignar caps a los 3 roles administrativos
-        //     (gmk_registros_academicos solo recibió 1 de 2 caps). La segunda
+        //     del primer intento del upgrade donde create_roles() corriâ”œâ”‚ y
+        //     gmk_director_general se creâ”œâ”‚, pero assign_capabilities_to_internal_roles()
+        //     NO terminâ”œâ”‚ de asignar caps a los 3 roles administrativos
+        //     (gmk_registros_academicos solo recibiâ”œâ”‚ 1 de 2 caps). La segunda
         //     pasada re-asigna todo correctamente. assign_capability() es
         //     idempotente (UPDATE si existe, INSERT si no), por lo que es
         //     seguro re-llamarlo.
@@ -4132,7 +4132,7 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
     }
 
     if ($oldversion < 20261001081) {
-        // ── RET-01 hotfix 3: completar caps en Registros Academicos ────────────
+        // Ã”Ã¶Ã‡Ã”Ã¶Ã‡ RET-01 hotfix 3: completar caps en Registros Academicos Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡Ã”Ã¶Ã‡
         // El bump 20261001080 (primer deploy del modulo) corrio
         // assign_capabilities_to_internal_roles() y dejo a Registros Academicos
         // sin las caps view_wdr_requests / manage_wdr_requests: el array
@@ -4290,6 +4290,80 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
 
         upgrade_plugin_savepoint(true, 20261001092, 'local', 'grupomakro_core');
     }
+
+
+if ($oldversion < 20261001057) {
+        // CALIFICACION GRUPAL: nuevo sistema de grupos por actividad, totalmente
+        // independiente de mod_assign.groups / groups_members. Tres tablas:
+        //   - gmk_activity_group:        cabecera del grupo (cmid, name, maxmembers, mode)
+        //   - gmk_activity_group_member: pertenencia estudiante-grupo (snapshot)
+        //   - gmk_activity_grading_flag: flag de habilitacion por cmid
+        //
+        // Los estudiantes se unen a un grupo desde el LXP, el docente arma/override
+        // desde Teacher Dashboard, y al calificar puede elegir Individual vs Grupal
+        // desde QuickGrader. Cuando ya hay notas grupales previas, se muestra
+        // advertencia con opciones "Atras" / "Continuar y sobrescribir" (no bloqueante).
+
+        // 1) gmk_activity_group
+        $agtable = new xmldb_table('gmk_activity_group');
+        $agtable->add_field('id',            XMLDB_TYPE_INTEGER, '10',  null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $agtable->add_field('cmid',          XMLDB_TYPE_INTEGER, '10',  null, XMLDB_NOTNULL, null, null);
+        $agtable->add_field('modname',       XMLDB_TYPE_CHAR,    '20',  null, XMLDB_NOTNULL, null, null);
+        $agtable->add_field('classid',       XMLDB_TYPE_INTEGER, '10',  null, null, null, '0');
+        $agtable->add_field('name',          XMLDB_TYPE_CHAR,    '120', null, XMLDB_NOTNULL, null, null);
+        $agtable->add_field('maxmembers',    XMLDB_TYPE_INTEGER, '4',   null, XMLDB_NOTNULL, null, '5');
+        $agtable->add_field('mode',          XMLDB_TYPE_CHAR,    '10',  null, XMLDB_NOTNULL, null, 'open');
+        $agtable->add_field('colorindex',    XMLDB_TYPE_INTEGER, '2',   null, XMLDB_NOTNULL, null, '1');
+        $agtable->add_field('usermodified',  XMLDB_TYPE_INTEGER, '10',  null, XMLDB_NOTNULL, null, '0');
+        $agtable->add_field('timecreated',   XMLDB_TYPE_INTEGER, '10',  null, XMLDB_NOTNULL, null, '0');
+        $agtable->add_field('timemodified',  XMLDB_TYPE_INTEGER, '10',  null, XMLDB_NOTNULL, null, '0');
+
+        $agtable->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $agtable->add_key('fk_ag_usermodified', XMLDB_KEY_FOREIGN, ['usermodified'], 'user', ['id']);
+        $agtable->add_index('idx_ag_cmid', XMLDB_INDEX_NOTUNIQUE, ['cmid']);
+        $agtable->add_index('idx_ag_classid', XMLDB_INDEX_NOTUNIQUE, ['classid']);
+
+        if (!$dbman->table_exists($agtable)) {
+            $dbman->create_table($agtable);
+        }
+
+        // 2) gmk_activity_group_member
+        $agm = new xmldb_table('gmk_activity_group_member');
+        $agm->add_field('id',        XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $agm->add_field('groupid',   XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $agm->add_field('userid',    XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $agm->add_field('joined_at', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+
+        $agm->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $agm->add_key('fk_agm_group', XMLDB_KEY_FOREIGN, ['groupid'], 'gmk_activity_group', ['id']);
+        $agm->add_key('fk_agm_user',  XMLDB_KEY_FOREIGN, ['userid'],  'user', ['id']);
+        $agm->add_index('idx_agm_group_user', XMLDB_INDEX_UNIQUE, ['groupid', 'userid']);
+        $agm->add_index('idx_agm_user', XMLDB_INDEX_NOTUNIQUE, ['userid']);
+
+        if (!$dbman->table_exists($agm)) {
+            $dbman->create_table($agm);
+        }
+
+        // 3) gmk_activity_grading_flag
+        $agf = new xmldb_table('gmk_activity_grading_flag');
+        $agf->add_field('id',         XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $agf->add_field('cmid',       XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $agf->add_field('modname',    XMLDB_TYPE_CHAR,    '20', null, XMLDB_NOTNULL, null, null);
+        $agf->add_field('enabled',    XMLDB_TYPE_INTEGER, '1',  null, XMLDB_NOTNULL, null, '1');
+        $agf->add_field('mode',       XMLDB_TYPE_CHAR,    '10', null, XMLDB_NOTNULL, null, 'open');
+        $agf->add_field('maxmembers', XMLDB_TYPE_INTEGER, '4',  null, XMLDB_NOTNULL, null, '5');
+        $agf->add_field('timecreated',XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+
+        $agf->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $agf->add_index('idx_agf_cmid', XMLDB_INDEX_UNIQUE, ['cmid']);
+
+        if (!$dbman->table_exists($agf)) {
+            $dbman->create_table($agf);
+        }
+
+        upgrade_plugin_savepoint(true, 20261001057, 'local', 'grupomakro_core');
+    }
+
 
     return true;
 }
