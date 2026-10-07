@@ -1728,7 +1728,6 @@
       </KEYS>
       <INDEXES>
         <INDEX NAME="idx_agm_group_user" UNIQUE="true" FIELDS="groupid, userid"/>
-        <INDEX NAME="idx_agm_user" UNIQUE="false" FIELDS="userid"/>
       </INDEXES>
     </TABLE>
 
