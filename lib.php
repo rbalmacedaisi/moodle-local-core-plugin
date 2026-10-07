@@ -236,6 +236,14 @@ function local_grupomakro_core_extend_navigation(global_navigation $navigation) 
                 ['manage_meetings', 'manage_meetings.php', '🎥 Gestor de Sesiones Virtuales'],
                 ['bulk_enroll', 'bulk_enroll.php', '📋 Matrícula Masiva a Plan'],
                 ['manage_homologations', 'homologation_manager.php', '🔀 Gestor de Homologaciones'],
+                // RET-01 (20261001094): bandeja administrativa de solicitudes de
+                // Retiro del Programa. El cap view_wdr_requests ya esta asignado
+                // al Director Academico, Secretaria Academica y Director General
+                // (upgradelib.php line 652-653, 832, 917, 1059-1060). El entry
+                // aparece en Gestion Academica porque el flujo de retiro es
+                // academico (afecta cohortes, calificaciones, contrato) no
+                // administrativo-cartas.
+                ['view_wdr_requests', 'withdrawal_requests.php', '🏢 ' . get_string('wdr_bandeja_title', $pluginname)],
             ],
             'Estudiantes' => [
                 ['view_student_population', 'student_population.php', '👥 Población Estudiantil'],
