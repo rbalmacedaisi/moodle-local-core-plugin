@@ -71,7 +71,7 @@ class create_express_activity extends external_api {
         $groupMode = 'open',
         $groupMaxmembers = 5
     ) {
-        global $DB;
+        global $DB, $USER;
 
         $params = self::validate_parameters(self::execute_parameters(), array(
             'classid' => $classid,

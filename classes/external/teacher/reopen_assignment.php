@@ -22,7 +22,7 @@ class reopen_assignment extends external_api {
     }
 
     public static function execute(int $assignmentid, int $studentid): array {
-        global $DB, $CFG;
+        global $DB, $CFG, $USER;
 
         $params = self::validate_parameters(self::execute_parameters(), [
             'assignmentid' => $assignmentid,
