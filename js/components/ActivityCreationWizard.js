@@ -136,17 +136,21 @@ const ActivityCreationWizard = {
                                         Los estudiantes se unen solos a un grupo desde el LXP hasta llenar el cupo.
                                     </span>
                                     <span v-else>
-                                        El docente arma los grupos manualmente desde Teacher Dashboard.
+                                        El docente arma los grupos manualmente desde la sección Actividades de esta clase, usando el botón <v-icon x-small color="indigo darken-2">mdi-account-group</v-icon> sobre la actividad.
                                     </span>
                                 </div>
                                 <div class="text-caption grey--text mt-1">
                                     <span v-if="editMode">
-                                        Para editar la lista de grupos y sus miembros,
-                                        use la sección <b>"Grupos"</b> que aparece abajo una
-                                        vez que la actividad esté guardada con esta opción activa.
+                                        Una vez guardada la actividad, abra la
+                                        sección <b>Actividades</b> de esta clase
+                                        y use el botón <v-icon x-small color="indigo darken-2">mdi-account-group</v-icon>
+                                        sobre la actividad para gestionar los grupos.
                                     </span>
                                     <span v-else>
-                                        Esta opción se puede cambiar después desde Teacher Dashboard.
+                                        Después de crear la actividad, use el botón
+                                        <v-icon x-small color="indigo darken-2">mdi-account-group</v-icon>
+                                        sobre la actividad en la sección <b>Actividades</b>
+                                        para crear y asignar grupos.
                                     </span>
                                 </div>
 

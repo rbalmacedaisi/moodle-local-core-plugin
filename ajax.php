@@ -4785,6 +4785,13 @@ try {
                     // El modal de prorrogas lo necesita para fijar el contexto
                     // de la actividad al abrirlo desde el card individual.
                     'instance'   => (int)$cm->instance,
+                    // Flag de calificacion grupal (20261001080). Solo es
+                    // relevante para assign y quiz. El frontend lo usa para
+                    // mostrar/ocultar el boton "Gestionar grupos" en la
+                    // tarjeta de la actividad.
+                    'enableGroupGrading' => in_array($cm->modname, ['assign', 'quiz'], true)
+                        ? (bool)gmk_get_activity_grading_flag_is_enabled((int)$cm->id)
+                        : false,
                 ];
             }
             

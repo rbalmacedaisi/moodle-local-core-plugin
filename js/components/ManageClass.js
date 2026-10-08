@@ -289,6 +289,31 @@ const ManageClass = {
                                                             >
                                                                 <v-icon>mdi-calendar-clock</v-icon>
                                                             </v-btn>
+                                                            <!-- Gestion de grupos de calificacion grupal
+                                                                 (20261001080). Solo visible si la actividad
+                                                                 tiene el flag enableGroupGrading=1. Abre un
+                                                                 dialog standalone con el ActivityGroupsPanel
+                                                                 (no hay que pasar por el wizard de edicion). -->
+                                                            <v-tooltip
+                                                                v-if="(activity.modname === 'assign' || activity.modname === 'quiz') && activity.enableGroupGrading"
+                                                                bottom
+                                                            >
+                                                                <template v-slot:activator="{ on, attrs }">
+                                                                    <v-btn
+                                                                        icon
+                                                                        small
+                                                                        color="indigo darken-2"
+                                                                        class="mr-2"
+                                                                        :title="'Gestionar grupos'"
+                                                                        v-bind="attrs"
+                                                                        v-on="on"
+                                                                        @click.stop.prevent="openGroupsFor(activity)"
+                                                                    >
+                                                                        <v-icon>mdi-account-group</v-icon>
+                                                                    </v-btn>
+                                                                </template>
+                                                                <span>Gestionar grupos de calificación grupal</span>
+                                                            </v-tooltip>
                                                             <v-btn icon small @click.stop="openEditActivity(activity)"><v-icon color="grey lighten-1">mdi-pencil</v-icon></v-btn>
                                                         </v-list-item-action>
                                                     </v-list-item>
@@ -714,6 +739,36 @@ const ManageClass = {
                 :assignment-name="extensionsActivity && extensionsActivity.name"
             ></assignment-extensions>
 
+            <!-- Modal standalone para gestion de grupos de calificacion
+                 grupal (20261001080). Se abre desde el boton
+                 "mdi-account-group" de la tarjeta de la actividad
+                 (visible solo si enableGroupGrading=1). No requiere
+                 pasar por el wizard de edicion. -->
+            <v-dialog v-if="groupsActivity" v-model="groupsOpen" max-width="1100" scrollable>
+                <v-card>
+                    <v-toolbar flat color="indigo darken-2" dark class="px-4">
+                        <v-icon left>mdi-account-group</v-icon>
+                        <v-toolbar-title class="font-weight-bold">
+                            Grupos para calificación grupal
+                        </v-toolbar-title>
+                        <v-spacer></v-spacer>
+                        <span v-if="groupsActivity" class="text-caption mr-3">
+                            {{ groupsActivity.name }}
+                        </span>
+                        <v-btn icon @click="groupsOpen = false">
+                            <v-icon>mdi-close</v-icon>
+                        </v-btn>
+                    </v-toolbar>
+                    <v-card-text class="pa-0">
+                        <activity-groups-panel
+                            :cmid="parseInt(groupsActivity.id, 10)"
+                            :modname="groupsActivity.modname"
+                            :activity-name="groupsActivity.name"
+                        ></activity-groups-panel>
+                    </v-card-text>
+                </v-card>
+            </v-dialog>
+
         </v-container>
     `,
     components: {
@@ -789,6 +844,13 @@ const ManageClass = {
             // Modal de prorrogas de entrega por actividad individual
             extensionsActivity: null,
             extensionsOpen: false,
+            // Modal de gestion de grupos de calificacion grupal por actividad
+            // (20261001057, extendido en 20261001080). El docente lo abre
+            // desde el boton "mdi-account-group" de la tarjeta de la
+            // actividad y se monta el <activity-groups-panel> directamente,
+            // sin tener que pasar por el wizard de edicion.
+            groupsActivity: null,
+            groupsOpen: false,
             forumManagerDialog: false,
             forumManagerLoading: false,
             forumManagerError: '',
@@ -1699,6 +1761,18 @@ const ManageClass = {
             this.extensionsActivity = activity;
             this.extensionsOpen = true;
             console.log('[GMK DEBUG] extensionsActivity =', this.extensionsActivity, ' extensionsOpen =', this.extensionsOpen);
+        },
+        // Abre el modal standalone de gestion de grupos (20261001080).
+        // Se invoca desde el boton "mdi-account-group" del card de la
+        // actividad en el tab "Actividades". Solo se permite si la
+        // actividad tiene el flag enableGroupGrading=1 (chequeado en el
+        // v-if del boton).
+        openGroupsFor(activity) {
+            if (!activity || !activity.enableGroupGrading) {
+                return;
+            }
+            this.groupsActivity = activity;
+            this.groupsOpen = true;
         }
     }
 };

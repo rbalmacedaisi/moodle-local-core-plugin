@@ -11913,6 +11913,30 @@ function gmk_get_activity_grading_flag(int $cmid): ?stdClass {
 }
 
 /**
+ * Lightweight boolean variant of gmk_get_activity_grading_flag() for
+ * call sites that only need the enabled bit (e.g. the activities-list
+ * endpoint which builds the payload for every visible activity).
+ *
+ * Cheaper than fetching the full row and avoids leaking any other
+ * field of the flag to the client.
+ *
+ * @param int $cmid
+ * @return bool
+ */
+function gmk_get_activity_grading_flag_is_enabled(int $cmid): bool {
+    if ($cmid <= 0) {
+        return false;
+    }
+    global $DB;
+    try {
+        return (int)$DB->get_field('gmk_activity_grading_flag', 'enabled',
+            ['cmid' => $cmid], IGNORE_MISSING) === 1;
+    } catch (\Exception $e) {
+        return false;
+    }
+}
+
+/**
  * Lista los grupos definidos para una actividad, con sus miembros ya
  * resueltos (userid, fullname, email, picture, avatar url). Pensada para
  * alimentar tanto el panel docente como la UI del estudiante.
