@@ -16,31 +16,45 @@
 
 /**
  * Static checks for the "create then immediately manage groups"
- * flow (20261001080, round 2).
+ * flow (20261001080, rounds 2 and 3).
  *
- * The user said "necesito que me permita crear los grupos desde la
- * creacion de la actividad no despues". The previous fix had mounted
- * the ActivityGroupsPanel INSIDE the edit dialog, but the panel
- * only renders when editMode is true, so it was not available at
- * creation time. The user had to: create, close wizard, reopen as
- * edit, scroll down to the panel. That is the opposite of "during
- * creation".
- *
- * This fix adds a new emitted event 'created-with-groups' that the
- * wizard fires when a new activity was created with
- * enableGroupGrading=1, and the parent handles it by re-mounting
- * the same wizard as an edit dialog (without closing it). The
- * activity-groups-panel then renders automatically because the
- * mounted() hook reloads the activity details with the new cmid.
+ * Round 1: emit 'created-with-groups' + parent flips isEditing.
+ * Round 2: backend confirm — the wizard must read the
+ *          groupgrading.enabled value from the create response
+ *          (the source of truth for whether the flag was actually
+ *          persisted in the DB) instead of trusting only the form
+ *          switch. If the backend says enabled=0 (e.g. the user
+ *          toggled it off between the time they pressed Submit and
+ *          the response came back), we must NOT enter the
+ *          create-then-manage flow because the panel would render
+ *          with the alert "Esta actividad no fue creada con la
+ *          opcion de calificacion grupal".
+ * Round 3: panel must render on the FIRST render after re-mount
+ *          (not just after fetchActivityDetails resolves). The
+ *          parent now passes enableGroupGrading=true inside
+ *          editActivityData, and the v-if uses editData.enableGroupGrading
+ *          OR formData.enableGroupGrading. This avoids the
+ *          "wizard stays open but panel is missing" symptom the
+ *          user kept seeing.
  *
  * This test pins:
- *  1) The submit() handler detects the created-with-groups case
- *     and emits the new event with cmid/modname/name.
+ *  1) The submit() handler validates the backend response
+ *     (groupgrading.enabled) and emits the new event ONLY if the
+ *     backend confirms the flag was persisted.
  *  2) The submit() button text becomes "Crear y gestionar grupos"
  *     when the activity supports grading and the switch is on.
  *  3) The ManageClass parent listens for the new event.
- *  4) The parent handler flips isEditing and editData without
- *     closing the dialog.
+ *  4) The parent handler flips isEditing + editData (WITH
+ *     enableGroupGrading=true so the panel renders on first
+ *     render) without closing the dialog.
+ *  5) The wizard's fetchActivityDetails() reads the group-grading
+ *     flags from the backend response and applies them to formData
+ *     (defense in depth: if the user later re-edits the activity
+ *     and the DB is the source of truth, formData gets restored).
+ *  6) The backend's get_activity_details returns the group-grading
+ *     flags so the wizard can restore them on re-mount.
+ *  7) The v-if of the <activity-groups-panel> consults
+ *     editData.enableGroupGrading (not just formData).
  *
  * Run with:
  *   php local/grupomakro_core/cli/test_created_with_groups.php
@@ -64,20 +78,22 @@ $parent = file_get_contents(
 );
 mtrace("Loaded wizard (" . strlen($wizard) . ") and parent (" . strlen($parent) . ")");
 
-// 1. The wizard submit() path must check enableGroupGrading and
-//    emit 'created-with-groups' instead of 'success' + close()
-//    when the new activity is assign/quiz with the switch on.
+// 1. The wizard submit() path must validate the backend response
+//    (groupgrading.enabled) before deciding to enter the
+//    create-then-manage flow.
 if (!preg_match(
-    '/createdWithGroups\s*=\s*\(\s*this\.isAssignment\s*\|\|\s*this\.isQuiz\s*\)\s*&&\s*this\.formData\.enableGroupGrading\s*&&\s*!this\.editMode/',
+    '/groupgrading[\s\S]{0,200}?backendEnabled[\s\S]{0,200}?createdWithGroups/',
     $wizard
 )) {
-    mtrace("FAIL: the submit() path does not compute the createdWithGroups flag "
-        . "from (isAssignment||isQuiz) && enableGroupGrading && !editMode.");
+    mtrace("FAIL: the wizard does not read the backend's groupgrading.enabled "
+        . "to decide createdWithGroups. Without that check, the create-then-manage "
+        . "flow would enter even when the flag was not persisted (e.g. the user "
+        . "toggled it off between submit and response).");
     exit(2);
 }
-mtrace("1) submit() computes createdWithGroups from isAssignment/isQuiz + enableGroupGrading + !editMode ✔");
+mtrace("1) submit() reads backend groupgrading.enabled to validate createdWithGroups ✔");
 
-if (!preg_match("/\\\$emit\\(['\"]created-with-groups['\"]/", $wizard)) {
+if (!preg_match("/\\\$emit\(['\"]created-with-groups['\"]/", $wizard)) {
     mtrace("FAIL: the wizard never emits 'created-with-groups'.");
     exit(3);
 }
@@ -105,24 +121,22 @@ if (!preg_match(
 }
 mtrace("4) Parent listens for @created-with-groups ✔");
 
-// 4. The parent handler flips isEditing + editData without closing
-//    the dialog.
+// 4. The parent handler flips isEditing + editData with the new cmid
+//    AND passes enableGroupGrading=true so the panel mounts on the
+//    FIRST render after the re-mount.
 if (!preg_match(
-    '/onActivityCreatedWithGroups\s*\(\s*payload\s*\)\s*\{[\s\S]*?this\.isEditing\s*=\s*true[\s\S]*?this\.editActivityData\s*=\s*\{[\s\S]*?id:\s*payload\.cmid/s',
+    '/onActivityCreatedWithGroups\s*\(\s*payload\s*\)\s*\{[\s\S]*?this\.isEditing\s*=\s*true[\s\S]*?this\.editActivityData\s*=\s*\{[\s\S]*?id:\s*payload\.cmid[\s\S]*?enableGroupGrading:\s*true/s',
     $parent
 )) {
     mtrace("FAIL: onActivityCreatedWithGroups does not flip isEditing + editData "
-        . "with the new cmid.");
+        . "with the new cmid AND enableGroupGrading=true. Without the flag in "
+        . "editData, the panel's v-if would evaluate to false on the first render.");
     exit(6);
 }
-mtrace("5) onActivityCreatedWithGroups flips isEditing + editData with the new cmid ✔");
+mtrace("5) onActivityCreatedWithGroups flips isEditing + editData with cmid AND enableGroupGrading=true ✔");
 
 // 5. The wizard's fetchActivityDetails() must read the group-grading
 //    flags from the backend response and apply them to formData.
-//    Without this, the <activity-groups-panel> would never render
-//    after a "Crear y gestionar grupos" because data() resets to
-//    enableGroupGrading=false on re-mount and the panel's v-if is
-//    guarded by that flag.
 if (!preg_match(
     '/act\.enableGroupGrading\s*===\s*true\s*\|\|\s*act\.enableGroupGrading\s*===\s*1/',
     $wizard
@@ -137,8 +151,6 @@ mtrace("6) fetchActivityDetails() applies enableGroupGrading from the backend re
 //    flags so the wizard can restore them on re-mount.
 $ajax = file_get_contents($CFG->dirroot . '/local/grupomakro_core/ajax.php');
 foreach (["'enableGroupGrading'", "'groupMode'", "'groupMaxmembers'"] as $key) {
-    // Look for the key inside the get_activity_details case (between
-    // case 'local_grupomakro_get_activity_details': and the next case).
     $caseStart = strpos($ajax, "case 'local_grupomakro_get_activity_details':");
     $nextCase = strpos($ajax, "\n        case ", $caseStart + 10);
     $caseBlock = substr($ajax, $caseStart, $nextCase - $caseStart);
@@ -148,6 +160,20 @@ foreach (["'enableGroupGrading'", "'groupMode'", "'groupMaxmembers'"] as $key) {
     }
 }
 mtrace("7) get_activity_details returns enableGroupGrading + groupMode + groupMaxmembers ✔");
+
+// 7. The v-if of the <activity-groups-panel> must consult
+//    editData.enableGroupGrading, not only formData.enableGroupGrading,
+//    because formData resets to false on each re-mount.
+if (!preg_match(
+    '/v-if="editMode\s*&&\s*editData\s*&&\s*editData\.id\s*&&\s*\(\s*editData\.enableGroupGrading\s*\|\|\s*formData\.enableGroupGrading\s*\)"/',
+    $wizard
+)) {
+    mtrace("FAIL: the <activity-groups-panel> v-if does not consult "
+        . "editData.enableGroupGrading. It would never render on the first "
+        . "render after a re-mount because formData is reset to false.");
+    exit(9);
+}
+mtrace("8) Panel v-if consults editData.enableGroupGrading AND formData.enableGroupGrading ✔");
 
 mtrace("=== ALL CHECKS PASSED ===");
 exit(0);
