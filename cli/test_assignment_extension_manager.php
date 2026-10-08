@@ -191,6 +191,11 @@ mtrace("7) resolve_course_id_public passes through real mdl_course.id ✔");
 // We use a very-far-in-the-future duedate (1 year ahead) so we do
 // not collide with any existing override. The test also cleans up
 // after itself even on failure (best-effort).
+//
+// The WS methods call require_capability('mod/assign:manageoverrides', $context),
+// so we must run as a real user that has that capability in the
+// course. We pick the first teacher-role user enrolled in the course
+// and run the test as them via session-based loginas.
 $students = $DB->get_records_sql(
     "SELECT u.id
        FROM {user_enrolments} ue
@@ -204,62 +209,93 @@ if (!$students) {
     mtrace("WARN: course has no enrolled users to test the round-trip; skipping 8.");
 } else {
     $studentid = (int)reset($students)->id;
-    $futurets = time() + 365 * 86400; // +1 year
-    try {
-        $setResult = \local_grupomakro_core\external\teacher\assignment_extensions::set(
-            (int)$assignrow->assignid,
-            $studentid,
-            $futurets,
-            'smoke-test-' . time()
+
+    // Find a user with mod/assign:manageoverrides in the course.
+    $ctx = \context_course::instance($gc->corecourseid);
+    $teacher = $DB->get_record_sql(
+        "SELECT DISTINCT u.id
+           FROM {user} u
+           JOIN {role_assignments} ra ON ra.userid = u.id
+           JOIN {role_capabilities} rc ON rc.roleid = ra.roleid
+                                     AND rc.capability = :cap
+          WHERE ra.contextid = :ctx
+       ORDER BY u.id ASC",
+        ['cap' => 'mod/assign:manageoverrides', 'ctx' => $ctx->id], 0, 1
+    );
+    if (!$teacher) {
+        mtrace("WARN: no user with mod/assign:manageoverrides in the course; skipping 8.");
+    } else {
+        $teacherid = (int)$teacher->id;
+        $olduser = $GLOBALS['USER'] ?? null;
+        \core\session\manager::set_user($DB->get_record('user', ['id' => $teacherid]));
+
+        $futurets = time() + 365 * 86400; // +1 year
+        try {
+            $setResult = \local_grupomakro_core\external\teacher\assignment_extensions::set(
+                (int)$assignrow->assignid,
+                $studentid,
+                $futurets,
+                'smoke-test-' . time()
+            );
+        } catch (\Throwable $e) {
+            if ($olduser) { \core\session\manager::set_user($olduser); }
+            mtrace("FAIL: assignment_extensions::set() threw: " . $e->getMessage());
+            exit(11);
+        }
+        if (($setResult['status'] ?? '') !== 'success') {
+            if ($olduser) { \core\session\manager::set_user($olduser); }
+            mtrace("FAIL: set() returned non-success: " . json_encode($setResult));
+            exit(11);
+        }
+        mtrace("8a) set() applied override for user={$studentid} duedate=" . date('c', $futurets) . " ✔");
+
+        // Reload via list_overrides() and confirm the new override is there.
+        $info = \local_grupomakro_core\external\teacher\assignment_extensions::list_overrides(
+            (int)$assignrow->assignid
         );
-    } catch (\Throwable $e) {
-        mtrace("FAIL: assignment_extensions::set() threw: " . $e->getMessage());
-        exit(11);
-    }
-    if (($setResult['status'] ?? '') !== 'success') {
-        mtrace("FAIL: set() returned non-success: " . json_encode($setResult));
-        exit(11);
-    }
-    mtrace("8a) set() applied override for user={$studentid} duedate=" . date('c', $futurets) . " ✔");
+        $found = false;
+        foreach ($info['overrides'] as $ov) {
+            if ((int)$ov['userid'] === $studentid && (int)$ov['duedate'] === $futurets) {
+                $found = true;
+                break;
+            }
+        }
+        if (!$found) {
+            if ($olduser) { \core\session\manager::set_user($olduser); }
+            mtrace("FAIL: list_overrides() did not return the new override for user {$studentid}.");
+            exit(12);
+        }
+        mtrace("8b) list_overrides() reports the new override ✔");
 
-    // Reload via list_overrides() and confirm the new override is there.
-    $info = \local_grupomakro_core\external\teacher\assignment_extensions::list_overrides(
-        (int)$assignrow->assignid
-    );
-    $found = false;
-    foreach ($info['overrides'] as $ov) {
-        if ((int)$ov['userid'] === $studentid && (int)$ov['duedate'] === $futurets) {
-            $found = true;
-            break;
+        // delete_override() and confirm.
+        $delResult = \local_grupomakro_core\external\teacher\assignment_extensions::delete_override(
+            (int)$assignrow->assignid,
+            $studentid
+        );
+        if (($delResult['status'] ?? '') !== 'success') {
+            if ($olduser) { \core\session\manager::set_user($olduser); }
+            mtrace("FAIL: delete_override() returned non-success: " . json_encode($delResult));
+            exit(13);
+        }
+        mtrace("8c) delete_override() removed it ✔");
+
+        $info2 = \local_grupomakro_core\external\teacher\assignment_extensions::list_overrides(
+            (int)$assignrow->assignid
+        );
+        foreach ($info2['overrides'] as $ov) {
+            if ((int)$ov['userid'] === $studentid && (int)$ov['duedate'] === $futurets) {
+                if ($olduser) { \core\session\manager::set_user($olduser); }
+                mtrace("FAIL: override for user {$studentid} still in list_overrides() after delete.");
+                exit(14);
+            }
+        }
+        mtrace("8d) list_overrides() no longer reports it ✔");
+
+        // Restore previous user.
+        if ($olduser) {
+            \core\session\manager::set_user($olduser);
         }
     }
-    if (!$found) {
-        mtrace("FAIL: list_overrides() did not return the new override for user {$studentid}.");
-        exit(12);
-    }
-    mtrace("8b) list_overrides() reports the new override ✔");
-
-    // delete_override() and confirm.
-    $delResult = \local_grupomakro_core\external\teacher\assignment_extensions::delete_override(
-        (int)$assignrow->assignid,
-        $studentid
-    );
-    if (($delResult['status'] ?? '') !== 'success') {
-        mtrace("FAIL: delete_override() returned non-success: " . json_encode($delResult));
-        exit(13);
-    }
-    mtrace("8c) delete_override() removed it ✔");
-
-    $info2 = \local_grupomakro_core\external\teacher\assignment_extensions::list_overrides(
-        (int)$assignrow->assignid
-    );
-    foreach ($info2['overrides'] as $ov) {
-        if ((int)$ov['userid'] === $studentid && (int)$ov['duedate'] === $futurets) {
-            mtrace("FAIL: override for user {$studentid} still in list_overrides() after delete.");
-            exit(14);
-        }
-    }
-    mtrace("8d) list_overrides() no longer reports it ✔");
 }
 
 mtrace("=== ALL CHECKS PASSED ===");
