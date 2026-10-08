@@ -32,12 +32,12 @@ use external_single_structure;
 class admin_process_withdrawal extends external_api {
 
     public static function execute_parameters(): external_function_parameters {
-        return new \external_function_parameters([
-            'id'     => new \external_value(PARAM_INT, 'WDR request id'),
-            'force'  => new \external_value(PARAM_BOOL,
+        return new external_function_parameters([
+            'id'     => new external_value(PARAM_INT, 'WDR request id'),
+            'force'  => new external_value(PARAM_BOOL,
                 'True to bypass the balance block (admin override).',
                 VALUE_DEFAULT, false),
-            'reason' => new \external_value(PARAM_TEXT,
+            'reason' => new external_value(PARAM_TEXT,
                 'Justification (required when force=true; min 10 chars).',
                 VALUE_DEFAULT, ''),
         ]);
@@ -79,19 +79,19 @@ class admin_process_withdrawal extends external_api {
     }
 
     public static function execute_returns(): external_single_structure {
-        return new \external_single_structure([
-            'id'                       => new \external_value(PARAM_INT, 'Request id'),
-            'status'                   => new \external_value(PARAM_TEXT, 'New status (procesada)'),
-            'processed_at'             => new \external_value(PARAM_INT, 'Unix ts when processed'),
-            'processed_by'             => new \external_value(PARAM_INT, 'userid of the admin who processed'),
-            'forced'                   => new \external_value(PARAM_BOOL, 'Whether a force override was used'),
-            'forced_at'                => new \external_value(PARAM_INT, 'Unix ts of the override'),
-            'forced_reason'            => new \external_value(PARAM_TEXT, 'Justification written by the admin'),
-            'process_odoo_partner_id'  => new \external_value(PARAM_INT, 'Odoo res.partner.id at processing time'),
-            'process_balance_total'    => new \external_value(PARAM_FLOAT, 'Pending balance at processing time'),
-            'process_balance_currency' => new \external_value(PARAM_TEXT, 'Currency reported by Odoo'),
-            'process_invoices_updated' => new \external_value(PARAM_INT, 'Invoices touched by the wizard'),
-            'process_subs_updated'     => new \external_value(PARAM_INT, 'Subscriptions deactivated by the wizard'),
+        return new external_single_structure([
+            'id'                       => new external_value(PARAM_INT, 'Request id'),
+            'status'                   => new external_value(PARAM_TEXT, 'New status (procesada)'),
+            'processed_at'             => new external_value(PARAM_INT, 'Unix ts when processed'),
+            'processed_by'             => new external_value(PARAM_INT, 'userid of the admin who processed'),
+            'forced'                   => new external_value(PARAM_BOOL, 'Whether a force override was used'),
+            'forced_at'                => new external_value(PARAM_INT, 'Unix ts of the override'),
+            'forced_reason'            => new external_value(PARAM_TEXT, 'Justification written by the admin'),
+            'process_odoo_partner_id'  => new external_value(PARAM_INT, 'Odoo res.partner.id at processing time'),
+            'process_balance_total'    => new external_value(PARAM_FLOAT, 'Pending balance at processing time'),
+            'process_balance_currency' => new external_value(PARAM_TEXT, 'Currency reported by Odoo'),
+            'process_invoices_updated' => new external_value(PARAM_INT, 'Invoices touched by the wizard'),
+            'process_subs_updated'     => new external_value(PARAM_INT, 'Subscriptions deactivated by the wizard'),
         ]);
     }
 }

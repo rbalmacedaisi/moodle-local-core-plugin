@@ -41,13 +41,13 @@ require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/wellness_staf
 class admin_upsert_staff extends external_api {
 
     public static function execute_parameters() {
-        return new \external_function_parameters([
-            'rolekey'           => new \external_value(PARAM_TEXT, 'psicologo_titular|psicologo_suplente|talento_humano|bienestar_jefe|bienestar_asistente', VALUE_REQUIRED),
-            'role_label'        => new \external_value(PARAM_TEXT, 'Display label', VALUE_DEFAULT, ''),
-            'userid'            => new \external_value(PARAM_INT,  'Linked Moodle userid (0 to clear)', VALUE_DEFAULT, 0),
-            'email_override'    => new \external_value(PARAM_TEXT, 'Explicit email override; empty = use user.email', VALUE_DEFAULT, ''),
-            'notify_on_request' => new \external_value(PARAM_BOOL, 'Receive notifications on new appointments', VALUE_DEFAULT, true),
-            'notify_on_change'  => new \external_value(PARAM_BOOL, 'Receive notifications on status changes', VALUE_DEFAULT, true),
+        return new external_function_parameters([
+            'rolekey'           => new external_value(PARAM_TEXT, 'psicologo_titular|psicologo_suplente|talento_humano|bienestar_jefe|bienestar_asistente', VALUE_REQUIRED),
+            'role_label'        => new external_value(PARAM_TEXT, 'Display label', VALUE_DEFAULT, ''),
+            'userid'            => new external_value(PARAM_INT,  'Linked Moodle userid (0 to clear)', VALUE_DEFAULT, 0),
+            'email_override'    => new external_value(PARAM_TEXT, 'Explicit email override; empty = use user.email', VALUE_DEFAULT, ''),
+            'notify_on_request' => new external_value(PARAM_BOOL, 'Receive notifications on new appointments', VALUE_DEFAULT, true),
+            'notify_on_change'  => new external_value(PARAM_BOOL, 'Receive notifications on status changes', VALUE_DEFAULT, true),
         ]);
     }
 
@@ -82,9 +82,9 @@ class admin_upsert_staff extends external_api {
     }
 
     public static function execute_returns() {
-        return new \external_single_structure([
-            'ok' => new \external_value(PARAM_BOOL, 'True on success'),
-            'id' => new \external_value(PARAM_INT,  'Row id'),
+        return new external_single_structure([
+            'ok' => new external_value(PARAM_BOOL, 'True on success'),
+            'id' => new external_value(PARAM_INT,  'Row id'),
         ]);
     }
 }

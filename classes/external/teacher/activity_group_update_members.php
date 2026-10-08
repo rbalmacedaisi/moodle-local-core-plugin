@@ -14,16 +14,16 @@ use external_single_structure;
 class activity_group_update_members extends external_api {
 
     public static function execute_parameters(): external_function_parameters {
-        return new \external_function_parameters([
-            'groupid' => new \external_value(PARAM_INT, 'gmk_activity_group.id', VALUE_REQUIRED),
-            'add'     => new \external_multiple_structure(
-                new \external_value(PARAM_INT, 'userid'),
+        return new external_function_parameters([
+            'groupid' => new external_value(PARAM_INT, 'gmk_activity_group.id', VALUE_REQUIRED),
+            'add'     => new external_multiple_structure(
+                new external_value(PARAM_INT, 'userid'),
                 'Estudiantes a anadir',
                 VALUE_DEFAULT,
                 []
             ),
-            'remove'  => new \external_multiple_structure(
-                new \external_value(PARAM_INT, 'userid'),
+            'remove'  => new external_multiple_structure(
+                new external_value(PARAM_INT, 'userid'),
                 'Estudiantes a sacar',
                 VALUE_DEFAULT,
                 []
@@ -124,13 +124,13 @@ class activity_group_update_members extends external_api {
     }
 
     public static function execute_returns(): external_single_structure {
-        return new \external_single_structure([
-            'status'   => new \external_value(PARAM_TEXT, 'success|error'),
-            'message'  => new \external_value(PARAM_TEXT, 'Mensaje'),
-            'added'    => new \external_value(PARAM_INT, 'Cantidad de miembros anadidos'),
-            'removed'  => new \external_value(PARAM_INT, 'Cantidad de miembros sacados'),
-            'rejected' => new \external_multiple_structure(
-                new \external_value(PARAM_INT, 'userid rechazado por cupo'),
+        return new external_single_structure([
+            'status'   => new external_value(PARAM_TEXT, 'success|error'),
+            'message'  => new external_value(PARAM_TEXT, 'Mensaje'),
+            'added'    => new external_value(PARAM_INT, 'Cantidad de miembros anadidos'),
+            'removed'  => new external_value(PARAM_INT, 'Cantidad de miembros sacados'),
+            'rejected' => new external_multiple_structure(
+                new external_value(PARAM_INT, 'userid rechazado por cupo'),
                 'IDs rechazados porque el grupo estaba lleno'
             ),
         ]);

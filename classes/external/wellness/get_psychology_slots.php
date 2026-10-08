@@ -39,10 +39,10 @@ require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/wellness_psyc
 class get_psychology_slots extends external_api {
 
     public static function execute_parameters() {
-        return new \external_function_parameters([
-            'psychologist_userid' => new \external_value(PARAM_INT, 'Specialist userid; 0 = default (titular or first suplente)', VALUE_DEFAULT, 0),
-            'from'                => new \external_value(PARAM_INT, 'Start unix ts (inclusive); 0 = now', VALUE_DEFAULT, 0),
-            'to'                  => new \external_value(PARAM_INT, 'End unix ts (inclusive); 0 = now + 30 days', VALUE_DEFAULT, 0),
+        return new external_function_parameters([
+            'psychologist_userid' => new external_value(PARAM_INT, 'Specialist userid; 0 = default (titular or first suplente)', VALUE_DEFAULT, 0),
+            'from'                => new external_value(PARAM_INT, 'Start unix ts (inclusive); 0 = now', VALUE_DEFAULT, 0),
+            'to'                  => new external_value(PARAM_INT, 'End unix ts (inclusive); 0 = now + 30 days', VALUE_DEFAULT, 0),
         ]);
     }
 
@@ -97,23 +97,23 @@ class get_psychology_slots extends external_api {
     }
 
     public static function execute_returns() {
-        $slot = new \external_single_structure([
-            'slotid'              => new \external_value(PARAM_INT,  'Slot id'),
-            'psychologist_userid' => new \external_value(PARAM_INT,  'Specialist userid'),
-            'weekday'             => new \external_value(PARAM_INT,  '0-6 weekday'),
-            'starttime'           => new \external_value(PARAM_TEXT, 'HH:MM'),
-            'endtime'             => new \external_value(PARAM_TEXT, 'HH:MM'),
-            'modality'            => new \external_value(PARAM_TEXT, 'presencial|virtual|mixto'),
-            'duration_minutes'    => new \external_value(PARAM_INT,  'Duration per appointment'),
-            'location'            => new \external_value(PARAM_TEXT, 'Office or virtual room'),
-            'occurrence_start'    => new \external_value(PARAM_INT,  'Unix ts of the slot occurrence'),
-            'occurrence_end'      => new \external_value(PARAM_INT,  'Unix ts of the slot end'),
+        $slot = new external_single_structure([
+            'slotid'              => new external_value(PARAM_INT,  'Slot id'),
+            'psychologist_userid' => new external_value(PARAM_INT,  'Specialist userid'),
+            'weekday'             => new external_value(PARAM_INT,  '0-6 weekday'),
+            'starttime'           => new external_value(PARAM_TEXT, 'HH:MM'),
+            'endtime'             => new external_value(PARAM_TEXT, 'HH:MM'),
+            'modality'            => new external_value(PARAM_TEXT, 'presencial|virtual|mixto'),
+            'duration_minutes'    => new external_value(PARAM_INT,  'Duration per appointment'),
+            'location'            => new external_value(PARAM_TEXT, 'Office or virtual room'),
+            'occurrence_start'    => new external_value(PARAM_INT,  'Unix ts of the slot occurrence'),
+            'occurrence_end'      => new external_value(PARAM_INT,  'Unix ts of the slot end'),
         ]);
-        return new \external_single_structure([
-            'psychologist_userid' => new \external_value(PARAM_INT, 'Echoed specialist userid (resolved when input was 0).'),
-            'from'                => new \external_value(PARAM_INT, 'Echoed range start.'),
-            'to'                  => new \external_value(PARAM_INT, 'Echoed range end.'),
-            'slots'               => new \external_multiple_structure($slot, 'Materialised open occurrences.'),
+        return new external_single_structure([
+            'psychologist_userid' => new external_value(PARAM_INT, 'Echoed specialist userid (resolved when input was 0).'),
+            'from'                => new external_value(PARAM_INT, 'Echoed range start.'),
+            'to'                  => new external_value(PARAM_INT, 'Echoed range end.'),
+            'slots'               => new external_multiple_structure($slot, 'Materialised open occurrences.'),
         ]);
     }
 }

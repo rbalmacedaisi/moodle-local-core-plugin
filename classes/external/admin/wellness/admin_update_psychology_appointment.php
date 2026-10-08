@@ -41,12 +41,12 @@ require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/wellness_psyc
 class admin_update_psychology_appointment extends external_api {
 
     public static function execute_parameters() {
-        return new \external_function_parameters([
-            'appointmentid'        => new \external_value(PARAM_INT,  'Appointment id', VALUE_REQUIRED),
-            'status'               => new \external_value(PARAM_ALPHA,'pendiente|confirmada|modificada|cancelada|atendida|no_asistio', VALUE_REQUIRED),
-            'cancel_reason'        => new \external_value(PARAM_RAW,  'Cancel reason (used when status=cancelada)', VALUE_DEFAULT, ''),
-            'attendees_notes'      => new \external_value(PARAM_RAW,  'Notes added by the specialist', VALUE_DEFAULT, ''),
-            'new_appointment_at'   => new \external_value(PARAM_INT,  'New unix ts (only when status=modificada)', VALUE_DEFAULT, 0),
+        return new external_function_parameters([
+            'appointmentid'        => new external_value(PARAM_INT,  'Appointment id', VALUE_REQUIRED),
+            'status'               => new external_value(PARAM_ALPHA,'pendiente|confirmada|modificada|cancelada|atendida|no_asistio', VALUE_REQUIRED),
+            'cancel_reason'        => new external_value(PARAM_RAW,  'Cancel reason (used when status=cancelada)', VALUE_DEFAULT, ''),
+            'attendees_notes'      => new external_value(PARAM_RAW,  'Notes added by the specialist', VALUE_DEFAULT, ''),
+            'new_appointment_at'   => new external_value(PARAM_INT,  'New unix ts (only when status=modificada)', VALUE_DEFAULT, 0),
         ]);
     }
 
@@ -74,10 +74,10 @@ class admin_update_psychology_appointment extends external_api {
     }
 
     public static function execute_returns() {
-        return new \external_single_structure([
-            'ok'    => new \external_value(PARAM_BOOL, 'True when the transition succeeded'),
-            'noop'  => new \external_value(PARAM_BOOL, 'True when the status did not change'),
-            'error' => new \external_value(PARAM_TEXT, 'Error code when ok=false'),
+        return new external_single_structure([
+            'ok'    => new external_value(PARAM_BOOL, 'True when the transition succeeded'),
+            'noop'  => new external_value(PARAM_BOOL, 'True when the status did not change'),
+            'error' => new external_value(PARAM_TEXT, 'Error code when ok=false'),
         ]);
     }
 }

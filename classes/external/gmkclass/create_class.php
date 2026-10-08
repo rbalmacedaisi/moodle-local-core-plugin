@@ -55,23 +55,23 @@ class create_class extends external_api {
      * @return external_function_parameters
      */
     public static function execute_parameters(): external_function_parameters {
-        return new \external_function_parameters(
+        return new external_function_parameters(
             [
-                'name' => new \external_value(PARAM_TEXT, 'Name of the class.',VALUE_REQUIRED),
-                'type' => new \external_value(PARAM_INT, 'Type of the class (virtual(1) or inplace(0)).',VALUE_REQUIRED),
-                'learningPlanId' => new \external_value(PARAM_INT, 'Id of the learning plan attached.',VALUE_REQUIRED),
-                'periodId' => new \external_value(PARAM_INT, 'Id of the period when the class is going to be dictated defined in the leaerning pland and ',VALUE_REQUIRED),
-                'courseId' => new \external_value(PARAM_INT, 'Course id for the class',VALUE_REQUIRED),
-                'instructorId' => new \external_value(PARAM_INT, 'Id of the class instructor',VALUE_REQUIRED),
-                'supportTeacherId' => new \external_value(PARAM_INT, 'Optional support teacher (admin/director managed). 0 = no support teacher.', VALUE_DEFAULT, 0),
-                'initTime' => new \external_value(PARAM_TEXT, 'The init time of the class'),
-                'endTime' => new \external_value(PARAM_TEXT, 'The end time of the class'),
-                'initDate' => new \external_value(PARAM_TEXT, 'The start date of the class (YYYY-MM-DD)', VALUE_DEFAULT, ''),
-                'endDate' => new \external_value(PARAM_TEXT, 'The end date of the class (YYYY-MM-DD)', VALUE_DEFAULT, ''),
-                'classDays' => new \external_value(PARAM_TEXT, 'The days when tha class will be dictated, the format is l/m/m/j/v/s/d and every letter can contain 0 or 1 depending if the day is active',VALUE_REQUIRED),
-                'classroomId' => new \external_value(PARAM_TEXT, 'Classroom id',VALUE_DEFAULT,null,NULL_ALLOWED),
-                'classroomCapacity' => new \external_value(PARAM_INT, 'Classroom capacity',VALUE_DEFAULT,40),
-                'academicPeriodId' => new \external_value(PARAM_INT, 'Institutional/lective period id (gmk_academic_periods.id)', VALUE_DEFAULT, 0),
+                'name' => new external_value(PARAM_TEXT, 'Name of the class.',VALUE_REQUIRED),
+                'type' => new external_value(PARAM_INT, 'Type of the class (virtual(1) or inplace(0)).',VALUE_REQUIRED),
+                'learningPlanId' => new external_value(PARAM_INT, 'Id of the learning plan attached.',VALUE_REQUIRED),
+                'periodId' => new external_value(PARAM_INT, 'Id of the period when the class is going to be dictated defined in the leaerning pland and ',VALUE_REQUIRED),
+                'courseId' => new external_value(PARAM_INT, 'Course id for the class',VALUE_REQUIRED),
+                'instructorId' => new external_value(PARAM_INT, 'Id of the class instructor',VALUE_REQUIRED),
+                'supportTeacherId' => new external_value(PARAM_INT, 'Optional support teacher (admin/director managed). 0 = no support teacher.', VALUE_DEFAULT, 0),
+                'initTime' => new external_value(PARAM_TEXT, 'The init time of the class'),
+                'endTime' => new external_value(PARAM_TEXT, 'The end time of the class'),
+                'initDate' => new external_value(PARAM_TEXT, 'The start date of the class (YYYY-MM-DD)', VALUE_DEFAULT, ''),
+                'endDate' => new external_value(PARAM_TEXT, 'The end date of the class (YYYY-MM-DD)', VALUE_DEFAULT, ''),
+                'classDays' => new external_value(PARAM_TEXT, 'The days when tha class will be dictated, the format is l/m/m/j/v/s/d and every letter can contain 0 or 1 depending if the day is active',VALUE_REQUIRED),
+                'classroomId' => new external_value(PARAM_TEXT, 'Classroom id',VALUE_DEFAULT,null,NULL_ALLOWED),
+                'classroomCapacity' => new external_value(PARAM_INT, 'Classroom capacity',VALUE_DEFAULT,40),
+                'academicPeriodId' => new external_value(PARAM_INT, 'Institutional/lective period id (gmk_academic_periods.id)', VALUE_DEFAULT, 0),
             ]
         );
     }
@@ -164,10 +164,10 @@ int $courseId,
      * @return external_description
      */
     public static function execute_returns(): external_description {
-        return new \external_single_structure(
+        return new external_single_structure(
             array(
-                'status' => new \external_value(PARAM_INT, 'The ID of the new class or -1 if there was an error.'),
-                'message' => new \external_value(PARAM_TEXT, 'The error message or Ok.',VALUE_DEFAULT, 'ok'),
+                'status' => new external_value(PARAM_INT, 'The ID of the new class or -1 if there was an error.'),
+                'message' => new external_value(PARAM_TEXT, 'The error message or Ok.',VALUE_DEFAULT, 'ok'),
             )
         );
     }

@@ -37,9 +37,9 @@ require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/wellness_even
 class admin_toggle_event_active extends external_api {
 
     public static function execute_parameters() {
-        return new \external_function_parameters([
-            'id'     => new \external_value(PARAM_INT,  'Event id', VALUE_REQUIRED),
-            'active' => new \external_value(PARAM_BOOL, 'True to enable, false to soft-delete', VALUE_REQUIRED),
+        return new external_function_parameters([
+            'id'     => new external_value(PARAM_INT,  'Event id', VALUE_REQUIRED),
+            'active' => new external_value(PARAM_BOOL, 'True to enable, false to soft-delete', VALUE_REQUIRED),
         ]);
     }
 
@@ -56,8 +56,8 @@ class admin_toggle_event_active extends external_api {
     }
 
     public static function execute_returns() {
-        return new \external_single_structure([
-            'ok' => new \external_value(PARAM_BOOL, 'True when the row exists'),
+        return new external_single_structure([
+            'ok' => new external_value(PARAM_BOOL, 'True when the row exists'),
         ]);
     }
 }

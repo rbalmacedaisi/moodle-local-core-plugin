@@ -37,7 +37,7 @@ require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/wellness_even
 class admin_list_events extends external_api {
 
     public static function execute_parameters() {
-        return new \external_function_parameters([]);
+        return new external_function_parameters([]);
     }
 
     public static function execute() {
@@ -80,33 +80,33 @@ class admin_list_events extends external_api {
     }
 
     public static function execute_returns() {
-        $event = new \external_single_structure([
-            'id'                     => new \external_value(PARAM_INT,  'Event id'),
-            'title'                  => new \external_value(PARAM_TEXT, 'Title'),
-            'summary'                => new \external_value(PARAM_TEXT, 'Teaser'),
-            'category'               => new \external_value(PARAM_TEXT, 'Category'),
-            'startdate'              => new \external_value(PARAM_INT,  'Unix ts'),
-            'enddate'                => new \external_value(PARAM_INT,  'Unix ts'),
-            'modality'               => new \external_value(PARAM_TEXT, 'Modality'),
-            'location'               => new \external_value(PARAM_TEXT, 'Location'),
-            'virtual_url'            => new \external_value(PARAM_TEXT, 'Virtual URL'),
-            'bbb_cmid'               => new \external_value(PARAM_INT,  'BBB course module id (0 = no room)'),
-            'bbb_guest_url'          => new \external_value(PARAM_TEXT, 'Guest join URL (empty when no room)'),
-            'capacity'               => new \external_value(PARAM_INT,  'Capacity (0 = unlimited)'),
-            'requires_registration'  => new \external_value(PARAM_INT,  '0/1'),
-            'allow_waitlist'         => new \external_value(PARAM_INT,  '0/1'),
-            'registration_opens_at'  => new \external_value(PARAM_INT,  'Unix ts'),
-            'registration_closes_at' => new \external_value(PARAM_INT,  'Unix ts'),
-            'organizer_name'         => new \external_value(PARAM_TEXT, 'Organizer name'),
-            'organizer_email'        => new \external_value(PARAM_TEXT, 'Organizer email'),
-            'cover_path'             => new \external_value(PARAM_TEXT, 'Cover path'),
-            'active'                 => new \external_value(PARAM_INT,  '0/1'),
-            'registered_count'       => new \external_value(PARAM_INT,  'Confirmed registrations'),
-            'timecreated'            => new \external_value(PARAM_INT,  'Unix ts'),
-            'timemodified'           => new \external_value(PARAM_INT,  'Unix ts'),
+        $event = new external_single_structure([
+            'id'                     => new external_value(PARAM_INT,  'Event id'),
+            'title'                  => new external_value(PARAM_TEXT, 'Title'),
+            'summary'                => new external_value(PARAM_TEXT, 'Teaser'),
+            'category'               => new external_value(PARAM_TEXT, 'Category'),
+            'startdate'              => new external_value(PARAM_INT,  'Unix ts'),
+            'enddate'                => new external_value(PARAM_INT,  'Unix ts'),
+            'modality'               => new external_value(PARAM_TEXT, 'Modality'),
+            'location'               => new external_value(PARAM_TEXT, 'Location'),
+            'virtual_url'            => new external_value(PARAM_TEXT, 'Virtual URL'),
+            'bbb_cmid'               => new external_value(PARAM_INT,  'BBB course module id (0 = no room)'),
+            'bbb_guest_url'          => new external_value(PARAM_TEXT, 'Guest join URL (empty when no room)'),
+            'capacity'               => new external_value(PARAM_INT,  'Capacity (0 = unlimited)'),
+            'requires_registration'  => new external_value(PARAM_INT,  '0/1'),
+            'allow_waitlist'         => new external_value(PARAM_INT,  '0/1'),
+            'registration_opens_at'  => new external_value(PARAM_INT,  'Unix ts'),
+            'registration_closes_at' => new external_value(PARAM_INT,  'Unix ts'),
+            'organizer_name'         => new external_value(PARAM_TEXT, 'Organizer name'),
+            'organizer_email'        => new external_value(PARAM_TEXT, 'Organizer email'),
+            'cover_path'             => new external_value(PARAM_TEXT, 'Cover path'),
+            'active'                 => new external_value(PARAM_INT,  '0/1'),
+            'registered_count'       => new external_value(PARAM_INT,  'Confirmed registrations'),
+            'timecreated'            => new external_value(PARAM_INT,  'Unix ts'),
+            'timemodified'           => new external_value(PARAM_INT,  'Unix ts'),
         ]);
-        return new \external_single_structure([
-            'events' => new \external_multiple_structure($event, 'All events'),
+        return new external_single_structure([
+            'events' => new external_multiple_structure($event, 'All events'),
         ]);
     }
 }

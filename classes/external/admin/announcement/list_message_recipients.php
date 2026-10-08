@@ -39,8 +39,8 @@ require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/announcement_
 class list_message_recipients extends external_api {
 
     public static function execute_parameters() {
-        return new \external_function_parameters([
-            'messageid' => new \external_value(PARAM_INT, 'Broadcast id', VALUE_REQUIRED),
+        return new external_function_parameters([
+            'messageid' => new external_value(PARAM_INT, 'Broadcast id', VALUE_REQUIRED),
         ]);
     }
 
@@ -64,19 +64,19 @@ class list_message_recipients extends external_api {
     }
 
     public static function execute_returns() {
-        $rowstructure = new \external_single_structure([
-            'userid'           => new \external_value(PARAM_INT,  'Moodile user id'),
-            'name'             => new \external_value(PARAM_TEXT, 'Student full name'),
-            'email'            => new \external_value(PARAM_TEXT, 'Student email'),
-            'careerid'         => new \external_value(PARAM_INT,  'Snapshot career id'),
-            'careername'       => new \external_value(PARAM_TEXT, 'Snapshot career name'),
-            'acked'            => new \external_value(PARAM_BOOL, 'True if the user already acknowledged'),
-            'timeacknowledged' => new \external_value(PARAM_INT,  'Unix ts of the acknowledgement'),
+        $rowstructure = new external_single_structure([
+            'userid'           => new external_value(PARAM_INT,  'Moodile user id'),
+            'name'             => new external_value(PARAM_TEXT, 'Student full name'),
+            'email'            => new external_value(PARAM_TEXT, 'Student email'),
+            'careerid'         => new external_value(PARAM_INT,  'Snapshot career id'),
+            'careername'       => new external_value(PARAM_TEXT, 'Snapshot career name'),
+            'acked'            => new external_value(PARAM_BOOL, 'True if the user already acknowledged'),
+            'timeacknowledged' => new external_value(PARAM_INT,  'Unix ts of the acknowledgement'),
         ]);
 
-        return new \external_single_structure([
-            'recipients' => new \external_multiple_structure($rowstructure, 'Per-recipient rows'),
-            'count'      => new \external_value(PARAM_INT, 'Total recipient count'),
+        return new external_single_structure([
+            'recipients' => new external_multiple_structure($rowstructure, 'Per-recipient rows'),
+            'count'      => new external_value(PARAM_INT, 'Total recipient count'),
         ]);
     }
 }

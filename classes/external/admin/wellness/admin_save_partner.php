@@ -42,20 +42,20 @@ class admin_save_partner extends external_api {
         // segun ESTA declaracion y luego invoca execute() POSICIONALMENTE. Si
         // este orden no coincide con el de la firma de execute(), cada valor
         // aterriza en la variable equivocada. Debe ir igual que la firma.
-        return new \external_function_parameters([
-            'name'                => new \external_value(PARAM_TEXT, 'Partner name', VALUE_REQUIRED),
-            'categoryid'          => new \external_value(PARAM_INT,  'Category id', VALUE_REQUIRED),
-            'benefit_description' => new \external_value(PARAM_RAW,  'Benefit', VALUE_REQUIRED),
-            'id'                  => new \external_value(PARAM_INT,  '0 to create', VALUE_DEFAULT, 0),
-            'conditions'          => new \external_value(PARAM_RAW,  'Conditions', VALUE_DEFAULT, ''),
-            'requirements'        => new \external_value(PARAM_RAW,  'Requirements', VALUE_DEFAULT, ''),
-            'startdate'           => new \external_value(PARAM_INT,  'Unix ts (0 = always)', VALUE_DEFAULT, 0),
-            'enddate'             => new \external_value(PARAM_INT,  'Unix ts (0 = never)', VALUE_DEFAULT, 0),
-            'contact_label'       => new \external_value(PARAM_TEXT, 'Contact label', VALUE_DEFAULT, ''),
-            'contact_value'       => new \external_value(PARAM_TEXT, 'Contact value', VALUE_DEFAULT, ''),
-            'logo_path'           => new \external_value(PARAM_TEXT, 'Pluginfile path', VALUE_DEFAULT, ''),
-            'sort'                => new \external_value(PARAM_INT,  'Sort order', VALUE_DEFAULT, 0),
-            'active'              => new \external_value(PARAM_BOOL, 'Active flag', VALUE_DEFAULT, true),
+        return new external_function_parameters([
+            'name'                => new external_value(PARAM_TEXT, 'Partner name', VALUE_REQUIRED),
+            'categoryid'          => new external_value(PARAM_INT,  'Category id', VALUE_REQUIRED),
+            'benefit_description' => new external_value(PARAM_RAW,  'Benefit', VALUE_REQUIRED),
+            'id'                  => new external_value(PARAM_INT,  '0 to create', VALUE_DEFAULT, 0),
+            'conditions'          => new external_value(PARAM_RAW,  'Conditions', VALUE_DEFAULT, ''),
+            'requirements'        => new external_value(PARAM_RAW,  'Requirements', VALUE_DEFAULT, ''),
+            'startdate'           => new external_value(PARAM_INT,  'Unix ts (0 = always)', VALUE_DEFAULT, 0),
+            'enddate'             => new external_value(PARAM_INT,  'Unix ts (0 = never)', VALUE_DEFAULT, 0),
+            'contact_label'       => new external_value(PARAM_TEXT, 'Contact label', VALUE_DEFAULT, ''),
+            'contact_value'       => new external_value(PARAM_TEXT, 'Contact value', VALUE_DEFAULT, ''),
+            'logo_path'           => new external_value(PARAM_TEXT, 'Pluginfile path', VALUE_DEFAULT, ''),
+            'sort'                => new external_value(PARAM_INT,  'Sort order', VALUE_DEFAULT, 0),
+            'active'              => new external_value(PARAM_BOOL, 'Active flag', VALUE_DEFAULT, true),
         ]);
     }
 
@@ -88,9 +88,9 @@ class admin_save_partner extends external_api {
     }
 
     public static function execute_returns() {
-        return new \external_single_structure([
-            'ok' => new \external_value(PARAM_BOOL, 'True on success'),
-            'id' => new \external_value(PARAM_INT,  'Partner id'),
+        return new external_single_structure([
+            'ok' => new external_value(PARAM_BOOL, 'True on success'),
+            'id' => new external_value(PARAM_INT,  'Partner id'),
         ]);
     }
 }

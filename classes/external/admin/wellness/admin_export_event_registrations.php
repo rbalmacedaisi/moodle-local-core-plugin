@@ -39,8 +39,8 @@ require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/wellness_even
 class admin_export_event_registrations extends external_api {
 
     public static function execute_parameters() {
-        return new \external_function_parameters([
-            'eventid' => new \external_value(PARAM_INT, 'Event id', VALUE_REQUIRED),
+        return new external_function_parameters([
+            'eventid' => new external_value(PARAM_INT, 'Event id', VALUE_REQUIRED),
         ]);
     }
 
@@ -63,9 +63,9 @@ class admin_export_event_registrations extends external_api {
     }
 
     public static function execute_returns() {
-        return new \external_single_structure([
-            'csv'     => new \external_value(PARAM_RAW, 'CSV body'),
-            'eventid' => new \external_value(PARAM_INT, 'Event id'),
+        return new external_single_structure([
+            'csv'     => new external_value(PARAM_RAW, 'CSV body'),
+            'eventid' => new external_value(PARAM_INT, 'Event id'),
         ]);
     }
 }

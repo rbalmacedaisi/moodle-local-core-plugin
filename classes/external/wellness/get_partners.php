@@ -39,9 +39,9 @@ require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/wellness_part
 class get_partners extends external_api {
 
     public static function execute_parameters() {
-        return new \external_function_parameters([
-            'keyword'    => new \external_value(PARAM_TEXT, 'Optional keyword search', VALUE_DEFAULT, ''),
-            'categoryid' => new \external_value(PARAM_INT,  'Optional category filter; 0 = all', VALUE_DEFAULT, 0),
+        return new external_function_parameters([
+            'keyword'    => new external_value(PARAM_TEXT, 'Optional keyword search', VALUE_DEFAULT, ''),
+            'categoryid' => new external_value(PARAM_INT,  'Optional category filter; 0 = all', VALUE_DEFAULT, 0),
         ]);
     }
 
@@ -84,31 +84,31 @@ class get_partners extends external_api {
     }
 
     public static function execute_returns() {
-        $partner = new \external_single_structure([
-            'id'                  => new \external_value(PARAM_INT,  'Partner id'),
-            'name'                => new \external_value(PARAM_TEXT, 'Partner name'),
-            'categoryid'          => new \external_value(PARAM_INT,  'Category id'),
-            'category_name'       => new \external_value(PARAM_TEXT, 'Category display name'),
-            'category_slug'       => new \external_value(PARAM_TEXT, 'Category slug'),
-            'benefit_description' => new \external_value(PARAM_RAW,  'Benefit description'),
-            'conditions'          => new \external_value(PARAM_RAW,  'Conditions of use'),
-            'requirements'        => new \external_value(PARAM_RAW,  'Requirements'),
-            'startdate'           => new \external_value(PARAM_INT,  'Unix ts'),
-            'enddate'             => new \external_value(PARAM_INT,  'Unix ts'),
-            'contact_label'       => new \external_value(PARAM_TEXT, 'e.g. Telefono, WhatsApp'),
-            'contact_value'       => new \external_value(PARAM_TEXT, 'Contact value'),
-            'logo_path'           => new \external_value(PARAM_TEXT, 'Pluginfile path for the logo'),
-            'is_expired'          => new \external_value(PARAM_BOOL, 'Past enddate'),
-            'is_future'           => new \external_value(PARAM_BOOL, 'Not yet started'),
+        $partner = new external_single_structure([
+            'id'                  => new external_value(PARAM_INT,  'Partner id'),
+            'name'                => new external_value(PARAM_TEXT, 'Partner name'),
+            'categoryid'          => new external_value(PARAM_INT,  'Category id'),
+            'category_name'       => new external_value(PARAM_TEXT, 'Category display name'),
+            'category_slug'       => new external_value(PARAM_TEXT, 'Category slug'),
+            'benefit_description' => new external_value(PARAM_RAW,  'Benefit description'),
+            'conditions'          => new external_value(PARAM_RAW,  'Conditions of use'),
+            'requirements'        => new external_value(PARAM_RAW,  'Requirements'),
+            'startdate'           => new external_value(PARAM_INT,  'Unix ts'),
+            'enddate'             => new external_value(PARAM_INT,  'Unix ts'),
+            'contact_label'       => new external_value(PARAM_TEXT, 'e.g. Telefono, WhatsApp'),
+            'contact_value'       => new external_value(PARAM_TEXT, 'Contact value'),
+            'logo_path'           => new external_value(PARAM_TEXT, 'Pluginfile path for the logo'),
+            'is_expired'          => new external_value(PARAM_BOOL, 'Past enddate'),
+            'is_future'           => new external_value(PARAM_BOOL, 'Not yet started'),
         ]);
-        $category = new \external_single_structure([
-            'id'   => new \external_value(PARAM_INT,  'Category id'),
-            'name' => new \external_value(PARAM_TEXT, 'Category name'),
-            'slug' => new \external_value(PARAM_TEXT, 'Category slug'),
+        $category = new external_single_structure([
+            'id'   => new external_value(PARAM_INT,  'Category id'),
+            'name' => new external_value(PARAM_TEXT, 'Category name'),
+            'slug' => new external_value(PARAM_TEXT, 'Category slug'),
         ]);
-        return new \external_single_structure([
-            'partners'   => new \external_multiple_structure($partner, 'Active partners visible to students'),
-            'categories' => new \external_multiple_structure($category, 'Category catalogue for the filter dropdown'),
+        return new external_single_structure([
+            'partners'   => new external_multiple_structure($partner, 'Active partners visible to students'),
+            'categories' => new external_multiple_structure($category, 'Category catalogue for the filter dropdown'),
         ]);
     }
 }

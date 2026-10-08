@@ -15,11 +15,11 @@ use moodle_exception;
 class update_status extends external_api {
 
     public static function execute_parameters() {
-        return new \external_function_parameters(
+        return new external_function_parameters(
             array(
-                'username'     => new \external_value(PARAM_RAW, 'The username of the student', VALUE_REQUIRED),
-                'status'       => new \external_value(PARAM_TEXT, 'The new status (active, suspended)', VALUE_REQUIRED),
-                'reason'       => new \external_value(PARAM_TEXT, 'Reason for update', VALUE_DEFAULT, '')
+                'username'     => new external_value(PARAM_RAW, 'The username of the student', VALUE_REQUIRED),
+                'status'       => new external_value(PARAM_TEXT, 'The new status (active, suspended)', VALUE_REQUIRED),
+                'reason'       => new external_value(PARAM_TEXT, 'Reason for update', VALUE_DEFAULT, '')
             )
         );
     }
@@ -44,7 +44,7 @@ class update_status extends external_api {
         $lookupUsername = \core_text::strtolower($params['username']);
         $user = $DB->get_record('user', ['username' => $lookupUsername, 'deleted' => 0]);
         if (!$user) {
-            throw new \moodle_exception('invaliduser', 'error', '', $params['username'] . " (mapped to $lookupUsername)");
+            throw new moodle_exception('invaliduser', 'error', '', $params['username'] . " (mapped to $lookupUsername)");
         }
 
         $status = strtolower($params['status']);
@@ -63,7 +63,7 @@ class update_status extends external_api {
                 $update_needed = true;
             }
         } else {
-             throw new \moodle_exception('invalidstatus', 'local_grupomakro_core', '', 'Allowed values: active, suspended');
+             throw new moodle_exception('invalidstatus', 'local_grupomakro_core', '', 'Allowed values: active, suspended');
         }
 
         if ($update_needed) {
@@ -81,10 +81,10 @@ class update_status extends external_api {
     }
 
     public static function execute_returns() {
-        return new \external_single_structure(
+        return new external_single_structure(
             array(
-                'status' => new \external_value(PARAM_TEXT, 'Status of the operation'),
-                'message' => new \external_value(PARAM_TEXT, 'Result message')
+                'status' => new external_value(PARAM_TEXT, 'Status of the operation'),
+                'message' => new external_value(PARAM_TEXT, 'Result message')
             )
         );
     }

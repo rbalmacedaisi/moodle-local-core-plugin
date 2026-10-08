@@ -30,8 +30,8 @@ use external_multiple_structure;
 class activity_group_list_students extends external_api {
 
     public static function execute_parameters(): external_function_parameters {
-        return new \external_function_parameters([
-            'args' => new \external_value(PARAM_RAW, 'JSON con cmid y modname', VALUE_REQUIRED),
+        return new external_function_parameters([
+            'args' => new external_value(PARAM_RAW, 'JSON con cmid y modname', VALUE_REQUIRED),
         ]);
     }
 
@@ -88,14 +88,14 @@ class activity_group_list_students extends external_api {
     }
 
     public static function execute_returns(): external_single_structure {
-        return new \external_single_structure([
-            'status'   => new \external_value(PARAM_TEXT, 'success|error'),
-            'message'  => new \external_value(PARAM_TEXT, 'Mensaje'),
-            'students' => new \external_multiple_structure(
-                new \external_single_structure([
-                    'userid'   => new \external_value(PARAM_INT, 'ID del usuario'),
-                    'fullname' => new \external_value(PARAM_TEXT, 'Nombre completo'),
-                    'email'    => new \external_value(PARAM_TEXT, 'Email'),
+        return new external_single_structure([
+            'status'   => new external_value(PARAM_TEXT, 'success|error'),
+            'message'  => new external_value(PARAM_TEXT, 'Mensaje'),
+            'students' => new external_multiple_structure(
+                new external_single_structure([
+                    'userid'   => new external_value(PARAM_INT, 'ID del usuario'),
+                    'fullname' => new external_value(PARAM_TEXT, 'Nombre completo'),
+                    'email'    => new external_value(PARAM_TEXT, 'Email'),
                 ]),
                 'Estudiantes matriculados con permiso de submit/attempt'
             ),

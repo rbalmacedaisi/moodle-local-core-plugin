@@ -23,10 +23,10 @@ class sync_progress extends external_api {
      * Describes parameters.
      */
     public static function execute_parameters() {
-        return new \external_function_parameters([
-            'phase' => new \external_value(PARAM_ALPHA, 'Phase of synchronization: init, process, final', VALUE_DEFAULT, 'init'),
-            'offset' => new \external_value(PARAM_INT, 'Offset for processing', VALUE_DEFAULT, 0),
-            'limit' => new \external_value(PARAM_INT, 'Number of records to process', VALUE_DEFAULT, 50)
+        return new external_function_parameters([
+            'phase' => new external_value(PARAM_ALPHA, 'Phase of synchronization: init, process, final', VALUE_DEFAULT, 'init'),
+            'offset' => new external_value(PARAM_INT, 'Offset for processing', VALUE_DEFAULT, 0),
+            'limit' => new external_value(PARAM_INT, 'Number of records to process', VALUE_DEFAULT, 50)
         ]);
     }
 
@@ -133,13 +133,13 @@ class sync_progress extends external_api {
      * Describes return value.
      */
     public static function execute_returns() {
-        return new \external_single_structure([
-            'status'  => new \external_value(PARAM_ALPHANUM, 'Status of the operation.'),
-            'message' => new \external_value(PARAM_TEXT, 'Result message.'),
-            'total'   => new \external_value(PARAM_INT, 'Total records to process.', VALUE_DEFAULT, 0),
-            'processed' => new \external_value(PARAM_INT, 'Records processed in this chunk.', VALUE_DEFAULT, 0),
-            'unlocked' => new \external_value(PARAM_INT, 'Number of courses unlocked.', VALUE_DEFAULT, 0),
-            'finished' => new \external_value(PARAM_BOOL, 'If the entire process is finished.', VALUE_DEFAULT, false)
+        return new external_single_structure([
+            'status'  => new external_value(PARAM_ALPHANUM, 'Status of the operation.'),
+            'message' => new external_value(PARAM_TEXT, 'Result message.'),
+            'total'   => new external_value(PARAM_INT, 'Total records to process.', VALUE_DEFAULT, 0),
+            'processed' => new external_value(PARAM_INT, 'Records processed in this chunk.', VALUE_DEFAULT, 0),
+            'unlocked' => new external_value(PARAM_INT, 'Number of courses unlocked.', VALUE_DEFAULT, 0),
+            'finished' => new external_value(PARAM_BOOL, 'If the entire process is finished.', VALUE_DEFAULT, false)
         ]);
     }
 }

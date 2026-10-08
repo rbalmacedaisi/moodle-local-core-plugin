@@ -20,10 +20,10 @@ class manual_enroll extends external_api {
      * Parameters.
      */
     public static function execute_parameters() {
-        return new \external_function_parameters([
-            'classId' => new \external_value(PARAM_INT, 'The class ID'),
-            'userId' => new \external_value(PARAM_INT, 'The user ID to enroll'),
-            'learningPlanId' => new \external_value(PARAM_INT, 'Preferred learning plan for progress mapping', VALUE_DEFAULT, 0),
+        return new external_function_parameters([
+            'classId' => new external_value(PARAM_INT, 'The class ID'),
+            'userId' => new external_value(PARAM_INT, 'The user ID to enroll'),
+            'learningPlanId' => new external_value(PARAM_INT, 'Preferred learning plan for progress mapping', VALUE_DEFAULT, 0),
         ]);
     }
 
@@ -118,9 +118,9 @@ class manual_enroll extends external_api {
      * Returns.
      */
     public static function execute_returns() {
-        return new \external_single_structure([
-            'status' => new \external_value(PARAM_TEXT, 'Status code'),
-            'message' => new \external_value(PARAM_TEXT, 'Message')
+        return new external_single_structure([
+            'status' => new external_value(PARAM_TEXT, 'Status code'),
+            'message' => new external_value(PARAM_TEXT, 'Message')
         ]);
     }
 }

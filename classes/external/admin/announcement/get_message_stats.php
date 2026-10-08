@@ -38,8 +38,8 @@ require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/announcement_
 class get_message_stats extends external_api {
 
     public static function execute_parameters() {
-        return new \external_function_parameters([
-            'messageid' => new \external_value(PARAM_INT, 'Broadcast id', VALUE_REQUIRED),
+        return new external_function_parameters([
+            'messageid' => new external_value(PARAM_INT, 'Broadcast id', VALUE_REQUIRED),
         ]);
     }
 
@@ -71,20 +71,20 @@ class get_message_stats extends external_api {
     }
 
     public static function execute_returns() {
-        $statstructure = new \external_single_structure([
-            'careerid'    => new \external_value(PARAM_INT,   'local_learning_plans.id (0 = sin carrera)'),
-            'careername'  => new \external_value(PARAM_TEXT,  'Display name of the career'),
-            'total'       => new \external_value(PARAM_INT,   'Total recipients in the bucket'),
-            'acked'       => new \external_value(PARAM_INT,   'Acknowledged recipients'),
-            'pending'     => new \external_value(PARAM_INT,   'Recipients still pending'),
-            'percent'     => new \external_value(PARAM_FLOAT, 'Percent acknowledged, 0..100'),
+        $statstructure = new external_single_structure([
+            'careerid'    => new external_value(PARAM_INT,   'local_learning_plans.id (0 = sin carrera)'),
+            'careername'  => new external_value(PARAM_TEXT,  'Display name of the career'),
+            'total'       => new external_value(PARAM_INT,   'Total recipients in the bucket'),
+            'acked'       => new external_value(PARAM_INT,   'Acknowledged recipients'),
+            'pending'     => new external_value(PARAM_INT,   'Recipients still pending'),
+            'percent'     => new external_value(PARAM_FLOAT, 'Percent acknowledged, 0..100'),
         ]);
 
-        return new \external_single_structure([
-            'stats'            => new \external_multiple_structure($statstructure, 'Per-career rows'),
-            'total_recipients' => new \external_value(PARAM_INT,   'Grand total across buckets'),
-            'total_acked'      => new \external_value(PARAM_INT,   'Grand total acknowledged'),
-            'percent'          => new \external_value(PARAM_FLOAT, '0..100'),
+        return new external_single_structure([
+            'stats'            => new external_multiple_structure($statstructure, 'Per-career rows'),
+            'total_recipients' => new external_value(PARAM_INT,   'Grand total across buckets'),
+            'total_acked'      => new external_value(PARAM_INT,   'Grand total acknowledged'),
+            'percent'          => new external_value(PARAM_FLOAT, '0..100'),
         ]);
     }
 }

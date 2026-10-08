@@ -20,8 +20,8 @@ class revert_approval extends external_api {
      * Parameters for execute.
      */
     public static function execute_parameters() {
-        return new \external_function_parameters([
-            'classId' => new \external_value(PARAM_INT, 'The class ID'),
+        return new external_function_parameters([
+            'classId' => new external_value(PARAM_INT, 'The class ID'),
         ]);
     }
 
@@ -97,9 +97,9 @@ class revert_approval extends external_api {
      * Return structure.
      */
     public static function execute_returns() {
-        return new \external_single_structure([
-            'status' => new \external_value(PARAM_TEXT, 'Status code'),
-            'message' => new \external_value(PARAM_TEXT, 'Message')
+        return new external_single_structure([
+            'status' => new external_value(PARAM_TEXT, 'Status code'),
+            'message' => new external_value(PARAM_TEXT, 'Message')
         ]);
     }
 }

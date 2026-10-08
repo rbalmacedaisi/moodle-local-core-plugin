@@ -39,11 +39,11 @@ use local_grupomakro_core\local\wellness_teacher_eval_manager as MGR;
 class admin_list_teacher_evals extends external_api {
 
     public static function execute_parameters() {
-        return new \external_function_parameters([
-            'instructorid' => new \external_value(PARAM_INT, 'Filtrar por docente (0 = todos)', VALUE_DEFAULT, 0),
-            'classid'      => new \external_value(PARAM_INT, 'Filtrar por clase (0 = todas)', VALUE_DEFAULT, 0),
-            'from'         => new \external_value(PARAM_INT, 'Desde (unix ts, 0 = sin limite)', VALUE_DEFAULT, 0),
-            'to'           => new \external_value(PARAM_INT, 'Hasta (unix ts, 0 = sin limite)', VALUE_DEFAULT, 0),
+        return new external_function_parameters([
+            'instructorid' => new external_value(PARAM_INT, 'Filtrar por docente (0 = todos)', VALUE_DEFAULT, 0),
+            'classid'      => new external_value(PARAM_INT, 'Filtrar por clase (0 = todas)', VALUE_DEFAULT, 0),
+            'from'         => new external_value(PARAM_INT, 'Desde (unix ts, 0 = sin limite)', VALUE_DEFAULT, 0),
+            'to'           => new external_value(PARAM_INT, 'Hasta (unix ts, 0 = sin limite)', VALUE_DEFAULT, 0),
         ]);
     }
 
@@ -121,58 +121,58 @@ class admin_list_teacher_evals extends external_api {
     }
 
     public static function execute_returns() {
-        return new \external_single_structure([
-            'evaluations' => new \external_multiple_structure(new \external_single_structure([
-                'id'                 => new \external_value(PARAM_INT,  'Id'),
-                'classid'            => new \external_value(PARAM_INT,  'Clase'),
-                'classname'          => new \external_value(PARAM_TEXT, 'Nombre de la clase'),
-                'sessiondate'        => new \external_value(PARAM_INT,  'Fecha de la sesion'),
-                'instructorid'       => new \external_value(PARAM_INT,  'Docente'),
-                'teacher_name'       => new \external_value(PARAM_TEXT, 'Nombre del docente'),
-                'userid'             => new \external_value(PARAM_INT,  'Estudiante (sin anonimato)'),
-                'student_name'       => new \external_value(PARAM_TEXT, 'Nombre del estudiante'),
-                'rating_overall'     => new \external_value(PARAM_INT,  '1-5'),
-                'rating_clarity'     => new \external_value(PARAM_INT,  '1-5, 0 = sin responder'),
-                'rating_punctuality' => new \external_value(PARAM_INT,  '1-5, 0 = sin responder'),
-                'comment'            => new \external_value(PARAM_RAW,  'Comentario'),
+        return new external_single_structure([
+            'evaluations' => new external_multiple_structure(new external_single_structure([
+                'id'                 => new external_value(PARAM_INT,  'Id'),
+                'classid'            => new external_value(PARAM_INT,  'Clase'),
+                'classname'          => new external_value(PARAM_TEXT, 'Nombre de la clase'),
+                'sessiondate'        => new external_value(PARAM_INT,  'Fecha de la sesion'),
+                'instructorid'       => new external_value(PARAM_INT,  'Docente'),
+                'teacher_name'       => new external_value(PARAM_TEXT, 'Nombre del docente'),
+                'userid'             => new external_value(PARAM_INT,  'Estudiante (sin anonimato)'),
+                'student_name'       => new external_value(PARAM_TEXT, 'Nombre del estudiante'),
+                'rating_overall'     => new external_value(PARAM_INT,  '1-5'),
+                'rating_clarity'     => new external_value(PARAM_INT,  '1-5, 0 = sin responder'),
+                'rating_punctuality' => new external_value(PARAM_INT,  '1-5, 0 = sin responder'),
+                'comment'            => new external_value(PARAM_RAW,  'Comentario'),
             ])),
-            'aggregates' => new \external_multiple_structure(new \external_single_structure([
-                'instructorid'    => new \external_value(PARAM_INT,   'Docente'),
-                'teacher_name'    => new \external_value(PARAM_TEXT,  'Nombre'),
-                'total'           => new \external_value(PARAM_INT,   'Evaluaciones recibidas'),
-                'avg_overall'     => new \external_value(PARAM_FLOAT, 'Promedio general'),
-                'avg_clarity'     => new \external_value(PARAM_FLOAT, 'Promedio claridad'),
-                'avg_punctuality' => new \external_value(PARAM_FLOAT, 'Promedio puntualidad'),
-                'min_overall'     => new \external_value(PARAM_INT,   'Peor nota recibida'),
-                'max_overall'     => new \external_value(PARAM_INT,   'Mejor nota recibida'),
-                'last_eval'       => new \external_value(PARAM_INT,   'Fecha de la ultima evaluacion'),
-                'classes_count'   => new \external_value(PARAM_INT,   'Clases distintas evaluadas'),
-                'with_comments'   => new \external_value(PARAM_INT,   'Cuantas traen comentario'),
-                'dist'            => new \external_value(PARAM_TEXT,  'Distribucion 1-5 separada por comas'),
-                'low_sample'      => new \external_value(PARAM_BOOL,  'Muestra insuficiente para comparar'),
-                'needs_attention' => new \external_value(PARAM_BOOL,  'Media baja con muestra suficiente'),
+            'aggregates' => new external_multiple_structure(new external_single_structure([
+                'instructorid'    => new external_value(PARAM_INT,   'Docente'),
+                'teacher_name'    => new external_value(PARAM_TEXT,  'Nombre'),
+                'total'           => new external_value(PARAM_INT,   'Evaluaciones recibidas'),
+                'avg_overall'     => new external_value(PARAM_FLOAT, 'Promedio general'),
+                'avg_clarity'     => new external_value(PARAM_FLOAT, 'Promedio claridad'),
+                'avg_punctuality' => new external_value(PARAM_FLOAT, 'Promedio puntualidad'),
+                'min_overall'     => new external_value(PARAM_INT,   'Peor nota recibida'),
+                'max_overall'     => new external_value(PARAM_INT,   'Mejor nota recibida'),
+                'last_eval'       => new external_value(PARAM_INT,   'Fecha de la ultima evaluacion'),
+                'classes_count'   => new external_value(PARAM_INT,   'Clases distintas evaluadas'),
+                'with_comments'   => new external_value(PARAM_INT,   'Cuantas traen comentario'),
+                'dist'            => new external_value(PARAM_TEXT,  'Distribucion 1-5 separada por comas'),
+                'low_sample'      => new external_value(PARAM_BOOL,  'Muestra insuficiente para comparar'),
+                'needs_attention' => new external_value(PARAM_BOOL,  'Media baja con muestra suficiente'),
             ])),
-            'kpis' => new \external_single_structure([
-                'sent'            => new \external_value(PARAM_INT,   'Evaluaciones enviadas'),
-                'dismissed'       => new \external_value(PARAM_INT,   'Popups descartados'),
-                'eligible'        => new \external_value(PARAM_INT,   'Oportunidades elegibles del periodo'),
-                'response_rate'   => new \external_value(PARAM_FLOAT, '% respondido sobre lo atendido'),
-                'coverage_rate'   => new \external_value(PARAM_FLOAT, '% evaluado sobre lo elegible'),
-                'teachers'        => new \external_value(PARAM_INT,   'Docentes con evaluaciones'),
-                'students'        => new \external_value(PARAM_INT,   'Estudiantes que evaluaron'),
-                'classes'         => new \external_value(PARAM_INT,   'Clases con evaluaciones'),
-                'avg_overall'     => new \external_value(PARAM_FLOAT, 'Promedio institucional'),
-                'avg_clarity'     => new \external_value(PARAM_FLOAT, 'Promedio claridad'),
-                'avg_punctuality' => new \external_value(PARAM_FLOAT, 'Promedio puntualidad'),
-                'with_comments'   => new \external_value(PARAM_INT,   'Evaluaciones con comentario'),
-                'dist'            => new \external_value(PARAM_TEXT,  'Distribucion 1-5 separada por comas'),
-                'min_sample'      => new \external_value(PARAM_INT,   'Umbral de muestra representativa'),
-                'attention_threshold' => new \external_value(PARAM_FLOAT, 'Umbral de media baja'),
+            'kpis' => new external_single_structure([
+                'sent'            => new external_value(PARAM_INT,   'Evaluaciones enviadas'),
+                'dismissed'       => new external_value(PARAM_INT,   'Popups descartados'),
+                'eligible'        => new external_value(PARAM_INT,   'Oportunidades elegibles del periodo'),
+                'response_rate'   => new external_value(PARAM_FLOAT, '% respondido sobre lo atendido'),
+                'coverage_rate'   => new external_value(PARAM_FLOAT, '% evaluado sobre lo elegible'),
+                'teachers'        => new external_value(PARAM_INT,   'Docentes con evaluaciones'),
+                'students'        => new external_value(PARAM_INT,   'Estudiantes que evaluaron'),
+                'classes'         => new external_value(PARAM_INT,   'Clases con evaluaciones'),
+                'avg_overall'     => new external_value(PARAM_FLOAT, 'Promedio institucional'),
+                'avg_clarity'     => new external_value(PARAM_FLOAT, 'Promedio claridad'),
+                'avg_punctuality' => new external_value(PARAM_FLOAT, 'Promedio puntualidad'),
+                'with_comments'   => new external_value(PARAM_INT,   'Evaluaciones con comentario'),
+                'dist'            => new external_value(PARAM_TEXT,  'Distribucion 1-5 separada por comas'),
+                'min_sample'      => new external_value(PARAM_INT,   'Umbral de muestra representativa'),
+                'attention_threshold' => new external_value(PARAM_FLOAT, 'Umbral de media baja'),
             ]),
-            'trend' => new \external_multiple_structure(new \external_single_structure([
-                'period' => new \external_value(PARAM_TEXT,  'Mes AAAA-MM'),
-                'total'  => new \external_value(PARAM_INT,   'Evaluaciones del mes'),
-                'avg'    => new \external_value(PARAM_FLOAT, 'Promedio del mes'),
+            'trend' => new external_multiple_structure(new external_single_structure([
+                'period' => new external_value(PARAM_TEXT,  'Mes AAAA-MM'),
+                'total'  => new external_value(PARAM_INT,   'Evaluaciones del mes'),
+                'avg'    => new external_value(PARAM_FLOAT, 'Promedio del mes'),
             ])),
         ]);
     }

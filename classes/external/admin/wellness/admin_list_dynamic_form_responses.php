@@ -38,8 +38,8 @@ defined('MOODLE_INTERNAL') || die();
 class admin_list_dynamic_form_responses extends external_api {
 
     public static function execute_parameters() {
-        return new \external_function_parameters([
-            'formid' => new \external_value(PARAM_INT, 'Form id', VALUE_REQUIRED),
+        return new external_function_parameters([
+            'formid' => new external_value(PARAM_INT, 'Form id', VALUE_REQUIRED),
         ]);
     }
 
@@ -76,17 +76,17 @@ class admin_list_dynamic_form_responses extends external_api {
     }
 
     public static function execute_returns() {
-        return new \external_single_structure([
-            'responses' => new \external_multiple_structure(new \external_single_structure([
-                'id'           => new \external_value(PARAM_INT,  'Response id'),
-                'formid'       => new \external_value(PARAM_INT,  'Form id'),
-                'eventid'      => new \external_value(PARAM_INT,  'Event id'),
-                'userid'       => new \external_value(PARAM_INT,  'Student id'),
-                'student_name' => new \external_value(PARAM_TEXT, 'Student name'),
-                'email'        => new \external_value(PARAM_TEXT, 'Student email'),
-                'submitted_at' => new \external_value(PARAM_INT,  'Unix ts'),
-                'answers'      => new \external_single_structure([
-                    'answers' => new \external_value(PARAM_RAW, 'Raw JSON object of answers'),
+        return new external_single_structure([
+            'responses' => new external_multiple_structure(new external_single_structure([
+                'id'           => new external_value(PARAM_INT,  'Response id'),
+                'formid'       => new external_value(PARAM_INT,  'Form id'),
+                'eventid'      => new external_value(PARAM_INT,  'Event id'),
+                'userid'       => new external_value(PARAM_INT,  'Student id'),
+                'student_name' => new external_value(PARAM_TEXT, 'Student name'),
+                'email'        => new external_value(PARAM_TEXT, 'Student email'),
+                'submitted_at' => new external_value(PARAM_INT,  'Unix ts'),
+                'answers'      => new external_single_structure([
+                    'answers' => new external_value(PARAM_RAW, 'Raw JSON object of answers'),
                 ], 'Decoded answers object', VALUE_OPTIONAL),
             ])),
         ]);

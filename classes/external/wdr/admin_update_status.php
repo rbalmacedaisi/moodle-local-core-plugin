@@ -13,11 +13,11 @@ use external_single_structure;
 class admin_update_status extends external_api {
 
     public static function execute_parameters(): external_function_parameters {
-        return new \external_function_parameters([
-            'id'             => new \external_value(PARAM_INT, 'Request id'),
-            'action'         => new \external_value(PARAM_ALPHANUMEXT,
+        return new external_function_parameters([
+            'id'             => new external_value(PARAM_INT, 'Request id'),
+            'action'         => new external_value(PARAM_ALPHANUMEXT,
                 'record_da|record_admin|reject|process|mark_pendiente_firma'),
-            'reject_reason'  => new \external_value(PARAM_TEXT, 'Reason for rejection',
+            'reject_reason'  => new external_value(PARAM_TEXT, 'Reason for rejection',
                 VALUE_DEFAULT, ''),
         ]);
     }
@@ -48,9 +48,9 @@ class admin_update_status extends external_api {
     }
 
     public static function execute_returns(): external_single_structure {
-        return new \external_single_structure([
-            'id'     => new \external_value(PARAM_INT, ''),
-            'status' => new \external_value(PARAM_TEXT, ''),
+        return new external_single_structure([
+            'id'     => new external_value(PARAM_INT, ''),
+            'status' => new external_value(PARAM_TEXT, ''),
         ]);
     }
 }

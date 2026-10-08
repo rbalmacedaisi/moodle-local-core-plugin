@@ -53,11 +53,11 @@ class get_homologation_audit extends external_api
      */
     public static function execute_parameters(): external_function_parameters
     {
-        return new \external_function_parameters([
-            'userId'         => new \external_value(PARAM_INT, 'Student user id.',  VALUE_REQUIRED),
-            'coreCourseId'   => new \external_value(PARAM_INT, 'Moodle course id.', VALUE_REQUIRED),
-            'learningPlanId' => new \external_value(PARAM_INT, 'Learning plan id (0 = all plans).', VALUE_DEFAULT, 0),
-            'limit'          => new \external_value(PARAM_INT, 'Max rows (default 50).', VALUE_DEFAULT, 50),
+        return new external_function_parameters([
+            'userId'         => new external_value(PARAM_INT, 'Student user id.',  VALUE_REQUIRED),
+            'coreCourseId'   => new external_value(PARAM_INT, 'Moodle course id.', VALUE_REQUIRED),
+            'learningPlanId' => new external_value(PARAM_INT, 'Learning plan id (0 = all plans).', VALUE_DEFAULT, 0),
+            'limit'          => new external_value(PARAM_INT, 'Max rows (default 50).', VALUE_DEFAULT, 50),
         ]);
     }
 
@@ -158,27 +158,27 @@ class get_homologation_audit extends external_api
      */
     public static function execute_returns(): external_description
     {
-        $entry = new \external_single_structure([
-            'id'                   => new \external_value(PARAM_INT,  'Audit row id'),
-            'gcp_id'               => new \external_value(PARAM_INT,  'gmk_course_progre.id at the time of the action'),
-            'action'               => new \external_value(PARAM_TEXT, 'homologate|revert'),
-            'type'                 => new \external_value(PARAM_TEXT, 'Homologation type at the time of the action'),
-            'grade'                => new \external_value(PARAM_FLOAT, 'Grade at the time of the action', VALUE_DEFAULT, null, NULL_ALLOWED),
-            'course_status'        => new \external_value(PARAM_INT,  'gmk_course_progre.status after the action', VALUE_DEFAULT, null, NULL_ALLOWED),
-            'observation'          => new \external_value(PARAM_RAW,  'Observation captured at the time of the action'),
-            'previous_observation' => new \external_value(PARAM_RAW,  'Observation that was cleared (revert only)'),
-            'previous_grade'       => new \external_value(PARAM_FLOAT, 'Grade that was cleared (revert only)', VALUE_DEFAULT, null, NULL_ALLOWED),
-            'previous_status'      => new \external_value(PARAM_INT,  'Status that was cleared (revert only)', VALUE_DEFAULT, null, NULL_ALLOWED),
-            'previous_type'        => new \external_value(PARAM_TEXT, 'Type that was cleared (revert only)'),
-            'applied_by'           => new \external_value(PARAM_INT,  'user.id who applied the action'),
-            'applied_by_name'      => new \external_value(PARAM_TEXT, 'Full name of the user who applied the action'),
-            'applied_at'           => new \external_value(PARAM_INT,  'Unix timestamp of the action'),
+        $entry = new external_single_structure([
+            'id'                   => new external_value(PARAM_INT,  'Audit row id'),
+            'gcp_id'               => new external_value(PARAM_INT,  'gmk_course_progre.id at the time of the action'),
+            'action'               => new external_value(PARAM_TEXT, 'homologate|revert'),
+            'type'                 => new external_value(PARAM_TEXT, 'Homologation type at the time of the action'),
+            'grade'                => new external_value(PARAM_FLOAT, 'Grade at the time of the action', VALUE_DEFAULT, null, NULL_ALLOWED),
+            'course_status'        => new external_value(PARAM_INT,  'gmk_course_progre.status after the action', VALUE_DEFAULT, null, NULL_ALLOWED),
+            'observation'          => new external_value(PARAM_RAW,  'Observation captured at the time of the action'),
+            'previous_observation' => new external_value(PARAM_RAW,  'Observation that was cleared (revert only)'),
+            'previous_grade'       => new external_value(PARAM_FLOAT, 'Grade that was cleared (revert only)', VALUE_DEFAULT, null, NULL_ALLOWED),
+            'previous_status'      => new external_value(PARAM_INT,  'Status that was cleared (revert only)', VALUE_DEFAULT, null, NULL_ALLOWED),
+            'previous_type'        => new external_value(PARAM_TEXT, 'Type that was cleared (revert only)'),
+            'applied_by'           => new external_value(PARAM_INT,  'user.id who applied the action'),
+            'applied_by_name'      => new external_value(PARAM_TEXT, 'Full name of the user who applied the action'),
+            'applied_at'           => new external_value(PARAM_INT,  'Unix timestamp of the action'),
         ]);
 
-        return new \external_single_structure([
-            'user_id'        => new \external_value(PARAM_INT, 'Echo of userId'),
-            'core_course_id' => new \external_value(PARAM_INT, 'Echo of coreCourseId'),
-            'entries'        => new \external_multiple_structure($entry, 'Chronological list (newest first)'),
+        return new external_single_structure([
+            'user_id'        => new external_value(PARAM_INT, 'Echo of userId'),
+            'core_course_id' => new external_value(PARAM_INT, 'Echo of coreCourseId'),
+            'entries'        => new external_multiple_structure($entry, 'Chronological list (newest first)'),
         ]);
     }
 }

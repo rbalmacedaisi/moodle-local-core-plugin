@@ -16,9 +16,9 @@ use stdClass;
 class get_quiz_attempt_data extends external_api {
 
     public static function execute_parameters() {
-        return new \external_function_parameters(
+        return new external_function_parameters(
             array(
-                'attemptid' => new \external_value(PARAM_INT, 'The ID of the quiz attempt', VALUE_REQUIRED)
+                'attemptid' => new external_value(PARAM_INT, 'The ID of the quiz attempt', VALUE_REQUIRED)
             )
         );
     }
@@ -101,26 +101,26 @@ class get_quiz_attempt_data extends external_api {
     }
 
     public static function execute_returns() {
-        return new \external_single_structure(
+        return new external_single_structure(
             array(
-                'attemptid' => new \external_value(PARAM_INT, 'Attempt ID'),
-                'userid' => new \external_value(PARAM_INT, 'User ID'),
-                'username' => new \external_value(PARAM_TEXT, 'User Fullname'),
-                'quizname' => new \external_value(PARAM_TEXT, 'Quiz Name'),
-                'timestart' => new \external_value(PARAM_INT, 'Start Timestamp'),
-                'timefinish' => new \external_value(PARAM_INT, 'Finish Timestamp'),
-                'questions' => new \external_multiple_structure(
-                    new \external_single_structure(
+                'attemptid' => new external_value(PARAM_INT, 'Attempt ID'),
+                'userid' => new external_value(PARAM_INT, 'User ID'),
+                'username' => new external_value(PARAM_TEXT, 'User Fullname'),
+                'quizname' => new external_value(PARAM_TEXT, 'Quiz Name'),
+                'timestart' => new external_value(PARAM_INT, 'Start Timestamp'),
+                'timefinish' => new external_value(PARAM_INT, 'Finish Timestamp'),
+                'questions' => new external_multiple_structure(
+                    new external_single_structure(
                         array(
-                            'slot' => new \external_value(PARAM_INT, 'Slot ID'),
-                            'questionid' => new \external_value(PARAM_INT, 'Question ID'),
-                            'name' => new \external_value(PARAM_TEXT, 'Question Name'),
-                            'maxgrade' => new \external_value(PARAM_FLOAT, 'Max Grade'),
-                            'currentgrade' => new \external_value(PARAM_FLOAT, 'Current Grade', VALUE_OPTIONAL),
-                            'state' => new \external_value(PARAM_TEXT, 'State'),
-                            'needsgrading' => new \external_value(PARAM_BOOL, 'Needs Grading?'),
-                            'html' => new \external_value(PARAM_RAW, 'Rendered Question HTML'),
-                            'currentcomment' => new \external_value(PARAM_RAW, 'Existing manual comment', VALUE_DEFAULT, '')
+                            'slot' => new external_value(PARAM_INT, 'Slot ID'),
+                            'questionid' => new external_value(PARAM_INT, 'Question ID'),
+                            'name' => new external_value(PARAM_TEXT, 'Question Name'),
+                            'maxgrade' => new external_value(PARAM_FLOAT, 'Max Grade'),
+                            'currentgrade' => new external_value(PARAM_FLOAT, 'Current Grade', VALUE_OPTIONAL),
+                            'state' => new external_value(PARAM_TEXT, 'State'),
+                            'needsgrading' => new external_value(PARAM_BOOL, 'Needs Grading?'),
+                            'html' => new external_value(PARAM_RAW, 'Rendered Question HTML'),
+                            'currentcomment' => new external_value(PARAM_RAW, 'Existing manual comment', VALUE_DEFAULT, '')
                         )
                     )
                 )

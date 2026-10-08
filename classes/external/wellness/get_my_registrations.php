@@ -37,7 +37,7 @@ require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/wellness_regi
 class get_my_registrations extends external_api {
 
     public static function execute_parameters() {
-        return new \external_function_parameters([]);
+        return new external_function_parameters([]);
     }
 
     public static function execute() {
@@ -72,27 +72,27 @@ class get_my_registrations extends external_api {
     }
 
     public static function execute_returns() {
-        $row = new \external_single_structure([
-            'id'             => new \external_value(PARAM_INT, 'Registration id'),
-            'eventid'        => new \external_value(PARAM_INT, 'Event id'),
-            'status'         => new \external_value(PARAM_TEXT, 'confirmada|lista_de_espera|cancelada|asistio|no_asistio'),
-            'modality'       => new \external_value(PARAM_TEXT, 'presencial|virtual'),
-            'registered_at'  => new \external_value(PARAM_INT, 'Unix ts'),
-            'attended_at'    => new \external_value(PARAM_INT, 'Unix ts'),
-            'cancelled_at'   => new \external_value(PARAM_INT, 'Unix ts'),
-            'title'          => new \external_value(PARAM_TEXT, 'Event title'),
-            'summary'        => new \external_value(PARAM_TEXT, 'Event teaser'),
-            'startdate'      => new \external_value(PARAM_INT, 'Event start ts'),
-            'enddate'        => new \external_value(PARAM_INT, 'Event end ts'),
-            'event_modality' => new \external_value(PARAM_TEXT, 'Event modality'),
-            'location'       => new \external_value(PARAM_TEXT, 'Location'),
-            'virtual_url'    => new \external_value(PARAM_TEXT, 'Virtual room URL'),
-            'cover_path'     => new \external_value(PARAM_TEXT, 'Cover image'),
-            'category'       => new \external_value(PARAM_TEXT, 'Event category'),
-            'capacity'       => new \external_value(PARAM_INT,  'Event capacity'),
+        $row = new external_single_structure([
+            'id'             => new external_value(PARAM_INT, 'Registration id'),
+            'eventid'        => new external_value(PARAM_INT, 'Event id'),
+            'status'         => new external_value(PARAM_TEXT, 'confirmada|lista_de_espera|cancelada|asistio|no_asistio'),
+            'modality'       => new external_value(PARAM_TEXT, 'presencial|virtual'),
+            'registered_at'  => new external_value(PARAM_INT, 'Unix ts'),
+            'attended_at'    => new external_value(PARAM_INT, 'Unix ts'),
+            'cancelled_at'   => new external_value(PARAM_INT, 'Unix ts'),
+            'title'          => new external_value(PARAM_TEXT, 'Event title'),
+            'summary'        => new external_value(PARAM_TEXT, 'Event teaser'),
+            'startdate'      => new external_value(PARAM_INT, 'Event start ts'),
+            'enddate'        => new external_value(PARAM_INT, 'Event end ts'),
+            'event_modality' => new external_value(PARAM_TEXT, 'Event modality'),
+            'location'       => new external_value(PARAM_TEXT, 'Location'),
+            'virtual_url'    => new external_value(PARAM_TEXT, 'Virtual room URL'),
+            'cover_path'     => new external_value(PARAM_TEXT, 'Cover image'),
+            'category'       => new external_value(PARAM_TEXT, 'Event category'),
+            'capacity'       => new external_value(PARAM_INT,  'Event capacity'),
         ]);
-        return new \external_single_structure([
-            'registrations' => new \external_multiple_structure($row, 'Registrations of the calling student'),
+        return new external_single_structure([
+            'registrations' => new external_multiple_structure($row, 'Registrations of the calling student'),
         ]);
     }
 }

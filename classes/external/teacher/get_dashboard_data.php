@@ -16,9 +16,9 @@ use stdClass;
 class get_dashboard_data extends external_api {
 
     public static function execute_parameters() {
-        return new \external_function_parameters(
+        return new external_function_parameters(
             array(
-                'userid' => new \external_value(PARAM_INT, 'The ID of the teacher', VALUE_REQUIRED)
+                'userid' => new external_value(PARAM_INT, 'The ID of the teacher', VALUE_REQUIRED)
             )
         );
     }
@@ -225,45 +225,45 @@ class get_dashboard_data extends external_api {
     }
 
     public static function execute_returns() {
-        return new \external_single_structure(
+        return new external_single_structure(
             array(
-                'active_classes' => new \external_multiple_structure(
-                    new \external_single_structure(
+                'active_classes' => new external_multiple_structure(
+                    new external_single_structure(
                         array(
-                            'id' => new \external_value(PARAM_INT, 'Class ID'),
-                            'name' => new \external_value(PARAM_TEXT, 'Class Name'),
-                            'courseid' => new \external_value(PARAM_INT, 'Course ID'),
-                            'course_fullname' => new \external_value(PARAM_TEXT, 'Course Fullname'),
-                            'course_shortname' => new \external_value(PARAM_TEXT, 'Course Shortname'),
-                            'type' => new \external_value(PARAM_INT, 'Type (0: inplace, 1: virtual)'),
-                            'typelabel' => new \external_value(PARAM_TEXT, 'Type Label', VALUE_OPTIONAL),
-                            'next_session' => new \external_value(PARAM_TEXT, 'Timestamp of next session', VALUE_OPTIONAL),
-                            'student_count' => new \external_value(PARAM_INT, 'Student count', VALUE_OPTIONAL),
-                            'initdate' => new \external_value(PARAM_INT, 'Start date', VALUE_OPTIONAL),
-                            'enddate' => new \external_value(PARAM_INT, 'End date', VALUE_OPTIONAL),
-                            'schedule_text' => new \external_value(PARAM_TEXT, 'Formatted schedule', VALUE_OPTIONAL),
-                            'weights_pct' => new \external_value(PARAM_FLOAT, 'Sum of gradebook item weights (%)', VALUE_OPTIONAL),
-                            'weights_ok' => new \external_value(PARAM_BOOL, 'True when weights total 100%', VALUE_OPTIONAL),
-                            'weights_applicable' => new \external_value(PARAM_BOOL, 'False when the category is not weight-aggregated', VALUE_OPTIONAL),
-                            'weights_unweighted_items' => new \external_value(PARAM_INT, 'Items with weight 0', VALUE_OPTIONAL),
-                            'weights_warning' => new \external_value(PARAM_BOOL, 'True when weights are incomplete past the grace period', VALUE_OPTIONAL),
-                            'gradebook_url' => new \external_value(PARAM_RAW, 'Deep link to the gradebook setup screen', VALUE_OPTIONAL)
+                            'id' => new external_value(PARAM_INT, 'Class ID'),
+                            'name' => new external_value(PARAM_TEXT, 'Class Name'),
+                            'courseid' => new external_value(PARAM_INT, 'Course ID'),
+                            'course_fullname' => new external_value(PARAM_TEXT, 'Course Fullname'),
+                            'course_shortname' => new external_value(PARAM_TEXT, 'Course Shortname'),
+                            'type' => new external_value(PARAM_INT, 'Type (0: inplace, 1: virtual)'),
+                            'typelabel' => new external_value(PARAM_TEXT, 'Type Label', VALUE_OPTIONAL),
+                            'next_session' => new external_value(PARAM_TEXT, 'Timestamp of next session', VALUE_OPTIONAL),
+                            'student_count' => new external_value(PARAM_INT, 'Student count', VALUE_OPTIONAL),
+                            'initdate' => new external_value(PARAM_INT, 'Start date', VALUE_OPTIONAL),
+                            'enddate' => new external_value(PARAM_INT, 'End date', VALUE_OPTIONAL),
+                            'schedule_text' => new external_value(PARAM_TEXT, 'Formatted schedule', VALUE_OPTIONAL),
+                            'weights_pct' => new external_value(PARAM_FLOAT, 'Sum of gradebook item weights (%)', VALUE_OPTIONAL),
+                            'weights_ok' => new external_value(PARAM_BOOL, 'True when weights total 100%', VALUE_OPTIONAL),
+                            'weights_applicable' => new external_value(PARAM_BOOL, 'False when the category is not weight-aggregated', VALUE_OPTIONAL),
+                            'weights_unweighted_items' => new external_value(PARAM_INT, 'Items with weight 0', VALUE_OPTIONAL),
+                            'weights_warning' => new external_value(PARAM_BOOL, 'True when weights are incomplete past the grace period', VALUE_OPTIONAL),
+                            'gradebook_url' => new external_value(PARAM_RAW, 'Deep link to the gradebook setup screen', VALUE_OPTIONAL)
                         )
                     )
                 ),
-                'pending_tasks' => new \external_multiple_structure(
-                    new \external_single_structure(
+                'pending_tasks' => new external_multiple_structure(
+                    new external_single_structure(
                         array(
-                            'classid' => new \external_value(PARAM_INT, 'Class ID'),
-                            'count' => new \external_value(PARAM_INT, 'Count of pending tasks')
+                            'classid' => new external_value(PARAM_INT, 'Class ID'),
+                            'count' => new external_value(PARAM_INT, 'Count of pending tasks')
                         )
                     )
                 ),
-                'health_status' => new \external_multiple_structure(
-                    new \external_single_structure(
+                'health_status' => new external_multiple_structure(
+                    new external_single_structure(
                         array(
-                            'classid' => new \external_value(PARAM_INT, 'Class ID'),
-                            'level' => new \external_value(PARAM_TEXT, 'Status level (red, yellow, green)')
+                            'classid' => new external_value(PARAM_INT, 'Class ID'),
+                            'level' => new external_value(PARAM_TEXT, 'Status level (red, yellow, green)')
                         )
                     )
                 )

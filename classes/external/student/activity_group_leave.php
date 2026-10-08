@@ -14,8 +14,8 @@ use external_single_structure;
 class activity_group_leave extends external_api {
 
     public static function execute_parameters(): external_function_parameters {
-        return new \external_function_parameters([
-            'cmid' => new \external_value(PARAM_INT, 'course_modules.id', VALUE_REQUIRED),
+        return new external_function_parameters([
+            'cmid' => new external_value(PARAM_INT, 'course_modules.id', VALUE_REQUIRED),
         ]);
     }
 
@@ -31,9 +31,9 @@ class activity_group_leave extends external_api {
     }
 
     public static function execute_returns(): external_single_structure {
-        return new \external_single_structure([
-            'status'  => new \external_value(PARAM_TEXT, 'ok|fixed|invalid|not_member|error'),
-            'message' => new \external_value(PARAM_TEXT, 'Mensaje', VALUE_OPTIONAL),
+        return new external_single_structure([
+            'status'  => new external_value(PARAM_TEXT, 'ok|fixed|invalid|not_member|error'),
+            'message' => new external_value(PARAM_TEXT, 'Mensaje', VALUE_OPTIONAL),
         ]);
     }
 }

@@ -14,9 +14,9 @@ use external_single_structure;
 class activity_group_delete extends external_api {
 
     public static function execute_parameters(): external_function_parameters {
-        return new \external_function_parameters([
-            'groupid'     => new \external_value(PARAM_INT, 'gmk_activity_group.id', VALUE_REQUIRED),
-            'force'       => new \external_value(PARAM_BOOL, 'Si true, borra incluso con miembros',
+        return new external_function_parameters([
+            'groupid'     => new external_value(PARAM_INT, 'gmk_activity_group.id', VALUE_REQUIRED),
+            'force'       => new external_value(PARAM_BOOL, 'Si true, borra incluso con miembros',
                                                 VALUE_DEFAULT, false),
         ]);
     }
@@ -69,9 +69,9 @@ class activity_group_delete extends external_api {
     }
 
     public static function execute_returns(): external_single_structure {
-        return new \external_single_structure([
-            'status'  => new \external_value(PARAM_TEXT, 'success|error'),
-            'message' => new \external_value(PARAM_TEXT, 'Mensaje'),
+        return new external_single_structure([
+            'status'  => new external_value(PARAM_TEXT, 'success|error'),
+            'message' => new external_value(PARAM_TEXT, 'Mensaje'),
         ]);
     }
 }

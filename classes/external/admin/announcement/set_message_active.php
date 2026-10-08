@@ -37,9 +37,9 @@ require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/announcement_
 class set_message_active extends external_api {
 
     public static function execute_parameters() {
-        return new \external_function_parameters([
-            'messageid' => new \external_value(PARAM_INT,  'Broadcast id',  VALUE_REQUIRED),
-            'active'    => new \external_value(PARAM_BOOL, 'true=enable, false=disable', VALUE_REQUIRED),
+        return new external_function_parameters([
+            'messageid' => new external_value(PARAM_INT,  'Broadcast id',  VALUE_REQUIRED),
+            'active'    => new external_value(PARAM_BOOL, 'true=enable, false=disable', VALUE_REQUIRED),
         ]);
     }
 
@@ -69,10 +69,10 @@ class set_message_active extends external_api {
     }
 
     public static function execute_returns() {
-        return new \external_single_structure([
-            'success' => new \external_value(PARAM_BOOL, 'True when the toggle was persisted'),
-            'id'      => new \external_value(PARAM_INT,  'Message id'),
-            'active'  => new \external_value(PARAM_BOOL, 'New active flag'),
+        return new external_single_structure([
+            'success' => new external_value(PARAM_BOOL, 'True when the toggle was persisted'),
+            'id'      => new external_value(PARAM_INT,  'Message id'),
+            'active'  => new external_value(PARAM_BOOL, 'New active flag'),
         ]);
     }
 }

@@ -55,13 +55,13 @@ class delete_student_from_class_schedule extends external_api {
      * @return external_function_parameters
      */
     public static function execute_parameters(): external_function_parameters {
-        return new \external_function_parameters(
+        return new external_function_parameters(
             array(
-                'deletedStudents' => new \external_multiple_structure(
-                    new \external_single_structure(
+                'deletedStudents' => new external_multiple_structure(
+                    new external_single_structure(
                         array(
-                            'studentId' => new \external_value(PARAM_TEXT, 'Student ID',VALUE_REQUIRED),
-                            'classId' => new \external_value(PARAM_TEXT, 'Class ID',VALUE_REQUIRED)
+                            'studentId' => new external_value(PARAM_TEXT, 'Student ID',VALUE_REQUIRED),
+                            'classId' => new external_value(PARAM_TEXT, 'Class ID',VALUE_REQUIRED)
                         )
                     ),
                 ),
@@ -100,10 +100,10 @@ class delete_student_from_class_schedule extends external_api {
      * @return external_description
      */
     public static function execute_returns(): external_description {
-        return new \external_single_structure(
+        return new external_single_structure(
             array(
-                'status' => new \external_value(PARAM_INT, '1 if success, -1 otherwise'),
-                'message' => new \external_value(PARAM_TEXT, 'The error message or Ok.',VALUE_DEFAULT,'ok'),
+                'status' => new external_value(PARAM_INT, '1 if success, -1 otherwise'),
+                'message' => new external_value(PARAM_TEXT, 'The error message or Ok.',VALUE_DEFAULT,'ok'),
             )
         );
     }

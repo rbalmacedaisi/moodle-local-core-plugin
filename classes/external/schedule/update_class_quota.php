@@ -14,9 +14,9 @@ require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 class update_class_quota extends external_api {
 
     public static function execute_parameters() {
-        return new \external_function_parameters([
-            'classId' => new \external_value(PARAM_INT, 'The class ID'),
-            'newQuota' => new \external_value(PARAM_INT, 'The new quota value'),
+        return new external_function_parameters([
+            'classId' => new external_value(PARAM_INT, 'The class ID'),
+            'newQuota' => new external_value(PARAM_INT, 'The new quota value'),
         ]);
     }
 
@@ -79,10 +79,10 @@ class update_class_quota extends external_api {
     }
 
     public static function execute_returns() {
-        return new \external_single_structure([
-            'status' => new \external_value(PARAM_TEXT, 'Status code'),
-            'message' => new \external_value(PARAM_TEXT, 'Message'),
-            'promoted' => new \external_value(PARAM_INT, 'Number of promoted students'),
+        return new external_single_structure([
+            'status' => new external_value(PARAM_TEXT, 'Status code'),
+            'message' => new external_value(PARAM_TEXT, 'Message'),
+            'promoted' => new external_value(PARAM_INT, 'Number of promoted students'),
         ]);
     }
 }

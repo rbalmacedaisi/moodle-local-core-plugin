@@ -171,9 +171,9 @@ class assign_activity extends external_api {
     }
 
     public static function get_activity_data_parameters(): external_function_parameters {
-        return new \external_function_parameters([
-            'courseId' => new \external_value(PARAM_INT, 'Course id', VALUE_REQUIRED),
-            'moduleId' => new \external_value(PARAM_INT, 'Assignment module id', VALUE_REQUIRED),
+        return new external_function_parameters([
+            'courseId' => new external_value(PARAM_INT, 'Course id', VALUE_REQUIRED),
+            'moduleId' => new external_value(PARAM_INT, 'Assignment module id', VALUE_REQUIRED),
         ]);
     }
 
@@ -343,21 +343,21 @@ class assign_activity extends external_api {
     }
 
     public static function get_activity_data_returns(): external_single_structure {
-        return new \external_single_structure([
-            'status' => new \external_value(PARAM_INT, '1 ok, -1 error', VALUE_DEFAULT, 1),
-            'message' => new \external_value(PARAM_TEXT, 'Result message', VALUE_DEFAULT, 'ok'),
-            'errorCode' => new \external_value(PARAM_ALPHANUMEXT, 'Machine error code', VALUE_DEFAULT, ''),
-            'assignData' => new \external_value(PARAM_RAW, 'JSON payload', VALUE_DEFAULT, '{}'),
+        return new external_single_structure([
+            'status' => new external_value(PARAM_INT, '1 ok, -1 error', VALUE_DEFAULT, 1),
+            'message' => new external_value(PARAM_TEXT, 'Result message', VALUE_DEFAULT, 'ok'),
+            'errorCode' => new external_value(PARAM_ALPHANUMEXT, 'Machine error code', VALUE_DEFAULT, ''),
+            'assignData' => new external_value(PARAM_RAW, 'JSON payload', VALUE_DEFAULT, '{}'),
         ]);
     }
 
     public static function submit_activity_parameters(): external_function_parameters {
-        return new \external_function_parameters([
-            'courseId' => new \external_value(PARAM_INT, 'Course id', VALUE_REQUIRED),
-            'moduleId' => new \external_value(PARAM_INT, 'Assignment module id', VALUE_REQUIRED),
-            'comment' => new \external_value(PARAM_RAW, 'Online text/comment', VALUE_DEFAULT, ''),
-            'draftItemId' => new \external_value(PARAM_INT, 'User draft item id with uploaded files', VALUE_DEFAULT, 0),
-            'textDraftItemId' => new \external_value(PARAM_INT, 'User draft item id used by online text editor', VALUE_DEFAULT, 0),
+        return new external_function_parameters([
+            'courseId' => new external_value(PARAM_INT, 'Course id', VALUE_REQUIRED),
+            'moduleId' => new external_value(PARAM_INT, 'Assignment module id', VALUE_REQUIRED),
+            'comment' => new external_value(PARAM_RAW, 'Online text/comment', VALUE_DEFAULT, ''),
+            'draftItemId' => new external_value(PARAM_INT, 'User draft item id with uploaded files', VALUE_DEFAULT, 0),
+            'textDraftItemId' => new external_value(PARAM_INT, 'User draft item id used by online text editor', VALUE_DEFAULT, 0),
         ]);
     }
 
@@ -623,11 +623,11 @@ class assign_activity extends external_api {
     }
 
     public static function submit_activity_returns(): external_single_structure {
-        return new \external_single_structure([
-            'status' => new \external_value(PARAM_INT, '1 ok, -1 error', VALUE_DEFAULT, 1),
-            'message' => new \external_value(PARAM_TEXT, 'Result message', VALUE_DEFAULT, 'ok'),
-            'errorCode' => new \external_value(PARAM_ALPHANUMEXT, 'Machine error code', VALUE_DEFAULT, ''),
-            'submissionData' => new \external_value(PARAM_RAW, 'JSON payload', VALUE_DEFAULT, '{}'),
+        return new external_single_structure([
+            'status' => new external_value(PARAM_INT, '1 ok, -1 error', VALUE_DEFAULT, 1),
+            'message' => new external_value(PARAM_TEXT, 'Result message', VALUE_DEFAULT, 'ok'),
+            'errorCode' => new external_value(PARAM_ALPHANUMEXT, 'Machine error code', VALUE_DEFAULT, ''),
+            'submissionData' => new external_value(PARAM_RAW, 'JSON payload', VALUE_DEFAULT, '{}'),
         ]);
     }
 }

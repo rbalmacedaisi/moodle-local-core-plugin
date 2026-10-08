@@ -43,8 +43,8 @@ require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/wellness_regi
 class admin_list_event_registrations extends external_api {
 
     public static function execute_parameters() {
-        return new \external_function_parameters([
-            'eventid' => new \external_value(PARAM_INT, 'Event id', VALUE_REQUIRED),
+        return new external_function_parameters([
+            'eventid' => new external_value(PARAM_INT, 'Event id', VALUE_REQUIRED),
         ]);
     }
 
@@ -79,21 +79,21 @@ class admin_list_event_registrations extends external_api {
     }
 
     public static function execute_returns() {
-        return new \external_single_structure([
-            'registrations' => new \external_multiple_structure(new \external_single_structure([
-                'id'             => new \external_value(PARAM_INT,  'Registration id'),
-                'eventid'        => new \external_value(PARAM_INT,  'Event id'),
-                'userid'         => new \external_value(PARAM_INT,  'Student user id'),
-                'fullname'       => new \external_value(PARAM_TEXT, 'Student fullname'),
-                'email'          => new \external_value(PARAM_TEXT, 'Student email'),
-                'username'       => new \external_value(PARAM_TEXT, 'Moodle username'),
-                'status'         => new \external_value(PARAM_ALPHA,'confirmada|lista_de_espera|cancelada|asistio|no_asistio'),
-                'modality'       => new \external_value(PARAM_TEXT, 'presencial|virtual|(empty)'),
-                'registered_at'  => new \external_value(PARAM_INT,  'Unix ts'),
-                'cancelled_at'   => new \external_value(PARAM_INT,  'Unix ts'),
-                'attended_at'    => new \external_value(PARAM_INT,  'Unix ts'),
-                'source'         => new \external_value(PARAM_TEXT, 'lxp|backoffice'),
-                'registered_by'  => new \external_value(PARAM_INT,  'userid of staff who registered them, 0 if self-service'),
+        return new external_single_structure([
+            'registrations' => new external_multiple_structure(new external_single_structure([
+                'id'             => new external_value(PARAM_INT,  'Registration id'),
+                'eventid'        => new external_value(PARAM_INT,  'Event id'),
+                'userid'         => new external_value(PARAM_INT,  'Student user id'),
+                'fullname'       => new external_value(PARAM_TEXT, 'Student fullname'),
+                'email'          => new external_value(PARAM_TEXT, 'Student email'),
+                'username'       => new external_value(PARAM_TEXT, 'Moodle username'),
+                'status'         => new external_value(PARAM_ALPHA,'confirmada|lista_de_espera|cancelada|asistio|no_asistio'),
+                'modality'       => new external_value(PARAM_TEXT, 'presencial|virtual|(empty)'),
+                'registered_at'  => new external_value(PARAM_INT,  'Unix ts'),
+                'cancelled_at'   => new external_value(PARAM_INT,  'Unix ts'),
+                'attended_at'    => new external_value(PARAM_INT,  'Unix ts'),
+                'source'         => new external_value(PARAM_TEXT, 'lxp|backoffice'),
+                'registered_by'  => new external_value(PARAM_INT,  'userid of staff who registered them, 0 if self-service'),
             ])),
         ]);
     }

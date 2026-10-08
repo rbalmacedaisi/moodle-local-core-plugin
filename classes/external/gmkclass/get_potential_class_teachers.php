@@ -52,15 +52,15 @@ class get_potential_class_teachers extends external_api {
      * @return external_function_parameters
      */
     public static function execute_parameters(): external_function_parameters {
-        return new \external_function_parameters(
+        return new external_function_parameters(
             [
-                'courseId' => new \external_value(PARAM_TEXT, 'Course ID', VALUE_DEFAULT,null),
-                'initTime' => new \external_value(PARAM_TEXT, 'Class init time', VALUE_DEFAULT,null),
-                'endTime' => new \external_value(PARAM_TEXT, 'Class end time', VALUE_DEFAULT,null),
-                'classDays' => new \external_value(PARAM_TEXT, 'Class days', VALUE_DEFAULT,null),
-                'learningPlanId' => new \external_value(PARAM_TEXT, 'LearnningPlanId', VALUE_REQUIRED),
-                'classId' => new \external_value(PARAM_TEXT, 'LearnningPlanId', VALUE_DEFAULT,NULL),
-                'role' => new \external_value(PARAM_TEXT, 'Which teacher slot are we listing candidates for? "main" (default) or "support". When "support", the current main + current support are excluded from the list.', VALUE_DEFAULT, 'main'),
+                'courseId' => new external_value(PARAM_TEXT, 'Course ID', VALUE_DEFAULT,null),
+                'initTime' => new external_value(PARAM_TEXT, 'Class init time', VALUE_DEFAULT,null),
+                'endTime' => new external_value(PARAM_TEXT, 'Class end time', VALUE_DEFAULT,null),
+                'classDays' => new external_value(PARAM_TEXT, 'Class days', VALUE_DEFAULT,null),
+                'learningPlanId' => new external_value(PARAM_TEXT, 'LearnningPlanId', VALUE_REQUIRED),
+                'classId' => new external_value(PARAM_TEXT, 'LearnningPlanId', VALUE_DEFAULT,NULL),
+                'role' => new external_value(PARAM_TEXT, 'Which teacher slot are we listing candidates for? "main" (default) or "support". When "support", the current main + current support are excluded from the list.', VALUE_DEFAULT, 'main'),
             ]
         );
     }
@@ -110,11 +110,11 @@ class get_potential_class_teachers extends external_api {
      * @return external_description
      */
     public static function execute_returns(): external_description {
-        return new \external_single_structure(
+        return new external_single_structure(
             array(
-                'status' => new \external_value(PARAM_INT, '1 if success or -1 if there was an error.'),
-                'teachers' => new \external_value(PARAM_RAW, 'The list of potntial teachers for the class',VALUE_DEFAULT,null),
-                'message' => new \external_value(PARAM_TEXT, 'The error message or Ok.',VALUE_DEFAULT,'ok'),
+                'status' => new external_value(PARAM_INT, '1 if success or -1 if there was an error.'),
+                'teachers' => new external_value(PARAM_RAW, 'The list of potntial teachers for the class',VALUE_DEFAULT,null),
+                'message' => new external_value(PARAM_TEXT, 'The error message or Ok.',VALUE_DEFAULT,'ok'),
             )
         );
     }

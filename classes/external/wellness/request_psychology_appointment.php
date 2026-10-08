@@ -38,11 +38,11 @@ require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/wellness_psyc
 class request_psychology_appointment extends external_api {
 
     public static function execute_parameters() {
-        return new \external_function_parameters([
-            'slotid'            => new \external_value(PARAM_INT,  'Slot id to book', VALUE_REQUIRED),
-            'occurrence_start'  => new \external_value(PARAM_INT,  'Unix ts of the slot occurrence', VALUE_REQUIRED),
-            'reason'            => new \external_value(PARAM_RAW,  'Free-text reason', VALUE_REQUIRED),
-            'modality'          => new \external_value(PARAM_ALPHA,'presencial|virtual|mixto (only when slot.modality=mixto)', VALUE_DEFAULT, ''),
+        return new external_function_parameters([
+            'slotid'            => new external_value(PARAM_INT,  'Slot id to book', VALUE_REQUIRED),
+            'occurrence_start'  => new external_value(PARAM_INT,  'Unix ts of the slot occurrence', VALUE_REQUIRED),
+            'reason'            => new external_value(PARAM_RAW,  'Free-text reason', VALUE_REQUIRED),
+            'modality'          => new external_value(PARAM_ALPHA,'presencial|virtual|mixto (only when slot.modality=mixto)', VALUE_DEFAULT, ''),
         ]);
     }
 
@@ -79,18 +79,18 @@ class request_psychology_appointment extends external_api {
     }
 
     public static function execute_returns() {
-        return new \external_single_structure([
-            'ok'          => new \external_value(PARAM_BOOL, 'True when the booking succeeded'),
-            'duplicate'   => new \external_value(PARAM_BOOL, 'True when the student had a pendiente request for the same slot'),
-            'error'       => new \external_value(PARAM_TEXT, 'Error code when ok=false', VALUE_DEFAULT),
-            'slotid'      => new \external_value(PARAM_INT,  'Echoed slot id'),
-            'appointment' => new \external_single_structure([
-                'id'                 => new \external_value(PARAM_INT, 'Appointment id'),
-                'status'             => new \external_value(PARAM_TEXT,'pendiente|confirmada|modificada|cancelada|atendida|no_asistio'),
-                'appointment_at'     => new \external_value(PARAM_INT, 'Unix ts'),
-                'modality'           => new \external_value(PARAM_TEXT,'presencial|virtual|mixto'),
-                'duration_minutes'   => new \external_value(PARAM_INT, 'Duration'),
-                'psychologist_userid' => new \external_value(PARAM_INT, 'Specialist userid'),
+        return new external_single_structure([
+            'ok'          => new external_value(PARAM_BOOL, 'True when the booking succeeded'),
+            'duplicate'   => new external_value(PARAM_BOOL, 'True when the student had a pendiente request for the same slot'),
+            'error'       => new external_value(PARAM_TEXT, 'Error code when ok=false', VALUE_DEFAULT),
+            'slotid'      => new external_value(PARAM_INT,  'Echoed slot id'),
+            'appointment' => new external_single_structure([
+                'id'                 => new external_value(PARAM_INT, 'Appointment id'),
+                'status'             => new external_value(PARAM_TEXT,'pendiente|confirmada|modificada|cancelada|atendida|no_asistio'),
+                'appointment_at'     => new external_value(PARAM_INT, 'Unix ts'),
+                'modality'           => new external_value(PARAM_TEXT,'presencial|virtual|mixto'),
+                'duration_minutes'   => new external_value(PARAM_INT, 'Duration'),
+                'psychologist_userid' => new external_value(PARAM_INT, 'Specialist userid'),
             ], 'null when ok=false'),
         ]);
     }

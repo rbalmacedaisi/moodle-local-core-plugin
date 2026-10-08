@@ -39,8 +39,8 @@ class status_change_preview extends external_api
 {
     public static function execute_parameters(): external_function_parameters
     {
-        return new \external_function_parameters([
-            'userid' => new \external_value(PARAM_INT, 'Student user id.', VALUE_REQUIRED),
+        return new external_function_parameters([
+            'userid' => new external_value(PARAM_INT, 'Student user id.', VALUE_REQUIRED),
         ]);
     }
 
@@ -57,19 +57,19 @@ class status_change_preview extends external_api
 
     public static function execute_returns(): external_single_structure
     {
-        return new \external_single_structure([
-            'userid'         => new \external_value(PARAM_INT, 'Student user id.'),
-            'username'       => new \external_value(PARAM_TEXT, 'Moodle username.'),
-            'fullname'       => new \external_value(PARAM_TEXT, 'Student fullname.'),
-            'vat'            => new \external_value(PARAM_TEXT, 'Student VAT (cedula).', VALUE_OPTIONAL),
-            'email'          => new \external_value(PARAM_TEXT, 'Student email.', VALUE_OPTIONAL),
-            'studentstatus'  => new \external_value(PARAM_TEXT, 'Institutional status from profile field.', VALUE_OPTIONAL),
-            'academicstatus' => new \external_value(PARAM_TEXT, 'Worst academic status across plans.'),
-            'isreactivation' => new \external_value(PARAM_BOOL, 'True if student is retirado/aplazado/suspendido/desertor.'),
-            'carrers'        => new \external_value(PARAM_RAW, 'Per-plan rows including active courses.'),
-            'pending_invoices' => new \external_value(PARAM_RAW, 'List of pending invoices fetched from Odoo (best-effort).'),
-            'pending_invoices_unavailable' => new \external_value(PARAM_BOOL, 'True if the Odoo proxy could not be reached.'),
-            'target_periods' => new \external_value(PARAM_RAW, 'List of gmk_academic_periods available as targets.'),
+        return new external_single_structure([
+            'userid'         => new external_value(PARAM_INT, 'Student user id.'),
+            'username'       => new external_value(PARAM_TEXT, 'Moodle username.'),
+            'fullname'       => new external_value(PARAM_TEXT, 'Student fullname.'),
+            'vat'            => new external_value(PARAM_TEXT, 'Student VAT (cedula).', VALUE_OPTIONAL),
+            'email'          => new external_value(PARAM_TEXT, 'Student email.', VALUE_OPTIONAL),
+            'studentstatus'  => new external_value(PARAM_TEXT, 'Institutional status from profile field.', VALUE_OPTIONAL),
+            'academicstatus' => new external_value(PARAM_TEXT, 'Worst academic status across plans.'),
+            'isreactivation' => new external_value(PARAM_BOOL, 'True if student is retirado/aplazado/suspendido/desertor.'),
+            'carrers'        => new external_value(PARAM_RAW, 'Per-plan rows including active courses.'),
+            'pending_invoices' => new external_value(PARAM_RAW, 'List of pending invoices fetched from Odoo (best-effort).'),
+            'pending_invoices_unavailable' => new external_value(PARAM_BOOL, 'True if the Odoo proxy could not be reached.'),
+            'target_periods' => new external_value(PARAM_RAW, 'List of gmk_academic_periods available as targets.'),
         ]);
     }
 }

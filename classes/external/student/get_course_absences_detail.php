@@ -61,9 +61,9 @@ class get_course_absences_detail extends external_api
      */
     public static function execute_parameters(): external_function_parameters
     {
-        return new \external_function_parameters([
-            'userId'       => new \external_value(PARAM_INT, 'Student user id.',  VALUE_REQUIRED),
-            'coreCourseId' => new \external_value(PARAM_INT, 'Moodle course id.', VALUE_REQUIRED),
+        return new external_function_parameters([
+            'userId'       => new external_value(PARAM_INT, 'Student user id.',  VALUE_REQUIRED),
+            'coreCourseId' => new external_value(PARAM_INT, 'Moodle course id.', VALUE_REQUIRED),
         ]);
     }
 
@@ -244,40 +244,40 @@ class get_course_absences_detail extends external_api
      */
     public static function execute_returns(): external_description
     {
-        $absentSessionStructure = new \external_single_structure([
-            'sessionid'   => new \external_value(PARAM_INT,  'Attendance session id'),
-            'date'        => new \external_value(PARAM_TEXT, 'Session date (localised)'),
-            'time'        => new \external_value(PARAM_TEXT, 'Session start time (HH:MM)'),
-            'description' => new \external_value(PARAM_TEXT, 'Session description / topic'),
-            'status'      => new \external_value(PARAM_TEXT, 'Status description (Sin registro / Ausente / Tarde...)'),
-            'acronym'     => new \external_value(PARAM_TEXT, 'Status acronym (A / T / P...)'),
-            'has_log'     => new \external_value(PARAM_BOOL, 'Whether an attendance_log row exists'),
-            'remarks'     => new \external_value(PARAM_TEXT, 'Free-text remarks captured by the teacher'),
+        $absentSessionStructure = new external_single_structure([
+            'sessionid'   => new external_value(PARAM_INT,  'Attendance session id'),
+            'date'        => new external_value(PARAM_TEXT, 'Session date (localised)'),
+            'time'        => new external_value(PARAM_TEXT, 'Session start time (HH:MM)'),
+            'description' => new external_value(PARAM_TEXT, 'Session description / topic'),
+            'status'      => new external_value(PARAM_TEXT, 'Status description (Sin registro / Ausente / Tarde...)'),
+            'acronym'     => new external_value(PARAM_TEXT, 'Status acronym (A / T / P...)'),
+            'has_log'     => new external_value(PARAM_BOOL, 'Whether an attendance_log row exists'),
+            'remarks'     => new external_value(PARAM_TEXT, 'Free-text remarks captured by the teacher'),
         ]);
 
-        $classStructure = new \external_single_structure([
-            'classid'         => new \external_value(PARAM_INT,  'gmk_class.id'),
-            'name'            => new \external_value(PARAM_TEXT, 'Class display name'),
-            'periodid'        => new \external_value(PARAM_INT,  'local_learning_periods.id'),
-            'periodname'      => new \external_value(PARAM_TEXT, 'Period display name'),
-            'instructorname'  => new \external_value(PARAM_TEXT, 'Instructor full name'),
-            'is_module'       => new \external_value(PARAM_INT,  '1 = independent module class, 0 = regular class'),
-            'initdate'        => new \external_value(PARAM_INT,  'Class start date (Unix timestamp, 0 = unknown)'),
-            'enddate'         => new \external_value(PARAM_INT,  'Class end date (Unix timestamp, 0 = open)'),
-            'taken_sessions'  => new \external_value(PARAM_INT,  'Total sessions taken into account'),
-            'present_count'   => new \external_value(PARAM_INT,  'Sessions where the student was present'),
-            'absent_count'    => new \external_value(PARAM_INT,  'Sessions where the student was absent or unmarked'),
-            'absent_sessions' => new \external_multiple_structure($absentSessionStructure, 'List of absent/unmarked sessions'),
-            'alert_level'     => new \external_value(PARAM_INT,  '0=none, 1=info, 2=warning, 3=blocked'),
-            'blocked'         => new \external_value(PARAM_BOOL, 'Whether the class is currently access-blocked'),
+        $classStructure = new external_single_structure([
+            'classid'         => new external_value(PARAM_INT,  'gmk_class.id'),
+            'name'            => new external_value(PARAM_TEXT, 'Class display name'),
+            'periodid'        => new external_value(PARAM_INT,  'local_learning_periods.id'),
+            'periodname'      => new external_value(PARAM_TEXT, 'Period display name'),
+            'instructorname'  => new external_value(PARAM_TEXT, 'Instructor full name'),
+            'is_module'       => new external_value(PARAM_INT,  '1 = independent module class, 0 = regular class'),
+            'initdate'        => new external_value(PARAM_INT,  'Class start date (Unix timestamp, 0 = unknown)'),
+            'enddate'         => new external_value(PARAM_INT,  'Class end date (Unix timestamp, 0 = open)'),
+            'taken_sessions'  => new external_value(PARAM_INT,  'Total sessions taken into account'),
+            'present_count'   => new external_value(PARAM_INT,  'Sessions where the student was present'),
+            'absent_count'    => new external_value(PARAM_INT,  'Sessions where the student was absent or unmarked'),
+            'absent_sessions' => new external_multiple_structure($absentSessionStructure, 'List of absent/unmarked sessions'),
+            'alert_level'     => new external_value(PARAM_INT,  '0=none, 1=info, 2=warning, 3=blocked'),
+            'blocked'         => new external_value(PARAM_BOOL, 'Whether the class is currently access-blocked'),
         ]);
 
-        return new \external_single_structure([
-            'user_id'        => new \external_value(PARAM_INT,  'Echo of userId'),
-            'core_course_id' => new \external_value(PARAM_INT,  'Echo of coreCourseId'),
-            'threshold'      => new \external_value(PARAM_INT,  'Block threshold (default 3)'),
-            'total_absences' => new \external_value(PARAM_INT,  'Sum of absent_count across all classes for the course'),
-            'classes'        => new \external_multiple_structure($classStructure, 'Per-class breakdown'),
+        return new external_single_structure([
+            'user_id'        => new external_value(PARAM_INT,  'Echo of userId'),
+            'core_course_id' => new external_value(PARAM_INT,  'Echo of coreCourseId'),
+            'threshold'      => new external_value(PARAM_INT,  'Block threshold (default 3)'),
+            'total_absences' => new external_value(PARAM_INT,  'Sum of absent_count across all classes for the course'),
+            'classes'        => new external_multiple_structure($classStructure, 'Per-class breakdown'),
         ]);
     }
 }

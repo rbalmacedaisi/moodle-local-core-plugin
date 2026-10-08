@@ -92,14 +92,14 @@ class homologate_course_grade extends external_api
      */
     public static function execute_parameters(): external_function_parameters
     {
-        return new \external_function_parameters(
+        return new external_function_parameters(
             [
-                'userId'         => new \external_value(PARAM_INT,  'Student user id.', VALUE_REQUIRED),
-                'learningPlanId' => new \external_value(PARAM_INT,  'Learning plan id.', VALUE_REQUIRED),
-                'coreCourseId'   => new \external_value(PARAM_INT,  'Moodle course id (course.id).', VALUE_REQUIRED),
-                'grade'          => new \external_value(PARAM_FLOAT, 'Homologated grade (0-100).', VALUE_REQUIRED),
-                'type'           => new \external_value(PARAM_TEXT, 'Homologation type: suficiencia | migracion | homologacion.', VALUE_REQUIRED),
-                'observation'    => new \external_value(PARAM_RAW,  'Free-text reason for the homologation.', VALUE_REQUIRED),
+                'userId'         => new external_value(PARAM_INT,  'Student user id.', VALUE_REQUIRED),
+                'learningPlanId' => new external_value(PARAM_INT,  'Learning plan id.', VALUE_REQUIRED),
+                'coreCourseId'   => new external_value(PARAM_INT,  'Moodle course id (course.id).', VALUE_REQUIRED),
+                'grade'          => new external_value(PARAM_FLOAT, 'Homologated grade (0-100).', VALUE_REQUIRED),
+                'type'           => new external_value(PARAM_TEXT, 'Homologation type: suficiencia | migracion | homologacion.', VALUE_REQUIRED),
+                'observation'    => new external_value(PARAM_RAW,  'Free-text reason for the homologation.', VALUE_REQUIRED),
             ]
         );
     }
@@ -295,7 +295,7 @@ class homologate_course_grade extends external_api
             ]);
 
             if (!$gradeItem) {
-                $gradeItem = new \grade_item(
+                $gradeItem = new grade_item(
                     [
                         'courseid' => $coreCourseId,
                         'itemtype' => 'manual',
@@ -322,7 +322,7 @@ class homologate_course_grade extends external_api
                 $gradeGrade->feedbackformat = FORMAT_PLAIN;
                 $gradeGrade->update('homologation');
             } else {
-                $gradeGrade = new \grade_grade();
+                $gradeGrade = new grade_grade();
                 $gradeGrade->itemid          = (int)$gradeItem->id;
                 $gradeGrade->userid          = $userId;
                 $gradeGrade->rawgrademax     = (float)$gradeItem->grademax;
@@ -344,7 +344,7 @@ class homologate_course_grade extends external_api
                     $totalGrade->rawgrade   = $grade;
                     $totalGrade->update('homologation');
                 } else {
-                    $totalGrade = new \grade_grade();
+                    $totalGrade = new grade_grade();
                     $totalGrade->itemid      = (int)$courseTotal->id;
                     $totalGrade->userid      = $userId;
                     $totalGrade->rawgrademax = (float)$courseTotal->grademax;
@@ -429,16 +429,16 @@ class homologate_course_grade extends external_api
      */
     public static function execute_returns(): external_description
     {
-        return new \external_single_structure(
+        return new external_single_structure(
             [
-                'status'            => new \external_value(PARAM_TEXT, 'ok | error'),
-                'message'           => new \external_value(PARAM_TEXT, 'Descriptive message'),
-                'gcp_id'            => new \external_value(PARAM_INT,  'gmk_course_progre.id (0 on error)', VALUE_DEFAULT, 0),
-                'course_status'     => new \external_value(PARAM_INT,  'New gmk_course_progre.status (4 approved, 5 failed)', VALUE_DEFAULT, 0),
-                'homologation_type' => new \external_value(PARAM_TEXT, 'Persisted homologation type', VALUE_DEFAULT, ''),
-                'homologation_at'   => new \external_value(PARAM_INT,  'Unix timestamp of the homologation', VALUE_DEFAULT, 0),
-                'homologation_by'   => new \external_value(PARAM_INT,  'user.id who applied it', VALUE_DEFAULT, 0),
-                'enrolled_now'      => new \external_value(PARAM_BOOL, 'Whether the student was auto-enrolled during this call', VALUE_DEFAULT, false),
+                'status'            => new external_value(PARAM_TEXT, 'ok | error'),
+                'message'           => new external_value(PARAM_TEXT, 'Descriptive message'),
+                'gcp_id'            => new external_value(PARAM_INT,  'gmk_course_progre.id (0 on error)', VALUE_DEFAULT, 0),
+                'course_status'     => new external_value(PARAM_INT,  'New gmk_course_progre.status (4 approved, 5 failed)', VALUE_DEFAULT, 0),
+                'homologation_type' => new external_value(PARAM_TEXT, 'Persisted homologation type', VALUE_DEFAULT, ''),
+                'homologation_at'   => new external_value(PARAM_INT,  'Unix timestamp of the homologation', VALUE_DEFAULT, 0),
+                'homologation_by'   => new external_value(PARAM_INT,  'user.id who applied it', VALUE_DEFAULT, 0),
+                'enrolled_now'      => new external_value(PARAM_BOOL, 'Whether the student was auto-enrolled during this call', VALUE_DEFAULT, false),
             ]
         );
     }

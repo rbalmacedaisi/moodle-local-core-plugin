@@ -40,8 +40,8 @@ require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/wellness_staf
 class admin_staff_history extends external_api {
 
     public static function execute_parameters() {
-        return new \external_function_parameters([
-            'rolekey' => new \external_value(PARAM_TEXT, 'rolekey; empty = all roles (capped at last 200 rows)', VALUE_DEFAULT, ''),
+        return new external_function_parameters([
+            'rolekey' => new external_value(PARAM_TEXT, 'rolekey; empty = all roles (capped at last 200 rows)', VALUE_DEFAULT, ''),
         ]);
     }
 
@@ -69,22 +69,22 @@ class admin_staff_history extends external_api {
     }
 
     public static function execute_returns() {
-        $row = new \external_single_structure([
-            'id'              => new \external_value(PARAM_INT,  'Audit row id'),
-            'rolekey'         => new \external_value(PARAM_TEXT,'rolekey'),
-            'old_userid'      => new \external_value(PARAM_INT,  'Previous linked userid (0 = none)'),
-            'new_userid'      => new \external_value(PARAM_INT,  'New linked userid (0 = none)'),
-            'old_fullname'    => new \external_value(PARAM_TEXT,'Previous user fullname'),
-            'new_fullname'    => new \external_value(PARAM_TEXT,'New user fullname'),
-            'old_email'       => new \external_value(PARAM_TEXT,'Previous email override'),
-            'new_email'       => new \external_value(PARAM_TEXT,'New email override'),
-            'changed_by'      => new \external_value(PARAM_INT,  'Userid of the admin who made the change'),
-            'changed_by_name' => new \external_value(PARAM_TEXT,'Admin display name'),
-            'changed_at'      => new \external_value(PARAM_INT,  'Unix ts'),
-            'note'            => new \external_value(PARAM_RAW, 'Optional handoff note'),
+        $row = new external_single_structure([
+            'id'              => new external_value(PARAM_INT,  'Audit row id'),
+            'rolekey'         => new external_value(PARAM_TEXT,'rolekey'),
+            'old_userid'      => new external_value(PARAM_INT,  'Previous linked userid (0 = none)'),
+            'new_userid'      => new external_value(PARAM_INT,  'New linked userid (0 = none)'),
+            'old_fullname'    => new external_value(PARAM_TEXT,'Previous user fullname'),
+            'new_fullname'    => new external_value(PARAM_TEXT,'New user fullname'),
+            'old_email'       => new external_value(PARAM_TEXT,'Previous email override'),
+            'new_email'       => new external_value(PARAM_TEXT,'New email override'),
+            'changed_by'      => new external_value(PARAM_INT,  'Userid of the admin who made the change'),
+            'changed_by_name' => new external_value(PARAM_TEXT,'Admin display name'),
+            'changed_at'      => new external_value(PARAM_INT,  'Unix ts'),
+            'note'            => new external_value(PARAM_RAW, 'Optional handoff note'),
         ]);
-        return new \external_single_structure([
-            'history' => new \external_multiple_structure($row, 'Audit rows, newest first.'),
+        return new external_single_structure([
+            'history' => new external_multiple_structure($row, 'Audit rows, newest first.'),
         ]);
     }
 }

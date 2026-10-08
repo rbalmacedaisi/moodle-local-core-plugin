@@ -38,13 +38,13 @@ require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/wellness_even
 class admin_save_event extends external_api {
 
     public static function execute_parameters() {
-        $att = new \external_single_structure([
-            'kind'      => new \external_value(PARAM_ALPHA,'handout|recording|link|other', VALUE_DEFAULT, 'handout'),
-            'label'     => new \external_value(PARAM_TEXT, 'Label', VALUE_DEFAULT, ''),
-            'url'       => new \external_value(PARAM_TEXT, 'External URL', VALUE_DEFAULT, ''),
-            'file_path' => new \external_value(PARAM_TEXT, 'Pluginfile path', VALUE_DEFAULT, ''),
-            'mimetype'  => new \external_value(PARAM_TEXT, 'MIME type', VALUE_DEFAULT, ''),
-            'filesize'  => new \external_value(PARAM_INT,  'Filesize bytes', VALUE_DEFAULT, 0),
+        $att = new external_single_structure([
+            'kind'      => new external_value(PARAM_ALPHA,'handout|recording|link|other', VALUE_DEFAULT, 'handout'),
+            'label'     => new external_value(PARAM_TEXT, 'Label', VALUE_DEFAULT, ''),
+            'url'       => new external_value(PARAM_TEXT, 'External URL', VALUE_DEFAULT, ''),
+            'file_path' => new external_value(PARAM_TEXT, 'Pluginfile path', VALUE_DEFAULT, ''),
+            'mimetype'  => new external_value(PARAM_TEXT, 'MIME type', VALUE_DEFAULT, ''),
+            'filesize'  => new external_value(PARAM_INT,  'Filesize bytes', VALUE_DEFAULT, 0),
         ]);
         // Order MUST match the execute() signature below. Moodle binds the
         // params positionally: after validate_parameters returns the
@@ -54,33 +54,33 @@ class admin_save_event extends external_api {
         // named slot, which then trips validate_parameters() with the
         // confusing "the value is <some other field>, the server was
         // expecting <type> type" error.
-        return new \external_function_parameters([
-            'title'                  => new \external_value(PARAM_TEXT, 'Title', VALUE_REQUIRED),
-            'startdate'              => new \external_value(PARAM_INT,   'Start unix ts', VALUE_REQUIRED),
-            'id'                     => new \external_value(PARAM_INT,   '0 to create', VALUE_DEFAULT, 0),
-            'summary'                => new \external_value(PARAM_TEXT, 'Teaser', VALUE_DEFAULT, ''),
-            'description'            => new \external_value(PARAM_RAW,  'Body', VALUE_DEFAULT, ''),
-            'category'               => new \external_value(PARAM_ALPHA,'deportivo|feria|taller|charla|otro', VALUE_DEFAULT, 'otro'),
-            'enddate'                => new \external_value(PARAM_INT,   'End unix ts', VALUE_DEFAULT, 0),
-            'modality'               => new \external_value(PARAM_ALPHA,'presencial|virtual|mixto', VALUE_DEFAULT, 'presencial'),
-            'location'               => new \external_value(PARAM_TEXT, 'Location', VALUE_DEFAULT, ''),
-            'virtual_url'            => new \external_value(PARAM_TEXT, 'Virtual URL', VALUE_DEFAULT, ''),
-            'capacity'               => new \external_value(PARAM_INT,   'Capacity (0 = unlimited)', VALUE_DEFAULT, 0),
-            'requires_registration'  => new \external_value(PARAM_BOOL,  'Requires registration', VALUE_DEFAULT, true),
-            'allow_waitlist'         => new \external_value(PARAM_BOOL,  'Allow waitlist when full', VALUE_DEFAULT, false),
-            'registration_opens_at'  => new \external_value(PARAM_INT,   'Registration opens unix ts', VALUE_DEFAULT, 0),
-            'registration_closes_at' => new \external_value(PARAM_INT,   'Registration closes unix ts', VALUE_DEFAULT, 0),
-            'organizer_name'         => new \external_value(PARAM_TEXT, 'Organizer name', VALUE_DEFAULT, ''),
-            'organizer_email'        => new \external_value(PARAM_TEXT, 'Organizer email', VALUE_DEFAULT, ''),
-            'cover_path'             => new \external_value(PARAM_TEXT, 'Cover image pluginfile path', VALUE_DEFAULT, ''),
-            'active'                 => new \external_value(PARAM_BOOL, 'Active flag', VALUE_DEFAULT, true),
+        return new external_function_parameters([
+            'title'                  => new external_value(PARAM_TEXT, 'Title', VALUE_REQUIRED),
+            'startdate'              => new external_value(PARAM_INT,   'Start unix ts', VALUE_REQUIRED),
+            'id'                     => new external_value(PARAM_INT,   '0 to create', VALUE_DEFAULT, 0),
+            'summary'                => new external_value(PARAM_TEXT, 'Teaser', VALUE_DEFAULT, ''),
+            'description'            => new external_value(PARAM_RAW,  'Body', VALUE_DEFAULT, ''),
+            'category'               => new external_value(PARAM_ALPHA,'deportivo|feria|taller|charla|otro', VALUE_DEFAULT, 'otro'),
+            'enddate'                => new external_value(PARAM_INT,   'End unix ts', VALUE_DEFAULT, 0),
+            'modality'               => new external_value(PARAM_ALPHA,'presencial|virtual|mixto', VALUE_DEFAULT, 'presencial'),
+            'location'               => new external_value(PARAM_TEXT, 'Location', VALUE_DEFAULT, ''),
+            'virtual_url'            => new external_value(PARAM_TEXT, 'Virtual URL', VALUE_DEFAULT, ''),
+            'capacity'               => new external_value(PARAM_INT,   'Capacity (0 = unlimited)', VALUE_DEFAULT, 0),
+            'requires_registration'  => new external_value(PARAM_BOOL,  'Requires registration', VALUE_DEFAULT, true),
+            'allow_waitlist'         => new external_value(PARAM_BOOL,  'Allow waitlist when full', VALUE_DEFAULT, false),
+            'registration_opens_at'  => new external_value(PARAM_INT,   'Registration opens unix ts', VALUE_DEFAULT, 0),
+            'registration_closes_at' => new external_value(PARAM_INT,   'Registration closes unix ts', VALUE_DEFAULT, 0),
+            'organizer_name'         => new external_value(PARAM_TEXT, 'Organizer name', VALUE_DEFAULT, ''),
+            'organizer_email'        => new external_value(PARAM_TEXT, 'Organizer email', VALUE_DEFAULT, ''),
+            'cover_path'             => new external_value(PARAM_TEXT, 'Cover image pluginfile path', VALUE_DEFAULT, ''),
+            'active'                 => new external_value(PARAM_BOOL, 'Active flag', VALUE_DEFAULT, true),
             // bbb_cmid: 0 = no BBB room attached to this event, otherwise the
             // course module id of the bigbluebuttonbn created in the site
             // front page. Required so an event edit preserves the room:
             // Moodle 4.x rejects unknown keys with "Unexpected keys (X)
             // detected in parameter array".
-            'bbb_cmid'               => new \external_value(PARAM_INT,  'BBB course module id (0 = no room)', VALUE_DEFAULT, 0),
-            'attachments'            => new \external_value(PARAM_RAW,   'JSON array of attachment objects', VALUE_DEFAULT, '[]'),
+            'bbb_cmid'               => new external_value(PARAM_INT,  'BBB course module id (0 = no room)', VALUE_DEFAULT, 0),
+            'attachments'            => new external_value(PARAM_RAW,   'JSON array of attachment objects', VALUE_DEFAULT, '[]'),
         ]);
     }
 
@@ -124,9 +124,9 @@ class admin_save_event extends external_api {
     }
 
     public static function execute_returns() {
-        return new \external_single_structure([
-            'ok' => new \external_value(PARAM_BOOL, 'True on success'),
-            'id' => new \external_value(PARAM_INT,  'Event id'),
+        return new external_single_structure([
+            'ok' => new external_value(PARAM_BOOL, 'True on success'),
+            'id' => new external_value(PARAM_INT,  'Event id'),
         ]);
     }
 }

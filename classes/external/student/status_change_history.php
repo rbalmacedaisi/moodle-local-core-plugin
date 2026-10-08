@@ -40,8 +40,8 @@ class status_change_history extends external_api
 {
     public static function execute_parameters(): external_function_parameters
     {
-        return new \external_function_parameters([
-            'userid' => new \external_value(PARAM_INT, 'Student user id.', VALUE_REQUIRED),
+        return new external_function_parameters([
+            'userid' => new external_value(PARAM_INT, 'Student user id.', VALUE_REQUIRED),
         ]);
     }
 
@@ -58,22 +58,22 @@ class status_change_history extends external_api
 
     public static function execute_returns(): external_multiple_structure
     {
-        return new \external_multiple_structure(
-            new \external_single_structure([
-                'id'         => new \external_value(PARAM_INT, 'Row id.'),
-                'status'     => new \external_value(PARAM_TEXT, 'aplazo | retiro | renovacion.'),
-                'origin'     => new \external_value(PARAM_TEXT, 'lxp | odoo | cron.'),
-                'reason'     => new \external_value(PARAM_TEXT, 'Free-text reason.', VALUE_OPTIONAL),
-                'target_period_id'   => new \external_value(PARAM_INT, 'Target period id.', VALUE_OPTIONAL),
-                'target_period_name' => new \external_value(PARAM_TEXT, 'Target period name.', VALUE_OPTIONAL),
-                'active_courses_dropped' => new \external_value(PARAM_RAW, 'JSON list of corecourseids.', VALUE_OPTIONAL),
-                'details'    => new \external_value(PARAM_RAW, 'Structured details JSON.', VALUE_OPTIONAL),
-                'actor'      => new \external_single_structure([
-                    'id'       => new \external_value(PARAM_INT, 'Actor user id.'),
-                    'username' => new \external_value(PARAM_TEXT, 'Actor username.', VALUE_OPTIONAL),
-                    'fullname' => new \external_value(PARAM_TEXT, 'Actor fullname.', VALUE_OPTIONAL),
+        return new external_multiple_structure(
+            new external_single_structure([
+                'id'         => new external_value(PARAM_INT, 'Row id.'),
+                'status'     => new external_value(PARAM_TEXT, 'aplazo | retiro | renovacion.'),
+                'origin'     => new external_value(PARAM_TEXT, 'lxp | odoo | cron.'),
+                'reason'     => new external_value(PARAM_TEXT, 'Free-text reason.', VALUE_OPTIONAL),
+                'target_period_id'   => new external_value(PARAM_INT, 'Target period id.', VALUE_OPTIONAL),
+                'target_period_name' => new external_value(PARAM_TEXT, 'Target period name.', VALUE_OPTIONAL),
+                'active_courses_dropped' => new external_value(PARAM_RAW, 'JSON list of corecourseids.', VALUE_OPTIONAL),
+                'details'    => new external_value(PARAM_RAW, 'Structured details JSON.', VALUE_OPTIONAL),
+                'actor'      => new external_single_structure([
+                    'id'       => new external_value(PARAM_INT, 'Actor user id.'),
+                    'username' => new external_value(PARAM_TEXT, 'Actor username.', VALUE_OPTIONAL),
+                    'fullname' => new external_value(PARAM_TEXT, 'Actor fullname.', VALUE_OPTIONAL),
                 ]),
-                'timecreated' => new \external_value(PARAM_INT, 'Unix timestamp.'),
+                'timecreated' => new external_value(PARAM_INT, 'Unix timestamp.'),
             ])
         );
     }

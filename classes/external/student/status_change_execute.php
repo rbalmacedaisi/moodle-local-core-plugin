@@ -40,11 +40,11 @@ class status_change_execute extends external_api
 {
     public static function execute_parameters(): external_function_parameters
     {
-        return new \external_function_parameters([
-            'userid'          => new \external_value(PARAM_INT, 'Student user id.', VALUE_REQUIRED),
-            'action_name'     => new \external_value(PARAM_ALPHANEXT, 'aplazar | retirar', VALUE_REQUIRED),
-            'reason'          => new \external_value(PARAM_TEXT, 'Free-text reason (>= 10 chars).', VALUE_REQUIRED),
-            'target_period_id' => new \external_value(PARAM_INT, 'For aplazar only: gmk_academic_periods.id.', VALUE_DEFAULT, 0),
+        return new external_function_parameters([
+            'userid'          => new external_value(PARAM_INT, 'Student user id.', VALUE_REQUIRED),
+            'action_name'     => new external_value(PARAM_ALPHANEXT, 'aplazar | retirar', VALUE_REQUIRED),
+            'reason'          => new external_value(PARAM_TEXT, 'Free-text reason (>= 10 chars).', VALUE_REQUIRED),
+            'target_period_id' => new external_value(PARAM_INT, 'For aplazar only: gmk_academic_periods.id.', VALUE_DEFAULT, 0),
         ]);
     }
 
@@ -76,10 +76,10 @@ class status_change_execute extends external_api
 
     public static function execute_returns(): external_single_structure
     {
-        return new \external_single_structure([
-            'status'  => new \external_value(PARAM_TEXT, 'success | error'),
-            'message' => new \external_value(PARAM_TEXT, 'Result message.'),
-            'data'    => new \external_value(PARAM_RAW, 'Structured result (userid, newstatus, suspension_id, courses_dropped, odoo_sync).', VALUE_OPTIONAL),
+        return new external_single_structure([
+            'status'  => new external_value(PARAM_TEXT, 'success | error'),
+            'message' => new external_value(PARAM_TEXT, 'Result message.'),
+            'data'    => new external_value(PARAM_RAW, 'Structured result (userid, newstatus, suspension_id, courses_dropped, odoo_sync).', VALUE_OPTIONAL),
         ]);
     }
 }

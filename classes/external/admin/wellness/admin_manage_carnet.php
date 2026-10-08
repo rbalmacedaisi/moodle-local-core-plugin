@@ -42,12 +42,12 @@ require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/wellness_carn
 class admin_manage_carnet extends external_api {
 
     public static function execute_parameters() {
-        return new \external_function_parameters([
+        return new external_function_parameters([
             // N-02: PARAM_ALPHA strips underscores — use PARAM_ALPHAEXT
             // so `regenerate_token` (and any future underscore-style action)
             // survives validate_parameters().
-            'action' => new \external_value(PARAM_ALPHAEXT,'renew|suspend|reinstate|regenerate_token|graduate', VALUE_REQUIRED),
-            'userid' => new \external_value(PARAM_INT,  'Target student userid', VALUE_REQUIRED),
+            'action' => new external_value(PARAM_ALPHAEXT,'renew|suspend|reinstate|regenerate_token|graduate', VALUE_REQUIRED),
+            'userid' => new external_value(PARAM_INT,  'Target student userid', VALUE_REQUIRED),
         ]);
     }
 
@@ -87,9 +87,9 @@ class admin_manage_carnet extends external_api {
     }
 
     public static function execute_returns() {
-        return new \external_single_structure([
-            'ok'     => new \external_value(PARAM_BOOL,'True on success'),
-            'status' => new \external_value(PARAM_TEXT,'New carnet status (when applicable)'),
+        return new external_single_structure([
+            'ok'     => new external_value(PARAM_BOOL,'True on success'),
+            'status' => new external_value(PARAM_TEXT,'New carnet status (when applicable)'),
         ]);
     }
 }

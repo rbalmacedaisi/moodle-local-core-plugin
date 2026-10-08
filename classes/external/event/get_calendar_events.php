@@ -44,11 +44,11 @@ class get_calendar_events extends external_api
 
     public static function execute_parameters(): external_function_parameters
     {
-        return new \external_function_parameters(
+        return new external_function_parameters(
             [
-                'userId' => new \external_value(PARAM_INT, 'Id of the user',  VALUE_DEFAULT, null),
-                'initDate' => new \external_value(PARAM_TEXT, 'init date to look for the events',  VALUE_DEFAULT, null),
-                'endDate' => new \external_value(PARAM_TEXT, 'Id of the user',  VALUE_DEFAULT, null)
+                'userId' => new external_value(PARAM_INT, 'Id of the user',  VALUE_DEFAULT, null),
+                'initDate' => new external_value(PARAM_TEXT, 'init date to look for the events',  VALUE_DEFAULT, null),
+                'endDate' => new external_value(PARAM_TEXT, 'Id of the user',  VALUE_DEFAULT, null)
             ]
         );
     }
@@ -149,11 +149,11 @@ if (!$isadmin && $targetuserid <= 0) {
      */
     public static function execute_returns(): external_description
     {
-        return new \external_single_structure(
+        return new external_single_structure(
             array(
-                'status' => new \external_value(PARAM_INT, '1 or -1 if success/error', VALUE_DEFAULT, 1),
-                'events' => new \external_value(PARAM_RAW, 'Events for the month', VALUE_DEFAULT, null),
-                'message' => new \external_value(PARAM_TEXT, 'The error message or Ok.', VALUE_DEFAULT, 'ok'),
+                'status' => new external_value(PARAM_INT, '1 or -1 if success/error', VALUE_DEFAULT, 1),
+                'events' => new external_value(PARAM_RAW, 'Events for the month', VALUE_DEFAULT, null),
+                'message' => new external_value(PARAM_TEXT, 'The error message or Ok.', VALUE_DEFAULT, 'ok'),
             )
         );
     }

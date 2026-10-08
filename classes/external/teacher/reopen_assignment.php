@@ -15,9 +15,9 @@ use local_grupomakro_core\local\assignment_extension_manager;
 class reopen_assignment extends external_api {
 
     public static function execute_parameters(): external_function_parameters {
-        return new \external_function_parameters([
-            'assignmentid' => new \external_value(PARAM_INT, 'Assignment instance ID', VALUE_REQUIRED),
-            'studentid'    => new \external_value(PARAM_INT, 'Student user ID', VALUE_REQUIRED),
+        return new external_function_parameters([
+            'assignmentid' => new external_value(PARAM_INT, 'Assignment instance ID', VALUE_REQUIRED),
+            'studentid'    => new external_value(PARAM_INT, 'Student user ID', VALUE_REQUIRED),
         ]);
     }
 
@@ -96,9 +96,9 @@ class reopen_assignment extends external_api {
     }
 
     public static function execute_returns(): external_single_structure {
-        return new \external_single_structure([
-            'status'  => new \external_value(PARAM_TEXT, 'success o error'),
-            'message' => new \external_value(PARAM_TEXT, 'Mensaje de resultado'),
+        return new external_single_structure([
+            'status'  => new external_value(PARAM_TEXT, 'success o error'),
+            'message' => new external_value(PARAM_TEXT, 'Mensaje de resultado'),
         ]);
     }
 }

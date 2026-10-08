@@ -22,9 +22,9 @@ class get_student_gradebook extends external_api
 {
     public static function execute_parameters(): external_function_parameters
     {
-        return new \external_function_parameters([
-            'userId'   => new \external_value(PARAM_INT, 'Student user id',  VALUE_REQUIRED),
-            'courseId' => new \external_value(PARAM_INT, 'Moodle course id', VALUE_REQUIRED),
+        return new external_function_parameters([
+            'userId'   => new external_value(PARAM_INT, 'Student user id',  VALUE_REQUIRED),
+            'courseId' => new external_value(PARAM_INT, 'Moodle course id', VALUE_REQUIRED),
         ]);
     }
 
@@ -294,10 +294,10 @@ class get_student_gradebook extends external_api
 
     public static function execute_returns(): external_description
     {
-        return new \external_single_structure([
-            'status'      => new \external_value(PARAM_INT,   '1 ok, -1 error',                       VALUE_DEFAULT, 1),
-            'gradebook'   => new \external_value(PARAM_RAW,   'JSON gradebook grouped by category',   VALUE_DEFAULT, '[]'),
-            'course_grade'=> new \external_value(PARAM_FLOAT, 'Official Moodle final grade 0-100',    VALUE_DEFAULT, null, NULL_ALLOWED),
+        return new external_single_structure([
+            'status'      => new external_value(PARAM_INT,   '1 ok, -1 error',                       VALUE_DEFAULT, 1),
+            'gradebook'   => new external_value(PARAM_RAW,   'JSON gradebook grouped by category',   VALUE_DEFAULT, '[]'),
+            'course_grade'=> new external_value(PARAM_FLOAT, 'Official Moodle final grade 0-100',    VALUE_DEFAULT, null, NULL_ALLOWED),
         ]);
     }
 }

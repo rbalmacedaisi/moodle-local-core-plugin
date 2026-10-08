@@ -14,11 +14,11 @@ use external_single_structure;
 class admin_list extends external_api {
 
     public static function execute_parameters(): external_function_parameters {
-        return new \external_function_parameters([
-            'status' => new \external_value(PARAM_TEXT, 'Status filter or empty', VALUE_DEFAULT, ''),
-            'search' => new \external_value(PARAM_TEXT, 'Free text search', VALUE_DEFAULT, ''),
-            'from'   => new \external_value(PARAM_INT, 'Unix ts lower bound', VALUE_DEFAULT, 0),
-            'to'     => new \external_value(PARAM_INT, 'Unix ts upper bound', VALUE_DEFAULT, 0),
+        return new external_function_parameters([
+            'status' => new external_value(PARAM_TEXT, 'Status filter or empty', VALUE_DEFAULT, ''),
+            'search' => new external_value(PARAM_TEXT, 'Free text search', VALUE_DEFAULT, ''),
+            'from'   => new external_value(PARAM_INT, 'Unix ts lower bound', VALUE_DEFAULT, 0),
+            'to'     => new external_value(PARAM_INT, 'Unix ts upper bound', VALUE_DEFAULT, 0),
         ]);
     }
 
@@ -74,18 +74,18 @@ class admin_list extends external_api {
     }
 
     public static function execute_returns(): external_multiple_structure {
-        return new \external_multiple_structure(new \external_single_structure([
-            'id'                => new \external_value(PARAM_INT, ''),
-            'request_number'    => new \external_value(PARAM_TEXT, ''),
-            'fullname'          => new \external_value(PARAM_TEXT, ''),
-            'id_number'         => new \external_value(PARAM_TEXT, ''),
-            'program'           => new \external_value(PARAM_TEXT, ''),
-            'reason'            => new \external_value(PARAM_TEXT, ''),
-            'status'            => new \external_value(PARAM_TEXT, ''),
-            'timecreated'       => new \external_value(PARAM_INT, ''),
-            'received_da_at'    => new \external_value(PARAM_INT, ''),
-            'received_admin_at' => new \external_value(PARAM_INT, ''),
-            'has_scanned'       => new \external_value(PARAM_BOOL, ''),
+        return new external_multiple_structure(new external_single_structure([
+            'id'                => new external_value(PARAM_INT, ''),
+            'request_number'    => new external_value(PARAM_TEXT, ''),
+            'fullname'          => new external_value(PARAM_TEXT, ''),
+            'id_number'         => new external_value(PARAM_TEXT, ''),
+            'program'           => new external_value(PARAM_TEXT, ''),
+            'reason'            => new external_value(PARAM_TEXT, ''),
+            'status'            => new external_value(PARAM_TEXT, ''),
+            'timecreated'       => new external_value(PARAM_INT, ''),
+            'received_da_at'    => new external_value(PARAM_INT, ''),
+            'received_admin_at' => new external_value(PARAM_INT, ''),
+            'has_scanned'       => new external_value(PARAM_BOOL, ''),
         ]));
     }
 }

@@ -39,11 +39,11 @@ use local_grupomakro_core\local\assignment_extension_manager;
 class assignment_extensions extends external_api {
 
     public static function set_parameters(): external_function_parameters {
-        return new \external_function_parameters([
-            'assignid'  => new \external_value(PARAM_INT, 'mdl_assign.id', VALUE_REQUIRED),
-            'userid'    => new \external_value(PARAM_INT, 'mdl_user.id del estudiante', VALUE_REQUIRED),
-            'duedate'   => new \external_value(PARAM_INT, 'Nuevo due date (Unix timestamp en el FUTURO)', VALUE_REQUIRED),
-            'reason'    => new \external_value(PARAM_TEXT, 'Razon opcional', VALUE_DEFAULT, ''),
+        return new external_function_parameters([
+            'assignid'  => new external_value(PARAM_INT, 'mdl_assign.id', VALUE_REQUIRED),
+            'userid'    => new external_value(PARAM_INT, 'mdl_user.id del estudiante', VALUE_REQUIRED),
+            'duedate'   => new external_value(PARAM_INT, 'Nuevo due date (Unix timestamp en el FUTURO)', VALUE_REQUIRED),
+            'reason'    => new external_value(PARAM_TEXT, 'Razon opcional', VALUE_DEFAULT, ''),
         ]);
     }
 
@@ -92,18 +92,18 @@ class assignment_extensions extends external_api {
     }
 
     public static function set_returns(): external_single_structure {
-        return new \external_single_structure([
-            'status'      => new \external_value(PARAM_TEXT, 'success o error'),
-            'message'     => new \external_value(PARAM_TEXT, 'Mensaje de resultado'),
-            'override_id' => new \external_value(PARAM_INT, 'ID del row creado o actualizado', VALUE_DEFAULT, 0),
-            'old_duedate' => new \external_value(PARAM_INT, 'Due date previo (0 si no existia)', VALUE_DEFAULT, 0),
-            'new_duedate' => new \external_value(PARAM_INT, 'Nuevo due date', VALUE_DEFAULT, 0),
+        return new external_single_structure([
+            'status'      => new external_value(PARAM_TEXT, 'success o error'),
+            'message'     => new external_value(PARAM_TEXT, 'Mensaje de resultado'),
+            'override_id' => new external_value(PARAM_INT, 'ID del row creado o actualizado', VALUE_DEFAULT, 0),
+            'old_duedate' => new external_value(PARAM_INT, 'Due date previo (0 si no existia)', VALUE_DEFAULT, 0),
+            'new_duedate' => new external_value(PARAM_INT, 'Nuevo due date', VALUE_DEFAULT, 0),
         ]);
     }
 
     public static function list_parameters(): external_function_parameters {
-        return new \external_function_parameters([
-            'assignid' => new \external_value(PARAM_INT, 'mdl_assign.id', VALUE_REQUIRED),
+        return new external_function_parameters([
+            'assignid' => new external_value(PARAM_INT, 'mdl_assign.id', VALUE_REQUIRED),
         ]);
     }
 
@@ -155,38 +155,38 @@ class assignment_extensions extends external_api {
     }
 
     public static function list_overrides_returns(): external_single_structure {
-        return new \external_single_structure([
-            'assign_id'       => new \external_value(PARAM_INT, 'mdl_assign.id'),
-            'assign_name'     => new \external_value(PARAM_TEXT, 'Nombre de la actividad'),
-            'default_duedate' => new \external_value(PARAM_INT, 'Due date por defecto (0 si no tiene)', VALUE_DEFAULT, 0),
-            'overrides' => new \external_multiple_structure(
-                new \external_single_structure([
-                    'override_id' => new \external_value(PARAM_INT, 'ID'),
-                    'userid'      => new \external_value(PARAM_INT, 'ID usuario'),
-                    'user_name'   => new \external_value(PARAM_TEXT, 'Nombre completo'),
-                    'user_email'  => new \external_value(PARAM_TEXT, 'Email'),
-                    'duedate'     => new \external_value(PARAM_INT, 'Due date vigente'),
+        return new external_single_structure([
+            'assign_id'       => new external_value(PARAM_INT, 'mdl_assign.id'),
+            'assign_name'     => new external_value(PARAM_TEXT, 'Nombre de la actividad'),
+            'default_duedate' => new external_value(PARAM_INT, 'Due date por defecto (0 si no tiene)', VALUE_DEFAULT, 0),
+            'overrides' => new external_multiple_structure(
+                new external_single_structure([
+                    'override_id' => new external_value(PARAM_INT, 'ID'),
+                    'userid'      => new external_value(PARAM_INT, 'ID usuario'),
+                    'user_name'   => new external_value(PARAM_TEXT, 'Nombre completo'),
+                    'user_email'  => new external_value(PARAM_TEXT, 'Email'),
+                    'duedate'     => new external_value(PARAM_INT, 'Due date vigente'),
                 ])
             ),
-            'history' => new \external_multiple_structure(
-                new \external_single_structure([
-                    'id'          => new \external_value(PARAM_INT, 'ID'),
-                    'userid'      => new \external_value(PARAM_INT, 'ID usuario'),
-                    'user_name'   => new \external_value(PARAM_TEXT, 'Nombre completo'),
-                    'old_duedate' => new \external_value(PARAM_INT, 'Due date previo (0 si no existia)'),
-                    'new_duedate' => new \external_value(PARAM_INT, 'Nuevo due date (0 si fue borrado)'),
-                    'reason'      => new \external_value(PARAM_TEXT, 'Razon'),
-                    'actor_name'  => new \external_value(PARAM_TEXT, 'Docente que aplico el cambio'),
-                    'timecreated' => new \external_value(PARAM_INT, 'Unix timestamp'),
+            'history' => new external_multiple_structure(
+                new external_single_structure([
+                    'id'          => new external_value(PARAM_INT, 'ID'),
+                    'userid'      => new external_value(PARAM_INT, 'ID usuario'),
+                    'user_name'   => new external_value(PARAM_TEXT, 'Nombre completo'),
+                    'old_duedate' => new external_value(PARAM_INT, 'Due date previo (0 si no existia)'),
+                    'new_duedate' => new external_value(PARAM_INT, 'Nuevo due date (0 si fue borrado)'),
+                    'reason'      => new external_value(PARAM_TEXT, 'Razon'),
+                    'actor_name'  => new external_value(PARAM_TEXT, 'Docente que aplico el cambio'),
+                    'timecreated' => new external_value(PARAM_INT, 'Unix timestamp'),
                 ])
             ),
         ]);
     }
 
     public static function delete_parameters(): external_function_parameters {
-        return new \external_function_parameters([
-            'assignid' => new \external_value(PARAM_INT, 'mdl_assign.id', VALUE_REQUIRED),
-            'userid'   => new \external_value(PARAM_INT, 'mdl_user.id del estudiante', VALUE_REQUIRED),
+        return new external_function_parameters([
+            'assignid' => new external_value(PARAM_INT, 'mdl_assign.id', VALUE_REQUIRED),
+            'userid'   => new external_value(PARAM_INT, 'mdl_user.id del estudiante', VALUE_REQUIRED),
         ]);
     }
 
@@ -215,15 +215,15 @@ class assignment_extensions extends external_api {
     }
 
     public static function delete_override_returns(): external_single_structure {
-        return new \external_single_structure([
-            'status'  => new \external_value(PARAM_TEXT, 'success o error'),
-            'message' => new \external_value(PARAM_TEXT, 'Mensaje de resultado'),
+        return new external_single_structure([
+            'status'  => new external_value(PARAM_TEXT, 'success o error'),
+            'message' => new external_value(PARAM_TEXT, 'Mensaje de resultado'),
         ]);
     }
 
     public static function list_course_assignments_parameters(): external_function_parameters {
-        return new \external_function_parameters([
-            'courseid' => new \external_value(PARAM_INT, 'mdl_course.id de la clase', VALUE_REQUIRED),
+        return new external_function_parameters([
+            'courseid' => new external_value(PARAM_INT, 'mdl_course.id de la clase', VALUE_REQUIRED),
         ]);
     }
 
@@ -258,22 +258,22 @@ class assignment_extensions extends external_api {
     }
 
     public static function list_course_assignments_returns(): external_single_structure {
-        return new \external_single_structure([
-            'assignments' => new \external_multiple_structure(
-                new \external_single_structure([
-                    'cmid'     => new \external_value(PARAM_INT, 'course module id'),
-                    'assignid' => new \external_value(PARAM_INT, 'mdl_assign id'),
-                    'name'     => new \external_value(PARAM_TEXT, 'Nombre de la actividad'),
-                    'duedate'  => new \external_value(PARAM_INT, 'Due date por defecto (0 si no tiene)'),
+        return new external_single_structure([
+            'assignments' => new external_multiple_structure(
+                new external_single_structure([
+                    'cmid'     => new external_value(PARAM_INT, 'course module id'),
+                    'assignid' => new external_value(PARAM_INT, 'mdl_assign id'),
+                    'name'     => new external_value(PARAM_TEXT, 'Nombre de la actividad'),
+                    'duedate'  => new external_value(PARAM_INT, 'Due date por defecto (0 si no tiene)'),
                 ])
             ),
         ]);
     }
 
     public static function list_course_students_parameters(): external_function_parameters {
-        return new \external_function_parameters([
-            'courseid' => new \external_value(PARAM_INT, 'mdl_course.id de la clase', VALUE_REQUIRED),
-            'assignid' => new \external_value(PARAM_INT, 'mdl_assign.id (opcional, anade override_duedate si se pasa)', VALUE_DEFAULT, 0),
+        return new external_function_parameters([
+            'courseid' => new external_value(PARAM_INT, 'mdl_course.id de la clase', VALUE_REQUIRED),
+            'assignid' => new external_value(PARAM_INT, 'mdl_assign.id (opcional, anade override_duedate si se pasa)', VALUE_DEFAULT, 0),
         ]);
     }
 
@@ -315,13 +315,13 @@ class assignment_extensions extends external_api {
     }
 
     public static function list_course_students_returns(): external_single_structure {
-        return new \external_single_structure([
-            'students' => new \external_multiple_structure(
-                new \external_single_structure([
-                    'userid'           => new \external_value(PARAM_INT, 'ID'),
-                    'user_name'        => new \external_value(PARAM_TEXT, 'Nombre completo'),
-                    'user_email'       => new \external_value(PARAM_TEXT, 'Email'),
-                    'override_duedate' => new \external_value(PARAM_INT, 'Due date override vigente (0 si no tiene)'),
+        return new external_single_structure([
+            'students' => new external_multiple_structure(
+                new external_single_structure([
+                    'userid'           => new external_value(PARAM_INT, 'ID'),
+                    'user_name'        => new external_value(PARAM_TEXT, 'Nombre completo'),
+                    'user_email'       => new external_value(PARAM_TEXT, 'Email'),
+                    'override_duedate' => new external_value(PARAM_INT, 'Due date override vigente (0 si no tiene)'),
                 ])
             ),
         ]);

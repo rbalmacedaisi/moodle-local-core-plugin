@@ -47,12 +47,12 @@ require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/wellness_even
 class admin_create_wellness_event_bbb extends external_api {
 
     public static function execute_parameters() {
-        return new \external_function_parameters([
-            'eventid' => new \external_value(PARAM_INT, 'Wellness event id', VALUE_REQUIRED),
+        return new external_function_parameters([
+            'eventid' => new external_value(PARAM_INT, 'Wellness event id', VALUE_REQUIRED),
             // Optional override; defaults to the event title + intro.
-            'name'    => new \external_value(PARAM_TEXT, 'Override BBB meeting name', VALUE_DEFAULT, ''),
+            'name'    => new external_value(PARAM_TEXT, 'Override BBB meeting name', VALUE_DEFAULT, ''),
             // Optional override for the welcome message shown inside the room.
-            'welcome' => new \external_value(PARAM_RAW, 'Override BBB welcome text', VALUE_DEFAULT, ''),
+            'welcome' => new external_value(PARAM_RAW, 'Override BBB welcome text', VALUE_DEFAULT, ''),
         ]);
     }
 
@@ -104,12 +104,12 @@ class admin_create_wellness_event_bbb extends external_api {
     }
 
     public static function execute_returns() {
-        return new \external_single_structure([
-            'ok'        => new \external_value(PARAM_BOOL, 'True on success'),
-            'cmid'      => new \external_value(PARAM_INT,  'Course module id of the new BBB activity'),
-            'guest_url' => new \external_value(PARAM_TEXT, 'Guest join URL'),
+        return new external_single_structure([
+            'ok'        => new external_value(PARAM_BOOL, 'True on success'),
+            'cmid'      => new external_value(PARAM_INT,  'Course module id of the new BBB activity'),
+            'guest_url' => new external_value(PARAM_TEXT, 'Guest join URL'),
             // True if the call was a no-op because the event already had a room.
-            'already'   => new \external_value(PARAM_BOOL, 'True if the event already had a room'),
+            'already'   => new external_value(PARAM_BOOL, 'True if the event already had a room'),
         ]);
     }
 }

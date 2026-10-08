@@ -52,10 +52,10 @@ class update_student_status extends external_api {
      * @return external_function_parameters
      */
     public static function execute_parameters() {
-        return new \external_function_parameters([
-            'userid' => new \external_value(PARAM_INT, 'User ID', VALUE_REQUIRED),
-            'field' => new \external_value(PARAM_TEXT, 'Field to update: studentstatus or academicstatus', VALUE_REQUIRED),
-            'value' => new \external_value(PARAM_TEXT, 'New value for the field', VALUE_REQUIRED),
+        return new external_function_parameters([
+            'userid' => new external_value(PARAM_INT, 'User ID', VALUE_REQUIRED),
+            'field' => new external_value(PARAM_TEXT, 'Field to update: studentstatus or academicstatus', VALUE_REQUIRED),
+            'value' => new external_value(PARAM_TEXT, 'New value for the field', VALUE_REQUIRED),
         ]);
     }
 
@@ -222,11 +222,11 @@ class update_student_status extends external_api {
      * @return external_single_structure
      */
     public static function execute_returns() {
-        return new \external_single_structure([
-            'status' => new \external_value(PARAM_TEXT, 'Status of the operation'),
-            'message' => new \external_value(PARAM_TEXT, 'Result message'),
-            'field' => new \external_value(PARAM_TEXT, 'Field updated', VALUE_OPTIONAL),
-            'value' => new \external_value(PARAM_TEXT, 'New value', VALUE_OPTIONAL),
+        return new external_single_structure([
+            'status' => new external_value(PARAM_TEXT, 'Status of the operation'),
+            'message' => new external_value(PARAM_TEXT, 'Result message'),
+            'field' => new external_value(PARAM_TEXT, 'Field updated', VALUE_OPTIONAL),
+            'value' => new external_value(PARAM_TEXT, 'New value', VALUE_OPTIONAL),
         ]);
     }
 }

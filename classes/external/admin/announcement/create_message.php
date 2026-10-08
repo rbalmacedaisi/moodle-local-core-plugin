@@ -38,18 +38,18 @@ require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/announcement_
 class create_message extends external_api {
 
     public static function execute_parameters() {
-        return new \external_function_parameters([
-            'title'             => new \external_value(PARAM_TEXT, 'Headline of the broadcast',                 VALUE_REQUIRED),
-            'messagetext'       => new \external_value(PARAM_RAW,  'Body (HTML allowed, plain text recommended)', VALUE_REQUIRED),
-            'messagetype'       => new \external_value(PARAM_ALPHA, 'info|warning',                              VALUE_DEFAULT, 'info'),
-            'audience_scope'    => new \external_value(PARAM_ALPHA, 'all|career|group',                          VALUE_DEFAULT, 'all'),
-            'audience_careerid' => new \external_value(PARAM_INT,   'Learning plan id (when scope=career)',      VALUE_DEFAULT, 0),
-            'audience_groupid'  => new \external_value(PARAM_INT,   'Moodle group id (when scope=group)',        VALUE_DEFAULT, 0),
-            'require_ack'       => new \external_value(PARAM_BOOL,  'True when a student must accept',            VALUE_DEFAULT, true),
-            'ack_label'         => new \external_value(PARAM_TEXT, 'Custom label for the ack checkbox',         VALUE_DEFAULT, ''),
-            'priority'          => new \external_value(PARAM_INT,   'Higher value wins',                         VALUE_DEFAULT, 50),
-            'starts_at'         => new \external_value(PARAM_INT,   'Optional unix ts',                          VALUE_DEFAULT, 0),
-            'ends_at'           => new \external_value(PARAM_INT,   'Optional unix ts',                          VALUE_DEFAULT, 0),
+        return new external_function_parameters([
+            'title'             => new external_value(PARAM_TEXT, 'Headline of the broadcast',                 VALUE_REQUIRED),
+            'messagetext'       => new external_value(PARAM_RAW,  'Body (HTML allowed, plain text recommended)', VALUE_REQUIRED),
+            'messagetype'       => new external_value(PARAM_ALPHA, 'info|warning',                              VALUE_DEFAULT, 'info'),
+            'audience_scope'    => new external_value(PARAM_ALPHA, 'all|career|group',                          VALUE_DEFAULT, 'all'),
+            'audience_careerid' => new external_value(PARAM_INT,   'Learning plan id (when scope=career)',      VALUE_DEFAULT, 0),
+            'audience_groupid'  => new external_value(PARAM_INT,   'Moodle group id (when scope=group)',        VALUE_DEFAULT, 0),
+            'require_ack'       => new external_value(PARAM_BOOL,  'True when a student must accept',            VALUE_DEFAULT, true),
+            'ack_label'         => new external_value(PARAM_TEXT, 'Custom label for the ack checkbox',         VALUE_DEFAULT, ''),
+            'priority'          => new external_value(PARAM_INT,   'Higher value wins',                         VALUE_DEFAULT, 50),
+            'starts_at'         => new external_value(PARAM_INT,   'Optional unix ts',                          VALUE_DEFAULT, 0),
+            'ends_at'           => new external_value(PARAM_INT,   'Optional unix ts',                          VALUE_DEFAULT, 0),
         ]);
     }
 
@@ -114,21 +114,21 @@ class create_message extends external_api {
     }
 
     public static function execute_returns() {
-        return new \external_single_structure([
-            'ok'                 => new \external_value(PARAM_BOOL, 'True when the broadcast was created'),
-            'id'                 => new \external_value(PARAM_INT,  'New message id'),
-            'title'              => new \external_value(PARAM_TEXT, 'Title echoed back'),
-            'messagetype'        => new \external_value(PARAM_ALPHA, 'info|warning'),
-            'audience_scope'     => new \external_value(PARAM_ALPHA, 'all|career|group'),
-            'audience_careerid'  => new \external_value(PARAM_INT,   'Career id'),
-            'audience_groupid'   => new \external_value(PARAM_INT,   'Group id'),
-            'require_ack'        => new \external_value(PARAM_BOOL, 'Requires the ack checkbox'),
-            'ack_label'          => new \external_value(PARAM_TEXT, 'Label for the ack checkbox'),
-            'priority'           => new \external_value(PARAM_INT,  'Numeric priority'),
-            'starts_at'          => new \external_value(PARAM_INT,  'Unix ts'),
-            'ends_at'            => new \external_value(PARAM_INT,  'Unix ts'),
-            'recipients'         => new \external_value(PARAM_INT,  'Resolved audience size'),
-            'timecreated'        => new \external_value(PARAM_INT,  'Unix ts'),
+        return new external_single_structure([
+            'ok'                 => new external_value(PARAM_BOOL, 'True when the broadcast was created'),
+            'id'                 => new external_value(PARAM_INT,  'New message id'),
+            'title'              => new external_value(PARAM_TEXT, 'Title echoed back'),
+            'messagetype'        => new external_value(PARAM_ALPHA, 'info|warning'),
+            'audience_scope'     => new external_value(PARAM_ALPHA, 'all|career|group'),
+            'audience_careerid'  => new external_value(PARAM_INT,   'Career id'),
+            'audience_groupid'   => new external_value(PARAM_INT,   'Group id'),
+            'require_ack'        => new external_value(PARAM_BOOL, 'Requires the ack checkbox'),
+            'ack_label'          => new external_value(PARAM_TEXT, 'Label for the ack checkbox'),
+            'priority'           => new external_value(PARAM_INT,  'Numeric priority'),
+            'starts_at'          => new external_value(PARAM_INT,  'Unix ts'),
+            'ends_at'            => new external_value(PARAM_INT,  'Unix ts'),
+            'recipients'         => new external_value(PARAM_INT,  'Resolved audience size'),
+            'timecreated'        => new external_value(PARAM_INT,  'Unix ts'),
         ]);
     }
 }

@@ -55,9 +55,9 @@ class get_academic_calendar_period extends external_api {
      * @return external_function_parameters
      */
      public static function execute_parameters(): external_function_parameters {
-        return new \external_function_parameters(
+        return new external_function_parameters(
             [
-                'year' => new \external_value(PARAM_INT, 'Year',VALUE_DEFAULT,null)
+                'year' => new external_value(PARAM_INT, 'Year',VALUE_DEFAULT,null)
             ]
         );
     }
@@ -91,11 +91,11 @@ class get_academic_calendar_period extends external_api {
      * @return external_description
      */
     public static function execute_returns(): external_description {
-        return new \external_single_structure(
+        return new external_single_structure(
             array(
-                'status' => new \external_value(PARAM_INT, '1 if success, -1 otherwise',VALUE_DEFAULT,1),
-                'academicPeriodRecords' => new \external_value(PARAM_RAW, 'Academic period records',VALUE_DEFAULT,null),
-                'message' => new \external_value(PARAM_TEXT, 'The error message or Ok.',VALUE_DEFAULT,'ok'),
+                'status' => new external_value(PARAM_INT, '1 if success, -1 otherwise',VALUE_DEFAULT,1),
+                'academicPeriodRecords' => new external_value(PARAM_RAW, 'Academic period records',VALUE_DEFAULT,null),
+                'message' => new external_value(PARAM_TEXT, 'The error message or Ok.',VALUE_DEFAULT,'ok'),
             )
         );
     }

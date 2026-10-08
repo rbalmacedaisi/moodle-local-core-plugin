@@ -16,8 +16,8 @@ class get_course_announcements extends external_api
 {
     public static function execute_parameters(): external_function_parameters
     {
-        return new \external_function_parameters([
-            'courseId' => new \external_value(PARAM_INT, 'Moodle course id', VALUE_REQUIRED),
+        return new external_function_parameters([
+            'courseId' => new external_value(PARAM_INT, 'Moodle course id', VALUE_REQUIRED),
         ]);
     }
 
@@ -155,9 +155,9 @@ class get_course_announcements extends external_api
 
     public static function execute_returns(): external_description
     {
-        return new \external_single_structure([
-            'status' => new \external_value(PARAM_INT, '1 ok, -1 error', VALUE_DEFAULT, 1),
-            'posts'  => new \external_value(PARAM_RAW, 'JSON array of announcement posts', VALUE_DEFAULT, '[]'),
+        return new external_single_structure([
+            'status' => new external_value(PARAM_INT, '1 ok, -1 error', VALUE_DEFAULT, 1),
+            'posts'  => new external_value(PARAM_RAW, 'JSON array of announcement posts', VALUE_DEFAULT, '[]'),
         ]);
     }
 }

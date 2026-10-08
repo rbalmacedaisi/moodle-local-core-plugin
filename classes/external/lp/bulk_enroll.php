@@ -22,14 +22,14 @@ use external_value;
 class bulk_enroll extends external_api {
 
     public static function execute_parameters(): external_function_parameters {
-        return new \external_function_parameters([
-            'userids'      => new \external_multiple_structure(
-                new \external_value(PARAM_INT, 'User ID'),
+        return new external_function_parameters([
+            'userids'      => new external_multiple_structure(
+                new external_value(PARAM_INT, 'User ID'),
                 'List of user IDs to enroll'
             ),
-            'targetplanid' => new \external_value(PARAM_INT,  'Target learning plan ID'),
-            'periodid'     => new \external_value(PARAM_INT,  'Target period ID (0 = none)', VALUE_DEFAULT, 0),
-            'groupname'    => new \external_value(PARAM_TEXT, 'Group name (optional)',        VALUE_DEFAULT, ''),
+            'targetplanid' => new external_value(PARAM_INT,  'Target learning plan ID'),
+            'periodid'     => new external_value(PARAM_INT,  'Target period ID (0 = none)', VALUE_DEFAULT, 0),
+            'groupname'    => new external_value(PARAM_TEXT, 'Group name (optional)',        VALUE_DEFAULT, ''),
         ]);
     }
 
@@ -164,12 +164,12 @@ class bulk_enroll extends external_api {
     }
 
     public static function execute_returns(): \external_description {
-        return new \external_single_structure([
-            'results'  => new \external_value(PARAM_RAW,  'JSON array of per-user results'),
-            'enrolled' => new \external_value(PARAM_INT,  'Number of successfully enrolled'),
-            'skipped'  => new \external_value(PARAM_INT,  'Number already enrolled (skipped)'),
-            'errors'   => new \external_value(PARAM_INT,  'Number of errors'),
-            'message'  => new \external_value(PARAM_TEXT, 'Global error message', VALUE_DEFAULT, ''),
+        return new external_single_structure([
+            'results'  => new external_value(PARAM_RAW,  'JSON array of per-user results'),
+            'enrolled' => new external_value(PARAM_INT,  'Number of successfully enrolled'),
+            'skipped'  => new external_value(PARAM_INT,  'Number already enrolled (skipped)'),
+            'errors'   => new external_value(PARAM_INT,  'Number of errors'),
+            'message'  => new external_value(PARAM_TEXT, 'Global error message', VALUE_DEFAULT, ''),
         ]);
     }
 }

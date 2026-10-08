@@ -44,32 +44,32 @@ use context_system;
 class create_extemporaneous_revalidation extends external_api {
 
     public static function execute_parameters(): external_function_parameters {
-        return new \external_function_parameters([
-            'classid' => new \external_value(PARAM_INT, 'Class id', VALUE_REQUIRED),
-            'userid'  => new \external_value(PARAM_INT, 'Student userid', VALUE_REQUIRED),
-            'reason'  => new \external_value(PARAM_TEXT, 'Reason (20-500 chars)', VALUE_REQUIRED),
-            'override_session_start' => new \external_value(PARAM_INT, 'Optional override of BBB session start (UNIX ts)', VALUE_DEFAULT, 0),
+        return new external_function_parameters([
+            'classid' => new external_value(PARAM_INT, 'Class id', VALUE_REQUIRED),
+            'userid'  => new external_value(PARAM_INT, 'Student userid', VALUE_REQUIRED),
+            'reason'  => new external_value(PARAM_TEXT, 'Reason (20-500 chars)', VALUE_REQUIRED),
+            'override_session_start' => new external_value(PARAM_INT, 'Optional override of BBB session start (UNIX ts)', VALUE_DEFAULT, 0),
         ]);
     }
 
     public static function execute_returns(): external_single_structure {
-        return new \external_single_structure([
-            'ok'    => new \external_value(PARAM_BOOL, 'True on success'),
-            'error' => new \external_value(PARAM_RAW, 'Error message'),
-            'record' => new \external_single_structure([
-                'id'              => new \external_value(PARAM_INT, 'Revalidation id'),
-                'classid'         => new \external_value(PARAM_INT, 'Class id'),
-                'userid'          => new \external_value(PARAM_INT, 'Student userid'),
-                'corecourseid'    => new \external_value(PARAM_INT, 'Core course id'),
-                'payment_state'   => new \external_value(PARAM_RAW, 'unpaid|paid'),
-                'invoice_id'      => new \external_value(PARAM_RAW, 'Odoo invoice id'),
-                'invoice_number'  => new \external_value(PARAM_RAW, 'Odoo invoice number'),
-                'payment_link'    => new \external_value(PARAM_RAW, 'Odoo payment link'),
-                'bbb_url'         => new \external_value(PARAM_RAW, 'BBB session url'),
-                'sessionstart'    => new \external_value(PARAM_INT, 'Session start'),
-                'sessionend'      => new \external_value(PARAM_INT, 'Session end'),
-                'extemporaneous'  => new \external_value(PARAM_INT, '1 if extemporaneous'),
-                'extemporaneous_reason' => new \external_value(PARAM_RAW, 'Extemporaneous reason'),
+        return new external_single_structure([
+            'ok'    => new external_value(PARAM_BOOL, 'True on success'),
+            'error' => new external_value(PARAM_RAW, 'Error message'),
+            'record' => new external_single_structure([
+                'id'              => new external_value(PARAM_INT, 'Revalidation id'),
+                'classid'         => new external_value(PARAM_INT, 'Class id'),
+                'userid'          => new external_value(PARAM_INT, 'Student userid'),
+                'corecourseid'    => new external_value(PARAM_INT, 'Core course id'),
+                'payment_state'   => new external_value(PARAM_RAW, 'unpaid|paid'),
+                'invoice_id'      => new external_value(PARAM_RAW, 'Odoo invoice id'),
+                'invoice_number'  => new external_value(PARAM_RAW, 'Odoo invoice number'),
+                'payment_link'    => new external_value(PARAM_RAW, 'Odoo payment link'),
+                'bbb_url'         => new external_value(PARAM_RAW, 'BBB session url'),
+                'sessionstart'    => new external_value(PARAM_INT, 'Session start'),
+                'sessionend'      => new external_value(PARAM_INT, 'Session end'),
+                'extemporaneous'  => new external_value(PARAM_INT, '1 if extemporaneous'),
+                'extemporaneous_reason' => new external_value(PARAM_RAW, 'Extemporaneous reason'),
             ], 'Record details on success', VALUE_DEFAULT, null),
         ]);
     }

@@ -39,9 +39,9 @@ require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/wellness_dyna
 class admin_toggle_dynamic_form_active extends external_api {
 
     public static function execute_parameters() {
-        return new \external_function_parameters([
-            'id'     => new \external_value(PARAM_INT,  'Form id', VALUE_REQUIRED),
-            'active' => new \external_value(PARAM_BOOL, 'New active flag', VALUE_REQUIRED),
+        return new external_function_parameters([
+            'id'     => new external_value(PARAM_INT,  'Form id', VALUE_REQUIRED),
+            'active' => new external_value(PARAM_BOOL, 'New active flag', VALUE_REQUIRED),
         ]);
     }
 
@@ -60,8 +60,8 @@ class admin_toggle_dynamic_form_active extends external_api {
     }
 
     public static function execute_returns() {
-        return new \external_single_structure([
-            'ok' => new \external_value(PARAM_BOOL, 'True if the row existed and was updated'),
+        return new external_single_structure([
+            'ok' => new external_value(PARAM_BOOL, 'True if the row existed and was updated'),
         ]);
     }
 }

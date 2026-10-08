@@ -17,10 +17,10 @@ use moodle_exception;
 class unenroll_student extends external_api {
 
     public static function execute_parameters() {
-        return new \external_function_parameters(
+        return new external_function_parameters(
             array(
-                'product_name' => new \external_value(PARAM_TEXT, 'The name of the Odoo Product (Moodle Learning Plan Name)', VALUE_REQUIRED),
-                'username'     => new \external_value(PARAM_RAW, 'The username of the student', VALUE_REQUIRED)
+                'product_name' => new external_value(PARAM_TEXT, 'The name of the Odoo Product (Moodle Learning Plan Name)', VALUE_REQUIRED),
+                'username'     => new external_value(PARAM_RAW, 'The username of the student', VALUE_REQUIRED)
             )
         );
     }
@@ -44,13 +44,13 @@ class unenroll_student extends external_api {
         $lookupUsername = \core_text::strtolower($params['username']);
         $user = $DB->get_record('user', ['username' => $lookupUsername, 'deleted' => 0]);
         if (!$user) {
-            throw new \moodle_exception('invaliduser', 'error', '', $params['username'] . " (mapped to $lookupUsername)");
+            throw new moodle_exception('invaliduser', 'error', '', $params['username'] . " (mapped to $lookupUsername)");
         }
 
         // 2. Resolve Learning Plan
         $plan = $DB->get_record('local_learning_plans', ['name' => $params['product_name']]);
         if (!$plan) {
-            throw new \moodle_exception('invalidlearningplan', 'local_grupomakro_core', '', $params['product_name']);
+            throw new moodle_exception('invalidlearningplan', 'local_grupomakro_core', '', $params['product_name']);
         }
 
         // 3. Resolve Learning User Record (needed for delete function)
@@ -78,10 +78,10 @@ class unenroll_student extends external_api {
     }
 
     public static function execute_returns() {
-        return new \external_single_structure(
+        return new external_single_structure(
             array(
-                'status' => new \external_value(PARAM_TEXT, 'Status of the operation'),
-                'message' => new \external_value(PARAM_TEXT, 'Result message')
+                'status' => new external_value(PARAM_TEXT, 'Status of the operation'),
+                'message' => new external_value(PARAM_TEXT, 'Result message')
             )
         );
     }

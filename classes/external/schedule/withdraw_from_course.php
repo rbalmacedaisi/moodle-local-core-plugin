@@ -28,9 +28,9 @@ require_once($CFG->dirroot . '/enrol/locallib.php');
 class withdraw_from_course extends external_api {
 
     public static function execute_parameters() {
-        return new \external_function_parameters([
-            'userId'         => new \external_value(PARAM_INT, 'Student user ID'),
-            'coreCourseId'   => new \external_value(PARAM_INT, 'Moodle course ID to withdraw from'),
+        return new external_function_parameters([
+            'userId'         => new external_value(PARAM_INT, 'Student user ID'),
+            'coreCourseId'   => new external_value(PARAM_INT, 'Moodle course ID to withdraw from'),
         ]);
     }
 
@@ -136,9 +136,9 @@ class withdraw_from_course extends external_api {
     }
 
     public static function execute_returns() {
-        return new \external_single_structure([
-            'status'  => new \external_value(PARAM_TEXT, 'ok | error'),
-            'message' => new \external_value(PARAM_TEXT, 'Descriptive message'),
+        return new external_single_structure([
+            'status'  => new external_value(PARAM_TEXT, 'ok | error'),
+            'message' => new external_value(PARAM_TEXT, 'Descriptive message'),
         ]);
     }
 }

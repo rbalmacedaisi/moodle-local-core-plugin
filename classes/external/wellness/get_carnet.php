@@ -40,7 +40,7 @@ require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/wellness_carn
 class get_carnet extends external_api {
 
     public static function execute_parameters() {
-        return new \external_function_parameters([]);
+        return new external_function_parameters([]);
     }
 
     public static function execute() {
@@ -92,22 +92,22 @@ class get_carnet extends external_api {
     }
 
     public static function execute_returns() {
-        return new \external_single_structure([
-            'carnet' => new \external_single_structure([
-                'id'                 => new \external_value(PARAM_INT,  'Carnet id'),
-                'userid'             => new \external_value(PARAM_INT,  'Student userid'),
-                'fullname'           => new \external_value(PARAM_TEXT,'Student fullname'),
-                'documentnumber'     => new \external_value(PARAM_TEXT,'Student document number'),
-                'learning_plan_name' => new \external_value(PARAM_TEXT,'Career / programme name'),
-                'admission_date'     => new \external_value(PARAM_INT,  'Unix ts; 0 = unknown'),
-                'valid_from'         => new \external_value(PARAM_INT,  'Unix ts'),
-                'valid_until'        => new \external_value(PARAM_INT,  'Unix ts'),
-                'status'             => new \external_value(PARAM_TEXT,'activo|suspendido|egresado'),
-                'is_expired'         => new \external_value(PARAM_BOOL,'valid_until < now'),
-                'issued_at'          => new \external_value(PARAM_INT,  'Unix ts'),
-                'photo_url'          => new \external_value(PARAM_TEXT,'Photo URL (custom upload or user profile picture)'),
-                'qr_url'             => new \external_value(PARAM_TEXT,'Absolute URL the QR encodes'),
-                'logo_url'           => new \external_value(PARAM_TEXT,'Institutional logo URL from settings'),
+        return new external_single_structure([
+            'carnet' => new external_single_structure([
+                'id'                 => new external_value(PARAM_INT,  'Carnet id'),
+                'userid'             => new external_value(PARAM_INT,  'Student userid'),
+                'fullname'           => new external_value(PARAM_TEXT,'Student fullname'),
+                'documentnumber'     => new external_value(PARAM_TEXT,'Student document number'),
+                'learning_plan_name' => new external_value(PARAM_TEXT,'Career / programme name'),
+                'admission_date'     => new external_value(PARAM_INT,  'Unix ts; 0 = unknown'),
+                'valid_from'         => new external_value(PARAM_INT,  'Unix ts'),
+                'valid_until'        => new external_value(PARAM_INT,  'Unix ts'),
+                'status'             => new external_value(PARAM_TEXT,'activo|suspendido|egresado'),
+                'is_expired'         => new external_value(PARAM_BOOL,'valid_until < now'),
+                'issued_at'          => new external_value(PARAM_INT,  'Unix ts'),
+                'photo_url'          => new external_value(PARAM_TEXT,'Photo URL (custom upload or user profile picture)'),
+                'qr_url'             => new external_value(PARAM_TEXT,'Absolute URL the QR encodes'),
+                'logo_url'           => new external_value(PARAM_TEXT,'Institutional logo URL from settings'),
             ]),
         ]);
     }

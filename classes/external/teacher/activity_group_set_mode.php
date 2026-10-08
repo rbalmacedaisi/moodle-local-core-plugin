@@ -14,10 +14,10 @@ use external_single_structure;
 class activity_group_set_mode extends external_api {
 
     public static function execute_parameters(): external_function_parameters {
-        return new \external_function_parameters([
-            'groupid'    => new \external_value(PARAM_INT, 'gmk_activity_group.id', VALUE_REQUIRED),
-            'mode'       => new \external_value(PARAM_ALPHA, 'open o fixed', VALUE_REQUIRED),
-            'maxmembers' => new \external_value(PARAM_INT, 'Cupo (0 = no cambiar)', VALUE_DEFAULT, 0),
+        return new external_function_parameters([
+            'groupid'    => new external_value(PARAM_INT, 'gmk_activity_group.id', VALUE_REQUIRED),
+            'mode'       => new external_value(PARAM_ALPHA, 'open o fixed', VALUE_REQUIRED),
+            'maxmembers' => new external_value(PARAM_INT, 'Cupo (0 = no cambiar)', VALUE_DEFAULT, 0),
         ]);
     }
 
@@ -64,9 +64,9 @@ class activity_group_set_mode extends external_api {
     }
 
     public static function execute_returns(): external_single_structure {
-        return new \external_single_structure([
-            'status'  => new \external_value(PARAM_TEXT, 'success|error'),
-            'message' => new \external_value(PARAM_TEXT, 'Mensaje'),
+        return new external_single_structure([
+            'status'  => new external_value(PARAM_TEXT, 'success|error'),
+            'message' => new external_value(PARAM_TEXT, 'Mensaje'),
         ]);
     }
 }

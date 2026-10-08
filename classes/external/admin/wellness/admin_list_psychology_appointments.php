@@ -41,11 +41,11 @@ require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/wellness_psyc
 class admin_list_psychology_appointments extends external_api {
 
     public static function execute_parameters() {
-        return new \external_function_parameters([
-            'psychologist_userid' => new \external_value(PARAM_INT,  '0 = all specialists', VALUE_DEFAULT, 0),
-            'status'              => new \external_value(PARAM_ALPHA,'pendiente|confirmada|modificada|cancelada|atendida|no_asistio; empty = all', VALUE_DEFAULT, ''),
-            'from'                => new \external_value(PARAM_INT,  'Start unix ts (inclusive); 0 = now - 7 days', VALUE_DEFAULT, 0),
-            'to'                  => new \external_value(PARAM_INT,  'End unix ts (inclusive); 0 = now + 60 days', VALUE_DEFAULT, 0),
+        return new external_function_parameters([
+            'psychologist_userid' => new external_value(PARAM_INT,  '0 = all specialists', VALUE_DEFAULT, 0),
+            'status'              => new external_value(PARAM_ALPHA,'pendiente|confirmada|modificada|cancelada|atendida|no_asistio; empty = all', VALUE_DEFAULT, ''),
+            'from'                => new external_value(PARAM_INT,  'Start unix ts (inclusive); 0 = now - 7 days', VALUE_DEFAULT, 0),
+            'to'                  => new external_value(PARAM_INT,  'End unix ts (inclusive); 0 = now + 60 days', VALUE_DEFAULT, 0),
         ]);
     }
 
@@ -125,36 +125,36 @@ class admin_list_psychology_appointments extends external_api {
     }
 
     public static function execute_returns() {
-        $row = new \external_single_structure([
-            'id'                  => new \external_value(PARAM_INT,  'Appointment id'),
-            'userid'              => new \external_value(PARAM_INT,  'Student userid'),
-            'student_firstname'   => new \external_value(PARAM_TEXT,'Student firstname'),
-            'student_lastname'    => new \external_value(PARAM_TEXT,'Student lastname'),
-            'student_email'       => new \external_value(PARAM_TEXT,'Student email'),
-            'student_phone1'      => new \external_value(PARAM_TEXT,'Student phone1 (moodle user.phone1)'),
-            'student_phone2'      => new \external_value(PARAM_TEXT,'Student phone2 (moodle user.phone2)'),
-            'slotid'              => new \external_value(PARAM_INT,  'Slot id (0 when rescheduled ad-hoc)'),
-            'psychologist_userid' => new \external_value(PARAM_INT,  'Specialist userid'),
-            'psychologist_name'   => new \external_value(PARAM_TEXT,'Specialist display name'),
-            'appointment_at'      => new \external_value(PARAM_INT,  'Unix ts'),
-            'duration_minutes'    => new \external_value(PARAM_INT,  'Duration'),
-            'modality'            => new \external_value(PARAM_TEXT,'presencial|virtual|mixto'),
-            'reason'              => new \external_value(PARAM_RAW,  'Free-text reason'),
-            'status'              => new \external_value(PARAM_TEXT,'pendiente|confirmada|modificada|cancelada|atendida|no_asistio'),
-            'cancel_reason'       => new \external_value(PARAM_RAW,  'Cancel reason'),
-            'attendees_notes'     => new \external_value(PARAM_RAW,  'Notes from the specialist'),
-            'status_changed_at'  => new \external_value(PARAM_INT,  'Unix ts'),
-            'status_changed_by'  => new \external_value(PARAM_INT,  'Userid of the actor'),
-            'student_notified_at' => new \external_value(PARAM_INT,  'Unix ts'),
-            'staff_notified_at'   => new \external_value(PARAM_INT,  'Unix ts'),
-            'timecreated'         => new \external_value(PARAM_INT,  'Unix ts'),
+        $row = new external_single_structure([
+            'id'                  => new external_value(PARAM_INT,  'Appointment id'),
+            'userid'              => new external_value(PARAM_INT,  'Student userid'),
+            'student_firstname'   => new external_value(PARAM_TEXT,'Student firstname'),
+            'student_lastname'    => new external_value(PARAM_TEXT,'Student lastname'),
+            'student_email'       => new external_value(PARAM_TEXT,'Student email'),
+            'student_phone1'      => new external_value(PARAM_TEXT,'Student phone1 (moodle user.phone1)'),
+            'student_phone2'      => new external_value(PARAM_TEXT,'Student phone2 (moodle user.phone2)'),
+            'slotid'              => new external_value(PARAM_INT,  'Slot id (0 when rescheduled ad-hoc)'),
+            'psychologist_userid' => new external_value(PARAM_INT,  'Specialist userid'),
+            'psychologist_name'   => new external_value(PARAM_TEXT,'Specialist display name'),
+            'appointment_at'      => new external_value(PARAM_INT,  'Unix ts'),
+            'duration_minutes'    => new external_value(PARAM_INT,  'Duration'),
+            'modality'            => new external_value(PARAM_TEXT,'presencial|virtual|mixto'),
+            'reason'              => new external_value(PARAM_RAW,  'Free-text reason'),
+            'status'              => new external_value(PARAM_TEXT,'pendiente|confirmada|modificada|cancelada|atendida|no_asistio'),
+            'cancel_reason'       => new external_value(PARAM_RAW,  'Cancel reason'),
+            'attendees_notes'     => new external_value(PARAM_RAW,  'Notes from the specialist'),
+            'status_changed_at'  => new external_value(PARAM_INT,  'Unix ts'),
+            'status_changed_by'  => new external_value(PARAM_INT,  'Userid of the actor'),
+            'student_notified_at' => new external_value(PARAM_INT,  'Unix ts'),
+            'staff_notified_at'   => new external_value(PARAM_INT,  'Unix ts'),
+            'timecreated'         => new external_value(PARAM_INT,  'Unix ts'),
         ]);
-        return new \external_single_structure([
-            'psychologist_userid' => new \external_value(PARAM_INT, 'Echoed filter'),
-            'status'              => new \external_value(PARAM_TEXT,'Echoed filter'),
-            'from'                => new \external_value(PARAM_INT, 'Echoed range start'),
-            'to'                  => new \external_value(PARAM_INT, 'Echoed range end'),
-            'appointments'        => new \external_multiple_structure($row, 'Appointments'),
+        return new external_single_structure([
+            'psychologist_userid' => new external_value(PARAM_INT, 'Echoed filter'),
+            'status'              => new external_value(PARAM_TEXT,'Echoed filter'),
+            'from'                => new external_value(PARAM_INT, 'Echoed range start'),
+            'to'                  => new external_value(PARAM_INT, 'Echoed range end'),
+            'appointments'        => new external_multiple_structure($row, 'Appointments'),
         ]);
     }
 }

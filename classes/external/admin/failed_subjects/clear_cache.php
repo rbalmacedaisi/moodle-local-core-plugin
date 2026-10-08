@@ -41,7 +41,7 @@ use context_system;
 class clear_cache extends external_api {
 
     public static function execute_parameters(): external_function_parameters {
-        return new \external_function_parameters([]);
+        return new external_function_parameters([]);
     }
 
     public static function execute(): array {
@@ -54,8 +54,8 @@ class clear_cache extends external_api {
     }
 
     public static function execute_returns(): external_single_structure {
-        return new \external_single_structure([
-            'status' => new \external_value(PARAM_TEXT, 'ok'),
+        return new external_single_structure([
+            'status' => new external_value(PARAM_TEXT, 'ok'),
         ]);
     }
 }

@@ -51,11 +51,11 @@ class get_teachers_disponibility_calendar extends external_api {
      * @return external_function_parameters
      */
     public static function execute_parameters(): external_function_parameters {
-        return new \external_function_parameters(
+        return new external_function_parameters(
             [
-                'instructorId' => new \external_value(PARAM_TEXT, 'ID of the teacher.', VALUE_REQUIRED),
-                'initDate' => new \external_value(PARAM_TEXT, 'The start date to get the events.', VALUE_DEFAULT,null),
-                'endDate' => new \external_value(PARAM_TEXT, 'The end date to get the events.', VALUE_DEFAULT,null)
+                'instructorId' => new external_value(PARAM_TEXT, 'ID of the teacher.', VALUE_REQUIRED),
+                'initDate' => new external_value(PARAM_TEXT, 'The start date to get the events.', VALUE_DEFAULT,null),
+                'endDate' => new external_value(PARAM_TEXT, 'The end date to get the events.', VALUE_DEFAULT,null)
             ]
         );
     }
@@ -97,11 +97,11 @@ class get_teachers_disponibility_calendar extends external_api {
      * @return external_description
      */
     public static function execute_returns(): external_description {
-        return new \external_single_structure(
+        return new external_single_structure(
             array(
-                'status'=> new \external_value(PARAM_INT, '1 if success, -1 otherwise.', VALUE_DEFAULT,1),
-                'disponibility' => new \external_value(PARAM_RAW, 'The disponibility information.',VALUE_DEFAULT,null),
-                'message' => new \external_value(PARAM_TEXT, 'The error message or Ok.',VALUE_DEFAULT,'ok'),
+                'status'=> new external_value(PARAM_INT, '1 if success, -1 otherwise.', VALUE_DEFAULT,1),
+                'disponibility' => new external_value(PARAM_RAW, 'The disponibility information.',VALUE_DEFAULT,null),
+                'message' => new external_value(PARAM_TEXT, 'The error message or Ok.',VALUE_DEFAULT,'ok'),
             )
         );
     }

@@ -16,11 +16,11 @@ use stdClass;
 class get_pending_grading extends external_api {
 
     public static function execute_parameters() {
-        return new \external_function_parameters(
+        return new external_function_parameters(
             array(
-                'userid' => new \external_value(PARAM_INT, 'The ID of the teacher', VALUE_REQUIRED),
-                'classid' => new \external_value(PARAM_INT, 'Optional Class ID to filter', VALUE_DEFAULT, 0),
-                'status' => new \external_value(PARAM_ALPHA, 'Status (pending/history)', VALUE_DEFAULT, 'pending')
+                'userid' => new external_value(PARAM_INT, 'The ID of the teacher', VALUE_REQUIRED),
+                'classid' => new external_value(PARAM_INT, 'Optional Class ID to filter', VALUE_DEFAULT, 0),
+                'status' => new external_value(PARAM_ALPHA, 'Status (pending/history)', VALUE_DEFAULT, 'pending')
             )
         );
     }
@@ -328,44 +328,44 @@ class get_pending_grading extends external_api {
     }
 
     public static function execute_returns() {
-        return new \external_multiple_structure(
-            new \external_single_structure(
+        return new external_multiple_structure(
+            new external_single_structure(
                 array(
-                    'id' => new \external_value(PARAM_INT, 'Submission ID'),
-                    'assignmentid' => new \external_value(PARAM_INT, 'Item (Assignment/Quiz) ID'),
-                    'cmid' => new \external_value(PARAM_INT, 'Course Module ID', VALUE_OPTIONAL),
-                    'modname' => new \external_value(PARAM_TEXT, 'Module name (assign/quiz)', VALUE_OPTIONAL),
-                    'assignmentname' => new \external_value(PARAM_TEXT, 'Item Name'),
-                    'studentid' => new \external_value(PARAM_INT, 'Student User ID'),
-                    'studentname' => new \external_value(PARAM_TEXT, 'Student Fullname'),
-                    'studentemail' => new \external_value(PARAM_TEXT, 'Student Email'),
-                    'studentavatar' => new \external_value(PARAM_URL, 'Student Avatar URL'),
-                    'submissiontime' => new \external_value(PARAM_INT, 'Submission Timestamp'),
-                    'submissionstatus' => new \external_value(PARAM_TEXT, 'Submission status (submitted/new=reopened)', VALUE_DEFAULT, 'submitted'),
-                    'duedate' => new \external_value(PARAM_INT, 'Due Date Timestamp'),
-                    'courseid' => new \external_value(PARAM_INT, 'Course ID'),
-                    'coursename' => new \external_value(PARAM_TEXT, 'Course Name'),
-                    'submissiontext' => new \external_value(PARAM_RAW, 'Submission text (raw)', VALUE_DEFAULT, ''),
-                    'submissiontexthtml' => new \external_value(PARAM_RAW, 'Submission text (formatted html)', VALUE_DEFAULT, ''),
-                    'submissiontextplain' => new \external_value(PARAM_RAW, 'Submission text (plain)', VALUE_DEFAULT, ''),
-                    'files' => new \external_multiple_structure(
-                        new \external_single_structure(
+                    'id' => new external_value(PARAM_INT, 'Submission ID'),
+                    'assignmentid' => new external_value(PARAM_INT, 'Item (Assignment/Quiz) ID'),
+                    'cmid' => new external_value(PARAM_INT, 'Course Module ID', VALUE_OPTIONAL),
+                    'modname' => new external_value(PARAM_TEXT, 'Module name (assign/quiz)', VALUE_OPTIONAL),
+                    'assignmentname' => new external_value(PARAM_TEXT, 'Item Name'),
+                    'studentid' => new external_value(PARAM_INT, 'Student User ID'),
+                    'studentname' => new external_value(PARAM_TEXT, 'Student Fullname'),
+                    'studentemail' => new external_value(PARAM_TEXT, 'Student Email'),
+                    'studentavatar' => new external_value(PARAM_URL, 'Student Avatar URL'),
+                    'submissiontime' => new external_value(PARAM_INT, 'Submission Timestamp'),
+                    'submissionstatus' => new external_value(PARAM_TEXT, 'Submission status (submitted/new=reopened)', VALUE_DEFAULT, 'submitted'),
+                    'duedate' => new external_value(PARAM_INT, 'Due Date Timestamp'),
+                    'courseid' => new external_value(PARAM_INT, 'Course ID'),
+                    'coursename' => new external_value(PARAM_TEXT, 'Course Name'),
+                    'submissiontext' => new external_value(PARAM_RAW, 'Submission text (raw)', VALUE_DEFAULT, ''),
+                    'submissiontexthtml' => new external_value(PARAM_RAW, 'Submission text (formatted html)', VALUE_DEFAULT, ''),
+                    'submissiontextplain' => new external_value(PARAM_RAW, 'Submission text (plain)', VALUE_DEFAULT, ''),
+                    'files' => new external_multiple_structure(
+                        new external_single_structure(
                             array(
-                                'filename' => new \external_value(PARAM_TEXT, 'File Name'),
-                                'fileurl' => new \external_value(PARAM_URL, 'Download URL'),
-                                'mimetype' => new \external_value(PARAM_TEXT, 'Mime Type', VALUE_OPTIONAL),
-                                'filesize' => new \external_value(PARAM_INT, 'File size in bytes', VALUE_OPTIONAL),
-                                'source' => new \external_value(PARAM_TEXT, 'Source area (submission_file/onlinetext)', VALUE_OPTIONAL)
+                                'filename' => new external_value(PARAM_TEXT, 'File Name'),
+                                'fileurl' => new external_value(PARAM_URL, 'Download URL'),
+                                'mimetype' => new external_value(PARAM_TEXT, 'Mime Type', VALUE_OPTIONAL),
+                                'filesize' => new external_value(PARAM_INT, 'File size in bytes', VALUE_OPTIONAL),
+                                'source' => new external_value(PARAM_TEXT, 'Source area (submission_file/onlinetext)', VALUE_OPTIONAL)
                             )
                         )
                     ),
-                    'groupinfo' => new \external_single_structure(
+                    'groupinfo' => new external_single_structure(
                         array(
-                            'id'          => new \external_value(PARAM_INT,  'group id', VALUE_OPTIONAL),
-                            'name'        => new \external_value(PARAM_TEXT, 'Nombre del grupo', VALUE_OPTIONAL),
-                            'colorindex'  => new \external_value(PARAM_INT,  '1..5', VALUE_OPTIONAL),
-                            'mode'        => new \external_value(PARAM_TEXT, 'open|fixed', VALUE_OPTIONAL),
-                            'membercount' => new \external_value(PARAM_INT,  'Cantidad de miembros', VALUE_OPTIONAL),
+                            'id'          => new external_value(PARAM_INT,  'group id', VALUE_OPTIONAL),
+                            'name'        => new external_value(PARAM_TEXT, 'Nombre del grupo', VALUE_OPTIONAL),
+                            'colorindex'  => new external_value(PARAM_INT,  '1..5', VALUE_OPTIONAL),
+                            'mode'        => new external_value(PARAM_TEXT, 'open|fixed', VALUE_OPTIONAL),
+                            'membercount' => new external_value(PARAM_INT,  'Cantidad de miembros', VALUE_OPTIONAL),
                         ),
                         'Info de grupo si el envio pertenece a uno (calificacion grupal). null si no.',
                         VALUE_OPTIONAL

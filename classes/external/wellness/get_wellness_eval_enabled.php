@@ -38,7 +38,7 @@ defined('MOODLE_INTERNAL') || die();
 class get_wellness_eval_enabled extends external_api {
 
     public static function execute_parameters() {
-        return new \external_function_parameters([]);
+        return new external_function_parameters([]);
     }
 
     public static function execute() {
@@ -58,9 +58,9 @@ class get_wellness_eval_enabled extends external_api {
     }
 
     public static function execute_returns() {
-        return new \external_single_structure([
-            'enabled'       => new \external_value(PARAM_BOOL, 'Popup habilitado'),
-            'delay_minutes' => new \external_value(PARAM_INT, 'Minutos de espera antes de mostrar el popup'),
+        return new external_single_structure([
+            'enabled'       => new external_value(PARAM_BOOL, 'Popup habilitado'),
+            'delay_minutes' => new external_value(PARAM_INT, 'Minutos de espera antes de mostrar el popup'),
         ]);
     }
 }

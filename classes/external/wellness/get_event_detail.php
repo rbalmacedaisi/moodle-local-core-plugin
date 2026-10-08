@@ -38,8 +38,8 @@ require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/wellness_even
 class get_event_detail extends external_api {
 
     public static function execute_parameters() {
-        return new \external_function_parameters([
-            'eventid' => new \external_value(PARAM_INT, 'Event id', VALUE_REQUIRED),
+        return new external_function_parameters([
+            'eventid' => new external_value(PARAM_INT, 'Event id', VALUE_REQUIRED),
         ]);
     }
 
@@ -84,45 +84,45 @@ class get_event_detail extends external_api {
         // Re-use the event structure from get_events but inline it here
         // because Moodle's external_single_structure expects a concrete
         // structure (not a callable).
-        $event = new \external_single_structure([
-            'id'                     => new \external_value(PARAM_INT,  'Event id'),
-            'title'                  => new \external_value(PARAM_TEXT, 'Title'),
-            'summary'                => new \external_value(PARAM_TEXT, 'One-line teaser'),
-            'description'            => new \external_value(PARAM_RAW,  'Body'),
-            'category'               => new \external_value(PARAM_ALPHA,'deportivo|feria|taller|charla|otro'),
-            'startdate'              => new \external_value(PARAM_INT,  'Unix ts'),
-            'enddate'                => new \external_value(PARAM_INT,  'Unix ts'),
-            'modality'               => new \external_value(PARAM_ALPHA,'presencial|virtual|mixto'),
-            'location'               => new \external_value(PARAM_TEXT, 'Location'),
-            'virtual_url'            => new \external_value(PARAM_TEXT, 'Virtual room URL'),
-            'bbb_guest_url'          => new \external_value(PARAM_TEXT, 'BBB guest join URL'),
-            'capacity'               => new \external_value(PARAM_INT,  '0 = unlimited'),
-            'requires_registration'  => new \external_value(PARAM_INT,  '0/1'),
-            'allow_waitlist'         => new \external_value(PARAM_INT,  '0/1'),
-            'registration_opens_at'  => new \external_value(PARAM_INT,  'Unix ts'),
-            'registration_closes_at' => new \external_value(PARAM_INT,  'Unix ts'),
-            'organizer_name'         => new \external_value(PARAM_TEXT, 'Organizer'),
-            'organizer_email'        => new \external_value(PARAM_TEXT, 'Organizer email'),
-            'cover_path'             => new \external_value(PARAM_TEXT, 'Cover image pluginfile path'),
-            'registration_open'      => new \external_value(PARAM_BOOL, 'Computed flag'),
-            'event_started'          => new \external_value(PARAM_BOOL, 'Computed flag'),
-            'event_ended'            => new \external_value(PARAM_BOOL, 'Computed flag'),
+        $event = new external_single_structure([
+            'id'                     => new external_value(PARAM_INT,  'Event id'),
+            'title'                  => new external_value(PARAM_TEXT, 'Title'),
+            'summary'                => new external_value(PARAM_TEXT, 'One-line teaser'),
+            'description'            => new external_value(PARAM_RAW,  'Body'),
+            'category'               => new external_value(PARAM_ALPHA,'deportivo|feria|taller|charla|otro'),
+            'startdate'              => new external_value(PARAM_INT,  'Unix ts'),
+            'enddate'                => new external_value(PARAM_INT,  'Unix ts'),
+            'modality'               => new external_value(PARAM_ALPHA,'presencial|virtual|mixto'),
+            'location'               => new external_value(PARAM_TEXT, 'Location'),
+            'virtual_url'            => new external_value(PARAM_TEXT, 'Virtual room URL'),
+            'bbb_guest_url'          => new external_value(PARAM_TEXT, 'BBB guest join URL'),
+            'capacity'               => new external_value(PARAM_INT,  '0 = unlimited'),
+            'requires_registration'  => new external_value(PARAM_INT,  '0/1'),
+            'allow_waitlist'         => new external_value(PARAM_INT,  '0/1'),
+            'registration_opens_at'  => new external_value(PARAM_INT,  'Unix ts'),
+            'registration_closes_at' => new external_value(PARAM_INT,  'Unix ts'),
+            'organizer_name'         => new external_value(PARAM_TEXT, 'Organizer'),
+            'organizer_email'        => new external_value(PARAM_TEXT, 'Organizer email'),
+            'cover_path'             => new external_value(PARAM_TEXT, 'Cover image pluginfile path'),
+            'registration_open'      => new external_value(PARAM_BOOL, 'Computed flag'),
+            'event_started'          => new external_value(PARAM_BOOL, 'Computed flag'),
+            'event_ended'            => new external_value(PARAM_BOOL, 'Computed flag'),
         ]);
-        $att = new \external_single_structure([
-            'id'        => new \external_value(PARAM_INT,  'Attachment id'),
-            'kind'      => new \external_value(PARAM_ALPHA,'handout|recording|link|other'),
-            'label'     => new \external_value(PARAM_TEXT, 'Label'),
-            'url'       => new \external_value(PARAM_TEXT, 'External URL (when kind=link)'),
-            'file_path' => new \external_value(PARAM_TEXT, 'Pluginfile path (when kind=handout|recording|other)'),
-            'mimetype'  => new \external_value(PARAM_TEXT, 'MIME'),
-            'filesize'  => new \external_value(PARAM_INT,  'Bytes'),
-            'sort'      => new \external_value(PARAM_INT,  'Order'),
+        $att = new external_single_structure([
+            'id'        => new external_value(PARAM_INT,  'Attachment id'),
+            'kind'      => new external_value(PARAM_ALPHA,'handout|recording|link|other'),
+            'label'     => new external_value(PARAM_TEXT, 'Label'),
+            'url'       => new external_value(PARAM_TEXT, 'External URL (when kind=link)'),
+            'file_path' => new external_value(PARAM_TEXT, 'Pluginfile path (when kind=handout|recording|other)'),
+            'mimetype'  => new external_value(PARAM_TEXT, 'MIME'),
+            'filesize'  => new external_value(PARAM_INT,  'Bytes'),
+            'sort'      => new external_value(PARAM_INT,  'Order'),
         ]);
-        return new \external_single_structure([
+        return new external_single_structure([
             'event'                => $event,
-            'attachments'          => new \external_multiple_structure($att, 'Attachments'),
-            'registered_count'     => new \external_value(PARAM_INT, 'Confirmed registrations'),
-            'registered_waitlist'  => new \external_value(PARAM_INT, 'Waitlist registrations'),
+            'attachments'          => new external_multiple_structure($att, 'Attachments'),
+            'registered_count'     => new external_value(PARAM_INT, 'Confirmed registrations'),
+            'registered_waitlist'  => new external_value(PARAM_INT, 'Waitlist registrations'),
         ]);
     }
 }

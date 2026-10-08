@@ -15,12 +15,12 @@ use stdClass;
 class save_grade extends external_api {
 
     public static function execute_parameters() {
-        return new \external_function_parameters(
+        return new external_function_parameters(
             array(
-                'assignmentid' => new \external_value(PARAM_INT, 'The ID of the assignment', VALUE_REQUIRED),
-                'studentid' => new \external_value(PARAM_INT, 'The ID of the student', VALUE_REQUIRED),
-                'grade' => new \external_value(PARAM_FLOAT, 'The grade to save', VALUE_REQUIRED),
-                'feedback' => new \external_value(PARAM_RAW, 'Feedback comments', VALUE_DEFAULT, '')
+                'assignmentid' => new external_value(PARAM_INT, 'The ID of the assignment', VALUE_REQUIRED),
+                'studentid' => new external_value(PARAM_INT, 'The ID of the student', VALUE_REQUIRED),
+                'grade' => new external_value(PARAM_FLOAT, 'The grade to save', VALUE_REQUIRED),
+                'feedback' => new external_value(PARAM_RAW, 'Feedback comments', VALUE_DEFAULT, '')
             )
         );
     }
@@ -148,10 +148,10 @@ class save_grade extends external_api {
     }
 
     public static function execute_returns() {
-        return new \external_single_structure(
+        return new external_single_structure(
             array(
-                'status' => new \external_value(PARAM_TEXT, 'Status: success or error'),
-                'message' => new \external_value(PARAM_TEXT, 'Result message')
+                'status' => new external_value(PARAM_TEXT, 'Status: success or error'),
+                'message' => new external_value(PARAM_TEXT, 'Result message')
             )
         );
     }

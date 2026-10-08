@@ -56,14 +56,14 @@ class create_student_user extends external_api {
      * @return external_function_parameters
      */
     public static function execute_parameters(): external_function_parameters {
-        return new \external_function_parameters(
+        return new external_function_parameters(
             [
-                'username' => new \external_value(PARAM_TEXT, 'The id of the contract'),
-                'firstname' => new \external_value(PARAM_TEXT, 'The course in the contract'),
-                'lastname' => new \external_value(PARAM_TEXT, 'The course in the contract'),
-                'email' => new \external_value(PARAM_TEXT, 'The course in the contract'),
-                'contractId'=>new \external_value(PARAM_TEXT, 'The course in the contract'),
-                'courseId'=>new \external_value(PARAM_TEXT, 'The course in the contract'),
+                'username' => new external_value(PARAM_TEXT, 'The id of the contract'),
+                'firstname' => new external_value(PARAM_TEXT, 'The course in the contract'),
+                'lastname' => new external_value(PARAM_TEXT, 'The course in the contract'),
+                'email' => new external_value(PARAM_TEXT, 'The course in the contract'),
+                'contractId'=>new external_value(PARAM_TEXT, 'The course in the contract'),
+                'courseId'=>new external_value(PARAM_TEXT, 'The course in the contract'),
                 
             ]
         );
@@ -123,10 +123,10 @@ class create_student_user extends external_api {
      * @return external_description
      */
     public static function execute_returns(): external_description {
-        return new \external_single_structure(
+        return new external_single_structure(
             array(
-                'contractEnrolResult' => new \external_value(PARAM_INT, 'The ID of the delete class or -1 if there was an error.'),
-                'message' => new \external_value(PARAM_TEXT, 'The error message or Ok.'),
+                'contractEnrolResult' => new external_value(PARAM_INT, 'The ID of the delete class or -1 if there was an error.'),
+                'message' => new external_value(PARAM_TEXT, 'The error message or Ok.'),
             )
         );
     }

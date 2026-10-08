@@ -14,10 +14,10 @@ use external_value;
 class get_lp_students extends external_api {
 
     public static function execute_parameters(): external_function_parameters {
-        return new \external_function_parameters([
-            'planid'      => new \external_value(PARAM_INT,  'Source plan ID (0 = all)', VALUE_DEFAULT, 0),
-            'periodid'    => new \external_value(PARAM_INT,  'Source period ID (0 = all)', VALUE_DEFAULT, 0),
-            'subperiodid' => new \external_value(PARAM_INT,  'Source subperiod ID (0 = all)', VALUE_DEFAULT, 0),
+        return new external_function_parameters([
+            'planid'      => new external_value(PARAM_INT,  'Source plan ID (0 = all)', VALUE_DEFAULT, 0),
+            'periodid'    => new external_value(PARAM_INT,  'Source period ID (0 = all)', VALUE_DEFAULT, 0),
+            'subperiodid' => new external_value(PARAM_INT,  'Source subperiod ID (0 = all)', VALUE_DEFAULT, 0),
         ]);
     }
 
@@ -97,10 +97,10 @@ class get_lp_students extends external_api {
     }
 
     public static function execute_returns(): \external_description {
-        return new \external_single_structure([
-            'status'   => new \external_value(PARAM_INT,  'Result status', VALUE_DEFAULT, 1),
-            'students' => new \external_value(PARAM_RAW,  'JSON array of students', VALUE_DEFAULT, '[]'),
-            'message'  => new \external_value(PARAM_TEXT, 'Error message', VALUE_DEFAULT, ''),
+        return new external_single_structure([
+            'status'   => new external_value(PARAM_INT,  'Result status', VALUE_DEFAULT, 1),
+            'students' => new external_value(PARAM_RAW,  'JSON array of students', VALUE_DEFAULT, '[]'),
+            'message'  => new external_value(PARAM_TEXT, 'Error message', VALUE_DEFAULT, ''),
         ]);
     }
 }

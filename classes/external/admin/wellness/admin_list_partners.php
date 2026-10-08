@@ -38,7 +38,7 @@ require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/wellness_part
 class admin_list_partners extends external_api {
 
     public static function execute_parameters() {
-        return new \external_function_parameters([]);
+        return new external_function_parameters([]);
     }
 
     public static function execute() {
@@ -83,32 +83,32 @@ class admin_list_partners extends external_api {
     }
 
     public static function execute_returns() {
-        $partner = new \external_single_structure([
-            'id'                  => new \external_value(PARAM_INT,  'Partner id'),
-            'name'                => new \external_value(PARAM_TEXT, 'Partner name'),
-            'categoryid'          => new \external_value(PARAM_INT,  'Category id'),
-            'category_name'       => new \external_value(PARAM_TEXT, 'Category name'),
-            'benefit_description' => new \external_value(PARAM_RAW,  'Benefit'),
-            'conditions'          => new \external_value(PARAM_RAW,  'Conditions'),
-            'requirements'        => new \external_value(PARAM_RAW,  'Requirements'),
-            'startdate'           => new \external_value(PARAM_INT,  'Unix ts'),
-            'enddate'             => new \external_value(PARAM_INT,  'Unix ts'),
-            'contact_label'       => new \external_value(PARAM_TEXT, 'Contact label'),
-            'contact_value'       => new \external_value(PARAM_TEXT, 'Contact value'),
-            'logo_path'           => new \external_value(PARAM_TEXT, 'Logo path'),
-            'sort'                => new \external_value(PARAM_INT,  'Sort'),
-            'active'              => new \external_value(PARAM_INT,  '0/1'),
-            'timecreated'         => new \external_value(PARAM_INT,  'Unix ts'),
-            'timemodified'        => new \external_value(PARAM_INT,  'Unix ts'),
+        $partner = new external_single_structure([
+            'id'                  => new external_value(PARAM_INT,  'Partner id'),
+            'name'                => new external_value(PARAM_TEXT, 'Partner name'),
+            'categoryid'          => new external_value(PARAM_INT,  'Category id'),
+            'category_name'       => new external_value(PARAM_TEXT, 'Category name'),
+            'benefit_description' => new external_value(PARAM_RAW,  'Benefit'),
+            'conditions'          => new external_value(PARAM_RAW,  'Conditions'),
+            'requirements'        => new external_value(PARAM_RAW,  'Requirements'),
+            'startdate'           => new external_value(PARAM_INT,  'Unix ts'),
+            'enddate'             => new external_value(PARAM_INT,  'Unix ts'),
+            'contact_label'       => new external_value(PARAM_TEXT, 'Contact label'),
+            'contact_value'       => new external_value(PARAM_TEXT, 'Contact value'),
+            'logo_path'           => new external_value(PARAM_TEXT, 'Logo path'),
+            'sort'                => new external_value(PARAM_INT,  'Sort'),
+            'active'              => new external_value(PARAM_INT,  '0/1'),
+            'timecreated'         => new external_value(PARAM_INT,  'Unix ts'),
+            'timemodified'        => new external_value(PARAM_INT,  'Unix ts'),
         ]);
-        $cat = new \external_single_structure([
-            'id'   => new \external_value(PARAM_INT,  'Category id'),
-            'name' => new \external_value(PARAM_TEXT, 'Category name'),
-            'slug' => new \external_value(PARAM_TEXT, 'Category slug'),
+        $cat = new external_single_structure([
+            'id'   => new external_value(PARAM_INT,  'Category id'),
+            'name' => new external_value(PARAM_TEXT, 'Category name'),
+            'slug' => new external_value(PARAM_TEXT, 'Category slug'),
         ]);
-        return new \external_single_structure([
-            'partners'   => new \external_multiple_structure($partner, 'All partners'),
-            'categories' => new \external_multiple_structure($cat, 'Active categories'),
+        return new external_single_structure([
+            'partners'   => new external_multiple_structure($partner, 'All partners'),
+            'categories' => new external_multiple_structure($cat, 'Active categories'),
         ]);
     }
 }

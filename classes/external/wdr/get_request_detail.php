@@ -13,8 +13,8 @@ use external_single_structure;
 class get_request_detail extends external_api {
 
     public static function execute_parameters(): external_function_parameters {
-        return new \external_function_parameters([
-            'id' => new \external_value(PARAM_INT, 'Request id'),
+        return new external_function_parameters([
+            'id' => new external_value(PARAM_INT, 'Request id'),
         ]);
     }
 
@@ -56,31 +56,31 @@ class get_request_detail extends external_api {
     }
 
     public static function execute_returns(): external_single_structure {
-        return new \external_single_structure([
-            'id'                     => new \external_value(PARAM_INT, ''),
-            'request_number'         => new \external_value(PARAM_TEXT, ''),
-            'userid'                 => new \external_value(PARAM_INT, ''),
-            'fullname'               => new \external_value(PARAM_TEXT, ''),
-            'program'                => new \external_value(PARAM_TEXT, ''),
-            'current_period'         => new \external_value(PARAM_TEXT, ''),
-            'last_period'            => new \external_value(PARAM_TEXT, ''),
-            'phone'                  => new \external_value(PARAM_TEXT, ''),
-            'id_number'              => new \external_value(PARAM_TEXT, ''),
-            'email'                  => new \external_value(PARAM_TEXT, ''),
-            'payment_mode'           => new \external_value(PARAM_TEXT, ''),
-            'reason'                 => new \external_value(PARAM_TEXT, ''),
-            'payment_option'         => new \external_value(PARAM_TEXT, ''),
-            'payment_option_detail'  => new \external_value(PARAM_TEXT, ''),
-            'observations'           => new \external_value(PARAM_TEXT, ''),
-            'status'                 => new \external_value(PARAM_TEXT, ''),
-            'received_da_at'         => new \external_value(PARAM_INT, ''),
-            'received_da_by'         => new \external_value(PARAM_INT, ''),
-            'received_admin_at'      => new \external_value(PARAM_INT, ''),
-            'received_admin_by'      => new \external_value(PARAM_INT, ''),
-            'has_scanned'            => new \external_value(PARAM_BOOL, ''),
-            'rejection_reason'       => new \external_value(PARAM_TEXT, ''),
-            'timecreated'            => new \external_value(PARAM_INT, ''),
-            'timemodified'           => new \external_value(PARAM_INT, ''),
+        return new external_single_structure([
+            'id'                     => new external_value(PARAM_INT, ''),
+            'request_number'         => new external_value(PARAM_TEXT, ''),
+            'userid'                 => new external_value(PARAM_INT, ''),
+            'fullname'               => new external_value(PARAM_TEXT, ''),
+            'program'                => new external_value(PARAM_TEXT, ''),
+            'current_period'         => new external_value(PARAM_TEXT, ''),
+            'last_period'            => new external_value(PARAM_TEXT, ''),
+            'phone'                  => new external_value(PARAM_TEXT, ''),
+            'id_number'              => new external_value(PARAM_TEXT, ''),
+            'email'                  => new external_value(PARAM_TEXT, ''),
+            'payment_mode'           => new external_value(PARAM_TEXT, ''),
+            'reason'                 => new external_value(PARAM_TEXT, ''),
+            'payment_option'         => new external_value(PARAM_TEXT, ''),
+            'payment_option_detail'  => new external_value(PARAM_TEXT, ''),
+            'observations'           => new external_value(PARAM_TEXT, ''),
+            'status'                 => new external_value(PARAM_TEXT, ''),
+            'received_da_at'         => new external_value(PARAM_INT, ''),
+            'received_da_by'         => new external_value(PARAM_INT, ''),
+            'received_admin_at'      => new external_value(PARAM_INT, ''),
+            'received_admin_by'      => new external_value(PARAM_INT, ''),
+            'has_scanned'            => new external_value(PARAM_BOOL, ''),
+            'rejection_reason'       => new external_value(PARAM_TEXT, ''),
+            'timecreated'            => new external_value(PARAM_INT, ''),
+            'timemodified'           => new external_value(PARAM_INT, ''),
         ]);
     }
 }

@@ -40,7 +40,7 @@ require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/announcement_
 class admin_list_messages extends external_api {
 
     public static function execute_parameters() {
-        return new \external_function_parameters([]);
+        return new external_function_parameters([]);
     }
 
     public static function execute() {
@@ -59,44 +59,44 @@ class admin_list_messages extends external_api {
     }
 
     public static function execute_returns() {
-        $msgstructure = new \external_single_structure([
-            'id'                  => new \external_value(PARAM_INT,    'Message id'),
-            'title'               => new \external_value(PARAM_TEXT,   'Title'),
-            'messagetext'         => new \external_value(PARAM_RAW,    'HTML message body'),
-            'messagetype'         => new \external_value(PARAM_ALPHA,  'info|warning'),
-            'audience_scope'      => new \external_value(PARAM_ALPHA,  'all|career|group'),
-            'audience_careerid'   => new \external_value(PARAM_INT,    'Career id'),
-            'audience_groupid'    => new \external_value(PARAM_INT,    'Group id'),
-            'priority'            => new \external_value(PARAM_INT,    'Numeric priority'),
-            'require_ack'         => new \external_value(PARAM_BOOL,   'Requires ack checkbox'),
-            'ack_label'           => new \external_value(PARAM_TEXT,   'Label shown next to the ack checkbox'),
-            'starts_at'           => new \external_value(PARAM_INT,    'Unix ts'),
-            'ends_at'             => new \external_value(PARAM_INT,    'Unix ts'),
-            'timecreated'         => new \external_value(PARAM_INT,    'Unix ts'),
-            'timemodified'        => new \external_value(PARAM_INT,    'Unix ts'),
-            'authorid'            => new \external_value(PARAM_INT,    'Author id'),
-            'authorname'          => new \external_value(PARAM_TEXT,   'Author full name'),
-            'active'              => new \external_value(PARAM_BOOL,   'Broadcast is active'),
-            'recipients'          => new \external_value(PARAM_INT,    'Total audience size'),
-            'acked'               => new \external_value(PARAM_INT,    'Number of recipients that acknowledged'),
+        $msgstructure = new external_single_structure([
+            'id'                  => new external_value(PARAM_INT,    'Message id'),
+            'title'               => new external_value(PARAM_TEXT,   'Title'),
+            'messagetext'         => new external_value(PARAM_RAW,    'HTML message body'),
+            'messagetype'         => new external_value(PARAM_ALPHA,  'info|warning'),
+            'audience_scope'      => new external_value(PARAM_ALPHA,  'all|career|group'),
+            'audience_careerid'   => new external_value(PARAM_INT,    'Career id'),
+            'audience_groupid'    => new external_value(PARAM_INT,    'Group id'),
+            'priority'            => new external_value(PARAM_INT,    'Numeric priority'),
+            'require_ack'         => new external_value(PARAM_BOOL,   'Requires ack checkbox'),
+            'ack_label'           => new external_value(PARAM_TEXT,   'Label shown next to the ack checkbox'),
+            'starts_at'           => new external_value(PARAM_INT,    'Unix ts'),
+            'ends_at'             => new external_value(PARAM_INT,    'Unix ts'),
+            'timecreated'         => new external_value(PARAM_INT,    'Unix ts'),
+            'timemodified'        => new external_value(PARAM_INT,    'Unix ts'),
+            'authorid'            => new external_value(PARAM_INT,    'Author id'),
+            'authorname'          => new external_value(PARAM_TEXT,   'Author full name'),
+            'active'              => new external_value(PARAM_BOOL,   'Broadcast is active'),
+            'recipients'          => new external_value(PARAM_INT,    'Total audience size'),
+            'acked'               => new external_value(PARAM_INT,    'Number of recipients that acknowledged'),
         ]);
 
-        $carstructure = new \external_single_structure([
-            'id'   => new \external_value(PARAM_INT,  'local_learning_plans.id'),
-            'name' => new \external_value(PARAM_TEXT, 'Career name'),
+        $carstructure = new external_single_structure([
+            'id'   => new external_value(PARAM_INT,  'local_learning_plans.id'),
+            'name' => new external_value(PARAM_TEXT, 'Career name'),
         ]);
 
-        $grpstructure = new \external_single_structure([
-            'id'         => new \external_value(PARAM_INT,  'groups.id'),
-            'name'       => new \external_value(PARAM_TEXT, 'Group name'),
-            'courseid'   => new \external_value(PARAM_INT,  'Course id'),
-            'coursename' => new \external_value(PARAM_TEXT, 'Course fullname'),
+        $grpstructure = new external_single_structure([
+            'id'         => new external_value(PARAM_INT,  'groups.id'),
+            'name'       => new external_value(PARAM_TEXT, 'Group name'),
+            'courseid'   => new external_value(PARAM_INT,  'Course id'),
+            'coursename' => new external_value(PARAM_TEXT, 'Course fullname'),
         ]);
 
-        return new \external_single_structure([
-            'messages' => new \external_multiple_structure($msgstructure, 'Existing broadcasts'),
-            'careers'  => new \external_multiple_structure($carstructure, 'Career catalogue'),
-            'groups'   => new \external_multiple_structure($grpstructure, 'Group catalogue'),
+        return new external_single_structure([
+            'messages' => new external_multiple_structure($msgstructure, 'Existing broadcasts'),
+            'careers'  => new external_multiple_structure($carstructure, 'Career catalogue'),
+            'groups'   => new external_multiple_structure($grpstructure, 'Group catalogue'),
         ]);
     }
 }

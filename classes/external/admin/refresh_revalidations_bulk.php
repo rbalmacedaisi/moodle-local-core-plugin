@@ -40,20 +40,20 @@ use context_system;
 class refresh_revalidations_bulk extends external_api {
 
     public static function execute_parameters(): external_function_parameters {
-        return new \external_function_parameters([
-            'revalidationids' => new \external_value(PARAM_RAW, 'Comma-separated list of revalidation ids', VALUE_REQUIRED),
-            'limit'           => new \external_value(PARAM_INT, 'Max items to process (cap 50)', VALUE_DEFAULT, 25),
+        return new external_function_parameters([
+            'revalidationids' => new external_value(PARAM_RAW, 'Comma-separated list of revalidation ids', VALUE_REQUIRED),
+            'limit'           => new external_value(PARAM_INT, 'Max items to process (cap 50)', VALUE_DEFAULT, 25),
         ]);
     }
 
     public static function execute_returns(): external_single_structure {
-        return new \external_single_structure([
-            'processed' => new \external_value(PARAM_INT, 'Number of items processed'),
-            'paid'      => new \external_value(PARAM_INT, 'Number that came back as paid'),
-            'results'   => new \external_multiple_structure(new \external_single_structure([
-                'id'         => new \external_value(PARAM_INT, 'Revalidation id'),
-                'paid'       => new \external_value(PARAM_BOOL, 'Paid after refresh'),
-                'payment_state' => new \external_value(PARAM_RAW, 'Reported state'),
+        return new external_single_structure([
+            'processed' => new external_value(PARAM_INT, 'Number of items processed'),
+            'paid'      => new external_value(PARAM_INT, 'Number that came back as paid'),
+            'results'   => new external_multiple_structure(new external_single_structure([
+                'id'         => new external_value(PARAM_INT, 'Revalidation id'),
+                'paid'       => new external_value(PARAM_BOOL, 'Paid after refresh'),
+                'payment_state' => new external_value(PARAM_RAW, 'Reported state'),
             ])),
         ]);
     }

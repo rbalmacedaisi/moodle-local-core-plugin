@@ -528,7 +528,7 @@ class module_invoice_manager {
     private static function create_invoice(stdClass $rec, stdClass $user): array {
         $documentnumber = self::get_user_document_number((int)$user->id);
         if ($documentnumber === '') {
-            throw new \moodle_exception('El estudiante no tiene número de documento para facturar.');
+            throw new moodle_exception('El estudiante no tiene número de documento para facturar.');
         }
         $productid   = (int)self::get_product_id_for_type((string)$rec->module_type);
         $cost        = (float)$rec->amount;
@@ -548,7 +548,7 @@ class module_invoice_manager {
         ];
         $response = self::call_odoo_proxy('/api/odoo/modules/invoice', $payload);
         if (empty($response['success'])) {
-            throw new \moodle_exception(
+            throw new moodle_exception(
                 'No se pudo generar la factura: '
                 . (isset($response['error']) ? (string)$response['error'] : 'desconocido')
             );

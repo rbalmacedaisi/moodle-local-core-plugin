@@ -418,7 +418,7 @@ class manager {
         global $DB, $CFG;
         $bgurl = '';
         if (!empty($row->background_fileid)) {
-            $bgurl = (new \moodle_url('/local/grupomakro_core/pages/diploma_image.php',
+            $bgurl = (new moodle_url('/local/grupomakro_core/pages/diploma_image.php',
                 ['id' => (int)$row->id]))->out(false);
         }
         $fields = $DB->get_records('gmk_diploma_tpl_field', ['templateid' => (int)$row->id], 'z_index ASC, id ASC');
@@ -508,7 +508,7 @@ class manager {
         $id = isset($payload['id']) ? (int)$payload['id'] : 0;
         $name = trim((string)($payload['name'] ?? ''));
         if ($name === '') {
-            throw new \moodle_exception('diploma_template_name', 'local_grupomakro_core');
+            throw new moodle_exception('diploma_template_name', 'local_grupomakro_core');
         }
         // Resolve paper size. New clients send a paper_size id; older
         // clients only send orientation, in which case we fall back to
@@ -735,7 +735,7 @@ class manager {
         $tpl->usermodified = $actorid;
         $DB->update_record('gmk_diploma_template', $tpl);
 
-        $url = (new \moodle_url('/local/grupomakro_core/pages/diploma_image.php',
+        $url = (new moodle_url('/local/grupomakro_core/pages/diploma_image.php',
             ['id' => $templateid]))->out(false);
 
         return [
@@ -1365,7 +1365,7 @@ public static function generate_diplomas(int $templateid, array $items, int $act
                 // the renderer throws (missing font, etc.) we skip this
                 // item entirely so we don't leave orphan "generated" rows
                 // with no associated document.
-                $renderer = new \renderer();
+                $renderer = new renderer();
                 $pdfbytes = $renderer->render_pdf($template, $fields, $user, $lp ?: null, $generation, $verificationurl);
 
 // Persist file in Moodle's file storage.
@@ -1490,7 +1490,7 @@ public static function generate_diplomas(int $templateid, array $items, int $act
                     'timecreated' => $now,
                     'timemodified' => $now,
                 ];
-                $renderer = new \renderer();
+                $renderer = new renderer();
                 $pdfbytes = $renderer->render_pdf($template, $fields, $user, null, $generation, $verificationurl, $course);
 
                 $fs = get_file_storage();
@@ -2036,7 +2036,7 @@ public static function generate_diplomas(int $templateid, array $items, int $act
         $user = core_user::get_user($userid, '*', MUST_EXIST);
         $plan = $planid ? $DB->get_record('local_learning_plans', ['id' => $planid], '*', MUST_EXIST) : null;
 
-        $renderer = new \renderer();
+        $renderer = new renderer();
         $pdfbytes = $renderer->render_pdf($template, $fields, $user, $plan, $gen, (string)$gen->verification_url);
 
         $fs = get_file_storage();
@@ -2258,7 +2258,7 @@ public static function generate_diplomas(int $templateid, array $items, int $act
         global $DB, $USER;
         $name = trim((string)($payload['name'] ?? ''));
         if ($name === '') {
-            throw new \moodle_exception('diploma_bundle_name_required', 'local_grupomakro_core');
+            throw new moodle_exception('diploma_bundle_name_required', 'local_grupomakro_core');
         }
         $prefix = trim((string)($payload['prefix'] ?? ''));
         $next = max(1, (int)($payload['next_number'] ?? 1));
@@ -2475,7 +2475,7 @@ public static function generate_diplomas(int $templateid, array $items, int $act
         global $DB;
         $bundle = $DB->get_record('gmk_diploma_bundle', ['id' => $id], '*', MUST_EXIST);
         if ($next < 1) {
-            throw new \moodle_exception('diploma_bundle_reset_invalid', 'local_grupomakro_core');
+            throw new moodle_exception('diploma_bundle_reset_invalid', 'local_grupomakro_core');
         }
         $previous = (int)$bundle->next_number;
         $bundle->next_number = $next;

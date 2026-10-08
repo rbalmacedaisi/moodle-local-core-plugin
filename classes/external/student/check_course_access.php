@@ -39,9 +39,9 @@ require_once($CFG->dirroot . '/local/grupomakro_core/pages/absence_helpers.php')
 class check_course_access extends external_api {
 
     public static function execute_parameters() {
-        return new \external_function_parameters([
-            'userid'   => new \external_value(PARAM_INT, 'User ID', VALUE_REQUIRED),
-            'courseid' => new \external_value(PARAM_INT, 'Course ID', VALUE_REQUIRED),
+        return new external_function_parameters([
+            'userid'   => new external_value(PARAM_INT, 'User ID', VALUE_REQUIRED),
+            'courseid' => new external_value(PARAM_INT, 'Course ID', VALUE_REQUIRED),
         ]);
     }
 
@@ -82,13 +82,13 @@ class check_course_access extends external_api {
     }
 
     public static function execute_returns() {
-        return new \external_single_structure([
-            'allowed'             => new \external_value(PARAM_BOOL, 'True when the student can access the course'),
-            'block_reason'        => new \external_value(PARAM_TEXT, 'Reason of the block (empty if allowed)'),
-            'blocking_classid'    => new \external_value(PARAM_INT, 'The class blocking access (0 if allowed)'),
-            'absence_count'       => new \external_value(PARAM_INT, 'Absence count for the class that maps to the course'),
-            'alert_level'         => new \external_value(PARAM_INT, 'Alert level (0=none, 1=info, 2=warning, 3=blocked)'),
-            'is_blocking_enabled' => new \external_value(PARAM_BOOL, 'True when the soft-launch blocking sub-flag is on'),
+        return new external_single_structure([
+            'allowed'             => new external_value(PARAM_BOOL, 'True when the student can access the course'),
+            'block_reason'        => new external_value(PARAM_TEXT, 'Reason of the block (empty if allowed)'),
+            'blocking_classid'    => new external_value(PARAM_INT, 'The class blocking access (0 if allowed)'),
+            'absence_count'       => new external_value(PARAM_INT, 'Absence count for the class that maps to the course'),
+            'alert_level'         => new external_value(PARAM_INT, 'Alert level (0=none, 1=info, 2=warning, 3=blocked)'),
+            'is_blocking_enabled' => new external_value(PARAM_BOOL, 'True when the soft-launch blocking sub-flag is on'),
         ]);
     }
 }

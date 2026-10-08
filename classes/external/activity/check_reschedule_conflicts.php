@@ -52,12 +52,12 @@ class check_reschedule_conflicts extends external_api {
      * @return external_function_parameters
      */
     public static function execute_parameters(): external_function_parameters {
-        return new \external_function_parameters(
+        return new external_function_parameters(
             [   
-                'classId'=> new \external_value(PARAM_TEXT, 'Id of the class.',VALUE_REQUIRED),
-                'date' => new \external_value(PARAM_TEXT, 'The date that will be assigned to the activity',VALUE_REQUIRED),
-                'initTime' => new \external_value(PARAM_TEXT, 'The init time for the session',VALUE_REQUIRED),
-                'endTime' => new \external_value(PARAM_TEXT, 'The end time for the session',VALUE_REQUIRED)
+                'classId'=> new external_value(PARAM_TEXT, 'Id of the class.',VALUE_REQUIRED),
+                'date' => new external_value(PARAM_TEXT, 'The date that will be assigned to the activity',VALUE_REQUIRED),
+                'initTime' => new external_value(PARAM_TEXT, 'The init time for the session',VALUE_REQUIRED),
+                'endTime' => new external_value(PARAM_TEXT, 'The end time for the session',VALUE_REQUIRED)
             ]
         );
     }
@@ -100,10 +100,10 @@ class check_reschedule_conflicts extends external_api {
      * @return external_description
      */
     public static function execute_returns(): external_description {
-        return new \external_single_structure(
+        return new external_single_structure(
             array(
-                'status' => new \external_value(PARAM_INT, 'The ID of the disponibility record or -1 if there was an error.',VALUE_DEFAULT,1),
-                'message' => new \external_value(PARAM_TEXT, 'The error message or Ok.',VALUE_DEFAULT,'ok'),
+                'status' => new external_value(PARAM_INT, 'The ID of the disponibility record or -1 if there was an error.',VALUE_DEFAULT,1),
+                'message' => new external_value(PARAM_TEXT, 'The error message or Ok.',VALUE_DEFAULT,'ok'),
             )
         );
     }

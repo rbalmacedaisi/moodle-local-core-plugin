@@ -40,9 +40,9 @@ use context_system;
 class dismiss_revalidation_alert extends external_api {
 
     public static function execute_parameters(): external_function_parameters {
-        return new \external_function_parameters([
-            'userid' => new \external_value(PARAM_INT, 'User id', VALUE_REQUIRED),
-            'revalidationid' => new \external_value(PARAM_INT, 'gmk_revalidations.id', VALUE_REQUIRED),
+        return new external_function_parameters([
+            'userid' => new external_value(PARAM_INT, 'User id', VALUE_REQUIRED),
+            'revalidationid' => new external_value(PARAM_INT, 'gmk_revalidations.id', VALUE_REQUIRED),
         ]);
     }
 
@@ -79,9 +79,9 @@ class dismiss_revalidation_alert extends external_api {
     }
 
     public static function execute_returns(): external_single_structure {
-        return new \external_single_structure([
-            'ok' => new \external_value(PARAM_BOOL, 'True when the alert was dismissed'),
-            'dismissed_at' => new \external_value(PARAM_INT, 'Dismissal timestamp'),
+        return new external_single_structure([
+            'ok' => new external_value(PARAM_BOOL, 'True when the alert was dismissed'),
+            'dismissed_at' => new external_value(PARAM_INT, 'Dismissal timestamp'),
         ]);
     }
 }

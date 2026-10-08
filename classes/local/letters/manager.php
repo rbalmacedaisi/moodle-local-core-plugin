@@ -146,7 +146,7 @@ class manager {
 
         $lettertype = $DB->get_record('gmk_letter_type', ['id' => $lettertypeid, 'active' => 1], '*', IGNORE_MISSING);
         if (!$lettertype) {
-            throw new \moodle_exception('letter_type_not_found', 'local_grupomakro_core');
+            throw new moodle_exception('letter_type_not_found', 'local_grupomakro_core');
         }
 
         $now = time();
@@ -394,7 +394,7 @@ class manager {
         global $DB;
         $request = $DB->get_record('gmk_letter_request', ['id' => $requestid], '*', MUST_EXIST);
         if (!$canviewall && (int)$request->userid !== $viewerid) {
-            throw new \moodle_exception('nopermissions', 'error', '', 'view letter request');
+            throw new moodle_exception('nopermissions', 'error', '', 'view letter request');
         }
 
         $type = $DB->get_record('gmk_letter_type', ['id' => $request->lettertypeid], '*', MUST_EXIST);
@@ -591,18 +591,18 @@ class manager {
         global $DB;
         $request = $DB->get_record('gmk_letter_request', ['id' => $requestid], '*', MUST_EXIST);
         if (!$canviewall && (int)$request->userid !== $viewerid) {
-            throw new \moodle_exception('nopermissions', 'error', '', 'download letter document');
+            throw new moodle_exception('nopermissions', 'error', '', 'download letter document');
         }
         $document = self::get_latest_document($requestid);
         if (!$document) {
-            throw new \moodle_exception('letter_document_not_found', 'local_grupomakro_core');
+            throw new moodle_exception('letter_document_not_found', 'local_grupomakro_core');
         }
 
         $context = context_system::instance();
         $fs = get_file_storage();
         $file = $fs->get_file($context->id, 'local_grupomakro_core', 'letter_document', $document->fileitemid, '/', $document->filename);
         if (!$file) {
-            throw new \moodle_exception('letter_document_not_found', 'local_grupomakro_core');
+            throw new moodle_exception('letter_document_not_found', 'local_grupomakro_core');
         }
 
         return [
@@ -655,7 +655,7 @@ class manager {
             self::STATUS_CANCELADA => [],
         ];
         if (!array_key_exists($oldstatus, $allowed) || !in_array($newstatus, $allowed[$oldstatus], true)) {
-            throw new \moodle_exception('letter_invalid_transition', 'local_grupomakro_core', '', $oldstatus . ' -> ' . $newstatus);
+            throw new moodle_exception('letter_invalid_transition', 'local_grupomakro_core', '', $oldstatus . ' -> ' . $newstatus);
         }
     }
 
@@ -709,7 +709,7 @@ class manager {
         $user = $DB->get_record('user', ['id' => $request->userid], '*', MUST_EXIST);
         $documentnumber = self::get_user_document_number((int)$request->userid);
         if ($documentnumber === '') {
-            throw new \moodle_exception('letter_documentnumber_required', 'local_grupomakro_core');
+            throw new moodle_exception('letter_documentnumber_required', 'local_grupomakro_core');
         }
 
         $defaultproduct = (int)get_config('local_grupomakro_core', 'letters_default_odoo_product_id');
@@ -731,7 +731,7 @@ class manager {
         ];
         $response = self::call_odoo_proxy('/api/odoo/letters/invoice', $payload);
         if (empty($response['success'])) {
-            throw new \moodle_exception(
+            throw new moodle_exception(
                 'letter_invoice_error',
                 'local_grupomakro_core',
                 '',
@@ -1304,7 +1304,7 @@ class manager {
         string $htmlmessage,
         string $contexturl = ''
     ): void {
-        $eventdata = new \message();
+        $eventdata = new message();
         $eventdata->component = 'local_grupomakro_core';
         $eventdata->name = $providername;
         $eventdata->userfrom = core_user::get_noreply_user();

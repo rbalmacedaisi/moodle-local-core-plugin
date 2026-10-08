@@ -46,11 +46,11 @@ require_once $CFG->dirroot . '/local/grupomakro_core/locallib.php';
 class copy_activity extends external_api {
 
     public static function execute_parameters(): external_function_parameters {
-        return new \external_function_parameters([
-            'classId'         => new \external_value(PARAM_TEXT, 'Id of the class.', VALUE_REQUIRED),
-            'sourceSessionId' => new \external_value(PARAM_TEXT, 'Source attendance_session id.', VALUE_REQUIRED),
-            'dates'           => new \external_value(PARAM_RAW,  'JSON array of {date, initTime, endTime}.', VALUE_REQUIRED),
-            'force'           => new \external_value(PARAM_INT,  'Force despite conflicts (1|0).', VALUE_DEFAULT, 0),
+        return new external_function_parameters([
+            'classId'         => new external_value(PARAM_TEXT, 'Id of the class.', VALUE_REQUIRED),
+            'sourceSessionId' => new external_value(PARAM_TEXT, 'Source attendance_session id.', VALUE_REQUIRED),
+            'dates'           => new external_value(PARAM_RAW,  'JSON array of {date, initTime, endTime}.', VALUE_REQUIRED),
+            'force'           => new external_value(PARAM_INT,  'Force despite conflicts (1|0).', VALUE_DEFAULT, 0),
         ]);
     }
 
@@ -128,11 +128,11 @@ class copy_activity extends external_api {
     }
 
     public static function execute_returns(): external_description {
-        return new \external_single_structure([
-            'status'          => new \external_value(PARAM_INT,  '1 on success, -1 on error/conflicts.', VALUE_DEFAULT, 1),
-            'message'         => new \external_value(PARAM_TEXT, 'Result JSON or error message.', VALUE_DEFAULT, 'ok'),
-            'hasConflicts'    => new \external_value(PARAM_INT,  '1 if conflicts blocked the copy.', VALUE_DEFAULT, 0),
-            'conflictsByDate' => new \external_value(PARAM_TEXT, 'JSON object {date: [conflicts]}.', VALUE_DEFAULT, '{}'),
+        return new external_single_structure([
+            'status'          => new external_value(PARAM_INT,  '1 on success, -1 on error/conflicts.', VALUE_DEFAULT, 1),
+            'message'         => new external_value(PARAM_TEXT, 'Result JSON or error message.', VALUE_DEFAULT, 'ok'),
+            'hasConflicts'    => new external_value(PARAM_INT,  '1 if conflicts blocked the copy.', VALUE_DEFAULT, 0),
+            'conflictsByDate' => new external_value(PARAM_TEXT, 'JSON object {date: [conflicts]}.', VALUE_DEFAULT, '{}'),
         ]);
     }
 }

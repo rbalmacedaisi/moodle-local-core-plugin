@@ -39,7 +39,7 @@ require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/wellness_staf
 class admin_list_staff extends external_api {
 
     public static function execute_parameters() {
-        return new \external_function_parameters([]);
+        return new external_function_parameters([]);
     }
 
     public static function execute() {
@@ -61,30 +61,30 @@ class admin_list_staff extends external_api {
     }
 
     public static function execute_returns() {
-        $role = new \external_single_structure([
-            'id'                => new \external_value(PARAM_INT,  'Row id'),
-            'rolekey'           => new \external_value(PARAM_TEXT,'rolekey'),
-            'role_label'        => new \external_value(PARAM_TEXT,'Display label'),
-            'userid'            => new \external_value(PARAM_INT,  'Linked Moodle userid'),
-            'user_fullname'     => new \external_value(PARAM_TEXT,'Linked user fullname'),
-            'user_email'        => new \external_value(PARAM_TEXT,'Linked user email'),
-            'user_suspended'    => new \external_value(PARAM_BOOL,'Linked user suspended flag'),
-            'email_override'    => new \external_value(PARAM_TEXT,'Explicit institutional email override'),
-            'effective_email'   => new \external_value(PARAM_TEXT,'override OR user.email, whichever is non-empty'),
-            'notify_on_request' => new \external_value(PARAM_INT, '0/1'),
-            'notify_on_change'  => new \external_value(PARAM_INT, '0/1'),
-            'active'            => new \external_value(PARAM_INT, '0/1'),
-            'usermodified'      => new \external_value(PARAM_INT, 'Unix ts'),
-            'timecreated'       => new \external_value(PARAM_INT, 'Unix ts'),
-            'timemodified'      => new \external_value(PARAM_INT, 'Unix ts'),
+        $role = new external_single_structure([
+            'id'                => new external_value(PARAM_INT,  'Row id'),
+            'rolekey'           => new external_value(PARAM_TEXT,'rolekey'),
+            'role_label'        => new external_value(PARAM_TEXT,'Display label'),
+            'userid'            => new external_value(PARAM_INT,  'Linked Moodle userid'),
+            'user_fullname'     => new external_value(PARAM_TEXT,'Linked user fullname'),
+            'user_email'        => new external_value(PARAM_TEXT,'Linked user email'),
+            'user_suspended'    => new external_value(PARAM_BOOL,'Linked user suspended flag'),
+            'email_override'    => new external_value(PARAM_TEXT,'Explicit institutional email override'),
+            'effective_email'   => new external_value(PARAM_TEXT,'override OR user.email, whichever is non-empty'),
+            'notify_on_request' => new external_value(PARAM_INT, '0/1'),
+            'notify_on_change'  => new external_value(PARAM_INT, '0/1'),
+            'active'            => new external_value(PARAM_INT, '0/1'),
+            'usermodified'      => new external_value(PARAM_INT, 'Unix ts'),
+            'timecreated'       => new external_value(PARAM_INT, 'Unix ts'),
+            'timemodified'      => new external_value(PARAM_INT, 'Unix ts'),
         ]);
-        $cat = new \external_single_structure([
-            'rolekey' => new \external_value(PARAM_TEXT,'Reserved rolekey'),
-            'label'   => new \external_value(PARAM_TEXT,'Default label for the rolekey'),
+        $cat = new external_single_structure([
+            'rolekey' => new external_value(PARAM_TEXT,'Reserved rolekey'),
+            'label'   => new external_value(PARAM_TEXT,'Default label for the rolekey'),
         ]);
-        return new \external_single_structure([
-            'roles'   => new \external_multiple_structure($role, 'Staff roster'),
-            'catalog' => new \external_multiple_structure($cat, 'Reserved rolekey catalogue'),
+        return new external_single_structure([
+            'roles'   => new external_multiple_structure($role, 'Staff roster'),
+            'catalog' => new external_multiple_structure($cat, 'Reserved rolekey catalogue'),
         ]);
     }
 }
