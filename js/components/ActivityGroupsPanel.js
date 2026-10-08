@@ -157,7 +157,7 @@ Vue.component('activity-groups-panel', {
                     <v-card-actions>
                         <v-spacer></v-spacer>
                         <v-btn text @click="createDialog = false">Cancelar</v-btn>
-                        <v-btn color="primary" :loading="saving" :disabled="!createForm.name" @click="createGroup">Crear</v-btn>
+                        <v-btn color="primary" :loading="saving" @click="createGroup">Crear</v-btn>
                     </v-card-actions>
                 </v-card>
             </v-dialog>

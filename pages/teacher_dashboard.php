@@ -49,7 +49,7 @@ $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/PendingGradingView.js?v=20261001057'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/QuickGrader.js?v=20261001057'), true);
 // Calificacion grupal (introducida en 20261001057, mejorada en 20261001080)
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/ActivityGroupsPanel.js?v=20261001085'), true);
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/ActivityGroupsPanel.js?v=20261001086'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/GroupGradeConfirmModal.js?v=20261001057'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/QuizCreationWizard.js?v=20260326001'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/quizeditor/QuestionBankDialog.js'), true);
