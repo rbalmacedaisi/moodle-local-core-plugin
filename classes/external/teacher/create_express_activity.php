@@ -16,34 +16,34 @@ use stdClass;
 class create_express_activity extends external_api {
 
     public static function execute_parameters() {
-        return new external_function_parameters(
+        return new \external_function_parameters(
             array(
-                'classid' => new external_value(PARAM_INT, 'The ID of the class', VALUE_REQUIRED),
-                'type' => new external_value(PARAM_ALPHA, 'The type of activity (bbb, assign, etc.)', VALUE_REQUIRED),
-                'name' => new external_value(PARAM_TEXT, 'The name of the activity', VALUE_REQUIRED),
-                'intro' => new external_value(PARAM_RAW, 'The description of the activity', VALUE_DEFAULT, ''),
-                'duedate' => new external_value(PARAM_INT, 'The due date for assignments', VALUE_DEFAULT, 0),
-                'allowsubmissionsfromdate' => new external_value(PARAM_INT, 'Allow submissions from date for assignments', VALUE_DEFAULT, 0),
-                'save_as_template' => new external_value(PARAM_BOOL, 'Whether to save as a template', VALUE_DEFAULT, false),
-                'gradecat' => new external_value(PARAM_INT, 'The grade category ID (rubric)', VALUE_DEFAULT, 0),
-                'tags' => new external_multiple_structure(
-                    new external_value(PARAM_TEXT, 'Tag name'),
+                'classid' => new \external_value(PARAM_INT, 'The ID of the class', VALUE_REQUIRED),
+                'type' => new \external_value(PARAM_ALPHA, 'The type of activity (bbb, assign, etc.)', VALUE_REQUIRED),
+                'name' => new \external_value(PARAM_TEXT, 'The name of the activity', VALUE_REQUIRED),
+                'intro' => new \external_value(PARAM_RAW, 'The description of the activity', VALUE_DEFAULT, ''),
+                'duedate' => new \external_value(PARAM_INT, 'The due date for assignments', VALUE_DEFAULT, 0),
+                'allowsubmissionsfromdate' => new \external_value(PARAM_INT, 'Allow submissions from date for assignments', VALUE_DEFAULT, 0),
+                'save_as_template' => new \external_value(PARAM_BOOL, 'Whether to save as a template', VALUE_DEFAULT, false),
+                'gradecat' => new \external_value(PARAM_INT, 'The grade category ID (rubric)', VALUE_DEFAULT, 0),
+                'tags' => new \external_multiple_structure(
+                    new \external_value(PARAM_TEXT, 'Tag name'),
                     'List of tags',
                     VALUE_DEFAULT,
                     []
                 ),
-                'guest' => new external_value(PARAM_BOOL, 'Allow guest access (for BBB)', VALUE_DEFAULT, false),
-                'timeopen' => new external_value(PARAM_INT, 'Quiz open time', VALUE_DEFAULT, 0),
-                'timeclose' => new external_value(PARAM_INT, 'Quiz close time', VALUE_DEFAULT, 0),
-                'timelimit' => new external_value(PARAM_INT, 'Quiz time limit in seconds', VALUE_DEFAULT, 0),
-                'attempts' => new external_value(PARAM_INT, 'Number of attempts', VALUE_DEFAULT, 1),
-                'grademethod' => new external_value(PARAM_INT, 'Grading method (1=Highest, 2=Avg)', VALUE_DEFAULT, 1),
-                'forumtopic' => new external_value(PARAM_TEXT, 'Initial forum topic title', VALUE_DEFAULT, ''),
-                'forummessage' => new external_value(PARAM_RAW, 'Initial forum topic message', VALUE_DEFAULT, ''),
-                'forumcreateinitial' => new external_value(PARAM_BOOL, 'Create initial discussion topic', VALUE_DEFAULT, true),
-                'enableGroupGrading' => new external_value(PARAM_BOOL, 'Permitir calificacion grupal (assign/quiz)', VALUE_DEFAULT, false),
-                'groupMode' => new external_value(PARAM_ALPHA, 'open o fixed', VALUE_DEFAULT, 'open'),
-                'groupMaxmembers' => new external_value(PARAM_INT, 'Cupo maximo por grupo', VALUE_DEFAULT, 5)
+                'guest' => new \external_value(PARAM_BOOL, 'Allow guest access (for BBB)', VALUE_DEFAULT, false),
+                'timeopen' => new \external_value(PARAM_INT, 'Quiz open time', VALUE_DEFAULT, 0),
+                'timeclose' => new \external_value(PARAM_INT, 'Quiz close time', VALUE_DEFAULT, 0),
+                'timelimit' => new \external_value(PARAM_INT, 'Quiz time limit in seconds', VALUE_DEFAULT, 0),
+                'attempts' => new \external_value(PARAM_INT, 'Number of attempts', VALUE_DEFAULT, 1),
+                'grademethod' => new \external_value(PARAM_INT, 'Grading method (1=Highest, 2=Avg)', VALUE_DEFAULT, 1),
+                'forumtopic' => new \external_value(PARAM_TEXT, 'Initial forum topic title', VALUE_DEFAULT, ''),
+                'forummessage' => new \external_value(PARAM_RAW, 'Initial forum topic message', VALUE_DEFAULT, ''),
+                'forumcreateinitial' => new \external_value(PARAM_BOOL, 'Create initial discussion topic', VALUE_DEFAULT, true),
+                'enableGroupGrading' => new \external_value(PARAM_BOOL, 'Permitir calificacion grupal (assign/quiz)', VALUE_DEFAULT, false),
+                'groupMode' => new \external_value(PARAM_ALPHA, 'open o fixed', VALUE_DEFAULT, 'open'),
+                'groupMaxmembers' => new \external_value(PARAM_INT, 'Cupo maximo por grupo', VALUE_DEFAULT, 5)
             )
         );
     }
@@ -206,18 +206,18 @@ class create_express_activity extends external_api {
     }
 
     public static function execute_returns() {
-        return new external_single_structure(
+        return new \external_single_structure(
             array(
-                'status' => new external_value(PARAM_ALPHA, 'success or error'),
-                'message' => new external_value(PARAM_TEXT, 'Error or success message'),
-                'cmid' => new external_value(PARAM_INT, 'Course module ID'),
-                'forumdiscussionid' => new external_value(PARAM_INT, 'Initial forum discussion ID', VALUE_DEFAULT, 0),
-                'groupgrading' => new external_single_structure(
+                'status' => new \external_value(PARAM_ALPHA, 'success or error'),
+                'message' => new \external_value(PARAM_TEXT, 'Error or success message'),
+                'cmid' => new \external_value(PARAM_INT, 'Course module ID'),
+                'forumdiscussionid' => new \external_value(PARAM_INT, 'Initial forum discussion ID', VALUE_DEFAULT, 0),
+                'groupgrading' => new \external_single_structure(
                     array(
-                        'enabled'    => new external_value(PARAM_INT, '0|1', VALUE_OPTIONAL),
-                        'mode'       => new external_value(PARAM_TEXT, 'open|fixed', VALUE_OPTIONAL),
-                        'maxmembers' => new external_value(PARAM_INT, 'cupo', VALUE_OPTIONAL),
-                        'error'      => new external_value(PARAM_TEXT, 'mensaje de error si lo hubo', VALUE_OPTIONAL),
+                        'enabled'    => new \external_value(PARAM_INT, '0|1', VALUE_OPTIONAL),
+                        'mode'       => new \external_value(PARAM_TEXT, 'open|fixed', VALUE_OPTIONAL),
+                        'maxmembers' => new \external_value(PARAM_INT, 'cupo', VALUE_OPTIONAL),
+                        'error'      => new \external_value(PARAM_TEXT, 'mensaje de error si lo hubo', VALUE_OPTIONAL),
                     ),
                     'Estado de la habilitacion de calificacion grupal (null si no se solicito)',
                     VALUE_OPTIONAL
