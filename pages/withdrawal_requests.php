@@ -72,6 +72,21 @@ echo <<<EOT
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <style>
   .theme--light.v-application { background: transparent !important; }
+  /* Forzar que el drawer persistente de la bandeja RET-01 se posicione
+     al borde derecho del viewport, no del contenedor padre (v-container).
+     Sin esto, Vuetify lo renderiza al final del flujo del documento y
+     aparece debajo de la tabla. El top:64px deja espacio para la app-bar
+     de Moodle; el resto ocupa hasta el pie de pagina. */
+  .gmk-wdr-drawer.v-navigation-drawer {
+    position: fixed !important;
+    top: 64px !important;
+    right: 0 !important;
+    height: calc(100vh - 64px) !important;
+    z-index: 1000;
+  }
+  .gmk-wdr-drawer .v-navigation-drawer__content {
+    height: 100%;
+  }
 </style>
 <script>
   var ajaxUrl = $ajaxUrl;

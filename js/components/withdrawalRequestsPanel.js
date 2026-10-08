@@ -457,23 +457,7 @@ Vue.component('withdrawal-requests-panel', {
         </v-btn>
       </v-card-actions>
      </v-card>
-   </v-dialog>
+    </v-dialog>
 </v-container>
-<style>
-  /* Forzar que el drawer persistente se posicione a la derecha
-     del viewport, no del contenedor padre (v-container). Sin esto,
-     Vuetify lo posiciona relativo al v-card padre y aparece al fondo
-     del contenido. */
-  .gmk-wdr-drawer.v-navigation-drawer {
-    position: fixed !important;
-    top: 64px !important;
-    right: 0 !important;
-    height: calc(100vh - 64px) !important;
-    z-index: 1000;
-  }
-  .gmk-wdr-drawer .v-navigation-drawer__content {
-    height: 100%;
-  }
-</style>
 `,
 });
