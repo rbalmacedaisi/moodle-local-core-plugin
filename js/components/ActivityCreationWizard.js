@@ -154,34 +154,40 @@ const ActivityCreationWizard = {
                                     </span>
                                 </div>
 
-                                <!-- Panel admin de grupos: solo visible en modo
-                                     edicion + la actividad debe ser assign o quiz
-                                     + el flag de group grading debe estar activo.
-                                     Es el ActivityGroupsPanel que antes estaba
-                                     huerfano (registrado como Vue.component pero
-                                     nunca montado en ningun template).
-
-                                     :cmid se pasa con parseInt porque el
-                                     ActivityGroupsPanel declara el prop como
-                                     Number y el bind automatico de Vue 2 sobre
-                                     valores numericos puede llegar como string
-                                     (ver [Vue warn]: Invalid prop cmid).
-
-                                     IMPORTANTE: el v-if usa editData.enableGroupGrading
-                                     (pasado por el padre) en vez de formData.enableGroupGrading
-                                     porque data() se reinicializa en cada re-mount
-                                     y formData arrancaria en false, ocultando
-                                     el panel en el primer render. fetchActivityDetails
-                                     sigue corriendo y sincroniza formData para
-                                     consistencia. -->
-                                <activity-groups-panel
-                                    v-if="editMode && editData && editData.id && (editData.enableGroupGrading || formData.enableGroupGrading)"
-                                    :cmid="parseInt(editData.id, 10)"
-                                    :modname="activityType"
-                                    :activity-name="formData.name"
-                                    class="mt-4"
-                                ></activity-groups-panel>
                             </div>
+
+                            <!-- Panel admin de grupos: solo visible en modo
+                                 edicion + la actividad debe ser assign o quiz
+                                 + el flag de group grading debe estar activo.
+                                 Es el ActivityGroupsPanel que antes estaba
+                                 huerfano (registrado como Vue.component pero
+                                 nunca montado en ningun template).
+
+                                 IMPORTANTE: este panel va FUERA del
+                                 <div v-if="formData.enableGroupGrading"> de
+                                 arriba, para que pueda renderizarse incluso
+                                 cuando formData.enableGroupGrading esta
+                                 momentaneamente en false (data() se
+                                 reinicializa en cada re-mount y el primer
+                                 render lo deja en false hasta que llegue
+                                 fetchActivityDetails). El padre
+                                 (onActivityCreatedWithGroups) pasa
+                                 enableGroupGrading=true en editData, asi
+                                 que con OR logico el panel se monta en
+                                 el primer render sin parpadeo.
+
+                                 :cmid se pasa con parseInt porque el
+                                 ActivityGroupsPanel declara el prop como
+                                 Number y el bind automatico de Vue 2 sobre
+                                 valores numericos puede llegar como string
+                                 (ver [Vue warn]: Invalid prop cmid). -->
+                            <activity-groups-panel
+                                v-if="editMode && editData && editData.id && (editData.enableGroupGrading || formData.enableGroupGrading)"
+                                :cmid="parseInt(editData.id, 10)"
+                                :modname="activityType"
+                                :activity-name="formData.name"
+                                class="mt-4"
+                            ></activity-groups-panel>
                         </v-card>
 
                         <!-- Tags Input -->
@@ -362,6 +368,23 @@ const ActivityCreationWizard = {
         };
     },
     mounted() {
+        // Sincronizacion inmediata del flag de calificacion grupal desde
+        // editData (pasado por el padre en onActivityCreatedWithGroups).
+        // Asi el <v-switch> y el <activity-groups-panel> aparecen
+        // correctos desde el primer render, sin esperar al fetch del
+        // backend. data() deja formData.enableGroupGrading=false en cada
+        // re-mount, y sin esta sincronizacion el usuario veia el switch
+        // apagado y el panel oculto a pesar de que la actividad SÍ
+        // tiene el flag prendido en la BD.
+        if (this.editMode && this.editData && this.editData.enableGroupGrading) {
+            this.formData.enableGroupGrading = true;
+            if (this.editData.groupMode) {
+                this.formData.groupMode = this.editData.groupMode;
+            }
+            if (this.editData.groupMaxmembers) {
+                this.formData.groupMaxmembers = this.editData.groupMaxmembers;
+            }
+        }
         if (this.editMode && this.editData) {
             this.fetchActivityDetails(this.editData.id);
         }
