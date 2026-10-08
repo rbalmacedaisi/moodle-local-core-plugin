@@ -449,11 +449,12 @@ class ret01_pdf_generator extends \TCPDF {
             0, 'C');
         $this->Ln(2);
 
-        // Forzar salto de pagina si no hay ~80mm para las DOS cajas
-        // (40mm cada una con su titulo, Fecha, Hora, Recibido, Firma).
-        // Si no hay espacio, AMBAS cajas pasan a la siguiente pagina
-        // y se renderizan JUNTAS desde el top.
-        $this->ensure_space(50);
+        // Forzar salto de pagina si no hay ~90mm para las DOS cajas
+        // (caja 38mm + titulo 5.5mm + Ln de margen + cuerpo). Si no hay
+        // espacio, AMBAS cajas pasan a la siguiente pagina y se
+        // renderizan JUNTAS desde el top. Esto evita que las cajas
+        // queden partidas entre paginas (bug historico).
+        $this->ensure_space(90);
         $y0 = $this->GetY();
         $this->receipt_block(
             'Direccion Academica (original)',
@@ -470,7 +471,15 @@ class ret01_pdf_generator extends \TCPDF {
             isset($this->row->received_admin_by) && (int)$this->row->received_admin_by > 0
                 ? $this->user_fullname_or_id((int)$this->row->received_admin_by) : ''
         );
-        $this->SetY(max($this->GetY(), $this->GetY()) + 2);
+        // Move the cursor below the LAST receipt block. receipt_block
+        // leaves SetXY at ($x + $w + 5, $y0) - i.e. to the RIGHT of the
+        // second box, at the same Y. We want the cursor BELOW both
+        // boxes so the next section (6) renders beneath, not on top of,
+        // the receipt boxes. The previous version had
+        //   SetY(max($this->GetY(), $this->GetY()) + 2)
+        // which is a no-op (max(x, x) === x) - that is why section 6
+        // was rendering on top of the receipt boxes.
+        $this->SetY($y0 + 40);
     }
 
     private function receipt_block(string $title, string $date, string $receivedby): void {
@@ -578,7 +587,9 @@ class ret01_pdf_generator extends \TCPDF {
         $this->Cell(180, 7, '  ' . $title, 0, 1, 'L', true);
         $this->SetTextColor(...self::C_TEXT);
         $this->SetFont($this->use_opensans ? 'opensans' : 'helvetica', '', 9);
-        $this->Ln(2);
+        // Small spacer to keep the section title from kissing the first
+        // row of the next table (was overlapping in the previous build).
+        $this->Ln(3);
     }
 
     private function kv_table(array $rows): void {
