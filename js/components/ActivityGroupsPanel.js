@@ -268,6 +268,7 @@ Vue.component('activity-groups-panel', {
         return {
             loading: false,
             saving: false,
+            loadingStudents: false,
             flag: null,
             groups: [],
             availableStudents: [],  // Lista de la clase para autocomplete
@@ -321,13 +322,32 @@ Vue.component('activity-groups-panel', {
         },
 
         async loadAvailableStudents() {
-            // El endpoint de student list por clase es gmk_user_list_for_class pero aqui
-            // simplificamos: si el padre nos pasa availableStudents por prop lo usamos;
-            // si no, los dejamos vacios y los agregamos despues.
-            if (Array.isArray(this.availableStudents) && this.availableStudents.length > 0) return;
-            // En caso contrario, el docente debera tipear nombres manualmente, lo cual
-            // no es la experiencia ideal pero al menos funciona. Una mejora futura seria
-            // un endpoint que liste estudiantes de la clase de la actividad.
+            // Lista los estudiantes matriculados en el curso de la
+            // actividad con capacidad de submit/attempt. Antes (pre-20261001080)
+            // esto era un stub: el docente tenia que tipear los nombres
+            // manualmente. Ahora llamamos al endpoint nuevo
+            // local_grupomakro_activity_group_list_students.
+            this.loadingStudents = true;
+            try {
+                const resp = await axios.post(window.wsUrl, {
+                    action: 'local_grupomakro_activity_group_list_students',
+                    args: JSON.stringify({
+                        cmid: this.cmid,
+                        modname: this.modname
+                    }),
+                    ...window.wsStaticParams
+                });
+                if (resp.data && resp.data.status === 'success') {
+                    this.availableStudents = resp.data.students || [];
+                } else {
+                    this.notify('error', (resp.data && resp.data.message) || 'Error al listar estudiantes.');
+                }
+            } catch (e) {
+                console.error('[GMK] loadAvailableStudents error', e);
+                this.notify('error', 'Error de conexion al listar estudiantes.');
+            } finally {
+                this.loadingStudents = false;
+            }
         },
 
         openCreateDialog() {

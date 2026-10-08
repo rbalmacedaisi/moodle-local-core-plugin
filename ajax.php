@@ -1145,6 +1145,22 @@ try {
             ];
             break;
 
+        // Lista los estudiantes matriculados en el curso de la actividad
+        // (con capacidad de submit/attempt). Es la lista que se muestra
+        // en el ActivityGroupsPanel al crear o editar un grupo.
+        // Introducida en 20261001080: antes el docente tenia que tipear
+        // los nombres manualmente, lo cual no escalaba.
+        case 'local_grupomakro_activity_group_list_students':
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/teacher/activity_group_list_students.php');
+            $args = required_param('args', PARAM_RAW);
+            $result = \local_grupomakro_core\external\teacher\activity_group_list_students::execute($args);
+            $response = [
+                'status'   => $result['status'] ?? 'success',
+                'message'  => $result['message'] ?? '',
+                'students' => $result['students'] ?? [],
+            ];
+            break;
+
         case 'local_grupomakro_activity_group_list_for_student':
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/student/activity_group_list_for_student.php');
             $cmid    = required_param('cmid', PARAM_INT);
