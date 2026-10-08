@@ -943,7 +943,16 @@ template: `
                     signal: this.currentFetchController.signal
                 });
 
-                const res = await response.json();
+                let res;
+                try {
+                    res = await response.json();
+                } catch (parseError) {
+                    // El backend puede devolver HTML (login redirect) o vacio
+                    // si la sesion expiro. Mostrar el error y no crashear.
+                    const txt = await response.text().catch(() => '');
+                    console.error('getDataFromApi: response is not valid JSON. status=' + response.status + ' body=' + txt.substring(0, 200));
+                    throw new Error('Respuesta no JSON del servidor (status ' + response.status + '). Posible sesion expirada. Recargá la pagina.');
+                }
                 if (requestNonce !== this.fetchNonce) {
                     return;
                 }
