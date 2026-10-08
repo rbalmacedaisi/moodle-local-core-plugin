@@ -90,20 +90,19 @@ if (!preg_match('/toggleStudent\s*\([^)]*userid/', $src)) {
 }
 mtrace("2) toggleStudent(userid) method is defined ✔");
 
-// 3. There must be a computed `selectAll` with both a getter and a
-//    setter (the setter is the key to the 'uncheck one clears all'
-//    half of the bug - the setter should add or remove every
-//    student based on the checkbox state, not silently sync to
-//    the v-data-table's internal array).
-if (!preg_match('/selectAll\s*\(\)\s*\{[^}]*get:\s*function\s*\(/s', $src)
-    && !preg_match('/selectAll\s*\(\)\s*\{[^}]*get\s*\(/s', $src)) {
+// 3. There must be a computed `selectAll` with a getter. In Vue 2
+//    this is written as `selectAll: { get() {...}, set() {...} }`.
+//    We accept both the inline form (the one we use) and the
+//    function form (`selectAll() { return ...; }`).
+if (!preg_match('/selectAll\s*:\s*\{\s*get\s*\(/s', $src)
+    && !preg_match('/selectAll\s*\(\s*\)\s*\{[^}]*return\s+/s', $src)) {
     mtrace("FAIL: missing selectAll computed with a getter. The header checkbox "
         . "needs to know whether every row is currently selected.");
     exit(4);
 }
 mtrace("3) selectAll computed with a getter is defined ✔");
 
-if (!preg_match('/selectAll\s*\(\)\s*\{[\s\S]{0,500}set:\s*function\s*\(/', $src)) {
+if (!preg_match('/selectAll\s*:\s*\{[\s\S]{0,500}set\s*\(/', $src)) {
     mtrace("FAIL: missing selectAll computed with a setter. The header checkbox "
         . "needs to be able to flip every row at once.");
     exit(5);
