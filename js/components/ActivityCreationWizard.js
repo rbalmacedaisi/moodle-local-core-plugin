@@ -716,6 +716,20 @@ const ActivityCreationWizard = {
                     this.formData.timeclose = this.formatTimestampForDatetimeLocal(act.timeclose);
                     this.formData.attempts = act.attempts || 1;
 
+                    // Calificacion grupal (20261001080). Si la respuesta
+                    // del backend trae los flags, los aplicamos al form.
+                    // Sin esto, al re-montar el wizard en modo edicion
+                    // (caso "Crear y gestionar grupos"), el formData
+                    // arranca con enableGroupGrading=false porque data()
+                    // se reinicializa al re-mount, y el <activity-groups-panel>
+                    // no se renderiza (su v-if requiere enableGroupGrading=1).
+                    if (act.enableGroupGrading === true || act.enableGroupGrading === 1) {
+                        this.formData.enableGroupGrading = true;
+                        this.formData.groupMode = (act.groupMode === 'fixed') ? 'fixed' : 'open';
+                        const m = parseInt(act.groupMaxmembers, 10);
+                        this.formData.groupMaxmembers = (m > 0) ? m : 5;
+                    }
+
                     if (act.files && act.files.length > 0) {
                         this.existingFiles = act.files;
                     }

@@ -6705,6 +6705,21 @@ try {
                 'files' => [],
             ];
 
+            // Calificacion grupal (20261001080). El wizard re-monta en
+            // modo edicion cuando creas con enableGroupGrading=1, y
+            // para que el <activity-groups-panel> dentro del card se
+            // renderice necesita ver enableGroupGrading=1 desde el
+            // momento del re-mount (data() se reinicializa). Si el
+            // endpoint no devuelve los flags, el formData empieza en
+            // false y el panel no aparece.
+            $gradingflag = gmk_get_activity_grading_flag($cmid);
+            $activity_data['enableGroupGrading'] = $gradingflag
+                && (int)$gradingflag->enabled === 1;
+            $activity_data['groupMode'] = $gradingflag
+                ? (string)$gradingflag->mode : 'open';
+            $activity_data['groupMaxmembers'] = $gradingflag
+                ? (int)$gradingflag->maxmembers : 5;
+
             // Include attached files for supported module types
             $fileinfo_detail = gmk_get_module_fileinfo($cm->modname);
             if ($fileinfo_detail) {

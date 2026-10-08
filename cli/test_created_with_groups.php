@@ -117,5 +117,37 @@ if (!preg_match(
 }
 mtrace("5) onActivityCreatedWithGroups flips isEditing + editData with the new cmid ✔");
 
+// 5. The wizard's fetchActivityDetails() must read the group-grading
+//    flags from the backend response and apply them to formData.
+//    Without this, the <activity-groups-panel> would never render
+//    after a "Crear y gestionar grupos" because data() resets to
+//    enableGroupGrading=false on re-mount and the panel's v-if is
+//    guarded by that flag.
+if (!preg_match(
+    '/act\.enableGroupGrading\s*===\s*true\s*\|\|\s*act\.enableGroupGrading\s*===\s*1/',
+    $wizard
+)) {
+    mtrace("FAIL: fetchActivityDetails() does not read enableGroupGrading from the backend. "
+        . "The create-then-manage flow would re-mount the wizard with the flag reset to false.");
+    exit(7);
+}
+mtrace("6) fetchActivityDetails() applies enableGroupGrading from the backend response ✔");
+
+// 6. The backend's get_activity_details must return the group-grading
+//    flags so the wizard can restore them on re-mount.
+$ajax = file_get_contents($CFG->dirroot . '/local/grupomakro_core/ajax.php');
+foreach (["'enableGroupGrading'", "'groupMode'", "'groupMaxmembers'"] as $key) {
+    // Look for the key inside the get_activity_details case (between
+    // case 'local_grupomakro_get_activity_details': and the next case).
+    $caseStart = strpos($ajax, "case 'local_grupomakro_get_activity_details':");
+    $nextCase = strpos($ajax, "\n        case ", $caseStart + 10);
+    $caseBlock = substr($ajax, $caseStart, $nextCase - $caseStart);
+    if (strpos($caseBlock, $key) === false) {
+        mtrace("FAIL: get_activity_details does not return $key. The wizard cannot restore the flag.");
+        exit(8);
+    }
+}
+mtrace("7) get_activity_details returns enableGroupGrading + groupMode + groupMaxmembers ✔");
+
 mtrace("=== ALL CHECKS PASSED ===");
 exit(0);
