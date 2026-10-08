@@ -28,8 +28,11 @@ const AssignmentExtensions = {
                 </v-toolbar>
 
                 <v-card-text class="pa-5">
-                    <!-- Step 1: Activity picker -->
-                    <div class="d-flex align-center mb-4">
+                    <!-- Step 1: Activity picker (solo si el modal NO fue
+                         abierto desde una actividad especifica). Si assignId
+                         viene como prop, mostramos solo el nombre y ocultamos
+                         el dropdown para forzar el contexto de esa actividad. -->
+                    <div v-if="!assignId" class="d-flex align-center mb-4">
                         <v-icon color="primary" class="mr-2">mdi-book-open-page-variant</v-icon>
                         <v-select
                             v-model="selectedAssignId"
@@ -51,6 +54,20 @@ const AssignmentExtensions = {
                             </template>
                             <span>Esta clase no tiene actividades tipo Assign visibles.</span>
                         </v-tooltip>
+                    </div>
+
+                    <!-- Si el modal se abrio con assignId pre-seleccionado, mostramos
+                         un chip de solo-lectura con el nombre de la actividad y
+                         omitimos el dropdown de Step 1. -->
+                    <div v-else class="d-flex align-center mb-4">
+                        <v-icon color="primary" class="mr-2">mdi-book-open-page-variant</v-icon>
+                        <v-chip small color="primary" dark class="mr-2">
+                            <v-icon x-small left>mdi-book-open-page-variant</v-icon>
+                            {{ assignmentName || ('Actividad #' + assignId) }}
+                        </v-chip>
+                        <span class="caption grey--text">
+                            (Las pr\u00f3rrogas aplican solo a esta actividad.)
+                        </span>
                     </div>
 
                     <!-- Default duedate + override count -->
@@ -189,6 +206,11 @@ const AssignmentExtensions = {
         modelValue: { type: Boolean, default: false },
         classId: { type: [Number, String], default: null },
         classInfo: { type: Object, default: () => ({}) },
+        // Cuando el modal se abre desde la lista de actividades individuales
+        // (ManageClass > tab "Actividades"), pre-seleccionamos esta actividad
+        // y ocultamos el dropdown del step 1.
+        assignId: { type: [Number, String], default: null },
+        assignmentName: { type: String, default: '' },
     },
     data() {
         return {
@@ -235,7 +257,10 @@ const AssignmentExtensions = {
     methods: {
         async bootstrap() {
             this.lastResult = null;
-            this.selectedAssignId = null;
+            // Si el padre paso assignId como prop, ese es el contexto y no
+            // se debe permitir cambiarlo (es la unica actividad de esta modal).
+            // Si no, selectedAssignId queda null hasta que el usuario elija.
+            this.selectedAssignId = this.assignId ? parseInt(this.assignId, 10) : null;
             this.students = [];
             this.newDueDates = {};
             this.overrides = [];
@@ -247,6 +272,16 @@ const AssignmentExtensions = {
 
             if (!this.classId) return;
 
+            // Si el padre ya paso assignId, NO cargamos la lista de
+            // assignments: la actividad es fija. Saltamos directo a
+            // onActivityChange() para que cargue estudiantes y overrides.
+            if (this.selectedAssignId) {
+                this.loading.assignments = false;
+                this.assignments = [];
+                await this.onActivityChange();
+                return;
+            }
+
             this.loading.assignments = true;
             try {
                 const response = await axios.post(wsUrl, {
@@ -255,7 +290,7 @@ const AssignmentExtensions = {
                     ...wsStaticParams
                 });
                 if (response.data && response.data.status === 'success') {
-                    this.assignments = response.data.data.assignments || [];
+                    this.assignments = response.data.assignments || [];
                 } else {
                     this.lastResult = { status: 'error', message: 'No se pudieron cargar las actividades.' };
                     this.assignments = [];

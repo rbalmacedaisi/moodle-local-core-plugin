@@ -1042,6 +1042,89 @@ try {
             break;
 
         // =====================================================================
+        // PRORROGAS INDIVIDUALES DE ENTREGA (introducidas en 20261001092)
+        // =====================================================================
+        // El componente AssignmentExtensions.js envia estas acciones desde
+        // TeacherDashboard.js, donde window.wsUrl apunta a ajax.php. Hay
+        // que despacharlas aqui aunque tambien esten registradas en
+        // db/services.php (para el endpoint estandar webservice/rest).
+        case 'local_grupomakro_set_assignment_user_override':
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/teacher/assignment_extensions.php');
+            $args = required_param('args', PARAM_RAW);
+            $data = json_decode($args, true);
+            if (!$data) throw new moodle_exception('invalidjson');
+            $result = \local_grupomakro_core\external\teacher\assignment_extensions::set(
+                (int)$data['assignid'],
+                (int)$data['userid'],
+                (int)$data['duedate'],
+                (string)($data['reason'] ?? '')
+            );
+            $response = [
+                'status'      => $result['status']      ?? 'success',
+                'message'     => $result['message']     ?? '',
+                'override_id' => $result['override_id'] ?? 0,
+                'old_duedate' => $result['old_duedate'] ?? 0,
+                'new_duedate' => $result['new_duedate'] ?? 0,
+            ];
+            break;
+
+        case 'local_grupomakro_list_assignment_extensions':
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/teacher/assignment_extensions.php');
+            $assignid = required_param('assignid', PARAM_INT);
+            $result = \local_grupomakro_core\external\teacher\assignment_extensions::list_overrides($assignid);
+            $response = [
+                'status'          => 'success',
+                'overrides'       => $result['overrides']   ?? [],
+                'history'         => $result['history']     ?? [],
+                'default_duedate' => $result['default_duedate'] ?? 0,
+            ];
+            break;
+
+        case 'local_grupomakro_delete_assignment_user_override':
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/teacher/assignment_extensions.php');
+            $args = required_param('args', PARAM_RAW);
+            $data = json_decode($args, true);
+            if (!$data) throw new moodle_exception('invalidjson');
+            $result = \local_grupomakro_core\external\teacher\assignment_extensions::delete_override(
+                (int)$data['assignid'],
+                (int)$data['userid']
+            );
+            $response = [
+                'status'  => $result['status']  ?? 'success',
+                'message' => $result['message'] ?? '',
+            ];
+            break;
+
+        case 'local_grupomakro_list_course_assignments':
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/teacher/assignment_extensions.php');
+            $args = required_param('args', PARAM_RAW);
+            $data = json_decode($args, true);
+            if (!$data) throw new moodle_exception('invalidjson');
+            $result = \local_grupomakro_core\external\teacher\assignment_extensions::list_course_assignments(
+                (int)$data['courseid']
+            );
+            $response = [
+                'status'      => 'success',
+                'assignments' => $result['assignments'] ?? [],
+            ];
+            break;
+
+        case 'local_grupomakro_list_course_students_for_overrides':
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/teacher/assignment_extensions.php');
+            $args = required_param('args', PARAM_RAW);
+            $data = json_decode($args, true);
+            if (!$data) throw new moodle_exception('invalidjson');
+            $result = \local_grupomakro_core\external\teacher\assignment_extensions::list_course_students(
+                (int)$data['courseid'],
+                (int)($data['assignid'] ?? 0)
+            );
+            $response = [
+                'status'  => 'success',
+                'students' => $result['students'] ?? [],
+            ];
+            break;
+
+        // =====================================================================
         // CALIFICACION GRUPAL (introducida en 20261001057)
         // =====================================================================
 
@@ -4694,6 +4777,10 @@ try {
                     'tags'       => array_values($tagNames),
                     'is_general' => $is_general,
                     'visible'    => (bool)$cm->visible,
+                    // Para Assign: mdl_assign.id (instance del course_module).
+                    // El modal de prorrogas lo necesita para fijar el contexto
+                    // de la actividad al abrirlo desde el card individual.
+                    'instance'   => (int)$cm->instance,
                 ];
             }
             

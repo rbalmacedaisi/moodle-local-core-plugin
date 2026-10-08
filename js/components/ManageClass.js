@@ -278,6 +278,22 @@ const ManageClass = {
                                                                 </template>
                                                                 <span>Eliminar actividad</span>
                                                             </v-tooltip>
+                                                            <v-tooltip bottom v-if="activity.modname === 'assign'">
+                                                                <template v-slot:activator="{ on, attrs }">
+                                                                    <v-btn
+                                                                        icon
+                                                                        small
+                                                                        color="orange darken-2"
+                                                                        class="mr-2"
+                                                                        @click.stop="openExtensionsFor(activity)"
+                                                                        v-bind="attrs"
+                                                                        v-on="on"
+                                                                    >
+                                                                        <v-icon>mdi-calendar-clock</v-icon>
+                                                                    </v-btn>
+                                                                </template>
+                                                                <span>Excepciones de entrega (pr\u00f3rrogas por estudiante)</span>
+                                                            </v-tooltip>
                                                             <v-btn icon small @click.stop="openEditActivity(activity)"><v-icon color="grey lighten-1">mdi-pencil</v-icon></v-btn>
                                                         </v-list-item-action>
                                                     </v-list-item>
@@ -680,6 +696,19 @@ const ManageClass = {
                 </v-card>
             </v-dialog>
 
+            <!-- Modal de prorrogas de entrega por actividad individual.
+                 Se abre desde el boton del card de cada actividad en el tab
+                 "Actividades". Se le pasa assignId para que cargue esa
+                 actividad sin mostrar el dropdown de Step 1. -->
+            <assignment-extensions
+                v-if="extensionsActivity"
+                v-model="extensionsOpen"
+                :class-id="classId"
+                :class-info="classInfo"
+                :assign-id="extensionsActivity && extensionsActivity.instance"
+                :assignment-name="extensionsActivity && extensionsActivity.name"
+            ></assignment-extensions>
+
         </v-container>
     `,
     components: {
@@ -752,6 +781,9 @@ const ManageClass = {
             qrTotalSeconds: 30,
             revalidaBusy: {},
             revalidaError: null,
+            // Modal de prorrogas de entrega por actividad individual
+            extensionsActivity: null,
+            extensionsOpen: false,
             forumManagerDialog: false,
             forumManagerLoading: false,
             forumManagerError: '',
@@ -1623,6 +1655,15 @@ const ManageClass = {
                 console.error('Error al copiar:', err);
                 alert('No se pudo copiar el enlace.');
             });
+        },
+        // Abre el modal de prorrogas de entrega para una actividad Assign
+        // individual. Se invoca desde el boton del card de cada actividad
+        // en el tab "Actividades". Pasa assignId y assignmentName al modal
+        // para que se abra con esa actividad pre-seleccionada.
+        openExtensionsFor(activity) {
+            if (!activity || activity.modname !== 'assign') return;
+            this.extensionsActivity = activity;
+            this.extensionsOpen = true;
         }
     }
 };
