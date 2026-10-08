@@ -46,6 +46,7 @@
  */
 
 define('CLI_SCRIPT', true);
+require_once(__DIR__ . '/../../../config.php');
 
 mtrace("=== Static check: AssignmentExtensions.js selection logic (20261001092) ===");
 
