@@ -32,9 +32,14 @@ $PAGE->requires->js(new moodle_url('https://cdnjs.cloudflare.com/ajax/libs/Vue.D
 $PAGE->requires->js(new moodle_url('https://unpkg.com/axios/dist/axios.min.js'), true);
 
 // Load components (Standard JS files)
+// Importante: bumpear ?v= aqui cada vez que se cambia el JS correspondiente.
+// Sin esto el browser del docente sigue cargando la version vieja del
+// JS y los fixes no se ven (cache agresiva de Moodle + service workers).
+// Convencion: la fecha del commit que toco el archivo.
+// 20261001080 = toco ActivityCreationWizard, ManageClass y ActivityGroupsPanel.
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/TeacherDashboard.js?v=20260827000'), true);
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/ActivityCreationWizard.js?v=20261001057'), true);
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/ManageClass.js?v=20260713001_rev-revalida-cap'), true);
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/ActivityCreationWizard.js?v=20261001080'), true);
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/ManageClass.js?v=20261001080'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/studenttable.js?v=20251231049'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/TeacherStudentTable.js?v=20260905001'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/GradesGrid.js?v=20260827000'), true);
@@ -43,8 +48,8 @@ $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/attendancemodal.js?v=20251231049'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/PendingGradingView.js?v=20261001057'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/QuickGrader.js?v=20261001057'), true);
-// Calificacion grupal (introducida en 20261001057)
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/ActivityGroupsPanel.js?v=20261001057'), true);
+// Calificacion grupal (introducida en 20261001057, mejorada en 20261001080)
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/ActivityGroupsPanel.js?v=20261001080'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/GroupGradeConfirmModal.js?v=20261001057'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/QuizCreationWizard.js?v=20260326001'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/quizeditor/QuestionBankDialog.js'), true);
