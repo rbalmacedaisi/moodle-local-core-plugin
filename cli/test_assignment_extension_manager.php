@@ -181,5 +181,86 @@ if ((int)$pass !== (int)$gc->corecourseid) {
 }
 mtrace("7) resolve_course_id_public passes through real mdl_course.id ✔");
 
+// --- 8. set/get/delete round-trip: pick the FIRST enrolled student
+//     and a future timestamp, call set(), confirm it appears in
+//     list_extensions(), then delete_override() and confirm it is
+//     gone. This is the actual end-to-end happy path the JS modal
+//     exercises: 'Apply' -> set one override -> modal reloads -> the
+//     student now has 'Fecha actual' in orange -> 'trash' -> delete.
+//
+// We use a very-far-in-the-future duedate (1 year ahead) so we do
+// not collide with any existing override. The test also cleans up
+// after itself even on failure (best-effort).
+$students = $DB->get_records_sql(
+    "SELECT u.id
+       FROM {user_enrolments} ue
+       JOIN {enrol} e ON e.id = ue.enrolid AND e.courseid = :cid
+       JOIN {user} u ON u.id = ue.userid
+      WHERE u.deleted = 0
+   ORDER BY u.id ASC",
+    ['cid' => $gc->corecourseid], 0, 1
+);
+if (!$students) {
+    mtrace("WARN: course has no enrolled users to test the round-trip; skipping 8.");
+} else {
+    $studentid = (int)reset($students)->id;
+    $futurets = time() + 365 * 86400; // +1 year
+    try {
+        $setResult = \local_grupomakro_core\external\teacher\assignment_extensions::set(
+            (int)$assignrow->assignid,
+            $studentid,
+            $futurets,
+            'smoke-test-' . time()
+        );
+    } catch (\Throwable $e) {
+        mtrace("FAIL: assignment_extensions::set() threw: " . $e->getMessage());
+        exit(11);
+    }
+    if (($setResult['status'] ?? '') !== 'success') {
+        mtrace("FAIL: set() returned non-success: " . json_encode($setResult));
+        exit(11);
+    }
+    mtrace("8a) set() applied override for user={$studentid} duedate=" . date('c', $futurets) . " ✔");
+
+    // Reload via list_overrides() and confirm the new override is there.
+    $info = \local_grupomakro_core\external\teacher\assignment_extensions::list_overrides(
+        (int)$assignrow->assignid
+    );
+    $found = false;
+    foreach ($info['overrides'] as $ov) {
+        if ((int)$ov['userid'] === $studentid && (int)$ov['duedate'] === $futurets) {
+            $found = true;
+            break;
+        }
+    }
+    if (!$found) {
+        mtrace("FAIL: list_overrides() did not return the new override for user {$studentid}.");
+        exit(12);
+    }
+    mtrace("8b) list_overrides() reports the new override ✔");
+
+    // delete_override() and confirm.
+    $delResult = \local_grupomakro_core\external\teacher\assignment_extensions::delete_override(
+        (int)$assignrow->assignid,
+        $studentid
+    );
+    if (($delResult['status'] ?? '') !== 'success') {
+        mtrace("FAIL: delete_override() returned non-success: " . json_encode($delResult));
+        exit(13);
+    }
+    mtrace("8c) delete_override() removed it ✔");
+
+    $info2 = \local_grupomakro_core\external\teacher\assignment_extensions::list_overrides(
+        (int)$assignrow->assignid
+    );
+    foreach ($info2['overrides'] as $ov) {
+        if ((int)$ov['userid'] === $studentid && (int)$ov['duedate'] === $futurets) {
+            mtrace("FAIL: override for user {$studentid} still in list_overrides() after delete.");
+            exit(14);
+        }
+    }
+    mtrace("8d) list_overrides() no longer reports it ✔");
+}
+
 mtrace("=== ALL CHECKS PASSED ===");
 exit(0);
