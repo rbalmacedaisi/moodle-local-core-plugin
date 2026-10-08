@@ -155,5 +155,31 @@ foreach (['assign_id', 'assign_name', 'default_duedate', 'overrides', 'history']
 }
 mtrace("5) list_extensions has the expected keys ✔");
 
+// --- 6. End-to-end check: the WS layer must also accept gmk_class.id
+//     and apply the same mapping. We call the public resolver
+//     directly to confirm the helper exists and behaves.
+require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/teacher/assignment_extensions.php');
+if (!method_exists(assignment_extension_manager::class, 'resolve_course_id_public')) {
+    mtrace("FAIL: resolve_course_id_public() is not exposed on the manager.");
+    exit(8);
+}
+$resolved = assignment_extension_manager::resolve_course_id_public((int)$gc->id);
+if ((int)$resolved !== (int)$gc->corecourseid) {
+    mtrace("FAIL: resolve_course_id_public(gmk_class.id={$gc->id}) returned "
+        . "{$resolved}, expected corecourseid={$gc->corecourseid}.");
+    exit(9);
+}
+mtrace("6) resolve_course_id_public maps gmk_class.id -> corecourseid ✔");
+
+// --- 7. Pass-through: an id that is NOT a gmk_class.id (a real
+//     mdl_course.id) should be returned unchanged.
+$pass = assignment_extension_manager::resolve_course_id_public((int)$gc->corecourseid);
+if ((int)$pass !== (int)$gc->corecourseid) {
+    mtrace("FAIL: resolve_course_id_public() mangled a real mdl_course.id "
+        . "(got {$pass}, expected {$gc->corecourseid}).");
+    exit(10);
+}
+mtrace("7) resolve_course_id_public passes through real mdl_course.id ✔");
+
 mtrace("=== ALL CHECKS PASSED ===");
 exit(0);
