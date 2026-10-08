@@ -495,9 +495,16 @@ class ret01_pdf_generator extends \TCPDF {
             'Entiendo que al retirarme pierdo la calidad de estudiante y que el ISI no devuelve dinero, salvo las opciones indicadas en la seccion 3. Un aviso verbal, por telefono, WhatsApp o correo electronico no sustituye este formulario. El estudiante debe conservar su copia firmada.',
             'Declaro que la informacion de este formulario es verdadera.',
         ];
-        $this->SetFont($this->use_opensans ? 'opensans' : 'helvetica', '', 9.5);
+        // Use 8.5pt (was 9.5pt) and 4.3mm line height (was 5mm) to
+        // compact the declaration so the signature block fits on the
+        // SAME page. With the previous sizes, the 5 numbered
+        // paragraphs plus a 12mm signature gap overflowed onto page 2
+        // and left an orphan rule on page 1. The user reported the
+        // resulting split was confusing - the rule on p1 and the
+        // labels on p2 looked like a duplicate signature.
+        $this->SetFont($this->use_opensans ? 'opensans' : 'helvetica', '', 8.5);
         $this->SetTextColor(...self::C_TEXT);
-        // Render each paragraph with a 7mm "number gutter" and the
+        // Render each paragraph with a 6mm "number gutter" and the
         // number drawn as a separate Cell before the MultiCell. The
         // number is part of the Cell so it does NOT get justified.
         // We use 'L' (left align) instead of 'J' (justify) because
@@ -509,24 +516,20 @@ class ret01_pdf_generator extends \TCPDF {
         // Left align keeps the natural spacing.
         $i = 1;
         foreach ($paragraphs as $p) {
-            $this->SetFont($this->use_opensans ? 'opensans__b' : 'helvetica', 'B', 9.5);
-            $this->Cell(7, 5, "$i.", 0, 0, 'R');
-            $this->SetFont($this->use_opensans ? 'opensans' : 'helvetica', '', 9.5);
-            $this->MultiCell(168, 5, $p, 0, 'L');
-            $this->Ln(2);
+            $this->SetFont($this->use_opensans ? 'opensans__b' : 'helvetica', 'B', 8.5);
+            $this->Cell(6, 4.3, "$i.", 0, 0, 'R');
+            $this->SetFont($this->use_opensans ? 'opensans' : 'helvetica', '', 8.5);
+            $this->MultiCell(170, 4.3, $p, 0, 'L');
+            $this->Ln(1);
             $i++;
         }
-        // Signature block: it MUST stay together (line + label + date
-        // label). We pre-flight with ensure_space() for the WHOLE
-        // block (line + 12mm gap + label row = 20mm) and then render
-        // it atomically. v20261001100 used a separate Ln(8) and
-        // ensure_space(20), which left a single orphan rule on page 1
-        // and pushed the labels to page 2, producing duplicate rule
-        // lines (one with no label on page 1, one with labels on
-        // page 2). The fix is to render the signature as a single
-        // continuous block: no Ln() between the rule and the label,
-        // just an explicit SetXY for the labels.
-        $this->ensure_space(20);
+        // Signature block: keep it together AND on the same page as
+        // the declaration. We pre-flight with ensure_space() for the
+        // whole block (8mm line-to-label gap + 4mm label row = 14mm
+        // is enough for a handwritten signature). If the block does
+        // not fit, it stays together and moves to page 2 - we do
+        // NOT want a split.
+        $this->ensure_space(14);
         $yFirma = $this->GetY();
         $this->SetDrawColor(...self::C_MUTED);
         $this->SetLineWidth(0.3);
@@ -536,16 +539,16 @@ class ret01_pdf_generator extends \TCPDF {
         $this->SetLineWidth(0.2);
         $this->SetFont($this->use_opensans ? 'opensans__i' : 'helvetica', 'I', 8);
         $this->SetTextColor(...self::C_MUTED);
-        // Labels sit 12mm below the line (= signature height). The
-        // SetXY uses absolute coordinates, not a Ln(), so even if
-        // TCPDF auto-breaks between the rule and the labels, the
-        // labels go to a known position relative to the rule.
-        $this->SetXY(15, $yFirma + 12);
+        // Labels sit 8mm below the line (= signature height, enough
+        // for a 6-8mm tall signature + pen travel). The SetXY uses
+        // absolute coordinates so the labels stay anchored to the
+        // rule even if TCPDF auto-breaks mid-block.
+        $this->SetXY(15, $yFirma + 8);
         $this->Cell(80, 4, 'Firma del estudiante', 0, 0, 'L');
         $this->SetX(95);
         $this->Cell(100, 4, 'Fecha:   ____  /  ____  /  ________', 0, 0, 'L');
         $this->SetTextColor(...self::C_TEXT);
-        $this->Ln(10);
+        $this->Ln(6);
     }
 
     // ─────────────────── 5. CONSTANCIA DE RECEPCION ───────────────────
