@@ -260,6 +260,7 @@ const AssignmentExtensions = {
         // extensionsOpen=true ANTES de montar el componente), el watch de
         // modelValue NO se dispara porque Vue 2 no hace immediate por default.
         // Forzamos la apertura inicial aqui.
+        console.log('[GMK DEBUG] AssignmentExtensions created. modelValue =', this.modelValue, 'assignId =', this.assignId);
         if (this.modelValue) {
             this.open = true;
             this.bootstrap();

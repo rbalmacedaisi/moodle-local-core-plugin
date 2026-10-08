@@ -285,14 +285,14 @@ const ManageClass = {
                                                                         small
                                                                         color="orange darken-2"
                                                                         class="mr-2"
-                                                                        @click.stop="openExtensionsFor(activity)"
+                                                                        @click.stop.prevent="openExtensionsFor(activity)"
                                                                         v-bind="attrs"
                                                                         v-on="on"
                                                                     >
                                                                         <v-icon>mdi-calendar-clock</v-icon>
                                                                     </v-btn>
                                                                 </template>
-                                                                <span>Excepciones de entrega (pr\u00f3rrogas por estudiante)</span>
+                                                                <span>Excepciones de entrega (prórrogas por estudiante)</span>
                                                             </v-tooltip>
                                                             <v-btn icon small @click.stop="openEditActivity(activity)"><v-icon color="grey lighten-1">mdi-pencil</v-icon></v-btn>
                                                         </v-list-item-action>
@@ -1660,9 +1660,14 @@ const ManageClass = {
         // en el tab "Actividades". Pasa assignId y assignmentName al modal
         // para que se abra con esa actividad pre-seleccionada.
         openExtensionsFor(activity) {
-            if (!activity || activity.modname !== 'assign') return;
+            console.log('[GMK DEBUG] openExtensionsFor llamado con:', activity);
+            if (!activity || activity.modname !== 'assign') {
+                console.warn('[GMK DEBUG] Actividad rechazada (modname !== assign):', activity && activity.modname);
+                return;
+            }
             this.extensionsActivity = activity;
             this.extensionsOpen = true;
+            console.log('[GMK DEBUG] extensionsActivity =', this.extensionsActivity, ' extensionsOpen =', this.extensionsOpen);
         }
     }
 };
