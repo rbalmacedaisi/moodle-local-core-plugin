@@ -103,6 +103,12 @@ class ret01_pdf_generator extends \TCPDF {
         $this->SetAutoPageBreak(true, 22);
         $this->setHeaderMargin(0);
         $this->setFooterMargin(12);
+        // Clear the default TCPDF header/footer template values. Even
+        // with our Header() override, the parent's first call to
+        // Header() would still try to start an XObject template using
+        // getHeaderData(). Empty strings + zero width = no template.
+        $this->setHeaderData('', 0, '', '', [0, 0, 0], [0, 0, 0]);
+        $this->setFooterData('', [0, 0, 0], '', [0, 0, 0]);
 
         $this->use_opensans ? $this->SetFont('opensans', '', 9)
                             : $this->SetFont('helvetica', '', 9);
@@ -142,6 +148,37 @@ class ret01_pdf_generator extends \TCPDF {
             }
         }
         return null;
+    }
+
+    /**
+     * Override TCPDF's default Header() to be a no-op.
+     *
+     * TCPDF's stock Header() draws a horizontal rule across the top
+     * of every page and prints the header logo + title + string from
+     * getHeaderData(). That default behaviour was producing a thin
+     * black line above the institutional logo (the rule at y=8mm),
+     * which the user reported looked like a misplaced divider.
+     *
+     * We render our own header via render_header() inside render(),
+     * so the default template must be silenced. The trick to fully
+     * suppress the template is to call setHeaderData with empty
+     * values, then keep the override empty.
+     */
+    public function Header(): void {
+        // Intentionally empty: see render_header() for the actual
+        // institutional header. Calling parent::Header() would
+        // re-introduce the unwanted horizontal rule.
+    }
+
+    /**
+     * Override TCPDF's default Footer() to be a no-op.
+     *
+     * Same reasoning as Header() above. Our footer (paginated, with
+     * institutional address and copy distribution) is rendered
+     * explicitly at the end of every page via render_footer().
+     */
+    public function Footer(): void {
+        // Intentionally empty: see render_footer().
     }
 
     public function render(): string {
