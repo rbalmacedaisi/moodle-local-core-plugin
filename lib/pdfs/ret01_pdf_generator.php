@@ -153,14 +153,14 @@ class ret01_pdf_generator extends \TCPDF {
         $this->Cell(0, 4, 'DIRECCION ACADEMICA', 0, 1, 'L');
 
         $this->Ln(2);
-        $this->SetFont($this->use_opensans ? 'opensans' : 'helvetica', 'B', 16);
+        $this->SetFont($this->use_opensans ? 'opensans__b' : 'helvetica', 'B', 16);
         $this->SetTextColor(...self::C_TEXT);
         $this->Cell(0, 8, 'SOLICITUD DE RETIRO DEL PROGRAMA', 0, 1, 'L');
 
-        $this->SetFont($this->use_opensans ? 'opensans' : 'helvetica', 'I', 9);
+        $this->SetFont($this->use_opensans ? 'opensans__i' : 'helvetica', 'I', 9);
         $this->SetTextColor(...self::C_MUTED);
         $this->Cell(0, 5, 'Para estudiantes activos que no continuaran en el siguiente periodo academico', 0, 1, 'L');
-        $this->Cell(0, 4, sprintf('Formulario oficial RET-01  -  Version %s', $this->template_version), 0, 1, 'L');
+        $this->Cell(0, 5, sprintf('Formulario oficial RET-01  -  Version %s', $this->template_version), 0, 1, 'L');
 
         // Right: request-number badge in a tinted bordered cell.
         $nx = 150;
@@ -175,17 +175,14 @@ class ret01_pdf_generator extends \TCPDF {
         $this->SetFillColor(...self::C_LIGHT);
         $this->MultiCell(35, 12, $this->request_number, 1, 'C', true, 1, $nx, $ny + 4);
 
-        // Reset X for the left block below.
-        $this->SetXY(15, $this->GetY() + 2);
+        // Reset X for the left block below. Mantener margen de 4mm
+        // entre el subtitulo y la seccion 1 para que no se corten
+        // las lineas del subtitulo contra la banda azul.
+        $this->SetXY(15, max($this->GetY(), $ny + 16) + 4);
         $this->SetTextColor(...self::C_TEXT);
-
-        // Bottom rule.
-        $this->SetDrawColor(...self::C_PRIMARY);
-        $this->SetLineWidth(0.6);
-        $this->Line(15, $this->GetY() + 1, 195, $this->GetY() + 1);
-        $this->SetLineWidth(0.2);
         $this->SetDrawColor(...self::C_RULE);
-        $this->Ln(3);
+        // No horizontal rule bajo el titulo: la banda azul de cada
+        // section_title provee suficiente separacion visual.
     }
 
     // ─────────────────── 1. DATOS DEL ESTUDIANTE ───────────────────
@@ -394,10 +391,24 @@ class ret01_pdf_generator extends \TCPDF {
         $this->SetLineWidth(0.2);
         $this->SetFont($this->use_opensans ? 'opensans__b' : 'helvetica', 'B', 9);
         $this->SetXY(15, $this->GetY() - 1);
-        $this->Cell(80, 6, '  Firma del estudiante', 0, 0, 'L');
+        // Linea de firma y fecha con espacio suficiente para que el
+        // usuario pueda firmar a mano sin que se corte contra la siguiente
+        // seccion. La firma va sobre la linea; la fecha al lado.
+        $this->SetDrawColor(...self::C_MUTED);
+        $this->SetLineWidth(0.3);
+        $yFirma = $this->GetY() + 4;
+        $this->Line(15, $yFirma, 90, $yFirma);
+        $this->Line(95, $yFirma, 195, $yFirma);
+        $this->SetDrawColor(...self::C_RULE);
+        $this->SetLineWidth(0.2);
+        $this->SetFont($this->use_opensans ? 'opensans__i' : 'helvetica', 'I', 8);
+        $this->SetTextColor(...self::C_MUTED);
+        $this->SetXY(15, $yFirma + 2);
+        $this->Cell(80, 4, '  Firma del estudiante', 0, 0, 'L');
         $this->SetX(95);
-        $this->Cell(100, 6, '  Fecha:   ____  /  ____  /  ________', 0, 0, 'L');
-        $this->Ln(8);
+        $this->Cell(100, 4, '  Fecha:   ____  /  ____  /  ________', 0, 0, 'L');
+        $this->SetTextColor(...self::C_TEXT);
+        $this->Ln(10);
     }
 
     // ─────────────────── 5. CONSTANCIA DE RECEPCION ───────────────────
