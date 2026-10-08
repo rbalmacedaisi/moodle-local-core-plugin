@@ -206,13 +206,18 @@ class ret01_pdf_generator extends \TCPDF {
     private function render_section_reason_payment(): void {
         $this->section_title('3.  MOTIVO Y OPCION SOBRE LOS PAGOS REALIZADOS');
 
-        // Two side-by-side blocks: Motivo (izq) and Opcion (der).
+        // Two side-by-side blocks. Each helper returns its final Y position
+        // (since motivo has 6 options vs pago's 3, and both can have a
+        // detail line, their final Ys differ). We then move to the max so
+        // the next section (Nota) starts BELOW both blocks. Without this
+        // the second block would override the first, causing the overlap
+        // the user reported.
         $y0 = $this->GetY();
         $colWidth = 87.5;
-        $this->render_option_block_motivo($colWidth, $y0);
-        $this->SetXY(107.5, $y0);
-        $this->render_option_block_pago($colWidth, $y0);
-        $this->SetY(max($this->GetY(), $this->GetY()) + 2);
+        $yMotivo = $this->render_option_block_motivo($colWidth, $y0);
+        $yPago   = $this->render_option_block_pago($colWidth, $y0);
+        $yBottom = max($yMotivo, $yPago) + 3;
+        $this->SetY($yBottom);
 
         $this->SetFont($this->use_opensans ? 'opensans__i' : 'helvetica', 'I', 8);
         $this->SetTextColor(...self::C_MUTED);
@@ -224,7 +229,11 @@ class ret01_pdf_generator extends \TCPDF {
         $this->Ln(2);
     }
 
-    private function render_option_block_motivo(float $w, float $y0): void {
+    /**
+     * Render the "Motivo" column (left half). Returns the final Y so the
+     * caller can compute the max of both columns.
+     */
+    private function render_option_block_motivo(float $w, float $y0): float {
         $this->SetXY(15, $y0);
         $this->SetFont($this->use_opensans ? 'opensans__b' : 'helvetica', 'B', 10);
         $this->SetTextColor(...self::C_PRIMARY);
@@ -242,30 +251,39 @@ class ret01_pdf_generator extends \TCPDF {
         ];
         $this->SetFont($this->use_opensans ? 'opensans' : 'helvetica', '', 9);
         $this->SetTextColor(...self::C_TEXT);
+        $yStart = $this->GetY();
         foreach ($reasons as $code => $label) {
+            $this->SetY($yStart);
             $checked = ((string)$this->row->reason === $code);
-            $this->render_checkbox(15 + 2, $this->GetY() + 1, $checked);
-            $this->SetXY(15 + 8, $this->GetY());
+            $this->render_checkbox(15 + 2, $yStart + 1, $checked);
+            $this->SetXY(15 + 8, $yStart);
             $this->Cell($w - 8, 5, "$code. $label", 0, 0, 'L');
-            $this->Ln(5);
+            $yStart += 5;
         }
         // Reason detail (only when F + detail present).
         if (!empty($this->row->payment_option_detail) && (string)$this->row->reason === 'F') {
             $this->SetFont($this->use_opensans ? 'opensans__i' : 'helvetica', 'I', 8);
             $this->SetTextColor(...self::C_MUTED);
-            $this->SetX(15 + 8);
+            $this->SetXY(15 + 8, $yStart);
             $this->MultiCell($w - 8, 4, 'Especifique: ' . $this->row->payment_option_detail, 0, 'J');
             $this->SetTextColor(...self::C_TEXT);
+            $yStart = $this->GetY();
         }
+        return $yStart;
     }
 
-    private function render_option_block_pago(float $w, float $y0): void {
-        $this->SetXY(107.5, $y0);
+    /**
+     * Render the "Opcion sobre los pagos" column (right half). Returns
+     * the final Y so the caller can compute the max of both columns.
+     */
+    private function render_option_block_pago(float $w, float $y0): float {
+        $x = 107.5;
+        $this->SetXY($x, $y0);
         $this->SetFont($this->use_opensans ? 'opensans__b' : 'helvetica', 'B', 10);
         $this->SetTextColor(...self::C_PRIMARY);
         $this->Cell($w, 6, '  Opcion sobre los pagos', 0, 1, 'L');
         $this->SetDrawColor(...self::C_RULE);
-        $this->Line(107.5, $this->GetY(), 107.5 + $w, $this->GetY());
+        $this->Line($x, $this->GetY(), $x + $w, $this->GetY());
 
         $options = [
             'cambio_carrera'         => 'Cambio a otra carrera del ISI',
@@ -274,12 +292,14 @@ class ret01_pdf_generator extends \TCPDF {
         ];
         $this->SetFont($this->use_opensans ? 'opensans' : 'helvetica', '', 9);
         $this->SetTextColor(...self::C_TEXT);
+        $yStart = $this->GetY();
         foreach ($options as $key => $label) {
+            $this->SetXY($x, $yStart);
             $checked = ((string)$this->row->payment_option === $key);
-            $this->render_checkbox(107.5 + 2, $this->GetY() + 1, $checked);
-            $this->SetXY(107.5 + 8, $this->GetY());
+            $this->render_checkbox($x + 2, $yStart + 1, $checked);
+            $this->SetXY($x + 8, $yStart);
             $this->Cell($w - 8, 5, $label, 0, 0, 'L');
-            $this->Ln(5);
+            $yStart += 5;
         }
         if (!empty($this->row->payment_option_detail) && (string)$this->row->payment_option !== 'no_aplica') {
             $detail_label = ($this->row->payment_option === 'cambio_carrera')
@@ -287,10 +307,12 @@ class ret01_pdf_generator extends \TCPDF {
                 : 'Cedula del tercero: ';
             $this->SetFont($this->use_opensans ? 'opensans__i' : 'helvetica', 'I', 8);
             $this->SetTextColor(...self::C_MUTED);
-            $this->SetX(107.5 + 8);
+            $this->SetXY($x + 8, $yStart);
             $this->MultiCell($w - 8, 4, $detail_label . $this->row->payment_option_detail, 0, 'J');
             $this->SetTextColor(...self::C_TEXT);
+            $yStart = $this->GetY();
         }
+        return $yStart;
     }
 
     /**
