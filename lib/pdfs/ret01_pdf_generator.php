@@ -15,26 +15,32 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * RET-01 PDF generator (20261001080).
+ * RET-01 PDF generator (20261001080, refactored 20261001100).
  *
- * Builds the official "Solicitud de Retiro del Programa" PDF from a gmk_wdr
- * row using TCPDF (already available alongside other PDFs in this plugin:
- * classes/local/diplomas/renderer.php, pages/attendance_pdf.php, etc.).
+ * Builds the official "Solicitud de Retiro del Programa" PDF from a
+ * gmk_wdr row using TCPDF. Layout inspired by the institutional
+ * account-statement (estado de cuenta) format produced in Odoo: clean
+ * typography, a tinted header bar with a right-aligned request-number
+ * badge, two-column student data, justified body paragraphs, a
+ * bordered dual signature block, and a thin page footer.
  *
- * Layout follows the institutional form on file at
- * docs/ret01/reference.pdf. Six sections in order:
- *   1) Header (institutional masthead + Direccion Academica + version)
- *   2) Student data
- *   3) Withdrawal declaration
- *   4) Reason + payment option
- *   5) Student declaration (5 points)
- *   6) Receipt of submission (Direccion Academica original + Direccion
- *      Administrativa copia)
- *   7) Internal use (deadline compliance + pending balance)
- *   8) Footer (institution address + copy routing)
+ * Eight sections, in order:
+ *   1) Header (institutional block + request number badge)
+ *   2) Student data (two-column key/value table)
+ *   3) Solicitud declaration (justified paragraph)
+ *   4) Reason + payment option (two side-by-side option blocks)
+ *   5) Declaracion (5 numbered items + signature line)
+ *   6) Constancia de recepcion (two side-by-side receipt boxes)
+ *   7) Para uso interno (compact form)
+ *   8) Footer (address + page number)
  *
- * The correlative is stamped on the top-right inside a bordered cell so it
- * is unmistakable on the printed copy.
+ * Uses TCPDF's bundled opensans + opensans__b (Open Sans Regular / Bold)
+ * which are available at /var/www/html/moodle/lib/tcpdf/fonts/ in
+ * this Moodle install. Falls back to Helvetica if those files are
+ * missing (e.g. on dev machines that haven't fetched the font zips).
+ *
+ * The correlative is stamped on the top-right inside a tinted
+ * bordered badge so it is unmistakable on the printed copy.
  */
 
 namespace local_grupomakro_core\local\pdf;
@@ -56,206 +62,313 @@ class ret01_pdf_generator extends \TCPDF {
     /** @var string Institutional template version. */
     private $template_version;
 
+    /** Institutional color palette (institutional blue + warm grays). */
+    private const C_PRIMARY   = [0,  51, 102];   // #003366 navy
+    private const C_ACCENT    = [192, 0, 0];     // #C00000 bordeaux
+    private const C_LIGHT     = [240, 244, 248]; // #F0F4F8 cool light
+    private const C_LIGHTER   = [248, 250, 252]; // #F8FAFC cooler light
+    private const C_MUTED     = [110, 118, 129]; // #6E7681 cool gray
+    private const C_RULE      = [208, 213, 221]; // #D0D5DD rule
+    private const C_TEXT      = [33,  37,  41];  // #212529 near-black
+
+    /** @var bool Whether the opensans font files are available. */
+    private $use_opensans;
+
     public function __construct(\stdClass $row) {
-        // Letter portrait, mm, A4-equivalent.
+        // Letter portrait, mm, A4-equivalent. Margins tuned to give the
+        // header bar and footer enough room without crowding content.
         parent::__construct('P', 'mm', 'A4', true, 'UTF-8', false);
 
         $this->row = $row;
         $this->request_number   = (string)$row->request_number;
         $this->template_version = wdr_manager::get_template_version();
 
-        // Set up TCPDF defaults that mirror the rest of the plugin.
+        // Check if the opensans fonts are available on this install; fall
+        // back to helvetica silently if not. Same TTF zips are bundled
+        // in the standard TCPDF install.
+        $opensans_path = $CFG->libdir . '/tcpdf/fonts/opensans.php';
+        $this->use_opensans = file_exists($opensans_path);
+
         $this->SetCreator('ISI Moodle');
         $this->SetAuthor('Instituto Superior de Ingenieria');
         $this->SetTitle('Solicitud de Retiro RET-01 - ' . $this->request_number);
-        $this->SetMargins(15, 15, 15);
-        $this->SetAutoPageBreak(true, 18);
+        $this->SetMargins(15, 18, 15);
+        $this->SetAutoPageBreak(true, 22);
         $this->setHeaderMargin(0);
-        $this->setFooterMargin(10);
+        $this->setFooterMargin(12);
 
-        // Use the first Google font available locally; fallback to Helvetica.
-        $this->SetFont('helvetica', '', 9);
+        $this->use_opensans ? $this->SetFont('opensans', '', 9)
+                            : $this->SetFont('helvetica', '', 9);
     }
 
-    /**
-     * Renders the full PDF and returns the raw bytes.
-     */
     public function render(): string {
         $this->AddPage();
         $this->render_header();
+        $this->Ln(2);
         $this->render_section_student();
+        $this->render_section_solicitud();
+        $this->render_section_reason_payment();
         $this->render_section_declaration();
-        $this->render_section_reason();
-        $this->render_section_declaration_points();
         $this->render_section_receipt();
         $this->render_section_internal();
         $this->render_footer();
         return $this->Output('ret01.pdf', 'S');
     }
 
+    // ─────────────────── HEADER ───────────────────
     private function render_header(): void {
-        // Top-left: institutional masthead.
-        $this->SetFont('helvetica', 'B', 12);
-        $this->Cell(120, 7, 'INSTITUTO SUPERIOR DE INGENIERIA', 0, 0, 'L');
-        // Top-right: top-right bordered cell with the request number.
-        $this->SetFont('helvetica', '', 8);
-        $this->Cell(50, 7, '', 0, 1, 'R'); // advance to right margin.
+        $y0 = 12;
+        $this->SetY($y0);
+
+        // Left: institutional block.
+        $this->SetTextColor(...self::C_PRIMARY);
+        $this->SetFont($this->use_opensans ? 'opensans' : 'helvetica', 'B', 14);
+        $this->Cell(0, 7, 'INSTITUTO SUPERIOR DE INGENIERIA', 0, 1, 'L');
+
+        $this->SetFont($this->use_opensans ? 'opensans' : 'helvetica', '', 8);
+        $this->SetTextColor(...self::C_MUTED);
+        $this->Cell(0, 4, 'DIRECCION ACADEMICA', 0, 1, 'L');
+
+        $this->Ln(2);
+        $this->SetFont($this->use_opensans ? 'opensans' : 'helvetica', 'B', 16);
+        $this->SetTextColor(...self::C_TEXT);
+        $this->Cell(0, 8, 'SOLICITUD DE RETIRO DEL PROGRAMA', 0, 1, 'L');
+
+        $this->SetFont($this->use_opensans ? 'opensans' : 'helvetica', 'I', 9);
+        $this->SetTextColor(...self::C_MUTED);
+        $this->Cell(0, 5, 'Para estudiantes activos que no continuaran en el siguiente periodo academico', 0, 1, 'L');
+        $this->Cell(0, 4, sprintf('Formulario oficial RET-01  -  Version %s', $this->template_version), 0, 1, 'L');
+
+        // Right: request-number badge in a tinted bordered cell.
         $nx = 150;
-        $ny = 15;
+        $ny = $y0;
+        $this->SetFont($this->use_opensans ? 'opensans' : 'helvetica', '', 7);
+        $this->SetTextColor(...self::C_MUTED);
         $this->SetXY($nx, $ny);
-        $this->SetFont('helvetica', '', 7);
-        $this->Cell(35, 5, 'Solicitud N.°', 0, 1, 'L');
+        $this->Cell(35, 4, 'SOLICITUD N.', 0, 1, 'C');
         $this->SetXY($nx, $ny + 4);
-        $this->SetFont('helvetica', 'B', 12);
-        $this->MultiCell(35, 12, $this->request_number, 1, 'C', false, 1, $nx, $ny + 4);
+        $this->SetFont($this->use_opensans ? 'opensans__b' : 'helvetica', 'B', 13);
+        $this->SetTextColor(...self::C_TEXT);
+        $this->SetFillColor(...self::C_LIGHT);
+        $this->MultiCell(35, 12, $this->request_number, 1, 'C', true, 1, $nx, $ny + 4);
 
         // Reset X for the left block below.
-        $this->SetXY(15, 22);
+        $this->SetXY(15, $this->GetY() + 2);
+        $this->SetTextColor(...self::C_TEXT);
 
-        $this->SetFont('helvetica', '', 8);
-        $this->Cell(120, 5, 'DIRECCIÓN ACADÉMICA', 0, 1, 'L');
-        $this->SetFont('helvetica', 'B', 14);
-        $this->Cell(120, 8, 'Solicitud de Retiro del Programa', 0, 1, 'L');
-        $this->SetFont('helvetica', '', 9);
-        $this->Cell(120, 5, 'Para estudiantes activos que no continuarán en el siguiente período académico', 0, 1, 'L');
-        $this->SetFont('helvetica', 'I', 8);
-        $this->Cell(120, 5, sprintf('Formulario oficial RET-01 · Versión %s', $this->template_version), 0, 1, 'L');
-
-        $this->Ln(4);
-        $this->SetDrawColor(0, 0, 0);
-        $this->Line(15, $this->GetY(), 195, $this->GetY());
-        $this->Ln(4);
+        // Bottom rule.
+        $this->SetDrawColor(...self::C_PRIMARY);
+        $this->SetLineWidth(0.6);
+        $this->Line(15, $this->GetY() + 1, 195, $this->GetY() + 1);
+        $this->SetLineWidth(0.2);
+        $this->SetDrawColor(...self::C_RULE);
+        $this->Ln(3);
     }
 
+    // ─────────────────── 1. DATOS DEL ESTUDIANTE ───────────────────
     private function render_section_student(): void {
-        $this->section_title('1. DATOS DEL ESTUDIANTE');
+        $this->section_title('1.  DATOS DEL ESTUDIANTE');
         $rows = [
-            ['Nombre completo', $this->row->fullname ?? ''],
-            ['Cédula / Pasaporte', $this->row->id_number ?? ''],
-            ['Teléfono', $this->row->phone ?? ''],
-            ['Correo electrónico', $this->row->email ?? ''],
-            ['Carrera o programa', $this->row->program ?? ''],
-            ['Forma de pago', self::payment_mode_label($this->row->payment_mode ?? '')],
-            ['Período académico actual', $this->row->current_period ?? ''],
-            ['Período en el que ya no continuará', $this->row->last_period ?? ''],
+            ['Nombre completo',     $this->row->fullname ?? ''],
+            ['Cedula / Pasaporte',  $this->row->id_number ?? ''],
+            ['Telefono',            $this->row->phone ?? ''],
+            ['Correo electronico',  $this->row->email ?? ''],
+            ['Carrera o programa',  $this->row->program ?? ''],
+            ['Forma de pago',       self::payment_mode_label($this->row->payment_mode ?? '')],
+            ['Periodo academico actual',  $this->row->current_period ?? ''],
+            ['Periodo en el que ya no continuara', $this->row->last_period ?? ''],
         ];
         $this->kv_table($rows);
-        $this->Ln(3);
+        $this->Ln(2);
     }
 
-    private function render_section_declaration(): void {
-        $this->section_title('2. SOLICITUD');
-        $this->SetFont('helvetica', '', 9);
-        $text = "Por medio del presente, comunico formalmente al Instituto Superior de Ingeniería mi decisión "
-              . "de no continuar mis estudios a partir del período indicado en la sección 1, conforme a la "
-              . "Cláusula Sexta del Contrato de Prestación de Servicios Educativos y al Reglamento Estudiantil.";
-        $this->MultiCell(180, 5, $text, 0, 'J');
+    // ─────────────────── 2. SOLICITUD ───────────────────
+    private function render_section_solicitud(): void {
+        $this->section_title('2.  SOLICITUD');
+        $this->SetFont($this->use_opensans ? 'opensans' : 'helvetica', '', 10);
+        $this->SetTextColor(...self::C_TEXT);
+        $text = "Por medio del presente, comunico formalmente al Instituto Superior de Ingenieria "
+              . "mi decision de no continuar mis estudios a partir del periodo indicado en la seccion 1, "
+              . "conforme a la Clausula Sexta del Contrato de Prestacion de Servicios Educativos y al "
+              . "Reglamento Estudiantil.";
+        $this->MultiCell(180, 5.5, $text, 0, 'J');
         if (!empty($this->row->observations)) {
-            $this->Ln(2);
-            $this->SetFont('helvetica', 'I', 9);
+            $this->Ln(1);
+            $this->SetFont($this->use_opensans ? 'opensans__i' : 'helvetica', 'I', 9);
+            $this->SetTextColor(...self::C_MUTED);
             $this->MultiCell(180, 5, 'Observaciones del estudiante: ' . $this->row->observations, 0, 'J');
-            $this->SetFont('helvetica', '', 9);
+            $this->SetTextColor(...self::C_TEXT);
         }
-        $this->Ln(3);
+        $this->Ln(2);
     }
 
-    private function render_section_reason(): void {
-        $this->section_title('3. MOTIVO Y OPCIÓN SOBRE LOS PAGOS REALIZADOS');
+    // ─────────────────── 3. MOTIVO Y OPCION ───────────────────
+    private function render_section_reason_payment(): void {
+        $this->section_title('3.  MOTIVO Y OPCION SOBRE LOS PAGOS REALIZADOS');
+
+        // Two side-by-side blocks: Motivo (izq) and Opcion (der).
+        $y0 = $this->GetY();
+        $colWidth = 87.5;
+        $this->render_option_block_motivo($colWidth, $y0);
+        $this->SetXY(107.5, $y0);
+        $this->render_option_block_pago($colWidth, $y0);
+        $this->SetY(max($this->GetY(), $this->GetY()) + 2);
+
+        $this->SetFont($this->use_opensans ? 'opensans__i' : 'helvetica', 'I', 8);
+        $this->SetTextColor(...self::C_MUTED);
+        $this->MultiCell(180, 4.5,
+            'Nota: El ISI no realiza devoluciones de dinero por matricula ni por mensualidades. Si pago el '
+            . 'cuatrimestre completo o la carrera completa, el siguiente periodo se factura salvo que se acoja a '
+            . 'alguna de las opciones anteriores (Condiciones Especiales, punto 5).', 0, 'J');
+        $this->SetTextColor(...self::C_TEXT);
+        $this->Ln(2);
+    }
+
+    private function render_option_block_motivo(float $w, float $y0): void {
+        $this->SetXY(15, $y0);
+        $this->SetFont($this->use_opensans ? 'opensans__b' : 'helvetica', 'B', 10);
+        $this->SetTextColor(...self::C_PRIMARY);
+        $this->Cell($w, 6, '  Motivo', 0, 1, 'L');
+        $this->SetDrawColor(...self::C_RULE);
+        $this->Line(15, $this->GetY(), 15 + $w, $this->GetY());
+
         $reasons = [
-            'A' => 'Económico',
+            'A' => 'Economico',
             'B' => 'Laboral',
             'C' => 'Personal / familiar',
             'D' => 'Salud',
             'E' => 'Cambio de residencia',
             'F' => 'Otro',
         ];
-
-        $this->SetFont('helvetica', '', 9);
-        $this->Cell(0, 5, 'Motivo', 0, 1, 'L');
+        $this->SetFont($this->use_opensans ? 'opensans' : 'helvetica', '', 9);
+        $this->SetTextColor(...self::C_TEXT);
         foreach ($reasons as $code => $label) {
-            $checked = ((string)$this->row->reason === $code) ? '[X]' : '[ ]';
-            $this->Cell(8, 5, $checked, 0, 0, 'C');
-            $this->Cell(80, 5, "$code. $label", 0, 1, 'L');
+            $checked = ((string)$this->row->reason === $code);
+            $this->render_checkbox(15 + 2, $this->GetY() + 1, $checked);
+            $this->SetXY(15 + 8, $this->GetY());
+            $this->Cell($w - 8, 5, "$code. $label", 0, 0, 'L');
+            $this->Ln(5);
         }
-        $this->Ln(2);
-
-        // Reason detail (only when filled).
-        $reason_detail = !empty($this->row->payment_option_detail) ? $this->row->payment_option_detail : '';
-        if (!empty($reason_detail) && (string)$this->row->reason === 'F') {
-            $this->SetFont('helvetica', 'I', 9);
-            $this->MultiCell(180, 5, 'Especifique el motivo: ' . $reason_detail, 0, 'J');
-            $this->SetFont('helvetica', '', 9);
+        // Reason detail (only when F + detail present).
+        if (!empty($this->row->payment_option_detail) && (string)$this->row->reason === 'F') {
+            $this->SetFont($this->use_opensans ? 'opensans__i' : 'helvetica', 'I', 8);
+            $this->SetTextColor(...self::C_MUTED);
+            $this->SetX(15 + 8);
+            $this->MultiCell($w - 8, 4, 'Especifique: ' . $this->row->payment_option_detail, 0, 'J');
+            $this->SetTextColor(...self::C_TEXT);
         }
+    }
 
-        $this->Ln(3);
-        $this->Cell(0, 5, 'Opción sobre los pagos realizados', 0, 1, 'L');
+    private function render_option_block_pago(float $w, float $y0): void {
+        $this->SetXY(107.5, $y0);
+        $this->SetFont($this->use_opensans ? 'opensans__b' : 'helvetica', 'B', 10);
+        $this->SetTextColor(...self::C_PRIMARY);
+        $this->Cell($w, 6, '  Opcion sobre los pagos', 0, 1, 'L');
+        $this->SetDrawColor(...self::C_RULE);
+        $this->Line(107.5, $this->GetY(), 107.5 + $w, $this->GetY());
 
         $options = [
-            'cambio_carrera' => 'Cambio a otra carrera del ISI',
-            'transferencia_derechos' => 'Transferencia de derechos a tercero',
-            'no_aplica' => 'No aplica / no me acojo',
+            'cambio_carrera'         => 'Cambio a otra carrera del ISI',
+            'transferencia_derechos'  => 'Transferencia de derechos a tercero',
+            'no_aplica'               => 'No aplica / no me acojo',
         ];
+        $this->SetFont($this->use_opensans ? 'opensans' : 'helvetica', '', 9);
+        $this->SetTextColor(...self::C_TEXT);
         foreach ($options as $key => $label) {
-            $checked = ((string)$this->row->payment_option === $key) ? '[X]' : '[ ]';
-            $this->Cell(8, 5, $checked, 0, 0, 'C');
-            $this->Cell(120, 5, $label, 0, 1, 'L');
+            $checked = ((string)$this->row->payment_option === $key);
+            $this->render_checkbox(107.5 + 2, $this->GetY() + 1, $checked);
+            $this->SetXY(107.5 + 8, $this->GetY());
+            $this->Cell($w - 8, 5, $label, 0, 0, 'L');
+            $this->Ln(5);
         }
         if (!empty($this->row->payment_option_detail) && (string)$this->row->payment_option !== 'no_aplica') {
-            $this->SetFont('helvetica', 'I', 9);
-            $detail_label = ($this->row->payment_option === 'cambio_carrera') ? 'Carrera de destino: ' : 'Cédula del tercero: ';
-            $this->MultiCell(180, 5, $detail_label . $this->row->payment_option_detail, 0, 'J');
-            $this->SetFont('helvetica', '', 9);
+            $detail_label = ($this->row->payment_option === 'cambio_carrera')
+                ? 'Carrera de destino: '
+                : 'Cedula del tercero: ';
+            $this->SetFont($this->use_opensans ? 'opensans__i' : 'helvetica', 'I', 8);
+            $this->SetTextColor(...self::C_MUTED);
+            $this->SetX(107.5 + 8);
+            $this->MultiCell($w - 8, 4, $detail_label . $this->row->payment_option_detail, 0, 'J');
+            $this->SetTextColor(...self::C_TEXT);
         }
-
-        $this->Ln(3);
-        $this->SetFont('helvetica', 'I', 8);
-        $this->MultiCell(180, 5,
-            'Nota: El ISI no realiza devoluciones de dinero por matrícula ni por mensualidades. Si pagó el '
-            . 'cuatrimestre completo o la carrera completa, el siguiente período se factura salvo que se acoja a '
-            . 'alguna de las opciones anteriores (Condiciones Especiales, punto 5).', 0, 'J');
-        $this->SetFont('helvetica', '', 9);
-        $this->Ln(3);
     }
 
-    private function render_section_declaration_points(): void {
-        $this->section_title('4. DECLARACIÓN DEL ESTUDIANTE');
+    /**
+     * Draws a 3.5mm square checkbox. If $checked, fills with a thin
+     * check mark drawn from the X-style lines. Mimics the look of an
+     * account-statement "tick here" box.
+     */
+    private function render_checkbox(float $x, float $y, bool $checked): void {
+        $size = 3.2;
+        $this->SetDrawColor(...self::C_MUTED);
+        $this->SetLineWidth(0.3);
+        $this->Rect($x, $y, $size, $size, 'D');
+        if ($checked) {
+            $this->SetDrawColor(...self::C_PRIMARY);
+            $this->SetLineWidth(0.8);
+            // Diagonal cross to indicate checked (two strokes).
+            $this->Line($x + 0.3, $y + $size / 2, $x + $size / 2, $y + $size - 0.3);
+            $this->Line($x + $size / 2, $y + $size - 0.3, $x + $size - 0.3, $y + 0.3);
+            $this->SetDrawColor(...self::C_RULE);
+            $this->SetLineWidth(0.2);
+        }
+    }
+
+    // ─────────────────── 4. DECLARACION ───────────────────
+    private function render_section_declaration(): void {
+        $this->section_title('4.  DECLARACION DEL ESTUDIANTE');
         $lines = [
             '1. Entiendo que este retiro solo surte efecto cuando cuenta con la firma y fecha de recibido de la '
-            . 'Dirección Académica y de la Dirección Administrativa.',
-            '2. Entiendo que debe ser recibido al menos 30 días calendario antes del inicio oficial del siguiente '
-            . 'período. De lo contrario, el ISI facturará el siguiente período y ese cargo será firme y adeudado '
-            . '(Cláusula Sexta del Contrato).',
+            . 'Direccion Academica y de la Direccion Administrativa.',
+            '2. Entiendo que debe ser recibido al menos 30 dias calendario antes del inicio oficial del siguiente '
+            . 'periodo. De lo contrario, el ISI facturara el siguiente periodo y ese cargo sera firme y adeudado '
+            . '(Clausula Sexta del Contrato).',
             '3. Me comprometo a cancelar cualquier saldo pendiente a la fecha, incluidos los recargos por mora '
-            . 'aplicados (10% después de 3 días de la fecha de corte).',
+            . 'aplicados (10% despues de 3 dias de la fecha de corte).',
             '4. Entiendo que al retirarme pierdo la calidad de estudiante y que el ISI no devuelve dinero, salvo '
-            . 'las opciones indicadas en la sección 3. Un aviso verbal, por teléfono, WhatsApp o correo '
-            . 'electrónico no sustituye este formulario. El estudiante debe conservar su copia firmada.',
-            '5. Declaro que la información de este formulario es verdadera.',
+            . 'las opciones indicadas en la seccion 3. Un aviso verbal, por telefono, WhatsApp o correo '
+            . 'electronico no sustituye este formulario. El estudiante debe conservar su copia firmada.',
+            '5. Declaro que la informacion de este formulario es verdadera.',
         ];
-        $this->SetFont('helvetica', '', 9);
+        $this->SetFont($this->use_opensans ? 'opensans' : 'helvetica', '', 9.5);
+        $this->SetTextColor(...self::C_TEXT);
+        $i = 1;
         foreach ($lines as $l) {
-            $this->MultiCell(180, 6, $l, 0, 'J');
+            $this->SetFont($this->use_opensans ? 'opensans__b' : 'helvetica', 'B', 9.5);
+            $this->Cell(5, 5, "$i.", 0, 0, 'R');
+            $this->SetFont($this->use_opensans ? 'opensans' : 'helvetica', '', 9.5);
+            $this->MultiCell(175, 5, $l, 0, 'J');
             $this->Ln(1);
+            $i++;
         }
-        $this->Ln(4);
-        $this->SetFont('helvetica', 'B', 9);
-        $this->Cell(50, 6, 'Firma del estudiante: ____________________________', 0, 0, 'L');
-        $this->Cell(50, 6, 'Fecha de firma: ____ / ____ / ________', 0, 1, 'L');
-        $this->Ln(6);
+        $this->Ln(3);
+        $this->SetDrawColor(...self::C_RULE);
+        $this->SetLineWidth(0.4);
+        $this->Line(15, $this->GetY(), 90, $this->GetY());
+        $this->Line(95, $this->GetY(), 195, $this->GetY());
+        $this->SetLineWidth(0.2);
+        $this->SetFont($this->use_opensans ? 'opensans__b' : 'helvetica', 'B', 9);
+        $this->SetXY(15, $this->GetY() - 1);
+        $this->Cell(80, 6, '  Firma del estudiante', 0, 0, 'L');
+        $this->SetX(95);
+        $this->Cell(100, 6, '  Fecha:   ____  /  ____  /  ________', 0, 0, 'L');
+        $this->Ln(8);
     }
 
+    // ─────────────────── 5. CONSTANCIA DE RECEPCION ───────────────────
     private function render_section_receipt(): void {
-        $this->section_title('5. CONSTANCIA DE RECEPCIÓN');
-        $this->SetFont('helvetica', '', 9);
+        $this->section_title('5.  CONSTANCIA DE RECEPCION');
+        $this->SetFont($this->use_opensans ? 'opensans' : 'helvetica', '', 9);
+        $this->SetTextColor(...self::C_MUTED);
         $this->MultiCell(180, 5,
             'Sin las dos firmas de recibido este documento no tiene validez. Ambos departamentos son obligatorios.',
-            0, 'J');
+            0, 'C');
         $this->Ln(2);
 
-        // Two-column block: Direccion Academica (izq) | Direccion Administrativa (der).
+        // Two receipt boxes side-by-side: original (Dir. Academica) | copia (Dir. Administrativa).
         $y0 = $this->GetY();
         $this->receipt_block(
-            'Dirección Académica (original)',
+            'Direccion Academica (original)',
             isset($this->row->received_da_at) && (int)$this->row->received_da_at > 0
                 ? date('Y-m-d', (int)$this->row->received_da_at) : '',
             isset($this->row->received_da_by) && (int)$this->row->received_da_by > 0
@@ -263,93 +376,145 @@ class ret01_pdf_generator extends \TCPDF {
         );
         $this->SetXY(110, $y0);
         $this->receipt_block(
-            'Dirección Administrativa (copia)',
+            'Direccion Administrativa (copia)',
             isset($this->row->received_admin_at) && (int)$this->row->received_admin_at > 0
                 ? date('Y-m-d', (int)$this->row->received_admin_at) : '',
             isset($this->row->received_admin_by) && (int)$this->row->received_admin_by > 0
                 ? $this->user_fullname_or_id((int)$this->row->received_admin_by) : ''
         );
+        $this->SetY(max($this->GetY(), $this->GetY()) + 2);
     }
 
     private function receipt_block(string $title, string $date, string $receivedby): void {
         $x = $this->GetX();
         $y = $this->GetY();
-        $this->SetFont('helvetica', 'B', 9);
-        $this->Cell(90, 6, $title, 1, 1, 'C');
-        $this->SetFont('helvetica', '', 9);
-        $this->Cell(45, 6, 'Fecha: ' . $date, 1, 0, 'L');
-        $this->Cell(45, 6, 'Hora: ________', 1, 1, 'L');
-        $this->Cell(90, 6, 'Nombre de quien recibe: ' . $receivedby, 1, 1, 'L');
-        $this->Cell(90, 12, 'Firma y Sello', 1, 1, 'C');
-        $this->SetXY($x + 95, $y);
+        $w = 90;
+        // Tinted background for the whole block.
+        $this->SetFillColor(...self::C_LIGHTER);
+        $this->SetDrawColor(...self::C_RULE);
+        $this->SetLineWidth(0.3);
+        $this->RoundedRect($x, $y, $w, 38, 1.5, 'DF');
+
+        // Title bar.
+        $this->SetFillColor(...self::C_PRIMARY);
+        $this->SetTextColor(255, 255, 255);
+        $this->SetFont($this->use_opensans ? 'opensans__b' : 'helvetica', 'B', 9);
+        $this->Cell($w, 5.5, '  ' . $title, 0, 0, 'L', true);
+        $this->SetY($y + 7);
+        $this->SetX($x);
+        $this->SetFillColor(...self::C_LIGHTER);
+
+        $this->SetTextColor(...self::C_TEXT);
+        $this->SetFont($this->use_opensans ? 'opensans' : 'helvetica', '', 9);
+        $this->Cell($w * 0.5, 5, '  Fecha:  ' . $date, 0, 0, 'L');
+        $this->SetX($x + $w * 0.5);
+        $this->Cell($w * 0.5, 5, '  Hora:  __________', 0, 1, 'L');
+        $this->SetX($x);
+        $this->Cell($w, 5, '  Recibido por:  ' . $receivedby, 0, 1, 'L');
+
+        // Signature placeholder (a ruled line with a small hint).
+        $this->SetX($x);
+        $this->SetDrawColor(...self::C_MUTED);
+        $this->SetLineWidth(0.3);
+        $this->Line($x + 8, $this->GetY() + 9, $x + $w - 8, $this->GetY() + 9);
+        $this->SetXY($x, $this->GetY() + 10);
+        $this->SetFont($this->use_opensans ? 'opensans__i' : 'helvetica', 'I', 8);
+        $this->SetTextColor(...self::C_MUTED);
+        $this->Cell($w, 4, '  Firma y sello', 0, 1, 'C');
+        $this->SetTextColor(...self::C_TEXT);
+
+        // Move cursor to the right of this block for the next sibling.
+        $this->SetXY($x + $w + 5, $y);
     }
 
+    // ─────────────────── 6. PARA USO INTERNO ───────────────────
     private function render_section_internal(): void {
-        $this->Ln(4);
-        $this->section_title('6. PARA USO INTERNO');
-        $this->SetFont('helvetica', '', 9);
+        $this->Ln(2);
+        $this->section_title('6.  PARA USO INTERNO');
+        $this->SetFont($this->use_opensans ? 'opensans' : 'helvetica', '', 9);
+        $this->SetTextColor(...self::C_TEXT);
 
-        // Días de antelación entre timecreated y last_period, si se puede.
-        $days = '';
-        if (!empty($this->row->timecreated) && !empty($this->row->last_period)) {
-            // best-effort: asumes last_period as a literal string, no se
-            // puede convertir a fecha con seguridad. Mostramos lo que el
-            // operador registra a mano en la bandeja.
-            $days = '____________';
-        }
-        $this->Cell(40, 6, 'Días de antelación:', 1, 0, 'L');
-        $this->Cell(35, 6, $days ?: '____________', 1, 0, 'L');
-        $this->Cell(20, 6, '¿Cumple?', 1, 0, 'L');
-        $this->Cell(20, 6, '[ ] Sí', 1, 0, 'C');
-        $this->Cell(60, 6, '[ ] No → se factura el siguiente período', 1, 1, 'L');
+        // Deadline compliance (1-line form).
+        $this->SetFillColor(...self::C_LIGHT);
+        $this->SetDrawColor(...self::C_RULE);
+        $this->SetLineWidth(0.3);
+        $this->Cell(40, 6, '  Dias de antelacion:', 1, 0, 'L', true);
+        $this->Cell(30, 6, '____________', 1, 0, 'L', true);
+        $this->Cell(20, 6, '  Cumple?', 1, 0, 'L', true);
+        $this->Cell(20, 6, '  [ ]  Si', 1, 0, 'C', true);
+        $this->Cell(70, 6, '  [ ]  No  (se factura el sgte. periodo)', 1, 1, 'L', true);
 
-        $this->Cell(50, 6, 'Saldo pendiente a la fecha (Administración):', 1, 0, 'L');
-        $this->Cell(125, 6, '$ ____________________', 1, 1, 'L');
+        // Pending balance.
+        $this->SetFillColor(...self::C_LIGHT);
+        $this->Cell(50, 6, '  Saldo pendiente a la fecha:', 1, 0, 'L', true);
+        $this->Cell(130, 6, '  $  ________________________', 1, 1, 'L', true);
 
-        $this->Cell(50, 6, 'Registrado en expediente por:', 1, 0, 'L');
-        $this->Cell(125, 6, '______________________  /  Fecha: ____/____/________', 1, 1, 'L');
+        // Filing.
+        $this->SetFillColor(...self::C_LIGHT);
+        $this->Cell(50, 6, '  Registrado en expediente por:', 1, 0, 'L', true);
+        $this->Cell(130, 6, '  _____________________  /  Fecha: ____ / ____ / ________', 1, 1, 'L', true);
+
         $this->Ln(3);
 
         // Diagonal watermark to distinguish from the manually signed copy.
         $this->SetAlpha(0.08);
         $this->StartTransform();
-        $this->Rotate(35, 105, 250);
-        $this->SetFont('helvetica', 'B', 38);
+        $this->Rotate(35, 105, 245);
+        $this->SetFont($this->use_opensans ? 'opensans__b' : 'helvetica', 'B', 38);
         $this->SetTextColor(0, 0, 0);
-        $this->Text(35, 250, 'SOLICITUD GENERADA DIGITALMENTE - ISI');
+        $this->Text(35, 245, 'SOLICITUD GENERADA DIGITALMENTE - ISI');
         $this->StopTransform();
         $this->SetAlpha(1);
         $this->SetTextColor(0, 0, 0);
     }
 
+    // ─────────────────── FOOTER ───────────────────
     private function render_footer(): void {
-        $this->SetY(-12);
-        $this->SetFont('helvetica', 'I', 7);
-        $this->Cell(0, 5,
-            'Instituto Superior de Ingeniería · Avenida Perú y Calle 34 Este, esquina Bellavista, Ciudad de Panamá',
+        $this->SetY(-14);
+        $this->SetDrawColor(...self::C_RULE);
+        $this->SetLineWidth(0.2);
+        $this->Line(15, $this->GetY(), 195, $this->GetY());
+        $this->Ln(1);
+        $this->SetFont($this->use_opensans ? 'opensans__i' : 'helvetica', 'I', 7);
+        $this->SetTextColor(...self::C_MUTED);
+        $this->Cell(0, 4,
+            'Instituto Superior de Ingenieria  -  Avenida Peru y Calle 34 Este, esquina Bellavista, Ciudad de Panama',
             0, 1, 'C');
-        $this->Cell(0, 5,
-            'Original: Dirección Académica · Copias: Dirección Administrativa y Estudiante',
+        $this->SetFont($this->use_opensans ? 'opensans' : 'helvetica', '', 7);
+        $this->Cell(0, 4,
+            'Original: Direccion Academica  -  Copias: Direccion Administrativa y Estudiante',
             0, 1, 'C');
-        $this->SetFont('helvetica', '', 7);
-        $this->Cell(0, 4, 'Solicitud RET-01 generada digitalmente desde el LXP.', 0, 1, 'C');
+        $this->SetFont($this->use_opensans ? 'opensans__i' : 'helvetica', 'I', 6.5);
+        $this->Cell(0, 3, 'Solicitud RET-01 generada digitalmente desde el LXP.  -  Pag. ' . $this->getAliasNumPage() . ' / ' . $this->getAliasNbPages(), 0, 1, 'C');
     }
 
+    // ─────────────────── HELPERS ───────────────────
     private function section_title(string $title): void {
-        $this->SetFont('helvetica', 'B', 10);
-        $this->SetFillColor(230, 230, 230);
-        $this->Cell(180, 7, $title, 1, 1, 'L', true);
-        $this->SetFont('helvetica', '', 9);
+        $this->SetFillColor(...self::C_PRIMARY);
+        $this->SetTextColor(255, 255, 255);
+        $this->SetFont($this->use_opensans ? 'opensans__b' : 'helvetica', 'B', 10);
+        $this->Cell(180, 7, '  ' . $title, 0, 1, 'L', true);
+        $this->SetTextColor(...self::C_TEXT);
+        $this->SetFont($this->use_opensans ? 'opensans' : 'helvetica', '', 9);
         $this->Ln(2);
     }
 
     private function kv_table(array $rows): void {
-        $this->SetFont('helvetica', '', 9);
+        $this->SetFont($this->use_opensans ? 'opensans' : 'helvetica', '', 9);
+        $rowH = 6.5;
+        $colW = [60, 120];
+        $altBg = false;
         foreach ($rows as [$k, $v]) {
-            $this->SetFont('helvetica', 'B', 9);
-            $this->Cell(60, 6, $k, 1, 0, 'L');
-            $this->SetFont('helvetica', '', 9);
-            $this->Cell(120, 6, (string)$v, 1, 1, 'L');
+            $this->SetFillColor(...($altBg ? self::C_LIGHTER : [255, 255, 255]));
+            $this->SetDrawColor(...self::C_RULE);
+            $this->SetLineWidth(0.3);
+            $this->SetFont($this->use_opensans ? 'opensans__b' : 'helvetica', 'B', 9);
+            $this->SetTextColor(...self::C_PRIMARY);
+            $this->Cell($colW[0], $rowH, '  ' . $k, 1, 0, 'L', true);
+            $this->SetFont($this->use_opensans ? 'opensans' : 'helvetica', '', 9);
+            $this->SetTextColor(...self::C_TEXT);
+            $this->Cell($colW[1], $rowH, '  ' . (string)$v, 1, 1, 'L', true);
+            $altBg = !$altBg;
         }
     }
 
