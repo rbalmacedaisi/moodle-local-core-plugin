@@ -119,7 +119,7 @@ class send_reschedule_message extends external_api {
             
             // Set the html message----------------------------------------------------------------------------------------------------------------------------------------------------
             
-            $strData = new stdClass();
+            $strData = new \stdClass();
             $strData->instructorFullName=$instructorFullName;
             $strData->causeNames=implode(', ',$causeNames);
             $strData->originalDate=$originalDate;

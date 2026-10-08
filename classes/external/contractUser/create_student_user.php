@@ -94,7 +94,7 @@ class create_student_user extends external_api {
                 throw new Exception('Ya existe un usuario con este correo electrónico');
             }
 
-            $newUser = new stdClass();
+            $newUser = new \stdClass();
             $newUser->username=  $username;
             $newUser->firstname=  $firstname;
             $newUser->lastname=  $lastname;

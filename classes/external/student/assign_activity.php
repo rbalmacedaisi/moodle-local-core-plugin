@@ -516,7 +516,7 @@ class assign_activity extends external_api {
             $instance->sendnotifications = 0;
             $instance->sendlatenotifications = 0;
 
-            $data = new stdClass();
+            $data = new \stdClass();
             $data->userid = (int)$USER->id;
             $data->submissionstatement = 1;
 
@@ -572,7 +572,7 @@ class assign_activity extends external_api {
                     \mod_assign\event\assessable_submitted::create_from_submission($assign, $updatedsubmission, true)->trigger();
                 }
             } else if ((int)$assignrecord->submissiondrafts === 1) {
-                $submitdata = new stdClass();
+                $submitdata = new \stdClass();
                 $submitdata->userid = (int)$USER->id;
                 $submitdata->submissionstatement = 1;
                 $submitnotices = [];

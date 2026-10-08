@@ -82,7 +82,7 @@ class create_institution extends external_api {
             if($DB->get_record('gmk_institution', array('institutionid'=>$institutionId))){
                 throw new Exception('Existe una institución con el identificador proporcionado');
             }
-            $newInstitution = new stdClass();
+            $newInstitution = new \stdClass();
             $newInstitution->name = $name;
             $newInstitution->institutionid = $institutionId;
             $newInstitution->timecreated = time();

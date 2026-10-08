@@ -81,7 +81,7 @@ class get_dashboard_data extends external_api {
         $active_classes = [];
         foreach ($classes as $class) {
             $course = $DB->get_record('course', ['id' => $class->courseid], 'id,fullname,shortname,idnumber');
-            $class_data = new stdClass();
+            $class_data = new \stdClass();
             $class_data->id = $class->id;
             $class_data->name = $class->name; // Specific class name
             $class_data->courseid = $class->courseid;
@@ -139,7 +139,7 @@ class get_dashboard_data extends external_api {
         $pending_tasks = [];
         foreach ($active_classes as $class) {
             $tasks = gmk_get_pending_grading_items($params['userid'], $class->id);
-            $task = new stdClass();
+            $task = new \stdClass();
             $task->classid = $class->id;
             $task->count = count($tasks);
             $pending_tasks[] = $task;
@@ -148,7 +148,7 @@ class get_dashboard_data extends external_api {
         // 4. Health Status (Simplified logic for now)
         $health_status = [];
         foreach ($active_classes as $class) {
-            $status = new stdClass();
+            $status = new \stdClass();
             $status->classid = $class->id;
             $status->level = 'green'; // Default
             

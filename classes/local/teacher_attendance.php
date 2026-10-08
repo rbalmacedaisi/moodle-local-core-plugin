@@ -203,7 +203,7 @@ class teacher_attendance {
             $DB->update_record('attendance_log', $existing);
             $logid = (int)$existing->id;
         } else {
-            $log = new stdClass();
+            $log = new \stdClass();
             $log->sessionid = $sessionid;
             $log->studentid = $studentid;
             $log->statusid  = (int)$status->id;

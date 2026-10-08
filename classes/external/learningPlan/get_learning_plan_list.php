@@ -81,7 +81,7 @@ class get_learning_plan_list extends external_api {
             
             $learningPlans = $DB->get_records('local_learning_plans',$filters);
             $learningPlans = array_values(array_map(function ($learningPlan){
-                $learningPlanSummary = new stdClass();
+                $learningPlanSummary = new \stdClass();
                 $learningPlanSummary->id = $learningPlan->id;
                 $learningPlanSummary->name = $learningPlan->name;
                 $learningPlanSummary->shortname = $learningPlan->shortname;

@@ -65,7 +65,7 @@ class activity_grading_flag_set extends external_api {
             return ['status' => 'success', 'message' => 'Flag ya existia (idempotente)'];
         }
 
-        $rec = new stdClass();
+        $rec = new \stdClass();
         $rec->cmid        = $cmid;
         $rec->modname     = $modname;
         $rec->enabled     = $enabled;

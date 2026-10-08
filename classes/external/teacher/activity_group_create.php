@@ -90,7 +90,7 @@ class activity_group_create extends external_api {
                 ['corecourseid' => (int)$cm->course, 'closed' => 0], IGNORE_MISSING);
         }
 
-        $rec = new stdClass();
+        $rec = new \stdClass();
         $rec->cmid         = $cmid;
         $rec->modname      = $modname;
         $rec->classid      = $classid;
@@ -121,7 +121,7 @@ class activity_group_create extends external_api {
                         $DB->delete_records('gmk_activity_group_member',
                             ['groupid' => (int)$other->groupid, 'userid' => $uid]);
                     }
-                    $m = new stdClass();
+                    $m = new \stdClass();
                     $m->groupid   = $groupid;
                     $m->userid    = (int)$uid;
                     $m->joined_at = time();

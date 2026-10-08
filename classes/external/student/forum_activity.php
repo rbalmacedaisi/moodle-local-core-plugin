@@ -287,7 +287,7 @@ class forum_activity extends external_api {
                 throw new Exception('No tienes permiso para crear temas en este foro.');
             }
 
-            $discussion = new stdClass();
+            $discussion = new \stdClass();
             $discussion->course = (int)$course->id;
             $discussion->forum = (int)$forum->id;
             $discussion->name = $subject;
@@ -359,7 +359,7 @@ class forum_activity extends external_api {
                 MUST_EXIST
             );
 
-            $post = new stdClass();
+            $post = new \stdClass();
             $post->discussion = (int)$discussion->id;
             $post->parent = (int)$discussion->firstpost;
             $post->subject = 'Re: ' . trim((string)$discussion->name);

@@ -162,7 +162,7 @@ class create_express_activity extends external_api {
                 $cmid = (int)$result->coursemodule;
                 if ($cmid > 0) {
                     try {
-                        $flagrec = new stdClass();
+                        $flagrec = new \stdClass();
                         $flagrec->cmid        = $cmid;
                         $flagrec->modname     = $modname;
                         $flagrec->enabled     = 1;

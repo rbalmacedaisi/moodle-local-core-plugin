@@ -655,7 +655,7 @@ class scheduler extends external_api {
                     continue;
                 }
 
-                $classRec = new stdClass();
+                $classRec = new \stdClass();
                 $isUpdate = false;
                 $forceclearbbbmoduleids = false;
                 if (!empty($cls['id']) && is_numeric($cls['id'])) {
@@ -1154,7 +1154,7 @@ class scheduler extends external_api {
                                 : $DB->get_field('user', 'id', ['idnumber' => (string)$uid, 'deleted' => 0]);
                         }
                         if (!$realId) continue; // Skip if user not found
-                        $q = new stdClass();
+                        $q = new \stdClass();
                         $q->classid = $classid;
                         $q->userid = (int)$realId;
                         $q->courseid = $cls['courseid'];
@@ -1201,7 +1201,7 @@ class scheduler extends external_api {
                 }
 
                 foreach ($sessionsToSave as $sess) {
-                    $sLink = new stdClass();
+                    $sLink = new \stdClass();
                     $sLink->classid = $classid;
                     $sLink->day = $sess['day'];
                     $sLink->start_time = $sess['start'];

@@ -699,20 +699,21 @@ const ActivityCreationWizard = {
 
                     // DEBUG 20261001080: console.log mientras el usuario
                     // reporta que el modal de gestion de grupos no se abre.
-                    // Muestra cada condicion por separado para que se pueda
-                    // identificar cual esta fallando. console.log en vez de
-                    // alert para no bloquear la UI.
-                    console.log('[GMK DEBUG] create-then-manage', {
-                        activityType: this.activityType,
-                        isAssignment: this.isAssignment,
-                        isQuiz: this.isQuiz,
-                        formFlag: this.formData.enableGroupGrading,
-                        backendEnabled: backendEnabled,
-                        editMode: this.editMode,
-                        newCmid: newCmid,
-                        createdWithGroups: createdWithGroups,
-                        groupgrading: groupgrading
-                    });
+                    // Muestra cada condicion por separada para identificar
+                    // cual falla. En produccion se puede remover.
+                    if (window.__GMK_DEBUG_GROUP) {
+                        console.log('[GMK DEBUG] create-then-manage', {
+                            activityType: this.activityType,
+                            isAssignment: this.isAssignment,
+                            isQuiz: this.isQuiz,
+                            formFlag: this.formData.enableGroupGrading,
+                            backendEnabled: backendEnabled,
+                            editMode: this.editMode,
+                            newCmid: newCmid,
+                            createdWithGroups: createdWithGroups,
+                            groupgrading: groupgrading
+                        });
+                    }
 
                     if (createdWithGroups) {
                         // Forzar que el flag este prendido en el form ANTES

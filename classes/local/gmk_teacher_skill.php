@@ -17,7 +17,7 @@ class gmk_teacher_skill {
             return true;
         }
         
-        $teacherSkill = new stdClass();
+        $teacherSkill = new \stdClass();
         $teacherSkill->shortname = $shortname; 
         $teacherSkill->name = $courseInfo['fullname'];
         $teacherSkill->courseid = $courseInfo['courseid'];

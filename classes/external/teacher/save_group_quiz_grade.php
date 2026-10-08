@@ -188,7 +188,7 @@ class save_group_quiz_grade extends external_api {
                       WHERE questionattemptid = :qaid",
                     ['qaid' => (int)$qa->id]
                 );
-                $step = new stdClass();
+                $step = new \stdClass();
                 $step->questionattemptid = (int)$qa->id;
                 $step->sequencenumber    = $maxseq + 1;
                 $step->state             = 'manuallygraded';

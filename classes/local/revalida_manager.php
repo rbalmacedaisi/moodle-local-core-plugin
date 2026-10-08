@@ -647,7 +647,7 @@ class revalida_manager {
         $now = time();
         $existing = $DB->get_record('gmk_revalidations',
             ['classid' => (int)$class->id, 'userid' => $userid]);
-        $rec = $existing ?: new stdClass();
+        $rec = $existing ?: new \stdClass();
         $rec->classid        = (int)$class->id;
         $rec->userid         = $userid;
         $rec->corecourseid   = (int)$class->corecourseid;

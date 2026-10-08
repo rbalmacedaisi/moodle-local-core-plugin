@@ -103,7 +103,7 @@ class get_teacher_available_days extends external_api {
                 6 => 'Domingo'
             );
             $incomingTimestampRange =convert_time_range_to_timestamp_range([$params['initTime'],$params['endTime']]);
-            $incomingTimestampRangeObject = new stdClass();
+            $incomingTimestampRangeObject = new \stdClass();
             $incomingTimestampRangeObject->st = $incomingTimestampRange['initTS'];
             $incomingTimestampRangeObject->et = $incomingTimestampRange['endTS'];
             

@@ -234,7 +234,7 @@ class revert_homologation extends external_api
 
         // Audit row (best-effort).
         try {
-            $audit = new stdClass();
+            $audit = new \stdClass();
             $audit->userid               = $userId;
             $audit->corecourseid         = $coreCourseId;
             $audit->learningplanid       = $learningPlanId;

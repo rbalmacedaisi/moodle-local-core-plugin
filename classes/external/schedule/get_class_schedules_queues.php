@@ -87,7 +87,7 @@ class get_class_schedules_queues extends external_api {
             $schedules = array_values($schedules)[0]->schedules;
             
             $schedules = array_map(function ($schedule){
-                $scheduleQueue = new stdClass();
+                $scheduleQueue = new \stdClass();
                 $scheduleQueue->className = $schedule->name;
                 $scheduleQueue->classDays = $schedule->classDaysString;
                 $scheduleQueue->initHour = $schedule->inithourformatted;

@@ -358,13 +358,6 @@ Vue.component('activity-groups-panel', {
         },
 
         async createGroup() {
-            // DEBUG 20261001080: console.log para no bloquear la UI con
-            // alerts. El usuario abre F12/Consola y nos manda el output.
-            console.log('[GMK DEBUG] createGroup clicked', {
-                cmid: this.cmid,
-                modname: this.modname,
-                form: this.createForm
-            });
             this.saving = true;
             try {
                 const resp = await axios.post(window.wsUrl, {
@@ -379,7 +372,6 @@ Vue.component('activity-groups-panel', {
                     }),
                     ...window.wsStaticParams
                 });
-                console.log('[GMK DEBUG] createGroup response', resp.data);
                 const data = resp.data || {};
                 if (data.status === 'success') {
                     this.notify('success', data.message || 'Grupo creado.');
@@ -389,7 +381,6 @@ Vue.component('activity-groups-panel', {
                     this.notify('error', data.message || 'No se pudo crear el grupo.');
                 }
             } catch (e) {
-                console.log('[GMK DEBUG] createGroup EXCEPTION', e && e.message, e && e.stack);
                 console.error('[GMK] createGroup error', e);
                 this.notify('error', 'Error de conexion al crear el grupo.');
             } finally {

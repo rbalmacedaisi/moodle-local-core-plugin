@@ -77,7 +77,7 @@ class save_grade extends external_api {
 
             $assign = new \assign($context_module, $cm, $course);
 
-            $data = new stdClass();
+            $data = new \stdClass();
             $data->grade            = $params['grade'];
             $data->attemptnumber    = -1;
             $data->applytoall       = 0;

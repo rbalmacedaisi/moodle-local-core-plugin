@@ -123,7 +123,7 @@ class get_bbb_module_url extends external_api {
             $completionData         = $completionInfo->get_data($cm, false, (int)$USER->id);
             $attendanceAlreadyMarked = ((int)$completionData->completionstate === COMPLETION_COMPLETE);
 
-            $meetingInfo = new stdClass();
+            $meetingInfo = new \stdClass();
             $meetingInfo->opened               = $BBBMeetingInfo['statusopen'];
             $meetingInfo->closed               = $recordingId ? true : $BBBMeetingInfo['statusclosed'];
             $meetingInfo->running              = $BBBMeetingInfo['statusrunning'];

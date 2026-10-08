@@ -84,7 +84,7 @@ class save_rule {
             $DB->update_record('gmk_homologation_rules', $existing);
             $id = (int)$existing->id;
         } else {
-            $rec = new stdClass();
+            $rec = new \stdClass();
             $rec->origin_planid = $originPlanId;
             $rec->origin_courseid = $originCourseId;
             $rec->dest_planid = $destPlanId;

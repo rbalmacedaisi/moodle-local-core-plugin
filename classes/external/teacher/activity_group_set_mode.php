@@ -50,7 +50,7 @@ class activity_group_set_mode extends external_api {
         $cap = $group->modname === 'assign' ? 'mod/assign:grade' : 'mod/quiz:grade';
         require_capability($cap, $context);
 
-        $upd = new stdClass();
+        $upd = new \stdClass();
         $upd->id           = $groupid;
         $upd->mode         = $mode;
         $upd->timemodified = time();

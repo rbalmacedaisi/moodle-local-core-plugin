@@ -416,7 +416,7 @@ class planning extends external_api {
         self::validate_context($context);
         require_capability('local/grupomakro_core:manage_academic_planning', $context);
         
-        $rec = new stdClass();
+        $rec = new \stdClass();
         $rec->name = $name;
         $rec->startdate = $startdate;
         $rec->enddate = $enddate;
@@ -436,7 +436,7 @@ class planning extends external_api {
         // Sync Learning Plan Relations
         $DB->delete_records('gmk_academic_period_lps', ['academicperiodid' => $periodid]);
         foreach ($learningplans as $lpid) {
-            $rel = new stdClass();
+            $rel = new \stdClass();
             $rel->academicperiodid = $periodid;
             $rel->learningplanid = $lpid;
             $rel->usermodified = $GLOBALS['USER']->id;
@@ -450,7 +450,7 @@ class planning extends external_api {
             $cal = $DB->get_record('gmk_academic_calendar', ['period' => $name]);
         }
         
-        $newCal = new stdClass();
+        $newCal = new \stdClass();
         if ($cal) $newCal->id = $cal->id;
         
         $newCal->academicperiodid = (string)$periodid;
@@ -627,7 +627,7 @@ class planning extends external_api {
             }
             
             if (!$exists) {
-                $rec = new stdClass();
+                $rec = new \stdClass();
                 $rec->academicperiodid = $academicperiodid;
                 $rec->learningplanid = $item['planid'];
                 $rec->courseid = $item['courseid'];
@@ -808,7 +808,7 @@ class planning extends external_api {
             throw new \moodle_exception('error_user_not_in_plan', 'local_grupomakro_core');
         }
 
-        $rec = new stdClass();
+        $rec = new \stdClass();
         $rec->id = $llu->id;
         if ($currentperiodid !== null) $rec->currentperiodid = $currentperiodid;
         if ($academicperiodid !== null) $rec->academicperiodid = $academicperiodid;
@@ -820,7 +820,7 @@ class planning extends external_api {
 
         // If status changed to something other than 'activo', we might want to log it in gmk_student_suspension
         if ($status != 'activo') {
-            $susp = new stdClass();
+            $susp = new \stdClass();
             $susp->userid = $userid;
             $susp->status = $status;
             $susp->timecreated = time();

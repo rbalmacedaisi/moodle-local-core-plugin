@@ -92,7 +92,7 @@ class activity_group_update_members extends external_api {
                         $DB->delete_records('gmk_activity_group_member',
                             ['groupid' => (int)$other->groupid, 'userid' => $uid]);
                     }
-                    $m = new stdClass();
+                    $m = new \stdClass();
                     $m->groupid   = $groupid;
                     $m->userid    = $uid;
                     $m->joined_at = time();

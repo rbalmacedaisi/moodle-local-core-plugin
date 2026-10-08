@@ -258,7 +258,7 @@ class homologate_course_grade extends external_api
                 $DB->update_record('gmk_course_progre', $existing);
                 $gcpId = (int)$existing->id;
             } else {
-                $newRow = new stdClass();
+                $newRow = new \stdClass();
                 $newRow->userid            = $userId;
                 $newRow->courseid          = $coreCourseId;
                 $newRow->learningplanid    = $learningPlanId;
@@ -364,7 +364,7 @@ class homologate_course_grade extends external_api
 
         // Audit row (best-effort: an audit failure must not break the homologation).
         try {
-            $audit = new stdClass();
+            $audit = new \stdClass();
             $audit->userid              = $userId;
             $audit->corecourseid        = $coreCourseId;
             $audit->learningplanid      = $learningPlanId;

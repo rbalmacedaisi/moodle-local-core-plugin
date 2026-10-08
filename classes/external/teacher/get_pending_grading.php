@@ -44,7 +44,7 @@ class get_pending_grading extends external_api {
         $fs = get_file_storage();
 
         foreach ($submissions as $sub) {
-            $item = new stdClass();
+            $item = new \stdClass();
             $item->id = $sub->submissionid; 
             $item->assignmentid = $sub->itemid;
             $item->modname = $sub->modname;
@@ -54,7 +54,7 @@ class get_pending_grading extends external_api {
             $item->studentemail = $sub->email;
             
             // Avatar logic
-            $userobj = new stdClass();
+            $userobj = new \stdClass();
             $userobj->id = $sub->userid;
             $userobj->picture = $sub->picture;
             $userobj->firstname = $sub->firstname;
@@ -212,7 +212,7 @@ class get_pending_grading extends external_api {
                          if ($hash !== '') {
                              $seenhash[$hash] = true;
                          }
-                         $f = new stdClass();
+                         $f = new \stdClass();
                          $f->filename = $file->get_filename();
                          $url = \moodle_url::make_pluginfile_url(
                             $file->get_contextid(),

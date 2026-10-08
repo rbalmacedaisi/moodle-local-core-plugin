@@ -135,7 +135,7 @@ class save_group_grade extends external_api {
         $gradedcount = 0; $skippedcount = 0;
         foreach ($existing as $row) {
             $userid = (int)$row['userid'];
-            $data = new stdClass();
+            $data = new \stdClass();
             $data->grade            = $grade;
             $data->attemptnumber    = -1;
             $data->applytoall       = 0;

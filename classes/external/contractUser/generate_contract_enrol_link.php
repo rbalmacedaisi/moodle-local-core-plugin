@@ -91,7 +91,7 @@ class generate_contract_enrol_link extends external_api {
             $contractEnrolLinkExpirationDate = time()+259200 ;
             
             
-            $contractEnrolLink = new stdClass();
+            $contractEnrolLink = new \stdClass();
             $contractEnrolLink->contractid = $contractId;
             $contractEnrolLink->courseid = $courseId;
             $contractEnrolLink->token = $contractEnrolLinkToken;

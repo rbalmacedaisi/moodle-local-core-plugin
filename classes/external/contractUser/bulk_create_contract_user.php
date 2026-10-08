@@ -90,7 +90,7 @@ class bulk_create_contract_user extends external_api {
             $header = str_getcsv(array_shift($lines));
             foreach ($lines as $line) {
                 $data = str_getcsv($line);
-                $row = new stdClass();
+                $row = new \stdClass();
                 foreach ($header as $i => $column) {
                     $row->$column = $data[$i];
                 }
@@ -111,7 +111,7 @@ class bulk_create_contract_user extends external_api {
                         continue;
                     }
             
-                    $newUser = new stdClass();
+                    $newUser = new \stdClass();
                     $newUser->username=  $user->user_document;
                     $newUser->firstname=  $user->user_firstname;
                     $newUser->lastname=  $user->user_lastname;

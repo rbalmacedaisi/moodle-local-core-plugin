@@ -432,7 +432,7 @@ class attendance_manager extends external_api {
         // Format for frontend
         $result = [];
         foreach ($sessions as $s) {
-            $item = new stdClass();
+            $item = new \stdClass();
             $item->id = $s->id;
             $item->sessdate = $s->sessdate; // Required for JS comparison
             $item->duration = (int)$s->duration;

@@ -50,7 +50,7 @@ class get_quiz_attempt_data extends external_api {
             $attempt = $attemptobj->get_attempt();
             $user = $DB->get_record('user', array('id' => $attempt->userid), '*', MUST_EXIST);
             
-            $result = new stdClass();
+            $result = new \stdClass();
             $result->attemptid = (int)$attempt->id;
             $result->userid = (int)$attempt->userid;
             $result->username = fullname($user);
@@ -68,7 +68,7 @@ class get_quiz_attempt_data extends external_api {
                 $question = $qa->get_question();
                 $state = $qa->get_state();
                 
-                $qitem = new stdClass();
+                $qitem = new \stdClass();
                 $qitem->slot = (int)$slot;
                 $qitem->questionid = (int)$question->id;
                 $qitem->name = $question->name;

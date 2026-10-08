@@ -163,7 +163,7 @@ class module_invoice_manager {
         $expires = $now + ($expirydays * DAYSECS);
 
         // Insert the request row first (idempotency anchor).
-        $rec               = new stdClass();
+        $rec               = new \stdClass();
         $rec->userid         = $userid;
         $rec->corecourseid   = $corecourseid;
         $rec->learningplanid = $learningplanid;
