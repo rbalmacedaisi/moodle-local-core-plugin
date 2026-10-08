@@ -278,22 +278,17 @@ const ManageClass = {
                                                                 </template>
                                                                 <span>Eliminar actividad</span>
                                                             </v-tooltip>
-                                                            <v-tooltip bottom v-if="activity.modname === 'assign'">
-                                                                <template v-slot:activator="{ on, attrs }">
-                                                                    <v-btn
-                                                                        icon
-                                                                        small
-                                                                        color="orange darken-2"
-                                                                        class="mr-2"
-                                                                        @click.stop.prevent="openExtensionsFor(activity)"
-                                                                        v-bind="attrs"
-                                                                        v-on="on"
-                                                                    >
-                                                                        <v-icon>mdi-calendar-clock</v-icon>
-                                                                    </v-btn>
-                                                                </template>
-                                                                <span>Excepciones de entrega (prórrogas por estudiante)</span>
-                                                            </v-tooltip>
+                                                            <v-btn
+                                                                v-if="activity.modname === 'assign'"
+                                                                icon
+                                                                small
+                                                                color="orange darken-2"
+                                                                class="mr-2"
+                                                                :title="'Excepciones de entrega'"
+                                                                @click.stop.prevent="openExtensionsFor(activity)"
+                                                            >
+                                                                <v-icon>mdi-calendar-clock</v-icon>
+                                                            </v-btn>
                                                             <v-btn icon small @click.stop="openEditActivity(activity)"><v-icon color="grey lighten-1">mdi-pencil</v-icon></v-btn>
                                                         </v-list-item-action>
                                                     </v-list-item>
