@@ -50,7 +50,7 @@ class get_carnet extends external_api {
         require_capability('local/grupomakro_core:view_wellness', $context);
 
         if (!isloggedin() || isguestuser()) {
-            throw new Exception('user_not_logged_in');
+            throw new \Exception('user_not_logged_in');
         }
 
         try {
@@ -60,7 +60,7 @@ class get_carnet extends external_api {
             // goes to error_log for the admin; the WS gets a generic
             // error code.
             error_log('[grupomakro_core] carnet issue FAILED userid=' . (int)$USER->id . ': ' . $e->getMessage());
-            throw new Exception('carnet_issue_failed');
+            throw new \Exception('carnet_issue_failed');
         }
 
         $photoUrl = \local_grupomakro_core\local\wellness_carnet_manager::photo_url(

@@ -73,7 +73,7 @@ class admin_delete_wellness_event_bbb extends external_api {
             try {
                 course_delete_module($cmid);
             } catch (\Throwable $e) {
-                throw new Exception('No se pudo eliminar la sala BBB: ' . $e->getMessage());
+                throw new \Exception('No se pudo eliminar la sala BBB: ' . $e->getMessage());
             }
         }
 

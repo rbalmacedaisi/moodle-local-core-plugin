@@ -52,7 +52,7 @@ class get_message_stats extends external_api {
         require_capability('local/grupomakro_core:viewannouncements', $context);
 
         if (!$DB->record_exists('gmk_admin_message', ['id' => $params['messageid']])) {
-            throw new Exception('message_not_found');
+            throw new \Exception('message_not_found');
         }
 
         $stats = \local_grupomakro_core\local\announcement_manager::per_career_stats((int)$params['messageid']);

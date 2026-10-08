@@ -91,7 +91,7 @@ class create_message extends external_api {
         );
 
         if (!$result['ok']) {
-            throw new Exception($result['error'] ?? 'create_failed');
+            throw new \Exception($result['error'] ?? 'create_failed');
         }
 
         $msg = $result['message'];

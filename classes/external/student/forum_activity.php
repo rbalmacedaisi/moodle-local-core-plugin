@@ -24,7 +24,7 @@ class forum_activity extends external_api {
         $cm = get_coursemodule_from_id('', $moduleid, $course->id, false, MUST_EXIST);
 
         if ((string)$cm->modname !== 'forum') {
-            throw new Exception('El modulo no es un foro.');
+            throw new \Exception('El modulo no es un foro.');
         }
 
         $forum = $DB->get_record(
@@ -38,11 +38,11 @@ class forum_activity extends external_api {
         $cmcontext = context_module::instance((int)$cm->id);
 
         if (!is_enrolled($coursecontext, $USER, '', true) && !is_siteadmin()) {
-            throw new Exception('No estas matriculado en este curso.');
+            throw new \Exception('No estas matriculado en este curso.');
         }
 
         if (!has_capability('mod/forum:viewdiscussion', $cmcontext) && !has_capability('mod/forum:viewforum', $cmcontext) && !is_siteadmin()) {
-            throw new Exception('No tienes permiso para ver este foro.');
+            throw new \Exception('No tienes permiso para ver este foro.');
         }
 
         return [$course, $cm, $forum, $coursecontext, $cmcontext];
@@ -278,13 +278,13 @@ class forum_activity extends external_api {
             $message = trim((string)$params['message']);
 
             if ($subject === '') {
-                throw new Exception('El titulo del tema es obligatorio.');
+                throw new \Exception('El titulo del tema es obligatorio.');
             }
             if ($message === '') {
-                throw new Exception('El mensaje del tema es obligatorio.');
+                throw new \Exception('El mensaje del tema es obligatorio.');
             }
             if (!has_capability('mod/forum:startdiscussion', $cmcontext) && !is_siteadmin()) {
-                throw new Exception('No tienes permiso para crear temas en este foro.');
+                throw new \Exception('No tienes permiso para crear temas en este foro.');
             }
 
             $discussion = new \stdClass();
@@ -346,10 +346,10 @@ class forum_activity extends external_api {
             list($course, $cm, $forum, $coursecontext, $cmcontext) = self::resolve_forum_context((int)$params['courseId'], (int)$params['moduleId']);
             $message = trim((string)$params['message']);
             if ($message === '') {
-                throw new Exception('El comentario es obligatorio.');
+                throw new \Exception('El comentario es obligatorio.');
             }
             if (!has_capability('mod/forum:replypost', $cmcontext) && !is_siteadmin()) {
-                throw new Exception('No tienes permiso para comentar en este foro.');
+                throw new \Exception('No tienes permiso para comentar en este foro.');
             }
 
             $discussion = $DB->get_record(

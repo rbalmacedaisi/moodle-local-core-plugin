@@ -118,7 +118,7 @@ class admin_save_event extends external_api {
         try {
             $newid = \local_grupomakro_core\local\wellness_event_manager::upsert($payload, (int)$USER->id);
         } catch (\moodle_exception $e) {
-            throw new Exception($e->getMessage());
+            throw new \Exception($e->getMessage());
         }
         return ['ok' => true, 'id' => (int)$newid];
     }

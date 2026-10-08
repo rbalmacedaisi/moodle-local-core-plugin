@@ -65,7 +65,7 @@ class admin_cancel_event_registration extends external_api {
         );
         if (empty($r['ok'])) {
             $msg = (string)($r['error'] ?? 'cancel_failed');
-            throw new Exception($msg);
+            throw new \Exception($msg);
         }
         return ['ok' => true, 'already' => !empty($r['already'])];
     }

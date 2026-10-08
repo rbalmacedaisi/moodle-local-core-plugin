@@ -82,7 +82,7 @@ class delete_teacher_disponibility extends external_api {
             
             if(count($instructorAsignedClasses)>0){
                 $errorString = "El instructor tiene clases asignadas, no se puede eliminar la disponibilidad.";
-                throw new Exception($errorString);
+                throw new \Exception($errorString);
             }
             $deleteDisponibilityRecord = $DB->delete_records('gmk_teacher_disponibility',['userid'=>$instructorId]);
             $deleteTeacherSkillRelations = $DB->delete_records('gmk_teacher_skill_relation',['userid'=>$instructorId]);

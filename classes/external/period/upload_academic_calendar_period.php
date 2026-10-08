@@ -86,7 +86,7 @@ class upload_academic_calendar_period extends external_api {
             $academicCalendarPeriod = $fs->get_file($params['contextId'],'user','draft',$params['itemId'],'/',$params['filename']);
             
             if (!$academicCalendarPeriod) {
-                throw new Exception('File not found.');
+                throw new \Exception('File not found.');
             }
             
             $results = parse_academic_calendar_period_excel($academicCalendarPeriod);

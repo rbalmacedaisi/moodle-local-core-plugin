@@ -106,7 +106,7 @@ class get_calendar_events extends external_api
             }
 
 if (!$isadmin && $targetuserid <= 0) {
-                throw new Exception('No se pudo resolver el usuario para consultar eventos.');
+                throw new \Exception('No se pudo resolver el usuario para consultar eventos.');
             }
 
             // Cache the enriched event list keyed by (user, date range, day).

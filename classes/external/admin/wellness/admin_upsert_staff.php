@@ -76,7 +76,7 @@ class admin_upsert_staff extends external_api {
                 (int)$USER->id
             );
         } catch (\moodle_exception $e) {
-            throw new Exception($e->getMessage());
+            throw new \Exception($e->getMessage());
         }
         return ['ok' => true, 'id' => (int)$id];
     }

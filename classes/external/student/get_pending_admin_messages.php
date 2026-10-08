@@ -54,7 +54,7 @@ class get_pending_admin_messages extends external_api {
         self::validate_context($context);
 
         if (!$DB->record_exists('user', ['id' => $params['userid'], 'deleted' => 0])) {
-            throw new Exception('user_not_found');
+            throw new \Exception('user_not_found');
         }
 
         $messages = \local_grupomakro_core\local\announcement_manager::get_pending_for_user((int)$params['userid']);

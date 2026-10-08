@@ -86,7 +86,7 @@ class create_institution_contract extends external_api {
         global $DB,$USER;
         try{
             if($DB->get_record('gmk_institution_contract', array('contractid'=>$contractId, 'institutionid'=>$institutionId))){
-                throw new Exception('El número de contrato ya esta en uso.');
+                throw new \Exception('El número de contrato ya esta en uso.');
             }
             $institutionContract = new \stdClass();
             $institutionContract->institutionid = $institutionId;

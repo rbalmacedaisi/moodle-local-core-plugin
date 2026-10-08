@@ -52,7 +52,7 @@ class refresh_absence_state extends external_api {
         self::validate_context($context);
 
         if (!$DB->record_exists('user', ['id' => $params['userid'], 'deleted' => 0])) {
-            throw new Exception('user_not_found');
+            throw new \Exception('user_not_found');
         }
 
         $nowts = time();

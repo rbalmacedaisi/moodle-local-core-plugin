@@ -124,7 +124,7 @@ int $courseId,
             if (!empty($supportTeacherId) && intval($supportTeacherId) > 0) {
                 $su = core_user::get_user($supportTeacherId);
                 if (!$su || $su->suspended === '1' || $su->deleted === '1') {
-                    throw new Exception('El docente de apoyo no existe, está suspendido o fue eliminado.');
+                    throw new \Exception('El docente de apoyo no existe, está suspendido o fue eliminado.');
                 }
                 if ((int)$supportTeacherId === (int)$instructorId) {
                     $supportTeacherId = 0;

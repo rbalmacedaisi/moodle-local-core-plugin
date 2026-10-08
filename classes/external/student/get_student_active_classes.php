@@ -94,7 +94,7 @@ class get_student_active_classes extends external_api {
             $targetuserid = $requesteduserid > 0 ? $requesteduserid : $currentuserid;
 
             if ($targetuserid <= 0) {
-                throw new Exception('No se pudo resolver el usuario para consultar clases activas.');
+                throw new \Exception('No se pudo resolver el usuario para consultar clases activas.');
             }
 
             $activeClasses = student_get_active_classes($targetuserid);

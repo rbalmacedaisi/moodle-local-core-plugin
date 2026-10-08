@@ -57,14 +57,14 @@ class dismiss_absence_alert extends external_api {
         self::validate_context($context);
 
         if (!in_array((int)$params['level'], [1, 2], true)) {
-            throw new Exception('invalid_level');
+            throw new \Exception('invalid_level');
         }
 
         if (!$DB->record_exists('user', ['id' => $params['userid'], 'deleted' => 0])) {
-            throw new Exception('user_not_found');
+            throw new \Exception('user_not_found');
         }
         if (!$DB->record_exists('gmk_class', ['id' => $params['classid']])) {
-            throw new Exception('class_not_found');
+            throw new \Exception('class_not_found');
         }
 
         absd_dismiss_user_alert((int)$params['userid'], (int)$params['classid'], (int)$params['level']);

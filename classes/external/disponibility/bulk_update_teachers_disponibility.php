@@ -86,7 +86,7 @@ class bulk_update_teachers_disponibility extends external_api {
             $bulkDisponibilitiesFile = $fs->get_file($params['contextId'],'user','draft',$params['itemId'],'/',$params['filename']);
             
             if (!$bulkDisponibilitiesFile) {
-                throw new Exception('File not found.');
+                throw new \Exception('File not found.');
             }
             
             $disponibilityRecords = parse_bulk_disponibilities_CSV($bulkDisponibilitiesFile);

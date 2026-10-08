@@ -18,7 +18,7 @@ class importer_helper {
      */
     public static function load_spreadsheet($filepath) {
         if (!file_exists($filepath)) {
-            throw new Exception('File not found: ' . $filepath);
+            throw new \Exception('File not found: ' . $filepath);
         }
         return IOFactory::load($filepath);
     }

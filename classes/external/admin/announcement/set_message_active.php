@@ -58,7 +58,7 @@ class set_message_active extends external_api {
         );
 
         if (!$ok) {
-            throw new Exception('message_not_found');
+            throw new \Exception('message_not_found');
         }
 
         return [

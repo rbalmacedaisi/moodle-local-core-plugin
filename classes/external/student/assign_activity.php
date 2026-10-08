@@ -26,7 +26,7 @@ class assign_activity extends external_api {
         $cm = get_coursemodule_from_id('', $moduleid, $course->id, false, MUST_EXIST);
 
         if ((string)$cm->modname !== 'assign') {
-            throw new Exception('The selected activity is not an assignment.');
+            throw new \Exception('The selected activity is not an assignment.');
         }
 
         $assignrecord = $DB->get_record(
@@ -40,11 +40,11 @@ class assign_activity extends external_api {
         $cmcontext = context_module::instance((int)$cm->id);
 
         if (!is_enrolled($coursecontext, $USER, '', true) && !is_siteadmin()) {
-            throw new Exception('You are not enrolled in this course.');
+            throw new \Exception('You are not enrolled in this course.');
         }
 
         if (!has_capability('mod/assign:view', $cmcontext) && !is_siteadmin()) {
-            throw new Exception('You do not have permission to view this assignment.');
+            throw new \Exception('You do not have permission to view this assignment.');
         }
 
         $assign = new \assign($cmcontext, $cm, $course);

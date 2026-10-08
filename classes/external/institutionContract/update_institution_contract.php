@@ -94,7 +94,7 @@ class update_institution_contract extends external_api {
             $contractWithPossibleDuplicateIdentifier = $DB->get_record('gmk_institution_contract', array('contractid'=>$contractId, 'institutionid'=>$institutionId));
             
             if($institutionContractUpdated->contractid !== $contractId &&$contractWithPossibleDuplicateIdentifier && $contractWithPossibleDuplicateIdentifier->id!== $id){
-                throw new Exception('Existe un contrato con el identificador proporcionado.');
+                throw new \Exception('Existe un contrato con el identificador proporcionado.');
             }
             
             $institutionContractUpdated->contractid = $contractId;

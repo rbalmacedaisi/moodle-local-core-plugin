@@ -75,7 +75,7 @@ class delete_institution extends external_api {
             $deletedInstitution = get_institutions(['id'=>$id])[0];
             
             if($deletedInstitution->numberOfContracts >0){
-                throw new Exception('La institución tiene contratos activos. No se puede eliminar.');
+                throw new \Exception('La institución tiene contratos activos. No se puede eliminar.');
             }
             
             $deleteInstitutionId = $DB->delete_records('gmk_institution',['id'=>$id]);

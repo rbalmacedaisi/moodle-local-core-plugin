@@ -89,12 +89,12 @@ class admin_create_wellness_event_bbb extends external_api {
             $result = local_grupomakro_create_express_activity(-1, 'bigbluebuttonbn',
                 $meetingname, $intro, ['guest' => true]);
         } catch (\Throwable $e) {
-            throw new Exception('No se pudo crear la sala BBB: ' . $e->getMessage());
+            throw new \Exception('No se pudo crear la sala BBB: ' . $e->getMessage());
         }
 
         $cmid = isset($result->coursemodule) ? (int)$result->coursemodule : 0;
         if ($cmid <= 0) {
-            throw new Exception('La creacion de la sala BBB no devolvio un cmid valido.');
+            throw new \Exception('La creacion de la sala BBB no devolvio un cmid valido.');
         }
 
         $DB->set_field('gmk_wellness_event', 'bbb_cmid', $cmid, ['id' => (int)$event->id]);

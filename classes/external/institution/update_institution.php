@@ -83,7 +83,7 @@ class update_institution extends external_api {
             $institutionUpdated = $DB->get_record('gmk_institution', array('id'=>$id));
             
             if($institutionUpdated->institutionid !== $institutionId && $DB->get_record('gmk_institution', array('institutionid'=>$institutionId))){
-                throw new Exception('Existe una institución con el identificador proporcionado');
+                throw new \Exception('Existe una institución con el identificador proporcionado');
             }
             
             $institutionUpdated->name = $name;

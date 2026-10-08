@@ -90,7 +90,7 @@ class admin_delete_wellness_event extends external_api {
                         // If the BBB module refuses (live session), keep going
                         // and just clear the link so the orphan cmid can be
                         // cleaned up by the orphan-grade-items CLI later.
-                        throw new Exception('No se pudo eliminar la sala BBB: ' . $e->getMessage());
+                        throw new \Exception('No se pudo eliminar la sala BBB: ' . $e->getMessage());
                     }
                 }
                 $DB->delete_records('gmk_guest_meeting_host', ['cmid' => $cmid]);

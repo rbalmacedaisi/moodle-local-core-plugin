@@ -78,7 +78,7 @@ class admin_save_dynamic_form extends external_api {
         } catch (\moodle_exception $e) {
             // Propagate the lang-string code so the client can render the
             // matching toast without having to translate the message.
-            throw new Exception($e->errorcode ?: $e->getMessage());
+            throw new \Exception($e->errorcode ?: $e->getMessage());
         }
         return ['ok' => true, 'id' => (int)$newid];
     }

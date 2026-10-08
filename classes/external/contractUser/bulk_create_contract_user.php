@@ -81,7 +81,7 @@ class bulk_create_contract_user extends external_api {
             $file = $fs->get_file($contextId,'user','draft',$itemId,'/',$filename);
 
             if (!$file) {
-                throw new Exception('File not found.');
+                throw new \Exception('File not found.');
             }
             // File found. Read the content of the file.
             $filecontent = $file->get_content();

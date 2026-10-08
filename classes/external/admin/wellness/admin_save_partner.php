@@ -82,7 +82,7 @@ class admin_save_partner extends external_api {
         try {
             $id = \local_grupomakro_core\local\wellness_partner_manager::upsert($params, (int)$USER->id);
         } catch (\moodle_exception $e) {
-            throw new Exception($e->getMessage());
+            throw new \Exception($e->getMessage());
         }
         return ['ok' => true, 'id' => $id];
     }

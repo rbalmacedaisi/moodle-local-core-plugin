@@ -239,7 +239,7 @@ class get_data_by_courses extends external_api
             $courseData = \local_soluttolms_core\external\get_data_by_courses::execute($params['courseid'], $params['userid']);
             $courseData = json_decode($courseData['coursedata']);
             if (!$courseData) {
-                throw new Exception('No se pudo decodificar la data del curso.');
+                throw new \Exception('No se pudo decodificar la data del curso.');
             }
 
             // GUARD (array-vs-object): the base service keys sections by their section number, so a

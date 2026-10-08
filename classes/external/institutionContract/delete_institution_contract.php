@@ -77,7 +77,7 @@ class delete_institution_contract extends external_api {
         
         try{
             if($DB->get_records('gmk_contract_user',['contractid'=>$id])){
-                throw new Exception('Hay usuarios asociados a este contrato, no se puede eliminar.');
+                throw new \Exception('Hay usuarios asociados a este contrato, no se puede eliminar.');
             }
             $deletedInstitutionContractId = $DB->delete_records('gmk_institution_contract',['id'=>$id]);
             

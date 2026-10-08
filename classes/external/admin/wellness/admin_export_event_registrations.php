@@ -54,7 +54,7 @@ class admin_export_event_registrations extends external_api {
             $csv = \local_grupomakro_core\local\wellness_event_manager::export_registrations_csv(
                 (int)$params['eventid']);
         } catch (\moodle_exception $e) {
-            throw new Exception($e->getMessage());
+            throw new \Exception($e->getMessage());
         }
         return [
             'csv'     => $csv,

@@ -88,10 +88,10 @@ class create_student_user extends external_api {
         try{
             
             if($DB->get_record('user', ['username'=>$username])){
-                throw new Exception('Ya existe un usuario con este numero de documento');
+                throw new \Exception('Ya existe un usuario con este numero de documento');
             }
             if($existingUser = $DB->get_record('user', ['email'=>$email])){
-                throw new Exception('Ya existe un usuario con este correo electrónico');
+                throw new \Exception('Ya existe un usuario con este correo electrónico');
             }
 
             $newUser = new \stdClass();
@@ -105,7 +105,7 @@ class create_student_user extends external_api {
             $createContractResults = create_contract_user(['userId'=>$newUser->id,'contractId'=>$contractId,'courseIds'=>$courseId])[$newUser->id];
             
             if(count($createContractResults['failure'])>0){
-                throw new Exception($createContractResults['failure'][0]['message']);
+                throw new \Exception($createContractResults['failure'][0]['message']);
             }
             
             return ['contractEnrolResult' => 1, 'message'=>'ok'];
