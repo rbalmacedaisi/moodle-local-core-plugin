@@ -302,13 +302,20 @@ const AssignmentExtensions = {
 
             this.loading.assignments = true;
             try {
+                // IMPORTANTE: args DEBE serializarse como JSON string. Si se
+                // envia como objeto plano, axios lo convierte a form data
+                // (args[0]=...&args[1]=...) y el required_param('args', ...) de
+                // ajax.php recibe null o basura, json_decode falla con
+                // "invalidjson" y el endpoint devuelve {status:'error',
+                // message:'error/invalidjson'}. Ver ActivityGroupsPanel.js y
+                // QuickGrader.js para el patron correcto.
                 const response = await axios.post(wsUrl, {
                     action: 'local_grupomakro_list_course_assignments',
-                    args: { courseid: parseInt(this.classId, 10) },
+                    args: JSON.stringify({ courseid: parseInt(this.classId, 10) }),
                     ...wsStaticParams
                 });
                 if (response.data && response.data.status === 'success') {
-                    this.assignments = response.data.assignments || [];
+                    this.assignments = (response.data.data && response.data.data.assignments) || response.data.assignments || [];
                 } else {
                     this.lastResult = { status: 'error', message: 'No se pudieron cargar las actividades.' };
                     this.assignments = [];
@@ -329,17 +336,23 @@ const AssignmentExtensions = {
             // Carga paralelo: students + overrides/history. Las respuestas de
             // ajax.php vienen envueltas en {data: {...}} (mismo patron que el
             // resto del codigo, ej. get_dashboard_data, FailedSubjectsReport).
+            // NOTA: args se serializa como JSON string (patron de
+            // ActivityGroupsPanel.js / QuickGrader.js) para que required_param
+            // + json_decode en ajax.php funcione.
             this.loading.students = true;
             try {
                 const [studentsResp, listResp] = await Promise.all([
                     axios.post(wsUrl, {
                         action: 'local_grupomakro_list_course_students_for_overrides',
-                        args: { courseid: parseInt(this.classId, 10), assignid: parseInt(this.selectedAssignId, 10) },
+                        args: JSON.stringify({
+                            courseid: parseInt(this.classId, 10),
+                            assignid: parseInt(this.selectedAssignId, 10)
+                        }),
                         ...wsStaticParams
                     }),
                     axios.post(wsUrl, {
                         action: 'local_grupomakro_list_assignment_extensions',
-                        args: { assignid: parseInt(this.selectedAssignId, 10) },
+                        args: JSON.stringify({ assignid: parseInt(this.selectedAssignId, 10) }),
                         ...wsStaticParams
                     })
                 ]);
@@ -426,12 +439,12 @@ const AssignmentExtensions = {
 
                 const results = await Promise.all(entries.map((e) => axios.post(wsUrl, {
                     action: 'local_grupomakro_set_assignment_user_override',
-                    args: {
+                    args: JSON.stringify({
                         assignid: parseInt(this.selectedAssignId, 10),
                         userid: e.uid,
                         duedate: e.ts,
                         reason: this.commonReason || ''
-                    },
+                    }),
                     ...wsStaticParams
                 }).then((r) => ({ userid: e.uid, ok: r.data && r.data.status === 'success', msg: r.data && r.data.message })).catch((err) => ({ userid: e.uid, ok: false, msg: err.message }))));
 
@@ -456,7 +469,7 @@ const AssignmentExtensions = {
             try {
                 const resp = await axios.post(wsUrl, {
                     action: 'local_grupomakro_delete_assignment_user_override',
-                    args: { assignid: parseInt(this.selectedAssignId, 10), userid: student.userid },
+                    args: JSON.stringify({ assignid: parseInt(this.selectedAssignId, 10), userid: student.userid }),
                     ...wsStaticParams
                 });
                 if (resp.data && resp.data.status === 'success') {
