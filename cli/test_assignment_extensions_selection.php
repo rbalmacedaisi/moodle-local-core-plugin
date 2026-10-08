@@ -64,8 +64,17 @@ mtrace("Loaded " . strlen($src) . " bytes from $path");
 //    stays enabled so the data-table-select column exists and the
 //    custom header/item slots can be rendered, but the v-model is
 //    gone.
-if (strpos($src, 'v-model="selectedStudentIds"') !== false) {
-    mtrace("FAIL: v-model=\"selectedStudentIds\" is still present on the v-data-table. "
+//
+//    The check is "in the template" (between <template> ... </template>),
+//    not in a JS comment. The text "v-model=\"selectedStudentIds\"" may
+//    still appear in code comments (documenting what was removed),
+//    which is fine.
+$template = '';
+if (preg_match('/<template>([\s\S]*?)<\/template>/', $src, $m)) {
+    $template = $m[1];
+}
+if (strpos($template, 'v-model="selectedStudentIds"') !== false) {
+    mtrace("FAIL: v-model=\"selectedStudentIds\" is still present in the template. "
         . "This is the source of the 'check one selects all' bug. Replace it with "
         . "manual selection via @update:item-selected or custom checkbox slots.");
     exit(2);
