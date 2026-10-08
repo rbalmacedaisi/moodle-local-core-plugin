@@ -7078,6 +7078,64 @@ try {
                 }
             }
 
+            // Calificacion grupal (introducida en 20261001057, extendido en
+            // la auditoria): sincronizar el flag de habilitacion si el
+            // docente lo cambio durante la edicion. Sin este codigo, el
+            // flag quedaba stale: el create_express_activity lo creaba,
+            // pero el path de edicion no lo actualizaba nunca.
+            //
+            // El flag se activa/desactiva pasando enableGroupGrading=1/0
+            // (top-level POST field, igual que el resto del dispatch).
+            // Si no se envia, no se toca. Si se envia, hacemos upsert
+            // o delete segun el caso.
+            if (in_array($cm->modname, ['assign', 'quiz'], true)
+                && $DB->get_field('gmk_activity_grading_flag', 'cmid',
+                    ['cmid' => $cmid]) !== false
+                    || optional_param('enableGroupGrading', null, PARAM_INT) !== null) {
+                // leer la intencion actual del cliente (si la mando)
+                $enable = optional_param('enableGroupGrading', null, PARAM_INT);
+                if ($enable !== null) {
+                    $enable = (int)$enable;
+                    $existingflag = $DB->get_record('gmk_activity_grading_flag',
+                        ['cmid' => $cmid], '*', IGNORE_MISSING);
+                    if ($enable === 1) {
+                        if (!$existingflag) {
+                            $rec = (object)[
+                                'cmid'        => (int)$cmid,
+                                'modname'     => (string)$cm->modname,
+                                'enabled'     => 1,
+                                'mode'        => in_array(optional_param('groupMode', 'open', PARAM_ALPHA), ['open','fixed'], true)
+                                                  ? optional_param('groupMode', 'open', PARAM_ALPHA) : 'open',
+                                'maxmembers'  => max(1, (int)optional_param('groupMaxmembers', 5, PARAM_INT)),
+                                'timecreated' => time(),
+                            ];
+                            $DB->insert_record('gmk_activity_grading_flag', $rec);
+                        } else {
+                            // Update in place. Si los params no vienen, conserva
+                            // el mode/maxmembers existentes.
+                            $updates = (object)['id' => $existingflag->id, 'enabled' => 1];
+                            $newmode = optional_param('groupMode', $existingflag->mode, PARAM_ALPHA);
+                            if (in_array($newmode, ['open','fixed'], true)) {
+                                $updates->mode = $newmode;
+                            }
+                            $newmax = optional_param('groupMaxmembers', $existingflag->maxmembers, PARAM_INT);
+                            if ($newmax > 0) {
+                                $updates->maxmembers = (int)$newmax;
+                            }
+                            $DB->update_record('gmk_activity_grading_flag', $updates);
+                        }
+                    } else {
+                        // enable=0: eliminar el flag (los grupos existentes se
+                        // preservan; el docente los puede borrar a mano o
+                        // dejarlos inactivos porque sin flag no se usan).
+                        if ($existingflag) {
+                            $DB->delete_records('gmk_activity_grading_flag',
+                                ['cmid' => $cmid]);
+                        }
+                    }
+                }
+            }
+
             $response = ['status' => 'success'];
             break;
 
