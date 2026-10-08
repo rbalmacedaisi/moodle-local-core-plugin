@@ -704,7 +704,6 @@ const ManageClass = {
                 v-if="extensionsActivity"
                 v-model="extensionsOpen"
                 :class-id="classId"
-                :class-info="classInfo"
                 :assign-id="extensionsActivity && extensionsActivity.instance"
                 :assignment-name="extensionsActivity && extensionsActivity.name"
             ></assignment-extensions>
