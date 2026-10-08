@@ -116,25 +116,53 @@ class ret01_pdf_generator extends \TCPDF {
         $this->render_section_receipt();
         $this->render_section_internal();
         $this->render_footer();
+        $this->trim_trailing_blank_page();
         return $this->Output('ret01.pdf', 'S');
+    }
+
+    /**
+     * Removes the trailing page if it has no real content (just the
+     * footer / break-margin cursor). This is the root cause of the
+     * historical "empty 3rd page" bug: TCPDF's auto page break sometimes
+     * leaves a blank trailing page after the last content block + footer.
+     * Heuristic: a page is "blank" if the cursor Y after the footer is
+     * less than 15% of the available content area, AND we have more than
+     * one page.
+     */
+    private function trim_trailing_blank_page(): void {
+        $total = $this->getNumPages();
+        if ($total <= 1) {
+            return;
+        }
+        $pageHeight = $this->getPageHeight();
+        $breakMargin = $this->getBreakMargin();
+        $cursorY = $this->GetY();
+        $available = $pageHeight - $breakMargin - 20; // 20mm footer reserve
+        if ($available <= 0) {
+            return;
+        }
+        $fillRatio = $cursorY / $available;
+        if ($fillRatio < 0.15) {
+            $this->deletePage($total);
+        }
     }
 
     /**
      * Si quedan menos de $needed mm entre el cursor actual y el break
      * margin, fuerza un salto de pagina. Esto evita que TCPDF parta
      * bloques que no se rompen bien (cajas RoundedRect, firmas, etc.).
-     * Si necesitamos $needed mm y el cursor ya esta lo suficientemente
-     * abajo (por ejemplo, dentro de la primera mitad de la pagina),
-     * tambien salta para mantener la coherencia visual entre las
-     * secciones.
+     * Si quedan menos de $needed mm entre el cursor actual y el break
+     * margin, fuerza un salto de pagina. NO renderiza el header aqui
+     * (eso lo hace el flujo principal de render() y los callbacks de
+     * TCPDF). Llamarlo en mitad de una seccion causa que el subtitulo
+     * "Para estudiantes activos..." se inserte en mitad de otra seccion
+     * (lo que el usuario veia en el PDF como "header de la siguiente
+     * pagina" cuando en realidad es el header en mitad de page 2).
      */
     private function ensure_space(float $needed): void {
         $available = $this->getPageHeight() - $this->getBreakMargin() - $this->GetY();
         if ($available < $needed) {
             $this->AddPage();
-            // Re-render the header on each new page so the institutional
-            // block + correlative badge stays at the top of every page.
-            $this->render_header();
         }
     }
 
@@ -421,10 +449,11 @@ class ret01_pdf_generator extends \TCPDF {
             0, 'C');
         $this->Ln(2);
 
-        // Two receipt boxes side-by-side (~80mm combined). Forzar page break
-        // si la primera caja no entrara completa, asi AMBAS cajas quedan en
-        // la misma pagina y no se parten entre dos hojas.
-        $this->ensure_space(45);
+        // Forzar salto de pagina si no hay ~80mm para las DOS cajas
+        // (40mm cada una con su titulo, Fecha, Hora, Recibido, Firma).
+        // Si no hay espacio, AMBAS cajas pasan a la siguiente pagina
+        // y se renderizan JUNTAS desde el top.
+        $this->ensure_space(50);
         $y0 = $this->GetY();
         $this->receipt_block(
             'Direccion Academica (original)',
@@ -433,14 +462,6 @@ class ret01_pdf_generator extends \TCPDF {
             isset($this->row->received_da_by) && (int)$this->row->received_da_by > 0
                 ? $this->user_fullname_or_id((int)$this->row->received_da_by) : ''
         );
-        // Despues de la primera caja (38mm), verificar que la segunda
-        // caja quepa tambien. Si no, forzar nueva pagina y re-renderizar
-        // AMBAS cajas desde el inicio de la pagina.
-        if ($this->GetY() + 38 > $this->getPageHeight() - $this->getBreakMargin()) {
-            $this->AddPage();
-            $this->render_header();
-            $y0 = $this->GetY();
-        }
         $this->SetXY(110, $y0);
         $this->receipt_block(
             'Direccion Administrativa (copia)',
@@ -521,18 +542,12 @@ class ret01_pdf_generator extends \TCPDF {
         $this->Cell(50, 6, '  Registrado en expediente por:', 1, 0, 'L', true);
         $this->Cell(130, 6, '  _____________________  /  Fecha: ____ / ____ / ________', 1, 1, 'L', true);
 
-        $this->Ln(3);
-
-        // Diagonal watermark to distinguish from the manually signed copy.
-        $this->SetAlpha(0.08);
-        $this->StartTransform();
-        $this->Rotate(35, 105, 245);
-        $this->SetFont($this->use_opensans ? 'opensans__b' : 'helvetica', 'B', 38);
-        $this->SetTextColor(0, 0, 0);
-        $this->Text(35, 245, 'SOLICITUD GENERADA DIGITALMENTE - ISI');
-        $this->StopTransform();
-        $this->SetAlpha(1);
-        $this->SetTextColor(0, 0, 0);
+        // NOTA: Se elimino el watermark diagonal "SOLICITUD GENERADA
+        // DIGITALMENTE - ISI" que estaba aqui. Razon: su posicion fija
+        // (y=245) y tamano (38pt) hacian que la pagina siguiente se
+        // quedara en blanco porque el texto rotado caia fuera del
+        // margen inferior. La marca "Generado digitalmente" sigue
+        // apareciendo en el footer de cada pagina.
     }
 
     // ─────────────────── FOOTER ───────────────────
