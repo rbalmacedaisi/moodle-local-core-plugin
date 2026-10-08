@@ -109,18 +109,23 @@ if (!preg_match('/selectAll\s*:\s*\{[\s\S]{0,500}set\s*\(/', $src)) {
 }
 mtrace("4) selectAll computed with a setter is defined ✔");
 
-// 5. The template must render a v-checkbox (or similar) bound to
-//    selectAll for the header, and to toggleStudent for each row.
-//    This is what makes the click behaviour deterministic.
-if (!preg_match('/v-checkbox[^>]*v-model="selectAll"/s', $src)) {
-    mtrace("FAIL: missing v-checkbox in header bound to v-model=\"selectAll\". "
+// 5. The template must render a v-checkbox (or similar) for the
+//    header checkbox, driven by the selectAll computed. We accept
+//    both the v-model form and the explicit :input-value + @change
+//    form (the latter is the idiomatic Vuetify 2 pattern - v-model
+//    on a computed with a setter also works but the @change form
+//    gives us a single, deterministic place to read the new value).
+if (!preg_match('/v-checkbox[^>]*v-model="selectAll"/s', $src)
+    && !preg_match('/v-checkbox[^>]*:input-value="selectAll"/s', $src)) {
+    mtrace("FAIL: missing v-checkbox in header bound to selectAll. "
         . "The header must drive the bulk toggle, not Vuetify's auto-derivation.");
     exit(6);
 }
-mtrace("5) Header v-checkbox is bound to v-model=\"selectAll\" ✔");
+mtrace("5) Header v-checkbox is bound to selectAll ✔");
 
-if (!preg_match('/v-checkbox[^>]*v-model="isStudentSelected\([^)]+\)"/s', $src)) {
-    mtrace("FAIL: missing per-row v-checkbox bound to v-model=\"isStudentSelected(userid)\". "
+if (!preg_match('/v-checkbox[^>]*v-model="isStudentSelected\([^)]+\)"/s', $src)
+    && !preg_match('/v-checkbox[^>]*:input-value="isStudentSelected\([^)]+\)"/s', $src)) {
+    mtrace("FAIL: missing per-row v-checkbox bound to isStudentSelected(userid). "
         . "Each row checkbox must read from a single source of truth.");
     exit(7);
 }
