@@ -189,9 +189,9 @@ foreach ([
     "optional_param\\('enableGroupGrading'",
     "optional_param\\('groupMode'",
     "optional_param\\('groupMaxmembers'",
-    "\\$enableGroupGrading",
-    "\\$groupMode",
-    "\\$groupMaxmembers",
+    '\\$enableGroupGrading',
+    '\\$groupMode',
+    '\\$groupMaxmembers',
 ] as $needle) {
     if (!preg_match('/' . $needle . '/', $caseBlock)) {
         mtrace("FAIL: ajax.php case 'local_grupomakro_create_express_activity' "
