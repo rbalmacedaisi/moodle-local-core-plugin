@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Estado de Git — RET-01 / 2026-09-29</title>
+<style>
+  :root {
+    --foreground: #1f2937;
+    --muted-foreground: #6b7280;
+    --accent: #0ea5e9;
+    --border: #e5e7eb;
+    --card: #f9fafb;
+    --warn: #d97706;
+    --danger: #dc2626;
+    --ok: #059669;
+    --branch: #2563eb;
+    --remote: #7c3aed;
+    --server: #b91c1c;
+    --wt: #d97706;
+    --new: #059669;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 24px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    color: var(--foreground);
+    line-height: 1.55;
+  }
+  h1 { margin: 0 0 4px 0; font-size: 22px; }
+  .subtitle { color: var(--muted-foreground); font-size: 13px; margin-bottom: 24px; }
+  .repo {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 20px;
+    margin-bottom: 20px;
+  }
+  .repo h2 {
+    margin: 0 0 4px 0;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .repo .path {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11px;
+    color: var(--muted-foreground);
+    margin-bottom: 14px;
+    word-break: break-all;
+  }
+  .graph {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    margin: 12px 0;
+    font-family: ui-monospace, SFMono-Regular, Menlo, "Courier New", monospace;
+    font-size: 12px;
+    line-height: 1.7;
+    overflow-x: auto;
+  }
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin: 8px 0 0 0;
+    font-size: 11px;
+    color: var(--muted-foreground);
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 4px; }
+  .swatch {
+    display: inline-block;
+    width: 12px; height: 12px;
+    border-radius: 2px;
+    border: 1px solid currentColor;
+  }
+  .legend .l-branch { color: var(--branch); }
+  .legend .l-remote { color: var(--remote); }
+  .legend .l-wt     { color: var(--wt); }
+  .legend .l-new    { color: var(--new); }
+  .legend .l-server { color: var(--server); }
+  .callout {
+    border-left: 3px solid var(--warn);
+    background: #fffbeb;
+    padding: 10px 14px;
+    margin: 12px 0;
+    border-radius: 0 6px 6px 0;
+    font-size: 13px;
+  }
+  .callout.danger { border-color: var(--danger); background: #fef2f2; }
+  .callout.ok      { border-color: var(--ok);      background: #f0fdf4; }
+  ul.deltas { margin: 6px 0; padding-left: 20px; font-size: 12px; }
+  ul.deltas li { margin: 2px 0; }
+  code {
+    background: #f3f4f6;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 11px;
+    color: #111827;
+  }
+  .ref {
+    color: var(--branch);
+    font-weight: 600;
+  }
+  .ref.remote { color: var(--remote); }
+  .ref.server { color: var(--server); font-weight: 700; }
+  .ref.wt     { color: var(--wt);     font-weight: 600; }
+  .ref.new    { color: var(--new);    font-weight: 600; }
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .badge.ok      { background: #d1fae5; color: var(--ok); }
+  .badge.warn    { background: #fef3c7; color: var(--warn); }
+  .badge.danger  { background: #fee2e2; color: var(--danger); }
+  .badge.info    { background: #dbeafe; color: var(--branch); }
+</style>
+</head>
+<body>
+
+<h1>Estado de Git · 3 repos · 2026-09-29</h1>
+<div class="subtitle">Cada panel = un repo. Branches locales y remotos, working tree, y el server de producción real (100.28.104.64) cuando aplica.</div>
+
+<!-- ───────────── MOODLE ───────────── -->
+<div class="repo">
+  <h2>① grupomakro_core <span class="badge info">Moodle</span></h2>
+  <div class="path">C:\Users\Ramiro\Documents\TI\Proyectos\Plug Ins Moodle\grupomakro_core · remote: github.com/rbalmacedaisi/moodle-local-core-plugin.git</div>
+
+  <div class="graph">
+  <span class="ref">master</span> ──●────●────●────●────●────●────●────●────●────●────●────●────●────●────●────●  <span class="ref remote">origin/master</span>  (HEAD remoto)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;○────○────○────○────○────○────○────○────○  <span class="ref remote">origin/feature/support-teacher</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;●────●────●────●  <span class="ref">ISI_SYSTEM</span> + opencode/* (worktrees locales sin remote)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;▼<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="wt">WORKING TREE</span> (sin commitear):<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="ref wt">M</span>&nbsp; db/install.xml · db/upgrade.php · db/access.php · db/services.php · db/upgradelib.php<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="ref wt">M</span>&nbsp; settings.php · lib.php · lang/en/*.php · lang/es/*.php · version.php<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="ref wt">?</span>&nbsp; classes/external/wdr/ (8 WS nuevos) · classes/local/wdr_manager.php<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="ref wt">?</span>&nbsp; cli/test_wdr_manager.php · js/components/withdrawalRequestsPanel.js<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="ref wt">?</span>&nbsp; pages/withdrawal_requests.php · lib/pdfs/ret01_pdf_generator.php · docs/ret01/reference.pdf<br>
+  </div>
+
+  <div class="legend">
+    <span class="l-branch"><span class="swatch"></span>branch local <code>master</code></span>
+    <span class="l-remote"><span class="swatch"></span>branch remoto <code>origin/master</code></span>
+    <span class="l-wt"><span class="swatch"></span>M = modificado · ? = nuevo (untracked)</span>
+  </div>
+
+  <div class="callout">
+    <strong>Server real (100.28.104.64):</strong>
+    HEAD = <code>7f230b4</code> (= <code>origin/master</code>) · plugin version <code>20260701007</code>.
+    Working tree del server tiene archivos <span class="wt"><strong>untracked</strong></span> que NO están en el repo:
+    <code>attendance_taken.txt</code>, <code>attendance_taken_by_student2783.txt</code>,
+    <code>course_completed.txt</code>, <code>audit_bbb_linkage.php</code>,
+    <code>move_orphan_bbb_to_section.php</code>, etc.
+  </div>
+
+  <div class="callout danger">
+    <strong>Gap entre server y local:</strong> el local tiene <code>$plugin->version = 20261001080</code>;
+    el server tiene <code>20260701007</code>. Son <strong>~73 releases de diferencia</strong> que incluyen
+    wellness, role matrix, status_change_manager y todas las migraciones de schema. Un
+    <code>git pull</code> + <code>upgrade.php</code> directo deja la BD a medias y el sitio caído.
+  </div>
+</div>
+
+<!-- ───────────── EXPRESS ───────────── -->
+<div class="repo">
+  <h2>② rest_express <span class="badge warn">Express</span></h2>
+  <div class="path">C:\Users\Ramiro\Documents\TI\Proyectos\ExpressServer\rest_express · remote: github.com/rbalmacedaisi/rest_express.git</div>
+
+  <div class="graph">
+  <span class="ref remote">origin/main</span>  ──●────●────●────●  (HEAD remoto)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│ <span class="ref">main</span> (local, sin commits propios)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;○  <span class="ref">chore/DES-SEC-004-higiene-repo</span> <span class="ref wt">★ current</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├─ 6f74ec7  DES-SEC-008 identidad real del estudiante<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├─ 4b2165a  DES-SEC-007 hardening CORS / headers / logs<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├─ bde9fc1  DES-SEC-006 secretos fuera del código<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├─ ef4496b  DES-SEC-004 package.json / lockfile<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├─ b8cdb87  DES-SEC-002 X-Api-Key en escritura a Odoo<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├─ 3f1476d  DES-SEC-004 dependencias / .gitignore<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└─ 8df1ffa  DES-LXP-008 staging env / boot guard
+  </div>
+
+  <div class="legend">
+    <span class="l-branch"><span class="swatch"></span>branch local <code>main</code> (al día con <code>origin/main</code>)</span>
+    <span class="l-wt"><span class="swatch"></span>★ = branch actual · commits propios en rama de feature</span>
+  </div>
+
+  <div class="callout">
+    <strong>Estado:</strong> estás parado en <code>chore/DES-SEC-004-higiene-repo</code>, que tiene
+    <strong>7 commits propios</strong> sobre <code>main</code> (todos de seguridad y configuración).
+    <code>origin/main</code> es la rama de producción pero estos 7 fixes <strong>no están mergeados</strong>
+    y <strong>no están pusheados</strong>.
+  </div>
+
+  <div class="callout danger">
+    <strong>Riesgo de hacer <code>git checkout main</code> a secas:</strong> el working tree está limpio,
+    así que no hay riesgo de pisar archivos WDR. Pero commiteo en <code>main</code> y se pierde
+    el rastro de esos 7 commits de seguridad (que ya existen localmente y que probablemente
+    producción aún no tiene). Cualquier push directo desde <code>main</code> a <code>origin/main</code>
+    necesita una decisión consciente sobre qué hacer con esos 7 fixes.
+  </div>
+</div>
+
+<!-- ───────────── LXP ───────────── -->
+<div class="repo">
+  <h2>③ isi_moodle_lxp <span class="badge warn">LXP</span></h2>
+  <div class="path">C:\Users\Ramiro\Documents\TI\Proyectos\LXPStudents\isi_moodle_lxp · remote: git-codecommit.us-east-1.amazonaws.com/v1/repos/isi_moodle_lxp</div>
+
+  <div class="graph">
+  <span class="ref remote">origin/isi-prod</span>  ──●────●────●────●  (HEAD remoto, lo que sirve Amplify)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│ <span class="ref">isi-prod</span> (local, al día con origin)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;○ <span class="ref">staging</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;○────○────○────○────○────○────○────○  <span class="ref">feature/activity-group-selector</span> <span class="ref wt">★ current</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├─ ef5b99f  selector de grupo (20261001057)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├─ 33161e5  DES-SEC-008 token Moodle al proxy financiero<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├─ c26cfc7  DES-SEC-003 fail-open del gate financiero<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├─ dc5b571  INF-STG-001/002 DNS staging<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├─ 67ae287  LXP-STG-001 staging env example<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├─ 730d72b  DES-LXP-006 validación forms bienestar<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└─ e4a5ba3  DES-LXP-002/003/004/005 externalize config<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;▼<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="wt">WORKING TREE</span>:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="ref wt">M</span>&nbsp; components/UserMenu.vue · lang/en.js · lang/es.js · store/index.js<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="ref wt">?</span>&nbsp; pages/solicitudes-retiro.vue · store/wdr.js
+  </div>
+
+  <div class="legend">
+    <span class="l-remote"><span class="swatch"></span>branch remoto <code>origin/isi-prod</code> (lo que sirve Amplify)</span>
+    <span class="l-branch"><span class="swatch"></span>branch local</span>
+    <span class="l-wt"><span class="swatch"></span>★ = branch actual · M/? = working tree</span>
+  </div>
+
+  <div class="callout">
+    <strong>Estado:</strong> estás en <code>feature/activity-group-selector</code>, una rama de feature
+    con <strong>7 commits propios</strong> sobre <code>isi-prod</code>. Los más sensibles:
+    <code>33161e5</code> (DES-SEC-008: token de Moodle al proxy financiero) y
+    <code>c26cfc7</code> (DES-SEC-003: fail-open del gate financiero, evita expulsar
+    estudiantes cuando el proxy se cae). El working tree de WDR cuelga encima de
+    estos commits sin commitear.
+  </div>
+
+  <div class="callout danger">
+    <strong>Riesgo:</strong> Amplify sirve <code>origin/isi-prod</code>. Hacer push directo
+    desde <code>feature/activity-group-selector</code> a <code>origin/isi-prod</code> introduce en
+    producción 7 commits que quizá no han sido revisados/QA-eados en su rama original.
+    El working tree (WDR) tiene que vivir como una rama separada para no contaminar
+    la historia de commits.
+  </div>
+</div>
+
+<!-- ───────────── RESUMEN ───────────── -->
+<div class="repo">
+  <h2>④ Resumen: lo que cada repo necesita antes de poder deployar</h2>
+
+  <table style="width:100%; border-collapse:collapse; font-size:13px;">
+    <thead>
+      <tr style="background:#f3f4f6; text-align:left;">
+        <th style="padding:8px;">Repo</th>
+        <th style="padding:8px;">Server real vs local</th>
+        <th style="padding:8px;">Qué falta</th>
+        <th style="padding:8px;">Riesgo</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr style="border-top:1px solid #e5e7eb;">
+        <td style="padding:8px;"><strong>Moodle</strong></td>
+        <td style="padding:8px;">Server = <code>7f230b4</code> · plugin <code>20260701007</code><br>Local = mismo HEAD · plugin <code>20261001080</code><br>Gap = ~73 releases</td>
+        <td style="padding:8px;">Necesita salto de 73 releases: <code>git pull</code> + <code>upgrade.php</code> con backup de BD coordinado con DBA</td>
+        <td style="padding:8px;"><span class="badge danger">ALTO</span></td>
+      </tr>
+      <tr style="border-top:1px solid #e5e7eb;">
+        <td style="padding:8px;"><strong>Express</strong></td>
+        <td style="padding:8px;">Server (corriendo) = desconocido · se asume <code>origin/main</code><br>Local parado en rama con 7 commits de seguridad no mergeados a main</td>
+        <td style="padding:8px;">Decidir qué se hace con los 7 commits de seguridad antes de pushear WDR</td>
+        <td style="padding:8px;"><span class="badge warn">MEDIO</span></td>
+      </tr>
+      <tr style="border-top:1px solid #e5e7eb;">
+        <td style="padding:8px;"><strong>LXP</strong></td>
+        <td style="padding:8px;">Amplify = <code>origin/isi-prod</code><br>Local parado en rama con 7 commits de seguridad no mergeados</td>
+        <td style="padding:8px;">Decidir qué se hace con los 7 commits antes de pushear WDR. Si Amplify no los tiene, primero merge a isi-prod</td>
+        <td style="padding:8px;"><span class="badge warn">MEDIO</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout" style="margin-top:18px;">
+    <strong>No se puede ejecutar "un solo pase a producción" en este estado</strong>. Las
+    decisiones que tienen que tomarse antes del primer push son, en orden:
+    <ol style="margin:6px 0 0 18px;">
+      <li>¿El server 100.28.104.64 puede recibir las 73 releases de golpe? (si sí, toca coordinar backup + DBA)</li>
+      <li>Express: ¿qué hacemos con los 7 commits de seguridad en <code>chore/DES-SEC-004-higiene-repo</code>? ¿merge a <code>main</code> antes del push de WDR, o los descartamos?</li>
+      <li>LXP: ¿qué hacemos con los 7 commits en <code>feature/activity-group-selector</code>? ¿merge a <code>isi-prod</code> antes del push de WDR, o los descartamos?</li>
+    </ol>
+  </div>
+</div>
+
+</body>
+</html>

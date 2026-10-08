@@ -62,14 +62,17 @@ class ret01_pdf_generator extends \TCPDF {
     /** @var string Institutional template version. */
     private $template_version;
 
-    /** Institutional color palette (institutional blue + warm grays). */
-    private const C_PRIMARY   = [0,  51, 102];   // #003366 navy
-    private const C_ACCENT    = [192, 0, 0];     // #C00000 bordeaux
-    private const C_LIGHT     = [240, 244, 248]; // #F0F4F8 cool light
-    private const C_LIGHTER   = [248, 250, 252]; // #F8FAFC cooler light
-    private const C_MUTED     = [110, 118, 129]; // #6E7681 cool gray
-    private const C_RULE      = [208, 213, 221]; // #D0D5DD rule
-    private const C_TEXT      = [33,  37,  41];  // #212529 near-black
+    /** Warm institutional palette (aligned with the Estado de Cuenta PDF). */
+    private const C_PRIMARY   = [212, 145, 38];  // #D49126 amber, section bands
+    private const C_ACCENT    = [140, 30, 35];   // #8C1E23 bordeaux, warnings/mora
+    private const C_LIGHT     = [252, 248, 240]; // #FCF8F0 warm cream
+    private const C_LIGHTER   = [255, 252, 245]; // #FFFCF5 paler cream
+    private const C_MUTED     = [120, 110, 95];  // #786E5F warm gray
+    private const C_RULE      = [218, 210, 195]; // #DAD2C3 warm rule
+    private const C_TEXT      = [50, 40, 30];    // #32281E warm near-black
+    private const C_BAND      = [245, 230, 200]; // #F5E6C8 band cream
+    private const C_GREEN     = [60, 130, 70];   // #3C8246 success/check
+    private const C_HEADER_ACCENT = [192, 95, 30]; // #C05F1E header amber
 
     /** @var bool Whether the opensans font files are available. */
     private $use_opensans;

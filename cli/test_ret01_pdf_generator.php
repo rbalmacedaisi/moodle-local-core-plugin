@@ -91,11 +91,11 @@ if (stripos($haystack, 'SOLICITUD GENERADA DIGITAL') !== false) {
 }
 mtrace("5) No leftover diagonal watermark ✔");
 
-// 6. ASSERT: warm palette colour check by grepping the raw PDF for the
-//    old navy RGB triplet. Old C_PRIMARY = [0, 51, 102] - TCPDF encodes
-//    RGB as space-separated decimals inside the content stream.
-//    The new palette (amber [212, 145, 38]) is the inverse: R>>B.
-$oldNavyMarkers = ['0.200 0.400', '0 0.200 0.400']; // 51/255=0.200, 102/255=0.400
+// 6. ASSERT: warm palette colour check by grepping the raw PDF for
+//    the old navy RGB triplet AND verifying the new amber is present.
+//    Old C_PRIMARY = [0, 51, 102] = 0 0.200 0.400 in TCPDF encoding.
+//    New C_PRIMARY = [212, 145, 38] = 0.831 0.569 0.149.
+$oldNavyMarkers = ['0 0.200 0.400', '0.200 0.400']; // (r)(g)(b) sequences
 $navyFound = false;
 foreach ($oldNavyMarkers as $m) {
     if (strpos($raw, $m) !== false) {
@@ -108,6 +108,16 @@ if ($navyFound) {
     exit(6);
 }
 mtrace("6) No navy RGB triplets in content stream (warm palette in use) ✔");
+
+// 6b. ASSERT: amber markers present. C_PRIMARY = [212, 145, 38] encodes
+//     as 0.831 0.569 0.149 in TCPDF's content stream. We look for the
+//     first two decimals (highly unlikely to collide with anything else).
+$amberMarker = '0.831 0.569';
+if (strpos($raw, $amberMarker) === false) {
+    mtrace("FAIL: warm amber marker '$amberMarker' not found in PDF - new palette may not be active.");
+    exit(6);
+}
+mtrace("6b) Amber palette marker present ✔");
 
 // 7. ASSERT: every section title appears in the PDF text streams.
 //    (We grep the raw PDF for the literal section titles; TCPDF embeds
