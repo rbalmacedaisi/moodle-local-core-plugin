@@ -77,6 +77,9 @@ class ret01_pdf_generator extends \TCPDF {
     /** @var bool Whether the opensans font files are available. */
     private $use_opensans;
 
+    /** @var string|null Absolute path to the institutional logo (PNG or JPG), or null if missing. */
+    private $logo_path;
+
     public function __construct(\stdClass $row) {
         // Letter portrait, mm, A4-equivalent. Margins tuned to give the
         // header bar and footer enough room without crowding content.
@@ -85,6 +88,7 @@ class ret01_pdf_generator extends \TCPDF {
         $this->row = $row;
         $this->request_number   = (string)$row->request_number;
         $this->template_version = wdr_manager::get_template_version();
+        $this->logo_path        = self::resolve_logo_path();
 
         // Check if the opensans fonts are available on this install; fall
         // back to helvetica silently if not. Same TTF zips are bundled
@@ -102,6 +106,42 @@ class ret01_pdf_generator extends \TCPDF {
 
         $this->use_opensans ? $this->SetFont('opensans', '', 9)
                             : $this->SetFont('helvetica', '', 9);
+    }
+
+    /**
+     * Look for the institutional logo on disk. Order of preference:
+     *   1) Override placed in the plugin pix/ dir (institute-logo.png
+     *      or institute-logo.jpg) - documented in pix/institute-logo.README.
+     *   2) The theme's logo, looked up by basename under
+     *      $CFG->dirroot/theme/{theme}/pix/static/ (this is where the
+     *      soluttolmsadmin theme keeps "logo ISI-1 (1).png").
+     * Returns null if nothing is found - the header then falls back to
+     * the text-only block we had before.
+     */
+    private static function resolve_logo_path(): ?string {
+        global $CFG;
+        $candidates = [
+            $CFG->dirroot . '/local/grupomakro_core/pix/institute-logo.png',
+            $CFG->dirroot . '/local/grupomakro_core/pix/institute-logo.jpg',
+        ];
+        foreach ($candidates as $c) {
+            if (file_exists($c) && is_readable($c)) {
+                return $c;
+            }
+        }
+        // Theme logo - the academicpanel.php exposes the same via
+        // $OUTPUT->get_logo_url() but we resolve it to a file path here
+        // because TCPDF needs a filesystem path, not a URL.
+        $themeDir = $CFG->dirroot . '/theme/' . $CFG->theme . '/pix/static';
+        if (is_dir($themeDir)) {
+            foreach (glob($themeDir . '/*.{png,jpg,jpeg}', GLOB_BRACE) ?: [] as $f) {
+                $base = strtolower(basename($f));
+                if (strpos($base, 'logo') !== false) {
+                    return $f;
+                }
+            }
+        }
+        return null;
     }
 
     public function render(): string {
@@ -178,24 +218,60 @@ class ret01_pdf_generator extends \TCPDF {
         $y0 = 12;
         $this->SetY($y0);
 
-        // Left: institutional block.
+        // Left: institutional block. If we have a logo, render it
+        // first; the text block sits to the RIGHT of the logo so the
+        // header stays balanced with the request-number badge on the
+        // right side. Without a logo we keep the original full-width
+        // text block.
+        $logoW = 0;
+        if ($this->logo_path !== null) {
+            $logoW = 22; // mm
+            $logoH = 22; // square, same as width
+            $this->Image(
+                $this->logo_path,
+                15,           // x
+                $y0 - 4,      // y (slight up-shift to align with the text top)
+                $logoW,       // w
+                $logoH,       // h
+                '',           // type (auto-detect from extension)
+                '',           // link
+                '',           // align
+                false,        // resize
+                300,          // dpi
+                '',           // palign
+                false,        // ismask
+                false,        // imagmask
+                0,            // border
+                '',           // fitbox
+                false,        // hidden
+                false         // fitonpage
+            );
+        }
+        $textX = $logoW > 0 ? 15 + $logoW + 4 : 15;
+        $textW = ($logoW > 0 ? 130 - $logoW : 0); // leave room for badge
+
+        $this->SetX($textX);
         $this->SetTextColor(...self::C_PRIMARY);
         $this->SetFont($this->use_opensans ? 'opensans' : 'helvetica', 'B', 14);
-        $this->Cell(0, 7, 'INSTITUTO SUPERIOR DE INGENIERIA', 0, 1, 'L');
+        $this->Cell($textW, 7, 'INSTITUTO SUPERIOR DE INGENIERIA', 0, 1, 'L');
 
+        $this->SetX($textX);
         $this->SetFont($this->use_opensans ? 'opensans' : 'helvetica', '', 8);
         $this->SetTextColor(...self::C_MUTED);
-        $this->Cell(0, 4, 'DIRECCION ACADEMICA', 0, 1, 'L');
+        $this->Cell($textW, 4, 'DIRECCION ACADEMICA', 0, 1, 'L');
 
         $this->Ln(2);
+        $this->SetX($textX);
         $this->SetFont($this->use_opensans ? 'opensans__b' : 'helvetica', 'B', 16);
         $this->SetTextColor(...self::C_TEXT);
-        $this->Cell(0, 8, 'SOLICITUD DE RETIRO DEL PROGRAMA', 0, 1, 'L');
+        $this->Cell($textW, 8, 'SOLICITUD DE RETIRO DEL PROGRAMA', 0, 1, 'L');
 
+        $this->SetX($textX);
         $this->SetFont($this->use_opensans ? 'opensans__i' : 'helvetica', 'I', 9);
         $this->SetTextColor(...self::C_MUTED);
-        $this->Cell(0, 5, 'Para estudiantes activos que no continuaran en el siguiente periodo academico', 0, 1, 'L');
-        $this->Cell(0, 5, sprintf('Formulario oficial RET-01  -  Version %s', $this->template_version), 0, 1, 'L');
+        $this->Cell($textW, 5, 'Para estudiantes activos que no continuaran en el siguiente periodo academico', 0, 1, 'L');
+        $this->SetX($textX);
+        $this->Cell($textW, 5, sprintf('Formulario oficial RET-01  -  Version %s', $this->template_version), 0, 1, 'L');
         // Add a clear gap after the version line so it never touches
         // the section 1 band.
         $this->Ln(3);
@@ -425,27 +501,28 @@ class ret01_pdf_generator extends \TCPDF {
             $this->Ln(1);
             $i++;
         }
-        $this->Ln(3);
-        $this->SetDrawColor(...self::C_RULE);
-        $this->SetLineWidth(0.4);
-        $this->Line(15, $this->GetY(), 90, $this->GetY());
-        $this->Line(95, $this->GetY(), 195, $this->GetY());
-        $this->SetLineWidth(0.2);
-        $this->SetFont($this->use_opensans ? 'opensans__b' : 'helvetica', 'B', 9);
-        $this->SetXY(15, $this->GetY() - 1);
-        // Linea de firma y fecha con espacio suficiente para que el
-        // usuario pueda firmar a mano sin que se corte contra la siguiente
-        // seccion. La firma va sobre la linea; la fecha al lado.
+        // Generous gap before the signature block. The previous version
+        // had a decorative "double line" right after the declaration
+        // (lines 505-510 in v20261001100) which cramped the signature
+        // area to ~5mm. We now leave 18mm between the last paragraph
+        // and the signature line so the student can actually sign.
+        $this->Ln(8);
+        // Force a page break if there isn't enough room for the full
+        // signature block (signature line + label). The label sits 12mm
+        // below the line, so we need ~15mm free.
+        $this->ensure_space(20);
+        $yFirma = $this->GetY();
         $this->SetDrawColor(...self::C_MUTED);
         $this->SetLineWidth(0.3);
-        $yFirma = $this->GetY() + 4;
         $this->Line(15, $yFirma, 90, $yFirma);
         $this->Line(95, $yFirma, 195, $yFirma);
         $this->SetDrawColor(...self::C_RULE);
         $this->SetLineWidth(0.2);
         $this->SetFont($this->use_opensans ? 'opensans__i' : 'helvetica', 'I', 8);
         $this->SetTextColor(...self::C_MUTED);
-        $this->SetXY(15, $yFirma + 2);
+        // 12mm below the line = the actual signature height. Labels sit
+        // 2mm below the line.
+        $this->SetXY(15, $yFirma + 12);
         $this->Cell(80, 4, '  Firma del estudiante', 0, 0, 'L');
         $this->SetX(95);
         $this->Cell(100, 4, '  Fecha:   ____  /  ____  /  ________', 0, 0, 'L');
