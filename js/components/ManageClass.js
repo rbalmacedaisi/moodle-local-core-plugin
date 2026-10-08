@@ -1155,7 +1155,12 @@ const ManageClass = {
             try {
                 const response = await axios.post(window.wsUrl, {
                     action: 'local_grupomakro_get_all_activities',
-                    args: { classid: this.classId },
+                    // IMPORTANTE: serializar args como JSON string. Mismo
+                    // patron que ActivityGroupsPanel/QuickGrader; el
+                    // dispatch de ajax.php hace required_param('args',
+                    // PARAM_RAW) + json_decode(). Sin esto el endpoint
+                    // devuelve invalidjson o, peor, opera con classid=0.
+                    args: JSON.stringify({ classid: this.classId }),
                     ...window.wsStaticParams
                 });
                 if (response.data.status === 'success') {

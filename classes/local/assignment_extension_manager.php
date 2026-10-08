@@ -32,6 +32,51 @@ defined('MOODLE_INTERNAL') || die();
 class assignment_extension_manager {
 
     /**
+     * Resolve a caller-supplied "course id" to a real mdl_course.id.
+     *
+     * The frontend (TeacherDashboard / ManageClass) sends the
+     * gmk_class.id of the class the teacher is currently looking at.
+     * Internally the manager needs the underlying mdl_course.id to
+     * look up course modules and the course context. This helper
+     * does that mapping:
+     *
+     *   - If the id exists in {gmk_class} with a non-null corecourseid,
+     *     return that corecourseid.
+     *   - Otherwise, assume the caller already passed a real
+     *     mdl_course.id and return it unchanged.
+     *
+     * The previous version of the manager skipped this step and
+     * called context_course::instance($gmk_class_id), which
+     * threw 'No se puede encontrar registro de datos en la tabla
+     * course de la base de datos' (the exact message the teacher
+     * saw in the console when opening the Excepciones modal).
+     */
+    private static function resolve_course_id(int $id): int {
+        global $DB;
+        if ($id <= 0) {
+            return $id;
+        }
+        $corecourseid = $DB->get_field('gmk_class', 'corecourseid', ['id' => $id], IGNORE_MISSING);
+        if (!empty($corecourseid)) {
+            return (int)$corecourseid;
+        }
+        return $id;
+    }
+
+    /**
+     * Public wrapper for the external WS layer.
+     *
+     * The WS classes (classes/external/teacher/assignment_extensions.php)
+     * need the same gmk_class -> mdl_course mapping for their
+     * MUST_EXIST course lookups and context_course::instance() calls.
+     * They cannot call the private resolve_course_id() directly, so
+     * we expose it here.
+     */
+    public static function resolve_course_id_public(int $id): int {
+        return self::resolve_course_id($id);
+    }
+
+    /**
      * Crea o actualiza una prorroga individual para un estudiante en una
      * actividad. UPSERT: si ya existe un override (groupid NULL + userid) para
      * esa asignacion, se actualiza in-place; si no, se crea. Audita el antes y
@@ -204,13 +249,14 @@ class assignment_extension_manager {
      */
     public static function list_course_assignments(int $courseid): array {
         global $DB;
+        $corecourseid = self::resolve_course_id($courseid);
         $sql = 'SELECT cm.id AS cmid, a.id AS assignid, a.duedate, a.name, a.allowsubmissionsfromdate, a.cutoffdate
                 FROM {course_modules} cm
                 JOIN {assign} a ON a.id = cm.instance
                 JOIN {modules} m ON m.id = cm.module AND m.name = "assign"
                 WHERE cm.course = :cid AND cm.deletioninprogress = 0 AND cm.visible = 1
                 ORDER BY a.duedate DESC, a.name';
-        $rows = $DB->get_records_sql($sql, ['cid' => $courseid]);
+        $rows = $DB->get_records_sql($sql, ['cid' => $corecourseid]);
         $out = [];
         foreach ($rows as $r) {
             $out[] = [
@@ -233,7 +279,8 @@ class assignment_extension_manager {
      */
     public static function list_course_students(int $courseid, ?int $assignid = null): array {
         global $DB;
-        $ctx = \context_course::instance($courseid);
+        $corecourseid = self::resolve_course_id($courseid);
+        $ctx = \context_course::instance($corecourseid);
         $students = get_enrolled_users($ctx, 'mod/assign:submit', 0, 'u.id,u.firstname,u.lastname,u.email', 'u.lastname, u.firstname');
         $overrides = [];
         if ($assignid) {

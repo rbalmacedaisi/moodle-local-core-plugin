@@ -234,7 +234,12 @@ class assignment_extensions extends external_api {
         global $DB;
         $params = self::validate_parameters(self::list_course_assignments_parameters(), ['courseid' => $courseid]);
 
-        $course = $DB->get_record('course', ['id' => $params['courseid']], '*', MUST_EXIST);
+        // Resolver gmk_class.id -> mdl_course.id (mismo patron que el resto
+        // de la extension). Sin este mapping, context_course::instance
+        // lanzaba "No se puede encontrar registro de datos en la tabla
+        // course" cuando el frontend enviaba el id de gmk_class.
+        $corecourseid = assignment_extension_manager::resolve_course_id_public($params['courseid']);
+        $course = $DB->get_record('course', ['id' => $corecourseid], '*', MUST_EXIST);
         $context = \context_course::instance($course->id);
         self::validate_context($context);
         require_capability('mod/assign:manageoverrides', $context);
@@ -283,7 +288,12 @@ class assignment_extensions extends external_api {
             'assignid' => $assignid,
         ]);
 
-        $course = $DB->get_record('course', ['id' => $params['courseid']], '*', MUST_EXIST);
+        // Resolver gmk_class.id -> mdl_course.id (mismo patron que el resto
+        // de la extension). Sin este mapping, context_course::instance
+        // lanzaba "No se puede encontrar registro de datos en la tabla
+        // course" cuando el frontend enviaba el id de gmk_class.
+        $corecourseid = assignment_extension_manager::resolve_course_id_public($params['courseid']);
+        $course = $DB->get_record('course', ['id' => $corecourseid], '*', MUST_EXIST);
         $context = \context_course::instance($course->id);
         self::validate_context($context);
         require_capability('mod/assign:manageoverrides', $context);
