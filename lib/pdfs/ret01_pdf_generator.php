@@ -107,12 +107,39 @@ class ret01_pdf_generator extends \TCPDF {
         $this->Ln(2);
         $this->render_section_student();
         $this->render_section_solicitud();
+        $this->ensure_space(48);   // 3.Motivo+Opcion son 2 columnas ~45mm
         $this->render_section_reason_payment();
+        // 4.Declaracion: 5 items + firma (~50mm). Forzar page break si no cabe.
+        $this->ensure_space(55);
         $this->render_section_declaration();
+        // 5.Constancia: 2 cajas de 38mm cada una, lado a lado ~40mm.
+        // Si la primera caja no entra entera, saltar a la siguiente pagina
+        // y renderizar AMBAS cajas juntas.
+        $this->ensure_space(45);
         $this->render_section_receipt();
+        $this->ensure_space(40);
         $this->render_section_internal();
         $this->render_footer();
         return $this->Output('ret01.pdf', 'S');
+    }
+
+    /**
+     * Si quedan menos de $needed mm entre el cursor actual y el break
+     * margin, fuerza un salto de pagina. Esto evita que TCPDF parta
+     * bloques que no se rompen bien (cajas RoundedRect, firmas, etc.).
+     * Si necesitamos $needed mm y el cursor ya esta lo suficientemente
+     * abajo (por ejemplo, dentro de la primera mitad de la pagina),
+     * tambien salta para mantener la coherencia visual entre las
+     * secciones.
+     */
+    private function ensure_space(float $needed): void {
+        $available = $this->getPageHeight() - $this->getBreakMargin() - $this->GetY();
+        if ($available < $needed) {
+            $this->AddPage();
+            // Re-render the header on each new page so the institutional
+            // block + correlative badge stays at the top of every page.
+            $this->render_header();
+        }
     }
 
     // ─────────────────── HEADER ───────────────────
@@ -387,7 +414,10 @@ class ret01_pdf_generator extends \TCPDF {
             0, 'C');
         $this->Ln(2);
 
-        // Two receipt boxes side-by-side: original (Dir. Academica) | copia (Dir. Administrativa).
+        // Two receipt boxes side-by-side (~80mm combined). Forzar page break
+        // si la primera caja no entrara completa, asi AMBAS cajas quedan en
+        // la misma pagina y no se parten entre dos hojas.
+        $this->ensure_space(45);
         $y0 = $this->GetY();
         $this->receipt_block(
             'Direccion Academica (original)',
@@ -396,6 +426,14 @@ class ret01_pdf_generator extends \TCPDF {
             isset($this->row->received_da_by) && (int)$this->row->received_da_by > 0
                 ? $this->user_fullname_or_id((int)$this->row->received_da_by) : ''
         );
+        // Despues de la primera caja (38mm), verificar que la segunda
+        // caja quepa tambien. Si no, forzar nueva pagina y re-renderizar
+        // AMBAS cajas desde el inicio de la pagina.
+        if ($this->GetY() + 38 > $this->getPageHeight() - $this->getBreakMargin()) {
+            $this->AddPage();
+            $this->render_header();
+            $y0 = $this->GetY();
+        }
         $this->SetXY(110, $y0);
         $this->receipt_block(
             'Direccion Administrativa (copia)',
