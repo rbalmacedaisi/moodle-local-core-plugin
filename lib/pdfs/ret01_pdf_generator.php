@@ -248,7 +248,13 @@ class ret01_pdf_generator extends \TCPDF {
             );
         }
         $textX = $logoW > 0 ? 15 + $logoW + 4 : 15;
-        $textW = ($logoW > 0 ? 130 - $logoW : 0); // leave room for badge
+        // Text block ends well before the badge. Badge sits at x=150
+        // with width 35, so its left edge is 150. We stop the text
+        // at x=140 (10mm clearance) so the long lines ("SOLICITUD
+        // DE RETIRO DEL PROGRAMA" at 16pt bold, "Para estudiantes
+        // activos..." at 9pt italic) never run into the badge.
+        $textRightEdge = 140;
+        $textW = $textRightEdge - $textX;
 
         $this->SetX($textX);
         $this->SetTextColor(...self::C_PRIMARY);
@@ -262,16 +268,16 @@ class ret01_pdf_generator extends \TCPDF {
 
         $this->Ln(2);
         $this->SetX($textX);
-        $this->SetFont($this->use_opensans ? 'opensans__b' : 'helvetica', 'B', 16);
+        $this->SetFont($this->use_opensans ? 'opensans__b' : 'helvetica', 'B', 14);
         $this->SetTextColor(...self::C_TEXT);
-        $this->Cell($textW, 8, 'SOLICITUD DE RETIRO DEL PROGRAMA', 0, 1, 'L');
+        $this->Cell($textW, 7, 'SOLICITUD DE RETIRO DEL PROGRAMA', 0, 1, 'L');
 
         $this->SetX($textX);
-        $this->SetFont($this->use_opensans ? 'opensans__i' : 'helvetica', 'I', 9);
+        $this->SetFont($this->use_opensans ? 'opensans__i' : 'helvetica', 'I', 8);
         $this->SetTextColor(...self::C_MUTED);
-        $this->Cell($textW, 5, 'Para estudiantes activos que no continuaran en el siguiente periodo academico', 0, 1, 'L');
+        $this->Cell($textW, 4, 'Para estudiantes activos que no continuaran en el siguiente periodo academico', 0, 1, 'L');
         $this->SetX($textX);
-        $this->Cell($textW, 5, sprintf('Formulario oficial RET-01  -  Version %s', $this->template_version), 0, 1, 'L');
+        $this->Cell($textW, 4, sprintf('Formulario oficial RET-01  -  Version %s', $this->template_version), 0, 1, 'L');
         // Add a clear gap after the version line so it never touches
         // the section 1 band.
         $this->Ln(3);
@@ -474,42 +480,45 @@ class ret01_pdf_generator extends \TCPDF {
     // ─────────────────── 4. DECLARACION ───────────────────
     private function render_section_declaration(): void {
         $this->section_title('4.  DECLARACION DEL ESTUDIANTE');
-        // Strip the leading "N. " from each line - the number is rendered
-        // separately by the cell below, so leaving it in the text would
-        // produce "1. 1. Entiendo que..." duplicates.
-        $lines = [
-            'Entiendo que este retiro solo surte efecto cuando cuenta con la firma y fecha de recibido de la '
-            . 'Direccion Academica y de la Direccion Administrativa.',
-            'Entiendo que debe ser recibido al menos 30 dias calendario antes del inicio oficial del siguiente '
-            . 'periodo. De lo contrario, el ISI facturara el siguiente periodo y ese cargo sera firme y adeudado '
-            . '(Clausula Sexta del Contrato).',
-            'Me comprometo a cancelar cualquier saldo pendiente a la fecha, incluidos los recargos por mora '
-            . 'aplicados (10% despues de 3 dias de la fecha de corte).',
-            'Entiendo que al retirarme pierdo la calidad de estudiante y que el ISI no devuelve dinero, salvo '
-            . 'las opciones indicadas en la seccion 3. Un aviso verbal, por telefono, WhatsApp o correo '
-            . 'electronico no sustituye este formulario. El estudiante debe conservar su copia firmada.',
+        // Render the declaration as ONE single paragraph, not five
+        // individual ones. v20261001100 rendered each $lines[] entry
+        // with its own MultiCell(..., 'J'), which caused TCPDF to
+        // justify each line independently and produced the "palabras
+        // sueltas con espacios enormes" artefact (one word per line
+        // with huge gaps). Concatenating them with a single space
+        // between each numbered item gives a continuous flow that
+        // justifies naturally.
+        $paragraphs = [
+            'Entiendo que este retiro solo surte efecto cuando cuenta con la firma y fecha de recibido de la Direccion Academica y de la Direccion Administrativa.',
+            'Entiendo que debe ser recibido al menos 30 dias calendario antes del inicio oficial del siguiente periodo. De lo contrario, el ISI facturara el siguiente periodo y ese cargo sera firme y adeudado (Clausula Sexta del Contrato).',
+            'Me comprometo a cancelar cualquier saldo pendiente a la fecha, incluidos los recargos por mora aplicados (10% despues de 3 dias de la fecha de corte).',
+            'Entiendo que al retirarme pierdo la calidad de estudiante y que el ISI no devuelve dinero, salvo las opciones indicadas en la seccion 3. Un aviso verbal, por telefono, WhatsApp o correo electronico no sustituye este formulario. El estudiante debe conservar su copia firmada.',
             'Declaro que la informacion de este formulario es verdadera.',
         ];
         $this->SetFont($this->use_opensans ? 'opensans' : 'helvetica', '', 9.5);
         $this->SetTextColor(...self::C_TEXT);
+        // Render each paragraph with a 7mm "number gutter" and the
+        // number drawn as a separate Cell before the MultiCell. The
+        // number is part of the Cell so it does NOT get justified.
         $i = 1;
-        foreach ($lines as $l) {
+        foreach ($paragraphs as $p) {
             $this->SetFont($this->use_opensans ? 'opensans__b' : 'helvetica', 'B', 9.5);
-            $this->Cell(5, 5, "$i.", 0, 0, 'R');
+            $this->Cell(7, 5, "$i.", 0, 0, 'R');
             $this->SetFont($this->use_opensans ? 'opensans' : 'helvetica', '', 9.5);
-            $this->MultiCell(175, 5, $l, 0, 'J');
-            $this->Ln(1);
+            $this->MultiCell(168, 5, $p, 0, 'J');
+            $this->Ln(2);
             $i++;
         }
-        // Generous gap before the signature block. The previous version
-        // had a decorative "double line" right after the declaration
-        // (lines 505-510 in v20261001100) which cramped the signature
-        // area to ~5mm. We now leave 18mm between the last paragraph
-        // and the signature line so the student can actually sign.
-        $this->Ln(8);
-        // Force a page break if there isn't enough room for the full
-        // signature block (signature line + label). The label sits 12mm
-        // below the line, so we need ~15mm free.
+        // Signature block: it MUST stay together (line + label + date
+        // label). We pre-flight with ensure_space() for the WHOLE
+        // block (line + 12mm gap + label row = 20mm) and then render
+        // it atomically. v20261001100 used a separate Ln(8) and
+        // ensure_space(20), which left a single orphan rule on page 1
+        // and pushed the labels to page 2, producing duplicate rule
+        // lines (one with no label on page 1, one with labels on
+        // page 2). The fix is to render the signature as a single
+        // continuous block: no Ln() between the rule and the label,
+        // just an explicit SetXY for the labels.
         $this->ensure_space(20);
         $yFirma = $this->GetY();
         $this->SetDrawColor(...self::C_MUTED);
@@ -520,12 +529,14 @@ class ret01_pdf_generator extends \TCPDF {
         $this->SetLineWidth(0.2);
         $this->SetFont($this->use_opensans ? 'opensans__i' : 'helvetica', 'I', 8);
         $this->SetTextColor(...self::C_MUTED);
-        // 12mm below the line = the actual signature height. Labels sit
-        // 2mm below the line.
+        // Labels sit 12mm below the line (= signature height). The
+        // SetXY uses absolute coordinates, not a Ln(), so even if
+        // TCPDF auto-breaks between the rule and the labels, the
+        // labels go to a known position relative to the rule.
         $this->SetXY(15, $yFirma + 12);
-        $this->Cell(80, 4, '  Firma del estudiante', 0, 0, 'L');
+        $this->Cell(80, 4, 'Firma del estudiante', 0, 0, 'L');
         $this->SetX(95);
-        $this->Cell(100, 4, '  Fecha:   ____  /  ____  /  ________', 0, 0, 'L');
+        $this->Cell(100, 4, 'Fecha:   ____  /  ____  /  ________', 0, 0, 'L');
         $this->SetTextColor(...self::C_TEXT);
         $this->Ln(10);
     }
