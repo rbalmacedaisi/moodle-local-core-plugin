@@ -114,6 +114,28 @@ mtrace("6) No navy RGB triplets in content stream (warm palette in use) ✔");
 mtrace("6b) Skipping amber RGB check in CI (FlateDecode-compressed content stream). "
     . "Run offline: pdfplumber -> rect['non_stroking_color']");
 
+// 6c. ASSERT: institutional logo is embedded in the PDF.
+//     TCPDF embeds raster images as /Image XObjects. The /Length of
+//     the image stream is a good proxy for "is the logo present".
+//     The ISI logo is ~24KB PNG; after FlateDecode the on-disk size
+//     is much smaller but the /Length inside the XObject stream is
+//     comparable to the raw PNG size.
+$imageBytes = 0;
+$imageCount = 0;
+if (preg_match_all('/\/Subtype\s*\/Image.*?\/Length\s+(\d+)/s', $raw, $matches)) {
+    foreach ($matches[1] as $len) {
+        $imageBytes += (int)$len;
+        $imageCount++;
+    }
+}
+if ($imageCount === 0 || $imageBytes < 10000) {
+    mtrace("FAIL: institutional logo not detected in PDF. "
+        . "Found $imageCount image XObject(s), $imageBytes total bytes "
+        . "(expected at least 1 XObject with >=10KB).");
+    exit(6);
+}
+mtrace("6c) Institutional logo embedded: $imageCount image(s), ~$imageBytes bytes ✔");
+
 // 7. ASSERT: every section title appears in the PDF text streams.
 //    (We grep the raw PDF for the literal section titles; TCPDF embeds
 //    the visible text in clear-ish streams - if compressed, this check
