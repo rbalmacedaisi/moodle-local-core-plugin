@@ -358,6 +358,16 @@ Vue.component('activity-groups-panel', {
         },
 
         async createGroup() {
+            // DEBUG 20261001080: dejar este alert para que el usuario pueda
+            // ver exactamente que se manda al backend cuando el boton no
+            // parece hacer nada.
+            alert('[GMK DEBUG] createGroup clicked\n'
+                + 'cmid=' + this.cmid + ' (' + typeof this.cmid + ')\n'
+                + 'modname=' + this.modname + '\n'
+                + 'form.name=' + JSON.stringify(this.createForm.name) + '\n'
+                + 'form.maxmembers=' + this.createForm.maxmembers + '\n'
+                + 'form.mode=' + this.createForm.mode + '\n'
+                + 'form.memberids=' + JSON.stringify(this.createForm.memberids));
             this.saving = true;
             try {
                 const resp = await axios.post(window.wsUrl, {
@@ -372,6 +382,10 @@ Vue.component('activity-groups-panel', {
                     }),
                     ...window.wsStaticParams
                 });
+                alert('[GMK DEBUG] createGroup response\n'
+                    + 'status=' + (resp.data && resp.data.status) + '\n'
+                    + 'message=' + (resp.data && resp.data.message) + '\n'
+                    + 'full=' + JSON.stringify(resp.data).substring(0, 500));
                 const data = resp.data || {};
                 if (data.status === 'success') {
                     this.notify('success', data.message || 'Grupo creado.');
@@ -381,6 +395,9 @@ Vue.component('activity-groups-panel', {
                     this.notify('error', data.message || 'No se pudo crear el grupo.');
                 }
             } catch (e) {
+                alert('[GMK DEBUG] createGroup EXCEPTION\n'
+                    + 'message=' + (e && e.message) + '\n'
+                    + 'stack=' + (e && e.stack ? e.stack.substring(0, 500) : 'no stack'));
                 console.error('[GMK] createGroup error', e);
                 this.notify('error', 'Error de conexion al crear el grupo.');
             } finally {
