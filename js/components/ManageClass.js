@@ -515,16 +515,17 @@ const ManageClass = {
 
             </v-speed-dial>
             
-            <activity-creation-wizard 
-                v-if="showActivityWizard" 
+            <activity-creation-wizard
+                v-if="showActivityWizard"
                 :key="'activity-wizard-' + activityWizardKey"
-                :class-id="parseInt(classId)" 
+                :class-id="parseInt(classId)"
                 :activity-type="newActivityType"
                 :custom-label="customActivityLabel"
                 :edit-mode="isEditing"
                 :edit-data="editActivityData"
                 @close="closeActivityWizard"
                 @success="onActivityCreated"
+                @created-with-groups="onActivityCreatedWithGroups"
             ></activity-creation-wizard>
 
             <quiz-creation-wizard
@@ -1645,6 +1646,29 @@ const ManageClass = {
             this.newActivityType = activity.modname; // Needed for wizard type context
             this.customActivityLabel = activity.name; // Temporary till loaded
             this.showActivityWizard = true;
+        },
+        // Handler del evento 'created-with-groups' que emite el wizard
+        // cuando crea una actividad con enableGroupGrading=1. El wizard
+        // sigue abierto pero tenemos que pasarlo a modo edicion para que
+        // el <activity-groups-panel> dentro del card se renderice.
+        // No cerramos el dialog (eso seria molesto), solo flipeamos los
+        // flags de modo edicion y le pasamos el editData nuevo.
+        onActivityCreatedWithGroups(payload) {
+            if (!payload || !payload.cmid) {
+                return;
+            }
+            this.fetchActivities(true);
+            this.isEditing = true;
+            this.editActivityData = {
+                id: payload.cmid,
+                modname: payload.modname,
+                name: payload.name
+            };
+            this.newActivityType = payload.modname;
+            this.customActivityLabel = payload.name;
+            // Forzar re-mount del wizard con :key nuevo para que el
+            // mounted() corra y cargue los detalles frescos.
+            this.activityWizardKey += 1;
         },
         async fetchNotices(force = false) {
             if (this.loadingNotices) {

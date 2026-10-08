@@ -301,7 +301,18 @@ const ActivityCreationWizard = {
                     <v-spacer></v-spacer>
                     <v-btn text @click="close">Cancelar</v-btn>
                     <v-btn color="primary" depressed :loading="saving" @click="saveActivity" :disabled="!valid || uploadingIndex !== null">
-                        {{ editMode ? 'Guardar Cambios' : 'Crear Actividad' }}
+                        <v-icon left small>
+                            {{ editMode
+                                ? 'mdi-content-save'
+                                : ((isAssignment || isQuiz) && formData.enableGroupGrading
+                                    ? 'mdi-account-group'
+                                    : 'mdi-plus') }}
+                        </v-icon>
+                        {{ editMode
+                            ? 'Guardar Cambios'
+                            : ((isAssignment || isQuiz) && formData.enableGroupGrading
+                                ? 'Crear y gestionar grupos'
+                                : 'Crear Actividad') }}
                     </v-btn>
                 </v-card-actions>
             </v-card>
@@ -636,8 +647,31 @@ const ActivityCreationWizard = {
                 const finalSuccess = topStatus === 'success' && (nestedStatus === null || nestedStatus === 'success');
 
                 if (finalSuccess) {
-                    this.$emit('success');
-                    this.close();
+                    const newCmid = parseInt((response.data && (response.data.cmid
+                        || (response.data.data && response.data.data.cmid))) || 0, 10);
+                    const createdWithGroups = (this.isAssignment || this.isQuiz)
+                        && this.formData.enableGroupGrading
+                        && !this.editMode
+                        && newCmid > 0;
+
+                    if (createdWithGroups) {
+                        // Workflow especial (20261001080): la actividad se creo
+                        // con calificacion grupal habilitada y el docente no
+                        // estaba editando. En vez de cerrar el wizard,
+                        // pedimos al padre que lo reabra en modo edicion
+                        // de la actividad recien creada. Asi el panel de
+                        // grupos se monta automaticamente, sin obligar al
+                        // docente a cerrar, reabrir, scrollear hasta el
+                        // switch y recien ahi ver el panel.
+                        this.$emit('created-with-groups', {
+                            cmid: newCmid,
+                            modname: this.activityType,
+                            name: this.formData.name
+                        });
+                    } else {
+                        this.$emit('success');
+                        this.close();
+                    }
                 } else {
                     const backendMessage =
                         (response && response.data && response.data.message) ||
