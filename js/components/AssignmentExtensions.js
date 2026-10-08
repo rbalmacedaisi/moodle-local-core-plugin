@@ -135,7 +135,6 @@ const AssignmentExtensions = {
                         </v-row>
 
                         <v-data-table
-                            v-model="selectedStudentIds"
                             :headers="studentHeaders"
                             :items="students"
                             item-value="userid"
@@ -147,6 +146,34 @@ const AssignmentExtensions = {
                             hide-default-footer
                             :search="search"
                         >
+                            <!-- Manual selection: v-data-table + show-select
+                                 + v-model has a bug in Vuetify 2 where marking
+                                 ONE row would mark EVERY row (and vice versa)
+                                 when the items array changes (loading, search
+                                 filter, etc). We keep show-select so the
+                                 data-table-select column exists, but we
+                                 replace the default v-model binding with
+                                 custom slots driven by isStudentSelected()
+                                 and the selectAll computed - one stable
+                                 source of truth: selectedStudentIds. -->
+                            <template v-slot:header.data-table-select>
+                                <v-checkbox
+                                    :input-value="selectAll"
+                                    :indeterminate="selectAllIndeterminate"
+                                    primary
+                                    hide-details
+                                    :disabled="!students || students.length === 0"
+                                    @change="toggleAll"
+                                ></v-checkbox>
+                            </template>
+                            <template v-slot:item.data-table-select="{ item }">
+                                <v-checkbox
+                                    :input-value="isStudentSelected(item.userid)"
+                                    primary hide-details
+                                    :disabled="applying"
+                                    @change="toggleStudent(item.userid)"
+                                ></v-checkbox>
+                            </template>
                             <template v-slot:top>
                                 <v-text-field
                                     v-model="search"
@@ -264,6 +291,13 @@ const AssignmentExtensions = {
             commonReason: '',
             lastResult: null,
             studentHeaders: [
+                // Manual 'data-table-select' column for the per-row
+                // checkboxes. We use a custom slot (see the template
+                // above) instead of v-model="selectedStudentIds" +
+                // show-select because the latter has a known Vuetify
+                // 2 bug where marking one row marks every row when
+                // :items changes.
+                { text: '', value: 'data-table-select', sortable: false, width: '48px', align: 'center' },
                 { text: 'Estudiante', value: 'user_name' },
                 { text: 'Email', value: 'user_email' },
                 { text: 'Fecha actual', value: 'current_duedate', sortable: false },
@@ -308,6 +342,32 @@ const AssignmentExtensions = {
                 return 'Se aplicara al estudiante seleccionado.';
             }
             return `Se aplicara a los ${n} estudiante(s) seleccionado(s).`;
+        },
+        // --- Selection model (replaces v-model="selectedStudentIds"
+        // on the v-data-table, which had the 'mark one selects all'
+        // bug in Vuetify 2). The whole selection now lives in the
+        // selectedStudentIds array and is updated only via the
+        // explicit handlers below, so the user can never get an
+        // unexpected auto-toggle.
+        selectAll: {
+            get() {
+                if (!this.students || this.students.length === 0) return false;
+                return this.students.every((s) => this.selectedStudentIds.indexOf(s.userid) !== -1);
+            },
+            set(checked) {
+                // The setter exists so that a v-model="selectAll" binding
+                // would also work; we don't actually use v-model on
+                // the header checkbox (we use @change="toggleAll"
+                // which is the more idiomatic Vuetify 2 pattern) but
+                // defining the setter avoids a Vue warning if some
+                // future refactor re-introduces v-model.
+            }
+        },
+        selectAllIndeterminate() {
+            if (!this.students || this.students.length === 0) return false;
+            const total = this.students.length;
+            const sel = this.selectedStudentIds.length;
+            return sel > 0 && sel < total;
         },
     },
     watch: {
@@ -439,6 +499,37 @@ const AssignmentExtensions = {
                 this.lastResult = { status: 'error', message: 'Error cargando datos: ' + (e.message || e) };
             } finally {
                 this.loading.students = false;
+            }
+        },
+        // --- Selection handlers (replacement for v-model on the
+        // v-data-table). These are the ONLY things that touch
+        // selectedStudentIds, so a click in one row can never leak
+        // into the other rows.
+        isStudentSelected(userid) {
+            return this.selectedStudentIds.indexOf(parseInt(userid, 10)) !== -1;
+        },
+        toggleStudent(userid) {
+            // Per-row checkbox click. We can't trust the checkbox's
+            // own value here because @change fires AFTER the visual
+            // flip, so we use the current array state: if the userid
+            // is in the array the click was an uncheck, otherwise it
+            // was a check.
+            const id = parseInt(userid, 10);
+            const idx = this.selectedStudentIds.indexOf(id);
+            if (idx === -1) {
+                this.selectedStudentIds.push(id);
+            } else {
+                this.$delete(this.selectedStudentIds, idx);
+            }
+        },
+        toggleAll() {
+            // Header checkbox click. If every row is currently
+            // selected, uncheck everything. Otherwise check every
+            // visible student (post-search).
+            if (this.selectAll) {
+                this.selectedStudentIds = [];
+            } else {
+                this.selectedStudentIds = this.students.map((s) => parseInt(s.userid, 10));
             }
         },
         onNewDateInput(userid) {
