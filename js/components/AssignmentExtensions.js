@@ -346,7 +346,12 @@ const AssignmentExtensions = {
                 if (studentsResp.data && studentsResp.data.status === 'success') {
                     this.students = (studentsResp.data.data && studentsResp.data.data.students) || [];
                 } else {
-                    this.lastResult = { status: 'error', message: 'No se pudieron cargar los estudiantes.' };
+                    // Mostrar el error real del backend (permisos, contexto, etc).
+                    const errMsg = (studentsResp.data && studentsResp.data.message)
+                        || (studentsResp.data && studentsResp.data.errorcode)
+                        || 'No se pudieron cargar los estudiantes.';
+                    console.error('[GMK DEBUG] studentsResp error:', studentsResp.data);
+                    this.lastResult = { status: 'error', message: errMsg };
                 }
                 if (listResp.data && listResp.data.status === 'success') {
                     const ld = listResp.data.data || {};
