@@ -304,7 +304,7 @@ Vue.component('activity-groups-panel', {
                     action: 'local_grupomakro_activity_group_list',
                     cmid: this.cmid,
                     modname: this.modname,
-                    sesskey: M.cfg.sesskey
+                    ...window.wsStaticParams
                 });
                 if (resp.data && resp.data.status === 'success') {
                     this.flag = resp.data.flag;
@@ -350,7 +350,7 @@ Vue.component('activity-groups-panel', {
                         mode: this.createForm.mode,
                         memberids: this.createForm.memberids
                     }),
-                    sesskey: M.cfg.sesskey
+                    ...window.wsStaticParams
                 });
                 const data = resp.data || {};
                 if (data.status === 'success') {
@@ -385,7 +385,7 @@ Vue.component('activity-groups-panel', {
                         add: this.membersToAdd,
                         remove: []
                     }),
-                    sesskey: M.cfg.sesskey
+                    ...window.wsStaticParams
                 });
                 const data = resp.data || {};
                 if (data.status === 'success') {
@@ -419,7 +419,7 @@ Vue.component('activity-groups-panel', {
                         add: [],
                         remove: [member.userid]
                     }),
-                    sesskey: M.cfg.sesskey
+                    ...window.wsStaticParams
                 });
                 const data = resp.data || {};
                 if (data.status === 'success') {
@@ -459,7 +459,7 @@ Vue.component('activity-groups-panel', {
                         mode: this.modeForm.mode,
                         maxmembers: this.modeForm.maxmembers
                     }),
-                    sesskey: M.cfg.sesskey
+                    ...window.wsStaticParams
                 });
                 const data = resp.data || {};
                 if (data.status === 'success') {
@@ -492,7 +492,7 @@ Vue.component('activity-groups-panel', {
                         groupid: this.editingGroup.id,
                         force: this.editingGroup.membercount > 0
                     }),
-                    sesskey: M.cfg.sesskey
+                    ...window.wsStaticParams
                 });
                 const data = resp.data || {};
                 if (data.status === 'success') {

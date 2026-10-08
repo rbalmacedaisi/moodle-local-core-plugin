@@ -139,9 +139,30 @@ const ActivityCreationWizard = {
                                         El docente arma los grupos manualmente desde Teacher Dashboard.
                                     </span>
                                 </div>
-                                <div class="text-caption orange--text text--darken-2 mt-1">
-                                    Esta opción solo se puede definir al crear la actividad.
+                                <div class="text-caption grey--text mt-1">
+                                    <span v-if="editMode">
+                                        Para editar la lista de grupos y sus miembros,
+                                        use la sección <b>"Grupos"</b> que aparece abajo una
+                                        vez que la actividad esté guardada con esta opción activa.
+                                    </span>
+                                    <span v-else>
+                                        Esta opción se puede cambiar después desde Teacher Dashboard.
+                                    </span>
                                 </div>
+
+                                <!-- Panel admin de grupos: solo visible en modo
+                                     edicion + la actividad debe ser assign o quiz
+                                     + el flag de group grading debe estar activo.
+                                     Es el ActivityGroupsPanel que antes estaba
+                                     huerfano (registrado como Vue.component pero
+                                     nunca montado en ningun template). -->
+                                <activity-groups-panel
+                                    v-if="editMode && editData && editData.id && formData.enableGroupGrading"
+                                    :cmid="editData.id"
+                                    :modname="activityType"
+                                    :activity-name="formData.name"
+                                    class="mt-4"
+                                ></activity-groups-panel>
                             </div>
                         </v-card>
 
