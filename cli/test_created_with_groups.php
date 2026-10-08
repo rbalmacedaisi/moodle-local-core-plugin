@@ -175,5 +175,32 @@ if (!preg_match(
 }
 mtrace("8) Panel v-if consults editData.enableGroupGrading AND formData.enableGroupGrading ✔");
 
+// 8. The ajax.php dispatch for create_express_activity must extract the
+//    group-grading parameters from $_POST and forward them to the WS
+//    execute() call. Without this, the flag is silently dropped and the
+//    activity is created without the group-grading flag, even though
+//    the wizard sent enableGroupGrading=1. This is the regression that
+//    the user reported in the browser (Martha's "T" activity, cmid=18427).
+$ajaxContents = file_get_contents($CFG->dirroot . '/local/grupomakro_core/ajax.php');
+$caseStart = strpos($ajaxContents, "case 'local_grupomakro_create_express_activity':");
+$nextCase = strpos($ajaxContents, "\n        case ", $caseStart + 10);
+$caseBlock = substr($ajaxContents, $caseStart, $nextCase - $caseStart);
+foreach ([
+    "optional_param\\('enableGroupGrading'",
+    "optional_param\\('groupMode'",
+    "optional_param\\('groupMaxmembers'",
+    "\\$enableGroupGrading",
+    "\\$groupMode",
+    "\\$groupMaxmembers",
+] as $needle) {
+    if (!preg_match('/' . $needle . '/', $caseBlock)) {
+        mtrace("FAIL: ajax.php case 'local_grupomakro_create_express_activity' "
+            . "is missing the group-grading param: $needle. The wizard's "
+            . "enableGroupGrading switch would not be persisted.");
+        exit(10);
+    }
+}
+mtrace("9) ajax.php create_express_activity extracts and forwards enableGroupGrading/groupMode/groupMaxmembers to the WS ✔");
+
 mtrace("=== ALL CHECKS PASSED ===");
 exit(0);

@@ -5955,8 +5955,16 @@ try {
             $forumtopic = optional_param('forumtopic', '', PARAM_TEXT);
             $forummessage = optional_param('forummessage', '', PARAM_RAW);
             $forumcreateinitial = optional_param('forumcreateinitial', true, PARAM_BOOL);
+            // Calificacion grupal (introducida en 20261001057). El frontend
+            // del wizard envia estos 3 campos cuando el switch esta
+            // prendido. El WS los recibe como opcionales (default = no
+            // persistir flag) para no romper compatibilidad con otros
+            // call sites que no los envian.
+            $enableGroupGrading = optional_param('enableGroupGrading', 0, PARAM_INT);
+            $groupMode = optional_param('groupMode', 'open', PARAM_TEXT);
+            $groupMaxmembers = optional_param('groupMaxmembers', 5, PARAM_INT);
 
-            // Normalize tags ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â may arrive as string (FormData/JSON) or array (JSON flattened)
+            // Normalize tags  may arrive as string (FormData/JSON) or array (JSON flattened)
             $raw_tags = isset($_POST['tags']) ? $_POST['tags'] : '';
             $tagList = gmk_ajax_extract_tags_from_request($raw_tags);
             // Preserve all provided tags. Previous behaviour kept only
@@ -5982,7 +5990,12 @@ try {
                     $grademethod,
                     $forumtopic,
                     $forummessage,
-                    $forumcreateinitial
+                    $forumcreateinitial,
+                    // Parametros de calificacion grupal (20261001057). Si
+                    // el frontend los envia, el WS persiste el flag.
+                    (int)$enableGroupGrading,
+                    (string)$groupMode,
+                    (int)$groupMaxmembers
                 );
 
                 // Propagate nested backend errors instead of reporting false success.
