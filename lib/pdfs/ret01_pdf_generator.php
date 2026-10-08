@@ -107,17 +107,13 @@ class ret01_pdf_generator extends \TCPDF {
         $this->Ln(2);
         $this->render_section_student();
         $this->render_section_solicitud();
-        $this->ensure_space(48);   // 3.Motivo+Opcion son 2 columnas ~45mm
+        // Dejar que TCPDF rompa naturalmente entre secciones 2-3-4-5-6
+        // para no generar paginas vacias cuando el contenido ya cabe
+        // en la pagina actual. Las cajas del recibo (5) chequean su
+        // propio espacio dentro de render_section_receipt().
         $this->render_section_reason_payment();
-        // 4.Declaracion: 5 items + firma (~50mm). Forzar page break si no cabe.
-        $this->ensure_space(55);
         $this->render_section_declaration();
-        // 5.Constancia: 2 cajas de 38mm cada una, lado a lado ~40mm.
-        // Si la primera caja no entra entera, saltar a la siguiente pagina
-        // y renderizar AMBAS cajas juntas.
-        $this->ensure_space(45);
         $this->render_section_receipt();
-        $this->ensure_space(40);
         $this->render_section_internal();
         $this->render_footer();
         return $this->Output('ret01.pdf', 'S');
