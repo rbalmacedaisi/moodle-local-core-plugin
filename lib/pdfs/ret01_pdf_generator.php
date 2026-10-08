@@ -387,18 +387,21 @@ class ret01_pdf_generator extends \TCPDF {
     // ─────────────────── 4. DECLARACION ───────────────────
     private function render_section_declaration(): void {
         $this->section_title('4.  DECLARACION DEL ESTUDIANTE');
+        // Strip the leading "N. " from each line - the number is rendered
+        // separately by the cell below, so leaving it in the text would
+        // produce "1. 1. Entiendo que..." duplicates.
         $lines = [
-            '1. Entiendo que este retiro solo surte efecto cuando cuenta con la firma y fecha de recibido de la '
+            'Entiendo que este retiro solo surte efecto cuando cuenta con la firma y fecha de recibido de la '
             . 'Direccion Academica y de la Direccion Administrativa.',
-            '2. Entiendo que debe ser recibido al menos 30 dias calendario antes del inicio oficial del siguiente '
+            'Entiendo que debe ser recibido al menos 30 dias calendario antes del inicio oficial del siguiente '
             . 'periodo. De lo contrario, el ISI facturara el siguiente periodo y ese cargo sera firme y adeudado '
             . '(Clausula Sexta del Contrato).',
-            '3. Me comprometo a cancelar cualquier saldo pendiente a la fecha, incluidos los recargos por mora '
+            'Me comprometo a cancelar cualquier saldo pendiente a la fecha, incluidos los recargos por mora '
             . 'aplicados (10% despues de 3 dias de la fecha de corte).',
-            '4. Entiendo que al retirarme pierdo la calidad de estudiante y que el ISI no devuelve dinero, salvo '
+            'Entiendo que al retirarme pierdo la calidad de estudiante y que el ISI no devuelve dinero, salvo '
             . 'las opciones indicadas en la seccion 3. Un aviso verbal, por telefono, WhatsApp o correo '
             . 'electronico no sustituye este formulario. El estudiante debe conservar su copia firmada.',
-            '5. Declaro que la informacion de este formulario es verdadera.',
+            'Declaro que la informacion de este formulario es verdadera.',
         ];
         $this->SetFont($this->use_opensans ? 'opensans' : 'helvetica', '', 9.5);
         $this->SetTextColor(...self::C_TEXT);
