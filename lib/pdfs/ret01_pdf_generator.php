@@ -107,7 +107,11 @@ class ret01_pdf_generator extends \TCPDF {
     public function render(): string {
         $this->AddPage();
         $this->render_header();
-        $this->Ln(2);
+        // Generous spacer after the header so the first section band
+        // does not collide with the institutional block (was 2mm,
+        // bumped to 4mm in 20261001120 to fix the "section 1 band
+        // kissing the first row" bug).
+        $this->Ln(4);
         $this->render_section_student();
         $this->render_section_solicitud();
         // Dejar que TCPDF rompa naturalmente entre secciones 2-3-4-5-6
@@ -206,10 +210,11 @@ class ret01_pdf_generator extends \TCPDF {
         $this->SetFillColor(...self::C_LIGHT);
         $this->MultiCell(35, 12, $this->request_number, 1, 'C', true, 1, $nx, $ny + 4);
 
-        // Reset X for the left block below. Mantener margen de 4mm
-        // entre el subtitulo y la seccion 1 para que no se corten
-        // las lineas del subtitulo contra la banda azul.
-        $this->SetXY(15, max($this->GetY(), $ny + 16) + 4);
+        // Reset X for the left block below. Mantener margen amplio
+        // entre el subtitulo y la seccion 1 para que la primera fila
+        // de la tabla no se solape con la banda azul cuando TCPDF hace
+        // un page break justo despues del section_title.
+        $this->SetXY(15, max($this->GetY(), $ny + 16) + 8);
         $this->SetTextColor(...self::C_TEXT);
         $this->SetDrawColor(...self::C_RULE);
         // No horizontal rule bajo el titulo: la banda azul de cada
@@ -447,6 +452,13 @@ class ret01_pdf_generator extends \TCPDF {
 
     // ─────────────────── 5. CONSTANCIA DE RECEPCION ───────────────────
     private function render_section_receipt(): void {
+        // Forzar salto de pagina si no hay ~95mm para: titulo 7mm +
+        // subtitulo 5mm + Ln 2mm + DOS cajas 38mm cada una + margen
+        // de seguridad. Si no hay espacio, TODO el bloque (titulo +
+        // cajas) pasa a la siguiente pagina. Esto evita que el titulo
+        // quede en una pagina y las cajas en otra (bug que vimos en
+        // v20261001080).
+        $this->ensure_space(95);
         $this->section_title('5.  CONSTANCIA DE RECEPCION');
         $this->SetFont($this->use_opensans ? 'opensans' : 'helvetica', '', 9);
         $this->SetTextColor(...self::C_MUTED);
@@ -455,12 +467,6 @@ class ret01_pdf_generator extends \TCPDF {
             0, 'C');
         $this->Ln(2);
 
-        // Forzar salto de pagina si no hay ~90mm para las DOS cajas
-        // (caja 38mm + titulo 5.5mm + Ln de margen + cuerpo). Si no hay
-        // espacio, AMBAS cajas pasan a la siguiente pagina y se
-        // renderizan JUNTAS desde el top. Esto evita que las cajas
-        // queden partidas entre paginas (bug historico).
-        $this->ensure_space(90);
         $y0 = $this->GetY();
         $this->receipt_block(
             'Direccion Academica (original)',
