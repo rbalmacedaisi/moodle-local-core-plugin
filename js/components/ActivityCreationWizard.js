@@ -165,9 +165,17 @@ const ActivityCreationWizard = {
                                      ActivityGroupsPanel declara el prop como
                                      Number y el bind automatico de Vue 2 sobre
                                      valores numericos puede llegar como string
-                                     (ver [Vue warn]: Invalid prop cmid). -->
+                                     (ver [Vue warn]: Invalid prop cmid).
+
+                                     IMPORTANTE: el v-if usa editData.enableGroupGrading
+                                     (pasado por el padre) en vez de formData.enableGroupGrading
+                                     porque data() se reinicializa en cada re-mount
+                                     y formData arrancaria en false, ocultando
+                                     el panel en el primer render. fetchActivityDetails
+                                     sigue corriendo y sincroniza formData para
+                                     consistencia. -->
                                 <activity-groups-panel
-                                    v-if="editMode && editData && editData.id && formData.enableGroupGrading"
+                                    v-if="editMode && editData && editData.id && (editData.enableGroupGrading || formData.enableGroupGrading)"
                                     :cmid="parseInt(editData.id, 10)"
                                     :modname="activityType"
                                     :activity-name="formData.name"
@@ -649,12 +657,32 @@ const ActivityCreationWizard = {
                 if (finalSuccess) {
                     const newCmid = parseInt((response.data && (response.data.cmid
                         || (response.data.data && response.data.data.cmid))) || 0, 10);
+                    // Confirmar con el backend que el flag esta activo. El
+                    // create_express_activity devuelve groupgrading.enabled
+                    // cuando el flag se creo. Si por algun motivo el backend
+                    // no lo creo (p.ej. corrida vieja, race condition), no
+                    // debemos seguir el flujo de "gestionar grupos" porque
+                    // el panel saldria con el alert "actividad no fue creada
+                    // con la opcion". Confirma ANTES de emitir.
+                    const groupgrading = (response.data && response.data.data && response.data.data.groupgrading)
+                        || (response.data && response.data.groupgrading)
+                        || null;
+                    const backendEnabled = !!(groupgrading && (groupgrading.enabled === 1 || groupgrading.enabled === true));
                     const createdWithGroups = (this.isAssignment || this.isQuiz)
-                        && this.formData.enableGroupGrading
+                        && (this.formData.enableGroupGrading || backendEnabled)
                         && !this.editMode
-                        && newCmid > 0;
+                        && newCmid > 0
+                        && backendEnabled;
 
                     if (createdWithGroups) {
+                        // Forzar que el flag este prendido en el form ANTES
+                        // de emitir. Asi cuando el padre re-monte el wizard
+                        // (por el cambio de :key), el v-if del panel evalua
+                        // a true desde el primer render y el panel aparece
+                        // sin parpadeo. fetchActivityDetails() confirmara
+                        // despues leyendo el flag de la BD.
+                        this.formData.enableGroupGrading = true;
+
                         // Workflow especial (20261001080): la actividad se creo
                         // con calificacion grupal habilitada y el docente no
                         // estaba editando. En vez de cerrar el wizard,

@@ -1658,11 +1658,20 @@ const ManageClass = {
                 return;
             }
             this.fetchActivities(true);
+            // IMPORTANTE: pasar enableGroupGrading=true en editActivityData
+            // desde el primer momento. Asi el <activity-groups-panel>
+            // dentro del wizard aparece en el primer render (sin tener
+            // que esperar al fetchActivityDetails). El fetch confirma
+            // el valor despues, pero el primer render ya tiene el flag
+            // prendido, asi que el panel no parpadea.
             this.isEditing = true;
             this.editActivityData = {
                 id: payload.cmid,
                 modname: payload.modname,
-                name: payload.name
+                name: payload.name,
+                enableGroupGrading: true,
+                groupMode: 'open',
+                groupMaxmembers: 5
             };
             this.newActivityType = payload.modname;
             this.customActivityLabel = payload.name;
