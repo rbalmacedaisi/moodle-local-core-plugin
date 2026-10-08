@@ -326,7 +326,9 @@ const AssignmentExtensions = {
             this.newDueDates = {};
             this.selectedStudentIds = [];
 
-            // Carga paralelo: students + overrides/history
+            // Carga paralelo: students + overrides/history. Las respuestas de
+            // ajax.php vienen envueltas en {data: {...}} (mismo patron que el
+            // resto del codigo, ej. get_dashboard_data, FailedSubjectsReport).
             this.loading.students = true;
             try {
                 const [studentsResp, listResp] = await Promise.all([
@@ -342,14 +344,15 @@ const AssignmentExtensions = {
                     })
                 ]);
                 if (studentsResp.data && studentsResp.data.status === 'success') {
-                    this.students = studentsResp.data.data.students || [];
+                    this.students = (studentsResp.data.data && studentsResp.data.data.students) || [];
                 } else {
                     this.lastResult = { status: 'error', message: 'No se pudieron cargar los estudiantes.' };
                 }
                 if (listResp.data && listResp.data.status === 'success') {
-                    this.overrides = listResp.data.data.overrides || [];
-                    this.history = listResp.data.data.history || [];
-                    this.defaultDueDate = listResp.data.data.default_duedate > 0 ? listResp.data.data.default_duedate : null;
+                    const ld = listResp.data.data || {};
+                    this.overrides = ld.overrides || [];
+                    this.history = ld.history || [];
+                    this.defaultDueDate = (ld.default_duedate || 0) > 0 ? ld.default_duedate : null;
                 }
             } catch (e) {
                 console.error('AssignmentExtensions.onActivityChange error:', e);

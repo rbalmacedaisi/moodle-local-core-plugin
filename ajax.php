@@ -1073,10 +1073,12 @@ try {
             $assignid = required_param('assignid', PARAM_INT);
             $result = \local_grupomakro_core\external\teacher\assignment_extensions::list_overrides($assignid);
             $response = [
-                'status'          => 'success',
-                'overrides'       => $result['overrides']   ?? [],
-                'history'         => $result['history']     ?? [],
-                'default_duedate' => $result['default_duedate'] ?? 0,
+                'status' => 'success',
+                'data'   => [
+                    'overrides'       => $result['overrides']   ?? [],
+                    'history'         => $result['history']     ?? [],
+                    'default_duedate' => $result['default_duedate'] ?? 0,
+                ],
             ];
             break;
 
@@ -1119,8 +1121,10 @@ try {
                 (int)($data['assignid'] ?? 0)
             );
             $response = [
-                'status'  => 'success',
-                'students' => $result['students'] ?? [],
+                'status' => 'success',
+                'data'   => [
+                    'students' => $result['students'] ?? [],
+                ],
             ];
             break;
 
