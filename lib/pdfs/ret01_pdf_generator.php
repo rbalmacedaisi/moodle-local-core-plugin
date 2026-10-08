@@ -196,6 +196,9 @@ class ret01_pdf_generator extends \TCPDF {
         $this->SetTextColor(...self::C_MUTED);
         $this->Cell(0, 5, 'Para estudiantes activos que no continuaran en el siguiente periodo academico', 0, 1, 'L');
         $this->Cell(0, 5, sprintf('Formulario oficial RET-01  -  Version %s', $this->template_version), 0, 1, 'L');
+        // Add a clear gap after the version line so it never touches
+        // the section 1 band.
+        $this->Ln(3);
 
         // Right: request-number badge in a tinted bordered cell.
         $nx = 150;
