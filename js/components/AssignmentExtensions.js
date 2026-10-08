@@ -252,19 +252,25 @@ const AssignmentExtensions = {
     },
     watch: {
         modelValue(v) { this.open = v; if (v) this.bootstrap(); },
-        open(v) { if (!v) this.$emit('input', false); },
+        open(v) { if (!v) this.$emit('update:modelValue', false); },
     },
     created() {
         // Si el padre ya pasa modelValue=true al montar (caso normal cuando
         // se abre el modal desde una actividad especifica: el padre setea
         // extensionsOpen=true ANTES de montar el componente), el watch de
         // modelValue NO se dispara porque Vue 2 no hace immediate por default.
-        // Forzamos la apertura inicial aqui.
+        // Forzamos la apertura inicial aqui. Usamos $nextTick para esperar
+        // a que Vue termine de procesar todas las prop bindings del primer
+        // render antes de abrir el dialog (asi evitamos una condicion de
+        // carrera donde modelValue es false en created() pero true despues).
         console.log('[GMK DEBUG] AssignmentExtensions created. modelValue =', this.modelValue, 'assignId =', this.assignId);
-        if (this.modelValue) {
-            this.open = true;
-            this.bootstrap();
-        }
+        this.$nextTick(() => {
+            console.log('[GMK DEBUG] nextTick fired. modelValue =', this.modelValue);
+            if (this.modelValue) {
+                this.open = true;
+                this.bootstrap();
+            }
+        });
     },
     methods: {
         async bootstrap() {
@@ -463,7 +469,7 @@ const AssignmentExtensions = {
         },
         close() {
             this.open = false;
-            this.$emit('input', false);
+            this.$emit('update:modelValue', false);
         },
     },
 };

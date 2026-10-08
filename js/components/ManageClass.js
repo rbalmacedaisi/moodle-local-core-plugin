@@ -695,9 +695,20 @@ const ManageClass = {
                  Se abre desde el boton del card de cada actividad en el tab
                  "Actividades". Se le pasa assignId para que cargue esa
                  actividad sin mostrar el dropdown de Step 1. -->
+            <!-- Modal de prorrogas de entrega por actividad individual.
+                 Se abre desde el boton del card de cada actividad en el tab
+                 "Actividades". Se le pasa assignId para que cargue esa
+                 actividad sin mostrar el dropdown de Step 1.
+
+                 Binding: en lugar de v-model (que no propaga el valor true
+                 al child por el orden de reactividad de Vue 2 cuando
+                 v-if=false->true en el mismo tick), uso :model-value + 
+                 @update:model-value explicitos. El modal lee modelValue en
+                 created() y emite 'input' para cerrar. -->
             <assignment-extensions
                 v-if="extensionsActivity"
-                v-model="extensionsOpen"
+                :model-value="extensionsOpen"
+                @update:model-value="extensionsOpen = $event"
                 :class-id="classId"
                 :assign-id="extensionsActivity && extensionsActivity.instance"
                 :assignment-name="extensionsActivity && extensionsActivity.name"
