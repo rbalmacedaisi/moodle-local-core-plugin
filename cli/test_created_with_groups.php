@@ -108,7 +108,7 @@ mtrace("4) Parent listens for @created-with-groups ✔");
 // 4. The parent handler flips isEditing + editData without closing
 //    the dialog.
 if (!preg_match(
-    '/onActivityCreatedWithGroups\s*\(\s*payload\s*\)\s*\{[\s\S]*?this\.isEditing\s*=\s*true[\s\S]*?this\.editActivityData\s*=\s*\{[\s\S]*?cmid\s*:\s*payload\.cmid/s',
+    '/onActivityCreatedWithGroups\s*\(\s*payload\s*\)\s*\{[\s\S]*?this\.isEditing\s*=\s*true[\s\S]*?this\.editActivityData\s*=\s*\{[\s\S]*?id:\s*payload\.cmid/s',
     $parent
 )) {
     mtrace("FAIL: onActivityCreatedWithGroups does not flip isEditing + editData "
