@@ -217,7 +217,7 @@ class ret01_pdf_generator extends \TCPDF {
         // entre el subtitulo y la seccion 1 para que la primera fila
         // de la tabla no se solape con la banda azul cuando TCPDF hace
         // un page break justo despues del section_title.
-        $this->SetXY(15, max($this->GetY(), $ny + 16) + 8);
+        $this->SetXY(15, max($this->GetY(), $ny + 16) + 12);
         $this->SetTextColor(...self::C_TEXT);
         $this->SetDrawColor(...self::C_RULE);
         // No horizontal rule bajo el titulo: la banda azul de cada
