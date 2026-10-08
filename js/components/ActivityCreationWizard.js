@@ -155,10 +155,16 @@ const ActivityCreationWizard = {
                                      + el flag de group grading debe estar activo.
                                      Es el ActivityGroupsPanel que antes estaba
                                      huerfano (registrado como Vue.component pero
-                                     nunca montado en ningun template). -->
+                                     nunca montado en ningun template).
+
+                                     :cmid se pasa con parseInt porque el
+                                     ActivityGroupsPanel declara el prop como
+                                     Number y el bind automatico de Vue 2 sobre
+                                     valores numericos puede llegar como string
+                                     (ver [Vue warn]: Invalid prop cmid). -->
                                 <activity-groups-panel
                                     v-if="editMode && editData && editData.id && formData.enableGroupGrading"
-                                    :cmid="editData.id"
+                                    :cmid="parseInt(editData.id, 10)"
                                     :modname="activityType"
                                     :activity-name="formData.name"
                                     class="mt-4"
@@ -337,9 +343,6 @@ const ActivityCreationWizard = {
             this.fetchActivityDetails(this.editData.id);
         }
         this.fetchCourseTags();
-        if (this.isAssignment) {
-            this.fetchGradeCategories();
-        }
     },
     computed: {
         activityLabel() {
