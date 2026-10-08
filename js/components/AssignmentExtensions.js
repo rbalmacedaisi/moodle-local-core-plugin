@@ -96,15 +96,43 @@ const AssignmentExtensions = {
                                 Estudiantes matriculados
                             </h3>
                             <v-spacer></v-spacer>
-                            <v-btn x-small text color="primary" @click="applyToAll">
-                                <v-icon x-small left>mdi-calendar-edit</v-icon>
-                                Aplicar a todos con esta fecha
-                            </v-btn>
-                            <v-btn x-small text color="error" @click="clearAll" :disabled="!hasAnyOverrideDirty">
-                                <v-icon x-small left>mdi-close</v-icon>
-                                Limpiar mis cambios
-                            </v-btn>
                         </div>
+
+                        <!-- Bulk-apply row: a single date input + button so the
+                             teacher can pick the date they want to apply to
+                             ALL students. The old design only had a button
+                             ("Aplicar a todos con esta fecha") with no input
+                             visible, so the user could not tell where the
+                             date came from. -->
+                        <v-row dense align="center" class="mb-3">
+                            <v-col cols="12" sm="5">
+                                <v-text-field
+                                    type="datetime-local"
+                                    v-model="applyToAllDate"
+                                    label="Fecha para aplicar a todos"
+                                    :placeholder="applyToAllDatePlaceholder"
+                                    dense outlined hide-details
+                                    :disabled="applying"
+                                    prepend-inner-icon="mdi-calendar-edit"
+                                ></v-text-field>
+                            </v-col>
+                            <v-col cols="12" sm="4" class="d-flex align-center">
+                                <v-btn small color="primary" @click="applyToAll"
+                                       :disabled="applying || !applyToAllDate">
+                                    <v-icon small left>mdi-calendar-edit</v-icon>
+                                    Aplicar a los seleccionados
+                                </v-btn>
+                                <v-btn small text color="error" @click="clearAll"
+                                       :disabled="applying || !hasAnyOverrideDirty"
+                                       class="ml-2">
+                                    <v-icon small left>mdi-close</v-icon>
+                                    Limpiar
+                                </v-btn>
+                            </v-col>
+                            <v-col cols="12" sm="3" class="text-caption grey--text">
+                                {{ applyToAllHint }}
+                            </v-col>
+                        </v-row>
 
                         <v-data-table
                             v-model="selectedStudentIds"
@@ -218,6 +246,13 @@ const AssignmentExtensions = {
             search: '',
             selectedAssignId: null,
             selectedStudentIds: [],
+            // The date the user picked in the bulk-apply row. The bulk
+            // button copies this to every selected student (or, if none
+            // are selected, to every student in the table). We keep
+            // this separate from the per-row newDueDates so the
+            // teacher can keep tweaking the bulk date without
+            // clobbering the per-row dates that were already set.
+            applyToAllDate: '',
             assignments: [],
             students: [],
             newDueDates: {}, // {userid: 'YYYY-MM-DDTHH:MM'}
@@ -248,6 +283,31 @@ const AssignmentExtensions = {
         },
         hasAnyOverrideDirty() {
             return this.pendingCount > 0;
+        },
+        // Suggested placeholder for the bulk-apply date input. Shows
+        // the default due date when available, or now+7d as a fallback.
+        applyToAllDatePlaceholder() {
+            let ts = 0;
+            if (this.defaultDueDate) {
+                ts = parseInt(this.defaultDueDate, 10) || 0;
+            }
+            if (!ts) {
+                ts = Math.floor(Date.now() / 1000) + 7 * 86400;
+            }
+            return this.formatDateTimeLocal(ts);
+        },
+        // Short hint shown next to the bulk-apply button so the
+        // teacher knows what applying the date will do.
+        applyToAllHint() {
+            const n = this.selectedStudentIds.length;
+            const total = this.students.length;
+            if (n === 0) {
+                return `Se aplicara a los ${total} estudiante(s) de la tabla.`;
+            }
+            if (n === 1) {
+                return 'Se aplicara al estudiante seleccionado.';
+            }
+            return `Se aplicara a los ${n} estudiante(s) seleccionado(s).`;
         },
     },
     watch: {
@@ -281,6 +341,7 @@ const AssignmentExtensions = {
             this.selectedAssignId = this.assignId ? parseInt(this.assignId, 10) : null;
             this.students = [];
             this.newDueDates = {};
+            this.applyToAllDate = '';
             this.overrides = [];
             this.history = [];
             this.defaultDueDate = null;
@@ -331,6 +392,7 @@ const AssignmentExtensions = {
             if (!this.selectedAssignId) return;
             this.lastResult = null;
             this.newDueDates = {};
+            this.applyToAllDate = '';
             this.selectedStudentIds = [];
 
             // Carga paralelo: students + overrides/history. Las respuestas de
@@ -386,21 +448,29 @@ const AssignmentExtensions = {
             }
         },
         applyToAll() {
-            // Use the first non-empty date, or default + 7d as suggestion
-            let suggestion = '';
-            for (const uid of Object.keys(this.newDueDates)) {
-                const v = this.newDueDates[uid];
-                if (v) { suggestion = v; break; }
+            // Use the date the user just picked in the bulk-apply
+            // input. v-model keeps applyToAllDate as the live value
+            // (or '' if the field is empty). If it is empty we fall
+            // back to the placeholder logic so the button does not
+            // silently do nothing when the user clicks it without
+            // typing a date - we suggest the default + 7d instead.
+            let v = this.applyToAllDate || '';
+            if (!v && this.defaultDueDate) {
+                v = this.formatDateTimeLocal(this.defaultDueDate);
             }
-            if (!suggestion && this.defaultDueDate) {
-                suggestion = this.formatDateTimeLocal(this.defaultDueDate);
+            if (!v) {
+                v = this.formatDateTimeLocal(Math.floor(Date.now() / 1000) + 7 * 86400);
             }
-            if (!suggestion) {
-                suggestion = this.formatDateTimeLocal(Math.floor(Date.now() / 1000) + 7 * 86400);
-            }
-            // Apply to all students
-            for (const s of this.students) {
-                this.$set(this.newDueDates, s.userid, suggestion);
+            // Apply to the SELECTED students only (or to every
+            // student if none are selected). The previous version
+            // applied to all students unconditionally, which was
+            // both confusing and dangerous (you would overwrite
+            // students you had not reviewed).
+            const targets = this.selectedStudentIds.length > 0
+                ? this.students.filter((s) => this.selectedStudentIds.indexOf(s.userid) !== -1)
+                : this.students;
+            for (const s of targets) {
+                this.$set(this.newDueDates, s.userid, v);
             }
         },
         clearAll() {
