@@ -254,6 +254,17 @@ const AssignmentExtensions = {
         modelValue(v) { this.open = v; if (v) this.bootstrap(); },
         open(v) { if (!v) this.$emit('input', false); },
     },
+    created() {
+        // Si el padre ya pasa modelValue=true al montar (caso normal cuando
+        // se abre el modal desde una actividad especifica: el padre setea
+        // extensionsOpen=true ANTES de montar el componente), el watch de
+        // modelValue NO se dispara porque Vue 2 no hace immediate por default.
+        // Forzamos la apertura inicial aqui.
+        if (this.modelValue) {
+            this.open = true;
+            this.bootstrap();
+        }
+    },
     methods: {
         async bootstrap() {
             this.lastResult = null;
