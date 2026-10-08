@@ -881,7 +881,9 @@ const ManageClass = {
             try {
                 const response = await axios.post(window.wsUrl, {
                     action: 'local_grupomakro_get_teacher_dashboard_data',
-                    args: { userid: window.userId },
+                    // userid is optional in the dispatch; the server falls
+                    // back to $USER->id. Top-level form field, not args[].
+                    userid: window.userId,
                     ...window.wsStaticParams
                 });
                 if (response.data.status === 'success') {
@@ -939,7 +941,13 @@ const ManageClass = {
                 try {
                     const timelineResp = await axios.post(window.wsUrl, {
                         action: 'local_grupomakro_get_class_details',
-                        args: { classid: this.classId },
+                        // The dispatch at ajax.php calls
+                        //     required_param('classid', PARAM_INT)
+                        // so we MUST POST classid as a top-level form
+                        // field, not inside an args[] envelope. Sending
+                        // args[classid]=<id> would silently fail with
+                        // 'Un parametro necesario (classid) faltaba'.
+                        classid: this.classId,
                         ...window.wsStaticParams
                     });
                     const timelineRoot = timelineResp?.data || {};
@@ -1155,12 +1163,16 @@ const ManageClass = {
             try {
                 const response = await axios.post(window.wsUrl, {
                     action: 'local_grupomakro_get_all_activities',
-                    // IMPORTANTE: serializar args como JSON string. Mismo
-                    // patron que ActivityGroupsPanel/QuickGrader; el
-                    // dispatch de ajax.php hace required_param('args',
-                    // PARAM_RAW) + json_decode(). Sin esto el endpoint
-                    // devuelve invalidjson o, peor, opera con classid=0.
-                    args: JSON.stringify({ classid: this.classId }),
+                    // The dispatch at ajax.php calls
+                    //     $classid = required_param('classid', PARAM_INT);
+                    // so classid MUST be a top-level form field, not
+                    // inside an args[] envelope. The previous version of
+                    // this call sent args: { classid: ... } which axios
+                    // serializes as args[classid]=<id>, which never
+                    // satisfied required_param('classid', ...) and made
+                    // the activities tab silently return
+                    // 'Un parametro necesario (classid) faltaba'.
+                    classid: this.classId,
                     ...window.wsStaticParams
                 });
                 if (response.data.status === 'success') {
@@ -1298,10 +1310,10 @@ const ManageClass = {
             try {
                 const response = await axios.post(window.wsUrl, {
                     action: 'local_grupomakro_get_forum_activity_data',
-                    args: {
-                        classid: parseInt(this.classId, 10),
-                        cmid: parseInt(this.forumManagerActivity.id, 10)
-                    },
+                    // classid and cmid must be top-level form fields
+                    // (the dispatch uses required_param() for each).
+                    classid: parseInt(this.classId, 10),
+                    cmid: parseInt(this.forumManagerActivity.id, 10),
                     ...window.wsStaticParams
                 });
                 if (response.data.status !== 'success') {
@@ -1330,11 +1342,11 @@ const ManageClass = {
             try {
                 const response = await axios.post(window.wsUrl, {
                     action: 'local_grupomakro_get_forum_discussion_posts',
-                    args: {
-                        classid: parseInt(this.classId, 10),
-                        cmid: parseInt(this.forumManagerActivity.id, 10),
-                        discussionid: parseInt(discussion.id, 10)
-                    },
+                    // classid, cmid, discussionid are all top-level
+                    // required_param() fields in the dispatch.
+                    classid: parseInt(this.classId, 10),
+                    cmid: parseInt(this.forumManagerActivity.id, 10),
+                    discussionid: parseInt(discussion.id, 10),
                     ...window.wsStaticParams
                 });
                 if (response.data.status !== 'success') {
@@ -1361,12 +1373,12 @@ const ManageClass = {
             try {
                 const response = await axios.post(window.wsUrl, {
                     action: 'local_grupomakro_create_forum_discussion',
-                    args: {
-                        classid: parseInt(this.classId, 10),
-                        cmid: parseInt(this.forumManagerActivity.id, 10),
-                        subject: subject,
-                        message: message
-                    },
+                    // classid, cmid, subject, message are all top-level
+                    // required_param() fields in the dispatch.
+                    classid: parseInt(this.classId, 10),
+                    cmid: parseInt(this.forumManagerActivity.id, 10),
+                    subject: subject,
+                    message: message,
                     ...window.wsStaticParams
                 });
                 if (response.data.status !== 'success') {
@@ -1403,12 +1415,12 @@ const ManageClass = {
             try {
                 const response = await axios.post(window.wsUrl, {
                     action: 'local_grupomakro_create_forum_reply',
-                    args: {
-                        classid: parseInt(this.classId, 10),
-                        cmid: parseInt(this.forumManagerActivity.id, 10),
-                        discussionid: parseInt(this.selectedForumDiscussionId, 10),
-                        message: message
-                    },
+                    // classid, cmid, discussionid, message are all
+                    // top-level required_param() fields in the dispatch.
+                    classid: parseInt(this.classId, 10),
+                    cmid: parseInt(this.forumManagerActivity.id, 10),
+                    discussionid: parseInt(this.selectedForumDiscussionId, 10),
+                    message: message,
                     ...window.wsStaticParams
                 });
                 if (response.data.status !== 'success') {
@@ -1447,17 +1459,18 @@ const ManageClass = {
             try {
                 const response = await axios.post(window.wsUrl, {
                     action: 'local_grupomakro_update_activity',
-                    args: {
-                        cmid: activity.id,
-                        name: activity.name,
-                        intro: '',
-                        // Do NOT touch tags when only restoring visibility.
-                        // The backend's gmk_safe_set_item_tags treats an empty
-                        // list as a no-op when tags already exist, but we still
-                        // omit them to keep the payload explicit.
-                        tags: undefined,
-                        visible: 1,
-                    },
+                    // Top-level form fields, not args[]. The dispatch
+                    // reads each one via required_param()/optional_param()
+                    // directly off $_POST.
+                    cmid: activity.id,
+                    name: activity.name,
+                    intro: '',
+                    // Do NOT touch tags when only restoring visibility.
+                    // The backend's gmk_safe_set_item_tags treats an empty
+                    // list as a no-op when tags already exist, but we still
+                    // omit them to keep the payload explicit.
+                    tags: undefined,
+                    visible: 1,
                     ...window.wsStaticParams
                 });
                 if (response.data && response.data.status === 'success') {
@@ -1483,7 +1496,9 @@ const ManageClass = {
             try {
                 const response = await axios.post(window.wsUrl, {
                     action: 'local_grupomakro_delete_activity',
-                    args: { cmid: activity.id, classid: this.classId },
+                    // cmid and classid are top-level required_param() fields.
+                    cmid: activity.id,
+                    classid: this.classId,
                     ...window.wsStaticParams
                 });
                 if (response.data.status === 'success') {
@@ -1525,7 +1540,10 @@ const ManageClass = {
             try {
                 const response = await axios.post(window.wsUrl, {
                     action: 'local_grupomakro_get_available_modules',
-                    args: {},
+                    // The dispatch does not read any classid/cmid;
+                    // it just lists every visible module. Empty
+                    // payload is fine; the args[] wrapper is
+                    // dropped to keep the call sites consistent.
                     ...window.wsStaticParams
                 });
                 if (response.data.status === 'success') {
@@ -1577,7 +1595,8 @@ const ManageClass = {
             try {
                 const response = await axios.post(window.wsUrl, {
                     action: 'local_grupomakro_get_forum_posts',
-                    args: { classid: this.classId },
+                    // classid is a top-level required_param() field.
+                    classid: this.classId,
                     ...window.wsStaticParams
                 });
                 if (response.data.status === 'success') {
@@ -1636,7 +1655,8 @@ const ManageClass = {
             try {
                 const response = await axios.post(window.wsUrl, {
                     action: 'local_grupomakro_delete_forum_discussion',
-                    args: { discussionid: notice.id },
+                    // discussionid is a top-level required_param() field.
+                    discussionid: notice.id,
                     ...window.wsStaticParams
                 });
                 if (response.data.status === 'success') {
