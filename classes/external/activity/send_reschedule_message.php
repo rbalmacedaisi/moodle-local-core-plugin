@@ -62,17 +62,17 @@ class send_reschedule_message extends external_api {
      * @return external_function_parameters
      */
     public static function execute_parameters(): external_function_parameters {
-        return new external_function_parameters(
+        return new \external_function_parameters(
             [
-                'instructorId' => new external_value(PARAM_TEXT, ''),
-                'classId' => new external_value(PARAM_TEXT, ''),
-                'causes' => new external_value(PARAM_TEXT, ''),
-                'moduleId' => new external_value(PARAM_TEXT, ''),
-                'originalDate' => new external_value(PARAM_TEXT, ''),
-                'originalHour' => new external_value(PARAM_TEXT, ''),
-                'proposedDate' => new external_value(PARAM_TEXT, ''),
-                'proposedHour' => new external_value(PARAM_TEXT, ''),
-                'sessionId' => new external_value(PARAM_TEXT, '',VALUE_DEFAULT,null),
+                'instructorId' => new \external_value(PARAM_TEXT, ''),
+                'classId' => new \external_value(PARAM_TEXT, ''),
+                'causes' => new \external_value(PARAM_TEXT, ''),
+                'moduleId' => new \external_value(PARAM_TEXT, ''),
+                'originalDate' => new \external_value(PARAM_TEXT, ''),
+                'originalHour' => new \external_value(PARAM_TEXT, ''),
+                'proposedDate' => new \external_value(PARAM_TEXT, ''),
+                'proposedHour' => new \external_value(PARAM_TEXT, ''),
+                'sessionId' => new \external_value(PARAM_TEXT, '',VALUE_DEFAULT,null),
             ]
         );
     }
@@ -137,7 +137,7 @@ class send_reschedule_message extends external_api {
             // --------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     
             // message test (will be deleted)
-            $messageDefinition = new message();
+            $messageDefinition = new \message();
             $messageDefinition->component = 'local_grupomakro_core'; // Set the message component
             $messageDefinition->name ='send_reschedule_message'; // Set the message name
             $messageDefinition->userfrom = core_user::get_noreply_user(); // Set the message sender
@@ -176,10 +176,10 @@ class send_reschedule_message extends external_api {
      * @return external_description
      */
     public static function execute_returns(): external_description {
-        return new external_single_structure(
+        return new \external_single_structure(
             array(
-                'status' => new external_value(PARAM_INT, '1 of the message was correctly sended, -1 otherwise.'),
-                'message' => new external_value(PARAM_TEXT, 'The error message or Ok.'),
+                'status' => new \external_value(PARAM_INT, '1 of the message was correctly sended, -1 otherwise.'),
+                'message' => new \external_value(PARAM_TEXT, 'The error message or Ok.'),
             )
         );
     }

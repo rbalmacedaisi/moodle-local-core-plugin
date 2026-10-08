@@ -54,9 +54,9 @@ class student_class_revalid_enrol extends external_api {
      * @return external_function_parameters
      */
     public static function execute_parameters(): external_function_parameters {
-        return new external_function_parameters(
+        return new \external_function_parameters(
             [
-                'progressId' => new external_value(PARAM_TEXT, 'ID of the course progress record.',VALUE_REQUIRED)
+                'progressId' => new \external_value(PARAM_TEXT, 'ID of the course progress record.',VALUE_REQUIRED)
             ]
         );
     }
@@ -94,11 +94,11 @@ class student_class_revalid_enrol extends external_api {
      * @return external_description
      */
     public static function execute_returns(): external_description {
-        return new external_single_structure(
+        return new \external_single_structure(
             array(
-                'status' => new external_value(PARAM_TEXT, '1 for success, -1 for failure',VALUE_DEFAULT, 1),
-                'revalidEnroled'=> new external_value(PARAM_BOOL, 'True if the user was enroled in the course revalid group.',VALUE_DEFAULT,null),
-                'message' => new external_value(PARAM_TEXT, 'The error message or ok.',VALUE_DEFAULT, 'ok'),
+                'status' => new \external_value(PARAM_TEXT, '1 for success, -1 for failure',VALUE_DEFAULT, 1),
+                'revalidEnroled'=> new \external_value(PARAM_BOOL, 'True if the user was enroled in the course revalid group.',VALUE_DEFAULT,null),
+                'message' => new \external_value(PARAM_TEXT, 'The error message or ok.',VALUE_DEFAULT, 'ok'),
             )
         );
     }

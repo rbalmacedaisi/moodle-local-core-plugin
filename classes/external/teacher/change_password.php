@@ -16,11 +16,11 @@ use context_user;
 class change_password extends external_api {
 
     public static function execute_parameters() {
-        return new external_function_parameters(
+        return new \external_function_parameters(
             array(
-                'userid' => new external_value(PARAM_INT, 'The ID of the user', VALUE_REQUIRED),
-                'currentpassword' => new external_value(PARAM_RAW, 'The current password', VALUE_REQUIRED),
-                'newpassword' => new external_value(PARAM_RAW, 'The new password', VALUE_REQUIRED)
+                'userid' => new \external_value(PARAM_INT, 'The ID of the user', VALUE_REQUIRED),
+                'currentpassword' => new \external_value(PARAM_RAW, 'The current password', VALUE_REQUIRED),
+                'newpassword' => new \external_value(PARAM_RAW, 'The new password', VALUE_REQUIRED)
             )
         );
     }
@@ -65,10 +65,10 @@ class change_password extends external_api {
     }
 
     public static function execute_returns() {
-        return new external_single_structure(
+        return new \external_single_structure(
             array(
-                'status' => new external_value(PARAM_BOOL, 'Status of the operation'),
-                'message' => new external_value(PARAM_TEXT, 'Message regarding the operation')
+                'status' => new \external_value(PARAM_BOOL, 'Status of the operation'),
+                'message' => new \external_value(PARAM_TEXT, 'Message regarding the operation')
             )
         );
     }

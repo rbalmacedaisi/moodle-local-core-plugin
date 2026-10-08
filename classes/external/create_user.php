@@ -51,15 +51,15 @@ class create_user extends external_api {
      * @return external_function_parameters
      */
     public static function execute_parameters(): external_function_parameters {
-        return new external_function_parameters(
+        return new \external_function_parameters(
             [
-                'firstname' => new external_value(PARAM_TEXT, 'First name of the user.'),
-                'lastname' => new external_value(PARAM_TEXT, 'Last name of the user.'),
-                'email' => new external_value(PARAM_TEXT, 'Email of the user.'),
-                'usertype' => new external_value(PARAM_INT, 'The type of user: 1 for student, 2 fore caregiver.', VALUE_DEFAULT, 1),
-                'accountmanager' => new external_value(PARAM_EMAIL, 'The email of the account manager; the account manager should be registered in the platform with the given email address.', VALUE_DEFAULT, ''),
-                'documenttype' => new external_value(PARAM_TEXT, 'The type of document for the user, it can be: "Cédula de Ciudadanía", "Cédula de Extranjería", "Pasaporte".', VALUE_DEFAULT, ''),
-                'documentnumber' => new external_value(PARAM_TEXT, 'The number of the document for the user.', VALUE_DEFAULT, ''),
+                'firstname' => new \external_value(PARAM_TEXT, 'First name of the user.'),
+                'lastname' => new \external_value(PARAM_TEXT, 'Last name of the user.'),
+                'email' => new \external_value(PARAM_TEXT, 'Email of the user.'),
+                'usertype' => new \external_value(PARAM_INT, 'The type of user: 1 for student, 2 fore caregiver.', VALUE_DEFAULT, 1),
+                'accountmanager' => new \external_value(PARAM_EMAIL, 'The email of the account manager; the account manager should be registered in the platform with the given email address.', VALUE_DEFAULT, ''),
+                'documenttype' => new \external_value(PARAM_TEXT, 'The type of document for the user, it can be: "Cédula de Ciudadanía", "Cédula de Extranjería", "Pasaporte".', VALUE_DEFAULT, ''),
+                'documentnumber' => new \external_value(PARAM_TEXT, 'The number of the document for the user.', VALUE_DEFAULT, ''),
             ]
         );
     }
@@ -230,10 +230,10 @@ class create_user extends external_api {
      * @return external_description
      */
     public static function execute_returns(): external_description {
-        return new external_single_structure(
+        return new \external_single_structure(
             array(
-                'status' => new external_value(PARAM_INT, 'The ID of the new user or -1 if there was an error.'),
-                'message' => new external_value(PARAM_TEXT, 'The error message or Ok.'),
+                'status' => new \external_value(PARAM_INT, 'The ID of the new user or -1 if there was an error.'),
+                'message' => new \external_value(PARAM_TEXT, 'The error message or Ok.'),
             )
         );
     }

@@ -51,9 +51,9 @@ class get_user_status extends external_api {
      * @return external_function_parameters
      */
     public static function execute_parameters(): external_function_parameters {
-        return new external_function_parameters(
+        return new \external_function_parameters(
             [
-                'userid' => new external_value(PARAM_INT, 'The user id'),
+                'userid' => new \external_value(PARAM_INT, 'The user id'),
             ]
         );
     }
@@ -110,10 +110,10 @@ class get_user_status extends external_api {
      * @return external_description
      */
     public static function execute_returns(): external_description {
-        return new external_single_structure(
+        return new \external_single_structure(
             array(
-                'status' => new external_value(PARAM_INT, 'Status code or -1 if there was an error.'),
-                'message' => new external_value(PARAM_TEXT, 'The error message or status description.'),
+                'status' => new \external_value(PARAM_INT, 'Status code or -1 if there was an error.'),
+                'message' => new \external_value(PARAM_TEXT, 'The error message or status description.'),
             )
         );
     }

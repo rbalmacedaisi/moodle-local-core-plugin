@@ -26,8 +26,8 @@ class update_status extends external_api {
      * Parameters for execute.
      */
     public static function execute_parameters() {
-        return new external_function_parameters([
-            'userid' => new external_value(PARAM_INT, 'User ID to update. If 0, attempts to update batch.', VALUE_DEFAULT, 0)
+        return new \external_function_parameters([
+            'userid' => new \external_value(PARAM_INT, 'User ID to update. If 0, attempts to update batch.', VALUE_DEFAULT, 0)
         ]);
     }
 
@@ -68,10 +68,10 @@ class update_status extends external_api {
      * Return structure.
      */
     public static function execute_returns() {
-        return new external_single_structure([
-            'success' => new external_value(PARAM_BOOL, 'Success status'),
-            'message' => new external_value(PARAM_TEXT, 'Message'),
-            'updated_count' => new external_value(PARAM_INT, 'Number of users updated')
+        return new \external_single_structure([
+            'success' => new \external_value(PARAM_BOOL, 'Success status'),
+            'message' => new \external_value(PARAM_TEXT, 'Message'),
+            'updated_count' => new \external_value(PARAM_INT, 'Number of users updated')
         ]);
     }
 }

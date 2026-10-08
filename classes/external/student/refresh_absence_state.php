@@ -39,8 +39,8 @@ require_once($CFG->dirroot . '/local/grupomakro_core/pages/absence_helpers.php')
 class refresh_absence_state extends external_api {
 
     public static function execute_parameters() {
-        return new external_function_parameters([
-            'userid' => new external_value(PARAM_INT, 'User ID', VALUE_REQUIRED),
+        return new \external_function_parameters([
+            'userid' => new \external_value(PARAM_INT, 'User ID', VALUE_REQUIRED),
         ]);
     }
 
@@ -91,10 +91,10 @@ class refresh_absence_state extends external_api {
     }
 
     public static function execute_returns() {
-        return new external_single_structure([
-            'success'   => new external_value(PARAM_BOOL, 'True when the recompute ran'),
-            'processed' => new external_value(PARAM_INT, 'Number of active classes processed'),
-            'blocked'   => new external_value(PARAM_INT, 'Number of classes newly blocked in this call'),
+        return new \external_single_structure([
+            'success'   => new \external_value(PARAM_BOOL, 'True when the recompute ran'),
+            'processed' => new \external_value(PARAM_INT, 'Number of active classes processed'),
+            'blocked'   => new \external_value(PARAM_INT, 'Number of classes newly blocked in this call'),
         ]);
     }
 }

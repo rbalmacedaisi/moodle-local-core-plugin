@@ -41,8 +41,8 @@ require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/announcement_
 class get_pending_admin_messages extends external_api {
 
     public static function execute_parameters() {
-        return new external_function_parameters([
-            'userid' => new external_value(PARAM_INT, 'User ID', VALUE_REQUIRED),
+        return new \external_function_parameters([
+            'userid' => new \external_value(PARAM_INT, 'User ID', VALUE_REQUIRED),
         ]);
     }
 
@@ -74,31 +74,31 @@ class get_pending_admin_messages extends external_api {
     }
 
     public static function execute_returns() {
-        $msgstructure = new external_single_structure([
-            'id'                 => new external_value(PARAM_INT,  'Message id'),
-            'title'              => new external_value(PARAM_TEXT, 'Message title'),
-            'message'            => new external_value(PARAM_RAW,  'Message body (may contain HTML)'),
-            'type'               => new external_value(PARAM_ALPHA, 'info|warning'),
-            'audience_scope'     => new external_value(PARAM_ALPHA, 'all|career|group'),
-            'audience_careerid'  => new external_value(PARAM_INT,   'Career id if scope=career'),
-            'audience_groupid'   => new external_value(PARAM_INT,   'Group id if scope=group'),
-            'require_ack'        => new external_value(PARAM_BOOL,  'True when an acknowledgement checkbox must be ticked'),
-            'ack_label'          => new external_value(PARAM_TEXT, 'Text rendered next to the acknowledgement checkbox'),
-            'priority'           => new external_value(PARAM_INT,   'Higher value wins when several notices stack up'),
-            'starts_at'          => new external_value(PARAM_INT,   'Unix ts at which the broadcast becomes visible (0 = always)'),
-            'ends_at'            => new external_value(PARAM_INT,   'Unix ts at which the broadcast stops being visible (0 = never)'),
-            'timecreated'        => new external_value(PARAM_INT,   'Unix ts of creation'),
-            'authorid'           => new external_value(PARAM_INT,   'Author user id'),
-            'acknowledged'       => new external_value(PARAM_BOOL,  'True when the calling student already accepted this broadcast'),
-            'timeacknowledged'   => new external_value(PARAM_INT,   'Unix ts of the acknowledgement'),
+        $msgstructure = new \external_single_structure([
+            'id'                 => new \external_value(PARAM_INT,  'Message id'),
+            'title'              => new \external_value(PARAM_TEXT, 'Message title'),
+            'message'            => new \external_value(PARAM_RAW,  'Message body (may contain HTML)'),
+            'type'               => new \external_value(PARAM_ALPHA, 'info|warning'),
+            'audience_scope'     => new \external_value(PARAM_ALPHA, 'all|career|group'),
+            'audience_careerid'  => new \external_value(PARAM_INT,   'Career id if scope=career'),
+            'audience_groupid'   => new \external_value(PARAM_INT,   'Group id if scope=group'),
+            'require_ack'        => new \external_value(PARAM_BOOL,  'True when an acknowledgement checkbox must be ticked'),
+            'ack_label'          => new \external_value(PARAM_TEXT, 'Text rendered next to the acknowledgement checkbox'),
+            'priority'           => new \external_value(PARAM_INT,   'Higher value wins when several notices stack up'),
+            'starts_at'          => new \external_value(PARAM_INT,   'Unix ts at which the broadcast becomes visible (0 = always)'),
+            'ends_at'            => new \external_value(PARAM_INT,   'Unix ts at which the broadcast stops being visible (0 = never)'),
+            'timecreated'        => new \external_value(PARAM_INT,   'Unix ts of creation'),
+            'authorid'           => new \external_value(PARAM_INT,   'Author user id'),
+            'acknowledged'       => new \external_value(PARAM_BOOL,  'True when the calling student already accepted this broadcast'),
+            'timeacknowledged'   => new \external_value(PARAM_INT,   'Unix ts of the acknowledgement'),
         ]);
 
-        return new external_single_structure([
-            'messages'                 => new external_multiple_structure($msgstructure, 'Pending admin messages, priority DESC'),
-            'count'                    => new external_value(PARAM_INT, 'How many messages are pending for the user'),
-            'highest_priority'         => new external_value(PARAM_INT, 'Priority of the highest-ranked pending message; null means none.'),
-            'absence_priority'         => new external_value(PARAM_INT, 'Priority value used by the absence alert system'),
-            'has_priority_over_absence' => new external_value(PARAM_BOOL, 'True when at least one pending broadcast beats the absence alerts'),
+        return new \external_single_structure([
+            'messages'                 => new \external_multiple_structure($msgstructure, 'Pending admin messages, priority DESC'),
+            'count'                    => new \external_value(PARAM_INT, 'How many messages are pending for the user'),
+            'highest_priority'         => new \external_value(PARAM_INT, 'Priority of the highest-ranked pending message; null means none.'),
+            'absence_priority'         => new \external_value(PARAM_INT, 'Priority value used by the absence alert system'),
+            'has_priority_over_absence' => new \external_value(PARAM_BOOL, 'True when at least one pending broadcast beats the absence alerts'),
         ]);
     }
 }

@@ -16,11 +16,11 @@ class search_users extends external_api {
      * Parameters.
      */
     public static function execute_parameters() {
-        return new external_function_parameters([
-            'query' => new external_value(PARAM_TEXT, 'Search query (name, email)'),
+        return new \external_function_parameters([
+            'query' => new \external_value(PARAM_TEXT, 'Search query (name, email)'),
             // Optional: callers that render a short dropdown (e.g. the wellness
             // staff roster) ask for fewer rows. Omitted by older callers.
-            'limit' => new external_value(PARAM_INT, 'Max rows (1-50)', VALUE_DEFAULT, 20),
+            'limit' => new \external_value(PARAM_INT, 'Max rows (1-50)', VALUE_DEFAULT, 20),
         ]);
     }
 
@@ -77,12 +77,12 @@ class search_users extends external_api {
      * Returns.
      */
     public static function execute_returns() {
-        return new external_multiple_structure(
-            new external_single_structure([
-                'id' => new external_value(PARAM_INT, 'User ID'),
-                'fullname' => new external_value(PARAM_TEXT, 'Full Name'),
-                'email' => new external_value(PARAM_TEXT, 'Email'),
-                'username' => new external_value(PARAM_TEXT, 'Username'),
+        return new \external_multiple_structure(
+            new \external_single_structure([
+                'id' => new \external_value(PARAM_INT, 'User ID'),
+                'fullname' => new \external_value(PARAM_TEXT, 'Full Name'),
+                'email' => new \external_value(PARAM_TEXT, 'Email'),
+                'username' => new \external_value(PARAM_TEXT, 'Username'),
             ])
         );
     }

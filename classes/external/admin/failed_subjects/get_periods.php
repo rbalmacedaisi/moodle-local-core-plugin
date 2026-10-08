@@ -40,7 +40,7 @@ use context_system;
 class get_periods extends external_api {
 
     public static function execute_parameters(): external_function_parameters {
-        return new external_function_parameters([]);
+        return new \external_function_parameters([]);
     }
 
     public static function execute(): array {
@@ -64,13 +64,13 @@ class get_periods extends external_api {
     }
 
     public static function execute_returns(): external_multiple_structure {
-        return new external_multiple_structure(
-            new external_single_structure([
-                'id'        => new external_value(PARAM_INT, 'Period id'),
-                'name'      => new external_value(PARAM_TEXT, 'Period name'),
-                'startdate' => new external_value(PARAM_INT, 'Start date (timestamp)'),
-                'enddate'   => new external_value(PARAM_INT, 'End date (timestamp)'),
-                'status'    => new external_value(PARAM_INT, 'Status (1=active, 0=closed)'),
+        return new \external_multiple_structure(
+            new \external_single_structure([
+                'id'        => new \external_value(PARAM_INT, 'Period id'),
+                'name'      => new \external_value(PARAM_TEXT, 'Period name'),
+                'startdate' => new \external_value(PARAM_INT, 'Start date (timestamp)'),
+                'enddate'   => new \external_value(PARAM_INT, 'End date (timestamp)'),
+                'status'    => new \external_value(PARAM_INT, 'Status (1=active, 0=closed)'),
             ])
         );
     }

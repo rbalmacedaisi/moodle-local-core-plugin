@@ -59,15 +59,15 @@ class get_student_info extends external_api {
      * @return external_function_parameters
      */
     public static function execute_parameters(): external_function_parameters {
-        return new external_function_parameters([
-                'page'           => new external_value(PARAM_INT, 'Page of the list.', VALUE_DEFAULT, 0),
-                'resultsperpage' => new external_value(PARAM_INT, 'Results to show by page.', VALUE_DEFAULT, 15),
-                'search'         => new external_value(PARAM_RAW, 'Filters by search data users.', VALUE_DEFAULT, ''),
-                'planid'         => new external_value(PARAM_RAW, 'Filter by Learning Plan IDs (comma separated).', VALUE_DEFAULT, ''),
-                'periodid'       => new external_value(PARAM_RAW, 'Filter by Period IDs (comma separated).', VALUE_DEFAULT, ''),
-                'status'         => new external_value(PARAM_TEXT, 'Filter by Student Status.', VALUE_DEFAULT, ''),
-                'classid'        => new external_value(PARAM_INT, 'Filter by Class ID.', VALUE_DEFAULT, 0),
-                'financial_status' => new external_value(PARAM_TEXT, 'Filter by Financial Status.', VALUE_DEFAULT, ''),
+        return new \external_function_parameters([
+                'page'           => new \external_value(PARAM_INT, 'Page of the list.', VALUE_DEFAULT, 0),
+                'resultsperpage' => new \external_value(PARAM_INT, 'Results to show by page.', VALUE_DEFAULT, 15),
+                'search'         => new \external_value(PARAM_RAW, 'Filters by search data users.', VALUE_DEFAULT, ''),
+                'planid'         => new \external_value(PARAM_RAW, 'Filter by Learning Plan IDs (comma separated).', VALUE_DEFAULT, ''),
+                'periodid'       => new \external_value(PARAM_RAW, 'Filter by Period IDs (comma separated).', VALUE_DEFAULT, ''),
+                'status'         => new \external_value(PARAM_TEXT, 'Filter by Student Status.', VALUE_DEFAULT, ''),
+                'classid'        => new \external_value(PARAM_INT, 'Filter by Class ID.', VALUE_DEFAULT, 0),
+                'financial_status' => new \external_value(PARAM_TEXT, 'Filter by Financial Status.', VALUE_DEFAULT, ''),
             ]);
     }
 
@@ -935,12 +935,12 @@ list($fsClause, $fsParams) = local_grupomakro_translate_financial_filter($params
      * 
      */
     public static function execute_returns(): external_description {
-        return new external_single_structure(
+        return new \external_single_structure(
             array(
-                'dataUsers'      => new external_value(PARAM_RAW, 'Data user return.', VALUE_DEFAULT,''),
-                'totalResults'   => new external_value(PARAM_INT, 'Total Data return users.', VALUE_DEFAULT,''),
-                'totalPages'     => new external_value(PARAM_INT, 'Total number pages.', VALUE_DEFAULT,''),
-                'activeUsers'    => new external_value(PARAM_INT, 'Total active users.', VALUE_DEFAULT, 0),
+                'dataUsers'      => new \external_value(PARAM_RAW, 'Data user return.', VALUE_DEFAULT,''),
+                'totalResults'   => new \external_value(PARAM_INT, 'Total Data return users.', VALUE_DEFAULT,''),
+                'totalPages'     => new \external_value(PARAM_INT, 'Total number pages.', VALUE_DEFAULT,''),
+                'activeUsers'    => new \external_value(PARAM_INT, 'Total active users.', VALUE_DEFAULT, 0),
             )
         );
     }

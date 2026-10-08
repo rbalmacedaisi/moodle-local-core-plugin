@@ -41,8 +41,8 @@ use context_system;
 class get_student_revalidations extends external_api {
 
     public static function execute_parameters(): external_function_parameters {
-        return new external_function_parameters([
-            'userid' => new external_value(PARAM_INT, 'User id', VALUE_REQUIRED),
+        return new \external_function_parameters([
+            'userid' => new \external_value(PARAM_INT, 'User id', VALUE_REQUIRED),
         ]);
     }
 
@@ -103,25 +103,25 @@ class get_student_revalidations extends external_api {
     }
 
     public static function execute_returns(): external_single_structure {
-        return new external_single_structure([
-            'revalidations' => new external_multiple_structure(new external_single_structure([
-                'id'             => new external_value(PARAM_INT, 'Revalidation id'),
-                'classid'        => new external_value(PARAM_INT, 'Class id'),
-                'courseid'       => new external_value(PARAM_INT, 'Core course id'),
-                'coursename'     => new external_value(PARAM_RAW, 'Subject name'),
-                'result'         => new external_value(PARAM_TEXT, 'pending|approved|failed'),
-                'status'         => new external_value(PARAM_TEXT, 'scheduled|graded|consolidated'),
-                'originalgrade'  => new external_value(PARAM_FLOAT, 'Grade before the revalidation'),
-                'revalidgrade'   => new external_value(PARAM_FLOAT, 'Revalidation exam grade', VALUE_OPTIONAL, null, NULL_ALLOWED),
-                'sessionstart'   => new external_value(PARAM_INT, 'Session start (unix ts)'),
-                'sessionend'     => new external_value(PARAM_INT, 'Session end (unix ts)'),
-                'session_url'    => new external_value(PARAM_RAW, 'BBB session url'),
-                'payment_state'  => new external_value(PARAM_TEXT, 'unpaid|paid'),
-                'payment_link'   => new external_value(PARAM_RAW, 'Odoo payment link'),
-                'invoice_number' => new external_value(PARAM_TEXT, 'Invoice consecutive'),
-                'cost'           => new external_value(PARAM_FLOAT, 'Configured revalidation cost'),
-                'needs_payment'  => new external_value(PARAM_BOOL, 'Pending and unpaid'),
-                'alert_dismissed' => new external_value(PARAM_BOOL, 'Student dismissed the popup'),
+        return new \external_single_structure([
+            'revalidations' => new \external_multiple_structure(new \external_single_structure([
+                'id'             => new \external_value(PARAM_INT, 'Revalidation id'),
+                'classid'        => new \external_value(PARAM_INT, 'Class id'),
+                'courseid'       => new \external_value(PARAM_INT, 'Core course id'),
+                'coursename'     => new \external_value(PARAM_RAW, 'Subject name'),
+                'result'         => new \external_value(PARAM_TEXT, 'pending|approved|failed'),
+                'status'         => new \external_value(PARAM_TEXT, 'scheduled|graded|consolidated'),
+                'originalgrade'  => new \external_value(PARAM_FLOAT, 'Grade before the revalidation'),
+                'revalidgrade'   => new \external_value(PARAM_FLOAT, 'Revalidation exam grade', VALUE_OPTIONAL, null, NULL_ALLOWED),
+                'sessionstart'   => new \external_value(PARAM_INT, 'Session start (unix ts)'),
+                'sessionend'     => new \external_value(PARAM_INT, 'Session end (unix ts)'),
+                'session_url'    => new \external_value(PARAM_RAW, 'BBB session url'),
+                'payment_state'  => new \external_value(PARAM_TEXT, 'unpaid|paid'),
+                'payment_link'   => new \external_value(PARAM_RAW, 'Odoo payment link'),
+                'invoice_number' => new \external_value(PARAM_TEXT, 'Invoice consecutive'),
+                'cost'           => new \external_value(PARAM_FLOAT, 'Configured revalidation cost'),
+                'needs_payment'  => new \external_value(PARAM_BOOL, 'Pending and unpaid'),
+                'alert_dismissed' => new \external_value(PARAM_BOOL, 'Student dismissed the popup'),
             ])),
         ]);
     }

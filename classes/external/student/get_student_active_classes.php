@@ -53,9 +53,9 @@ class get_student_active_classes extends external_api {
      * @return external_function_parameters
      */
     public static function execute_parameters(): external_function_parameters {
-        return new external_function_parameters(
+        return new \external_function_parameters(
             [
-                'id' => new external_value(PARAM_TEXT, 'ID of the student.')
+                'id' => new \external_value(PARAM_TEXT, 'ID of the student.')
             ]
         );
     }
@@ -113,11 +113,11 @@ class get_student_active_classes extends external_api {
      * @return external_description
      */
     public static function execute_returns(): external_description {
-        return new external_single_structure(
+        return new \external_single_structure(
             array(
-                'status' => new external_value(PARAM_INT, '1 for success, -1 for failure',VALUE_DEFAULT,1),
-                'userAvailableCourseClasses' => new external_value(PARAM_RAW, 'json encode object with the active classes array and the preferred class schedule',VALUE_DEFAULT,null),
-                'message' => new external_value(PARAM_TEXT, 'The error message or ok.',VALUE_DEFAULT,'ok'),
+                'status' => new \external_value(PARAM_INT, '1 for success, -1 for failure',VALUE_DEFAULT,1),
+                'userAvailableCourseClasses' => new \external_value(PARAM_RAW, 'json encode object with the active classes array and the preferred class schedule',VALUE_DEFAULT,null),
+                'message' => new \external_value(PARAM_TEXT, 'The error message or ok.',VALUE_DEFAULT,'ok'),
             )
         );
     }

@@ -54,11 +54,11 @@ class student_class_enrol extends external_api {
      * @return external_function_parameters
      */
     public static function execute_parameters(): external_function_parameters {
-        return new external_function_parameters(
+        return new \external_function_parameters(
             [
-                'classId' => new external_value(PARAM_TEXT, 'ID of the class.'),
-                'userId' => new external_value(PARAM_TEXT, 'ID of the student'),
-                'forceQueue' => new external_value(PARAM_BOOL, 'ID of the student', VALUE_DEFAULT,false)
+                'classId' => new \external_value(PARAM_TEXT, 'ID of the class.'),
+                'userId' => new \external_value(PARAM_TEXT, 'ID of the student'),
+                'forceQueue' => new \external_value(PARAM_BOOL, 'ID of the student', VALUE_DEFAULT,false)
             ]
         );
     }
@@ -132,13 +132,13 @@ class student_class_enrol extends external_api {
      * @return external_description
      */
     public static function execute_returns(): external_description {
-        return new external_single_structure(
+        return new \external_single_structure(
             array(
-                'status' => new external_value(PARAM_INT, '1 for success, -1 for failure',VALUE_DEFAULT,1),
-                'enrolResult' => new external_value(PARAM_BOOL, 'True if the enrolment was successful, false otherwise',VALUE_DEFAULT,false),
-                'addedToQueue'=> new external_value(PARAM_BOOL, 'True if the user was added to the class queue, false otherwise',VALUE_DEFAULT,false),
-                'classAlternatives'=> new external_value(PARAM_RAW, 'Json encode class alternatives',VALUE_DEFAULT,null),
-                'message' => new external_value(PARAM_TEXT, 'The error message or ok.',VALUE_DEFAULT,'ok'),
+                'status' => new \external_value(PARAM_INT, '1 for success, -1 for failure',VALUE_DEFAULT,1),
+                'enrolResult' => new \external_value(PARAM_BOOL, 'True if the enrolment was successful, false otherwise',VALUE_DEFAULT,false),
+                'addedToQueue'=> new \external_value(PARAM_BOOL, 'True if the user was added to the class queue, false otherwise',VALUE_DEFAULT,false),
+                'classAlternatives'=> new \external_value(PARAM_RAW, 'Json encode class alternatives',VALUE_DEFAULT,null),
+                'message' => new \external_value(PARAM_TEXT, 'The error message or ok.',VALUE_DEFAULT,'ok'),
             )
         );
     }

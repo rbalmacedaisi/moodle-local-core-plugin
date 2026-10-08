@@ -78,11 +78,11 @@ class revert_homologation extends external_api
      */
     public static function execute_parameters(): external_function_parameters
     {
-        return new external_function_parameters([
-            'userId'         => new external_value(PARAM_INT,  'Student user id.', VALUE_REQUIRED),
-            'learningPlanId' => new external_value(PARAM_INT,  'Learning plan id.', VALUE_REQUIRED),
-            'coreCourseId'   => new external_value(PARAM_INT,  'Moodle course id (course.id).', VALUE_REQUIRED),
-            'reason'         => new external_value(PARAM_RAW,  'Optional free-text reason for the revert.', VALUE_DEFAULT, ''),
+        return new \external_function_parameters([
+            'userId'         => new \external_value(PARAM_INT,  'Student user id.', VALUE_REQUIRED),
+            'learningPlanId' => new \external_value(PARAM_INT,  'Learning plan id.', VALUE_REQUIRED),
+            'coreCourseId'   => new \external_value(PARAM_INT,  'Moodle course id (course.id).', VALUE_REQUIRED),
+            'reason'         => new \external_value(PARAM_RAW,  'Optional free-text reason for the revert.', VALUE_DEFAULT, ''),
         ]);
     }
 
@@ -307,19 +307,19 @@ class revert_homologation extends external_api
      */
     public static function execute_returns(): external_description
     {
-        return new external_single_structure([
-            'status'             => new external_value(PARAM_TEXT, 'ok | error'),
-            'message'            => new external_value(PARAM_TEXT, 'Descriptive message'),
-            'gcp_id'             => new external_value(PARAM_INT,  'gmk_course_progre.id (0 on error)', VALUE_DEFAULT, 0),
-            'course_status'      => new external_value(PARAM_INT,  'New gmk_course_progre.status after revert', VALUE_DEFAULT, 0),
-            'previous_type'      => new external_value(PARAM_TEXT, 'Homologation type that was reverted', VALUE_DEFAULT, ''),
-            'previous_note'      => new external_value(PARAM_RAW,  'Original observation captured at homologation time', VALUE_DEFAULT, ''),
-            'previous_at'        => new external_value(PARAM_INT,  'Unix timestamp of the original homologation', VALUE_DEFAULT, 0),
-            'previous_by'        => new external_value(PARAM_INT,  'user.id who applied the original homologation', VALUE_DEFAULT, 0),
-            'previous_grade'     => new external_value(PARAM_FLOAT, 'Grade that was set by the homologation', VALUE_DEFAULT, 0),
-            'previous_status'    => new external_value(PARAM_INT,  'gmk_course_progre.status before the revert', VALUE_DEFAULT, 0),
-            'homologation_at'    => new external_value(PARAM_INT,  'Unix timestamp of the revert', VALUE_DEFAULT, 0),
-            'homologation_by'    => new external_value(PARAM_INT,  'user.id who performed the revert', VALUE_DEFAULT, 0),
+        return new \external_single_structure([
+            'status'             => new \external_value(PARAM_TEXT, 'ok | error'),
+            'message'            => new \external_value(PARAM_TEXT, 'Descriptive message'),
+            'gcp_id'             => new \external_value(PARAM_INT,  'gmk_course_progre.id (0 on error)', VALUE_DEFAULT, 0),
+            'course_status'      => new \external_value(PARAM_INT,  'New gmk_course_progre.status after revert', VALUE_DEFAULT, 0),
+            'previous_type'      => new \external_value(PARAM_TEXT, 'Homologation type that was reverted', VALUE_DEFAULT, ''),
+            'previous_note'      => new \external_value(PARAM_RAW,  'Original observation captured at homologation time', VALUE_DEFAULT, ''),
+            'previous_at'        => new \external_value(PARAM_INT,  'Unix timestamp of the original homologation', VALUE_DEFAULT, 0),
+            'previous_by'        => new \external_value(PARAM_INT,  'user.id who applied the original homologation', VALUE_DEFAULT, 0),
+            'previous_grade'     => new \external_value(PARAM_FLOAT, 'Grade that was set by the homologation', VALUE_DEFAULT, 0),
+            'previous_status'    => new \external_value(PARAM_INT,  'gmk_course_progre.status before the revert', VALUE_DEFAULT, 0),
+            'homologation_at'    => new \external_value(PARAM_INT,  'Unix timestamp of the revert', VALUE_DEFAULT, 0),
+            'homologation_by'    => new \external_value(PARAM_INT,  'user.id who performed the revert', VALUE_DEFAULT, 0),
         ]);
     }
 

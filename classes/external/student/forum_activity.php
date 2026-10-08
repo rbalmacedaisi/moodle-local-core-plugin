@@ -81,9 +81,9 @@ class forum_activity extends external_api {
     }
 
     public static function get_activity_data_parameters(): external_function_parameters {
-        return new external_function_parameters([
-            'courseId' => new external_value(PARAM_INT, 'Course id', VALUE_REQUIRED),
-            'moduleId' => new external_value(PARAM_INT, 'Forum course module id', VALUE_REQUIRED),
+        return new \external_function_parameters([
+            'courseId' => new \external_value(PARAM_INT, 'Course id', VALUE_REQUIRED),
+            'moduleId' => new \external_value(PARAM_INT, 'Forum course module id', VALUE_REQUIRED),
         ]);
     }
 
@@ -171,18 +171,18 @@ class forum_activity extends external_api {
     }
 
     public static function get_activity_data_returns(): external_single_structure {
-        return new external_single_structure([
-            'status' => new external_value(PARAM_INT, '1 ok, -1 error', VALUE_DEFAULT, 1),
-            'message' => new external_value(PARAM_TEXT, 'Result message', VALUE_DEFAULT, 'ok'),
-            'forumData' => new external_value(PARAM_RAW, 'JSON object with forum data', VALUE_DEFAULT, '{}'),
+        return new \external_single_structure([
+            'status' => new \external_value(PARAM_INT, '1 ok, -1 error', VALUE_DEFAULT, 1),
+            'message' => new \external_value(PARAM_TEXT, 'Result message', VALUE_DEFAULT, 'ok'),
+            'forumData' => new \external_value(PARAM_RAW, 'JSON object with forum data', VALUE_DEFAULT, '{}'),
         ]);
     }
 
     public static function get_discussion_posts_parameters(): external_function_parameters {
-        return new external_function_parameters([
-            'courseId' => new external_value(PARAM_INT, 'Course id', VALUE_REQUIRED),
-            'moduleId' => new external_value(PARAM_INT, 'Forum course module id', VALUE_REQUIRED),
-            'discussionId' => new external_value(PARAM_INT, 'Discussion id', VALUE_REQUIRED),
+        return new \external_function_parameters([
+            'courseId' => new \external_value(PARAM_INT, 'Course id', VALUE_REQUIRED),
+            'moduleId' => new \external_value(PARAM_INT, 'Forum course module id', VALUE_REQUIRED),
+            'discussionId' => new \external_value(PARAM_INT, 'Discussion id', VALUE_REQUIRED),
         ]);
     }
 
@@ -248,19 +248,19 @@ class forum_activity extends external_api {
     }
 
     public static function get_discussion_posts_returns(): external_single_structure {
-        return new external_single_structure([
-            'status' => new external_value(PARAM_INT, '1 ok, -1 error', VALUE_DEFAULT, 1),
-            'message' => new external_value(PARAM_TEXT, 'Result message', VALUE_DEFAULT, 'ok'),
-            'postsData' => new external_value(PARAM_RAW, 'JSON object with discussion posts', VALUE_DEFAULT, '{}'),
+        return new \external_single_structure([
+            'status' => new \external_value(PARAM_INT, '1 ok, -1 error', VALUE_DEFAULT, 1),
+            'message' => new \external_value(PARAM_TEXT, 'Result message', VALUE_DEFAULT, 'ok'),
+            'postsData' => new \external_value(PARAM_RAW, 'JSON object with discussion posts', VALUE_DEFAULT, '{}'),
         ]);
     }
 
     public static function create_discussion_parameters(): external_function_parameters {
-        return new external_function_parameters([
-            'courseId' => new external_value(PARAM_INT, 'Course id', VALUE_REQUIRED),
-            'moduleId' => new external_value(PARAM_INT, 'Forum course module id', VALUE_REQUIRED),
-            'subject' => new external_value(PARAM_TEXT, 'Discussion subject', VALUE_REQUIRED),
-            'message' => new external_value(PARAM_RAW, 'Discussion message', VALUE_REQUIRED),
+        return new \external_function_parameters([
+            'courseId' => new \external_value(PARAM_INT, 'Course id', VALUE_REQUIRED),
+            'moduleId' => new \external_value(PARAM_INT, 'Forum course module id', VALUE_REQUIRED),
+            'subject' => new \external_value(PARAM_TEXT, 'Discussion subject', VALUE_REQUIRED),
+            'message' => new \external_value(PARAM_RAW, 'Discussion message', VALUE_REQUIRED),
         ]);
     }
 
@@ -317,19 +317,19 @@ class forum_activity extends external_api {
     }
 
     public static function create_discussion_returns(): external_single_structure {
-        return new external_single_structure([
-            'status' => new external_value(PARAM_INT, '1 ok, -1 error', VALUE_DEFAULT, 1),
-            'message' => new external_value(PARAM_TEXT, 'Result message', VALUE_DEFAULT, 'ok'),
-            'id' => new external_value(PARAM_INT, 'Created discussion id', VALUE_DEFAULT, 0),
+        return new \external_single_structure([
+            'status' => new \external_value(PARAM_INT, '1 ok, -1 error', VALUE_DEFAULT, 1),
+            'message' => new \external_value(PARAM_TEXT, 'Result message', VALUE_DEFAULT, 'ok'),
+            'id' => new \external_value(PARAM_INT, 'Created discussion id', VALUE_DEFAULT, 0),
         ]);
     }
 
     public static function create_reply_parameters(): external_function_parameters {
-        return new external_function_parameters([
-            'courseId' => new external_value(PARAM_INT, 'Course id', VALUE_REQUIRED),
-            'moduleId' => new external_value(PARAM_INT, 'Forum course module id', VALUE_REQUIRED),
-            'discussionId' => new external_value(PARAM_INT, 'Discussion id', VALUE_REQUIRED),
-            'message' => new external_value(PARAM_RAW, 'Reply message', VALUE_REQUIRED),
+        return new \external_function_parameters([
+            'courseId' => new \external_value(PARAM_INT, 'Course id', VALUE_REQUIRED),
+            'moduleId' => new \external_value(PARAM_INT, 'Forum course module id', VALUE_REQUIRED),
+            'discussionId' => new \external_value(PARAM_INT, 'Discussion id', VALUE_REQUIRED),
+            'message' => new \external_value(PARAM_RAW, 'Reply message', VALUE_REQUIRED),
         ]);
     }
 
@@ -385,10 +385,10 @@ class forum_activity extends external_api {
     }
 
     public static function create_reply_returns(): external_single_structure {
-        return new external_single_structure([
-            'status' => new external_value(PARAM_INT, '1 ok, -1 error', VALUE_DEFAULT, 1),
-            'message' => new external_value(PARAM_TEXT, 'Result message', VALUE_DEFAULT, 'ok'),
-            'id' => new external_value(PARAM_INT, 'Created post id', VALUE_DEFAULT, 0),
+        return new \external_single_structure([
+            'status' => new \external_value(PARAM_INT, '1 ok, -1 error', VALUE_DEFAULT, 1),
+            'message' => new \external_value(PARAM_TEXT, 'Result message', VALUE_DEFAULT, 'ok'),
+            'id' => new \external_value(PARAM_INT, 'Created post id', VALUE_DEFAULT, 0),
         ]);
     }
 }

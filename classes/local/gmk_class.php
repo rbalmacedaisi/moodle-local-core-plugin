@@ -24,7 +24,7 @@ class gmk_class {
         
         $courseModuleRecord = $moduleInfo->get_course_module_record();
         
-        $classCourseGradeTree= new grade_tree($courseModuleRecord->course, false, false);
+        $classCourseGradeTree= new \grade_tree($courseModuleRecord->course, false, false);
         $classGradeCategory = $classCourseGradeTree->locate_element('cg'.$classGradeCategoryId)['object'];
         
         $gradeItemId = $DB->get_field('grade_items','id',['itemmodule'=>$moduleInfo->__get('modname'),'iteminstance'=>$moduleInfo->__get('instance')]);

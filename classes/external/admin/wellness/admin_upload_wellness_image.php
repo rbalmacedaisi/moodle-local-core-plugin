@@ -61,10 +61,10 @@ class admin_upload_wellness_image extends external_api {
     ];
 
     public static function execute_parameters() {
-        return new external_function_parameters([
-            'kind'    => new external_value(PARAM_ALPHA, 'partner|event|form', VALUE_REQUIRED),
-            'itemid'  => new external_value(PARAM_INT,   'Id del registro destino', VALUE_REQUIRED),
-            'content' => new external_value(PARAM_RAW,   'Data URL base64 de la imagen', VALUE_REQUIRED),
+        return new \external_function_parameters([
+            'kind'    => new \external_value(PARAM_ALPHA, 'partner|event|form', VALUE_REQUIRED),
+            'itemid'  => new \external_value(PARAM_INT,   'Id del registro destino', VALUE_REQUIRED),
+            'content' => new \external_value(PARAM_RAW,   'Data URL base64 de la imagen', VALUE_REQUIRED),
         ]);
     }
 
@@ -143,11 +143,11 @@ class admin_upload_wellness_image extends external_api {
     }
 
     public static function execute_returns() {
-        return new external_single_structure([
-            'ok'     => new external_value(PARAM_BOOL, 'True si se guardo'),
-            'url'    => new external_value(PARAM_RAW,  'URL absoluta de la portada'),
-            'width'  => new external_value(PARAM_INT,  'Ancho en px'),
-            'height' => new external_value(PARAM_INT,  'Alto en px'),
+        return new \external_single_structure([
+            'ok'     => new \external_value(PARAM_BOOL, 'True si se guardo'),
+            'url'    => new \external_value(PARAM_RAW,  'URL absoluta de la portada'),
+            'width'  => new \external_value(PARAM_INT,  'Ancho en px'),
+            'height' => new \external_value(PARAM_INT,  'Alto en px'),
         ]);
     }
 }

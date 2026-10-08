@@ -15,14 +15,14 @@ use external_multiple_structure;
 class activity_group_create extends external_api {
 
     public static function execute_parameters(): external_function_parameters {
-        return new external_function_parameters([
-            'cmid'       => new external_value(PARAM_INT, 'course_modules.id', VALUE_REQUIRED),
-            'modname'    => new external_value(PARAM_ALPHA, 'assign o quiz', VALUE_REQUIRED),
-            'name'       => new external_value(PARAM_TEXT, 'Nombre del grupo', VALUE_REQUIRED),
-            'maxmembers' => new external_value(PARAM_INT, 'Cupo maximo (default 5)', VALUE_DEFAULT, 5),
-            'mode'       => new external_value(PARAM_ALPHA, 'open o fixed (default open)', VALUE_DEFAULT, 'open'),
-            'memberids'  => new external_multiple_structure(
-                new external_value(PARAM_INT, 'userid'),
+        return new \external_function_parameters([
+            'cmid'       => new \external_value(PARAM_INT, 'course_modules.id', VALUE_REQUIRED),
+            'modname'    => new \external_value(PARAM_ALPHA, 'assign o quiz', VALUE_REQUIRED),
+            'name'       => new \external_value(PARAM_TEXT, 'Nombre del grupo', VALUE_REQUIRED),
+            'maxmembers' => new \external_value(PARAM_INT, 'Cupo maximo (default 5)', VALUE_DEFAULT, 5),
+            'mode'       => new \external_value(PARAM_ALPHA, 'open o fixed (default open)', VALUE_DEFAULT, 'open'),
+            'memberids'  => new \external_multiple_structure(
+                new \external_value(PARAM_INT, 'userid'),
                 'Estudiantes a incluir al crear (override docente)',
                 VALUE_DEFAULT,
                 []
@@ -138,10 +138,10 @@ class activity_group_create extends external_api {
     }
 
     public static function execute_returns(): external_single_structure {
-        return new external_single_structure([
-            'status'  => new external_value(PARAM_TEXT, 'success|error'),
-            'message' => new external_value(PARAM_TEXT, 'Mensaje'),
-            'groupid' => new external_value(PARAM_INT, 'ID del grupo creado'),
+        return new \external_single_structure([
+            'status'  => new \external_value(PARAM_TEXT, 'success|error'),
+            'message' => new \external_value(PARAM_TEXT, 'Mensaje'),
+            'groupid' => new \external_value(PARAM_INT, 'ID del grupo creado'),
         ]);
     }
 }

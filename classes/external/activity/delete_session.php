@@ -44,10 +44,10 @@ require_once $CFG->dirroot . '/local/grupomakro_core/locallib.php';
 class delete_session extends external_api {
 
     public static function execute_parameters(): external_function_parameters {
-        return new external_function_parameters([
-            'classId'   => new external_value(PARAM_TEXT, 'Id of the class.', VALUE_REQUIRED),
-            'sessionId' => new external_value(PARAM_TEXT, 'attendance_session id to delete.', VALUE_REQUIRED),
-            'force'     => new external_value(PARAM_INT,  'Force delete even if attendance_log exists (1|0).', VALUE_DEFAULT, 0),
+        return new \external_function_parameters([
+            'classId'   => new \external_value(PARAM_TEXT, 'Id of the class.', VALUE_REQUIRED),
+            'sessionId' => new \external_value(PARAM_TEXT, 'attendance_session id to delete.', VALUE_REQUIRED),
+            'force'     => new \external_value(PARAM_INT,  'Force delete even if attendance_log exists (1|0).', VALUE_DEFAULT, 0),
         ]);
     }
 
@@ -123,14 +123,14 @@ class delete_session extends external_api {
     }
 
     public static function execute_returns(): external_description {
-        return new external_single_structure([
-            'status'     => new external_value(PARAM_INT,  '1 on success, -1 on error or blocked.', VALUE_DEFAULT, 1),
-            'message'    => new external_value(PARAM_TEXT, 'Result message.', VALUE_DEFAULT, 'ok'),
-            'hasLogs'    => new external_value(PARAM_INT,  '1 if session had attendance_log records (blocked unless force).', VALUE_DEFAULT, 0),
-            'logCount'   => new external_value(PARAM_INT,  'Number of attendance_log rows on the session.', VALUE_DEFAULT, 0),
-            'deleted'    => new external_value(PARAM_INT,  '1 if deletion occurred.', VALUE_DEFAULT, 0),
-            'bbbCmid'    => new external_value(PARAM_INT,  'CMID of the deleted BBB module (0 if no BBB).', VALUE_DEFAULT, 0),
-            'backupPath' => new external_value(PARAM_TEXT, 'Path to JSON backup file.', VALUE_DEFAULT, ''),
+        return new \external_single_structure([
+            'status'     => new \external_value(PARAM_INT,  '1 on success, -1 on error or blocked.', VALUE_DEFAULT, 1),
+            'message'    => new \external_value(PARAM_TEXT, 'Result message.', VALUE_DEFAULT, 'ok'),
+            'hasLogs'    => new \external_value(PARAM_INT,  '1 if session had attendance_log records (blocked unless force).', VALUE_DEFAULT, 0),
+            'logCount'   => new \external_value(PARAM_INT,  'Number of attendance_log rows on the session.', VALUE_DEFAULT, 0),
+            'deleted'    => new \external_value(PARAM_INT,  '1 if deletion occurred.', VALUE_DEFAULT, 0),
+            'bbbCmid'    => new \external_value(PARAM_INT,  'CMID of the deleted BBB module (0 if no BBB).', VALUE_DEFAULT, 0),
+            'backupPath' => new \external_value(PARAM_TEXT, 'Path to JSON backup file.', VALUE_DEFAULT, ''),
         ]);
     }
 }

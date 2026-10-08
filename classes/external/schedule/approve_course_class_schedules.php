@@ -54,13 +54,13 @@ class approve_course_class_schedules extends external_api {
      * @return external_function_parameters
      */
     public static function execute_parameters(): external_function_parameters {
-        return new external_function_parameters(
+        return new \external_function_parameters(
             array(
-                'approvingSchedules' => new external_multiple_structure(
-                    new external_single_structure(
+                'approvingSchedules' => new \external_multiple_structure(
+                    new \external_single_structure(
                         array(
-                            'classId' => new external_value(PARAM_INT, 'schedule id (class ID)',VALUE_REQUIRED),
-                            'approvalMessage' => new external_value(PARAM_TEXT, 'Approval message', VALUE_DEFAULT, ''),
+                            'classId' => new \external_value(PARAM_INT, 'schedule id (class ID)',VALUE_REQUIRED),
+                            'approvalMessage' => new \external_value(PARAM_TEXT, 'Approval message', VALUE_DEFAULT, ''),
                         )
                     ),
                 ),
@@ -104,11 +104,11 @@ class approve_course_class_schedules extends external_api {
      * @return external_description
      */
     public static function execute_returns(): external_description {
-        return new external_single_structure(
+        return new \external_single_structure(
             array(
-                'status' => new external_value(PARAM_INT, '1 if success, -1 otherwise'),
-                'approveResults' => new external_value(PARAM_RAW, 'The result of every user enrolment, a check indicating if the approval message was saved and other check if tha class was flagged as approved', VALUE_DEFAULT,null),
-                'message' => new external_value(PARAM_TEXT, 'The error message or Ok.',VALUE_DEFAULT,'ok'),
+                'status' => new \external_value(PARAM_INT, '1 if success, -1 otherwise'),
+                'approveResults' => new \external_value(PARAM_RAW, 'The result of every user enrolment, a check indicating if the approval message was saved and other check if tha class was flagged as approved', VALUE_DEFAULT,null),
+                'message' => new \external_value(PARAM_TEXT, 'The error message or Ok.',VALUE_DEFAULT,'ok'),
             )
         );
     }

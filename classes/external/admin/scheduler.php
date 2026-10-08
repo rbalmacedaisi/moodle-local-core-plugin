@@ -19,8 +19,8 @@ class scheduler extends external_api {
     // --- 1. Scheduler Context (Config) ---
 
     public static function get_scheduler_context_parameters() {
-        return new external_function_parameters([
-            'periodid' => new external_value(PARAM_INT, 'Academic Period ID')
+        return new \external_function_parameters([
+            'periodid' => new \external_value(PARAM_INT, 'Academic Period ID')
         ]);
     }
 
@@ -41,69 +41,69 @@ class scheduler extends external_api {
     }
 
     public static function get_scheduler_context_returns() {
-        return new external_single_structure([
-            'classrooms' => new external_multiple_structure(
-                new external_single_structure([
-                    'id' => new external_value(PARAM_INT, 'ID'),
-                    'name' => new external_value(PARAM_TEXT, 'Name'),
-                    'capacity' => new external_value(PARAM_INT, 'Capacity'),
-                    'type' => new external_value(PARAM_TEXT, 'Type'),
-                    'active' => new external_value(PARAM_INT, 'Active')
+        return new \external_single_structure([
+            'classrooms' => new \external_multiple_structure(
+                new \external_single_structure([
+                    'id' => new \external_value(PARAM_INT, 'ID'),
+                    'name' => new \external_value(PARAM_TEXT, 'Name'),
+                    'capacity' => new \external_value(PARAM_INT, 'Capacity'),
+                    'type' => new \external_value(PARAM_TEXT, 'Type'),
+                    'active' => new \external_value(PARAM_INT, 'Active')
                 ])
             ),
-            'holidays' => new external_multiple_structure(
-                new external_single_structure([
-                    'id' => new external_value(PARAM_INT, 'ID'),
-                    'date' => new external_value(PARAM_INT, 'Timestamp'),
-                    'name' => new external_value(PARAM_TEXT, 'Name'),
-                    'type' => new external_value(PARAM_TEXT, 'Type')
+            'holidays' => new \external_multiple_structure(
+                new \external_single_structure([
+                    'id' => new \external_value(PARAM_INT, 'ID'),
+                    'date' => new \external_value(PARAM_INT, 'Timestamp'),
+                    'name' => new \external_value(PARAM_TEXT, 'Name'),
+                    'type' => new \external_value(PARAM_TEXT, 'Type')
                 ])
             ),
-            'loads' => new external_multiple_structure(
-                new external_single_structure([
-                    'id' => new external_value(PARAM_INT, 'ID'),
-                    'subjectname' => new external_value(PARAM_TEXT, 'Subject Name'),
-                    'total_hours' => new external_value(PARAM_INT, 'Total Hours'),
-                    'intensity' => new external_value(PARAM_FLOAT, 'Weekly Intensity', VALUE_OPTIONAL)
+            'loads' => new \external_multiple_structure(
+                new \external_single_structure([
+                    'id' => new \external_value(PARAM_INT, 'ID'),
+                    'subjectname' => new \external_value(PARAM_TEXT, 'Subject Name'),
+                    'total_hours' => new \external_value(PARAM_INT, 'Total Hours'),
+                    'intensity' => new \external_value(PARAM_FLOAT, 'Weekly Intensity', VALUE_OPTIONAL)
                 ])
             ),
-            'period' => new external_single_structure([
-                'id' => new external_value(PARAM_INT, 'ID'),
-                'name' => new external_value(PARAM_TEXT, 'Name'),
-                'start' => new external_value(PARAM_TEXT, 'Start Date'),
-                'end' => new external_value(PARAM_TEXT, 'End Date')
+            'period' => new \external_single_structure([
+                'id' => new \external_value(PARAM_INT, 'ID'),
+                'name' => new \external_value(PARAM_TEXT, 'Name'),
+                'start' => new \external_value(PARAM_TEXT, 'Start Date'),
+                'end' => new \external_value(PARAM_TEXT, 'End Date')
             ], 'Period metadata', VALUE_OPTIONAL),
-            'configSettings' => new external_value(PARAM_RAW, 'JSON encoded config settings', VALUE_OPTIONAL),
-            'careers' => new external_multiple_structure(new external_value(PARAM_TEXT, 'Career name'), 'List of career names', VALUE_OPTIONAL)
+            'configSettings' => new \external_value(PARAM_RAW, 'JSON encoded config settings', VALUE_OPTIONAL),
+            'careers' => new \external_multiple_structure(new \external_value(PARAM_TEXT, 'Career name'), 'List of career names', VALUE_OPTIONAL)
         ]);
     }
 
     // --- 2. Save Config ---
 
     public static function save_scheduler_config_parameters() {
-        return new external_function_parameters([
-            'periodid' => new external_value(PARAM_INT, 'Period ID'),
-            'holidays' => new external_multiple_structure(
-                new external_single_structure([
-                    'date' => new external_value(PARAM_INT, ''),
-                    'name' => new external_value(PARAM_TEXT, ''),
-                    'type' => new external_value(PARAM_TEXT, '')
+        return new \external_function_parameters([
+            'periodid' => new \external_value(PARAM_INT, 'Period ID'),
+            'holidays' => new \external_multiple_structure(
+                new \external_single_structure([
+                    'date' => new \external_value(PARAM_INT, ''),
+                    'name' => new \external_value(PARAM_TEXT, ''),
+                    'type' => new \external_value(PARAM_TEXT, '')
                 ]),
                 'List of holidays',
                 VALUE_DEFAULT,
                 []
             ),
-            'loads' => new external_multiple_structure(
-                new external_single_structure([
-                    'subjectname' => new external_value(PARAM_TEXT, ''),
-                    'total_hours' => new external_value(PARAM_INT, ''),
-                    'intensity' => new external_value(PARAM_FLOAT, '', VALUE_DEFAULT, 0)
+            'loads' => new \external_multiple_structure(
+                new \external_single_structure([
+                    'subjectname' => new \external_value(PARAM_TEXT, ''),
+                    'total_hours' => new \external_value(PARAM_INT, ''),
+                    'intensity' => new \external_value(PARAM_FLOAT, '', VALUE_DEFAULT, 0)
                 ]),
                 'List of subject loads',
                 VALUE_DEFAULT,
                 []
             ),
-            'configsettings' => new external_value(PARAM_RAW, 'JSON string with shift/internal parameters', VALUE_DEFAULT, '')
+            'configsettings' => new \external_value(PARAM_RAW, 'JSON string with shift/internal parameters', VALUE_DEFAULT, '')
         ]);
     }
 
@@ -133,14 +133,14 @@ class scheduler extends external_api {
     }
 
     public static function save_scheduler_config_returns() {
-        return new external_value(PARAM_BOOL, 'Success');
+        return new \external_value(PARAM_BOOL, 'Success');
     }
 
     // --- 3. Demand Data ---
 
     public static function get_demand_data_parameters() {
-        return new external_function_parameters([
-            'periodid' => new external_value(PARAM_INT, 'Academic Period ID')
+        return new \external_function_parameters([
+            'periodid' => new \external_value(PARAM_INT, 'Academic Period ID')
         ]);
     }
 
@@ -350,31 +350,31 @@ class scheduler extends external_api {
     }
 
     public static function get_demand_data_returns() {
-        return new external_single_structure([
-            'demand_tree' => new external_value(PARAM_RAW, 'JSON nested structure [Career][Jornada][Sem]'),
-            'student_list' => new external_multiple_structure(
-                new external_single_structure([
-                    'id' => new external_value(PARAM_INT, ''),
-                    'dbId' => new external_value(PARAM_INT, 'DB user id for matching with class studentIds', VALUE_OPTIONAL),
-                    'name' => new external_value(PARAM_TEXT, ''),
-                    'career' => new external_value(PARAM_TEXT, ''),
-                    'shift' => new external_value(PARAM_TEXT, ''),
-                    'semester' => new external_value(PARAM_INT, ''),
-                    'entry_period' => new external_value(PARAM_TEXT, '', VALUE_OPTIONAL)
+        return new \external_single_structure([
+            'demand_tree' => new \external_value(PARAM_RAW, 'JSON nested structure [Career][Jornada][Sem]'),
+            'student_list' => new \external_multiple_structure(
+                new \external_single_structure([
+                    'id' => new \external_value(PARAM_INT, ''),
+                    'dbId' => new \external_value(PARAM_INT, 'DB user id for matching with class studentIds', VALUE_OPTIONAL),
+                    'name' => new \external_value(PARAM_TEXT, ''),
+                    'career' => new \external_value(PARAM_TEXT, ''),
+                    'shift' => new \external_value(PARAM_TEXT, ''),
+                    'semester' => new \external_value(PARAM_INT, ''),
+                    'entry_period' => new \external_value(PARAM_TEXT, '', VALUE_OPTIONAL)
                 ])
             ),
-            'projections' => new external_multiple_structure(
-                new external_single_structure([
-                    'id' => new external_value(PARAM_INT, ''),
-                    'career' => new external_value(PARAM_TEXT, ''),
-                    'shift' => new external_value(PARAM_TEXT, ''),
-                    'count' => new external_value(PARAM_INT, '')
+            'projections' => new \external_multiple_structure(
+                new \external_single_structure([
+                    'id' => new \external_value(PARAM_INT, ''),
+                    'career' => new \external_value(PARAM_TEXT, ''),
+                    'shift' => new \external_value(PARAM_TEXT, ''),
+                    'count' => new \external_value(PARAM_INT, '')
                 ])
             ),
-            'subjects' => new external_multiple_structure(
-                new external_single_structure([
-                    'id' => new external_value(PARAM_INT, ''),
-                    'name' => new external_value(PARAM_TEXT, '')
+            'subjects' => new \external_multiple_structure(
+                new \external_single_structure([
+                    'id' => new \external_value(PARAM_INT, ''),
+                    'name' => new \external_value(PARAM_TEXT, '')
                 ]), 'List of all subjects', VALUE_OPTIONAL
             )
         ]);
@@ -383,13 +383,13 @@ class scheduler extends external_api {
     // --- 4. Save Projections ---
     
     public static function save_projections_parameters() {
-        return new external_function_parameters([
-            'periodid' => new external_value(PARAM_INT, ''),
-            'projections' => new external_multiple_structure(
-                new external_single_structure([
-                    'career' => new external_value(PARAM_TEXT, ''),
-                    'shift' => new external_value(PARAM_TEXT, ''),
-                    'count' => new external_value(PARAM_INT, '')
+        return new \external_function_parameters([
+            'periodid' => new \external_value(PARAM_INT, ''),
+            'projections' => new \external_multiple_structure(
+                new \external_single_structure([
+                    'career' => new \external_value(PARAM_TEXT, ''),
+                    'shift' => new \external_value(PARAM_TEXT, ''),
+                    'count' => new \external_value(PARAM_INT, '')
                 ])
             )
         ]);
@@ -416,16 +416,16 @@ class scheduler extends external_api {
     }
     
     public static function save_projections_returns() {
-        return new external_value(PARAM_BOOL, '');
+        return new \external_value(PARAM_BOOL, '');
     }
     
     // --- 5. Save Generated Schedule ---
     
     public static function save_generation_result_parameters() {
-         return new external_function_parameters([
-            'periodid' => new external_value(PARAM_INT, 'Academic Period ID'),
-            'schedules' => new external_value(PARAM_RAW, 'JSON array of schedule objects'),
-            'preserveexisting' => new external_value(PARAM_BOOL, 'When true, do not delete classes not present in payload', VALUE_DEFAULT, false)
+         return new \external_function_parameters([
+            'periodid' => new \external_value(PARAM_INT, 'Academic Period ID'),
+            'schedules' => new \external_value(PARAM_RAW, 'JSON array of schedule objects'),
+            'preserveexisting' => new \external_value(PARAM_BOOL, 'When true, do not delete classes not present in payload', VALUE_DEFAULT, false)
          ]);
     }
     
@@ -1379,7 +1379,7 @@ class scheduler extends external_api {
     }
     
     public static function save_generation_result_returns() {
-        return new external_value(PARAM_BOOL, '');
+        return new \external_value(PARAM_BOOL, '');
     }
 
     // --- Helpers ---
@@ -1673,8 +1673,8 @@ class scheduler extends external_api {
 
     // --- 6. Fetch Generated Schedules ---
     public static function get_generated_schedules_parameters() {
-        return new external_function_parameters([
-            'periodid' => new external_value(PARAM_INT, 'Academic Period ID')
+        return new \external_function_parameters([
+            'periodid' => new \external_value(PARAM_INT, 'Academic Period ID')
         ]);
     }
 
@@ -2081,6 +2081,6 @@ class scheduler extends external_api {
     }
 
     public static function get_generated_schedules_returns() {
-        return new external_value(PARAM_RAW, 'JSON representation of schedules array');
+        return new \external_value(PARAM_RAW, 'JSON representation of schedules array');
     }
 }

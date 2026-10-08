@@ -22,8 +22,8 @@ class download extends external_api {
      * @return external_function_parameters
      */
     public static function execute_parameters(): external_function_parameters {
-        return new external_function_parameters([
-            'requestid' => new external_value(PARAM_INT, 'Request id'),
+        return new \external_function_parameters([
+            'requestid' => new \external_value(PARAM_INT, 'Request id'),
         ]);
     }
 
@@ -43,10 +43,10 @@ class download extends external_api {
      * @return external_single_structure
      */
     public static function execute_returns(): external_single_structure {
-        return new external_single_structure([
-            'filename' => new external_value(PARAM_FILE, 'Filename'),
-            'mimetype' => new external_value(PARAM_TEXT, 'Mimetype'),
-            'contentbase64' => new external_value(PARAM_RAW, 'Base64 content'),
+        return new \external_single_structure([
+            'filename' => new \external_value(PARAM_FILE, 'Filename'),
+            'mimetype' => new \external_value(PARAM_TEXT, 'Mimetype'),
+            'contentbase64' => new \external_value(PARAM_RAW, 'Base64 content'),
         ]);
     }
 }

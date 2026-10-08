@@ -52,8 +52,8 @@ require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/wellness_even
 class admin_delete_wellness_event extends external_api {
 
     public static function execute_parameters() {
-        return new external_function_parameters([
-            'id' => new external_value(PARAM_INT, 'Event id', VALUE_REQUIRED),
+        return new \external_function_parameters([
+            'id' => new \external_value(PARAM_INT, 'Event id', VALUE_REQUIRED),
         ]);
     }
 
@@ -109,8 +109,8 @@ class admin_delete_wellness_event extends external_api {
     }
 
     public static function execute_returns() {
-        return new external_single_structure([
-            'ok' => new external_value(PARAM_BOOL, 'True on success'),
+        return new \external_single_structure([
+            'ok' => new \external_value(PARAM_BOOL, 'True on success'),
         ]);
     }
 }

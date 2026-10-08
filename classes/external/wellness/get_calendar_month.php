@@ -39,9 +39,9 @@ require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/wellness_even
 class get_calendar_month extends external_api {
 
     public static function execute_parameters() {
-        return new external_function_parameters([
-            'year'  => new external_value(PARAM_INT, '4-digit year', VALUE_REQUIRED),
-            'month' => new external_value(PARAM_INT, '1-12 month', VALUE_REQUIRED),
+        return new \external_function_parameters([
+            'year'  => new \external_value(PARAM_INT, '4-digit year', VALUE_REQUIRED),
+            'month' => new \external_value(PARAM_INT, '1-12 month', VALUE_REQUIRED),
         ]);
     }
 
@@ -71,35 +71,35 @@ class get_calendar_month extends external_api {
     }
 
     public static function execute_returns() {
-        $event = new external_single_structure([
-            'id'                     => new external_value(PARAM_INT,  'Event id'),
-            'title'                  => new external_value(PARAM_TEXT, 'Title'),
-            'summary'                => new external_value(PARAM_TEXT, 'Teaser'),
-            'description'            => new external_value(PARAM_RAW,  'Body'),
-            'category'               => new external_value(PARAM_ALPHA,'deportivo|feria|taller|charla|otro'),
-            'startdate'              => new external_value(PARAM_INT,  'Unix ts'),
-            'enddate'                => new external_value(PARAM_INT,  'Unix ts'),
-            'modality'               => new external_value(PARAM_ALPHA,'presencial|virtual|mixto'),
-            'location'               => new external_value(PARAM_TEXT, 'Location'),
-            'virtual_url'            => new external_value(PARAM_TEXT, 'Virtual room URL'),
-            'capacity'               => new external_value(PARAM_INT,  '0 = unlimited'),
-            'requires_registration'  => new external_value(PARAM_INT,  '0/1'),
-            'allow_waitlist'         => new external_value(PARAM_INT,  '0/1'),
-            'registration_opens_at'  => new external_value(PARAM_INT,  'Unix ts'),
-            'registration_closes_at' => new external_value(PARAM_INT,  'Unix ts'),
-            'organizer_name'         => new external_value(PARAM_TEXT, 'Organizer'),
-            'organizer_email'        => new external_value(PARAM_TEXT, 'Organizer email'),
-            'cover_path'             => new external_value(PARAM_TEXT, 'Cover image'),
-            'registration_open'      => new external_value(PARAM_BOOL, 'Computed'),
-            'event_started'          => new external_value(PARAM_BOOL, 'Computed'),
-            'event_ended'            => new external_value(PARAM_BOOL, 'Computed'),
+        $event = new \external_single_structure([
+            'id'                     => new \external_value(PARAM_INT,  'Event id'),
+            'title'                  => new \external_value(PARAM_TEXT, 'Title'),
+            'summary'                => new \external_value(PARAM_TEXT, 'Teaser'),
+            'description'            => new \external_value(PARAM_RAW,  'Body'),
+            'category'               => new \external_value(PARAM_ALPHA,'deportivo|feria|taller|charla|otro'),
+            'startdate'              => new \external_value(PARAM_INT,  'Unix ts'),
+            'enddate'                => new \external_value(PARAM_INT,  'Unix ts'),
+            'modality'               => new \external_value(PARAM_ALPHA,'presencial|virtual|mixto'),
+            'location'               => new \external_value(PARAM_TEXT, 'Location'),
+            'virtual_url'            => new \external_value(PARAM_TEXT, 'Virtual room URL'),
+            'capacity'               => new \external_value(PARAM_INT,  '0 = unlimited'),
+            'requires_registration'  => new \external_value(PARAM_INT,  '0/1'),
+            'allow_waitlist'         => new \external_value(PARAM_INT,  '0/1'),
+            'registration_opens_at'  => new \external_value(PARAM_INT,  'Unix ts'),
+            'registration_closes_at' => new \external_value(PARAM_INT,  'Unix ts'),
+            'organizer_name'         => new \external_value(PARAM_TEXT, 'Organizer'),
+            'organizer_email'        => new \external_value(PARAM_TEXT, 'Organizer email'),
+            'cover_path'             => new \external_value(PARAM_TEXT, 'Cover image'),
+            'registration_open'      => new \external_value(PARAM_BOOL, 'Computed'),
+            'event_started'          => new \external_value(PARAM_BOOL, 'Computed'),
+            'event_ended'            => new \external_value(PARAM_BOOL, 'Computed'),
         ]);
-        return new external_single_structure([
-            'year'        => new external_value(PARAM_INT, 'Year echoed back'),
-            'month'       => new external_value(PARAM_INT, 'Month echoed back'),
-            'monthstart'  => new external_value(PARAM_INT, 'First-second of the month'),
-            'monthend'    => new external_value(PARAM_INT, 'Last-second of the month'),
-            'events'      => new external_multiple_structure($event, 'Events that intersect the month'),
+        return new \external_single_structure([
+            'year'        => new \external_value(PARAM_INT, 'Year echoed back'),
+            'month'       => new \external_value(PARAM_INT, 'Month echoed back'),
+            'monthstart'  => new \external_value(PARAM_INT, 'First-second of the month'),
+            'monthend'    => new \external_value(PARAM_INT, 'Last-second of the month'),
+            'events'      => new \external_multiple_structure($event, 'Events that intersect the month'),
         ]);
     }
 }

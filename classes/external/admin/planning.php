@@ -20,10 +20,10 @@ class planning extends external_api {
      * get_demand_analysis_parameters
      */
     public static function get_demand_analysis_parameters() {
-        return new external_function_parameters(
+        return new \external_function_parameters(
             array(
-                'periodid' => new external_value(PARAM_INT, 'The ID of the planified period', VALUE_DEFAULT, 0),
-                'filters' => new external_value(PARAM_RAW, 'JSON filters (career, jornada, financial_status)', VALUE_DEFAULT, '')
+                'periodid' => new \external_value(PARAM_INT, 'The ID of the planified period', VALUE_DEFAULT, 0),
+                'filters' => new \external_value(PARAM_RAW, 'JSON filters (career, jornada, financial_status)', VALUE_DEFAULT, '')
             )
         );
     }
@@ -253,11 +253,11 @@ class planning extends external_api {
     }
 
     public static function get_demand_analysis_returns() {
-        return new external_single_structure(
+        return new \external_single_structure(
             array(
-                'demand' => new external_value(PARAM_RAW, 'JSON structure of demand'),
-                'students' => new external_value(PARAM_RAW, 'JSON structure of students'),
-                'selections' => new external_multiple_structure(new external_value(PARAM_BOOL), 'Map of selected courses', VALUE_OPTIONAL)
+                'demand' => new \external_value(PARAM_RAW, 'JSON structure of demand'),
+                'students' => new \external_value(PARAM_RAW, 'JSON structure of students'),
+                'selections' => new \external_multiple_structure(new \external_value(PARAM_BOOL), 'Map of selected courses', VALUE_OPTIONAL)
             )
         );
     }
@@ -265,7 +265,7 @@ class planning extends external_api {
     // --- Period Management ---
 
     public static function get_periods_parameters() {
-        return new external_function_parameters([]);
+        return new \external_function_parameters([]);
     }
     
     public static function get_periods() {
@@ -350,62 +350,62 @@ class planning extends external_api {
     }
     
     public static function get_periods_returns() {
-        return new external_multiple_structure(
-            new external_single_structure([
-                'id' => new external_value(PARAM_INT, 'ID'),
-                'name' => new external_value(PARAM_TEXT, 'Name'),
-                'startdate' => new external_value(PARAM_INT, 'Start Date'),
-                'enddate' => new external_value(PARAM_INT, 'End Date'),
-                'status' => new external_value(PARAM_INT, 'Status'),
-                'learningplans' => new external_multiple_structure(new external_value(PARAM_INT), 'List of Learning Plan IDs', VALUE_OPTIONAL),
-                'planning_count' => new external_value(PARAM_INT, 'Number of gmk_academic_planning records for this period', VALUE_OPTIONAL),
-                'is_active_base' => new external_value(PARAM_BOOL, 'True when this period has the most recent planning activity (projections, deferrals or mappings)', VALUE_OPTIONAL),
-                'target_of_base_id' => new external_value(PARAM_INT, 'Base period that maps this period as a P-N column (0 if none)', VALUE_OPTIONAL),
-                'target_of_base_index' => new external_value(PARAM_INT, 'Relative index (0=P-I) in the base that maps this period (-1 if none)', VALUE_OPTIONAL),
-                'target_of_base_name' => new external_value(PARAM_TEXT, 'Name of the base period that maps this period', VALUE_OPTIONAL),
-                'induction' => new external_value(PARAM_INT, 'Induction', VALUE_OPTIONAL),
-                'block1start' => new external_value(PARAM_INT, 'Block 1 Start', VALUE_OPTIONAL),
-                'block1end' => new external_value(PARAM_INT, 'Block 1 End', VALUE_OPTIONAL),
-                'block2start' => new external_value(PARAM_INT, 'Block 2 Start', VALUE_OPTIONAL),
-                'block2end' => new external_value(PARAM_INT, 'Block 2 End', VALUE_OPTIONAL),
-                'finalexamfrom' => new external_value(PARAM_INT, 'Final Exam From', VALUE_OPTIONAL),
-                'finalexamuntil' => new external_value(PARAM_INT, 'Final Exam Until', VALUE_OPTIONAL),
-                'loadnotesandclosesubjects' => new external_value(PARAM_INT, 'Load Notes', VALUE_OPTIONAL),
-                'delivoflistforrevalbyteach' => new external_value(PARAM_INT, 'Delivery lists', VALUE_OPTIONAL),
-                'notiftostudforrevalidations' => new external_value(PARAM_INT, 'Notification', VALUE_OPTIONAL),
-                'deadlforpayofrevalidations' => new external_value(PARAM_INT, 'Deadline pay', VALUE_OPTIONAL),
-                'revalidationprocess' => new external_value(PARAM_INT, 'Revalidation', VALUE_OPTIONAL),
-                'registrationsfrom' => new external_value(PARAM_INT, 'Registrations From', VALUE_OPTIONAL),
-                'registrationsuntil' => new external_value(PARAM_INT, 'Registrations Until', VALUE_OPTIONAL),
-                'graduationdate' => new external_value(PARAM_INT, 'Graduation', VALUE_OPTIONAL)
+        return new \external_multiple_structure(
+            new \external_single_structure([
+                'id' => new \external_value(PARAM_INT, 'ID'),
+                'name' => new \external_value(PARAM_TEXT, 'Name'),
+                'startdate' => new \external_value(PARAM_INT, 'Start Date'),
+                'enddate' => new \external_value(PARAM_INT, 'End Date'),
+                'status' => new \external_value(PARAM_INT, 'Status'),
+                'learningplans' => new \external_multiple_structure(new \external_value(PARAM_INT), 'List of Learning Plan IDs', VALUE_OPTIONAL),
+                'planning_count' => new \external_value(PARAM_INT, 'Number of gmk_academic_planning records for this period', VALUE_OPTIONAL),
+                'is_active_base' => new \external_value(PARAM_BOOL, 'True when this period has the most recent planning activity (projections, deferrals or mappings)', VALUE_OPTIONAL),
+                'target_of_base_id' => new \external_value(PARAM_INT, 'Base period that maps this period as a P-N column (0 if none)', VALUE_OPTIONAL),
+                'target_of_base_index' => new \external_value(PARAM_INT, 'Relative index (0=P-I) in the base that maps this period (-1 if none)', VALUE_OPTIONAL),
+                'target_of_base_name' => new \external_value(PARAM_TEXT, 'Name of the base period that maps this period', VALUE_OPTIONAL),
+                'induction' => new \external_value(PARAM_INT, 'Induction', VALUE_OPTIONAL),
+                'block1start' => new \external_value(PARAM_INT, 'Block 1 Start', VALUE_OPTIONAL),
+                'block1end' => new \external_value(PARAM_INT, 'Block 1 End', VALUE_OPTIONAL),
+                'block2start' => new \external_value(PARAM_INT, 'Block 2 Start', VALUE_OPTIONAL),
+                'block2end' => new \external_value(PARAM_INT, 'Block 2 End', VALUE_OPTIONAL),
+                'finalexamfrom' => new \external_value(PARAM_INT, 'Final Exam From', VALUE_OPTIONAL),
+                'finalexamuntil' => new \external_value(PARAM_INT, 'Final Exam Until', VALUE_OPTIONAL),
+                'loadnotesandclosesubjects' => new \external_value(PARAM_INT, 'Load Notes', VALUE_OPTIONAL),
+                'delivoflistforrevalbyteach' => new \external_value(PARAM_INT, 'Delivery lists', VALUE_OPTIONAL),
+                'notiftostudforrevalidations' => new \external_value(PARAM_INT, 'Notification', VALUE_OPTIONAL),
+                'deadlforpayofrevalidations' => new \external_value(PARAM_INT, 'Deadline pay', VALUE_OPTIONAL),
+                'revalidationprocess' => new \external_value(PARAM_INT, 'Revalidation', VALUE_OPTIONAL),
+                'registrationsfrom' => new \external_value(PARAM_INT, 'Registrations From', VALUE_OPTIONAL),
+                'registrationsuntil' => new \external_value(PARAM_INT, 'Registrations Until', VALUE_OPTIONAL),
+                'graduationdate' => new \external_value(PARAM_INT, 'Graduation', VALUE_OPTIONAL)
             ])
         );
     }
     
     public static function save_period_parameters() {
-        return new external_function_parameters([
-            'id' => new external_value(PARAM_INT, 'ID (0 for new)', VALUE_DEFAULT, 0),
-            'name' => new external_value(PARAM_TEXT, 'Name'),
-            'startdate' => new external_value(PARAM_INT, 'Start Timestamp'),
-            'enddate' => new external_value(PARAM_INT, 'End Timestamp'),
-            'status' => new external_value(PARAM_INT, 'Status', VALUE_DEFAULT, 1),
-            'learningplans' => new external_multiple_structure(new external_value(PARAM_INT), 'List of Learning Plan IDs', VALUE_DEFAULT, []),
-            'details' => new external_single_structure([
-                'induction' => new external_value(PARAM_INT, '', VALUE_DEFAULT, 0),
-                'block1start' => new external_value(PARAM_INT, '', VALUE_DEFAULT, 0),
-                'block1end' => new external_value(PARAM_INT, '', VALUE_DEFAULT, 0),
-                'block2start' => new external_value(PARAM_INT, '', VALUE_DEFAULT, 0),
-                'block2end' => new external_value(PARAM_INT, '', VALUE_DEFAULT, 0),
-                'finalexamfrom' => new external_value(PARAM_INT, '', VALUE_DEFAULT, 0),
-                'finalexamuntil' => new external_value(PARAM_INT, '', VALUE_DEFAULT, 0),
-                'loadnotesandclosesubjects' => new external_value(PARAM_INT, '', VALUE_DEFAULT, 0),
-                'delivoflistforrevalbyteach' => new external_value(PARAM_INT, '', VALUE_DEFAULT, 0),
-                'notiftostudforrevalidations' => new external_value(PARAM_INT, '', VALUE_DEFAULT, 0),
-                'deadlforpayofrevalidations' => new external_value(PARAM_INT, '', VALUE_DEFAULT, 0),
-                'revalidationprocess' => new external_value(PARAM_INT, '', VALUE_DEFAULT, 0),
-                'registrationsfrom' => new external_value(PARAM_INT, '', VALUE_DEFAULT, 0),
-                'registrationsuntil' => new external_value(PARAM_INT, '', VALUE_DEFAULT, 0),
-                'graduationdate' => new external_value(PARAM_INT, '', VALUE_DEFAULT, 0),
+        return new \external_function_parameters([
+            'id' => new \external_value(PARAM_INT, 'ID (0 for new)', VALUE_DEFAULT, 0),
+            'name' => new \external_value(PARAM_TEXT, 'Name'),
+            'startdate' => new \external_value(PARAM_INT, 'Start Timestamp'),
+            'enddate' => new \external_value(PARAM_INT, 'End Timestamp'),
+            'status' => new \external_value(PARAM_INT, 'Status', VALUE_DEFAULT, 1),
+            'learningplans' => new \external_multiple_structure(new \external_value(PARAM_INT), 'List of Learning Plan IDs', VALUE_DEFAULT, []),
+            'details' => new \external_single_structure([
+                'induction' => new \external_value(PARAM_INT, '', VALUE_DEFAULT, 0),
+                'block1start' => new \external_value(PARAM_INT, '', VALUE_DEFAULT, 0),
+                'block1end' => new \external_value(PARAM_INT, '', VALUE_DEFAULT, 0),
+                'block2start' => new \external_value(PARAM_INT, '', VALUE_DEFAULT, 0),
+                'block2end' => new \external_value(PARAM_INT, '', VALUE_DEFAULT, 0),
+                'finalexamfrom' => new \external_value(PARAM_INT, '', VALUE_DEFAULT, 0),
+                'finalexamuntil' => new \external_value(PARAM_INT, '', VALUE_DEFAULT, 0),
+                'loadnotesandclosesubjects' => new \external_value(PARAM_INT, '', VALUE_DEFAULT, 0),
+                'delivoflistforrevalbyteach' => new \external_value(PARAM_INT, '', VALUE_DEFAULT, 0),
+                'notiftostudforrevalidations' => new \external_value(PARAM_INT, '', VALUE_DEFAULT, 0),
+                'deadlforpayofrevalidations' => new \external_value(PARAM_INT, '', VALUE_DEFAULT, 0),
+                'revalidationprocess' => new \external_value(PARAM_INT, '', VALUE_DEFAULT, 0),
+                'registrationsfrom' => new \external_value(PARAM_INT, '', VALUE_DEFAULT, 0),
+                'registrationsuntil' => new \external_value(PARAM_INT, '', VALUE_DEFAULT, 0),
+                'graduationdate' => new \external_value(PARAM_INT, '', VALUE_DEFAULT, 0),
             ], 'Detailed calendar hitos', VALUE_DEFAULT, [])
         ]);
     }
@@ -492,17 +492,17 @@ class planning extends external_api {
     }
     
     public static function save_period_returns() {
-        return new external_value(PARAM_INT, 'Period ID');
+        return new \external_value(PARAM_INT, 'Period ID');
     }
     
     // --- Planning Selection Save ---
     
     public static function save_planning_parameters() {
-        return new external_function_parameters([
-            'academicperiodid' => new external_value(PARAM_INT, ''),
-            'selections' => new external_value(PARAM_RAW, 'JSON array of objects {planid, courseid, periodid, count}'),
-            'deferredGroups' => new external_value(PARAM_RAW, 'JSON object for student movements', VALUE_DEFAULT, '{}'),
-            'clearStudentDeferrals' => new external_value(PARAM_RAW, 'JSON array of {courseid, cohortKey} whose individual student deferrals must be removed (cohort move overrides)', VALUE_DEFAULT, '[]')
+        return new \external_function_parameters([
+            'academicperiodid' => new \external_value(PARAM_INT, ''),
+            'selections' => new \external_value(PARAM_RAW, 'JSON array of objects {planid, courseid, periodid, count}'),
+            'deferredGroups' => new \external_value(PARAM_RAW, 'JSON object for student movements', VALUE_DEFAULT, '{}'),
+            'clearStudentDeferrals' => new \external_value(PARAM_RAW, 'JSON array of {courseid, cohortKey} whose individual student deferrals must be removed (cohort move overrides)', VALUE_DEFAULT, '[]')
         ]);
     }
 
@@ -651,7 +651,7 @@ class planning extends external_api {
     }
     
     public static function save_planning_returns() {
-         return new external_value(PARAM_BOOL, 'Success');
+         return new \external_value(PARAM_BOOL, 'Success');
     }
 
     /**
@@ -788,12 +788,12 @@ class planning extends external_api {
     // --- Manual Student Management ---
 
     public static function manually_update_student_period_parameters() {
-        return new external_function_parameters([
-            'userid' => new external_value(PARAM_INT, 'User ID'),
-            'learningplanid' => new external_value(PARAM_INT, 'Learning Plan ID'),
-            'currentperiodid' => new external_value(PARAM_INT, 'Curricular Period ID (Level)', VALUE_DEFAULT, null),
-            'academicperiodid' => new external_value(PARAM_INT, 'Academic Period ID (Calendar)', VALUE_DEFAULT, null),
-            'status' => new external_value(PARAM_ALPHA, 'Status (activo, aplazado, retirado)', VALUE_DEFAULT, 'activo')
+        return new \external_function_parameters([
+            'userid' => new \external_value(PARAM_INT, 'User ID'),
+            'learningplanid' => new \external_value(PARAM_INT, 'Learning Plan ID'),
+            'currentperiodid' => new \external_value(PARAM_INT, 'Curricular Period ID (Level)', VALUE_DEFAULT, null),
+            'academicperiodid' => new \external_value(PARAM_INT, 'Academic Period ID (Calendar)', VALUE_DEFAULT, null),
+            'status' => new \external_value(PARAM_ALPHA, 'Status (activo, aplazado, retirado)', VALUE_DEFAULT, 'activo')
         ]);
     }
 
@@ -833,12 +833,12 @@ class planning extends external_api {
     }
 
     public static function manually_update_student_period_returns() {
-        return new external_value(PARAM_BOOL, 'Success');
+        return new \external_value(PARAM_BOOL, 'Success');
     }
 
     public static function delete_period_parameters() {
-        return new external_function_parameters([
-            'id' => new external_value(PARAM_INT, 'Period ID')
+        return new \external_function_parameters([
+            'id' => new \external_value(PARAM_INT, 'Period ID')
         ]);
     }
 
@@ -856,7 +856,7 @@ class planning extends external_api {
     }
 
     public static function delete_period_returns() {
-        return new external_value(PARAM_BOOL, 'Success');
+        return new \external_value(PARAM_BOOL, 'Success');
     }
 
 }

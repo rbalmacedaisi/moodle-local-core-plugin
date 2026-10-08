@@ -13,8 +13,8 @@ use external_single_structure;
 class get_scanned extends external_api {
 
     public static function execute_parameters(): external_function_parameters {
-        return new external_function_parameters([
-            'id' => new external_value(PARAM_INT, 'Request id'),
+        return new \external_function_parameters([
+            'id' => new \external_value(PARAM_INT, 'Request id'),
         ]);
     }
 
@@ -48,13 +48,13 @@ class get_scanned extends external_api {
     }
 
     public static function execute_returns(): external_single_structure {
-        return new external_single_structure([
-            'id'             => new external_value(PARAM_INT, ''),
-            'request_number' => new external_value(PARAM_TEXT, ''),
-            'available'      => new external_value(PARAM_BOOL, ''),
-            'mimetype'       => new external_value(PARAM_TEXT, ''),
-            'filename'       => new external_value(PARAM_TEXT, ''),
-            'contentbase64'  => new external_value(PARAM_RAW, ''),
+        return new \external_single_structure([
+            'id'             => new \external_value(PARAM_INT, ''),
+            'request_number' => new \external_value(PARAM_TEXT, ''),
+            'available'      => new \external_value(PARAM_BOOL, ''),
+            'mimetype'       => new \external_value(PARAM_TEXT, ''),
+            'filename'       => new \external_value(PARAM_TEXT, ''),
+            'contentbase64'  => new \external_value(PARAM_RAW, ''),
         ]);
     }
 }

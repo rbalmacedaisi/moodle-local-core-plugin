@@ -57,11 +57,11 @@ class create_contract_user extends external_api {
      * @return external_function_parameters
      */
      public static function execute_parameters(): external_function_parameters {
-        return new external_function_parameters(
+        return new \external_function_parameters(
             [
-                'userId' => new external_value(PARAM_TEXT, 'The id of the user'),
-                'contractId' => new external_value(PARAM_TEXT, 'The id of the contract'),
-                'courseIds' => new external_value(PARAM_TEXT, 'The courses in the contract')
+                'userId' => new \external_value(PARAM_TEXT, 'The id of the user'),
+                'contractId' => new \external_value(PARAM_TEXT, 'The id of the contract'),
+                'courseIds' => new \external_value(PARAM_TEXT, 'The courses in the contract')
             ]
         );
     }
@@ -93,10 +93,10 @@ class create_contract_user extends external_api {
      * @return external_description
      */
     public static function execute_returns(): external_description {
-        return new external_single_structure(
+        return new \external_single_structure(
             array(
-                'result' => new external_value(PARAM_RAW, 'Results of the enrolments.'),
-                'message' => new external_value(PARAM_TEXT, 'The error message or Ok.'),
+                'result' => new \external_value(PARAM_RAW, 'Results of the enrolments.'),
+                'message' => new \external_value(PARAM_TEXT, 'The error message or Ok.'),
             )
         );
     }

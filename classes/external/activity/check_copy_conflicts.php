@@ -45,9 +45,9 @@ require_once $CFG->dirroot . '/local/grupomakro_core/locallib.php';
 class check_copy_conflicts extends external_api {
 
     public static function execute_parameters(): external_function_parameters {
-        return new external_function_parameters([
-            'classId' => new external_value(PARAM_TEXT, 'Id of the class.', VALUE_REQUIRED),
-            'dates'   => new external_value(PARAM_RAW,  'JSON array of {date, initTime, endTime}.', VALUE_REQUIRED),
+        return new \external_function_parameters([
+            'classId' => new \external_value(PARAM_TEXT, 'Id of the class.', VALUE_REQUIRED),
+            'dates'   => new \external_value(PARAM_RAW,  'JSON array of {date, initTime, endTime}.', VALUE_REQUIRED),
         ]);
     }
 
@@ -104,11 +104,11 @@ class check_copy_conflicts extends external_api {
     }
 
     public static function execute_returns(): external_description {
-        return new external_single_structure([
-            'status'         => new external_value(PARAM_INT,  '1 on success, -1 on error.', VALUE_DEFAULT, 1),
-            'message'        => new external_value(PARAM_TEXT, 'Error message or Ok.',     VALUE_DEFAULT, 'ok'),
-            'hasConflicts'   => new external_value(PARAM_INT,  '1 if any date has conflicts, 0 otherwise.', VALUE_DEFAULT, 0),
-            'conflictsByDate'=> new external_value(PARAM_TEXT, 'JSON object {date: [conflicts]}.', VALUE_DEFAULT, '{}'),
+        return new \external_single_structure([
+            'status'         => new \external_value(PARAM_INT,  '1 on success, -1 on error.', VALUE_DEFAULT, 1),
+            'message'        => new \external_value(PARAM_TEXT, 'Error message or Ok.',     VALUE_DEFAULT, 'ok'),
+            'hasConflicts'   => new \external_value(PARAM_INT,  '1 if any date has conflicts, 0 otherwise.', VALUE_DEFAULT, 0),
+            'conflictsByDate'=> new \external_value(PARAM_TEXT, 'JSON object {date: [conflicts]}.', VALUE_DEFAULT, '{}'),
         ]);
     }
 }

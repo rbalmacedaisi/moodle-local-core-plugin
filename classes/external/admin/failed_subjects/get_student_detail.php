@@ -42,8 +42,8 @@ use context_system;
 class get_student_detail extends external_api {
 
     public static function execute_parameters(): external_function_parameters {
-        return new external_function_parameters([
-            'userid' => new external_value(PARAM_INT, 'Moodle user id'),
+        return new \external_function_parameters([
+            'userid' => new \external_value(PARAM_INT, 'Moodle user id'),
         ]);
     }
 
@@ -146,38 +146,38 @@ class get_student_detail extends external_api {
     }
 
     public static function execute_returns(): external_single_structure {
-        return new external_single_structure([
-            'userid'           => new external_value(PARAM_INT, 'Moodle userid'),
-            'firstname'        => new external_value(PARAM_RAW, 'First name'),
-            'lastname'         => new external_value(PARAM_RAW, 'Last name'),
-            'fullname'         => new external_value(PARAM_RAW, 'Full name'),
-            'idnumber'         => new external_value(PARAM_RAW, 'Moodle idnumber'),
-            'email'            => new external_value(PARAM_RAW, 'Email'),
-            'phone1'           => new external_value(PARAM_RAW, 'Phone 1 (Moodle)'),
-            'phone2'           => new external_value(PARAM_RAW, 'Phone 2 (Moodle)'),
-            'cedula'           => new external_value(PARAM_RAW, 'Cedula'),
-            'jornada'          => new external_value(PARAM_RAW, 'Jornada (raw)'),
-            'contact_phone'    => new external_value(PARAM_RAW, 'Phone from Odoo'),
-            'contact_mobile'   => new external_value(PARAM_RAW, 'Mobile from Odoo'),
-            'contact_email'    => new external_value(PARAM_RAW, 'Email from Odoo'),
-            'financial_status' => new external_value(PARAM_RAW, 'Financial status code'),
-            'financial_label'  => new external_value(PARAM_RAW, 'Financial status label'),
-            'profile_url'      => new external_value(PARAM_URL, 'Link to Moodle profile'),
-            'plans'            => new external_multiple_structure(new external_single_structure([
-                'id'                => new external_value(PARAM_INT, 'Plan id'),
-                'name'              => new external_value(PARAM_RAW, 'Plan name'),
-                'currentperiodid'   => new external_value(PARAM_INT, 'Current period id'),
-                'currentperiodname' => new external_value(PARAM_RAW, 'Current period name'),
-                'status'            => new external_value(PARAM_RAW, 'activo|aplazado|retirado'),
+        return new \external_single_structure([
+            'userid'           => new \external_value(PARAM_INT, 'Moodle userid'),
+            'firstname'        => new \external_value(PARAM_RAW, 'First name'),
+            'lastname'         => new \external_value(PARAM_RAW, 'Last name'),
+            'fullname'         => new \external_value(PARAM_RAW, 'Full name'),
+            'idnumber'         => new \external_value(PARAM_RAW, 'Moodle idnumber'),
+            'email'            => new \external_value(PARAM_RAW, 'Email'),
+            'phone1'           => new \external_value(PARAM_RAW, 'Phone 1 (Moodle)'),
+            'phone2'           => new \external_value(PARAM_RAW, 'Phone 2 (Moodle)'),
+            'cedula'           => new \external_value(PARAM_RAW, 'Cedula'),
+            'jornada'          => new \external_value(PARAM_RAW, 'Jornada (raw)'),
+            'contact_phone'    => new \external_value(PARAM_RAW, 'Phone from Odoo'),
+            'contact_mobile'   => new \external_value(PARAM_RAW, 'Mobile from Odoo'),
+            'contact_email'    => new \external_value(PARAM_RAW, 'Email from Odoo'),
+            'financial_status' => new \external_value(PARAM_RAW, 'Financial status code'),
+            'financial_label'  => new \external_value(PARAM_RAW, 'Financial status label'),
+            'profile_url'      => new \external_value(PARAM_URL, 'Link to Moodle profile'),
+            'plans'            => new \external_multiple_structure(new \external_single_structure([
+                'id'                => new \external_value(PARAM_INT, 'Plan id'),
+                'name'              => new \external_value(PARAM_RAW, 'Plan name'),
+                'currentperiodid'   => new \external_value(PARAM_INT, 'Current period id'),
+                'currentperiodname' => new \external_value(PARAM_RAW, 'Current period name'),
+                'status'            => new \external_value(PARAM_RAW, 'activo|aplazado|retirado'),
             ])),
-            'history' => new external_multiple_structure(new external_single_structure([
-                'progress_id'  => new external_value(PARAM_INT, 'Progress id'),
-                'courseid'     => new external_value(PARAM_INT, 'Course id'),
-                'coursename'   => new external_value(PARAM_RAW, 'Course name'),
-                'planname'     => new external_value(PARAM_RAW, 'Plan name'),
-                'status'       => new external_value(PARAM_INT, 'Status (5 or 7)'),
-                'grade'        => new external_value(PARAM_FLOAT, 'Grade'),
-                'timemodified' => new external_value(PARAM_INT, 'Modified timestamp'),
+            'history' => new \external_multiple_structure(new \external_single_structure([
+                'progress_id'  => new \external_value(PARAM_INT, 'Progress id'),
+                'courseid'     => new \external_value(PARAM_INT, 'Course id'),
+                'coursename'   => new \external_value(PARAM_RAW, 'Course name'),
+                'planname'     => new \external_value(PARAM_RAW, 'Plan name'),
+                'status'       => new \external_value(PARAM_INT, 'Status (5 or 7)'),
+                'grade'        => new \external_value(PARAM_FLOAT, 'Grade'),
+                'timemodified' => new \external_value(PARAM_INT, 'Modified timestamp'),
             ])),
         ]);
     }

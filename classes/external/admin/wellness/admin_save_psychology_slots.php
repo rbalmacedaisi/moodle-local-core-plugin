@@ -37,11 +37,11 @@ require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/wellness_psyc
 class admin_save_psychology_slots extends external_api {
 
     public static function execute_parameters() {
-        return new external_function_parameters([
-            'action' => new external_value(PARAM_ALPHA,'list|upsert|toggle|delete', VALUE_DEFAULT, 'list'),
-            'slot'   => new external_value(PARAM_RAW, 'JSON-encoded object for upsert (ignored by list/toggle)', VALUE_DEFAULT, '{}'),
-            'slotid' => new external_value(PARAM_INT, 'Slot id (for toggle)', VALUE_DEFAULT, 0),
-            'active' => new external_value(PARAM_BOOL,'New active flag (for toggle)', VALUE_DEFAULT, true),
+        return new \external_function_parameters([
+            'action' => new \external_value(PARAM_ALPHA,'list|upsert|toggle|delete', VALUE_DEFAULT, 'list'),
+            'slot'   => new \external_value(PARAM_RAW, 'JSON-encoded object for upsert (ignored by list/toggle)', VALUE_DEFAULT, '{}'),
+            'slotid' => new \external_value(PARAM_INT, 'Slot id (for toggle)', VALUE_DEFAULT, 0),
+            'active' => new \external_value(PARAM_BOOL,'New active flag (for toggle)', VALUE_DEFAULT, true),
         ]);
     }
 
@@ -191,30 +191,30 @@ class admin_save_psychology_slots extends external_api {
     }
 
     public static function execute_returns() {
-        $row = new external_single_structure([
-            'id'                  => new external_value(PARAM_INT,  'Slot id'),
-            'psychologist_userid' => new external_value(PARAM_INT,  'Specialist userid'),
-            'psychologist_name'   => new external_value(PARAM_TEXT,'Specialist display name'),
-            'weekday'             => new external_value(PARAM_INT,  '0-6 weekday'),
-            'starttime'           => new external_value(PARAM_TEXT,'HH:MM'),
-            'endtime'             => new external_value(PARAM_TEXT,'HH:MM'),
-            'modality'            => new external_value(PARAM_TEXT,'presencial|virtual|mixto'),
-            'duration_minutes'    => new external_value(PARAM_INT,  'Duration'),
-            'location'            => new external_value(PARAM_TEXT,'Office or virtual room'),
-            'valid_from'          => new external_value(PARAM_INT,  'Unix ts'),
-            'valid_until'         => new external_value(PARAM_INT,  'Unix ts'),
-            'active'              => new external_value(PARAM_INT,  '0/1'),
+        $row = new \external_single_structure([
+            'id'                  => new \external_value(PARAM_INT,  'Slot id'),
+            'psychologist_userid' => new \external_value(PARAM_INT,  'Specialist userid'),
+            'psychologist_name'   => new \external_value(PARAM_TEXT,'Specialist display name'),
+            'weekday'             => new \external_value(PARAM_INT,  '0-6 weekday'),
+            'starttime'           => new \external_value(PARAM_TEXT,'HH:MM'),
+            'endtime'             => new \external_value(PARAM_TEXT,'HH:MM'),
+            'modality'            => new \external_value(PARAM_TEXT,'presencial|virtual|mixto'),
+            'duration_minutes'    => new \external_value(PARAM_INT,  'Duration'),
+            'location'            => new \external_value(PARAM_TEXT,'Office or virtual room'),
+            'valid_from'          => new \external_value(PARAM_INT,  'Unix ts'),
+            'valid_until'         => new \external_value(PARAM_INT,  'Unix ts'),
+            'active'              => new \external_value(PARAM_INT,  '0/1'),
         ]);
-        return new external_single_structure([
-            'ok'    => new external_value(PARAM_BOOL, 'True on success'),
-            'id'    => new external_value(PARAM_INT,  'Touched slot id (0 for list)'),
-            'error' => new external_value(PARAM_TEXT, 'Error code on failure'),
-            'slots' => new external_multiple_structure($row, 'Updated slots catalogue'),
-            'psychologists' => new external_multiple_structure(new external_single_structure([
-                'id'       => new external_value(PARAM_INT,  'userid'),
-                'fullname' => new external_value(PARAM_TEXT, 'Nombre completo'),
-                'email'    => new external_value(PARAM_TEXT, 'Email'),
-                'source'   => new external_value(PARAM_TEXT, 'rol asignado | capacidad'),
+        return new \external_single_structure([
+            'ok'    => new \external_value(PARAM_BOOL, 'True on success'),
+            'id'    => new \external_value(PARAM_INT,  'Touched slot id (0 for list)'),
+            'error' => new \external_value(PARAM_TEXT, 'Error code on failure'),
+            'slots' => new \external_multiple_structure($row, 'Updated slots catalogue'),
+            'psychologists' => new \external_multiple_structure(new \external_single_structure([
+                'id'       => new \external_value(PARAM_INT,  'userid'),
+                'fullname' => new \external_value(PARAM_TEXT, 'Nombre completo'),
+                'email'    => new \external_value(PARAM_TEXT, 'Email'),
+                'source'   => new \external_value(PARAM_TEXT, 'rol asignado | capacidad'),
             ]), 'Candidatos para el desplegable de especialista'),
         ]);
     }

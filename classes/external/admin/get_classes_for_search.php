@@ -42,26 +42,26 @@ use context_system;
 class get_classes_for_search extends external_api {
 
     public static function execute_parameters(): external_function_parameters {
-        return new external_function_parameters([
-            'query'  => new external_value(PARAM_TEXT, 'Search query', VALUE_DEFAULT, ''),
-            'limit'  => new external_value(PARAM_INT, 'Max results (cap 50)', VALUE_DEFAULT, 20),
-            'only_with_eligible' => new external_value(PARAM_BOOL, 'Only classes with at least 1 eligible student', VALUE_DEFAULT, false),
+        return new \external_function_parameters([
+            'query'  => new \external_value(PARAM_TEXT, 'Search query', VALUE_DEFAULT, ''),
+            'limit'  => new \external_value(PARAM_INT, 'Max results (cap 50)', VALUE_DEFAULT, 20),
+            'only_with_eligible' => new \external_value(PARAM_BOOL, 'Only classes with at least 1 eligible student', VALUE_DEFAULT, false),
         ]);
     }
 
     public static function execute_returns(): external_single_structure {
-        return new external_single_structure([
-            'classes' => new external_multiple_structure(new external_single_structure([
-                'id'             => new external_value(PARAM_INT, 'Class id'),
-                'name'           => new external_value(PARAM_RAW, 'Class name'),
-                'corecourseid'   => new external_value(PARAM_INT, 'Course id'),
-                'coursename'     => new external_value(PARAM_RAW, 'Course fullname'),
-                'instructorid'   => new external_value(PARAM_INT, 'Instructor userid'),
-                'instructor_name'=> new external_value(PARAM_RAW, 'Instructor name'),
-                'periodid'       => new external_value(PARAM_INT, 'Academic period id'),
-                'periodname'     => new external_value(PARAM_RAW, 'Period name'),
-                'student_count'  => new external_value(PARAM_INT, 'Enrolled student count'),
-                'eligible_count' => new external_value(PARAM_INT, 'Eligible-for-revalidation student count'),
+        return new \external_single_structure([
+            'classes' => new \external_multiple_structure(new \external_single_structure([
+                'id'             => new \external_value(PARAM_INT, 'Class id'),
+                'name'           => new \external_value(PARAM_RAW, 'Class name'),
+                'corecourseid'   => new \external_value(PARAM_INT, 'Course id'),
+                'coursename'     => new \external_value(PARAM_RAW, 'Course fullname'),
+                'instructorid'   => new \external_value(PARAM_INT, 'Instructor userid'),
+                'instructor_name'=> new \external_value(PARAM_RAW, 'Instructor name'),
+                'periodid'       => new \external_value(PARAM_INT, 'Academic period id'),
+                'periodname'     => new \external_value(PARAM_RAW, 'Period name'),
+                'student_count'  => new \external_value(PARAM_INT, 'Enrolled student count'),
+                'eligible_count' => new \external_value(PARAM_INT, 'Eligible-for-revalidation student count'),
             ])),
         ]);
     }

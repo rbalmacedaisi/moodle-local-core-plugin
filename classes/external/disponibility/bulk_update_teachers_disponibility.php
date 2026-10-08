@@ -55,11 +55,11 @@ class bulk_update_teachers_disponibility extends external_api {
      * @return external_function_parameters
      */
      public static function execute_parameters(): external_function_parameters {
-        return new external_function_parameters(
+        return new \external_function_parameters(
             [
-                'contextId' => new external_value(PARAM_INT, 'CSV File context Id',VALUE_REQUIRED),    
-                'itemId' => new external_value(PARAM_INT, 'CSV File item Id',VALUE_REQUIRED),    
-                'filename' => new external_value(PARAM_TEXT, 'CSV File name',VALUE_REQUIRED),    
+                'contextId' => new \external_value(PARAM_INT, 'CSV File context Id',VALUE_REQUIRED),    
+                'itemId' => new \external_value(PARAM_INT, 'CSV File item Id',VALUE_REQUIRED),    
+                'filename' => new \external_value(PARAM_TEXT, 'CSV File name',VALUE_REQUIRED),    
             ]
         );
     }
@@ -107,11 +107,11 @@ class bulk_update_teachers_disponibility extends external_api {
      * @return external_description
      */
     public static function execute_returns(): external_description {
-        return new external_single_structure(
+        return new \external_single_structure(
             array(
-                'status' => new external_value(PARAM_INT, '1 if success, -1 otherwise',VALUE_DEFAULT,1),
-                'result' => new external_value(PARAM_RAW, 'Bulk update results',VALUE_DEFAULT,null),
-                'message' => new external_value(PARAM_TEXT, 'The error message or Ok.',VALUE_DEFAULT,'ok'),
+                'status' => new \external_value(PARAM_INT, '1 if success, -1 otherwise',VALUE_DEFAULT,1),
+                'result' => new \external_value(PARAM_RAW, 'Bulk update results',VALUE_DEFAULT,null),
+                'message' => new \external_value(PARAM_TEXT, 'The error message or Ok.',VALUE_DEFAULT,'ok'),
             )
         );
     }

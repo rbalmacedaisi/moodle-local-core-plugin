@@ -46,7 +46,7 @@ class get_gmk_roles extends external_api {
     const STAFF_ROLES = ['manager', 'administrative'];
 
     public static function execute_parameters(): external_function_parameters {
-        return new external_function_parameters([]);
+        return new \external_function_parameters([]);
     }
 
     public static function execute(): array {
@@ -99,10 +99,10 @@ class get_gmk_roles extends external_api {
     }
 
     public static function execute_returns(): external_single_structure {
-        return new external_single_structure([
-            'is_siteadmin' => new external_value(PARAM_BOOL, 'True if the caller is a Moodle site administrator'),
-            'gmk_roles' => new external_multiple_structure(
-                new external_value(PARAM_TEXT, 'Shortname of a staff role assigned to the caller at system context'),
+        return new \external_single_structure([
+            'is_siteadmin' => new \external_value(PARAM_BOOL, 'True if the caller is a Moodle site administrator'),
+            'gmk_roles' => new \external_multiple_structure(
+                new \external_value(PARAM_TEXT, 'Shortname of a staff role assigned to the caller at system context'),
                 'Staff role shortnames (gmk_director_academico, gmk_secretaria_academica, administrative, manager, ...)',
                 VALUE_DEFAULT,
                 []

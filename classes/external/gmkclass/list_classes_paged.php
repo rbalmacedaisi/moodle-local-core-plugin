@@ -56,16 +56,16 @@ class list_classes_paged extends external_api {
      * Describes parameters of execute().
      */
     public static function execute_parameters(): external_function_parameters {
-        return new external_function_parameters([
-            'search'         => new external_value(PARAM_TEXT, 'Free-text search on name, shift, instructor, learning plan, course.', VALUE_DEFAULT, ''),
-            'periodid'       => new external_value(PARAM_INT,  'Academic period id (gmk_academic_periods.id).', VALUE_DEFAULT, 0),
-            'learningplanid' => new external_value(PARAM_INT,  'Learning plan id.', VALUE_DEFAULT, 0),
-            'corecourseid'   => new external_value(PARAM_INT,  'Core course id (the "asignatura" filter).', VALUE_DEFAULT, 0),
-            'status'         => new external_value(PARAM_ALPHA, 'active|closed|all.', VALUE_DEFAULT, 'active'),
-            'sort'           => new external_value(PARAM_ALPHA, 'name|timecreated|timemodified|startdate|enddate|periodid|instructor.', VALUE_DEFAULT, 'timecreated'),
-            'dir'            => new external_value(PARAM_ALPHA, 'ASC|DESC.', VALUE_DEFAULT, 'DESC'),
-            'page'           => new external_value(PARAM_INT,  'Page (0-based).', VALUE_DEFAULT, 0),
-            'perpage'        => new external_value(PARAM_INT,  'Items per page (1..200).', VALUE_DEFAULT, 25),
+        return new \external_function_parameters([
+            'search'         => new \external_value(PARAM_TEXT, 'Free-text search on name, shift, instructor, learning plan, course.', VALUE_DEFAULT, ''),
+            'periodid'       => new \external_value(PARAM_INT,  'Academic period id (gmk_academic_periods.id).', VALUE_DEFAULT, 0),
+            'learningplanid' => new \external_value(PARAM_INT,  'Learning plan id.', VALUE_DEFAULT, 0),
+            'corecourseid'   => new \external_value(PARAM_INT,  'Core course id (the "asignatura" filter).', VALUE_DEFAULT, 0),
+            'status'         => new \external_value(PARAM_ALPHA, 'active|closed|all.', VALUE_DEFAULT, 'active'),
+            'sort'           => new \external_value(PARAM_ALPHA, 'name|timecreated|timemodified|startdate|enddate|periodid|instructor.', VALUE_DEFAULT, 'timecreated'),
+            'dir'            => new \external_value(PARAM_ALPHA, 'ASC|DESC.', VALUE_DEFAULT, 'DESC'),
+            'page'           => new \external_value(PARAM_INT,  'Page (0-based).', VALUE_DEFAULT, 0),
+            'perpage'        => new \external_value(PARAM_INT,  'Items per page (1..200).', VALUE_DEFAULT, 25),
         ]);
     }
 
@@ -73,64 +73,64 @@ class list_classes_paged extends external_api {
      * Describes the return value of execute().
      */
     public static function execute_returns(): external_description {
-        return new external_single_structure([
-            'items'      => new external_multiple_structure(
-                new external_single_structure([
-                    'id'                   => new external_value(PARAM_INT, 'Class id'),
-                    'name'                 => new external_value(PARAM_RAW, 'Class name'),
-                    'type'                 => new external_value(PARAM_INT, 'Class type'),
-                    'typelabel'            => new external_value(PARAM_RAW, 'Class type label'),
-                    'icon'                 => new external_value(PARAM_RAW, 'Class type icon'),
-                    'closed'               => new external_value(PARAM_INT, 'Closed flag (1=closed)'),
-                    'instructorid'         => new external_value(PARAM_INT, 'Instructor userid'),
-                    'instructorName'       => new external_value(PARAM_RAW, 'Instructor fullname'),
-                    'instructorProfileImage' => new external_value(PARAM_RAW, 'Instructor profile image URL'),
-                    'periodid'             => new external_value(PARAM_INT, 'Period id (academic)'),
-                    'periodName'           => new external_value(PARAM_RAW, 'Period name'),
-                    'learningplanid'       => new external_value(PARAM_INT, 'Learning plan id'),
-                    'learningPlanName'     => new external_value(PARAM_RAW, 'Learning plan name'),
-                    'corecourseid'         => new external_value(PARAM_INT, 'Core course id'),
-                    'coreCourseName'       => new external_value(PARAM_RAW, 'Core course name'),
-                    'classroomid'          => new external_value(PARAM_INT, 'Classroom id'),
-                    'classroomName'        => new external_value(PARAM_RAW, 'Classroom name'),
-                    'classdays'            => new external_value(PARAM_RAW, 'Classdays binary string'),
-                    'classDaysString'      => new external_value(PARAM_RAW, 'Classdays rendered'),
-                    'inithourformatted'    => new external_value(PARAM_RAW, 'Init hour formatted'),
-                    'endhourformatted'     => new external_value(PARAM_RAW, 'End hour formatted'),
-                    'inittimets'           => new external_value(PARAM_INT, 'Init hour in seconds'),
-                    'endtimets'            => new external_value(PARAM_INT, 'End hour in seconds'),
-                    'initdate'             => new external_value(PARAM_INT, 'Start date ts'),
-                    'enddate'              => new external_value(PARAM_INT, 'End date ts'),
-                    'startDate'            => new external_value(PARAM_RAW, 'Display start date'),
-                    'timecreated'          => new external_value(PARAM_INT, 'Created ts'),
-                    'timemodified'         => new external_value(PARAM_INT, 'Modified ts'),
-                    'enroledStudents'      => new external_value(PARAM_INT, 'Enrolled student count'),
-                    'preRegisteredStudents'=> new external_value(PARAM_INT, 'Pre-registered count'),
-                    'queuedStudents'       => new external_value(PARAM_INT, 'Queue count'),
-                    'shift'                => new external_value(PARAM_RAW, 'Shift raw value'),
-                    'shiftvalue'           => new external_value(PARAM_RAW, 'Shift trimmed value'),
-                    'shiftdisplay'         => new external_value(PARAM_RAW, 'Shift display value'),
-                    'groupurl'             => new external_value(PARAM_RAW, 'Direct course-section URL'),
-                    'coursesectionid'      => new external_value(PARAM_INT, 'Course section id'),
+        return new \external_single_structure([
+            'items'      => new \external_multiple_structure(
+                new \external_single_structure([
+                    'id'                   => new \external_value(PARAM_INT, 'Class id'),
+                    'name'                 => new \external_value(PARAM_RAW, 'Class name'),
+                    'type'                 => new \external_value(PARAM_INT, 'Class type'),
+                    'typelabel'            => new \external_value(PARAM_RAW, 'Class type label'),
+                    'icon'                 => new \external_value(PARAM_RAW, 'Class type icon'),
+                    'closed'               => new \external_value(PARAM_INT, 'Closed flag (1=closed)'),
+                    'instructorid'         => new \external_value(PARAM_INT, 'Instructor userid'),
+                    'instructorName'       => new \external_value(PARAM_RAW, 'Instructor fullname'),
+                    'instructorProfileImage' => new \external_value(PARAM_RAW, 'Instructor profile image URL'),
+                    'periodid'             => new \external_value(PARAM_INT, 'Period id (academic)'),
+                    'periodName'           => new \external_value(PARAM_RAW, 'Period name'),
+                    'learningplanid'       => new \external_value(PARAM_INT, 'Learning plan id'),
+                    'learningPlanName'     => new \external_value(PARAM_RAW, 'Learning plan name'),
+                    'corecourseid'         => new \external_value(PARAM_INT, 'Core course id'),
+                    'coreCourseName'       => new \external_value(PARAM_RAW, 'Core course name'),
+                    'classroomid'          => new \external_value(PARAM_INT, 'Classroom id'),
+                    'classroomName'        => new \external_value(PARAM_RAW, 'Classroom name'),
+                    'classdays'            => new \external_value(PARAM_RAW, 'Classdays binary string'),
+                    'classDaysString'      => new \external_value(PARAM_RAW, 'Classdays rendered'),
+                    'inithourformatted'    => new \external_value(PARAM_RAW, 'Init hour formatted'),
+                    'endhourformatted'     => new \external_value(PARAM_RAW, 'End hour formatted'),
+                    'inittimets'           => new \external_value(PARAM_INT, 'Init hour in seconds'),
+                    'endtimets'            => new \external_value(PARAM_INT, 'End hour in seconds'),
+                    'initdate'             => new \external_value(PARAM_INT, 'Start date ts'),
+                    'enddate'              => new \external_value(PARAM_INT, 'End date ts'),
+                    'startDate'            => new \external_value(PARAM_RAW, 'Display start date'),
+                    'timecreated'          => new \external_value(PARAM_INT, 'Created ts'),
+                    'timemodified'         => new \external_value(PARAM_INT, 'Modified ts'),
+                    'enroledStudents'      => new \external_value(PARAM_INT, 'Enrolled student count'),
+                    'preRegisteredStudents'=> new \external_value(PARAM_INT, 'Pre-registered count'),
+                    'queuedStudents'       => new \external_value(PARAM_INT, 'Queue count'),
+                    'shift'                => new \external_value(PARAM_RAW, 'Shift raw value'),
+                    'shiftvalue'           => new \external_value(PARAM_RAW, 'Shift trimmed value'),
+                    'shiftdisplay'         => new \external_value(PARAM_RAW, 'Shift display value'),
+                    'groupurl'             => new \external_value(PARAM_RAW, 'Direct course-section URL'),
+                    'coursesectionid'      => new \external_value(PARAM_INT, 'Course section id'),
                 ])
             ),
-            'total'      => new external_value(PARAM_INT, 'Total classes matching the current filter'),
-            'page'       => new external_value(PARAM_INT, 'Current page (0-based)'),
-            'perpage'    => new external_value(PARAM_INT, 'Items per page applied'),
-            'totalpages' => new external_value(PARAM_INT, 'Total pages'),
-            'facets'     => new external_single_structure([
-                'periods' => new external_multiple_structure(
-                    new external_single_structure([
-                        'id'    => new external_value(PARAM_INT, 'Period id'),
-                        'name'  => new external_value(PARAM_RAW, 'Period name'),
-                        'count' => new external_value(PARAM_INT, 'Class count in that period'),
+            'total'      => new \external_value(PARAM_INT, 'Total classes matching the current filter'),
+            'page'       => new \external_value(PARAM_INT, 'Current page (0-based)'),
+            'perpage'    => new \external_value(PARAM_INT, 'Items per page applied'),
+            'totalpages' => new \external_value(PARAM_INT, 'Total pages'),
+            'facets'     => new \external_single_structure([
+                'periods' => new \external_multiple_structure(
+                    new \external_single_structure([
+                        'id'    => new \external_value(PARAM_INT, 'Period id'),
+                        'name'  => new \external_value(PARAM_RAW, 'Period name'),
+                        'count' => new \external_value(PARAM_INT, 'Class count in that period'),
                     ])
                 ),
-                'courses' => new external_multiple_structure(
-                    new external_single_structure([
-                        'id'    => new external_value(PARAM_INT, 'Course id'),
-                        'name'  => new external_value(PARAM_RAW, 'Course fullname'),
-                        'count' => new external_value(PARAM_INT, 'Class count in that course'),
+                'courses' => new \external_multiple_structure(
+                    new \external_single_structure([
+                        'id'    => new \external_value(PARAM_INT, 'Course id'),
+                        'name'  => new \external_value(PARAM_RAW, 'Course fullname'),
+                        'count' => new \external_value(PARAM_INT, 'Class count in that course'),
                     ])
                 ),
             ]),

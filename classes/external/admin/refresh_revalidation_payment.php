@@ -40,19 +40,19 @@ use context_system;
 class refresh_revalidation_payment extends external_api {
 
     public static function execute_parameters(): external_function_parameters {
-        return new external_function_parameters([
-            'revalidationid' => new external_value(PARAM_INT, 'Revalidation id', VALUE_REQUIRED),
+        return new \external_function_parameters([
+            'revalidationid' => new \external_value(PARAM_INT, 'Revalidation id', VALUE_REQUIRED),
         ]);
     }
 
     public static function execute_returns(): external_single_structure {
-        return new external_single_structure([
-            'paid'          => new external_value(PARAM_BOOL, 'True when the invoice is paid'),
-            'payment_state' => new external_value(PARAM_RAW, 'Reported payment_state'),
-            'invoice_id'    => new external_value(PARAM_RAW, 'Invoice id'),
-            'invoice_number'=> new external_value(PARAM_RAW, 'Invoice number'),
-            'paidat'        => new external_value(PARAM_INT, 'Paid-at timestamp (0 if not yet)'),
-            'message'       => new external_value(PARAM_RAW, 'Diagnostic message'),
+        return new \external_single_structure([
+            'paid'          => new \external_value(PARAM_BOOL, 'True when the invoice is paid'),
+            'payment_state' => new \external_value(PARAM_RAW, 'Reported payment_state'),
+            'invoice_id'    => new \external_value(PARAM_RAW, 'Invoice id'),
+            'invoice_number'=> new \external_value(PARAM_RAW, 'Invoice number'),
+            'paidat'        => new \external_value(PARAM_INT, 'Paid-at timestamp (0 if not yet)'),
+            'message'       => new \external_value(PARAM_RAW, 'Diagnostic message'),
         ]);
     }
 

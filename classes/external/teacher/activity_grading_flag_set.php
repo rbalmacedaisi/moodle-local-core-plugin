@@ -22,12 +22,12 @@ use external_single_structure;
 class activity_grading_flag_set extends external_api {
 
     public static function execute_parameters(): external_function_parameters {
-        return new external_function_parameters([
-            'cmid'       => new external_value(PARAM_INT, 'course_modules.id', VALUE_REQUIRED),
-            'modname'    => new external_value(PARAM_ALPHA, 'assign o quiz', VALUE_REQUIRED),
-            'enabled'    => new external_value(PARAM_INT, '0 o 1', VALUE_DEFAULT, 1),
-            'mode'       => new external_value(PARAM_ALPHA, 'open o fixed', VALUE_DEFAULT, 'open'),
-            'maxmembers' => new external_value(PARAM_INT, 'Cupo', VALUE_DEFAULT, 5),
+        return new \external_function_parameters([
+            'cmid'       => new \external_value(PARAM_INT, 'course_modules.id', VALUE_REQUIRED),
+            'modname'    => new \external_value(PARAM_ALPHA, 'assign o quiz', VALUE_REQUIRED),
+            'enabled'    => new \external_value(PARAM_INT, '0 o 1', VALUE_DEFAULT, 1),
+            'mode'       => new \external_value(PARAM_ALPHA, 'open o fixed', VALUE_DEFAULT, 'open'),
+            'maxmembers' => new \external_value(PARAM_INT, 'Cupo', VALUE_DEFAULT, 5),
         ]);
     }
 
@@ -78,9 +78,9 @@ class activity_grading_flag_set extends external_api {
     }
 
     public static function execute_returns(): external_single_structure {
-        return new external_single_structure([
-            'status'  => new external_value(PARAM_TEXT, 'success|error'),
-            'message' => new external_value(PARAM_TEXT, 'Mensaje'),
+        return new \external_single_structure([
+            'status'  => new \external_value(PARAM_TEXT, 'success|error'),
+            'message' => new \external_value(PARAM_TEXT, 'Mensaje'),
         ]);
     }
 }

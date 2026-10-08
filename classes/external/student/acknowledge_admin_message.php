@@ -38,10 +38,10 @@ require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/announcement_
 class acknowledge_admin_message extends external_api {
 
     public static function execute_parameters() {
-        return new external_function_parameters([
-            'userid'    => new external_value(PARAM_INT,  'User ID acknowledging the broadcast',  VALUE_REQUIRED),
-            'messageid' => new external_value(PARAM_INT,  'Message id',                            VALUE_REQUIRED),
-            'accept'    => new external_value(PARAM_BOOL, 'True when the user clicked accept; false for informational dismiss only.', VALUE_DEFAULT, true),
+        return new \external_function_parameters([
+            'userid'    => new \external_value(PARAM_INT,  'User ID acknowledging the broadcast',  VALUE_REQUIRED),
+            'messageid' => new \external_value(PARAM_INT,  'Message id',                            VALUE_REQUIRED),
+            'accept'    => new \external_value(PARAM_BOOL, 'True when the user clicked accept; false for informational dismiss only.', VALUE_DEFAULT, true),
         ]);
     }
 
@@ -79,11 +79,11 @@ class acknowledge_admin_message extends external_api {
     }
 
     public static function execute_returns() {
-        return new external_single_structure([
-            'success'   => new external_value(PARAM_BOOL, 'True when the ack was persisted'),
-            'userid'    => new external_value(PARAM_INT,  'User id'),
-            'messageid' => new external_value(PARAM_INT,  'Message id'),
-            'accepted'  => new external_value(PARAM_BOOL, 'Whether the user accepted the broadcast or just dismissed it'),
+        return new \external_single_structure([
+            'success'   => new \external_value(PARAM_BOOL, 'True when the ack was persisted'),
+            'userid'    => new \external_value(PARAM_INT,  'User id'),
+            'messageid' => new \external_value(PARAM_INT,  'Message id'),
+            'accepted'  => new \external_value(PARAM_BOOL, 'Whether the user accepted the broadcast or just dismissed it'),
         ]);
     }
 }

@@ -38,7 +38,7 @@ require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/wellness_dyna
 class admin_list_dynamic_forms extends external_api {
 
     public static function execute_parameters() {
-        return new external_function_parameters([]);
+        return new \external_function_parameters([]);
     }
 
     public static function execute() {
@@ -67,21 +67,21 @@ class admin_list_dynamic_forms extends external_api {
     }
 
     public static function execute_returns() {
-        $form = new external_single_structure([
-            'id'             => new external_value(PARAM_INT,  'Form id'),
-            'eventid'        => new external_value(PARAM_INT,  'Event id'),
-            'event_title'    => new external_value(PARAM_TEXT, 'Event title'),
-            'title'          => new external_value(PARAM_TEXT, 'Form title'),
-            'description'    => new external_value(PARAM_RAW,  'Description'),
-            'schema_json'    => new external_value(PARAM_RAW,  'Raw JSON Schema'),
-            'cover_path'     => new external_value(PARAM_RAW,  'URL absoluta de la portada'),
-            'active'         => new external_value(PARAM_INT,  '0/1'),
-            'response_count' => new external_value(PARAM_INT,  'Submitted responses'),
-            'timecreated'    => new external_value(PARAM_INT,  'Unix ts'),
-            'timemodified'   => new external_value(PARAM_INT,  'Unix ts'),
+        $form = new \external_single_structure([
+            'id'             => new \external_value(PARAM_INT,  'Form id'),
+            'eventid'        => new \external_value(PARAM_INT,  'Event id'),
+            'event_title'    => new \external_value(PARAM_TEXT, 'Event title'),
+            'title'          => new \external_value(PARAM_TEXT, 'Form title'),
+            'description'    => new \external_value(PARAM_RAW,  'Description'),
+            'schema_json'    => new \external_value(PARAM_RAW,  'Raw JSON Schema'),
+            'cover_path'     => new \external_value(PARAM_RAW,  'URL absoluta de la portada'),
+            'active'         => new \external_value(PARAM_INT,  '0/1'),
+            'response_count' => new \external_value(PARAM_INT,  'Submitted responses'),
+            'timecreated'    => new \external_value(PARAM_INT,  'Unix ts'),
+            'timemodified'   => new \external_value(PARAM_INT,  'Unix ts'),
         ]);
-        return new external_single_structure([
-            'forms' => new external_multiple_structure($form, 'All dynamic forms'),
+        return new \external_single_structure([
+            'forms' => new \external_multiple_structure($form, 'All dynamic forms'),
         ]);
     }
 }

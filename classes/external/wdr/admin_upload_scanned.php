@@ -13,10 +13,10 @@ use external_single_structure;
 class admin_upload_scanned extends external_api {
 
     public static function execute_parameters(): external_function_parameters {
-        return new external_function_parameters([
-            'id'             => new external_value(PARAM_INT, 'Request id'),
-            'filename'       => new external_value(PARAM_FILE, 'Original filename'),
-            'contentbase64'  => new external_value(PARAM_RAW, 'base64-encoded PDF bytes'),
+        return new \external_function_parameters([
+            'id'             => new \external_value(PARAM_INT, 'Request id'),
+            'filename'       => new \external_value(PARAM_FILE, 'Original filename'),
+            'contentbase64'  => new \external_value(PARAM_RAW, 'base64-encoded PDF bytes'),
         ]);
     }
 
@@ -52,9 +52,9 @@ class admin_upload_scanned extends external_api {
     }
 
     public static function execute_returns(): external_single_structure {
-        return new external_single_structure([
-            'id'   => new external_value(PARAM_INT, ''),
-            'path' => new external_value(PARAM_TEXT, ''),
+        return new \external_single_structure([
+            'id'   => new \external_value(PARAM_INT, ''),
+            'path' => new \external_value(PARAM_TEXT, ''),
         ]);
     }
 }

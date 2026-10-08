@@ -57,11 +57,11 @@ class update_institution extends external_api {
      * @return external_function_parameters
      */
     public static function execute_parameters(): external_function_parameters {
-        return new external_function_parameters(
+        return new \external_function_parameters(
             [
-                'id' => new external_value(PARAM_TEXT, 'The id of the institution'),
-                'name' => new external_value(PARAM_TEXT, 'The name of the institution'),
-                'institutionId' => new external_value(PARAM_TEXT, 'The identification number of the institution')
+                'id' => new \external_value(PARAM_TEXT, 'The id of the institution'),
+                'name' => new \external_value(PARAM_TEXT, 'The name of the institution'),
+                'institutionId' => new \external_value(PARAM_TEXT, 'The identification number of the institution')
             ]
         );
     }
@@ -108,10 +108,10 @@ class update_institution extends external_api {
      * @return external_description
      */
     public static function execute_returns(): external_description {
-        return new external_single_structure(
+        return new \external_single_structure(
             array(
-                'institutionId' => new external_value(PARAM_INT, 'The ID of the delete class or -1 if there was an error.'),
-                'message' => new external_value(PARAM_TEXT, 'The error message or Ok.'),
+                'institutionId' => new \external_value(PARAM_INT, 'The ID of the delete class or -1 if there was an error.'),
+                'message' => new \external_value(PARAM_TEXT, 'The error message or Ok.'),
             )
         );
     }

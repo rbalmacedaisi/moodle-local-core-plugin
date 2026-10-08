@@ -54,14 +54,14 @@ class reschedule_activity extends external_api {
      * @return external_function_parameters
      */
     public static function execute_parameters(): external_function_parameters {
-        return new external_function_parameters(
+        return new \external_function_parameters(
             [   
-                'classId'=> new external_value(PARAM_TEXT, 'Id of the class.',VALUE_REQUIRED),
-                'moduleId'=> new external_value(PARAM_TEXT, 'Id of the course module.',VALUE_REQUIRED),
-                'date' => new external_value(PARAM_TEXT, 'The date that will be assigned to the activity',VALUE_REQUIRED),
-                'initTime' => new external_value(PARAM_TEXT, 'The init time for the session',VALUE_REQUIRED),
-                'endTime' => new external_value(PARAM_TEXT, 'The end time for the session',VALUE_REQUIRED),
-                'sessionId'=> new external_value(PARAM_TEXT, 'Id of the attendance session.', VALUE_DEFAULT,null),
+                'classId'=> new \external_value(PARAM_TEXT, 'Id of the class.',VALUE_REQUIRED),
+                'moduleId'=> new \external_value(PARAM_TEXT, 'Id of the course module.',VALUE_REQUIRED),
+                'date' => new \external_value(PARAM_TEXT, 'The date that will be assigned to the activity',VALUE_REQUIRED),
+                'initTime' => new \external_value(PARAM_TEXT, 'The init time for the session',VALUE_REQUIRED),
+                'endTime' => new \external_value(PARAM_TEXT, 'The end time for the session',VALUE_REQUIRED),
+                'sessionId'=> new \external_value(PARAM_TEXT, 'Id of the attendance session.', VALUE_DEFAULT,null),
             ]
         );
     }
@@ -112,10 +112,10 @@ class reschedule_activity extends external_api {
      * @return external_description
      */
     public static function execute_returns(): external_description {
-        return new external_single_structure(
+        return new \external_single_structure(
             array(
-                'status' => new external_value(PARAM_INT, '1 if the activity was rescheduled, -1 otherwise',VALUE_DEFAULT,1),
-                'message' => new external_value(PARAM_TEXT, 'The error message or Ok.',VALUE_DEFAULT,'ok'),
+                'status' => new \external_value(PARAM_INT, '1 if the activity was rescheduled, -1 otherwise',VALUE_DEFAULT,1),
+                'message' => new \external_value(PARAM_TEXT, 'The error message or Ok.',VALUE_DEFAULT,'ok'),
             )
         );
     }

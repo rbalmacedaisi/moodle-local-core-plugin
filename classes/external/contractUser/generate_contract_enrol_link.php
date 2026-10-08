@@ -56,10 +56,10 @@ class generate_contract_enrol_link extends external_api {
      * @return external_function_parameters
      */
     public static function execute_parameters(): external_function_parameters {
-        return new external_function_parameters(
+        return new \external_function_parameters(
             [
-                'contractId' => new external_value(PARAM_TEXT, 'The id of the contract'),
-                'courseId' => new external_value(PARAM_TEXT, 'The course in the contract'),
+                'contractId' => new \external_value(PARAM_TEXT, 'The id of the contract'),
+                'courseId' => new \external_value(PARAM_TEXT, 'The course in the contract'),
                 
             ]
         );
@@ -119,11 +119,11 @@ class generate_contract_enrol_link extends external_api {
      * @return external_description
      */
     public static function execute_returns(): external_description {
-        return new external_single_structure(
+        return new \external_single_structure(
             array(
-                'contractEnrolLink' => new external_value(PARAM_TEXT, 'The ID of the delete class or -1 if there was an error.'),
-                'expirationDate' => new external_value(PARAM_TEXT, 'The error message or Ok.'),
-                'message' => new external_value(PARAM_TEXT, 'The error message or Ok.'),
+                'contractEnrolLink' => new \external_value(PARAM_TEXT, 'The ID of the delete class or -1 if there was an error.'),
+                'expirationDate' => new \external_value(PARAM_TEXT, 'The error message or Ok.'),
+                'message' => new \external_value(PARAM_TEXT, 'The error message or Ok.'),
             )
         );
     }

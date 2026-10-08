@@ -1083,7 +1083,7 @@ class revalida_manager {
         $user = $DB->get_record('user', ['id' => $userid], '*', MUST_EXIST);
         $documentnumber = self::get_user_document_number($userid);
         if ($documentnumber === '') {
-            throw new moodle_exception('El estudiante no tiene número de documento para facturar.');
+            throw new \moodle_exception('El estudiante no tiene número de documento para facturar.');
         }
         $productid = (int)get_config('local_grupomakro_core', 'revalida_default_odoo_product_id');
         $cost = (float)get_config('local_grupomakro_core', 'revalida_cost');
@@ -1101,7 +1101,7 @@ class revalida_manager {
         ];
         $response = self::call_odoo_proxy('/api/odoo/revalidations/invoice', $payload);
         if (empty($response['success'])) {
-            throw new moodle_exception('No se pudo generar la factura de reválida: '
+            throw new \moodle_exception('No se pudo generar la factura de reválida: '
                 . (isset($response['error']) ? (string)$response['error'] : 'desconocido'));
         }
         return [

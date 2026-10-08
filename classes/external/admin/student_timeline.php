@@ -20,7 +20,7 @@ class student_timeline extends external_api {
     // --- Careers List ---
 
     public static function get_careers_list_parameters() {
-        return new external_function_parameters([]);
+        return new \external_function_parameters([]);
     }
 
     public static function get_careers_list() {
@@ -79,16 +79,16 @@ class student_timeline extends external_api {
     }
 
     public static function get_careers_list_returns() {
-        return new external_single_structure([
-            'careers' => new external_multiple_structure(
-                new external_single_structure([
-                    'id'            => new external_value(PARAM_INT, 'ID del plan de aprendizaje'),
-                    'name'          => new external_value(PARAM_TEXT, 'Nombre de la carrera'),
-                    'shortname'     => new external_value(PARAM_TEXT, 'Nombre corto'),
-                    'coursecount'   => new external_value(PARAM_INT, 'Total de cursos'),
-                    'periodcount'   => new external_value(PARAM_INT, 'Cantidad de cuatrimestres'),
-                    'active_count'  => new external_value(PARAM_INT, 'Estudiantes activos'),
-                    'total_enrolled'=> new external_value(PARAM_INT, 'Total matriculados'),
+        return new \external_single_structure([
+            'careers' => new \external_multiple_structure(
+                new \external_single_structure([
+                    'id'            => new \external_value(PARAM_INT, 'ID del plan de aprendizaje'),
+                    'name'          => new \external_value(PARAM_TEXT, 'Nombre de la carrera'),
+                    'shortname'     => new \external_value(PARAM_TEXT, 'Nombre corto'),
+                    'coursecount'   => new \external_value(PARAM_INT, 'Total de cursos'),
+                    'periodcount'   => new \external_value(PARAM_INT, 'Cantidad de cuatrimestres'),
+                    'active_count'  => new \external_value(PARAM_INT, 'Estudiantes activos'),
+                    'total_enrolled'=> new \external_value(PARAM_INT, 'Total matriculados'),
                 ])
             ),
         ]);
@@ -97,8 +97,8 @@ class student_timeline extends external_api {
     // --- Career Timeline ---
 
     public static function get_career_timeline_parameters() {
-        return new external_function_parameters([
-            'learningplanid' => new external_value(PARAM_INT, 'ID del plan de aprendizaje'),
+        return new \external_function_parameters([
+            'learningplanid' => new \external_value(PARAM_INT, 'ID del plan de aprendizaje'),
         ]);
     }
 
@@ -335,62 +335,62 @@ class student_timeline extends external_api {
     }
 
     public static function get_career_timeline_returns() {
-        $subperiod_struct = new external_single_structure([
-            'sp_id'   => new external_value(PARAM_INT, 'ID subperiodo'),
-            'sp_name' => new external_value(PARAM_TEXT, 'Nombre bimestre'),
-            'sp_pos'  => new external_value(PARAM_INT, 'Posición'),
+        $subperiod_struct = new \external_single_structure([
+            'sp_id'   => new \external_value(PARAM_INT, 'ID subperiodo'),
+            'sp_name' => new \external_value(PARAM_TEXT, 'Nombre bimestre'),
+            'sp_pos'  => new \external_value(PARAM_INT, 'Posición'),
         ]);
 
-        $curriculum_struct = new external_single_structure([
-            'id'         => new external_value(PARAM_INT, 'ID cuatrimestre'),
-            'name'       => new external_value(PARAM_TEXT, 'Nombre cuatrimestre'),
-            'position'   => new external_value(PARAM_INT, 'Posición'),
-            'subperiods' => new external_multiple_structure($subperiod_struct, 'Bimestres', VALUE_OPTIONAL),
+        $curriculum_struct = new \external_single_structure([
+            'id'         => new \external_value(PARAM_INT, 'ID cuatrimestre'),
+            'name'       => new \external_value(PARAM_TEXT, 'Nombre cuatrimestre'),
+            'position'   => new \external_value(PARAM_INT, 'Posición'),
+            'subperiods' => new \external_multiple_structure($subperiod_struct, 'Bimestres', VALUE_OPTIONAL),
         ]);
 
-        $level_struct = new external_single_structure([
-            'period_id' => new external_value(PARAM_INT, 'ID periodo'),
-            'active'    => new external_value(PARAM_INT, 'Activos'),
-            'inactive'  => new external_value(PARAM_INT, 'Inactivos'),
+        $level_struct = new \external_single_structure([
+            'period_id' => new \external_value(PARAM_INT, 'ID periodo'),
+            'active'    => new \external_value(PARAM_INT, 'Activos'),
+            'inactive'  => new \external_value(PARAM_INT, 'Inactivos'),
         ]);
 
-        $sublevel_struct = new external_single_structure([
-            'subperiod_id' => new external_value(PARAM_INT, 'ID subperiodo'),
-            'active'       => new external_value(PARAM_INT, 'Activos'),
-            'inactive'     => new external_value(PARAM_INT, 'Inactivos'),
+        $sublevel_struct = new \external_single_structure([
+            'subperiod_id' => new \external_value(PARAM_INT, 'ID subperiodo'),
+            'active'       => new \external_value(PARAM_INT, 'Activos'),
+            'inactive'     => new \external_value(PARAM_INT, 'Inactivos'),
         ]);
 
-        $intake_struct = new external_single_structure([
-            'period'       => new external_value(PARAM_TEXT, 'Periodo de ingreso'),
-            'crm_count'    => new external_value(PARAM_INT, 'CRM total', VALUE_OPTIONAL),
-            'crm_active'   => new external_value(PARAM_INT, 'CRM activos', VALUE_OPTIONAL),
-            'odoo_count'   => new external_value(PARAM_INT, 'Odoo total', VALUE_OPTIONAL),
-            'odoo_active'  => new external_value(PARAM_INT, 'Odoo activos', VALUE_OPTIONAL),
-            'lxp_count'    => new external_value(PARAM_INT, 'LXP total matriculados'),
-            'lxp_active'   => new external_value(PARAM_INT, 'LXP activos'),
-            'dropout_rate' => new external_value(PARAM_FLOAT, 'Tasa deserción %', VALUE_OPTIONAL),
-            'levels'       => new external_multiple_structure($level_struct, 'Conteo por cuatrimestre'),
-            'sublevel_counts' => new external_multiple_structure($sublevel_struct, 'Conteo por bimestre'),
+        $intake_struct = new \external_single_structure([
+            'period'       => new \external_value(PARAM_TEXT, 'Periodo de ingreso'),
+            'crm_count'    => new \external_value(PARAM_INT, 'CRM total', VALUE_OPTIONAL),
+            'crm_active'   => new \external_value(PARAM_INT, 'CRM activos', VALUE_OPTIONAL),
+            'odoo_count'   => new \external_value(PARAM_INT, 'Odoo total', VALUE_OPTIONAL),
+            'odoo_active'  => new \external_value(PARAM_INT, 'Odoo activos', VALUE_OPTIONAL),
+            'lxp_count'    => new \external_value(PARAM_INT, 'LXP total matriculados'),
+            'lxp_active'   => new \external_value(PARAM_INT, 'LXP activos'),
+            'dropout_rate' => new \external_value(PARAM_FLOAT, 'Tasa deserción %', VALUE_OPTIONAL),
+            'levels'       => new \external_multiple_structure($level_struct, 'Conteo por cuatrimestre'),
+            'sublevel_counts' => new \external_multiple_structure($sublevel_struct, 'Conteo por bimestre'),
         ]);
 
-        return new external_single_structure([
-            'career' => new external_single_structure([
-                'id'        => new external_value(PARAM_INT, 'ID carrera'),
-                'name'      => new external_value(PARAM_TEXT, 'Nombre carrera'),
-                'shortname' => new external_value(PARAM_TEXT, 'Nombre corto'),
+        return new \external_single_structure([
+            'career' => new \external_single_structure([
+                'id'        => new \external_value(PARAM_INT, 'ID carrera'),
+                'name'      => new \external_value(PARAM_TEXT, 'Nombre carrera'),
+                'shortname' => new \external_value(PARAM_TEXT, 'Nombre corto'),
             ]),
-            'curriculum'     => new external_multiple_structure($curriculum_struct, 'Estructura curricular'),
-            'intake_periods' => new external_multiple_structure($intake_struct, 'Periodos de ingreso'),
+            'curriculum'     => new \external_multiple_structure($curriculum_struct, 'Estructura curricular'),
+            'intake_periods' => new \external_multiple_structure($intake_struct, 'Periodos de ingreso'),
         ]);
     }
 
     // --- Get Students by Subperiod ---
 
     public static function get_students_by_subperiod_parameters() {
-        return new external_function_parameters([
-            'learningplanid' => new external_value(PARAM_INT, 'ID del plan de aprendizaje'),
-            'subperiodid' => new external_value(PARAM_INT, 'ID del subperíodo (bimestre)'),
-            'intake_period' => new external_value(PARAM_TEXT, 'Periodo de ingreso (cohorte)'),
+        return new \external_function_parameters([
+            'learningplanid' => new \external_value(PARAM_INT, 'ID del plan de aprendizaje'),
+            'subperiodid' => new \external_value(PARAM_INT, 'ID del subperíodo (bimestre)'),
+            'intake_period' => new \external_value(PARAM_TEXT, 'Periodo de ingreso (cohorte)'),
         ]);
     }
 
@@ -468,22 +468,22 @@ class student_timeline extends external_api {
     }
 
     public static function get_students_by_subperiod_returns() {
-        return new external_single_structure([
-            'students' => new external_multiple_structure(
-                new external_single_structure([
-                    'userid' => new external_value(PARAM_INT, 'ID usuario'),
-                    'username' => new external_value(PARAM_TEXT, 'Nombre de usuario'),
-                    'firstname' => new external_value(PARAM_TEXT, 'Nombre'),
-                    'lastname' => new external_value(PARAM_TEXT, 'Apellido'),
-                    'fullname' => new external_value(PARAM_TEXT, 'Nombre completo'),
-                    'email' => new external_value(PARAM_TEXT, 'Email'),
-                    'phone' => new external_value(PARAM_TEXT, 'Teléfono'),
-                    'status' => new external_value(PARAM_TEXT, 'Estado'),
-                    'intake_period' => new external_value(PARAM_TEXT, 'Periodo de ingreso actual'),
+        return new \external_single_structure([
+            'students' => new \external_multiple_structure(
+                new \external_single_structure([
+                    'userid' => new \external_value(PARAM_INT, 'ID usuario'),
+                    'username' => new \external_value(PARAM_TEXT, 'Nombre de usuario'),
+                    'firstname' => new \external_value(PARAM_TEXT, 'Nombre'),
+                    'lastname' => new \external_value(PARAM_TEXT, 'Apellido'),
+                    'fullname' => new \external_value(PARAM_TEXT, 'Nombre completo'),
+                    'email' => new \external_value(PARAM_TEXT, 'Email'),
+                    'phone' => new \external_value(PARAM_TEXT, 'Teléfono'),
+                    'status' => new \external_value(PARAM_TEXT, 'Estado'),
+                    'intake_period' => new \external_value(PARAM_TEXT, 'Periodo de ingreso actual'),
                 ])
             ),
-            'available_periods' => new external_multiple_structure(
-                new external_value(PARAM_TEXT, 'Periodo de ingreso')
+            'available_periods' => new \external_multiple_structure(
+                new \external_value(PARAM_TEXT, 'Periodo de ingreso')
             ),
         ]);
     }
@@ -491,9 +491,9 @@ class student_timeline extends external_api {
     // --- Reassign Student Intake Period ---
 
     public static function reassign_student_intake_period_parameters() {
-        return new external_function_parameters([
-            'userid' => new external_value(PARAM_INT, 'ID del usuario'),
-            'new_intake_period' => new external_value(PARAM_TEXT, 'Nuevo periodo de ingreso'),
+        return new \external_function_parameters([
+            'userid' => new \external_value(PARAM_INT, 'ID del usuario'),
+            'new_intake_period' => new \external_value(PARAM_TEXT, 'Nuevo periodo de ingreso'),
         ]);
     }
 
@@ -532,18 +532,18 @@ class student_timeline extends external_api {
     }
 
     public static function reassign_student_intake_period_returns() {
-        return new external_single_structure([
-            'success' => new external_value(PARAM_BOOL, 'Éxito'),
-            'userid' => new external_value(PARAM_INT, 'ID usuario'),
-            'new_intake_period' => new external_value(PARAM_TEXT, 'Nuevo periodo'),
+        return new \external_single_structure([
+            'success' => new \external_value(PARAM_BOOL, 'Éxito'),
+            'userid' => new \external_value(PARAM_INT, 'ID usuario'),
+            'new_intake_period' => new \external_value(PARAM_TEXT, 'Nuevo periodo'),
         ]);
     }
 
     // --- Get Courses by Learning Plan with pending student counts ---
 
     public static function get_courses_by_learning_plan_parameters() {
-        return new external_function_parameters([
-            'learningplanid' => new external_value(PARAM_INT, 'ID del plan de aprendizaje'),
+        return new \external_function_parameters([
+            'learningplanid' => new \external_value(PARAM_INT, 'ID del plan de aprendizaje'),
         ]);
     }
 
@@ -614,24 +614,24 @@ class student_timeline extends external_api {
     }
 
     public static function get_courses_by_learning_plan_returns() {
-        return new external_single_structure([
-            'courses' => new external_multiple_structure(
-                new external_single_structure([
-                    'id' => new external_value(PARAM_INT, 'ID local_learning_courses'),
-                    'courseid' => new external_value(PARAM_INT, 'ID del curso Moodle'),
-                    'fullname' => new external_value(PARAM_TEXT, 'Nombre completo'),
-                    'shortname' => new external_value(PARAM_TEXT, 'Nombre corto'),
-                    'isrequired' => new external_value(PARAM_BOOL, 'Es requerido'),
-                    'position' => new external_value(PARAM_INT, 'Posición'),
-                    'credits' => new external_value(PARAM_INT, 'Créditos'),
-                    'periodid' => new external_value(PARAM_INT, 'ID periodo'),
-                    'period_name' => new external_value(PARAM_TEXT, 'Nombre del periodo'),
-                    'period_position' => new external_value(PARAM_INT, 'Posición del periodo'),
-                    'subperiodid' => new external_value(PARAM_INT, 'ID subperiodo'),
-                    'subperiod_name' => new external_value(PARAM_TEXT, 'Nombre del bimestre'),
-                    'subperiod_position' => new external_value(PARAM_INT, 'Posición del bimestre'),
-                    'enrolled_count' => new external_value(PARAM_INT, 'Estudiantes inscritos'),
-                    'pending_count' => new external_value(PARAM_INT, 'Estudiantes pendientes'),
+        return new \external_single_structure([
+            'courses' => new \external_multiple_structure(
+                new \external_single_structure([
+                    'id' => new \external_value(PARAM_INT, 'ID local_learning_courses'),
+                    'courseid' => new \external_value(PARAM_INT, 'ID del curso Moodle'),
+                    'fullname' => new \external_value(PARAM_TEXT, 'Nombre completo'),
+                    'shortname' => new \external_value(PARAM_TEXT, 'Nombre corto'),
+                    'isrequired' => new \external_value(PARAM_BOOL, 'Es requerido'),
+                    'position' => new \external_value(PARAM_INT, 'Posición'),
+                    'credits' => new \external_value(PARAM_INT, 'Créditos'),
+                    'periodid' => new \external_value(PARAM_INT, 'ID periodo'),
+                    'period_name' => new \external_value(PARAM_TEXT, 'Nombre del periodo'),
+                    'period_position' => new \external_value(PARAM_INT, 'Posición del periodo'),
+                    'subperiodid' => new \external_value(PARAM_INT, 'ID subperiodo'),
+                    'subperiod_name' => new \external_value(PARAM_TEXT, 'Nombre del bimestre'),
+                    'subperiod_position' => new \external_value(PARAM_INT, 'Posición del bimestre'),
+                    'enrolled_count' => new \external_value(PARAM_INT, 'Estudiantes inscritos'),
+                    'pending_count' => new \external_value(PARAM_INT, 'Estudiantes pendientes'),
                 ])
             ),
         ]);
@@ -864,10 +864,10 @@ class student_timeline extends external_api {
      * Returns definition of get_courses_with_projections().
      */
     public static function get_courses_with_projections_parameters() {
-        return new external_function_parameters([
-            'learningplanid' => new external_value(PARAM_INT, 'Learning plan ID'),
-            'cohort' => new external_value(PARAM_TEXT, 'Cohort period (e.g. 2026-I, 2025-II)'),
-            'jornada' => new external_value(PARAM_TEXT, 'Jornada filter (Diurna/Nocturna/Sabatina/ALL)', false, 'ALL')
+        return new \external_function_parameters([
+            'learningplanid' => new \external_value(PARAM_INT, 'Learning plan ID'),
+            'cohort' => new \external_value(PARAM_TEXT, 'Cohort period (e.g. 2026-I, 2025-II)'),
+            'jornada' => new \external_value(PARAM_TEXT, 'Jornada filter (Diurna/Nocturna/Sabatina/ALL)', false, 'ALL')
         ]);
     }
 
@@ -875,34 +875,34 @@ class student_timeline extends external_api {
      * Returns definition of get_courses_with_projections() response.
      */
     public static function get_courses_with_projections_returns() {
-        return new external_single_structure([
-            'courses' => new external_multiple_structure(
-                new external_single_structure([
-                    'id' => new external_value(PARAM_INT, 'ID'),
-                    'courseid' => new external_value(PARAM_INT, 'Course ID'),
-                    'fullname' => new external_value(PARAM_TEXT, 'Full name'),
-                    'shortname' => new external_value(PARAM_TEXT, 'Short name'),
-                    'isrequired' => new external_value(PARAM_BOOL, 'Is required'),
-                    'position' => new external_value(PARAM_INT, 'Position'),
-                    'credits' => new external_value(PARAM_INT, 'Credits'),
-                    'periodid' => new external_value(PARAM_INT, 'Period ID'),
-                    'period_name' => new external_value(PARAM_TEXT, 'Period name'),
-                    'subperiodid' => new external_value(PARAM_INT, 'Subperiod ID'),
-                    'subperiod_name' => new external_value(PARAM_TEXT, 'Subperiod name'),
-                    'subperiod_position' => new external_value(PARAM_INT, 'Subperiod position'),
-                    'status' => new external_single_structure([
-                        'semaphore' => new external_value(PARAM_TEXT, 'green/orange/blue/red'),
-                        'approved_count' => new external_value(PARAM_INT, 'Approved students'),
-                        'pending_count' => new external_value(PARAM_INT, 'Pending students'),
-                        'failed_count' => new external_value(PARAM_INT, 'Failed students'),
-                        'total_students' => new external_value(PARAM_INT, 'Total students'),
+        return new \external_single_structure([
+            'courses' => new \external_multiple_structure(
+                new \external_single_structure([
+                    'id' => new \external_value(PARAM_INT, 'ID'),
+                    'courseid' => new \external_value(PARAM_INT, 'Course ID'),
+                    'fullname' => new \external_value(PARAM_TEXT, 'Full name'),
+                    'shortname' => new \external_value(PARAM_TEXT, 'Short name'),
+                    'isrequired' => new \external_value(PARAM_BOOL, 'Is required'),
+                    'position' => new \external_value(PARAM_INT, 'Position'),
+                    'credits' => new \external_value(PARAM_INT, 'Credits'),
+                    'periodid' => new \external_value(PARAM_INT, 'Period ID'),
+                    'period_name' => new \external_value(PARAM_TEXT, 'Period name'),
+                    'subperiodid' => new \external_value(PARAM_INT, 'Subperiod ID'),
+                    'subperiod_name' => new \external_value(PARAM_TEXT, 'Subperiod name'),
+                    'subperiod_position' => new \external_value(PARAM_INT, 'Subperiod position'),
+                    'status' => new \external_single_structure([
+                        'semaphore' => new \external_value(PARAM_TEXT, 'green/orange/blue/red'),
+                        'approved_count' => new \external_value(PARAM_INT, 'Approved students'),
+                        'pending_count' => new \external_value(PARAM_INT, 'Pending students'),
+                        'failed_count' => new \external_value(PARAM_INT, 'Failed students'),
+                        'total_students' => new \external_value(PARAM_INT, 'Total students'),
                     ]),
-                    'projections' => new external_multiple_structure(
-                        new external_single_structure([
-                            'subperiodid' => new external_value(PARAM_INT, 'Subperiod ID'),
-                            'jornada' => new external_value(PARAM_TEXT, 'Jornada'),
-                            'status' => new external_value(PARAM_INT, 'Status'),
-                            'projected_opening_date' => new external_value(PARAM_INT, 'Opening date', false, null)
+                    'projections' => new \external_multiple_structure(
+                        new \external_single_structure([
+                            'subperiodid' => new \external_value(PARAM_INT, 'Subperiod ID'),
+                            'jornada' => new \external_value(PARAM_TEXT, 'Jornada'),
+                            'status' => new \external_value(PARAM_INT, 'Status'),
+                            'projected_opening_date' => new \external_value(PARAM_INT, 'Opening date', false, null)
                         ])
                     )
                 ])
@@ -980,12 +980,12 @@ class student_timeline extends external_api {
      * Returns definition of save_course_projection().
      */
     public static function save_course_projection_parameters() {
-        return new external_function_parameters([
-            'learning_courses_id' => new external_value(PARAM_INT, 'Local learning courses ID'),
-            'subperiodid' => new external_value(PARAM_INT, 'Target subperiod ID'),
-            'jornada' => new external_value(PARAM_TEXT, 'Jornada (Diurna/Nocturna/Sabatina)'),
-            'projected_opening_date' => new external_value(PARAM_INT, 'Opening timestamp', false, null),
-            'notes' => new external_value(PARAM_TEXT, 'Notes', false, null)
+        return new \external_function_parameters([
+            'learning_courses_id' => new \external_value(PARAM_INT, 'Local learning courses ID'),
+            'subperiodid' => new \external_value(PARAM_INT, 'Target subperiod ID'),
+            'jornada' => new \external_value(PARAM_TEXT, 'Jornada (Diurna/Nocturna/Sabatina)'),
+            'projected_opening_date' => new \external_value(PARAM_INT, 'Opening timestamp', false, null),
+            'notes' => new \external_value(PARAM_TEXT, 'Notes', false, null)
         ]);
     }
 
@@ -993,11 +993,11 @@ class student_timeline extends external_api {
      * Returns definition of save_course_projection() response.
      */
     public static function save_course_projection_returns() {
-        return new external_single_structure([
-            'success' => new external_value(PARAM_BOOL, 'Success'),
-            'id' => new external_value(PARAM_INT, 'Projection ID'),
-            'action' => new external_value(PARAM_TEXT, 'Action taken'),
-            'message' => new external_value(PARAM_TEXT, 'Message')
+        return new \external_single_structure([
+            'success' => new \external_value(PARAM_BOOL, 'Success'),
+            'id' => new \external_value(PARAM_INT, 'Projection ID'),
+            'action' => new \external_value(PARAM_TEXT, 'Action taken'),
+            'message' => new \external_value(PARAM_TEXT, 'Message')
         ]);
     }
 
@@ -1032,10 +1032,10 @@ class student_timeline extends external_api {
      * Returns definition of delete_course_projection().
      */
     public static function delete_course_projection_parameters() {
-        return new external_function_parameters([
-            'learning_courses_id' => new external_value(PARAM_INT, 'Local learning courses ID'),
-            'subperiodid' => new external_value(PARAM_INT, 'Subperiod ID'),
-            'jornada' => new external_value(PARAM_TEXT, 'Jornada')
+        return new \external_function_parameters([
+            'learning_courses_id' => new \external_value(PARAM_INT, 'Local learning courses ID'),
+            'subperiodid' => new \external_value(PARAM_INT, 'Subperiod ID'),
+            'jornada' => new \external_value(PARAM_TEXT, 'Jornada')
         ]);
     }
 
@@ -1043,19 +1043,19 @@ class student_timeline extends external_api {
      * Returns definition of delete_course_projection() response.
      */
     public static function delete_course_projection_returns() {
-        return new external_single_structure([
-            'success' => new external_value(PARAM_BOOL, 'Success'),
-            'deleted_count' => new external_value(PARAM_INT, 'Number of deleted records'),
-            'message' => new external_value(PARAM_TEXT, 'Message')
+        return new \external_single_structure([
+            'success' => new \external_value(PARAM_BOOL, 'Success'),
+            'deleted_count' => new \external_value(PARAM_INT, 'Number of deleted records'),
+            'message' => new \external_value(PARAM_TEXT, 'Message')
         ]);
     }
 
     // --- Get ALL Students by Intake Period (for bulk reassignment) ---
 
     public static function get_students_by_intake_period_parameters() {
-        return new external_function_parameters([
-            'learningplanid' => new external_value(PARAM_INT, 'ID del plan de aprendizaje'),
-            'intake_period'  => new external_value(PARAM_TEXT, 'Periodo de ingreso (cohorte)'),
+        return new \external_function_parameters([
+            'learningplanid' => new \external_value(PARAM_INT, 'ID del plan de aprendizaje'),
+            'intake_period'  => new \external_value(PARAM_TEXT, 'Periodo de ingreso (cohorte)'),
         ]);
     }
 
@@ -1178,47 +1178,47 @@ class student_timeline extends external_api {
     }
 
     public static function get_students_by_intake_period_returns() {
-        $student_struct = new external_single_structure([
-            'userid'             => new external_value(PARAM_INT, 'ID usuario'),
-            'username'           => new external_value(PARAM_TEXT, 'Identificación'),
-            'firstname'          => new external_value(PARAM_TEXT, 'Nombre'),
-            'lastname'           => new external_value(PARAM_TEXT, 'Apellido'),
-            'fullname'           => new external_value(PARAM_TEXT, 'Nombre completo'),
-            'email'              => new external_value(PARAM_TEXT, 'Email'),
-            'phone'              => new external_value(PARAM_TEXT, 'Teléfono'),
-            'status'             => new external_value(PARAM_TEXT, 'Estado'),
-            'intake_period'      => new external_value(PARAM_TEXT, 'Periodo de ingreso'),
-            'currentperiodid'    => new external_value(PARAM_INT, 'ID periodo actual'),
-            'currentsubperiodid' => new external_value(PARAM_INT, 'ID subperiodo actual'),
+        $student_struct = new \external_single_structure([
+            'userid'             => new \external_value(PARAM_INT, 'ID usuario'),
+            'username'           => new \external_value(PARAM_TEXT, 'Identificación'),
+            'firstname'          => new \external_value(PARAM_TEXT, 'Nombre'),
+            'lastname'           => new \external_value(PARAM_TEXT, 'Apellido'),
+            'fullname'           => new \external_value(PARAM_TEXT, 'Nombre completo'),
+            'email'              => new \external_value(PARAM_TEXT, 'Email'),
+            'phone'              => new \external_value(PARAM_TEXT, 'Teléfono'),
+            'status'             => new \external_value(PARAM_TEXT, 'Estado'),
+            'intake_period'      => new \external_value(PARAM_TEXT, 'Periodo de ingreso'),
+            'currentperiodid'    => new \external_value(PARAM_INT, 'ID periodo actual'),
+            'currentsubperiodid' => new \external_value(PARAM_INT, 'ID subperiodo actual'),
         ]);
 
-        $group_struct = new external_single_structure([
-            'period_id'      => new external_value(PARAM_INT, 'ID periodo'),
-            'period_name'    => new external_value(PARAM_TEXT, 'Nombre periodo'),
-            'subperiod_id'   => new external_value(PARAM_INT, 'ID subperiodo'),
-            'subperiod_name' => new external_value(PARAM_TEXT, 'Nombre subperiodo'),
-            'subperiod_pos'  => new external_value(PARAM_INT, 'Posición subperiodo'),
-            'students'       => new external_multiple_structure($student_struct, 'Estudiantes del grupo'),
+        $group_struct = new \external_single_structure([
+            'period_id'      => new \external_value(PARAM_INT, 'ID periodo'),
+            'period_name'    => new \external_value(PARAM_TEXT, 'Nombre periodo'),
+            'subperiod_id'   => new \external_value(PARAM_INT, 'ID subperiodo'),
+            'subperiod_name' => new \external_value(PARAM_TEXT, 'Nombre subperiodo'),
+            'subperiod_pos'  => new \external_value(PARAM_INT, 'Posición subperiodo'),
+            'students'       => new \external_multiple_structure($student_struct, 'Estudiantes del grupo'),
         ]);
 
-        return new external_single_structure([
-            'groups'            => new external_multiple_structure($group_struct, 'Grupos por bimestre'),
-            'available_periods' => new external_multiple_structure(
-                new external_value(PARAM_TEXT, 'Periodo de ingreso')
+        return new \external_single_structure([
+            'groups'            => new \external_multiple_structure($group_struct, 'Grupos por bimestre'),
+            'available_periods' => new \external_multiple_structure(
+                new \external_value(PARAM_TEXT, 'Periodo de ingreso')
             ),
-            'total'             => new external_value(PARAM_INT, 'Total de estudiantes'),
+            'total'             => new \external_value(PARAM_INT, 'Total de estudiantes'),
         ]);
     }
 
     // --- Bulk Reassign Students Intake Period ---
 
     public static function bulk_reassign_students_intake_period_parameters() {
-        return new external_function_parameters([
-            'userids'           => new external_multiple_structure(
-                new external_value(PARAM_INT, 'ID de usuario'),
+        return new \external_function_parameters([
+            'userids'           => new \external_multiple_structure(
+                new \external_value(PARAM_INT, 'ID de usuario'),
                 'IDs de los estudiantes a reasignar'
             ),
-            'new_intake_period' => new external_value(PARAM_TEXT, 'Nuevo periodo de ingreso'),
+            'new_intake_period' => new \external_value(PARAM_TEXT, 'Nuevo periodo de ingreso'),
         ]);
     }
 
@@ -1305,14 +1305,14 @@ class student_timeline extends external_api {
     }
 
     public static function bulk_reassign_students_intake_period_returns() {
-        return new external_single_structure([
-            'success'        => new external_value(PARAM_BOOL, 'Operación exitosa'),
-            'updated_count'  => new external_value(PARAM_INT, 'Cantidad de estudiantes actualizados'),
-            'failed_count'   => new external_value(PARAM_INT, 'Cantidad de fallos'),
-            'failed_userids' => new external_multiple_structure(
-                new external_value(PARAM_INT, 'ID usuario fallido')
+        return new \external_single_structure([
+            'success'        => new \external_value(PARAM_BOOL, 'Operación exitosa'),
+            'updated_count'  => new \external_value(PARAM_INT, 'Cantidad de estudiantes actualizados'),
+            'failed_count'   => new \external_value(PARAM_INT, 'Cantidad de fallos'),
+            'failed_userids' => new \external_multiple_structure(
+                new \external_value(PARAM_INT, 'ID usuario fallido')
             ),
-            'message'        => new external_value(PARAM_TEXT, 'Mensaje descriptivo'),
+            'message'        => new \external_value(PARAM_TEXT, 'Mensaje descriptivo'),
         ]);
     }
 
@@ -1647,11 +1647,11 @@ class student_timeline extends external_api {
     }
 
     public static function get_period_renewal_preview_parameters() {
-        return new external_function_parameters([
-            'learningplanid' => new external_value(PARAM_INT, 'ID del plan de aprendizaje'),
-            'intake_period'  => new external_value(PARAM_TEXT, 'Cohorte a renovar (vacío=todas)', VALUE_DEFAULT, ''),
-            'periodid'       => new external_value(PARAM_INT, 'ID del periodo actual (0=todos)', VALUE_DEFAULT, 0),
-            'subperiodid'    => new external_value(PARAM_INT, 'ID del subperiodo actual (0=todos)', VALUE_DEFAULT, 0),
+        return new \external_function_parameters([
+            'learningplanid' => new \external_value(PARAM_INT, 'ID del plan de aprendizaje'),
+            'intake_period'  => new \external_value(PARAM_TEXT, 'Cohorte a renovar (vacío=todas)', VALUE_DEFAULT, ''),
+            'periodid'       => new \external_value(PARAM_INT, 'ID del periodo actual (0=todos)', VALUE_DEFAULT, 0),
+            'subperiodid'    => new \external_value(PARAM_INT, 'ID del subperiodo actual (0=todos)', VALUE_DEFAULT, 0),
         ]);
     }
 
@@ -1867,15 +1867,15 @@ class student_timeline extends external_api {
     }
 
     public static function execute_period_renewal_parameters() {
-        return new external_function_parameters([
-            'learningplanid'      => new external_value(PARAM_INT, 'ID del plan de aprendizaje'),
-            'intake_period'       => new external_value(PARAM_TEXT, 'Cohorte', VALUE_DEFAULT, ''),
-            'periodid'            => new external_value(PARAM_INT, 'ID periodo filtro', VALUE_DEFAULT, 0),
-            'subperiodid'         => new external_value(PARAM_INT, 'ID bimestre filtro', VALUE_DEFAULT, 0),
-            'confirm_warnings'    => new external_value(PARAM_BOOL, 'Confirmar advertencia de graduandos con pendientes', VALUE_DEFAULT, false),
-            'target_intake_period' => new external_value(PARAM_TEXT, 'Nuevo cohorte destino para los estudiantes promovidos al siguiente cuatrimestre (vacío = mantener cohorte actual)', VALUE_DEFAULT, ''),
-            'userids'             => new external_multiple_structure(
-                new external_value(PARAM_INT, 'ID usuario'),
+        return new \external_function_parameters([
+            'learningplanid'      => new \external_value(PARAM_INT, 'ID del plan de aprendizaje'),
+            'intake_period'       => new \external_value(PARAM_TEXT, 'Cohorte', VALUE_DEFAULT, ''),
+            'periodid'            => new \external_value(PARAM_INT, 'ID periodo filtro', VALUE_DEFAULT, 0),
+            'subperiodid'         => new \external_value(PARAM_INT, 'ID bimestre filtro', VALUE_DEFAULT, 0),
+            'confirm_warnings'    => new \external_value(PARAM_BOOL, 'Confirmar advertencia de graduandos con pendientes', VALUE_DEFAULT, false),
+            'target_intake_period' => new \external_value(PARAM_TEXT, 'Nuevo cohorte destino para los estudiantes promovidos al siguiente cuatrimestre (vacío = mantener cohorte actual)', VALUE_DEFAULT, ''),
+            'userids'             => new \external_multiple_structure(
+                new \external_value(PARAM_INT, 'ID usuario'),
                 'IDs específicos a renovar. Vacío = todos los del cohorte (legacy).',
                 VALUE_DEFAULT,
                 []
@@ -2101,189 +2101,189 @@ class student_timeline extends external_api {
 
     public static function execute_period_renewal_returns() {
         // Re-uses the preview's return for the 'preview' field
-        $bim_student = new external_single_structure([
-            'userid'             => new external_value(PARAM_INT, 'ID'),
-            'name'               => new external_value(PARAM_TEXT, 'Nombre'),
-            'status'             => new external_value(PARAM_TEXT, 'Estado actual', VALUE_OPTIONAL),
-            'current_subperiod'  => new external_value(PARAM_TEXT, 'Bimestre actual', VALUE_OPTIONAL),
-            'next_subperiod'     => new external_value(PARAM_TEXT, 'Bimestre destino', VALUE_OPTIONAL),
-            'next_subperiod_id'  => new external_value(PARAM_INT, 'ID bimestre destino', VALUE_OPTIONAL),
+        $bim_student = new \external_single_structure([
+            'userid'             => new \external_value(PARAM_INT, 'ID'),
+            'name'               => new \external_value(PARAM_TEXT, 'Nombre'),
+            'status'             => new \external_value(PARAM_TEXT, 'Estado actual', VALUE_OPTIONAL),
+            'current_subperiod'  => new \external_value(PARAM_TEXT, 'Bimestre actual', VALUE_OPTIONAL),
+            'next_subperiod'     => new \external_value(PARAM_TEXT, 'Bimestre destino', VALUE_OPTIONAL),
+            'next_subperiod_id'  => new \external_value(PARAM_INT, 'ID bimestre destino', VALUE_OPTIONAL),
         ]);
-        $cuatri_student = new external_single_structure([
-            'userid'            => new external_value(PARAM_INT, 'ID'),
-            'name'              => new external_value(PARAM_TEXT, 'Nombre'),
-            'status'            => new external_value(PARAM_TEXT, 'Estado actual', VALUE_OPTIONAL),
-            'current_period'    => new external_value(PARAM_TEXT, 'Periodo actual', VALUE_OPTIONAL),
-            'next_period'       => new external_value(PARAM_TEXT, 'Periodo destino', VALUE_OPTIONAL),
-            'next_period_id'    => new external_value(PARAM_INT, 'ID periodo destino', VALUE_OPTIONAL),
-            'next_subperiod'    => new external_value(PARAM_TEXT, 'Bimestre destino', VALUE_OPTIONAL),
-            'next_subperiod_id' => new external_value(PARAM_INT, 'ID bimestre destino', VALUE_OPTIONAL),
+        $cuatri_student = new \external_single_structure([
+            'userid'            => new \external_value(PARAM_INT, 'ID'),
+            'name'              => new \external_value(PARAM_TEXT, 'Nombre'),
+            'status'            => new \external_value(PARAM_TEXT, 'Estado actual', VALUE_OPTIONAL),
+            'current_period'    => new \external_value(PARAM_TEXT, 'Periodo actual', VALUE_OPTIONAL),
+            'next_period'       => new \external_value(PARAM_TEXT, 'Periodo destino', VALUE_OPTIONAL),
+            'next_period_id'    => new \external_value(PARAM_INT, 'ID periodo destino', VALUE_OPTIONAL),
+            'next_subperiod'    => new \external_value(PARAM_TEXT, 'Bimestre destino', VALUE_OPTIONAL),
+            'next_subperiod_id' => new \external_value(PARAM_INT, 'ID bimestre destino', VALUE_OPTIONAL),
         ]);
-        $graduate_warn = new external_single_structure([
-            'userid' => new external_value(PARAM_INT, 'ID'),
-            'name'   => new external_value(PARAM_TEXT, 'Nombre'),
-            'period' => new external_value(PARAM_TEXT, 'Periodo', VALUE_OPTIONAL),
-            'pending_courses' => new external_multiple_structure(
-                new external_single_structure([
-                    'name'     => new external_value(PARAM_TEXT, 'Nombre del curso'),
-                    'periodid' => new external_value(PARAM_INT, 'ID periodo del curso'),
-                    'status'   => new external_value(PARAM_INT, 'Estado'),
-                    'grade'    => new external_value(PARAM_FLOAT, 'Calificación'),
+        $graduate_warn = new \external_single_structure([
+            'userid' => new \external_value(PARAM_INT, 'ID'),
+            'name'   => new \external_value(PARAM_TEXT, 'Nombre'),
+            'period' => new \external_value(PARAM_TEXT, 'Periodo', VALUE_OPTIONAL),
+            'pending_courses' => new \external_multiple_structure(
+                new \external_single_structure([
+                    'name'     => new \external_value(PARAM_TEXT, 'Nombre del curso'),
+                    'periodid' => new \external_value(PARAM_INT, 'ID periodo del curso'),
+                    'status'   => new \external_value(PARAM_INT, 'Estado'),
+                    'grade'    => new \external_value(PARAM_FLOAT, 'Calificación'),
                 ])
             ),
         ]);
-        $stays = new external_single_structure([
-            'userid'    => new external_value(PARAM_INT, 'ID'),
-            'name'      => new external_value(PARAM_TEXT, 'Nombre'),
-            'period'    => new external_value(PARAM_TEXT, 'Periodo', VALUE_OPTIONAL),
-            'subperiod' => new external_value(PARAM_TEXT, 'Bimestre', VALUE_OPTIONAL),
-            'reason'    => new external_value(PARAM_TEXT, 'Razón'),
+        $stays = new \external_single_structure([
+            'userid'    => new \external_value(PARAM_INT, 'ID'),
+            'name'      => new \external_value(PARAM_TEXT, 'Nombre'),
+            'period'    => new \external_value(PARAM_TEXT, 'Periodo', VALUE_OPTIONAL),
+            'subperiod' => new \external_value(PARAM_TEXT, 'Bimestre', VALUE_OPTIONAL),
+            'reason'    => new \external_value(PARAM_TEXT, 'Razón'),
         ]);
-        $skipped = new external_single_structure([
-            'userid' => new external_value(PARAM_INT, 'ID'),
-            'name'   => new external_value(PARAM_TEXT, 'Nombre'),
-            'reason' => new external_value(PARAM_TEXT, 'Razón'),
+        $skipped = new \external_single_structure([
+            'userid' => new \external_value(PARAM_INT, 'ID'),
+            'name'   => new \external_value(PARAM_TEXT, 'Nombre'),
+            'reason' => new \external_value(PARAM_TEXT, 'Razón'),
         ]);
-        $preview_struct = new external_single_structure([
-            'to_next_bim'         => new external_multiple_structure($bim_student, ''),
-            'to_next_cuatri'      => new external_multiple_structure($cuatri_student, ''),
-            'to_graduate_ok'      => new external_multiple_structure(
-                new external_single_structure([
-                    'userid' => new external_value(PARAM_INT, ''),
-                    'name'   => new external_value(PARAM_TEXT, ''),
-                    'period' => new external_value(PARAM_TEXT, '', VALUE_OPTIONAL),
+        $preview_struct = new \external_single_structure([
+            'to_next_bim'         => new \external_multiple_structure($bim_student, ''),
+            'to_next_cuatri'      => new \external_multiple_structure($cuatri_student, ''),
+            'to_graduate_ok'      => new \external_multiple_structure(
+                new \external_single_structure([
+                    'userid' => new \external_value(PARAM_INT, ''),
+                    'name'   => new \external_value(PARAM_TEXT, ''),
+                    'period' => new \external_value(PARAM_TEXT, '', VALUE_OPTIONAL),
                 ])
             ),
-            'to_graduate_warn'    => new external_multiple_structure($graduate_warn, ''),
-            'stays_inactive'      => new external_multiple_structure($stays, ''),
-            'skipped'             => new external_multiple_structure($skipped, ''),
-            'summary'             => new external_single_structure([
-                'to_next_bim_count'      => new external_value(PARAM_INT, ''),
-                'to_next_cuatri_count'   => new external_value(PARAM_INT, ''),
-                'to_graduate_ok_count'   => new external_value(PARAM_INT, ''),
-                'to_graduate_warn_count' => new external_value(PARAM_INT, ''),
-                'stays_inactive_count'   => new external_value(PARAM_INT, ''),
-                'skipped_count'          => new external_value(PARAM_INT, ''),
+            'to_graduate_warn'    => new \external_multiple_structure($graduate_warn, ''),
+            'stays_inactive'      => new \external_multiple_structure($stays, ''),
+            'skipped'             => new \external_multiple_structure($skipped, ''),
+            'summary'             => new \external_single_structure([
+                'to_next_bim_count'      => new \external_value(PARAM_INT, ''),
+                'to_next_cuatri_count'   => new \external_value(PARAM_INT, ''),
+                'to_graduate_ok_count'   => new \external_value(PARAM_INT, ''),
+                'to_graduate_warn_count' => new \external_value(PARAM_INT, ''),
+                'stays_inactive_count'   => new \external_value(PARAM_INT, ''),
+                'skipped_count'          => new \external_value(PARAM_INT, ''),
             ]),
-            'intake_period'       => new external_value(PARAM_TEXT, ''),
-            'period_id'           => new external_value(PARAM_INT, ''),
-            'subperiod_id'        => new external_value(PARAM_INT, ''),
+            'intake_period'       => new \external_value(PARAM_TEXT, ''),
+            'period_id'           => new \external_value(PARAM_INT, ''),
+            'subperiod_id'        => new \external_value(PARAM_INT, ''),
         ]);
-        $grad_warn_struct = new external_single_structure([
-            'userid' => new external_value(PARAM_INT, ''),
-            'name'   => new external_value(PARAM_TEXT, ''),
-            'pending_courses' => new external_multiple_structure(
-                new external_single_structure([
-                    'name'     => new external_value(PARAM_TEXT, ''),
-                    'periodid' => new external_value(PARAM_INT, ''),
-                    'status'   => new external_value(PARAM_INT, ''),
-                    'grade'    => new external_value(PARAM_FLOAT, ''),
+        $grad_warn_struct = new \external_single_structure([
+            'userid' => new \external_value(PARAM_INT, ''),
+            'name'   => new \external_value(PARAM_TEXT, ''),
+            'pending_courses' => new \external_multiple_structure(
+                new \external_single_structure([
+                    'name'     => new \external_value(PARAM_TEXT, ''),
+                    'periodid' => new \external_value(PARAM_INT, ''),
+                    'status'   => new \external_value(PARAM_INT, ''),
+                    'grade'    => new \external_value(PARAM_FLOAT, ''),
                 ])
             ),
         ]);
-        $generated_alerts_struct = new external_single_structure([
-            'userid' => new external_value(PARAM_INT, ''),
-            'name'   => new external_value(PARAM_TEXT, ''),
-            'alert_id' => new external_value(PARAM_INT, 'ID de la alerta en gmk_academic_alerts'),
-            'pending_courses' => new external_multiple_structure(
-                new external_single_structure([
-                    'name'     => new external_value(PARAM_TEXT, ''),
-                    'periodid' => new external_value(PARAM_INT, ''),
-                    'status'   => new external_value(PARAM_INT, ''),
-                    'grade'    => new external_value(PARAM_FLOAT, ''),
+        $generated_alerts_struct = new \external_single_structure([
+            'userid' => new \external_value(PARAM_INT, ''),
+            'name'   => new \external_value(PARAM_TEXT, ''),
+            'alert_id' => new \external_value(PARAM_INT, 'ID de la alerta en gmk_academic_alerts'),
+            'pending_courses' => new \external_multiple_structure(
+                new \external_single_structure([
+                    'name'     => new \external_value(PARAM_TEXT, ''),
+                    'periodid' => new \external_value(PARAM_INT, ''),
+                    'status'   => new \external_value(PARAM_INT, ''),
+                    'grade'    => new \external_value(PARAM_FLOAT, ''),
                 ])
             ),
         ]);
-        return new external_single_structure([
-            'success'        => new external_value(PARAM_BOOL, ''),
-            'updated_count'  => new external_value(PARAM_INT, ''),
-            'failed_count'   => new external_value(PARAM_INT, ''),
-            'message'        => new external_value(PARAM_TEXT, ''),
-            'requires_confirmation' => new external_value(PARAM_BOOL, ''),
+        return new \external_single_structure([
+            'success'        => new \external_value(PARAM_BOOL, ''),
+            'updated_count'  => new \external_value(PARAM_INT, ''),
+            'failed_count'   => new \external_value(PARAM_INT, ''),
+            'message'        => new \external_value(PARAM_TEXT, ''),
+            'requires_confirmation' => new \external_value(PARAM_BOOL, ''),
             'preview'        => $preview_struct,
-            'graduates_warn' => new external_multiple_structure($grad_warn_struct, 'Graduandos con pendientes'),
-            'generated_alerts' => new external_multiple_structure($generated_alerts_struct, 'Alertas académicas persistentes generadas en esta corrida (estudiantes que finalizaron ciclo con pendientes)'),
+            'graduates_warn' => new \external_multiple_structure($grad_warn_struct, 'Graduandos con pendientes'),
+            'generated_alerts' => new \external_multiple_structure($generated_alerts_struct, 'Alertas académicas persistentes generadas en esta corrida (estudiantes que finalizaron ciclo con pendientes)'),
         ]);
     }
 
     public static function get_period_renewal_preview_returns() {
-        $bim_student = new external_single_structure([
-            'userid'             => new external_value(PARAM_INT, 'ID'),
-            'name'               => new external_value(PARAM_TEXT, 'Nombre'),
-            'status'             => new external_value(PARAM_TEXT, 'Estado actual', VALUE_OPTIONAL),
-            'current_subperiod'  => new external_value(PARAM_TEXT, 'Bimestre actual', VALUE_OPTIONAL),
-            'next_subperiod'     => new external_value(PARAM_TEXT, 'Bimestre destino', VALUE_OPTIONAL),
-            'next_subperiod_id'  => new external_value(PARAM_INT, 'ID bimestre destino', VALUE_OPTIONAL),
+        $bim_student = new \external_single_structure([
+            'userid'             => new \external_value(PARAM_INT, 'ID'),
+            'name'               => new \external_value(PARAM_TEXT, 'Nombre'),
+            'status'             => new \external_value(PARAM_TEXT, 'Estado actual', VALUE_OPTIONAL),
+            'current_subperiod'  => new \external_value(PARAM_TEXT, 'Bimestre actual', VALUE_OPTIONAL),
+            'next_subperiod'     => new \external_value(PARAM_TEXT, 'Bimestre destino', VALUE_OPTIONAL),
+            'next_subperiod_id'  => new \external_value(PARAM_INT, 'ID bimestre destino', VALUE_OPTIONAL),
         ]);
 
-        $cuatri_student = new external_single_structure([
-            'userid'            => new external_value(PARAM_INT, 'ID'),
-            'name'              => new external_value(PARAM_TEXT, 'Nombre'),
-            'status'            => new external_value(PARAM_TEXT, 'Estado actual', VALUE_OPTIONAL),
-            'current_period'    => new external_value(PARAM_TEXT, 'Periodo actual', VALUE_OPTIONAL),
-            'next_period'       => new external_value(PARAM_TEXT, 'Periodo destino', VALUE_OPTIONAL),
-            'next_period_id'    => new external_value(PARAM_INT, 'ID periodo destino', VALUE_OPTIONAL),
-            'next_subperiod'    => new external_value(PARAM_TEXT, 'Bimestre destino', VALUE_OPTIONAL),
-            'next_subperiod_id' => new external_value(PARAM_INT, 'ID bimestre destino', VALUE_OPTIONAL),
+        $cuatri_student = new \external_single_structure([
+            'userid'            => new \external_value(PARAM_INT, 'ID'),
+            'name'              => new \external_value(PARAM_TEXT, 'Nombre'),
+            'status'            => new \external_value(PARAM_TEXT, 'Estado actual', VALUE_OPTIONAL),
+            'current_period'    => new \external_value(PARAM_TEXT, 'Periodo actual', VALUE_OPTIONAL),
+            'next_period'       => new \external_value(PARAM_TEXT, 'Periodo destino', VALUE_OPTIONAL),
+            'next_period_id'    => new \external_value(PARAM_INT, 'ID periodo destino', VALUE_OPTIONAL),
+            'next_subperiod'    => new \external_value(PARAM_TEXT, 'Bimestre destino', VALUE_OPTIONAL),
+            'next_subperiod_id' => new \external_value(PARAM_INT, 'ID bimestre destino', VALUE_OPTIONAL),
         ]);
 
-        $graduate_warn = new external_single_structure([
-            'userid' => new external_value(PARAM_INT, 'ID'),
-            'name'   => new external_value(PARAM_TEXT, 'Nombre'),
-            'period' => new external_value(PARAM_TEXT, 'Periodo', VALUE_OPTIONAL),
-            'pending_courses' => new external_multiple_structure(
-                new external_single_structure([
-                    'name'     => new external_value(PARAM_TEXT, 'Nombre del curso'),
-                    'periodid' => new external_value(PARAM_INT, 'ID periodo del curso'),
-                    'status'   => new external_value(PARAM_INT, 'Estado'),
-                    'grade'    => new external_value(PARAM_FLOAT, 'Calificación'),
+        $graduate_warn = new \external_single_structure([
+            'userid' => new \external_value(PARAM_INT, 'ID'),
+            'name'   => new \external_value(PARAM_TEXT, 'Nombre'),
+            'period' => new \external_value(PARAM_TEXT, 'Periodo', VALUE_OPTIONAL),
+            'pending_courses' => new \external_multiple_structure(
+                new \external_single_structure([
+                    'name'     => new \external_value(PARAM_TEXT, 'Nombre del curso'),
+                    'periodid' => new \external_value(PARAM_INT, 'ID periodo del curso'),
+                    'status'   => new \external_value(PARAM_INT, 'Estado'),
+                    'grade'    => new \external_value(PARAM_FLOAT, 'Calificación'),
                 ])
             ),
         ]);
 
-        $stays = new external_single_structure([
-            'userid'    => new external_value(PARAM_INT, 'ID'),
-            'name'      => new external_value(PARAM_TEXT, 'Nombre'),
-            'period'    => new external_value(PARAM_TEXT, 'Periodo', VALUE_OPTIONAL),
-            'subperiod' => new external_value(PARAM_TEXT, 'Bimestre', VALUE_OPTIONAL),
-            'reason'    => new external_value(PARAM_TEXT, 'Razón'),
+        $stays = new \external_single_structure([
+            'userid'    => new \external_value(PARAM_INT, 'ID'),
+            'name'      => new \external_value(PARAM_TEXT, 'Nombre'),
+            'period'    => new \external_value(PARAM_TEXT, 'Periodo', VALUE_OPTIONAL),
+            'subperiod' => new \external_value(PARAM_TEXT, 'Bimestre', VALUE_OPTIONAL),
+            'reason'    => new \external_value(PARAM_TEXT, 'Razón'),
         ]);
 
-        $skipped = new external_single_structure([
-            'userid' => new external_value(PARAM_INT, 'ID'),
-            'name'   => new external_value(PARAM_TEXT, 'Nombre'),
-            'reason' => new external_value(PARAM_TEXT, 'Razón'),
+        $skipped = new \external_single_structure([
+            'userid' => new \external_value(PARAM_INT, 'ID'),
+            'name'   => new \external_value(PARAM_TEXT, 'Nombre'),
+            'reason' => new \external_value(PARAM_TEXT, 'Razón'),
         ]);
 
-        return new external_single_structure([
-            'to_next_bim'         => new external_multiple_structure($bim_student, 'Pasarán al siguiente bimestre'),
-            'to_next_cuatri'      => new external_multiple_structure($cuatri_student, 'Pasarán al siguiente cuatrimestre'),
-            'to_graduate_ok'      => new external_multiple_structure(
-                new external_single_structure([
-                    'userid' => new external_value(PARAM_INT, 'ID'),
-                    'name'   => new external_value(PARAM_TEXT, 'Nombre'),
-                    'period' => new external_value(PARAM_TEXT, 'Periodo', VALUE_OPTIONAL),
+        return new \external_single_structure([
+            'to_next_bim'         => new \external_multiple_structure($bim_student, 'Pasarán al siguiente bimestre'),
+            'to_next_cuatri'      => new \external_multiple_structure($cuatri_student, 'Pasarán al siguiente cuatrimestre'),
+            'to_graduate_ok'      => new \external_multiple_structure(
+                new \external_single_structure([
+                    'userid' => new \external_value(PARAM_INT, 'ID'),
+                    'name'   => new \external_value(PARAM_TEXT, 'Nombre'),
+                    'period' => new \external_value(PARAM_TEXT, 'Periodo', VALUE_OPTIONAL),
                 ])
             ),
-            'to_graduate_warn'    => new external_multiple_structure($graduate_warn, 'Graduarán con asignaturas pendientes (resaltado en rojo)'),
-            'stays_inactive'      => new external_multiple_structure($stays, 'Inactivos que permanecen en su periodo'),
-            'skipped'             => new external_multiple_structure($skipped, 'Estudiantes omitidos'),
-            'summary'             => new external_single_structure([
-                'to_next_bim_count'      => new external_value(PARAM_INT, ''),
-                'to_next_cuatri_count'   => new external_value(PARAM_INT, ''),
-                'to_graduate_ok_count'   => new external_value(PARAM_INT, ''),
-                'to_graduate_warn_count' => new external_value(PARAM_INT, ''),
-                'stays_inactive_count'   => new external_value(PARAM_INT, ''),
-                'skipped_count'          => new external_value(PARAM_INT, ''),
+            'to_graduate_warn'    => new \external_multiple_structure($graduate_warn, 'Graduarán con asignaturas pendientes (resaltado en rojo)'),
+            'stays_inactive'      => new \external_multiple_structure($stays, 'Inactivos que permanecen en su periodo'),
+            'skipped'             => new \external_multiple_structure($skipped, 'Estudiantes omitidos'),
+            'summary'             => new \external_single_structure([
+                'to_next_bim_count'      => new \external_value(PARAM_INT, ''),
+                'to_next_cuatri_count'   => new \external_value(PARAM_INT, ''),
+                'to_graduate_ok_count'   => new \external_value(PARAM_INT, ''),
+                'to_graduate_warn_count' => new \external_value(PARAM_INT, ''),
+                'stays_inactive_count'   => new \external_value(PARAM_INT, ''),
+                'skipped_count'          => new \external_value(PARAM_INT, ''),
             ]),
-            'intake_period'       => new external_value(PARAM_TEXT, 'Cohorte'),
-            'period_id'           => new external_value(PARAM_INT, 'ID periodo filtro'),
-            'subperiod_id'        => new external_value(PARAM_INT, 'ID bimestre filtro'),
-            'available_target_cohorts' => new external_multiple_structure(
-                new external_value(PARAM_TEXT, 'Cohorte destino disponible'),
+            'intake_period'       => new \external_value(PARAM_TEXT, 'Cohorte'),
+            'period_id'           => new \external_value(PARAM_INT, 'ID periodo filtro'),
+            'subperiod_id'        => new \external_value(PARAM_INT, 'ID bimestre filtro'),
+            'available_target_cohorts' => new \external_multiple_structure(
+                new \external_value(PARAM_TEXT, 'Cohorte destino disponible'),
                 'Cohortes disponibles como destino para los estudiantes promovidos al siguiente cuatrimestre'
             ),
-            'suggested_target_cohort'  => new external_value(
+            'suggested_target_cohort'  => new \external_value(
                 PARAM_TEXT,
                 'Cohorte destino sugerido por defecto (calculado desde gmk_academic_periods)',
                 VALUE_OPTIONAL
@@ -2294,10 +2294,10 @@ class student_timeline extends external_api {
     // --- Get Students By Academic Period (for bulk academic-period reclassification) ---
 
     public static function get_students_by_academic_period_parameters() {
-        return new external_function_parameters([
-            'learningplanid'  => new external_value(PARAM_INT, 'ID del plan de aprendizaje'),
-            'intake_period'    => new external_value(PARAM_TEXT, 'Periodo de ingreso (cohorte) para filtrar', VALUE_DEFAULT, ''),
-            'only_active'      => new external_value(PARAM_BOOL, 'Solo estudiantes activos', VALUE_DEFAULT, true),
+        return new \external_function_parameters([
+            'learningplanid'  => new \external_value(PARAM_INT, 'ID del plan de aprendizaje'),
+            'intake_period'    => new \external_value(PARAM_TEXT, 'Periodo de ingreso (cohorte) para filtrar', VALUE_DEFAULT, ''),
+            'only_active'      => new \external_value(PARAM_BOOL, 'Solo estudiantes activos', VALUE_DEFAULT, true),
         ]);
     }
 
@@ -2467,51 +2467,51 @@ class student_timeline extends external_api {
     }
 
     public static function get_students_by_academic_period_returns() {
-        $student_struct = new external_single_structure([
-            'userid'             => new external_value(PARAM_INT, 'ID usuario'),
-            'username'           => new external_value(PARAM_TEXT, 'Identificación'),
-            'firstname'          => new external_value(PARAM_TEXT, 'Nombre'),
-            'lastname'           => new external_value(PARAM_TEXT, 'Apellido'),
-            'fullname'           => new external_value(PARAM_TEXT, 'Nombre completo'),
-            'email'              => new external_value(PARAM_TEXT, 'Email'),
-            'phone'              => new external_value(PARAM_TEXT, 'Teléfono'),
-            'status'             => new external_value(PARAM_TEXT, 'Estado'),
-            'intake_period'      => new external_value(PARAM_TEXT, 'Periodo de ingreso'),
-            'currentperiodid'    => new external_value(PARAM_INT, 'ID periodo actual'),
-            'currentsubperiodid' => new external_value(PARAM_INT, 'ID subperiodo actual'),
-            'academicperiodid'   => new external_value(PARAM_INT, 'ID periodo lectivo actual'),
-            'academicperiodname' => new external_value(PARAM_TEXT, 'Nombre periodo lectivo actual'),
+        $student_struct = new \external_single_structure([
+            'userid'             => new \external_value(PARAM_INT, 'ID usuario'),
+            'username'           => new \external_value(PARAM_TEXT, 'Identificación'),
+            'firstname'          => new \external_value(PARAM_TEXT, 'Nombre'),
+            'lastname'           => new \external_value(PARAM_TEXT, 'Apellido'),
+            'fullname'           => new \external_value(PARAM_TEXT, 'Nombre completo'),
+            'email'              => new \external_value(PARAM_TEXT, 'Email'),
+            'phone'              => new \external_value(PARAM_TEXT, 'Teléfono'),
+            'status'             => new \external_value(PARAM_TEXT, 'Estado'),
+            'intake_period'      => new \external_value(PARAM_TEXT, 'Periodo de ingreso'),
+            'currentperiodid'    => new \external_value(PARAM_INT, 'ID periodo actual'),
+            'currentsubperiodid' => new \external_value(PARAM_INT, 'ID subperiodo actual'),
+            'academicperiodid'   => new \external_value(PARAM_INT, 'ID periodo lectivo actual'),
+            'academicperiodname' => new \external_value(PARAM_TEXT, 'Nombre periodo lectivo actual'),
         ]);
 
-        $group_struct = new external_single_structure([
-            'period_id'     => new external_value(PARAM_INT, 'ID periodo lectivo'),
-            'period_name'   => new external_value(PARAM_TEXT, 'Nombre periodo lectivo'),
-            'period_status' => new external_value(PARAM_INT, 'Status del periodo lectivo (1=activo)'),
-            'students'      => new external_multiple_structure($student_struct, 'Estudiantes del grupo'),
+        $group_struct = new \external_single_structure([
+            'period_id'     => new \external_value(PARAM_INT, 'ID periodo lectivo'),
+            'period_name'   => new \external_value(PARAM_TEXT, 'Nombre periodo lectivo'),
+            'period_status' => new \external_value(PARAM_INT, 'Status del periodo lectivo (1=activo)'),
+            'students'      => new \external_multiple_structure($student_struct, 'Estudiantes del grupo'),
         ]);
 
-        $available_struct = new external_single_structure([
-            'id'     => new external_value(PARAM_INT, 'ID periodo lectivo destino'),
-            'name'   => new external_value(PARAM_TEXT, 'Nombre'),
-            'status' => new external_value(PARAM_INT, '1=activo, 0=cerrado'),
+        $available_struct = new \external_single_structure([
+            'id'     => new \external_value(PARAM_INT, 'ID periodo lectivo destino'),
+            'name'   => new \external_value(PARAM_TEXT, 'Nombre'),
+            'status' => new \external_value(PARAM_INT, '1=activo, 0=cerrado'),
         ]);
 
-        return new external_single_structure([
-            'groups'             => new external_multiple_structure($group_struct, 'Grupos por periodo lectivo actual'),
-            'available_periods'  => new external_multiple_structure($available_struct, 'Periodos lectivos disponibles como destino'),
-            'total'              => new external_value(PARAM_INT, 'Total de estudiantes'),
+        return new \external_single_structure([
+            'groups'             => new \external_multiple_structure($group_struct, 'Grupos por periodo lectivo actual'),
+            'available_periods'  => new \external_multiple_structure($available_struct, 'Periodos lectivos disponibles como destino'),
+            'total'              => new \external_value(PARAM_INT, 'Total de estudiantes'),
         ]);
     }
 
     // --- Bulk Update Students Academic Period ---
 
     public static function bulk_update_students_academic_period_parameters() {
-        return new external_function_parameters([
-            'userids'                  => new external_multiple_structure(
-                new external_value(PARAM_INT, 'ID de usuario'),
+        return new \external_function_parameters([
+            'userids'                  => new \external_multiple_structure(
+                new \external_value(PARAM_INT, 'ID de usuario'),
                 'IDs de los estudiantes a reasignar'
             ),
-            'new_academic_periodid'   => new external_value(PARAM_INT, 'ID del nuevo periodo lectivo'),
+            'new_academic_periodid'   => new \external_value(PARAM_INT, 'ID del nuevo periodo lectivo'),
         ]);
     }
 
@@ -2605,16 +2605,16 @@ class student_timeline extends external_api {
     }
 
     public static function bulk_update_students_academic_period_returns() {
-        return new external_single_structure([
-            'success'         => new external_value(PARAM_BOOL, 'true si al menos uno se actualizó'),
-            'updated_count'   => new external_value(PARAM_INT, 'Cuántos se actualizaron'),
-            'failed_count'    => new external_value(PARAM_INT, 'Cuántos fallaron'),
-            'failed_userids'  => new external_multiple_structure(
-                new external_value(PARAM_INT, 'IDs que fallaron'),
+        return new \external_single_structure([
+            'success'         => new \external_value(PARAM_BOOL, 'true si al menos uno se actualizó'),
+            'updated_count'   => new \external_value(PARAM_INT, 'Cuántos se actualizaron'),
+            'failed_count'    => new \external_value(PARAM_INT, 'Cuántos fallaron'),
+            'failed_userids'  => new \external_multiple_structure(
+                new \external_value(PARAM_INT, 'IDs que fallaron'),
                 'IDs que no se pudieron actualizar'
             ),
-            'message'         => new external_value(PARAM_TEXT, 'Mensaje resumen'),
-            'new_period_name' => new external_value(PARAM_TEXT, 'Nombre del periodo lectivo destino'),
+            'message'         => new \external_value(PARAM_TEXT, 'Mensaje resumen'),
+            'new_period_name' => new \external_value(PARAM_TEXT, 'Nombre del periodo lectivo destino'),
         ]);
     }
 
@@ -2742,38 +2742,38 @@ class student_timeline extends external_api {
     }
 
     public static function get_group_curriculum_parameters() {
-        return new external_function_parameters([
-            'learningplanid' => new external_value(PARAM_INT, 'ID del plan de aprendizaje (carrera)'),
-            'intake_period'  => new external_value(PARAM_TEXT, 'Cohorte (periodo_ingreso), p.ej. 2026-V'),
-            'jornada'        => new external_value(PARAM_TEXT, 'Jornada; vacio = todas', false, ''),
+        return new \external_function_parameters([
+            'learningplanid' => new \external_value(PARAM_INT, 'ID del plan de aprendizaje (carrera)'),
+            'intake_period'  => new \external_value(PARAM_TEXT, 'Cohorte (periodo_ingreso), p.ej. 2026-V'),
+            'jornada'        => new \external_value(PARAM_TEXT, 'Jornada; vacio = todas', false, ''),
         ]);
     }
 
     public static function get_group_curriculum_returns() {
-        return new external_single_structure([
-            'learningplanid' => new external_value(PARAM_INT, 'Plan'),
-            'intake_period'  => new external_value(PARAM_TEXT, 'Cohorte'),
-            'jornada'        => new external_value(PARAM_TEXT, 'Jornada normalizada'),
-            'seeded'         => new external_value(PARAM_BOOL, 'true si el grupo ya tiene malla declarada'),
-            'total_courses'  => new external_value(PARAM_INT, 'Total de filas'),
-            'excluded_count' => new external_value(PARAM_INT, 'Cuantas estan excluidas (source=2)'),
-            'levels'         => new external_multiple_structure(
-                new external_single_structure([
-                    'periodid'   => new external_value(PARAM_INT, 'Nivel del plan'),
-                    'level_name' => new external_value(PARAM_TEXT, 'Nombre del nivel'),
-                    'courses'    => new external_multiple_structure(
-                        new external_single_structure([
-                            'id'                 => new external_value(PARAM_INT, 'ID de la fila de malla'),
-                            'courseid'           => new external_value(PARAM_INT, 'Curso'),
-                            'coursename'         => new external_value(PARAM_TEXT, 'Nombre'),
-                            'courseshortname'    => new external_value(PARAM_TEXT, 'Nombre corto'),
-                            'subperiodid'        => new external_value(PARAM_INT, 'Bimestre (0 si no aplica)'),
-                            'academicperiodid'   => new external_value(PARAM_INT, 'Periodo lectivo (0 si sin ubicar)'),
-                            'academicperiodname' => new external_value(PARAM_TEXT, 'Nombre del periodo lectivo'),
-                            'source'             => new external_value(PARAM_INT, '0=plan, 1=anadida, 2=excluida'),
-                            'status'             => new external_value(PARAM_INT, '0=planificada, 1=confirmada, 2=cancelada'),
-                            'credits'            => new external_value(PARAM_INT, 'Creditos resueltos'),
-                            'notes'              => new external_value(PARAM_TEXT, 'Notas'),
+        return new \external_single_structure([
+            'learningplanid' => new \external_value(PARAM_INT, 'Plan'),
+            'intake_period'  => new \external_value(PARAM_TEXT, 'Cohorte'),
+            'jornada'        => new \external_value(PARAM_TEXT, 'Jornada normalizada'),
+            'seeded'         => new \external_value(PARAM_BOOL, 'true si el grupo ya tiene malla declarada'),
+            'total_courses'  => new \external_value(PARAM_INT, 'Total de filas'),
+            'excluded_count' => new \external_value(PARAM_INT, 'Cuantas estan excluidas (source=2)'),
+            'levels'         => new \external_multiple_structure(
+                new \external_single_structure([
+                    'periodid'   => new \external_value(PARAM_INT, 'Nivel del plan'),
+                    'level_name' => new \external_value(PARAM_TEXT, 'Nombre del nivel'),
+                    'courses'    => new \external_multiple_structure(
+                        new \external_single_structure([
+                            'id'                 => new \external_value(PARAM_INT, 'ID de la fila de malla'),
+                            'courseid'           => new \external_value(PARAM_INT, 'Curso'),
+                            'coursename'         => new \external_value(PARAM_TEXT, 'Nombre'),
+                            'courseshortname'    => new \external_value(PARAM_TEXT, 'Nombre corto'),
+                            'subperiodid'        => new \external_value(PARAM_INT, 'Bimestre (0 si no aplica)'),
+                            'academicperiodid'   => new \external_value(PARAM_INT, 'Periodo lectivo (0 si sin ubicar)'),
+                            'academicperiodname' => new \external_value(PARAM_TEXT, 'Nombre del periodo lectivo'),
+                            'source'             => new \external_value(PARAM_INT, '0=plan, 1=anadida, 2=excluida'),
+                            'status'             => new \external_value(PARAM_INT, '0=planificada, 1=confirmada, 2=cancelada'),
+                            'credits'            => new \external_value(PARAM_INT, 'Creditos resueltos'),
+                            'notes'              => new \external_value(PARAM_TEXT, 'Notas'),
                         ])
                     ),
                 ])
@@ -2871,19 +2871,19 @@ class student_timeline extends external_api {
     }
 
     public static function seed_group_curriculum_parameters() {
-        return new external_function_parameters([
-            'learningplanid' => new external_value(PARAM_INT, 'ID del plan (carrera)'),
-            'intake_period'  => new external_value(PARAM_TEXT, 'Cohorte (periodo_ingreso)'),
-            'jornada'        => new external_value(PARAM_TEXT, 'Jornada; vacio = todas', false, ''),
+        return new \external_function_parameters([
+            'learningplanid' => new \external_value(PARAM_INT, 'ID del plan (carrera)'),
+            'intake_period'  => new \external_value(PARAM_TEXT, 'Cohorte (periodo_ingreso)'),
+            'jornada'        => new \external_value(PARAM_TEXT, 'Jornada; vacio = todas', false, ''),
         ]);
     }
 
     public static function seed_group_curriculum_returns() {
-        return new external_single_structure([
-            'success'        => new external_value(PARAM_BOOL, 'Exito'),
-            'inserted_count' => new external_value(PARAM_INT, 'Filas creadas'),
-            'skipped_count'  => new external_value(PARAM_INT, 'Filas que ya existian'),
-            'message'        => new external_value(PARAM_TEXT, 'Mensaje'),
+        return new \external_single_structure([
+            'success'        => new \external_value(PARAM_BOOL, 'Exito'),
+            'inserted_count' => new \external_value(PARAM_INT, 'Filas creadas'),
+            'skipped_count'  => new \external_value(PARAM_INT, 'Filas que ya existian'),
+            'message'        => new \external_value(PARAM_TEXT, 'Mensaje'),
         ]);
     }
 
@@ -2972,26 +2972,26 @@ class student_timeline extends external_api {
     }
 
     public static function set_group_course_parameters() {
-        return new external_function_parameters([
-            'learningplanid'   => new external_value(PARAM_INT, 'Plan'),
-            'intake_period'    => new external_value(PARAM_TEXT, 'Cohorte'),
-            'jornada'          => new external_value(PARAM_TEXT, 'Jornada; vacio = todas'),
-            'periodid'         => new external_value(PARAM_INT, 'Nivel del plan'),
-            'courseid'         => new external_value(PARAM_INT, 'Curso'),
-            'subperiodid'      => new external_value(PARAM_INT, 'Bimestre (0 = ninguno)', false, 0),
-            'academicperiodid' => new external_value(PARAM_INT, 'Periodo lectivo (0 = sin ubicar)', false, 0),
-            'status'           => new external_value(PARAM_INT, '0=planificada, 1=confirmada, 2=cancelada', false, 0),
-            'notes'            => new external_value(PARAM_TEXT, 'Notas', false, null),
+        return new \external_function_parameters([
+            'learningplanid'   => new \external_value(PARAM_INT, 'Plan'),
+            'intake_period'    => new \external_value(PARAM_TEXT, 'Cohorte'),
+            'jornada'          => new \external_value(PARAM_TEXT, 'Jornada; vacio = todas'),
+            'periodid'         => new \external_value(PARAM_INT, 'Nivel del plan'),
+            'courseid'         => new \external_value(PARAM_INT, 'Curso'),
+            'subperiodid'      => new \external_value(PARAM_INT, 'Bimestre (0 = ninguno)', false, 0),
+            'academicperiodid' => new \external_value(PARAM_INT, 'Periodo lectivo (0 = sin ubicar)', false, 0),
+            'status'           => new \external_value(PARAM_INT, '0=planificada, 1=confirmada, 2=cancelada', false, 0),
+            'notes'            => new \external_value(PARAM_TEXT, 'Notas', false, null),
         ]);
     }
 
     public static function set_group_course_returns() {
-        return new external_single_structure([
-            'success' => new external_value(PARAM_BOOL, 'Exito'),
-            'id'      => new external_value(PARAM_INT, 'ID de la fila'),
-            'action'  => new external_value(PARAM_TEXT, 'created|updated'),
-            'source'  => new external_value(PARAM_INT, '0=del plan, 1=anadida a mano'),
-            'message' => new external_value(PARAM_TEXT, 'Mensaje'),
+        return new \external_single_structure([
+            'success' => new \external_value(PARAM_BOOL, 'Exito'),
+            'id'      => new \external_value(PARAM_INT, 'ID de la fila'),
+            'action'  => new \external_value(PARAM_TEXT, 'created|updated'),
+            'source'  => new \external_value(PARAM_INT, '0=del plan, 1=anadida a mano'),
+            'message' => new \external_value(PARAM_TEXT, 'Mensaje'),
         ]);
     }
 
@@ -3045,20 +3045,20 @@ class student_timeline extends external_api {
     }
 
     public static function unset_group_course_parameters() {
-        return new external_function_parameters([
-            'learningplanid' => new external_value(PARAM_INT, 'Plan'),
-            'intake_period'  => new external_value(PARAM_TEXT, 'Cohorte'),
-            'jornada'        => new external_value(PARAM_TEXT, 'Jornada; vacio = todas'),
-            'periodid'       => new external_value(PARAM_INT, 'Nivel del plan'),
-            'courseid'       => new external_value(PARAM_INT, 'Curso'),
+        return new \external_function_parameters([
+            'learningplanid' => new \external_value(PARAM_INT, 'Plan'),
+            'intake_period'  => new \external_value(PARAM_TEXT, 'Cohorte'),
+            'jornada'        => new \external_value(PARAM_TEXT, 'Jornada; vacio = todas'),
+            'periodid'       => new \external_value(PARAM_INT, 'Nivel del plan'),
+            'courseid'       => new \external_value(PARAM_INT, 'Curso'),
         ]);
     }
 
     public static function unset_group_course_returns() {
-        return new external_single_structure([
-            'success' => new external_value(PARAM_BOOL, 'Exito'),
-            'action'  => new external_value(PARAM_TEXT, 'excluded|deleted|none'),
-            'message' => new external_value(PARAM_TEXT, 'Mensaje'),
+        return new \external_single_structure([
+            'success' => new \external_value(PARAM_BOOL, 'Exito'),
+            'action'  => new \external_value(PARAM_TEXT, 'excluded|deleted|none'),
+            'message' => new \external_value(PARAM_TEXT, 'Mensaje'),
         ]);
     }
 }

@@ -57,7 +57,7 @@ class list_institution_contracts extends external_api {
      * @return external_function_parameters
      */
     public static function execute_parameters(): external_function_parameters {
-        return new external_function_parameters(
+        return new \external_function_parameters(
             []
         );
     }
@@ -87,10 +87,10 @@ class list_institution_contracts extends external_api {
      * @return external_description
      */
     public static function execute_returns(): external_description {
-        return new external_single_structure(
+        return new \external_single_structure(
             array(
-                'institutionId' => new external_value(PARAM_INT, 'The ID of the delete class or -1 if there was an error.'),
-                'message' => new external_value(PARAM_TEXT, 'The error message or Ok.'),
+                'institutionId' => new \external_value(PARAM_INT, 'The ID of the delete class or -1 if there was an error.'),
+                'message' => new \external_value(PARAM_TEXT, 'The error message or Ok.'),
             )
         );
     }

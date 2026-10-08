@@ -27,10 +27,10 @@ require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/academic_move
 class withdraw_student extends external_api {
 
     public static function execute_parameters() {
-        return new external_function_parameters([
-            'classId' => new external_value(PARAM_INT, 'The class ID (gmk_class.id) to withdraw from'),
-            'userId' => new external_value(PARAM_INT, 'The student user ID'),
-            'learningPlanId' => new external_value(PARAM_INT, 'Preferred learning plan ID', VALUE_DEFAULT, 0),
+        return new \external_function_parameters([
+            'classId' => new \external_value(PARAM_INT, 'The class ID (gmk_class.id) to withdraw from'),
+            'userId' => new \external_value(PARAM_INT, 'The student user ID'),
+            'learningPlanId' => new \external_value(PARAM_INT, 'Preferred learning plan ID', VALUE_DEFAULT, 0),
         ]);
     }
 
@@ -291,9 +291,9 @@ class withdraw_student extends external_api {
     }
 
     public static function execute_returns() {
-        return new external_single_structure([
-            'status' => new external_value(PARAM_TEXT, 'ok | error'),
-            'message' => new external_value(PARAM_TEXT, 'Descriptive message'),
+        return new \external_single_structure([
+            'status' => new \external_value(PARAM_TEXT, 'ok | error'),
+            'message' => new \external_value(PARAM_TEXT, 'Descriptive message'),
         ]);
     }
 }

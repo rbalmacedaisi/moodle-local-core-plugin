@@ -56,8 +56,8 @@ class get_logo_theme extends external_api {
      * @return external_function_parameters
      */
     public static function execute_parameters(): external_function_parameters {
-        return new external_function_parameters([
-            'themename' => new external_value(PARAM_TEXT, 'Name of theme in use in site.',VALUE_REQUIRED,VALUE_DEFAULT,null),
+        return new \external_function_parameters([
+            'themename' => new \external_value(PARAM_TEXT, 'Name of theme in use in site.',VALUE_REQUIRED,VALUE_DEFAULT,null),
         ]);
     }
 
@@ -100,9 +100,9 @@ class get_logo_theme extends external_api {
      * @return external_description
      */
     public static function execute_returns(): external_description {
-        return new external_single_structure(
+        return new \external_single_structure(
             array(
-                'LogoUrl' => new external_value(PARAM_TEXT, ''),
+                'LogoUrl' => new \external_value(PARAM_TEXT, ''),
             )
         );
     }

@@ -37,19 +37,19 @@ use external_single_structure;
 class create_request extends external_api {
 
     public static function execute_parameters(): external_function_parameters {
-        return new external_function_parameters([
-            'reason'                => new external_value(PARAM_TEXT, 'A|B|C|D|E|F'),
-            'payment_option'        => new external_value(PARAM_TEXT, 'cambio_carrera|transferencia_derechos|no_aplica', VALUE_DEFAULT, ''),
-            'payment_option_detail' => new external_value(PARAM_TEXT, 'Detail text (career / third party id)', VALUE_DEFAULT, ''),
-            'observations'          => new external_value(PARAM_TEXT, 'Free observations', VALUE_DEFAULT, ''),
-            'current_period'        => new external_value(PARAM_TEXT, 'Current period (free text)', VALUE_DEFAULT, ''),
-            'last_period'           => new external_value(PARAM_TEXT, 'Last period attending (free text)', VALUE_DEFAULT, ''),
-            'phone'                 => new external_value(PARAM_TEXT, 'Phone', VALUE_DEFAULT, ''),
-            'id_number'             => new external_value(PARAM_TEXT, 'ID number', VALUE_DEFAULT, ''),
-            'email'                 => new external_value(PARAM_TEXT, 'Email', VALUE_DEFAULT, ''),
-            'payment_mode'          => new external_value(PARAM_TEXT, 'mensual|quincenal', VALUE_DEFAULT, ''),
-            'fullname'              => new external_value(PARAM_TEXT, 'Snapshot fullname', VALUE_DEFAULT, ''),
-            'program'               => new external_value(PARAM_TEXT, 'Snapshot program', VALUE_DEFAULT, ''),
+        return new \external_function_parameters([
+            'reason'                => new \external_value(PARAM_TEXT, 'A|B|C|D|E|F'),
+            'payment_option'        => new \external_value(PARAM_TEXT, 'cambio_carrera|transferencia_derechos|no_aplica', VALUE_DEFAULT, ''),
+            'payment_option_detail' => new \external_value(PARAM_TEXT, 'Detail text (career / third party id)', VALUE_DEFAULT, ''),
+            'observations'          => new \external_value(PARAM_TEXT, 'Free observations', VALUE_DEFAULT, ''),
+            'current_period'        => new \external_value(PARAM_TEXT, 'Current period (free text)', VALUE_DEFAULT, ''),
+            'last_period'           => new \external_value(PARAM_TEXT, 'Last period attending (free text)', VALUE_DEFAULT, ''),
+            'phone'                 => new \external_value(PARAM_TEXT, 'Phone', VALUE_DEFAULT, ''),
+            'id_number'             => new \external_value(PARAM_TEXT, 'ID number', VALUE_DEFAULT, ''),
+            'email'                 => new \external_value(PARAM_TEXT, 'Email', VALUE_DEFAULT, ''),
+            'payment_mode'          => new \external_value(PARAM_TEXT, 'mensual|quincenal', VALUE_DEFAULT, ''),
+            'fullname'              => new \external_value(PARAM_TEXT, 'Snapshot fullname', VALUE_DEFAULT, ''),
+            'program'               => new \external_value(PARAM_TEXT, 'Snapshot program', VALUE_DEFAULT, ''),
         ]);
     }
 
@@ -91,11 +91,11 @@ class create_request extends external_api {
     }
 
     public static function execute_returns(): external_single_structure {
-        return new external_single_structure([
-            'id'             => new external_value(PARAM_INT, 'Row id'),
-            'request_number' => new external_value(PARAM_TEXT, 'RET-{YYYY}-{NNNN}'),
-            'status'         => new external_value(PARAM_TEXT, 'Status code'),
-            'timecreated'    => new external_value(PARAM_INT, 'Unix ts'),
+        return new \external_single_structure([
+            'id'             => new \external_value(PARAM_INT, 'Row id'),
+            'request_number' => new \external_value(PARAM_TEXT, 'RET-{YYYY}-{NNNN}'),
+            'status'         => new \external_value(PARAM_TEXT, 'Status code'),
+            'timecreated'    => new \external_value(PARAM_INT, 'Unix ts'),
         ]);
     }
 }

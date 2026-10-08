@@ -54,10 +54,10 @@ class delete_course_class_schedule extends external_api {
      * @return external_function_parameters
      */
     public static function execute_parameters(): external_function_parameters {
-        return new external_function_parameters(
+        return new \external_function_parameters(
             [
-                'classId' => new external_value(PARAM_TEXT, 'Class ID',VALUE_REQUIRED),
-                'deletionMessage' => new external_value(PARAM_TEXT, 'Deletion reason',VALUE_DEFAULT,''),
+                'classId' => new \external_value(PARAM_TEXT, 'Class ID',VALUE_REQUIRED),
+                'deletionMessage' => new \external_value(PARAM_TEXT, 'Deletion reason',VALUE_DEFAULT,''),
             ]
         );
     }
@@ -102,10 +102,10 @@ class delete_course_class_schedule extends external_api {
      * @return external_description
      */
     public static function execute_returns(): external_description {
-        return new external_single_structure(
+        return new \external_single_structure(
             array(
-                'status' => new external_value(PARAM_INT, '1 if success, -1 otherwise'),
-                'message' => new external_value(PARAM_TEXT, 'The error message or Ok.',VALUE_DEFAULT,'ok'),
+                'status' => new \external_value(PARAM_INT, '1 if success, -1 otherwise'),
+                'message' => new \external_value(PARAM_TEXT, 'The error message or Ok.',VALUE_DEFAULT,'ok'),
             )
         );
     }

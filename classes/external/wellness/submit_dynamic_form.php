@@ -36,9 +36,9 @@ require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/wellness_dyna
 class submit_dynamic_form extends external_api {
 
     public static function execute_parameters() {
-        return new external_function_parameters([
-            'formid'  => new external_value(PARAM_INT,  'Form id', VALUE_REQUIRED),
-            'answers' => new external_value(PARAM_RAW,  'JSON-encoded object {field: value}', VALUE_DEFAULT, '{}'),
+        return new \external_function_parameters([
+            'formid'  => new \external_value(PARAM_INT,  'Form id', VALUE_REQUIRED),
+            'answers' => new \external_value(PARAM_RAW,  'JSON-encoded object {field: value}', VALUE_DEFAULT, '{}'),
         ]);
     }
 
@@ -81,13 +81,13 @@ class submit_dynamic_form extends external_api {
     }
 
     public static function execute_returns() {
-        return new external_single_structure([
-            'ok'           => new external_value(PARAM_BOOL, 'True on success'),
-            'responseid'   => new external_value(PARAM_INT,  'Response row id, 0 on failure'),
-            'error'        => new external_value(PARAM_TEXT, 'Error code, empty on success'),
-            'field_errors' => new external_value(PARAM_RAW,  'JSON map field -> error code'),
-            'formid'       => new external_value(PARAM_INT,  'Echoed form id'),
-            'userid'       => new external_value(PARAM_INT,  'Echoed user id'),
+        return new \external_single_structure([
+            'ok'           => new \external_value(PARAM_BOOL, 'True on success'),
+            'responseid'   => new \external_value(PARAM_INT,  'Response row id, 0 on failure'),
+            'error'        => new \external_value(PARAM_TEXT, 'Error code, empty on success'),
+            'field_errors' => new \external_value(PARAM_RAW,  'JSON map field -> error code'),
+            'formid'       => new \external_value(PARAM_INT,  'Echoed form id'),
+            'userid'       => new \external_value(PARAM_INT,  'Echoed user id'),
         ]);
     }
 }

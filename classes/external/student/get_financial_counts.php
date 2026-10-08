@@ -36,7 +36,7 @@ class get_financial_counts extends external_api {
      * carrera/periodo, se agregan aquí sin romper compatibilidad.
      */
     public static function execute_parameters(): external_function_parameters {
-        return new external_function_parameters([]);
+        return new \external_function_parameters([]);
     }
 
     /**
@@ -194,15 +194,15 @@ class get_financial_counts extends external_api {
     }
 
     public static function execute_returns(): external_single_structure {
-        return new external_single_structure([
-            'total'        => new external_value(PARAM_INT, 'Active students total.'),
-            'al_dia'       => new external_value(PARAM_INT, 'Active students with financial_status=al_dia.'),
-            'mora'         => new external_value(PARAM_INT, 'Active students with financial_status=mora.'),
-            'becado'       => new external_value(PARAM_INT, 'Active students with financial_status=becado.'),
-            'convenio'     => new external_value(PARAM_INT, 'Active students with financial_status=convenio.'),
-            'sin_contrato' => new external_value(PARAM_INT, 'Active students with financial_status=sin_contrato_o_usuario.'),
-            'pendiente'    => new external_value(PARAM_INT, 'Active students without a gmk_financial_status row yet.'),
-            'server_time'  => new external_value(PARAM_INT, 'Server unix timestamp (epoch).'),
+        return new \external_single_structure([
+            'total'        => new \external_value(PARAM_INT, 'Active students total.'),
+            'al_dia'       => new \external_value(PARAM_INT, 'Active students with financial_status=al_dia.'),
+            'mora'         => new \external_value(PARAM_INT, 'Active students with financial_status=mora.'),
+            'becado'       => new \external_value(PARAM_INT, 'Active students with financial_status=becado.'),
+            'convenio'     => new \external_value(PARAM_INT, 'Active students with financial_status=convenio.'),
+            'sin_contrato' => new \external_value(PARAM_INT, 'Active students with financial_status=sin_contrato_o_usuario.'),
+            'pendiente'    => new \external_value(PARAM_INT, 'Active students without a gmk_financial_status row yet.'),
+            'server_time'  => new \external_value(PARAM_INT, 'Server unix timestamp (epoch).'),
         ]);
     }
 }

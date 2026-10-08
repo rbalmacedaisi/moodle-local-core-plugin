@@ -42,9 +42,9 @@ require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/wellness_regi
 class admin_cancel_event_registration extends external_api {
 
     public static function execute_parameters() {
-        return new external_function_parameters([
-            'eventid' => new external_value(PARAM_INT, 'Event id', VALUE_REQUIRED),
-            'userid'  => new external_value(PARAM_INT, 'Student user id', VALUE_REQUIRED),
+        return new \external_function_parameters([
+            'eventid' => new \external_value(PARAM_INT, 'Event id', VALUE_REQUIRED),
+            'userid'  => new \external_value(PARAM_INT, 'Student user id', VALUE_REQUIRED),
         ]);
     }
 
@@ -71,9 +71,9 @@ class admin_cancel_event_registration extends external_api {
     }
 
     public static function execute_returns() {
-        return new external_single_structure([
-            'ok'      => new external_value(PARAM_BOOL, 'True on success'),
-            'already' => new external_value(PARAM_BOOL, 'True when the registration was already cancelled', VALUE_DEFAULT),
+        return new \external_single_structure([
+            'ok'      => new \external_value(PARAM_BOOL, 'True on success'),
+            'already' => new \external_value(PARAM_BOOL, 'True when the registration was already cancelled', VALUE_DEFAULT),
         ]);
     }
 }

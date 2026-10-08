@@ -18,12 +18,12 @@ use stdClass;
 class enroll_student extends external_api {
 
     public static function execute_parameters() {
-        return new external_function_parameters(
+        return new \external_function_parameters(
             array(
-                'product_name' => new external_value(PARAM_TEXT, 'The name of the Odoo Product (Moodle Learning Plan Name)', VALUE_REQUIRED),
-                'username'     => new external_value(PARAM_RAW, 'The username of the student', VALUE_REQUIRED),
-                'role_id'      => new external_value(PARAM_INT, 'The Role ID (default to student)', VALUE_DEFAULT, 5),
-                'period_name'  => new external_value(PARAM_TEXT, 'The name of the enrollment period (optional)', VALUE_DEFAULT, ''),
+                'product_name' => new \external_value(PARAM_TEXT, 'The name of the Odoo Product (Moodle Learning Plan Name)', VALUE_REQUIRED),
+                'username'     => new \external_value(PARAM_RAW, 'The username of the student', VALUE_REQUIRED),
+                'role_id'      => new \external_value(PARAM_INT, 'The Role ID (default to student)', VALUE_DEFAULT, 5),
+                'period_name'  => new \external_value(PARAM_TEXT, 'The name of the enrollment period (optional)', VALUE_DEFAULT, ''),
             )
         );
     }
@@ -77,7 +77,7 @@ class enroll_student extends external_api {
         $user = $DB->get_record('user', ['username' => $lookupUsername, 'deleted' => 0, 'suspended' => 0]);
         if (!$user) {
             file_put_contents($logfile, $logmsg . " - ERROR: User not found ($lookupUsername)\n", FILE_APPEND);
-            throw new moodle_exception('invaliduser', 'error', '', $params['username'] . " (mapped to $lookupUsername)");
+            throw new \moodle_exception('invaliduser', 'error', '', $params['username'] . " (mapped to $lookupUsername)");
         }
 
         // Status guard: block new enrolments when the student is in a
@@ -138,7 +138,7 @@ class enroll_student extends external_api {
             file_put_contents($logfile, $logmsg . " - ERROR: Plan not found (" . $params['product_name'] . ")\n", FILE_APPEND);
             // Try partial match or handle "Course Name" vs "Plan Name" mismatch if strictly needed.
             // For now, strict name match is assumed per requirements.
-            throw new moodle_exception('invalidlearningplan', 'local_grupomakro_core', '', $params['product_name']);
+            throw new \moodle_exception('invalidlearningplan', 'local_grupomakro_core', '', $params['product_name']);
         }
 
         // 3. Resolve Period (Try to match period_name if provided)
@@ -197,7 +197,7 @@ class enroll_student extends external_api {
             $first_period = $DB->get_records('local_learning_periods', ['learningplanid' => $plan->id], 'id ASC', '*', 0, 1);
             if (!$first_period) {
                 file_put_contents($logfile, $logmsg . " - ERROR: No periods found for plan (" . $plan->id . ")\n", FILE_APPEND);
-                throw new moodle_exception('noperiodsfound', 'local_grupomakro_core', '', $params['product_name']);
+                throw new \moodle_exception('noperiodsfound', 'local_grupomakro_core', '', $params['product_name']);
             }
             $current_period_id = reset($first_period)->id;
             file_put_contents($logfile, $logmsg . " - INFO: Handled default first period with ID $current_period_id\n", FILE_APPEND);
@@ -293,12 +293,12 @@ class enroll_student extends external_api {
     }
 
     public static function execute_returns() {
-        return new external_single_structure(
+        return new \external_single_structure(
             array(
-                'status' => new external_value(PARAM_TEXT, 'Status of the operation (success, warning, error)'),
-                'message' => new external_value(PARAM_TEXT, 'Result message'),
-                'learning_user_id' => new external_value(PARAM_INT, 'ID of the learning user record created'),
-                'plan_id' => new external_value(PARAM_INT, 'ID of the learning plan')
+                'status' => new \external_value(PARAM_TEXT, 'Status of the operation (success, warning, error)'),
+                'message' => new \external_value(PARAM_TEXT, 'Result message'),
+                'learning_user_id' => new \external_value(PARAM_INT, 'ID of the learning user record created'),
+                'plan_id' => new \external_value(PARAM_INT, 'ID of the learning plan')
             )
         );
     }

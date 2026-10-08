@@ -50,7 +50,7 @@ class institute_ip extends external_api {
      * expira en Xh".
      */
     public static function get_status_parameters(): external_function_parameters {
-        return new external_function_parameters([]);
+        return new \external_function_parameters([]);
     }
 
     public static function get_status(): array {
@@ -98,21 +98,21 @@ class institute_ip extends external_api {
     }
 
     public static function get_status_returns(): external_single_structure {
-        return new external_single_structure([
-            'kill_switch'  => new external_value(PARAM_BOOL, 'Estado del kill switch.'),
-            'allowlist'    => new external_value(PARAM_TEXT, 'Allowlist est\u00e1tica cruda (l\u00edneas separadas).'),
-            'ttl_hours'    => new external_value(PARAM_INT, 'TTL en horas de cada IP registrada.'),
-            'active'       => new external_multiple_structure(
-                new external_single_structure([
-                    'ip' => new external_value(PARAM_TEXT, 'IP vigente'),
-                    'source' => new external_value(PARAM_TEXT, 'Origen'),
-                    'registered_at' => new external_value(PARAM_INT, 'Unix timestamp de registro'),
-                    'expires_at' => new external_value(PARAM_INT, 'Unix timestamp de expiraci\u00f3n'),
-                    'label' => new external_value(PARAM_TEXT, 'Etiqueta opcional'),
+        return new \external_single_structure([
+            'kill_switch'  => new \external_value(PARAM_BOOL, 'Estado del kill switch.'),
+            'allowlist'    => new \external_value(PARAM_TEXT, 'Allowlist est\u00e1tica cruda (l\u00edneas separadas).'),
+            'ttl_hours'    => new \external_value(PARAM_INT, 'TTL en horas de cada IP registrada.'),
+            'active'       => new \external_multiple_structure(
+                new \external_single_structure([
+                    'ip' => new \external_value(PARAM_TEXT, 'IP vigente'),
+                    'source' => new \external_value(PARAM_TEXT, 'Origen'),
+                    'registered_at' => new \external_value(PARAM_INT, 'Unix timestamp de registro'),
+                    'expires_at' => new \external_value(PARAM_INT, 'Unix timestamp de expiraci\u00f3n'),
+                    'label' => new \external_value(PARAM_TEXT, 'Etiqueta opcional'),
                 ])
             ),
-            'next_expiry'  => new external_value(PARAM_INT, 'Pr\u00f3xima expiraci\u00f3n (0 si no hay IPs activas).'),
-            'server_time'  => new external_value(PARAM_INT, 'Unix timestamp actual del server.'),
+            'next_expiry'  => new \external_value(PARAM_INT, 'Pr\u00f3xima expiraci\u00f3n (0 si no hay IPs activas).'),
+            'server_time'  => new \external_value(PARAM_INT, 'Unix timestamp actual del server.'),
         ]);
     }
 
@@ -121,8 +121,8 @@ class institute_ip extends external_api {
      * for the configured TTL. Returns the inserted row summary.
      */
     public static function register_parameters(): external_function_parameters {
-        return new external_function_parameters([
-            'label' => new external_value(PARAM_TEXT, 'Etiqueta opcional (p.ej. "docente X desde el lab")', VALUE_DEFAULT, ''),
+        return new \external_function_parameters([
+            'label' => new \external_value(PARAM_TEXT, 'Etiqueta opcional (p.ej. "docente X desde el lab")', VALUE_DEFAULT, ''),
         ]);
     }
 
@@ -178,14 +178,14 @@ class institute_ip extends external_api {
     }
 
     public static function register_returns(): external_single_structure {
-        return new external_single_structure([
-            'status'  => new external_value(PARAM_TEXT, 'success o error'),
-            'message' => new external_value(PARAM_TEXT, 'Mensaje de resultado'),
-            'id'      => new external_value(PARAM_INT, 'ID de la fila insertada (en errores = 0)', VALUE_DEFAULT, 0),
-            'ip'      => new external_value(PARAM_TEXT, 'IP registrada', VALUE_DEFAULT, ''),
-            'registered_at' => new external_value(PARAM_INT, 'Unix timestamp de registro', VALUE_DEFAULT, 0),
-            'expires_at'    => new external_value(PARAM_INT, 'Unix timestamp de expiraci\u00f3n', VALUE_DEFAULT, 0),
-            'ttl_hours'     => new external_value(PARAM_INT, 'TTL aplicado en horas', VALUE_DEFAULT, 0),
+        return new \external_single_structure([
+            'status'  => new \external_value(PARAM_TEXT, 'success o error'),
+            'message' => new \external_value(PARAM_TEXT, 'Mensaje de resultado'),
+            'id'      => new \external_value(PARAM_INT, 'ID de la fila insertada (en errores = 0)', VALUE_DEFAULT, 0),
+            'ip'      => new \external_value(PARAM_TEXT, 'IP registrada', VALUE_DEFAULT, ''),
+            'registered_at' => new \external_value(PARAM_INT, 'Unix timestamp de registro', VALUE_DEFAULT, 0),
+            'expires_at'    => new \external_value(PARAM_INT, 'Unix timestamp de expiraci\u00f3n', VALUE_DEFAULT, 0),
+            'ttl_hours'     => new \external_value(PARAM_INT, 'TTL aplicado en horas', VALUE_DEFAULT, 0),
         ]);
     }
 }

@@ -18,8 +18,8 @@ defined('MOODLE_INTERNAL') || die();
 class get_student_modules extends external_api {
 
     public static function execute_parameters() {
-        return new external_function_parameters([
-            'userid' => new external_value(PARAM_INT, 'Student user ID'),
+        return new \external_function_parameters([
+            'userid' => new \external_value(PARAM_INT, 'Student user ID'),
         ]);
     }
 
@@ -72,17 +72,17 @@ class get_student_modules extends external_api {
     }
 
     public static function execute_returns() {
-        return new external_multiple_structure(
-            new external_single_structure([
-                'enrollmentid'  => new external_value(PARAM_INT,  'Enrollment record ID'),
-                'classid'       => new external_value(PARAM_INT,  'Module class ID'),
-                'corecourseid'  => new external_value(PARAM_INT,  'Moodle course ID'),
-                'coursename'    => new external_value(PARAM_TEXT, 'Subject name'),
-                'periodcode'    => new external_value(PARAM_TEXT, 'Academic period code'),
-                'enrolldate'    => new external_value(PARAM_INT,  'Enrollment timestamp'),
-                'duedate'       => new external_value(PARAM_INT,  'Deadline timestamp'),
-                'daysremaining' => new external_value(PARAM_INT,  'Days remaining until deadline'),
-                'status'        => new external_value(PARAM_TEXT, 'active|completed|expired'),
+        return new \external_multiple_structure(
+            new \external_single_structure([
+                'enrollmentid'  => new \external_value(PARAM_INT,  'Enrollment record ID'),
+                'classid'       => new \external_value(PARAM_INT,  'Module class ID'),
+                'corecourseid'  => new \external_value(PARAM_INT,  'Moodle course ID'),
+                'coursename'    => new \external_value(PARAM_TEXT, 'Subject name'),
+                'periodcode'    => new \external_value(PARAM_TEXT, 'Academic period code'),
+                'enrolldate'    => new \external_value(PARAM_INT,  'Enrollment timestamp'),
+                'duedate'       => new \external_value(PARAM_INT,  'Deadline timestamp'),
+                'daysremaining' => new \external_value(PARAM_INT,  'Days remaining until deadline'),
+                'status'        => new \external_value(PARAM_TEXT, 'active|completed|expired'),
             ])
         );
     }

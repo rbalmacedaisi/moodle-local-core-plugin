@@ -38,12 +38,12 @@ require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/wellness_even
 class get_events extends external_api {
 
     public static function execute_parameters() {
-        return new external_function_parameters([
-            'keyword'     => new external_value(PARAM_TEXT, 'Optional keyword',         VALUE_DEFAULT, ''),
-            'category'    => new external_value(PARAM_ALPHA, 'deportivo|feria|taller|charla|otro', VALUE_DEFAULT, ''),
-            'from'        => new external_value(PARAM_INT,  'Optional from ts',         VALUE_DEFAULT, 0),
-            'to'          => new external_value(PARAM_INT,  'Optional to ts',           VALUE_DEFAULT, 0),
-            'includepast' => new external_value(PARAM_BOOL, 'When true includes past', VALUE_DEFAULT, false),
+        return new \external_function_parameters([
+            'keyword'     => new \external_value(PARAM_TEXT, 'Optional keyword',         VALUE_DEFAULT, ''),
+            'category'    => new \external_value(PARAM_ALPHA, 'deportivo|feria|taller|charla|otro', VALUE_DEFAULT, ''),
+            'from'        => new \external_value(PARAM_INT,  'Optional from ts',         VALUE_DEFAULT, 0),
+            'to'          => new \external_value(PARAM_INT,  'Optional to ts',           VALUE_DEFAULT, 0),
+            'includepast' => new \external_value(PARAM_BOOL, 'When true includes past', VALUE_DEFAULT, false),
         ]);
     }
 
@@ -99,32 +99,32 @@ class get_events extends external_api {
     }
 
     public static function execute_returns() {
-        $event = new external_single_structure([
-            'id'                     => new external_value(PARAM_INT,  'Event id'),
-            'title'                  => new external_value(PARAM_TEXT, 'Title'),
-            'summary'                => new external_value(PARAM_TEXT, 'One-line teaser'),
-            'description'            => new external_value(PARAM_RAW,  'Body'),
-            'category'               => new external_value(PARAM_ALPHA,'deportivo|feria|taller|charla|otro'),
-            'startdate'              => new external_value(PARAM_INT,  'Unix ts'),
-            'enddate'                => new external_value(PARAM_INT,  'Unix ts'),
-            'modality'               => new external_value(PARAM_ALPHA,'presencial|virtual|mixto'),
-            'location'               => new external_value(PARAM_TEXT, 'Location'),
-            'virtual_url'            => new external_value(PARAM_TEXT, 'Virtual room URL'),
-            'bbb_guest_url'          => new external_value(PARAM_TEXT, 'BBB guest join URL (preferred over virtual_url when set)'),
-            'capacity'               => new external_value(PARAM_INT,  '0 = unlimited'),
-            'requires_registration'  => new external_value(PARAM_INT,  '0/1'),
-            'allow_waitlist'         => new external_value(PARAM_INT,  '0/1'),
-            'registration_opens_at'  => new external_value(PARAM_INT,  'Unix ts'),
-            'registration_closes_at' => new external_value(PARAM_INT,  'Unix ts'),
-            'organizer_name'         => new external_value(PARAM_TEXT, 'Organizer'),
-            'organizer_email'        => new external_value(PARAM_TEXT, 'Organizer email'),
-            'cover_path'             => new external_value(PARAM_TEXT, 'Cover image pluginfile path'),
-            'registration_open'      => new external_value(PARAM_BOOL, 'Computed flag'),
-            'event_started'          => new external_value(PARAM_BOOL, 'Computed flag'),
-            'event_ended'            => new external_value(PARAM_BOOL, 'Computed flag'),
+        $event = new \external_single_structure([
+            'id'                     => new \external_value(PARAM_INT,  'Event id'),
+            'title'                  => new \external_value(PARAM_TEXT, 'Title'),
+            'summary'                => new \external_value(PARAM_TEXT, 'One-line teaser'),
+            'description'            => new \external_value(PARAM_RAW,  'Body'),
+            'category'               => new \external_value(PARAM_ALPHA,'deportivo|feria|taller|charla|otro'),
+            'startdate'              => new \external_value(PARAM_INT,  'Unix ts'),
+            'enddate'                => new \external_value(PARAM_INT,  'Unix ts'),
+            'modality'               => new \external_value(PARAM_ALPHA,'presencial|virtual|mixto'),
+            'location'               => new \external_value(PARAM_TEXT, 'Location'),
+            'virtual_url'            => new \external_value(PARAM_TEXT, 'Virtual room URL'),
+            'bbb_guest_url'          => new \external_value(PARAM_TEXT, 'BBB guest join URL (preferred over virtual_url when set)'),
+            'capacity'               => new \external_value(PARAM_INT,  '0 = unlimited'),
+            'requires_registration'  => new \external_value(PARAM_INT,  '0/1'),
+            'allow_waitlist'         => new \external_value(PARAM_INT,  '0/1'),
+            'registration_opens_at'  => new \external_value(PARAM_INT,  'Unix ts'),
+            'registration_closes_at' => new \external_value(PARAM_INT,  'Unix ts'),
+            'organizer_name'         => new \external_value(PARAM_TEXT, 'Organizer'),
+            'organizer_email'        => new \external_value(PARAM_TEXT, 'Organizer email'),
+            'cover_path'             => new \external_value(PARAM_TEXT, 'Cover image pluginfile path'),
+            'registration_open'      => new \external_value(PARAM_BOOL, 'Computed flag'),
+            'event_started'          => new \external_value(PARAM_BOOL, 'Computed flag'),
+            'event_ended'            => new \external_value(PARAM_BOOL, 'Computed flag'),
         ]);
-        return new external_single_structure([
-            'events' => new external_multiple_structure($event, 'Events visible to the student'),
+        return new \external_single_structure([
+            'events' => new \external_multiple_structure($event, 'Events visible to the student'),
         ]);
     }
 }

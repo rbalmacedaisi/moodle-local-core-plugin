@@ -28,12 +28,12 @@ use stdClass;
 class save_group_quiz_grade extends external_api {
 
     public static function execute_parameters(): external_function_parameters {
-        return new external_function_parameters([
-            'groupid'  => new external_value(PARAM_INT, 'gmk_activity_group.id', VALUE_REQUIRED),
-            'slot'     => new external_value(PARAM_INT, 'Numero de slot/pregunta', VALUE_REQUIRED),
-            'mark'     => new external_value(PARAM_FLOAT, 'Puntaje a aplicar', VALUE_REQUIRED),
-            'comment'  => new external_value(PARAM_RAW, 'Comentario comun', VALUE_DEFAULT, ''),
-            'confirm'  => new external_value(PARAM_BOOL,
+        return new \external_function_parameters([
+            'groupid'  => new \external_value(PARAM_INT, 'gmk_activity_group.id', VALUE_REQUIRED),
+            'slot'     => new \external_value(PARAM_INT, 'Numero de slot/pregunta', VALUE_REQUIRED),
+            'mark'     => new \external_value(PARAM_FLOAT, 'Puntaje a aplicar', VALUE_REQUIRED),
+            'comment'  => new \external_value(PARAM_RAW, 'Comentario comun', VALUE_DEFAULT, ''),
+            'confirm'  => new \external_value(PARAM_BOOL,
                 'Re-envio confirmando la sobrescritura tras advertencia',
                 VALUE_DEFAULT, false),
         ]);
@@ -250,28 +250,28 @@ class save_group_quiz_grade extends external_api {
     }
 
     public static function execute_returns(): external_single_structure {
-        return new external_single_structure([
-            'status'             => new external_value(PARAM_TEXT, 'success|warning|error'),
-            'message'            => new external_value(PARAM_TEXT, 'Mensaje'),
-            'alreadygradedcount' => new external_value(PARAM_INT, 'Cantidad con nota previa'),
-            'alreadygraded'      => new external_multiple_structure(
-                new external_single_structure([
-                    'userid'       => new external_value(PARAM_INT, 'userid'),
-                    'fullname'     => new external_value(PARAM_TEXT, 'Nombre completo'),
-                    'email'        => new external_value(PARAM_TEXT, 'Email'),
-                    'currentgrade' => new external_value(PARAM_FLOAT, 'Nota previa'),
-                    'timemodified' => new external_value(PARAM_INT,  'Timestamp'),
+        return new \external_single_structure([
+            'status'             => new \external_value(PARAM_TEXT, 'success|warning|error'),
+            'message'            => new \external_value(PARAM_TEXT, 'Mensaje'),
+            'alreadygradedcount' => new \external_value(PARAM_INT, 'Cantidad con nota previa'),
+            'alreadygraded'      => new \external_multiple_structure(
+                new \external_single_structure([
+                    'userid'       => new \external_value(PARAM_INT, 'userid'),
+                    'fullname'     => new \external_value(PARAM_TEXT, 'Nombre completo'),
+                    'email'        => new \external_value(PARAM_TEXT, 'Email'),
+                    'currentgrade' => new \external_value(PARAM_FLOAT, 'Nota previa'),
+                    'timemodified' => new \external_value(PARAM_INT,  'Timestamp'),
                 ])
             ),
-            'pendingmembers'     => new external_multiple_structure(
-                new external_single_structure([
-                    'userid'   => new external_value(PARAM_INT, 'userid'),
-                    'fullname' => new external_value(PARAM_TEXT, 'Nombre completo'),
-                    'email'    => new external_value(PARAM_TEXT, 'Email'),
+            'pendingmembers'     => new \external_multiple_structure(
+                new \external_single_structure([
+                    'userid'   => new \external_value(PARAM_INT, 'userid'),
+                    'fullname' => new \external_value(PARAM_TEXT, 'Nombre completo'),
+                    'email'    => new \external_value(PARAM_TEXT, 'Email'),
                 ])
             ),
-            'gradedcount'        => new external_value(PARAM_INT, 'Calificados efectivamente'),
-            'skippedcount'       => new external_value(PARAM_INT, 'Omitidos por error'),
+            'gradedcount'        => new \external_value(PARAM_INT, 'Calificados efectivamente'),
+            'skippedcount'       => new \external_value(PARAM_INT, 'Omitidos por error'),
         ]);
     }
 }

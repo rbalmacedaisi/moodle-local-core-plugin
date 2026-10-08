@@ -54,11 +54,11 @@ class get_scheduleless_students extends external_api {
      * @return external_function_parameters
      */
     public static function execute_parameters(): external_function_parameters {
-        return new external_function_parameters(
+        return new \external_function_parameters(
             [
-                'courseId' => new external_value(PARAM_TEXT, 'Course ID',VALUE_REQUIRED),
-                'periodIds' => new external_value(PARAM_TEXT, 'Course ID',VALUE_REQUIRED),
-                'learningPlanId' => new external_value(PARAM_TEXT, 'Course ID',VALUE_DEFAULT,null)
+                'courseId' => new \external_value(PARAM_TEXT, 'Course ID',VALUE_REQUIRED),
+                'periodIds' => new \external_value(PARAM_TEXT, 'Course ID',VALUE_REQUIRED),
+                'learningPlanId' => new \external_value(PARAM_TEXT, 'Course ID',VALUE_DEFAULT,null)
             ]
         );
     }
@@ -102,11 +102,11 @@ class get_scheduleless_students extends external_api {
      * @return external_description
      */
     public static function execute_returns(): external_description {
-        return new external_single_structure(
+        return new \external_single_structure(
             array(
-                'status' => new external_value(PARAM_INT, '1 if success, -1 otherwise'),
-                'schedulelessStudents' => new external_value(PARAM_RAW, 'json encoded array with the scheduleless students',VALUE_DEFAULT, null),
-                'message' => new external_value(PARAM_TEXT, 'The error message or Ok.',VALUE_DEFAULT, 'ok'),
+                'status' => new \external_value(PARAM_INT, '1 if success, -1 otherwise'),
+                'schedulelessStudents' => new \external_value(PARAM_RAW, 'json encoded array with the scheduleless students',VALUE_DEFAULT, null),
+                'message' => new \external_value(PARAM_TEXT, 'The error message or Ok.',VALUE_DEFAULT, 'ok'),
             )
         );
     }

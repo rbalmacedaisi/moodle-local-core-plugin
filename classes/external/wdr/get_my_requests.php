@@ -14,7 +14,7 @@ use external_single_structure;
 class get_my_requests extends external_api {
 
     public static function execute_parameters(): external_function_parameters {
-        return new external_function_parameters([]);
+        return new \external_function_parameters([]);
     }
 
     public static function execute(): array {
@@ -42,15 +42,15 @@ class get_my_requests extends external_api {
     }
 
     public static function execute_returns(): external_multiple_structure {
-        return new external_multiple_structure(new external_single_structure([
-            'id'                => new external_value(PARAM_INT, 'Row id'),
-            'request_number'    => new external_value(PARAM_TEXT, 'RET-{YYYY}-{NNNN}'),
-            'status'            => new external_value(PARAM_TEXT, 'Status code'),
-            'reason'            => new external_value(PARAM_TEXT, 'A|B|C|D|E|F'),
-            'timecreated'       => new external_value(PARAM_INT, 'Unix ts'),
-            'received_da_at'    => new external_value(PARAM_INT, 'Unix ts DA receipt'),
-            'received_admin_at' => new external_value(PARAM_INT, 'Unix ts Admin receipt'),
-            'has_scanned'       => new external_value(PARAM_BOOL, 'A scanned signed copy is on file'),
+        return new \external_multiple_structure(new \external_single_structure([
+            'id'                => new \external_value(PARAM_INT, 'Row id'),
+            'request_number'    => new \external_value(PARAM_TEXT, 'RET-{YYYY}-{NNNN}'),
+            'status'            => new \external_value(PARAM_TEXT, 'Status code'),
+            'reason'            => new \external_value(PARAM_TEXT, 'A|B|C|D|E|F'),
+            'timecreated'       => new \external_value(PARAM_INT, 'Unix ts'),
+            'received_da_at'    => new \external_value(PARAM_INT, 'Unix ts DA receipt'),
+            'received_admin_at' => new \external_value(PARAM_INT, 'Unix ts Admin receipt'),
+            'has_scanned'       => new \external_value(PARAM_BOOL, 'A scanned signed copy is on file'),
         ]));
     }
 }

@@ -38,10 +38,10 @@ require_once($CFG->dirroot . '/local/grupomakro_core/pages/absence_helpers.php')
 class dismiss_absence_alert extends external_api {
 
     public static function execute_parameters() {
-        return new external_function_parameters([
-            'userid'  => new external_value(PARAM_INT, 'User ID', VALUE_REQUIRED),
-            'classid' => new external_value(PARAM_INT, 'Class ID (gmk_class.id)', VALUE_REQUIRED),
-            'level'   => new external_value(PARAM_INT, '1=info, 2=warning', VALUE_REQUIRED),
+        return new \external_function_parameters([
+            'userid'  => new \external_value(PARAM_INT, 'User ID', VALUE_REQUIRED),
+            'classid' => new \external_value(PARAM_INT, 'Class ID (gmk_class.id)', VALUE_REQUIRED),
+            'level'   => new \external_value(PARAM_INT, '1=info, 2=warning', VALUE_REQUIRED),
         ]);
     }
 
@@ -78,11 +78,11 @@ class dismiss_absence_alert extends external_api {
     }
 
     public static function execute_returns() {
-        return new external_single_structure([
-            'success' => new external_value(PARAM_BOOL, 'True when the dismissal was recorded'),
-            'userid'  => new external_value(PARAM_INT, 'User id'),
-            'classid' => new external_value(PARAM_INT, 'Class id'),
-            'level'   => new external_value(PARAM_INT, 'Alert level dismissed'),
+        return new \external_single_structure([
+            'success' => new \external_value(PARAM_BOOL, 'True when the dismissal was recorded'),
+            'userid'  => new \external_value(PARAM_INT, 'User id'),
+            'classid' => new \external_value(PARAM_INT, 'Class id'),
+            'level'   => new \external_value(PARAM_INT, 'Alert level dismissed'),
         ]);
     }
 }

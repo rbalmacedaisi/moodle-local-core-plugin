@@ -15,12 +15,12 @@ require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 class toggle_class_status extends external_api {
 
     public static function execute_parameters() {
-        return new external_function_parameters([
-            'classId'       => new external_value(PARAM_INT,  'The class ID'),
-            'open'          => new external_value(PARAM_BOOL, 'True to open, False to close (deprecated — use local_grupomakro_close_class_period)', VALUE_REQUIRED),
-            'initDate'      => new external_value(PARAM_TEXT, 'New Init Date (YYYY-MM-DD)', VALUE_DEFAULT, null),
-            'endDate'       => new external_value(PARAM_TEXT, 'New End Date (YYYY-MM-DD)', VALUE_DEFAULT, null),
-            'revert_states' => new external_value(PARAM_BOOL, 'When reopening: also revert student statuses (APPROVED/FAILED/REVALID) back to CURSANDO', VALUE_DEFAULT, false),
+        return new \external_function_parameters([
+            'classId'       => new \external_value(PARAM_INT,  'The class ID'),
+            'open'          => new \external_value(PARAM_BOOL, 'True to open, False to close (deprecated — use local_grupomakro_close_class_period)', VALUE_REQUIRED),
+            'initDate'      => new \external_value(PARAM_TEXT, 'New Init Date (YYYY-MM-DD)', VALUE_DEFAULT, null),
+            'endDate'       => new \external_value(PARAM_TEXT, 'New End Date (YYYY-MM-DD)', VALUE_DEFAULT, null),
+            'revert_states' => new \external_value(PARAM_BOOL, 'When reopening: also revert student statuses (APPROVED/FAILED/REVALID) back to CURSANDO', VALUE_DEFAULT, false),
         ]);
     }
 
@@ -50,7 +50,7 @@ class toggle_class_status extends external_api {
         // Closing must go through gmk_close_class_with_grade_recalc to ensure
         // grade recalculation, validation, transaction safety and audit logging.
         if (!$params['open']) {
-            throw new moodle_exception('closenotsupported', 'local_grupomakro_core', '',
+            throw new \moodle_exception('closenotsupported', 'local_grupomakro_core', '',
                 'Use local_grupomakro_close_class_period to close a class. ' .
                 'Direct close is disabled to enforce grade recalculation and audit logging.');
         }
@@ -97,9 +97,9 @@ class toggle_class_status extends external_api {
     }
 
     public static function execute_returns() {
-        return new external_single_structure([
-            'status'  => new external_value(PARAM_TEXT, 'Status code'),
-            'message' => new external_value(PARAM_TEXT, 'Message'),
+        return new \external_single_structure([
+            'status'  => new \external_value(PARAM_TEXT, 'Status code'),
+            'message' => new \external_value(PARAM_TEXT, 'Message'),
         ]);
     }
 }

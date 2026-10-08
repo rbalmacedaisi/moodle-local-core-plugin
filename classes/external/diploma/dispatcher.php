@@ -115,7 +115,7 @@ final class dispatcher {
                 $id = required_param('id', PARAM_INT);
                 $tpl = $manager::get_template($id);
                 if (!$tpl) {
-                    throw new moodle_exception('diploma_template_not_found', 'local_grupomakro_core');
+                    throw new \moodle_exception('diploma_template_not_found', 'local_grupomakro_core');
                 }
                 return ['status' => 'success', 'template' => $manager::export_template($tpl)];
 
@@ -124,7 +124,7 @@ final class dispatcher {
                 $args = required_param('payload', PARAM_RAW);
                 $payload = json_decode($args, true);
                 if (!is_array($payload)) {
-                    throw new moodle_exception('invalidjson');
+                    throw new \moodle_exception('invalidjson');
                 }
                 $exported = $manager::save_template($payload, $USER->id);
                 return ['status' => 'success', 'template' => $exported, 'message' => get_string('diploma_save_template_success', 'local_grupomakro_core')];
@@ -148,15 +148,15 @@ final class dispatcher {
                 $filename = (string)optional_param('filename', 'background.png', PARAM_FILE);
                 $mimetype = (string)optional_param('mimetype', 'image/png', PARAM_TEXT);
                 if ($b64 === '') {
-                    throw new moodle_exception('diploma_no_file', 'local_grupomakro_core');
+                    throw new \moodle_exception('diploma_no_file', 'local_grupomakro_core');
                 }
                 // Validate base64 + decode.
                 $bin = base64_decode($b64, true);
                 if ($bin === false || $bin === '') {
-                    throw new moodle_exception('diploma_no_file', 'local_grupomakro_core');
+                    throw new \moodle_exception('diploma_no_file', 'local_grupomakro_core');
                 }
                 if (strlen($bin) > 10 * 1024 * 1024) {
-                    throw new moodle_exception('diploma_too_large', 'local_grupomakro_core');
+                    throw new \moodle_exception('diploma_too_large', 'local_grupomakro_core');
                 }
                 // Sanitize the mime type — accept only known image types.
                 $allowedmimes = [
@@ -241,7 +241,7 @@ final class dispatcher {
                 $lpid = required_param('learningplanid', PARAM_INT);
                 $detail = $manager::get_graduand_eligibility_detail($uid, $lpid);
                 if (!$detail) {
-                    throw new moodle_exception('diploma_student_not_found', 'local_grupomakro_core');
+                    throw new \moodle_exception('diploma_student_not_found', 'local_grupomakro_core');
                 }
                 return ['status' => 'success', 'detail' => $detail];
 
@@ -251,7 +251,7 @@ final class dispatcher {
                 $args = required_param('items', PARAM_RAW);
                 $items = json_decode($args, true);
                 if (!is_array($items)) {
-                    throw new moodle_exception('invalidjson');
+                    throw new \moodle_exception('invalidjson');
                 }
                 $result = $manager::generate_diplomas($templateid, $items, $USER->id);
                 $msgkey = $result['errors'] > 0
@@ -266,7 +266,7 @@ final class dispatcher {
                 $args = required_param('items', PARAM_RAW);
                 $items = json_decode($args, true);
                 if (!is_array($items)) {
-                    throw new moodle_exception('invalidjson');
+                    throw new \moodle_exception('invalidjson');
                 }
                 $result = $manager::generate_course_certificates($templateid, $items, $USER->id);
                 $msgkey = $result['errors'] > 0
@@ -306,12 +306,12 @@ final class dispatcher {
                 $id = required_param('id', PARAM_INT);
                 $payload = $manager::get_generation_pdf($id);
                 if (!$payload) {
-                    throw new moodle_exception('diploma_document_not_found', 'local_grupomakro_core');
+                    throw new \moodle_exception('diploma_document_not_found', 'local_grupomakro_core');
                 }
                 return ['status' => 'success', 'document' => $payload];
 
             default:
-                throw new moodle_exception('invalidaction', 'error', '', $action);
+                throw new \moodle_exception('invalidaction', 'error', '', $action);
         }
     }
 }

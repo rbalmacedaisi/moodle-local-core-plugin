@@ -15,12 +15,12 @@ use stdClass;
 class save_quiz_grading extends external_api {
 
     public static function execute_parameters() {
-        return new external_function_parameters(
+        return new \external_function_parameters(
             array(
-                'attemptid' => new external_value(PARAM_INT, 'The ID of the quiz attempt', VALUE_REQUIRED),
-                'slot' => new external_value(PARAM_INT, 'The slot number of the question', VALUE_REQUIRED),
-                'mark' => new external_value(PARAM_FLOAT, 'The mark to give', VALUE_REQUIRED),
-                'comment' => new external_value(PARAM_RAW, 'Feedback comment', VALUE_DEFAULT, '')
+                'attemptid' => new \external_value(PARAM_INT, 'The ID of the quiz attempt', VALUE_REQUIRED),
+                'slot' => new \external_value(PARAM_INT, 'The slot number of the question', VALUE_REQUIRED),
+                'mark' => new \external_value(PARAM_FLOAT, 'The mark to give', VALUE_REQUIRED),
+                'comment' => new \external_value(PARAM_RAW, 'Feedback comment', VALUE_DEFAULT, '')
             )
         );
     }
@@ -114,10 +114,10 @@ class save_quiz_grading extends external_api {
     }
 
     public static function execute_returns() {
-        return new external_single_structure(
+        return new \external_single_structure(
             array(
-                'status' => new external_value(PARAM_TEXT, 'Status: success or error'),
-                'message' => new external_value(PARAM_TEXT, 'Result message')
+                'status' => new \external_value(PARAM_TEXT, 'Status: success or error'),
+                'message' => new \external_value(PARAM_TEXT, 'Result message')
             )
         );
     }

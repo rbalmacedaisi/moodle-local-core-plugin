@@ -36,9 +36,9 @@ require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/wellness_regi
 class register_event extends external_api {
 
     public static function execute_parameters() {
-        return new external_function_parameters([
-            'eventid'  => new external_value(PARAM_INT,  'Event id', VALUE_REQUIRED),
-            'modality' => new external_value(PARAM_ALPHA, 'presencial|virtual (only when event modality=mixto)', VALUE_DEFAULT, ''),
+        return new \external_function_parameters([
+            'eventid'  => new \external_value(PARAM_INT,  'Event id', VALUE_REQUIRED),
+            'modality' => new \external_value(PARAM_ALPHA, 'presencial|virtual (only when event modality=mixto)', VALUE_DEFAULT, ''),
         ]);
     }
 
@@ -62,13 +62,13 @@ class register_event extends external_api {
     }
 
     public static function execute_returns() {
-        return new external_single_structure([
-            'ok'            => new external_value(PARAM_BOOL, 'True when registration succeeded'),
-            'status'        => new external_value(PARAM_TEXT, 'confirmada | lista_de_espera | (empty on error)'),
-            'registrationid'=> new external_value(PARAM_INT,  'Id of the registration row'),
-            'error'         => new external_value(PARAM_TEXT, 'Error code if ok=false', VALUE_DEFAULT),
-            'eventid'       => new external_value(PARAM_INT,  'Echoed event id'),
-            'userid'        => new external_value(PARAM_INT,  'Echoed user id'),
+        return new \external_single_structure([
+            'ok'            => new \external_value(PARAM_BOOL, 'True when registration succeeded'),
+            'status'        => new \external_value(PARAM_TEXT, 'confirmada | lista_de_espera | (empty on error)'),
+            'registrationid'=> new \external_value(PARAM_INT,  'Id of the registration row'),
+            'error'         => new \external_value(PARAM_TEXT, 'Error code if ok=false', VALUE_DEFAULT),
+            'eventid'       => new \external_value(PARAM_INT,  'Echoed event id'),
+            'userid'        => new \external_value(PARAM_INT,  'Echoed user id'),
         ]);
     }
 }

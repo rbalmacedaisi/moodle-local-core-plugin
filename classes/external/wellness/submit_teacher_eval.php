@@ -39,12 +39,12 @@ use local_grupomakro_core\local\wellness_teacher_eval_manager as MGR;
 class submit_teacher_eval extends external_api {
 
     public static function execute_parameters() {
-        return new external_function_parameters([
-            'sessionid'   => new external_value(PARAM_INT, 'Id de la sesion evaluada', VALUE_REQUIRED),
-            'overall'     => new external_value(PARAM_INT, 'Valoracion general 1-5', VALUE_REQUIRED),
-            'clarity'     => new external_value(PARAM_INT, 'Claridad 1-5', VALUE_DEFAULT, 0),
-            'punctuality' => new external_value(PARAM_INT, 'Puntualidad 1-5', VALUE_DEFAULT, 0),
-            'comment'     => new external_value(PARAM_TEXT, 'Comentario libre', VALUE_DEFAULT, ''),
+        return new \external_function_parameters([
+            'sessionid'   => new \external_value(PARAM_INT, 'Id de la sesion evaluada', VALUE_REQUIRED),
+            'overall'     => new \external_value(PARAM_INT, 'Valoracion general 1-5', VALUE_REQUIRED),
+            'clarity'     => new \external_value(PARAM_INT, 'Claridad 1-5', VALUE_DEFAULT, 0),
+            'punctuality' => new \external_value(PARAM_INT, 'Puntualidad 1-5', VALUE_DEFAULT, 0),
+            'comment'     => new \external_value(PARAM_TEXT, 'Comentario libre', VALUE_DEFAULT, ''),
         ]);
     }
 
@@ -66,9 +66,9 @@ class submit_teacher_eval extends external_api {
     }
 
     public static function execute_returns() {
-        return new external_single_structure([
-            'ok'    => new external_value(PARAM_BOOL, 'True si se guardo'),
-            'error' => new external_value(PARAM_TEXT, 'Codigo de error si ok=false', VALUE_DEFAULT),
+        return new \external_single_structure([
+            'ok'    => new \external_value(PARAM_BOOL, 'True si se guardo'),
+            'error' => new \external_value(PARAM_TEXT, 'Codigo de error si ok=false', VALUE_DEFAULT),
         ]);
     }
 }

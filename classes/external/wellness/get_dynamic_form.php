@@ -36,8 +36,8 @@ require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/wellness_dyna
 class get_dynamic_form extends external_api {
 
     public static function execute_parameters() {
-        return new external_function_parameters([
-            'eventid' => new external_value(PARAM_INT, 'Event id', VALUE_REQUIRED),
+        return new \external_function_parameters([
+            'eventid' => new \external_value(PARAM_INT, 'Event id', VALUE_REQUIRED),
         ]);
     }
 
@@ -69,17 +69,17 @@ class get_dynamic_form extends external_api {
     }
 
     public static function execute_returns() {
-        return new external_single_structure([
-            'form' => new external_single_structure([
-                'id'          => new external_value(PARAM_INT,  'Form id'),
-                'eventid'     => new external_value(PARAM_INT,  'Event id (0 when reusable)'),
-                'title'       => new external_value(PARAM_TEXT, 'Title'),
-                'description' => new external_value(PARAM_RAW,  'Description'),
-                'cover_path'  => new external_value(PARAM_RAW,  'URL absoluta de la portada (vacio = sin portada)'),
-                'schema'      => new external_single_structure([
-                    'fields' => new external_value(PARAM_RAW, 'JSON array of field definitions'),
+        return new \external_single_structure([
+            'form' => new \external_single_structure([
+                'id'          => new \external_value(PARAM_INT,  'Form id'),
+                'eventid'     => new \external_value(PARAM_INT,  'Event id (0 when reusable)'),
+                'title'       => new \external_value(PARAM_TEXT, 'Title'),
+                'description' => new \external_value(PARAM_RAW,  'Description'),
+                'cover_path'  => new \external_value(PARAM_RAW,  'URL absoluta de la portada (vacio = sin portada)'),
+                'schema'      => new \external_single_structure([
+                    'fields' => new \external_value(PARAM_RAW, 'JSON array of field definitions'),
                 ]),
-                'active'      => new external_value(PARAM_INT, '0/1'),
+                'active'      => new \external_value(PARAM_INT, '0/1'),
             ], 'Formulario del evento; la clave se omite cuando el evento no tiene ninguno activo', VALUE_OPTIONAL),
         ]);
     }

@@ -51,15 +51,15 @@ class update_teacher_disponibility extends external_api {
      * @return external_function_parameters
      */
     public static function execute_parameters(): external_function_parameters {
-        return new external_function_parameters(
+        return new \external_function_parameters(
             [
-                'instructorId' => new external_value(PARAM_INT, 'ID of the instructor', VALUE_REQUIRED),
-                'newDisponibilityRecords' => new external_multiple_structure(
-                    new external_single_structure(
+                'instructorId' => new \external_value(PARAM_INT, 'ID of the instructor', VALUE_REQUIRED),
+                'newDisponibilityRecords' => new \external_multiple_structure(
+                    new \external_single_structure(
                         [
-                            'day' => new external_value(PARAM_TEXT, 'Day of the week', VALUE_REQUIRED),
-                            'timeslots' => new external_multiple_structure(
-                                new external_value(PARAM_TEXT, 'Available time slot', VALUE_REQUIRED),
+                            'day' => new \external_value(PARAM_TEXT, 'Day of the week', VALUE_REQUIRED),
+                            'timeslots' => new \external_multiple_structure(
+                                new \external_value(PARAM_TEXT, 'Available time slot', VALUE_REQUIRED),
                                 'Array of available time slots'
                             )
                         ],
@@ -67,10 +67,10 @@ class update_teacher_disponibility extends external_api {
                     ),
                     'Array of availability records for each day of the week'
                 ),
-                'newInstructorId' => new external_value(PARAM_INT, 'ID of the new instructor that will take the old instructor disponibility and classes', VALUE_DEFAULT,null),
+                'newInstructorId' => new \external_value(PARAM_INT, 'ID of the new instructor that will take the old instructor disponibility and classes', VALUE_DEFAULT,null),
                 'skills'=>
-                    new external_multiple_structure(
-                        new external_value(PARAM_INT, 'Array of skills IDs', VALUE_DEFAULT, []),
+                    new \external_multiple_structure(
+                        new \external_value(PARAM_INT, 'Array of skills IDs', VALUE_DEFAULT, []),
                         'Array of skills IDs'
                     ),
             ],
@@ -117,11 +117,11 @@ class update_teacher_disponibility extends external_api {
      * @return external_description
      */
     public static function execute_returns(): external_description {
-        return new external_single_structure(
+        return new \external_single_structure(
             array(
-                'status' => new external_value(PARAM_INT, '1 if success, -1 if there was an error.',VALUE_DEFAULT,1),
-                'disponibilityUpdated' => new external_value(PARAM_INT, "1 if the disponibility record was updated, -1 if wasn't"),
-                'message' => new external_value(PARAM_TEXT, 'The error message or Ok.',VALUE_DEFAULT,'ok')
+                'status' => new \external_value(PARAM_INT, '1 if success, -1 if there was an error.',VALUE_DEFAULT,1),
+                'disponibilityUpdated' => new \external_value(PARAM_INT, "1 if the disponibility record was updated, -1 if wasn't"),
+                'message' => new \external_value(PARAM_TEXT, 'The error message or Ok.',VALUE_DEFAULT,'ok')
             )
         );
     }

@@ -49,33 +49,33 @@ use context_system;
 class get_eligible_students_for_extemporaneous extends external_api {
 
     public static function execute_parameters(): external_function_parameters {
-        return new external_function_parameters([
-            'classid' => new external_value(PARAM_INT, 'Class id', VALUE_REQUIRED),
-            'search'  => new external_value(PARAM_TEXT, 'Free-text search', VALUE_DEFAULT, ''),
-            'only_eligible' => new external_value(PARAM_BOOL, 'If true, only return eligible students', VALUE_DEFAULT, false),
+        return new \external_function_parameters([
+            'classid' => new \external_value(PARAM_INT, 'Class id', VALUE_REQUIRED),
+            'search'  => new \external_value(PARAM_TEXT, 'Free-text search', VALUE_DEFAULT, ''),
+            'only_eligible' => new \external_value(PARAM_BOOL, 'If true, only return eligible students', VALUE_DEFAULT, false),
         ]);
     }
 
     public static function execute_returns(): external_single_structure {
-        return new external_single_structure([
-            'students' => new external_multiple_structure(new external_single_structure([
-                'userid'             => new external_value(PARAM_INT, 'User id'),
-                'fullname'           => new external_value(PARAM_RAW, 'Fullname'),
-                'idnumber'           => new external_value(PARAM_RAW, 'idnumber'),
-                'email'              => new external_value(PARAM_RAW, 'Email'),
-                'final_grade'        => new external_value(PARAM_FLOAT, 'Computed final grade (nullable)'),
-                'practicalhours'     => new external_value(PARAM_INT, 'Practical hours'),
-                'teoricalhours'      => new external_value(PARAM_INT, 'Theoretical hours'),
-                'progress_status'    => new external_value(PARAM_INT, 'gmk_course_progre.status'),
-                'progress_label'     => new external_value(PARAM_RAW, 'Status label'),
-                'is_eligible'        => new external_value(PARAM_BOOL, 'Meets revalidation criteria'),
-                'ineligibility_reason'=> new external_value(PARAM_RAW, 'Reason if not eligible'),
-                'activities_total'   => new external_value(PARAM_INT, 'Total gradable activities in class'),
-                'activities_graded'  => new external_value(PARAM_INT, 'Activities already graded for this student'),
-                'activities_missing' => new external_value(PARAM_INT, 'Activities still pending grading'),
-                'existing_revalidation_id' => new external_value(PARAM_INT, 'Existing gmk_revalidations.id or 0'),
-                'existing_revalidation_status' => new external_value(PARAM_RAW, 'Existing status'),
-                'existing_revalidation_extemp' => new external_value(PARAM_INT, 'Existing extemporaneous flag'),
+        return new \external_single_structure([
+            'students' => new \external_multiple_structure(new \external_single_structure([
+                'userid'             => new \external_value(PARAM_INT, 'User id'),
+                'fullname'           => new \external_value(PARAM_RAW, 'Fullname'),
+                'idnumber'           => new \external_value(PARAM_RAW, 'idnumber'),
+                'email'              => new \external_value(PARAM_RAW, 'Email'),
+                'final_grade'        => new \external_value(PARAM_FLOAT, 'Computed final grade (nullable)'),
+                'practicalhours'     => new \external_value(PARAM_INT, 'Practical hours'),
+                'teoricalhours'      => new \external_value(PARAM_INT, 'Theoretical hours'),
+                'progress_status'    => new \external_value(PARAM_INT, 'gmk_course_progre.status'),
+                'progress_label'     => new \external_value(PARAM_RAW, 'Status label'),
+                'is_eligible'        => new \external_value(PARAM_BOOL, 'Meets revalidation criteria'),
+                'ineligibility_reason'=> new \external_value(PARAM_RAW, 'Reason if not eligible'),
+                'activities_total'   => new \external_value(PARAM_INT, 'Total gradable activities in class'),
+                'activities_graded'  => new \external_value(PARAM_INT, 'Activities already graded for this student'),
+                'activities_missing' => new \external_value(PARAM_INT, 'Activities still pending grading'),
+                'existing_revalidation_id' => new \external_value(PARAM_INT, 'Existing gmk_revalidations.id or 0'),
+                'existing_revalidation_status' => new \external_value(PARAM_RAW, 'Existing status'),
+                'existing_revalidation_extemp' => new \external_value(PARAM_INT, 'Existing extemporaneous flag'),
             ])),
         ]);
     }

@@ -41,8 +41,8 @@ use context_system;
 class refresh_financial_status extends external_api {
 
     public static function execute_parameters(): external_function_parameters {
-        return new external_function_parameters([
-            'userid' => new external_value(PARAM_INT, 'Moodle user id'),
+        return new \external_function_parameters([
+            'userid' => new \external_value(PARAM_INT, 'Moodle user id'),
         ]);
     }
 
@@ -55,13 +55,13 @@ class refresh_financial_status extends external_api {
     }
 
     public static function execute_returns(): external_single_structure {
-        return new external_single_structure([
-            'status'            => new external_value(PARAM_RAW, 'ok|error'),
-            'updated'           => new external_value(PARAM_INT, 'Number of users updated (1 on success)', VALUE_OPTIONAL),
-            'financial_status'  => new external_value(PARAM_RAW, 'New financial status code', VALUE_OPTIONAL),
-            'financial_label'   => new external_value(PARAM_RAW, 'New financial status label', VALUE_OPTIONAL),
-            'financial_reason'  => new external_value(PARAM_RAW, 'New financial reason', VALUE_OPTIONAL),
-            'message'           => new external_value(PARAM_RAW, 'Error message', VALUE_OPTIONAL),
+        return new \external_single_structure([
+            'status'            => new \external_value(PARAM_RAW, 'ok|error'),
+            'updated'           => new \external_value(PARAM_INT, 'Number of users updated (1 on success)', VALUE_OPTIONAL),
+            'financial_status'  => new \external_value(PARAM_RAW, 'New financial status code', VALUE_OPTIONAL),
+            'financial_label'   => new \external_value(PARAM_RAW, 'New financial status label', VALUE_OPTIONAL),
+            'financial_reason'  => new \external_value(PARAM_RAW, 'New financial reason', VALUE_OPTIONAL),
+            'message'           => new \external_value(PARAM_RAW, 'Error message', VALUE_OPTIONAL),
         ]);
     }
 }

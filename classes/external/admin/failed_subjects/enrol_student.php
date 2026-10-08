@@ -41,10 +41,10 @@ use context_system;
 class enrol_student extends external_api {
 
     public static function execute_parameters(): external_function_parameters {
-        return new external_function_parameters([
-            'userid'     => new external_value(PARAM_INT, 'Moodle user id'),
-            'classid'    => new external_value(PARAM_INT, 'gmk_class id'),
-            'force_over' => new external_value(PARAM_BOOL, 'Bypass quota check', VALUE_DEFAULT, false),
+        return new \external_function_parameters([
+            'userid'     => new \external_value(PARAM_INT, 'Moodle user id'),
+            'classid'    => new \external_value(PARAM_INT, 'gmk_class id'),
+            'force_over' => new \external_value(PARAM_BOOL, 'Bypass quota check', VALUE_DEFAULT, false),
         ]);
     }
 
@@ -62,12 +62,12 @@ class enrol_student extends external_api {
     }
 
     public static function execute_returns(): external_single_structure {
-        return new external_single_structure([
-            'status'            => new external_value(PARAM_RAW, 'ok|quota_exceeded|already_enrolled|error'),
-            'message'           => new external_value(PARAM_RAW, 'Human-readable message'),
-            'enrolled_count'    => new external_value(PARAM_INT, 'Current enrollment count after operation', VALUE_OPTIONAL),
-            'classroomcapacity' => new external_value(PARAM_INT, 'Classroom capacity', VALUE_OPTIONAL),
-            'forced'            => new external_value(PARAM_BOOL, 'Whether this was a forced enrolment over quota', VALUE_OPTIONAL),
+        return new \external_single_structure([
+            'status'            => new \external_value(PARAM_RAW, 'ok|quota_exceeded|already_enrolled|error'),
+            'message'           => new \external_value(PARAM_RAW, 'Human-readable message'),
+            'enrolled_count'    => new \external_value(PARAM_INT, 'Current enrollment count after operation', VALUE_OPTIONAL),
+            'classroomcapacity' => new \external_value(PARAM_INT, 'Classroom capacity', VALUE_OPTIONAL),
+            'forced'            => new \external_value(PARAM_BOOL, 'Whether this was a forced enrolment over quota', VALUE_OPTIONAL),
         ]);
     }
 }
