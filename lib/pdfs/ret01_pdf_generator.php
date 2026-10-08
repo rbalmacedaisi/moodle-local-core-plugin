@@ -337,7 +337,7 @@ class ret01_pdf_generator extends \TCPDF {
             $this->Ln(1);
             $this->SetFont($this->use_opensans ? 'opensans__i' : 'helvetica', 'I', 9);
             $this->SetTextColor(...self::C_MUTED);
-            $this->MultiCell(180, 5, 'Observaciones del estudiante: ' . $this->row->observations, 0, 'J');
+            $this->MultiCell(180, 5, 'Observaciones del estudiante: ' . $this->row->observations, 0, 'L');
             $this->SetTextColor(...self::C_TEXT);
         }
         $this->Ln(2);
@@ -500,12 +500,19 @@ class ret01_pdf_generator extends \TCPDF {
         // Render each paragraph with a 7mm "number gutter" and the
         // number drawn as a separate Cell before the MultiCell. The
         // number is part of the Cell so it does NOT get justified.
+        // We use 'L' (left align) instead of 'J' (justify) because
+        // TCPDF's justify algorithm stretches the spaces between
+        // words to fill the line - when a paragraph wraps to a short
+        // last line (e.g. 'Declaro que la informacion de este
+        // formulario es verdadera.'), the spaces become huge and the
+        // text looks like 'palabras sueltas con espacios enormes'.
+        // Left align keeps the natural spacing.
         $i = 1;
         foreach ($paragraphs as $p) {
             $this->SetFont($this->use_opensans ? 'opensans__b' : 'helvetica', 'B', 9.5);
             $this->Cell(7, 5, "$i.", 0, 0, 'R');
             $this->SetFont($this->use_opensans ? 'opensans' : 'helvetica', '', 9.5);
-            $this->MultiCell(168, 5, $p, 0, 'J');
+            $this->MultiCell(168, 5, $p, 0, 'L');
             $this->Ln(2);
             $i++;
         }
