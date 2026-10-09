@@ -12190,12 +12190,22 @@ function gmk_get_group_existing_grades(int $assignmentid, int $groupid): array {
     list($insql, $params) = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED, 'uid');
     $params['aid'] = (int)$assignmentid;
 
+    // AUDIT FIX 2026-10-08: la query original consultaba {assign_grades},
+    // pero save_grade() con attemptnumber=-1 (sin submission previa) NO
+    // crea fila en {assign_grades} - solo en {grade_grades}. Eso hacia
+    // que el pre-flight NUNCA detectara notas previas y siempre pasara
+    // a success, sobrescribiendo sin avisar al docente.
+    //
+    // Cambio: consultar {grade_grades} via {grade_items}, que es donde
+    // Moodle realmente persiste la nota final del assign.
     $rows = $DB->get_records_sql(
-        "SELECT g.userid, g.grade, g.timemodified
-           FROM {assign_grades} g
-          WHERE g.assignment = :aid
-            AND g.attemptnumber = -1
-            AND g.userid $insql",
+        "SELECT gg.userid, gg.finalgrade AS grade, gg.timemodified
+           FROM {grade_items} gi
+           JOIN {grade_grades} gg ON gg.itemid = gi.id
+          WHERE gi.itemtype = 'mod'
+            AND gi.itemmodule = 'assign'
+            AND gi.iteminstance = :aid
+            AND gg.userid $insql",
         $params
     );
 
