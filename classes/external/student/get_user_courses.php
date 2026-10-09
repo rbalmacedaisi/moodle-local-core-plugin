@@ -74,16 +74,42 @@ class get_user_courses extends external_api
         global $DB;
 try {
             $userCourses = \core_enrol_external::get_users_courses($params['userid'], false);
-            $userGmkCourseProgress = $DB->get_records(
-                'gmk_course_progre',
-                ['userid' => $params['userid']],
-                '',
-                'courseid,learningplanid,progress,credits'
+            // AUDIT FIX 2026-10-08: el codigo original llamaba
+            //   $DB->get_records('gmk_course_progre', ['userid' => $id], '',
+            //     'courseid,learningplanid,progress,credits')
+            // lo cual (a) NO incluye `id` y por tanto Moodle intenta indexar
+            // el array por `courseid` (la primera columna del SELECT), y
+            // (b) si el mismo user tiene DOS filas para el mismo courseid
+            // (caso real: un estudiante reprueba, se reinscribe y termina
+            // con dos rows en gmk_course_progre), Moodle tira:
+            //   "Did you remember to make the first column something
+            //    unique in your call to get_records? Duplicate value 'X'
+            //    found in column 'courseid'."
+            // y devuelve un array con solo la ULTIMA fila de cada courseid,
+            // perdiendo la fila historica. Ademas, la nota que el alumno
+            // ve es la del intento anterior (la ultima que se grabo), no
+            // la del intento actual.
+            //
+            // Cambio: usar get_records_sql con un MAX(id) por (userid,
+            // courseid) y traer el resto de las columnas con un JOIN
+            // auto-referencial. Asi siempre devolvemos exactamente una
+            // fila por curso y es la del intento mas reciente.
+            $rows = $DB->get_records_sql(
+                "SELECT p.id, p.userid, p.courseid, p.learningplanid, p.progress, p.credits
+                   FROM {gmk_course_progre} p
+                   JOIN (
+                       SELECT userid, courseid, MAX(id) AS maxid
+                         FROM {gmk_course_progre}
+                        WHERE userid = :userid
+                     GROUP BY userid, courseid
+                   ) latest ON latest.maxid = p.id
+                  WHERE p.userid = :userid2",
+                ['userid' => (int)$params['userid'], 'userid2' => (int)$params['userid']]
             );
             $courseids = array_map(static function($c) { return (int)$c['id']; }, $userCourses);
             $passedmap = gmk_get_user_passed_course_map_fast((int)$params['userid'], $courseids, 70.0);
             foreach ($userCourses as &$course) {
-                $courseProgre = isset($userGmkCourseProgress[$course['id']]) ? $userGmkCourseProgress[$course['id']] : null;
+                $courseProgre = isset($rows[$course['id']]) ? $rows[$course['id']] : null;
                 $progress = $courseProgre ? $courseProgre->progress : 0;
 
                 // [VIRTUAL FALLBACK] Fast direct grade check (no grade tree traversal).
