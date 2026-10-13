@@ -43,6 +43,70 @@ function local_grupomakro_core_guard_blocked_course(int $courseid): void {
 }
 
 /**
+ * Financial guard: keep students in "mora" out of Moodle course pages.
+ *
+ * The LXP enforces the overdue gate through the Express proxy, but a student
+ * who opens lms.isi.edu.pa/course/view.php or any /mod/ page directly never
+ * met it. This applies the same decision from gmk_financial_status, which the
+ * proxy itself fills (/api/odoo/status/bulk every 6 h, on login and on the
+ * payment webhook), so Moodle and the LXP agree on who is in mora.
+ *
+ * Exempt: site admins, staff (view_academic_panel), anyone who manages or
+ * grades the course (teachers), the global bypass mirrored from the proxy
+ * (financial_bypass_enabled) and the first-month grace period
+ * (gmk_grace_period). Kill switch: financial_moodle_guard_enabled = 0.
+ *
+ * @param int $courseid
+ * @return void
+ */
+function local_grupomakro_core_guard_financial_block(int $courseid): void {
+    global $DB, $USER, $SESSION;
+
+    if ($courseid <= SITEID || !isloggedin() || isguestuser() || is_siteadmin()) {
+        return;
+    }
+    if ((string)get_config('local_grupomakro_core', 'financial_moodle_guard_enabled') === '0'
+            || get_config('local_grupomakro_core', 'financial_bypass_enabled')) {
+        return;
+    }
+    $coursecontext = context_course::instance($courseid, IGNORE_MISSING);
+    if (!$coursecontext
+            || has_capability('local/grupomakro_core:view_academic_panel', context_system::instance())
+            || has_any_capability(['moodle/course:manageactivities', 'moodle/grade:viewall'], $coursecontext)) {
+        return;
+    }
+
+    // One indexed read per page is cheap, but the grace lookup joins profile
+    // data; cache the verdict in the session for two minutes.
+    $now = time();
+    $cached = $SESSION->gmk_financial_block ?? null;
+    if (!$cached || $cached->userid != $USER->id || $now - $cached->at > 120) {
+        $blocked = false;
+        $status = $DB->get_field('gmk_financial_status', 'status', ['userid' => $USER->id], IGNORE_MULTIPLE);
+        if ($status === 'mora') {
+            $blocked = true;
+            if (get_config('local_grupomakro_core', 'grace_period_enabled')) {
+                $doc = $DB->get_field_sql(
+                    "SELECT d.data FROM {user_info_data} d
+                       JOIN {user_info_field} f ON f.id = d.fieldid AND f.shortname = 'documentnumber'
+                      WHERE d.userid = :userid",
+                    ['userid' => $USER->id], IGNORE_MULTIPLE);
+                if ($doc && $DB->record_exists_select('gmk_grace_period',
+                        'documentnumber = :doc AND graceuntil >= :now', ['doc' => trim($doc), 'now' => $now])) {
+                    $blocked = false;
+                }
+            }
+        }
+        $cached = (object)['userid' => $USER->id, 'at' => $now, 'blocked' => $blocked];
+        $SESSION->gmk_financial_block = $cached;
+    }
+
+    if ($cached->blocked) {
+        redirect(new moodle_url('/local/grupomakro_core/pages/payment_blocked.php', ['courseid' => $courseid]));
+    }
+}
+
+/**
  * Resolve the landing page a staff user should be sent to after login.
  *
  * Before this existed, every gmk_* role was redirected blindly to
@@ -361,6 +425,13 @@ function local_grupomakro_core_extend_navigation(global_navigation $navigation) 
             if ($courseid > 0) {
                 local_grupomakro_core_guard_blocked_course($courseid);
             }
+        }
+
+        // Financial guard: students in mora stay out of course pages, the same
+        // rule the LXP applies. $PAGE->course is the real course on both
+        // /course/view.php and /mod/ pages (where ?id= is a cmid, not a course).
+        if (!empty($PAGE->course->id)) {
+            local_grupomakro_core_guard_financial_block((int)$PAGE->course->id);
         }
     } catch (Exception $e) {
         // Avoid crashing the whole site if URL comparison fails in certain contexts

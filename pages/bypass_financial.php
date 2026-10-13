@@ -85,6 +85,14 @@ $bypassUpdatedAt = $bypassStatus['updatedAt'] ?? null;
 $bypassUpdatedBy = $bypassStatus['updatedBy'] ?? null;
 $connectionError = isset($bypassStatus['error']) || ($bypassStatus['httpCode'] ?? 0) !== 200;
 
+// The proxy owns the bypass flag; Moodle keeps a mirror so the course-page
+// financial guard (local_grupomakro_core_guard_financial_block in lib.php)
+// lets everyone through while it is on. Refreshed every time this page loads
+// with a good answer from the proxy, including right after a toggle.
+if (!$connectionError) {
+    set_config('financial_bypass_enabled', $bypassEnabled ? 1 : 0, 'local_grupomakro_core');
+}
+
 echo $OUTPUT->header();
 ?>
 
