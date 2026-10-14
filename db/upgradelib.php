@@ -1016,6 +1016,11 @@ function assign_capabilities_to_internal_roles() {
             // MODIFICAR asistencia estan en el bloque de arriba (mod/attendance:*);
             // aqui siguen las caps del plugin (vistas).
             'local/grupomakro_core:viewabsencedashboard',
+            // 20261001106: descargar la lista de asistencia en PDF
+            // (pages/attendance_pdf.php, boton del dashboard de ausencias). El
+            // comentario del 20261001068 daba por hecho que Bienestar ya la tenia,
+            // pero nunca estuvo en este array: la pagina le negaba el acceso.
+            'local/grupomakro_core:view_attendance_pdf',
             'local/grupomakro_core:view_grade_report',
             'local/grupomakro_core:view_failed_subjects_report',
             // Everyone on staff lands on the academic panel after login, so the

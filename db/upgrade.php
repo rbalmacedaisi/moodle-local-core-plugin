@@ -4387,6 +4387,15 @@ if ($oldversion < 20261001093) {
         upgrade_plugin_savepoint(true, 20261001105, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20261001106) {
+        // Coordinador de Bienestar: descargar la lista de asistencia en PDF.
+        // attendance_pdf.php exige local/grupomakro_core:view_attendance_pdf y
+        // Bienestar no la tenia (el 20261001068 la dio por concedida sin estar
+        // en su array de upgradelib.php).
+        assign_capabilities_to_internal_roles();
+        upgrade_plugin_savepoint(true, 20261001106, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 
