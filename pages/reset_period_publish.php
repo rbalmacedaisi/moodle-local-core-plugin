@@ -36,6 +36,13 @@ if ($action === 'resetone') {
         echo json_encode(['ok' => false, 'msg' => "Clase $classid no encontrada (ya eliminada)."]);
         exit;
     }
+    // Independent modules are created by enroll_module, not by the period publish:
+    // resetting the publish must not delete them (their enrollments and grades
+    // would be orphaned).
+    if (!empty($class->is_module)) {
+        echo json_encode(['ok' => false, 'msg' => "La clase $classid es un módulo independiente: no forma parte de la publicación del período."]);
+        exit;
+    }
 
     try {
         // 1. Grade category
@@ -216,7 +223,7 @@ if ($periodid > 0) {
            FROM {gmk_class} gc
       LEFT JOIN {gmk_course_progre} gcp ON gcp.classid = gc.id
       LEFT JOIN {gmk_class_schedules} gcs ON gcs.classid = gc.id
-          WHERE gc.periodid = :pid
+          WHERE gc.periodid = :pid AND gc.is_module = 0
           GROUP BY gc.id, gc.name, gc.approved, gc.groupid, gc.attendancemoduleid
           ORDER BY gc.name",
         ['pid' => $periodid]

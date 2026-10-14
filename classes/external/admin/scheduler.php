@@ -495,6 +495,14 @@ class scheduler extends external_api {
             //    student enrollments become "orphaned" (classid pointing to a non-existent
             //    gmk_class row) and the LXP "my modules" view silently hides them because
             //    it INNER JOINs gmk_class.
+            //
+            //    Independent module classes (is_module = 1) are NEVER deleted here: they
+            //    are created by enroll_module, not by the planning board, so they are
+            //    never in the payload. Deleting them on every publish orphaned their
+            //    enrollments and grades and left their groups without a class (period
+            //    2026-IV: Informatica Aplicada, Geografia, Matematica II were recreated
+            //    under new ids; Historia de Panama, Matematica I and Formulacion y
+            //    Evaluacion de Proyecto were lost with students still in their groups).
             if ($preserveexisting) {
                 gmk_log("INFO: preserveexisting=true, skipping destructive cleanup for period {$periodid}");
             } else if (!empty($validIds)) {
@@ -511,6 +519,7 @@ class scheduler extends external_api {
                       WHERE classid IN (
                           SELECT id FROM {gmk_class}
                            WHERE periodid = :pid
+                             AND is_module = 0
                              AND id $notInSql
                       )
                         AND status = 'active'",
@@ -523,13 +532,14 @@ class scheduler extends external_api {
                       WHERE enrolled_classid IN (
                           SELECT id FROM {gmk_class}
                            WHERE periodid = :pid
+                             AND is_module = 0
                              AND id $notInSql
                       )",
                     array_merge(['now' => time(), 'pid' => $periodid], $notInParams)
                 );
                 $DB->delete_records_select(
                     'gmk_class',
-                    "periodid = :pid AND id $notInSql",
+                    "periodid = :pid AND is_module = 0 AND id $notInSql",
                     array_merge(['pid' => $periodid], $notInParams)
                 );
             } else if ($processablePayloadCount > 0 || empty($data)) {
@@ -539,7 +549,7 @@ class scheduler extends external_api {
                     "UPDATE {gmk_module_enrollment}
                         SET status = 'expired', timemodified = :now
                       WHERE classid IN (
-                          SELECT id FROM {gmk_class} WHERE periodid = :pid
+                          SELECT id FROM {gmk_class} WHERE periodid = :pid AND is_module = 0
                       )
                         AND status = 'active'",
                     ['now' => time(), 'pid' => $periodid]
@@ -548,11 +558,11 @@ class scheduler extends external_api {
                     "UPDATE {gmk_module_invoice_requests}
                         SET enrolled_classid = 0, timemodified = :now
                       WHERE enrolled_classid IN (
-                          SELECT id FROM {gmk_class} WHERE periodid = :pid
+                          SELECT id FROM {gmk_class} WHERE periodid = :pid AND is_module = 0
                       )",
                     ['now' => time(), 'pid' => $periodid]
                 );
-                $DB->delete_records('gmk_class', ['periodid' => $periodid]);
+                $DB->delete_records('gmk_class', ['periodid' => $periodid, 'is_module' => 0]);
             } else {
                 gmk_log("INFO: Skip destructive cleanup for period {$periodid}: payload had no processable internal classes.");
             }
@@ -607,7 +617,8 @@ class scheduler extends external_api {
             // (i.e. the category was created but the id was never saved back).
             // This prevents 'Duplicate entry' errors on grade_grades during retries.
             if (!$preserveexisting) {
-                $periodClassIds = $DB->get_fieldset_select('gmk_class', 'id', 'periodid = :pid AND gradecategoryid = 0', ['pid' => $periodid]);
+                // Module classes are excluded: they are not managed by the board (see step 2).
+                $periodClassIds = $DB->get_fieldset_select('gmk_class', 'id', 'periodid = :pid AND gradecategoryid = 0 AND is_module = 0', ['pid' => $periodid]);
             if (!empty($periodClassIds)) {
                 foreach ($periodClassIds as $cid) {
                     $orphanCats = $DB->get_records_sql(

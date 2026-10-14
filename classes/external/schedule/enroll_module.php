@@ -255,6 +255,23 @@ class enroll_module {
         // ── 4. Check for existing enrollment ──────────────────────────────────────
         $existing = $DB->get_record('gmk_module_enrollment', ['classid' => $classId, 'userid' => $userId]);
         if ($existing) {
+            // Re-running the enrollment must leave the student able to work in the
+            // module. This branch used to repair only the regular class group, so a
+            // student who had lost the MODULE group (class recreated under a new id,
+            // a group change, a course unenrol) stayed out of it: the teacher could
+            // still grade them from the gradebook, but the module never resolved
+            // their grade and they could not see its section.
+            $reEnrolPlugin = enrol_get_plugin('manual');
+            $reCourseInstance = get_manual_enroll($coreCourseId);
+            $reStudentRoleId = (int)$DB->get_field('role', 'id', ['shortname' => 'student']);
+            if ($reEnrolPlugin && $reCourseInstance && $reStudentRoleId
+                    && !is_enrolled(\context_course::instance($coreCourseId), $userId, '', true)) {
+                $reEnrolPlugin->enrol_user($reCourseInstance, $userId, $reStudentRoleId);
+            }
+            if ($groupId > 0 && !groups_is_member($groupId, $userId)) {
+                groups_add_member($groupId, $userId);
+            }
+
             // Ensure the student is still in the regular class group (retroactive fix)
             // Use the same period logic: last started period
             $retro_period = $DB->get_record_sql(
