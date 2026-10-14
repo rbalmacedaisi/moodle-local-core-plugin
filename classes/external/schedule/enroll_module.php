@@ -104,6 +104,42 @@ class enroll_module {
             ];
         }
 
+        // ── 1a-bis. Already enrolled in a module of this subject ─────────────────
+        // A student with an active module enrollment is Cursando, so guard 1c below
+        // used to refuse them before the "already enrolled" branch could run, and
+        // re-running the enrollment never repaired anything. Repair here, before the
+        // payment and course guards: course enrolment + the module's own group.
+        $activeModuleEnrollment = $DB->get_record_sql(
+            "SELECT me.id, me.duedate, c.id AS classid, c.groupid, c.name
+               FROM {gmk_module_enrollment} me
+               JOIN {gmk_class} c ON c.id = me.classid AND c.is_module = 1
+              WHERE me.userid = :uid AND c.corecourseid = :cid AND me.status = 'active'
+           ORDER BY me.id DESC",
+            ['uid' => $userId, 'cid' => $coreCourseId], IGNORE_MULTIPLE);
+        if ($activeModuleEnrollment) {
+            $reEnrolPlugin = enrol_get_plugin('manual');
+            $reCourseInstance = get_manual_enroll($coreCourseId);
+            $reStudentRoleId = (int)$DB->get_field('role', 'id', ['shortname' => 'student']);
+            if ($reEnrolPlugin && $reCourseInstance && $reStudentRoleId
+                    && !is_enrolled(\context_course::instance($coreCourseId), $userId, '', true)) {
+                $reEnrolPlugin->enrol_user($reCourseInstance, $userId, $reStudentRoleId);
+            }
+            $repaired = false;
+            if ((int)$activeModuleEnrollment->groupid > 0
+                    && !groups_is_member((int)$activeModuleEnrollment->groupid, $userId)) {
+                groups_add_member((int)$activeModuleEnrollment->groupid, $userId);
+                $repaired = true;
+            }
+            return [
+                'status'     => 'warning',
+                'message'    => 'El estudiante ya está inscrito en ' . $activeModuleEnrollment->name . '.'
+                    . ($repaired ? ' Se restableció su acceso al grupo del módulo.' : '')
+                    . ' Plazo: ' . userdate((int)$activeModuleEnrollment->duedate, get_string('strftimedatefullshort', 'langconfig')),
+                'duedate'    => (int)$activeModuleEnrollment->duedate,
+                'requires_payment' => false,
+            ];
+        }
+
         // ── 1b. Payment gate: require a paid invoice request ────────────────────
         $paidRequest = null;
         if (!$bypassPayment) {
