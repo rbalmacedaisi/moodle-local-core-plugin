@@ -163,9 +163,14 @@ class get_student_info extends external_api {
         if (!empty($params['classid'])) {
             $livecourseid = $DB->get_field('gmk_class', 'corecourseid', ['id' => (int)$params['classid']]);
             if ($livecourseid) {
-                $gradeJoin   = " LEFT JOIN {grade_items} gi_crs ON (gi_crs.courseid = :gi_crs_courseid AND gi_crs.itemtype = 'course')"
-                             . " LEFT JOIN {grade_grades} gg_crs ON (gg_crs.itemid = gi_crs.id AND gg_crs.userid = u.id) ";
-                $gradeSelect = ", CASE WHEN gi_crs.grademax > 0 THEN ROUND((gg_crs.finalgrade / gi_crs.grademax) * 100, 2) ELSE NULL END AS currentgrade";
+                // Latest-grade model: the grade shown is the one stored by
+                // course_grade_resolver::sync_progress() for this subject (the last
+                // grade placed), not the Moodle course total, which mixed every
+                // class of the course. One row per plan: the most recent wins.
+                $gradeJoin   = "";
+                $gradeSelect = ", (SELECT cpl.grade FROM {gmk_course_progre} cpl
+                                    WHERE cpl.userid = u.id AND cpl.courseid = :gi_crs_courseid
+                                 ORDER BY cpl.grade_at DESC, cpl.id DESC LIMIT 1) AS currentgrade";
                 $sqlParams['gi_crs_courseid'] = $livecourseid;
             } else {
                 $gradeJoin   = " LEFT JOIN {gmk_course_progre} cp ON (cp.userid = u.id AND cp.classid = :classid_join) ";
@@ -551,9 +556,14 @@ list($fsClause, $fsParams) = local_grupomakro_translate_financial_filter($params
         if (!empty($params['classid'])) {
             $livecourseid2 = $DB->get_field('gmk_class', 'corecourseid', ['id' => (int)$params['classid']]);
             if ($livecourseid2) {
-                $gradejoin   = "LEFT JOIN {grade_items} gi_crs2 ON (gi_crs2.courseid = :gi_crs2_courseid AND gi_crs2.itemtype = 'course')"
-                             . " LEFT JOIN {grade_grades} gg_crs2 ON (gg_crs2.itemid = gi_crs2.id AND gg_crs2.userid = u.id)";
-                $gradeselect = ", CASE WHEN gi_crs2.grademax > 0 THEN ROUND((gg_crs2.finalgrade / gi_crs2.grademax) * 100, 2) ELSE NULL END AS currentgrade";
+                // Latest-grade model: the grade shown is the one stored by
+                // course_grade_resolver::sync_progress() for this subject (the last
+                // grade placed), not the Moodle course total, which mixed every
+                // class of the course. One row per plan: the most recent wins.
+                $gradejoin   = "";
+                $gradeselect = ", (SELECT cpl2.grade FROM {gmk_course_progre} cpl2
+                                    WHERE cpl2.userid = u.id AND cpl2.courseid = :gi_crs2_courseid
+                                 ORDER BY cpl2.grade_at DESC, cpl2.id DESC LIMIT 1) AS currentgrade";
                 $sqlparams['gi_crs2_courseid'] = $livecourseid2;
             } else {
                 $gradejoin   = "LEFT JOIN {gmk_course_progre} cp ON (cp.userid = u.id AND cp.classid = :classid_join)";

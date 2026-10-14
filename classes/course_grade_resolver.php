@@ -153,41 +153,37 @@ class course_grade_resolver
             return self::empty_result($baseStatus, $baseProgress);
         }
 
-        $progressclassid = $progressclassid ?: 0;
-        $progressgroupid = $progressgroupid ?: 0;
-
-        // --- 1) Resolve raw grade using the cascade of sources ---
-        list($grade, $source, $isModuleGrade) = self::resolve_raw_grade(
-            $DB,
-            $userid,
-            $corecourseid,
-            $learningPlanId,
-            $currentperiodid,
-            $progressclassid,
-            $progressgroupid,
-            $baseStatus,
-            $coursename
-        );
-
-        // --- 2) Apply virtual approval rule (only if we have a grade) ---
-        $resolvedStatus = (int)$baseStatus;
-        $resolvedProgress = $baseProgress !== null ? (float)$baseProgress : 0.0;
-        if ($grade !== null) {
-            $canVirtualApprove = in_array($resolvedStatus, self::VIRTUAL_APPROVABLE_STATUSES, true);
-            $passingGrade = ($resolvedStatus === 5) ? self::RETRY_PASSING_GRADE : self::DEFAULT_PASSING_GRADE;
-            if ($canVirtualApprove && $grade >= $passingGrade) {
-                $resolvedStatus = 3; // COURSE_COMPLETED
-                $resolvedProgress = 100.00;
-            }
+        // Latest-grade model: read what sync_progress() stored; when the row was
+        // not synced yet, resolve live with the same rules.
+        $stored = $DB->get_record('gmk_course_progre',
+            ['userid' => $userid, 'courseid' => $corecourseid, 'learningplanid' => $learningPlanId],
+            'id, grade, status, progress, grade_source', IGNORE_MULTIPLE);
+        if ($stored && !empty($stored->grade_source)) {
+            $status = (int)$stored->status;
+            return [
+                'grade'     => $stored->grade !== null ? round((float)$stored->grade, 2) : null,
+                'source'    => (string)$stored->grade_source,
+                'is_module' => $stored->grade_source === self::SOURCE_LATEST_MODULE,
+                'status'    => $status,
+                'progress'  => (float)$stored->progress,
+                'semaphore' => self::semaphore_for_status($status),
+            ];
         }
 
+        $latest = self::resolve_latest_grade($userid, $corecourseid, $learningPlanId,
+            (int)($progressclassid ?: 0), (int)($progressgroupid ?: 0), $coursename, $baseStatus);
+        if ($latest['grade'] === null) {
+            return self::empty_result($baseStatus, $baseProgress);
+        }
+        $status = self::status_for_latest((int)$baseStatus, $latest);
+        $progress = in_array($status, [3, 4], true) ? 100.0 : ($baseProgress !== null ? (float)$baseProgress : 0.0);
         return [
-            'grade'     => $grade,
-            'source'    => $source,
-            'is_module' => $isModuleGrade,
-            'status'    => $resolvedStatus,
-            'progress'  => $resolvedProgress,
-            'semaphore' => self::semaphore_for_status($resolvedStatus),
+            'grade'     => $latest['grade'],
+            'source'    => $latest['source'],
+            'is_module' => (bool)$latest['is_module'],
+            'status'    => $status,
+            'progress'  => $progress,
+            'semaphore' => self::semaphore_for_status($status),
         ];
     }
 
@@ -1139,623 +1135,52 @@ class course_grade_resolver
             return $results;
         }
 
-        // 1) Collect unique ids / keys.
-        $userids = [];
-        $courseids = [];
-        $alllearningplanids = [];
-        $rowKeys = [];
-        foreach ($rows as $i => $r) {
-            $userids[(int)$r['userid']] = true;
-            $courseids[(int)$r['courseid']] = true;
-            $alllearningplanids[(int)$r['learningplanid']] = true;
-            $rowKeys[$i] = isset($r['key']) ? (string)$r['key'] : ($i . '_' . $r['userid'] . '_' . $r['courseid']);
-        }
-        $userids = array_keys($userids);
-        $courseids = array_keys($courseids);
-        $alllearningplanids = array_keys($alllearningplanids);
-
-        // 2) Pre-load ALL grade_items for the relevant courses.
-        list($ciSql, $ciParams) = $DB->get_in_or_equal($courseids, SQL_PARAMS_NAMED, 'ci');
-        $allItems = $DB->get_records_sql(
-            "SELECT id, courseid, categoryid, itemtype, itemmodule, iteminstance,
-                    grademax, grademin, aggregationcoef, aggregationcoef2,
-                    itemname
-               FROM {grade_items}
-              WHERE courseid $ciSql",
-            $ciParams
-        );
-        // itemsByCourse[courseid][itemid] = item
-        $itemsByCourse = [];
-        $allItemIds = [];
-        foreach ($allItems as $it) {
-            $itemsByCourse[(int)$it->courseid][(int)$it->id] = $it;
-            $allItemIds[] = (int)$it->id;
-        }
-
-        // 3) Pre-load ALL grade_grades for the relevant users.
-        // Note: get_records_sql requires the first column to be unique, but
-        // grade_grades has many rows per userid (one per itemid). Use a
-        // recordset loop instead. We also load rawgrade as a fallback when
-        // finalgrade is NULL — matches bulk_course_total_grades semantics.
-        $gradesByUserItem = [];
-        if (!empty($allItemIds) && !empty($userids)) {
-            list($uiSql, $uiParams) = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED, 'uid');
-            list($iiSql, $iiParams) = $DB->get_in_or_equal($allItemIds, SQL_PARAMS_NAMED, 'iid');
+        // One read of the stored latest grades for every (user, course, plan).
+        $userids = array_values(array_unique(array_map(function ($r) {
+            return (int)($r['userid'] ?? 0);
+        }, $rows)));
+        $stored = [];
+        foreach (array_chunk(array_filter($userids), 500) as $chunk) {
+            list($insql, $inparams) = $DB->get_in_or_equal($chunk, SQL_PARAMS_NAMED, 'bru');
             $rs = $DB->get_recordset_sql(
-                "SELECT userid, itemid, finalgrade, rawgrade
-                   FROM {grade_grades}
-                  WHERE userid $uiSql
-                    AND itemid $iiSql
-                    AND (finalgrade IS NOT NULL OR rawgrade IS NOT NULL)",
-                $uiParams + $iiParams
-            );
-            foreach ($rs as $g) {
-                $val = $g->finalgrade !== null ? (float)$g->finalgrade
-                     : ($g->rawgrade  !== null ? (float)$g->rawgrade  : null);
-                if ($val === null) continue;
-                $gradesByUserItem[(int)$g->userid][(int)$g->itemid] = $val;
+                "SELECT id, userid, courseid, learningplanid, grade, status, progress, grade_source
+                   FROM {gmk_course_progre}
+                  WHERE userid $insql AND grade_source IS NOT NULL AND grade_source <> ''", $inparams);
+            foreach ($rs as $p) {
+                $stored[$p->userid . '-' . $p->courseid . '-' . $p->learningplanid] = $p;
             }
             $rs->close();
         }
 
-        // 4) Pre-load ALL gmk_class rows for the relevant courses.
-        $classesByCourse = [];
-        list($clSql, $clParams) = $DB->get_in_or_equal($courseids, SQL_PARAMS_NAMED, 'cl');
-        $allClasses = $DB->get_records_sql(
-            "SELECT id, name, groupid, corecourseid, gradecategoryid, is_module,
-                    coursesectionid, learningplanid
-               FROM {gmk_class}
-              WHERE corecourseid $clSql",
-            $clParams
-        );
-        foreach ($allClasses as $cl) {
-            $classesByCourse[(int)$cl->corecourseid][(int)$cl->id] = $cl;
-        }
-
-        // 5) Pre-load ALL group memberships for the relevant users.
-        //    We only need memberships whose groupid matches a class groupid.
-        $allClassGroupIds = [];
-        foreach ($allClasses as $cl) {
-            if (!empty($cl->groupid)) {
-                $allClassGroupIds[(int)$cl->groupid] = true;
-            }
-        }
-        $groupsByUser = [];
-        if (!empty($allClassGroupIds) && !empty($userids)) {
-            $allClassGroupIds = array_keys($allClassGroupIds);
-            list($gidSql, $gidParams) = $DB->get_in_or_equal($allClassGroupIds, SQL_PARAMS_NAMED, 'gid');
-            list($uidSql, $uidParams) = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED, 'uid');
-            $rs = $DB->get_recordset_sql(
-                "SELECT userid, groupid
-                   FROM {groups_members}
-                  WHERE groupid $gidSql
-                    AND userid $uidSql",
-                $gidParams + $uidParams
-            );
-            foreach ($rs as $gm) {
-                $groupsByUser[(int)$gm->userid][(int)$gm->groupid] = true;
-            }
-            $rs->close();
-        }
-
-        // 6) Pre-load ALL grade_categories referenced by the pre-loaded classes.
-        $allCatIds = [];
-        foreach ($allClasses as $cl) {
-            if ((int)$cl->gradecategoryid > 0) {
-                $allCatIds[(int)$cl->gradecategoryid] = true;
-            }
-        }
-        $catAggByCatId = [];
-        if (!empty($allCatIds)) {
-            $allCatIds = array_keys($allCatIds);
-            list($catSql, $catParams) = $DB->get_in_or_equal($allCatIds, SQL_PARAMS_NAMED, 'cat');
-            $cats = $DB->get_records_sql(
-                "SELECT id, aggregation FROM {grade_categories} WHERE id $catSql",
-                $catParams
-            );
-            foreach ($cats as $c) {
-                $catAggByCatId[(int)$c->id] = (int)$c->aggregation;
-            }
-        }
-
-        // 7) Pre-load ALL course_modules sequence needed for section-based override.
-        $sectionSeqBySectionId = [];
-        $allSections = [];
-        foreach ($allClasses as $cl) {
-            if (!empty($cl->coursesectionid) && (int)$cl->is_module === 1) {
-                $allSections[(int)$cl->coursesectionid] = true;
-            }
-        }
-        if (!empty($allSections)) {
-            $allSections = array_keys($allSections);
-            list($secSql, $secParams) = $DB->get_in_or_equal($allSections, SQL_PARAMS_NAMED, 'sec');
-            $secs = $DB->get_records_sql(
-                "SELECT id, sequence FROM {course_sections} WHERE id $secSql",
-                $secParams
-            );
-            foreach ($secs as $s) {
-                $sectionSeqBySectionId[(int)$s->id] = (string)$s->sequence;
-            }
-        }
-
-        // 8) Pre-load the modules name table.
-        $moduleNameByName = [];
-        foreach ($DB->get_records('modules') as $m) {
-            $moduleNameByName[(string)$m->name] = (int)$m->id;
-        }
-
-        // 9) Pre-load course_modules for the relevant courses' sections (for section-based lookup).
-        $allCmids = [];
-        foreach ($sectionSeqBySectionId as $sequence) {
-            foreach (array_filter(array_map('intval', explode(',', $sequence))) as $cmid) {
-                $allCmids[$cmid] = true;
-            }
-        }
-        $cmInstanceItemByCourse = [];
-        if (!empty($allCmids)) {
-            $allCmids = array_keys($allCmids);
-            list($cmSql, $cmParams) = $DB->get_in_or_equal($allCmids, SQL_PARAMS_NAMED, 'cm');
-            $cms = $DB->get_records_sql(
-                "SELECT cm.id, cm.instance, cm.module, cm.course, m.name AS modulename
-                   FROM {course_modules} cm
-                   JOIN {modules} m ON m.id = cm.module
-                  WHERE cm.id $cmSql",
-                $cmParams
-            );
-            foreach ($cms as $cm) {
-                $cmInstanceItemByCourse[(int)$cm->course][(int)$cm->id] = [
-                    'instance' => (int)$cm->instance,
-                    'modulename' => (string)$cm->modulename,
+        foreach ($rows as $idx => $row) {
+            $key = isset($row['key']) ? (string)$row['key'] : (string)$idx;
+            $uid = (int)($row['userid'] ?? 0);
+            $cid = (int)($row['courseid'] ?? 0);
+            $lp  = (int)($row['learningplanid'] ?? 0);
+            $p = $stored[$uid . '-' . $cid . '-' . $lp] ?? null;
+            if ($p) {
+                $status = (int)$p->status;
+                $results[$key] = [
+                    'grade'     => $p->grade !== null ? round((float)$p->grade, 2) : null,
+                    'source'    => (string)$p->grade_source,
+                    'is_module' => $p->grade_source === self::SOURCE_LATEST_MODULE,
+                    'status'    => $status,
+                    'progress'  => (float)$p->progress,
+                    'semaphore' => self::semaphore_for_status($status),
                 ];
+                continue;
             }
-        }
-
-        // 10) Iterate the rows, computing the resolution from pre-loaded data.
-        foreach ($rows as $i => $r) {
-            $key = $rowKeys[$i];
-            $userid = (int)$r['userid'];
-            $courseid = (int)$r['courseid'];
-            $learningplanid = (int)$r['learningplanid'];
-            $baseStatus = (int)($r['baseStatus'] ?? 0);
-            $progressclassid = !empty($r['progressclassid']) ? (int)$r['progressclassid'] : 0;
-            $progressgroupid = !empty($r['progressgroupid']) ? (int)$r['progressgroupid'] : 0;
-            $currentperiodid = (int)($r['currentperiodid'] ?? 0);
-            $coursename = (string)($r['coursename'] ?? '');
-            $baseProgress = $r['baseProgress'] !== null ? (float)$r['baseProgress'] : null;
-
-            $results[$key] = self::compute_resolution_from_preloaded(
-                $userid, $courseid, $learningplanid, $baseStatus,
-                $progressclassid, $progressgroupid, $currentperiodid,
-                $coursename, $baseProgress,
-                $itemsByCourse[$courseid] ?? [],
-                $gradesByUserItem[$userid] ?? [],
-                $classesByCourse[$courseid] ?? [],
-                $groupsByUser[$userid] ?? [],
-                $catAggByCatId,
-                $sectionSeqBySectionId,
-                $cmInstanceItemByCourse[$courseid] ?? [],
-                $moduleNameByName
+            $results[$key] = self::resolve_course_grade(
+                $uid, $cid, $lp,
+                (int)($row['baseStatus'] ?? 0),
+                isset($row['progressclassid']) ? (int)$row['progressclassid'] : null,
+                isset($row['progressgroupid']) ? (int)$row['progressgroupid'] : null,
+                (int)($row['currentperiodid'] ?? 0),
+                isset($row['coursename']) ? (string)$row['coursename'] : null,
+                isset($row['baseProgress']) ? (float)$row['baseProgress'] : null
             );
         }
-
         return $results;
-    }
-
-    /**
-     * Compute a single resolution using pre-loaded in-memory data.
-     * Mirrors resolve_course_grade + resolve_raw_grade + compute_class_category_grades
-     * (incl. section-based override) but without any extra DB call.
-     *
-     * @param array<int,object> $itemsByCourse   grade_items indexed by itemid
-     * @param array<int,float>  $gradesByItem    student grade_grades.finalgrade by itemid
-     * @param array<int,object> $classesByCourse gmk_class rows for the course
-     * @param array<int,bool>   $groupsByUser    student group memberships
-     */
-    private static function compute_resolution_from_preloaded(
-        int $userid,
-        int $courseid,
-        int $learningPlanId,
-        int $baseStatus,
-        int $progressclassid,
-        int $progressgroupid,
-        int $currentperiodid,
-        string $coursename,
-        ?float $baseProgress,
-        array $itemsByCourse,
-        array $gradesByItem,
-        array $classesByCourse,
-        array $groupsByUser,
-        array $catAggByCatId,
-        array $sectionSeqBySectionId,
-        array $cmDataByCourse,
-        array $moduleNameByName
-    ): array {
-        $isModuleGrade = false;
-        $coursegrade = null;
-        $gradesource = self::SOURCE_NONE;
-
-        // Plan category grades (per-user per-course).
-        $planClassCategoryGradeByCourseId = self::bulk_plan_category_grades_inmemory(
-            $userid, $courseid, $learningPlanId, $classesByCourse, $itemsByCourse, $gradesByItem, $catAggByCatId
-        );
-
-        // Manual integrated (by courseid).
-        $manualIntegratedGradeByCourseId = [];
-        foreach ($itemsByCourse as $it) {
-            if (isset($gradesByItem[(int)$it->id])
-                && stripos((string)$it->itemname, 'Nota Final Integrada') !== false
-                && (float)$gradesByItem[(int)$it->id] >= 0 && (float)$gradesByItem[(int)$it->id] <= 100) {
-                $candidate = (float)$gradesByItem[(int)$it->id];
-                if (!isset($manualIntegratedGradeByCourseId[$courseid])
-                    || $candidate > $manualIntegratedGradeByCourseId[$courseid]) {
-                    $manualIntegratedGradeByCourseId[$courseid] = $candidate;
-                }
-            }
-        }
-        // Manual integrated by fullname.
-        $manualIntegratedGradeByCourseName = [];
-        $coursenamekey = trim($coursename);
-        if ($coursenamekey !== '') {
-            foreach ($itemsByCourse as $it) {
-                $courseFullname = null;
-                // We don't have the course fullname here; the by-name fallback was
-                // meant for historical data. Skip if we can't resolve course name.
-                // (The caller already pre-resolved coursename.)
-            }
-        }
-
-        // Course total grade.
-        $gradesByCourseId = [];
-        foreach ($itemsByCourse as $it) {
-            if ((string)$it->itemtype === 'course' && isset($gradesByItem[(int)$it->id])) {
-                $val = (float)$gradesByItem[(int)$it->id];
-                if ($val >= 0 && $val <= 100) {
-                    $gradesByCourseId[$courseid] = $val;
-                }
-            }
-        }
-
-        // Class category grades.
-        $membershipClassCourseByClassId = [];
-        foreach ($classesByCourse as $cl) {
-            $gid = (int)$cl->groupid;
-            if ($gid > 0 && !empty($groupsByUser[$gid])) {
-                $membershipClassCourseByClassId[(int)$cl->id] = $courseid;
-            }
-        }
-        // Cross-plan module membership: classes with is_module=1 in this course.
-        foreach ($classesByCourse as $cl) {
-            if ((int)$cl->is_module === 1) {
-                $gid = (int)$cl->groupid;
-                if ($gid > 0 && !empty($groupsByUser[$gid])) {
-                    $membershipClassCourseByClassId[(int)$cl->id] = $courseid;
-                }
-            }
-        }
-
-        list(
-            $classGradeByClassId,
-            $classGradeByGroupId,
-            $membershipClassGradesByCourseId,
-            $membershipClassIsModuleByCourseId
-        ) = self::compute_class_category_grades_inmemory(
-            $userid, $courseid, $learningPlanId,
-            $progressclassid, $progressgroupid,
-            $membershipClassCourseByClassId,
-            $classesByCourse, $itemsByCourse, $gradesByItem,
-            $catAggByCatId
-        );
-
-        // Section-based override for module classes.
-        list($classGradeByClassId, $classGradeByGroupId, $membershipClassGradesByCourseId, $membershipClassIsModuleByCourseId) =
-            self::apply_section_based_override_inmemory(
-                $userid, $courseid, $classesByCourse, $sectionSeqBySectionId,
-                $cmDataByCourse, $itemsByCourse, $gradesByItem,
-                $classGradeByClassId, $classGradeByGroupId,
-                $membershipClassCourseByClassId, $membershipClassGradesByCourseId, $membershipClassIsModuleByCourseId
-            );
-
-        $courseidkey = $courseid;
-
-        // MODULE priority.
-        $moduleGradeCandidate = null;
-        if ($progressclassid > 0 && isset($classGradeByClassId[$progressclassid]) && !empty($membershipClassIsModuleByCourseId[$courseidkey])) {
-            $moduleGradeCandidate = (float)$classGradeByClassId[$progressclassid];
-        } else if ($progressgroupid > 0 && isset($classGradeByGroupId[$progressgroupid])) {
-            $moduleGradeCandidate = (float)$classGradeByGroupId[$progressgroupid];
-        } else if (!empty($membershipClassIsModuleByCourseId[$courseidkey]) && !empty($membershipClassGradesByCourseId[$courseidkey])) {
-            $valid = array_values(array_filter(
-                array_map('floatval', $membershipClassGradesByCourseId[$courseidkey]),
-                function ($v) { return ($v >= 0 && $v <= 100); }
-            ));
-            if (!empty($valid)) {
-                $moduleGradeCandidate = round(max($valid), 2);
-            }
-        }
-        if ($moduleGradeCandidate !== null && $moduleGradeCandidate >= 0 && $moduleGradeCandidate <= 100) {
-            $coursegrade = $moduleGradeCandidate;
-            $gradesource = self::SOURCE_MODULE_PRIORITY;
-            $isModuleGrade = true;
-        }
-
-        // 0) Nota Final Integrada.
-        if ($coursegrade === null && isset($manualIntegratedGradeByCourseId[$courseidkey])) {
-            $candidate = (float)$manualIntegratedGradeByCourseId[$courseidkey];
-            if ($candidate >= 0 && $candidate <= 100) {
-                $coursegrade = $candidate;
-                $gradesource = self::SOURCE_MANUAL_NOTA_FINAL_INTEGRADA;
-            }
-        }
-
-        // 1) Class category grade.
-        if ($coursegrade === null && $progressclassid > 0 && isset($classGradeByClassId[$progressclassid])) {
-            $coursegrade = (float)$classGradeByClassId[$progressclassid];
-            $gradesource = self::SOURCE_CLASS_CATEGORY;
-        } else if ($coursegrade === null && $progressgroupid > 0 && isset($classGradeByGroupId[$progressgroupid])) {
-            $coursegrade = (float)$classGradeByGroupId[$progressgroupid];
-            $gradesource = self::SOURCE_GROUP_CLASS_CATEGORY;
-        } else if ($coursegrade === null && !empty($membershipClassGradesByCourseId[$courseidkey])) {
-            $valid = array_values(array_filter(
-                array_map('floatval', $membershipClassGradesByCourseId[$courseidkey]),
-                function ($v) { return ($v >= 0 && $v <= 100); }
-            ));
-            if (!empty($valid)) {
-                $coursegrade = round(max($valid), 2);
-                $gradesource = self::SOURCE_MEMBERSHIP_CLASS_CATEGORY;
-            }
-        }
-
-        // 1c) Plan class category.
-        if ($coursegrade === null && isset($planClassCategoryGradeByCourseId[$courseidkey])) {
-            $candidate = (float)$planClassCategoryGradeByCourseId[$courseidkey];
-            if ($candidate >= 0 && $candidate <= 100) {
-                $coursegrade = $candidate;
-                $gradesource = self::SOURCE_PLAN_CLASS_CATEGORY;
-            }
-        }
-
-        // 2) Course total.
-        if ($coursegrade === null && isset($gradesByCourseId[$courseidkey])) {
-            $candidate = (float)$gradesByCourseId[$courseidkey];
-            if ($candidate >= 0 && $candidate <= 100) {
-                $coursegrade = $candidate;
-                $gradesource = self::SOURCE_COURSE_TOTAL;
-            }
-        }
-
-        // Virtual approval.
-        $resolvedStatus = $baseStatus;
-        $resolvedProgress = $baseProgress !== null ? (float)$baseProgress : 0.0;
-        if ($coursegrade !== null) {
-            $canVirtualApprove = in_array($resolvedStatus, self::VIRTUAL_APPROVABLE_STATUSES, true);
-            $passingGrade = ($resolvedStatus === 5) ? self::RETRY_PASSING_GRADE : self::DEFAULT_PASSING_GRADE;
-            if ($canVirtualApprove && $coursegrade >= $passingGrade) {
-                $resolvedStatus = 3;
-                $resolvedProgress = 100.00;
-            }
-        }
-
-        return [
-            'grade'     => $coursegrade,
-            'source'    => $gradesource,
-            'is_module' => $isModuleGrade,
-            'status'    => $resolvedStatus,
-            'progress'  => $resolvedProgress,
-            'semaphore' => self::semaphore_for_status($resolvedStatus),
-        ];
-    }
-
-    /**
-     * In-memory equivalent of bulk_plan_category_grades.
-     */
-    private static function bulk_plan_category_grades_inmemory(
-        int $userid, int $corecourseid, int $learningPlanId,
-        array $classesByCourse, array $itemsByCourse, array $gradesByItem,
-        array $catAggByCatId
-    ): array {
-        $out = [];
-        // Build [corecourseid => gradeval]
-        foreach ($classesByCourse as $cl) {
-            if ((int)$cl->gradecategoryid <= 0) continue;
-            $catid = (int)$cl->gradecategoryid;
-            $items = [];
-            foreach ($itemsByCourse as $it) {
-                if ((int)$it->categoryid === $catid
-                    && in_array((string)$it->itemtype, ['mod', 'manual'], true)) {
-                    $items[] = $it;
-                }
-            }
-            if (empty($items)) continue;
-
-            $cagg = $catAggByCatId[$catid] ?? 13;
-            $catRawSum = 0.0;
-            if ($cagg === 10 || $cagg === 2) {
-                foreach ($items as $it) {
-                    $catRawSum += (float)$it->aggregationcoef;
-                }
-            }
-            $itemWeightPct = [];
-            foreach ($items as $it) {
-                $raww = ($cagg === 10 || $cagg === 2)
-                    ? (float)$it->aggregationcoef
-                    : (float)$it->aggregationcoef2;
-                $itemWeightPct[(int)$it->id] = ($cagg === 10 || $cagg === 2)
-                    ? ($catRawSum > 0 ? ($raww / $catRawSum) * 100 : 0)
-                    : $raww * 100;
-            }
-
-            $total = 0.0; $hasany = false;
-            foreach ($items as $it) {
-                $wpct = $itemWeightPct[(int)$it->id] ?? 0;
-                if ($wpct <= 0) continue;
-                $raw = $gradesByItem[(int)$it->id] ?? null;
-                if ($raw === null) continue;
-                $hasany = true;
-                $max = ((float)$it->grademax > 0) ? (float)$it->grademax : 100.0;
-                $total += ((float)$raw / $max) * $wpct;
-            }
-            if ($hasany) {
-                $out[(int)$cl->corecourseid] = round(min($total, 100.0), 2);
-            }
-        }
-        return $out;
-    }
-
-    /**
-     * In-memory equivalent of compute_class_category_grades.
-     */
-    private static function compute_class_category_grades_inmemory(
-        int $userid, int $corecourseid, int $learningPlanId,
-        int $progressclassid, int $progressgroupid,
-        array $membershipClassCourseByClassId,
-        array $classesByCourse, array $itemsByCourse, array $gradesByItem,
-        array $catAggByCatId
-    ): array {
-        $classGradeByClassId = [];
-        $classGradeByGroupId = [];
-        $membershipClassGradesByCourseId = [];
-        $membershipClassIsModuleByCourseId = [];
-
-        $candidateClassIds = array_values(array_unique(array_merge(
-            $progressclassid > 0 ? [$progressclassid] : [],
-            array_keys($membershipClassCourseByClassId)
-        )));
-        if (empty($candidateClassIds)) {
-            return [$classGradeByClassId, $classGradeByGroupId, $membershipClassGradesByCourseId, $membershipClassIsModuleByCourseId];
-        }
-
-        foreach ($classesByCourse as $cl) {
-            if (!in_array((int)$cl->id, $candidateClassIds, true)) continue;
-            if ((int)$cl->gradecategoryid <= 0 || (int)$cl->corecourseid <= 0) continue;
-
-            $catid = (int)$cl->gradecategoryid;
-            $items = [];
-            foreach ($itemsByCourse as $it) {
-                if ((int)$it->categoryid === $catid
-                    && in_array((string)$it->itemtype, ['mod', 'manual'], true)) {
-                    $items[] = $it;
-                }
-            }
-            if (empty($items)) continue;
-
-            $cagg = $catAggByCatId[$catid] ?? 13;
-            $catRawSum = 0.0;
-            if ($cagg === 10 || $cagg === 2) {
-                foreach ($items as $it) {
-                    $catRawSum += (float)$it->aggregationcoef;
-                }
-            }
-            $itemWeightPct = [];
-            foreach ($items as $it) {
-                $raww = ($cagg === 10 || $cagg === 2)
-                    ? (float)$it->aggregationcoef
-                    : (float)$it->aggregationcoef2;
-                $itemWeightPct[(int)$it->id] = ($cagg === 10 || $cagg === 2)
-                    ? ($catRawSum > 0 ? ($raww / $catRawSum) * 100 : 0)
-                    : $raww * 100;
-            }
-
-            $total = 0.0; $hasany = false;
-            foreach ($items as $it) {
-                $wpct = $itemWeightPct[(int)$it->id] ?? 0;
-                if ($wpct <= 0) continue;
-                $raw = $gradesByItem[(int)$it->id] ?? null;
-                if ($raw === null) continue;
-                $hasany = true;
-                $max = ((float)$it->grademax > 0) ? (float)$it->grademax : 100.0;
-                $total += ((float)$raw / $max) * $wpct;
-            }
-            if (!$hasany) continue;
-
-            // Rescale for modules.
-            if ((int)$cl->is_module === 1) {
-                $activeWeightSum = 0.0;
-                foreach ($items as $it) {
-                    $wpct2 = $itemWeightPct[(int)$it->id] ?? 0;
-                    if ($wpct2 > 0 && isset($gradesByItem[(int)$it->id])) {
-                        $activeWeightSum += $wpct2;
-                    }
-                }
-                if ($activeWeightSum > 0.0 && abs($activeWeightSum - 100.0) > 0.01) {
-                    $total = ($total / $activeWeightSum) * 100.0;
-                }
-            }
-
-            $resolvedgrade = round(min($total, 100.0), 2);
-            $classGradeByClassId[(int)$cl->id] = $resolvedgrade;
-            if (!empty($cl->groupid)) {
-                $classGradeByGroupId[(int)$cl->groupid] = $resolvedgrade;
-            }
-            if (isset($membershipClassCourseByClassId[(int)$cl->id])) {
-                $ccourseid = (int)$membershipClassCourseByClassId[(int)$cl->id];
-                if (!isset($membershipClassGradesByCourseId[$ccourseid])) {
-                    $membershipClassGradesByCourseId[$ccourseid] = [];
-                }
-                $membershipClassGradesByCourseId[$ccourseid][] = $resolvedgrade;
-                if ((int)$cl->is_module === 1) {
-                    $membershipClassIsModuleByCourseId[$ccourseid] = true;
-                }
-            }
-        }
-
-        return [$classGradeByClassId, $classGradeByGroupId, $membershipClassGradesByCourseId, $membershipClassIsModuleByCourseId];
-    }
-
-    /**
-     * In-memory equivalent of the section-based override for module classes.
-     */
-    private static function apply_section_based_override_inmemory(
-        int $userid, int $corecourseid,
-        array $classesByCourse, array $sectionSeqBySectionId,
-        array $cmDataByCourse, array $itemsByCourse, array $gradesByItem,
-        array $classGradeByClassId, array $classGradeByGroupId,
-        array $membershipClassCourseByClassId,
-        array $membershipClassGradesByCourseId, array $membershipClassIsModuleByCourseId
-    ): array {
-        foreach ($classesByCourse as $cl) {
-            if ((int)$cl->is_module !== 1) continue;
-            if ((int)$cl->coursesectionid <= 0) continue;
-
-            $sequence = $sectionSeqBySectionId[(int)$cl->coursesectionid] ?? '';
-            if ($sequence === '') continue;
-
-            $mcCmids = array_values(array_filter(array_map('intval', explode(',', $sequence))));
-            if (empty($mcCmids)) continue;
-
-            // Find the grade_item for the first cmid in this section.
-            $mcGi = null;
-            foreach ($mcCmids as $cmid) {
-                $cmInfo = $cmDataByCourse[$cmid] ?? null;
-                if (!$cmInfo) continue;
-                foreach ($itemsByCourse as $it) {
-                    if ((int)$it->iteminstance === $cmInfo['instance']
-                        && (string)$it->itemmodule === $cmInfo['modulename']
-                        && in_array((string)$it->itemtype, ['mod', 'manual'], true)
-                        && (float)$it->grademax > 0) {
-                        $mcGi = $it;
-                        break 2;
-                    }
-                }
-            }
-            if (!$mcGi) continue;
-
-            $mcGrade = $gradesByItem[(int)$mcGi->id] ?? null;
-            if ($mcGrade === null || $mcGrade < 0 || $mcGrade > 100) continue;
-
-            $mcGrade = min(round(((float)$mcGrade / (float)$mcGi->grademax) * 100, 2), 100.0);
-
-            $classGradeByClassId[(int)$cl->id] = $mcGrade;
-            if (!empty($cl->groupid)) {
-                $classGradeByGroupId[(int)$cl->groupid] = $mcGrade;
-            }
-            if (isset($membershipClassCourseByClassId[(int)$cl->id])) {
-                $ccourseid = (int)$membershipClassCourseByClassId[(int)$cl->id];
-                $membershipClassIsModuleByCourseId[$ccourseid] = true;
-                $membershipClassGradesByCourseId[$ccourseid] = [$mcGrade];
-            }
-        }
-
-        return [$classGradeByClassId, $classGradeByGroupId, $membershipClassGradesByCourseId, $membershipClassIsModuleByCourseId];
     }
 
     // ------------------------------------------------------------------
@@ -1841,11 +1266,17 @@ class course_grade_resolver
                 }
             }
             foreach ($latestbykind as $kind => $c) {
+                $gradedat = self::class_graded_at($DB, $userid, $corecourseid, $c);
+                if ($gradedat <= 0) {
+                    // Only attendance has a value: nobody placed a grade in this
+                    // class yet, so it is not a candidate.
+                    continue;
+                }
                 $finished = !empty($c->closed) || ((int)$c->enddate > 0 && (int)$c->enddate < time());
                 $candidates[] = [
                     'source'    => $kind,
                     'grade'     => (float)$gradeByClass[(int)$c->id],
-                    'gradedat'  => self::class_graded_at($DB, $userid, $corecourseid, $c),
+                    'gradedat'  => $gradedat,
                     'classid'   => (int)$c->id,
                     'is_module' => $kind === self::SOURCE_LATEST_MODULE,
                     'finished'  => $finished,
@@ -1874,7 +1305,7 @@ class course_grade_resolver
 
         // --- Nota Final Integrada (also where homologations land) ------------
         $nfi = $DB->get_record_sql(
-            "SELECT gg.finalgrade, gg.timemodified, gi.grademax
+            "SELECT gg.finalgrade, gg.timemodified, gi.grademax, gi.id AS itemid
                FROM {grade_items} gi
                JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = :u
               WHERE gi.courseid = :c AND gi.itemtype = 'manual' AND gi.itemname = 'Nota Final Integrada'
@@ -1882,9 +1313,24 @@ class course_grade_resolver
             ['u' => $userid, 'c' => $corecourseid], IGNORE_MULTIPLE);
         if ($nfi) {
             $max = (float)$nfi->grademax > 0 ? (float)$nfi->grademax : 100.0;
+            // Rows loaded by the migration have no timemodified. Date them from the
+            // grade history, then from the homologation that wrote them; with no
+            // date at all they are older than anything graded in Moodle.
+            $nfiat = (int)$nfi->timemodified;
+            if ($nfiat <= 0) {
+                $nfiat = (int)$DB->get_field_sql(
+                    "SELECT MAX(timemodified) FROM {grade_grades_history}
+                      WHERE itemid = :i AND userid = :u AND finalgrade IS NOT NULL",
+                    ['i' => (int)$nfi->itemid, 'u' => $userid]);
+            }
+            if ($nfiat <= 0) {
+                $nfiat = (int)$DB->get_field_sql(
+                    "SELECT MAX(homologation_at) FROM {gmk_course_progre} WHERE userid = :u AND courseid = :c",
+                    ['u' => $userid, 'c' => $corecourseid]);
+            }
             $candidates[] = ['source' => self::SOURCE_LATEST_NFI,
                 'grade' => round(min(((float)$nfi->finalgrade / $max) * 100, 100.0), 2),
-                'gradedat' => (int)$nfi->timemodified, 'classid' => 0, 'is_module' => false, 'finished' => true];
+                'gradedat' => $nfiat, 'classid' => 0, 'is_module' => false, 'finished' => true];
         }
 
         if (!empty($candidates)) {
@@ -1944,17 +1390,18 @@ class course_grade_resolver
                     ['u' => $userid, 'c' => $corecourseid] + $inparams));
             }
         }
-        // A class graded only through attendance still counts, dated at its start.
-        return $at > 0 ? $at : (int)$class->initdate;
+        // 0 = graded only through attendance (recomputed, never "placed").
+        return $at;
     }
 
     /**
      * Store the latest grade in every gmk_course_progre row of (student, course).
      *
      * Status follows the stored grade, with the workflow states left alone:
-     * not taken (0, 1, 99), in progress while the class is still running (2),
-     * pending revalidation while the class grade is what put it there (6) and
-     * revalidating until the revalidation has a result (7).
+     * not taken (0, 1, 99), cursando until the class/module holding the grade
+     * has ended or a revalidation has a result (2), pending revalidation while
+     * the class grade is what put it there (6) and revalidating until the
+     * revalidation has a result (7). Historical sources never change status.
      *
      * @param bool $apply false = dry run, only report what would change.
      * @return array list of changes: [progreid, learningplanid, field => [old, new], ...]
@@ -2017,7 +1464,7 @@ class course_grade_resolver
     /**
      * Status that follows the latest grade (see sync_progress for the exceptions).
      */
-    private static function status_for_latest(int $current, array $res): int
+    public static function status_for_latest(int $current, array $res): int
     {
         $grade = (float)$res['grade'];
         $passed = $grade > self::LATEST_PASS_ABOVE;
@@ -2026,7 +1473,15 @@ class course_grade_resolver
         if (in_array($current, [0, 1, 99], true)) {
             return $current;
         }
-        if ($current === 2 && $fromclass && !$res['finished']) {
+        // Historical sources only fill in a grade; they never decide a status.
+        if (strpos((string)$res['source'], 'historical_') === 0) {
+            return $current;
+        }
+        // Cursando ends when the class/module that holds the grade has ended, or
+        // with a revalidation result; an older grade does not end it.
+        if ($current === 2
+                && !($fromclass && $res['finished'])
+                && $res['source'] !== self::SOURCE_REVALIDATION) {
             return $current;
         }
         if ($current === 6 && $fromclass && !$passed) {

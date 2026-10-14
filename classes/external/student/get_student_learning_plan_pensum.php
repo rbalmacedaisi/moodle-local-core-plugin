@@ -134,6 +134,7 @@ class get_student_learning_plan_pensum extends external_api
                 "
                 SELECT lpc.*, lpc.id as learningcourseid, gcp.status, gcp.progress, gcp.credits, gcp.prerequisites, gcp.id as progressid,
                        gcp.grade as progressgrade, gcp.classid as progressclassid, gcp.groupid as progressgroupid,
+                       gcp.grade_source as progressgradesource, gcp.grade_classid as progressgradeclassid,
                        gcp.homologation_type, gcp.homologation_note, gcp.homologation_at, gcp.homologation_by
                 FROM {local_learning_courses} lpc
                 LEFT JOIN {gmk_course_progre} gcp ON (gcp.courseid = lpc.courseid AND gcp.userid = :userid AND gcp.learningplanid = :learningplanid)
@@ -891,139 +892,41 @@ class get_student_learning_plan_pensum extends external_api
                 $progressgroupid = !empty($userPensumCourse->progressgroupid) ? (int)$userPensumCourse->progressgroupid : 0;
                 $courseidkey = (int)$userPensumCourse->courseid;
 
-                // -2) Absolute top priority: a CONSOLIDATED REVALIDATION. When a
-                // student passes a revalidation the institutional grade becomes
-                // PASS_FINAL_GRADE (71) and the subject is Aprobada. That number
-                // lives in gmk_revalidations + gmk_course_progre, never in the
-                // gradebook (the revalidation exam is not a gradebook item), so
-                // without this branch the pensum would keep recomputing the
-                // original class total and show the pre-revalidation grade on an
-                // approved subject. Must stay above the module/manual branches:
-                // a revalidation is the last academic act on the subject.
-                if (array_key_exists($courseidkey, $revalidationGradeByCourseId)) {
-                    $revcandidate = (float)$revalidationGradeByCourseId[$courseidkey];
-                    if ($revcandidate >= 0 && $revcandidate <= 100) {
-                        $coursegrade = $revcandidate;
-                        $gradesource = 'revalidation';
+                // Latest-grade model: the grade shown is the LAST grade placed for the
+                // subject (latest class, module, revalidation, Nota Final Integrada),
+                // decided once by course_grade_resolver and stored in
+                // gmk_course_progre. This endpoint used to re-run its own priority
+                // ladder here, which drifted from the other views.
+                if (!empty($userPensumCourse->progressgradesource)) {
+                    if (!is_null($userPensumCourse->progressgrade)) {
+                        $coursegrade = round((float)$userPensumCourse->progressgrade, 2);
                     }
-                }
-
-                // -1) Top priority: an independent MODULE grade for this course. A student who took
-                // the subject as a module must be graded by the module, which wins over the manual
-                // "Nota Final Integrada" (the integrated item can carry a stale/lower value while the
-                // module was actually passed). This same backend feeds both the student LXP pensum and
-                // the teacher/admin grades modal (studenttable), so the rule applies consistently.
-                $moduleGradeCandidate = null;
-                if ($progressclassid > 0 && !empty($moduleClassIds[$progressclassid]) && array_key_exists($progressclassid, $classGradeByClassId)) {
-                    $moduleGradeCandidate = (float)$classGradeByClassId[$progressclassid];
-                } else if ($progressgroupid > 0 && !empty($moduleGroupIds[$progressgroupid]) && array_key_exists($progressgroupid, $classGradeByGroupId)) {
-                    $moduleGradeCandidate = (float)$classGradeByGroupId[$progressgroupid];
-                } else if (!empty($membershipClassIsModuleByCourseId[$courseidkey]) && !empty($membershipClassGradesByCourseId[$courseidkey])) {
-                    $valid = array_values(array_filter(array_map('floatval', $membershipClassGradesByCourseId[$courseidkey]), function($v) {
-                        return ($v >= 0 && $v <= 100);
-                    }));
-                    if (!empty($valid)) {
-                        $moduleGradeCandidate = round(max($valid), 2);
-                    }
-                }
-                if (!is_null($moduleGradeCandidate) && $moduleGradeCandidate >= 0 && $moduleGradeCandidate <= 100) {
-                    $coursegrade = $moduleGradeCandidate;
-                    $gradesource = 'module_priority';
-                    $isModuleGrade = true;
-                }
-
-                // 0) Next: explicit "Nota Final Integrada" (final academic grade) — only when there is
-                // no module grade above.
-                if (is_null($coursegrade) && array_key_exists($courseidkey, $manualIntegratedGradeByCourseId)) {
-                    $candidate = (float)$manualIntegratedGradeByCourseId[$courseidkey];
-                    if ($candidate >= 0 && $candidate <= 100) {
-                        $coursegrade = $candidate;
-                        $gradesource = 'manual_nota_final_integrada';
-                    }
-                }
-
-                // Historical-safe fallback by subject name (prevents forcing old grades on current in-progress subjects).
-                $historicalstatus = in_array((int)$userPensumCourse->status, [3, 4, 5, 6, 7], true);
-                if (is_null($coursegrade) && $historicalstatus) {
-                    $coursenamekey = trim((string)($courseNamesById[$courseidkey] ?? ''));
-                    if ($coursenamekey !== '' && array_key_exists($coursenamekey, $manualIntegratedGradeByCourseName)) {
-                        $candidate = (float)$manualIntegratedGradeByCourseName[$coursenamekey];
-                        if ($candidate >= 0 && $candidate <= 100) {
-                            $coursegrade = $candidate;
-                            $gradesource = 'manual_nota_final_integrada_same_name';
+                    $gradesource = (string)$userPensumCourse->progressgradesource;
+                    $isModuleGrade = ($gradesource === \local_grupomakro_core\course_grade_resolver::SOURCE_LATEST_MODULE);
+                } else {
+                    // Row not synced yet: resolve live with the same rules.
+                    $latest = \local_grupomakro_core\course_grade_resolver::resolve_latest_grade(
+                        (int)$params['userId'], $courseidkey, (int)$params['learningPlanId'],
+                        $progressclassid, $progressgroupid,
+                        (string)$userPensumCourse->coursename, (int)$userPensumCourse->status
+                    );
+                    if ($latest['grade'] !== null) {
+                        $coursegrade = $latest['grade'];
+                        $gradesource = $latest['source'];
+                        $isModuleGrade = (bool)$latest['is_module'];
+                        $userPensumCourse->status = \local_grupomakro_core\course_grade_resolver::status_for_latest(
+                            (int)$userPensumCourse->status, $latest);
+                        if (in_array((int)$userPensumCourse->status, [3, 4], true)) {
+                            $userPensumCourse->progress = 100.00;
                         }
-                    }
-                }
-
-                // 1) Preferred: class category grade (strict class/group scope).
-                if (is_null($coursegrade) && $progressclassid > 0 && array_key_exists($progressclassid, $classGradeByClassId)) {
-                    $coursegrade = (float)$classGradeByClassId[$progressclassid];
-                    $gradesource = 'class_category';
-                    $isModuleGrade = !empty($moduleClassIds[$progressclassid]);
-                } else if (is_null($coursegrade) && $progressgroupid > 0 && array_key_exists($progressgroupid, $classGradeByGroupId)) {
-                    $coursegrade = (float)$classGradeByGroupId[$progressgroupid];
-                    $gradesource = 'group_class_category';
-                    $isModuleGrade = !empty($moduleGroupIds[$progressgroupid]);
-                } else if (is_null($coursegrade)) {
-                    // 1b) Fallback by classes where the student is group member in this same course.
-                    if (!empty($membershipClassGradesByCourseId[$courseidkey])) {
-                        $valid = array_values(array_filter(array_map('floatval', $membershipClassGradesByCourseId[$courseidkey]), function($v) {
-                            return ($v >= 0 && $v <= 100);
-                        }));
-                        if (!empty($valid)) {
-                            $coursegrade = round(max($valid), 2);
-                            $gradesource = 'membership_class_category';
-                            $isModuleGrade = !empty($membershipClassIsModuleByCourseId[$courseidkey]);
-                        }
-                    }
-                }
-
-                // 1c) Fallback by any class category in same plan/course that has a sane grade for this student.
-                if (is_null($coursegrade)) {
-                    if (array_key_exists($courseidkey, $planClassCategoryGradeByCourseId)) {
-                        $candidate = (float)$planClassCategoryGradeByCourseId[$courseidkey];
-                        if ($candidate >= 0 && $candidate <= 100) {
-                            $coursegrade = $candidate;
-                            $gradesource = 'plan_class_category';
-                        }
-                    }
-                }
-
-                // 2) Then: Moodle course total if sane (0..100). This restores real historical grades.
-                if (is_null($coursegrade) && array_key_exists($courseidkey, $gradesByCourseId)) {
-                    $candidate = (float)$gradesByCourseId[$courseidkey];
-                    if ($candidate >= 0 && $candidate <= 100) {
-                        $coursegrade = $candidate;
-                        $gradesource = 'course_total';
-                    } else {
-                        $gradesource = 'course_total_out_of_range';
-                    }
-                }
-
-                // 3) Last fallback: persisted grade in gmk_course_progre.
-                if (is_null($coursegrade) && isset($userPensumCourse->progressgrade) && !is_null($userPensumCourse->progressgrade)) {
-                    $candidate = round((float)$userPensumCourse->progressgrade, 2);
-                    if ($candidate >= 0 && $candidate <= 100) {
-                        $coursegrade = $candidate;
-                        $gradesource = ($gradesource === 'course_total_out_of_range') ? 'gmk_course_progre_after_out_of_range_course_total' : 'gmk_course_progre';
-                    } else {
-                        $gradesource = 'gmk_course_progre_out_of_range';
+                    } else if (!is_null($userPensumCourse->progressgrade) && (float)$userPensumCourse->progressgrade > 0) {
+                        $coursegrade = round((float)$userPensumCourse->progressgrade, 2);
+                        $gradesource = \local_grupomakro_core\course_grade_resolver::SOURCE_HISTORICAL_PROGRE;
                     }
                 }
 
                 if (!is_null($coursegrade)) {
                     $userPensumCourse->grade = (string)$coursegrade;
-
-                    // [VIRTUAL FALLBACK]
-                    // Auto-upgrade when base state is not-started/available OR an inconsistent failed record.
-                    // Keep explicit "Cursando" (2) untouched to avoid showing approved while still active.
-                    $basestatus = (int)$userPensumCourse->status;
-                    $canvirtualapprove = in_array($basestatus, [0, 1, 5], true);
-                    $virtualpassgrade = ($basestatus === 5) ? 71.0 : 70.0;
-                    if ($coursegrade >= $virtualpassgrade && $canvirtualapprove) {
-                        $userPensumCourse->status = 3; // COURSE_COMPLETED
-                        $userPensumCourse->progress = 100.00;
-                    }
                 }
                 $userPensumCourse->gradesource = $gradesource;
                 $userPensumCourse->is_module = $isModuleGrade ? 1 : 0;
