@@ -1757,4 +1757,288 @@ class course_grade_resolver
 
         return [$classGradeByClassId, $classGradeByGroupId, $membershipClassGradesByCourseId, $membershipClassIsModuleByCourseId];
     }
+
+    // ------------------------------------------------------------------
+    // Latest-grade model (20261001105)
+    // ------------------------------------------------------------------
+    //
+    // The displayed grade of a subject is the LAST grade placed for it, not
+    // the winner of a fixed priority ladder. Candidates:
+    //   - the latest regular class the student was in (by class start date),
+    //     with its weighted category grade;
+    //   - the latest module class, same computation;
+    //   - the latest revalidation with a result;
+    //   - the "Nota Final Integrada" manual item (homologations write there).
+    // Each candidate carries the moment it was graded; the most recent wins.
+    // Only when none exists do the historical sources (plan category, course
+    // total, the value already stored in gmk_course_progre) apply.
+    //
+    // sync_progress() stores the result in gmk_course_progre (grade,
+    // grade_source, grade_at, grade_classid, status) so studenttable, the
+    // grade modal, the reports and the LXP all read the same value.
+
+    const SOURCE_LATEST_CLASS        = 'class';
+    const SOURCE_LATEST_MODULE       = 'module';
+    const SOURCE_LATEST_NFI          = 'nota_final_integrada';
+    const SOURCE_HISTORICAL_PROGRE   = 'historical_progre';
+
+    /** Strictly above this is a pass (close_class_grades_and_open_revalids uses the same cut). */
+    const LATEST_PASS_ABOVE = 70.9;
+
+    /** Tie-break when two candidates were graded in the same second. */
+    const LATEST_TIE_RANK = [
+        self::SOURCE_REVALIDATION  => 4,
+        self::SOURCE_LATEST_NFI    => 3,
+        self::SOURCE_LATEST_MODULE => 2,
+        self::SOURCE_LATEST_CLASS  => 1,
+    ];
+
+    /**
+     * Resolve the last grade placed for a student in a subject.
+     *
+     * @return array{grade:?float,source:string,gradedat:int,classid:int,is_module:bool,finished:bool,candidates:array}
+     */
+    public static function resolve_latest_grade(
+        int $userid,
+        int $corecourseid,
+        int $learningPlanId,
+        int $progressclassid = 0,
+        int $progressgroupid = 0,
+        ?string $coursename = null,
+        int $baseStatus = 0
+    ): array {
+        global $DB;
+
+        $none = ['grade' => null, 'source' => self::SOURCE_NONE, 'gradedat' => 0, 'classid' => 0,
+                 'is_module' => false, 'finished' => true, 'candidates' => []];
+        if ($userid <= 0 || $corecourseid <= 0) {
+            return $none;
+        }
+
+        $candidates = [];
+
+        // --- Class candidates: latest regular and latest module class -------
+        $membership = self::bulk_membership_classes($DB, $userid, $corecourseid, $learningPlanId);
+        $moduleClassIds = [];
+        $moduleGroupIds = [];
+        list($gradeByClass) = self::compute_class_category_grades(
+            $DB, $userid, $corecourseid, $learningPlanId, $progressclassid, $progressgroupid,
+            $membership, $moduleClassIds, $moduleGroupIds
+        );
+        if (!empty($gradeByClass)) {
+            list($insql, $inparams) = $DB->get_in_or_equal(array_keys($gradeByClass), SQL_PARAMS_NAMED, 'lc');
+            $classes = $DB->get_records_sql(
+                "SELECT id, is_module, gradecategoryid, coursesectionid, initdate, enddate, closed
+                   FROM {gmk_class} WHERE id $insql", $inparams);
+            $latestbykind = [];
+            foreach ($classes as $c) {
+                $kind = !empty($c->is_module) ? self::SOURCE_LATEST_MODULE : self::SOURCE_LATEST_CLASS;
+                $cur = $latestbykind[$kind] ?? null;
+                // "Su ultima inscripcion al ultimo grupo": the class that started last.
+                if (!$cur || (int)$c->initdate > (int)$cur->initdate
+                        || ((int)$c->initdate === (int)$cur->initdate && (int)$c->id > (int)$cur->id)) {
+                    $latestbykind[$kind] = $c;
+                }
+            }
+            foreach ($latestbykind as $kind => $c) {
+                $finished = !empty($c->closed) || ((int)$c->enddate > 0 && (int)$c->enddate < time());
+                $candidates[] = [
+                    'source'    => $kind,
+                    'grade'     => (float)$gradeByClass[(int)$c->id],
+                    'gradedat'  => self::class_graded_at($DB, $userid, $corecourseid, $c),
+                    'classid'   => (int)$c->id,
+                    'is_module' => $kind === self::SOURCE_LATEST_MODULE,
+                    'finished'  => $finished,
+                ];
+            }
+        }
+
+        // --- Revalidation with a result -------------------------------------
+        $reval = $DB->get_records_select('gmk_revalidations',
+            "userid = :u AND corecourseid = :c AND (learningplanid = :lp OR learningplanid = 0)
+             AND result IS NOT NULL AND result <> ''",
+            ['u' => $userid, 'c' => $corecourseid, 'lp' => $learningPlanId],
+            'timemodified DESC, id DESC', 'id, result, originalgrade, timemodified', 0, 1);
+        if ($reval) {
+            $r = reset($reval);
+            // Same consolidation as revalida_manager::save_grade(): a pass is
+            // PASS_FINAL_GRADE, a fail keeps the original class grade.
+            $rgrade = $r->result === 'approved'
+                ? (float)\local_grupomakro_core\local\revalida_manager::PASS_FINAL_GRADE
+                : ($r->originalgrade !== null ? round((float)$r->originalgrade, 2) : null);
+            if ($rgrade !== null) {
+                $candidates[] = ['source' => self::SOURCE_REVALIDATION, 'grade' => $rgrade,
+                    'gradedat' => (int)$r->timemodified, 'classid' => 0, 'is_module' => false, 'finished' => true];
+            }
+        }
+
+        // --- Nota Final Integrada (also where homologations land) ------------
+        $nfi = $DB->get_record_sql(
+            "SELECT gg.finalgrade, gg.timemodified, gi.grademax
+               FROM {grade_items} gi
+               JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = :u
+              WHERE gi.courseid = :c AND gi.itemtype = 'manual' AND gi.itemname = 'Nota Final Integrada'
+                AND gg.finalgrade IS NOT NULL",
+            ['u' => $userid, 'c' => $corecourseid], IGNORE_MULTIPLE);
+        if ($nfi) {
+            $max = (float)$nfi->grademax > 0 ? (float)$nfi->grademax : 100.0;
+            $candidates[] = ['source' => self::SOURCE_LATEST_NFI,
+                'grade' => round(min(((float)$nfi->finalgrade / $max) * 100, 100.0), 2),
+                'gradedat' => (int)$nfi->timemodified, 'classid' => 0, 'is_module' => false, 'finished' => true];
+        }
+
+        if (!empty($candidates)) {
+            usort($candidates, function ($a, $b) {
+                if ($a['gradedat'] !== $b['gradedat']) {
+                    return $b['gradedat'] <=> $a['gradedat'];
+                }
+                return (self::LATEST_TIE_RANK[$b['source']] ?? 0) <=> (self::LATEST_TIE_RANK[$a['source']] ?? 0);
+            });
+            $w = $candidates[0];
+            return ['grade' => round($w['grade'], 2), 'source' => $w['source'], 'gradedat' => $w['gradedat'],
+                    'classid' => $w['classid'], 'is_module' => $w['is_module'], 'finished' => $w['finished'],
+                    'candidates' => $candidates];
+        }
+
+        // --- Historical fallback: only when nothing above exists --------------
+        list($grade, $source) = self::resolve_raw_grade(
+            $DB, $userid, $corecourseid, $learningPlanId, 0, $progressclassid, $progressgroupid, $baseStatus, $coursename
+        );
+        if ($grade !== null) {
+            return ['grade' => round((float)$grade, 2), 'source' => 'historical_' . $source, 'gradedat' => 0,
+                    'classid' => 0, 'is_module' => false, 'finished' => true, 'candidates' => []];
+        }
+        return $none;
+    }
+
+    /**
+     * When the student's grade in a class was last placed: the newest
+     * timemodified among their non-null item grades in the class category,
+     * or in the module's own section. Attendance items are skipped because
+     * their value is recomputed from the attendance log, not "placed".
+     */
+    private static function class_graded_at($DB, int $userid, int $corecourseid, \stdClass $class): int
+    {
+        $at = (int)$DB->get_field_sql(
+            "SELECT MAX(gg.timemodified)
+               FROM {grade_items} gi
+               JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = :u
+              WHERE gi.courseid = :c AND gi.categoryid = :cat
+                AND gi.itemtype IN ('mod', 'manual')
+                AND COALESCE(gi.itemmodule, '') <> 'attendance'
+                AND gg.finalgrade IS NOT NULL",
+            ['u' => $userid, 'c' => $corecourseid, 'cat' => (int)$class->gradecategoryid]);
+        if (!empty($class->is_module) && (int)$class->coursesectionid > 0) {
+            $seq = (string)$DB->get_field('course_sections', 'sequence', ['id' => (int)$class->coursesectionid]);
+            $cmids = array_values(array_filter(array_map('intval', explode(',', $seq))));
+            if ($cmids) {
+                list($insql, $inparams) = $DB->get_in_or_equal($cmids, SQL_PARAMS_NAMED, 'cga');
+                $at = max($at, (int)$DB->get_field_sql(
+                    "SELECT MAX(gg.timemodified)
+                       FROM {course_modules} cm
+                       JOIN {modules} m ON m.id = cm.module
+                       JOIN {grade_items} gi ON gi.iteminstance = cm.instance AND gi.itemmodule = m.name
+                                            AND gi.courseid = :c AND gi.itemtype = 'mod'
+                       JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = :u
+                      WHERE cm.id $insql AND m.name <> 'attendance' AND gg.finalgrade IS NOT NULL",
+                    ['u' => $userid, 'c' => $corecourseid] + $inparams));
+            }
+        }
+        // A class graded only through attendance still counts, dated at its start.
+        return $at > 0 ? $at : (int)$class->initdate;
+    }
+
+    /**
+     * Store the latest grade in every gmk_course_progre row of (student, course).
+     *
+     * Status follows the stored grade, with the workflow states left alone:
+     * not taken (0, 1, 99), in progress while the class is still running (2),
+     * pending revalidation while the class grade is what put it there (6) and
+     * revalidating until the revalidation has a result (7).
+     *
+     * @param bool $apply false = dry run, only report what would change.
+     * @return array list of changes: [progreid, learningplanid, field => [old, new], ...]
+     */
+    public static function sync_progress(int $userid, int $corecourseid, bool $apply = true): array
+    {
+        global $DB;
+
+        // Rollout switch: until local_grupomakro_core | latest_grade_sync_enabled
+        // is 1 nothing is written (the CLI dry run, $apply = false, still works).
+        if ($apply && !get_config('local_grupomakro_core', 'latest_grade_sync_enabled')) {
+            return [];
+        }
+
+        $changes = [];
+        $rows = $DB->get_records('gmk_course_progre', ['userid' => $userid, 'courseid' => $corecourseid]);
+        foreach ($rows as $row) {
+            $res = self::resolve_latest_grade($userid, $corecourseid, (int)$row->learningplanid,
+                (int)($row->classid ?? 0), (int)($row->groupid ?? 0), (string)$row->coursename, (int)$row->status);
+
+            $new = clone $row;
+            if ($res['source'] === self::SOURCE_NONE) {
+                // Nothing in the gradebook: keep what was stored (migrated data).
+                if ((float)$row->grade > 0 && empty($row->grade_source)) {
+                    $new->grade_source = self::SOURCE_HISTORICAL_PROGRE;
+                }
+            } else {
+                $new->grade = $res['grade'];
+                $new->grade_source = $res['source'];
+                $new->grade_at = $res['gradedat'];
+                $new->grade_classid = $res['classid'];
+                $new->status = self::status_for_latest((int)$row->status, $res);
+                if (in_array((int)$new->status, [3, 4], true)) {
+                    $new->progress = 100;
+                }
+            }
+
+            $diff = [];
+            foreach (['grade', 'status', 'progress', 'grade_source', 'grade_at', 'grade_classid'] as $f) {
+                $old = $row->$f ?? null;
+                $val = $new->$f ?? null;
+                $same = (is_numeric($old) && is_numeric($val))
+                    ? abs((float)$old - (float)$val) < 0.005
+                    : (string)$old === (string)$val;
+                if (!$same) {
+                    $diff[$f] = [$old, $val];
+                }
+            }
+            if ($diff) {
+                $changes[] = ['progreid' => (int)$row->id, 'learningplanid' => (int)$row->learningplanid] + $diff;
+                if ($apply) {
+                    $new->timemodified = time();
+                    $DB->update_record('gmk_course_progre', $new);
+                }
+            }
+        }
+        return $changes;
+    }
+
+    /**
+     * Status that follows the latest grade (see sync_progress for the exceptions).
+     */
+    private static function status_for_latest(int $current, array $res): int
+    {
+        $grade = (float)$res['grade'];
+        $passed = $grade > self::LATEST_PASS_ABOVE;
+        $fromclass = in_array($res['source'], [self::SOURCE_LATEST_CLASS, self::SOURCE_LATEST_MODULE], true);
+
+        if (in_array($current, [0, 1, 99], true)) {
+            return $current;
+        }
+        if ($current === 2 && $fromclass && !$res['finished']) {
+            return $current;
+        }
+        if ($current === 6 && $fromclass && !$passed) {
+            return $current;
+        }
+        if ($current === 7 && $res['source'] !== self::SOURCE_REVALIDATION) {
+            return $current;
+        }
+        if ($passed) {
+            return $current === 3 ? 3 : 4;
+        }
+        return 5;
+    }
+
 }

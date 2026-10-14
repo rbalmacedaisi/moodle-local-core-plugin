@@ -351,6 +351,9 @@
         <FIELD NAME="homologation_note" TYPE="text" LENGTH="medium" NOTNULL="false" SEQUENCE="false" COMMENT="Free-text reason / observation captured when the grade was homologated"/>
         <FIELD NAME="homologation_at" TYPE="int" LENGTH="10" NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="Unix timestamp of the last homologation"/>
         <FIELD NAME="homologation_by" TYPE="int" LENGTH="10" NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="user.id who applied the last homologation"/>
+        <FIELD NAME="grade_source" TYPE="char" LENGTH="40" NOTNULL="false" SEQUENCE="false" COMMENT="Where the displayed grade came from: class, module, revalidation, nota_final_integrada, historical_*"/>
+        <FIELD NAME="grade_at" TYPE="int" LENGTH="10" NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="When that grade was placed (unix time); the latest one wins"/>
+        <FIELD NAME="grade_classid" TYPE="int" LENGTH="10" NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="gmk_class.id that produced the grade, 0 when not a class"/>
       </FIELDS>
       <KEYS>
         <KEY NAME="primary" TYPE="primary" FIELDS="id"/>

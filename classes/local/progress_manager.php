@@ -183,9 +183,12 @@ class local_grupomakro_progress_manager
                 return false;
             }
 
-            // 1. Get Grade once for all records (fast direct lookup; avoids grade tree traversal).
-            $passedmap = gmk_get_user_passed_course_map_fast((int)$userId, [(int)$courseId], 70.0);
-            $userGrade = !empty($passedmap[(int)$courseId]) ? 70.0 : 0.0;
+            // 1. Grade and status are no longer decided here. This used to write
+            // 70.0 or 0.0 (passed / not passed) into gmk_course_progre.grade on every
+            // grading, which is why reports reading that column disagreed with the
+            // grade modal. course_grade_resolver::sync_progress() below stores the
+            // LAST grade placed (latest class, module, revalidation, Nota Final
+            // Integrada) and the status that follows it.
             
             // Reusable components for progress calculation.
             $coursemod = get_fast_modinfo($courseId, $userId);
@@ -197,8 +200,6 @@ class local_grupomakro_progress_manager
             $anyCompleted = false;
 
             foreach ($progressRecords as $userCourseProgress) {
-                $userCourseProgress->grade = $userGrade;
-                
                 // 2. Calculate module-based progress.
                 $completedModules = 0;
                 $sectionModuleCount = 0;
@@ -226,34 +227,21 @@ class local_grupomakro_progress_manager
                     }
                 }
 
-                // 3. Apply Robust Overrides.
-                $oldStatus = $userCourseProgress->status;
                 $oldProgress = $userCourseProgress->progress;
-
-                // FIX: Correct status based on grade
-                // - Grade >= 71 → APPROVED (status 4)
-                // - Grade < 71 → FAILED (status 5) only if student finished the course
-                if ($userGrade >= 71) {
-                    $userCourseProgress->progress = 100;
-                    $userCourseProgress->status = COURSE_APPROVED;  // Status 4
-                } else if ($userGrade > 0 && $userGrade < 71 && $userCourseProgress->progress >= 100) {
-                    // Student completed all activities but grade is below passing
-                    $userCourseProgress->status = COURSE_FAILED;  // Status 5
-                }
-
-                // Mark as completed if approved
-                if ($userCourseProgress->status == COURSE_APPROVED || $userCourseProgress->status == COURSE_COMPLETED) {
-                    $anyCompleted = true;
-                }
-
                 if ($logFile) {
-                    file_put_contents($logFile, "[INFO] Procesado User $userId, Plan {$userCourseProgress->learningplanid}, Curso $courseId: Nota=$userGrade, Progreso=$oldProgress -> {$userCourseProgress->progress}, Status=$oldStatus -> {$userCourseProgress->status}\n", FILE_APPEND);
+                    file_put_contents($logFile, "[INFO] Procesado User $userId, Plan {$userCourseProgress->learningplanid}, Curso $courseId: Progreso=$oldProgress -> {$userCourseProgress->progress}\n", FILE_APPEND);
                 }
 
                 if (!$DB->update_record('gmk_course_progre', $userCourseProgress)) {
                     $allSuccess = false;
                 }
             }
+
+            // 3. Latest grade + the status that follows it (single source of truth).
+            \local_grupomakro_core\course_grade_resolver::sync_progress((int)$userId, (int)$courseId);
+            $anyCompleted = $DB->record_exists_select('gmk_course_progre',
+                'userid = :u AND courseid = :c AND status IN (' . COURSE_APPROVED . ', ' . COURSE_COMPLETED . ')',
+                ['u' => $userId, 'c' => $courseId]);
             
             // 4. Optionally force Moodle completion if any of the plan-course statuses is COMPLETED.
             // In some flows (e.g. grade report inline save), forcing completion can trigger

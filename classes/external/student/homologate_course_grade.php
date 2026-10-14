@@ -405,6 +405,14 @@ class homologate_course_grade extends external_api
             gmk_log('WARN homologate academic_movement insert failed: ' . $mvError->getMessage());
         }
 
+        // Re-resolve the latest grade so gmk_course_progre (read by every view)
+        // reflects the homologation, or what was there before it.
+        try {
+            \local_grupomakro_core\course_grade_resolver::sync_progress((int)$userId, (int)$coreCourseId);
+        } catch (\Throwable $syncError) {
+            gmk_log('WARN latest-grade sync failed: ' . $syncError->getMessage());
+        }
+
         gmk_log(sprintf(
             'homologate_course_grade OK user=%d plan=%d course=%d grade=%s type=%s by=%d',
             $userId, $learningPlanId, $coreCourseId, (string)$grade, $type, (int)$USER->id

@@ -4367,6 +4367,26 @@ if ($oldversion < 20261001093) {
     }
 
 
+    if ($oldversion < 20261001105) {
+        // Latest-grade model: gmk_course_progre.grade now holds the LAST grade
+        // placed for the subject (revalidation, module, latest class, Nota Final
+        // Integrada; historical sources only as fallback), resolved by
+        // course_grade_resolver::sync_progress(). These columns record where it
+        // came from and when, so every view reads one stored value.
+        $table = new xmldb_table('gmk_course_progre');
+        $fields = [
+            new xmldb_field('grade_source', XMLDB_TYPE_CHAR, '40', null, null, null, null, 'homologation_by'),
+            new xmldb_field('grade_at', XMLDB_TYPE_INTEGER, '10', null, null, null, '0', 'grade_source'),
+            new xmldb_field('grade_classid', XMLDB_TYPE_INTEGER, '10', null, null, null, '0', 'grade_at'),
+        ];
+        foreach ($fields as $field) {
+            if (!$dbman->field_exists($table, $field)) {
+                $dbman->add_field($table, $field);
+            }
+        }
+        upgrade_plugin_savepoint(true, 20261001105, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

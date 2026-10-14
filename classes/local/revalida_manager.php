@@ -906,6 +906,14 @@ class revalida_manager {
             gmk_log('WARN revalida save_grade academic_movement insert failed: ' . $mvError->getMessage());
         }
 
+        // The revalidation is now the latest grade placed: let the resolver
+        // store it (and its source/date) like every other grade.
+        try {
+            \local_grupomakro_core\course_grade_resolver::sync_progress((int)$rec->userid, (int)$rec->corecourseid);
+        } catch (\Throwable $syncError) {
+            gmk_log('WARN revalida save_grade latest-grade sync failed: ' . $syncError->getMessage());
+        }
+
         return ['ok' => true, 'error' => null, 'result' => $rec->result, 'finalgrade' => $finalgrade];
     }
 
