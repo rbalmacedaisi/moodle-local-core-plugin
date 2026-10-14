@@ -1243,35 +1243,89 @@ class course_grade_resolver
         $candidates = [];
 
         // --- Class candidates: latest regular and latest module class -------
+        // Classes the student is a group member of, plus any class of the subject
+        // where a grade was placed for them even without group membership (e.g.
+        // a coordinator overriding the module total in Single view for a student
+        // who was never added to the module group).
         $membership = self::bulk_membership_classes($DB, $userid, $corecourseid, $learningPlanId);
+        $gradedclasses = $DB->get_records_sql(
+            "SELECT c.id, c.corecourseid
+               FROM {gmk_class} c
+              WHERE c.corecourseid = :c AND c.gradecategoryid > 0
+                AND (c.is_module = 1 OR c.learningplanid = :lp OR EXISTS (
+                        SELECT 1 FROM {local_learning_courses} lpc
+                         WHERE lpc.id = c.courseid AND lpc.learningplanid = :lp2))
+                AND (EXISTS (
+                        SELECT 1 FROM {grade_items} gi
+                          JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = :u1
+                         WHERE gi.courseid = c.corecourseid AND gi.categoryid = c.gradecategoryid
+                           AND gi.itemtype IN ('mod', 'manual') AND COALESCE(gi.itemmodule, '') <> 'attendance'
+                           AND gg.finalgrade IS NOT NULL)
+                  OR EXISTS (
+                        SELECT 1 FROM {grade_items} gi
+                          JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = :u2
+                         WHERE gi.courseid = c.corecourseid AND gi.itemtype = 'category'
+                           AND gi.iteminstance = c.gradecategoryid
+                           AND gg.overridden > 0 AND gg.finalgrade IS NOT NULL))",
+            ['c' => $corecourseid, 'lp' => $learningPlanId, 'lp2' => $learningPlanId, 'u1' => $userid, 'u2' => $userid]);
+        foreach ($gradedclasses as $gc) {
+            $membership[(int)$gc->id] = (int)$gc->corecourseid;
+        }
         $moduleClassIds = [];
         $moduleGroupIds = [];
         list($gradeByClass) = self::compute_class_category_grades(
             $DB, $userid, $corecourseid, $learningPlanId, $progressclassid, $progressgroupid,
             $membership, $moduleClassIds, $moduleGroupIds
         );
+
+        // A class total overridden by hand (Single view / grader report) IS the
+        // class grade: compute_class_category_grades() rebuilds the total from the
+        // activities and would ignore it.
+        $overrides = [];
+        if (!empty($membership)) {
+            list($insql, $inparams) = $DB->get_in_or_equal(array_keys($membership), SQL_PARAMS_NAMED, 'ov');
+            $overrides = $DB->get_records_sql(
+                "SELECT c.id, gg.finalgrade, gi.grademax, GREATEST(gg.overridden, gg.timemodified) AS at
+                   FROM {gmk_class} c
+                   JOIN {grade_items} gi ON gi.courseid = c.corecourseid AND gi.itemtype = 'category'
+                                        AND gi.iteminstance = c.gradecategoryid
+                   JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = :u
+                  WHERE c.id $insql AND gg.overridden > 0 AND gg.finalgrade IS NOT NULL",
+                ['u' => $userid] + $inparams);
+            foreach ($overrides as $ov) {
+                $max = (float)$ov->grademax > 0 ? (float)$ov->grademax : 100.0;
+                $gradeByClass[(int)$ov->id] = round(min(((float)$ov->finalgrade / $max) * 100, 100.0), 2);
+            }
+        }
+
         if (!empty($gradeByClass)) {
             list($insql, $inparams) = $DB->get_in_or_equal(array_keys($gradeByClass), SQL_PARAMS_NAMED, 'lc');
             $classes = $DB->get_records_sql(
                 "SELECT id, is_module, gradecategoryid, coursesectionid, initdate, enddate, closed
                    FROM {gmk_class} WHERE id $insql", $inparams);
+            // Only classes where a grade was actually placed compete; among those,
+            // "su ultima inscripcion al ultimo grupo" = the class that started last.
             $latestbykind = [];
+            $gradedatbyclass = [];
             foreach ($classes as $c) {
+                $gradedat = self::class_graded_at($DB, $userid, $corecourseid, $c);
+                if (isset($overrides[(int)$c->id])) {
+                    $gradedat = max($gradedat, (int)$overrides[(int)$c->id]->at);
+                }
+                if ($gradedat <= 0) {
+                    // Only attendance has a value: nobody placed a grade here yet.
+                    continue;
+                }
+                $gradedatbyclass[(int)$c->id] = $gradedat;
                 $kind = !empty($c->is_module) ? self::SOURCE_LATEST_MODULE : self::SOURCE_LATEST_CLASS;
                 $cur = $latestbykind[$kind] ?? null;
-                // "Su ultima inscripcion al ultimo grupo": the class that started last.
                 if (!$cur || (int)$c->initdate > (int)$cur->initdate
                         || ((int)$c->initdate === (int)$cur->initdate && (int)$c->id > (int)$cur->id)) {
                     $latestbykind[$kind] = $c;
                 }
             }
             foreach ($latestbykind as $kind => $c) {
-                $gradedat = self::class_graded_at($DB, $userid, $corecourseid, $c);
-                if ($gradedat <= 0) {
-                    // Only attendance has a value: nobody placed a grade in this
-                    // class yet, so it is not a candidate.
-                    continue;
-                }
+                $gradedat = $gradedatbyclass[(int)$c->id];
                 $finished = !empty($c->closed) || ((int)$c->enddate > 0 && (int)$c->enddate < time());
                 $candidates[] = [
                     'source'    => $kind,
