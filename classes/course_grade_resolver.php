@@ -1252,6 +1252,12 @@ class course_grade_resolver
         // a coordinator overriding the module total in Single view for a student
         // who was never added to the module group).
         $membership = self::bulk_membership_classes($DB, $userid, $corecourseid, $learningPlanId);
+        // Where the student is (still) enrolled: those classes take precedence over
+        // classes they were graded in but left (withdrawn, moved to another group).
+        $memberclassids = array_keys($membership);
+        if ($progressclassid > 0) {
+            $memberclassids[] = $progressclassid;
+        }
         $gradedclasses = $DB->get_records_sql(
             "SELECT c.id, c.corecourseid
                FROM {gmk_class} c
@@ -1320,6 +1326,7 @@ class course_grade_resolver
             // Only classes where a grade was actually placed compete; among those,
             // "su ultima inscripcion al ultimo grupo" = the class that started last.
             $latestbykind = [];
+            $latestismember = [];
             $gradedatbyclass = [];
             foreach ($classes as $c) {
                 $gradedat = self::class_graded_at($DB, $userid, $corecourseid, $c);
@@ -1332,15 +1339,27 @@ class course_grade_resolver
                 }
                 $gradedatbyclass[(int)$c->id] = $gradedat;
                 $kind = !empty($c->is_module) ? self::SOURCE_LATEST_MODULE : self::SOURCE_LATEST_CLASS;
+                $ismember = in_array((int)$c->id, $memberclassids, true);
                 $cur = $latestbykind[$kind] ?? null;
-                if (!$cur || (int)$c->initdate > (int)$cur->initdate
-                        || ((int)$c->initdate === (int)$cur->initdate && (int)$c->id > (int)$cur->id)) {
+                $curismember = $latestismember[$kind] ?? false;
+                $later = !$cur || (int)$c->initdate > (int)$cur->initdate
+                    || ((int)$c->initdate === (int)$cur->initdate && (int)$c->id > (int)$cur->id);
+                // A class the student still belongs to beats one they left, whatever
+                // the dates; between two of the same standing the later start wins.
+                if (!$cur || ($ismember && !$curismember) || ($ismember === $curismember && $later)) {
                     $latestbykind[$kind] = $c;
+                    $latestismember[$kind] = $ismember;
                 }
             }
             foreach ($latestbykind as $kind => $c) {
                 $gradedat = $gradedatbyclass[(int)$c->id];
                 $finished = !empty($c->closed) || ((int)$c->enddate > 0 && (int)$c->enddate < time());
+                // A module is over for this student once their module enrollment is
+                // completed, even while the class stays open for others.
+                if (!$finished && $kind === self::SOURCE_LATEST_MODULE) {
+                    $finished = $DB->record_exists('gmk_module_enrollment',
+                        ['classid' => (int)$c->id, 'userid' => $userid, 'status' => 'completed']);
+                }
                 $candidates[] = [
                     'source'    => $kind,
                     'grade'     => (float)$gradeByClass[(int)$c->id],
@@ -1401,6 +1420,21 @@ class course_grade_resolver
                 'gradedat' => $nfiat, 'classid' => 0, 'is_module' => false, 'finished' => true];
         }
 
+        // Still enrolled in a class of the subject that is running (regular class
+        // not closed/ended, or a module with an active enrollment): the student is
+        // Cursando whatever grade is shown.
+        $enrolledopen = false;
+        if (!empty($memberclassids)) {
+            list($oinsql, $oinparams) = $DB->get_in_or_equal(array_values(array_unique($memberclassids)), SQL_PARAMS_NAMED, 'op');
+            $enrolledopen = $DB->record_exists_sql(
+                "SELECT 1 FROM {gmk_class} c
+                  WHERE c.id $oinsql AND c.closed = 0 AND (c.enddate = 0 OR c.enddate > :now)
+                    AND (c.is_module = 0 OR EXISTS (
+                         SELECT 1 FROM {gmk_module_enrollment} me
+                          WHERE me.classid = c.id AND me.userid = :u AND me.status = 'active'))",
+                ['now' => time(), 'u' => $userid] + $oinparams);
+        }
+
         if (!empty($candidates)) {
             usort($candidates, function ($a, $b) {
                 if ($a['gradedat'] !== $b['gradedat']) {
@@ -1411,7 +1445,7 @@ class course_grade_resolver
             $w = $candidates[0];
             return ['grade' => round($w['grade'], 2), 'source' => $w['source'], 'gradedat' => $w['gradedat'],
                     'classid' => $w['classid'], 'is_module' => $w['is_module'], 'finished' => $w['finished'],
-                    'candidates' => $candidates];
+                    'enrolled_open' => $enrolledopen, 'candidates' => $candidates];
         }
 
         // --- Historical fallback: only when nothing above exists --------------
@@ -1545,11 +1579,19 @@ class course_grade_resolver
         if (strpos((string)$res['source'], 'historical_') === 0) {
             return $current;
         }
+        // A class/module still running only carries a partial grade: it never
+        // decides a status (neither ends Cursando nor fails an approved subject).
+        if ($fromclass && !$res['finished']) {
+            return $current;
+        }
+        // Re-enrolled in a running class of the subject: Cursando stays, even if
+        // the grade shown is the one placed in an earlier, finished class.
+        if ($current === 2 && !empty($res['enrolled_open'])) {
+            return $current;
+        }
         // Cursando ends when the class/module that holds the grade has ended, or
         // with a revalidation result; an older grade does not end it.
-        if ($current === 2
-                && !($fromclass && $res['finished'])
-                && $res['source'] !== self::SOURCE_REVALIDATION) {
+        if ($current === 2 && !$fromclass && $res['source'] !== self::SOURCE_REVALIDATION) {
             return $current;
         }
         if ($current === 6 && $fromclass && !$passed) {
