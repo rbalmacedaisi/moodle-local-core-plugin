@@ -7017,6 +7017,34 @@ function reschedule_class_activity($params)
     }
     $newSessionDateStr = date('Y-m-d', $initTimestamp);
 
+    // A session that was already given cannot be rescheduled: every branch below
+    // deletes its BBB room (orphaning the recording) and replace_attendance_session()
+    // deletes its attendance logs. 2026-10-13: rescheduling the 10/10 session of class
+    // 9906 from Horarios de clases wiped attendance already taken and its recording.
+    // A session where everybody is absent and the room was never used is a class that
+    // did not happen (the automatic process marks everyone absent): that one can move.
+    $guardSessionId = (int)($params['sessionId'] ?? 0);
+    $guardBbbCm = 0;
+    if ((int)$moduleInfo->module === (int)$bigBlueButtonModuleId) {
+        $guardBbbCm = (int)$moduleInfo->id;
+        if ($guardSessionId <= 0) {
+            $guardSessionId = (int)$DB->get_field('gmk_bbb_attendance_relation', 'attendancesessionid',
+                ['bbbmoduleid' => $guardBbbCm], IGNORE_MULTIPLE);
+        }
+    } else if ($guardSessionId > 0) {
+        $guardBbbCm = (int)$DB->get_field('gmk_bbb_attendance_relation', 'bbbmoduleid',
+            ['attendancesessionid' => $guardSessionId], IGNORE_MULTIPLE);
+    }
+    $guardAttended = $guardSessionId > 0 && $DB->record_exists_sql(
+        "SELECT 1 FROM {attendance_log} l
+           JOIN {attendance_statuses} st ON st.id = l.statusid
+          WHERE l.sessionid = :sid AND st.grade > 0", ['sid' => $guardSessionId]);
+    if ($guardAttended || ($guardBbbCm > 0 && gmk_bbb_cm_is_frozen($guardBbbCm, time()))) {
+        throw new \moodle_exception('generalexceptionmessage', 'error', '',
+            'Esta sesión ya se dictó (tiene asistencia registrada, o su sala virtual tuvo reunión o grabación). '
+            . 'No se puede reprogramar: para recuperar contenido agregue una sesión nueva.');
+    }
+
     // If the class type is 0 (presencial), just replace the session on the attendance module.
     // Exception: when triggered from a BBB calendar event the class has a linked BBB activity
     // (e.g. migrated from type '2'). In that case we must also replace the BBB module so the

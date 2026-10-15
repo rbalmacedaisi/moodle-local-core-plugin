@@ -99,6 +99,10 @@ class reschedule_activity extends external_api {
             
         }
         catch (\Throwable $e) {
+            // Business refusals (e.g. "Esta sesión ya se dictó...") reach the user as-is.
+            if ($e instanceof \moodle_exception && $e->errorcode === 'generalexceptionmessage') {
+                return ['status' => -1, 'message' => $e->getMessage()];
+            }
             $detail = get_class($e) . ': ' . $e->getMessage() . ' in ' . basename($e->getFile()) . ':' . $e->getLine();
             return ['status' => -1, 'message' => $detail];
         }
