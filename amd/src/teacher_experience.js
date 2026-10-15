@@ -11,9 +11,10 @@ window.TeacherExperience = {
             page: 'gmk_page',
             classId: 'gmk_classid',
             cmid: 'gmk_cmid',
-            tab: 'gmk_tab'
+            tab: 'gmk_tab',
+            thread: 'gmk_thread'
         };
-        const ALLOWED_PAGES = ['dashboard', 'manage-class', 'grading', 'quiz-editor'];
+        const ALLOWED_PAGES = ['dashboard', 'manage-class', 'grading', 'quiz-editor', 'messages'];
 
         function normalizePositiveInt(value) {
             const parsed = parseInt(value, 10);
@@ -30,7 +31,8 @@ window.TeacherExperience = {
                 page: sanitizePage(raw.page),
                 classId: normalizePositiveInt(raw.classId),
                 cmid: normalizePositiveInt(raw.cmid),
-                tab: typeof raw.tab === 'string' ? raw.tab : ''
+                tab: typeof raw.tab === 'string' ? raw.tab : '',
+                threadId: normalizePositiveInt(raw.threadId)
             };
 
             if (state.page === 'manage-class' && !state.classId) {
@@ -49,6 +51,10 @@ window.TeacherExperience = {
                 state.tab = '';
             }
 
+            if (state.page !== 'messages') {
+                state.threadId = null;
+            }
+
             return state;
         }
 
@@ -58,7 +64,8 @@ window.TeacherExperience = {
                 page: params.get(QUERY_KEYS.page) || 'dashboard',
                 classId: params.get(QUERY_KEYS.classId),
                 cmid: params.get(QUERY_KEYS.cmid),
-                tab: params.get(QUERY_KEYS.tab) || ''
+                tab: params.get(QUERY_KEYS.tab) || '',
+                threadId: params.get(QUERY_KEYS.thread)
             });
         }
 
@@ -76,7 +83,7 @@ window.TeacherExperience = {
 
         function getInitialState() {
             const urlState = readStateFromUrl();
-            if (urlState.page !== 'dashboard' || urlState.classId || urlState.cmid || urlState.tab) {
+            if (urlState.page !== 'dashboard' || urlState.classId || urlState.cmid || urlState.tab || urlState.threadId) {
                 return urlState;
             }
             return readStateFromStorage();
@@ -94,7 +101,7 @@ window.TeacherExperience = {
             const url = new URL(window.location.href);
             const params = url.searchParams;
 
-            [QUERY_KEYS.page, QUERY_KEYS.classId, QUERY_KEYS.cmid, QUERY_KEYS.tab].forEach(key => {
+            [QUERY_KEYS.page, QUERY_KEYS.classId, QUERY_KEYS.cmid, QUERY_KEYS.tab, QUERY_KEYS.thread].forEach(key => {
                 params.delete(key);
             });
 
@@ -109,6 +116,9 @@ window.TeacherExperience = {
             }
             if (state.tab) {
                 params.set(QUERY_KEYS.tab, state.tab);
+            }
+            if (state.threadId) {
+                params.set(QUERY_KEYS.thread, String(state.threadId));
             }
 
             const nextUrl = url.pathname + (params.toString() ? '?' + params.toString() : '') + url.hash;
@@ -213,6 +223,12 @@ window.TeacherExperience = {
                             <v-btn text small color="orange" class="mr-2 d-none d-md-flex" @click="setPage('grading')">
                                 <v-icon left>mdi-clipboard-check-outline</v-icon> Calificar
                             </v-btn>
+                            <v-btn text small color="teal" class="mr-2" title="Mensajes" @click="setPage('messages')">
+                                <v-badge :value="unreadMessages > 0" :content="unreadMessages > 99 ? '99+' : unreadMessages" color="red" overlap>
+                                    <v-icon>mdi-message-text-outline</v-icon>
+                                </v-badge>
+                                <span class="ml-2 d-none d-md-inline">Mensajes</span>
+                            </v-btn>
 
                             <v-menu offset-y transition="slide-y-transition" content-class="gmk-user-menu-dropdown">
                                 <template v-slot:activator="{ on, attrs }">
@@ -267,6 +283,15 @@ window.TeacherExperience = {
                                 :cmid="selectedCmid"
                                 @back="navigate({ page: 'manage-class', id: selectedClassId, tab: manageClassTab || 'content' })"
                             ></quiz-editor>
+
+                            <teacher-messages
+                                v-if="currentPage === 'messages'"
+                                :config="config"
+                                :class-id="selectedClassId"
+                                :thread-id="selectedThreadId"
+                                @unread-changed="unreadMessages = $event"
+                                @thread-changed="handleThreadChange"
+                            ></teacher-messages>
                         </v-fade-transition>
                     </v-main>
                 </v-app>
@@ -277,6 +302,8 @@ window.TeacherExperience = {
                     selectedClassId: initialState.classId || null,
                     selectedCmid: initialState.cmid || null,
                     manageClassTab: initialState.tab || '',
+                    selectedThreadId: initialState.threadId || null,
+                    unreadMessages: 0,
                     config: config
                 };
             },
@@ -286,7 +313,34 @@ window.TeacherExperience = {
                 }
                 this.persistNavigationState();
             },
+            mounted() {
+                // Badge de mensajes no leidos (mensajeria estudiante-docente).
+                this.refreshUnreadMessages();
+                this.unreadTimer = setInterval(() => {
+                    if (!document.hidden) this.refreshUnreadMessages();
+                }, 60000);
+            },
+            beforeDestroy() {
+                clearInterval(this.unreadTimer);
+            },
             methods: {
+                async refreshUnreadMessages() {
+                    try {
+                        const url = window.wsUrl + '?action=local_grupomakro_msg_get_unread_count';
+                        const response = await axios.post(url, {
+                            action: 'local_grupomakro_msg_get_unread_count', args: {}, ...window.wsStaticParams
+                        });
+                        if (response.data && response.data.status === 'success' && response.data.data) {
+                            this.unreadMessages = response.data.data.count || 0;
+                        }
+                    } catch (e) {
+                        // Badge only: ignore.
+                    }
+                },
+                handleThreadChange(threadId) {
+                    this.selectedThreadId = threadId || null;
+                    this.persistNavigationState();
+                },
                 toggleTheme() {
                     // Flip the Vuetify theme reactively. Vuetify 2 exposes the
                     // active theme through $vuetify.theme.dark; assigning to it
@@ -310,9 +364,10 @@ window.TeacherExperience = {
                     const page = sanitizePage(this.currentPage);
                     return sanitizeState({
                         page: page,
-                        classId: (page === 'manage-class' || page === 'quiz-editor') ? this.selectedClassId : null,
+                        classId: (page === 'manage-class' || page === 'quiz-editor' || page === 'messages') ? this.selectedClassId : null,
                         cmid: page === 'quiz-editor' ? this.selectedCmid : null,
-                        tab: page === 'manage-class' ? this.manageClassTab : ''
+                        tab: page === 'manage-class' ? this.manageClassTab : '',
+                        threadId: page === 'messages' ? this.selectedThreadId : null
                     });
                 },
                 persistNavigationState() {
@@ -339,6 +394,7 @@ window.TeacherExperience = {
                     const hasId = Object.prototype.hasOwnProperty.call(nextPayload, 'id');
                     const hasCmid = Object.prototype.hasOwnProperty.call(nextPayload, 'cmid');
                     const hasTab = Object.prototype.hasOwnProperty.call(nextPayload, 'tab');
+                    const hasThread = Object.prototype.hasOwnProperty.call(nextPayload, 'thread');
 
                     this.currentPage = nextPage;
 
@@ -346,6 +402,12 @@ window.TeacherExperience = {
                         this.selectedClassId = normalizePositiveInt(nextPayload.id);
                     } else if (nextPage !== 'manage-class' && nextPage !== 'quiz-editor') {
                         this.selectedClassId = null;
+                    }
+
+                    if (hasThread) {
+                        this.selectedThreadId = normalizePositiveInt(nextPayload.thread);
+                    } else if (nextPage !== 'messages') {
+                        this.selectedThreadId = null;
                     }
 
                     if (hasCmid) {

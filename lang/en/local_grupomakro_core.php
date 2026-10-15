@@ -1505,3 +1505,21 @@ For the attendance QR to keep working, open this link from a device connected to
 
 If you don\'t have access to the institute network right now, ask IT to use the teacher_dashboard button or the on-site script.
 ';
+
+// Student-teacher messaging (20261001107).
+$string['messageprovider:class_message'] = 'New message from a student or teacher in a class';
+$string['msg_notification_subject'] = 'New message from {$a->sender} — {$a->classname}';
+$string['msg_notification_body'] = '{$a->sender} wrote to you in {$a->classname}:
+
+{$a->excerpt}
+
+Reply here: {$a->url}';
+$string['msg_notification_small'] = 'New message from {$a->sender}';
+$string['msg_err_notfound'] = 'The conversation does not exist.';
+$string['msg_err_noaccess'] = 'You do not have access to this conversation.';
+$string['msg_err_readonly'] = 'This conversation is read-only because the class is closed.';
+$string['msg_err_empty'] = 'The message is empty.';
+$string['msg_err_toolong'] = 'The message exceeds the maximum of {$a} characters.';
+$string['msg_err_ratelimit'] = 'You sent too many messages in a short time. Try again in a few minutes.';
+$string['msg_err_noteacher'] = 'This class has no teacher assigned.';
+$string['msg_err_notstudent'] = 'The user is not a student of this class.';

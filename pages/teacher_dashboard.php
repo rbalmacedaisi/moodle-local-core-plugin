@@ -41,7 +41,7 @@ $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/Teacher
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/ActivityCreationWizard.js?v=20261001088'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/ManageClass.js?v=20261001088'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/studenttable.js?v=20251231050'), true);
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/TeacherStudentTable.js?v=20260905002'), true);
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/TeacherStudentTable.js?v=20261001107'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/GradesGrid.js?v=20260827000'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/GradebookManager.js?v=20260312012'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/grademodal.js?v=20260905001'), true);
@@ -59,9 +59,11 @@ $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/QuizEdi
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/AttendancePanel.js?v=20260709001'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/AttendanceMatrix.js?v=20260904001'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/AssignmentExtensions.js?v=20261001092'), true);
+// Mensajeria estudiante-docente (20261001107).
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/TeacherMessages.js?v=20261001107'), true);
 
 // Load main experience module as standard JS (bypassing AMD build issues)
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/amd/src/teacher_experience.js?v=20260407001'), true);
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/amd/src/teacher_experience.js?v=20261001107'), true);
 
 // Initialize the experience
 $logoUrl = $OUTPUT->get_logo_url();

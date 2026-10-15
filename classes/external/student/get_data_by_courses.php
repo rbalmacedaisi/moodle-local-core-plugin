@@ -210,6 +210,56 @@ class get_data_by_courses extends external_api
     }
 
     /**
+     * Adds what the LXP needs for the "Enviar mensaje al docente" button: the student's open class
+     * in this course (courseData->messaging = {classid, threadid, unread}, null when there is no
+     * class with a teacher to write to) and the Moodle userid of each teacher (matched by email).
+     * Only for the calling user: never exposes another student's thread.
+     *
+     * @param object $courseData
+     * @param int $courseid
+     * @param int $userid
+     * @return void
+     */
+    private static function add_messaging_payload(object &$courseData, int $courseid, int $userid): void {
+        global $DB, $USER;
+        $courseData->messaging = null;
+        if ($userid !== (int)$USER->id) {
+            return;
+        }
+        try {
+            $contacts = \local_grupomakro_core\local\messaging\manager::contacts($userid);
+            if ($contacts['role'] !== 'student') {
+                return;
+            }
+            foreach ($contacts['classes'] as $class) {
+                if ((int)$class['courseid'] !== $courseid || empty($class['teachers'])) {
+                    continue;
+                }
+                $courseData->messaging = (object)[
+                    'classid'  => (int)$class['classid'],
+                    'threadid' => (int)$class['threadid'],
+                    'unread'   => (int)$class['unread'],
+                ];
+                $byemail = [];
+                foreach ($class['teachers'] as $t) {
+                    $email = $DB->get_field('user', 'email', ['id' => (int)$t['id']]);
+                    $byemail[strtolower(trim((string)$email))] = (int)$t['id'];
+                }
+                if (!empty($courseData->teachers) && is_array($courseData->teachers)) {
+                    foreach ($courseData->teachers as $t) {
+                        $em = isset($t->email) ? strtolower(trim((string)$t->email)) : '';
+                        $t->userid = $byemail[$em] ?? 0;
+                    }
+                }
+                return;
+            }
+        } catch (\Throwable $e) {
+            // Messaging is an add-on: never break the course payload because of it.
+            $courseData->messaging = null;
+        }
+    }
+
+    /**
      * Describes parameters of the {@see self::execute()} method.
      *
      * @return external_function_parameters
@@ -258,6 +308,7 @@ class get_data_by_courses extends external_api
 
             self::normalize_activities_payload($courseData, (int)$params['courseid']);
             self::normalize_teachers_payload($courseData, (int)$params['courseid'], (int)$params['userid']);
+            self::add_messaging_payload($courseData, (int)$params['courseid'], (int)$params['userid']);
 
             $courseProgre = $DB->get_record('gmk_course_progre', ['courseid' => $params['courseid'], 'userid' => $params['userid']], 'progress,credits,learningplanid');
             if ($courseProgre) {

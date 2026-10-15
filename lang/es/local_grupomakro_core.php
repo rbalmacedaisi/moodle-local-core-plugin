@@ -1511,3 +1511,21 @@ Para que el QR de asistencia siga funcionando, abr\u00ed este enlace desde un di
 
 Si no tienes acceso a la red del instituto ahora, avisale a TI para que use el bot\u00f3n del teacher_dashboard o el script on-site.
 ';
+
+// Mensajeria estudiante-docente (20261001107).
+$string['messageprovider:class_message'] = 'Mensaje nuevo de un estudiante o docente en una clase';
+$string['msg_notification_subject'] = 'Nuevo mensaje de {$a->sender} — {$a->classname}';
+$string['msg_notification_body'] = '{$a->sender} te escribió en {$a->classname}:
+
+{$a->excerpt}
+
+Responde aquí: {$a->url}';
+$string['msg_notification_small'] = 'Nuevo mensaje de {$a->sender}';
+$string['msg_err_notfound'] = 'La conversación no existe.';
+$string['msg_err_noaccess'] = 'No tienes acceso a esta conversación.';
+$string['msg_err_readonly'] = 'Esta conversación es de solo lectura porque la clase ya cerró.';
+$string['msg_err_empty'] = 'El mensaje está vacío.';
+$string['msg_err_toolong'] = 'El mensaje supera el máximo de {$a} caracteres.';
+$string['msg_err_ratelimit'] = 'Enviaste demasiados mensajes en poco tiempo. Intenta de nuevo en unos minutos.';
+$string['msg_err_noteacher'] = 'Esta clase no tiene docente asignado.';
+$string['msg_err_notstudent'] = 'El usuario no es estudiante de esta clase.';

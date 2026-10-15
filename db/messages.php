@@ -167,4 +167,16 @@ $messageproviders = [
         ),
     ],
 
+    // Mensajeria estudiante-docente (20261001107): aviso de mensaje nuevo en un
+    // hilo de clase. Popup por defecto; email permitido pero apagado hasta que
+    // exista el digest (fase 2) para no enviar un correo por cada mensaje.
+    'class_message' => [
+        'capability' => '',
+        'defaults' => array(
+            'popup' => MESSAGE_PERMITTED + MESSAGE_DEFAULT_LOGGEDIN + MESSAGE_DEFAULT_LOGGEDOFF,
+            'email' => MESSAGE_PERMITTED,
+            'airnotifier' => MESSAGE_PERMITTED + MESSAGE_DEFAULT_LOGGEDIN + MESSAGE_DEFAULT_LOGGEDOFF,
+        )
+    ],
+
 ];

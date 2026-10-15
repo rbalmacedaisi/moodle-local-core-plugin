@@ -132,6 +132,10 @@ Vue.component('teacher-student-table', {
                                  <div class="font-weight-medium text-body-2">{{ item.name }}</div>
                                  <div class="caption grey--text">{{ item.email }}</div>
                              </div>
+                             <v-btn v-if="classId" icon small color="teal" class="ml-1" title="Enviar mensaje"
+                                    :loading="messagingStudentId === item.id" @click.stop="messageStudent(item)">
+                                 <v-icon small>mdi-message-text-outline</v-icon>
+                             </v-btn>
                          </div>
                     </template>
                     
@@ -284,6 +288,7 @@ Vue.component('teacher-student-table', {
             activeUsers: 0,
             syncing: false,
             syncLog: '',
+            messagingStudentId: null,
             loading: true,
             options: {
                 page: 1,
@@ -1050,6 +1055,30 @@ Vue.component('teacher-student-table', {
         },
         goToProfile(id) {
             window.open(`${M.cfg.wwwroot}/user/view.php?id=${id}`, '_blank');
+        },
+        // Mensajeria estudiante-docente: abre (o crea) el hilo con el estudiante
+        // y navega a la pagina Mensajes del dashboard.
+        async messageStudent(item) {
+            this.messagingStudentId = item.id;
+            try {
+                const action = 'local_grupomakro_msg_open_thread';
+                const response = await axios.post(window.wsUrl + '?action=' + action, {
+                    action: action,
+                    args: { classid: parseInt(this.classId, 10), studentid: parseInt(item.id, 10) },
+                    ...(window.wsStaticParams || {})
+                });
+                const res = response.data || {};
+                if (res.status !== 'success') {
+                    throw new Error(res.message || 'No se pudo abrir la conversación');
+                }
+                if (this.$root && typeof this.$root.navigate === 'function') {
+                    this.$root.navigate({ page: 'messages', id: parseInt(this.classId, 10), thread: res.data.thread.id });
+                }
+            } catch (e) {
+                this.syncLog = 'Mensajes: ' + e.message;
+            } finally {
+                this.messagingStudentId = null;
+            }
         },
     },
     computed: {

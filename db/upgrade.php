@@ -4396,6 +4396,59 @@ if ($oldversion < 20261001093) {
         upgrade_plugin_savepoint(true, 20261001106, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20261001107) {
+        // Mensajeria estudiante-docente (fase 1): hilos por (clase, estudiante),
+        // mensajes y punteros de lectura. Ver docs/planning/PLAN_MENSAJERIA_ESTUDIANTE_DOCENTE.md.
+        $thread = new xmldb_table('gmk_msg_thread');
+        $thread->add_field('id',            XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $thread->add_field('classid',       XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $thread->add_field('courseid',      XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $thread->add_field('studentid',     XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $thread->add_field('createdby',     XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $thread->add_field('status',        XMLDB_TYPE_INTEGER, '1',  null, XMLDB_NOTNULL, null, '0');
+        $thread->add_field('lastmessageid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $thread->add_field('lastmessageat', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $thread->add_field('timecreated',   XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $thread->add_field('timemodified',  XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $thread->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $thread->add_index('idx_msgt_class_student', XMLDB_INDEX_UNIQUE, ['classid', 'studentid']);
+        $thread->add_index('idx_msgt_student_last', XMLDB_INDEX_NOTUNIQUE, ['studentid', 'lastmessageat']);
+        $thread->add_index('idx_msgt_class_last', XMLDB_INDEX_NOTUNIQUE, ['classid', 'lastmessageat']);
+        if (!$dbman->table_exists($thread)) {
+            $dbman->create_table($thread);
+        }
+
+        $message = new xmldb_table('gmk_msg_message');
+        $message->add_field('id',             XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $message->add_field('threadid',       XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $message->add_field('senderid',       XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $message->add_field('senderrole',     XMLDB_TYPE_CHAR,    '10', null, XMLDB_NOTNULL, null, 'student');
+        $message->add_field('body',           XMLDB_TYPE_TEXT,    null, null, null, null, null);
+        $message->add_field('hasattachments', XMLDB_TYPE_INTEGER, '1',  null, XMLDB_NOTNULL, null, '0');
+        $message->add_field('deleted',        XMLDB_TYPE_INTEGER, '1',  null, XMLDB_NOTNULL, null, '0');
+        $message->add_field('timecreated',    XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $message->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $message->add_index('idx_msgm_thread', XMLDB_INDEX_NOTUNIQUE, ['threadid', 'id']);
+        $message->add_index('idx_msgm_sender_time', XMLDB_INDEX_NOTUNIQUE, ['senderid', 'timecreated']);
+        if (!$dbman->table_exists($message)) {
+            $dbman->create_table($message);
+        }
+
+        $read = new xmldb_table('gmk_msg_read');
+        $read->add_field('id',                XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $read->add_field('threadid',          XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $read->add_field('userid',            XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $read->add_field('lastreadmessageid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $read->add_field('timeread',          XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $read->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $read->add_index('idx_msgr_thread_user', XMLDB_INDEX_UNIQUE, ['threadid', 'userid']);
+        if (!$dbman->table_exists($read)) {
+            $dbman->create_table($read);
+        }
+
+        upgrade_plugin_savepoint(true, 20261001107, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

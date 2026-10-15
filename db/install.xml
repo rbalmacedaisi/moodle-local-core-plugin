@@ -1751,6 +1751,65 @@
         <INDEX NAME="idx_agf_cmid" UNIQUE="true" FIELDS="cmid"/>
       </INDEXES>
     </TABLE>
-  
+
+    <TABLE NAME="gmk_msg_thread" COMMENT="Mensajeria estudiante-docente: un hilo por (clase, estudiante). Los docentes participantes se derivan de gmk_class.instructorid / supportinstructorid en cada lectura.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="classid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="gmk_class.id"/>
+        <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Curso core (gmk_class.corecourseid) al crear el hilo"/>
+        <FIELD NAME="studentid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="createdby" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Usuario que inicio el hilo (estudiante o docente)"/>
+        <FIELD NAME="status" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="0 abierto, 1 solo lectura, 2 archivado"/>
+        <FIELD NAME="lastmessageid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="lastmessageat" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_msgt_class_student" UNIQUE="true" FIELDS="classid, studentid"/>
+        <INDEX NAME="idx_msgt_student_last" UNIQUE="false" FIELDS="studentid, lastmessageat"/>
+        <INDEX NAME="idx_msgt_class_last" UNIQUE="false" FIELDS="classid, lastmessageat"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="gmk_msg_message" COMMENT="Mensajes de un hilo de gmk_msg_thread. Texto plano saneado.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="threadid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="senderid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="senderrole" TYPE="char" LENGTH="10" NOTNULL="true" DEFAULT="student" SEQUENCE="false" COMMENT="student | teacher | support (congelado al enviar)"/>
+        <FIELD NAME="body" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="hasattachments" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="deleted" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Borrado logico (moderacion)"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_msgm_thread" UNIQUE="false" FIELDS="threadid, id"/>
+        <INDEX NAME="idx_msgm_sender_time" UNIQUE="false" FIELDS="senderid, timecreated"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="gmk_msg_read" COMMENT="Puntero de lectura por (hilo, usuario). No leidos = mensajes con id mayor y de otro remitente.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="threadid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="lastreadmessageid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timeread" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_msgr_thread_user" UNIQUE="true" FIELDS="threadid, userid"/>
+      </INDEXES>
+    </TABLE>
+
   </TABLES>
 </XMLDB>
