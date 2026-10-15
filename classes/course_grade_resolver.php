@@ -764,7 +764,7 @@ class course_grade_resolver
                JOIN {groups_members} gm ON gm.groupid = c.groupid
               WHERE gm.userid = :userid
                 AND $effectiveplanwhere
-                AND c.gradecategoryid > 0
+                AND (c.gradecategoryid > 0 OR (c.is_module = 1 AND c.coursesectionid > 0))
                 AND c.corecourseid = :cid
            ORDER BY c.id ASC",
             ['userid' => $userid, 'cid' => $corecourseid] + $effectiveplanparams
@@ -780,7 +780,7 @@ class course_grade_resolver
                JOIN {groups_members} gm ON gm.groupid = c.groupid
               WHERE gm.userid = :userid
                 AND c.is_module = 1
-                AND c.gradecategoryid > 0
+                AND (c.gradecategoryid > 0 OR (c.is_module = 1 AND c.coursesectionid > 0))
                 AND c.corecourseid = :cid
            ORDER BY c.id ASC",
             ['userid' => $userid, 'cid' => $corecourseid]
@@ -836,7 +836,7 @@ class course_grade_resolver
             "SELECT c.id, c.groupid, c.corecourseid, c.gradecategoryid, c.is_module, c.coursesectionid
                FROM {gmk_class} c
               WHERE c.id $classInSql
-                AND c.gradecategoryid > 0
+                AND (c.gradecategoryid > 0 OR (c.is_module = 1 AND c.coursesectionid > 0))
                 AND c.corecourseid > 0
            ORDER BY c.id ASC",
             $classInParams
@@ -1243,6 +1243,10 @@ class course_grade_resolver
         $candidates = [];
 
         // --- Class candidates: latest regular and latest module class -------
+        // Modules recreated by enroll_module after a period publish deleted the
+        // original can have no grade category (gradecategoryid = 0): their activity
+        // lives in the course root, so they count through their own section.
+        //
         // Classes the student is a group member of, plus any class of the subject
         // where a grade was placed for them even without group membership (e.g.
         // a coordinator overriding the module total in Single view for a student
@@ -1251,7 +1255,8 @@ class course_grade_resolver
         $gradedclasses = $DB->get_records_sql(
             "SELECT c.id, c.corecourseid
                FROM {gmk_class} c
-              WHERE c.corecourseid = :c AND c.gradecategoryid > 0
+              WHERE c.corecourseid = :c
+                AND (c.gradecategoryid > 0 OR (c.is_module = 1 AND c.coursesectionid > 0))
                 AND (c.is_module = 1 OR c.learningplanid = :lp OR EXISTS (
                         SELECT 1 FROM {local_learning_courses} lpc
                          WHERE lpc.id = c.courseid AND lpc.learningplanid = :lp2))
@@ -1266,8 +1271,17 @@ class course_grade_resolver
                           JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = :u2
                          WHERE gi.courseid = c.corecourseid AND gi.itemtype = 'category'
                            AND gi.iteminstance = c.gradecategoryid
-                           AND gg.overridden > 0 AND gg.finalgrade IS NOT NULL))",
-            ['c' => $corecourseid, 'lp' => $learningPlanId, 'lp2' => $learningPlanId, 'u1' => $userid, 'u2' => $userid]);
+                           AND gg.overridden > 0 AND gg.finalgrade IS NOT NULL)
+                  OR (c.is_module = 1 AND EXISTS (
+                        SELECT 1 FROM {course_sections} cs
+                          JOIN {course_modules} cm ON FIND_IN_SET(cm.id, cs.sequence) > 0
+                          JOIN {modules} m ON m.id = cm.module AND m.name <> 'attendance'
+                          JOIN {grade_items} gi ON gi.iteminstance = cm.instance AND gi.itemmodule = m.name
+                                               AND gi.courseid = c.corecourseid AND gi.itemtype = 'mod'
+                          JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = :u3
+                         WHERE cs.id = c.coursesectionid AND gg.finalgrade IS NOT NULL)))",
+            ['c' => $corecourseid, 'lp' => $learningPlanId, 'lp2' => $learningPlanId,
+             'u1' => $userid, 'u2' => $userid, 'u3' => $userid]);
         foreach ($gradedclasses as $gc) {
             $membership[(int)$gc->id] = (int)$gc->corecourseid;
         }
