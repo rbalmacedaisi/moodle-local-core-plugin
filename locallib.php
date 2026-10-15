@@ -3231,6 +3231,41 @@ function delete_class($classId, $reason = null)
  * This is defensive. Legacy/republish flows can leave BBB rows with broken or
  * missing pointers in gmk_class/gmk_bbb_attendance_relation.
  */
+/**
+ * True when a class BBB room was actually used and must survive a regeneration: it
+ * hosted a meeting (Create/Join/Summary logs) or it has recordings. Deleting such a
+ * room orphans its recordings and breaks the link with the session the teacher gave
+ * (2026-10-14: a schedule change in Planificacion Academica deleted every room of
+ * class 9860 and their recordings stopped showing anywhere). A past room that was
+ * never used is a class that did not happen and stays reschedulable.
+ *
+ * @param int $cmid course_modules.id of the bigbluebuttonbn activity.
+ * @param int $now  Kept for the callers' signature; usage, not time, decides.
+ */
+function gmk_bbb_cm_is_frozen(int $cmid, int $now): bool
+{
+    global $DB;
+    if ($cmid <= 0) {
+        return false;
+    }
+    $bbb = $DB->get_record_sql(
+        "SELECT b.id, b.openingtime
+           FROM {course_modules} cm
+           JOIN {modules} m ON m.id = cm.module AND m.name = 'bigbluebuttonbn'
+           JOIN {bigbluebuttonbn} b ON b.id = cm.instance
+          WHERE cm.id = :cmid",
+        ['cmid' => $cmid]
+    );
+    if (!$bbb) {
+        return false;
+    }
+    if ($DB->record_exists_select('bigbluebuttonbn_logs',
+            "bigbluebuttonbnid = :b AND log IN ('Create', 'Join', 'Summary')", ['b' => (int)$bbb->id])) {
+        return true;
+    }
+    return $DB->record_exists('bigbluebuttonbn_recordings', ['bigbluebuttonbnid' => (int)$bbb->id]);
+}
+
 function gmk_cleanup_stale_bbb_for_class_before_rebuild($class): array
 {
     global $DB, $CFG;
@@ -3240,8 +3275,10 @@ function gmk_cleanup_stale_bbb_for_class_before_rebuild($class): array
         'deleted_cmids' => 0,
         'deleted_events' => 0,
         'skipped_referenced' => 0,
+        'skipped_frozen' => 0,
         'errors' => [],
     ];
+    $now = time();
 
     $classid = (int)($class->id ?? 0);
     $courseid = (int)($class->corecourseid ?? 0);
@@ -3337,6 +3374,12 @@ function gmk_cleanup_stale_bbb_for_class_before_rebuild($class): array
         if ((int)$cm->module !== $bbbmoduleid) {
             continue;
         }
+        // Rooms of sessions already given (or with meetings/recordings) are never
+        // stale: create_class_activities() keeps them linked to their session.
+        if (gmk_bbb_cm_is_frozen($cmid, $now)) {
+            $stats['skipped_frozen']++;
+            continue;
+        }
         if (!empty($cm->instance)) {
             $candidateinstances[(int)$cm->instance] = (int)$cm->instance;
         }
@@ -3407,6 +3450,10 @@ function create_class_activities($class, $updating = false, $forceRebuildDates =
     // Dates of attendance sessions that already have recorded logs; preserved across an
     // update so a reschedule/regeneration can never wipe taken attendance.
     $preserveddates = [];
+    // Regenerations never touch a session that already happened (see the update branch).
+    $freezeBefore = time();
+    $frozenBBBcmids = [];
+    $frozenSessionIds = [];
 
     $class->course = get_course($class->corecourseid);
     if (!empty($class->corecourseid)) {
@@ -3470,28 +3517,78 @@ function create_class_activities($class, $updating = false, $forceRebuildDates =
             . " errors=" . count($stalecleanup['errors'])
         );
 
-        //Delete Big Blue Button Sessions.
-        // Use both class field and relation table to avoid stale leftovers.
+        // FREEZE WHAT WAS GIVEN. A regeneration (schedule change in Planificacion
+        // Academica, republish) only rebuilds what has not happened. A past session is
+        // kept, with its BBB room and their relation, when it was actually given:
+        //   - some student has an attending status (presente/retraso/justificada:
+        //     attendance_statuses.grade > 0), or
+        //   - its BBB room hosted a meeting or has recordings, or
+        //   - it has no attendance log yet (too recent for the automatic absence
+        //     process: keep it until that is known).
+        // A past session where everyone is absent and the room was never used is a
+        // class that did not happen (the automatic process marks everybody absent):
+        // it stays reschedulable, so it is deleted with its false absences.
+        // Before this, changing class 9860 from Friday to Thursday deleted every BBB room
+        // (orphaning the recordings), recreated the past weeks on Thursdays and the
+        // automatic process then marked every student absent in those new sessions.
         $bbbModulesToDelete = [];
-        foreach (explode(",", (string)$class->bbbmoduleids) as $BBBModuleId) {
-            if (empty($BBBModuleId)) {
+        $attendanceSessionIdsToBeDeleted = [];
+        $relationIdsToDelete = [];
+        $relations = $DB->get_records_sql(
+            "SELECT r.id, r.bbbmoduleid, r.attendancesessionid, s.sessdate,
+                    (SELECT COUNT(1) FROM {attendance_log} l WHERE l.sessionid = r.attendancesessionid) AS logs,
+                    (SELECT COUNT(1) FROM {attendance_log} l
+                       JOIN {attendance_statuses} st ON st.id = l.statusid
+                      WHERE l.sessionid = r.attendancesessionid AND st.grade > 0) AS attended
+               FROM {gmk_bbb_attendance_relation} r
+          LEFT JOIN {attendance_sessions} s ON s.id = r.attendancesessionid
+              WHERE r.classid = :classid",
+            ['classid' => $class->id]
+        );
+        foreach ($relations as $rel) {
+            $bbbcm = (int)$rel->bbbmoduleid;
+            $sid = (int)$rel->attendancesessionid;
+            $ispast = $sid > 0 && (int)$rel->sessdate > 0 && (int)$rel->sessdate < $freezeBefore;
+            $frozen = (int)$rel->attended > 0
+                || ($bbbcm > 0 && gmk_bbb_cm_is_frozen($bbbcm, $freezeBefore))
+                || ($ispast && (int)$rel->logs === 0);
+            if ($frozen) {
+                if ($bbbcm > 0) {
+                    $frozenBBBcmids[$bbbcm] = $bbbcm;
+                }
+                if ($sid > 0) {
+                    $frozenSessionIds[$sid] = $sid;
+                }
                 continue;
             }
-            $bbbModulesToDelete[(int)$BBBModuleId] = (int)$BBBModuleId;
+            $relationIdsToDelete[] = (int)$rel->id;
+            if ($bbbcm > 0) {
+                $bbbModulesToDelete[$bbbcm] = $bbbcm;
+            }
+            if ($sid > 0) {
+                $attendanceSessionIdsToBeDeleted[$sid] = $sid;
+            }
         }
-        $attendanceSessionIdsToBeDeleted = [];
-        $relatedBBBModules = $DB->get_records('gmk_bbb_attendance_relation', ['classid' => $class->id], '', 'bbbmoduleid,attendancesessionid');
-        foreach ($relatedBBBModules as $relatedBBBModule) {
-            if (!empty($relatedBBBModule->bbbmoduleid)) {
-                $bbbModulesToDelete[(int)$relatedBBBModule->bbbmoduleid] = (int)$relatedBBBModule->bbbmoduleid;
+        // Rooms listed on the class but missing from the relation table.
+        foreach (explode(",", (string)$class->bbbmoduleids) as $BBBModuleId) {
+            $BBBModuleId = (int)$BBBModuleId;
+            if ($BBBModuleId <= 0 || isset($frozenBBBcmids[$BBBModuleId])) {
+                continue;
             }
-            if (!empty($relatedBBBModule->attendancesessionid)) {
-                $attendanceSessionIdsToBeDeleted[(int)$relatedBBBModule->attendancesessionid] = (int)$relatedBBBModule->attendancesessionid;
+            if (gmk_bbb_cm_is_frozen($BBBModuleId, $freezeBefore)) {
+                $frozenBBBcmids[$BBBModuleId] = $BBBModuleId;
+                continue;
             }
+            $bbbModulesToDelete[$BBBModuleId] = $BBBModuleId;
+        }
+        foreach ($frozenBBBcmids as $frozencm) {
+            unset($bbbModulesToDelete[$frozencm]);
         }
 
-        // Drop relation rows first to avoid leaving stale CMIDs if execution stops mid-update.
-        $DB->delete_records('gmk_bbb_attendance_relation', ['classid' => $class->id]);
+        // Drop only the relations being rebuilt; frozen ones stay as they are.
+        if (!empty($relationIdsToDelete)) {
+            $DB->delete_records_list('gmk_bbb_attendance_relation', 'id', $relationIdsToDelete);
+        }
 
         foreach ($bbbModulesToDelete as $BBBModuleId) {
             try {
@@ -3501,6 +3598,9 @@ function create_class_activities($class, $updating = false, $forceRebuildDates =
                 // We just want to ensure cleanup proceeds.
             }
         }
+        gmk_log("INFO: create_class_activities class {$class->id} update: kept " . count($frozenBBBcmids)
+            . " given BBB room(s) and " . count($frozenSessionIds) . " given session(s); rebuilding "
+            . count($bbbModulesToDelete) . " room(s); no new sessions before " . date('Y-m-d H:i', $freezeBefore));
 
         //Delete attendance sessions
         $attendanceCourseModule  = get_coursemodule_from_id('attendance', $class->attendancemoduleid, 0, false, MUST_EXIST);
@@ -3508,12 +3608,28 @@ function create_class_activities($class, $updating = false, $forceRebuildDates =
         $attendanceStructure = new \mod_attendance_structure($attendanceRecord, $attendanceCourseModule, $class->course);
         gmk_ensure_cmid_in_section_sequence((int)$class->coursesectionid, (int)$attendanceCourseModule->id);
         // Defensive cleanup: relation table may be incomplete in legacy rows.
-        $fallbackSessions = $DB->get_records('attendance_sessions', [
-            'attendanceid' => (int)$attendanceRecord->id,
-            'groupid' => (int)$class->groupid
-        ], '', 'id');
+        $fallbackSessions = $DB->get_records_sql(
+            "SELECT s.id, s.sessdate,
+                    (SELECT COUNT(1) FROM {attendance_log} l WHERE l.sessionid = s.id) AS logs,
+                    (SELECT COUNT(1) FROM {attendance_log} l
+                       JOIN {attendance_statuses} st ON st.id = l.statusid
+                      WHERE l.sessionid = s.id AND st.grade > 0) AS attended
+               FROM {attendance_sessions} s
+              WHERE s.attendanceid = :attid AND s.groupid = :gid",
+            ['attid' => (int)$attendanceRecord->id, 'gid' => (int)$class->groupid]
+        );
         foreach ($fallbackSessions as $fallbackSession) {
-            $attendanceSessionIdsToBeDeleted[(int)$fallbackSession->id] = (int)$fallbackSession->id;
+            $fsid = (int)$fallbackSession->id;
+            if (isset($frozenSessionIds[$fsid])) {
+                continue;
+            }
+            $fspast = (int)$fallbackSession->sessdate < $freezeBefore;
+            if ((int)$fallbackSession->attended > 0 || ($fspast && (int)$fallbackSession->logs === 0)) {
+                // Given (or too recent to know): keep it.
+                $frozenSessionIds[$fsid] = $fsid;
+                continue;
+            }
+            $attendanceSessionIdsToBeDeleted[$fsid] = $fsid;
         }
 
         // DATA-LOSS GUARD: never delete attendance sessions that already have recorded
@@ -3522,10 +3638,14 @@ function create_class_activities($class, $updating = false, $forceRebuildDates =
         if (!empty($attendanceSessionIdsToBeDeleted)) {
             list($pinsql, $pinparams) = $DB->get_in_or_equal(
                 array_values($attendanceSessionIdsToBeDeleted), SQL_PARAMS_NAMED, 'psd');
+            // Only attendance somebody actually attended is preserved: a session where
+            // the automatic process marked everyone absent is a class not given, and
+            // deleting it (with those false absences) is what lets it be rescheduled.
             $loggedsessions = $DB->get_records_sql(
                 "SELECT DISTINCT s.id, s.sessdate
                    FROM {attendance_sessions} s
                    JOIN {attendance_log} l ON l.sessionid = s.id
+                   JOIN {attendance_statuses} st ON st.id = l.statusid AND st.grade > 0
                   WHERE s.id $pinsql",
                 $pinparams
             );
@@ -3722,6 +3842,12 @@ function create_class_activities($class, $updating = false, $forceRebuildDates =
                 if (isset($holidaySet[$dateStr]))  continue;   // Public holiday
 
                 $sessionDateTS = strtotime($dateStr . ' ' . $sessionStartTime . ':00');
+                // A regeneration never creates sessions in the past: the automatic
+                // absence process would mark everybody absent in them. A class that
+                // was not given is recovered by scheduling a future date.
+                if ($updating && $sessionDateTS < $freezeBefore) {
+                    continue;
+                }
                 $BBBCourseModuleInfo = null;
                 $activityEndTS = $sessionDateTS + $sessionDuration;
                 try {
@@ -3778,7 +3904,7 @@ function create_class_activities($class, $updating = false, $forceRebuildDates =
         while ($currentDateTS < $endDateTS) {
             $day     = $classDaysList[date('l', $currentDateTS)];
             $dateStr = date('Y-m-d', $currentDateTS);
-            if ($day === '1' && !isset($holidaySet[$dateStr])) {
+            if ($day === '1' && !isset($holidaySet[$dateStr]) && !($updating && $currentDateTS < $freezeBefore)) {
                 $BBBCourseModuleInfo = null;
                 $activityEndTS = $currentDateTS + (int)$class->classduration;
                 try {
@@ -3821,9 +3947,10 @@ function create_class_activities($class, $updating = false, $forceRebuildDates =
         }
     }
 
-    $class->bbbmoduleids = count($BBBCourseModulesInfo) > 0 ? implode(",", array_map(function ($BBBCourseModuleInfo) {
+    $allBBBcmids = array_merge(array_values($frozenBBBcmids), array_map(function ($BBBCourseModuleInfo) {
         return $BBBCourseModuleInfo->coursemodule;
-    }, $BBBCourseModulesInfo)) : null;
+    }, $BBBCourseModulesInfo));
+    $class->bbbmoduleids = count($allBBBcmids) > 0 ? implode(",", $allBBBcmids) : null;
 
     foreach ($attendanceSessions as $session) {
         $attendanceSessionId = $attendanceStructure->add_session($session);
