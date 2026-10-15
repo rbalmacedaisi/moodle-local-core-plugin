@@ -886,9 +886,10 @@ class revalida_manager {
             return ['ok' => false, 'error' => 'Error al guardar la nota de reválida: ' . $e->getMessage(), 'result' => null, 'finalgrade' => null];
         }
 
-        // Academic movements Phase 2: record a revalidation movement so the
-        // resolver picks the best grade across re-enrolments. Best-effort: a
-        // movement failure must not break the grade save.
+        // Academic movements: record the revalidation in the append-only audit
+        // trail of grade events (the displayed grade comes from
+        // course_grade_resolver, synced below). Best-effort: a movement failure
+        // must not break the grade save.
         try {
             local_grupomakro_academic_movement_manager::record_movement([
                 'userid'          => (int)$rec->userid,

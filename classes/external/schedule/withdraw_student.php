@@ -187,8 +187,9 @@ class withdraw_student extends external_api {
             $msg .= ' El estado volvió a Disponible.';
         }
 
-        // Academic movements Phase 2: record a withdrawal so the resolver can
-        // pick the best grade across re-enrolments. Best-effort: a movement
+        // Academic movements: record the withdrawal in the append-only audit trail
+        // of grade events. The displayed grade is the LAST one placed, decided by
+        // course_grade_resolver, not by these rows. Best-effort: a movement
         // failure must not abort the withdrawal.
         if ($moduleProgreRow !== null) {
             try {

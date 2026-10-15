@@ -385,9 +385,10 @@ class homologate_course_grade extends external_api
             gmk_log('WARN homologate audit insert failed: ' . $auditError->getMessage());
         }
 
-        // Academic movements Phase 2: record a homologate movement so the resolver
-        // can pick the best grade across re-enrolments. Best-effort: a movement
-        // failure must not block the homologation.
+        // Academic movements: record the homologation in the append-only audit
+        // trail of grade events (the displayed grade comes from
+        // course_grade_resolver). Best-effort: a movement failure must not block
+        // the homologation.
         try {
             local_grupomakro_academic_movement_manager::record_movement([
                 'userid'          => $userId,

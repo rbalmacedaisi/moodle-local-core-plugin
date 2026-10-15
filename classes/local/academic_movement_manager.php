@@ -18,8 +18,10 @@
  * Academic movement manager.
  *
  * Phase 1 of the academic history refactor. Persists per-attempt rows and
- * append-only movement rows so the resolver can pick the best grade across
- * re-enrolments instead of overwriting prior evidence.
+ * append-only movement rows: an audit trail of grade events across
+ * re-enrolments that is never overwritten. The grade shown everywhere is the
+ * LAST one placed, decided by \local_grupomakro_core\course_grade_resolver;
+ * the "best grade" resolver that once read these rows was removed.
  *
  * The manager is intentionally additive: it never modifies or deletes
  * gmk_course_progre or the existing audit tables. Existing flows keep

@@ -10550,9 +10550,10 @@ require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/academic_move
         return ['ok' => false, 'error' => 'Error de base de datos al cerrar la clase: ' . $e->getMessage()];
     }
 
-    // ── 6b. Academic movements Phase 2: record a class_close movement per
-    // terminal progre so the resolver picks the best grade across re-enrolments.
-    // Best-effort: a movement failure must not abort the closure.
+    // ── 6b. Academic movements: record a class_close movement per terminal
+    // progre in the append-only audit trail of grade events (the displayed
+    // grade comes from course_grade_resolver). Best-effort: a movement failure
+    // must not abort the closure.
     foreach ($updates as $upd) {
         try {
             $progreRow = $DB->get_record('gmk_course_progre', ['id' => $upd['id']]);
