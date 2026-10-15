@@ -3380,6 +3380,22 @@ function gmk_cleanup_stale_bbb_for_class_before_rebuild($class): array
             $stats['skipped_frozen']++;
             continue;
         }
+        // Nor the room of a session that was given (someone attended, or it is past
+        // and still has no log): the regeneration keeps that session and its link.
+        if ($DB->record_exists_sql(
+                "SELECT 1
+                   FROM {gmk_bbb_attendance_relation} r
+                   JOIN {attendance_sessions} s ON s.id = r.attendancesessionid
+                  WHERE r.classid = :classid AND r.bbbmoduleid = :cmid
+                    AND (EXISTS (SELECT 1 FROM {attendance_log} l
+                                   JOIN {attendance_statuses} st ON st.id = l.statusid
+                                  WHERE l.sessionid = s.id AND st.grade > 0)
+                         OR (s.sessdate < :now AND NOT EXISTS (
+                                SELECT 1 FROM {attendance_log} l2 WHERE l2.sessionid = s.id)))",
+                ['classid' => $classid, 'cmid' => $cmid, 'now' => $now])) {
+            $stats['skipped_frozen']++;
+            continue;
+        }
         if (!empty($cm->instance)) {
             $candidateinstances[(int)$cm->instance] = (int)$cm->instance;
         }

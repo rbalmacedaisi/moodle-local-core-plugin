@@ -185,6 +185,10 @@ foreach ($orph as $r) {
         continue;
     }
     if (!$targetbbb) {
+        // Links of this session to rooms that no longer exist are dead: drop them.
+        $DB->execute("DELETE FROM {gmk_bbb_attendance_relation}
+                       WHERE attendancesessionid = :s
+                         AND NOT EXISTS (SELECT 1 FROM {bigbluebuttonbn} b WHERE b.id = bbbid)", ['s' => $s->id]);
         $class->course = get_course($class->corecourseid);
         $sectionnum = (int)$DB->get_field('course_sections', 'section', ['id' => $class->coursesectionid], MUST_EXIST);
         $room = create_big_blue_button_activity($class, (int)$s->sessdate, (int)$s->sessdate + (int)$s->duration,
