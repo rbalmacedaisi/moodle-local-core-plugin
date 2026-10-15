@@ -56,9 +56,11 @@ $sourcelabel = function (?string $src) use ($sourcelabels): string {
 
 if ($action === 'download_csv') {
     require_sesskey();
-    if ($verify && !$planid && !$courseid) {
+    if ($verify && !$courseid) {
+        // A whole plan is thousands of live recomputations and outlasts the web
+        // server timeout (503 at 120 s): verification works per subject.
         throw new moodle_exception('generalexceptionmessage', 'error', '',
-            'La verificación recalcula cada nota: elija un plan o una asignatura.');
+            'La verificación recalcula cada nota: elija una asignatura.');
     }
     core_php_time_limit::raise(0);
     raise_memory_limit(MEMORY_EXTRA);
@@ -144,6 +146,9 @@ if ($action === 'download_csv') {
             ]);
         }
         fputcsv($fp, $row);
+        // Stream as we go so a long export never sits idle behind the proxy.
+        fflush($fp);
+        flush();
     }
     $rs->close();
     fclose($fp);
@@ -166,7 +171,7 @@ echo $OUTPUT->heading('Informe de Calificaciones');
 (última clase, módulo, reválida o Nota Final Integrada / homologación), con su estado, de dónde sale y cuándo se colocó.
 Es la misma nota que muestran el modal de notas, la tabla de estudiantes, los reportes y el portal del estudiante.</p>
 <p><b>Verificar contra el cálculo:</b> recalcula cada nota y marca las que no coinciden con la guardada
-(por ejemplo, una nota cambiada sin que se actualizara el registro). Es más lento: requiere elegir un plan o una asignatura.</p>
+(por ejemplo, una nota cambiada sin que se actualizara el registro). Es más lento: requiere elegir una asignatura.</p>
 
 <form method="get" action="" class="card card-body mb-3">
     <input type="hidden" name="action" value="download_csv">
@@ -202,7 +207,7 @@ Es la misma nota que muestran el modal de notas, la tabla de estudiantes, los re
     </div>
     <div class="form-check">
         <input class="form-check-input" type="checkbox" name="verify" value="1" id="verify">
-        <label class="form-check-label" for="verify">Verificar contra el cálculo (requiere plan o asignatura)</label>
+        <label class="form-check-label" for="verify">Verificar contra el cálculo (requiere elegir una asignatura)</label>
     </div>
     <div class="form-check mb-3">
         <input class="form-check-input" type="checkbox" name="onlydiff" value="1" id="onlydiff">
