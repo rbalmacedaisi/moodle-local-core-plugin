@@ -1956,5 +1956,33 @@ function absd_run_staged_absence_check(): array {
         }
     }
 
+    // Reverse a global inactivation this process applied once its reason is
+    // gone: the student again has a cursando class that is not blocked (absences
+    // dropped, e.g. a day registered as a holiday stopped counting). Mirrors the
+    // manual unblock in absence_dashboard.php. Only users whose last global
+    // action was 'global_inactive' are touched: suspensions made by hand or by
+    // other processes stay as they are.
+    $summary['users_globally_reactivated'] = 0;
+    if (absd_is_blocking_enabled()) {
+        $suspended = $DB->get_records_sql(
+            "SELECT h.userid
+               FROM {gmk_class_absence_history} h
+               JOIN {user} u ON u.id = h.userid AND u.suspended = 1 AND u.deleted = 0
+              WHERE h.classid = 0
+                AND h.id = (SELECT MAX(h2.id) FROM {gmk_class_absence_history} h2
+                             WHERE h2.userid = h.userid AND h2.classid = 0)
+                AND h.action = 'global_inactive'"
+        );
+        foreach ($suspended as $s) {
+            $uid = (int)$s->userid;
+            $global = absd_check_global_inactivity($uid);
+            if (!empty($global['has_open_class'])) {
+                absd_mark_user_active($uid, $studentstatus_fieldid);
+                absd_log_history($uid, 0, 0, 0, 'global_reactivate', 'auto: has a cursando class that is not blocked');
+                $summary['users_globally_reactivated']++;
+            }
+        }
+    }
+
     return $summary;
 }
