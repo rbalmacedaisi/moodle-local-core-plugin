@@ -241,13 +241,47 @@ function absd_get_class_all_session_ids(stdClass $class): array {
 }
 
 /**
- * Resolve past attendance session ids for a class (robust mode).
+ * Past sessions of a class that count for absences (alerts, blocks, global
+ * inactivation, the absence dashboard and the student's absence detail).
+ *
+ * Sessions on a day registered in gmk_holidays (global scope) are left out: a
+ * day without classes for the whole institution (public holiday, or an
+ * emergency such as the 2026-10-09 earthquake that cancelled the classes of
+ * 2026-10-10) must not add absences, even when the automatic attendance process
+ * already marked everybody absent. The attendance records themselves are kept.
  *
  * @param stdClass $class
  * @param int $nowts
  * @return int[]
  */
 function absd_get_class_past_session_ids(stdClass $class, int $nowts): array {
+    global $DB;
+    $ids = absd_get_class_past_session_ids_all($class, $nowts);
+    if (empty($ids)) {
+        return $ids;
+    }
+    static $holidays = null;
+    if ($holidays === null) {
+        $holidays = \local_grupomakro_core\local\scheduler_settings::get_holiday_dateset();
+    }
+    if (empty($holidays)) {
+        return $ids;
+    }
+    list($insql, $params) = $DB->get_in_or_equal($ids, SQL_PARAMS_NAMED, 'hol');
+    $dates = $DB->get_records_sql_menu("SELECT id, sessdate FROM {attendance_sessions} WHERE id $insql", $params);
+    return array_values(array_filter($ids, function ($id) use ($dates, $holidays) {
+        return !isset($dates[$id]) || !isset($holidays[date('Y-m-d', (int)$dates[$id])]);
+    }));
+}
+
+/**
+ * Resolve past attendance session ids for a class (robust mode).
+ *
+ * @param stdClass $class
+ * @param int $nowts
+ * @return int[]
+ */
+function absd_get_class_past_session_ids_all(stdClass $class, int $nowts): array {
     global $DB;
 
     $window = absd_get_class_session_window($class, $nowts);
