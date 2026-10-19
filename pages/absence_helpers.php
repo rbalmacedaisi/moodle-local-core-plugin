@@ -611,6 +611,98 @@ function absd_get_student_absences(array $sessionids, array $userids): array {
 }
 
 /**
+ * "sábado 15/08/2026, 13:00" in the institution's time zone, whatever the
+ * language of the current user (the cron that sends the alerts runs in English).
+ *
+ * @param int $ts
+ * @return string
+ */
+function absd_format_session_date(int $ts): string {
+    $days = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+    $dt = new DateTime('@' . $ts);
+    $dt->setTimezone(core_date::get_server_timezone_object());
+    return $days[(int)$dt->format('w')] . ' ' . $dt->format('d/m/Y, H:i');
+}
+
+/**
+ * The absences behind a student's count in a class: the same sessions that
+ * absd_recompute_user_class_state() counts (past, taken, not on a holiday)
+ * where the student's latest record is not a present status, or has no record.
+ * Late arrivals that the "N retrasos = una falta" rule turns into absences are
+ * returned apart, as they have no date of their own.
+ *
+ * @param stdClass $class gmk_class record.
+ * @param int $userid
+ * @return array{dates: array<int, array{sessionid:int, sessdate:int, label:string, status:string}>, late_extra:int, late_count:int}
+ */
+function absd_get_user_class_absence_details(stdClass $class, int $userid): array {
+    global $DB;
+    $out = ['dates' => [], 'late_extra' => 0, 'late_count' => 0];
+    $taken = absd_get_taken_session_ids(absd_get_class_past_session_ids($class, time()));
+    if (empty($taken)) {
+        return $out;
+    }
+    list($insql, $params) = $DB->get_in_or_equal($taken, SQL_PARAMS_NAMED, 'uad');
+    $sessions = $DB->get_records_sql(
+        "SELECT s.id, s.sessdate FROM {attendance_sessions} s WHERE s.id $insql ORDER BY s.sessdate ASC", $params);
+    $logs = $DB->get_records_sql(
+        "SELECT l.sessionid, COALESCE(ast.grade, 0) AS grade, COALESCE(ast.description, '') AS statusdesc
+           FROM {attendance_log} l
+           JOIN (SELECT sessionid, MAX(id) AS maxid
+                   FROM {attendance_log}
+                  WHERE studentid = :uid AND sessionid $insql
+               GROUP BY sessionid) mx ON mx.maxid = l.id
+      LEFT JOIN {attendance_statuses} ast ON ast.id = l.statusid",
+        $params + ['uid' => $userid]);
+    foreach ($sessions as $s) {
+        $log = $logs[(int)$s->id] ?? null;
+        if ($log && (float)$log->grade > 0) {
+            continue;
+        }
+        $out['dates'][] = [
+            'sessionid' => (int)$s->id,
+            'sessdate'  => (int)$s->sessdate,
+            'label'     => absd_format_session_date((int)$s->sessdate),
+            'status'    => $log ? trim((string)$log->statusdesc) : 'Sin registro',
+        ];
+    }
+
+    require_once($GLOBALS['CFG']->dirroot . '/local/grupomakro_core/locallib.php');
+    if (\gmk_late_rule_applies((int)$class->id)) {
+        $attendanceid = (int)$DB->get_field('attendance_sessions', 'attendanceid', ['id' => (int)reset($taken)]);
+        $lates = $attendanceid > 0 ? \gmk_count_lates_by_user($attendanceid, [$userid]) : [];
+        $out['late_count'] = (int)($lates[$userid] ?? 0);
+        $out['late_extra'] = (int)\gmk_late_rule_extra_absences((int)$class->id, $out['late_count']);
+    }
+    return $out;
+}
+
+/**
+ * Plain-text list of a student's absence dates in a class, for the alert
+ * messages. Empty string when there is nothing to list.
+ *
+ * @param int $userid
+ * @param int $classid
+ * @return string
+ */
+function absd_absence_dates_text(int $userid, int $classid): string {
+    global $DB;
+    $class = $DB->get_record('gmk_class', ['id' => $classid]);
+    if (!$class) {
+        return '';
+    }
+    $details = absd_get_user_class_absence_details($class, $userid);
+    $lines = array_map(function ($d) {
+        return '- ' . $d['label'] . ' (' . $d['status'] . ')';
+    }, $details['dates']);
+    if ($details['late_extra'] > 0) {
+        $lines[] = '- ' . $details['late_count'] . ' retrasos, que equivalen a ' . $details['late_extra']
+            . ($details['late_extra'] === 1 ? ' inasistencia' : ' inasistencias');
+    }
+    return $lines ? "Fechas de tus inasistencias:\n" . implode("\n", $lines) : '';
+}
+
+/**
  * Returns per-student per-session attendance status.
  * Used by the PDF generator.
  *
@@ -1589,6 +1681,8 @@ function absd_dispatch_alert_notifications(int $userid, int $classid, array $tra
             return;
         }
         $coursename = absd_get_class_display_name($classid);
+        // The dates the student was absent, so they know which days to justify.
+        $datestext = absd_absence_dates_text($userid, $classid);
 
         // Map transition token -> message provider / strings.
         $providermap = [
@@ -1608,6 +1702,14 @@ function absd_dispatch_alert_notifications(int $userid, int $classid, array $tra
             // Body uses the same templating key for consistency with the LXP.
             $bodyplain = get_string($bodykey, 'local_grupomakro_core', (object)['coursename' => $coursename]);
             $bodyhtml  = '<p>' . s($bodyplain) . '</p>';
+            if ($datestext !== '') {
+                $bodyplain .= "\n\n" . $datestext;
+                $lines = explode("\n", $datestext);
+                $title = array_shift($lines);
+                $bodyhtml .= '<p><strong>' . s($title) . '</strong></p><ul>'
+                    . implode('', array_map(function ($l) { return '<li>' . s(ltrim($l, '- ')) . '</li>'; }, $lines))
+                    . '</ul>';
+            }
 
             $message = new \core\message\message();
             $message->component = 'local_grupomakro_core';
@@ -1738,6 +1840,14 @@ function absd_build_absence_summary(int $userid): array {
         if ($blocked) {
             $anyblocked = true;
         }
+        // Which days, so the student knows what to justify.
+        $details = ['dates' => [], 'late_extra' => 0, 'late_count' => 0];
+        if ((int)$r->absence_count > 0) {
+            $classrec = $DB->get_record('gmk_class', ['id' => (int)$r->classid]);
+            if ($classrec) {
+                $details = absd_get_user_class_absence_details($classrec, $userid);
+            }
+        }
         $classes[] = [
             'classid'           => (int)$r->classid,
             'courseid'          => (int)($r->classcorecourseid ?: $r->classcourseid ?: $r->courseid),
@@ -1749,6 +1859,11 @@ function absd_build_absence_summary(int $userid): array {
             'blocked'           => $blocked,
             'block_reason'      => (string)($r->block_reason ?? ''),
             'last_calculated'   => (int)$r->last_calculated,
+            'absences'          => array_map(function ($d) {
+                return ['sessdate' => $d['sessdate'], 'label' => $d['label'], 'status' => $d['status']];
+            }, $details['dates']),
+            'late_count'        => $details['late_count'],
+            'late_absences'     => $details['late_extra'],
         ];
     }
 

@@ -72,6 +72,15 @@ class get_absence_summary extends external_api {
             'blocked'           => new external_value(PARAM_BOOL, 'Class access is blocked'),
             'block_reason'      => new external_value(PARAM_TEXT, 'Reason of the block'),
             'last_calculated'   => new external_value(PARAM_INT, 'Unix timestamp of the last recompute'),
+            'absences'          => new external_multiple_structure(
+                new external_single_structure([
+                    'sessdate' => new external_value(PARAM_INT, 'Session start (unix timestamp)'),
+                    'label'    => new external_value(PARAM_TEXT, 'Session date, e.g. "sábado 15/08/2026, 13:00"'),
+                    'status'   => new external_value(PARAM_TEXT, 'Recorded status, or "Sin registro"'),
+                ]),
+                'Sessions counted as absences, oldest first', VALUE_DEFAULT, []),
+            'late_count'        => new external_value(PARAM_INT, 'Late arrivals recorded', VALUE_DEFAULT, 0),
+            'late_absences'     => new external_value(PARAM_INT, 'Absences added by the "N retrasos = una falta" rule', VALUE_DEFAULT, 0),
         ]);
 
         return new external_single_structure([
