@@ -9866,6 +9866,9 @@ function toggle_class_grade_lock($classId, $locked) {
  * Queue a re-sync of the stored grade (gmk_course_progre) of every student of
  * a class. Used when attendance sessions are deleted: their logs vanish without
  * leaving a changed row, so the incremental attendance sync cannot see them.
+ * The class is noted in the plugin config and picked up by the
+ * sync_grades_after_attendance task (every 10 minutes), which does not depend on
+ * the ad hoc queue.
  *
  * @param int $classid
  */
@@ -9874,9 +9877,10 @@ function gmk_queue_class_grade_sync(int $classid): void {
         return;
     }
     try {
-        $task = new \local_grupomakro_core\task\sync_grades_adhoc();
-        $task->set_custom_data(['classid' => $classid]);
-        \core\task\manager::queue_adhoc_task($task, true);
+        $pending = array_filter(array_map('intval',
+            explode(',', (string)get_config('local_grupomakro_core', 'grade_sync_pending_classes'))));
+        $pending[] = $classid;
+        set_config('grade_sync_pending_classes', implode(',', array_unique($pending)), 'local_grupomakro_core');
     } catch (\Throwable $e) {
         gmk_log('WARN: gmk_queue_class_grade_sync failed for class ' . $classid . ': ' . $e->getMessage());
     }

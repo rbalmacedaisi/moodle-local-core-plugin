@@ -22,7 +22,8 @@
  * taken or corrected, and sessions deleted (false sessions, reschedules), change
  * that grade without any grading event, so the stored grade drifts. This task
  * re-syncs every (student, subject) whose class attendance changed since the
- * previous run.
+ * previous run, plus every student of the classes noted by
+ * gmk_queue_class_grade_sync().
  *
  * @package    local_grupomakro_core
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -77,6 +78,21 @@ class sync_grades_after_attendance extends \core\task\scheduled_task {
                 AND lg.timecreated >= :since AND c.corecourseid > 0",
             ['ev' => '\\mod_attendance\\event\\session_deleted', 'since' => $since]);
         $pairs += $deleted;
+
+        // 3. Classes noted by gmk_queue_class_grade_sync() (sessions deleted by the
+        // plugin without the native event): every student of the class.
+        $pendingclasses = array_filter(array_map('intval',
+            explode(',', (string)get_config('local_grupomakro_core', 'grade_sync_pending_classes'))));
+        if ($pendingclasses) {
+            set_config('grade_sync_pending_classes', '', 'local_grupomakro_core');
+            list($insql, $inparams) = $DB->get_in_or_equal(array_values(array_unique($pendingclasses)), SQL_PARAMS_NAMED);
+            $pairs += $DB->get_records_sql(
+                "SELECT DISTINCT " . $DB->sql_concat('gm.userid', "'-'", 'c.corecourseid') . " AS k,
+                        gm.userid, c.corecourseid AS courseid
+                   FROM {gmk_class} c
+                   JOIN {groups_members} gm ON gm.groupid = c.groupid
+                  WHERE c.id $insql AND c.corecourseid > 0", $inparams);
+        }
 
         $synced = 0;
         $changed = 0;
