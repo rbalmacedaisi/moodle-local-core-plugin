@@ -22,11 +22,16 @@
  *  C. Orphan recordings (their BBB activity was deleted): mapped through the BBB
  *     server name "...-<classid>-<timestamp>" and start time to the class session
  *     they belong to, and re-pointed to that session's room; a session without a
- *     room gets a new (closed, past) room linked to it.
+ *     room gets a new (closed, past) room linked to it. BBB truncates long names
+ *     ("...-9870-17907300..."), which is accepted too; when the name does not
+ *     carry the class id at all, the recording is attributed by its course (from
+ *     the meeting id "<hash>-<courseid>-<bbbid>") and start time, only when exactly
+ *     one class of that course has a session at that time.
  *
  * Usage:
  *   php local/grupomakro_core/cli/repair_false_absences_and_recordings.php            (plan only, no writes)
- *   php local/grupomakro_core/cli/repair_false_absences_and_recordings.php --apply [--classid=N]
+ *   php local/grupomakro_core/cli/repair_false_absences_and_recordings.php --apply [--classid=N[,M...]]
+ *       [--recordings-only]   skip A (false sessions): only re-link recordings
  *
  * @package    local_grupomakro_core
  */
@@ -40,9 +45,10 @@ require_once($CFG->dirroot . '/mod/attendance/locallib.php');
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 require_once($CFG->dirroot . '/local/grupomakro_core/pages/absence_helpers.php');
 
-list($options) = cli_get_params(['apply' => false, 'classid' => 0]);
+list($options) = cli_get_params(['apply' => false, 'classid' => '', 'recordings-only' => false]);
 $apply = !empty($options['apply']);
-$onlyclass = (int)$options['classid'];
+$onlyclasses = array_filter(array_map('intval', explode(',', (string)$options['classid'])));
+$recordingsonly = !empty($options['recordings-only']);
 \core\session\manager::set_user(get_admin());
 $now = time();
 $report = '/tmp/repair_false_absences_' . ($apply ? 'apply' : 'plan') . '_' . date('Ymd_His') . '.csv';
@@ -76,7 +82,7 @@ $sessions = $DB->get_records_sql("SELECT s.*,
 $false = [];
 foreach ($sessions as $s) {
     $class = $classbyatt[$s->attendanceid . '-' . $s->groupid] ?? null;
-    if (!$class || ($onlyclass && (int)$class->id !== $onlyclass)) {
+    if ($recordingsonly || !$class || ($onlyclasses && !in_array((int)$class->id, $onlyclasses, true))) {
         continue;
     }
     if ((int)$s->attended > 0 || (int)$s->logs === 0) {
@@ -134,12 +140,23 @@ foreach (array_chunk(array_values(array_map(fn($r) => $r->recordingid, $orph)), 
     $xml = @simplexml_load_string(@file_get_contents($url . 'api/getRecordings?' . $q . '&checksum=' . sha1('getRecordings' . $q . $secret)));
     if ($xml && isset($xml->recordings->recording)) {
         foreach ($xml->recordings->recording as $rr) {
-            $meta[(string)$rr->recordID] = ['name' => (string)$rr->name, 'start' => (int)((int)$rr->startTime / 1000)];
+            $meta[(string)$rr->recordID] = ['name' => (string)$rr->name, 'start' => (int)((int)$rr->startTime / 1000),
+                'meetingid' => (string)$rr->meetingID];
         }
     }
 }
 $bbbmoduleid = (int)gmk_get_module_id_by_name('bigbluebuttonbn');
-$cstats = ['reasignada' => 0, 'sala_nueva' => 0, 'sin_sesion' => 0, 'no_es_de_clase' => 0, 'no_en_servidor' => 0];
+$cstats = ['reasignada' => 0, 'sala_nueva' => 0, 'sin_sesion' => 0, 'no_es_de_clase' => 0, 'no_en_servidor' => 0,
+    'por_curso_y_hora' => 0, 'ambigua' => 0];
+// Classes of a course with a session around a moment (fallback when the name lacks the class id).
+$classesatmoment = function (int $courseid, int $start) use ($DB): array {
+    return $DB->get_records_sql("SELECT DISTINCT c.*
+          FROM {gmk_class} c
+          JOIN {course_modules} cm ON cm.id = c.attendancemoduleid
+          JOIN {attendance_sessions} s ON s.attendanceid = cm.instance AND s.groupid = c.groupid
+         WHERE c.corecourseid = :c AND s.sessdate BETWEEN :f AND :t",
+        ['c' => $courseid, 'f' => $start - 3600, 't' => $start + 1800]);
+};
 $newroomforsession = [];
 foreach ($orph as $r) {
     $m = $meta[$r->recordingid] ?? null;
@@ -147,12 +164,31 @@ foreach ($orph as $r) {
         $cstats['no_en_servidor']++;
         continue;
     }
-    if (!preg_match('/-(\d{3,6})-(\d{9,11})$/', $m['name'], $mm)
-            || !($class = $DB->get_record('gmk_class', ['id' => (int)$mm[1]]))) {
+    // "<class name>-<classid>-<timestamp>", possibly truncated by BBB ("-9870-17907300...").
+    $class = null;
+    if (preg_match('/-(\d{3,6})-(\d{9,11}|\d*\.{3})$/', $m['name'], $mm)) {
+        $class = $DB->get_record('gmk_class', ['id' => (int)$mm[1]]) ?: null;
+    }
+    if (!$class && preg_match('/-(\d+)-\d+(\[\d+\])?$/', $m['meetingid'], $mm)) {
+        // Only class rooms: the (truncated) recording name must be the start of the class name.
+        $prefix = trim(preg_replace('/(-\d*)?\.{3}$/', '', $m['name']));
+        $cands = array_filter($classesatmoment((int)$mm[1], $m['start']),
+            fn($c) => $prefix !== '' && strpos($c->name . '-' . $c->id, $prefix) === 0);
+        if (count($cands) === 1) {
+            $class = reset($cands);
+            $cstats['por_curso_y_hora']++;
+        } else if (count($cands) > 1) {
+            $cstats['ambigua']++;
+            fputcsv($csv, ['grabacion_ambigua', '', $m['name'], '', userdate($m['start'], '%Y-%m-%d %H:%M'),
+                $r->recordingid . ' clases: ' . implode(',', array_keys($cands))]);
+            continue;
+        }
+    }
+    if (!$class) {
         $cstats['no_es_de_clase']++;
         continue;
     }
-    if ($onlyclass && (int)$class->id !== $onlyclass) {
+    if ($onlyclasses && !in_array((int)$class->id, $onlyclasses, true)) {
         continue;
     }
     $attid = (int)$DB->get_field('course_modules', 'instance', ['id' => $class->attendancemoduleid]);
