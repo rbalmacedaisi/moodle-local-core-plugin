@@ -189,7 +189,7 @@ function gmk_qr_log_decision($traceid, $status, $reasoncode, $message, $sessioni
     if (!is_string($logline) || $logline === '') {
         $logline = '{"traceid":"' . (string)$traceid . '","status":"log_encode_error"}';
     }
-    @file_put_contents(__DIR__ . '/../gmk_qr_attendance.log', $logline . PHP_EOL, FILE_APPEND);
+    \local_grupomakro_core\local\qr_attendance_log::write($logline, $payload['time']);
 }
 
 /**

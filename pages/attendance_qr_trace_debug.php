@@ -409,15 +409,18 @@ function gmk_qr_debug_hints($entry, $sessiondiag) {
 $traceid = optional_param('traceid', '', PARAM_RAW_TRIMMED);
 $sessionid = optional_param('sessionid', 0, PARAM_INT);
 $limit = max(20, min(300, optional_param('limit', 80, PARAM_INT)));
-$clearlog = optional_param('clearlog', 0, PARAM_BOOL);
-$logfile = __DIR__ . '/../gmk_qr_attendance.log';
+// Monthly files in moodledata, newest first. The log is audit evidence: it is
+// never emptied from here.
+$logfiles = \local_grupomakro_core\local\qr_attendance_log::files();
+$logfile = \local_grupomakro_core\local\qr_attendance_log::dir();
 
-if ($clearlog && confirm_sesskey()) {
-    @file_put_contents($logfile, '');
-    redirect(new moodle_url('/local/grupomakro_core/pages/attendance_qr_trace_debug.php'));
+$entries = [];
+foreach ($logfiles as $lf) {
+    $entries = array_merge($entries, gmk_qr_debug_read_log_entries($lf, $traceid, $sessionid, $limit - count($entries)));
+    if (count($entries) >= $limit) {
+        break;
+    }
 }
-
-$entries = gmk_qr_debug_read_log_entries($logfile, $traceid, $sessionid, $limit);
 $selected = $entries[0] ?? null;
 if ($sessionid <= 0 && !empty($selected['sessionid'])) {
     $sessionid = (int)$selected['sessionid'];
@@ -480,7 +483,6 @@ echo $OUTPUT->header();
                 <button type="submit" class="gmk-btn gmk-btn-primary">Buscar</button>
                 <a class="gmk-btn gmk-btn-outline" href="<?php echo $CFG->wwwroot; ?>/local/grupomakro_core/pages/attendance_qr_sessions_debug.php">Debug sesiones QR</a>
                 <a class="gmk-btn gmk-btn-outline" href="<?php echo $CFG->wwwroot; ?>/local/grupomakro_core/pages/attendance_qr_trace_debug.php">Limpiar filtros</a>
-                <a class="gmk-btn gmk-btn-danger" href="<?php echo $CFG->wwwroot; ?>/local/grupomakro_core/pages/attendance_qr_trace_debug.php?clearlog=1&sesskey=<?php echo sesskey(); ?>">Vaciar log</a>
             </div>
         </form>
     </div>
@@ -488,12 +490,12 @@ echo $OUTPUT->header();
     <div class="gmk-panel">
         <div class="gmk-grid">
             <div class="gmk-kv">
-                <div class="label">Log file</div>
+                <div class="label">Log directory</div>
                 <div class="value"><?php echo gmk_qr_debug_s($logfile); ?></div>
             </div>
             <div class="gmk-kv">
-                <div class="label">Log exists</div>
-                <div class="value"><?php echo gmk_qr_debug_bool_badge(is_file($logfile)); ?></div>
+                <div class="label">Monthly files</div>
+                <div class="value"><?php echo gmk_qr_debug_s(implode(', ', array_map('basename', $logfiles)) ?: '-'); ?></div>
             </div>
             <div class="gmk-kv">
                 <div class="label">Entries shown</div>
