@@ -2560,33 +2560,44 @@ try {
                 }
 
                 // ── Auto-resolve fallback ──────────────────────────────────────────
-                // No grades submitted: resolve from the single activity in the category.
+                // No grades submitted: resolve from the module's activities (its category, or
+                // the class section when the category is empty, otherwise the enrollment would be
+                // closed without registering the grade the student actually has). A module can
+                // hold several activities: read the one this student was graded on, the most
+                // recently graded if more than one.
                 if ($module_grade === null && $mod_class && (int)$mod_class->corecourseid > 0) {
-                    $gi = null;
+                    $candidate_items = [];
                     if ((int)$mod_class->gradecategoryid > 0) {
-                        $gi = $DB->get_record_sql(
-                            "SELECT gi.id, gi.grademax
+                        $candidate_items = array_keys($DB->get_records_sql(
+                            "SELECT gi.id
                                FROM {grade_items} gi
                               WHERE gi.categoryid = :catid
                                 AND gi.courseid   = :cid
                                 AND gi.itemtype  IN ('mod', 'manual')
-                           ORDER BY gi.id ASC
-                              LIMIT 1",
+                                AND COALESCE(gi.itemmodule, '') <> 'attendance'",
                             ['catid' => (int)$mod_class->gradecategoryid, 'cid' => (int)$mod_class->corecourseid]
+                        ));
+                    }
+                    $candidate_items = array_values(array_unique(array_merge(
+                        $candidate_items, array_map('intval', array_keys($module_section_items)))));
+                    if ($candidate_items) {
+                        list($ci_sql, $ci_params) = $DB->get_in_or_equal($candidate_items, SQL_PARAMS_NAMED, 'mci');
+                        $gg = $DB->get_record_sql(
+                            "SELECT gg.finalgrade, gi.grademax
+                               FROM {grade_grades} gg
+                               JOIN {grade_items} gi ON gi.id = gg.itemid
+                              WHERE gg.itemid $ci_sql
+                                AND gg.userid = :uid
+                                AND gg.finalgrade IS NOT NULL
+                                AND gi.grademax > 0
+                                AND COALESCE(gi.itemmodule, '') <> 'attendance'
+                           ORDER BY gg.timemodified DESC, gi.id DESC",
+                            $ci_params + ['uid' => (int)$enrollment_rec->userid],
+                            IGNORE_MULTIPLE
                         );
-                    }
-                    // Empty category: use the activity that lives in the class section, otherwise
-                    // the enrollment would be closed without registering the grade the student
-                    // actually has.
-                    if (!$gi && !empty($module_section_items)) {
-                        $gi = reset($module_section_items);
-                    }
-                    if ($gi && (float)$gi->grademax > 0) {
-                        $gg = $DB->get_record('grade_grades',
-                            ['itemid' => (int)$gi->id, 'userid' => (int)$enrollment_rec->userid]);
-                        if ($gg && $gg->finalgrade !== null) {
+                        if ($gg) {
                             $module_grade = min(
-                                round(((float)$gg->finalgrade / (float)$gi->grademax) * 100, 2),
+                                round(((float)$gg->finalgrade / (float)$gg->grademax) * 100, 2),
                                 100.0
                             );
                         }

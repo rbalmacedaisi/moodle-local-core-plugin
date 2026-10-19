@@ -1041,26 +1041,29 @@ class course_grade_resolver
             $mcCmids = array_values(array_filter(array_map('intval', explode(',', $mcSequence))));
             if (empty($mcCmids)) continue;
 
+            // A module section can hold several gradable activities (e.g. the original
+            // one plus a per-programme copy): read the one this student was graded on,
+            // the most recently graded if more than one.
             list($mcCminSql, $mcCminParams) = $DB->get_in_or_equal($mcCmids, SQL_PARAMS_NAMED, 'mcm');
-            $mcGi = $DB->get_record_sql(
-                "SELECT gi.id, gi.grademax
+            $mcGg = $DB->get_record_sql(
+                "SELECT gg.finalgrade, gi.grademax
                    FROM {grade_items} gi
                    JOIN {course_modules} cm ON cm.instance = gi.iteminstance
                    JOIN {modules} mmod ON mmod.id = cm.module
                                         AND gi.itemmodule = mmod.name
+                   JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = :mc_uid
                   WHERE cm.id $mcCminSql
                     AND gi.courseid = :mc_cid
                     AND gi.itemtype IN ('mod', 'manual')
                     AND gi.grademax > 0
-               ORDER BY gi.id ASC
-                  LIMIT 1",
-                $mcCminParams + ['mc_cid' => (int)$cr->corecourseid]
+                    AND mmod.name <> 'attendance'
+                    AND gg.finalgrade IS NOT NULL
+               ORDER BY gg.timemodified DESC, gi.id DESC",
+                $mcCminParams + ['mc_cid' => (int)$cr->corecourseid, 'mc_uid' => $userid],
+                IGNORE_MULTIPLE
             );
-            if (!$mcGi) continue;
-
-            $mcGg = $DB->get_record('grade_grades',
-                ['itemid' => (int)$mcGi->id, 'userid' => $userid]);
-            if (!$mcGg || $mcGg->finalgrade === null) continue;
+            if (!$mcGg) continue;
+            $mcGi = $mcGg;
 
             $mcGrade = min(
                 round(((float)$mcGg->finalgrade / (float)$mcGi->grademax) * 100, 2),

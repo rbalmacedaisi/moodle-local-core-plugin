@@ -657,25 +657,27 @@ class get_student_learning_plan_pensum extends external_api
                         list($mc_cminSql, $mc_cminParams) = $DB->get_in_or_equal(
                             $mc_cmids, SQL_PARAMS_NAMED, 'mcm'
                         );
-                        $mc_gi = $DB->get_record_sql(
-                            "SELECT gi.id, gi.grademax
+                        // The section can hold several gradable activities: read the one
+                        // this student was graded on (most recent), not just the first.
+                        $mc_gg = $DB->get_record_sql(
+                            "SELECT gg.finalgrade, gi.grademax
                                FROM {grade_items} gi
                                JOIN {course_modules} cm ON cm.instance = gi.iteminstance
                                JOIN {modules} mmod ON mmod.id = cm.module
                                     AND gi.itemmodule = mmod.name
+                               JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = :mc_uid
                               WHERE cm.id $mc_cminSql
                                 AND gi.courseid = :mc_cid
                                 AND gi.itemtype IN ('mod', 'manual')
                                 AND gi.grademax > 0
-                           ORDER BY gi.id ASC
-                              LIMIT 1",
-                            $mc_cminParams + ['mc_cid' => (int)$mc->corecourseid]
+                                AND mmod.name <> 'attendance'
+                                AND gg.finalgrade IS NOT NULL
+                           ORDER BY gg.timemodified DESC, gi.id DESC",
+                            $mc_cminParams + ['mc_cid' => (int)$mc->corecourseid, 'mc_uid' => (int)$params['userId']],
+                            IGNORE_MULTIPLE
                         );
-                        if (!$mc_gi) continue;
-
-                        $mc_gg = $DB->get_record('grade_grades',
-                            ['itemid' => (int)$mc_gi->id, 'userid' => (int)$params['userId']]);
-                        if (!$mc_gg || $mc_gg->finalgrade === null) continue;
+                        if (!$mc_gg) continue;
+                        $mc_gi = $mc_gg;
 
                         $mc_grade = min(
                             round(((float)$mc_gg->finalgrade / (float)$mc_gi->grademax) * 100, 2),
