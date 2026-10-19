@@ -157,14 +157,27 @@ $tasks = [
     [
         // Recalcula la nota guardada (gmk_course_progre) de los estudiantes cuya
         // asistencia cambio desde la corrida anterior: asistencia tomada o
-        // corregida y sesiones eliminadas. La nota de clase incluye la asistencia
-        // pero solo se resincronizaba al calificar.
+        // corregida (QR, BBB, docente, Bienestar, faltas automaticas) y sesiones
+        // eliminadas. La nota de clase incluye la asistencia pero solo se
+        // resincronizaba al calificar. Cada 10 minutos.
         'classname' => 'local_grupomakro_core\task\sync_grades_after_attendance',
         'blocking' => 0,
-        'minute' => '40',
-        'hour' => '2',
+        'minute' => '*/10',
+        'hour' => '*',
         'day' => '*',
         'month' => '*',
         'dayofweek' => '*',
+    ],
+    [
+        // Conciliacion semanal completa de la ultima nota (como
+        // cli/sync_latest_grades.php --apply): red de seguridad para cambios que
+        // no dejan rastro (scripts directos a BD, deshacer marcas).
+        'classname' => 'local_grupomakro_core\task\sync_all_latest_grades',
+        'blocking' => 0,
+        'minute' => '30',
+        'hour' => '3',
+        'day' => '*',
+        'month' => '*',
+        'dayofweek' => '0',
     ],
 ];

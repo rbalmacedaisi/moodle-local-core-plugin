@@ -37,7 +37,7 @@ defined('MOODLE_INTERNAL') || die();
 class sync_grades_after_attendance extends \core\task\scheduled_task {
 
     public function get_name() {
-        return 'Actualizar notas tras cambios de asistencia';
+        return 'Actualizar notas tras cambios de asistencia (cada 10 min)';
     }
 
     public function execute() {
@@ -49,8 +49,10 @@ class sync_grades_after_attendance extends \core\task\scheduled_task {
         }
 
         $now = time();
-        // First run: look back one day plus a margin.
-        $since = (int)get_config('local_grupomakro_core', 'attendance_grade_sync_lastrun') ?: $now - 26 * HOURSECS;
+        // First run: look back one day plus a margin. Later runs overlap the previous one by
+        // a minute so a mark written while it ran is not missed.
+        $last = (int)get_config('local_grupomakro_core', 'attendance_grade_sync_lastrun');
+        $since = $last > 0 ? $last - MINSECS : $now - 26 * HOURSECS;
 
         // 1. Attendance taken or corrected: the student of each changed log row.
         $pairs = $DB->get_records_sql(

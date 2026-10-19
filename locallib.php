@@ -4360,6 +4360,8 @@ function replace_attendance_session($moduleId, $sessionIdToBeRemoved, $sessionDa
     $DB->delete_records('attendance_log', ['sessionid' => $sessionIdToBeRemoved]);
     $DB->delete_records('attendance_sessions', ['id' => $sessionIdToBeRemoved]);
     gmk_log("INFO: replace_attendance_session safe-deleted session {$sessionIdToBeRemoved} (bypassed mod_attendance session_deleted event bug).");
+    // Its logs are gone: the class grade (attendance item) changes for every student.
+    gmk_queue_class_grade_sync((int)$class->id);
 
     // Pass BBBCourseModuleInfo so the session description includes the BBB link,
     // exactly as create_class_activities does during the publish flow.
@@ -9860,6 +9862,26 @@ function toggle_class_grade_lock($classId, $locked) {
  *                      are considered. This excludes ghost group members (module students
  *                      added for section visibility, or students from other classes).
  */
+/**
+ * Queue a re-sync of the stored grade (gmk_course_progre) of every student of
+ * a class. Used when attendance sessions are deleted: their logs vanish without
+ * leaving a changed row, so the incremental attendance sync cannot see them.
+ *
+ * @param int $classid
+ */
+function gmk_queue_class_grade_sync(int $classid): void {
+    if ($classid <= 0) {
+        return;
+    }
+    try {
+        $task = new \local_grupomakro_core\task\sync_grades_adhoc();
+        $task->set_custom_data(['classid' => $classid]);
+        \core\task\manager::queue_adhoc_task($task, true);
+    } catch (\Throwable $e) {
+        gmk_log('WARN: gmk_queue_class_grade_sync failed for class ' . $classid . ': ' . $e->getMessage());
+    }
+}
+
 function gmk_count_pending_attendance_sessions(int $attendanceId, int $groupId, int $before, int $classId = 0): int {
     global $DB;
     if ($attendanceId <= 0 || $groupId <= 0) {
@@ -13098,6 +13120,8 @@ function gmk_delete_class_activity(array $params): array {
 
         // 4) Attendance session row.
         $DB->delete_records('attendance_sessions', ['id' => $sessionId]);
+        // Its logs are gone: re-sync the stored grade of the class students.
+        gmk_queue_class_grade_sync((int)$classId);
 
         // 5) BBB module (if any). course_delete_module handles events, completion,
         //    grade items and the course_sections sequence.
