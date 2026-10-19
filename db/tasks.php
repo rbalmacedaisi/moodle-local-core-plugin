@@ -154,4 +154,17 @@ $tasks = [
         'month' => '*',
         'dayofweek' => '*',
     ],
+    [
+        // Recalcula la nota guardada (gmk_course_progre) de los estudiantes cuya
+        // asistencia cambio desde la corrida anterior: asistencia tomada o
+        // corregida y sesiones eliminadas. La nota de clase incluye la asistencia
+        // pero solo se resincronizaba al calificar.
+        'classname' => 'local_grupomakro_core\task\sync_grades_after_attendance',
+        'blocking' => 0,
+        'minute' => '40',
+        'hour' => '2',
+        'day' => '*',
+        'month' => '*',
+        'dayofweek' => '*',
+    ],
 ];
