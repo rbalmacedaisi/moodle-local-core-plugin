@@ -12,6 +12,7 @@ defined('MOODLE_INTERNAL') || die();
 require_once($CFG->dirroot . '/grade/lib.php');
 require_once($CFG->dirroot . '/grade/querylib.php');
 require_once($CFG->libdir  . '/gradelib.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/pages/absence_helpers.php');
 
 /**
  * Returns a clean, structured gradebook for a student in a course.
@@ -145,6 +146,12 @@ class get_student_gradebook extends external_api
                             $gradePercent   = round(((int)$attRow->present / (int)$attRow->total) * 100, 1);
                             $gradeFormatted = round($gradePercent * (float)$gi->grademax / 100, 2);
                         }
+                        // The days counted as absences (same rule as the absence alerts),
+                        // for the "Ver inasistencias" dropdown of the LXP gradebook.
+                        $attClass = $DB->get_record('gmk_class', ['groupid' => $userGroup], '*', IGNORE_MULTIPLE);
+                        $absenceDetails = $attClass
+                            ? absd_get_user_class_absence_details($attClass, $userId)
+                            : ['dates' => [], 'late_extra' => 0, 'late_count' => 0];
                     } elseif (!is_null($gi->finalgrade) && $gi->grademax > 0) {
                         $gradeFormatted = round((float)$gi->finalgrade, 2);
                         $gradePercent   = round(((float)$gi->finalgrade / (float)$gi->grademax) * 100, 1);
@@ -175,6 +182,14 @@ class get_student_gradebook extends external_api
                         'weight_pct'   => 0,
                         'weighted_contribution' => null,
                     ];
+                    if ($moduleType === 'attendance') {
+                        $last = count($items) - 1;
+                        $items[$last]['absences'] = array_map(function ($d) {
+                            return ['sessdate' => $d['sessdate'], 'label' => $d['label'], 'status' => $d['status']];
+                        }, $absenceDetails['dates']);
+                        $items[$last]['late_count']    = $absenceDetails['late_count'];
+                        $items[$last]['late_absences'] = $absenceDetails['late_extra'];
+                    }
                 }
             }
 
