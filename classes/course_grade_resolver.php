@@ -1213,6 +1213,9 @@ class course_grade_resolver
     /** Strictly above this is a pass (close_class_grades_and_open_revalids uses the same cut). */
     const LATEST_PASS_ABOVE = 70.9;
 
+    /** Value the old progress_manager stored as "passed" in place of the grade. */
+    const PASSED_MARKER_GRADE = 70.0;
+
     /** Tie-break when two candidates were graded in the same second. */
     const LATEST_TIE_RANK = [
         self::SOURCE_REVALIDATION  => 4,
@@ -1539,6 +1542,17 @@ class course_grade_resolver
                 $new->grade_at = $res['gradedat'];
                 $new->grade_classid = $res['classid'];
                 $new->status = self::status_for_latest((int)$row->status, $res);
+                // From 2026-03-12 to 2026-10-14 progress_manager stored 70.00 as a
+                // "passed" marker instead of the grade, and a later pass read that 70
+                // as a failing grade and set Reprobada. A historical source cannot
+                // decide a status, but it can undo that one: a stored 70 marker with
+                // status 5 and a real grade above the cut is an approved subject.
+                if (strpos((string)$res['source'], 'historical_') === 0
+                        && (int)$row->status === 5
+                        && abs((float)$row->grade - self::PASSED_MARKER_GRADE) < 0.005
+                        && (float)$res['grade'] > self::LATEST_PASS_ABOVE) {
+                    $new->status = 4;
+                }
                 if (in_array((int)$new->status, [3, 4], true)) {
                     $new->progress = 100;
                 }
