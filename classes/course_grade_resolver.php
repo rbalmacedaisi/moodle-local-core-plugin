@@ -1209,6 +1209,8 @@ class course_grade_resolver
     const SOURCE_LATEST_MODULE       = 'module';
     const SOURCE_LATEST_NFI          = 'nota_final_integrada';
     const SOURCE_HISTORICAL_PROGRE   = 'historical_progre';
+    /** Grade copied from the approved row of the same subject in another plan of the student. */
+    const SOURCE_OTHER_PLAN          = 'historical_other_plan';
 
     /** Strictly above this is a pass (close_class_grades_and_open_revalids uses the same cut). */
     const LATEST_PASS_ABOVE = 70.9;
@@ -1535,6 +1537,21 @@ class course_grade_resolver
                 // Nothing in the gradebook: keep what was stored (migrated data).
                 if ((float)$row->grade > 0 && empty($row->grade_source)) {
                     $new->grade_source = self::SOURCE_HISTORICAL_PROGRE;
+                }
+                // The 70 "passed" marker turned into Reprobada (see below) on a plan
+                // whose classes hold no grade: the subject was passed in another plan
+                // of the student, so it takes that row's grade and is approved.
+                if ((int)$row->status === 5 && abs((float)$row->grade - self::PASSED_MARKER_GRADE) < 0.005) {
+                    foreach ($rows as $other) {
+                        if ((int)$other->id !== (int)$row->id && in_array((int)$other->status, [3, 4], true)
+                                && (float)$other->grade > self::LATEST_PASS_ABOVE) {
+                            $new->grade = $other->grade;
+                            $new->grade_source = self::SOURCE_OTHER_PLAN;
+                            $new->status = 4;
+                            $new->progress = 100;
+                            break;
+                        }
+                    }
                 }
             } else {
                 $new->grade = $res['grade'];
