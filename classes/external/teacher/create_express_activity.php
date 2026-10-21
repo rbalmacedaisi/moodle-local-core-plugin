@@ -121,18 +121,33 @@ class create_express_activity extends external_api {
         // la tabla course") for 88 of the 134 open classes, and silently resolved
         // to an UNRELATED course for the other 46, where the two id ranges happen
         // to overlap — so the manageactivities check ran against the wrong course.
-        $classrecord = $DB->get_record('gmk_class', ['id' => $params['classid']],
-            'id, courseid, corecourseid, instructorid, supportinstructorid', MUST_EXIST);
-        $coursecontext = \context_course::instance($classrecord->corecourseid);
-        if (!gmk_user_is_class_instructor_or_support($classrecord, $USER->id)
-            && !has_capability('moodle/course:manageactivities', $coursecontext)
-            && !has_capability('local/grupomakro_core:manage_classes', \context_system::instance())) {
-            throw new \moodle_exception('nopermissions', 'error', '', 'create activity in class');
-        }
-
-        // Convert alpha type to Moodle module name if necessary
+        //
+        // classid = -1 is the "no class" marker used by pages/manage_meetings.php
+        // (js/components/MeetingManager.js) to create a guest BBB room on the
+        // front page: there is no gmk_class row to look up, and
+        // local_grupomakro_create_express_activity() has a dedicated -1 branch for
+        // it. The class check below used to run get_record(... MUST_EXIST) on id -1
+        // and failed with "No se puede encontrar registro de datos en la tabla
+        // gmk_class" before reaching that branch. For -1 the authorisation is the
+        // page's own capability, and only a BBB room may be created this way.
         $modmap = ['bbb' => 'bigbluebuttonbn', 'assignment' => 'assign', 'task' => 'assign', 'resource' => 'resource', 'quiz' => 'quiz', 'forum' => 'forum'];
         $modname = isset($modmap[$params['type']]) ? $modmap[$params['type']] : $params['type'];
+
+        if ((int)$params['classid'] === -1) {
+            require_capability('local/grupomakro_core:manage_meetings', \context_system::instance());
+            if ($modname !== 'bigbluebuttonbn') {
+                throw new \moodle_exception('nopermissions', 'error', '', 'create non-meeting activity outside a class');
+            }
+        } else {
+            $classrecord = $DB->get_record('gmk_class', ['id' => $params['classid']],
+                'id, courseid, corecourseid, instructorid, supportinstructorid', MUST_EXIST);
+            $coursecontext = \context_course::instance($classrecord->corecourseid);
+            if (!gmk_user_is_class_instructor_or_support($classrecord, $USER->id)
+                && !has_capability('moodle/course:manageactivities', $coursecontext)
+                && !has_capability('local/grupomakro_core:manage_classes', \context_system::instance())) {
+                throw new \moodle_exception('nopermissions', 'error', '', 'create activity in class');
+            }
+        }
 
         $extra = [
             'duedate' => $params['duedate'],
