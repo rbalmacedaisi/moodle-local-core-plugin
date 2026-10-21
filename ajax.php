@@ -6256,6 +6256,26 @@ try {
                         ];
                     }
                     $mx_rs->close();
+
+                    // Scans refused for mora: the cell shows the absence as an
+                    // attempt to mark while in arrears.
+                    foreach (absd_get_mora_attempts($all_session_ids, $userids) as $mo_uid => $mo_sessions) {
+                        $uid_key = (string)(int)$mo_uid;
+                        if (!isset($matrix_out->$uid_key)) {
+                            $matrix_out->$uid_key = new stdClass();
+                        }
+                        foreach ($mo_sessions as $mo_sid => $mo) {
+                            $sid_key = (string)(int)$mo_sid;
+                            if (!isset($matrix_out->$uid_key->$sid_key)) {
+                                $matrix_out->$uid_key->$sid_key = [
+                                    'acronym' => '–', 'description' => 'Sin registrar', 'grade' => 0.0,
+                                    'takenby' => 0, 'mine' => false,
+                                ];
+                            }
+                            $matrix_out->{$uid_key}->{$sid_key}['mora_at'] = userdate($mo['first'], '%H:%M');
+                            $matrix_out->{$uid_key}->{$sid_key}['mora_count'] = $mo['count'];
+                        }
+                    }
                 }
 
                 // Statuses the teacher may actually set (everything but presence).

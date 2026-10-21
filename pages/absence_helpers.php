@@ -488,6 +488,86 @@ function absd_get_class_enrolled_userids(int $classid): array {
 }
 
 /**
+ * QR scans refused because the student was in arrears, per student and session.
+ *
+ * An absence in a session listed here is one the student tried to avoid: they
+ * scanned the QR and the bridge refused it for mora (gmk_qr_mora_attempt).
+ *
+ * @param int[] $sessionids
+ * @param int[] $userids  Empty = every student.
+ * @return array<int,array<int,array{first:int,count:int}>> [userid][sessionid]
+ */
+function absd_get_mora_attempts(array $sessionids, array $userids = []): array {
+    global $DB;
+    if (empty($sessionids)) {
+        return [];
+    }
+    $dbman = $DB->get_manager();
+    if (!$dbman->table_exists('gmk_qr_mora_attempt')) {
+        return [];
+    }
+    list($sinsql, $params) = $DB->get_in_or_equal(array_values($sessionids), SQL_PARAMS_NAMED, 'qms');
+    $where = "sessionid $sinsql";
+    if (!empty($userids)) {
+        list($uinsql, $uparams) = $DB->get_in_or_equal(array_values($userids), SQL_PARAMS_NAMED, 'qmu');
+        $where .= " AND userid $uinsql";
+        $params += $uparams;
+    }
+    $map = [];
+    $rs = $DB->get_recordset_sql(
+        "SELECT userid, sessionid, MIN(timecreated) AS firstat, COUNT(1) AS attempts
+           FROM {gmk_qr_mora_attempt}
+          WHERE $where
+       GROUP BY userid, sessionid", $params);
+    foreach ($rs as $r) {
+        $map[(int)$r->userid][(int)$r->sessionid] = ['first' => (int)$r->firstat, 'count' => (int)$r->attempts];
+    }
+    $rs->close();
+    return $map;
+}
+
+/**
+ * Absences (no record, or a status worth 0) in sessions where the student's QR
+ * scan was refused for mora, per student.
+ *
+ * @param int[] $sessionids
+ * @param int[] $userids
+ * @return array<int,int> [userid => count]
+ */
+function absd_count_mora_absences(array $sessionids, array $userids): array {
+    global $DB;
+    $attempts = absd_get_mora_attempts($sessionids, $userids);
+    if (empty($attempts)) {
+        return [];
+    }
+    $present = [];
+    list($sinsql, $params) = $DB->get_in_or_equal(array_values($sessionids), SQL_PARAMS_NAMED, 'cms');
+    list($uinsql, $uparams) = $DB->get_in_or_equal(array_keys($attempts), SQL_PARAMS_NAMED, 'cmu');
+    $rs = $DB->get_recordset_sql(
+        "SELECT l.id, l.studentid, l.sessionid
+           FROM {attendance_log} l
+           JOIN (SELECT studentid, sessionid, MAX(id) AS maxid
+                   FROM {attendance_log}
+                  WHERE sessionid $sinsql AND studentid $uinsql
+               GROUP BY studentid, sessionid) mx ON mx.maxid = l.id
+           JOIN {attendance_statuses} ast ON ast.id = l.statusid
+          WHERE ast.grade > 0", $params + $uparams);
+    foreach ($rs as $r) {
+        $present[(int)$r->studentid][(int)$r->sessionid] = true;
+    }
+    $rs->close();
+    $counts = [];
+    foreach ($attempts as $uid => $sessions) {
+        foreach ($sessions as $sid => $unused) {
+            if (empty($present[$uid][$sid])) {
+                $counts[$uid] = ($counts[$uid] ?? 0) + 1;
+            }
+        }
+    }
+    return $counts;
+}
+
+/**
  * Filters session ids to sessions where attendance was actually taken.
  *
  * @param int[] $sessionids

@@ -1810,6 +1810,26 @@
         <INDEX NAME="idx_msgr_thread_user" UNIQUE="true" FIELDS="threadid, userid"/>
       </INDEXES>
     </TABLE>
+    <TABLE NAME="gmk_qr_mora_attempt" COMMENT="QR attendance scans refused because the student was in arrears (mora). Lets the absence views tell an absence the student tried to avoid from one they never attempted.">
+      <FIELDS>
+        <FIELD NAME="id"              TYPE="int"  LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="sessionid"       TYPE="int"  LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="attendance_sessions.id"/>
+        <FIELD NAME="userid"          TYPE="int"  LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="classid"         TYPE="int"  LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="gmk_class.id when resolved"/>
+        <FIELD NAME="financialstatus" TYPE="char" LENGTH="30" NOTNULL="true" DEFAULT="" SEQUENCE="false" COMMENT="gmk_financial_status.status at the time of the scan"/>
+        <FIELD NAME="ipaddress"       TYPE="char" LENGTH="45" NOTNULL="true" DEFAULT="" SEQUENCE="false"/>
+        <FIELD NAME="traceid"         TYPE="char" LENGTH="64" NOTNULL="true" DEFAULT="" SEQUENCE="false" COMMENT="traceid of the line in the QR attendance log"/>
+        <FIELD NAME="timecreated"     TYPE="int"  LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_qrmora_session_user" UNIQUE="false" FIELDS="sessionid, userid"/>
+        <INDEX NAME="idx_qrmora_user_time" UNIQUE="false" FIELDS="userid, timecreated"/>
+        <INDEX NAME="idx_qrmora_trace" UNIQUE="true" FIELDS="traceid"/>
+      </INDEXES>
+    </TABLE>
 
   </TABLES>
 </XMLDB>

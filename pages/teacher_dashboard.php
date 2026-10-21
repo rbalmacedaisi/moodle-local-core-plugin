@@ -57,7 +57,7 @@ $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/quizedi
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/quizeditor/ClozeWizard.js'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/QuizEditor.js?v=20260323003'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/AttendancePanel.js?v=20260709001'), true);
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/AttendanceMatrix.js?v=20260904001'), true);
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/AttendanceMatrix.js?v=20261021002'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/AssignmentExtensions.js?v=20261001092'), true);
 // Mensajeria estudiante-docente (20261001107).
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/TeacherMessages.js?v=20261001107'), true);

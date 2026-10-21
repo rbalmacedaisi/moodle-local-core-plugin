@@ -635,9 +635,30 @@ function gmk_qr_finish($status, $reasoncode, $message, array $target, $sessionid
  * @return void
  */
 function gmk_qr_finish_payment_restricted($reasoncode, $motivo, $message, array $target, $sessionid, $userid, array $extra = []) {
+    global $DB;
+
     $traceid = gmk_qr_trace_id();
     gmk_qr_log_decision($traceid, 'error', $reasoncode, $message, (int)$sessionid, (int)$userid, $target, $extra);
     gmk_qr_clear_pending_cookie((int)$sessionid);
+
+    // Keep the refused attempt so the absence the student gets for this session
+    // shows up as "tried to mark while in mora" in the absence views. Never let
+    // a failure here change what the student sees.
+    if ((int)$sessionid > 0 && (int)$userid > 0) {
+        try {
+            $DB->insert_record('gmk_qr_mora_attempt', (object)[
+                'sessionid'       => (int)$sessionid,
+                'userid'          => (int)$userid,
+                'classid'         => (int)($target['classid'] ?? 0),
+                'financialstatus' => substr((string)($extra['financial_status'] ?? ''), 0, 30),
+                'ipaddress'       => substr((string)getremoteaddr(), 0, 45),
+                'traceid'         => substr((string)$traceid, 0, 64),
+                'timecreated'     => time(),
+            ]);
+        } catch (\Throwable $e) {
+            error_log('local_grupomakro_core: no se pudo guardar el intento de QR en mora: ' . $e->getMessage());
+        }
+    }
 
     $base = gmk_qr_student_app_base_url();
     $url = new moodle_url($base . '/restriccion-pago', [

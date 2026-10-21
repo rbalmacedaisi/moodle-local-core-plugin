@@ -4449,6 +4449,28 @@ if ($oldversion < 20261001093) {
         upgrade_plugin_savepoint(true, 20261001107, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20261001111) {
+        // QR scans refused because the student was in arrears: the absence views
+        // flag those absences as "tried to mark while in mora".
+        $table = new xmldb_table('gmk_qr_mora_attempt');
+        $table->add_field('id',              XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('sessionid',       XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('userid',          XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('classid',         XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('financialstatus', XMLDB_TYPE_CHAR,    '30', null, XMLDB_NOTNULL, null, '');
+        $table->add_field('ipaddress',       XMLDB_TYPE_CHAR,    '45', null, XMLDB_NOTNULL, null, '');
+        $table->add_field('traceid',         XMLDB_TYPE_CHAR,    '64', null, XMLDB_NOTNULL, null, '');
+        $table->add_field('timecreated',     XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_index('idx_qrmora_session_user', XMLDB_INDEX_NOTUNIQUE, ['sessionid', 'userid']);
+        $table->add_index('idx_qrmora_user_time', XMLDB_INDEX_NOTUNIQUE, ['userid', 'timecreated']);
+        $table->add_index('idx_qrmora_trace', XMLDB_INDEX_UNIQUE, ['traceid']);
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+        upgrade_plugin_savepoint(true, 20261001111, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

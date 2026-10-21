@@ -146,6 +146,7 @@ Vue.component('attendance-matrix', {
                                                     {{ getLog(student.id, sess.id).acronym }}
                                                 </v-chip>
                                                 <v-chip v-else x-small color="grey lighten-1" title="Sin registrar">–</v-chip>
+                                                <v-icon v-if="getLog(student.id, sess.id) && getLog(student.id, sess.id).mora_at" x-small color="deep-orange darken-2" class="ml-1" style="cursor:help" :title="moraTitle(student.id, sess.id)">mdi-currency-usd-off</v-icon>
                                             </div>
                                         </template>
                                         <v-list dense>
@@ -198,6 +199,7 @@ Vue.component('attendance-matrix', {
                                             {{ getLog(student.id, sess.id).acronym }}
                                         </v-chip>
                                         <v-chip v-else x-small color="grey lighten-1" title="Sin registrar">–</v-chip>
+                                        <v-icon v-if="getLog(student.id, sess.id) && getLog(student.id, sess.id).mora_at" x-small color="deep-orange darken-2" class="ml-1" style="cursor:help" :title="moraTitle(student.id, sess.id)">mdi-currency-usd-off</v-icon>
                                     </template>
                                     <span v-else class="grey--text text--lighten-2" style="font-size:11px">·</span>
                                 </td>
@@ -223,6 +225,10 @@ Vue.component('attendance-matrix', {
                     <div class="d-flex align-center mr-3">
                         <v-chip x-small color="grey lighten-1" class="mr-1">–</v-chip>
                         <span class="caption grey--text">Sin registrar</span>
+                    </div>
+                    <div class="d-flex align-center mr-3" v-if="moraCount > 0">
+                        <v-icon x-small color="deep-orange darken-2" class="mr-1">mdi-currency-usd-off</v-icon>
+                        <span class="caption grey--text">Intentó marcar pero estaba en mora ({{ moraCount }})</span>
                     </div>
                     <v-spacer></v-spacer>
                     <div class="d-flex align-center" style="gap:10px">
@@ -291,6 +297,14 @@ Vue.component('attendance-matrix', {
         },
         revalidaCount() {
             return this.sessions.filter((s) => this.isRevalida(s)).length;
+        },
+        // Cells where the student scanned the QR and was refused for mora.
+        moraCount() {
+            let n = 0;
+            Object.values(this.matrix || {}).forEach((row) => {
+                Object.values(row || {}).forEach((cell) => { if (cell && cell.mora_at) n++; });
+            });
+            return n;
         },
     },
 
@@ -404,6 +418,13 @@ Vue.component('attendance-matrix', {
             const uKey = String(userId);
             const sKey = String(sessionId);
             return (this.matrix[uKey] && this.matrix[uKey][sKey]) ? this.matrix[uKey][sKey] : null;
+        },
+
+        moraTitle(userId, sessionId) {
+            const log = this.getLog(userId, sessionId);
+            if (!log || !log.mora_at) return '';
+            const times = log.mora_count > 1 ? ' (' + log.mora_count + ' intentos)' : '';
+            return 'Intentó marcar asistencia a las ' + log.mora_at + times + ', pero estaba en mora y el QR lo rechazó.';
         },
 
         attendancePct(userId) {

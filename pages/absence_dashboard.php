@@ -202,6 +202,8 @@ if (optional_param('abs_ajax', 0, PARAM_INT)) {
                 $logparams
             );
 
+            $moraattempts = absd_get_mora_attempts($takensessionids, [$userid])[$userid] ?? [];
+
             $sessionrows = [];
             foreach ($sessions as $session) {
                 $sid = (int)$session->id;
@@ -221,6 +223,9 @@ if (optional_param('abs_ajax', 0, PARAM_INT)) {
                     'acronym' => $acronym,
                     'haslog' => $haslog,
                     'present' => $present,
+                    // QR scan refused for mora in this session (time of the first attempt).
+                    'mora_at' => isset($moraattempts[$sid]) ? userdate($moraattempts[$sid]['first'], '%H:%M') : '',
+                    'mora_count' => isset($moraattempts[$sid]) ? $moraattempts[$sid]['count'] : 0,
                 ];
             }
 
@@ -428,6 +433,8 @@ if (optional_param('abs_ajax', 0, PARAM_INT)) {
 
             // Per-student absences from sessions where attendance was actually taken.
             $student_abs = absd_get_student_absences($takensessionids, $userids);
+            // Of those, the ones where the QR scan was refused for mora.
+            $student_mora_abs = absd_count_mora_absences($takensessionids, $userids);
 
             // Per-student absence state (alert level, blocked, dismissals).
             $absence_state_map = [];
@@ -547,6 +554,7 @@ if (optional_param('abs_ajax', 0, PARAM_INT)) {
                     'email'             => (string)$row->email,
                     'phones'            => $phones,
                     'absences'          => $student_abs[$uid] ?? 0,
+                    'mora_absences'     => $student_mora_abs[$uid] ?? 0,
                     'suspended'         => (bool)$row->suspended,
                     'user_status'       => $canonical['user_status'] ?? 'Activo',
                     'academic_status'   => $academic_status,
@@ -583,7 +591,7 @@ if (optional_param('abs_ajax', 0, PARAM_INT)) {
                 "SELECT id, learningplanid, attendancemoduleid, groupid, courseid, corecourseid, initdate, enddate
                    FROM {gmk_class} WHERE id $_ac_insql", $_ac_inparams
             );
-            $students_raw = []; $student_absences = [];
+            $students_raw = []; $student_absences = []; $student_mora_absences = [];
             foreach ($classids as $classid) {
                 $cls = $allclasses[$classid] ?? null;
                 if (!$cls) continue;
@@ -610,6 +618,9 @@ if (optional_param('abs_ajax', 0, PARAM_INT)) {
                 if (!empty($class_uids) && !empty($takensids)) {
                     foreach (absd_get_student_absences($takensids, $class_uids) as $uid => $cnt) {
                         $student_absences[$uid] = ($student_absences[$uid] ?? 0) + $cnt;
+                    }
+                    foreach (absd_count_mora_absences($takensids, $class_uids) as $uid => $cnt) {
+                        $student_mora_absences[$uid] = ($student_mora_absences[$uid] ?? 0) + $cnt;
                     }
                 }
             }
@@ -724,6 +735,7 @@ if (optional_param('abs_ajax', 0, PARAM_INT)) {
                     'email'            => (string)$row->email,
                     'phones'           => $phones,
                     'absences'         => $student_absences[$uid] ?? 0,
+                    'mora_absences'    => $student_mora_absences[$uid] ?? 0,
                     'suspended'        => (bool)$row->suspended,
                     'user_status'      => 'Activo',
                     'academic_status'  => $academic_status,
@@ -2245,6 +2257,8 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
     border-radius:999px; padding:2px 8px; text-transform:uppercase; letter-spacing:0.4px;
 }
 .absd-session-state.present { background:#dcfce7; color:#166534; }
+.absd-mora-flag { margin-top:4px; font-size:11px; font-weight:600; color:#c2410c; }
+.absd-mora-badge { display:inline-block; margin-left:4px; padding:1px 6px; border-radius:10px; font-size:10px; font-weight:700; background:#ffedd5; color:#c2410c; border:1px solid #fdba74; white-space:nowrap; }
 .absd-session-state.absent { background:#fee2e2; color:#991b1b; }
 .absd-session-state.late { background:#fef3c7; color:#92400e; }
 .absd-session-state.excused { background:#dbeafe; color:#1e40af; }
@@ -3140,6 +3154,9 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
                 '<td style="text-align:center">' + (currentAllStudents
                     ? '<span style="font-weight:700;color:#374151">' + s.absences + '</span>'
                     : '<button type="button" class="absd-abs-link ' + absClass + '" data-uid="' + s.userid + '" data-name="' + esc(s.name) + '" onclick="absdOpenSessionsModal(this)">' + s.absences + '</button>') +
+                (s.mora_absences > 0
+                    ? ' <span class="absd-mora-badge" title="' + s.mora_absences + ' de estas inasistencias: intentó marcar con el QR pero estaba en mora">&#128176; ' + s.mora_absences + ' en mora</span>'
+                    : '') +
                     renderAbsenceActions(s, currentClassId) + '</td>' +
                 '<td>' +
                     '<select class="absd-status-select" data-uid="' + s.userid + '" onchange="absdUpdateUserStatus(this)">' +
@@ -3198,7 +3215,11 @@ $pdf_base = (new moodle_url('/local/grupomakro_core/pages/attendance_pdf.php'))-
                 '<td>' + esc(s.date || '-') + '</td>' +
                 '<td>' + esc(s.time || '-') + '</td>' +
                 '<td>' + esc(desc || ('Sesion #' + s.sessionid)) + '</td>' +
-                '<td><span class="absd-session-state ' + stateClass + '">' + stateLabel + '</span></td>' +
+                '<td><span class="absd-session-state ' + stateClass + '">' + stateLabel + '</span>' +
+                    (s.mora_at && !s.present
+                        ? '<div class="absd-mora-flag" title="Escaneó el QR y fue rechazado porque estaba en mora">&#128176; Intentó marcar en mora (' + esc(s.mora_at) + (s.mora_count > 1 ? ', ' + s.mora_count + ' intentos' : '') + ')</div>'
+                        : '') +
+                '</td>' +
                 '<td>' + esc(status || 'Sin registro') + '</td>' +
                 '<td>' + actionCell + '</td>' +
                 '</tr>';
