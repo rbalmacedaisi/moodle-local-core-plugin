@@ -840,6 +840,9 @@ const ManageClass = {
             qrTimer: null,
             qrSecondsLeft: 0,
             qrTotalSeconds: 30,
+            // Server clock minus device clock, in ms. Classroom screens with a
+            // wrong date or time zone would otherwise grey out the QR button.
+            serverClockOffset: 0,
             revalidaBusy: {},
             revalidaError: null,
             // Modal de prorrogas de entrega por actividad individual
@@ -983,6 +986,7 @@ const ManageClass = {
                             classid: this.classId
                         })
                     );
+                    this.syncServerClock(attendanceResp);
                     const attendanceRoot = attendanceResp?.data || {};
                     const attendancePayload = (attendanceRoot && typeof attendanceRoot === 'object' && attendanceRoot.data && !Array.isArray(attendanceRoot.data))
                         ? attendanceRoot.data
@@ -1261,8 +1265,16 @@ const ManageClass = {
         isNextSession(session) {
             return false;
         },
+        syncServerClock(resp) {
+            const header = resp && resp.headers ? resp.headers.date : '';
+            const server = header ? Date.parse(header) : NaN;
+            if (!isNaN(server)) {
+                this.serverClockOffset = server - Date.now();
+            }
+        },
         isSessionActive(session) {
-            const now = new Date().getTime() / 1000;
+            // Server time, not the device clock (see serverClockOffset).
+            const now = (Date.now() + this.serverClockOffset) / 1000;
             const start = parseInt(session.startdate);
             let end = parseInt(session.enddate);
 

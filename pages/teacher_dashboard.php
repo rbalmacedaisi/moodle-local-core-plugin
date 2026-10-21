@@ -39,7 +39,7 @@ $PAGE->requires->js(new moodle_url('https://unpkg.com/axios/dist/axios.min.js'),
 // 20261001080 = toco ActivityCreationWizard, ManageClass y ActivityGroupsPanel.
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/TeacherDashboard.js?v=20260827000'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/ActivityCreationWizard.js?v=20261001088'), true);
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/ManageClass.js?v=20261001088'), true);
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/ManageClass.js?v=20261021001'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/studenttable.js?v=20251231050'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/TeacherStudentTable.js?v=20261001107'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/GradesGrid.js?v=20260827000'), true);
