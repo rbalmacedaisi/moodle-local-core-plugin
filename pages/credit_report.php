@@ -348,6 +348,30 @@ function cr_render_pdf(array $data, array $design, string $scopelabel, string $f
     }
 
     $pdf->writeHTML($html, true, false, true, false, '');
+
+    // ── Signature block for the Academic Director (kept whole on one page) ───
+    if ($pdf->GetY() + 34 > $pdf->getPageHeight() - 14) {
+        $pdf->AddPage();
+    }
+    $pdf->Ln(20);
+    $linew = 75;
+    $sigx  = ($pagew - $linew) / 2;
+    $sigy  = $pdf->GetY();
+    $pdf->SetDrawColor(0, 0, 0);
+    $pdf->SetLineWidth(0.3);
+    $pdf->Line($sigx, $sigy, $sigx + $linew, $sigy);
+    $pdf->SetLineWidth(0.2);
+    $pdf->SetXY($sigx, $sigy + 1.5);
+    $director = trim((string)get_config('local_grupomakro_core', 'academic_director_name'));
+    if ($director !== '') {
+        $pdf->SetFont('helvetica', 'B', 9);
+        $pdf->Cell($linew, 5, $director, 0, 2, 'C');
+        $pdf->SetFont('helvetica', '', 8.5);
+    } else {
+        $pdf->SetFont('helvetica', 'B', 9);
+    }
+    $pdf->Cell($linew, 5, 'Director Académico', 0, 0, 'C');
+
     $pdf->Output($filebase . '.pdf', 'D');
 }
 
@@ -613,6 +637,23 @@ function cr_render_xlsx(array $data, array $design, string $scopelabel, string $
     $sheet->mergeCells("A{$r}:F{$r}");
     $sheet->setCellValue("A{$r}", 'Las asignaturas en curso no reciben calificación en letras ni ponderan en el índice hasta el cierre del período.');
     $fontcolor("A{$r}:F{$r}", $design['grey']);
+
+    // Signature block for the Academic Director: blank row to sign on, then a top-bordered label.
+    $r += 2;
+    $sheet->getRowDimension($r)->setRowHeight(40);
+    $r++;
+    $sheet->getStyle("B{$r}:E{$r}")->getBorders()->getTop()
+        ->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN)
+        ->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color('FF000000'));
+    $director = trim((string)get_config('local_grupomakro_core', 'academic_director_name'));
+    $siglines = ($director !== '') ? [$director, 'Director Académico'] : ['Director Académico'];
+    foreach ($siglines as $k => $line) {
+        $sheet->mergeCells("B{$r}:E{$r}");
+        $sheet->setCellValue("B{$r}", $line);
+        $sheet->getStyle("B{$r}")->getFont()->setBold($k === 0);
+        $sheet->getStyle("B{$r}")->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+        $r++;
+    }
 
     cr_stream_xlsx($ss, $filebase);
 }
