@@ -153,12 +153,13 @@ class wellness_event_checkin {
         if ((int)$event->active !== 1) {
             return ['result' => 'inactive', 'title' => $title];
         }
+        // Mora goes first: a student in arrears must learn that, not "come back later".
+        if (self::blocked_by_mora($userid)) {
+            return ['result' => 'mora', 'title' => $title];
+        }
         [$opens, $closes] = self::window($event);
         if (($opens > 0 && $now < $opens) || ($closes > 0 && $now > $closes)) {
             return ['result' => 'closed', 'title' => $title];
-        }
-        if (self::blocked_by_mora($userid)) {
-            return ['result' => 'mora', 'title' => $title];
         }
 
         $modality = $event->modality === 'virtual' ? 'virtual' : 'presencial';
