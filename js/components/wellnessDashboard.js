@@ -944,6 +944,11 @@ Vue.component('wellness-dashboard', {
                 document.body.removeChild(ta);
             }
         },
+        // Printable attendance QR (pages/wellness_event_qr.php). Scanning it marks
+        // the student as 'asistio'; students in mora are refused server-side.
+        openAttendanceQr(e) {
+            window.open(wwwroot + '/local/grupomakro_core/pages/wellness_event_qr.php?id=' + encodeURIComponent(e.id), '_blank');
+        },
         async openRegistrations(e) {
             this.regEvent = e;
             this.registrations = [];
@@ -1154,6 +1159,9 @@ Vue.component('wellness-dashboard', {
                 <v-icon>mdi-account-group</v-icon>
               </v-badge>
               <v-icon v-else>mdi-account-group-outline</v-icon>
+            </v-btn>
+            <v-btn icon small @click="openAttendanceQr(item)" title="QR de asistencia (bloquea a estudiantes en mora)">
+              <v-icon>mdi-qrcode</v-icon>
             </v-btn>
             <v-btn icon small @click="openEventDialog(item)" title="Editar">
               <v-icon>mdi-pencil</v-icon>
