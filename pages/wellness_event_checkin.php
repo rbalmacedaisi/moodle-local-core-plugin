@@ -46,7 +46,7 @@ if ($appbase === '') {
 if (!isloggedin() || isguestuser()) {
     if (!$fromlxp) {
         // The custom theme ignores wantsurl, so let the LXP handle the login and come back.
-        header('Location: ' . $appbase . '/attendance/qr?' . http_build_query(['evento' => $eventid, 't' => $token]));
+        header('Location: ' . $appbase . '/attendance/qr?' . http_build_query(['evento' => $eventid, 't' => $token], '', '&'));
         exit;
     }
     // Came back from the LXP still without a Moodle session: fall back to Moodle's login.
