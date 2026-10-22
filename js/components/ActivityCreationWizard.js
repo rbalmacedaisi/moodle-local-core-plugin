@@ -82,6 +82,18 @@ const ActivityCreationWizard = {
                                     dense
                                 ></v-text-field>
                             </v-col>
+                            <v-col cols="12" sm="6" v-if="editMode">
+                                <v-select
+                                    v-model="formData.attempts"
+                                    :items="attemptOptions"
+                                    label="Oportunidades (intentos permitidos)"
+                                    prepend-inner-icon="mdi-counter"
+                                    outlined
+                                    dense
+                                    hint="Aplica a los intentos que el estudiante aún no ha usado"
+                                    persistent-hint
+                                ></v-select>
+                            </v-col>
                         </v-row>
 
                         <!-- Calificacion grupal (introducida en 20261001057) -->
@@ -364,7 +376,16 @@ const ActivityCreationWizard = {
             uploadDraftItemId: 0,
             uploadingIndex: null,  // index of file currently being uploaded, or null
             existingFiles: [],
-            filesToDelete: []
+            filesToDelete: [],
+            // Quiz attempts; 0 = unlimited (Moodle quiz.attempts semantics).
+            attemptOptions: [
+                { text: '1 oportunidad', value: 1 },
+                { text: '2 oportunidades', value: 2 },
+                { text: '3 oportunidades', value: 3 },
+                { text: '4 oportunidades', value: 4 },
+                { text: '5 oportunidades', value: 5 },
+                { text: 'Ilimitadas', value: 0 }
+            ]
         };
     },
     mounted() {
@@ -783,7 +804,12 @@ const ActivityCreationWizard = {
                     this.formData.allowsubmissionsfromdate = this.formatTimestampForDatetimeLocal(act.allowsubmissionsfromdate);
                     this.formData.timeopen = this.formatTimestampForDatetimeLocal(act.timeopen);
                     this.formData.timeclose = this.formatTimestampForDatetimeLocal(act.timeclose);
-                    this.formData.attempts = act.attempts || 1;
+                    // 0 means unlimited: `|| 1` used to turn it into 1 on every save.
+                    const att = parseInt(act.attempts, 10);
+                    this.formData.attempts = isNaN(att) ? 1 : att;
+                    if (att > 5 && !this.attemptOptions.some(o => o.value === att)) {
+                        this.attemptOptions.push({ text: att + ' oportunidades', value: att });
+                    }
 
                     // Calificacion grupal (20261001080). Si la respuesta
                     // del backend trae los flags, los aplicamos al form.
