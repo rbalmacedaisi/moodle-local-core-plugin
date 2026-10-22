@@ -186,6 +186,9 @@ class credit_report {
             }
         }
 
+        // Course code and academic period of each grade, used by the official certificate.
+        $official = self::official_course_info($userid, $planid);
+
         $cuatrimestres = [];
         $sumtotal = 0;
         $sumapproved = 0;
@@ -249,6 +252,9 @@ class credit_report {
                 }
 
                 $courses[] = [
+                    'courseid'     => $courseid,
+                    'shortname'    => $official['shortnames'][$courseid] ?? '',
+                    'academicperiod' => $official['periods'][$courseid] ?? '',
                     'coursename'   => (string)($c['coursename'] ?? 'Asignatura'),
                     'credits'      => $credits,
                     'status'       => $status,
@@ -310,6 +316,60 @@ class credit_report {
     }
 
     /**
+     * Course codes and the academic period in which the student earned each grade.
+     *
+     * The period comes from the class that holds the grade (gmk_class -> gmk_academic_periods);
+     * when there is none (grades migrated from the previous system) it falls back to a period
+     * name such as "2026-II" found in the student's group of that course. Courses with neither
+     * are left out of 'periods'.
+     *
+     * @param int $userid
+     * @param int $planid
+     * @return array{shortnames:array<int,string>,periods:array<int,string>}
+     */
+    private static function official_course_info(int $userid, int $planid): array {
+        global $DB;
+
+        $shortnames = [];
+        $periods = [];
+        $rs = $DB->get_recordset_sql(
+            "SELECT gcp.id, gcp.courseid, c.shortname, ap.name AS periodname
+               FROM {gmk_course_progre} gcp
+               JOIN {course} c ON c.id = gcp.courseid
+          LEFT JOIN {gmk_class} cl
+                 ON cl.id = CASE WHEN gcp.grade_classid > 0 THEN gcp.grade_classid ELSE gcp.classid END
+          LEFT JOIN {gmk_academic_periods} ap ON ap.id = cl.periodid
+              WHERE gcp.userid = :userid
+                AND gcp.learningplanid = :lpid",
+            ['userid' => $userid, 'lpid' => $planid]
+        );
+        foreach ($rs as $row) {
+            $cid = (int)$row->courseid;
+            $shortnames[$cid] = (string)$row->shortname;
+            if (!empty($row->periodname)) {
+                $periods[$cid] = (string)$row->periodname;
+            }
+        }
+        $rs->close();
+
+        $groups = $DB->get_records_sql(
+            "SELECT g.id, g.courseid, g.name
+               FROM {groups} g
+               JOIN {groups_members} gm ON gm.groupid = g.id
+              WHERE gm.userid = :userid",
+            ['userid' => $userid]
+        );
+        foreach ($groups as $g) {
+            $cid = (int)$g->courseid;
+            if (!isset($periods[$cid]) && preg_match('/\b(\d{4}-[IVX]+)\b/', (string)$g->name, $m)) {
+                $periods[$cid] = $m[1];
+            }
+        }
+
+        return ['shortnames' => $shortnames, 'periods' => $periods];
+    }
+
+    /**
      * Resolve the student's display info (name, email, identification).
      *
      * @param int $userid
@@ -320,7 +380,7 @@ class credit_report {
 
         $user = $DB->get_record('user', ['id' => $userid], 'id, firstname, lastname, email, idnumber');
         if (!$user) {
-            return ['name' => '--', 'email' => '--', 'identification' => '--'];
+            return ['name' => '--', 'email' => '--', 'identification' => '--', 'code' => ''];
         }
 
         // Prefer the 'documentnumber' custom profile field; fall back to idnumber.
@@ -337,6 +397,7 @@ class credit_report {
             'name'           => trim($user->firstname . ' ' . $user->lastname),
             'email'          => (string)($user->email ?? '--'),
             'identification' => $identification !== '' ? $identification : '--',
+            'code'           => (string)($user->idnumber ?? ''),
         ];
     }
 }

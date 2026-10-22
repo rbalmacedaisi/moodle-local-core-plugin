@@ -523,6 +523,16 @@ Vue.component('grademodal', {
                         Créditos Excel
                       </v-btn>
                       <v-btn
+                        v-if="!classId && creditView"
+                        color="deep-orange darken-2"
+                        text
+                        :disabled="loadingCreditReport"
+                        @click="downloadCreditReport('oficial')"
+                      >
+                        <v-icon left>mdi-certificate</v-icon>
+                        Créditos Oficiales
+                      </v-btn>
+                      <v-btn
                         v-if="showSchedulePdfButton && !creditView"
                         color="secondary"
                         text
@@ -1904,7 +1914,7 @@ Vue.component('grademodal', {
                 userId: String(this.dataStudent.id),
                 scope: this.creditScope,
                 planId: String(Number(this.creditPlanId) || 0),
-                format: format === 'xlsx' ? 'xlsx' : 'pdf',
+                format: ['xlsx', 'oficial'].includes(format) ? format : 'pdf',
                 sesskey: M.cfg.sesskey,
             });
             window.open(base + '?' + params.toString(), '_blank');

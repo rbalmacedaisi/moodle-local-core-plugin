@@ -24,7 +24,7 @@
  *   userId (int)   — required, student user id.
  *   planId (int)   — optional, 0 = all the student's plans.
  *   scope  (alpha) — 'all' (default) or 'enrolled'.
- *   format (alpha) — 'pdf' (default) or 'xlsx'.
+ *   format (alpha) — 'pdf' (default), 'xlsx' or 'oficial' (official certificate, Serie A form).
  *   sesskey        — required.
  *
  * @package    local_grupomakro_core
@@ -163,6 +163,9 @@ function cr_letter_cell(array $course, array $design): array {
 
 if ($format === 'xlsx') {
     cr_render_xlsx($data, $DESIGN, $scopelabel, $filebase);
+} else if ($format === 'oficial') {
+    require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/official_credits_pdf.php');
+    \local_grupomakro_core\local\official_credits_pdf::output($data, 'creditos_oficiales_' . $safename . '_' . date('Ymd'));
 } else {
     cr_render_pdf($data, $DESIGN, $scopelabel, $filebase);
 }
