@@ -24,8 +24,9 @@
  * the class attendance QR (attendance_qr_bridge.php).
  *
  * The QR carries an HMAC of the event id, so a code cannot be forged for
- * another event, and it only works from CHECKIN_OPEN_BEFORE seconds before the
- * event starts until CHECKIN_CLOSE_AFTER seconds after it ends.
+ * another event, and it only works between the event's start and end dates
+ * (plus the CHECKIN_OPEN_BEFORE / CHECKIN_CLOSE_AFTER margins, 0 by default):
+ * Bienestar sets the QR availability by editing the event dates.
  *
  * @package    local_grupomakro_core
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -41,10 +42,10 @@ class wellness_event_checkin {
     const SECRET_KEY = 'wellness_event_qr_secret';
 
     /** @var int Check-in opens this long before the event starts. */
-    const CHECKIN_OPEN_BEFORE = HOURSECS;
+    const CHECKIN_OPEN_BEFORE = 0;
 
     /** @var int Check-in stays open this long after the event ends. */
-    const CHECKIN_CLOSE_AFTER = HOURSECS;
+    const CHECKIN_CLOSE_AFTER = 0;
 
     /**
      * HMAC secret for event QR tokens.
