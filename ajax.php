@@ -9247,9 +9247,14 @@ try {
                         // en $_POST (lineas 52-54 de este archivo las copian
                         // ahi) y podemos reconstruir $args desde ahi. Excluimos
                         // 'action' y 'sesskey' que son del dispatcher, no del WS.
-                        if (empty($args)) {
+                        // Only when the body carried no "args" key at all: an
+                        // explicit empty args ({}) is a WS without parameters
+                        // (e.g. the Bienestar lists), and copying $_POST there
+                        // injected 'args' itself -> "Unexpected keys (args)".
+                        $hasargskey = is_array($jsonData) && array_key_exists('args', $jsonData);
+                        if (empty($args) && !$hasargskey) {
                             foreach ($_POST as $k => $v) {
-                                if ($k === 'action' || $k === 'sesskey') {
+                                if ($k === 'action' || $k === 'sesskey' || $k === 'args') {
                                     continue;
                                 }
                                 $args[$k] = $v;
