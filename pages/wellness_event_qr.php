@@ -44,6 +44,10 @@ $qr = new core_qrcode($url);
 $svg = $qr->getBarcodeSVGcode(12, 12, 'black');
 // Drop the XML prolog/doctype so the SVG can be inlined.
 $svg = preg_replace('/^.*?(<svg)/s', '$1', $svg);
+// TCPDF's SVG has width/height but no viewBox: scaled by CSS it was cropped instead of resized.
+if (strpos($svg, 'viewBox') === false && preg_match('/width="([\d.]+)"\s+height="([\d.]+)"/', $svg, $m)) {
+    $svg = preg_replace('/<svg\b/', '<svg viewBox="0 0 ' . $m[1] . ' ' . $m[2] . '"', $svg, 1);
+}
 
 $e = function ($v) {
     return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
