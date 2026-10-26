@@ -65,18 +65,18 @@ if (optional_param('abs_ajax', 0, PARAM_INT)) {
 
             absd_unblock_class_block($userid, $classid, $auditdetail);
 
-            // After the per-class block is lifted the user may still be
-            // globally inactive (user.suspended or studentstatus=Inactivo)
-            // if the previous auto-inactivation fired. Reverse that when
-            // the student now has at least one non-blocked cursando class
-            // and there is no separate reason to keep them inactive.
+            // After the per-class block is lifted the user may still be under
+            // the global absence restriction (or suspended, from before the
+            // restriction replaced the suspension). Reverse that when the
+            // student now has at least one non-blocked cursando class.
             $global = absd_check_global_inactivity($userid);
             $globalreactivated = false;
             if ($global['has_open_class']) {
                 $studentstatus_fieldid = (int)($DB->get_field('user_info_field', 'id', ['shortname' => 'studentstatus']) ?: 0);
-                if ($DB->get_field('user', 'suspended', ['id' => $userid])) {
+                if ($DB->get_field('user', 'suspended', ['id' => $userid]) || absd_is_absence_restricted($userid)) {
                     absd_mark_user_active($userid, $studentstatus_fieldid);
-                    absd_log_history($userid, $classid, 0, 0, 'global_reactivate', 'lifted by manual class unblock');
+                    // classid 0: global actions are read with classid = 0.
+                    absd_log_history($userid, 0, 0, 0, 'global_reactivate', "lifted by manual unblock of class $classid");
                     $globalreactivated = true;
                 }
             }
@@ -750,7 +750,22 @@ if (optional_param('abs_ajax', 0, PARAM_INT)) {
             echo json_encode(['ok' => true, 'students' => $out], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG);
 
         } elseif ($abs_action === 'run_absence_check') {
-            $summary = absd_run_absence_inactivation_check();
+            if (absd_is_staged_alerts_enabled()) {
+                // Same check the scheduled task runs. The legacy check below
+                // lifted the restriction of any student current on payments,
+                // which fought the staged check every cycle; absences decide.
+                $staged = absd_run_staged_absence_check();
+                $summary = [
+                    'processed'       => (int)($staged['users_processed'] ?? 0),
+                    'marked_inactive' => (int)($staged['users_globally_inactive'] ?? 0),
+                    'skipped_exempt'  => 0,
+                    'skipped_financial' => 0,
+                    'reactivated'     => (int)($staged['users_globally_reactivated'] ?? 0),
+                    'errors'          => $staged['errors'] ?? [],
+                ];
+            } else {
+                $summary = absd_run_absence_inactivation_check();
+            }
             echo json_encode(array_merge(['ok' => true], $summary), JSON_UNESCAPED_UNICODE);
 
         } elseif ($abs_action === 'toggle_absence_exempt') {

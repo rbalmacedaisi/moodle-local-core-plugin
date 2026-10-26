@@ -956,6 +956,21 @@ if (!is_siteadmin() && !empty($paymentstate['blocked'])) {
     );
 }
 
+// Absence restriction: a student whose classes are all blocked by absences
+// cannot self-register attendance until the restriction is lifted (a
+// justification recorded by Bienestar, or the manual unblock).
+require_once($CFG->dirroot . '/local/grupomakro_core/pages/absence_helpers.php');
+if (!is_siteadmin() && absd_is_absence_restricted((int)$USER->id)) {
+    gmk_qr_finish(
+        'error',
+        'absence_restricted',
+        'Tu acceso está restringido por inasistencias, por eso no se puede registrar tu asistencia. Acércate al área académica para revisar tus faltas.',
+        $target,
+        $sessionid,
+        (int)$USER->id
+    );
+}
+
 $existinglog = $DB->get_record('attendance_log', [
     'sessionid' => (int)$sessionid,
     'studentid' => (int)$USER->id,

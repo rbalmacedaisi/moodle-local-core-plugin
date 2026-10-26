@@ -271,6 +271,8 @@ $string['absence_warning_subject'] = '{$a}: second absence recorded';
 $string['absence_warning_body'] = 'The subject "{$a->coursename}" has 2 absences. At the third absence you will lose access to the resources and tracking. If you have a justification for these absences, please visit the academic department to present it.';
 $string['absence_block_subject'] = '{$a}: access restricted due to absences';
 $string['absence_block_body'] = 'Your access to the subject "{$a->coursename}" is restricted because you reached the limit of 3 absences. Please visit the academic area to review your case if you have a justification.';
+$string['absence_restricted_subject'] = 'Access restricted due to absences';
+$string['absence_restricted_body'] = 'Your access to the platform is restricted because you reached the absence limit in all your current subjects ({$a}). While it lasts you cannot open your courses or register attendance. Please visit the academic area to review your absences; once a justification is recorded the restriction is lifted.';
 
 $string['course_blocked_title'] = 'Access restricted to this subject';
 $string['course_blocked_intro'] = 'Your access to the subject <strong>{$a}</strong> is restricted.';
