@@ -838,12 +838,16 @@ function absd_get_student_session_matrix(array $sessionids, array $userids): arr
 }
 
 /**
- * Apply the three-field inactivation to a single user.
+ * Apply the absence restriction to a single user.
  *
  * Updates:
- *  1. user.suspended = 1
- *  2. user_info_data studentstatus = 'Inactivo'
- *  3. local_learning_users.status = 'suspendido'
+ *  1. user_info_data studentstatus = 'Inactivo'
+ *  2. local_learning_users.status = 'suspendido'
+ *
+ * The Moodle account is NOT suspended: a suspended account answers "invalid
+ * login" and the student never learns why. The student keeps logging in and the
+ * LXP shows the restriction page instead (absd_is_absence_restricted()); the
+ * QR bridge refuses their scans and the course pages stay blocked per class.
  *
  * @param int $userid
  * @param int $studentstatus_fieldid  Field ID of the `studentstatus` custom profile field.
@@ -852,10 +856,7 @@ function absd_get_student_session_matrix(array $sessionids, array $userids): arr
 function absd_mark_user_inactive(int $userid, int $studentstatus_fieldid): void {
     global $DB;
 
-    // 1. Suspend Moodle account.
-    $DB->set_field('user', 'suspended', 1, ['id' => $userid]);
-
-    // 2. Custom profile field studentstatus → 'Inactivo'.
+    // 1. Custom profile field studentstatus → 'Inactivo'.
     if ($studentstatus_fieldid > 0) {
         $existing = $DB->get_record('user_info_data', ['userid' => $userid, 'fieldid' => $studentstatus_fieldid]);
         if ($existing) {
@@ -870,8 +871,85 @@ function absd_mark_user_inactive(int $userid, int $studentstatus_fieldid): void 
         }
     }
 
-    // 3. Academic status → 'suspendido' for all learning plan enrollments.
+    // 2. Academic status → 'suspendido' for all learning plan enrollments.
     $DB->set_field('local_learning_users', 'status', 'suspendido', ['userid' => $userid]);
+}
+
+/**
+ * Whether the student is under the global absence restriction: their last
+ * global action in the absence history is 'global_inactive' (applied by the
+ * staged check) and no 'global_reactivate' came after it.
+ *
+ * @param int $userid
+ * @return bool
+ */
+function absd_is_absence_restricted(int $userid): bool {
+    global $DB;
+    $last = $DB->get_field_sql(
+        "SELECT action FROM {gmk_class_absence_history}
+          WHERE userid = :u AND classid = 0 AND action IN ('global_inactive', 'global_reactivate')
+       ORDER BY id DESC",
+        ['u' => $userid], IGNORE_MULTIPLE);
+    return $last === 'global_inactive';
+}
+
+/**
+ * Lift the global absence restriction of one student when its reason is gone:
+ * they again have a cursando class that is not blocked. Same rule the staged
+ * check applies nightly; called on demand too (refresh_absence_state), so a
+ * justification lifts the restriction without waiting for the next run.
+ *
+ * @param int $userid
+ * @return bool True when the restriction was lifted.
+ */
+function absd_lift_absence_restriction_if_due(int $userid): bool {
+    global $DB;
+    if (!absd_is_blocking_enabled() || !absd_is_absence_restricted($userid)) {
+        return false;
+    }
+    $global = absd_check_global_inactivity($userid);
+    if (empty($global['has_open_class'])) {
+        return false;
+    }
+    $fieldid = (int)($DB->get_field('user_info_field', 'id', ['shortname' => 'studentstatus']) ?: 0);
+    absd_mark_user_active($userid, $fieldid);
+    absd_log_history($userid, 0, 0, 0, 'global_reactivate', 'auto: has a cursando class that is not blocked');
+    return true;
+}
+
+/**
+ * Tell the student, inside the platform, that their access is restricted by
+ * absences. Best-effort, like the other absence notifications.
+ *
+ * @param int $userid
+ * @param int $blockedcount
+ * @return void
+ */
+function absd_notify_absence_restriction(int $userid, int $blockedcount): void {
+    try {
+        $user = core_user::get_user($userid);
+        if (!$user || $user->deleted) {
+            return;
+        }
+        $subject = get_string('absence_restricted_subject', 'local_grupomakro_core');
+        $body = get_string('absence_restricted_body', 'local_grupomakro_core', $blockedcount);
+        $message = new \core\message\message();
+        $message->component = 'local_grupomakro_core';
+        $message->name = 'absence_block_alert';
+        $message->userfrom = core_user::get_noreply_user();
+        $message->userto = $user;
+        $message->subject = $subject;
+        $message->fullmessage = $body;
+        $message->fullmessageformat = FORMAT_PLAIN;
+        $message->fullmessagehtml = '<p>' . s($body) . '</p>';
+        $message->smallmessage = $subject;
+        $message->notification = 1;
+        $message->contexturl = (new moodle_url('/'))->out(false);
+        $message->contexturlname = get_string('course');
+        message_send($message);
+    } catch (Throwable $e) {
+        mtrace('absence restriction notification failed: ' . $e->getMessage());
+    }
 }
 
 /**
@@ -1956,6 +2034,7 @@ function absd_build_absence_summary(int $userid): array {
         'open_class_count'      => $global['open_count'],
         'blocked_class_count'   => $global['blocked_count'],
         'is_blocking_enabled'   => absd_is_blocking_enabled(),
+        'is_absence_restricted' => absd_is_absence_restricted($userid),
     ];
 }
 
@@ -2114,10 +2193,11 @@ function absd_run_staged_absence_check(): array {
         }
     }
 
-    // Global inactivity roll-up: any user with no non-blocked cursando class
-    // who is not already inactive gets the 3-field inactivation applied.
-    // This is gated on the blocking flag so that during the soft-launch
-    // (alerts-only) phase the global suspension is NOT applied.
+    // Global restriction roll-up: any user with no non-blocked cursando class
+    // who is not already restricted gets the restriction applied (the account
+    // stays active; see absd_mark_user_inactive()). Users suspended by hand or
+    // by other processes are left alone. Gated on the blocking flag so that
+    // during the soft-launch (alerts-only) phase nothing is applied.
     $candidates = [];
     if (absd_is_blocking_enabled()) {
         $planfilter = absd_get_alert_plan_filter_sql();
@@ -2132,7 +2212,13 @@ function absd_run_staged_absence_check(): array {
                 AND gc.enddate > :now
                 AND {$planfilter['sql']}
                 AND u.deleted = 0
-                AND u.suspended = 0",
+                AND u.suspended = 0
+                AND NOT EXISTS (
+                    SELECT 1 FROM {gmk_class_absence_history} h
+                     WHERE h.userid = gcp.userid AND h.classid = 0 AND h.action = 'global_inactive'
+                       AND h.id = (SELECT MAX(h2.id) FROM {gmk_class_absence_history} h2
+                                    WHERE h2.userid = gcp.userid AND h2.classid = 0
+                                      AND h2.action IN ('global_inactive', 'global_reactivate')))",
             array_merge(['now' => $nowts], $planfilter['params'])
         );
     }
@@ -2142,38 +2228,37 @@ function absd_run_staged_absence_check(): array {
         $global = absd_check_global_inactivity($uid);
         if (!$global['has_open_class'] && $global['total'] > 0) {
             // Verify the user has at least one blocked class to justify the
-            // global inactivation (avoids tagging a user with zero classes).
+            // global restriction (avoids tagging a user with zero classes).
             if ($global['blocked_count'] > 0) {
                 absd_mark_user_inactive($uid, $studentstatus_fieldid);
                 $summary['users_globally_inactive']++;
                 absd_log_history($uid, 0, $global['blocked_count'], 3, 'global_inactive');
+                absd_notify_absence_restriction($uid, (int)$global['blocked_count']);
             }
         }
     }
 
-    // Reverse a global inactivation this process applied once its reason is
-    // gone: the student again has a cursando class that is not blocked (absences
-    // dropped, e.g. a day registered as a holiday stopped counting). Mirrors the
-    // manual unblock in absence_dashboard.php. Only users whose last global
+    // Lift a global restriction this process applied once its reason is gone:
+    // the student again has a cursando class that is not blocked (absences
+    // dropped, e.g. a justification or a day registered as a holiday). Mirrors
+    // the manual unblock in absence_dashboard.php. Only users whose last global
     // action was 'global_inactive' are touched: suspensions made by hand or by
-    // other processes stay as they are.
+    // other processes stay as they are. Restricted accounts are no longer
+    // suspended; older ones still are, and absd_mark_user_active() lifts both.
     $summary['users_globally_reactivated'] = 0;
     if (absd_is_blocking_enabled()) {
         $suspended = $DB->get_records_sql(
             "SELECT h.userid
                FROM {gmk_class_absence_history} h
-               JOIN {user} u ON u.id = h.userid AND u.suspended = 1 AND u.deleted = 0
+               JOIN {user} u ON u.id = h.userid AND u.deleted = 0
               WHERE h.classid = 0
                 AND h.id = (SELECT MAX(h2.id) FROM {gmk_class_absence_history} h2
-                             WHERE h2.userid = h.userid AND h2.classid = 0)
+                             WHERE h2.userid = h.userid AND h2.classid = 0
+                               AND h2.action IN ('global_inactive', 'global_reactivate'))
                 AND h.action = 'global_inactive'"
         );
         foreach ($suspended as $s) {
-            $uid = (int)$s->userid;
-            $global = absd_check_global_inactivity($uid);
-            if (!empty($global['has_open_class'])) {
-                absd_mark_user_active($uid, $studentstatus_fieldid);
-                absd_log_history($uid, 0, 0, 0, 'global_reactivate', 'auto: has a cursando class that is not blocked');
+            if (absd_lift_absence_restriction_if_due((int)$s->userid)) {
                 $summary['users_globally_reactivated']++;
             }
         }

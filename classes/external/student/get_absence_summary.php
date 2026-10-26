@@ -90,6 +90,7 @@ class get_absence_summary extends external_api {
             'open_class_count'      => new external_value(PARAM_INT, 'Number of non-blocked cursando classes'),
             'blocked_class_count'   => new external_value(PARAM_INT, 'Number of blocked cursando classes'),
             'is_blocking_enabled'   => new external_value(PARAM_BOOL, 'True when the soft-launch blocking sub-flag is on'),
+            'is_absence_restricted' => new external_value(PARAM_BOOL, 'True when the student is under the global absence restriction', VALUE_DEFAULT, false),
         ]);
     }
 }

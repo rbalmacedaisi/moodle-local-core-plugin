@@ -83,6 +83,10 @@ class refresh_absence_state extends external_api {
             }
         }
 
+        // A justification may have brought a class back under the limit: lift
+        // the global restriction now instead of at the nightly run.
+        absd_lift_absence_restriction_if_due((int)$params['userid']);
+
         return [
             'success'   => true,
             'processed' => $processed,

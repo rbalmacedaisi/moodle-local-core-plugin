@@ -262,6 +262,8 @@ $string['absence_warning_subject'] = '{$a}: segunda inasistencia registrada';
 $string['absence_warning_body'] = 'La asignatura «{$a->coursename}» cuenta con 2 inasistencias. A la tercera inasistencia perderás el acceso a los recursos y seguimiento de la misma. Si tienes justificación de las inasistencias, acércate al departamento académico para presentar tu justificación.';
 $string['absence_block_subject'] = '{$a}: acceso restringido por inasistencias';
 $string['absence_block_body'] = 'Tu acceso a la asignatura «{$a->coursename}» se encuentra restringido debido a que alcanzaste el límite de 3 inasistencias. Debes acercarte al área académica para revisar tu caso en caso de tener justificación a las faltas.';
+$string['absence_restricted_subject'] = 'Acceso restringido por inasistencias';
+$string['absence_restricted_body'] = 'Tu acceso a la plataforma está restringido porque alcanzaste el límite de inasistencias en todas tus asignaturas en curso ({$a}). Mientras dure la restricción no puedes entrar a tus cursos ni registrar asistencia. Acércate al área académica para revisar tus faltas; si tienes justificación, al registrarla se levanta la restricción.';
 
 $string['course_blocked_title'] = 'Acceso restringido a la asignatura';
 $string['course_blocked_intro'] = 'Tu acceso a la asignatura <strong>{$a}</strong> se encuentra restringido.';
