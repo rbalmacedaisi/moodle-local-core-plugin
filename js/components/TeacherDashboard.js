@@ -331,7 +331,9 @@ const TeacherDashboard = {
         </v-container>
     `,
     data() {
-        const todayIso = new Date().toISOString().substr(0, 10);
+        // Local date (toISOString is UTC and flips to tomorrow after 19:00 in Panama).
+        const _t = new Date();
+        const todayIso = _t.getFullYear() + '-' + String(_t.getMonth() + 1).padStart(2, '0') + '-' + String(_t.getDate()).padStart(2, '0');
         return {
             loading: true,
             showCalendar: false,
@@ -685,12 +687,23 @@ const TeacherDashboard = {
         },
         calendarNext() { this.$refs.calendar.next(); },
         calendarPrev() { this.$refs.calendar.prev(); },
-        calendarToday() { this.calendarValue = new Date().toISOString().substr(0, 10); },
+        calendarToday() {
+            const t = new Date();
+            this.calendarValue = t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0');
+        },
         onCalendarChange({ start, end }) {
             // Updated to handle range properly in title
             // Note: start and end are objects with date info
             if (this.calendarView === 'month') {
-                this.calendarTitle = new Date(start.date).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+                // The month grid starts on the Sunday before the 1st, so `start`
+                // can belong to the previous month (Oct 2026 starts on Sep 27).
+                // Use the middle of the visible range, which is always in the
+                // displayed month. Parse as local date to avoid UTC shifts.
+                const s = String(start.date).split('-').map(Number);
+                const e = String(end.date).split('-').map(Number);
+                const ms = new Date(s[0], s[1] - 1, s[2]).getTime();
+                const me = new Date(e[0], e[1] - 1, e[2]).getTime();
+                this.calendarTitle = new Date((ms + me) / 2).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
             } else if (this.calendarView === 'week' || this.calendarView === 'day') {
                 // For week/day, maybe show start - end or just month/year of start
                 this.calendarTitle = new Date(start.date).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });

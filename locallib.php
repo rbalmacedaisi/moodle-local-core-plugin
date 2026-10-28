@@ -3423,6 +3423,21 @@ function gmk_cleanup_stale_bbb_for_class_before_rebuild($class): array
             continue;
         }
 
+        // A room that was KEPT (given session, recordings, still linked) still has
+        // its course module, and with it the calendar event that schedules.php draws
+        // (it only paints bigbluebuttonbn events). Only instances left without a live
+        // module are orphans whose events can go. Kept rooms used to stay in
+        // $candidateinstances and lost their event on every rebuild (class 9835,
+        // 2026-10-28: 5 rooms kept, 0 events left, sessions gone from schedules.php).
+        if ($DB->record_exists_sql(
+                "SELECT 1
+                   FROM {course_modules} cm
+                   JOIN {modules} m ON m.id = cm.module AND m.name = 'bigbluebuttonbn'
+                  WHERE cm.instance = :inst AND cm.deletioninprogress = 0",
+                ['inst' => $instanceid])) {
+            continue;
+        }
+
         $evcount = (int)$DB->count_records('event', [
             'modulename' => 'bigbluebuttonbn',
             'instance' => $instanceid,
@@ -5379,11 +5394,13 @@ function update_class($classParams)
     
     // Performance Optimization: Only recreate activities if schedule parameters changed
     // Activities creation involves nuking old modules and creating new ones (very slow).
-    // Note: support teacher change is NOT here — it does not change the schedule or
-    // activity set, only the BBB participant rules (handled above).
+    // Note: a teacher change (main OR support) is NOT here either — it does not
+    // change the schedule or the activity set, only the BBB moderator rules, which
+    // gmk_sync_bbb_moderator_rules_for_class() already updates above, and the group
+    // membership (update_class_group). Counting it as a schedule change queued a
+    // full rebuild that deleted sessions not yet given (class 9835, 2026-10-28).
     $scheduleChanged = (
         $class->type != $oldClass->type ||
-        $class->instructorid != $oldClass->instructorid ||
         $class->periodid != $oldClass->periodid ||
         $class->inittime != $oldClass->inittime ||
         $class->endtime != $oldClass->endtime ||
@@ -12838,6 +12855,9 @@ function gmk_copy_class_activity(array $params): array {
     $class = $classes[$classId];
     $class->course  = get_course($class->corecourseid);
     $class->courseid = $class->corecourseid;
+    // Columns this function really changes (see the targeted save at the end).
+    $classBbbTouched = false;
+    $classEndTouched = false;
 
     // Resolve modules + section number.
     $BBBmoduleId        = (int)$DB->get_field('modules', 'id', ['name' => 'bigbluebuttonbn']);
@@ -12956,11 +12976,13 @@ function gmk_copy_class_activity(array $params): array {
                 $cmids[] = (int)$bbbInfo->coursemodule;
                 $cmids   = array_values(array_unique(array_map('intval', $cmids)));
                 $class->bbbmoduleids = implode(',', $cmids);
+                $classBbbTouched = true;
             }
 
             // (e) Extend enddate if needed.
             if ($endTS > (int)$class->enddate) {
                 $class->enddate = $endTS;
+                $classEndTouched = true;
             }
 
             // (f) Append date to gmk_class_schedules.assigned_dates for the matching weekday.
@@ -12991,7 +13013,21 @@ function gmk_copy_class_activity(array $params): array {
         }
 
         $class->timemodified = time();
-        $DB->update_record('gmk_class', $class);
+        // Persist ONLY the columns this function changes. $class is the enriched
+        // object from list_classes(): there periodid is remapped to the plan level
+        // and courseid was just set to the Moodle course id, both for display.
+        // Saving the whole object wrote those values over the real columns (22
+        // classes lost their institutional period on 2026-10-23).
+        $classUpd = new \stdClass();
+        $classUpd->id = (int)$class->id;
+        if ($classBbbTouched) {
+            $classUpd->bbbmoduleids = $class->bbbmoduleids;
+        }
+        if ($classEndTouched) {
+            $classUpd->enddate = $class->enddate;
+        }
+        $classUpd->timemodified = $class->timemodified;
+        $DB->update_record('gmk_class', $classUpd);
         $transaction->allow_commit();
     } catch (\Throwable $e) {
         $transaction->rollback($e);
@@ -13160,7 +13196,14 @@ function gmk_delete_class_activity(array $params): array {
             $cmids = array_values(array_filter(array_map('intval', $cmids), fn($c) => $c !== $bbbCmid));
             $class->bbbmoduleids = $cmids ? implode(',', $cmids) : null;
             $class->timemodified = time();
-            $DB->update_record('gmk_class', $class);
+            // Only the columns this function changes: $class is the enriched list_classes()
+            // object (periodid remapped to the plan level), saving it whole corrupted the
+            // institutional period of every class a session was deleted from.
+            $DB->update_record('gmk_class', (object)[
+                'id'            => (int)$class->id,
+                'bbbmoduleids'  => $class->bbbmoduleids,
+                'timemodified'  => $class->timemodified,
+            ]);
 
             // If no remaining session exists for the deleted date in this class,
             // drop the date from assigned_dates so the planning layer stays consistent.

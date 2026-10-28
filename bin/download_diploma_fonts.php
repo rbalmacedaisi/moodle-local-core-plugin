@@ -11,6 +11,7 @@
 // This script is meant to be run ONCE on the server (or any machine
 // with internet access) to populate the tcpdf_fonts/ directory.
 
+if (PHP_SAPI !== 'cli') { http_response_code(403); exit; } // SEC: solo linea de comandos
 define('CLI_SCRIPT', true);
 
 $root = '/var/www/html/moodle/local/grupomakro_core';

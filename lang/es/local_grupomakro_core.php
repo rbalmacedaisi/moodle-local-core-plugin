@@ -183,6 +183,7 @@ $string['clear_period_exemptions_title'] = 'Limpiar exenciones de período';
 $string['clear_period_exemptions_desc'] = 'Elimina todas las exenciones del nuevo sistema de bloqueo por inasistencias. Ejecutar al inicio del siguiente período académico para que las reglas apliquen desde cero.';
 $string['clear_period_exemptions_confirm'] = '¿Confirmas la limpieza de exenciones? Esta acción eliminará TODAS las exenciones del nuevo sistema. Los estudiantes que tengan 3+ inasistencias al ejecutar el cron serán bloqueados nuevamente.';
 $string['clear_period_exemptions_complete'] = 'Se eliminaron {$a} exenciones.';
+$string['taskadvanceacademicprogress'] = 'Avance automático de cuatrimestre y bimestre';
 $string['taskprocessperiodtransition'] = 'Procesar transición de periodo académico';
 $string['taskupdatefinancialstatus'] = 'Actualizar estado financiero de estudiantes (Odoo)';
 $string['error_class_closed_modification'] = 'Esta clase está cerrada y no se puede modificar.';
