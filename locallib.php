@@ -3423,6 +3423,21 @@ function gmk_cleanup_stale_bbb_for_class_before_rebuild($class): array
             continue;
         }
 
+        // A room that was KEPT (given session, recordings, still linked) still has
+        // its course module, and with it the calendar event that schedules.php draws
+        // (it only paints bigbluebuttonbn events). Only instances left without a live
+        // module are orphans whose events can go. Kept rooms used to stay in
+        // $candidateinstances and lost their event on every rebuild (class 9835,
+        // 2026-10-28: 5 rooms kept, 0 events left, sessions gone from schedules.php).
+        if ($DB->record_exists_sql(
+                "SELECT 1
+                   FROM {course_modules} cm
+                   JOIN {modules} m ON m.id = cm.module AND m.name = 'bigbluebuttonbn'
+                  WHERE cm.instance = :inst AND cm.deletioninprogress = 0",
+                ['inst' => $instanceid])) {
+            continue;
+        }
+
         $evcount = (int)$DB->count_records('event', [
             'modulename' => 'bigbluebuttonbn',
             'instance' => $instanceid,
@@ -5379,11 +5394,13 @@ function update_class($classParams)
     
     // Performance Optimization: Only recreate activities if schedule parameters changed
     // Activities creation involves nuking old modules and creating new ones (very slow).
-    // Note: support teacher change is NOT here — it does not change the schedule or
-    // activity set, only the BBB participant rules (handled above).
+    // Note: a teacher change (main OR support) is NOT here either — it does not
+    // change the schedule or the activity set, only the BBB moderator rules, which
+    // gmk_sync_bbb_moderator_rules_for_class() already updates above, and the group
+    // membership (update_class_group). Counting it as a schedule change queued a
+    // full rebuild that deleted sessions not yet given (class 9835, 2026-10-28).
     $scheduleChanged = (
         $class->type != $oldClass->type ||
-        $class->instructorid != $oldClass->instructorid ||
         $class->periodid != $oldClass->periodid ||
         $class->inittime != $oldClass->inittime ||
         $class->endtime != $oldClass->endtime ||
