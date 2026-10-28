@@ -19,8 +19,7 @@ try {
     mtrace("Handling institutional period transitions...");
     \local_grupomakro_progress_manager::handle_institutional_period_transition($logFile);
     
-    mtrace("Handling sub-period (Bloque) transitions...");
-    \local_grupomakro_progress_manager::handle_subperiod_transition($logFile);
+    // Los bimestres los gestiona la tarea advance_academic_progress (cli/advance_academic_progress.php).
     
     mtrace("Done! Check log at: $logFile");
 } catch (Exception $e) {

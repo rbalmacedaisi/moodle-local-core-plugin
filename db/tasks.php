@@ -76,6 +76,17 @@ $tasks = [
         'dayofweek' => '*',
     ],
     [
+        // Avance automatico de cuatrimestre/bimestre de los estudiantes activos
+        // (idempotente: solo escribe al iniciar una franja nueva de 2 meses).
+        'classname' => 'local_grupomakro_core\task\advance_academic_progress',
+        'blocking' => 0,
+        'minute' => '45',
+        'hour' => '3',
+        'day' => '*',
+        'month' => '*',
+        'dayofweek' => '*',
+    ],
+    [
         'classname' => 'local_grupomakro_core\task\end_bbb_sessions',
         'blocking' => 0,
         'minute' => '*/5',

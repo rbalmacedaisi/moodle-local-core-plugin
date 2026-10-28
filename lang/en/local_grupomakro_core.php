@@ -317,6 +317,7 @@ $string['clear_period_exemptions_complete'] = 'Removed {$a} exemptions.';
 // Scheduled tasks.
 $string['taskinactiveusers'] = 'Delete inactive users';
 $string['taskcloseexpiredschedules'] = 'Close expired schedules';
+$string['taskadvanceacademicprogress'] = 'Automatic term and sub-term progress';
 $string['taskprocessperiodtransition'] = 'Process period transition';
 $string['taskupdatefinancialstatus'] = 'Update financial status';
 $string['error_class_closed_modification'] = 'This class is closed and cannot be modified.';
