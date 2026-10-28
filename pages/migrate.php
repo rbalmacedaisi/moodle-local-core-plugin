@@ -1,4 +1,9 @@
 <?php
+// SEC: script de migracion unica; nunca debe ejecutarse por web (corre como admin sin sesion).
+if (PHP_SAPI !== 'cli') {
+    http_response_code(403);
+    exit;
+}
 define('CLI_SCRIPT', true);
 require_once(__DIR__ . '/../../../config.php');
 require_once($CFG->libdir . '/clilib.php');

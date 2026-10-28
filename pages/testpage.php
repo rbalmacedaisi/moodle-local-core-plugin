@@ -10,6 +10,8 @@ require_once(__DIR__ . '/../../../config.php');
 // require_once($CFG->dirroot.'/local/sc_learningplans/external/course/add_course_relations.php');
 // require_once($CFG->dirroot.'/local/sc_learningplans/external/user/add_learning_user.php');
 require_once($CFG->dirroot . '/grade/querylib.php');
+require_login();
+require_capability('moodle/site:config', context_system::instance()); // SEC: antes era publico
 require_once($CFG->dirroot . '/grade/lib.php');
 require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/gmk_class.php');
 

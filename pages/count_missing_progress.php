@@ -1,6 +1,8 @@
 <?php
 require_once(__DIR__ . '/../../../config.php');
 global $DB;
+require_login();
+require_capability('moodle/site:config', context_system::instance()); // SEC: antes era publico
 
 $studentRoleId = $DB->get_field('role', 'id', ['shortname' => 'student']);
 

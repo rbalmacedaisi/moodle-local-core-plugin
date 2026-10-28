@@ -1,6 +1,8 @@
 <?php
 require_once(__DIR__ . '/../../../config.php');
 require_once($CFG->libdir . '/adminlib.php');
+require_login();
+require_capability('moodle/site:config', context_system::instance()); // SEC: antes era publico
 
 $classid = 125;
 echo "<pre>";

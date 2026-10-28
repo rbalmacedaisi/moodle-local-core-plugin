@@ -1,4 +1,5 @@
 <?php
+if (PHP_SAPI !== 'cli') { http_response_code(403); exit; } // SEC: solo linea de comandos
 define('CLI_SCRIPT', true);
 require(__DIR__ . '/../../config.php');
 
