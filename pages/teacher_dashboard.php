@@ -44,7 +44,7 @@ $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/ManageC
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/studenttable.js?v=20251231050'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/TeacherStudentTable.js?v=20261001107'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/GradesGrid.js?v=20260827000'), true);
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/GradebookManager.js?v=20260312012'), true);
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/GradebookManager.js?v=20261029001'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/grademodal.js?v=20261022001'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/attendancemodal.js?v=20251231049'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/PendingGradingView.js?v=20261001057'), true);
