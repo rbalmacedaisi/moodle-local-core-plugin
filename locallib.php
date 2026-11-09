@@ -10310,9 +10310,11 @@ function gmk_late_rule_extra_absences(int $classId, int $lateCount): int {
  * attendance (revalidation sessions excluded, same as everywhere else).
  *
  * A "late" is any status that still counts as attended (grade > 0) but is not
- * the presence status (the top grade of the set) — i.e. Retraso and Falta
- * Justificada. Resolving it by grade rather than by acronym keeps it working
- * if the status set is renamed.
+ * the presence status (the top grade of the set), excluding justified
+ * absences: a Falta Justificada (or a holiday justified as FJ) has the same
+ * grade as Retraso in most sets, but it is not a late and must never add up
+ * to an absence. Only the student's latest record in each session counts, so
+ * a late corrected to another status stops counting.
  *
  * @param int $attendanceId
  * @param array $userIds
@@ -10341,15 +10343,22 @@ function gmk_count_lates_by_user(int $attendanceId, array $userIds, ?int $before
     $rows = $DB->get_records_sql(
         "SELECT al.studentid, COUNT(DISTINCT s.id) AS lates
            FROM {attendance_sessions} s
-           JOIN {attendance_log} al ON al.sessionid = s.id AND al.studentid $uinsql
+           JOIN (SELECT l.studentid, l.sessionid, MAX(l.id) AS maxid
+                   FROM {attendance_log} l
+                   JOIN {attendance_sessions} ls ON ls.id = l.sessionid AND ls.attendanceid = :aid2
+                  WHERE l.studentid $uinsql
+               GROUP BY l.studentid, l.sessionid) mx ON mx.sessionid = s.id
+           JOIN {attendance_log} al ON al.id = mx.maxid
            JOIN {attendance_statuses} ast ON ast.id = al.statusid
           WHERE s.attendanceid = :aid
             AND COALESCE(s.is_revalida, 0) = 0
             AND s.sessdate + s.duration < :now
             AND ast.grade > 0
             AND ast.grade < :maxgrade
+            AND UPPER(ast.acronym) <> 'FJ'
+            AND LOWER(ast.description) NOT LIKE '%justific%'
        GROUP BY al.studentid",
-        array_merge($uinparams, ['aid' => $attendanceId, 'now' => $before, 'maxgrade' => $maxgrade])
+        array_merge($uinparams, ['aid' => $attendanceId, 'aid2' => $attendanceId, 'now' => $before, 'maxgrade' => $maxgrade])
     );
     foreach ($rows as $r) {
         $out[(int)$r->studentid] = (int)$r->lates;
