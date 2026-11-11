@@ -20,7 +20,8 @@
  *  - Categorias de cada asignatura pendiente:
  *      nivel     la que su plan pone en ese bimestre
  *      atrasada  de un bimestre anterior y nunca cursada (se ve con otra cohorte que este en ese nivel)
- *      repite    reprobada (gmk_course_progre.status = 5) y no aprobada despues
+ *      repite    reprobada (gmk_course_progre.status = 5) y no aprobada despues. NO se carga sola: no cuenta para
+ *                el quorum ni la carga; se le avisa al aprobar el horario (repeat_offers)
  *      adelanto  de los dos bimestres siguientes, con prelaciones cumplidas (solo para completar carga)
  *  - Prelaciones (campo de curso 'pre'): cumplida si esta aprobada; "condicionada" si se esta
  *    cursando o en revalida; reprobada o sin cursar = no cumplida. La nota oficial (gmk_course_progre)
@@ -335,10 +336,12 @@ class demand_engine {
                     $normal++;
                 }
             }
+            // Carga: las reprobadas NO se cargan automaticamente (el repitente las solicita y paga en el area
+            // academica cuando hay una clase aprobada), asi que no cuentan para la carga ni para la demanda.
             $load = 0;
             $available = 0;
             foreach ($subjects as $s) {
-                if ($s->prereq === 'no') {
+                if ($s->prereq === 'no' || $s->category === self::CAT_REPITE) {
                     continue;
                 }
                 $available++;
@@ -441,7 +444,8 @@ class demand_engine {
                 if ($sub['prereq'] === 'condicionada') {
                     $d['conditional']++;
                 }
-                if ($sub['category'] !== self::CAT_ADELANTO) {
+                // 'ready' = lo que se carga automaticamente (nivel + atrasada). Repitentes y adelantos se informan aparte.
+                if ($sub['category'] === self::CAT_NIVEL || $sub['category'] === self::CAT_ATRASADA) {
                     $d['ready']++;
                 }
                 $d['plans'][$s['planid']] = ($d['plans'][$s['planid']] ?? 0) + 1;

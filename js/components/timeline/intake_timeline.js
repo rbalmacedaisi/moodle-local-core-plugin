@@ -493,7 +493,7 @@ Vue.component('intake-timeline', {
             planPanel: { visible: false, cohort: '', plan: null, tab: 'subjects' },
             planGroups: [
                 { key: 'nivel', title: 'Por su nivel', bg: '#E0E7FF', color: '#4338CA', empty: 'Nada pendiente de su nivel' },
-                { key: 'pend', title: 'Atrasadas y para repetir', bg: '#FEE2E2', color: '#B91C1C', empty: 'Sin atrasadas ni reprobadas' },
+                { key: 'pend', title: 'Atrasadas (nunca cursadas)', bg: '#FFEDD5', color: '#C2410C', empty: 'Sin atrasadas' },
             ],
         };
     },
@@ -724,13 +724,15 @@ Vue.component('intake-timeline', {
                     e.students.push({ s: s, cat: x.category, prereq: x.prereq, missing: x.missing });
                     if (x.prereq === 'no') { e.blocked++; return; }
                     e.cats[x.category]++;
-                    if (x.category !== 'adelanto') e.ready++;
+                    // Las reprobadas no se cargan solas (gestion aparte): no suman a lo que abre el grupo.
+                    if (x.category === 'nivel' || x.category === 'atrasada') e.ready++;
                 });
             });
             const all = Object.values(subjects).sort((a, b) => b.ready - a.ready || a.name.localeCompare(b.name));
             const groups = {
                 nivel: all.filter(e => e.cats.nivel > 0),
-                pend: all.filter(e => !e.cats.nivel && (e.cats.atrasada + e.cats.repite) > 0),
+                pend: all.filter(e => !e.cats.nivel && e.cats.atrasada > 0),
+                repite: all.filter(e => e.cats.repite > 0),
                 adelanto: all.filter(e => !e.cats.nivel && !e.cats.atrasada && !e.cats.repite && e.cats.adelanto > 0),
                 bloqueadas: all.filter(e => e.ready === 0 && e.cats.adelanto === 0 && e.blocked > 0),
             };

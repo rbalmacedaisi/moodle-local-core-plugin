@@ -103,7 +103,7 @@ Vue.component('cohort-plan-panel', {
                         </div>
                         <div class="tl-subj-stats" :class="'tl-stats-' + semaphore(s)" :title="statsHelp(s)">
                             <v-icon size="11" :color="semColor(s)">mdi-account-multiple</v-icon>
-                            <span class="tl-subj-stats-num">{{ g.key === 'adelanto' ? s.cats.adelanto : s.ready }}</span>
+                            <span class="tl-subj-stats-num">{{ g.key === 'adelanto' ? s.cats.adelanto : (g.key === 'repite' ? s.cats.repite : s.ready) }}</span>
                         </div>
                     </div>
                 </div>
@@ -173,7 +173,8 @@ Vue.component('cohort-plan-panel', {
             tab: this.initialTab, q: '', open: {}, showHelp: false,
             groupDefs: [
                 { key: 'nivel', title: 'Por su nivel', help: 'las de su bimestre' },
-                { key: 'pend', title: 'Atrasadas y para repetir', help: 'con otra cohorte de ese nivel' },
+                { key: 'pend', title: 'Atrasadas', help: 'nunca cursadas; con otra cohorte de ese nivel' },
+                { key: 'repite', title: 'Reprobadas (gestión aparte)', help: 'no se cargan solas: aviso al aprobar el horario' },
                 { key: 'adelanto', title: 'Pueden adelantar', help: 'para completar carga o grupos' },
                 { key: 'bloqueadas', title: 'Con prelación pendiente', help: 'no se pueden cargar aún' },
             ],

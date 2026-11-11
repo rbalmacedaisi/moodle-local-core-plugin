@@ -76,6 +76,17 @@ $tasks = [
         'dayofweek' => '*',
     ],
     [
+        // Aviso a repitentes cuando hay una clase aprobada de la asignatura que reprobaron (solo si
+        // planning_notify_repeaters esta activo; idempotente: un aviso por estudiante, asignatura y periodo).
+        'classname' => 'local_grupomakro_core\task\notify_repeaters',
+        'blocking' => 0,
+        'minute' => '15',
+        'hour' => '7',
+        'day' => '*',
+        'month' => '*',
+        'dayofweek' => '*',
+    ],
+    [
         // Avance automatico de cuatrimestre/bimestre de los estudiantes activos
         // (idempotente: solo escribe al iniciar una franja nueva de 2 meses).
         'classname' => 'local_grupomakro_core\task\advance_academic_progress',

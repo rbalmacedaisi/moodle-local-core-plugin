@@ -239,3 +239,5 @@ $plugin->version   = 20261001112;         // Avance automatico de cuatrimestre/b
 $plugin->version   = 20261001113;         // Planificacion por cohortes, fase 1 (solo lectura) dentro de la linea de tiempo: seccion por cohorte + panel cohort_plan_panel + WS local_grupomakro_planning_get_demand (classes/local/planning/demand_engine.php), foto y comparacion de estado (cli/planning_snapshot.php), academic_progress::expected_levels().
 
 $plugin->version   = 20261001114;         // Planificacion: pestanas Proyeccion y Configuracion en la linea de tiempo; WS local_grupomakro_planning_get_config / save_config (periodos con inicio por jornada en configsettings, reglas de agrupacion, jornadas, aulas, festivos).
+
+$plugin->version   = 20261001115;         // Planificacion: repitentes fuera de la carga automatica; aviso a repitentes (tarea notify_repeaters, proveedor repeat_offer, apagado por defecto: planning_notify_repeaters); excepciones de apertura; egresan sin quorum.

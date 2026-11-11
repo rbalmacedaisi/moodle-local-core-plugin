@@ -22,7 +22,8 @@ Vue.component('period-projection', {
                     <template v-slot:activator="{ on }"><v-icon size="15" color="#94A3B8" v-on="on">mdi-information-outline</v-icon></template>
                     <span>Asignaturas que el sistema proyecta abrir en {{ result.period.name }}. Para cada estudiante activo se toma
                     su nivel al inicio del periodo y su plan: le toca la asignatura de su bimestre, las atrasadas que nunca cursó y
-                    las reprobadas (siempre que tenga la prelación). Se agrupa por asignatura y jornada, juntando niveles y carreras,
+                    (las reprobadas no se cargan solas: se informan aparte y se avisa al estudiante al aprobar el horario).
+                    Se agrupa por asignatura y jornada, juntando niveles y carreras,
                     salvo lo marcado como "no se mezcla" en Configuración. Un grupo abre con {{ min }} o más estudiantes y se divide
                     a partir de {{ max }}. Lo que no alcanza se puede abrir por excepción o como módulo: marque las casillas.</span>
                 </v-tooltip>
@@ -83,7 +84,8 @@ Vue.component('period-projection', {
                             <v-icon size="9" color="#fff">mdi-school</v-icon> {{ r.finishingShort }} egresan sin quórum</span>
                         <span>{{ r.levels.join(', ') }}</span>
                         <span v-if="showCareers && !r.isolated">{{ r.plans.join(' • ') }}</span>
-                        <span v-if="r.repite" style="color:#DC2626">{{ r.repite }} repiten</span>
+                        <span v-if="r.repite" class="tl-plan-tag tl-plan-tag-repite" title="Reprobaron esta asignatura. No se cargan automáticamente: al aprobar el horario se les avisa que pueden solicitar el cargue en el área académica y pagarla. No cuentan para el mínimo del grupo.">
+                            +{{ r.repite }} repitentes (gestión aparte)</span>
                         <span v-if="r.atrasada" style="color:#C2410C">{{ r.atrasada }} atrasados</span>
                         <span v-if="r.blocked" style="color:#B45309"><v-icon size="10" color="#B45309">mdi-lock-outline</v-icon>{{ r.blocked }} sin prelación</span>
                     </div>
@@ -122,6 +124,7 @@ Vue.component('period-projection', {
                         <span v-if="j.exception && j.exception.mode === 'modulo' && j.exception.userids.includes(x.s.userid)" class="tl-plan-tag tl-plan-tag-nivel">módulo</span>
                         <span class="tl-subj-meta-item" style="font-size:10px;color:#94A3B8">{{ showCareers ? shortPlan(x.s.plan) + ' · ' : '' }}{{ x.s.level }}</span>
                         <span class="tl-plan-tag" :class="'tl-plan-tag-' + x.cat">{{ catLabel[x.cat] }}</span>
+                        <span v-if="x.cat === 'repite'" class="tl-plan-tag tl-plan-tag-muted" title="No se carga automáticamente; recibe el aviso cuando se apruebe el horario">aviso al aprobar</span>
                         <span v-if="x.prereq === 'no'" class="tl-plan-tag tl-plan-tag-lock">prelación</span>
                     </div>
                 </div>
@@ -215,8 +218,9 @@ Vue.component('period-projection', {
                     .filter(x => x.s).sort((a, b) => (b.s.finishing - a.s.finishing) || a.s.name.localeCompare(b.s.name));
                 const byPlan = {};
                 let finishing = 0;
+                const loads = x => x.prereq !== 'no' && (x.cat === 'nivel' || x.cat === 'atrasada');
                 studs.forEach(x => {
-                    if (x.prereq !== 'no' && x.cat !== 'adelanto') {
+                    if (loads(x)) {
                         byPlan[x.s.planid] = (byPlan[x.s.planid] || 0) + 1;
                         if (x.s.finishing) finishing++;
                     }
@@ -227,7 +231,7 @@ Vue.component('period-projection', {
                 const groups = d.ready >= this.min ? Math.ceil(d.ready / this.max) : 0;
                 r.jornadas.push({ jornada, ekey, ready: d.ready, adelanto: d.by_category.adelanto, blocked: d.blocked,
                     students: studs, byPlan, finishing, exception, groups,
-                    readyStudents: studs.filter(x => x.prereq !== 'no' && x.cat !== 'adelanto') });
+                    readyStudents: studs.filter(loads), repite: d.by_category.repite });
                 r.ready += d.ready;
                 r.adelanto += d.by_category.adelanto;
                 r.blocked += d.blocked;
@@ -254,7 +258,8 @@ Vue.component('period-projection', {
                 const opens = js.filter(j => j.groups || j.exception);
                 return Object.assign({}, r, { jornadas: js, ready: js.reduce((s, j) => s + j.ready, 0),
                     mine: js.reduce((s, j) => s + j.mine, 0), groups: js.reduce((s, j) => s + j.groups, 0),
-                    opens: opens.length, finishingShort: js.reduce((s, j) => s + j.finishingShort, 0) });
+                    opens: opens.length, finishingShort: js.reduce((s, j) => s + j.finishingShort, 0),
+                    repite: js.reduce((s, j) => s + (cf ? j.students.filter(x => x.cat === 'repite' && x.s.planid === cf).length : j.repite), 0) });
             }).filter(r => r.jornadas.length && (!cf || r.planIds[cf]));
         },
         filters() {
@@ -266,6 +271,8 @@ Vue.component('period-projection', {
                 { key: 'short', label: 'No alcanzan', count: this.scoped.filter(r => r.jornadas.some(j => !j.groups && !j.exception)).length,
                     help: 'Tienen al menos una jornada sin quórum ni excepción' },
                 { key: 'finish', label: 'Egresan sin quórum', count: fin, help: 'Hay estudiantes que terminan su plan y la asignatura no alcanza el mínimo' },
+                { key: 'repite', label: 'Repitentes', count: this.scoped.filter(r => r.repite > 0).length,
+                    help: 'Asignaturas con estudiantes que la reprobaron: gestión aparte, se les avisa al aprobar el horario' },
             ];
         },
         rows() {
@@ -273,7 +280,7 @@ Vue.component('period-projection', {
             const f = this.filter;
             return this.scoped
                 .filter(r => f === 'all' || (f === 'open' ? r.opens > 0 : f === 'finish' ? r.finishingShort > 0
-                    : r.jornadas.some(j => !j.groups && !j.exception)))
+                    : f === 'repite' ? r.repite > 0 : r.jornadas.some(j => !j.groups && !j.exception)))
                 .filter(r => !q || r.name.toLowerCase().includes(q))
                 .sort((a, b) => (f === 'finish' ? b.finishingShort - a.finishingShort : 0) || b.groups - a.groups
                     || (b.mine - a.mine) || b.ready - a.ready || a.name.localeCompare(b.name));
