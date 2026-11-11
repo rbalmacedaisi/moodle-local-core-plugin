@@ -56,6 +56,16 @@ Vue.component('intake-timeline', {
             </div>
         </div>
 
+        <!-- PROYECCIÓN DEL PRÓXIMO PERIODO: asignaturas que se abrirían (de esta carrera) -->
+        <period-projection
+            v-if="canPlan && planResults.length"
+            :result="planResults[0]"
+            scope-label="solo esta carrera; los grupos pueden completarse con otras carreras (ver vista general)"
+            :show-careers="false"
+        ></period-projection>
+        <div v-else-if="canPlan && planLoading" class="tl-proj"><div class="tl-proj-title">
+            <v-icon size="18" color="#4F46E5">mdi-calendar-star</v-icon><span>Calculando proyección del próximo periodo…</span></div></div>
+
         <!-- ACTIVOS SIN COHORTE (sin periodo de ingreso): la tarjeta de la carrera los cuenta pero no
              aparecen en ninguna cohorte. Se muestran aqui para que las cifras cuadren y nadie quede sin planificar. -->
         <div v-if="canPlan && noCohortPlan" class="tl-plan-nocohort">

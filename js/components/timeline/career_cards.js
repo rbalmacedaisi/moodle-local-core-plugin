@@ -58,6 +58,16 @@ Vue.component('career-cards', {
             </div>
         </div>
 
+        <!-- PROYECCIÓN DEL PRÓXIMO PERIODO (todas las carreras): asignaturas que se abrirían -->
+        <period-projection
+            v-if="canPlan && projection"
+            :result="projection.result"
+            :careers="projection.careers"
+            scope-label="todas las carreras"
+        ></period-projection>
+        <div v-else-if="canPlan && projLoading" class="tl-proj"><div class="tl-proj-title">
+            <v-icon size="18" color="#4F46E5">mdi-calendar-star</v-icon><span>Calculando proyección del próximo periodo…</span></div></div>
+
         <!-- ERROR -->
         <v-alert v-if="errorMsg" type="error" outlined class="tl-alert mb-4" border="left">
             <div class="d-flex align-center">
@@ -167,6 +177,10 @@ Vue.component('career-cards', {
             loading: true,
             errorMsg: '',
             careers: [],
+            // Proyeccion del proximo periodo (solo lectura). canPlan lo define la pagina segun el permiso.
+            canPlan: !!window.gmkCanPlan,
+            projLoading: false,
+            projection: null,
             palette: [
                 '#6366F1', // indigo
                 '#8B5CF6', // violet
@@ -204,8 +218,25 @@ Vue.component('career-cards', {
     },
     created() {
         this.loadCareers();
+        if (this.canPlan) this.loadProjection();
     },
     methods: {
+        async loadProjection() {
+            this.projLoading = true;
+            try {
+                const r = await window.axios.get(this.wsUrl, { params: {
+                    wstoken: this.token, moodlewsrestformat: 'json', wsfunction: 'local_grupomakro_planning_get_demand',
+                    periodid: 0, planids: '',
+                } });
+                if (r.data && r.data.exception) throw new Error(r.data.message || r.data.errorcode);
+                const d = JSON.parse(r.data.data);
+                this.projection = (d.result && !d.result.error) ? { result: d.result, careers: d.careers } : null;
+            } catch (e) {
+                console.error('[timeline] proyeccion:', e);
+            } finally {
+                this.projLoading = false;
+            }
+        },
         async loadCareers() {
             this.loading = true;
             this.errorMsg = '';

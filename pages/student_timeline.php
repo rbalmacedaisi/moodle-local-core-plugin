@@ -43,8 +43,11 @@ echo $OUTPUT->header();
 <script>
   var userToken = <?php echo $token; ?>;
   var careerPageUrl = <?php echo $career_page_url; ?>;
+  // Proyeccion del proximo periodo (solo lectura): requiere permiso de planificacion.
+  window.gmkCanPlan = <?php echo has_capability('local/grupomakro_core:manage_academic_planning', context_system::instance()) ? 'true' : 'false'; ?>;
 </script>
 
+<script src="<?php echo $CFG->wwwroot; ?>/local/grupomakro_core/js/components/timeline/period_projection.js?v=<?php echo $assetversion; ?>"></script>
 <script src="<?php echo $CFG->wwwroot; ?>/local/grupomakro_core/js/components/timeline/career_cards.js?v=<?php echo $assetversion; ?>"></script>
 
 <script>
