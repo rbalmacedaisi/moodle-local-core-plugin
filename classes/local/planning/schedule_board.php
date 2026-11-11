@@ -236,8 +236,15 @@ class schedule_board {
                 $holidays[] = ['date' => (int)$h->date, 'day' => (int)date('N', (int)$h->date), 'name' => (string)$h->name];
             }
         }
+        // Catalogo de habilidades (una por asignatura) para agregar habilidades desde el tablero.
+        $catalog = [];
+        foreach ($DB->get_records_sql("SELECT s.courseid, c.fullname FROM {gmk_teacher_skill} s JOIN {course} c ON c.id = s.courseid
+                WHERE s.courseid > 0 ORDER BY c.fullname") as $r) {
+            $catalog[] = ['courseid' => (int)$r->courseid, 'name' => $r->fullname];
+        }
         return [
             'needs_proposal' => $saved === null,
+            'skills_catalog' => $catalog,
             'groups' => $groups,
             'teachers' => array_values($teachers),
             'rooms' => $rooms,

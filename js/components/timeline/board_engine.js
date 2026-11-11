@@ -1,0 +1,530 @@
+// Motor del tablero de horarios de la linea de tiempo (sin dependencias: se prueba con node).
+// Trabaja con lo que devuelve schedule_board::load (grupos, docentes, aulas, ocupacion fija, festivos, configuracion)
+// y una tabla de ubicaciones { key: { day, start, end, teacherid, roomid, locked } } en minutos desde medianoche.
+//
+// Choques:
+//  - duros (rojo): estudiantes con dos clases a la vez, docente o aula ocupados, fuera de la jornada.
+//  - avisos (ambar): docente fuera de su disponibilidad o sin la habilidad, aula chica, hora de almuerzo.
+//  - informativo: sesiones que se pierden por festivos.
+// Dos clases chocan si comparten dia y se cruzan las horas (dejando el receso configurado entre una y otra) y sus
+// fechas se cruzan mas de una semana (asi una clase que termina la primera semana del periodo no bloquea todo).
+(function (root) {
+    'use strict';
+    var DAY = 86400;
+    var E = {};
+    E.DAYS = { 1: 'Lunes', 2: 'Martes', 3: 'Miércoles', 4: 'Jueves', 5: 'Viernes', 6: 'Sábado', 7: 'Domingo' };
+    E.DAYS_SHORT = { 1: 'Lun', 2: 'Mar', 3: 'Mié', 4: 'Jue', 5: 'Vie', 6: 'Sáb', 7: 'Dom' };
+
+    E.toMin = function (t) {
+        var m = /^(\d{1,2}):(\d{2})/.exec(String(t || ''));
+        return m ? Number(m[1]) * 60 + Number(m[2]) : -1;
+    };
+    E.hhmm = function (m) {
+        m = Math.round(m);
+        return (m < 600 ? '0' : '') + Math.floor(m / 60) + ':' + (m % 60 < 10 ? '0' : '') + (m % 60);
+    };
+
+    /** Dias de la jornada: sabatina el sabado; diurna y nocturna de lunes a viernes. */
+    E.jornadaDays = function (cfg, jornada) {
+        var w = (cfg.shiftWindows || {})[jornada] || {};
+        if (Array.isArray(w.days) && w.days.length) {
+            return w.days.map(function (d) { return typeof d === 'number' ? d : E.dayNum(d); }).filter(Boolean);
+        }
+        return /sab/i.test(jornada) ? [6] : [1, 2, 3, 4, 5];
+    };
+    E.dayNum = function (s) {
+        var n = String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+        return { lunes: 1, martes: 2, miercoles: 3, jueves: 4, viernes: 5, sabado: 6, domingo: 7 }[n] || 0;
+    };
+    /** Franja horaria de la jornada en minutos. */
+    E.window = function (cfg, jornada) {
+        var w = (cfg.shiftWindows || {})[jornada] || {};
+        var a = E.toMin(w.start), b = E.toMin(w.end);
+        var ga = E.toMin(cfg.startTime), gb = E.toMin(cfg.endTime);
+        if (a < 0) a = ga >= 0 ? ga : 7 * 60;
+        if (b < 0) b = gb >= 0 ? gb : 22 * 60;
+        return { start: a, end: b };
+    };
+
+    /**
+     * Estado del tablero. board = respuesta de schedule_board::load; placements = ubicaciones (del borrador o vacias).
+     */
+    E.create = function (board, placements) {
+        var s = {
+            cfg: board.config || {}, period: board.period || {}, groups: {}, order: [], teachers: {}, rooms: {}, fixed: [],
+            holidays: board.holidays || [], place: {},
+        };
+        s.pad = Math.max(0, Number(s.cfg.interval || 0));
+        (board.groups || []).forEach(function (g) {
+            var from = Number((s.period.jornada_starts || {})[g.jornada] || s.period.start || 0);
+            s.groups[g.key] = Object.assign({}, g, { users: new Set(g.userids), from: from, to: from + (g.long ? 16 : 8) * 7 * DAY });
+            s.order.push(g.key);
+        });
+        (board.teachers || []).forEach(function (t) {
+            s.teachers[t.id] = Object.assign({}, t, { skillSet: new Set((t.skills || []).map(Number)) });
+        });
+        (board.rooms || []).forEach(function (r) { s.rooms[r.id] = r; });
+        (board.fixed || []).forEach(function (f) {
+            var users = new Set(f.userids || []);
+            (f.sessions || []).forEach(function (x) {
+                s.fixed.push({ id: 'c' + f.id, classid: f.id, name: f.name, day: x.day, start: x.start, end: x.end, teacherid: f.teacherid || 0,
+                    roomid: x.roomid || 0, users: users, from: f.initdate || 0, to: f.enddate || 0, jornada: f.jornada, samePeriod: f.samePeriod });
+            });
+        });
+        Object.keys(placements || {}).forEach(function (k) {
+            if (s.groups[k]) s.place[k] = Object.assign({ day: 0, start: 0, end: 0, teacherid: 0, roomid: 0, locked: false }, placements[k]);
+        });
+        s.order.forEach(function (k) {
+            if (!s.place[k]) s.place[k] = { day: 0, start: 0, end: 0, teacherid: 0, roomid: 0, locked: false };
+        });
+        return s;
+    };
+
+    function datesOverlap(a, b) {
+        if (!a.from || !b.from || !a.to || !b.to) return true;
+        return a.from < b.to - 7 * DAY && b.from < a.to - 7 * DAY;
+    }
+    function timesOverlap(a, b, pad) {
+        return a.start < b.end + pad && b.start < a.end + pad;
+    }
+    function shared(setA, setB) {
+        var n = 0, small = setA.size < setB.size ? setA : setB, big = small === setA ? setB : setA;
+        small.forEach(function (u) { if (big.has(u)) n++; });
+        return n;
+    }
+    E.placed = function (p) { return !!(p && p.day > 0 && p.end > p.start); };
+
+    /** Otras ocupaciones del mismo dia (grupos ubicados + clases fijas), sin el grupo k. */
+    function others(s, k, day) {
+        var out = [];
+        s.order.forEach(function (o) {
+            if (o === k) return;
+            var p = s.place[o];
+            if (E.placed(p) && p.day === day) {
+                var g = s.groups[o];
+                out.push({ id: o, name: g.name + ' G' + g.number, day: p.day, start: p.start, end: p.end, teacherid: p.teacherid,
+                    roomid: p.roomid, users: g.users, from: g.from, to: g.to, isGroup: true });
+            }
+        });
+        s.fixed.forEach(function (f) { if (f.day === day) out.push(f); });
+        return out;
+    }
+
+    /**
+     * Choques de un grupo en una ubicacion (la suya o una que se esta probando).
+     * @return [{ type, sev: 'hard'|'soft'|'info', msg, with }]
+     */
+    E.conflicts = function (s, k, p) {
+        var g = s.groups[k];
+        p = p || s.place[k];
+        var out = [];
+        if (!g || !E.placed(p)) return out;
+        var range = { from: g.from, to: g.to };
+        var w = E.window(s.cfg, g.jornada);
+        if (E.jornadaDays(s.cfg, g.jornada).indexOf(p.day) === -1) {
+            out.push({ type: 'jornada', sev: 'hard', msg: E.DAYS[p.day] + ' no es día de la jornada ' + g.jornada + '.' });
+        } else if (p.start < w.start || p.end > w.end) {
+            out.push({ type: 'jornada', sev: 'hard', msg: 'Fuera de la franja de la jornada ' + g.jornada + ' (' + E.hhmm(w.start) + '–' + E.hhmm(w.end) + ').' });
+        }
+        var ls = E.toMin(s.cfg.lunchStart), le = E.toMin(s.cfg.lunchEnd);
+        if (ls >= 0 && le > ls && p.start < le && ls < p.end) {
+            out.push({ type: 'almuerzo', sev: 'soft', msg: 'Se cruza con la hora de almuerzo (' + s.cfg.lunchStart + '–' + s.cfg.lunchEnd + ').' });
+        }
+        var me = { start: p.start, end: p.end };
+        others(s, k, p.day).forEach(function (o) {
+            if (!timesOverlap(me, o, s.pad) || !datesOverlap(range, o)) return;
+            var n = shared(g.users, o.users);
+            var when = E.hhmm(o.start) + '–' + E.hhmm(o.end);
+            if (n) out.push({ type: 'estudiantes', sev: 'hard', n: n, with: o.id, msg: n + ' estudiante(s) también tienen ' + o.name + ' (' + when + ').' });
+            if (p.teacherid && o.teacherid === p.teacherid) {
+                out.push({ type: 'docente', sev: 'hard', with: o.id, msg: 'El docente ya dicta ' + o.name + ' (' + when + ').' });
+            }
+            if (p.roomid && o.roomid === p.roomid) {
+                out.push({ type: 'aula', sev: 'hard', with: o.id, msg: 'El aula está ocupada por ' + o.name + ' (' + when + ').' });
+            }
+        });
+        if (p.teacherid) {
+            var t = s.teachers[p.teacherid];
+            if (t) {
+                if (!t.skillSet.has(Number(g.courseid))) {
+                    out.push({ type: 'habilidad', sev: 'soft', msg: t.name + ' no tiene registrada la habilidad de esta asignatura.' });
+                }
+                if (!E.available(t, p)) {
+                    out.push({ type: 'disponibilidad', sev: 'soft', msg: t.name + ' no tiene disponibilidad ' + E.DAYS[p.day] + ' ' + E.hhmm(p.start) + '–' + E.hhmm(p.end) + '.' });
+                }
+            }
+        }
+        if (p.roomid && s.rooms[p.roomid] && s.rooms[p.roomid].capacity < g.size) {
+            out.push({ type: 'capacidad', sev: 'soft', msg: 'El aula tiene capacidad para ' + s.rooms[p.roomid].capacity + ' y el grupo tiene ' + g.size + '.' });
+        }
+        var lost = E.holidaysLost(s, g, p.day);
+        if (lost.length) {
+            out.push({ type: 'festivo', sev: 'info', msg: 'Pierde ' + lost.length + ' sesión(es) por festivo: ' + lost.join(', ') + '.' });
+        }
+        return out;
+    };
+
+    /** Disponibilidad: el dia debe tener una franja que cubra toda la sesion (un dia sin franjas NO esta disponible). */
+    E.available = function (t, p) {
+        var ranges = (t.avail || {})[p.day] || (t.avail || {})[String(p.day)] || [];
+        for (var i = 0; i < ranges.length; i++) {
+            if (p.start >= ranges[i][0] && p.end <= ranges[i][1]) return true;
+        }
+        return false;
+    };
+
+    E.holidaysLost = function (s, g, day) {
+        return (s.holidays || []).filter(function (h) {
+            return h.day === day && h.date >= g.from && h.date < g.to;
+        }).map(function (h) {
+            var d = new Date(h.date * 1000);
+            return d.getDate() + '/' + (d.getMonth() + 1) + ' ' + h.name;
+        });
+    };
+
+    E.allConflicts = function (s) {
+        var out = {};
+        s.order.forEach(function (k) { out[k] = E.conflicts(s, k); });
+        return out;
+    };
+    E.severity = function (list) {
+        if (!list || !list.length) return 'ok';
+        if (list.some(function (c) { return c.sev === 'hard'; })) return 'hard';
+        if (list.some(function (c) { return c.sev === 'soft'; })) return 'soft';
+        return 'ok';
+    };
+
+    /** Minutos semanales de un docente en el tablero (grupos ubicados + clases fijas del periodo). */
+    E.teacherLoad = function (s, tid) {
+        var m = 0;
+        s.order.forEach(function (k) {
+            var p = s.place[k];
+            if (E.placed(p) && p.teacherid === tid) m += p.end - p.start;
+        });
+        s.fixed.forEach(function (f) { if (f.teacherid === tid && f.samePeriod) m += f.end - f.start; });
+        return m;
+    };
+
+    /** Docentes para un grupo en una ubicacion, ordenados: habilidad, disponibilidad, libre, menos carga. */
+    E.teacherOptions = function (s, k, p) {
+        var g = s.groups[k];
+        p = p || s.place[k];
+        return Object.keys(s.teachers).map(function (id) {
+            var t = s.teachers[id];
+            var test = Object.assign({}, p, { teacherid: t.id });
+            var skill = t.skillSet.has(Number(g.courseid));
+            var avail = E.placed(p) ? E.available(t, p) : null;
+            var busy = E.placed(p) ? E.conflicts(s, k, test).some(function (c) { return c.type === 'docente'; }) : false;
+            var load = E.teacherLoad(s, t.id);
+            var score = (skill ? 0 : 100) + (avail === false ? 40 : 0) + (busy ? 1000 : 0) + load / 60;
+            return { id: t.id, name: t.name, skill: skill, avail: avail, busy: busy, load: load, score: score, hasAvail: t.has_avail };
+        }).sort(function (a, b) { return a.score - b.score || a.name.localeCompare(b.name); });
+    };
+
+    /** Aulas para un grupo en una ubicacion: libres primero, luego la mas chica que alcanza. */
+    E.roomOptions = function (s, k, p) {
+        var g = s.groups[k];
+        p = p || s.place[k];
+        return Object.keys(s.rooms).map(function (id) {
+            var r = s.rooms[id];
+            var test = Object.assign({}, p, { roomid: r.id });
+            var busy = E.placed(p) ? E.conflicts(s, k, test).some(function (c) { return c.type === 'aula'; }) : false;
+            var fits = r.capacity >= g.size;
+            return { id: r.id, name: r.name, capacity: r.capacity, busy: busy, fits: fits,
+                score: (busy ? 1000 : 0) + (fits ? 0 : 100) + Math.abs(r.capacity - g.size) / 100 };
+        }).sort(function (a, b) { return a.score - b.score || a.name.localeCompare(b.name); });
+    };
+
+    /** Horas de inicio posibles en un dia: cada 30 min desde el inicio de la franja y justo despues de lo que ya hay. */
+    function starts(s, k, day) {
+        var g = s.groups[k];
+        var w = E.window(s.cfg, g.jornada);
+        var dur = g.duration;
+        var set = {};
+        for (var t = w.start; t + dur <= w.end; t += 30) set[t] = true;
+        others(s, k, day).forEach(function (o) {
+            var t2 = o.end + s.pad;
+            if (t2 >= w.start && t2 + dur <= w.end) set[t2] = true;
+            var t3 = o.start - s.pad - dur;
+            if (t3 >= w.start && t3 + dur <= w.end) set[t3] = true;
+        });
+        if (w.end - dur >= w.start) set[w.end - dur] = true;
+        return Object.keys(set).map(Number).sort(function (a, b) { return a - b; });
+    }
+
+    /** Evalua todas las ubicaciones posibles de un grupo (con su docente y aula actuales si los tiene). */
+    E.candidates = function (s, k, opts) {
+        opts = opts || {};
+        var g = s.groups[k];
+        var cur = s.place[k];
+        var out = [];
+        E.jornadaDays(s.cfg, g.jornada).forEach(function (day) {
+            starts(s, k, day).forEach(function (st) {
+                var p = { day: day, start: st, end: st + g.duration, teacherid: opts.ignoreTeacher ? 0 : cur.teacherid,
+                    roomid: opts.ignoreRoom ? 0 : cur.roomid };
+                var cs = E.conflicts(s, k, p);
+                var hard = cs.filter(function (c) { return c.sev === 'hard'; });
+                var soft = cs.filter(function (c) { return c.sev === 'soft'; });
+                var studentsHit = hard.filter(function (c) { return c.type === 'estudiantes'; }).reduce(function (a, c) { return a + c.n; }, 0);
+                out.push({ day: day, start: st, end: st + g.duration, conflicts: cs, hard: hard.length, soft: soft.length, studentsHit: studentsHit });
+            });
+        });
+        return out;
+    };
+
+    /** Cuantos estudiantes del grupo ya tienen otra clase ese dia (para repartir la carga en la semana). */
+    function sameDayLoad(s, k, day) {
+        var g = s.groups[k];
+        var n = 0;
+        others(s, k, day).forEach(function (o) {
+            if (datesOverlap(g, o)) n += shared(g.users, o.users);
+        });
+        return n;
+    }
+
+    /** Mejor docente libre, con habilidad y disponibilidad (o null). */
+    E.bestTeacher = function (s, k, p, strict) {
+        var opts = E.teacherOptions(s, k, p);
+        var best = opts.find(function (o) { return o.skill && o.avail && !o.busy; });
+        if (best || strict) return best || null;
+        return opts.find(function (o) { return o.skill && !o.busy; }) || null;
+    };
+    E.bestRoom = function (s, k, p) {
+        var r = E.roomOptions(s, k, p).find(function (o) { return !o.busy && o.fits; });
+        return r || null;
+    };
+
+    /**
+     * Ubica automaticamente los grupos sin horario (y no bloqueados). Para cada uno elige la ubicacion sin choques
+     * duros que tenga un docente con habilidad y disponibilidad libre, menos avisos y reparta mejor la semana;
+     * le asigna ese docente y un aula libre. Devuelve { placed: [...], failed: [{key, reason}] }.
+     */
+    E.autoPlace = function (s, opts) {
+        opts = opts || {};
+        var todo = s.order.filter(function (k) {
+            var p = s.place[k];
+            return !p.locked && (!E.placed(p) || opts.all);
+        });
+        if (opts.all) todo.forEach(function (k) { s.place[k] = { day: 0, start: 0, end: 0, teacherid: 0, roomid: 0, locked: false }; });
+        // Primero los mas dificiles: los que menos ubicaciones libres tienen y los mas grandes.
+        var freeCount = {};
+        todo.forEach(function (k) {
+            freeCount[k] = E.candidates(s, k, { ignoreTeacher: true, ignoreRoom: true }).filter(function (c) { return !c.hard; }).length;
+        });
+        todo.sort(function (a, b) {
+            return freeCount[a] - freeCount[b] || s.groups[b].size - s.groups[a].size || a.localeCompare(b);
+        });
+        var placed = [], failed = [];
+        todo.forEach(function (k) {
+            var g = s.groups[k];
+            var keepTeacher = s.place[k].teacherid;
+            var cands = E.candidates(s, k, { ignoreRoom: true, ignoreTeacher: !keepTeacher }).filter(function (c) { return !c.hard; });
+            if (!cands.length && E.repair(s, k)) {
+                placed.push(k);
+                return;
+            }
+            if (!cands.length) {
+                failed.push({ key: k, reason: E.whyNoSlot(s, k) });
+                return;
+            }
+            var best = null;
+            cands.forEach(function (c, i) {
+                var p = { day: c.day, start: c.start, end: c.end, teacherid: keepTeacher, roomid: 0 };
+                var t = keepTeacher ? null : E.bestTeacher(s, k, p, true);
+                var room = E.bestRoom(s, k, p);
+                var score = c.soft * 20 + (keepTeacher || t ? 0 : 15) + (room ? 0 : 10) + sameDayLoad(s, k, c.day) * 0.3 + i * 0.001;
+                if (!best || score < best.score) best = { c: c, t: t, room: room, score: score };
+            });
+            var np = { day: best.c.day, start: best.c.start, end: best.c.end, locked: false,
+                teacherid: keepTeacher || (best.t ? best.t.id : 0), roomid: best.room ? best.room.id : 0 };
+            s.place[k] = np;
+            placed.push(k);
+        });
+        return { placed: placed, failed: failed };
+    };
+
+    /**
+     * Reparacion: si un grupo no tiene hora libre, prueba ubicarlo donde solo lo bloquean grupos movibles (no fijos
+     * ni bloqueados) y mover cada uno de esos a otra hora sin choques duros. Si no se logra, deja todo como estaba.
+     */
+    E.repair = function (s, k) {
+        var g = s.groups[k];
+        var cands = E.candidates(s, k, { ignoreTeacher: true, ignoreRoom: true }).map(function (c) {
+            var withs = {};
+            var movable = c.conflicts.filter(function (x) { return x.sev === 'hard'; }).every(function (x) {
+                if (!x.with || !s.groups[x.with] || s.place[x.with].locked) return false;
+                withs[x.with] = true;
+                return true;
+            });
+            return { c: c, movable: movable, withs: Object.keys(withs) };
+        }).filter(function (x) { return x.movable && x.withs.length && x.withs.length <= 2; })
+            .sort(function (a, b) { return a.withs.length - b.withs.length || a.c.soft - b.c.soft; });
+        for (var i = 0; i < cands.length && i < 40; i++) {
+            var saved = JSON.stringify(s.place);
+            var c = cands[i].c;
+            s.place[k] = { day: c.day, start: c.start, end: c.end, teacherid: 0, roomid: 0, locked: false };
+            var ok = cands[i].withs.every(function (o) {
+                var op = s.place[o];
+                var keepT = op.teacherid;
+                s.place[o] = { day: 0, start: 0, end: 0, teacherid: keepT, roomid: 0, locked: false };
+                var alt = E.candidates(s, o, { ignoreRoom: true, ignoreTeacher: !keepT }).filter(function (x) { return !x.hard; })
+                    .sort(function (a, b) { return a.soft - b.soft; })[0];
+                if (!alt) return false;
+                var np = { day: alt.day, start: alt.start, end: alt.end, teacherid: keepT, roomid: 0, locked: false };
+                var r = E.bestRoom(s, o, np);
+                np.roomid = r ? r.id : 0;
+                // Si su docente no puede a la nueva hora, se busca otro.
+                if (keepT && (!s.teachers[keepT] || !E.available(s.teachers[keepT], np))) keepT = 0;
+                np.teacherid = keepT;
+                if (!keepT) {
+                    var t = E.bestTeacher(s, o, np, true);
+                    np.teacherid = t ? t.id : 0;
+                }
+                s.place[o] = np;
+                return true;
+            });
+            if (ok && !E.conflicts(s, k).some(function (x) { return x.sev === 'hard'; })) {
+                var p = s.place[k];
+                var t2 = E.bestTeacher(s, k, p, true);
+                p.teacherid = t2 ? t2.id : 0;
+                var r2 = E.bestRoom(s, k, p);
+                p.roomid = r2 ? r2.id : 0;
+                return true;
+            }
+            var back = JSON.parse(saved);
+            Object.keys(back).forEach(function (kk) { s.place[kk] = back[kk]; });
+        }
+        return false;
+    };
+
+    /** Explicacion de por que un grupo no tiene hora libre. */
+    E.whyNoSlot = function (s, k) {
+        var g = s.groups[k];
+        var days = E.jornadaDays(s.cfg, g.jornada);
+        var w = E.window(s.cfg, g.jornada);
+        // Estudiante del grupo con mas horas ocupadas en la jornada.
+        var worst = 0;
+        g.userids.forEach(function (u) {
+            var mins = 0;
+            days.forEach(function (d) {
+                others(s, k, d).forEach(function (o) {
+                    if (o.users.has(u) && datesOverlap(g, o)) mins += o.end - o.start;
+                });
+            });
+            worst = Math.max(worst, mins);
+        });
+        var cap = days.length * (w.end - w.start);
+        return 'Cada hora posible de la jornada ' + g.jornada + ' (' + days.map(function (d) { return E.DAYS_SHORT[d]; }).join(', ')
+            + ' ' + E.hhmm(w.start) + '–' + E.hhmm(w.end) + ') choca con otra clase de al menos uno de sus estudiantes (el más cargado ya tiene '
+            + Math.round(worst / 60 * 10) / 10 + ' h de ' + Math.round(cap / 60 * 10) / 10 + ' h). Puede moverlo a mano (se verá con quién choca), '
+            + 'mover otro grupo, partirlo o ampliar la franja de la jornada en Configuración.';
+    };
+
+    /** Asigna docente (y aula si falta) a los grupos ubicados que no tienen. Devuelve { assigned, missing: [keys] }. */
+    E.autoAssign = function (s) {
+        var assigned = 0, rooms = 0, missing = [];
+        // Primero los grupos con menos docentes posibles.
+        var keys = s.order.filter(function (k) { return E.placed(s.place[k]) && !s.place[k].locked; });
+        var nopts = {};
+        keys.forEach(function (k) {
+            nopts[k] = E.teacherOptions(s, k).filter(function (o) { return o.skill && o.avail && !o.busy; }).length;
+        });
+        keys.sort(function (a, b) { return nopts[a] - nopts[b]; });
+        keys.forEach(function (k) {
+            var p = s.place[k];
+            if (!p.teacherid) {
+                var t = E.bestTeacher(s, k, p, true);
+                if (t) { p.teacherid = t.id; assigned++; } else missing.push(k);
+            }
+            if (!p.roomid) {
+                var r = E.bestRoom(s, k, p);
+                if (r) { p.roomid = r.id; rooms++; }
+            }
+        });
+        return { assigned: assigned, rooms: rooms, missing: missing };
+    };
+
+    /** Sugerencias para un grupo: mejores ubicaciones sin choques duros y docentes que encajan. */
+    E.suggestions = function (s, k, max) {
+        max = max || 5;
+        var g = s.groups[k];
+        var p = s.place[k];
+        var out = [];
+        var cands = E.candidates(s, k, { ignoreRoom: false }).filter(function (c) { return !c.hard; })
+            .map(function (c) { return Object.assign(c, { load: sameDayLoad(s, k, c.day) }); })
+            .sort(function (a, b) { return a.soft - b.soft || a.load - b.load || a.day - b.day || a.start - b.start; });
+        var curHard = E.conflicts(s, k).filter(function (c) { return c.sev === 'hard'; }).length;
+        cands.slice(0, max).forEach(function (c) {
+            var test = { day: c.day, start: c.start, end: c.end, teacherid: p.teacherid, roomid: p.roomid };
+            var why = curHard ? 'resuelve ' + curHard + ' choque(s)' : 'sin choques';
+            if (c.soft) why += ', con ' + c.soft + ' aviso(s)';
+            out.push({ kind: 'mover', day: c.day, start: c.start, end: c.end, soft: c.soft,
+                label: 'Mover a ' + E.DAYS[c.day] + ' ' + E.hhmm(c.start) + '–' + E.hhmm(c.end), why: why,
+                teacher: p.teacherid ? null : E.bestTeacher(s, k, test, true) });
+        });
+        if (E.placed(p)) {
+            var cs = E.conflicts(s, k);
+            if (cs.some(function (c) { return c.type === 'docente' || c.type === 'disponibilidad' || c.type === 'habilidad'; }) || !p.teacherid) {
+                E.teacherOptions(s, k).filter(function (o) { return o.skill && o.avail && !o.busy && o.id !== p.teacherid; }).slice(0, 3).forEach(function (o) {
+                    out.push({ kind: 'docente', teacherid: o.id, label: 'Asignar a ' + o.name, why: 'tiene la habilidad, está disponible y libre ('
+                        + Math.round(o.load / 60) + ' h/sem en el tablero)' });
+                });
+            }
+            if (cs.some(function (c) { return c.type === 'aula' || c.type === 'capacidad'; }) || !p.roomid) {
+                var r = E.bestRoom(s, k, p);
+                if (r && r.id !== p.roomid) out.push({ kind: 'aula', roomid: r.id, label: 'Usar el aula ' + r.name, why: 'libre, capacidad ' + r.capacity });
+            }
+        }
+        return out;
+    };
+
+    /** Reparto en carriles de las tarjetas que se cruzan en un dia (para dibujarlas lado a lado). */
+    E.lanes = function (items) {
+        var sorted = items.slice().sort(function (a, b) { return a.start - b.start || b.end - a.end; });
+        var laneEnds = [], clusters = [], cur = null, curEnd = -1;
+        sorted.forEach(function (it) {
+            if (!cur || it.start >= curEnd) { cur = []; clusters.push(cur); laneEnds = []; curEnd = -1; }
+            var lane = laneEnds.findIndex(function (e) { return e <= it.start; });
+            if (lane === -1) { lane = laneEnds.length; laneEnds.push(it.end); } else laneEnds[lane] = it.end;
+            it.lane = lane;
+            cur.push(it);
+            curEnd = Math.max(curEnd, it.end);
+            cur.lanes = laneEnds.length;
+        });
+        clusters.forEach(function (c) { c.forEach(function (it) { it.lanes = c.lanes; }); });
+        return sorted;
+    };
+
+    /** Resumen: grupos ubicados, con choques, sin docente, sin aula. */
+    E.summary = function (s) {
+        var all = E.allConflicts(s);
+        var r = { total: s.order.length, placed: 0, hard: 0, soft: 0, noTeacher: 0, noRoom: 0, conflicts: all };
+        s.order.forEach(function (k) {
+            var p = s.place[k];
+            if (!E.placed(p)) return;
+            r.placed++;
+            var sev = E.severity(all[k]);
+            if (sev === 'hard') r.hard++;
+            else if (sev === 'soft') r.soft++;
+            if (!p.teacherid) r.noTeacher++;
+            if (!p.roomid) r.noRoom++;
+        });
+        return r;
+    };
+
+    /** Ubicaciones listas para guardar (solo las que tienen algo). */
+    E.serialize = function (s) {
+        var out = {};
+        s.order.forEach(function (k) {
+            var p = s.place[k];
+            if (E.placed(p) || p.teacherid || p.roomid) {
+                out[k] = { day: E.placed(p) ? p.day : 0, start: E.placed(p) ? p.start : 0, end: E.placed(p) ? p.end : 0,
+                    teacherid: p.teacherid || 0, roomid: p.roomid || 0, locked: !!p.locked };
+            }
+        });
+        return out;
+    };
+
+    root.GmkBoard = E;
+    if (typeof module !== 'undefined' && module.exports) module.exports = E;
+})(typeof window !== 'undefined' ? window : this);
