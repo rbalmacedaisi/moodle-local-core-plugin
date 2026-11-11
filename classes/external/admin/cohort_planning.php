@@ -96,6 +96,20 @@ class cohort_planning extends external_api {
             $result['costing'] = planning_config::costing($pid, (int)$result['period']['start']);
             if ($params['groups']) {
                 $result['grouping'] = (new \local_grupomakro_core\local\planning\group_builder($result, planning_config::rules()))->build();
+                // Comparacion con el borrador del tablero de horarios (solo lectura) contra la propuesta guardada
+                // aparte o, si no hay, la actual.
+                $saved = planning_config::saved_proposal($pid);
+                $live = [];
+                foreach ($result['grouping']['groups'] as $gr) {
+                    $live[] = ['courseid' => $gr['courseid'], 'name' => $gr['name'], 'jornada' => $gr['jornada'],
+                        'userids' => array_map(function ($k) use ($result) {
+                            return (int)$result['students'][$k]['userid'];
+                        }, $gr['students'])];
+                }
+                $result['comparison'] = planning_config::compare_with_board($pid, $saved ? $saved['groups'] : $live);
+                $result['comparison']['source'] = $saved ? 'guardada' : 'actual';
+                $result['saved_proposal'] = $saved ? ['saved_at' => $saved['saved_at'], 'byname' => $saved['byname'],
+                    'groups' => count($saved['groups'])] : null;
             }
         }
         return ['data' => json_encode([
@@ -134,7 +148,7 @@ class cohort_planning extends external_api {
 
     public static function save_config_parameters() {
         return new external_function_parameters([
-            'section' => new external_value(PARAM_ALPHANUMEXT, 'period | exception_add | exception_remove | flex_toggle | flexible | costs | rules | scheduler | isolation | classroom | classroom_delete | holiday | holiday_delete'),
+            'section' => new external_value(PARAM_ALPHANUMEXT, 'period | exception_add | exception_remove | flex_toggle | flexible | costs | proposal_save | proposal_remove | rules | scheduler | isolation | classroom | classroom_delete | holiday | holiday_delete'),
             'data' => new external_value(PARAM_RAW, 'JSON con los datos de la seccion'),
         ]);
     }

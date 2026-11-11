@@ -94,10 +94,59 @@ Vue.component('period-projection', {
                     <div class="tl-proj-kpi"><b>{{ gSummary.adelantos }}</b><span>adelantos</span></div>
                     <div class="tl-proj-kpi tl-proj-kpi-warn tl-proj-kpi-click" @click="groupTab = 'alerts'"><b>{{ gSummary.alerts }}</b><span>alertas</span></div>
                 </div>
-                <div class="tl-plan-tabs mb-3" style="max-width:420px">
+                <div class="tl-proj-savebar">
+                    <template v-if="savedProposal">
+                        <v-icon size="16" color="#047857">mdi-content-save-check-outline</v-icon>
+                        <span>Propuesta guardada aparte el {{ fmtLong(savedProposal.saved_at) }} por {{ savedProposal.byname }} ({{ savedProposal.groups }} grupos).
+                            La comparación usa esta versión.</span>
+                    </template>
+                    <template v-else>
+                        <v-icon size="16" color="#64748B">mdi-content-save-outline</v-icon>
+                        <span>La propuesta aún no está guardada. Guárdela para compararla con el borrador del tablero de horarios (el borrador no se toca).</span>
+                    </template>
+                    <v-spacer></v-spacer>
+                    <button v-if="canEdit" class="tl-cfg-btn" :disabled="proposalSaving" @click="saveProposal">{{ savedProposal ? 'Actualizar propuesta guardada' : 'Guardar propuesta para comparar' }}</button>
+                    <button v-if="canEdit && savedProposal" class="tl-cfg-btn tl-cfg-btn-ghost" :disabled="proposalSaving" @click="removeProposal">Quitar</button>
+                </div>
+                <div class="tl-plan-tabs mb-3" style="max-width:640px">
                     <button class="tl-plan-tab" :class="{ 'tl-plan-tab-active': groupTab === 'list' }" @click="groupTab = 'list'">Grupos<span class="tl-plan-tab-count">{{ gSummary.groups }}</span></button>
                     <button class="tl-plan-tab" :class="{ 'tl-plan-tab-active': groupTab === 'alerts' }" @click="groupTab = 'alerts'">Alertas<span class="tl-plan-tab-count">{{ gSummary.alerts }}</span></button>
+                    <button class="tl-plan-tab" :class="{ 'tl-plan-tab-active': groupTab === 'compare' }" @click="groupTab = 'compare'">Comparar con el tablero<span class="tl-plan-tab-count">{{ cmpRowsAll.length }}</span></button>
                 </div>
+                <!-- comparacion con el borrador del tablero de horarios -->
+                <template v-if="groupTab === 'compare'">
+                    <div v-if="!comparison || !comparison.board_items" class="tl-plan-empty" style="padding:16px">El periodo no tiene borrador en el tablero de horarios.</div>
+                    <template v-else>
+                        <div class="tl-proj-filter-note">
+                            Borrador del tablero de horarios (Planificador Académico) vs. {{ comparison.source === 'guardada' ? 'la propuesta guardada' : 'la propuesta actual (sin guardar)' }},
+                            por asignatura y jornada. "En común" son estudiantes que están en ambos. El borrador del tablero solo se lee.
+                        </div>
+                        <div class="tl-proj-kpis mb-3">
+                            <div class="tl-proj-kpi"><b>{{ comparison.totals.board_groups }} / {{ comparison.totals.proposal_groups }}</b><span>grupos tablero / propuesta</span></div>
+                            <div class="tl-proj-kpi"><b>{{ comparison.totals.board_seats }} / {{ comparison.totals.proposal_seats }}</b><span>cupos tablero / propuesta</span></div>
+                            <div class="tl-proj-kpi tl-proj-kpi-ok"><b>{{ comparison.totals.same }}</b><span>en común</span></div>
+                            <div class="tl-proj-kpi tl-proj-kpi-warn"><b>{{ comparison.totals.only_board }}</b><span>solo en tablero</span></div>
+                            <div class="tl-proj-kpi"><b>{{ comparison.totals.only_proposal }}</b><span>solo en propuesta</span></div>
+                        </div>
+                        <div class="tl-plan-tabs mb-2" style="max-width:640px">
+                            <button v-for="t in cmpStates" :key="t.key" class="tl-plan-tab" :class="{ 'tl-plan-tab-active': cmpState === t.key }"
+                                    @click="cmpState = t.key" :title="t.help">{{ t.label }}<span class="tl-plan-tab-count">{{ t.count }}</span></button>
+                        </div>
+                        <table class="tl-cfg-table">
+                            <thead><tr><th>Asignatura</th><th>Jornada</th><th>Tablero</th><th>Propuesta</th><th>En común</th><th>Solo tablero</th><th>Solo propuesta</th><th></th></tr></thead>
+                            <tbody>
+                                <tr v-for="row in cmpRows" :key="row.courseid + row.jornada" class="tl-proj-cmp-row" @click="cmpDetail = row">
+                                    <td>{{ row.name }}</td><td>{{ row.jornada || '—' }}</td>
+                                    <td>{{ row.board.groups ? row.board.groups + ' gr · ' + row.board.students + ' est' : '—' }}</td>
+                                    <td>{{ row.proposal.groups ? row.proposal.groups + ' gr · ' + row.proposal.students + ' est' : '—' }}</td>
+                                    <td>{{ row.common }}</td><td>{{ row.only_board.length }}</td><td>{{ row.only_proposal.length }}</td>
+                                    <td><span class="tl-plan-tag" :class="cmpTag(row.status)">{{ cmpLabel[row.status] }}</span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <div v-if="!cmpRows.length" class="tl-plan-empty" style="padding:16px">Sin filas para este filtro.</div>
+                    </template>
+                </template>
                 <!-- lista de grupos -->
                 <template v-if="groupTab === 'list'">
                     <div v-if="!groupRows.length" class="tl-plan-empty" style="padding:16px">Sin grupos para este filtro.</div>
@@ -148,6 +197,35 @@ Vue.component('period-projection', {
                     <div v-if="!alertRows.length" class="tl-plan-empty" style="padding:16px">Sin alertas para este filtro.</div>
                 </template>
             </template>
+            <v-dialog :value="!!cmpDetail" @input="v => { if (!v) cmpDetail = null; }" max-width="680" scrollable>
+                <v-card v-if="cmpDetail">
+                    <v-card-title class="d-flex">
+                        <div>
+                            <div class="text-subtitle-1 font-weight-bold">{{ cmpDetail.name }}</div>
+                            <div class="tl-cfg-help">{{ cmpDetail.jornada || 'Sin jornada' }} • tablero {{ cmpDetail.board.groups }} grupo(s), {{ cmpDetail.board.students }} est •
+                                propuesta {{ cmpDetail.proposal.groups }} grupo(s), {{ cmpDetail.proposal.students }} est • en común {{ cmpDetail.common }}</div>
+                        </div>
+                        <v-spacer></v-spacer>
+                        <v-btn icon @click="cmpDetail = null"><v-icon>mdi-close</v-icon></v-btn>
+                    </v-card-title>
+                    <v-card-text>
+                        <div class="tl-proj-cmp-cols">
+                            <div>
+                                <div class="tl-plan-detail-block">Solo en el tablero ({{ cmpDetail.only_board.length }})</div>
+                                <div v-for="u in cmpDetail.only_board" :key="'b' + u" class="tl-plan-name-row tl-proj-stu">
+                                    <span class="tl-proj-stu-name">{{ whoName(u) }}</span><span class="tl-proj-stu-meta">{{ whyBoard(u, cmpDetail.courseid) }}</span>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="tl-plan-detail-block">Solo en la propuesta ({{ cmpDetail.only_proposal.length }})</div>
+                                <div v-for="u in cmpDetail.only_proposal" :key="'p' + u" class="tl-plan-name-row tl-proj-stu">
+                                    <span class="tl-proj-stu-name">{{ whoName(u) }}</span><span class="tl-proj-stu-meta">{{ whoMeta(u) }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </v-card-text>
+                </v-card>
+            </v-dialog>
             <v-dialog :value="!!groupDetail" @input="v => { if (!v) groupDetail = null; }" max-width="640" scrollable>
                 <v-card v-if="groupDetail">
                     <v-card-title class="d-flex">
@@ -422,6 +500,8 @@ Vue.component('period-projection', {
         return { q: '', filter: 'all', jornada: '', careerFilter: 0, open: {}, selected: {},
             view: 'next', future: null, futureLoading: false, futureError: '', cellDetail: null, costOpen: false, openRep: {},
             grouping: null, groupsLoading: false, groupsError: '', groupTab: 'list', groupDetail: null, alertType: 'all', alertLimit: 200,
+            comparison: null, savedProposal: null, proposalSaving: false, cmpState: 'all', cmpDetail: null,
+            cmpLabel: { igual: 'igual', distinto: 'distinto', solo_tablero: 'solo tablero', solo_propuesta: 'solo propuesta' },
             exc: { show: false, mode: 'grupo', items: [], note: '', error: '', saving: false },
             catLabel: { nivel: 'nivel', atrasada: 'atrasada', repite: 'repite', adelanto: 'adelanto' } };
     },
@@ -563,6 +643,29 @@ Vue.component('period-projection', {
                 r.groups.push(g);
             });
             return Object.values(rows).sort((a, b) => a.name.localeCompare(b.name) || (a.jornada || '').localeCompare(b.jornada || ''));
+        },
+        cmpRowsAll() {
+            if (!this.comparison) return [];
+            const jf = this.jornada, q = this.q.toLowerCase(), cf = this.careerFilter;
+            const st = this.grouping ? this.grouping.byUser : {};
+            return this.comparison.rows.filter(r => (!jf || (r.jornada || 'Sin jornada') === jf) && (!q || r.name.toLowerCase().includes(q))
+                && (!cf || r.only_board.concat(r.only_proposal).some(u => st[u] && st[u].planid === cf) || r.common > 0));
+        },
+        cmpStates() {
+            const c = {};
+            this.cmpRowsAll.forEach(r => { c[r.status] = (c[r.status] || 0) + 1; });
+            return [
+                { key: 'all', label: 'Todas', count: this.cmpRowsAll.length, help: 'Todas las asignaturas y jornadas' },
+                { key: 'distinto', label: 'Distintas', count: c.distinto || 0, help: 'Están en ambos pero con otros grupos o estudiantes' },
+                { key: 'solo_tablero', label: 'Solo tablero', count: c.solo_tablero || 0, help: 'Están en el borrador del tablero y no en la propuesta' },
+                { key: 'solo_propuesta', label: 'Solo propuesta', count: c.solo_propuesta || 0, help: 'Están en la propuesta y no en el tablero' },
+                { key: 'igual', label: 'Iguales', count: c.igual || 0, help: 'Mismos grupos y mismos estudiantes' },
+            ];
+        },
+        cmpRows() {
+            const order = { distinto: 0, solo_tablero: 1, solo_propuesta: 2, igual: 3 };
+            return this.cmpRowsAll.filter(r => this.cmpState === 'all' || r.status === this.cmpState)
+                .sort((a, b) => (order[a.status] - order[b.status]) || a.name.localeCompare(b.name));
         },
         gSummary() {
             const rows = this.groupRows;
@@ -739,10 +842,56 @@ Vue.component('period-projection', {
                     periodid: this.result.period.id, planids: this.planIds, groups: 1 } });
                 if (r.data && r.data.exception) throw new Error(r.data.message || r.data.errorcode);
                 const d = JSON.parse(r.data.data);
-                this.grouping = Object.assign({ st: d.result.students || {} }, d.result.grouping || { groups: [], alerts: [] });
+                const byUser = {};
+                Object.values(d.result.students || {}).forEach(s => { byUser[s.userid] = s; });
+                this.grouping = Object.assign({ st: d.result.students || {}, byUser }, d.result.grouping || { groups: [], alerts: [] });
+                this.comparison = d.result.comparison || null;
+                this.savedProposal = d.result.saved_proposal || null;
             } catch (e) { this.groupsError = 'No se pudo armar la propuesta: ' + (e.message || e); }
             finally { this.groupsLoading = false; }
         },
+        async saveProposal() {
+            const msg = (this.savedProposal ? 'Actualizar la propuesta guardada' : 'Guardar la propuesta') + ' de ' + this.result.period.name
+                + ' (' + this.grouping.groups.length + ' grupos) para compararla? Se guarda aparte en el periodo; el borrador del tablero de horarios no se toca.';
+            if (!window.confirm(msg)) return;
+            this.proposalSaving = true;
+            try {
+                const r = await this.ws('proposal_save', { periodid: this.result.period.id });
+                if (!r.ok) { window.alert(r.message); return; }
+                this.grouping = null; await this.openGroups(); this.groupTab = 'compare';
+            } catch (e) { window.alert('Error: ' + (e.message || e)); }
+            finally { this.proposalSaving = false; }
+        },
+        async removeProposal() {
+            if (!window.confirm('¿Quitar la propuesta guardada? La comparación pasará a usar la propuesta actual.')) return;
+            this.proposalSaving = true;
+            try {
+                const r = await this.ws('proposal_remove', { periodid: this.result.period.id });
+                if (!r.ok) { window.alert(r.message); return; }
+                this.grouping = null; await this.openGroups();
+            } catch (e) { window.alert('Error: ' + (e.message || e)); }
+            finally { this.proposalSaving = false; }
+        },
+        cmpTag(st) { return { igual: 'tl-plan-tag-nivel', distinto: 'tl-plan-tag-lock', solo_tablero: 'tl-plan-tag-repite', solo_propuesta: 'tl-plan-tag-adelanto' }[st]; },
+        whoName(u) { const s = this.grouping && this.grouping.byUser[u]; return s ? s.name : 'Usuario #' + u; },
+        whoMeta(u) { const s = this.grouping && this.grouping.byUser[u]; return s ? this.shortPlan(s.plan) + ' · ' + s.level + ' · ' + (s.jornada || 'sin jornada') : ''; },
+        // Por que un estudiante del tablero no esta en la propuesta (segun la demanda actual).
+        whyBoard(u, cid) {
+            const s = this.grouping && this.grouping.byUser[u];
+            if (!s) return 'no es estudiante activo de la proyección';
+            const sub = (s.subjects || []).find(x => Number(x.courseid) === Number(cid));
+            if (!sub) {
+                const o = (s.other || []).find(x => Number(x.courseid) === Number(cid));
+                if (o) return this.whoMeta(u) + ' · ' + (Number(o.status) === 2 ? 'la está cursando' : 'en reválida o migración');
+                return this.whoMeta(u) + ' · no le toca (ya aprobada o de otro nivel)';
+            }
+            if (sub.category === 'repite') return this.whoMeta(u) + ' · repitente (gestión aparte)';
+            if (sub.prereq === 'no') return this.whoMeta(u) + ' · prelación pendiente';
+            if (sub.flexible && !sub.flex_on) return this.whoMeta(u) + ' · no obligatoria sin activar';
+            if (sub.category === 'adelanto') return this.whoMeta(u) + ' · adelanto no necesario';
+            return this.whoMeta(u) + ' · otra jornada o grupo sin quórum';
+        },
+        fmtLong(ts) { return ts ? new Date(ts * 1000).toLocaleString('es-PA', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '-'; },
         topLevels(g) {
             return Object.keys(g.levels || {}).slice(0, 3).map(l => l + ' (' + g.levels[l] + ')').join(' · ');
         },

@@ -334,6 +334,154 @@ class planning_config {
         return preg_replace('/\s+/', ' ', rtrim($s, '. '));
     }
 
+    /**
+     * Propuesta de grupos guardada aparte en el periodo (configsettings.auto_proposal), para compararla con el
+     * borrador del tablero de horarios sin tocarlo. El servidor la recalcula al guardar (no confia en el cliente).
+     */
+    public static function saved_proposal($periodid) {
+        global $DB;
+        $cfg = json_decode((string)$DB->get_field('gmk_academic_periods', 'configsettings', ['id' => $periodid]), true);
+        return (is_array($cfg) && !empty($cfg['auto_proposal'])) ? $cfg['auto_proposal'] : null;
+    }
+
+    protected static function save_proposal(array $d, $remove) {
+        global $DB, $USER;
+        $pid = (int)($d['periodid'] ?? 0);
+        $p = $DB->get_record('gmk_academic_periods', ['id' => $pid]);
+        if (!$p) {
+            return self::fail('El periodo no existe.');
+        }
+        $cfg = json_decode((string)$p->configsettings, true);
+        if (!is_array($cfg)) {
+            $cfg = [];
+        }
+        $before = $cfg['auto_proposal'] ?? null;
+        if ($remove) {
+            unset($cfg['auto_proposal']);
+        } else {
+            $res = (new demand_engine($pid))->compute();
+            if (!empty($res['error'])) {
+                return self::fail($res['error']);
+            }
+            $res['exceptions'] = array_values(self::exceptions($pid));
+            $res['costing'] = self::costing($pid, (int)$res['period']['start']);
+            $g = (new group_builder($res, self::rules()))->build();
+            $groups = [];
+            foreach ($g['groups'] as $gr) {
+                $groups[] = ['courseid' => $gr['courseid'], 'name' => $gr['name'], 'jornada' => $gr['jornada'],
+                    'isolated_plan' => $gr['isolated_plan'], 'type' => $gr['type'], 'number' => $gr['number'], 'of' => $gr['of'],
+                    'userids' => array_map(function ($k) use ($res) {
+                        return (int)$res['students'][$k]['userid'];
+                    }, $gr['students']),
+                    'adelantos' => array_map(function ($k) use ($res) {
+                        return (int)$res['students'][$k]['userid'];
+                    }, $gr['adel'])];
+            }
+            $cfg['auto_proposal'] = ['saved_at' => time(), 'by' => (int)$USER->id, 'byname' => fullname($USER),
+                'rules' => self::rules(), 'summary' => $g['summary'], 'groups' => $groups];
+        }
+        $DB->update_record('gmk_academic_periods', (object)['id' => $pid,
+            'configsettings' => $cfg ? json_encode($cfg, JSON_UNESCAPED_UNICODE) : null,
+            'usermodified' => $USER->id, 'timemodified' => time()]);
+        self::backup('propuesta_periodo_' . $pid, ['antes' => $before ? ['saved_at' => $before['saved_at'],
+            'grupos' => count($before['groups'])] : null, 'accion' => $remove ? 'quitar' : 'guardar']);
+        $saved = self::saved_proposal($pid);
+        return self::ok($remove ? 'Propuesta guardada eliminada.' : 'Propuesta guardada aparte: ' . count($saved['groups'])
+            . ' grupos. El borrador del tablero de horarios no se tocó.', $saved ? ['saved_at' => $saved['saved_at'],
+            'groups' => count($saved['groups'])] : null);
+    }
+
+    /**
+     * Comparacion por asignatura + jornada entre el borrador del tablero de horarios (draft_schedules, solo lectura)
+     * y la propuesta (guardada si existe; si no, la que se pasa).
+     *
+     * @param array $proposalgroups [['courseid','name','jornada','userids'=>[]]]
+     */
+    public static function compare_with_board($periodid, array $proposalgroups) {
+        global $DB;
+        $draft = json_decode((string)$DB->get_field('gmk_academic_periods', 'draft_schedules', ['id' => $periodid]), true);
+        $draft = is_array($draft) ? $draft : [];
+        // Los estudiantes del tablero vienen por id o por codigo (idnumber).
+        $codes = [];
+        foreach ($draft as $it) {
+            foreach ((array)($it['studentIds'] ?? []) as $sid) {
+                if (!is_numeric($sid)) {
+                    $codes[(string)$sid] = true;
+                }
+            }
+        }
+        $bycode = [];
+        if ($codes) {
+            foreach (array_chunk(array_keys($codes), 500) as $chunk) {
+                list($insql, $inparams) = $DB->get_in_or_equal($chunk);
+                foreach ($DB->get_records_select('user', "idnumber $insql AND deleted = 0", $inparams, '', 'id, idnumber') as $u) {
+                    $bycode[$u->idnumber] = (int)$u->id;
+                }
+            }
+        }
+        $rows = [];
+        $add = function ($side, $cid, $name, $jornada, array $userids, $scheduled) use (&$rows) {
+            $k = (int)$cid . '|' . trim((string)$jornada);
+            if (!isset($rows[$k])) {
+                $rows[$k] = ['courseid' => (int)$cid, 'name' => $name, 'jornada' => trim((string)$jornada),
+                    'board' => ['groups' => 0, 'users' => [], 'scheduled' => 0], 'proposal' => ['groups' => 0, 'users' => []]];
+            }
+            $rows[$k][$side]['groups']++;
+            foreach ($userids as $u) {
+                $rows[$k][$side]['users'][$u] = true;
+            }
+            if ($scheduled) {
+                $rows[$k][$side]['scheduled']++;
+            }
+        };
+        foreach ($draft as $it) {
+            if (!empty($it['isExternal'])) {
+                continue;
+            }
+            $uids = [];
+            foreach ((array)($it['studentIds'] ?? []) as $sid) {
+                $u = is_numeric($sid) ? (int)$sid : ($bycode[(string)$sid] ?? 0);
+                if ($u) {
+                    $uids[] = $u;
+                }
+            }
+            $add('board', $it['corecourseid'] ?? 0, $it['subjectName'] ?? '', $it['shift'] ?? '', $uids,
+                ($it['day'] ?? 'N/A') !== 'N/A');
+        }
+        foreach ($proposalgroups as $g) {
+            $add('proposal', $g['courseid'], $g['name'], $g['jornada'], $g['userids'], false);
+        }
+        $out = [];
+        $tot = ['board_groups' => 0, 'proposal_groups' => 0, 'board_seats' => 0, 'proposal_seats' => 0, 'same' => 0,
+            'only_board' => 0, 'only_proposal' => 0, 'rows_equal' => 0];
+        foreach ($rows as $r) {
+            $b = $r['board']['users'];
+            $p = $r['proposal']['users'];
+            $common = count(array_intersect_key($b, $p));
+            $r['board']['students'] = count($b);
+            $r['proposal']['students'] = count($p);
+            $r['common'] = $common;
+            $r['only_board'] = array_keys(array_diff_key($b, $p));
+            $r['only_proposal'] = array_keys(array_diff_key($p, $b));
+            unset($r['board']['users'], $r['proposal']['users']);
+            $r['status'] = !$r['board']['groups'] ? 'solo_propuesta' : (!$r['proposal']['groups'] ? 'solo_tablero'
+                : (($r['board']['groups'] === $r['proposal']['groups'] && !$r['only_board'] && !$r['only_proposal']) ? 'igual' : 'distinto'));
+            $tot['board_groups'] += $r['board']['groups'];
+            $tot['proposal_groups'] += $r['proposal']['groups'];
+            $tot['board_seats'] += $r['board']['students'];
+            $tot['proposal_seats'] += $r['proposal']['students'];
+            $tot['same'] += $common;
+            $tot['only_board'] += count($r['only_board']);
+            $tot['only_proposal'] += count($r['only_proposal']);
+            $tot['rows_equal'] += $r['status'] === 'igual' ? 1 : 0;
+            $out[] = $r;
+        }
+        usort($out, function ($a, $b) {
+            return strcmp($a['name'], $b['name']) ?: strcmp($a['jornada'], $b['jornada']);
+        });
+        return ['rows' => $out, 'totals' => $tot, 'board_items' => count($draft)];
+    }
+
     /** Inicio de clases por jornada guardado en el periodo (o []). */
     public static function jornada_starts($period) {
         $cfg = json_decode((string)($period->configsettings ?? ''), true);
@@ -470,6 +618,12 @@ class planning_config {
 
             case 'flex_toggle':
                 return self::toggle_flexible($data);
+
+            case 'proposal_save':
+                return self::save_proposal($data, false);
+
+            case 'proposal_remove':
+                return self::save_proposal($data, true);
 
             case 'costs':
                 // Tarifa por hora y asignaturas de cuatrimestre completo.
