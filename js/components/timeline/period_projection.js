@@ -141,7 +141,7 @@ Vue.component('period-projection', {
             <div class="tl-proj-cost-head" @click="costOpen = !costOpen">
                 <v-icon size="16" color="#047857">mdi-cash-multiple</v-icon>
                 <b>Gasto mensual proyectado (docentes)</b>
-                <span class="tl-proj-sub">{{ money(cost.total) }} en total • {{ cost.groups }} grupos • tarifa {{ money(cost.rate) }}/h</span>
+                <span class="tl-proj-sub">{{ money(cost.total) }} en total • {{ cost.groups - cost.fixedGroups }} grupos de costo variable • tarifa {{ money(cost.rate) }}/h</span>
                 <v-spacer></v-spacer>
                 <v-icon size="18">{{ costOpen ? 'mdi-chevron-up' : 'mdi-chevron-down' }}</v-icon>
             </div>
@@ -162,6 +162,8 @@ Vue.component('period-projection', {
                     (cargas horarias) × tarifa por hora, repartido día a día desde el inicio de cada jornada: 8 semanas, o 16 si es de
                     cuatrimestre completo ({{ cost.longCount }} grupos). "Continúan" son clases aprobadas de cuatrimestre completo que siguen
                     corriendo{{ careerFilter ? ' (no se filtran por carrera)' : '' }}. Tarifa y asignaturas largas se cambian en Configuración.
+                    <span v-if="cost.fixedGroups" style="display:block;margin-top:4px">{{ cost.fixedGroups }} grupo(s) con docente de planta
+                        no se costean (asignaturas marcadas en Configuración → Costos y duración).</span>
                     <span v-if="cost.noHours.length" class="tl-proj-cost-warn">
                         {{ cost.noHoursGroups }} grupo(s) sin carga horaria no están costeados (cárguela en el Planificador → Cargas):
                         {{ cost.noHours.join(', ') }}.
@@ -455,11 +457,13 @@ Vue.component('period-projection', {
                     if (months[key]) months[key].groupSet[id] = true;
                 }
             };
-            let groups = 0, longCount = 0, hoursTotal = 0;
+            let groups = 0, longCount = 0, hoursTotal = 0, fixedGroups = 0;
+            const fixed = (c.fixed || []).map(Number);
             const noHoursMap = {};
             this.scoped.forEach(r => r.jornadas.forEach(j => {
                 const g = j.groups || (j.exception ? 1 : 0);
                 if (!g) return;
+                if (fixed.includes(Number(r.courseid))) { fixedGroups += g; return; }
                 const hours = Number(c.hours[r.courseid] || 0);
                 const isLong = this.isLong(r.courseid);
                 const days = isLong ? 112 : 56;
@@ -475,6 +479,7 @@ Vue.component('period-projection', {
             }));
             if (!this.careerFilter) {
                 (c.continuing || []).forEach(k => {
+                    if (fixed.includes(Number(k.courseid))) { fixedGroups++; return; }
                     const days = Math.max(1, Math.round((k.enddate - k.initdate) / day));
                     if (!k.hours) return;
                     // Solo la parte desde el inicio del periodo.
@@ -492,7 +497,8 @@ Vue.component('period-projection', {
             const contTotal = list.reduce((s, m) => s + m.contCost, 0);
             const noHours = Object.keys(noHoursMap).map(k => k + (noHoursMap[k] > 1 ? ' ×' + noHoursMap[k] : ''));
             const noHoursGroups = Object.values(noHoursMap).reduce((a, b) => a + b, 0);
-            return { months: list, rate: c.rate, groups, longCount, hours: hoursTotal, noHours, noHoursGroups, newTotal, contTotal, total: newTotal + contTotal };
+            return { months: list, rate: c.rate, groups, longCount, hours: hoursTotal, noHours, noHoursGroups, fixedGroups,
+                newTotal, contTotal, total: newTotal + contTotal };
         },
         colGroups() {
             const out = {};

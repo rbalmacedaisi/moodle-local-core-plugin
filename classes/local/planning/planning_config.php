@@ -246,6 +246,15 @@ class planning_config {
         return self::ok(!empty($d['enabled']) ? 'Asignatura activada para este periodo.' : 'Asignatura desactivada para este periodo.', $list);
     }
 
+    /** Asignaturas con docente de planta (costo fijo): no se incluyen en el gasto proyectado. [courseid => true] */
+    public static function fixed_cost_subjects() {
+        $out = [];
+        foreach ((array)json_decode((string)get_config('local_grupomakro_core', 'planning_fixed_cost_subjects'), true) as $cid) {
+            $out[(int)$cid] = true;
+        }
+        return $out;
+    }
+
     /** Tarifa por hora docente para proyectar el gasto (config planning_hour_rate; 18 por defecto, igual que financial_planning). */
     public static function hour_rate() {
         $v = (float)get_config('local_grupomakro_core', 'planning_hour_rate');
@@ -317,7 +326,7 @@ class planning_config {
                 'hours' => $hours[(int)$c->corecourseid] ?? 0];
         }
         return ['rate' => self::hour_rate(), 'hours' => (object)$hours, 'long' => array_keys($long['ids']),
-            'continuing' => $continuing];
+            'fixed' => array_keys(self::fixed_cost_subjects()), 'continuing' => $continuing];
     }
 
     protected static function norm($s) {
@@ -413,13 +422,20 @@ class planning_config {
                 $longlist[] = ['courseid' => (int)$c->id, 'name' => $c->fullname];
             }
         }
+        $fixedlist = [];
+        if ($fx = self::fixed_cost_subjects()) {
+            list($insql, $inparams) = $DB->get_in_or_equal(array_keys($fx));
+            foreach ($DB->get_records_select('course', "id $insql", $inparams, 'fullname', 'id, fullname') as $c) {
+                $fixedlist[] = ['courseid' => (int)$c->id, 'name' => $c->fullname];
+            }
+        }
         $allcourses = [];
         foreach ($DB->get_records_sql("SELECT DISTINCT c.id, c.fullname FROM {course} c
                 JOIN {local_learning_courses} l ON l.courseid = c.id ORDER BY c.fullname") as $c) {
             $allcourses[] = ['courseid' => (int)$c->id, 'name' => $c->fullname];
         }
         return [
-            'costs' => ['hour_rate' => self::hour_rate(), 'long' => $longlist, 'long_configured' => $long['configured'],
+            'costs' => ['hour_rate' => self::hour_rate(), 'long' => $longlist, 'fixed' => $fixedlist, 'long_configured' => $long['configured'],
                 'long_suggested' => $long['suggested'], 'all_courses' => $allcourses],
             'flexible' => ['auto' => $autolist, 'add' => array_keys($flex['add']), 'remove' => array_keys($flex['remove'])],
             'periods' => $periods,
@@ -469,11 +485,22 @@ class planning_config {
                     }
                     $ids[] = $cid;
                 }
-                $before = ['rate' => self::hour_rate(), 'long' => array_keys(self::long_subjects()['ids'])];
+                $fixed = [];
+                foreach ((array)($data['fixed'] ?? []) as $cid) {
+                    $cid = (int)$cid;
+                    if (!$DB->record_exists('course', ['id' => $cid])) {
+                        return self::fail('Una de las asignaturas con docente de planta no existe.');
+                    }
+                    $fixed[] = $cid;
+                }
+                $before = ['rate' => self::hour_rate(), 'long' => array_keys(self::long_subjects()['ids']),
+                    'fixed' => array_keys(self::fixed_cost_subjects())];
                 set_config('planning_hour_rate', $rate, 'local_grupomakro_core');
                 set_config('planning_long_subjects', json_encode(array_values(array_unique($ids))), 'local_grupomakro_core');
-                self::backup('costos_duracion', ['antes' => $before, 'despues' => ['rate' => $rate, 'long' => $ids]]);
-                return self::ok('Costos y duración guardados.', ['rate' => self::hour_rate(), 'long' => array_keys(self::long_subjects()['ids'])]);
+                set_config('planning_fixed_cost_subjects', json_encode(array_values(array_unique($fixed))), 'local_grupomakro_core');
+                self::backup('costos_duracion', ['antes' => $before, 'despues' => ['rate' => $rate, 'long' => $ids, 'fixed' => $fixed]]);
+                return self::ok('Costos y duración guardados.', ['rate' => self::hour_rate(), 'long' => array_keys(self::long_subjects()['ids']),
+                    'fixed' => array_keys(self::fixed_cost_subjects())]);
 
             case 'flexible':
                 // Ajustes manuales de no obligatorias: 'add' marca, 'remove' desmarca una de credito 0.

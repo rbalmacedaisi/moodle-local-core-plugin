@@ -129,10 +129,24 @@ Vue.component('planning-config', {
                     </select>
                     <button class="tl-cfg-btn" :disabled="!longPick" @click="addLong">Agregar</button>
                 </div>
+                <div class="tl-cfg-sub mt-3">Asignaturas con docente de planta (no se costean)</div>
+                <div class="tl-cfg-help mb-2">Sus grupos se siguen proyectando y abriendo, pero no suman al gasto mensual, que es solo de costo variable.</div>
+                <div class="tl-cfg-chips mb-2">
+                    <span v-for="c in costs.fixed" :key="c.courseid" class="tl-cfg-chip tl-cfg-chip-on">{{ c.name }}
+                        <button class="tl-proj-unx" @click="costs.fixed = costs.fixed.filter(x => x.courseid !== c.courseid)">×</button></span>
+                    <span v-if="!costs.fixed.length" class="tl-plan-empty">Ninguna: todas se costean.</span>
+                </div>
+                <div class="tl-cfg-inline">
+                    <select class="tl-cfg-input" v-model.number="fixedPick" style="flex:1;min-width:280px">
+                        <option :value="0">Agregar asignatura…</option>
+                        <option v-for="c in (costs.all_courses || []).filter(x => !costs.fixed.some(y => y.courseid === x.courseid))" :key="c.courseid" :value="c.courseid">{{ c.name }}</option>
+                    </select>
+                    <button class="tl-cfg-btn" :disabled="!fixedPick" @click="addFixed">Agregar</button>
+                </div>
                 <div class="tl-cfg-help" v-if="costs.long_suggested && costs.long_suggested.length">Sugeridas por el historial:
                     <span v-for="s in costs.long_suggested" :key="s.courseid">{{ s.name }} ({{ s.largas }} largas / {{ s.cortas }} cortas); </span></div>
                 <div class="tl-cfg-footer"><button class="tl-cfg-btn" :disabled="!costsDirty || saving"
-                    @click="askSave('costs', { hour_rate: costs.hour_rate, long: costs.long.map(c => c.courseid) }, costsDiff())">Guardar costos y duración</button></div>
+                    @click="askSave('costs', { hour_rate: costs.hour_rate, long: costs.long.map(c => c.courseid), fixed: costs.fixed.map(c => c.courseid) }, costsDiff())">Guardar costos y duración</button></div>
             </div>
 
             <!-- ASIGNATURAS NO OBLIGATORIAS -->
@@ -286,7 +300,7 @@ Vue.component('planning-config', {
             newHoliday: { date: '', name: '' },
             careers: [], iso: { careers: [], subjects: [] }, isoOrig: '', isoPick: { planid: 0, courseid: 0 },
             flexAuto: [], flex: { add: [], remove: [] }, flexOrig: '', flexPick: { planid: 0, courseid: 0 },
-            costs: { hour_rate: 18, long: [], long_configured: false, long_suggested: [], all_courses: [] }, costsOrig: '', longPick: 0,
+            costs: { hour_rate: 18, long: [], fixed: [], long_configured: false, long_suggested: [], all_courses: [] }, costsOrig: '', longPick: 0, fixedPick: 0,
             confirm: { show: false, title: '', changes: [], note: '', danger: false, run: null },
         };
     },
@@ -336,7 +350,7 @@ Vue.component('planning-config', {
                 const iso = d.isolation || { careers: [], subjects: [] };
                 this.iso = { careers: (iso.careers || []).map(Number), subjects: (iso.subjects || []).map(s => ({ planid: Number(s.planid), courseid: Number(s.courseid) })) };
                 this.isoOrig = JSON.stringify(this.isoNorm(this.iso));
-                this.costs = Object.assign({ hour_rate: 18, long: [], long_configured: false, long_suggested: [], all_courses: [] }, d.costs || {});
+                this.costs = Object.assign({ hour_rate: 18, long: [], fixed: [], long_configured: false, long_suggested: [], all_courses: [] }, d.costs || {});
                 this.costsOrig = this.costsKey();
                 const fl = d.flexible || { auto: [], add: [], remove: [] };
                 this.flexAuto = fl.auto || [];
@@ -387,7 +401,15 @@ Vue.component('planning-config', {
             return out;
         },
         // ---- costos y duracion ----
-        costsKey() { return JSON.stringify({ r: Number(this.costs.hour_rate), l: this.costs.long.map(c => c.courseid).sort((a, b) => a - b) }); },
+        costsKey() {
+            return JSON.stringify({ r: Number(this.costs.hour_rate), l: this.costs.long.map(c => c.courseid).sort((a, b) => a - b),
+                f: (this.costs.fixed || []).map(c => c.courseid).sort((a, b) => a - b) });
+        },
+        addFixed() {
+            const c = (this.costs.all_courses || []).find(x => x.courseid === this.fixedPick);
+            if (c) this.costs.fixed.push(c);
+            this.fixedPick = 0;
+        },
         addLong() {
             const c = (this.costs.all_courses || []).find(x => x.courseid === this.longPick);
             if (c) this.costs.long.push(c);
@@ -399,6 +421,8 @@ Vue.component('planning-config', {
             if (o.r !== n.r) out.push({ label: 'Tarifa por hora', before: '$' + o.r, after: '$' + n.r });
             n.l.filter(x => !o.l.includes(x)).forEach(x => out.push({ label: 'Cuatrimestre completo', before: '', after: name(x) }));
             o.l.filter(x => !n.l.includes(x)).forEach(x => out.push({ label: 'Deja de ser cuatrimestral', before: name(x), after: '' }));
+            n.f.filter(x => !(o.f || []).includes(x)).forEach(x => out.push({ label: 'Docente de planta (no se costea)', before: '', after: name(x) }));
+            (o.f || []).filter(x => !n.f.includes(x)).forEach(x => out.push({ label: 'Vuelve a costearse', before: name(x), after: '' }));
             if (!out.length && !this.costs.long_configured) out.push({ label: 'Fijar la lista sugerida del historial', before: 'automática', after: n.l.length + ' asignaturas' });
             return out;
         },
