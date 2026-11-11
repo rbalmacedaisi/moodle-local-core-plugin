@@ -453,15 +453,40 @@
         var cands = E.candidates(s, k, { ignoreRoom: false }).filter(function (c) { return !c.hard; })
             .map(function (c) { return Object.assign(c, { load: sameDayLoad(s, k, c.day) }); })
             .sort(function (a, b) { return a.soft - b.soft || a.load - b.load || a.day - b.day || a.start - b.start; });
-        var curHard = E.conflicts(s, k).filter(function (c) { return c.sev === 'hard'; }).length;
+        var curConf = E.conflicts(s, k);
+        var curHard = curConf.filter(function (c) { return c.sev === 'hard'; }).length;
+        var curSoft = curConf.filter(function (c) { return c.sev === 'soft'; }).length;
+        // Mover solo si no tiene horario o si tiene choques/avisos; nunca a donde ya esta, ni a algo con mas avisos.
+        var wantMove = !E.placed(p) || curHard || curSoft;
+        cands = cands.filter(function (c) {
+            return wantMove && !(c.day === p.day && c.start === p.start) && (curHard || !E.placed(p) || c.soft < curSoft);
+        });
         cands.slice(0, max).forEach(function (c) {
             var test = { day: c.day, start: c.start, end: c.end, teacherid: p.teacherid, roomid: p.roomid };
-            var why = curHard ? 'resuelve ' + curHard + ' choque(s)' : 'sin choques';
+            var why = curHard ? 'resuelve ' + curHard + ' choque(s)' : (E.placed(p) ? 'quedan ' + c.soft + ' aviso(s) en vez de ' + curSoft : 'sin choques');
             if (c.soft) why += ', con ' + c.soft + ' aviso(s)';
             out.push({ kind: 'mover', day: c.day, start: c.start, end: c.end, soft: c.soft,
                 label: 'Mover a ' + E.DAYS[c.day] + ' ' + E.hhmm(c.start) + '–' + E.hhmm(c.end), why: why,
                 teacher: p.teacherid ? null : E.bestTeacher(s, k, test, true) });
         });
+        // Sin hora libre: probar hacerle lugar moviendo los grupos que lo bloquean (en una copia).
+        if (!out.length && (curHard || !E.placed(p))) {
+            var backup = JSON.stringify(s.place);
+            if (!p.locked && E.repair(s, k)) {
+                var after = s.place;
+                var before = JSON.parse(backup);
+                var moved = s.order.filter(function (o) {
+                    return o !== k && (before[o].day !== after[o].day || before[o].start !== after[o].start);
+                }).map(function (o) {
+                    return s.groups[o].name + ' G' + s.groups[o].number + ' → ' + E.DAYS_SHORT[after[o].day] + ' ' + E.hhmm(after[o].start);
+                });
+                var np = after[k];
+                out.push({ kind: 'reparar', label: 'Hacerle lugar: ' + E.DAYS[np.day] + ' ' + E.hhmm(np.start) + '–' + E.hhmm(np.end),
+                    why: 'mueve ' + moved.length + ' grupo(s) sin choques: ' + moved.join('; ') });
+            }
+            var restore = JSON.parse(backup);
+            Object.keys(restore).forEach(function (kk) { s.place[kk] = restore[kk]; });
+        }
         if (E.placed(p)) {
             var cs = E.conflicts(s, k);
             if (cs.some(function (c) { return c.type === 'docente' || c.type === 'disponibilidad' || c.type === 'habilidad'; }) || !p.teacherid) {

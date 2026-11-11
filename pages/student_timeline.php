@@ -47,6 +47,8 @@ echo $OUTPUT->header();
   window.gmkCanPlan = <?php echo has_capability('local/grupomakro_core:manage_academic_planning', context_system::instance()) ? 'true' : 'false'; ?>;
 </script>
 
+<script src="<?php echo $CFG->wwwroot; ?>/local/grupomakro_core/js/components/timeline/board_engine.js?v=<?php echo $assetversion; ?>"></script>
+<script src="<?php echo $CFG->wwwroot; ?>/local/grupomakro_core/js/components/timeline/schedule_board.js?v=<?php echo $assetversion; ?>"></script>
 <script src="<?php echo $CFG->wwwroot; ?>/local/grupomakro_core/js/components/timeline/period_projection.js?v=<?php echo $assetversion; ?>"></script>
 <script src="<?php echo $CFG->wwwroot; ?>/local/grupomakro_core/js/components/timeline/subject_picker.js?v=<?php echo $assetversion; ?>"></script>
 <script src="<?php echo $CFG->wwwroot; ?>/local/grupomakro_core/js/components/timeline/planning_config.js?v=<?php echo $assetversion; ?>"></script>

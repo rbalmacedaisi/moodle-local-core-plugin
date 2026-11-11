@@ -48,9 +48,11 @@ Vue.component('period-projection', {
                 <v-icon size="14">mdi-account-group</v-icon> Grupos propuestos</button>
             <button class="tl-plan-tab" :class="{ 'tl-plan-tab-active': view === 'future' }" @click="openFuture">
                 <v-icon size="14">mdi-calendar-multiple</v-icon> Próximos periodos</button>
+            <button v-if="hasBoard" class="tl-plan-tab" :class="{ 'tl-plan-tab-active': view === 'board' }" @click="openBoard">
+                <v-icon size="14">mdi-calendar-edit</v-icon> Tablero de horarios</button>
         </div>
 
-        <div class="tl-proj-toolbar">
+        <div class="tl-proj-toolbar" v-show="view !== 'board'">
             <select v-if="showCareers" v-model.number="careerFilter" class="tl-cfg-input tl-proj-career" title="Filtrar por carrera">
                 <option :value="0">Todas las carreras</option>
                 <option v-for="c in careerOpts" :key="c.id" :value="c.id">{{ c.short }}</option>
@@ -68,7 +70,10 @@ Vue.component('period-projection', {
                         @click="jornada = j">{{ j || 'Todas' }}</button>
             </div>
         </div>
-        <div v-if="careerFilter" class="tl-proj-filter-note">
+        <!-- TABLERO DE HORARIOS (se mantiene vivo al cambiar de pestana para no perder cambios sin guardar) -->
+        <schedule-board v-if="boardOpened" v-show="view === 'board'" :periodid="result.period.id" :period-name="result.period.name"
+                        :plan-ids="planIds" :can-edit="canEdit" @proposal-saved="grouping = null"></schedule-board>
+        <div v-if="careerFilter && view !== 'board'" class="tl-proj-filter-note">
             Mostrando las asignaturas que necesita <b>{{ careerName(careerFilter) }}</b>. En cada jornada se ve cuántos son de esta
             carrera y, si el grupo se completa con otras carreras, el total del grupo.
         </div>
@@ -456,7 +461,7 @@ Vue.component('period-projection', {
             </div>
         </div>
         </template>
-        <div class="tl-plan-legend">
+        <div class="tl-plan-legend" v-show="view !== 'board'">
             <span><span class="tl-filter-dot tl-dot-green"></span> abre ({{ min }} o más)</span>
             <span><span class="tl-filter-dot tl-dot-blue"></span> abre por decisión o como módulo</span>
             <span><v-icon size="11">mdi-tune-variant</v-icon> decidir apertura (grupo, módulo o no abrir)</span>
@@ -525,7 +530,7 @@ Vue.component('period-projection', {
     },
     data() {
         return { q: '', filter: 'all', jornada: '', careerFilter: 0, open: {}, selected: {},
-            view: 'next', future: null, futureLoading: false, futureError: '', cellDetail: null, costOpen: false, openRep: {},
+            view: 'next', boardOpened: false, future: null, futureLoading: false, futureError: '', cellDetail: null, costOpen: false, openRep: {},
             grouping: null, groupsLoading: false, groupsError: '', groupTab: 'list', groupDetail: null, alertType: 'all', alertLimit: 200,
             comparison: null, savedProposal: null, proposalSaving: false, cmpState: 'all', cmpDetail: null,
             cmpLabel: { igual: 'igual', distinto: 'distinto', solo_tablero: 'solo tablero', solo_propuesta: 'solo propuesta' },
@@ -666,6 +671,7 @@ Vue.component('period-projection', {
             return { subjects, groups, covered, uncovered, finishingShort: finishing.size };
         },
         selectedList() { return Object.values(this.selected); },
+        hasBoard() { return !!window.GmkBoard && !!Vue.options.components['schedule-board']; },
         // Grupos filtrados por carrera, jornada y busqueda, agrupados por asignatura + jornada.
         groupRows() {
             if (!this.grouping) return [];
@@ -946,6 +952,7 @@ Vue.component('period-projection', {
             link.href = url; link.download = 'alertas_' + this.result.period.name + '.csv';
             document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(url);
         },
+        openBoard() { this.view = 'board'; this.boardOpened = true; },
         async openFuture() {
             this.view = 'future';
             if (this.future || this.futureLoading) return;

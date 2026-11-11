@@ -69,6 +69,8 @@ echo $OUTPUT->header();
 <script src="<?php echo $CFG->wwwroot; ?>/local/grupomakro_core/js/components/modals/renewal_modal.js?v=<?php echo $assetversion; ?>"></script>
 <script src="<?php echo $CFG->wwwroot; ?>/local/grupomakro_core/js/components/panels/subjectspanel.js?v=<?php echo $assetversion; ?>"></script>
 <script src="<?php echo $CFG->wwwroot; ?>/local/grupomakro_core/js/components/panels/cohort_plan_panel.js?v=<?php echo $assetversion; ?>"></script>
+<script src="<?php echo $CFG->wwwroot; ?>/local/grupomakro_core/js/components/timeline/board_engine.js?v=<?php echo $assetversion; ?>"></script>
+<script src="<?php echo $CFG->wwwroot; ?>/local/grupomakro_core/js/components/timeline/schedule_board.js?v=<?php echo $assetversion; ?>"></script>
 <script src="<?php echo $CFG->wwwroot; ?>/local/grupomakro_core/js/components/timeline/period_projection.js?v=<?php echo $assetversion; ?>"></script>
 <script src="<?php echo $CFG->wwwroot; ?>/local/grupomakro_core/js/components/timeline/intake_timeline.js?v=<?php echo $assetversion; ?>"></script>
 
