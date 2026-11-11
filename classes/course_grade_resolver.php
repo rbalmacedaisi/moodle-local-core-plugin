@@ -1556,7 +1556,18 @@ class course_grade_resolver
             } else {
                 $new->grade = $res['grade'];
                 $new->grade_source = $res['source'];
-                $new->grade_at = $res['gradedat'];
+                $new->grade_at = (int)$res['gradedat'];
+                // The same grade from the same source whose date can no longer be
+                // rebuilt (a migrated Nota Final Integrada with no timemodified, no
+                // grade history and no homologation date) keeps the date already
+                // stored: an unknown date is not a newer one. Without this any
+                // user_graded in the course (e.g. creating a class regrades it)
+                // reset grade_at to 0.
+                if ($new->grade_at <= 0 && (int)($row->grade_at ?? 0) > 0
+                        && (string)($row->grade_source ?? '') === (string)$res['source']
+                        && abs((float)$row->grade - (float)$res['grade']) < 0.005) {
+                    $new->grade_at = (int)$row->grade_at;
+                }
                 $new->grade_classid = $res['classid'];
                 $new->status = self::status_for_latest((int)$row->status, $res);
                 // From 2026-03-12 to 2026-10-14 progress_manager stored 70.00 as a
