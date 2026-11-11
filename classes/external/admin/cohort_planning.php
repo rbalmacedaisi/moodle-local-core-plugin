@@ -127,7 +127,7 @@ class cohort_planning extends external_api {
 
     public static function save_config_parameters() {
         return new external_function_parameters([
-            'section' => new external_value(PARAM_ALPHANUMEXT, 'period | rules | scheduler | classroom | classroom_delete | holiday | holiday_delete'),
+            'section' => new external_value(PARAM_ALPHANUMEXT, 'period | rules | scheduler | isolation | classroom | classroom_delete | holiday | holiday_delete'),
             'data' => new external_value(PARAM_RAW, 'JSON con los datos de la seccion'),
         ]);
     }

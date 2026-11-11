@@ -2444,3 +2444,10 @@ button.tl-btn.tl-btn-primary:active:not(:disabled) {
 .tl-cfg-change { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 3px 0; }
 .tl-cfg-change > span:first-child { min-width: 140px; color: var(--tl-text-secondary); }
 .tl-cfg-before { color: var(--tl-text-muted); text-decoration: line-through; }
+.tl-proj-career { min-width: 220px; height: 32px; }
+.tl-proj-filter-note { font-size: 12px; color: var(--tl-text-secondary); background: var(--tl-primary-soft); border-radius: 8px; padding: 6px 10px; margin: -2px 0 8px; }
+.tl-proj-other { opacity: 0.55; }
+.tl-cfg-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.tl-cfg-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 16px; border: 1px solid var(--tl-border); background: var(--tl-surface); font-size: 12px; cursor: pointer; }
+.tl-cfg-chip-on { background: var(--tl-warning-soft); border-color: #FDE68A; color: #92400E; font-weight: 600; }
+.tl-cfg-sub { font-size: 13px; font-weight: 700; color: var(--tl-text); margin-top: 4px; }

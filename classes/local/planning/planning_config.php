@@ -45,6 +45,40 @@ class planning_config {
         return $out;
     }
 
+    /**
+     * Regla de mezcla de carreras (guardada en la configuracion del generador de horarios):
+     *  - isolatedCareers: nombres de carreras cuyas asignaturas no se mezclan con otras carreras (ya existente).
+     *  - isolatedSubjects: [{planid, courseid}] asignaturas puntuales de una carrera que no se mezclan.
+     *
+     * @return array ['plans' => [planid => true], 'subjects' => ['planid|courseid' => true],
+     *                'careers' => [planid,...], 'subject_list' => [{planid, courseid}]]
+     */
+    public static function isolation() {
+        global $DB;
+        $cfg = scheduler_settings::get_config();
+        $names = array_map('trim', (array)($cfg->isolatedCareers ?? []));
+        $plans = [];
+        if ($names) {
+            foreach ($DB->get_records('local_learning_plans', null, '', 'id, name') as $p) {
+                if (in_array(trim($p->name), $names, true)) {
+                    $plans[(int)$p->id] = true;
+                }
+            }
+        }
+        $subjects = [];
+        $list = [];
+        foreach ((array)($cfg->isolatedSubjects ?? []) as $s) {
+            $s = (array)$s;
+            $pid = (int)($s['planid'] ?? 0);
+            $cid = (int)($s['courseid'] ?? 0);
+            if ($pid && $cid) {
+                $subjects[$pid . '|' . $cid] = true;
+                $list[] = ['planid' => $pid, 'courseid' => $cid];
+            }
+        }
+        return ['plans' => $plans, 'subjects' => $subjects, 'careers' => array_keys($plans), 'subject_list' => $list];
+    }
+
     /** Inicio de clases por jornada guardado en el periodo (o []). */
     public static function jornada_starts($period) {
         $cfg = json_decode((string)($period->configsettings ?? ''), true);
@@ -97,9 +131,31 @@ class planning_config {
         foreach (scheduler_settings::get_loads() as $l) {
             $loads[] = ['subject' => $l->subjectname, 'total_hours' => (float)$l->total_hours, 'intensity' => (float)$l->intensity];
         }
+        // Carreras activas y sus asignaturas, para la regla de mezcla.
+        $careers = [];
+        $excluded = \local_grupomakro_core\local\academic_progress::EXCLUDED_PLANS;
+        foreach ($DB->get_records_sql(
+                "SELECT lp.id, lp.name FROM {local_learning_plans} lp
+                  WHERE EXISTS (SELECT 1 FROM {local_learning_users} u WHERE u.learningplanid = lp.id
+                                   AND u.userrolename = 'student' AND u.status = 'activo')
+               ORDER BY lp.name") as $lp) {
+            if (in_array((int)$lp->id, $excluded, true)) {
+                continue;
+            }
+            $courses = [];
+            foreach ($DB->get_records_sql(
+                    "SELECT llc.courseid, c.fullname FROM {local_learning_courses} llc JOIN {course} c ON c.id = llc.courseid
+                      WHERE llc.learningplanid = ? ORDER BY c.fullname", [$lp->id]) as $c) {
+                $courses[] = ['courseid' => (int)$c->courseid, 'name' => $c->fullname];
+            }
+            $careers[] = ['id' => (int)$lp->id, 'name' => $lp->name, 'courses' => $courses];
+        }
+        $iso = self::isolation();
         return [
             'periods' => $periods,
             'rules' => self::rules(),
+            'careers' => $careers,
+            'isolation' => ['careers' => $iso['careers'], 'subjects' => $iso['subject_list']],
             'scheduler' => scheduler_settings::get_config(),
             'classrooms' => $classrooms,
             'holidays' => $holidays,
@@ -158,6 +214,43 @@ class planning_config {
                 }
                 self::backup('jornadas', ['antes' => $before, 'despues' => scheduler_settings::get_config()]);
                 return self::ok('Jornadas y horarios guardados.', scheduler_settings::get_config());
+
+            case 'isolation':
+                $careerids = array_values(array_unique(array_map('intval', (array)($data['careers'] ?? []))));
+                $subjects = [];
+                foreach ((array)($data['subjects'] ?? []) as $s) {
+                    $pid = (int)($s['planid'] ?? 0);
+                    $cid = (int)($s['courseid'] ?? 0);
+                    if (!$pid || !$cid) {
+                        continue;
+                    }
+                    if (!$DB->record_exists('local_learning_courses', ['learningplanid' => $pid, 'courseid' => $cid])) {
+                        return self::fail('Una de las asignaturas elegidas no pertenece a la carrera indicada.');
+                    }
+                    // 'plan' (nombre) es como el tablero de horarios identifica la carrera.
+                    $subjects[$pid . '|' . $cid] = ['planid' => $pid, 'courseid' => $cid,
+                        'plan' => (string)$DB->get_field('local_learning_plans', 'name', ['id' => $pid])];
+                }
+                $names = [];
+                foreach ($careerids as $pid) {
+                    $n = $DB->get_field('local_learning_plans', 'name', ['id' => $pid]);
+                    if ($n === false) {
+                        return self::fail('Una de las carreras elegidas no existe.');
+                    }
+                    $names[] = $n;
+                }
+                $before = scheduler_settings::get_config();
+                $merged = json_decode(json_encode($before), true) ?: [];
+                $merged['isolatedCareers'] = $names;
+                $merged['isolatedSubjects'] = array_values($subjects);
+                if (!scheduler_settings::save_config($merged)) {
+                    return self::fail('No se pudo guardar la regla de mezcla.');
+                }
+                self::backup('mezcla_carreras', ['antes' => ['isolatedCareers' => $before->isolatedCareers ?? [],
+                    'isolatedSubjects' => $before->isolatedSubjects ?? []], 'despues' => ['isolatedCareers' => $names,
+                    'isolatedSubjects' => array_values($subjects)]]);
+                $iso = self::isolation();
+                return self::ok('Regla de mezcla de carreras guardada.', ['careers' => $iso['careers'], 'subjects' => $iso['subject_list']]);
 
             case 'classroom':
                 $name = trim((string)($data['name'] ?? ''));

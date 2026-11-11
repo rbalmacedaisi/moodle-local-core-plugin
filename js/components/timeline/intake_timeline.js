@@ -74,6 +74,7 @@ Vue.component('intake-timeline', {
                 :result="planResults[0]"
                 scope-label="solo esta carrera; los grupos pueden completarse con otras carreras (ver la línea de tiempo general)"
                 :show-careers="false"
+                :careers="planCareers"
                 :min="planRules.min_group"
                 :max="planRules.max_group"
             ></period-projection>
@@ -485,6 +486,7 @@ Vue.component('intake-timeline', {
             canPlan: !!window.gmkCanPlan,
             mainTab: window.location.hash === '#proyeccion' ? 'proj' : 'cohorts',
             planRules: { min_group: 12, max_group: 30, min_load: 3 },
+            planCareers: [],
             planLoading: false,
             planResults: [],
             planPanel: { visible: false, cohort: '', plan: null, tab: 'subjects' },
@@ -694,6 +696,7 @@ Vue.component('intake-timeline', {
                 const first = await this.callDemand(0);
                 this.planResults = (first.result && !first.result.error) ? [first.result] : [];
                 this.planRules = first.rules || this.planRules;
+                this.planCareers = first.careers || [];
             } catch (e) {
                 console.error('[timeline] planificacion:', e);
             } finally {

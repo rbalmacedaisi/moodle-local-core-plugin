@@ -66,6 +66,46 @@ Vue.component('planning-config', {
                 <div class="tl-cfg-footer"><button class="tl-cfg-btn" :disabled="!rulesDirty || saving" @click="askSave('rules', rules, rulesDiff())">Guardar reglas</button></div>
             </div>
 
+            <!-- MEZCLA DE CARRERAS -->
+            <div v-if="section === 'rules'" class="tl-cfg-card">
+                <div class="tl-cfg-card-head"><div><b>Mezcla de carreras</b>
+                    <div class="tl-cfg-help">Por defecto, una asignatura que comparten varias carreras se dicta en un mismo grupo para llenarlo mejor.
+                    Aquí se define qué no se mezcla. Lo usan la proyección y el tablero de horarios.</div></div></div>
+                <div class="tl-cfg-sub">Carreras que no se mezclan con ninguna otra</div>
+                <div class="tl-cfg-help mb-2">Todas sus asignaturas van en grupos solo de esa carrera.</div>
+                <div class="tl-cfg-chips">
+                    <span v-for="c in careers" :key="c.id" class="tl-cfg-chip" :class="{ 'tl-cfg-chip-on': iso.careers.includes(c.id) }"
+                          @click="toggleIsoCareer(c.id)">
+                        <v-icon size="13" :color="iso.careers.includes(c.id) ? '#B45309' : '#CBD5E1'">{{ iso.careers.includes(c.id) ? 'mdi-lock' : 'mdi-lock-open-variant-outline' }}</v-icon>
+                        {{ shortPlan(c.name) }}
+                    </span>
+                </div>
+                <div class="tl-cfg-sub mt-4">Asignaturas puntuales que no se mezclan</div>
+                <div class="tl-cfg-help mb-2">Solo esa asignatura de esa carrera va en grupos propios; el resto de sus asignaturas sí se puede mezclar.</div>
+                <div class="tl-cfg-inline">
+                    <select class="tl-cfg-input" v-model.number="isoPick.planid" style="min-width:220px">
+                        <option :value="0">Elija la carrera…</option>
+                        <option v-for="c in careers" :key="c.id" :value="c.id" :disabled="iso.careers.includes(c.id)">{{ shortPlan(c.name) }}{{ iso.careers.includes(c.id) ? ' (ya no se mezcla completa)' : '' }}</option>
+                    </select>
+                    <select class="tl-cfg-input" v-model.number="isoPick.courseid" :disabled="!isoPick.planid" style="flex:1;min-width:240px">
+                        <option :value="0">Elija la asignatura…</option>
+                        <option v-for="x in pickCourses" :key="x.courseid" :value="x.courseid">{{ x.name }}</option>
+                    </select>
+                    <button class="tl-cfg-btn" :disabled="!isoPick.planid || !isoPick.courseid" @click="addIsoSubject">Agregar</button>
+                </div>
+                <table class="tl-cfg-table" v-if="iso.subjects.length">
+                    <thead><tr><th>Carrera</th><th>Asignatura</th><th></th></tr></thead>
+                    <tbody>
+                        <tr v-for="(s, i) in iso.subjects" :key="s.planid + '-' + s.courseid">
+                            <td>{{ shortPlan(careerById(s.planid).name) }}</td><td>{{ courseName(s.planid, s.courseid) }}</td>
+                            <td class="tl-cfg-actions"><button class="tl-cfg-btn tl-cfg-btn-ghost" @click="iso.subjects.splice(i, 1)">Quitar</button></td>
+                        </tr>
+                    </tbody>
+                </table>
+                <div v-else class="tl-plan-empty">Ninguna asignatura puntual aislada.</div>
+                <div class="tl-cfg-footer"><button class="tl-cfg-btn" :disabled="!isoDirty || saving" @click="askSave('isolation', iso, isoDiff())">Guardar mezcla de carreras</button></div>
+            </div>
+
             <!-- JORNADAS Y HORARIOS -->
             <div v-if="section === 'scheduler'" class="tl-cfg-card">
                 <div class="tl-cfg-card-head"><div><b>Jornadas y horarios</b>
@@ -177,6 +217,7 @@ Vue.component('planning-config', {
             ],
             periods: [], rules: {}, rulesOrig: {}, sched: null, schedOrig: '', classrooms: [], holidays: [], loads: [],
             newHoliday: { date: '', name: '' },
+            careers: [], iso: { careers: [], subjects: [] }, isoOrig: '', isoPick: { planid: 0, courseid: 0 },
             confirm: { show: false, title: '', changes: [], note: '', danger: false, run: null },
         };
     },
@@ -188,6 +229,12 @@ Vue.component('planning-config', {
         visibleHolidays() {
             const today = Math.floor(Date.now() / 1000) - 86400;
             return this.holidays.filter(h => this.showPastHolidays || h.date >= today);
+        },
+        isoDirty() { return JSON.stringify(this.isoNorm(this.iso)) !== this.isoOrig; },
+        pickCourses() {
+            const c = this.careerById(this.isoPick.planid);
+            const taken = this.iso.subjects.filter(s => s.planid === this.isoPick.planid).map(s => s.courseid);
+            return (c.courses || []).filter(x => !taken.includes(x.courseid));
         },
         visibleLoads() {
             const q = this.loadQ.toLowerCase();
@@ -214,6 +261,10 @@ Vue.component('planning-config', {
                 this.sched = s; this.schedOrig = JSON.stringify(s);
                 this.classrooms = d.classrooms.map(c => Object.assign(c, { dirty: false }));
                 this.holidays = d.holidays; this.loads = d.loads;
+                this.careers = d.careers || [];
+                const iso = d.isolation || { careers: [], subjects: [] };
+                this.iso = { careers: (iso.careers || []).map(Number), subjects: (iso.subjects || []).map(s => ({ planid: Number(s.planid), courseid: Number(s.courseid) })) };
+                this.isoOrig = JSON.stringify(this.isoNorm(this.iso));
             } catch (e) {
                 this.error = 'No se pudo cargar la configuración: ' + (e.message || e);
             } finally { this.loading = false; }
@@ -256,6 +307,35 @@ Vue.component('planning-config', {
             });
             [['sessionDuration', 'Duración de sesión'], ['intervalMinutes', 'Receso'], ['lunchStart', 'Inicio almuerzo'], ['lunchEnd', 'Fin almuerzo']]
                 .forEach(([k, l]) => { if (o[k] !== s[k]) out.push({ label: l, before: o[k], after: s[k] }); });
+            return out;
+        },
+        // ---- mezcla de carreras ----
+        isoNorm(i) {
+            return { careers: i.careers.slice().sort((a, b) => a - b),
+                subjects: i.subjects.map(s => s.planid + '|' + s.courseid).sort() };
+        },
+        careerById(id) { return this.careers.find(c => c.id === id) || { name: 'Plan ' + id, courses: [] }; },
+        courseName(pid, cid) { const x = (this.careerById(pid).courses || []).find(c => c.courseid === cid); return x ? x.name : 'Curso ' + cid; },
+        shortPlan(name) {
+            let n = String(name || '').replace(/^T[ÉE]CNICO SUPERIOR EN\s+/i, '').replace(/^CURSO DE\s+/i, '');
+            return n.charAt(0) + n.slice(1).toLowerCase();
+        },
+        toggleIsoCareer(id) {
+            const i = this.iso.careers.indexOf(id);
+            if (i === -1) { this.iso.careers.push(id); this.iso.subjects = this.iso.subjects.filter(s => s.planid !== id); }
+            else this.iso.careers.splice(i, 1);
+        },
+        addIsoSubject() {
+            this.iso.subjects.push({ planid: this.isoPick.planid, courseid: this.isoPick.courseid });
+            this.isoPick.courseid = 0;
+        },
+        isoDiff() {
+            const o = JSON.parse(this.isoOrig), n = this.isoNorm(this.iso), out = [];
+            n.careers.filter(c => !o.careers.includes(c)).forEach(c => out.push({ label: 'No se mezcla', before: 'se mezcla', after: this.shortPlan(this.careerById(c).name) }));
+            o.careers.filter(c => !n.careers.includes(c)).forEach(c => out.push({ label: 'Vuelve a mezclarse', before: this.shortPlan(this.careerById(c).name), after: 'se mezcla' }));
+            const lbl = k => { const [p, c] = k.split('|').map(Number); return this.courseName(p, c) + ' (' + this.shortPlan(this.careerById(p).name) + ')'; };
+            n.subjects.filter(k => !o.subjects.includes(k)).forEach(k => out.push({ label: 'Asignatura aislada', before: '', after: lbl(k) }));
+            o.subjects.filter(k => !n.subjects.includes(k)).forEach(k => out.push({ label: 'Deja de estar aislada', before: lbl(k), after: '' }));
             return out;
         },
         askSave(section, data, changes) { this.openConfirm('Confirmar cambios', changes, section, data, ''); },

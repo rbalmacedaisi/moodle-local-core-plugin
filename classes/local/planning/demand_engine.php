@@ -397,13 +397,18 @@ class demand_engine {
         }
 
         // 7. Demanda por asignatura (curso Moodle) + jornada, con desglose por categoria.
+        // Mezcla de carreras: la misma asignatura junta estudiantes de varias carreras, salvo que la carrera
+        // completa o esa asignatura de esa carrera este marcada como "no se mezcla" (planning_config::isolation).
+        $iso = planning_config::isolation();
         $demand = [];
         foreach ($students as $k => $s) {
             foreach ($s['subjects'] as $sub) {
-                $dk = $sub['courseid'] . '|' . $s['jornada'];
+                $isoplan = (isset($iso['plans'][$s['planid']]) || isset($iso['subjects'][$s['planid'] . '|' . $sub['courseid']]))
+                    ? (int)$s['planid'] : 0;
+                $dk = $sub['courseid'] . '|' . $s['jornada'] . '|' . $isoplan;
                 if (!isset($demand[$dk])) {
                     $demand[$dk] = ['courseid' => $sub['courseid'], 'name' => $sub['name'],
-                        'jornada' => $s['jornada'], 'total' => 0, 'ready' => 0,
+                        'jornada' => $s['jornada'], 'isolated_plan' => $isoplan, 'total' => 0, 'ready' => 0,
                         'by_category' => [self::CAT_NIVEL => 0, self::CAT_ATRASADA => 0, self::CAT_REPITE => 0,
                             self::CAT_ADELANTO => 0],
                         'blocked' => 0, 'conditional' => 0, 'plans' => [], 'levels' => [], 'students' => []];

@@ -353,6 +353,8 @@
                 const demand = this.state.demand || {};
                 const configSettings = this._normalizeConfig(this.state.context.configSettings);
                 const isolatedCareers = new Set(configSettings.isolatedCareers || []);
+                // Asignaturas puntuales de una carrera que no se mezclan (Configuracion de la linea de tiempo).
+                const isolatedSubjects = new Set((configSettings.isolatedSubjects || []).map(s => (s.plan || '') + '|' + s.courseid));
 
                 if (!demand || Object.keys(demand).length === 0) {
                     console.warn("SchedulerStore: No demand data available.");
@@ -376,7 +378,7 @@
 
                 for (const career of Object.keys(demand)) {
                     if (!demand[career]) continue;
-                    const isIsolated = isolatedCareers.has(career);
+                    const isolatedCareersHas = isolatedCareers.has(career);
 
                     for (const shift of Object.keys(demand[career])) {
                         if (!demand[career][shift]) continue;
@@ -385,6 +387,7 @@
                             const semData = demand[career][shift][sem];
                             for (const [courseId, val] of Object.entries(semData.course_counts)) {
                                 const subperiodId = val.subperiod || 0;
+                                const isIsolated = isolatedCareersHas || isolatedSubjects.has(career + '|' + courseId);
                                 // Group by courseId + shift (+ career if isolated). No sem: students from
                                 // all cohort levels taking the same subject go into the same class group.
                                 const aggKey = isIsolated ? `${courseId}|${shift}|${career}|${subperiodId}` : `${courseId}|${shift}|${subperiodId}`;
@@ -948,6 +951,8 @@
             const demand = this.state.demand || {};
             const configSettings = this._normalizeConfig(this.state.context?.configSettings);
             const isolatedCareers = new Set(configSettings.isolatedCareers || []);
+            const isolatedSubjects = new Set((configSettings.isolatedSubjects || []).map(s => (s.plan || '') + '|' + s.courseid));
+            const isIsolatedPair = (career, cid) => isolatedCareers.has(career) || isolatedSubjects.has(career + '|' + cid);
 
             // Build current demand map: aggKey -> { students[], careers, levels, courseid, subperiod, shift, plan_map, plan_scores }
             // NOTE: subperiod is NOT included in the aggKey because the backend demand does not populate
@@ -955,13 +960,12 @@
             // draft items match demand entries regardless of subperiod value.
             const demandMap = {};
             for (const career of Object.keys(demand)) {
-                const isIsolated = isolatedCareers.has(career);
                 for (const shift of Object.keys(demand[career] || {})) {
                     for (const sem of Object.keys(demand[career][shift] || {})) {
                         const semData = demand[career][shift][sem];
                         for (const [courseId, val] of Object.entries(semData.course_counts || {})) {
                             const subperiodId = val.subperiod || 0;
-                            const aggKey = isIsolated
+                            const aggKey = isIsolatedPair(career, courseId)
                                 ? `${courseId}|${shift}|${career}`
                                 : `${courseId}|${shift}`;
 
@@ -1008,8 +1012,8 @@
                 const cid = String(item.corecourseid || item.courseid || '');
                 const shift = item.shift || '';
                 const isIsolated = item.careerList
-                    ? (item.careerList.length === 1 && isolatedCareers.has(item.careerList[0]))
-                    : (item.career && isolatedCareers.has(item.career));
+                    ? (item.careerList.length === 1 && isIsolatedPair(item.careerList[0], cid))
+                    : (item.career && isIsolatedPair(item.career, cid));
                 if (isIsolated) {
                     const career = item.careerList ? item.careerList[0] : item.career;
                     return `${cid}|${shift}|${career}`;
