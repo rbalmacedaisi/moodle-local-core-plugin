@@ -90,7 +90,8 @@ Vue.component('period-projection', {
                     <thead><tr>
                         <th class="tl-proj-mx-subj">Asignatura</th>
                         <th v-for="c in futureCols" :key="c.key" :title="c.estimated ? 'Periodo aún no creado: fecha estimada' : ''">
-                            {{ c.name }}<div class="tl-proj-mx-date">{{ fmt(c.start) }}{{ c.estimated ? ' · est.' : '' }}</div></th>
+                            {{ c.name }}<div class="tl-proj-mx-date">{{ fmt(c.start) }}{{ c.estimated ? ' · est.' : '' }}</div>
+                            <div class="tl-proj-mx-groups">{{ colGroups[c.key] || 0 }} grupos</div></th>
                     </tr></thead>
                     <tbody>
                         <tr v-for="r in futureRows" :key="r.key">
@@ -103,6 +104,7 @@ Vue.component('period-projection', {
                                 <template v-if="r.cells[c.key]">
                                     <b>{{ r.cells[c.key].count }}</b>
                                     <span v-if="r.cells[c.key].flex" class="tl-proj-mx-flex">+{{ r.cells[c.key].flex }}</span>
+                                    <div class="tl-proj-mx-g">{{ cellGroupsLabel(r.cells[c.key]) }}</div>
                                 </template>
                             </td>
                         </tr>
@@ -110,14 +112,27 @@ Vue.component('period-projection', {
                 </table>
                 <div v-if="!futureRows.length" class="tl-plan-empty" style="padding:16px">Sin asignaturas para este filtro.</div>
             </div>
-            <div v-if="cellDetail" class="tl-proj-detail-col mt-3">
-                <div class="tl-plan-detail-block">{{ cellDetail.name }} • {{ cellDetail.period }} • {{ cellDetail.students.length }} estudiantes
-                    <button class="tl-proj-unx" style="float:right" @click="cellDetail = null">×</button></div>
-                <div v-for="x in cellDetail.students" :key="x.lluid + '-' + x.jornada" class="tl-plan-name-row">
-                    <span>{{ x.name }}</span>
-                    <span class="tl-subj-meta-item" style="font-size:10px;color:#94A3B8">{{ shortPlan(x.plan) }} · {{ x.jornada || 'Sin jornada' }} · hoy {{ x.level }}</span>
-                </div>
-            </div>
+            <v-dialog :value="!!cellDetail" @input="v => { if (!v) cellDetail = null; }" max-width="640" scrollable>
+                <v-card v-if="cellDetail">
+                    <v-card-title class="d-flex">
+                        <div>
+                            <div class="text-subtitle-1 font-weight-bold">{{ cellDetail.name }}</div>
+                            <div class="tl-cfg-help">{{ cellDetail.period }} • {{ cellDetail.students.length }} estudiantes • {{ cellDetail.groupsLabel }}</div>
+                        </div>
+                        <v-spacer></v-spacer>
+                        <v-btn icon @click="cellDetail = null"><v-icon>mdi-close</v-icon></v-btn>
+                    </v-card-title>
+                    <v-card-text>
+                        <div v-for="g in cellDetail.byJornada" :key="g.jornada" class="mb-3">
+                            <div class="tl-plan-detail-block">{{ g.jornada }} • {{ g.students.length }} estudiantes • {{ g.label }}</div>
+                            <div v-for="x in g.students" :key="x.lluid" class="tl-plan-name-row">
+                                <span>{{ x.name }}</span>
+                                <span class="tl-subj-meta-item" style="font-size:10px;color:#94A3B8">{{ shortPlan(x.plan) }} · hoy {{ x.level }}</span>
+                            </div>
+                        </div>
+                    </v-card-text>
+                </v-card>
+            </v-dialog>
         </template>
 
         <template v-if="view === 'next'">
@@ -380,6 +395,11 @@ Vue.component('period-projection', {
             return { subjects, groups, covered, uncovered, finishingShort: finishing.size };
         },
         selectedList() { return Object.values(this.selected); },
+        colGroups() {
+            const out = {};
+            this.futureRows.forEach(r => Object.keys(r.cells).forEach(k => { out[k] = (out[k] || 0) + this.cellGroups(r.cells[k]); }));
+            return out;
+        },
         futureCols() {
             if (!this.future) return [];
             const p = this.result.period;
@@ -392,7 +412,7 @@ Vue.component('period-projection', {
             const cf = this.careerFilter, jf = this.jornada, q = this.q.toLowerCase();
             const st = this.future.students || {};
             const rows = {};
-            const add = (colkey, cid, name, iso, jornada, count, flex, keys, levels, isflex) => {
+            const add = (colkey, cid, name, iso, jornada, count, flex, keys, levels, isflex, base) => {
                 if (jf && (jornada || 'Sin jornada') !== jf) return;
                 const ks = keys.filter(k => st[k] && (!cf || st[k].planid === cf));
                 if (cf && !ks.length) return;
@@ -400,20 +420,24 @@ Vue.component('period-projection', {
                 const r = rows[rk] || (rows[rk] = { key: rk, courseid: cid, name, isolated: iso, flex: false, levels: {}, cells: {} });
                 r.flex = r.flex || isflex;
                 (levels || []).forEach(l => { r.levels[l] = true; });
-                const c = r.cells[colkey] || (r.cells[colkey] = { count: 0, flex: 0, best: 0, keys: [] });
+                const c = r.cells[colkey] || (r.cells[colkey] = { count: 0, flex: 0, best: 0, keys: [], byJ: {} });
                 const n = cf ? ks.length - (isflex ? ks.length : 0) : count;
                 const fx = cf ? (isflex ? ks.length : 0) : flex;
-                c.count += n; c.flex += fx; c.best = Math.max(c.best, n);
+                // Base para grupos: los que se cargan en esa jornada (sin adelantos ni no obligatorias).
+                const b = cf ? (isflex ? 0 : Math.min(ks.length, base === undefined ? ks.length : base)) : (base === undefined ? count : base);
+                const jk = jornada || 'Sin jornada';
+                c.byJ[jk] = (c.byJ[jk] || 0) + b;
+                c.count += n; c.flex += fx; c.best = Math.max(c.best, c.byJ[jk]);
                 ks.forEach(k => c.keys.push({ k, jornada }));
             };
             (this.result.demand || []).forEach(d => {
                 const keys = d.students.filter(x => x.prereq !== 'no' && (x.category === 'nivel' || x.category === 'atrasada' || x.category === 'adelanto')).map(x => x.key);
                 add('next', d.courseid, d.name, Number(d.isolated_plan || 0), d.jornada, d.ready + d.by_category.adelanto,
-                    d.flex_waiting || 0, keys, Object.keys(d.levels), !!d.flexible && !d.flex_on);
+                    d.flex_waiting || 0, keys, Object.keys(d.levels), !!d.flexible && !d.flex_on, d.ready);
             });
             this.future.horizon.forEach(h => h.rows.forEach(row => {
                 add('h' + h.k, row.courseid, row.name, Number(row.isolated_plan || 0), row.jornada, row.count, row.flex,
-                    row.students, row.levels, row.flex > 0 && row.count === 0);
+                    row.students, row.levels, row.flex > 0 && row.count === 0, row.count);
             }));
             return Object.values(rows).map(r => Object.assign(r, { levels: Object.keys(r.levels).sort() }))
                 .filter(r => !q || r.name.toLowerCase().includes(q))
@@ -437,6 +461,14 @@ Vue.component('period-projection', {
             } catch (e) { this.futureError = 'No se pudo calcular: ' + (e.message || e); }
             finally { this.futureLoading = false; }
         },
+        cellGroups(c) {
+            return Object.values(c.byJ || {}).reduce((s, n) => s + (n >= this.min ? Math.ceil(n / this.max) : 0), 0);
+        },
+        cellGroupsLabel(c) {
+            const g = this.cellGroups(c);
+            if (g) return g + (g === 1 ? ' grupo' : ' grupos');
+            return c.count || c.flex ? 'no alcanza' : '';
+        },
         cellClass(c) {
             if (!c) return 'tl-proj-mx-empty';
             if (!c.count && c.flex) return 'tl-proj-mx-flexonly';
@@ -455,7 +487,16 @@ Vue.component('period-projection', {
                 const s = st[x.k];
                 if (s && !seen[x.k]) { seen[x.k] = true; list.push(Object.assign({}, s, { jornada: x.jornada })); }
             });
-            this.cellDetail = { name: r.name, period: col.name, students: list.sort((a, b) => a.name.localeCompare(b.name)) };
+            const cell = r.cells[col.key];
+            const groups = {};
+            list.forEach(s => { const j = s.jornada || 'Sin jornada'; (groups[j] = groups[j] || []).push(s); });
+            const byJornada = Object.keys(groups).sort().map(j => {
+                const n = cell.byJ[j] || 0;
+                const g = n >= this.min ? Math.ceil(n / this.max) : 0;
+                return { jornada: j, students: groups[j].sort((a, b) => a.name.localeCompare(b.name)),
+                    label: g ? (g + (g === 1 ? ' grupo' : ' grupos')) : ('no alcanza el mínimo de ' + this.min) };
+            });
+            this.cellDetail = { name: r.name, period: col.name, students: list, byJornada, groupsLabel: this.cellGroupsLabel(cell) };
         },
         async toggleFlex(r) {
             const on = !r.flexOn;

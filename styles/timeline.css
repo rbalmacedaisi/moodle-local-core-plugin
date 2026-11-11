@@ -2487,3 +2487,5 @@ button.tl-btn.tl-btn-primary:active:not(:disabled) {
 .tl-proj-mx-flexonly { background: var(--tl-muted-soft); color: var(--tl-text-muted); }
 .tl-proj-mx-flex { font-size: 10px; color: var(--tl-text-muted); margin-left: 2px; }
 .tl-proj-mx-cell:hover { outline: 2px solid var(--tl-primary-tint); outline-offset: -2px; }
+.tl-proj-mx-g { font-size: 10px; font-weight: 600; opacity: 0.85; white-space: nowrap; }
+.tl-proj-mx-groups { font-size: 10px; font-weight: 600; color: var(--tl-primary-dark); }
