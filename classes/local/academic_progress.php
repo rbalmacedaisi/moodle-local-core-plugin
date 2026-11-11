@@ -127,26 +127,31 @@ class academic_progress {
     }
 
     /**
-     * Calcula (y opcionalmente aplica) el avance.
+     * Nivel (ordinal de bimestre) que corresponde a cada estudiante activo en la fecha $now,
+     * segun la regla de avance. Solo lectura: no escribe nada.
      *
-     * @param bool $apply false = simulacion, no escribe nada
+     * Lo usan run() (avance diario) y el motor de planificacion (nivel en un periodo futuro).
+     *
+     * @param int|null $now fecha de calculo
      * @param callable|null $log function(string $line)
-     * @param int|null $now para pruebas
-     * @return array resumen: contadores y lista 'changes'
+     * @return array ['items' => [['row','n','ord','curord']], 'sum' => contadores, 'current' => franja|null,
+     *                'planperiods' => [plan => [periodid]], 'subperiods' => [periodid => [subperiodid]]]
      */
-    public static function run($apply = true, $log = null, $now = null) {
-        global $DB, $CFG;
+    public static function expected_levels($now = null, $log = null) {
+        global $DB;
 
         $now = $now ?: time();
         $log = $log ?: function ($l) {
         };
+        $res = ['items' => [], 'sum' => null, 'current' => null, 'planperiods' => [], 'subperiods' => []];
 
         $starts = self::load_slot_starts();
         $sum = ['evaluados' => 0, 'actualizados' => 0, 'sin_cambio' => 0, 'adelantados' => 0,
                 'sin_ingreso' => 0, 'sin_estructura' => 0, 'calendario_incompleto' => 0, 'changes' => []];
         if (!$starts) {
             $log('AVISO: el calendario academico no tiene franjas con bimestres; no se hace nada.');
-            return $sum;
+            $res['sum'] = $sum;
+            return $res;
         }
 
         $current = null;
@@ -157,7 +162,8 @@ class academic_progress {
         }
         if ($current === null) {
             $log('AVISO: ninguna franja del calendario ha iniciado todavia.');
-            return $sum;
+            $res['sum'] = $sum;
+            return $res;
         }
         // Si ya paso el fin del calendario cargado, la franja vigente real es posterior y no se conoce.
         $lastend = 0;
@@ -248,6 +254,39 @@ class academic_progress {
                 $items[$k]['ord'] = min($max, 2 * $items[$k]['n']);
             }
         }
+
+        $res['items'] = $items;
+        $res['sum'] = $sum;
+        $res['current'] = $current;
+        $res['planperiods'] = $planperiods;
+        $res['subperiods'] = $subperiods;
+        return $res;
+    }
+
+    /**
+     * Calcula (y opcionalmente aplica) el avance.
+     *
+     * @param bool $apply false = simulacion, no escribe nada
+     * @param callable|null $log function(string $line)
+     * @param int|null $now para pruebas
+     * @return array resumen: contadores y lista 'changes'
+     */
+    public static function run($apply = true, $log = null, $now = null) {
+        global $DB, $CFG;
+
+        $now = $now ?: time();
+        $log = $log ?: function ($l) {
+        };
+
+        $res = self::expected_levels($now, $log);
+        $sum = $res['sum'];
+        if ($res['current'] === null) {
+            return $sum;
+        }
+        $current = $res['current'];
+        $items = $res['items'];
+        $planperiods = $res['planperiods'];
+        $subperiods = $res['subperiods'];
 
         // Paso 3: escribir solo lo que sube de nivel.
         $transaction = $apply ? $DB->start_delegated_transaction() : null;

@@ -1067,6 +1067,15 @@ $functions = array(
         'ajax'        => true,
         'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE],
     ],
+    'local_grupomakro_planning_get_demand' => [
+        'classname'   => 'local_grupomakro_core\external\admin\cohort_planning',
+        'methodname'  => 'get_demand',
+        'description' => 'Tablero de planificacion por cohortes: demanda de un periodo academico (solo lectura)',
+        'capabilities'  => 'local/grupomakro_core:manage_academic_planning',
+        'type'        => 'read',
+        'ajax'        => true,
+        'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE],
+    ],
     'local_grupomakro_get_student_career_timeline' => [
         'classname'   => 'local_grupomakro_core\external\admin\student_timeline',
         'methodname'  => 'get_career_timeline',

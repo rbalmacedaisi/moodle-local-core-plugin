@@ -30,6 +30,15 @@ echo $OUTPUT->header();
 <link href="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.css" rel="stylesheet">
 <link href="<?php echo $CFG->wwwroot; ?>/local/grupomakro_core/styles/timeline.css?v=<?php echo $assetversion; ?>" rel="stylesheet">
 
+<?php if (has_capability('local/grupomakro_core:manage_academic_planning', context_system::instance())) : ?>
+<div style="display:flex;justify-content:flex-end;margin:0 0 8px;">
+  <a href="<?php echo (new moodle_url('/local/grupomakro_core/pages/cohort_planning.php', ['career_id' => $career_id]))->out(); ?>"
+     style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:6px;background:#4F46E5;color:#fff;text-decoration:none;font:500 13px Inter,Roboto,sans-serif;"
+     title="Ver qué asignaturas le tocan a cada estudiante de esta carrera en el próximo periodo y planificar los grupos">
+    &#128197; Planificar periodo
+  </a>
+</div>
+<?php endif; ?>
 <div id="gmk-career-timeline-app">
   <v-app class="transparent">
     <v-main>
