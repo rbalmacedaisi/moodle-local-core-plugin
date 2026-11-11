@@ -204,7 +204,7 @@ Vue.component('career-cards', {
             careers: [],
             // Proyeccion del proximo periodo (solo lectura). canPlan lo define la pagina segun el permiso.
             canPlan: !!window.gmkCanPlan,
-            mainTab: 'careers',
+            mainTab: ({ '#proyeccion': 'proj', '#configuracion': 'config' })[window.location.hash] || 'careers',
             projLoading: false,
             projection: null,
             palette: [
@@ -240,6 +240,13 @@ Vue.component('career-cards', {
         },
         token() {
             return window.userToken;
+        },
+    },
+    watch: {
+        // La pestaña activa queda en la dirección: al volver desde una carrera se regresa a la misma pestaña.
+        mainTab(t) {
+            const h = { proj: '#proyeccion', config: '#configuracion' }[t] || '';
+            history.replaceState(null, '', window.location.pathname + window.location.search + h);
         },
     },
     created() {

@@ -483,7 +483,7 @@ Vue.component('intake-timeline', {
             toast: null,
             // Planificacion del periodo (solo lectura). canPlan lo define la pagina segun el permiso.
             canPlan: !!window.gmkCanPlan,
-            mainTab: 'cohorts',
+            mainTab: window.location.hash === '#proyeccion' ? 'proj' : 'cohorts',
             planRules: { min_group: 12, max_group: 30, min_load: 3 },
             planLoading: false,
             planResults: [],
@@ -550,6 +550,12 @@ Vue.component('intake-timeline', {
             const res = this.planResults[0];
             const out = Object.values(res.students || {}).filter(s => !known[String(s.ingreso || '').trim()]);
             return out.length ? this.buildCohortPlan(res, out) : null;
+        },
+    },
+    watch: {
+        // La pestaña activa queda en la dirección para que "atrás" y recargar la conserven.
+        mainTab(t) {
+            history.replaceState(null, '', window.location.pathname + window.location.search + (t === 'proj' ? '#proyeccion' : ''));
         },
     },
     created() {
