@@ -77,6 +77,7 @@ Vue.component('intake-timeline', {
                 :careers="planCareers"
                 :min="planRules.min_group"
                 :max="planRules.max_group"
+                @changed="loadPlanning"
             ></period-projection>
             <div v-else class="tl-proj"><div class="tl-proj-title">
                 <v-icon size="18" color="#4F46E5">mdi-calendar-star</v-icon>

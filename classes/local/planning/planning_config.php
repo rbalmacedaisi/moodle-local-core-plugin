@@ -79,6 +79,98 @@ class planning_config {
         return ['plans' => $plans, 'subjects' => $subjects, 'careers' => array_keys($plans), 'subject_list' => $list];
     }
 
+    /**
+     * Excepciones de apertura del periodo (gmk_academic_periods.configsettings, clave 'quorum_exceptions'):
+     * asignaturas que abren aunque no alcancen el minimo ('grupo') o que se dictan como modulo a estudiantes
+     * puntuales ('modulo'). Clave: courseid|jornada|carrera aislada (0 = mezcla).
+     *
+     * @return array [key => ['key','courseid','course','jornada','isolated_plan','mode','userids','note','by','byname','time']]
+     */
+    public static function exceptions($periodid) {
+        global $DB;
+        $raw = $DB->get_field('gmk_academic_periods', 'configsettings', ['id' => $periodid]);
+        $cfg = json_decode((string)$raw, true);
+        $out = [];
+        foreach ((is_array($cfg) ? ($cfg['quorum_exceptions'] ?? []) : []) as $e) {
+            if (!empty($e['key'])) {
+                $out[$e['key']] = $e;
+            }
+        }
+        return $out;
+    }
+
+    public static function exception_key($courseid, $jornada, $isoplan) {
+        return (int)$courseid . '|' . trim((string)$jornada) . '|' . (int)$isoplan;
+    }
+
+    /** Agrega/reemplaza o quita excepciones de un periodo (solo la columna configsettings). */
+    protected static function save_exceptions(array $d, $remove) {
+        global $DB, $USER;
+        $pid = (int)($d['periodid'] ?? 0);
+        $p = $DB->get_record('gmk_academic_periods', ['id' => $pid]);
+        if (!$p) {
+            return self::fail('El periodo no existe.');
+        }
+        $current = self::exceptions($pid);
+        $before = $current;
+        if ($remove) {
+            foreach ((array)($d['keys'] ?? []) as $k) {
+                unset($current[(string)$k]);
+            }
+        } else {
+            $items = (array)($d['items'] ?? []);
+            if (!$items) {
+                return self::fail('No se eligió ninguna asignatura.');
+            }
+            $note = trim((string)($d['note'] ?? ''));
+            if ($note === '') {
+                return self::fail('Indique el motivo de la excepción: queda registrado para la revisión.');
+            }
+            $mode = ($d['mode'] ?? '') === 'modulo' ? 'modulo' : 'grupo';
+            foreach ($items as $it) {
+                $cid = (int)($it['courseid'] ?? 0);
+                $course = $DB->get_field('course', 'fullname', ['id' => $cid]);
+                if (!$course) {
+                    return self::fail('Una de las asignaturas no existe.');
+                }
+                $jornada = trim((string)($it['jornada'] ?? ''));
+                if ($jornada !== '' && $jornada !== 'Sin jornada' && !in_array($jornada, self::JORNADAS, true)) {
+                    return self::fail('Jornada no válida: ' . $jornada);
+                }
+                $userids = array_values(array_unique(array_map('intval', (array)($it['userids'] ?? []))));
+                if ($mode === 'modulo') {
+                    if (!$userids) {
+                        return self::fail('Para abrir como módulo elija al menos un estudiante de ' . $course . '.');
+                    }
+                    list($insql, $inparams) = $DB->get_in_or_equal($userids);
+                    if ($DB->count_records_select('user', "id $insql AND deleted = 0", $inparams) !== count($userids)) {
+                        return self::fail('Uno de los estudiantes elegidos no existe.');
+                    }
+                }
+                $key = self::exception_key($cid, $jornada, (int)($it['isolated_plan'] ?? 0));
+                $current[$key] = ['key' => $key, 'courseid' => $cid, 'course' => $course, 'jornada' => $jornada,
+                    'isolated_plan' => (int)($it['isolated_plan'] ?? 0), 'mode' => $mode, 'userids' => $userids,
+                    'note' => $note, 'by' => (int)$USER->id, 'byname' => fullname($USER), 'time' => time()];
+            }
+        }
+        $cfg = json_decode((string)$p->configsettings, true);
+        if (!is_array($cfg)) {
+            $cfg = [];
+        }
+        if ($current) {
+            $cfg['quorum_exceptions'] = array_values($current);
+        } else {
+            unset($cfg['quorum_exceptions']);
+        }
+        $tx = $DB->start_delegated_transaction();
+        $DB->update_record('gmk_academic_periods', (object)['id' => $pid,
+            'configsettings' => $cfg ? json_encode($cfg, JSON_UNESCAPED_UNICODE) : null,
+            'usermodified' => $USER->id, 'timemodified' => time()]);
+        $tx->allow_commit();
+        self::backup('excepciones_periodo_' . $pid, ['antes' => array_values($before), 'despues' => array_values($current)]);
+        return self::ok($remove ? 'Excepción quitada.' : 'Excepción registrada.', array_values(self::exceptions($pid)));
+    }
+
     /** Inicio de clases por jornada guardado en el periodo (o []). */
     public static function jornada_starts($period) {
         $cfg = json_decode((string)($period->configsettings ?? ''), true);
@@ -175,6 +267,12 @@ class planning_config {
         switch ($section) {
             case 'period':
                 return self::save_period($data);
+
+            case 'exception_add':
+                return self::save_exceptions($data, false);
+
+            case 'exception_remove':
+                return self::save_exceptions($data, true);
 
             case 'rules':
                 $min = (int)($data['min_group'] ?? 0);

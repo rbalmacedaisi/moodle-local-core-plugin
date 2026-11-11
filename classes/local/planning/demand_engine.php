@@ -350,11 +350,27 @@ class demand_engine {
                 $flags[] = 'carga_baja';
             }
             $pending = 0;
+            $beyond = 0; // pendientes que NO se le proyectan en este periodo (de niveles posteriores)
+            $otherids = array_column($other, 'courseid');
             foreach ($plancourses[$pid] as $cid => $pc) {
                 if (!$approved($cid)) {
                     $pending++;
+                    $isadelanto = isset($subjects[$cid]) && $subjects[$cid]->category === self::CAT_ADELANTO;
+                    if ((!isset($subjects[$cid]) && !in_array($cid, $otherids, true)) || $isadelanto) {
+                        $beyond++;
+                    }
                 }
             }
+            // Egresa con este periodo: no le queda nada de niveles posteriores y todo lo que le falta (sin contar lo que
+            // ya esta cursando) cabe en la carga de un periodo. Si alguna de esas asignaturas no alcanza el quorum, no
+            // termina a tiempo. Quien debe muchas atrasadas no egresa en un solo periodo aunque este en el ultimo nivel.
+            $nowcount = 0;
+            foreach ($subjects as $sx) {
+                if ($sx->category !== self::CAT_ADELANTO) {
+                    $nowcount++;
+                }
+            }
+            $finishing = $pending > 0 && $beyond === 0 && $nowcount <= max($normal, 4);
 
             $cohortkey = $pid . '|' . trim((string)$r->ingreso) . '|' . $jornada;
             $students[$key] = [
@@ -364,7 +380,7 @@ class demand_engine {
                 'email' => (string)$r->email, 'phone' => trim((string)$r->phone1), 'phone2' => trim((string)$r->phone2),
                 'jornada' => $jornada, 'ingreso' => trim((string)$r->ingreso), 'cohort' => $cohortkey,
                 'ord' => $ord, 'level' => self::ord_label($ord), 'registered' => self::ord_label((int)$lv['curord']),
-                'last' => $last, 'flags' => $flags,
+                'last' => $last, 'finishing' => $finishing, 'flags' => $flags,
                 'subjects' => array_values(array_map(function ($s) {
                     return (array)$s;
                 }, $subjects)),
@@ -439,12 +455,13 @@ class demand_engine {
 
         // 8. Totales.
         $totals = ['estudiantes' => count($students), 'cohortes' => count($cohortout), 'repitentes' => 0,
-            'con_bloqueos' => 0, 'carga_baja' => 0, 'ultimo_bimestre' => 0, 'sin_jornada' => 0,
+            'con_bloqueos' => 0, 'carga_baja' => 0, 'ultimo_bimestre' => 0, 'egresan' => 0, 'sin_jornada' => 0,
             'sin_ingreso' => 0, 'suspendidos' => 0];
         foreach ($students as $s) {
             $totals['repitentes'] += $s['repite'] ? 1 : 0;
             $totals['con_bloqueos'] += $s['blocked'] ? 1 : 0;
             $totals['ultimo_bimestre'] += $s['last'] ? 1 : 0;
+            $totals['egresan'] += $s['finishing'] ? 1 : 0;
             foreach (['sin_jornada', 'sin_ingreso', 'carga_baja'] as $f) {
                 $totals[$f] += in_array($f, $s['flags'], true) ? 1 : 0;
             }

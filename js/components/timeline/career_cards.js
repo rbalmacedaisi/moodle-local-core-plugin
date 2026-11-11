@@ -84,6 +84,7 @@ Vue.component('career-cards', {
                 :min="projection.rules.min_group"
                 :max="projection.rules.max_group"
                 scope-label="todas las carreras"
+                @changed="loadProjection"
             ></period-projection>
             <div v-else class="tl-proj"><div class="tl-proj-title">
                 <v-icon size="18" color="#4F46E5">mdi-calendar-star</v-icon>
