@@ -9,20 +9,22 @@
 /**
  * Motor de demanda por cohorte para un periodo academico. SOLO LECTURA.
  *
- * Para cada estudiante activo calcula que asignaturas le corresponden en cada bloque (bimestre)
- * del periodo que se planifica:
+ * Un periodo academico (2026-V, 2026-VI...) es un bimestre de clases: los periodos se suceden cada
+ * dos meses y todos los estudiantes activos cursan en cada uno. Para cada estudiante calcula que
+ * asignaturas le corresponden en el periodo que se planifica:
  *
- *  - Nivel: el nivel (ordinal de bimestre) en el bloque 1 sale de la regla oficial de avance
- *    (academic_progress::expected_levels a la fecha de inicio del bloque 1). Bloque 2 = nivel + 1.
+ *  - Nivel: el nivel (ordinal de bimestre) al inicio del periodo sale de la regla oficial de avance
+ *    (academic_progress::expected_levels a esa fecha) y nunca baja del registrado.
  *  - Cohorte: plan + periodo de ingreso + jornada. La cohorte avanza unida; quien no esta en el
  *    nivel de su cohorte queda marcado como desfasado.
  *  - Categorias de cada asignatura pendiente:
  *      nivel     la que su plan pone en ese bimestre
- *      atrasada  de un bimestre anterior y nunca cursada
+ *      atrasada  de un bimestre anterior y nunca cursada (se ve con otra cohorte que este en ese nivel)
  *      repite    reprobada (gmk_course_progre.status = 5) y no aprobada despues
  *      adelanto  de los dos bimestres siguientes, con prelaciones cumplidas (solo para completar carga)
  *  - Prelaciones (campo de curso 'pre'): cumplida si esta aprobada; "condicionada" si se esta
- *    cursando o se cursa en el bloque 1 del mismo periodo; reprobada o sin cursar = no cumplida.
+ *    cursando o en revalida; reprobada o sin cursar = no cumplida. La nota oficial (gmk_course_progre)
+ *    manda sobre la finalizacion de Moodle.
  *
  * El resultado alimenta la pantalla de demanda y, mas adelante, el agrupador.
  *
@@ -98,24 +100,25 @@ class demand_engine {
     /**
      * Calcula la demanda.
      *
-     * @return array ver README del metodo al final (period, blocks, students, demand, cohorts, issues, totals)
+     * @return array period, students, cohorts, demand, totals, issues (o error)
      */
     public function compute() {
         global $DB;
 
         $issues = [];
+        // Un periodo academico = un bimestre de clases (las clases del periodo se crean en su primer bloque).
+        // Inicio: bloque 1 del calendario academico; si no esta cargado, la fecha de inicio del periodo.
         $cal = $this->calendar;
-        if (!$cal || empty($cal->hassubperiods) || empty($cal->block1start) || empty($cal->block2start)) {
-            return ['error' => 'El periodo ' . $this->period->name . ' no tiene fechas de bloque 1 y bloque 2 en el '
-                . 'calendario academico. Cargue el calendario del periodo antes de planificar.'];
+        $start = ($cal && !empty($cal->block1start)) ? (int)$cal->block1start : (int)$this->period->startdate;
+        $end = ($cal && !empty($cal->block1end)) ? (int)$cal->block1end : 0;
+        if (!$start) {
+            return ['error' => 'El periodo ' . $this->period->name . ' no tiene fecha de inicio. '
+                . 'Cargue el calendario academico del periodo antes de planificar.'];
         }
-        $blocks = [
-            1 => ['start' => (int)$cal->block1start, 'end' => (int)$cal->block1end],
-            2 => ['start' => (int)$cal->block2start, 'end' => (int)$cal->block2end],
-        ];
+        $period = ['id' => (int)$this->period->id, 'name' => $this->period->name, 'start' => $start, 'end' => $end];
 
-        // 1. Nivel de cada estudiante al inicio del bloque 1, con la regla oficial de avance.
-        $lev = academic_progress::expected_levels($blocks[1]['start'] + 3600);
+        // 1. Nivel de cada estudiante al inicio del periodo, con la regla oficial de avance.
+        $lev = academic_progress::expected_levels($start + 3600);
         $levelbyllu = [];
         foreach ($lev['items'] as $it) {
             $levelbyllu[(int)$it['row']->id] = ['ord' => (int)$it['ord'], 'curord' => (int)$it['curord'], 'n' => (int)$it['n']];
@@ -225,9 +228,7 @@ class demand_engine {
         }
         $rs->close();
 
-        // 5. Por estudiante: nivel, cohorte y asignaturas por bloque.
-        $openperiods = $DB->get_records_menu('gmk_academic_periods', ['status' => 1], '', 'id, name');
-        $pslot = academic_progress::slot_index($this->period->name);
+        // 5. Por estudiante: nivel, cohorte y asignaturas del periodo.
         $students = [];
         $cohorts = [];
         foreach ($rows as $r) {
@@ -250,31 +251,8 @@ class demand_engine {
                 $lv = ['ord' => min(max(1, $cur + 1), 2 * $n), 'curord' => $cur, 'n' => $n];
             }
             // Igual que el avance diario: el nivel nunca baja del registrado.
-            $ord1 = max((int)$lv['ord'], (int)$lv['curord']);
-            $ord2 = min($ord1 + 1, 2 * $n);
-            $finished = ($ord1 >= 2 * $n);
-
-            // Serie del periodo: el estudiante deberia estar asignado a este periodo academico.
-            $inperiod = ((int)$r->academicperiodid === (int)$this->period->id);
-            if (!$inperiod) {
-                $ingslot = academic_progress::slot_index($r->ingreso);
-                if (empty($r->academicperiodid) || !isset($openperiods[(int)$r->academicperiodid])) {
-                    // Periodo academico vencido o vacio: se ubica por la serie de su ingreso
-                    // (I-III-V o II-IV-VI). Sin ingreso no se puede deducir: va a revision, no a demanda.
-                    if ($ingslot === null || $pslot === null) {
-                        $issues[] = ['type' => 'sin_periodo_ni_ingreso', 'userid' => $uid, 'planid' => $pid,
-                            'name' => trim($r->firstname . ' ' . $r->lastname)];
-                        continue;
-                    }
-                    if (($ingslot % 2) !== ($pslot % 2)) {
-                        continue; // pertenece a la otra serie
-                    }
-                    $flags[] = 'periodo_no_vigente';
-                } else {
-                    // Asignado a otro periodo vigente: no entra en esta planificacion.
-                    continue;
-                }
-            }
+            $ord = max((int)$lv['ord'], (int)$lv['curord']);
+            $last = ($ord >= 2 * $n);
 
             $jornada = self::normalize_jornada($r->jornada);
             if ($jornada === '') {
@@ -292,7 +270,6 @@ class demand_engine {
             $repite = [];
             $blocked = [];
             $other = []; // cursando, revalida, migracion
-            $nivelb1 = [];
             foreach ($plancourses[$pid] as $cid => $pc) {
                 $st = $h[$cid] ?? null;
                 if ($approved($cid)) {
@@ -303,38 +280,24 @@ class demand_engine {
                     continue;
                 }
                 $isfail = ($st === self::ST_FAILED);
-                // Bloque natural: el del mismo bimestre (paridad) que la asignatura en el plan.
-                $block = null;
-                $cat = null;
-                if ($pc->ord === $ord1) {
-                    $block = 1;
+                if ($isfail) {
+                    $cat = self::CAT_REPITE;            // reprobada: cuenta en cualquier nivel
+                } else if ($pc->ord === $ord) {
                     $cat = self::CAT_NIVEL;
-                } else if ($pc->ord === $ord2 && !$finished) {
-                    $block = 2;
-                    $cat = self::CAT_NIVEL;
-                } else if ($pc->ord < $ord1 || ($pc->ord < $ord2 && $finished)) {
+                } else if ($pc->ord < $ord) {
                     $cat = self::CAT_ATRASADA;
-                    $block = ($pc->ord % 2 === $ord1 % 2) ? 1 : 2;
-                } else if ($isfail || ($pc->ord > $ord2 && $pc->ord <= $ord2 + self::ADELANTO_WINDOW)) {
-                    // Las reprobadas siempre cuentan, aunque sean de un nivel posterior.
+                } else if ($pc->ord <= $ord + self::ADELANTO_WINDOW) {
                     $cat = self::CAT_ADELANTO;
-                    $block = ($pc->ord % 2 === $ord1 % 2) ? 1 : 2;
                 } else {
                     continue; // asignatura de niveles futuros
                 }
-                if ($isfail) {
-                    $cat = self::CAT_REPITE;
-                }
                 $subjects[$cid] = (object)[
                     'courseid' => $cid, 'llcid' => $pc->llcid, 'name' => $pc->name, 'ord' => $pc->ord,
-                    'level' => self::ord_label($pc->ord), 'block' => $block, 'category' => $cat,
+                    'level' => self::ord_label($pc->ord), 'category' => $cat,
                     'prereq' => 'ok', 'missing' => [], 'conditional' => [],
                 ];
-                if ($cat === self::CAT_NIVEL && $block === 1) {
-                    $nivelb1[$cid] = true;
-                }
             }
-            // Prelaciones (despues de saber que se cursa en el bloque 1).
+            // Prelaciones: cumplida si esta aprobada; condicionada si se esta cursando o en reválida.
             foreach ($subjects as $cid => $s) {
                 foreach ($plancourses[$pid][$cid]->prereqs as $pre) {
                     if ($approved($pre)) {
@@ -342,8 +305,7 @@ class demand_engine {
                     }
                     $pst = $h[$pre] ?? null;
                     $prename = $coursename[$pre] ?? ('curso ' . $pre);
-                    if ($pst === self::ST_IN_PROGRESS || in_array($pst, self::ST_REVALIDA, true)
-                            || ($s->block === 2 && isset($subjects[$pre]) && $subjects[$pre]->block === 1)) {
+                    if ($pst === self::ST_IN_PROGRESS || in_array($pst, self::ST_REVALIDA, true)) {
                         $s->conditional[] = $prename;
                     } else {
                         $s->missing[] = $prename;
@@ -355,7 +317,7 @@ class demand_engine {
                     $s->prereq = 'condicionada';
                 }
             }
-            // Adelantos solo si las prelaciones estan cumplidas (no condicionadas).
+            // Adelantos solo con prelaciones cumplidas (no condicionadas).
             foreach ($subjects as $cid => $s) {
                 if ($s->category === self::CAT_ADELANTO && $s->prereq !== 'ok') {
                     unset($subjects[$cid]);
@@ -366,39 +328,31 @@ class demand_engine {
                 }
             }
 
-            // Carga: asignaturas que le tocan por bloque (sin adelantos) vs carga normal del plan.
-            $load = [1 => 0, 2 => 0];
-            $normal = [1 => 0, 2 => 0];
+            // Carga: lo que le toca (sin adelantos ni bloqueadas) vs la carga normal de su bimestre en el plan.
+            $normal = 0;
             foreach ($plancourses[$pid] as $pc) {
-                if ($pc->ord === $ord1) {
-                    $normal[1]++;
-                }
-                if ($pc->ord === $ord2 && !$finished) {
-                    $normal[2]++;
+                if ($pc->ord === $ord) {
+                    $normal++;
                 }
             }
+            $load = 0;
+            $available = 0;
             foreach ($subjects as $s) {
-                if ($s->category !== self::CAT_ADELANTO && $s->prereq !== 'no') {
-                    $load[$s->block]++;
+                if ($s->prereq === 'no') {
+                    continue;
                 }
+                $available++;
+                if ($s->category !== self::CAT_ADELANTO) {
+                    $load++;
+                }
+            }
+            if ($load < self::min_load() && $available > $load) {
+                $flags[] = 'carga_baja';
             }
             $pending = 0;
             foreach ($plancourses[$pid] as $cid => $pc) {
                 if (!$approved($cid)) {
                     $pending++;
-                }
-            }
-
-            // Carga baja: menos del minimo en un bloque teniendo mas asignaturas pendientes.
-            $available = 0;
-            foreach ($subjects as $s) {
-                if ($s->prereq !== 'no') {
-                    $available++;
-                }
-            }
-            foreach ([1, 2] as $b) {
-                if ($load[$b] < self::min_load() && $available > $load[$b] && !($b === 2 && $finished)) {
-                    $flags[] = 'carga_baja_b' . $b;
                 }
             }
 
@@ -409,9 +363,8 @@ class demand_engine {
                 'documento' => (string)($r->documento ?: $r->idnumber ?: $r->username),
                 'email' => (string)$r->email, 'phone' => trim((string)$r->phone1), 'phone2' => trim((string)$r->phone2),
                 'jornada' => $jornada, 'ingreso' => trim((string)$r->ingreso), 'cohort' => $cohortkey,
-                'ord1' => $ord1, 'ord2' => $ord2, 'level1' => self::ord_label($ord1), 'level2' => self::ord_label($ord2),
-                'registered' => self::ord_label((int)$lv['curord']), 'finished' => $finished,
-                'academicperiodid' => (int)$r->academicperiodid, 'flags' => $flags,
+                'ord' => $ord, 'level' => self::ord_label($ord), 'registered' => self::ord_label((int)$lv['curord']),
+                'last' => $last, 'flags' => $flags,
                 'subjects' => array_values(array_map(function ($s) {
                     return (array)$s;
                 }, $subjects)),
@@ -426,30 +379,30 @@ class demand_engine {
         foreach ($cohorts as $ck => $c) {
             $cnt = [];
             foreach ($c['members'] as $k) {
-                $cnt[$students[$k]['ord1']] = ($cnt[$students[$k]['ord1']] ?? 0) + 1;
+                $cnt[$students[$k]['ord']] = ($cnt[$students[$k]['ord']] ?? 0) + 1;
             }
             arsort($cnt);
             $mode = (int)key($cnt);
             $desf = 0;
             foreach ($c['members'] as $k) {
-                if ($students[$k]['ord1'] !== $mode) {
-                    $students[$k]['flags'][] = $students[$k]['ord1'] < $mode ? 'atrasado_vs_cohorte' : 'adelantado_vs_cohorte';
+                if ($students[$k]['ord'] !== $mode) {
+                    $students[$k]['flags'][] = $students[$k]['ord'] < $mode ? 'atrasado_vs_cohorte' : 'adelantado_vs_cohorte';
                     $desf++;
                 }
             }
             list($pid, $ing, $jor) = explode('|', $ck);
             $cohortout[$ck] = ['key' => $ck, 'planid' => (int)$pid, 'plan' => $plans[$pid]->name ?? '', 'ingreso' => $ing,
-                'jornada' => $jor, 'size' => count($c['members']), 'level1' => self::ord_label($mode),
-                'ord1' => $mode, 'desfasados' => $desf];
+                'jornada' => $jor, 'size' => count($c['members']), 'level' => self::ord_label($mode),
+                'ord' => $mode, 'desfasados' => $desf];
         }
 
-        // 7. Demanda por bloque + asignatura (curso Moodle) + jornada, con desglose por categoria.
+        // 7. Demanda por asignatura (curso Moodle) + jornada, con desglose por categoria.
         $demand = [];
         foreach ($students as $k => $s) {
             foreach ($s['subjects'] as $sub) {
-                $dk = $sub['block'] . '|' . $sub['courseid'] . '|' . $s['jornada'];
+                $dk = $sub['courseid'] . '|' . $s['jornada'];
                 if (!isset($demand[$dk])) {
-                    $demand[$dk] = ['block' => $sub['block'], 'courseid' => $sub['courseid'], 'name' => $sub['name'],
+                    $demand[$dk] = ['courseid' => $sub['courseid'], 'name' => $sub['name'],
                         'jornada' => $s['jornada'], 'total' => 0, 'ready' => 0,
                         'by_category' => [self::CAT_NIVEL => 0, self::CAT_ATRASADA => 0, self::CAT_REPITE => 0,
                             self::CAT_ADELANTO => 0],
@@ -476,28 +429,25 @@ class demand_engine {
             }
         }
         uasort($demand, function ($a, $b) {
-            return [$a['block'], $b['ready'], $a['name']] <=> [$b['block'], $a['ready'], $b['name']];
+            return [$b['ready'], $a['name']] <=> [$a['ready'], $b['name']];
         });
 
-        // 8. Totales y avisos.
+        // 8. Totales.
         $totals = ['estudiantes' => count($students), 'cohortes' => count($cohortout), 'repitentes' => 0,
-            'con_bloqueos' => 0, 'carga_baja' => 0, 'por_egresar' => 0, 'sin_jornada' => 0,
-            'periodo_no_vigente' => 0, 'sin_ingreso' => 0, 'suspendidos' => 0];
+            'con_bloqueos' => 0, 'carga_baja' => 0, 'ultimo_bimestre' => 0, 'sin_jornada' => 0,
+            'sin_ingreso' => 0, 'suspendidos' => 0];
         foreach ($students as $s) {
             $totals['repitentes'] += $s['repite'] ? 1 : 0;
             $totals['con_bloqueos'] += $s['blocked'] ? 1 : 0;
-            $totals['por_egresar'] += $s['finished'] ? 1 : 0;
-            foreach (['sin_jornada', 'periodo_no_vigente', 'sin_ingreso'] as $f) {
+            $totals['ultimo_bimestre'] += $s['last'] ? 1 : 0;
+            foreach (['sin_jornada', 'sin_ingreso', 'carga_baja'] as $f) {
                 $totals[$f] += in_array($f, $s['flags'], true) ? 1 : 0;
             }
             $totals['suspendidos'] += in_array('suspendido', $s['flags'], true) ? 1 : 0;
-            $totals['carga_baja'] += (in_array('carga_baja_b1', $s['flags'], true)
-                || in_array('carga_baja_b2', $s['flags'], true)) ? 1 : 0;
         }
 
         return [
-            'period' => ['id' => (int)$this->period->id, 'name' => $this->period->name],
-            'blocks' => $blocks,
+            'period' => $period,
             'students' => $students,
             'cohorts' => array_values($cohortout),
             'demand' => array_values($demand),

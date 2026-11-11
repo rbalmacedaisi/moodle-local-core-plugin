@@ -56,6 +56,17 @@ Vue.component('intake-timeline', {
             </div>
         </div>
 
+        <!-- ACTIVOS SIN COHORTE (sin periodo de ingreso): la tarjeta de la carrera los cuenta pero no
+             aparecen en ninguna cohorte. Se muestran aqui para que las cifras cuadren y nadie quede sin planificar. -->
+        <div v-if="canPlan && noCohortPlan" class="tl-plan-nocohort">
+            <v-icon size="18" color="#B45309">mdi-account-question-outline</v-icon>
+            <span>
+                <b>{{ noCohortPlan.students.length }}</b> estudiante(s) activo(s) sin periodo de ingreso en su perfil: la tarjeta
+                de la carrera los cuenta, pero no aparecen en ninguna cohorte. Cargue su periodo de ingreso para ubicarlos.
+            </span>
+            <button class="tl-plan-link" @click="openPlanFor({ period: '' }, noCohortPlan, 'students')">Ver estudiantes</button>
+        </div>
+
         <!-- ERROR -->
         <v-alert v-if="errorMsg" type="error" outlined class="tl-alert mb-4" border="left">
             <div class="d-flex align-center">
@@ -309,36 +320,35 @@ Vue.component('intake-timeline', {
                             <div class="tl-section-title">
                                 <v-icon size="14" color="#64748B">mdi-calendar-account</v-icon>
                                 <span>Planificación {{ cp.period.name }}</span>
-                                <span class="tl-plan-section-sub">{{ cp.students.length }} estudiantes • nivel {{ cp.level }}</span>
-                                <v-tooltip bottom max-width="320">
+                                <span class="tl-plan-section-sub">desde {{ fmtShort(cp.period.start) }} • {{ cp.students.length }} estudiantes • nivel {{ cp.level }}</span>
+                                <v-tooltip bottom max-width="340">
                                     <template v-slot:activator="{ on }">
                                         <v-icon size="14" color="#94A3B8" v-on="on">mdi-information-outline</v-icon>
                                     </template>
-                                    <span>Asignaturas que le tocan a la cohorte en cada bloque del periodo, según su plan, lo aprobado,
-                                    lo reprobado y las prelaciones. El número es cuántos estudiantes de esta cohorte la deben ver.
-                                    Verde: 12 o más; ámbar: 6–11 (se junta con otras cohortes); rojo: menos de 6.</span>
+                                    <span>Asignaturas que le tocan a la cohorte en el periodo {{ cp.period.name }}, según su plan
+                                    (cuatrimestre y bimestre), lo aprobado, lo reprobado y las prelaciones. El número es cuántos
+                                    estudiantes de esta cohorte la deben ver. Verde: 12 o más; ámbar: 6–11 (se junta con otras
+                                    cohortes); rojo: menos de 6.</span>
                                 </v-tooltip>
                                 <button class="tl-plan-link" @click.stop="openPlanFor(ip, cp, 'subjects')">Ver detalle</button>
                             </div>
                             <div class="tl-plan-blocks">
-                                <div v-for="b in [1, 2]" :key="b" class="tl-quarter tl-plan-block">
-                                    <div class="tl-quarter-head" :style="{ background: quarterBg(b), color: quarterColor(b) }">
-                                        <span class="tl-quarter-name">Bloque {{ b }} • desde {{ fmtShort(cp.period['block' + b + 'start']) }}</span>
-                                        <span v-if="cp.period['block' + b + 'start'] * 1000 < Date.now()" class="tl-plan-tag tl-plan-tag-muted">en curso</span>
+                                <div v-for="(g, gi) in planGroups" :key="g.key" class="tl-quarter tl-plan-block">
+                                    <div class="tl-quarter-head" :style="{ background: g.bg, color: g.color }">
+                                        <span class="tl-quarter-name">{{ g.key === 'nivel' ? 'Por su nivel (' + cp.level + ')' : g.title }}</span>
                                     </div>
                                     <div class="tl-plan-block-body">
-                                        <div v-for="s in cp.subjects[b].filter(x => x.ready > 0).slice(0, 6)" :key="s.courseid"
-                                             class="tl-plan-row" @click.stop="openPlanFor(ip, cp, 'subjects')" :title="s.name">
+                                        <div v-for="s in cp.groups[g.key].slice(0, 6)" :key="s.courseid"
+                                             class="tl-plan-row" @click.stop="openPlanFor(ip, cp, 'subjects')" :title="s.name + ' (' + s.level + ')'">
                                             <span class="tl-filter-dot" :class="'tl-dot-' + planDot(s.ready)"></span>
                                             <span class="tl-plan-row-name">{{ s.name }}</span>
                                             <span v-if="s.cats.repite" class="tl-plan-tag tl-plan-tag-repite">{{ s.cats.repite }} rep.</span>
                                             <span class="tl-plan-row-num">{{ s.ready }}</span>
                                         </div>
-                                        <div v-if="cp.subjects[b].filter(x => x.ready > 0).length > 6" class="tl-plan-more"
-                                             @click.stop="openPlanFor(ip, cp, 'subjects')">
-                                            + {{ cp.subjects[b].filter(x => x.ready > 0).length - 6 }} más
+                                        <div v-if="cp.groups[g.key].length > 6" class="tl-plan-more" @click.stop="openPlanFor(ip, cp, 'subjects')">
+                                            + {{ cp.groups[g.key].length - 6 }} más
                                         </div>
-                                        <div v-if="!cp.subjects[b].some(x => x.ready > 0)" class="tl-bim-empty">Sin asignaturas por ver</div>
+                                        <div v-if="!cp.groups[g.key].length" class="tl-bim-empty">{{ g.empty }}</div>
                                     </div>
                                 </div>
                             </div>
@@ -348,7 +358,7 @@ Vue.component('intake-timeline', {
                                     <span class="tl-dropoff-label">Repitentes</span><span class="tl-dropoff-num">{{ cp.counts.repitentes }}</span>
                                 </div>
                                 <div class="tl-dropoff tl-dropoff-warning tl-plan-pill" @click.stop="openPlanFor(ip, cp, 'alerts')"
-                                     title="Menos de 3 asignaturas en un bloque teniendo más pendientes">
+                                     title="Les tocan menos de 3 asignaturas teniendo más pendientes">
                                     <span class="tl-dropoff-label">Carga baja</span><span class="tl-dropoff-num">{{ cp.counts.carga_baja }}</span>
                                 </div>
                                 <div class="tl-dropoff tl-dropoff-muted tl-plan-pill" @click.stop="openPlanFor(ip, cp, 'alerts')"
@@ -356,8 +366,8 @@ Vue.component('intake-timeline', {
                                     <span class="tl-dropoff-label">Prelación pendiente</span><span class="tl-dropoff-num">{{ cp.counts.bloqueados }}</span>
                                 </div>
                                 <div class="tl-dropoff tl-dropoff-success tl-plan-pill" @click.stop="openPlanFor(ip, cp, 'students')"
-                                     title="Están en el último bimestre de su plan">
-                                    <span class="tl-dropoff-label">Terminan plan</span><span class="tl-dropoff-num">{{ cp.counts.egresan }}</span>
+                                     title="Estarán en el último bimestre de su plan">
+                                    <span class="tl-dropoff-label">Último bimestre</span><span class="tl-dropoff-num">{{ cp.counts.egresan }}</span>
                                 </div>
                             </div>
                         </div>
@@ -446,6 +456,10 @@ Vue.component('intake-timeline', {
             planLoading: false,
             planResults: [],
             planPanel: { visible: false, cohort: '', plan: null, tab: 'subjects' },
+            planGroups: [
+                { key: 'nivel', title: 'Por su nivel', bg: '#E0E7FF', color: '#4338CA', empty: 'Nada pendiente de su nivel' },
+                { key: 'pend', title: 'Atrasadas y para repetir', bg: '#FEE2E2', color: '#B91C1C', empty: 'Sin atrasadas ni reprobadas' },
+            ],
         };
     },
     computed: {
@@ -494,6 +508,16 @@ Vue.component('intake-timeline', {
                 });
             });
             return index;
+        },
+        // Activos que no caen en ninguna cohorte de la linea de tiempo (sin periodo de ingreso o con un
+        // ingreso que no es cohorte aqui). La tarjeta de la carrera los cuenta; se muestran aparte.
+        noCohortPlan() {
+            if (!this.planResults.length) return null;
+            const known = {};
+            (this.timelineData.intake_periods || []).forEach(ip => { known[String(ip.period || '').trim()] = true; });
+            const res = this.planResults[0];
+            const out = Object.values(res.students || {}).filter(s => !known[String(s.ingreso || '').trim()]);
+            return out.length ? this.buildCohortPlan(res, out) : null;
         },
     },
     created() {
@@ -628,39 +652,31 @@ Vue.component('intake-timeline', {
         async loadPlanning() {
             this.planLoading = true;
             try {
-                // Primera llamada: trae la lista de periodos y el periodo por defecto (el proximo por iniciar).
+                // Periodo por defecto: el proximo por iniciar (un periodo = un bimestre de clases).
                 const first = await this.callDemand(0);
-                const results = [];
-                if (first.result && !first.result.error) results.push(first.result);
-                // Los demas periodos abiertos con calendario por bloques (la otra serie de cohortes).
-                const others = (first.periods || []).filter(p => p.has_calendar && p.id !== first.selected_period);
-                const more = await Promise.all(others.map(p => this.callDemand(p.id).catch(() => null)));
-                more.forEach(d => { if (d && d.result && !d.result.error) results.push(d.result); });
-                const byId = {};
-                (first.periods || []).forEach(p => { byId[p.id] = p; });
-                results.forEach(r => { Object.assign(r.period, byId[r.period.id] || {}); });
-                this.planResults = results;
+                this.planResults = (first.result && !first.result.error) ? [first.result] : [];
             } catch (e) {
                 console.error('[timeline] planificacion:', e);
             } finally {
                 this.planLoading = false;
             }
         },
+        // Plan de una cohorte: asignaturas agrupadas en "por su nivel", "atrasadas y para repetir" y
+        // "pueden adelantar", con conteos por categoria y avisos. Ver demand_engine.php.
         buildCohortPlan(res, students) {
-            const subjects = { 1: {}, 2: {} };
+            const subjects = {};
             const counts = { repitentes: 0, carga_baja: 0, bloqueados: 0, egresan: 0, alertas: 0 };
             const levels = {};
-            const alertFlags = ['carga_baja_b1', 'carga_baja_b2', 'periodo_no_vigente', 'sin_ingreso', 'sin_jornada', 'suspendido'];
+            const alertFlags = ['carga_baja', 'sin_ingreso', 'sin_jornada', 'suspendido'];
             students.forEach(s => {
-                levels[s.level1] = (levels[s.level1] || 0) + 1;
+                levels[s.level] = (levels[s.level] || 0) + 1;
                 if (s.repite.length) counts.repitentes++;
-                if (s.flags.includes('carga_baja_b1') || s.flags.includes('carga_baja_b2')) counts.carga_baja++;
+                if (s.flags.includes('carga_baja')) counts.carga_baja++;
                 if (s.blocked.length) counts.bloqueados++;
-                if (s.finished) counts.egresan++;
+                if (s.last) counts.egresan++;
                 if (s.blocked.length || s.flags.some(f => alertFlags.includes(f))) counts.alertas++;
                 s.subjects.forEach(x => {
-                    const m = subjects[x.block];
-                    const e = m[x.courseid] || (m[x.courseid] = { courseid: x.courseid, name: x.name, level: x.level,
+                    const e = subjects[x.courseid] || (subjects[x.courseid] = { courseid: x.courseid, name: x.name, level: x.level,
                         ready: 0, blocked: 0, cats: { nivel: 0, atrasada: 0, repite: 0, adelanto: 0 }, students: [] });
                     e.students.push({ s: s, cat: x.category, prereq: x.prereq, missing: x.missing });
                     if (x.prereq === 'no') { e.blocked++; return; }
@@ -668,10 +684,15 @@ Vue.component('intake-timeline', {
                     if (x.category !== 'adelanto') e.ready++;
                 });
             });
-            const sortSubj = m => Object.values(m).sort((a, b) => b.ready - a.ready || a.name.localeCompare(b.name));
+            const all = Object.values(subjects).sort((a, b) => b.ready - a.ready || a.name.localeCompare(b.name));
+            const groups = {
+                nivel: all.filter(e => e.cats.nivel > 0),
+                pend: all.filter(e => !e.cats.nivel && (e.cats.atrasada + e.cats.repite) > 0),
+                adelanto: all.filter(e => !e.cats.nivel && !e.cats.atrasada && !e.cats.repite && e.cats.adelanto > 0),
+                bloqueadas: all.filter(e => e.ready === 0 && e.cats.adelanto === 0 && e.blocked > 0),
+            };
             const level = Object.keys(levels).sort((a, b) => levels[b] - levels[a])[0] || '-';
-            return { period: res.period, students: students, subjects: { 1: sortSubj(subjects[1]), 2: sortSubj(subjects[2]) },
-                counts: counts, level: level };
+            return { period: res.period, students: students, groups: groups, counts: counts, level: level };
         },
         cohortPlans(ip) {
             return this.cohortPlanIndex[String(ip.period || '').trim()] || [];

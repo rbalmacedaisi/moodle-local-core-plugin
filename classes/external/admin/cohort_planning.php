@@ -51,10 +51,11 @@ class cohort_planning extends external_api {
         self::validate_context($context);
         require_capability('local/grupomakro_core:manage_academic_planning', $context);
 
-        // Periodos que se pueden planificar: abiertos y con calendario por bloques.
+        // Periodos que se pueden planificar: abiertos y con fecha de inicio (bloque 1 del calendario
+        // o fecha de inicio del periodo). Por defecto, el proximo en iniciar.
         $periods = [];
         $rows = $DB->get_records_sql(
-            "SELECT p.id, p.name, p.startdate, p.enddate, p.status, c.block1start, c.block2start, c.hassubperiods
+            "SELECT p.id, p.name, p.startdate, p.enddate, p.status, c.block1start
                FROM {gmk_academic_periods} p
           LEFT JOIN {gmk_academic_calendar} c ON c.academicperiodid = p.id
               WHERE p.status = 1
@@ -62,11 +63,10 @@ class cohort_planning extends external_api {
         $now = time();
         $default = 0;
         foreach ($rows as $r) {
-            $ok = !empty($r->hassubperiods) && !empty($r->block1start) && !empty($r->block2start);
-            $periods[] = ['id' => (int)$r->id, 'name' => $r->name, 'startdate' => (int)$r->startdate,
-                'enddate' => (int)$r->enddate, 'has_calendar' => $ok,
-                'block1start' => (int)$r->block1start, 'block2start' => (int)$r->block2start];
-            if (!$default && $ok && (int)$r->block1start > $now) {
+            $start = !empty($r->block1start) ? (int)$r->block1start : (int)$r->startdate;
+            $periods[] = ['id' => (int)$r->id, 'name' => $r->name, 'start' => $start,
+                'enddate' => (int)$r->enddate, 'has_calendar' => $start > 0];
+            if (!$default && $start > $now) {
                 $default = (int)$r->id;
             }
         }
