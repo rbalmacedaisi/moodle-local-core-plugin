@@ -136,6 +136,39 @@ Vue.component('period-projection', {
         </template>
 
         <template v-if="view === 'next'">
+        <!-- GASTO MENSUAL PROYECTADO -->
+        <div v-if="cost" class="tl-proj-cost">
+            <div class="tl-proj-cost-head" @click="costOpen = !costOpen">
+                <v-icon size="16" color="#047857">mdi-cash-multiple</v-icon>
+                <b>Gasto mensual proyectado (docentes)</b>
+                <span class="tl-proj-sub">{{ money(cost.total) }} en total • {{ cost.groups }} grupos • tarifa {{ money(cost.rate) }}/h</span>
+                <v-spacer></v-spacer>
+                <v-icon size="18">{{ costOpen ? 'mdi-chevron-up' : 'mdi-chevron-down' }}</v-icon>
+            </div>
+            <div v-if="costOpen">
+                <table class="tl-cfg-table">
+                    <thead><tr><th>Mes</th><th>Grupos activos</th><th>Horas</th><th>Grupos nuevos</th><th>Continúan del periodo anterior</th><th>Total</th></tr></thead>
+                    <tbody>
+                        <tr v-for="m in cost.months" :key="m.key">
+                            <td><b>{{ m.label }}</b></td><td>{{ m.groups }}</td><td>{{ Math.round(m.hours) }}</td>
+                            <td>{{ money(m.newCost) }}</td><td>{{ money(m.contCost) }}</td><td><b>{{ money(m.newCost + m.contCost) }}</b></td>
+                        </tr>
+                    </tbody>
+                    <tfoot><tr><td><b>Total</b></td><td></td><td><b>{{ Math.round(cost.hours) }}</b></td><td><b>{{ money(cost.newTotal) }}</b></td>
+                        <td><b>{{ money(cost.contTotal) }}</b></td><td><b>{{ money(cost.total) }}</b></td></tr></tfoot>
+                </table>
+                <div class="tl-cfg-help mt-2">
+                    Cálculo: grupos que abren en cada jornada (más excepciones y no obligatorias activadas) × horas totales de la asignatura
+                    (cargas horarias) × tarifa por hora, repartido día a día desde el inicio de cada jornada: 8 semanas, o 16 si es de
+                    cuatrimestre completo ({{ cost.longCount }} grupos). "Continúan" son clases aprobadas de cuatrimestre completo que siguen
+                    corriendo{{ careerFilter ? ' (no se filtran por carrera)' : '' }}. Tarifa y asignaturas largas se cambian en Configuración.
+                    <span v-if="cost.noHours.length" class="tl-proj-cost-warn">
+                        {{ cost.noHoursGroups }} grupo(s) sin carga horaria no están costeados (cárguela en el Planificador → Cargas):
+                        {{ cost.noHours.join(', ') }}.
+                    </span>
+                </div>
+            </div>
+        </div>
         <div class="tl-proj-grid-head">
             <span>Asignatura</span><span>Jornadas (estudiantes → grupos)</span><span class="tl-proj-num" title="Se cargan + pueden adelantar">Total</span>
         </div>
@@ -148,6 +181,7 @@ Vue.component('period-projection', {
                     <div class="tl-subj-meta">
                         <span v-if="r.isolated" class="tl-plan-tag tl-plan-tag-lock" title="No se mezcla con otras carreras (Configuración → Reglas de agrupación)">
                             <v-icon size="9" color="#B45309">mdi-lock</v-icon> solo {{ careerName(r.isolated) }}</span>
+                        <span v-if="isLong(r.courseid)" class="tl-plan-tag tl-plan-tag-nivel" title="Dura casi todo el cuatrimestre (dos periodos, ~16 semanas)">cuatrimestral</span>
                         <span v-if="r.flexible" class="tl-plan-tag" :class="r.flexOn ? 'tl-plan-tag-nivel' : 'tl-plan-tag-muted'"
                               title="No obligatoria en un periodo concreto (crédito 0 o marcada en Configuración): no se carga salvo que se active aquí">
                             {{ r.flexOn ? 'no obligatoria · activada' : 'no obligatoria · no se carga' }}</span>
@@ -268,7 +302,7 @@ Vue.component('period-projection', {
     },
     data() {
         return { q: '', filter: 'all', jornada: '', careerFilter: 0, open: {}, selected: {},
-            view: 'next', future: null, futureLoading: false, futureError: '', cellDetail: null,
+            view: 'next', future: null, futureLoading: false, futureError: '', cellDetail: null, costOpen: false,
             exc: { show: false, mode: 'grupo', items: [], note: '', error: '', saving: false },
             catLabel: { nivel: 'nivel', atrasada: 'atrasada', repite: 'repite', adelanto: 'adelanto' } };
     },
@@ -395,6 +429,71 @@ Vue.component('period-projection', {
             return { subjects, groups, covered, uncovered, finishingShort: finishing.size };
         },
         selectedList() { return Object.values(this.selected); },
+        // Gasto mensual: grupos que abren x horas de la asignatura x tarifa, repartido por dia en las semanas del grupo.
+        cost() {
+            const c = this.result.costing;
+            if (!c) return null;
+            const js = this.result.period.jornada_starts || {};
+            const months = {};
+            const day = 86400;
+            const addSpan = (start, days, hours, field) => {
+                if (!hours) return;
+                const perDay = hours / days;
+                for (let i = 0; i < days; i++) {
+                    const d = new Date((start + i * day) * 1000);
+                    const key = d.getFullYear() * 100 + d.getMonth();
+                    const m = months[key] || (months[key] = { key, label: d.toLocaleDateString('es-PA', { month: 'long', year: 'numeric' }),
+                        hours: 0, newCost: 0, contCost: 0, groupSet: {} });
+                    m.hours += perDay;
+                    m[field] += perDay * c.rate;
+                }
+            };
+            const markGroups = (start, days, id) => {
+                for (let i = 0; i < days; i += 7) {
+                    const d = new Date((start + i * day) * 1000);
+                    const key = d.getFullYear() * 100 + d.getMonth();
+                    if (months[key]) months[key].groupSet[id] = true;
+                }
+            };
+            let groups = 0, longCount = 0, hoursTotal = 0;
+            const noHoursMap = {};
+            this.scoped.forEach(r => r.jornadas.forEach(j => {
+                const g = j.groups || (j.exception ? 1 : 0);
+                if (!g) return;
+                const hours = Number(c.hours[r.courseid] || 0);
+                const isLong = this.isLong(r.courseid);
+                const days = isLong ? 112 : 56;
+                const start = js[j.jornada] || this.result.period.start;
+                for (let i = 0; i < g; i++) {
+                    groups++;
+                    if (isLong) longCount++;
+                    if (!hours) { const nk = r.name + ' (' + j.jornada + ')'; noHoursMap[nk] = (noHoursMap[nk] || 0) + 1; continue; }
+                    hoursTotal += hours;
+                    addSpan(start, days, hours, 'newCost');
+                    markGroups(start, days, r.key + j.jornada + i);
+                }
+            }));
+            if (!this.careerFilter) {
+                (c.continuing || []).forEach(k => {
+                    const days = Math.max(1, Math.round((k.enddate - k.initdate) / day));
+                    if (!k.hours) return;
+                    // Solo la parte desde el inicio del periodo.
+                    const from = Math.max(this.result.period.start, k.initdate);
+                    const left = Math.max(0, Math.round((k.enddate - from) / day));
+                    const hrs = k.hours * left / days;
+                    hoursTotal += hrs;
+                    addSpan(from, left, hrs, 'contCost');
+                    markGroups(from, left, 'c' + k.id);
+                });
+            }
+            const list = Object.values(months).sort((a, b) => a.key - b.key)
+                .map(m => Object.assign(m, { groups: Object.keys(m.groupSet).length }));
+            const newTotal = list.reduce((s, m) => s + m.newCost, 0);
+            const contTotal = list.reduce((s, m) => s + m.contCost, 0);
+            const noHours = Object.keys(noHoursMap).map(k => k + (noHoursMap[k] > 1 ? ' ×' + noHoursMap[k] : ''));
+            const noHoursGroups = Object.values(noHoursMap).reduce((a, b) => a + b, 0);
+            return { months: list, rate: c.rate, groups, longCount, hours: hoursTotal, noHours, noHoursGroups, newTotal, contTotal, total: newTotal + contTotal };
+        },
         colGroups() {
             const out = {};
             this.futureRows.forEach(r => Object.keys(r.cells).forEach(k => { out[k] = (out[k] || 0) + this.cellGroups(r.cells[k]); }));
@@ -447,6 +546,8 @@ Vue.component('period-projection', {
     },
     methods: {
         toggle(k) { this.$set(this.open, k, !this.open[k]); },
+        isLong(cid) { return !!(this.result.costing && (this.result.costing.long || []).includes(Number(cid))); },
+        money(v) { return '$' + Number(v || 0).toLocaleString('es-PA', { minimumFractionDigits: 0, maximumFractionDigits: 0 }); },
         async openFuture() {
             this.view = 'future';
             if (this.future || this.futureLoading) return;

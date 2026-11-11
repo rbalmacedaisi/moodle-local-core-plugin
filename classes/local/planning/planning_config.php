@@ -246,6 +246,85 @@ class planning_config {
         return self::ok(!empty($d['enabled']) ? 'Asignatura activada para este periodo.' : 'Asignatura desactivada para este periodo.', $list);
     }
 
+    /** Tarifa por hora docente para proyectar el gasto (config planning_hour_rate; 18 por defecto, igual que financial_planning). */
+    public static function hour_rate() {
+        $v = (float)get_config('local_grupomakro_core', 'planning_hour_rate');
+        return $v > 0 ? $v : 18.0;
+    }
+
+    /**
+     * Asignaturas de cuatrimestre completo (duran dos periodos, ~16 semanas).
+     * Si no se configuraron, se toman del historial: dictadas al menos 2 veces en clases de mas de 75 dias y
+     * mas veces largas que cortas.
+     *
+     * @return array ['configured' => bool, 'ids' => [courseid => true], 'suggested' => [['courseid','name','largas','cortas']]]
+     */
+    public static function long_subjects() {
+        global $DB;
+        $suggested = [];
+        foreach ($DB->get_records_sql("SELECT c.corecourseid AS courseid, co.fullname AS name,
+                SUM(CASE WHEN (c.enddate - c.initdate) > 75*86400 THEN 1 ELSE 0 END) AS largas,
+                SUM(CASE WHEN (c.enddate - c.initdate) <= 75*86400 THEN 1 ELSE 0 END) AS cortas
+              FROM {gmk_class} c JOIN {course} co ON co.id = c.corecourseid
+             WHERE c.initdate > ? AND c.enddate > c.initdate AND c.enddate < c.initdate + 200*86400
+          GROUP BY c.corecourseid, co.fullname", [time() - 400 * 86400]) as $r) {
+            if ((int)$r->largas >= 2 && (int)$r->largas > (int)$r->cortas) {
+                $suggested[] = ['courseid' => (int)$r->courseid, 'name' => $r->name, 'largas' => (int)$r->largas,
+                    'cortas' => (int)$r->cortas];
+            }
+        }
+        $raw = get_config('local_grupomakro_core', 'planning_long_subjects');
+        $ids = [];
+        if ($raw !== false && $raw !== null && $raw !== '') {
+            foreach ((array)json_decode($raw, true) as $cid) {
+                $ids[(int)$cid] = true;
+            }
+            return ['configured' => true, 'ids' => $ids, 'suggested' => $suggested];
+        }
+        foreach ($suggested as $s) {
+            $ids[$s['courseid']] = true;
+        }
+        return ['configured' => false, 'ids' => $ids, 'suggested' => $suggested];
+    }
+
+    /**
+     * Datos para proyectar el gasto mensual de un periodo: tarifa, horas por asignatura (cargas horarias), asignaturas
+     * de cuatrimestre completo y clases aprobadas que siguen corriendo desde el periodo anterior.
+     */
+    public static function costing($periodid, $periodstart) {
+        global $DB;
+        $byname = [];
+        foreach (scheduler_settings::get_loads() as $l) {
+            $byname[self::norm($l->subjectname)] = (float)$l->total_hours;
+        }
+        $hours = [];
+        foreach ($DB->get_records_sql("SELECT DISTINCT c.id, c.fullname FROM {course} c
+                JOIN {local_learning_courses} l ON l.courseid = c.id") as $c) {
+            $k = self::norm($c->fullname);
+            if (isset($byname[$k]) && $byname[$k] > 0) {
+                $hours[(int)$c->id] = $byname[$k];
+            }
+        }
+        $long = self::long_subjects();
+        // Clases aprobadas y abiertas de otros periodos que siguen corriendo cuando empieza este (cuatrimestrales).
+        $continuing = [];
+        foreach ($DB->get_records_select('gmk_class',
+                'approved = 1 AND closed = 0 AND periodid <> ? AND enddate > ? AND initdate < ? AND (enddate - initdate) > ?',
+                [$periodid, $periodstart + 7 * 86400, $periodstart, 75 * 86400],
+                'id', 'id, name, corecourseid, shift, initdate, enddate') as $c) {
+            $continuing[] = ['id' => (int)$c->id, 'name' => $c->name, 'courseid' => (int)$c->corecourseid,
+                'shift' => (string)$c->shift, 'initdate' => (int)$c->initdate, 'enddate' => (int)$c->enddate,
+                'hours' => $hours[(int)$c->corecourseid] ?? 0];
+        }
+        return ['rate' => self::hour_rate(), 'hours' => (object)$hours, 'long' => array_keys($long['ids']),
+            'continuing' => $continuing];
+    }
+
+    protected static function norm($s) {
+        $s = \core_text::strtoupper(trim((string)$s));
+        return preg_replace('/\s+/', ' ', rtrim($s, '. '));
+    }
+
     /** Inicio de clases por jornada guardado en el periodo (o []). */
     public static function jornada_starts($period) {
         $cfg = json_decode((string)($period->configsettings ?? ''), true);
@@ -326,7 +405,22 @@ class planning_config {
                 $autolist[] = ['courseid' => (int)$c->id, 'name' => $c->fullname];
             }
         }
+        $long = self::long_subjects();
+        $longlist = [];
+        if ($long['ids']) {
+            list($insql, $inparams) = $DB->get_in_or_equal(array_keys($long['ids']));
+            foreach ($DB->get_records_select('course', "id $insql", $inparams, 'fullname', 'id, fullname') as $c) {
+                $longlist[] = ['courseid' => (int)$c->id, 'name' => $c->fullname];
+            }
+        }
+        $allcourses = [];
+        foreach ($DB->get_records_sql("SELECT DISTINCT c.id, c.fullname FROM {course} c
+                JOIN {local_learning_courses} l ON l.courseid = c.id ORDER BY c.fullname") as $c) {
+            $allcourses[] = ['courseid' => (int)$c->id, 'name' => $c->fullname];
+        }
         return [
+            'costs' => ['hour_rate' => self::hour_rate(), 'long' => $longlist, 'long_configured' => $long['configured'],
+                'long_suggested' => $long['suggested'], 'all_courses' => $allcourses],
             'flexible' => ['auto' => $autolist, 'add' => array_keys($flex['add']), 'remove' => array_keys($flex['remove'])],
             'periods' => $periods,
             'rules' => self::rules(),
@@ -360,6 +454,26 @@ class planning_config {
 
             case 'flex_toggle':
                 return self::toggle_flexible($data);
+
+            case 'costs':
+                // Tarifa por hora y asignaturas de cuatrimestre completo.
+                $rate = (float)($data['hour_rate'] ?? 0);
+                if ($rate <= 0 || $rate > 500) {
+                    return self::fail('La tarifa por hora debe estar entre 0 y 500.');
+                }
+                $ids = [];
+                foreach ((array)($data['long'] ?? []) as $cid) {
+                    $cid = (int)$cid;
+                    if (!$DB->record_exists('course', ['id' => $cid])) {
+                        return self::fail('Una de las asignaturas de cuatrimestre completo no existe.');
+                    }
+                    $ids[] = $cid;
+                }
+                $before = ['rate' => self::hour_rate(), 'long' => array_keys(self::long_subjects()['ids'])];
+                set_config('planning_hour_rate', $rate, 'local_grupomakro_core');
+                set_config('planning_long_subjects', json_encode(array_values(array_unique($ids))), 'local_grupomakro_core');
+                self::backup('costos_duracion', ['antes' => $before, 'despues' => ['rate' => $rate, 'long' => $ids]]);
+                return self::ok('Costos y duración guardados.', ['rate' => self::hour_rate(), 'long' => array_keys(self::long_subjects()['ids'])]);
 
             case 'flexible':
                 // Ajustes manuales de no obligatorias: 'add' marca, 'remove' desmarca una de credito 0.

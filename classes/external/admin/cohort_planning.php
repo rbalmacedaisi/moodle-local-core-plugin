@@ -92,6 +92,7 @@ class cohort_planning extends external_api {
             $prow = $DB->get_record('gmk_academic_periods', ['id' => $pid]);
             $result['period']['jornada_starts'] = (object)planning_config::jornada_starts($prow);
             $result['exceptions'] = array_values(planning_config::exceptions($pid));
+            $result['costing'] = planning_config::costing($pid, (int)$result['period']['start']);
         }
         return ['data' => json_encode([
             'periods' => $periods,
@@ -129,7 +130,7 @@ class cohort_planning extends external_api {
 
     public static function save_config_parameters() {
         return new external_function_parameters([
-            'section' => new external_value(PARAM_ALPHANUMEXT, 'period | exception_add | exception_remove | flex_toggle | flexible | rules | scheduler | isolation | classroom | classroom_delete | holiday | holiday_delete'),
+            'section' => new external_value(PARAM_ALPHANUMEXT, 'period | exception_add | exception_remove | flex_toggle | flexible | costs | rules | scheduler | isolation | classroom | classroom_delete | holiday | holiday_delete'),
             'data' => new external_value(PARAM_RAW, 'JSON con los datos de la seccion'),
         ]);
     }

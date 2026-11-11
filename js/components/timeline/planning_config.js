@@ -106,6 +106,35 @@ Vue.component('planning-config', {
                 <div class="tl-cfg-footer"><button class="tl-cfg-btn" :disabled="!isoDirty || saving" @click="askSave('isolation', iso, isoDiff())">Guardar mezcla de carreras</button></div>
             </div>
 
+            <!-- COSTOS Y DURACION -->
+            <div v-if="section === 'rules'" class="tl-cfg-card">
+                <div class="tl-cfg-card-head"><div><b>Costos y duración</b>
+                    <div class="tl-cfg-help">Se usan para el gasto mensual proyectado. Las asignaturas de cuatrimestre completo duran dos
+                    periodos (~16 semanas) y se pagan repartidas en esos meses.</div></div></div>
+                <div class="tl-cfg-fields" style="grid-template-columns: 260px">
+                    <label>Tarifa por hora docente (USD)<input type="number" min="1" step="0.5" class="tl-cfg-input" v-model.number="costs.hour_rate">
+                        <small>La misma tarifa predeterminada del Análisis Financiero Docente.</small></label>
+                </div>
+                <div class="tl-cfg-sub mt-3">Asignaturas de cuatrimestre completo</div>
+                <div class="tl-cfg-help mb-2" v-if="!costs.long_configured">Hoy se toman del historial (dictadas casi siempre en clases de más de 10 semanas). Al guardar, la lista queda fija.</div>
+                <div class="tl-cfg-chips mb-2">
+                    <span v-for="c in costs.long" :key="c.courseid" class="tl-cfg-chip tl-cfg-chip-on">{{ c.name }}
+                        <button class="tl-proj-unx" @click="costs.long = costs.long.filter(x => x.courseid !== c.courseid)">×</button></span>
+                    <span v-if="!costs.long.length" class="tl-plan-empty">Ninguna.</span>
+                </div>
+                <div class="tl-cfg-inline">
+                    <select class="tl-cfg-input" v-model.number="longPick" style="flex:1;min-width:280px">
+                        <option :value="0">Agregar asignatura…</option>
+                        <option v-for="c in (costs.all_courses || []).filter(x => !costs.long.some(y => y.courseid === x.courseid))" :key="c.courseid" :value="c.courseid">{{ c.name }}</option>
+                    </select>
+                    <button class="tl-cfg-btn" :disabled="!longPick" @click="addLong">Agregar</button>
+                </div>
+                <div class="tl-cfg-help" v-if="costs.long_suggested && costs.long_suggested.length">Sugeridas por el historial:
+                    <span v-for="s in costs.long_suggested" :key="s.courseid">{{ s.name }} ({{ s.largas }} largas / {{ s.cortas }} cortas); </span></div>
+                <div class="tl-cfg-footer"><button class="tl-cfg-btn" :disabled="!costsDirty || saving"
+                    @click="askSave('costs', { hour_rate: costs.hour_rate, long: costs.long.map(c => c.courseid) }, costsDiff())">Guardar costos y duración</button></div>
+            </div>
+
             <!-- ASIGNATURAS NO OBLIGATORIAS -->
             <div v-if="section === 'rules'" class="tl-cfg-card">
                 <div class="tl-cfg-card-head"><div><b>Asignaturas no obligatorias en un periodo concreto</b>
@@ -257,6 +286,7 @@ Vue.component('planning-config', {
             newHoliday: { date: '', name: '' },
             careers: [], iso: { careers: [], subjects: [] }, isoOrig: '', isoPick: { planid: 0, courseid: 0 },
             flexAuto: [], flex: { add: [], remove: [] }, flexOrig: '', flexPick: { planid: 0, courseid: 0 },
+            costs: { hour_rate: 18, long: [], long_configured: false, long_suggested: [], all_courses: [] }, costsOrig: '', longPick: 0,
             confirm: { show: false, title: '', changes: [], note: '', danger: false, run: null },
         };
     },
@@ -270,6 +300,7 @@ Vue.component('planning-config', {
             return this.holidays.filter(h => this.showPastHolidays || h.date >= today);
         },
         isoDirty() { return JSON.stringify(this.isoNorm(this.iso)) !== this.isoOrig; },
+        costsDirty() { return this.costsKey() !== this.costsOrig || !this.costs.long_configured; },
         flexDirty() { return JSON.stringify({ add: this.flex.add.slice().sort(), remove: this.flex.remove.slice().sort() }) !== this.flexOrig; },
         pickCourses() {
             const c = this.careerById(this.isoPick.planid);
@@ -305,6 +336,8 @@ Vue.component('planning-config', {
                 const iso = d.isolation || { careers: [], subjects: [] };
                 this.iso = { careers: (iso.careers || []).map(Number), subjects: (iso.subjects || []).map(s => ({ planid: Number(s.planid), courseid: Number(s.courseid) })) };
                 this.isoOrig = JSON.stringify(this.isoNorm(this.iso));
+                this.costs = Object.assign({ hour_rate: 18, long: [], long_configured: false, long_suggested: [], all_courses: [] }, d.costs || {});
+                this.costsOrig = this.costsKey();
                 const fl = d.flexible || { auto: [], add: [], remove: [] };
                 this.flexAuto = fl.auto || [];
                 this.flex = { add: (fl.add || []).slice(), remove: (fl.remove || []).slice() };
@@ -351,6 +384,22 @@ Vue.component('planning-config', {
             });
             [['sessionDuration', 'Duración de sesión'], ['intervalMinutes', 'Receso'], ['lunchStart', 'Inicio almuerzo'], ['lunchEnd', 'Fin almuerzo']]
                 .forEach(([k, l]) => { if (o[k] !== s[k]) out.push({ label: l, before: o[k], after: s[k] }); });
+            return out;
+        },
+        // ---- costos y duracion ----
+        costsKey() { return JSON.stringify({ r: Number(this.costs.hour_rate), l: this.costs.long.map(c => c.courseid).sort((a, b) => a - b) }); },
+        addLong() {
+            const c = (this.costs.all_courses || []).find(x => x.courseid === this.longPick);
+            if (c) this.costs.long.push(c);
+            this.longPick = 0;
+        },
+        costsDiff() {
+            const o = JSON.parse(this.costsOrig), n = JSON.parse(this.costsKey()), out = [];
+            const name = id => ((this.costs.all_courses || []).find(x => x.courseid === id) || { name: 'Curso ' + id }).name;
+            if (o.r !== n.r) out.push({ label: 'Tarifa por hora', before: '$' + o.r, after: '$' + n.r });
+            n.l.filter(x => !o.l.includes(x)).forEach(x => out.push({ label: 'Cuatrimestre completo', before: '', after: name(x) }));
+            o.l.filter(x => !n.l.includes(x)).forEach(x => out.push({ label: 'Deja de ser cuatrimestral', before: name(x), after: '' }));
+            if (!out.length && !this.costs.long_configured) out.push({ label: 'Fijar la lista sugerida del historial', before: 'automática', after: n.l.length + ' asignaturas' });
             return out;
         },
         // ---- no obligatorias ----
