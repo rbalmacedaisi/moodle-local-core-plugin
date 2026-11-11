@@ -18,7 +18,9 @@
  *  - Adelantos con sentido comun, en una segunda pasada: solo para quien queda con menos carga que la minima y
  *    tiene asignaturas que puede adelantar; primero llenan cupos libres de grupos que ya abren y luego completan
  *    grupos que con ellos alcanzan el minimo. Nunca se le carga un adelanto a quien ya tiene su carga.
- *  - Modulo por excepcion: un grupo con los estudiantes elegidos.
+ *  - Modulo por excepcion: un grupo con los estudiantes elegidos (sin horario ni pago, se crea al publicar).
+ *  - No abrir por decision: no abre aunque alcance el minimo; sus estudiantes quedan como alerta.
+ *  - Sin horario (practica profesional): un solo grupo por asignatura con todas las jornadas, sin minimo ni maximo.
  *  - Alertas: sin quorum, egresa sin quorum, carga baja, prelacion pendiente (repitentes se gestionan aparte).
  *
  * @package    local_grupomakro_core
@@ -55,6 +57,7 @@ class group_builder {
             $exceptions[$e['key']] = $e;
         }
         $long = array_flip((array)($this->res['costing']['long'] ?? []));
+        $unsched = array_flip((array)($this->res['costing']['unscheduled'] ?? []));
         $assigned = [];      // studentkey => [courseid => groupid]
         $groups = [];
         $alerts = [];
@@ -63,10 +66,14 @@ class group_builder {
         // 1. Filas: separar quien se carga, quien puede adelantar y quien queda con prelacion pendiente.
         $rows = [];
         foreach ($this->res['demand'] as $d) {
-            $rk = $d['courseid'] . '|' . $d['jornada'] . '|' . (int)$d['isolated_plan'];
-            $row = ['key' => $rk, 'courseid' => (int)$d['courseid'], 'name' => $d['name'], 'jornada' => $d['jornada'],
+            $nosched = isset($unsched[(int)$d['courseid']]);
+            // Sin horario: todas las jornadas en una sola fila.
+            $jornada = $nosched ? 'Sin horario' : $d['jornada'];
+            $rk = $d['courseid'] . '|' . $jornada . '|' . (int)$d['isolated_plan'];
+            $row = $rows[$rk] ?? ['key' => $rk, 'courseid' => (int)$d['courseid'], 'name' => $d['name'], 'jornada' => $jornada,
                 'isolated_plan' => (int)$d['isolated_plan'], 'ready' => [], 'adelanto' => [], 'blocked' => [],
-                'exception' => $exceptions[$rk] ?? null, 'long' => isset($long[(int)$d['courseid']])];
+                'exception' => $nosched ? null : ($exceptions[$rk] ?? null), 'long' => isset($long[(int)$d['courseid']]),
+                'unscheduled' => $nosched];
             foreach ($d['students'] as $x) {
                 if ($x['category'] === 'repite') {
                     continue; // gestion aparte
@@ -87,6 +94,19 @@ class group_builder {
         // 2. Primera pasada: abrir lo que alcanza el minimo o tiene excepcion.
         foreach ($rows as $rk => $row) {
             $exc = $row['exception'];
+            if ($row['unscheduled']) {
+                // Practica profesional y similares: se carga a todos los que les toca, sin minimo ni division.
+                if ($row['ready']) {
+                    $this->add_group($groups, $assigned, $row, $row['ready'], 1, 'sin_horario');
+                }
+                continue;
+            }
+            if ($exc && $exc['mode'] === 'cerrar') {
+                if ($row['ready']) {
+                    $pending[$rk] = $row;
+                }
+                continue;
+            }
             if ($exc && $exc['mode'] === 'modulo') {
                 $members = [];
                 foreach (array_merge($row['ready'], $row['adelanto']) as $k) {
@@ -121,7 +141,7 @@ class group_builder {
         };
         // 3a. Llenar cupos libres de grupos que ya abren.
         foreach ($groups as &$g) {
-            if ($g['type'] === 'modulo') {
+            if ($g['type'] === 'modulo' || $g['type'] === 'sin_horario') {
                 continue;
             }
             $row = $rows[$g['rowkey']];
@@ -181,8 +201,13 @@ class group_builder {
 
         // 4. Alertas.
         foreach ($pending as $row) {
+            $closed = $row['exception'] && $row['exception']['mode'] === 'cerrar';
             foreach ($row['ready'] as $k) {
                 $s = $students[$k];
+                if ($closed) {
+                    $alerts[] = $this->alert('no_abre', $k, $s, $row, 'Se decidió no abrir: ' . $row['exception']['note']);
+                    continue;
+                }
                 $alerts[] = $this->alert($s['finishing'] ? 'egresa_sin_quorum' : 'sin_quorum', $k, $s, $row,
                     count($row['ready']) . ' estudiante(s) en ' . ($row['jornada'] ?: 'sin jornada') . '; mínimo ' . $this->min . '.');
             }
@@ -236,13 +261,14 @@ class group_builder {
         }
         unset($g);
 
-        $summary = ['groups' => count($groups), 'modules' => 0, 'exceptions' => 0, 'seats' => 0, 'adelantos' => 0,
+        $summary = ['groups' => count($groups), 'modules' => 0, 'exceptions' => 0, 'unscheduled' => 0, 'seats' => 0, 'adelantos' => 0,
             'students_assigned' => 0, 'alerts' => []];
         foreach ($groups as $g) {
             $summary['seats'] += $g['size'];
             $summary['adelantos'] += $g['adelantos'];
             $summary['modules'] += $g['type'] === 'modulo' ? 1 : 0;
             $summary['exceptions'] += $g['type'] === 'excepcion' ? 1 : 0;
+            $summary['unscheduled'] += $g['type'] === 'sin_horario' ? 1 : 0;
         }
         $summary['students_assigned'] = count(array_filter($assigned));
         foreach ($alerts as $a) {
@@ -283,6 +309,7 @@ class group_builder {
         $id = count($groups);
         $groups[$id] = ['id' => $id, 'rowkey' => $row['key'], 'courseid' => $row['courseid'], 'name' => $row['name'],
             'jornada' => $row['jornada'], 'isolated_plan' => $row['isolated_plan'], 'type' => $type, 'long' => $row['long'],
+            'decision' => $row['exception']['mode'] ?? '',
             'students' => array_values($members), 'adelantos' => 0, 'adel' => [], 'note' => $row['exception']['note'] ?? ''];
         foreach ($members as $k) {
             $assigned[$k][$row['courseid']] = $id;

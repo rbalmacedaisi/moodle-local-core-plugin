@@ -2524,3 +2524,17 @@ button.tl-btn.tl-btn-primary:active:not(:disabled) {
 .tl-proj-cmp-row:hover { background: var(--tl-primary-soft); }
 .tl-proj-cmp-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 @media (max-width: 640px) { .tl-proj-cmp-cols { grid-template-columns: 1fr; } }
+
+/* Decision de apertura (grupo / modulo / no abrir) y asignaturas sin horario */
+.tl-proj-chip-grey { background: #F1F5F9; color: #475569; border-color: #CBD5E1; }
+.tl-proj-decide { background: rgba(255,255,255,.7); border: 1px solid currentColor; border-radius: 6px; padding: 0 3px; margin-left: 4px;
+    cursor: pointer; line-height: 14px; color: inherit; }
+.tl-proj-decide:hover { background: #fff; }
+.tl-proj-decide .v-icon { color: inherit !important; }
+.tl-proj-modes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.tl-proj-mode { display: flex; gap: 8px; align-items: flex-start; border: 1px solid var(--tl-border, #E2E8F0); border-radius: 10px;
+    padding: 8px 10px; cursor: pointer; font-size: 13px; }
+.tl-proj-mode input { margin-top: 3px; }
+.tl-proj-mode-on { border-color: #4F46E5; background: #EEF2FF; }
+.tl-proj-gcard-sin_horario { border-color: #BAE6FD; background: #F0F9FF; }
+@media (max-width: 600px) { .tl-proj-modes { grid-template-columns: 1fr; } }

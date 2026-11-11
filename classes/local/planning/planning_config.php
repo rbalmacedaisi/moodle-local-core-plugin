@@ -126,7 +126,9 @@ class planning_config {
             if ($note === '') {
                 return self::fail('Indique el motivo de la excepción: queda registrado para la revisión.');
             }
-            $mode = ($d['mode'] ?? '') === 'modulo' ? 'modulo' : 'grupo';
+            // grupo: abre aunque no alcance el minimo; modulo: modulo sin horario ni pago para los elegidos;
+            // cerrar: no abre aunque alcance el minimo (sus estudiantes quedan como alerta).
+            $mode = in_array(($d['mode'] ?? ''), ['modulo', 'cerrar'], true) ? $d['mode'] : 'grupo';
             foreach ($items as $it) {
                 $cid = (int)($it['courseid'] ?? 0);
                 $course = $DB->get_field('course', 'fullname', ['id' => $cid]);
@@ -255,6 +257,32 @@ class planning_config {
         return $out;
     }
 
+    /**
+     * Asignaturas que se cargan sin horario (practica profesional, proyecto de grado): no tienen docente, aula ni
+     * sesiones; abren siempre que haya estudiantes (sin minimo), en un solo grupo por asignatura que junta todas las
+     * jornadas, no van al tablero de horarios ni al gasto. Si no se configuraron, se sugieren por el nombre.
+     *
+     * @return array ['configured' => bool, 'ids' => [courseid => true]]
+     */
+    public static function unscheduled_subjects() {
+        global $DB;
+        $raw = get_config('local_grupomakro_core', 'planning_unscheduled_subjects');
+        $ids = [];
+        if ($raw !== false && $raw !== null && $raw !== '') {
+            foreach ((array)json_decode($raw, true) as $cid) {
+                $ids[(int)$cid] = true;
+            }
+            return ['configured' => true, 'ids' => $ids];
+        }
+        foreach ($DB->get_records_sql("SELECT DISTINCT c.id, c.fullname FROM {course} c
+                JOIN {local_learning_courses} l ON l.courseid = c.id") as $c) {
+            if (preg_match('/PR[AÁ]CTICA\s+(PROFESIONAL|EMPRESARIAL)/iu', $c->fullname)) {
+                $ids[(int)$c->id] = true;
+            }
+        }
+        return ['configured' => false, 'ids' => $ids];
+    }
+
     /** Tarifa por hora docente para proyectar el gasto (config planning_hour_rate; 18 por defecto, igual que financial_planning). */
     public static function hour_rate() {
         $v = (float)get_config('local_grupomakro_core', 'planning_hour_rate');
@@ -326,7 +354,8 @@ class planning_config {
                 'hours' => $hours[(int)$c->corecourseid] ?? 0];
         }
         return ['rate' => self::hour_rate(), 'hours' => (object)$hours, 'long' => array_keys($long['ids']),
-            'fixed' => array_keys(self::fixed_cost_subjects()), 'continuing' => $continuing];
+            'fixed' => array_keys(self::fixed_cost_subjects()), 'continuing' => $continuing,
+            'unscheduled' => array_keys(self::unscheduled_subjects()['ids'])];
     }
 
     protected static function norm($s) {
@@ -577,6 +606,14 @@ class planning_config {
                 $fixedlist[] = ['courseid' => (int)$c->id, 'name' => $c->fullname];
             }
         }
+        $unsched = self::unscheduled_subjects();
+        $unschedlist = [];
+        if ($unsched['ids']) {
+            list($insql, $inparams) = $DB->get_in_or_equal(array_keys($unsched['ids']));
+            foreach ($DB->get_records_select('course', "id $insql", $inparams, 'fullname', 'id, fullname') as $c) {
+                $unschedlist[] = ['courseid' => (int)$c->id, 'name' => $c->fullname];
+            }
+        }
         $allcourses = [];
         foreach ($DB->get_records_sql("SELECT DISTINCT c.id, c.fullname FROM {course} c
                 JOIN {local_learning_courses} l ON l.courseid = c.id ORDER BY c.fullname") as $c) {
@@ -584,7 +621,8 @@ class planning_config {
         }
         return [
             'costs' => ['hour_rate' => self::hour_rate(), 'long' => $longlist, 'fixed' => $fixedlist, 'long_configured' => $long['configured'],
-                'long_suggested' => $long['suggested'], 'all_courses' => $allcourses],
+                'long_suggested' => $long['suggested'], 'all_courses' => $allcourses,
+                'unscheduled' => $unschedlist, 'unscheduled_configured' => $unsched['configured']],
             'flexible' => ['auto' => $autolist, 'add' => array_keys($flex['add']), 'remove' => array_keys($flex['remove'])],
             'periods' => $periods,
             'rules' => self::rules(),
@@ -647,14 +685,33 @@ class planning_config {
                     }
                     $fixed[] = $cid;
                 }
+                // Sin horario: solo si viene en los datos (una pantalla vieja no la borra).
+                $unsched = null;
+                if (array_key_exists('unscheduled', $data)) {
+                    $unsched = [];
+                    foreach ((array)$data['unscheduled'] as $cid) {
+                        $cid = (int)$cid;
+                        if (!$DB->record_exists('course', ['id' => $cid])) {
+                            return self::fail('Una de las asignaturas sin horario no existe.');
+                        }
+                        $unsched[] = $cid;
+                    }
+                    if (array_intersect($unsched, $ids)) {
+                        return self::fail('Una asignatura no puede ser a la vez sin horario y de cuatrimestre completo.');
+                    }
+                }
                 $before = ['rate' => self::hour_rate(), 'long' => array_keys(self::long_subjects()['ids']),
-                    'fixed' => array_keys(self::fixed_cost_subjects())];
+                    'fixed' => array_keys(self::fixed_cost_subjects()), 'unscheduled' => array_keys(self::unscheduled_subjects()['ids'])];
                 set_config('planning_hour_rate', $rate, 'local_grupomakro_core');
                 set_config('planning_long_subjects', json_encode(array_values(array_unique($ids))), 'local_grupomakro_core');
                 set_config('planning_fixed_cost_subjects', json_encode(array_values(array_unique($fixed))), 'local_grupomakro_core');
-                self::backup('costos_duracion', ['antes' => $before, 'despues' => ['rate' => $rate, 'long' => $ids, 'fixed' => $fixed]]);
+                if ($unsched !== null) {
+                    set_config('planning_unscheduled_subjects', json_encode(array_values(array_unique($unsched))), 'local_grupomakro_core');
+                }
+                self::backup('costos_duracion', ['antes' => $before, 'despues' => ['rate' => $rate, 'long' => $ids, 'fixed' => $fixed,
+                    'unscheduled' => $unsched]]);
                 return self::ok('Costos y duración guardados.', ['rate' => self::hour_rate(), 'long' => array_keys(self::long_subjects()['ids']),
-                    'fixed' => array_keys(self::fixed_cost_subjects())]);
+                    'fixed' => array_keys(self::fixed_cost_subjects()), 'unscheduled' => array_keys(self::unscheduled_subjects()['ids'])]);
 
             case 'flexible':
                 // Ajustes manuales de no obligatorias: 'add' marca, 'remove' desmarca una de credito 0.
