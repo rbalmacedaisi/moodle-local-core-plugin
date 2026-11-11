@@ -82,17 +82,8 @@ Vue.component('planning-config', {
                 </div>
                 <div class="tl-cfg-sub mt-4">Asignaturas puntuales que no se mezclan</div>
                 <div class="tl-cfg-help mb-2">Solo esa asignatura de esa carrera va en grupos propios; el resto de sus asignaturas sí se puede mezclar.</div>
-                <div class="tl-cfg-inline">
-                    <select class="tl-cfg-input" v-model.number="isoPick.planid" style="min-width:220px">
-                        <option :value="0">Elija la carrera…</option>
-                        <option v-for="c in careers" :key="c.id" :value="c.id" :disabled="iso.careers.includes(c.id)">{{ shortPlan(c.name) }}{{ iso.careers.includes(c.id) ? ' (ya no se mezcla completa)' : '' }}</option>
-                    </select>
-                    <select class="tl-cfg-input" v-model.number="isoPick.courseid" :disabled="!isoPick.planid" style="flex:1;min-width:240px">
-                        <option :value="0">Elija la asignatura…</option>
-                        <option v-for="x in pickCourses" :key="x.courseid" :value="x.courseid">{{ x.name }}</option>
-                    </select>
-                    <button class="tl-cfg-btn" :disabled="!isoPick.planid || !isoPick.courseid" @click="addIsoSubject">Agregar</button>
-                </div>
+                <subject-picker :careers="careers.filter(c => !iso.careers.includes(c.id))" require-career
+                    :exclude="iso.subjects.map(x => x.planid + '|' + x.courseid)" @add="isoAdd"></subject-picker>
                 <table class="tl-cfg-table" v-if="iso.subjects.length">
                     <thead><tr><th>Carrera</th><th>Asignatura</th><th></th></tr></thead>
                     <tbody>
@@ -122,13 +113,7 @@ Vue.component('planning-config', {
                         <button class="tl-proj-unx" @click="costs.long = costs.long.filter(x => x.courseid !== c.courseid)">×</button></span>
                     <span v-if="!costs.long.length" class="tl-plan-empty">Ninguna.</span>
                 </div>
-                <div class="tl-cfg-inline">
-                    <select class="tl-cfg-input" v-model.number="longPick" style="flex:1;min-width:280px">
-                        <option :value="0">Agregar asignatura…</option>
-                        <option v-for="c in (costs.all_courses || []).filter(x => !costs.long.some(y => y.courseid === x.courseid))" :key="c.courseid" :value="c.courseid">{{ c.name }}</option>
-                    </select>
-                    <button class="tl-cfg-btn" :disabled="!longPick" @click="addLong">Agregar</button>
-                </div>
+                <subject-picker :careers="careers" :exclude="costs.long.map(c => c.courseid)" @add="longAdd"></subject-picker>
                 <div class="tl-cfg-sub mt-3">Asignaturas con docente de planta (no se costean)</div>
                 <div class="tl-cfg-help mb-2">Sus grupos se siguen proyectando y abriendo, pero no suman al gasto mensual, que es solo de costo variable.</div>
                 <div class="tl-cfg-chips mb-2">
@@ -136,13 +121,7 @@ Vue.component('planning-config', {
                         <button class="tl-proj-unx" @click="costs.fixed = costs.fixed.filter(x => x.courseid !== c.courseid)">×</button></span>
                     <span v-if="!costs.fixed.length" class="tl-plan-empty">Ninguna: todas se costean.</span>
                 </div>
-                <div class="tl-cfg-inline">
-                    <select class="tl-cfg-input" v-model.number="fixedPick" style="flex:1;min-width:280px">
-                        <option :value="0">Agregar asignatura…</option>
-                        <option v-for="c in (costs.all_courses || []).filter(x => !costs.fixed.some(y => y.courseid === x.courseid))" :key="c.courseid" :value="c.courseid">{{ c.name }}</option>
-                    </select>
-                    <button class="tl-cfg-btn" :disabled="!fixedPick" @click="addFixed">Agregar</button>
-                </div>
+                <subject-picker :careers="careers" :exclude="costs.fixed.map(c => c.courseid)" @add="fixedAdd"></subject-picker>
                 <div class="tl-cfg-help" v-if="costs.long_suggested && costs.long_suggested.length">Sugeridas por el historial:
                     <span v-for="s in costs.long_suggested" :key="s.courseid">{{ s.name }} ({{ s.largas }} largas / {{ s.cortas }} cortas); </span></div>
                 <div class="tl-cfg-footer"><button class="tl-cfg-btn" :disabled="!costsDirty || saving"
@@ -160,19 +139,12 @@ Vue.component('planning-config', {
                     <span v-if="!flexAuto.length" class="tl-plan-empty">Ninguna asignatura con crédito 0.</span>
                 </div>
                 <div class="tl-cfg-sub">Marcar otra asignatura como no obligatoria</div>
-                <div class="tl-cfg-inline">
-                    <select class="tl-cfg-input" v-model.number="flexPick.planid" style="min-width:220px">
-                        <option :value="0">Elija la carrera…</option>
-                        <option v-for="c in careers" :key="c.id" :value="c.id">{{ shortPlan(c.name) }}</option>
-                    </select>
-                    <select class="tl-cfg-input" v-model.number="flexPick.courseid" :disabled="!flexPick.planid" style="flex:1;min-width:240px">
-                        <option :value="0">Elija la asignatura…</option>
-                        <option v-for="x in careerById(flexPick.planid).courses || []" :key="x.courseid" :value="x.courseid">{{ x.name }}{{ isAuto(x.courseid) ? ' (crédito 0)' : '' }}</option>
-                    </select>
-                    <button class="tl-cfg-btn" :disabled="!flexPick.planid || !flexPick.courseid" @click="flexMark('add')">Marcar no obligatoria</button>
-                    <button class="tl-cfg-btn tl-cfg-btn-ghost" :disabled="!flexPick.planid || !flexPick.courseid || !isAuto(flexPick.courseid)" @click="flexMark('remove')"
-                            title="Para una de crédito 0 que en esta carrera sí debe cargarse siempre">Hacerla obligatoria aquí</button>
-                </div>
+                <subject-picker :careers="careers" require-career :notes="autoNotes"
+                    :exclude="flex.add.concat(flex.remove)" @add="items => flexAdd('add', items)"></subject-picker>
+                <div class="tl-cfg-sub mt-3">Hacer obligatoria en una carrera una de crédito 0</div>
+                <div class="tl-cfg-help mb-2">Para una asignatura de crédito 0 que en esa carrera sí debe cargarse siempre.</div>
+                <subject-picker :careers="autoCareers" require-career
+                    :exclude="flex.add.concat(flex.remove)" @add="items => flexAdd('remove', items)"></subject-picker>
                 <table class="tl-cfg-table" v-if="flex.add.length || flex.remove.length">
                     <thead><tr><th>Carrera</th><th>Asignatura</th><th>Ajuste</th><th></th></tr></thead>
                     <tbody>
@@ -314,6 +286,16 @@ Vue.component('planning-config', {
             return this.holidays.filter(h => this.showPastHolidays || h.date >= today);
         },
         isoDirty() { return JSON.stringify(this.isoNorm(this.iso)) !== this.isoOrig; },
+        autoNotes() {
+            const n = {};
+            this.flexAuto.forEach(c => { n[c.courseid] = 'crédito 0 (ya es no obligatoria)'; });
+            return n;
+        },
+        // Carreras con solo sus asignaturas de credito 0 (para "hacerla obligatoria aqui").
+        autoCareers() {
+            return this.careers.map(c => Object.assign({}, c, { courses: (c.courses || []).filter(x => this.isAuto(x.courseid)) }))
+                .filter(c => c.courses.length);
+        },
         costsDirty() { return this.costsKey() !== this.costsOrig || !this.costs.long_configured; },
         flexDirty() { return JSON.stringify({ add: this.flex.add.slice().sort(), remove: this.flex.remove.slice().sort() }) !== this.flexOrig; },
         pickCourses() {
@@ -409,6 +391,17 @@ Vue.component('planning-config', {
             const c = (this.costs.all_courses || []).find(x => x.courseid === this.fixedPick);
             if (c) this.costs.fixed.push(c);
             this.fixedPick = 0;
+        },
+        isoAdd(items) { items.forEach(it => this.iso.subjects.push({ planid: it.planid, courseid: it.courseid })); },
+        longAdd(items) { items.forEach(it => this.costs.long.push({ courseid: it.courseid, name: it.name })); },
+        fixedAdd(items) { items.forEach(it => this.costs.fixed.push({ courseid: it.courseid, name: it.name })); },
+        flexAdd(kind, items) {
+            items.forEach(it => {
+                const k = it.planid + '|' + it.courseid;
+                this.flex.add = this.flex.add.filter(x => x !== k);
+                this.flex.remove = this.flex.remove.filter(x => x !== k);
+                this.flex[kind].push(k);
+            });
         },
         addLong() {
             const c = (this.costs.all_courses || []).find(x => x.courseid === this.longPick);

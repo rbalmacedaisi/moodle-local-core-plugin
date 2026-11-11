@@ -2495,3 +2495,8 @@ button.tl-btn.tl-btn-primary:active:not(:disabled) {
 .tl-proj-cost .tl-cfg-table { background: var(--tl-surface); margin-top: 8px; border-radius: 8px; }
 .tl-proj-cost tfoot td { border-top: 2px solid var(--tl-border); }
 .tl-proj-cost-warn { display: block; color: #B45309; margin-top: 4px; }
+/* Selector de asignaturas (Configuración) */
+.tl-picker { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+.tl-picker-career { flex: 0 0 240px; max-width: 260px; }
+.tl-picker-search { flex: 1 1 320px; min-width: 260px; }
+.tl-picker .v-input { font-size: 13px; }
