@@ -76,6 +76,8 @@
         });
         s.order.forEach(function (k) {
             if (!s.place[k]) s.place[k] = { day: 0, start: 0, end: 0, teacherid: 0, roomid: 0, locked: false };
+            // Ya publicado: queda fijo (la clase existe; se cambia desde la gestion de clases).
+            if (s.groups[k].published) s.place[k].locked = true;
         });
         return s;
     };

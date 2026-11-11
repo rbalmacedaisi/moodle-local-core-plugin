@@ -58,6 +58,8 @@ Vue.component('schedule-board', {
                     <button class="tl-cfg-btn tl-cfg-btn-ghost" :disabled="!history.length" @click="undo" title="Deshacer el último cambio"><v-icon size="14">mdi-undo</v-icon></button>
                     <button class="tl-cfg-btn" :class="{ 'tl-sb-dirty': dirty }" :disabled="!dirty || saving" @click="askSave">
                         <v-icon size="14" color="#fff">mdi-content-save</v-icon> {{ dirty ? 'Guardar borrador' : 'Guardado' }}</button>
+                    <button class="tl-cfg-btn tl-sb-pubbtn" @click="openPublish" title="Revisar y crear las clases del tablero (pendientes de aprobación) y los módulos">
+                        <v-icon size="14" color="#fff">mdi-rocket-launch-outline</v-icon> Publicar…</button>
                 </template>
             </div>
             <!-- estado -->
@@ -146,6 +148,8 @@ Vue.component('schedule-board', {
                     <div class="d-flex">
                         <div style="flex:1">
                             <div class="tl-sb-panel-title">{{ info.g.name }}</div>
+                            <div v-if="info.g.published" class="tl-cfg-msg tl-cfg-msg-ok" style="margin:4px 0">Publicada: es la clase {{ info.g.published }}
+                                (pendiente de aprobación o ya aprobada). Ya no se cambia desde el tablero, sino desde la gestión de clases.</div>
                             <div class="tl-cfg-help">Grupo {{ info.g.number }} de {{ info.g.of }} · {{ info.g.jornada }} · {{ info.g.size }} estudiantes
                                 <template v-if="info.g.adelantos"> ({{ info.g.adelantos }} adelantos)</template></div>
                             <div class="tl-cfg-help">{{ topLevels(info.g) }}</div>
@@ -259,6 +263,102 @@ Vue.component('schedule-board', {
                 </v-card>
             </v-dialog>
 
+            <!-- publicar -->
+            <v-dialog v-model="pub.show" max-width="980" scrollable :persistent="pub.running">
+                <v-card>
+                    <v-card-title class="d-flex">
+                        <div><div class="text-subtitle-1 font-weight-bold">Publicar {{ periodName }}</div>
+                            <div class="tl-cfg-help">Crea las clases del tablero como las crea el Planificador Académico: <b>sin aprobar</b>, con sus estudiantes
+                                en la cola, su horario, grupo, sección, asistencia y sesiones virtuales. Al aprobarlas el área académica, se inscribe a los
+                                estudiantes. Nunca modifica ni borra clases existentes.</div></div>
+                        <v-spacer></v-spacer><v-btn icon :disabled="pub.running" @click="pub.show = false"><v-icon>mdi-close</v-icon></v-btn>
+                    </v-card-title>
+                    <v-card-text>
+                        <div v-if="dirty" class="tl-cfg-msg tl-cfg-msg-error">Hay cambios sin guardar. Guarde el borrador primero: se publica exactamente lo guardado.</div>
+                        <div v-else-if="pub.loading" class="tl-plan-empty" style="padding:16px">Revisando el tablero en el servidor…</div>
+                        <div v-else-if="pub.error" class="tl-cfg-msg tl-cfg-msg-error">{{ pub.error }}</div>
+                        <template v-else-if="pub.plan && !pub.result">
+                            <div class="tl-proj-kpis mb-3">
+                                <div class="tl-proj-kpi tl-proj-kpi-ok"><b>{{ pub.plan.totals.listo }}</b><span>grupos listos</span></div>
+                                <div class="tl-proj-kpi tl-proj-kpi-warn"><b>{{ pub.plan.totals.bloqueado }}</b><span>no se pueden publicar</span></div>
+                                <div class="tl-proj-kpi"><b>{{ pub.plan.totals.publicado }}</b><span>ya publicados</span></div>
+                                <div class="tl-proj-kpi"><b>{{ pubSelQueue }}</b><span>estudiantes en cola</span></div>
+                            </div>
+                            <div class="tl-sb-sec-title">Grupos listos ({{ pubReady.length }})
+                                <button class="tl-proj-flexbtn" @click="pubAll(true)">todos</button><button class="tl-proj-flexbtn" @click="pubAll(false)">ninguno</button></div>
+                            <table class="tl-cfg-table tl-sb-pubtable">
+                                <thead><tr><th></th><th>Asignatura</th><th>Jornada</th><th>Horario</th><th>Docente / aula</th><th>Est.</th><th>Fechas</th><th>Avisos</th></tr></thead>
+                                <tbody>
+                                    <tr v-for="g in pubReady" :key="g.key">
+                                        <td><input type="checkbox" v-model="pub.sel[g.key]"></td>
+                                        <td>{{ g.name }} <span class="tl-cfg-help">G{{ g.number }}</span></td><td>{{ g.jornada }}</td>
+                                        <td>{{ dayName(g.day) }} {{ hhmm(g.start) }}–{{ hhmm(g.end) }}</td>
+                                        <td>{{ g.teacher || 'Sin docente' }} · {{ g.room || 'sin aula' }}</td><td>{{ g.size }}</td>
+                                        <td class="tl-cfg-help">{{ fmt(g.from) }} – {{ fmt(g.to) }} · {{ (g.dates || []).length }} sesiones</td>
+                                        <td class="tl-cfg-help" style="color:#B45309">{{ g.warnings.join(' ') }}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                            <template v-if="pubBlocked.length">
+                                <div class="tl-sb-sec-title mt-3">No se pueden publicar ({{ pubBlocked.length }}) <button class="tl-proj-flexbtn" @click="pub.showBlocked = !pub.showBlocked">{{ pub.showBlocked ? 'ocultar' : 'ver por qué' }}</button></div>
+                                <div v-if="pub.showBlocked" class="tl-sb-failed">
+                                    <div v-for="g in pubBlocked" :key="g.key" class="tl-sb-failed-row" @click="pub.show = false; goTo(g.key)"><b>{{ g.name }} G{{ g.number }} ({{ g.jornada }})</b>: {{ g.blocks.join(' ') }}</div>
+                                </div>
+                            </template>
+                            <template v-if="pub.plan.modules.length">
+                                <div class="tl-sb-sec-title mt-3">Módulos decididos en la proyección</div>
+                                <div class="tl-cfg-msg mb-1" style="background:#FFFBEB;color:#78350F">Los módulos <b>inscriben de inmediato</b> a los estudiantes elegidos (como el flujo de
+                                    módulos del área académica), <b>sin pago</b>, en {{ periodName }}, con plazo hasta el {{ fmt(pub.plan.module_due) }}.</div>
+                                <label v-for="m in pub.plan.modules" :key="'m' + m.courseid" class="tl-cfg-check d-flex" style="gap:6px">
+                                    <input type="checkbox" v-model="pub.mods[m.courseid]" :disabled="!m.pending.length">
+                                    <span><b>{{ m.name }}</b> · {{ m.jornada || 'sin jornada' }} · {{ m.pending.length }} por inscribir<template v-if="m.done"> ({{ m.done }} ya inscritos)</template>
+                                        <span class="tl-cfg-help">— {{ m.note }}</span></span>
+                                </label>
+                            </template>
+                            <template v-if="pub.plan.unscheduled.length">
+                                <div class="tl-sb-sec-title mt-3">Asignaturas sin horario (práctica profesional)</div>
+                                <div class="tl-cfg-help mb-1">Se cargan por el mismo flujo de módulos, sin pago ni docente, con plazo hasta el {{ fmt(pub.plan.module_due) }}.
+                                    Márquelas solo si así se gestionan en el área académica.</div>
+                                <label v-for="m in pub.plan.unscheduled" :key="'u' + m.courseid" class="tl-cfg-check d-flex" style="gap:6px">
+                                    <input type="checkbox" v-model="pub.uns[m.courseid]" :disabled="!m.pending.length">
+                                    <span><b>{{ m.name }}</b> · {{ m.pending.length }} por cargar<template v-if="m.done"> ({{ m.done }} ya cargados)</template></span>
+                                </label>
+                            </template>
+                            <label class="tl-cfg-check mt-3 d-flex" style="gap:6px;font-weight:600">
+                                <input type="checkbox" v-model="pub.confirm">
+                                <span>Entiendo: se crearán {{ pubKeys.length }} clase(s) sin aprobar con {{ pubSelQueue }} estudiante(s) en cola<template v-if="pubModCount">,
+                                    y se inscribirá a {{ pubModCount }} estudiante(s) en módulos de inmediato</template>. Lo publicado ya no se mueve desde el tablero.</span>
+                            </label>
+                        </template>
+                        <template v-if="pub.running || pub.result">
+                            <div class="mb-2"><b>{{ pub.running ? 'Publicando…' : 'Publicación terminada' }}</b> {{ pub.done }} de {{ pub.total }} pasos</div>
+                            <v-progress-linear :value="pub.total ? pub.done / pub.total * 100 : 0" height="8" rounded color="#4F46E5"></v-progress-linear>
+                            <template v-if="pub.result">
+                                <div class="tl-cfg-msg mt-3" :class="pub.result.failed.length || pub.result.progress.length ? 'tl-cfg-msg-error' : 'tl-cfg-msg-ok'">
+                                    {{ pub.result.created.length }} clase(s) creada(s) pendientes de aprobación<template v-if="pub.result.failed.length">;
+                                    {{ pub.result.failed.length }} no se crearon (no quedó nada a medias)</template><template v-if="pub.result.modules.length">;
+                                    {{ pub.result.modules.filter(x => x.status === 'ok').length }} de {{ pub.result.modules.length }} inscripciones en módulos</template>.</div>
+                                <div v-for="c in pub.result.created" :key="'c' + c.classid" class="tl-cfg-help">✓ {{ c.name }} (clase {{ c.classid }}, {{ c.queue }} en cola)</div>
+                                <div v-for="f in pub.result.failed" :key="'f' + f.key" style="color:#B91C1C;font-size:12px">✗ {{ f.name }}: {{ f.error }}</div>
+                                <div v-for="(m, i) in pub.result.modules" :key="'mm' + i" class="tl-cfg-help" :style="{ color: m.status === 'ok' ? '' : '#B45309' }">
+                                    {{ m.status === 'ok' ? '✓' : '!' }} {{ m.course }} — {{ m.name }}: {{ m.message }}</div>
+                                <div v-if="pub.result.progress.length" class="tl-cfg-msg mt-2" style="background:#FFFBEB;color:#78350F">
+                                    Al crear las actividades, Moodle recalculó notas de esas asignaturas y cambió {{ pubProgressCount }} registro(s) de avance de estudiantes
+                                    (normalmente solo la fecha de la nota). Quedó el antes y el después en el respaldo de la publicación para revisarlo.</div>
+                            </template>
+                        </template>
+                    </v-card-text>
+                    <v-card-actions v-if="!dirty">
+                        <v-spacer></v-spacer>
+                        <template v-if="pub.result"><v-btn color="primary" depressed @click="pub.show = false; load()">Cerrar y recargar el tablero</v-btn></template>
+                        <template v-else>
+                            <v-btn text :disabled="pub.running" @click="pub.show = false">Cancelar</v-btn>
+                            <v-btn color="primary" depressed :loading="pub.running" :disabled="!pub.plan || !pub.confirm || (!pubKeys.length && !pubModCount)" @click="publish">Publicar</v-btn>
+                        </template>
+                    </v-card-actions>
+                </v-card>
+            </v-dialog>
+
             <!-- docentes: habilidades y disponibilidad -->
             <v-dialog v-model="teacherDlg.show" max-width="860" scrollable>
                 <v-card>
@@ -325,6 +425,8 @@ Vue.component('schedule-board', {
         return { loading: false, error: '', board: null, tick: 0, jornada: 'Diurna', q: '', tq: '', onlyIssues: false, sel: null, fixedSel: null,
             hover: null, failedOpen: false, dirty: false, history: [], saving: false, saveDlg: false, showHelp: true, lastAction: null, version: 0,
             draftInfo: { saved_at: 0, byname: '' }, ppm: 1.1,
+            pub: { show: false, loading: false, error: '', plan: null, sel: {}, mods: {}, uns: {}, confirm: false, showBlocked: false,
+                running: false, done: 0, total: 0, result: null },
             teacherDlg: { show: false, id: 0, q: '', addSkill: null, msg: '', err: false,
                 newRange: { 1: { a: '', b: '' }, 2: { a: '', b: '' }, 3: { a: '', b: '' }, 4: { a: '', b: '' }, 5: { a: '', b: '' }, 6: { a: '', b: '' } } } };
     },
@@ -399,7 +501,7 @@ Vue.component('schedule-board', {
                 const sev = this.E.severity(conf[k]);
                 const dim = (this.onlyIssues && sev === 'ok') || !this.matchQ(g.name, p.teacherid);
                 out[p.day].push({ id: k, name: g.name, start: p.start, end: p.end, sev, locked: p.locked, dim,
-                    line1: 'G' + g.number + ' · ' + g.size + ' est · ' + this.E.hhmm(p.start) + '–' + this.E.hhmm(p.end),
+                    line1: (g.published ? '✓ publicada · ' : '') + 'G' + g.number + ' · ' + g.size + ' est · ' + this.E.hhmm(p.start) + '–' + this.E.hhmm(p.end),
                     line2: (p.teacherid ? this.teacherName(p.teacherid) : 'Sin docente') + ' · ' + (p.roomid ? this.roomName(p.roomid) : 'sin aula'),
                     title: g.name + ' (G' + g.number + ')\n' + (conf[k] || []).map(c => '• ' + c.msg).join('\n') });
             });
@@ -475,6 +577,18 @@ Vue.component('schedule-board', {
         tSel() { this.tick; return this.S && this.teacherDlg.id ? this.S.teachers[this.teacherDlg.id] : null; },
         tLoad() { this.tick; return this.tSel ? this.E.teacherLoad(this.S, this.tSel.id) : 0; },
         tGroups() { this.tick; return this.tSel ? this.S.order.filter(k => this.S.place[k].teacherid === this.tSel.id) : []; },
+        pubReady() { return this.pub.plan ? this.pub.plan.groups.filter(g => g.status === 'listo') : []; },
+        pubBlocked() { return this.pub.plan ? this.pub.plan.groups.filter(g => g.status === 'bloqueado') : []; },
+        pubKeys() { return this.pubReady.filter(g => this.pub.sel[g.key]).map(g => g.key); },
+        pubSelQueue() { return this.pubReady.filter(g => this.pub.sel[g.key]).reduce((a, g) => a + g.size, 0); },
+        pubModCount() {
+            if (!this.pub.plan) return 0;
+            return this.pub.plan.modules.filter(m => this.pub.mods[m.courseid]).reduce((a, m) => a + m.pending.length, 0)
+                + this.pub.plan.unscheduled.filter(m => this.pub.uns[m.courseid]).reduce((a, m) => a + m.pending.length, 0);
+        },
+        pubProgressCount() {
+            return this.pub.result ? this.pub.result.progress.reduce((a, x) => a + Object.keys(x.rows || {}).length, 0) : 0;
+        },
         skillItems() {
             if (!this.board || !this.tSel) return [];
             return (this.board.skills_catalog || []).filter(c => !this.tSel.skills.includes(c.courseid));
@@ -562,6 +676,10 @@ Vue.component('schedule-board', {
         },
         setPlace(k, patch) {
             if (!this.canEdit) return;
+            if (this.S.groups[k] && this.S.groups[k].published) {
+                this.lastAction = { text: 'Ese grupo ya está publicado: se cambia desde la gestión de clases, no desde el tablero.', error: true };
+                return;
+            }
             this.remember();
             this.S.place[k] = Object.assign({}, this.S.place[k], patch);
             this.tick++;
@@ -662,6 +780,58 @@ Vue.component('schedule-board', {
                 this.lastAction = { text: r.message, error: false };
             } catch (e) { window.alert('Error al guardar: ' + (e.message || e)); }
             finally { this.saving = false; }
+        },
+        // ---- publicar (fase D) ----
+        async openPublish() {
+            this.pub = Object.assign(this.pub, { show: true, loading: !this.dirty, error: '', plan: null, sel: {}, mods: {}, uns: {}, confirm: false,
+                showBlocked: false, running: false, done: 0, total: 0, result: null });
+            if (this.dirty) return;
+            try {
+                const r = await this.ws('publish_plan', { periodid: this.periodid });
+                if (!r.ok) { this.pub.error = r.message; return; }
+                this.pub.plan = r.saved;
+                const sel = {};
+                r.saved.groups.forEach(g => { if (g.status === 'listo') sel[g.key] = true; });
+                const mods = {};
+                r.saved.modules.forEach(m => { mods[m.courseid] = m.pending.length > 0; });
+                const uns = {};
+                r.saved.unscheduled.forEach(m => { uns[m.courseid] = false; });
+                this.pub.sel = sel; this.pub.mods = mods; this.pub.uns = uns;
+            } catch (e) { this.pub.error = 'No se pudo revisar: ' + (e.message || e); }
+            finally { this.pub.loading = false; }
+        },
+        pubAll(v) { const sel = {}; this.pubReady.forEach(g => { sel[g.key] = v; }); this.pub.sel = sel; },
+        async publish() {
+            const keys = this.pubKeys.slice();
+            const mods = Object.keys(this.pub.mods).filter(k => this.pub.mods[k]).map(Number);
+            const uns = Object.keys(this.pub.uns).filter(k => this.pub.uns[k]).map(Number);
+            // Por tandas: 3 clases por llamada (cada una crea grupo, seccion y actividades) y luego los modulos.
+            const batches = [];
+            for (let i = 0; i < keys.length; i += 3) batches.push({ keys: keys.slice(i, i + 3), modules: [], unscheduled: [] });
+            if (mods.length || uns.length) batches.push({ keys: [], modules: mods, unscheduled: uns });
+            const res = { created: [], failed: [], modules: [], progress: [] };
+            this.pub.running = true; this.pub.done = 0; this.pub.total = batches.length;
+            try {
+                for (const b of batches) {
+                    const r = await this.ws('publish', Object.assign({ periodid: this.periodid, version: this.pub.plan.version }, b));
+                    if (!r.ok) {
+                        res.failed.push({ key: '-', name: 'Tanda ' + (this.pub.done + 1), error: r.message });
+                        break;
+                    }
+                    res.created = res.created.concat(r.saved.created || []);
+                    res.failed = res.failed.concat(r.saved.failed || []);
+                    res.modules = res.modules.concat(r.saved.modules || []);
+                    res.progress = res.progress.concat(r.saved.progress_changed || []);
+                    this.pub.done++;
+                }
+            } catch (e) {
+                res.failed.push({ key: '-', name: 'Conexión', error: (e.message || e) + '. Lo que se alcanzó a crear quedó registrado; vuelva a revisar antes de reintentar.' });
+            } finally {
+                this.pub.running = false;
+                this.pub.result = res;
+                this.lastAction = { text: 'Publicación: ' + res.created.length + ' clase(s) creadas pendientes de aprobación'
+                    + (res.failed.length ? ', ' + res.failed.length + ' con error' : '') + '.', error: !!res.failed.length };
+            }
         },
         // ---- docentes (se guarda al momento) ----
         openTeacher(id) { this.teacherDlg.id = id; this.teacherDlg.msg = ''; this.teacherDlg.show = true; },

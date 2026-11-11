@@ -2620,3 +2620,5 @@ button.tl-btn.tl-btn-primary:active:not(:disabled) {
 }
 .tl-sb-failed-row { padding: 2px 0; cursor: pointer; }
 .tl-sb-failed-row:hover { text-decoration: underline; }
+.tl-sb-pubbtn { background: #047857 !important; }
+.tl-sb-pubtable td, .tl-sb-pubtable th { font-size: 12px; padding: 4px 6px; vertical-align: top; }

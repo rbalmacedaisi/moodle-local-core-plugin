@@ -110,7 +110,8 @@ class schedule_board {
         $cfg = scheduler_settings::get_config();
         $defdur = (int)($cfg->sessionDuration ?? 120) ?: 120;
 
-        // Grupos (de la propuesta guardada).
+        // Grupos (de la propuesta guardada). Los ya publicados quedan marcados con su clase.
+        $published = publisher::published($periodid)['groups'];
         $groups = [];
         $saved = self::board_groups($periodid);
         $byuser = [];
@@ -141,7 +142,8 @@ class schedule_board {
                 'isolated_plan' => (int)$g['isolated_plan'], 'number' => (int)$g['number'], 'of' => (int)$g['of'],
                 'type' => $g['type'], 'userids' => array_map('intval', $g['userids']), 'size' => count($g['userids']),
                 'adelantos' => count($g['adelantos'] ?? []), 'levels' => $levels, 'plans' => array_keys($plans),
-                'duration' => $dur, 'hours' => $h ? $h['total'] : 0, 'long' => $islong];
+                'duration' => $dur, 'hours' => $h ? $h['total'] : 0, 'long' => $islong,
+                'published' => (int)($published[$key] ?? 0)];
         }
 
         // Docentes: instructores de la plataforma + quien tiene disponibilidad registrada.
@@ -215,8 +217,9 @@ class schedule_board {
                     $members[(int)$m->groupid][] = (int)$m->userid;
                 }
             }
+            $pubids = array_flip(array_map('intval', array_values($published)));
             foreach ($classes as $c) {
-                if (empty($sess[(int)$c->id])) {
+                if (empty($sess[(int)$c->id]) || isset($pubids[(int)$c->id])) {
                     continue;
                 }
                 $fixed[] = ['id' => (int)$c->id, 'name' => $c->name, 'courseid' => (int)$c->corecourseid,
@@ -281,15 +284,26 @@ class schedule_board {
                 . 'ni los de la otra persona.', 'saved' => ['conflict' => true, 'version' => $cur['version']]];
         }
         $items = [];
+        if (!empty($d['clear']) && publisher::published($pid)['groups']) {
+            return ['ok' => false, 'message' => 'Hay grupos ya publicados desde este tablero: el borrador no se puede vaciar.', 'saved' => null];
+        }
         if (empty($d['clear'])) {
             $groups = self::board_groups($pid);
             if ($groups === null) {
                 return ['ok' => false, 'message' => 'Guarde primero la propuesta de grupos: el tablero se arma sobre ella.', 'saved' => null];
             }
             $rooms = $DB->get_records_menu('gmk_classrooms', null, '', 'id, name');
+            $published = publisher::published($pid)['groups'];
             $tchecked = [];
             foreach ((array)($d['items'] ?? []) as $key => $it) {
                 $key = (string)$key;
+                if (!empty($published[$key])) {
+                    // Ya publicado: se conserva lo que estaba (no se edita desde el tablero).
+                    if (isset($cur['items'][$key])) {
+                        $items[$key] = $cur['items'][$key];
+                    }
+                    continue;
+                }
                 if (!isset($groups[$key])) {
                     return ['ok' => false, 'message' => 'Un grupo del tablero ya no está en la propuesta guardada (' . $key . '). Recargue el tablero.', 'saved' => null];
                 }

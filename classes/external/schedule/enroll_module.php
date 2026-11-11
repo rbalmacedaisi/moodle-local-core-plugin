@@ -36,13 +36,19 @@ class enroll_module {
      * @param int $coreCourseId
      * @param int $learningPlanId  Used only for progress_manager sync (optional).
      * @param bool $bypassPayment  When true, skip the payment gate (admin override).
+     * @param int $academicPeriodId Optional planned period (planificacion por cohortes): the module is created in that
+     *                              period instead of the last started one, starts on the period start and the student
+     *                              is NOT added to regular class groups of that period (they are still pending approval).
+     * @param int $dueDate          Optional explicit due date (e.g. end of the planned period). 0 = now + deadline days.
      * @return array {status, message, duedate, requires_payment}
      */
     public static function execute(
         int $userId,
         int $coreCourseId,
         int $learningPlanId = 0,
-        bool $bypassPayment = false
+        bool $bypassPayment = false,
+        int $academicPeriodId = 0,
+        int $dueDate = 0
     ): array {
         global $DB, $USER;
 
@@ -190,8 +196,14 @@ class enroll_module {
             ];
         }
 
-        // ── 2. Get the last period that has already started ───────────────────────
-        $academicPeriod = $DB->get_record_sql(
+        // ── 2. Get the last period that has already started (or the planned one) ──
+        $plannedPeriod = $academicPeriodId > 0
+            ? $DB->get_record('gmk_academic_periods', ['id' => $academicPeriodId], 'id, name, startdate')
+            : null;
+        if ($academicPeriodId > 0 && !$plannedPeriod) {
+            return ['status' => 'error', 'message' => 'El periodo académico indicado no existe.', 'duedate' => 0];
+        }
+        $academicPeriod = $plannedPeriod ?: $DB->get_record_sql(
             "SELECT id, name FROM {gmk_academic_periods}
               WHERE startdate > 0 AND startdate <= :now
               ORDER BY startdate DESC
@@ -261,7 +273,7 @@ class enroll_module {
             $newClass->instructorid       = 0;
             $newClass->inittime           = '';
             $newClass->endtime            = '';
-            $newClass->initdate           = $now;
+            $newClass->initdate           = $plannedPeriod ? (int)$plannedPeriod->startdate : $now;
             $newClass->enddate            = 0; // No expiry on the class itself
             $newClass->classdays          = '0/0/0/0/0/0/0';
             $newClass->approved           = 1;
@@ -364,7 +376,7 @@ class enroll_module {
             )",
             ['uid' => $userId, 'cid' => $coreCourseId, 'excludeid' => $classId]
         );
-        if (!$alreadyMemberOfAnyClassForCourse) {
+        if (!$alreadyMemberOfAnyClassForCourse && !$plannedPeriod) {
             $regularClass = $DB->get_record_sql(
                 "SELECT groupid FROM {gmk_class}
                   WHERE corecourseid = :cid AND periodid = :pid AND is_module = 0 AND groupid > 0
@@ -381,7 +393,7 @@ class enroll_module {
 
         // ── 6. Create enrollment record ───────────────────────────────────────────
         $now     = time();
-        $dueDate = $now + ($deadlineDays * DAYSECS);
+        $dueDate = $dueDate > 0 ? $dueDate : $now + ($deadlineDays * DAYSECS);
 
         // Snapshot the regular class's CURRENT status so we can restore it later
         // when the module is withdrawn/completed. Do NOT touch the regular class's

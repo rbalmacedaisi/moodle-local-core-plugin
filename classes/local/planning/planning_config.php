@@ -575,6 +575,13 @@ class planning_config {
             case 'board_save':
                 return schedule_board::save($data);
 
+            case 'publish_plan':
+                $plan = publisher::plan((int)($data['periodid'] ?? 0));
+                return $plan['ok'] ? self::ok('Revisión de la publicación (no se escribió nada).', $plan) : self::fail($plan['message']);
+
+            case 'publish':
+                return publisher::publish($data);
+
             case 'board_clear':
                 return schedule_board::save(['clear' => true] + $data);
 
