@@ -74,6 +74,8 @@ Vue.component('intake-timeline', {
                 :result="planResults[0]"
                 scope-label="solo esta carrera; los grupos pueden completarse con otras carreras (ver la línea de tiempo general)"
                 :show-careers="false"
+                :min="planRules.min_group"
+                :max="planRules.max_group"
             ></period-projection>
             <div v-else class="tl-proj"><div class="tl-proj-title">
                 <v-icon size="18" color="#4F46E5">mdi-calendar-star</v-icon>
@@ -482,6 +484,7 @@ Vue.component('intake-timeline', {
             // Planificacion del periodo (solo lectura). canPlan lo define la pagina segun el permiso.
             canPlan: !!window.gmkCanPlan,
             mainTab: 'cohorts',
+            planRules: { min_group: 12, max_group: 30, min_load: 3 },
             planLoading: false,
             planResults: [],
             planPanel: { visible: false, cohort: '', plan: null, tab: 'subjects' },
@@ -684,6 +687,7 @@ Vue.component('intake-timeline', {
                 // Periodo por defecto: el proximo por iniciar (un periodo = un bimestre de clases).
                 const first = await this.callDemand(0);
                 this.planResults = (first.result && !first.result.error) ? [first.result] : [];
+                this.planRules = first.rules || this.planRules;
             } catch (e) {
                 console.error('[timeline] planificacion:', e);
             } finally {

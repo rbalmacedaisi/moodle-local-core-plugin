@@ -28,6 +28,7 @@ use external_function_parameters;
 use external_single_structure;
 use external_value;
 use local_grupomakro_core\local\planning\demand_engine;
+use local_grupomakro_core\local\planning\planning_config;
 
 class cohort_planning extends external_api {
 
@@ -86,10 +87,15 @@ class cohort_planning extends external_api {
             return !in_array((int)$c->id, \local_grupomakro_core\local\academic_progress::EXCLUDED_PLANS, true);
         }));
 
+        if ($pid && empty($result['error'])) {
+            $prow = $DB->get_record('gmk_academic_periods', ['id' => $pid]);
+            $result['period']['jornada_starts'] = (object)planning_config::jornada_starts($prow);
+        }
         return ['data' => json_encode([
             'periods' => $periods,
             'selected_period' => $pid,
             'careers' => $careers,
+            'rules' => planning_config::rules(),
             'result' => $result,
         ], JSON_UNESCAPED_UNICODE)];
     }
@@ -97,6 +103,53 @@ class cohort_planning extends external_api {
     public static function get_demand_returns() {
         return new external_single_structure([
             'data' => new external_value(PARAM_RAW, 'JSON con la demanda'),
+        ]);
+    }
+
+    // ---------- Configuracion (pestana Configuracion de la linea de tiempo) ----------
+
+    public static function get_config_parameters() {
+        return new external_function_parameters([]);
+    }
+
+    public static function get_config() {
+        $context = \context_system::instance();
+        self::validate_context($context);
+        require_capability('local/grupomakro_core:manage_academic_planning', $context);
+        return ['data' => json_encode(planning_config::get(), JSON_UNESCAPED_UNICODE)];
+    }
+
+    public static function get_config_returns() {
+        return new external_single_structure([
+            'data' => new external_value(PARAM_RAW, 'JSON con la configuracion'),
+        ]);
+    }
+
+    public static function save_config_parameters() {
+        return new external_function_parameters([
+            'section' => new external_value(PARAM_ALPHANUMEXT, 'period | rules | scheduler | classroom | classroom_delete | holiday | holiday_delete'),
+            'data' => new external_value(PARAM_RAW, 'JSON con los datos de la seccion'),
+        ]);
+    }
+
+    public static function save_config($section, $data) {
+        $params = self::validate_parameters(self::save_config_parameters(), ['section' => $section, 'data' => $data]);
+        $context = \context_system::instance();
+        self::validate_context($context);
+        require_capability('local/grupomakro_core:manage_academic_planning', $context);
+        $payload = json_decode($params['data'], true);
+        if (!is_array($payload)) {
+            return ['ok' => false, 'message' => 'Datos no válidos.', 'saved' => 'null'];
+        }
+        $r = planning_config::save($params['section'], $payload);
+        return ['ok' => (bool)$r['ok'], 'message' => (string)$r['message'], 'saved' => json_encode($r['saved'], JSON_UNESCAPED_UNICODE)];
+    }
+
+    public static function save_config_returns() {
+        return new external_single_structure([
+            'ok' => new external_value(PARAM_BOOL, 'Guardado'),
+            'message' => new external_value(PARAM_TEXT, 'Mensaje para el usuario'),
+            'saved' => new external_value(PARAM_RAW, 'JSON con lo guardado, releido de la base'),
         ]);
     }
 }

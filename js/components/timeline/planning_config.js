@@ -1,0 +1,293 @@
+// Pestana Configuracion de la linea de tiempo: todo lo que define la planificacion y la generacion de horarios.
+// Lee y guarda con los WS local_grupomakro_planning_get_config / save_config (permiso manage_academic_planning).
+// Cada guardado muestra antes el resumen de cambios y luego confirma lo que quedo guardado (releido de la base).
+Vue.component('planning-config', {
+    template: `
+    <div class="tl-cfg">
+        <div class="tl-cfg-intro">
+            <v-icon size="18" color="#4F46E5">mdi-cog-outline</v-icon>
+            <span>Aquí se define todo lo que usa el sistema para proyectar asignaturas y generar horarios. Es la misma información
+            que usa el Planificador Académico: un cambio aquí se ve allá y viceversa.</span>
+        </div>
+        <div class="tl-plan-tabs tl-cfg-tabs">
+            <button v-for="s in sections" :key="s.key" class="tl-plan-tab" :class="{ 'tl-plan-tab-active': section === s.key }"
+                    @click="section = s.key"><v-icon size="14">{{ s.icon }}</v-icon> {{ s.label }}</button>
+        </div>
+
+        <div v-if="loading" class="tl-plan-empty" style="padding:24px">Cargando configuración…</div>
+        <div v-else-if="error" class="tl-cfg-msg tl-cfg-msg-error">{{ error }}</div>
+        <template v-else>
+            <transition name="tl-fade">
+                <div v-if="msg" class="tl-cfg-msg" :class="msg.ok ? 'tl-cfg-msg-ok' : 'tl-cfg-msg-error'">
+                    <v-icon size="16" :color="msg.ok ? '#047857' : '#B91C1C'">{{ msg.ok ? 'mdi-check-circle' : 'mdi-alert-circle' }}</v-icon>
+                    {{ msg.text }}
+                </div>
+            </transition>
+
+            <!-- PERIODOS -->
+            <div v-if="section === 'periods'" class="tl-cfg-card">
+                <div class="tl-cfg-card-head">
+                    <div><b>Periodos académicos</b>
+                        <div class="tl-cfg-help">Fechas de inicio y fin de cada periodo y el día en que empiezan las clases de cada jornada
+                        (por ejemplo, sabatinos el sábado y diurnos/nocturnos el lunes). La proyección y el avance de nivel usan la jornada que empieza primero.</div>
+                    </div>
+                    <label class="tl-cfg-check"><input type="checkbox" v-model="showClosed"> Ver periodos cerrados</label>
+                </div>
+                <table class="tl-cfg-table">
+                    <thead><tr><th>Periodo</th><th>Inicio</th><th>Fin</th><th v-for="j in jornadas" :key="j">Clases {{ j }}</th><th></th></tr></thead>
+                    <tbody>
+                        <tr v-for="p in visiblePeriods" :key="p.id" :class="{ 'tl-cfg-row-dirty': periodDirty(p) }">
+                            <td><b>{{ p.name }}</b> <span v-if="p.status === 1" class="tl-plan-tag tl-plan-tag-nivel">activo</span>
+                                <span v-else class="tl-plan-tag tl-plan-tag-muted">cerrado</span></td>
+                            <td><input type="date" class="tl-cfg-input" v-model="p.e.startdate"></td>
+                            <td><input type="date" class="tl-cfg-input" v-model="p.e.enddate"></td>
+                            <td v-for="j in jornadas" :key="j"><input type="date" class="tl-cfg-input" v-model="p.e.jornadas[j]" :title="'Primer día de clases de la jornada ' + j"></td>
+                            <td class="tl-cfg-actions">
+                                <button class="tl-cfg-btn" :disabled="!periodDirty(p) || saving" @click="askSavePeriod(p)">Guardar</button>
+                                <button v-if="periodDirty(p)" class="tl-cfg-btn tl-cfg-btn-ghost" @click="resetPeriod(p)">Deshacer</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- REGLAS -->
+            <div v-if="section === 'rules'" class="tl-cfg-card">
+                <div class="tl-cfg-card-head"><div><b>Reglas de agrupación</b>
+                    <div class="tl-cfg-help">Con qué tamaño se abre un grupo y cuándo se avisa que un estudiante quedó con muy pocas asignaturas.</div></div></div>
+                <div class="tl-cfg-fields">
+                    <label>Mínimo de estudiantes para abrir un grupo<input type="number" min="1" class="tl-cfg-input" v-model.number="rules.min_group">
+                        <small>Por debajo de este número la asignatura queda en alerta "sin quórum".</small></label>
+                    <label>Máximo de estudiantes por grupo<input type="number" min="1" class="tl-cfg-input" v-model.number="rules.max_group">
+                        <small>Si la demanda lo supera, se divide en grupos parejos (31 → 16 + 15).</small></label>
+                    <label>Carga mínima por estudiante<input type="number" min="1" max="10" class="tl-cfg-input" v-model.number="rules.min_load">
+                        <small>Si le tocan menos asignaturas y tiene más pendientes, se genera la alerta "carga baja".</small></label>
+                </div>
+                <div class="tl-cfg-footer"><button class="tl-cfg-btn" :disabled="!rulesDirty || saving" @click="askSave('rules', rules, rulesDiff())">Guardar reglas</button></div>
+            </div>
+
+            <!-- JORNADAS Y HORARIOS -->
+            <div v-if="section === 'scheduler'" class="tl-cfg-card">
+                <div class="tl-cfg-card-head"><div><b>Jornadas y horarios</b>
+                    <div class="tl-cfg-help">Franja horaria de cada jornada, duración de las sesiones, receso entre clases y almuerzo.
+                    Se usan al generar los horarios.</div></div></div>
+                <div class="tl-cfg-fields">
+                    <label v-for="j in jornadas" :key="j">{{ j }}
+                        <span class="tl-cfg-range"><input type="time" class="tl-cfg-input" v-model="sched.shiftWindows[j].start"> a
+                        <input type="time" class="tl-cfg-input" v-model="sched.shiftWindows[j].end"></span></label>
+                    <label>Duración de cada sesión (minutos)<input type="number" min="30" step="5" class="tl-cfg-input" v-model.number="sched.sessionDuration"></label>
+                    <label>Receso entre clases (minutos)<input type="number" min="0" step="5" class="tl-cfg-input" v-model.number="sched.intervalMinutes"></label>
+                    <label>Almuerzo<span class="tl-cfg-range"><input type="time" class="tl-cfg-input" v-model="sched.lunchStart"> a
+                        <input type="time" class="tl-cfg-input" v-model="sched.lunchEnd"></span></label>
+                </div>
+                <div class="tl-cfg-footer"><button class="tl-cfg-btn" :disabled="!schedDirty || saving" @click="askSave('scheduler', { config: sched }, schedDiff())">Guardar jornadas</button></div>
+            </div>
+
+            <!-- AULAS -->
+            <div v-if="section === 'classrooms'" class="tl-cfg-card">
+                <div class="tl-cfg-card-head"><div><b>Aulas</b> <span class="tl-plan-tab-count">{{ classrooms.filter(c => c.active).length }} activas</span>
+                    <div class="tl-cfg-help">Solo las aulas activas se usan al generar horarios; la capacidad limita el tamaño del grupo que puede recibir.
+                    Un aula con clases asignadas no se puede borrar: desactívela.</div></div>
+                    <button class="tl-cfg-btn" @click="newClassroom">+ Nueva aula</button></div>
+                <table class="tl-cfg-table">
+                    <thead><tr><th>Nombre</th><th>Capacidad</th><th>Tipo</th><th>Activa</th><th></th></tr></thead>
+                    <tbody>
+                        <tr v-for="c in classrooms" :key="c.id || 'nueva'" :class="{ 'tl-cfg-row-dirty': c.dirty, 'tl-cfg-row-off': !c.active }">
+                            <td><input class="tl-cfg-input" v-model="c.name" @input="c.dirty = true"></td>
+                            <td><input type="number" min="1" class="tl-cfg-input tl-cfg-input-sm" v-model.number="c.capacity" @input="c.dirty = true"></td>
+                            <td><input class="tl-cfg-input" v-model="c.type" @input="c.dirty = true"></td>
+                            <td><input type="checkbox" v-model="c.active" :true-value="1" :false-value="0" @change="c.dirty = true"></td>
+                            <td class="tl-cfg-actions">
+                                <button class="tl-cfg-btn" :disabled="!c.dirty || saving" @click="saveDirect('classroom', c)">Guardar</button>
+                                <button v-if="c.id && !c.in_use" class="tl-cfg-btn tl-cfg-btn-danger" :disabled="saving" @click="askDelete('classroom_delete', c, 'el aula ' + c.name)">Borrar</button>
+                                <span v-else-if="c.id" class="tl-plan-tag tl-plan-tag-muted" title="Tiene clases u horarios asignados">en uso</span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- FESTIVOS -->
+            <div v-if="section === 'holidays'" class="tl-cfg-card">
+                <div class="tl-cfg-card-head"><div><b>Festivos</b>
+                    <div class="tl-cfg-help">Días sin clases. Valen para todos los periodos: cada periodo usa los que caen entre sus fechas.</div></div></div>
+                <div class="tl-cfg-inline">
+                    <input type="date" class="tl-cfg-input" v-model="newHoliday.date">
+                    <input class="tl-cfg-input" style="flex:1" placeholder="Nombre (ej. Día de la Independencia)" v-model="newHoliday.name">
+                    <button class="tl-cfg-btn" :disabled="!newHoliday.date || !newHoliday.name || saving" @click="addHoliday">Agregar</button>
+                    <label class="tl-cfg-check"><input type="checkbox" v-model="showPastHolidays"> Ver pasados</label>
+                </div>
+                <table class="tl-cfg-table">
+                    <thead><tr><th>Fecha</th><th>Nombre</th><th></th></tr></thead>
+                    <tbody>
+                        <tr v-for="h in visibleHolidays" :key="h.id">
+                            <td>{{ fmtLong(h.date) }}</td><td>{{ h.name }}</td>
+                            <td class="tl-cfg-actions"><button class="tl-cfg-btn tl-cfg-btn-danger" :disabled="saving" @click="askDelete('holiday_delete', h, 'el festivo ' + h.name)">Borrar</button></td>
+                        </tr>
+                        <tr v-if="!visibleHolidays.length"><td colspan="3" class="tl-plan-empty">Sin festivos próximos.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- CARGAS -->
+            <div v-if="section === 'loads'" class="tl-cfg-card">
+                <div class="tl-cfg-card-head"><div><b>Cargas horarias</b> <span class="tl-plan-tab-count">{{ loads.length }}</span>
+                    <div class="tl-cfg-help">Horas totales e intensidad semanal de cada asignatura; definen cuántas sesiones tiene una clase.
+                    Se cargan desde Excel en el Planificador Académico (Configuración de Periodos → Cargas).</div></div>
+                    <div class="tl-panel-search" style="width:260px"><v-icon size="14" color="#94A3B8">mdi-magnify</v-icon>
+                        <input v-model="loadQ" class="tl-panel-search-input" placeholder="Buscar asignatura..."></div></div>
+                <table class="tl-cfg-table">
+                    <thead><tr><th>Asignatura</th><th>Horas totales</th><th>Intensidad</th></tr></thead>
+                    <tbody><tr v-for="l in visibleLoads" :key="l.subject"><td>{{ l.subject }}</td><td>{{ l.total_hours }}</td><td>{{ l.intensity }}</td></tr></tbody>
+                </table>
+            </div>
+        </template>
+
+        <!-- Confirmacion con resumen de cambios -->
+        <v-dialog v-model="confirm.show" max-width="520">
+            <v-card>
+                <v-card-title class="text-subtitle-1 font-weight-bold">{{ confirm.title }}</v-card-title>
+                <v-card-text>
+                    <div class="mb-2">Se va a guardar lo siguiente:</div>
+                    <div v-for="(c, i) in confirm.changes" :key="i" class="tl-cfg-change">
+                        <span>{{ c.label }}</span><span class="tl-cfg-before">{{ c.before || '—' }}</span>
+                        <v-icon size="14">mdi-arrow-right</v-icon><b>{{ c.after || '—' }}</b>
+                    </div>
+                    <div v-if="confirm.note" class="tl-cfg-help mt-2">{{ confirm.note }}</div>
+                </v-card-text>
+                <v-card-actions><v-spacer></v-spacer>
+                    <v-btn text @click="confirm.show = false">Cancelar</v-btn>
+                    <v-btn :color="confirm.danger ? 'error' : 'primary'" depressed :loading="saving" @click="doConfirm">{{ confirm.danger ? 'Borrar' : 'Guardar' }}</v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
+    </div>
+    `,
+    data() {
+        return {
+            loading: true, error: '', saving: false, msg: null, section: 'periods', showClosed: false, showPastHolidays: false, loadQ: '',
+            jornadas: ['Sabatina', 'Diurna', 'Nocturna'],
+            sections: [
+                { key: 'periods', label: 'Periodos', icon: 'mdi-calendar-range' },
+                { key: 'rules', label: 'Reglas de agrupación', icon: 'mdi-account-group-outline' },
+                { key: 'scheduler', label: 'Jornadas y horarios', icon: 'mdi-clock-outline' },
+                { key: 'classrooms', label: 'Aulas', icon: 'mdi-door' },
+                { key: 'holidays', label: 'Festivos', icon: 'mdi-calendar-remove-outline' },
+                { key: 'loads', label: 'Cargas horarias', icon: 'mdi-timer-sand' },
+            ],
+            periods: [], rules: {}, rulesOrig: {}, sched: null, schedOrig: '', classrooms: [], holidays: [], loads: [],
+            newHoliday: { date: '', name: '' },
+            confirm: { show: false, title: '', changes: [], note: '', danger: false, run: null },
+        };
+    },
+    computed: {
+        wsUrl() { return window.location.origin + '/webservice/rest/server.php'; },
+        visiblePeriods() { return this.periods.filter(p => this.showClosed || p.status === 1); },
+        rulesDirty() { return JSON.stringify(this.rules) !== JSON.stringify(this.rulesOrig); },
+        schedDirty() { return this.sched && JSON.stringify(this.sched) !== this.schedOrig; },
+        visibleHolidays() {
+            const today = Math.floor(Date.now() / 1000) - 86400;
+            return this.holidays.filter(h => this.showPastHolidays || h.date >= today);
+        },
+        visibleLoads() {
+            const q = this.loadQ.toLowerCase();
+            return this.loads.filter(l => !q || l.subject.toLowerCase().includes(q));
+        },
+    },
+    created() { this.load(); },
+    methods: {
+        async ws(fn, params) {
+            const body = new URLSearchParams(Object.assign({ wstoken: window.userToken, wsfunction: fn, moodlewsrestformat: 'json' }, params || {}));
+            const r = await window.axios.post(this.wsUrl, body);
+            if (r.data && r.data.exception) throw new Error(r.data.message || r.data.errorcode);
+            return r.data;
+        },
+        async load() {
+            this.loading = true; this.error = '';
+            try {
+                const d = JSON.parse((await this.ws('local_grupomakro_planning_get_config')).data);
+                this.periods = d.periods.map(p => Object.assign(p, { e: this.periodEdit(p) }));
+                this.rules = Object.assign({}, d.rules); this.rulesOrig = Object.assign({}, d.rules);
+                const s = JSON.parse(JSON.stringify(d.scheduler || {}));
+                s.shiftWindows = s.shiftWindows || {};
+                this.jornadas.forEach(j => { s.shiftWindows[j] = s.shiftWindows[j] || { start: '', end: '' }; });
+                this.sched = s; this.schedOrig = JSON.stringify(s);
+                this.classrooms = d.classrooms.map(c => Object.assign(c, { dirty: false }));
+                this.holidays = d.holidays; this.loads = d.loads;
+            } catch (e) {
+                this.error = 'No se pudo cargar la configuración: ' + (e.message || e);
+            } finally { this.loading = false; }
+        },
+        // ---- periodos ----
+        toDate(ts) {
+            if (!ts) return '';
+            const d = new Date(ts * 1000);
+            return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+        },
+        toTs(s, end) { return s ? Math.floor(new Date(s + (end ? 'T23:59:59' : 'T00:00:00')).getTime() / 1000) : 0; },
+        periodEdit(p) {
+            const js = {};
+            this.jornadas.forEach(j => { js[j] = this.toDate((p.jornada_starts || {})[j]); });
+            return { startdate: this.toDate(p.startdate), enddate: this.toDate(p.enddate), jornadas: js };
+        },
+        periodDirty(p) { return JSON.stringify(p.e) !== JSON.stringify(this.periodEdit(p)); },
+        resetPeriod(p) { p.e = this.periodEdit(p); },
+        askSavePeriod(p) {
+            const o = this.periodEdit(p), changes = [];
+            if (o.startdate !== p.e.startdate) changes.push({ label: 'Inicio del periodo', before: o.startdate, after: p.e.startdate });
+            if (o.enddate !== p.e.enddate) changes.push({ label: 'Fin del periodo', before: o.enddate, after: p.e.enddate });
+            this.jornadas.forEach(j => { if (o.jornadas[j] !== p.e.jornadas[j]) changes.push({ label: 'Clases ' + j, before: o.jornadas[j], after: p.e.jornadas[j] }); });
+            const js = {};
+            this.jornadas.forEach(j => { if (p.e.jornadas[j]) js[j] = this.toTs(p.e.jornadas[j]); });
+            this.openConfirm('Guardar fechas de ' + p.name, changes, 'period',
+                { id: p.id, startdate: this.toTs(p.e.startdate), enddate: this.toTs(p.e.enddate, true), jornada_starts: js },
+                'El bloque de clases del calendario académico arranca con la jornada que empieza primero. Esto también lo usa el avance automático de nivel.');
+        },
+        // ---- reglas / jornadas ----
+        rulesDiff() {
+            const L = { min_group: 'Mínimo por grupo', max_group: 'Máximo por grupo', min_load: 'Carga mínima' };
+            return Object.keys(L).filter(k => this.rules[k] !== this.rulesOrig[k]).map(k => ({ label: L[k], before: this.rulesOrig[k], after: this.rules[k] }));
+        },
+        schedDiff() {
+            const o = JSON.parse(this.schedOrig), s = this.sched, out = [];
+            this.jornadas.forEach(j => {
+                const a = (o.shiftWindows[j] || {}), b = s.shiftWindows[j];
+                if (a.start !== b.start || a.end !== b.end) out.push({ label: j, before: (a.start || '') + '–' + (a.end || ''), after: b.start + '–' + b.end });
+            });
+            [['sessionDuration', 'Duración de sesión'], ['intervalMinutes', 'Receso'], ['lunchStart', 'Inicio almuerzo'], ['lunchEnd', 'Fin almuerzo']]
+                .forEach(([k, l]) => { if (o[k] !== s[k]) out.push({ label: l, before: o[k], after: s[k] }); });
+            return out;
+        },
+        askSave(section, data, changes) { this.openConfirm('Confirmar cambios', changes, section, data, ''); },
+        // ---- aulas / festivos ----
+        newClassroom() { this.classrooms.unshift({ id: 0, name: '', capacity: 30, type: 'general', active: 1, in_use: false, dirty: true }); },
+        async saveDirect(section, row) {
+            await this.send(section, { id: row.id, name: row.name, capacity: row.capacity, type: row.type, active: row.active });
+        },
+        async addHoliday() {
+            await this.send('holiday', { date: this.toTs(this.newHoliday.date), name: this.newHoliday.name });
+            this.newHoliday = { date: '', name: '' };
+        },
+        askDelete(section, row, label) {
+            this.confirm = { show: true, title: '¿Borrar ' + label + '?', changes: [], danger: true,
+                note: 'Se guarda un respaldo antes de borrar.', run: () => this.send(section, { id: row.id }) };
+        },
+        openConfirm(title, changes, section, data, note) {
+            if (!changes.length) { this.flash(true, 'No hay cambios para guardar.'); return; }
+            this.confirm = { show: true, title, changes, note, danger: false, run: () => this.send(section, data) };
+        },
+        async doConfirm() { await this.confirm.run(); this.confirm.show = false; },
+        async send(section, data) {
+            this.saving = true;
+            try {
+                const r = await this.ws('local_grupomakro_planning_save_config', { section, data: JSON.stringify(data) });
+                this.flash(r.ok, r.ok ? r.message + ' Verificado en la base.' : r.message);
+                if (r.ok) { await this.load(); this.$emit('saved', section); }
+            } catch (e) {
+                this.flash(false, 'Error al guardar: ' + (e.message || e));
+            } finally { this.saving = false; }
+        },
+        flash(ok, text) { this.msg = { ok, text }; clearTimeout(this._t); this._t = setTimeout(() => { this.msg = null; }, 6000); },
+        fmtLong(ts) { return new Date(ts * 1000).toLocaleDateString('es-PA', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }); },
+    },
+});

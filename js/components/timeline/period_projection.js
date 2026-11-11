@@ -8,7 +8,12 @@ Vue.component('period-projection', {
             <div class="tl-proj-title">
                 <v-icon size="18" color="#4F46E5">mdi-calendar-star</v-icon>
                 <span>Proyección {{ result.period.name }}</span>
-                <span class="tl-proj-sub">inicia {{ fmt(result.period.start) }} • {{ scopeLabel }}</span>
+                <span class="tl-proj-sub">
+                    <template v-if="jornadaStarts.length">
+                        <span v-for="(j, i) in jornadaStarts" :key="j.name">{{ i ? ' · ' : 'inicia ' }}{{ j.name }} {{ fmt(j.ts) }}</span>
+                    </template>
+                    <template v-else>inicia {{ fmt(result.period.start) }}</template>
+                    • {{ scopeLabel }}</span>
                 <v-tooltip bottom max-width="380">
                     <template v-slot:activator="{ on }"><v-icon size="15" color="#94A3B8" v-on="on">mdi-information-outline</v-icon></template>
                     <span>Asignaturas que el sistema proyecta abrir en {{ result.period.name }}. Para cada estudiante activo se toma
@@ -103,6 +108,10 @@ Vue.component('period-projection', {
             catLabel: { nivel: 'nivel', atrasada: 'atrasada', repite: 'repite', adelanto: 'adelanto' } };
     },
     computed: {
+        jornadaStarts() {
+            const js = this.result.period.jornada_starts || {};
+            return Object.keys(js).map(k => ({ name: k, ts: js[k] })).sort((a, b) => a.ts - b.ts);
+        },
         // Una fila por asignatura (curso Moodle) con su detalle por jornada.
         allRows() {
             const students = this.result.students || {};

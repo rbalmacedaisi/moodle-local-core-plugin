@@ -67,7 +67,13 @@ Vue.component('career-cards', {
                 <v-icon size="16">mdi-calendar-star</v-icon>
                 Proyección {{ projection ? projection.result.period.name : 'próximo periodo' }}
             </button>
+            <button class="tl-main-tab" :class="{ 'tl-main-tab-active': mainTab === 'config' }" @click="mainTab = 'config'">
+                <v-icon size="16">mdi-cog-outline</v-icon> Configuración
+            </button>
         </div>
+
+        <!-- CONFIGURACIÓN de la planificación y generación de horarios -->
+        <planning-config v-if="canPlan && mainTab === 'config'" @saved="loadProjection"></planning-config>
 
         <!-- PROYECCIÓN DEL PRÓXIMO PERIODO (todas las carreras): asignaturas que se abrirían -->
         <template v-if="canPlan && mainTab === 'proj'">
@@ -75,6 +81,8 @@ Vue.component('career-cards', {
                 v-if="projection"
                 :result="projection.result"
                 :careers="projection.careers"
+                :min="projection.rules.min_group"
+                :max="projection.rules.max_group"
                 scope-label="todas las carreras"
             ></period-projection>
             <div v-else class="tl-proj"><div class="tl-proj-title">
@@ -248,7 +256,8 @@ Vue.component('career-cards', {
                 } });
                 if (r.data && r.data.exception) throw new Error(r.data.message || r.data.errorcode);
                 const d = JSON.parse(r.data.data);
-                this.projection = (d.result && !d.result.error) ? { result: d.result, careers: d.careers } : null;
+                this.projection = (d.result && !d.result.error)
+                    ? { result: d.result, careers: d.careers, rules: d.rules || { min_group: 12, max_group: 30 } } : null;
             } catch (e) {
                 console.error('[timeline] proyeccion:', e);
             } finally {

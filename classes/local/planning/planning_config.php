@@ -1,0 +1,351 @@
+<?php
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+/**
+ * Configuracion de la planificacion y generacion de horarios (pestana Configuracion de la linea de tiempo).
+ *
+ * Usa SOLO tablas existentes:
+ *  - Periodos: gmk_academic_periods (inicio/fin) + gmk_academic_calendar (periodstart/periodend/block1start/block1end)
+ *    + gmk_academic_periods.configsettings (JSON, clave 'jornada_starts': inicio de clases por jornada).
+ *  - Reglas de agrupacion: config del plugin (planning_min_group, planning_max_group, planning_min_load).
+ *  - Jornadas y horarios: scheduler_settings (la misma configuracion global del planificador).
+ *  - Aulas: gmk_classrooms. Festivos: gmk_holidays (globales). Cargas: gmk_subject_loads (solo lectura aqui).
+ *
+ * Reglas de integridad en cada escritura: validacion previa, solo columnas que cambian, transaccion,
+ * respaldo JSON con valores anteriores en moodledata/local_grupomakro_core/logs y relectura de lo guardado.
+ *
+ * @package    local_grupomakro_core
+ * @copyright  2026 Grupo Makro
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
+namespace local_grupomakro_core\local\planning;
+
+use local_grupomakro_core\local\scheduler_settings;
+
+defined('MOODLE_INTERNAL') || die();
+
+class planning_config {
+
+    const JORNADAS = ['Diurna', 'Nocturna', 'Sabatina'];
+    const DEFAULT_RULES = ['min_group' => 12, 'max_group' => 30, 'min_load' => 3];
+
+    /** Reglas de agrupacion vigentes. */
+    public static function rules() {
+        $out = [];
+        foreach (self::DEFAULT_RULES as $k => $def) {
+            $v = (int)get_config('local_grupomakro_core', 'planning_' . $k);
+            $out[$k] = $v > 0 ? $v : $def;
+        }
+        return $out;
+    }
+
+    /** Inicio de clases por jornada guardado en el periodo (o []). */
+    public static function jornada_starts($period) {
+        $cfg = json_decode((string)($period->configsettings ?? ''), true);
+        $out = [];
+        if (is_array($cfg) && !empty($cfg['jornada_starts']) && is_array($cfg['jornada_starts'])) {
+            foreach (self::JORNADAS as $j) {
+                if (!empty($cfg['jornada_starts'][$j])) {
+                    $out[$j] = (int)$cfg['jornada_starts'][$j];
+                }
+            }
+        }
+        return $out;
+    }
+
+    /** Todo lo que muestra la pestana de configuracion. */
+    public static function get() {
+        global $DB;
+        $periods = [];
+        $cals = [];
+        foreach ($DB->get_records('gmk_academic_calendar') as $c) {
+            $cals[(int)$c->academicperiodid] = $c;
+        }
+        foreach ($DB->get_records('gmk_academic_periods', null, 'startdate DESC') as $p) {
+            $c = $cals[(int)$p->id] ?? null;
+            $periods[] = [
+                'id' => (int)$p->id, 'name' => $p->name, 'status' => (int)$p->status,
+                'startdate' => (int)$p->startdate, 'enddate' => (int)$p->enddate,
+                'block1start' => $c ? (int)$c->block1start : 0, 'block1end' => $c ? (int)$c->block1end : 0,
+                'has_calendar' => (bool)$c,
+                'jornada_starts' => (object)self::jornada_starts($p),
+            ];
+        }
+        $inuse = [];
+        foreach ($DB->get_records_sql("SELECT DISTINCT classroomid FROM {gmk_class} WHERE classroomid > 0") as $r) {
+            $inuse[(int)$r->classroomid] = true;
+        }
+        foreach ($DB->get_records_sql("SELECT DISTINCT classroomid FROM {gmk_class_schedules} WHERE classroomid > 0") as $r) {
+            $inuse[(int)$r->classroomid] = true;
+        }
+        $classrooms = [];
+        foreach ($DB->get_records('gmk_classrooms', null, 'name ASC') as $r) {
+            $classrooms[] = ['id' => (int)$r->id, 'name' => $r->name, 'capacity' => (int)$r->capacity,
+                'type' => (string)$r->type, 'active' => (int)$r->active, 'in_use' => isset($inuse[(int)$r->id])];
+        }
+        $holidays = [];
+        foreach (scheduler_settings::get_holidays() as $h) {
+            $holidays[] = ['id' => (int)$h->id, 'date' => (int)$h->date, 'name' => (string)$h->name, 'type' => (string)$h->type];
+        }
+        $loads = [];
+        foreach (scheduler_settings::get_loads() as $l) {
+            $loads[] = ['subject' => $l->subjectname, 'total_hours' => (float)$l->total_hours, 'intensity' => (float)$l->intensity];
+        }
+        return [
+            'periods' => $periods,
+            'rules' => self::rules(),
+            'scheduler' => scheduler_settings::get_config(),
+            'classrooms' => $classrooms,
+            'holidays' => $holidays,
+            'loads' => $loads,
+        ];
+    }
+
+    /**
+     * Guarda una seccion. Devuelve ['ok' => bool, 'message' => string, 'saved' => lo releido].
+     *
+     * @param string $section periods | rules | scheduler | classroom | classroom_delete | holiday | holiday_delete
+     * @param array $data
+     */
+    public static function save($section, array $data) {
+        global $DB, $USER;
+        $now = time();
+        switch ($section) {
+            case 'period':
+                return self::save_period($data);
+
+            case 'rules':
+                $min = (int)($data['min_group'] ?? 0);
+                $max = (int)($data['max_group'] ?? 0);
+                $load = (int)($data['min_load'] ?? 0);
+                if ($min < 1 || $max < $min || $max > 200 || $load < 1 || $load > 10) {
+                    return self::fail('Revise los valores: el mínimo debe ser al menos 1, el máximo no puede ser menor que el mínimo '
+                        . 'y la carga mínima debe estar entre 1 y 10.');
+                }
+                $before = self::rules();
+                set_config('planning_min_group', $min, 'local_grupomakro_core');
+                set_config('planning_max_group', $max, 'local_grupomakro_core');
+                set_config('planning_min_load', $load, 'local_grupomakro_core');
+                self::backup('reglas', ['antes' => $before, 'despues' => self::rules()]);
+                return self::ok('Reglas de agrupación guardadas.', self::rules());
+
+            case 'scheduler':
+                $cfg = $data['config'] ?? null;
+                if (!is_array($cfg) || empty($cfg['shiftWindows'])) {
+                    return self::fail('Configuración de jornadas incompleta.');
+                }
+                foreach ($cfg['shiftWindows'] as $j => $w) {
+                    if (!self::is_time($w['start'] ?? '') || !self::is_time($w['end'] ?? '') || $w['start'] >= $w['end']) {
+                        return self::fail("La franja de la jornada $j no es válida (la hora de inicio debe ser menor que la de fin).");
+                    }
+                }
+                foreach (['startTime', 'endTime', 'lunchStart', 'lunchEnd'] as $k) {
+                    if (isset($cfg[$k]) && $cfg[$k] !== '' && !self::is_time($cfg[$k])) {
+                        return self::fail("Hora no válida en $k.");
+                    }
+                }
+                $before = scheduler_settings::get_config();
+                // Conserva las claves que esta pantalla no edita (p. ej. isolatedCareers).
+                $merged = array_merge(json_decode(json_encode($before), true) ?: [], $cfg);
+                if (!scheduler_settings::save_config($merged)) {
+                    return self::fail('No se pudo guardar la configuración de jornadas.');
+                }
+                self::backup('jornadas', ['antes' => $before, 'despues' => scheduler_settings::get_config()]);
+                return self::ok('Jornadas y horarios guardados.', scheduler_settings::get_config());
+
+            case 'classroom':
+                $name = trim((string)($data['name'] ?? ''));
+                $cap = (int)($data['capacity'] ?? 0);
+                if ($name === '' || $cap < 1 || $cap > 500) {
+                    return self::fail('El aula necesita nombre y una capacidad entre 1 y 500.');
+                }
+                $rec = ['name' => $name, 'capacity' => $cap, 'type' => trim((string)($data['type'] ?? 'general')) ?: 'general',
+                    'active' => empty($data['active']) ? 0 : 1];
+                $id = (int)($data['id'] ?? 0);
+                $dup = $DB->get_record_select('gmk_classrooms', 'LOWER(name) = LOWER(?) AND id <> ?', [$name, $id], 'id', IGNORE_MULTIPLE);
+                if ($dup) {
+                    return self::fail('Ya existe un aula con ese nombre.');
+                }
+                if ($id) {
+                    $old = $DB->get_record('gmk_classrooms', ['id' => $id], '*', MUST_EXIST);
+                    $upd = self::changed($old, $rec);
+                    if (!$upd) {
+                        return self::ok('Sin cambios.', (array)$old);
+                    }
+                    $upd['id'] = $id;
+                    $upd['usermodified'] = $USER->id;
+                    $upd['timemodified'] = $now;
+                    $DB->update_record('gmk_classrooms', (object)$upd);
+                    self::backup('aula', ['antes' => $old, 'cambios' => $upd]);
+                } else {
+                    $id = $DB->insert_record('gmk_classrooms', (object)($rec + ['usermodified' => $USER->id,
+                        'timecreated' => $now, 'timemodified' => $now]));
+                    self::backup('aula', ['nueva' => $id, 'datos' => $rec]);
+                }
+                return self::ok('Aula guardada.', (array)$DB->get_record('gmk_classrooms', ['id' => $id]));
+
+            case 'classroom_delete':
+                $id = (int)($data['id'] ?? 0);
+                $old = $DB->get_record('gmk_classrooms', ['id' => $id]);
+                if (!$old) {
+                    return self::fail('El aula no existe.');
+                }
+                if ($DB->record_exists_select('gmk_class', 'classroomid = ?', [$id])
+                        || $DB->record_exists_select('gmk_class_schedules', 'classroomid = ?', [$id])) {
+                    return self::fail('Esta aula tiene clases u horarios asignados y no se puede borrar. Desactívela para que no se use en nuevos horarios.');
+                }
+                $DB->delete_records('gmk_classrooms', ['id' => $id]);
+                self::backup('aula_borrada', ['antes' => $old]);
+                return self::ok('Aula eliminada.', null);
+
+            case 'holiday':
+                $date = (int)($data['date'] ?? 0);
+                $name = trim((string)($data['name'] ?? ''));
+                if ($date <= 0 || $name === '') {
+                    return self::fail('El festivo necesita fecha y nombre.');
+                }
+                $day = date('Y-m-d', $date);
+                foreach (scheduler_settings::get_holidays() as $h) {
+                    if ($h->formatted_date === $day && (int)$h->id !== (int)($data['id'] ?? 0)) {
+                        return self::fail("Ya hay un festivo registrado el $day ({$h->name}).");
+                    }
+                }
+                $rec = ['academicperiodid' => scheduler_settings::GLOBAL_SCOPE, 'date' => $date, 'name' => $name,
+                    'type' => trim((string)($data['type'] ?? 'feriado')) ?: 'feriado'];
+                $id = (int)($data['id'] ?? 0);
+                if ($id) {
+                    $old = $DB->get_record('gmk_holidays', ['id' => $id], '*', MUST_EXIST);
+                    $upd = self::changed($old, $rec);
+                    if ($upd) {
+                        $upd += ['id' => $id, 'usermodified' => $USER->id, 'timemodified' => $now];
+                        $DB->update_record('gmk_holidays', (object)$upd);
+                        self::backup('festivo', ['antes' => $old, 'cambios' => $upd]);
+                    }
+                } else {
+                    $id = $DB->insert_record('gmk_holidays', (object)($rec + ['usermodified' => $USER->id,
+                        'timecreated' => $now, 'timemodified' => $now]));
+                    self::backup('festivo', ['nuevo' => $id, 'datos' => $rec]);
+                }
+                return self::ok('Festivo guardado.', (array)$DB->get_record('gmk_holidays', ['id' => $id]));
+
+            case 'holiday_delete':
+                $id = (int)($data['id'] ?? 0);
+                $old = $DB->get_record('gmk_holidays', ['id' => $id]);
+                if (!$old) {
+                    return self::fail('El festivo no existe.');
+                }
+                $DB->delete_records('gmk_holidays', ['id' => $id]);
+                self::backup('festivo_borrado', ['antes' => $old]);
+                return self::ok('Festivo eliminado.', null);
+        }
+        return self::fail('Sección desconocida.');
+    }
+
+    /**
+     * Fechas de un periodo: inicio/fin del periodo y del bloque de clases, e inicio por jornada.
+     * Escribe solo columnas que cambian, en transaccion, con respaldo.
+     */
+    protected static function save_period(array $d) {
+        global $DB, $USER;
+        $id = (int)($d['id'] ?? 0);
+        $p = $DB->get_record('gmk_academic_periods', ['id' => $id]);
+        if (!$p) {
+            return self::fail('El periodo no existe.');
+        }
+        $start = (int)($d['startdate'] ?? 0);
+        $end = (int)($d['enddate'] ?? 0);
+        if ($start <= 0 || $end <= $start) {
+            return self::fail('La fecha de fin del periodo debe ser posterior a la de inicio.');
+        }
+        $js = [];
+        foreach (self::JORNADAS as $j) {
+            $v = (int)($d['jornada_starts'][$j] ?? 0);
+            if ($v) {
+                if (abs($v - $start) > 21 * 86400) {
+                    return self::fail("El inicio de la jornada $j debe estar a menos de 3 semanas del inicio del periodo.");
+                }
+                $js[$j] = $v;
+            }
+        }
+        $now = time();
+        $tx = $DB->start_delegated_transaction();
+        $before = ['periodo' => $p, 'calendario' => $DB->get_record('gmk_academic_calendar', ['academicperiodid' => $id])];
+
+        $cfg = json_decode((string)$p->configsettings, true);
+        if (!is_array($cfg)) {
+            $cfg = [];
+        }
+        if ($js) {
+            $cfg['jornada_starts'] = $js;
+        } else {
+            unset($cfg['jornada_starts']);
+        }
+        $newcfg = $cfg ? json_encode($cfg, JSON_UNESCAPED_UNICODE) : null;
+        $upd = self::changed($p, ['startdate' => $start, 'enddate' => $end]);
+        if ((string)$p->configsettings !== (string)$newcfg) {
+            $upd['configsettings'] = $newcfg;
+        }
+        if ($upd) {
+            $upd += ['id' => $id, 'usermodified' => $USER->id, 'timemodified' => $now];
+            $DB->update_record('gmk_academic_periods', (object)$upd);
+        }
+        // Calendario: el bloque de clases arranca con la jornada que empieza primero.
+        $classstart = $js ? min(array_merge([$start], array_values($js))) : $start;
+        $cal = $before['calendario'];
+        if ($cal) {
+            $cupd = self::changed($cal, ['periodstart' => $start, 'periodend' => $end, 'block1start' => $classstart]);
+            if ($cupd) {
+                $cupd += ['id' => $cal->id, 'usermodified' => $USER->id, 'timemodified' => $now];
+                $DB->update_record('gmk_academic_calendar', (object)$cupd);
+            }
+        }
+        $tx->allow_commit();
+        self::backup('periodo_' . $id, ['antes' => $before, 'cambios_periodo' => $upd, 'cambios_calendario' => $cupd ?? null]);
+        $saved = null;
+        foreach (self::get()['periods'] as $row) {
+            if ($row['id'] === $id) {
+                $saved = $row;
+            }
+        }
+        return self::ok($upd || !empty($cupd) ? 'Periodo guardado.' : 'Sin cambios.', $saved);
+    }
+
+    /** Columnas de $new que difieren de $old. */
+    protected static function changed($old, array $new) {
+        $out = [];
+        foreach ($new as $k => $v) {
+            if ((string)($old->$k ?? '') !== (string)$v) {
+                $out[$k] = $v;
+            }
+        }
+        return $out;
+    }
+
+    protected static function is_time($t) {
+        return is_string($t) && preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $t);
+    }
+
+    protected static function backup($what, $payload) {
+        global $CFG, $USER;
+        $dir = $CFG->dataroot . '/local_grupomakro_core/logs';
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0770, true);
+        }
+        @file_put_contents($dir . '/config_planificacion_' . date('Ymd_His') . '_' . $what . '.json',
+            json_encode(['usuario' => (int)$USER->id, 'hora' => date('c'), 'datos' => $payload], JSON_UNESCAPED_UNICODE));
+    }
+
+    protected static function ok($msg, $saved) {
+        return ['ok' => true, 'message' => $msg, 'saved' => $saved];
+    }
+
+    protected static function fail($msg) {
+        return ['ok' => false, 'message' => $msg, 'saved' => null];
+    }
+}
