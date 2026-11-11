@@ -482,6 +482,12 @@ Vue.component('period-projection', {
                     </div>
                     <div v-for="it in exc.items" :key="it.ekey" class="tl-proj-exc-item">
                         <div><b>{{ it.name }}</b> <span class="tl-cfg-help">• {{ it.jornada }}{{ it.isolated ? ' • solo ' + careerName(it.isolated) : '' }} • {{ it.students.length }} estudiantes</span></div>
+                        <div v-if="exc.mode === 'modulo'" class="tl-cfg-help" style="margin:4px 0">
+                            Elegir: <button class="tl-proj-flexbtn" @click="it.userids = uniq(it.students.map(x => x.s.userid))">todos</button>
+                            <button class="tl-proj-flexbtn" @click="it.userids = uniq(it.students.filter(x => x.s.finishing).map(x => x.s.userid))">solo los que egresan</button>
+                            <button class="tl-proj-flexbtn" @click="it.userids = []">ninguno</button>
+                            • {{ it.userids.length }} elegido(s)
+                        </div>
                         <div v-if="exc.mode === 'modulo'" class="tl-proj-exc-students">
                             <label v-for="x in it.students" :key="x.s.userid + '-' + x.s.planid" class="tl-cfg-check">
                                 <input type="checkbox" :value="x.s.userid" v-model="it.userids">
@@ -1004,7 +1010,7 @@ Vue.component('period-projection', {
         selItem(r, j) {
             // Para modulo se puede elegir entre los que se cargan y los que pueden adelantarla (con prelacion).
             const pick = j.students.filter(x => x.prereq !== 'no' && !x.flex && x.cat !== 'repite');
-            return { ekey: j.ekey, courseid: r.courseid, name: r.name, jornada: j.jornada, isolated: r.isolated, students: pick };
+            return { ekey: j.ekey, courseid: r.courseid, name: r.name, jornada: j.jornada, isolated: r.isolated, students: pick, opens: j.groups > 0 };
         },
         toggleSel(r, j) {
             if (this.selected[j.ekey]) { this.$delete(this.selected, j.ekey); return; }
@@ -1025,7 +1031,8 @@ Vue.component('period-projection', {
         openException(list, cur) {
             const items = list || this.selectedList;
             const fin = items.some(it => it.students.some(x => x.s.finishing));
-            this.exc = { show: true, mode: cur ? cur.mode : (fin ? 'modulo' : 'grupo'),
+            // Sin decision previa: si ya abre por quorum se parte de "Automatico".
+            this.exc = { show: true, mode: cur ? cur.mode : (items.every(it => it.opens) ? 'auto' : (fin ? 'modulo' : 'grupo')),
                 note: cur ? cur.note : '', error: '', saving: false, current: cur || null,
                 items: items.map(it => Object.assign({}, it, {
                     // Por defecto se proponen para modulo los que egresan; si no hay, todos los que se cargan.
@@ -1033,6 +1040,7 @@ Vue.component('period-projection', {
                         : (it.students.some(x => x.s.finishing) ? it.students.filter(x => x.s.finishing) : it.students.filter(x => x.cat !== 'adelanto'))
                             .map(x => x.s.userid)).filter((v, i, a) => a.indexOf(v) === i) })) };
         },
+        uniq(a) { return a.filter((v, i) => a.indexOf(v) === i); },
         decisionLabel(e) {
             if (!e) return '';
             if (e.mode === 'modulo') return 'Módulo (sin horario ni pago) para ' + e.userids.length + ' estudiante(s)';

@@ -242,7 +242,7 @@ Vue.component('planning-config', {
                         <input v-model="loadQ" class="tl-panel-search-input" placeholder="Buscar asignatura..."></div></div>
                 <table class="tl-cfg-table">
                     <thead><tr><th>Asignatura</th><th>Horas totales</th><th>Intensidad</th></tr></thead>
-                    <tbody><tr v-for="l in visibleLoads" :key="l.subject"><td>{{ l.subject }}</td><td>{{ l.total_hours }}</td><td>{{ l.intensity }}</td></tr></tbody>
+                    <tbody><tr v-for="(l, li) in visibleLoads" :key="li + l.subject"><td>{{ l.subject }}</td><td>{{ l.total_hours }}</td><td>{{ l.intensity }}</td></tr></tbody>
                 </table>
             </div>
         </template>
