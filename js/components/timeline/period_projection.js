@@ -200,7 +200,7 @@ Vue.component('period-projection', {
                     </div>
                 </div>
                 <div class="tl-proj-jornadas">
-                    <span v-for="j in r.jornadas" :key="j.jornada" class="tl-proj-chip" :class="'tl-proj-chip-' + chipSem(j)" :title="chipHelp(j)">
+                    <span v-for="j in r.jornadas.filter(visibleJ)" :key="j.jornada" class="tl-proj-chip" :class="'tl-proj-chip-' + chipSem(j)" :title="chipHelp(j)">
                         <input v-if="canEdit && !j.groups && !j.exception && j.ready" type="checkbox" class="tl-proj-check"
                                :checked="!!selected[j.ekey]" @click.stop @change="toggleSel(r, j)">
                         <b>{{ abbr(j.jornada) }}</b>
@@ -223,7 +223,7 @@ Vue.component('period-projection', {
                 </div>
             </div>
             <div v-if="open[r.key]" class="tl-proj-detail">
-                <div v-for="j in r.jornadas" :key="j.jornada" class="tl-proj-detail-col">
+                <div v-for="j in r.jornadas.filter(visibleJ)" :key="j.jornada" class="tl-proj-detail-col">
                     <div class="tl-plan-detail-block">{{ j.jornada }} • {{ j.ready }} estudiantes
                         <template v-if="j.adelanto"> (+{{ j.adelanto }} pueden adelantar)</template></div>
                     <div v-if="j.exception" class="tl-proj-exc-note">
@@ -231,16 +231,31 @@ Vue.component('period-projection', {
                         {{ j.exception.mode === 'modulo' ? 'Módulo para ' + j.exception.userids.length + ' estudiante(s)' : 'Abre por excepción' }}
                         — {{ j.exception.note }} <span class="tl-proj-exc-by">({{ j.exception.byname }}, {{ fmt(j.exception.time) }})</span>
                     </div>
-                    <div v-for="x in j.students" :key="x.s.lluid" class="tl-plan-name-row"
+                    <div v-for="x in j.students.filter(y => y.cat !== 'repite')" :key="x.s.lluid" class="tl-plan-name-row tl-proj-stu"
                          :class="{ 'tl-proj-other': careerFilter && x.s.planid !== careerFilter }">
-                        <span :title="x.s.plan">{{ x.s.name }}</span>
+                        <span class="tl-proj-stu-name" :title="x.s.name + ' · ' + x.s.plan">{{ x.s.name }}</span>
                         <span v-if="x.s.finishing" class="tl-plan-tag tl-proj-tag-finish" title="Termina su plan con este periodo">egresa</span>
                         <span v-if="j.exception && j.exception.mode === 'modulo' && j.exception.userids.includes(x.s.userid)" class="tl-plan-tag tl-plan-tag-nivel">módulo</span>
-                        <span class="tl-subj-meta-item" style="font-size:10px;color:#94A3B8">{{ showCareers ? shortPlan(x.s.plan) + ' · ' : '' }}{{ x.s.level }}</span>
+                        <span class="tl-proj-stu-meta" :title="x.s.plan">{{ showCareers && !r.isolated ? shortPlan(x.s.plan) + ' · ' : '' }}{{ x.s.level }}</span>
                         <span class="tl-plan-tag" :class="'tl-plan-tag-' + x.cat">{{ catLabel[x.cat] }}</span>
-                        <span v-if="x.cat === 'repite'" class="tl-plan-tag tl-plan-tag-muted" title="No se carga automáticamente; recibe el aviso cuando se apruebe el horario">aviso al aprobar</span>
                         <span v-if="x.prereq === 'no'" class="tl-plan-tag tl-plan-tag-lock">prelación</span>
                     </div>
+                </div>
+                <!-- Repitentes: gestion aparte, columna plegable -->
+                <div v-if="repeatersOf(r).length" class="tl-proj-detail-col tl-proj-rep-col">
+                    <button class="tl-proj-rep-head" @click.stop="toggleRep(r.key)">
+                        <v-icon size="14" color="#B91C1C">{{ openRep[r.key] ? 'mdi-chevron-down' : 'mdi-chevron-right' }}</v-icon>
+                        Repitentes · gestión aparte ({{ repeatersOf(r).length }})
+                    </button>
+                    <div class="tl-cfg-help" style="margin:2px 0 6px">No se cargan solos: al aprobar el horario se les avisa que pueden solicitar el cargue en el área académica y pagarla.</div>
+                    <template v-if="openRep[r.key]">
+                        <div v-for="x in repeatersOf(r)" :key="'rep' + x.s.lluid + x.jornada" class="tl-plan-name-row tl-proj-stu">
+                            <span class="tl-proj-stu-name" :title="x.s.name + ' · ' + x.s.plan">{{ x.s.name }}</span>
+                            <span v-if="x.s.finishing" class="tl-plan-tag tl-proj-tag-finish">egresa</span>
+                            <span class="tl-proj-stu-meta">{{ x.jornada }} · {{ x.s.level }}</span>
+                            <span v-if="x.prereq === 'no'" class="tl-plan-tag tl-plan-tag-lock">prelación</span>
+                        </div>
+                    </template>
                 </div>
             </div>
         </div>
@@ -304,7 +319,7 @@ Vue.component('period-projection', {
     },
     data() {
         return { q: '', filter: 'all', jornada: '', careerFilter: 0, open: {}, selected: {},
-            view: 'next', future: null, futureLoading: false, futureError: '', cellDetail: null, costOpen: false,
+            view: 'next', future: null, futureLoading: false, futureError: '', cellDetail: null, costOpen: false, openRep: {},
             exc: { show: false, mode: 'grupo', items: [], note: '', error: '', saving: false },
             catLabel: { nivel: 'nivel', atrasada: 'atrasada', repite: 'repite', adelanto: 'adelanto' } };
     },
@@ -552,6 +567,17 @@ Vue.component('period-projection', {
     },
     methods: {
         toggle(k) { this.$set(this.open, k, !this.open[k]); },
+        toggleRep(k) { this.$set(this.openRep, k, !this.openRep[k]); },
+        // Una jornada se muestra si tiene a alguien que se carga, puede adelantar, espera (no obligatoria) o tiene excepcion;
+        // las que solo tienen repitentes van en la columna de repitentes.
+        visibleJ(j) { return j.ready > 0 || j.adelanto > 0 || (j.flexWaiting || 0) > 0 || j.blocked > 0 || !!j.exception; },
+        repeatersOf(r) {
+            const out = [];
+            r.jornadas.forEach(j => j.students.forEach(x => {
+                if (x.cat === 'repite' && (!this.careerFilter || x.s.planid === this.careerFilter)) out.push(Object.assign({ jornada: j.jornada }, x));
+            }));
+            return out.sort((a, b) => (b.s.finishing - a.s.finishing) || a.s.name.localeCompare(b.s.name));
+        },
         isLong(cid) { return !!(this.result.costing && (this.result.costing.long || []).includes(Number(cid))); },
         money(v) { return '$' + Number(v || 0).toLocaleString('es-PA', { minimumFractionDigits: 0, maximumFractionDigits: 0 }); },
         async openFuture() {
