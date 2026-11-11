@@ -75,6 +75,7 @@ Vue.component('intake-timeline', {
                 scope-label="solo esta carrera; los grupos pueden completarse con otras carreras (ver la línea de tiempo general)"
                 :show-careers="false"
                 :careers="planCareers"
+                :plan-ids="String(careerId)"
                 :min="planRules.min_group"
                 :max="planRules.max_group"
                 @changed="loadPlanning"

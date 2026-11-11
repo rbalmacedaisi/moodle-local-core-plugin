@@ -2466,3 +2466,24 @@ button.tl-btn.tl-btn-primary:active:not(:disabled) {
 .tl-proj-exc-by { color: var(--tl-text-muted); }
 .tl-proj-exc-item { border: 1px solid var(--tl-border); border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; }
 .tl-proj-exc-students { display: flex; flex-direction: column; gap: 3px; margin-top: 6px; max-height: 180px; overflow-y: auto; }
+/* No obligatorias, total y matriz de próximos periodos */
+.tl-proj-views { margin: 0 0 10px; flex-wrap: wrap; }
+.tl-proj-views .tl-plan-tab { flex: 0 0 auto; padding: 6px 12px; font-size: 12px; }
+.tl-proj-flexbtn { background: var(--tl-primary-soft); color: var(--tl-primary-dark); border: 1px solid var(--tl-primary-tint); border-radius: 6px; font: inherit; font-size: 10px; font-weight: 700; padding: 1px 6px; cursor: pointer; }
+.tl-proj-flexbtn:hover { background: var(--tl-primary-tint); }
+.tl-proj-num-sub { font-size: 10px; color: var(--tl-text-muted); font-weight: 400; white-space: nowrap; }
+.tl-proj-matrix-wrap { overflow-x: auto; border: 1px solid var(--tl-border); border-radius: 10px; }
+.tl-proj-matrix { border-collapse: collapse; width: 100%; font-size: 12px; }
+.tl-proj-matrix th { position: sticky; top: 0; background: var(--tl-muted-soft); font-size: 11px; font-weight: 700; color: var(--tl-text-secondary); padding: 6px 8px; text-align: center; white-space: nowrap; border-bottom: 1px solid var(--tl-border); }
+.tl-proj-matrix td { border-bottom: 1px solid var(--tl-divider); padding: 5px 8px; }
+.tl-proj-mx-subj { text-align: left !important; min-width: 240px; max-width: 320px; position: sticky; left: 0; background: var(--tl-surface); z-index: 1; }
+.tl-proj-matrix th.tl-proj-mx-subj { background: var(--tl-muted-soft); z-index: 2; }
+.tl-proj-mx-date { font-weight: 500; color: var(--tl-text-muted); font-size: 10px; }
+.tl-proj-mx-cell { text-align: center; min-width: 64px; cursor: pointer; }
+.tl-proj-mx-empty { cursor: default; }
+.tl-proj-mx-green { background: var(--tl-success-soft); color: #047857; }
+.tl-proj-mx-amber { background: var(--tl-warning-soft); color: #B45309; }
+.tl-proj-mx-red { background: var(--tl-error-soft); color: #B91C1C; }
+.tl-proj-mx-flexonly { background: var(--tl-muted-soft); color: var(--tl-text-muted); }
+.tl-proj-mx-flex { font-size: 10px; color: var(--tl-text-muted); margin-left: 2px; }
+.tl-proj-mx-cell:hover { outline: 2px solid var(--tl-primary-tint); outline-offset: -2px; }

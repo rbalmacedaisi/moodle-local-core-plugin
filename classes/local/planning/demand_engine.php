@@ -66,12 +66,15 @@ class demand_engine {
     protected $calendar;
     /** @var int[] planes a incluir (vacio = todos menos los excluidos) */
     protected $planfilter;
+    /** @var int periodos siguientes a proyectar (0 = solo el periodo) */
+    protected $horizon;
 
-    public function __construct($academicperiodid, array $planids = []) {
+    public function __construct($academicperiodid, array $planids = [], $horizon = 0) {
         global $DB;
         $this->period = $DB->get_record('gmk_academic_periods', ['id' => $academicperiodid], '*', MUST_EXIST);
         $this->calendar = $DB->get_record('gmk_academic_calendar', ['academicperiodid' => $academicperiodid]);
         $this->planfilter = array_map('intval', $planids);
+        $this->horizon = max(0, min(24, (int)$horizon));
     }
 
     /** Carga minima razonable por bloque (configurable). */
@@ -229,6 +232,11 @@ class demand_engine {
         }
         $rs->close();
 
+        // Asignaturas no obligatorias en un periodo concreto (credito 0 o marcadas en Configuracion): no se cargan
+        // por defecto; solo si se activan para este periodo (planning_config::flexible / flexible_enabled).
+        $flex = planning_config::flexible();
+        $flexon = planning_config::flexible_enabled((int)$this->period->id);
+
         // 5. Por estudiante: nivel, cohorte y asignaturas del periodo.
         $students = [];
         $cohorts = [];
@@ -292,10 +300,12 @@ class demand_engine {
                 } else {
                     continue; // asignatura de niveles futuros
                 }
+                $isflex = planning_config::is_flexible($flex, $pid, $cid);
                 $subjects[$cid] = (object)[
                     'courseid' => $cid, 'llcid' => $pc->llcid, 'name' => $pc->name, 'ord' => $pc->ord,
                     'level' => self::ord_label($pc->ord), 'category' => $cat,
                     'prereq' => 'ok', 'missing' => [], 'conditional' => [],
+                    'flexible' => $isflex, 'flex_on' => $isflex && isset($flexon[$cid]),
                 ];
             }
             // Prelaciones: cumplida si esta aprobada; condicionada si se esta cursando o en reválida.
@@ -341,7 +351,7 @@ class demand_engine {
             $load = 0;
             $available = 0;
             foreach ($subjects as $s) {
-                if ($s->prereq === 'no' || $s->category === self::CAT_REPITE) {
+                if ($s->prereq === 'no' || $s->category === self::CAT_REPITE || ($s->flexible && !$s->flex_on)) {
                     continue;
                 }
                 $available++;
@@ -430,10 +440,16 @@ class demand_engine {
                         'jornada' => $s['jornada'], 'isolated_plan' => $isoplan, 'total' => 0, 'ready' => 0,
                         'by_category' => [self::CAT_NIVEL => 0, self::CAT_ATRASADA => 0, self::CAT_REPITE => 0,
                             self::CAT_ADELANTO => 0],
-                        'blocked' => 0, 'conditional' => 0, 'plans' => [], 'levels' => [], 'students' => []];
+                        'blocked' => 0, 'conditional' => 0, 'plans' => [], 'levels' => [], 'students' => [],
+                        'flexible' => false, 'flex_on' => false, 'flex_waiting' => 0];
                 }
                 $d =& $demand[$dk];
-                $d['students'][] = ['key' => $k, 'category' => $sub['category'], 'prereq' => $sub['prereq']];
+                $d['students'][] = ['key' => $k, 'category' => $sub['category'], 'prereq' => $sub['prereq'],
+                    'flex' => !empty($sub['flexible']) && empty($sub['flex_on'])];
+                if (!empty($sub['flexible'])) {
+                    $d['flexible'] = true;
+                    $d['flex_on'] = !empty($sub['flex_on']);
+                }
                 if ($sub['prereq'] === 'no') {
                     $d['blocked']++;
                     unset($d);
@@ -445,8 +461,13 @@ class demand_engine {
                     $d['conditional']++;
                 }
                 // 'ready' = lo que se carga automaticamente (nivel + atrasada). Repitentes y adelantos se informan aparte.
+                // Las no obligatorias solo cuentan si se activaron para este periodo.
                 if ($sub['category'] === self::CAT_NIVEL || $sub['category'] === self::CAT_ATRASADA) {
-                    $d['ready']++;
+                    if (!empty($sub['flexible']) && empty($sub['flex_on'])) {
+                        $d['flex_waiting']++;
+                    } else {
+                        $d['ready']++;
+                    }
                 }
                 $d['plans'][$s['planid']] = ($d['plans'][$s['planid']] ?? 0) + 1;
                 $d['levels'][$sub['level']] = ($d['levels'][$sub['level']] ?? 0) + 1;
@@ -472,8 +493,11 @@ class demand_engine {
             $totals['suspendidos'] += in_array('suspendido', $s['flags'], true) ? 1 : 0;
         }
 
+        $horizon = $this->horizon ? $this->project_horizon($students, $plancourses, $planperiods, $hist, $flex, $iso, $start) : [];
+
         return [
             'period' => $period,
+            'horizon' => $horizon,
             'students' => $students,
             'cohorts' => array_values($cohortout),
             'demand' => array_values($demand),
@@ -481,5 +505,83 @@ class demand_engine {
             'issues' => $issues,
             'computed_at' => time(),
         ];
+    }
+
+    /**
+     * Periodos siguientes: que asignaturas le tocarian a cada estudiante activo en cada periodo posterior, asumiendo que
+     * avanza un bimestre por periodo y aprueba lo de su nivel (las atrasadas y reprobadas se resuelven aparte).
+     * Se recalcula con los estudiantes activos del momento: los que ingresen despues se suman solos.
+     *
+     * @return array [['k','name','start','estimated','rows' => [['courseid','name','jornada','isolated_plan','levels','count','flex','students']]]]
+     */
+    protected function project_horizon(array $students, array $plancourses, array $planperiods, array $hist, array $flex,
+            array $iso, $start) {
+        global $DB;
+        $pslot = academic_progress::slot_index($this->period->name);
+        if ($pslot === null) {
+            return [];
+        }
+        $byname = [];
+        $cals = [];
+        foreach ($DB->get_records('gmk_academic_calendar') as $c) {
+            $cals[(int)$c->academicperiodid] = $c;
+        }
+        foreach ($DB->get_records('gmk_academic_periods') as $p) {
+            $byname[strtoupper(trim($p->name))] = $p;
+        }
+        $out = [];
+        for ($k = 1; $k <= $this->horizon; $k++) {
+            $name = academic_progress::slot_label($pslot + $k);
+            $p = $byname[$name] ?? null;
+            $pstart = $p ? (int)(($cals[(int)$p->id]->block1start ?? 0) ?: $p->startdate) : $start + $k * 61 * 86400;
+            $out[$k] = ['k' => $k, 'name' => $name, 'start' => $pstart, 'estimated' => !$p, 'rows' => []];
+        }
+        foreach ($students as $key => $s) {
+            $pid = $s['planid'];
+            $n = count($planperiods[$pid] ?? []);
+            $h = $hist[$s['userid']] ?? [];
+            for ($k = 1; $k <= $this->horizon; $k++) {
+                $ordk = $s['ord'] + $k;
+                if ($ordk > 2 * $n) {
+                    break;
+                }
+                foreach ($plancourses[$pid] as $cid => $pc) {
+                    if ($pc->ord !== $ordk) {
+                        continue;
+                    }
+                    $st = $h[$cid] ?? null;
+                    if (in_array($st, [self::ST_APPROVED, self::ST_COMPLETED, self::ST_IN_PROGRESS, self::ST_FAILED,
+                            self::ST_MIGRATION, 6, 7], true)) {
+                        continue;
+                    }
+                    $isoplan = (isset($iso['plans'][$pid]) || isset($iso['subjects'][$pid . '|' . $cid])) ? $pid : 0;
+                    $rk = $cid . '|' . $s['jornada'] . '|' . $isoplan;
+                    if (!isset($out[$k]['rows'][$rk])) {
+                        $out[$k]['rows'][$rk] = ['courseid' => $cid, 'name' => $pc->name, 'jornada' => $s['jornada'],
+                            'isolated_plan' => $isoplan, 'levels' => [], 'count' => 0, 'flex' => 0, 'students' => []];
+                    }
+                    $row =& $out[$k]['rows'][$rk];
+                    if (planning_config::is_flexible($flex, $pid, $cid)) {
+                        $row['flex']++;
+                    } else {
+                        $row['count']++;
+                    }
+                    $row['levels'][self::ord_label($ordk)] = true;
+                    $row['students'][] = $key;
+                    unset($row);
+                }
+            }
+        }
+        foreach ($out as &$o) {
+            foreach ($o['rows'] as &$r) {
+                $r['levels'] = array_keys($r['levels']);
+            }
+            unset($r);
+            $o['rows'] = array_values($o['rows']);
+        }
+        unset($o);
+        return array_values(array_filter($out, function ($o) {
+            return !empty($o['rows']);
+        }));
     }
 }

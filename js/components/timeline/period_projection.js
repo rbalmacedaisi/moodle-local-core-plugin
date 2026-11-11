@@ -40,6 +40,13 @@ Vue.component('period-projection', {
             </div>
         </div>
 
+        <div class="tl-plan-tabs tl-proj-views">
+            <button class="tl-plan-tab" :class="{ 'tl-plan-tab-active': view === 'next' }" @click="view = 'next'">
+                <v-icon size="14">mdi-calendar-star</v-icon> Próximo periodo ({{ result.period.name }})</button>
+            <button class="tl-plan-tab" :class="{ 'tl-plan-tab-active': view === 'future' }" @click="openFuture">
+                <v-icon size="14">mdi-calendar-multiple</v-icon> Próximos periodos</button>
+        </div>
+
         <div class="tl-proj-toolbar">
             <select v-if="showCareers" v-model.number="careerFilter" class="tl-cfg-input tl-proj-career" title="Filtrar por carrera">
                 <option :value="0">Todas las carreras</option>
@@ -49,7 +56,7 @@ Vue.component('period-projection', {
                 <v-icon size="14" color="#94A3B8">mdi-magnify</v-icon>
                 <input v-model="q" type="text" placeholder="Buscar asignatura..." class="tl-panel-search-input"/>
             </div>
-            <div class="tl-plan-tabs" style="flex:0 0 auto">
+            <div v-if="view === 'next'" class="tl-plan-tabs" style="flex:0 0 auto">
                 <button v-for="f in filters" :key="f.key" class="tl-plan-tab" :class="{ 'tl-plan-tab-active': filter === f.key }"
                         @click="filter = f.key" :title="f.help">{{ f.label }}<span class="tl-plan-tab-count">{{ f.count }}</span></button>
             </div>
@@ -68,8 +75,54 @@ Vue.component('period-projection', {
             <button class="tl-cfg-btn tl-cfg-btn-ghost" @click="selected = {}">Limpiar selección</button>
         </div>
 
+        <!-- PROXIMOS PERIODOS: matriz asignatura x periodo -->
+        <template v-if="view === 'future'">
+            <div class="tl-proj-filter-note">
+                Asignaturas que le tocarían a los estudiantes activos en cada periodo siguiente, suponiendo que avanzan un bimestre
+                por periodo y aprueban lo de su nivel (las atrasadas y reprobadas se resuelven aparte). Se recalcula cada vez:
+                los estudiantes que ingresen se suman solos. Los periodos que aún no existen en el calendario van como "estimado".
+                Celda verde: alguna jornada alcanza {{ min }}; ámbar: entre {{ Math.ceil(min / 2) }} y {{ min - 1 }}; roja: menos.
+            </div>
+            <div v-if="futureLoading" class="tl-plan-empty" style="padding:16px">Calculando periodos siguientes…</div>
+            <div v-else-if="futureError" class="tl-cfg-msg tl-cfg-msg-error">{{ futureError }}</div>
+            <div v-else-if="future" class="tl-proj-matrix-wrap">
+                <table class="tl-proj-matrix">
+                    <thead><tr>
+                        <th class="tl-proj-mx-subj">Asignatura</th>
+                        <th v-for="c in futureCols" :key="c.key" :title="c.estimated ? 'Periodo aún no creado: fecha estimada' : ''">
+                            {{ c.name }}<div class="tl-proj-mx-date">{{ fmt(c.start) }}{{ c.estimated ? ' · est.' : '' }}</div></th>
+                    </tr></thead>
+                    <tbody>
+                        <tr v-for="r in futureRows" :key="r.key">
+                            <td class="tl-proj-mx-subj"><div class="tl-subj-name" :title="r.name">{{ r.name }}</div>
+                                <div class="tl-subj-meta"><span v-if="r.isolated" class="tl-plan-tag tl-plan-tag-lock">solo {{ careerName(r.isolated) }}</span>
+                                    <span v-if="r.flex" class="tl-plan-tag tl-plan-tag-muted">no obligatoria</span>
+                                    <span>{{ r.levels.join(', ') }}</span></div></td>
+                            <td v-for="c in futureCols" :key="c.key" class="tl-proj-mx-cell" :class="cellClass(r.cells[c.key])"
+                                @click="r.cells[c.key] && showCell(r, c)" :title="cellTitle(r.cells[c.key])">
+                                <template v-if="r.cells[c.key]">
+                                    <b>{{ r.cells[c.key].count }}</b>
+                                    <span v-if="r.cells[c.key].flex" class="tl-proj-mx-flex">+{{ r.cells[c.key].flex }}</span>
+                                </template>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+                <div v-if="!futureRows.length" class="tl-plan-empty" style="padding:16px">Sin asignaturas para este filtro.</div>
+            </div>
+            <div v-if="cellDetail" class="tl-proj-detail-col mt-3">
+                <div class="tl-plan-detail-block">{{ cellDetail.name }} • {{ cellDetail.period }} • {{ cellDetail.students.length }} estudiantes
+                    <button class="tl-proj-unx" style="float:right" @click="cellDetail = null">×</button></div>
+                <div v-for="x in cellDetail.students" :key="x.lluid + '-' + x.jornada" class="tl-plan-name-row">
+                    <span>{{ x.name }}</span>
+                    <span class="tl-subj-meta-item" style="font-size:10px;color:#94A3B8">{{ shortPlan(x.plan) }} · {{ x.jornada || 'Sin jornada' }} · hoy {{ x.level }}</span>
+                </div>
+            </div>
+        </template>
+
+        <template v-if="view === 'next'">
         <div class="tl-proj-grid-head">
-            <span>Asignatura</span><span>Jornadas (estudiantes → grupos)</span><span class="tl-proj-num">Total</span>
+            <span>Asignatura</span><span>Jornadas (estudiantes → grupos)</span><span class="tl-proj-num" title="Se cargan + pueden adelantar">Total</span>
         </div>
         <div v-if="!rows.length" class="tl-plan-empty" style="padding:16px">Sin asignaturas para este filtro.</div>
         <div v-for="r in rows" :key="r.key" class="tl-proj-row" :class="{ 'tl-proj-row-open': open[r.key] }">
@@ -80,6 +133,11 @@ Vue.component('period-projection', {
                     <div class="tl-subj-meta">
                         <span v-if="r.isolated" class="tl-plan-tag tl-plan-tag-lock" title="No se mezcla con otras carreras (Configuración → Reglas de agrupación)">
                             <v-icon size="9" color="#B45309">mdi-lock</v-icon> solo {{ careerName(r.isolated) }}</span>
+                        <span v-if="r.flexible" class="tl-plan-tag" :class="r.flexOn ? 'tl-plan-tag-nivel' : 'tl-plan-tag-muted'"
+                              title="No obligatoria en un periodo concreto (crédito 0 o marcada en Configuración): no se carga salvo que se active aquí">
+                            {{ r.flexOn ? 'no obligatoria · activada' : 'no obligatoria · no se carga' }}</span>
+                        <button v-if="r.flexible && canEdit" class="tl-proj-flexbtn" @click.stop="toggleFlex(r)">
+                            {{ r.flexOn ? 'Quitar de este periodo' : 'Cargar en este periodo' }}</button>
                         <span v-if="r.finishingShort" class="tl-plan-tag tl-proj-tag-finish" title="Estudiantes que egresan con este periodo y esta asignatura no alcanza el mínimo">
                             <v-icon size="9" color="#fff">mdi-school</v-icon> {{ r.finishingShort }} egresan sin quórum</span>
                         <span>{{ r.levels.join(', ') }}</span>
@@ -92,12 +150,14 @@ Vue.component('period-projection', {
                 </div>
                 <div class="tl-proj-jornadas">
                     <span v-for="j in r.jornadas" :key="j.jornada" class="tl-proj-chip" :class="'tl-proj-chip-' + chipSem(j)" :title="chipHelp(j)">
-                        <input v-if="canEdit && !j.groups && !j.exception" type="checkbox" class="tl-proj-check"
+                        <input v-if="canEdit && !j.groups && !j.exception && j.ready" type="checkbox" class="tl-proj-check"
                                :checked="!!selected[j.ekey]" @click.stop @change="toggleSel(r, j)">
                         <b>{{ abbr(j.jornada) }}</b>
-                        <template v-if="careerFilter && j.mine !== j.ready">{{ j.mine }} de {{ j.ready }}</template>
+                        <template v-if="j.flexWaiting && !j.ready">{{ j.flexWaiting }} (no se carga)</template>
+                        <template v-else-if="careerFilter && j.mine !== j.ready">{{ j.mine }} de {{ j.ready }}</template>
                         <template v-else>{{ j.ready }}</template>
-                        <template v-if="j.exception && j.exception.mode === 'modulo'"> → módulo ({{ j.exception.userids.length }})</template>
+                        <template v-if="j.flexWaiting && !j.ready"></template>
+                        <template v-else-if="j.exception && j.exception.mode === 'modulo'"> → módulo ({{ j.exception.userids.length }})</template>
                         <template v-else-if="j.exception"> → excepción: abre</template>
                         <template v-else-if="j.groups"> → {{ j.groups }} {{ j.groups === 1 ? 'grupo' : 'grupos' }}</template>
                         <template v-else-if="j.ready + j.adelanto >= min"> → con adelantos</template>
@@ -106,7 +166,10 @@ Vue.component('period-projection', {
                         <button v-if="canEdit && j.exception" class="tl-proj-unx" @click.stop="removeException(j)" title="Quitar la excepción">×</button>
                     </span>
                 </div>
-                <div class="tl-proj-num"><b>{{ careerFilter ? r.mine : r.ready }}</b></div>
+                <div class="tl-proj-num" :title="(careerFilter ? r.mine : r.ready) + ' se cargan + ' + r.adelanto + ' pueden adelantar'">
+                    <b>{{ (careerFilter ? r.mine : r.ready) + r.adelanto }}</b>
+                    <div v-if="r.adelanto" class="tl-proj-num-sub">{{ careerFilter ? r.mine : r.ready }} + {{ r.adelanto }} adel.</div>
+                </div>
             </div>
             <div v-if="open[r.key]" class="tl-proj-detail">
                 <div v-for="j in r.jornadas" :key="j.jornada" class="tl-proj-detail-col">
@@ -130,6 +193,7 @@ Vue.component('period-projection', {
                 </div>
             </div>
         </div>
+        </template>
         <div class="tl-plan-legend">
             <span><span class="tl-filter-dot tl-dot-green"></span> abre ({{ min }} o más)</span>
             <span><span class="tl-filter-dot tl-dot-blue"></span> abre por excepción o como módulo</span>
@@ -183,11 +247,13 @@ Vue.component('period-projection', {
         scopeLabel: { type: String, default: 'todas las carreras' },
         showCareers: { type: Boolean, default: true },
         canEdit: { type: Boolean, default: true },
+        planIds: { type: String, default: '' },
         min: { type: Number, default: 12 },
         max: { type: Number, default: 30 },
     },
     data() {
         return { q: '', filter: 'all', jornada: '', careerFilter: 0, open: {}, selected: {},
+            view: 'next', future: null, futureLoading: false, futureError: '', cellDetail: null,
             exc: { show: false, mode: 'grupo', items: [], note: '', error: '', saving: false },
             catLabel: { nivel: 'nivel', atrasada: 'atrasada', repite: 'repite', adelanto: 'adelanto' } };
     },
@@ -214,11 +280,11 @@ Vue.component('period-projection', {
                 const key = d.courseid + '|' + iso;
                 const r = by[key] || (by[key] = { key, courseid: d.courseid, name: d.name, isolated: iso, ready: 0, adelanto: 0,
                     blocked: 0, repite: 0, atrasada: 0, levels: {}, plans: {}, planIds: {}, jornadas: [] });
-                const studs = d.students.map(x => ({ s: students[x.key], cat: x.category, prereq: x.prereq }))
+                const studs = d.students.map(x => ({ s: students[x.key], cat: x.category, prereq: x.prereq, flex: !!x.flex }))
                     .filter(x => x.s).sort((a, b) => (b.s.finishing - a.s.finishing) || a.s.name.localeCompare(b.s.name));
                 const byPlan = {};
                 let finishing = 0;
-                const loads = x => x.prereq !== 'no' && (x.cat === 'nivel' || x.cat === 'atrasada');
+                const loads = x => x.prereq !== 'no' && !x.flex && (x.cat === 'nivel' || x.cat === 'atrasada');
                 studs.forEach(x => {
                     if (loads(x)) {
                         byPlan[x.s.planid] = (byPlan[x.s.planid] || 0) + 1;
@@ -229,10 +295,12 @@ Vue.component('period-projection', {
                 const ekey = d.courseid + '|' + (d.jornada || '') + '|' + iso;
                 const exception = this.exceptionMap[ekey] || null;
                 const groups = d.ready >= this.min ? Math.ceil(d.ready / this.max) : 0;
-                r.jornadas.push({ jornada, ekey, ready: d.ready, adelanto: d.by_category.adelanto, blocked: d.blocked,
+                if (d.flexible) { r.flexible = true; r.flexOn = !!d.flex_on; }
+                r.jornadas.push({ jornada, ekey, ready: d.ready, adelanto: d.by_category.adelanto, blocked: d.blocked, flexWaiting: d.flex_waiting || 0,
                     students: studs, byPlan, finishing, exception, groups,
                     readyStudents: studs.filter(loads), repite: d.by_category.repite });
                 r.ready += d.ready;
+                r.flexWaiting = (r.flexWaiting || 0) + (d.flex_waiting || 0);
                 r.adelanto += d.by_category.adelanto;
                 r.blocked += d.blocked;
                 r.repite += d.by_category.repite;
@@ -244,7 +312,7 @@ Vue.component('period-projection', {
                 levels: Object.keys(r.levels).sort(),
                 plans: Object.keys(r.plans),
                 jornadas: r.jornadas.sort((a, b) => b.ready - a.ready),
-            })).filter(r => r.ready > 0 || r.adelanto > 0);
+            })).filter(r => r.ready > 0 || r.adelanto > 0 || r.flexWaiting > 0);
         },
         // Filas visibles: carrera, jornada y busqueda (los conteos se recalculan con lo visible).
         scoped() {
@@ -257,6 +325,7 @@ Vue.component('period-projection', {
                 if (cf) js = js.filter(j => j.mine > 0 || j.students.some(x => x.s.planid === cf));
                 const opens = js.filter(j => j.groups || j.exception);
                 return Object.assign({}, r, { jornadas: js, ready: js.reduce((s, j) => s + j.ready, 0),
+                    adelanto: js.reduce((s, j) => s + j.adelanto, 0),
                     mine: js.reduce((s, j) => s + j.mine, 0), groups: js.reduce((s, j) => s + j.groups, 0),
                     opens: opens.length, finishingShort: js.reduce((s, j) => s + j.finishingShort, 0),
                     repite: js.reduce((s, j) => s + (cf ? j.students.filter(x => x.cat === 'repite' && x.s.planid === cf).length : j.repite), 0) });
@@ -271,6 +340,8 @@ Vue.component('period-projection', {
                 { key: 'short', label: 'No alcanzan', count: this.scoped.filter(r => r.jornadas.some(j => !j.groups && !j.exception)).length,
                     help: 'Tienen al menos una jornada sin quórum ni excepción' },
                 { key: 'finish', label: 'Egresan sin quórum', count: fin, help: 'Hay estudiantes que terminan su plan y la asignatura no alcanza el mínimo' },
+                { key: 'flex', label: 'No obligatorias', count: this.scoped.filter(r => r.flexible).length,
+                    help: 'Crédito 0 o marcadas en Configuración: no se cargan salvo que se activen en el periodo' },
                 { key: 'repite', label: 'Repitentes', count: this.scoped.filter(r => r.repite > 0).length,
                     help: 'Asignaturas con estudiantes que la reprobaron: gestión aparte, se les avisa al aprobar el horario' },
             ];
@@ -280,7 +351,7 @@ Vue.component('period-projection', {
             const f = this.filter;
             return this.scoped
                 .filter(r => f === 'all' || (f === 'open' ? r.opens > 0 : f === 'finish' ? r.finishingShort > 0
-                    : f === 'repite' ? r.repite > 0 : r.jornadas.some(j => !j.groups && !j.exception)))
+                    : f === 'repite' ? r.repite > 0 : f === 'flex' ? r.flexible : r.jornadas.some(j => !j.groups && !j.exception)))
                 .filter(r => !q || r.name.toLowerCase().includes(q))
                 .sort((a, b) => (f === 'finish' ? b.finishingShort - a.finishingShort : 0) || b.groups - a.groups
                     || (b.mine - a.mine) || b.ready - a.ready || a.name.localeCompare(b.name));
@@ -309,10 +380,93 @@ Vue.component('period-projection', {
             return { subjects, groups, covered, uncovered, finishingShort: finishing.size };
         },
         selectedList() { return Object.values(this.selected); },
+        futureCols() {
+            if (!this.future) return [];
+            const p = this.result.period;
+            return [{ key: 'next', name: p.name, start: p.start, estimated: false }]
+                .concat(this.future.horizon.map(h => ({ key: 'h' + h.k, name: h.name, start: h.start, estimated: h.estimated })));
+        },
+        // Filas de la matriz: asignatura (+ carrera si esta aislada); celdas por periodo con el total de las jornadas visibles.
+        futureRows() {
+            if (!this.future) return [];
+            const cf = this.careerFilter, jf = this.jornada, q = this.q.toLowerCase();
+            const st = this.future.students || {};
+            const rows = {};
+            const add = (colkey, cid, name, iso, jornada, count, flex, keys, levels, isflex) => {
+                if (jf && (jornada || 'Sin jornada') !== jf) return;
+                const ks = keys.filter(k => st[k] && (!cf || st[k].planid === cf));
+                if (cf && !ks.length) return;
+                const rk = cid + '|' + iso;
+                const r = rows[rk] || (rows[rk] = { key: rk, courseid: cid, name, isolated: iso, flex: false, levels: {}, cells: {} });
+                r.flex = r.flex || isflex;
+                (levels || []).forEach(l => { r.levels[l] = true; });
+                const c = r.cells[colkey] || (r.cells[colkey] = { count: 0, flex: 0, best: 0, keys: [] });
+                const n = cf ? ks.length - (isflex ? ks.length : 0) : count;
+                const fx = cf ? (isflex ? ks.length : 0) : flex;
+                c.count += n; c.flex += fx; c.best = Math.max(c.best, n);
+                ks.forEach(k => c.keys.push({ k, jornada }));
+            };
+            (this.result.demand || []).forEach(d => {
+                const keys = d.students.filter(x => x.prereq !== 'no' && (x.category === 'nivel' || x.category === 'atrasada' || x.category === 'adelanto')).map(x => x.key);
+                add('next', d.courseid, d.name, Number(d.isolated_plan || 0), d.jornada, d.ready + d.by_category.adelanto,
+                    d.flex_waiting || 0, keys, Object.keys(d.levels), !!d.flexible && !d.flex_on);
+            });
+            this.future.horizon.forEach(h => h.rows.forEach(row => {
+                add('h' + h.k, row.courseid, row.name, Number(row.isolated_plan || 0), row.jornada, row.count, row.flex,
+                    row.students, row.levels, row.flex > 0 && row.count === 0);
+            }));
+            return Object.values(rows).map(r => Object.assign(r, { levels: Object.keys(r.levels).sort() }))
+                .filter(r => !q || r.name.toLowerCase().includes(q))
+                .sort((a, b) => (a.levels[0] || '').localeCompare(b.levels[0] || '') || a.name.localeCompare(b.name));
+        },
         selectedStudents() { return this.selectedList.reduce((s, it) => s + it.students.length, 0); },
     },
     methods: {
         toggle(k) { this.$set(this.open, k, !this.open[k]); },
+        async openFuture() {
+            this.view = 'future';
+            if (this.future || this.futureLoading) return;
+            this.futureLoading = true; this.futureError = '';
+            try {
+                const r = await window.axios.get(window.location.origin + '/webservice/rest/server.php', { params: {
+                    wstoken: window.userToken, moodlewsrestformat: 'json', wsfunction: 'local_grupomakro_planning_get_demand',
+                    periodid: this.result.period.id, planids: this.planIds, horizon: 18 } });
+                if (r.data && r.data.exception) throw new Error(r.data.message || r.data.errorcode);
+                const d = JSON.parse(r.data.data);
+                this.future = { horizon: d.result.horizon || [], students: d.result.students || {} };
+            } catch (e) { this.futureError = 'No se pudo calcular: ' + (e.message || e); }
+            finally { this.futureLoading = false; }
+        },
+        cellClass(c) {
+            if (!c) return 'tl-proj-mx-empty';
+            if (!c.count && c.flex) return 'tl-proj-mx-flexonly';
+            return c.best >= this.min ? 'tl-proj-mx-green' : (c.best >= Math.ceil(this.min / 2) ? 'tl-proj-mx-amber' : 'tl-proj-mx-red');
+        },
+        cellTitle(c) {
+            if (!c) return '';
+            return c.count + ' estudiantes' + (c.flex ? ' + ' + c.flex + ' en no obligatoria (no se carga)' : '')
+                + ' • mayor grupo por jornada: ' + c.best + '. Clic para ver quiénes.';
+        },
+        showCell(r, col) {
+            const st = this.future.students || {};
+            const seen = {};
+            const list = [];
+            r.cells[col.key].keys.forEach(x => {
+                const s = st[x.k];
+                if (s && !seen[x.k]) { seen[x.k] = true; list.push(Object.assign({}, s, { jornada: x.jornada })); }
+            });
+            this.cellDetail = { name: r.name, period: col.name, students: list.sort((a, b) => a.name.localeCompare(b.name)) };
+        },
+        async toggleFlex(r) {
+            const on = !r.flexOn;
+            const msg = on ? 'Cargar "' + r.name + '" en ' + this.result.period.name + '? Sus estudiantes pasarán a contar para la demanda y el quórum.'
+                : 'Quitar "' + r.name + '" de ' + this.result.period.name + '? Dejará de cargarse en este periodo.';
+            if (!window.confirm(msg)) return;
+            try {
+                const res = await this.ws('flex_toggle', { periodid: this.result.period.id, courseid: r.courseid, enabled: on ? 1 : 0 });
+                if (res.ok) this.$emit('changed', res.message); else window.alert(res.message);
+            } catch (e) { window.alert('Error: ' + (e.message || e)); }
+        },
         toggleSel(r, j) {
             if (this.selected[j.ekey]) { this.$delete(this.selected, j.ekey); return; }
             this.$set(this.selected, j.ekey, { ekey: j.ekey, courseid: r.courseid, name: r.name, jornada: j.jornada,

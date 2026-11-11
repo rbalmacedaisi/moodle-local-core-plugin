@@ -106,6 +106,44 @@ Vue.component('planning-config', {
                 <div class="tl-cfg-footer"><button class="tl-cfg-btn" :disabled="!isoDirty || saving" @click="askSave('isolation', iso, isoDiff())">Guardar mezcla de carreras</button></div>
             </div>
 
+            <!-- ASIGNATURAS NO OBLIGATORIAS -->
+            <div v-if="section === 'rules'" class="tl-cfg-card">
+                <div class="tl-cfg-card-head"><div><b>Asignaturas no obligatorias en un periodo concreto</b>
+                    <div class="tl-cfg-help">No se cargan por defecto en la proyección: aparecen marcadas y se activan en cada periodo con
+                    "Cargar en este periodo". Son automáticamente las de crédito 0; aquí puede agregar otras o excluir alguna de crédito 0.</div></div></div>
+                <div class="tl-cfg-sub">Automáticas (crédito 0)</div>
+                <div class="tl-cfg-chips mb-3">
+                    <span v-for="c in flexAuto" :key="c.courseid" class="tl-cfg-chip">{{ c.name }}</span>
+                    <span v-if="!flexAuto.length" class="tl-plan-empty">Ninguna asignatura con crédito 0.</span>
+                </div>
+                <div class="tl-cfg-sub">Marcar otra asignatura como no obligatoria</div>
+                <div class="tl-cfg-inline">
+                    <select class="tl-cfg-input" v-model.number="flexPick.planid" style="min-width:220px">
+                        <option :value="0">Elija la carrera…</option>
+                        <option v-for="c in careers" :key="c.id" :value="c.id">{{ shortPlan(c.name) }}</option>
+                    </select>
+                    <select class="tl-cfg-input" v-model.number="flexPick.courseid" :disabled="!flexPick.planid" style="flex:1;min-width:240px">
+                        <option :value="0">Elija la asignatura…</option>
+                        <option v-for="x in careerById(flexPick.planid).courses || []" :key="x.courseid" :value="x.courseid">{{ x.name }}{{ isAuto(x.courseid) ? ' (crédito 0)' : '' }}</option>
+                    </select>
+                    <button class="tl-cfg-btn" :disabled="!flexPick.planid || !flexPick.courseid" @click="flexMark('add')">Marcar no obligatoria</button>
+                    <button class="tl-cfg-btn tl-cfg-btn-ghost" :disabled="!flexPick.planid || !flexPick.courseid || !isAuto(flexPick.courseid)" @click="flexMark('remove')"
+                            title="Para una de crédito 0 que en esta carrera sí debe cargarse siempre">Hacerla obligatoria aquí</button>
+                </div>
+                <table class="tl-cfg-table" v-if="flex.add.length || flex.remove.length">
+                    <thead><tr><th>Carrera</th><th>Asignatura</th><th>Ajuste</th><th></th></tr></thead>
+                    <tbody>
+                        <tr v-for="k in flex.add" :key="'a' + k"><td>{{ shortPlan(careerById(+k.split('|')[0]).name) }}</td><td>{{ courseName(+k.split('|')[0], +k.split('|')[1]) }}</td>
+                            <td><span class="tl-plan-tag tl-plan-tag-muted">no obligatoria</span></td>
+                            <td class="tl-cfg-actions"><button class="tl-cfg-btn tl-cfg-btn-ghost" @click="flex.add = flex.add.filter(x => x !== k)">Quitar</button></td></tr>
+                        <tr v-for="k in flex.remove" :key="'r' + k"><td>{{ shortPlan(careerById(+k.split('|')[0]).name) }}</td><td>{{ courseName(+k.split('|')[0], +k.split('|')[1]) }}</td>
+                            <td><span class="tl-plan-tag tl-plan-tag-nivel">obligatoria aquí</span></td>
+                            <td class="tl-cfg-actions"><button class="tl-cfg-btn tl-cfg-btn-ghost" @click="flex.remove = flex.remove.filter(x => x !== k)">Quitar</button></td></tr>
+                    </tbody>
+                </table>
+                <div class="tl-cfg-footer"><button class="tl-cfg-btn" :disabled="!flexDirty || saving" @click="askSave('flexible', flex, flexDiff())">Guardar no obligatorias</button></div>
+            </div>
+
             <!-- JORNADAS Y HORARIOS -->
             <div v-if="section === 'scheduler'" class="tl-cfg-card">
                 <div class="tl-cfg-card-head"><div><b>Jornadas y horarios</b>
@@ -218,6 +256,7 @@ Vue.component('planning-config', {
             periods: [], rules: {}, rulesOrig: {}, sched: null, schedOrig: '', classrooms: [], holidays: [], loads: [],
             newHoliday: { date: '', name: '' },
             careers: [], iso: { careers: [], subjects: [] }, isoOrig: '', isoPick: { planid: 0, courseid: 0 },
+            flexAuto: [], flex: { add: [], remove: [] }, flexOrig: '', flexPick: { planid: 0, courseid: 0 },
             confirm: { show: false, title: '', changes: [], note: '', danger: false, run: null },
         };
     },
@@ -231,6 +270,7 @@ Vue.component('planning-config', {
             return this.holidays.filter(h => this.showPastHolidays || h.date >= today);
         },
         isoDirty() { return JSON.stringify(this.isoNorm(this.iso)) !== this.isoOrig; },
+        flexDirty() { return JSON.stringify({ add: this.flex.add.slice().sort(), remove: this.flex.remove.slice().sort() }) !== this.flexOrig; },
         pickCourses() {
             const c = this.careerById(this.isoPick.planid);
             const taken = this.iso.subjects.filter(s => s.planid === this.isoPick.planid).map(s => s.courseid);
@@ -265,6 +305,10 @@ Vue.component('planning-config', {
                 const iso = d.isolation || { careers: [], subjects: [] };
                 this.iso = { careers: (iso.careers || []).map(Number), subjects: (iso.subjects || []).map(s => ({ planid: Number(s.planid), courseid: Number(s.courseid) })) };
                 this.isoOrig = JSON.stringify(this.isoNorm(this.iso));
+                const fl = d.flexible || { auto: [], add: [], remove: [] };
+                this.flexAuto = fl.auto || [];
+                this.flex = { add: (fl.add || []).slice(), remove: (fl.remove || []).slice() };
+                this.flexOrig = JSON.stringify({ add: this.flex.add.slice().sort(), remove: this.flex.remove.slice().sort() });
             } catch (e) {
                 this.error = 'No se pudo cargar la configuración: ' + (e.message || e);
             } finally { this.loading = false; }
@@ -307,6 +351,24 @@ Vue.component('planning-config', {
             });
             [['sessionDuration', 'Duración de sesión'], ['intervalMinutes', 'Receso'], ['lunchStart', 'Inicio almuerzo'], ['lunchEnd', 'Fin almuerzo']]
                 .forEach(([k, l]) => { if (o[k] !== s[k]) out.push({ label: l, before: o[k], after: s[k] }); });
+            return out;
+        },
+        // ---- no obligatorias ----
+        isAuto(cid) { return this.flexAuto.some(c => c.courseid === cid); },
+        flexMark(kind) {
+            const k = this.flexPick.planid + '|' + this.flexPick.courseid;
+            this.flex.add = this.flex.add.filter(x => x !== k);
+            this.flex.remove = this.flex.remove.filter(x => x !== k);
+            this.flex[kind].push(k);
+            this.flexPick.courseid = 0;
+        },
+        flexDiff() {
+            const o = JSON.parse(this.flexOrig), out = [];
+            const lbl = k => { const [p, c] = k.split('|').map(Number); return this.courseName(p, c) + ' (' + this.shortPlan(this.careerById(p).name) + ')'; };
+            this.flex.add.filter(k => !o.add.includes(k)).forEach(k => out.push({ label: 'No obligatoria', before: '', after: lbl(k) }));
+            o.add.filter(k => !this.flex.add.includes(k)).forEach(k => out.push({ label: 'Vuelve a obligatoria', before: lbl(k), after: '' }));
+            this.flex.remove.filter(k => !o.remove.includes(k)).forEach(k => out.push({ label: 'Obligatoria aquí (crédito 0)', before: '', after: lbl(k) }));
+            o.remove.filter(k => !this.flex.remove.includes(k)).forEach(k => out.push({ label: 'Vuelve a no obligatoria', before: lbl(k), after: '' }));
             return out;
         },
         // ---- mezcla de carreras ----

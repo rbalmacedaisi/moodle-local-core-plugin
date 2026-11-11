@@ -171,6 +171,81 @@ class planning_config {
         return self::ok($remove ? 'Excepción quitada.' : 'Excepción registrada.', array_values(self::exceptions($pid)));
     }
 
+    /**
+     * Asignaturas no obligatorias en un periodo concreto: no se cargan por defecto, solo si se activan en el periodo.
+     *  - auto: las de credito 0 (campo de curso 'credits').
+     *  - add / remove: ajustes manuales por carrera y asignatura (config planning_flexible_subjects).
+     *
+     * @return array ['auto' => [courseid => true], 'add' => ['planid|courseid' => true], 'remove' => ['planid|courseid' => true]]
+     */
+    public static function flexible() {
+        global $DB;
+        $auto = [];
+        $fid = (int)$DB->get_field('customfield_field', 'id', ['shortname' => 'credits']);
+        if ($fid) {
+            foreach ($DB->get_records_select('customfield_data', "fieldid = ? AND value = '0'", [$fid], '', 'id, instanceid') as $r) {
+                $auto[(int)$r->instanceid] = true;
+            }
+        }
+        $cfg = json_decode((string)get_config('local_grupomakro_core', 'planning_flexible_subjects'), true) ?: [];
+        $add = [];
+        $remove = [];
+        foreach ((array)($cfg['add'] ?? []) as $k) {
+            $add[(string)$k] = true;
+        }
+        foreach ((array)($cfg['remove'] ?? []) as $k) {
+            $remove[(string)$k] = true;
+        }
+        return ['auto' => $auto, 'add' => $add, 'remove' => $remove];
+    }
+
+    public static function is_flexible(array $flex, $planid, $courseid) {
+        $k = (int)$planid . '|' . (int)$courseid;
+        return isset($flex['add'][$k]) || (isset($flex['auto'][(int)$courseid]) && !isset($flex['remove'][$k]));
+    }
+
+    /** Asignaturas no obligatorias activadas para un periodo: [courseid => true]. */
+    public static function flexible_enabled($periodid) {
+        global $DB;
+        $cfg = json_decode((string)$DB->get_field('gmk_academic_periods', 'configsettings', ['id' => $periodid]), true);
+        $out = [];
+        foreach ((array)(is_array($cfg) ? ($cfg['flexible_enabled'] ?? []) : []) as $cid) {
+            $out[(int)$cid] = true;
+        }
+        return $out;
+    }
+
+    /** Activa o desactiva una asignatura no obligatoria en un periodo (solo la columna configsettings). */
+    protected static function toggle_flexible(array $d) {
+        global $DB, $USER;
+        $pid = (int)($d['periodid'] ?? 0);
+        $cid = (int)($d['courseid'] ?? 0);
+        $p = $DB->get_record('gmk_academic_periods', ['id' => $pid]);
+        if (!$p || !$DB->record_exists('course', ['id' => $cid])) {
+            return self::fail('Periodo o asignatura no válidos.');
+        }
+        $cfg = json_decode((string)$p->configsettings, true);
+        if (!is_array($cfg)) {
+            $cfg = [];
+        }
+        $list = array_map('intval', (array)($cfg['flexible_enabled'] ?? []));
+        $before = $list;
+        $list = array_values(array_diff($list, [$cid]));
+        if (!empty($d['enabled'])) {
+            $list[] = $cid;
+        }
+        if ($list) {
+            $cfg['flexible_enabled'] = $list;
+        } else {
+            unset($cfg['flexible_enabled']);
+        }
+        $DB->update_record('gmk_academic_periods', (object)['id' => $pid,
+            'configsettings' => $cfg ? json_encode($cfg, JSON_UNESCAPED_UNICODE) : null,
+            'usermodified' => $USER->id, 'timemodified' => time()]);
+        self::backup('no_obligatorias_periodo_' . $pid, ['antes' => $before, 'despues' => $list]);
+        return self::ok(!empty($d['enabled']) ? 'Asignatura activada para este periodo.' : 'Asignatura desactivada para este periodo.', $list);
+    }
+
     /** Inicio de clases por jornada guardado en el periodo (o []). */
     public static function jornada_starts($period) {
         $cfg = json_decode((string)($period->configsettings ?? ''), true);
@@ -243,7 +318,16 @@ class planning_config {
             $careers[] = ['id' => (int)$lp->id, 'name' => $lp->name, 'courses' => $courses];
         }
         $iso = self::isolation();
+        $flex = self::flexible();
+        $autolist = [];
+        if ($flex['auto']) {
+            list($insql, $inparams) = $DB->get_in_or_equal(array_keys($flex['auto']));
+            foreach ($DB->get_records_select('course', "id $insql", $inparams, 'fullname', 'id, fullname') as $c) {
+                $autolist[] = ['courseid' => (int)$c->id, 'name' => $c->fullname];
+            }
+        }
         return [
+            'flexible' => ['auto' => $autolist, 'add' => array_keys($flex['add']), 'remove' => array_keys($flex['remove'])],
             'periods' => $periods,
             'rules' => self::rules(),
             'careers' => $careers,
@@ -273,6 +357,27 @@ class planning_config {
 
             case 'exception_remove':
                 return self::save_exceptions($data, true);
+
+            case 'flex_toggle':
+                return self::toggle_flexible($data);
+
+            case 'flexible':
+                // Ajustes manuales de no obligatorias: 'add' marca, 'remove' desmarca una de credito 0.
+                $clean = ['add' => [], 'remove' => []];
+                foreach (['add', 'remove'] as $kind) {
+                    foreach ((array)($data[$kind] ?? []) as $k) {
+                        list($pid, $cid) = array_map('intval', explode('|', (string)$k) + [0, 0]);
+                        if (!$pid || !$cid || !$DB->record_exists('local_learning_courses', ['learningplanid' => $pid, 'courseid' => $cid])) {
+                            return self::fail('Una de las asignaturas elegidas no pertenece a la carrera indicada.');
+                        }
+                        $clean[$kind][] = $pid . '|' . $cid;
+                    }
+                    $clean[$kind] = array_values(array_unique($clean[$kind]));
+                }
+                $before = get_config('local_grupomakro_core', 'planning_flexible_subjects');
+                set_config('planning_flexible_subjects', json_encode($clean), 'local_grupomakro_core');
+                self::backup('no_obligatorias', ['antes' => json_decode((string)$before, true), 'despues' => $clean]);
+                return self::ok('Asignaturas no obligatorias guardadas.', $clean);
 
             case 'rules':
                 $min = (int)($data['min_group'] ?? 0);

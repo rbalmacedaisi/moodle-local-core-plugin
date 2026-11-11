@@ -36,6 +36,7 @@ class cohort_planning extends external_api {
         return new external_function_parameters([
             'periodid' => new external_value(PARAM_INT, 'Periodo academico (0 = el proximo por iniciar)', VALUE_DEFAULT, 0),
             'planids' => new external_value(PARAM_SEQUENCE, 'Planes separados por coma (vacio = todos)', VALUE_DEFAULT, ''),
+            'horizon' => new external_value(PARAM_INT, 'Periodos siguientes a proyectar (0 = solo el periodo)', VALUE_DEFAULT, 0),
         ]);
     }
 
@@ -44,10 +45,10 @@ class cohort_planning extends external_api {
      *
      * @return array ['data' => JSON con periods, selected, y el resultado de demand_engine::compute()]
      */
-    public static function get_demand($periodid = 0, $planids = '') {
+    public static function get_demand($periodid = 0, $planids = '', $horizon = 0) {
         global $DB;
         $params = self::validate_parameters(self::get_demand_parameters(),
-            ['periodid' => $periodid, 'planids' => $planids]);
+            ['periodid' => $periodid, 'planids' => $planids, 'horizon' => $horizon]);
         $context = \context_system::instance();
         self::validate_context($context);
         require_capability('local/grupomakro_core:manage_academic_planning', $context);
@@ -77,7 +78,7 @@ class cohort_planning extends external_api {
         $pid = $params['periodid'] ?: $default;
         $plans = $params['planids'] !== '' ? array_map('intval', explode(',', $params['planids'])) : [];
 
-        $result = $pid ? (new demand_engine($pid, $plans))->compute() : ['error' => 'No hay periodos academicos abiertos.'];
+        $result = $pid ? (new demand_engine($pid, $plans, $params['horizon']))->compute() : ['error' => 'No hay periodos academicos abiertos.'];
         $careers = array_values(array_filter($DB->get_records_sql(
             "SELECT DISTINCT lp.id, lp.name
                FROM {local_learning_plans} lp
@@ -128,7 +129,7 @@ class cohort_planning extends external_api {
 
     public static function save_config_parameters() {
         return new external_function_parameters([
-            'section' => new external_value(PARAM_ALPHANUMEXT, 'period | exception_add | exception_remove | rules | scheduler | isolation | classroom | classroom_delete | holiday | holiday_delete'),
+            'section' => new external_value(PARAM_ALPHANUMEXT, 'period | exception_add | exception_remove | flex_toggle | flexible | rules | scheduler | isolation | classroom | classroom_delete | holiday | holiday_delete'),
             'data' => new external_value(PARAM_RAW, 'JSON con los datos de la seccion'),
         ]);
     }
