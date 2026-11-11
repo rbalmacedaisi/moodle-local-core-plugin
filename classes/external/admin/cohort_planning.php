@@ -38,6 +38,7 @@ class cohort_planning extends external_api {
             'planids' => new external_value(PARAM_SEQUENCE, 'Planes separados por coma (vacio = todos)', VALUE_DEFAULT, ''),
             'horizon' => new external_value(PARAM_INT, 'Periodos siguientes a proyectar (0 = solo el periodo)', VALUE_DEFAULT, 0),
             'groups' => new external_value(PARAM_INT, '1 = incluir la propuesta de grupos (agrupacion automatica)', VALUE_DEFAULT, 0),
+            'board' => new external_value(PARAM_INT, '1 = incluir el tablero de horarios (implica groups)', VALUE_DEFAULT, 0),
         ]);
     }
 
@@ -46,10 +47,13 @@ class cohort_planning extends external_api {
      *
      * @return array ['data' => JSON con periods, selected, y el resultado de demand_engine::compute()]
      */
-    public static function get_demand($periodid = 0, $planids = '', $horizon = 0, $groups = 0) {
+    public static function get_demand($periodid = 0, $planids = '', $horizon = 0, $groups = 0, $board = 0) {
         global $DB;
         $params = self::validate_parameters(self::get_demand_parameters(),
-            ['periodid' => $periodid, 'planids' => $planids, 'horizon' => $horizon, 'groups' => $groups]);
+            ['periodid' => $periodid, 'planids' => $planids, 'horizon' => $horizon, 'groups' => $groups, 'board' => $board]);
+        if ($params['board']) {
+            $params['groups'] = 1;
+        }
         $context = \context_system::instance();
         self::validate_context($context);
         require_capability('local/grupomakro_core:manage_academic_planning', $context);
@@ -110,6 +114,9 @@ class cohort_planning extends external_api {
                 $result['comparison']['source'] = $saved ? 'guardada' : 'actual';
                 $result['saved_proposal'] = $saved ? ['saved_at' => $saved['saved_at'], 'byname' => $saved['byname'],
                     'groups' => count($saved['groups'])] : null;
+                if ($params['board']) {
+                    $result['board'] = \local_grupomakro_core\local\planning\schedule_board::load($pid, $result);
+                }
             }
         }
         return ['data' => json_encode([
@@ -148,7 +155,7 @@ class cohort_planning extends external_api {
 
     public static function save_config_parameters() {
         return new external_function_parameters([
-            'section' => new external_value(PARAM_ALPHANUMEXT, 'period | exception_add | exception_remove | flex_toggle | flexible | costs | proposal_save | proposal_remove | rules | scheduler | isolation | classroom | classroom_delete | holiday | holiday_delete'),
+            'section' => new external_value(PARAM_ALPHANUMEXT, 'period | exception_add | exception_remove | flex_toggle | flexible | costs | proposal_save | proposal_remove | board_save | board_clear | teacher_skill_add | teacher_skill_remove | teacher_availability | rules | scheduler | isolation | classroom | classroom_delete | holiday | holiday_delete'),
             'data' => new external_value(PARAM_RAW, 'JSON con los datos de la seccion'),
         ]);
     }

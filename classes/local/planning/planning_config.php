@@ -663,6 +663,21 @@ class planning_config {
             case 'proposal_remove':
                 return self::save_proposal($data, true);
 
+            case 'board_save':
+                return schedule_board::save($data);
+
+            case 'board_clear':
+                return schedule_board::save(['clear' => true] + $data);
+
+            case 'teacher_skill_add':
+                return teacher_admin::skill($data, true);
+
+            case 'teacher_skill_remove':
+                return teacher_admin::skill($data, false);
+
+            case 'teacher_availability':
+                return teacher_admin::availability($data);
+
             case 'costs':
                 // Tarifa por hora y asignaturas de cuatrimestre completo.
                 $rate = (float)($data['hour_rate'] ?? 0);
@@ -977,6 +992,11 @@ class planning_config {
 
     protected static function is_time($t) {
         return is_string($t) && preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $t);
+    }
+
+    /** Respaldo JSON para otras clases de la planificacion. */
+    public static function log_backup($what, $payload) {
+        self::backup($what, $payload);
     }
 
     protected static function backup($what, $payload) {
