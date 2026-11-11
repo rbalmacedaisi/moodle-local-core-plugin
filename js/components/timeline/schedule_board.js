@@ -88,7 +88,7 @@ Vue.component('schedule-board', {
                 </div>
             </div>
 
-            <div class="tl-sb-main">
+            <div class="tl-sb-main" :class="{ 'tl-sb-main-nosel': !info }">
                 <!-- sin ubicar -->
                 <div class="tl-sb-side" @dragover.prevent @drop.prevent="dropUnplace">
                     <div class="tl-sb-side-head">Sin horario ({{ unplaced.length }})</div>
@@ -96,7 +96,8 @@ Vue.component('schedule-board', {
                     <div v-for="g in unplaced" :key="g.key" class="tl-sb-item" :class="{ 'tl-sb-item-sel': sel === g.key }"
                          :draggable="canEdit" @dragstart="dragStart($event, g.key, false)" @dragend="dragEnd" @click="select(g.key)">
                         <div class="tl-sb-item-name">{{ g.name }}</div>
-                        <div class="tl-sb-item-meta">G{{ g.number }}/{{ g.of }} · {{ g.size }} est · {{ g.duration }} min<span v-if="g.long"> · cuatrimestral</span></div>
+                        <div class="tl-sb-item-meta">G{{ g.number }}/{{ g.of }}<template v-if="g.parts > 1"> · parte {{ g.part }}/{{ g.parts }}</template> · {{ g.size }} est
+                            · {{ g.sessions || '?' }} ses. de {{ g.duration }} min<span v-if="g.long"> · cuatrimestral</span></div>
                         <div class="tl-sb-item-meta">{{ topLevels(g) }}</div>
                     </div>
                     <div v-if="!unplaced.length" class="tl-plan-empty">Todos los grupos de {{ jornada }} tienen horario.</div>
@@ -130,7 +131,7 @@ Vue.component('schedule-board', {
                                  :style="{ top: (hover.start - win.start) * ppm + 'px', height: (hover.end - hover.start) * ppm + 'px' }">
                                 <b>{{ hhmm(hover.start) }}–{{ hhmm(hover.end) }}</b>
                                 <div v-for="(m, i) in hover.msgs.slice(0, 3)" :key="i">{{ m }}</div>
-                                <div v-if="!hover.msgs.length">Sin choques</div>
+                                <div v-if="hover.sev === 'ok'">Sin choques</div>
                             </div>
                         </div>
                     </div>
@@ -159,12 +160,19 @@ Vue.component('schedule-board', {
                     <div class="tl-sb-sec">
                         <div class="tl-sb-sec-title">Horario</div>
                         <div v-if="placedSel">{{ dayName(info.p.day) }} {{ hhmm(info.p.start) }}–{{ hhmm(info.p.end) }}
-                            <span class="tl-cfg-help">({{ info.p.end - info.p.start }} min por semana{{ info.g.hours ? ', carga ' + info.g.hours + ' h' : '' }})</span></div>
+                            <span class="tl-cfg-help">({{ info.p.end - info.p.start }} min{{ info.g.hours ? ', carga ' + info.g.hours + ' h' : '' }})</span>
+                            <div class="tl-cfg-help">{{ E.weeksLabel(S, sel, info.p) }}</div></div>
+                        <div class="tl-cfg-help">{{ info.g.sessions || '?' }} sesiones<template v-if="info.g.parts > 1"> en esta parte (parte {{ info.g.part }} de {{ info.g.parts }}: tiene más sesiones que semanas tiene
+                            el bloque, por eso va en {{ info.g.parts }} fichas, en días distintos o seguidas en la misma franja si caben)</template>. Las asignaturas cortas usan solo las semanas que necesitan
+                            y pueden ir seguidas de otra en la misma franja.</div>
                         <div v-else class="tl-cfg-help">Sin horario: arrástrelo a la cuadrícula o use una sugerencia.</div>
                         <div class="d-flex align-center mt-1" style="gap:6px;flex-wrap:wrap" v-if="canEdit">
                             <label class="tl-cfg-help">Duración
                                 <select class="tl-cfg-input" style="width:90px" :value="durSel" @change="setDuration(Number($event.target.value))">
                                     <option v-for="m in durOptions" :key="m" :value="m">{{ m }} min</option></select></label>
+                            <label v-if="placedSel && weekOptions.length > 1" class="tl-cfg-help">Semanas
+                                <select class="tl-cfg-input" style="width:190px" :value="info.p.week || 0" @change="setPlace(sel, { week: Number($event.target.value) })">
+                                    <option v-for="o in weekOptions" :key="o.week" :value="o.week">{{ o.label }}</option></select></label>
                             <label class="tl-cfg-check"><input type="checkbox" :checked="info.p.locked" @change="setLock($event.target.checked)"> Bloquear</label>
                             <button v-if="placedSel" class="tl-proj-flexbtn" @click="unplace(sel)">Quitar del horario</button>
                         </div>
@@ -203,7 +211,7 @@ Vue.component('schedule-board', {
                     </div>
                     <div class="tl-sb-sec" v-if="info.conf.length">
                         <div class="tl-sb-sec-title">Choques y avisos</div>
-                        <div v-for="(c, i) in info.conf" :key="i" class="tl-sb-conf" :class="'tl-sb-conf-' + c.sev" @click="c.with && groupsMap[c.with] && select(c.with)">
+                        <div v-for="(c, i) in info.conf" :key="i" class="tl-sb-conf" :class="'tl-sb-conf-' + c.sev" @click="c.with && groupsMap[c.with] && goTo(c.with)">
                             <v-icon size="13" :color="c.sev === 'hard' ? '#B91C1C' : (c.sev === 'soft' ? '#B45309' : '#64748B')">
                                 {{ c.sev === 'hard' ? 'mdi-close-octagon' : (c.sev === 'soft' ? 'mdi-alert' : 'mdi-information-outline') }}</v-icon>
                             <span>{{ c.msg }}</span>
@@ -220,10 +228,6 @@ Vue.component('schedule-board', {
                             <button class="tl-proj-flexbtn" @click="applySugg(s)">Aplicar</button>
                         </div>
                     </div>
-                </div>
-                <div class="tl-sb-panel tl-sb-panel-empty" v-else>
-                    <v-icon size="28" color="#CBD5E1">mdi-cursor-default-click-outline</v-icon>
-                    <div class="tl-cfg-help">Haga clic en un grupo para ver sus estudiantes, elegir docente y aula, revisar choques y aplicar sugerencias.</div>
                 </div>
             </div>
 
@@ -499,11 +503,15 @@ Vue.component('schedule-board', {
                 const g = this.S.groups[k], p = this.S.place[k];
                 if (g.jornada !== this.jornada || !this.E.placed(p) || !out[p.day]) return;
                 const sev = this.E.severity(conf[k]);
+                const wl = this.E.weeksLabel(this.S, k, p);
+                const partial = wl && wl.indexOf('todo') !== 0;
                 const dim = (this.onlyIssues && sev === 'ok') || !this.matchQ(g.name, p.teacherid);
                 out[p.day].push({ id: k, name: g.name, start: p.start, end: p.end, sev, locked: p.locked, dim,
-                    line1: (g.published ? '✓ publicada · ' : '') + 'G' + g.number + ' · ' + g.size + ' est · ' + this.E.hhmm(p.start) + '–' + this.E.hhmm(p.end),
+                    line1: (g.published ? '✓ publicada · ' : '') + 'G' + g.number + (g.parts > 1 ? ' (' + g.part + '/' + g.parts + ')' : '') + ' · ' + g.size + ' est · '
+                        + (partial ? wl.split(' · ')[0] + ' · ' + wl.split(' · ')[1] : this.E.hhmm(p.start) + '–' + this.E.hhmm(p.end)),
                     line2: (p.teacherid ? this.teacherName(p.teacherid) : 'Sin docente') + ' · ' + (p.roomid ? this.roomName(p.roomid) : 'sin aula'),
-                    title: g.name + ' (G' + g.number + ')\n' + (conf[k] || []).map(c => '• ' + c.msg).join('\n') });
+                    title: g.name + ' (G' + g.number + ')\n' + this.E.hhmm(p.start) + '–' + this.E.hhmm(p.end) + ' · ' + wl + '\n'
+                        + (conf[k] || []).map(c => '• ' + c.msg).join('\n') });
             });
             // Clases ya creadas de esta jornada (o con estudiantes de los grupos de esta jornada).
             const users = new Set();
@@ -551,6 +559,17 @@ Vue.component('schedule-board', {
             const sugg = this.E.suggestions(this.S, this.sel, 4);
             const blocked = (!this.E.placed(p) || conf.some(c => c.sev === 'hard')) && !sugg.some(x => x.kind === 'mover' || x.kind === 'reparar');
             return { g, p, conf, sugg, why: blocked ? this.E.whyNoSlot(this.S, this.sel) : '' };
+        },
+        weekOptions() {
+            if (!this.info || !this.E.placed(this.info.p)) return [];
+            const out = [];
+            for (let w = 0; w <= this.E.maxWeek(this.S, this.sel, this.info.p.day); w++) {
+                const p = Object.assign({}, this.info.p, { week: w });
+                const cs = this.E.conflicts(this.S, this.sel, p);
+                const sev = this.E.severity(cs);
+                out.push({ week: w, label: this.E.weeksLabel(this.S, this.sel, p).split(' · ').slice(0, 2).join(' · ') + (sev === 'hard' ? ' ✗' : sev === 'soft' ? ' !' : '') });
+            }
+            return out;
         },
         durSel() { return this.info ? (this.E.placed(this.info.p) ? this.info.p.end - this.info.p.start : this.info.g.duration) : 120; },
         durOptions() {
@@ -669,10 +688,10 @@ Vue.component('schedule-board', {
             this.S.place = JSON.parse(prev);
             this.dirty = true; this.tick++;
         },
-        select(k) { this.sel = k; this.tq = ''; },
+        select(k) { this.sel = this.sel === k ? null : k; this.tq = ''; },
         goTo(k) {
             const g = this.S.groups[k];
-            if (g) { this.jornada = g.jornada; this.select(k); }
+            if (g) { this.jornada = g.jornada; this.sel = k; this.tq = ''; }
         },
         setPlace(k, patch) {
             if (!this.canEdit) return;
@@ -684,18 +703,24 @@ Vue.component('schedule-board', {
             this.S.place[k] = Object.assign({}, this.S.place[k], patch);
             this.tick++;
         },
-        unplace(k) { this.setPlace(k, { day: 0, start: 0, end: 0 }); },
+        unplace(k) { this.setPlace(k, { day: 0, start: 0, end: 0, week: 0 }); },
         setDuration(m) {
             const p = this.info.p;
             if (this.E.placed(p)) this.setPlace(this.sel, { end: p.start + m });
             else { this.S.groups[this.sel].duration = m; this.tick++; }
         },
         setLock(v) { this.setPlace(this.sel, { locked: v }); },
-        setTeacher(id) { this.setPlace(this.sel, { teacherid: id }); },
+        setTeacher(id) {
+            const sibs = this.E.siblings(this.S, this.sel);
+            if (sibs.some(k => this.S.groups[k].published)) { this.setPlace(this.sel, { teacherid: id }); return; }
+            this.remember();
+            sibs.forEach(k => { this.S.place[k] = Object.assign({}, this.S.place[k], { teacherid: id }); });
+            this.tick++;
+        },
         setRoom(id) { this.setPlace(this.sel, { roomid: id }); },
         applySugg(s) {
             if (s.kind === 'mover') {
-                const patch = { day: s.day, start: s.start, end: s.end };
+                const patch = { day: s.day, start: s.start, end: s.end, week: s.week || 0 };
                 if (s.teacher && !this.info.p.teacherid) patch.teacherid = s.teacher.id;
                 this.setPlace(this.sel, patch);
             } else if (s.kind === 'docente') this.setPlace(this.sel, { teacherid: s.teacherid });
@@ -728,13 +753,13 @@ Vue.component('schedule-board', {
         // ---- arrastrar ----
         dragStart(e, k, fromGrid) {
             if (!this.canEdit) { e.preventDefault(); return; }
+            this.dragSel = true;
             const p = this.S.place[k];
             const rect = e.target.getBoundingClientRect();
             this.drag = { key: k, grab: fromGrid ? (e.clientY - rect.top) / this.ppm : 0,
                 dur: this.E.placed(p) ? p.end - p.start : this.S.groups[k].duration };
             e.dataTransfer.effectAllowed = 'move';
             try { e.dataTransfer.setData('text/plain', k); } catch (x) { /* IE */ }
-            this.sel = k;
         },
         dragEnd() { this.drag = null; this.hover = null; },
         dragOver(e, day) {
@@ -745,16 +770,21 @@ Vue.component('schedule-board', {
             start = Math.max(this.win.start, Math.min(this.win.end - this.drag.dur, start));
             if (this.hover && this.hover.day === day && this.hover.start === start) return;
             const p = this.S.place[this.drag.key];
-            const test = { day, start, end: start + this.drag.dur, teacherid: p.teacherid, roomid: p.roomid };
-            const cs = this.E.conflicts(this.S, this.drag.key, test);
-            this.hover = { day, start, end: start + this.drag.dur, sev: this.E.severity(cs), msgs: cs.filter(c => c.sev !== 'info').map(c => c.msg) };
+            const test = { day, start, end: start + this.drag.dur, teacherid: p.teacherid, roomid: p.roomid, week: 0 };
+            // Elige sola la semana de inicio que menos choca (asi una asignatura corta se encadena despues de otra).
+            const bw = this.E.bestWeek(this.S, this.drag.key, test);
+            test.week = bw.week;
+            const cs = bw.conflicts;
+            const wl = this.E.weeksLabel(this.S, this.drag.key, test);
+            this.hover = { day, start, end: start + this.drag.dur, week: bw.week, sev: this.E.severity(cs),
+                msgs: (wl && wl.indexOf('todo') !== 0 ? [wl] : []).concat(cs.filter(c => c.sev !== 'info').map(c => c.msg)) };
         },
         dragLeave(e, day) {
             if (this.hover && this.hover.day === day && !e.currentTarget.contains(e.relatedTarget)) this.hover = null;
         },
         drop(e, day) {
             if (!this.drag || !this.hover) return;
-            this.setPlace(this.drag.key, { day, start: this.hover.start, end: this.hover.end });
+            this.setPlace(this.drag.key, { day, start: this.hover.start, end: this.hover.end, week: this.hover.week || 0 });
             this.dragEnd();
         },
         dropUnplace() {

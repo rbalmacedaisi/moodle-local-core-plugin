@@ -152,63 +152,119 @@ class publisher {
                     'from' => (int)$f['initdate'], 'to' => (int)$f['enddate']];
             }
         }
+        // Cada grupo tiene una o varias fichas (partes semanales); cada ficha, sus fechas exactas (semana de inicio + sesiones).
         $rows = [];
+        $cards = [];
         foreach ($board['groups'] as $g) {
-            $it = $draft['items'][$g['key']] ?? null;
             list($from, $to) = self::dates($period, $calendar, $g['jornada'], $g['long']);
+            $cal = $board['calendars'][$g['cal']]['days'] ?? [];
             $row = ['key' => $g['key'], 'courseid' => $g['courseid'], 'name' => $g['name'], 'jornada' => $g['jornada'],
                 'number' => $g['number'], 'of' => $g['of'], 'size' => $g['size'], 'userids' => $g['userids'], 'levels' => $g['levels'],
                 'plans' => $g['plans'], 'long' => $g['long'], 'hours' => $g['hours'], 'from' => $from, 'to' => $to,
-                'day' => (int)($it['day'] ?? 0), 'start' => (int)($it['start'] ?? 0), 'end' => (int)($it['end'] ?? 0),
-                'teacherid' => (int)($it['teacherid'] ?? 0), 'roomid' => (int)($it['roomid'] ?? 0),
-                'teacher' => !empty($it['teacherid']) && isset($teachers[(int)$it['teacherid']]) ? $teachers[(int)$it['teacherid']]['name'] : '',
-                'room' => !empty($it['roomid']) && isset($rooms[(int)$it['roomid']]) ? $rooms[(int)$it['roomid']]['name'] : '',
-                'classid' => (int)($pub['groups'][$g['key']] ?? 0), 'blocks' => [], 'warnings' => []];
+                'cards' => [], 'day' => 0, 'start' => 0, 'end' => 0, 'teacherid' => 0, 'roomid' => 0, 'teacher' => '', 'room' => '',
+                'dates' => [], 'classid' => (int)($pub['groups'][$g['key']] ?? 0), 'blocks' => [], 'warnings' => []];
             if ($row['classid'] && !$DB->record_exists('gmk_class', ['id' => $row['classid']])) {
                 $row['warnings'][] = 'Se había publicado como clase ' . $row['classid'] . ' pero esa clase ya no existe (fue borrada); no se vuelve a crear sola.';
             }
-            if (!$row['day']) {
-                $row['blocks'][] = 'No tiene horario en el tablero.';
+            $tids = [];
+            foreach ($g['parts'] as $pi => $pt) {
+                $it = $draft['items'][$pt['key']] ?? null;
+                $day = (int)($it['day'] ?? 0);
+                $nses = (int)($it['sessions'] ?? 0) ?: (int)$pt['sessions'];
+                $week = (int)($it['week'] ?? 0);
+                $all = $day ? array_values((array)($cal[$day] ?? ($cal[(string)$day] ?? []))) : [];
+                $dates = $nses > 0 ? array_slice($all, $week, $nses) : $all;
+                $card = ['key' => $pt['key'], 'part' => $pi + 1, 'parts' => count($g['parts']), 'day' => $day,
+                    'start' => (int)($it['start'] ?? 0), 'end' => (int)($it['end'] ?? 0), 'week' => $week, 'sessions' => $nses,
+                    'teacherid' => (int)($it['teacherid'] ?? 0), 'roomid' => (int)($it['roomid'] ?? 0), 'dates' => $dates];
+                if (!$day) {
+                    $row['blocks'][] = (count($g['parts']) > 1 ? 'La parte ' . ($pi + 1) . ' no tiene' : 'No tiene') . ' horario en el tablero.';
+                } else if ($nses > 0 && count($dates) < $nses) {
+                    $row['blocks'][] = 'Desde la semana ' . ($week + 1) . ' solo caben ' . count($dates) . ' de ' . $nses . ' sesiones.';
+                }
+                if ($card['teacherid']) {
+                    $tids[$card['teacherid']] = true;
+                }
+                $row['cards'][] = $card;
+                $cards[] = ['row' => $g['key'], 'card' => $card];
             }
+            if (count($tids) > 1) {
+                $row['blocks'][] = 'Las partes de la asignatura tienen docentes distintos: debe ser el mismo docente.';
+            }
+            $first = $row['cards'][0];
+            $row['day'] = $first['day'];
+            $row['start'] = $first['start'];
+            $row['end'] = $first['end'];
+            $row['teacherid'] = $tids ? (int)array_key_first($tids) : 0;
+            $row['roomid'] = $first['roomid'];
+            $row['teacher'] = $row['teacherid'] && isset($teachers[$row['teacherid']]) ? $teachers[$row['teacherid']]['name'] : '';
+            $row['room'] = $row['roomid'] && isset($rooms[$row['roomid']]) ? $rooms[$row['roomid']]['name'] : '';
+            $alldates = [];
+            foreach ($row['cards'] as $c) {
+                $alldates = array_merge($alldates, $c['dates']);
+            }
+            sort($alldates);
+            $row['dates'] = $alldates;
             $rows[$g['key']] = $row;
         }
-        // Choques duros (servidor, independiente de la pantalla).
+        // Choques duros (servidor, independiente de la pantalla), ficha por ficha con sus fechas exactas.
+        $ymd = function ($d) {
+            return (int)strtotime($d . ' 00:00:00');
+        };
         $entries = $occ;
-        foreach ($rows as $r) {
-            if ($r['day']) {
-                $entries[] = ['id' => $r['key'], 'name' => $r['name'] . ' G' . $r['number'], 'day' => $r['day'], 'start' => $r['start'], 'end' => $r['end'],
-                    'teacherid' => $r['teacherid'], 'roomid' => $r['roomid'], 'users' => array_flip($r['userids']), 'from' => $r['from'], 'to' => $r['to']];
+        foreach ($cards as $x) {
+            $c = $x['card'];
+            if ($c['day'] && $c['dates']) {
+                $r = $rows[$x['row']];
+                $entries[] = ['id' => $c['key'], 'row' => $x['row'], 'card' => true, 'name' => $r['name'] . ' G' . $r['number']
+                    . ($c['parts'] > 1 ? ' (' . $c['part'] . '/' . $c['parts'] . ')' : ''), 'day' => $c['day'], 'start' => $c['start'], 'end' => $c['end'],
+                    'teacherid' => $c['teacherid'], 'roomid' => $c['roomid'], 'users' => array_flip($r['userids']),
+                    'from' => $ymd($c['dates'][0]), 'to' => $ymd(end($c['dates'])) + 86400];
             }
         }
-        foreach ($rows as $k => $r) {
-            if (!$r['day']) {
+        $sw = json_decode(json_encode($cfg['shiftWindows']), true) ?: [];
+        foreach ($cards as $x) {
+            $k = $x['row'];
+            $r = $rows[$k];
+            $c = $x['card'];
+            if (!$c['day'] || !$c['dates']) {
                 continue;
             }
-            $sw = json_decode(json_encode($cfg['shiftWindows']), true) ?: [];
             $w = isset($sw[$r['jornada']]) ? (array)$sw[$r['jornada']] : null;
             $days = stripos($r['jornada'], 'sab') !== false ? [6] : [1, 2, 3, 4, 5];
-            if (!in_array($r['day'], $days, true)) {
+            if (!in_array($c['day'], $days, true)) {
                 $rows[$k]['blocks'][] = 'El día no corresponde a la jornada ' . $r['jornada'] . '.';
-            } else if ($w && ($r['start'] < schedule_board::to_min($w['start']) || $r['end'] > schedule_board::to_min($w['end']))) {
+            } else if ($w && ($c['start'] < schedule_board::to_min($w['start']) || $c['end'] > schedule_board::to_min($w['end']))) {
                 $rows[$k]['blocks'][] = 'Fuera de la franja de la jornada ' . $r['jornada'] . '.';
             }
+            $cfrom = $ymd($c['dates'][0]);
+            $cto = $ymd(end($c['dates'])) + 86400;
             foreach ($entries as $o) {
-                if ($o['id'] === $k || $o['day'] !== $r['day'] || !($r['start'] < $o['end'] + $pad && $o['start'] < $r['end'] + $pad)) {
+                if ($o['id'] === $c['key'] || $o['day'] !== $c['day'] || !($c['start'] < $o['end'] + $pad && $o['start'] < $c['end'] + $pad)) {
                     continue;
                 }
-                if ($o['from'] && $o['to'] && !($r['from'] < $o['to'] - 7 * 86400 && $o['from'] < $r['to'] - 7 * 86400)) {
+                if (!empty($o['card'])) {
+                    if (!($cfrom < $o['to'] && $o['from'] < $cto)) {
+                        continue; // fichas en semanas distintas de la misma franja: no chocan
+                    }
+                } else if ($o['from'] && $o['to'] && !($cfrom < $o['to'] - 7 * 86400 && $o['from'] < $cto - 7 * 86400)) {
                     continue;
                 }
                 $n = count(array_intersect_key(array_flip($r['userids']), $o['users']));
                 if ($n) {
                     $rows[$k]['blocks'][] = $n . ' estudiante(s) también tienen ' . $o['name'] . ' a esa hora.';
                 }
-                if ($r['teacherid'] && $o['teacherid'] === $r['teacherid']) {
+                if ($c['teacherid'] && $o['teacherid'] === $c['teacherid']) {
                     $rows[$k]['blocks'][] = 'El docente ya dicta ' . $o['name'] . ' a esa hora.';
                 }
-                if ($r['roomid'] && $o['roomid'] === $r['roomid']) {
+                if ($c['roomid'] && $o['roomid'] === $c['roomid']) {
                     $rows[$k]['blocks'][] = 'El aula está ocupada por ' . $o['name'] . ' a esa hora.';
                 }
+            }
+        }
+        foreach ($rows as $k => $r) {
+            if (!$r['day']) {
+                continue;
             }
             if (!$r['teacherid']) {
                 $rows[$k]['warnings'][] = 'Sin docente: se asigna después en la clase.';
@@ -218,22 +274,24 @@ class publisher {
                     $rows[$k]['warnings'][] = $r['teacher'] . ' no tiene registrada la habilidad.';
                 }
             }
-            if (!$r['roomid']) {
-                $rows[$k]['warnings'][] = 'Sin aula.';
-            } else if (isset($rooms[$r['roomid']]) && $rooms[$r['roomid']]['capacity'] < $r['size']) {
-                $rows[$k]['warnings'][] = 'El aula es chica para el grupo.';
+            $mins = 0;
+            foreach ($r['cards'] as $c) {
+                if (!$c['roomid']) {
+                    $rows[$k]['warnings'][] = 'Sin aula.';
+                } else if (isset($rooms[$c['roomid']]) && $rooms[$c['roomid']]['capacity'] < $r['size']) {
+                    $rows[$k]['warnings'][] = 'El aula es chica para el grupo.';
+                }
+                $mins += count($c['dates']) * ($c['end'] - $c['start']);
             }
-            $dur = $r['end'] - $r['start'];
-            $dates = self::session_dates($r['day'], $r['from'], $r['to'], $dur, $r['hours'], $holidays);
-            $rows[$k]['dates'] = $dates;
-            if (!$dates) {
+            if (!$r['dates']) {
                 $rows[$k]['blocks'][] = 'No hay fechas de clase para ese día en el periodo.';
-            } else if ($r['hours'] > 0 && count($dates) * $dur < $r['hours'] * 60) {
-                $rows[$k]['warnings'][] = 'Con ' . count($dates) . ' sesiones de ' . $dur . ' min no se cubren las ' . $r['hours'] . ' h de la carga.';
+            } else if ($r['hours'] > 0 && $mins < $r['hours'] * 60) {
+                $rows[$k]['warnings'][] = 'Las sesiones suman ' . round($mins / 60, 1) . ' h y la carga es de ' . $r['hours'] . ' h.';
             }
         }
         foreach ($rows as $k => $r) {
             $rows[$k]['blocks'] = array_values(array_unique($r['blocks']));
+            $rows[$k]['warnings'] = array_values(array_unique($r['warnings']));
             $rows[$k]['status'] = $r['classid'] ? 'publicado' : ($rows[$k]['blocks'] ? 'bloqueado' : 'listo');
         }
 
@@ -441,7 +499,12 @@ class publisher {
         $a = schedule_board::to_hhmm($g['start']);
         $b = schedule_board::to_hhmm($g['end']);
         $mask = [0, 0, 0, 0, 0, 0, 0];
-        $mask[$g['day'] - 1] = 1;
+        foreach ($g['cards'] as $card) {
+            $mask[$card['day'] - 1] = 1;
+        }
+        // La clase va de su primera a su ultima sesion (una asignatura corta no ocupa todo el bloque).
+        $initdate = usergetmidnight(strtotime($g['dates'][0] . ' 00:00:00'));
+        $enddate = usergetmidnight(strtotime(end($g['dates']) . ' 00:00:00')) + 86399;
         $levels = [];
         foreach ($g['levels'] as $l => $n) {
             $levels[] = $l . ' (' . $n . ')';
@@ -467,8 +530,8 @@ class publisher {
         $c->classdays = implode('/', $mask);
         $c->classroomid = $g['roomid'] ?: null;
         $c->classroomcapacity = $g['roomid'] ? (int)$DB->get_field('gmk_classrooms', 'capacity', ['id' => $g['roomid']]) : 0;
-        $c->initdate = $g['from'];
-        $c->enddate = $g['to'];
+        $c->initdate = $initdate;
+        $c->enddate = $enddate;
         $c->subperiodid = 0;
         $c->shift = $g['jornada'];
         $c->level_label = implode(', ', $levels);
@@ -490,9 +553,14 @@ class publisher {
             $DB->insert_record('gmk_class_queue', (object)['classid' => $c->id, 'userid' => (int)$u, 'courseid' => (int)$llc->id,
                 'timecreated' => $now, 'timemodified' => $now, 'usermodified' => (int)$USER->id]);
         }
-        $DB->insert_record('gmk_class_schedules', (object)['classid' => $c->id, 'day' => self::DAYKEY[$g['day']], 'start_time' => $a,
-            'end_time' => $b, 'classroomid' => $g['roomid'] ?: null, 'excluded_dates' => null,
-            'assigned_dates' => json_encode(array_values($g['dates'])), 'usermodified' => (int)$USER->id, 'timecreated' => $now, 'timemodified' => $now]);
+        // Una sesion semanal por ficha, con sus propias fechas.
+        foreach ($g['cards'] as $card) {
+            $DB->insert_record('gmk_class_schedules', (object)['classid' => $c->id, 'day' => self::DAYKEY[$card['day']],
+                'start_time' => schedule_board::to_hhmm($card['start']), 'end_time' => schedule_board::to_hhmm($card['end']),
+                'classroomid' => $card['roomid'] ?: null, 'excluded_dates' => null,
+                'assigned_dates' => json_encode(array_values($card['dates'])), 'usermodified' => (int)$USER->id, 'timecreated' => $now,
+                'timemodified' => $now]);
+        }
         $tx->allow_commit();
 
         // Fase 2: estructuras de Moodle (grupo, seccion, actividades). Si algo falla, la clase se borra completa.

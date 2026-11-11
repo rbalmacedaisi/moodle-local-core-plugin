@@ -2622,3 +2622,6 @@ button.tl-btn.tl-btn-primary:active:not(:disabled) {
 .tl-sb-failed-row:hover { text-decoration: underline; }
 .tl-sb-pubbtn { background: #047857 !important; }
 .tl-sb-pubtable td, .tl-sb-pubtable th { font-size: 12px; padding: 4px 6px; vertical-align: top; }
+/* Sin ficha seleccionada: la cuadricula usa todo el ancho */
+.tl-sb-main.tl-sb-main-nosel { grid-template-columns: 220px minmax(0, 1fr); }
+@media (max-width: 1100px) { .tl-sb-main.tl-sb-main-nosel { grid-template-columns: 1fr; } }

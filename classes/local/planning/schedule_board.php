@@ -119,6 +119,14 @@ class schedule_board {
             $byuser[(int)$s['userid']][] = $s;
         }
         $names = [];
+        // Calendario de cada jornada (y cuatrimestral): fechas de clase por dia de la semana, sin festivos.
+        $calendar = $DB->get_record('gmk_academic_calendar', ['academicperiodid' => $periodid]);
+        $holidaymap = [];
+        foreach (scheduler_settings::get_holidays() as $hd) {
+            $holidaymap[date('Y-m-d', (int)$hd->date)] = $hd->name;
+        }
+        $calendars = [];
+        $calweeks = [];
         foreach ((array)$saved as $key => $g) {
             $cid = (int)$g['courseid'];
             if (!isset($names[$cid])) {
@@ -126,9 +134,33 @@ class schedule_board {
             }
             $h = $hours[self::norm($names[$cid] ?: $g['name'])] ?? null;
             $islong = isset($long[$cid]);
-            $weeks = $islong ? 16 : 8;
-            $dur = $h && $h['total'] > 0 ? (int)(round($h['total'] * 60 / $weeks / 5) * 5) : $defdur;
+            $calkey = $g['jornada'] . '|' . ($islong ? 1 : 0);
+            if (!isset($calendars[$calkey])) {
+                list($cfrom, $cto) = publisher::dates($p, $calendar, $g['jornada'], $islong);
+                $cal = [];
+                foreach ([1, 2, 3, 4, 5, 6] as $dn) {
+                    $cal[$dn] = publisher::session_dates($dn, $cfrom, $cto, 0, 0, $holidaymap);
+                }
+                $calendars[$calkey] = ['from' => $cfrom, 'to' => $cto, 'days' => $cal];
+                // Semanas utiles: el dia de la jornada con menos fechas.
+                $jd = stripos($g['jornada'], 'sab') !== false ? [6] : [1, 2, 3, 4, 5];
+                $calweeks[$calkey] = max(1, min(array_map(function ($dn) use ($cal) {
+                    return count($cal[$dn]);
+                }, $jd)));
+            }
+            $weeks = $calweeks[$calkey];
+            // Sesion: la intensidad de la carga (horas por sesion) o la duracion estandar; sesiones = horas / duracion.
+            // Las asignaturas cortas usan solo las semanas que necesitan (se pueden poner seguidas en la misma franja);
+            // las que necesitan mas sesiones que semanas se parten en varias fichas semanales (varios dias por semana).
+            $dur = $h && $h['intensity'] > 0 ? (int)round($h['intensity'] * 60) : $defdur;
             $dur = max(30, min(480, $dur));
+            $sessions = $h && $h['total'] > 0 ? (int)ceil($h['total'] * 60 / $dur) : $weeks;
+            $nparts = max(1, (int)ceil($sessions / $weeks));
+            $parts = [];
+            for ($i = 1; $i <= $nparts; $i++) {
+                $parts[] = ['key' => $nparts === 1 ? $key : $key . '#' . $i,
+                    'sessions' => intdiv($sessions, $nparts) + ($i <= $sessions % $nparts ? 1 : 0)];
+            }
             $levels = [];
             $plans = [];
             foreach ($g['userids'] as $u) {
@@ -143,6 +175,7 @@ class schedule_board {
                 'type' => $g['type'], 'userids' => array_map('intval', $g['userids']), 'size' => count($g['userids']),
                 'adelantos' => count($g['adelantos'] ?? []), 'levels' => $levels, 'plans' => array_keys($plans),
                 'duration' => $dur, 'hours' => $h ? $h['total'] : 0, 'long' => $islong,
+                'cal' => $calkey, 'weeks' => $weeks, 'sessions' => $sessions, 'parts' => $parts,
                 'published' => (int)($published[$key] ?? 0)];
         }
 
@@ -247,6 +280,7 @@ class schedule_board {
         }
         return [
             'needs_proposal' => $saved === null,
+            'calendars' => $calendars,
             'skills_catalog' => $catalog,
             'groups' => $groups,
             'teachers' => array_values($teachers),
@@ -297,39 +331,53 @@ class schedule_board {
             $tchecked = [];
             foreach ((array)($d['items'] ?? []) as $key => $it) {
                 $key = (string)$key;
-                if (!empty($published[$key])) {
+                // Ficha: clave del grupo, o grupo#parte cuando la asignatura se dicta varios dias por semana.
+                $gkey = $key;
+                if (preg_match('/^(.*)#(\d{1,2})$/', $key, $mm)) {
+                    $gkey = $mm[1];
+                    if ((int)$mm[2] < 1) {
+                        return ['ok' => false, 'message' => 'Ficha no válida (' . $key . ').', 'saved' => null];
+                    }
+                }
+                if (!empty($published[$gkey])) {
                     // Ya publicado: se conserva lo que estaba (no se edita desde el tablero).
                     if (isset($cur['items'][$key])) {
                         $items[$key] = $cur['items'][$key];
                     }
                     continue;
                 }
-                if (!isset($groups[$key])) {
+                if (!isset($groups[$gkey])) {
                     return ['ok' => false, 'message' => 'Un grupo del tablero ya no está en la propuesta guardada (' . $key . '). Recargue el tablero.', 'saved' => null];
+                }
+                $week = (int)($it['week'] ?? 0);
+                $nses = (int)($it['sessions'] ?? 0);
+                if ($week < 0 || $week > 40 || $nses < 0 || $nses > 60) {
+                    return ['ok' => false, 'message' => 'Semanas o sesiones no válidas en ' . $groups[$gkey]['name'] . '.', 'saved' => null];
                 }
                 $day = (int)($it['day'] ?? 0);
                 $a = (int)($it['start'] ?? -1);
                 $b = (int)($it['end'] ?? -1);
                 $placed = $day > 0;
                 if ($placed && ($day < 1 || $day > 7 || $a < 0 || $b <= $a || $b > 24 * 60)) {
-                    return ['ok' => false, 'message' => 'Horario no válido en ' . $groups[$key]['name'] . '.', 'saved' => null];
+                    return ['ok' => false, 'message' => 'Horario no válido en ' . $groups[$gkey]['name'] . '.', 'saved' => null];
                 }
                 $tid = (int)($it['teacherid'] ?? 0);
                 if ($tid && !isset($tchecked[$tid])) {
                     if (!$DB->record_exists('user', ['id' => $tid, 'deleted' => 0])) {
-                        return ['ok' => false, 'message' => 'El docente asignado a ' . $groups[$key]['name'] . ' no existe.', 'saved' => null];
+                        return ['ok' => false, 'message' => 'El docente asignado a ' . $groups[$gkey]['name'] . ' no existe.', 'saved' => null];
                     }
                     $tchecked[$tid] = true;
                 }
                 $rid = (int)($it['roomid'] ?? 0);
                 if ($rid && !isset($rooms[$rid])) {
-                    return ['ok' => false, 'message' => 'El aula asignada a ' . $groups[$key]['name'] . ' no existe.', 'saved' => null];
+                    return ['ok' => false, 'message' => 'El aula asignada a ' . $groups[$gkey]['name'] . ' no existe.', 'saved' => null];
                 }
                 if (!$placed && !$tid && !$rid) {
                     continue; // nada que guardar
                 }
                 $items[$key] = ['day' => $placed ? $day : 0, 'start' => $placed ? $a : 0, 'end' => $placed ? $b : 0,
-                    'teacherid' => $tid, 'roomid' => $rid, 'locked' => !empty($it['locked'])];
+                    'teacherid' => $tid, 'roomid' => $rid, 'locked' => !empty($it['locked']), 'week' => $placed ? $week : 0,
+                    'sessions' => $nses];
             }
         }
         $cfg = json_decode((string)$p->configsettings, true);
