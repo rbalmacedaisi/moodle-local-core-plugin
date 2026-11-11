@@ -2506,3 +2506,15 @@ button.tl-btn.tl-btn-primary:active:not(:disabled) {
 .tl-proj-stu .tl-proj-stu-meta { flex: 0 1 auto; min-width: 0; max-width: 45%; font-size: 10px; color: var(--tl-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tl-proj-rep-col { background: #FFF5F5; border-color: #FECACA; }
 .tl-proj-rep-head { background: none; border: none; padding: 0; cursor: pointer; font: inherit; font-size: 11px; font-weight: 700; text-transform: uppercase; color: #B91C1C; display: inline-flex; align-items: center; gap: 4px; }
+/* Grupos propuestos */
+.tl-proj-grow { display: grid; grid-template-columns: minmax(220px, 300px) 1fr; gap: 12px; align-items: start; padding: 10px 4px; border-bottom: 1px solid var(--tl-divider); }
+@media (max-width: 760px) { .tl-proj-grow { grid-template-columns: 1fr; } }
+.tl-proj-grow-name .tl-subj-name { display: block; }
+.tl-proj-gcards { display: flex; flex-wrap: wrap; gap: 8px; }
+.tl-proj-gcard { min-width: 150px; border: 1px solid #A7F3D0; background: #F0FDF4; border-radius: 8px; padding: 6px 10px; cursor: pointer; transition: box-shadow var(--tl-dur) var(--tl-ease); }
+.tl-proj-gcard:hover { box-shadow: var(--tl-shadow-sm); }
+.tl-proj-gcard-excepcion { border-color: #BFDBFE; background: #EFF6FF; }
+.tl-proj-gcard-modulo { border-color: #DDD6FE; background: #F5F3FF; }
+.tl-proj-gcard-top { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--tl-text); }
+.tl-proj-gcard-size { font-size: 16px; font-weight: 700; color: #047857; }
+.tl-proj-gcard-meta { font-size: 10px; color: var(--tl-text-muted); display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px; }

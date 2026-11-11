@@ -28,7 +28,7 @@ Vue.component('period-projection', {
                     a partir de {{ max }}. Lo que no alcanza se puede abrir por excepción o como módulo: marque las casillas.</span>
                 </v-tooltip>
             </div>
-            <div class="tl-proj-kpis">
+            <div v-if="view === 'next'" class="tl-proj-kpis">
                 <div class="tl-proj-kpi"><b>{{ summary.subjects }}</b><span>asignaturas abren</span></div>
                 <div class="tl-proj-kpi"><b>{{ summary.groups }}</b><span>grupos</span></div>
                 <div class="tl-proj-kpi tl-proj-kpi-ok"><b>{{ summary.covered }}</b><span>cupos cubiertos</span></div>
@@ -43,6 +43,8 @@ Vue.component('period-projection', {
         <div class="tl-plan-tabs tl-proj-views">
             <button class="tl-plan-tab" :class="{ 'tl-plan-tab-active': view === 'next' }" @click="view = 'next'">
                 <v-icon size="14">mdi-calendar-star</v-icon> Próximo periodo ({{ result.period.name }})</button>
+            <button class="tl-plan-tab" :class="{ 'tl-plan-tab-active': view === 'groups' }" @click="openGroups">
+                <v-icon size="14">mdi-account-group</v-icon> Grupos propuestos</button>
             <button class="tl-plan-tab" :class="{ 'tl-plan-tab-active': view === 'future' }" @click="openFuture">
                 <v-icon size="14">mdi-calendar-multiple</v-icon> Próximos periodos</button>
         </div>
@@ -74,6 +76,102 @@ Vue.component('period-projection', {
             <button class="tl-cfg-btn" @click="openException">Abrir por excepción…</button>
             <button class="tl-cfg-btn tl-cfg-btn-ghost" @click="selected = {}">Limpiar selección</button>
         </div>
+
+        <!-- GRUPOS PROPUESTOS (agrupacion automatica, solo lectura) -->
+        <template v-if="view === 'groups'">
+            <div class="tl-proj-filter-note">
+                Propuesta automática de grupos para {{ result.period.name }}: por asignatura y jornada, de {{ min }} a {{ max }} estudiantes,
+                repartidos parejo y con las cohortes juntas. Los adelantos solo se cargan a quien queda con menos de la carga mínima.
+                Los repitentes se gestionan aparte. Es una propuesta: no se guarda nada hasta enviarla al tablero de horarios.
+            </div>
+            <div v-if="groupsLoading" class="tl-plan-empty" style="padding:16px">Armando grupos…</div>
+            <div v-else-if="groupsError" class="tl-cfg-msg tl-cfg-msg-error">{{ groupsError }}</div>
+            <template v-else-if="grouping">
+                <div class="tl-proj-kpis mb-3">
+                    <div class="tl-proj-kpi"><b>{{ gSummary.groups }}</b><span>grupos</span></div>
+                    <div class="tl-proj-kpi"><b>{{ gSummary.seats }}</b><span>cupos</span></div>
+                    <div class="tl-proj-kpi tl-proj-kpi-ok"><b>{{ gSummary.students }}</b><span>estudiantes con carga</span></div>
+                    <div class="tl-proj-kpi"><b>{{ gSummary.adelantos }}</b><span>adelantos</span></div>
+                    <div class="tl-proj-kpi tl-proj-kpi-warn tl-proj-kpi-click" @click="groupTab = 'alerts'"><b>{{ gSummary.alerts }}</b><span>alertas</span></div>
+                </div>
+                <div class="tl-plan-tabs mb-3" style="max-width:420px">
+                    <button class="tl-plan-tab" :class="{ 'tl-plan-tab-active': groupTab === 'list' }" @click="groupTab = 'list'">Grupos<span class="tl-plan-tab-count">{{ gSummary.groups }}</span></button>
+                    <button class="tl-plan-tab" :class="{ 'tl-plan-tab-active': groupTab === 'alerts' }" @click="groupTab = 'alerts'">Alertas<span class="tl-plan-tab-count">{{ gSummary.alerts }}</span></button>
+                </div>
+                <!-- lista de grupos -->
+                <template v-if="groupTab === 'list'">
+                    <div v-if="!groupRows.length" class="tl-plan-empty" style="padding:16px">Sin grupos para este filtro.</div>
+                    <div v-for="row in groupRows" :key="row.key" class="tl-proj-grow">
+                        <div class="tl-proj-grow-name">
+                            <div class="tl-subj-name" :title="row.name">{{ row.name }}</div>
+                            <div class="tl-subj-meta">
+                                <span>{{ row.jornada || 'Sin jornada' }}</span>
+                                <span v-if="row.isolated" class="tl-plan-tag tl-plan-tag-lock">solo {{ careerName(row.isolated) }}</span>
+                                <span v-if="row.long" class="tl-plan-tag tl-plan-tag-nivel">cuatrimestral</span>
+                            </div>
+                        </div>
+                        <div class="tl-proj-gcards">
+                            <div v-for="gr in row.groups" :key="gr.id" class="tl-proj-gcard" :class="'tl-proj-gcard-' + gr.type" @click="groupDetail = gr">
+                                <div class="tl-proj-gcard-top"><b>{{ gr.type === 'modulo' ? 'Módulo' : 'Grupo ' + gr.number }}</b>
+                                    <span class="tl-proj-gcard-size">{{ gr.size }}</span></div>
+                                <div class="tl-proj-gcard-meta">{{ topLevels(gr) }}</div>
+                                <div class="tl-proj-gcard-meta">
+                                    <span v-if="gr.adelantos">{{ gr.adelantos }} adelanto{{ gr.adelantos > 1 ? 's' : '' }}</span>
+                                    <span v-if="gr.type === 'excepcion'" class="tl-plan-tag tl-plan-tag-nivel">excepción</span>
+                                    <span v-if="showCareers && gr.plans.length > 1">{{ gr.plans.length }} carreras</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+                <!-- alertas -->
+                <template v-if="groupTab === 'alerts'">
+                    <div class="tl-proj-toolbar">
+                        <div class="tl-plan-tabs" style="flex:0 0 auto">
+                            <button v-for="t in alertTypes" :key="t.key" class="tl-plan-tab" :class="{ 'tl-plan-tab-active': alertType === t.key }"
+                                    @click="alertType = t.key" :title="t.help">{{ t.label }}<span class="tl-plan-tab-count">{{ t.count }}</span></button>
+                        </div>
+                        <v-spacer></v-spacer>
+                        <button class="tl-cfg-btn tl-cfg-btn-ghost" @click="exportAlerts">Descargar (CSV)</button>
+                    </div>
+                    <table class="tl-cfg-table">
+                        <thead><tr><th>Estudiante</th><th>Carrera</th><th>Nivel</th><th>Asignatura</th><th>Jornada</th><th>Detalle</th></tr></thead>
+                        <tbody>
+                            <tr v-for="(al, i) in alertRows.slice(0, alertLimit)" :key="i">
+                                <td>{{ al.name }} <span v-if="al.finishing" class="tl-plan-tag tl-proj-tag-finish">egresa</span></td>
+                                <td class="tl-cfg-help">{{ shortPlan(al.plan) }}</td><td>{{ al.level }}</td>
+                                <td>{{ al.course || '—' }}</td><td>{{ al.jornada || '—' }}</td><td class="tl-cfg-help">{{ al.detail }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <div v-if="alertRows.length > alertLimit" class="tl-plan-more" @click="alertLimit += 200">Ver más ({{ alertRows.length - alertLimit }})</div>
+                    <div v-if="!alertRows.length" class="tl-plan-empty" style="padding:16px">Sin alertas para este filtro.</div>
+                </template>
+            </template>
+            <v-dialog :value="!!groupDetail" @input="v => { if (!v) groupDetail = null; }" max-width="640" scrollable>
+                <v-card v-if="groupDetail">
+                    <v-card-title class="d-flex">
+                        <div>
+                            <div class="text-subtitle-1 font-weight-bold">{{ groupDetail.name }}</div>
+                            <div class="tl-cfg-help">{{ groupDetail.type === 'modulo' ? 'Módulo' : 'Grupo ' + groupDetail.number + ' de ' + groupDetail.of }} •
+                                {{ groupDetail.jornada || 'Sin jornada' }} • {{ groupDetail.size }} estudiantes
+                                <template v-if="groupDetail.note"> • {{ groupDetail.note }}</template></div>
+                        </div>
+                        <v-spacer></v-spacer>
+                        <v-btn icon @click="groupDetail = null"><v-icon>mdi-close</v-icon></v-btn>
+                    </v-card-title>
+                    <v-card-text>
+                        <div class="tl-cfg-help mb-2">Cohortes: <span v-for="(n, c) in groupDetail.cohorts" :key="c">{{ c }} ({{ n }}); </span></div>
+                        <div v-for="k in groupDetail.students" :key="k" class="tl-plan-name-row tl-proj-stu">
+                            <span class="tl-proj-stu-name">{{ grouping.st[k].name }}</span>
+                            <span v-if="grouping.st[k].finishing" class="tl-plan-tag tl-proj-tag-finish">egresa</span>
+                            <span v-if="groupDetail.adel && groupDetail.adel.includes(k)" class="tl-plan-tag tl-plan-tag-adelanto">adelanto</span>
+                            <span class="tl-proj-stu-meta">{{ shortPlan(grouping.st[k].plan) }} · {{ grouping.st[k].level }}</span>
+                        </div>
+                    </v-card-text>
+                </v-card>
+            </v-dialog>
+        </template>
 
         <!-- PROXIMOS PERIODOS: matriz asignatura x periodo -->
         <template v-if="view === 'future'">
@@ -317,9 +415,13 @@ Vue.component('period-projection', {
         min: { type: Number, default: 12 },
         max: { type: Number, default: 30 },
     },
+    watch: {
+        result() { if (this.grouping) this.resetGroups(); },
+    },
     data() {
         return { q: '', filter: 'all', jornada: '', careerFilter: 0, open: {}, selected: {},
             view: 'next', future: null, futureLoading: false, futureError: '', cellDetail: null, costOpen: false, openRep: {},
+            grouping: null, groupsLoading: false, groupsError: '', groupTab: 'list', groupDetail: null, alertType: 'all', alertLimit: 200,
             exc: { show: false, mode: 'grupo', items: [], note: '', error: '', saving: false },
             catLabel: { nivel: 'nivel', atrasada: 'atrasada', repite: 'repite', adelanto: 'adelanto' } };
     },
@@ -446,6 +548,53 @@ Vue.component('period-projection', {
             return { subjects, groups, covered, uncovered, finishingShort: finishing.size };
         },
         selectedList() { return Object.values(this.selected); },
+        // Grupos filtrados por carrera, jornada y busqueda, agrupados por asignatura + jornada.
+        groupRows() {
+            if (!this.grouping) return [];
+            const cf = this.careerFilter, jf = this.jornada, q = this.q.toLowerCase();
+            const st = this.grouping.st;
+            const rows = {};
+            this.grouping.groups.forEach(g => {
+                if (jf && (g.jornada || 'Sin jornada') !== jf) return;
+                if (q && !g.name.toLowerCase().includes(q)) return;
+                if (cf && !g.students.some(k => st[k] && st[k].planid === cf)) return;
+                const r = rows[g.rowkey] || (rows[g.rowkey] = { key: g.rowkey, name: g.name, jornada: g.jornada, isolated: g.isolated_plan,
+                    long: g.long, groups: [] });
+                r.groups.push(g);
+            });
+            return Object.values(rows).sort((a, b) => a.name.localeCompare(b.name) || (a.jornada || '').localeCompare(b.jornada || ''));
+        },
+        gSummary() {
+            const rows = this.groupRows;
+            let groups = 0, seats = 0, adel = 0;
+            const studs = {};
+            rows.forEach(r => r.groups.forEach(g => { groups++; seats += g.size; adel += g.adelantos; g.students.forEach(k => { studs[k] = true; }); }));
+            return { groups, seats, adelantos: adel, students: Object.keys(studs).length, alerts: this.filteredAlerts.length };
+        },
+        filteredAlerts() {
+            if (!this.grouping) return [];
+            const cf = this.careerFilter, jf = this.jornada, q = this.q.toLowerCase();
+            const st = this.grouping.st;
+            return this.grouping.alerts.filter(a => (!cf || (st[a.key] && st[a.key].planid === cf))
+                && (!jf || (a.jornada || 'Sin jornada') === jf || !a.courseid)
+                && (!q || (a.course + ' ' + a.name).toLowerCase().includes(q)));
+        },
+        alertTypes() {
+            const c = {};
+            this.filteredAlerts.forEach(a => { c[a.type] = (c[a.type] || 0) + 1; });
+            return [
+                { key: 'all', label: 'Todas', count: this.filteredAlerts.length, help: 'Todas las alertas' },
+                { key: 'egresa_sin_quorum', label: 'Egresan sin quórum', count: c.egresa_sin_quorum || 0, help: 'Terminan su plan y una asignatura no abre' },
+                { key: 'sin_quorum', label: 'Sin quórum', count: c.sin_quorum || 0, help: 'Debían ver la asignatura pero no alcanza el mínimo' },
+                { key: 'carga_baja', label: 'Carga baja', count: c.carga_baja || 0, help: 'Quedan con menos de la carga mínima teniendo más pendientes' },
+                { key: 'prelacion', label: 'Prelación pendiente', count: c.prelacion || 0, help: 'Les toca pero no tienen aprobada la prelación' },
+            ];
+        },
+        alertRows() {
+            const order = { egresa_sin_quorum: 0, sin_quorum: 1, carga_baja: 2, prelacion: 3 };
+            return this.filteredAlerts.filter(a => this.alertType === 'all' || a.type === this.alertType)
+                .sort((a, b) => (order[a.type] - order[b.type]) || (b.finishing - a.finishing) || a.name.localeCompare(b.name));
+        },
         // Gasto mensual: grupos que abren x horas de la asignatura x tarifa, repartido por dia en las semanas del grupo.
         cost() {
             const c = this.result.costing;
@@ -580,6 +729,34 @@ Vue.component('period-projection', {
         },
         isLong(cid) { return !!(this.result.costing && (this.result.costing.long || []).includes(Number(cid))); },
         money(v) { return '$' + Number(v || 0).toLocaleString('es-PA', { minimumFractionDigits: 0, maximumFractionDigits: 0 }); },
+        async openGroups() {
+            this.view = 'groups';
+            if (this.grouping || this.groupsLoading) return;
+            this.groupsLoading = true; this.groupsError = '';
+            try {
+                const r = await window.axios.get(window.location.origin + '/webservice/rest/server.php', { params: {
+                    wstoken: window.userToken, moodlewsrestformat: 'json', wsfunction: 'local_grupomakro_planning_get_demand',
+                    periodid: this.result.period.id, planids: this.planIds, groups: 1 } });
+                if (r.data && r.data.exception) throw new Error(r.data.message || r.data.errorcode);
+                const d = JSON.parse(r.data.data);
+                this.grouping = Object.assign({ st: d.result.students || {} }, d.result.grouping || { groups: [], alerts: [] });
+            } catch (e) { this.groupsError = 'No se pudo armar la propuesta: ' + (e.message || e); }
+            finally { this.groupsLoading = false; }
+        },
+        topLevels(g) {
+            return Object.keys(g.levels || {}).slice(0, 3).map(l => l + ' (' + g.levels[l] + ')').join(' · ');
+        },
+        exportAlerts() {
+            const label = { egresa_sin_quorum: 'Egresa sin quórum', sin_quorum: 'Sin quórum', carga_baja: 'Carga baja', prelacion: 'Prelación pendiente' };
+            const esc = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+            const lines = [['Tipo', 'Estudiante', 'Carrera', 'Nivel', 'Asignatura', 'Jornada', 'Egresa', 'Detalle'].map(esc).join(',')];
+            this.alertRows.forEach(a => lines.push([label[a.type] || a.type, a.name, a.plan, a.level, a.course, a.jornada, a.finishing ? 'Sí' : '', a.detail].map(esc).join(',')));
+            const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url; link.download = 'alertas_' + this.result.period.name + '.csv';
+            document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(url);
+        },
         async openFuture() {
             this.view = 'future';
             if (this.future || this.futureLoading) return;
@@ -661,6 +838,7 @@ Vue.component('period-projection', {
             if (r.data && r.data.exception) throw new Error(r.data.message || r.data.errorcode);
             return r.data;
         },
+        resetGroups() { this.grouping = null; if (this.view === 'groups') this.openGroups(); },
         async saveException() {
             this.exc.error = '';
             if (!this.exc.note.trim()) { this.exc.error = 'Indique el motivo de la excepción.'; return; }

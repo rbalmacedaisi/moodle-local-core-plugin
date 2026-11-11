@@ -37,6 +37,7 @@ class cohort_planning extends external_api {
             'periodid' => new external_value(PARAM_INT, 'Periodo academico (0 = el proximo por iniciar)', VALUE_DEFAULT, 0),
             'planids' => new external_value(PARAM_SEQUENCE, 'Planes separados por coma (vacio = todos)', VALUE_DEFAULT, ''),
             'horizon' => new external_value(PARAM_INT, 'Periodos siguientes a proyectar (0 = solo el periodo)', VALUE_DEFAULT, 0),
+            'groups' => new external_value(PARAM_INT, '1 = incluir la propuesta de grupos (agrupacion automatica)', VALUE_DEFAULT, 0),
         ]);
     }
 
@@ -45,10 +46,10 @@ class cohort_planning extends external_api {
      *
      * @return array ['data' => JSON con periods, selected, y el resultado de demand_engine::compute()]
      */
-    public static function get_demand($periodid = 0, $planids = '', $horizon = 0) {
+    public static function get_demand($periodid = 0, $planids = '', $horizon = 0, $groups = 0) {
         global $DB;
         $params = self::validate_parameters(self::get_demand_parameters(),
-            ['periodid' => $periodid, 'planids' => $planids, 'horizon' => $horizon]);
+            ['periodid' => $periodid, 'planids' => $planids, 'horizon' => $horizon, 'groups' => $groups]);
         $context = \context_system::instance();
         self::validate_context($context);
         require_capability('local/grupomakro_core:manage_academic_planning', $context);
@@ -93,6 +94,9 @@ class cohort_planning extends external_api {
             $result['period']['jornada_starts'] = (object)planning_config::jornada_starts($prow);
             $result['exceptions'] = array_values(planning_config::exceptions($pid));
             $result['costing'] = planning_config::costing($pid, (int)$result['period']['start']);
+            if ($params['groups']) {
+                $result['grouping'] = (new \local_grupomakro_core\local\planning\group_builder($result, planning_config::rules()))->build();
+            }
         }
         return ['data' => json_encode([
             'periods' => $periods,
