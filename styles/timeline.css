@@ -2399,3 +2399,14 @@ button.tl-btn.tl-btn-primary:active:not(:disabled) {
     .tl-proj-main { grid-template-columns: 4px 1fr; }
     .tl-proj-jornadas, .tl-proj-num { grid-column: 2; text-align: left; }
 }
+
+/* ---------- PESTAÑAS PRINCIPALES DE LA LÍNEA DE TIEMPO ---------- */
+.tl-main-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--tl-border); margin: 0 0 16px; }
+.tl-main-tab {
+    display: inline-flex; align-items: center; gap: 6px; background: none; border: none; cursor: pointer;
+    padding: 10px 14px; font-family: inherit; font-size: 13px; font-weight: 600; color: var(--tl-text-secondary);
+    border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color var(--tl-dur) var(--tl-ease);
+}
+.tl-main-tab:hover { color: var(--tl-primary); }
+.tl-main-tab .v-icon { color: inherit !important; }
+.tl-main-tab-active { color: var(--tl-primary-dark); border-bottom-color: var(--tl-primary); }

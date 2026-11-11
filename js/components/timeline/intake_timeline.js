@@ -56,16 +56,32 @@ Vue.component('intake-timeline', {
             </div>
         </div>
 
-        <!-- PROYECCIÓN DEL PRÓXIMO PERIODO: asignaturas que se abrirían (de esta carrera) -->
-        <period-projection
-            v-if="canPlan && planResults.length"
-            :result="planResults[0]"
-            scope-label="solo esta carrera; los grupos pueden completarse con otras carreras (ver vista general)"
-            :show-careers="false"
-        ></period-projection>
-        <div v-else-if="canPlan && planLoading" class="tl-proj"><div class="tl-proj-title">
-            <v-icon size="18" color="#4F46E5">mdi-calendar-star</v-icon><span>Calculando proyección del próximo periodo…</span></div></div>
+        <!-- PESTAÑAS: cohortes (como siempre) / proyección del próximo periodo -->
+        <div v-if="canPlan" class="tl-main-tabs">
+            <button class="tl-main-tab" :class="{ 'tl-main-tab-active': mainTab === 'cohorts' }" @click="mainTab = 'cohorts'">
+                <v-icon size="16">mdi-account-group-outline</v-icon> Cohortes
+            </button>
+            <button class="tl-main-tab" :class="{ 'tl-main-tab-active': mainTab === 'proj' }" @click="mainTab = 'proj'">
+                <v-icon size="16">mdi-calendar-star</v-icon>
+                Proyección {{ planResults.length ? planResults[0].period.name : 'próximo periodo' }}
+            </button>
+        </div>
 
+        <!-- PROYECCIÓN DEL PRÓXIMO PERIODO: asignaturas que se abrirían (de esta carrera) -->
+        <template v-if="canPlan && mainTab === 'proj'">
+            <period-projection
+                v-if="planResults.length"
+                :result="planResults[0]"
+                scope-label="solo esta carrera; los grupos pueden completarse con otras carreras (ver la línea de tiempo general)"
+                :show-careers="false"
+            ></period-projection>
+            <div v-else class="tl-proj"><div class="tl-proj-title">
+                <v-icon size="18" color="#4F46E5">mdi-calendar-star</v-icon>
+                <span>{{ planLoading ? 'Calculando proyección del próximo periodo…' : 'No hay un próximo periodo cargado en el calendario académico.' }}</span>
+            </div></div>
+        </template>
+
+        <div v-show="!canPlan || mainTab === 'cohorts'">
         <!-- ACTIVOS SIN COHORTE (sin periodo de ingreso): la tarjeta de la carrera los cuenta pero no
              aparecen en ninguna cohorte. Se muestran aqui para que las cifras cuadren y nadie quede sin planificar. -->
         <div v-if="canPlan && noCohortPlan" class="tl-plan-nocohort">
@@ -389,6 +405,8 @@ Vue.component('intake-timeline', {
             </div>
         </div>
 
+        </div>
+
         <!-- MODAL -->
         <student-list-modal
             v-model="showStudentModal"
@@ -463,6 +481,7 @@ Vue.component('intake-timeline', {
             toast: null,
             // Planificacion del periodo (solo lectura). canPlan lo define la pagina segun el permiso.
             canPlan: !!window.gmkCanPlan,
+            mainTab: 'cohorts',
             planLoading: false,
             planResults: [],
             planPanel: { visible: false, cohort: '', plan: null, tab: 'subjects' },

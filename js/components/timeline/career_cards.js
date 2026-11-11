@@ -58,16 +58,32 @@ Vue.component('career-cards', {
             </div>
         </div>
 
-        <!-- PROYECCIÓN DEL PRÓXIMO PERIODO (todas las carreras): asignaturas que se abrirían -->
-        <period-projection
-            v-if="canPlan && projection"
-            :result="projection.result"
-            :careers="projection.careers"
-            scope-label="todas las carreras"
-        ></period-projection>
-        <div v-else-if="canPlan && projLoading" class="tl-proj"><div class="tl-proj-title">
-            <v-icon size="18" color="#4F46E5">mdi-calendar-star</v-icon><span>Calculando proyección del próximo periodo…</span></div></div>
+        <!-- PESTAÑAS: carreras (como siempre) / proyección del próximo periodo -->
+        <div v-if="canPlan" class="tl-main-tabs">
+            <button class="tl-main-tab" :class="{ 'tl-main-tab-active': mainTab === 'careers' }" @click="mainTab = 'careers'">
+                <v-icon size="16">mdi-school-outline</v-icon> Carreras
+            </button>
+            <button class="tl-main-tab" :class="{ 'tl-main-tab-active': mainTab === 'proj' }" @click="mainTab = 'proj'">
+                <v-icon size="16">mdi-calendar-star</v-icon>
+                Proyección {{ projection ? projection.result.period.name : 'próximo periodo' }}
+            </button>
+        </div>
 
+        <!-- PROYECCIÓN DEL PRÓXIMO PERIODO (todas las carreras): asignaturas que se abrirían -->
+        <template v-if="canPlan && mainTab === 'proj'">
+            <period-projection
+                v-if="projection"
+                :result="projection.result"
+                :careers="projection.careers"
+                scope-label="todas las carreras"
+            ></period-projection>
+            <div v-else class="tl-proj"><div class="tl-proj-title">
+                <v-icon size="18" color="#4F46E5">mdi-calendar-star</v-icon>
+                <span>{{ projLoading ? 'Calculando proyección del próximo periodo…' : 'No hay un próximo periodo cargado en el calendario académico.' }}</span>
+            </div></div>
+        </template>
+
+        <div v-show="!canPlan || mainTab === 'careers'">
         <!-- ERROR -->
         <v-alert v-if="errorMsg" type="error" outlined class="tl-alert mb-4" border="left">
             <div class="d-flex align-center">
@@ -166,6 +182,7 @@ Vue.component('career-cards', {
                 </a>
             </div>
         </div>
+        </div>
     </div>
     `,
     props: {
@@ -179,6 +196,7 @@ Vue.component('career-cards', {
             careers: [],
             // Proyeccion del proximo periodo (solo lectura). canPlan lo define la pagina segun el permiso.
             canPlan: !!window.gmkCanPlan,
+            mainTab: 'careers',
             projLoading: false,
             projection: null,
             palette: [

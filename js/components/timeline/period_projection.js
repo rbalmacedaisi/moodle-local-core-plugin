@@ -114,7 +114,7 @@ Vue.component('period-projection', {
                     blocked: 0, repite: 0, atrasada: 0, levels: {}, plans: {}, jornadas: [] });
                 const studs = d.students.map(x => ({ s: students[x.key], cat: x.category, prereq: x.prereq }))
                     .filter(x => x.s).sort((a, b) => a.s.name.localeCompare(b.s.name));
-                const j = { jornada: d.jornada, ready: d.ready, adelanto: d.by_category.adelanto, blocked: d.blocked,
+                const j = { jornada: d.jornada || 'Sin jornada', ready: d.ready, adelanto: d.by_category.adelanto, blocked: d.blocked,
                     students: studs, groups: d.ready >= this.min ? Math.ceil(d.ready / this.max) : 0 };
                 r.jornadas.push(j);
                 r.ready += d.ready;
@@ -177,7 +177,7 @@ Vue.component('period-projection', {
             if (j.ready + j.adelanto >= this.min) return 'No alcanza el mínimo de ' + this.min + ' por sí sola; sumando ' + j.adelanto + ' estudiantes que pueden adelantarla, sí.';
             return 'No alcanza el mínimo de ' + this.min + ': estos estudiantes quedarán en alertas para revisar.';
         },
-        abbr(j) { return j ? j.charAt(0) : '?'; },
+        abbr(j) { return j && j !== 'Sin jornada' ? j.charAt(0) : '?'; },
         shortPlan(name) {
             let n = String(name || '').replace(/^T[ÉE]CNICO SUPERIOR EN\s+/i, '').replace(/^CURSO DE\s+/i, '');
             n = n.charAt(0) + n.slice(1).toLowerCase();
