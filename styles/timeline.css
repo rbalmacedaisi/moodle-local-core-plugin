@@ -2251,3 +2251,93 @@ button.tl-btn.tl-btn-primary:active:not(:disabled) {
     transform: translateY(0);
     box-shadow: 0 2px 8px rgba(16, 185, 129, 0.30);
 }
+
+/* =========================================================
+   PLANIFICACIÓN DEL PERIODO (cohorte) — solo lectura
+   ========================================================= */
+.tl-btn-plan { background: var(--tl-primary-soft); }
+.tl-btn-plan:disabled { opacity: 0.4; cursor: default; transform: none; }
+.tl-plan-section-sub {
+    font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--tl-text-muted); font-size: 11px;
+}
+.tl-plan-link {
+    margin-left: auto; background: none; border: none; cursor: pointer; font-weight: 600; font-size: 11px; font-family: inherit;
+    color: var(--tl-primary); text-transform: none; letter-spacing: 0; padding: 2px 6px; border-radius: 6px;
+}
+.tl-plan-link:hover { background: var(--tl-primary-soft); }
+.tl-plan-blocks { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+@media (max-width: 760px) { .tl-plan-blocks { grid-template-columns: 1fr; } }
+.tl-plan-blocks .tl-quarter.tl-plan-block { width: auto; min-width: 0; flex: none; }
+.tl-plan-block .tl-quarter-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.tl-plan-block-body { padding: 6px 8px 8px; }
+.tl-plan-row {
+    display: flex; align-items: center; gap: 6px; padding: 5px 6px; border-radius: 6px; cursor: pointer;
+    font-size: 12px; color: var(--tl-text);
+}
+.tl-plan-row:hover { background: var(--tl-primary-soft); }
+.tl-plan-row-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tl-plan-row-num { font-weight: 700; font-size: 13px; min-width: 22px; text-align: right; }
+.tl-plan-row .tl-filter-dot { flex: 0 0 8px; width: 8px; height: 8px; }
+.tl-plan-more { font-size: 11px; color: var(--tl-primary); padding: 4px 6px; cursor: pointer; font-weight: 600; }
+.tl-plan-pill { cursor: pointer; }
+.tl-plan-pill:hover { filter: brightness(0.95); }
+
+.tl-plan-tag {
+    display: inline-flex; align-items: center; font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 4px;
+    text-transform: uppercase; letter-spacing: 0.3px; white-space: nowrap; flex-shrink: 0;
+    background: var(--tl-muted-soft); color: var(--tl-text-secondary);
+}
+.tl-plan-tag-nivel    { background: var(--tl-primary-soft); color: var(--tl-primary-dark); }
+.tl-plan-tag-atrasada { background: #FFEDD5; color: #C2410C; }
+.tl-plan-tag-repite   { background: var(--tl-error-soft); color: #B91C1C; }
+.tl-plan-tag-adelanto { background: #CCFBF1; color: #0F766E; }
+.tl-plan-tag-lock     { background: var(--tl-warning-soft); color: #B45309; }
+.tl-plan-tag-muted    { background: var(--tl-muted-soft); color: var(--tl-text-muted); }
+.tl-plan-flag-carga_baja_b1, .tl-plan-flag-carga_baja_b2 { background: #FFEDD5; color: #C2410C; }
+.tl-plan-flag-atrasado_vs_cohorte, .tl-plan-flag-adelantado_vs_cohorte { background: var(--tl-warning-soft); color: #B45309; }
+
+/* Panel lateral */
+.tl-plan-panel { width: 460px; }
+.tl-plan-help {
+    background: var(--tl-primary-soft); color: var(--tl-text-secondary); font-size: 12px; line-height: 1.5;
+    padding: 10px 16px; border-bottom: 1px solid var(--tl-primary-tint); flex-shrink: 0;
+}
+.tl-plan-help p { margin: 0 0 6px; }
+.tl-plan-tabs { display: flex; gap: 4px; }
+.tl-plan-tab {
+    flex: 1; background: var(--tl-muted-soft); border: 1px solid transparent; border-radius: 6px; padding: 5px 4px;
+    font-weight: 600; font-size: 11px; font-family: inherit; color: var(--tl-text-secondary); cursor: pointer; display: inline-flex;
+    align-items: center; justify-content: center; gap: 4px; transition: all var(--tl-dur) var(--tl-ease);
+}
+.tl-plan-tab:hover { background: var(--tl-divider); }
+.tl-plan-tab-active { background: var(--tl-surface); border-color: var(--tl-border-strong); color: var(--tl-primary-dark); box-shadow: var(--tl-shadow-xs); }
+.tl-plan-tab-count { background: var(--tl-primary-tint); color: var(--tl-primary-dark); border-radius: 8px; padding: 0 5px; font-size: 10px; }
+.tl-plan-block-head {
+    display: flex; align-items: center; justify-content: space-between; font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.4px; color: var(--tl-text-secondary); margin: 8px 2px 6px;
+}
+.tl-plan-block-date { font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--tl-text-muted); }
+.tl-plan-subj { cursor: pointer; }
+.tl-plan-names { margin-top: 6px; border-top: 1px dashed var(--tl-border); padding-top: 6px; }
+.tl-plan-name-row { display: flex; align-items: center; gap: 6px; font-size: 12px; padding: 2px 0; color: var(--tl-text); }
+.tl-plan-name-row > span:first-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tl-plan-empty { font-size: 11px; color: var(--tl-text-muted); padding: 4px 2px; }
+.tl-plan-legend { display: flex; flex-wrap: wrap; gap: 10px; font-size: 10px; color: var(--tl-text-muted); padding: 6px 2px; }
+.tl-plan-legend > span { display: inline-flex; align-items: center; gap: 4px; }
+.tl-plan-legend .tl-filter-dot { width: 8px; height: 8px; }
+.tl-plan-stu {
+    background: var(--tl-surface); border: 1px solid var(--tl-border); border-radius: 8px; padding: 8px 10px;
+    margin-bottom: 6px; cursor: pointer; transition: all var(--tl-dur) var(--tl-ease);
+}
+.tl-plan-stu:hover { border-color: var(--tl-primary-tint); box-shadow: var(--tl-shadow-sm); }
+.tl-plan-stu-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.tl-plan-stu-name { font-size: 13px; font-weight: 600; color: var(--tl-text); }
+.tl-plan-load { font-size: 13px; font-weight: 700; color: var(--tl-text-secondary); white-space: nowrap; }
+.tl-plan-low { color: #C2410C; }
+.tl-plan-flags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.tl-plan-detail { margin-top: 8px; border-top: 1px dashed var(--tl-border); padding-top: 8px; cursor: default; }
+.tl-plan-detail-block { font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--tl-text-muted); margin: 6px 0 2px; }
+.tl-plan-contact { display: flex; flex-wrap: wrap; gap: 10px; font-size: 12px; margin-bottom: 4px; }
+.tl-plan-contact a { color: var(--tl-text-secondary); text-decoration: none; display: inline-flex; align-items: center; gap: 3px; }
+.tl-plan-contact a:hover { color: var(--tl-primary); }
+.tl-plan-subj-zero { opacity: 0.6; }
