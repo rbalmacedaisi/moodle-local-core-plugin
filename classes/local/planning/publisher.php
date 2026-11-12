@@ -362,8 +362,9 @@ class publisher {
             }
             if (!$r['dates']) {
                 $rows[$k]['blocks'][] = 'No hay fechas de clase para ese día en el periodo.';
-            } else if ($r['hours'] > 0 && $mins < $r['hours'] * 60) {
-                $rows[$k]['warnings'][] = 'Las sesiones suman ' . round($mins / 60, 1) . ' h y la carga es de ' . $r['hours'] . ' h.';
+            } else if ($r['hours'] > 0 && $mins < $r['hours'] * planning_config::hour_minutes()) {
+                $rows[$k]['warnings'][] = 'Las sesiones suman ' . round($mins / planning_config::hour_minutes(), 1) . ' h académicas y la carga es de '
+                    . $r['hours'] . ' h.';
             }
         }
         foreach ($rows as $k => $r) {

@@ -303,6 +303,12 @@ class planning_config {
         return ['configured' => false, 'ids' => $ids];
     }
 
+    /** Minutos de una hora academica (config planning_hour_minutes; 45 por defecto): las cargas horarias estan en horas academicas. */
+    public static function hour_minutes() {
+        $v = (int)get_config('local_grupomakro_core', 'planning_hour_minutes');
+        return $v > 0 ? $v : 45;
+    }
+
     /** Semanas academicas de clase por bloque (sin festivos); la semana siguiente del bloque es de revalidas. */
     public static function class_weeks() {
         $v = (int)get_config('local_grupomakro_core', 'planning_class_weeks');

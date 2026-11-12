@@ -109,6 +109,7 @@ class schedule_board {
         }
         $cfg = scheduler_settings::get_config();
         $defdur = (int)($cfg->sessionDuration ?? 120) ?: 120;
+        $hm = planning_config::hour_minutes();   // minutos por hora academica (45)
 
         // Grupos (de la propuesta guardada). Los ya publicados quedan marcados con su clase.
         $published = publisher::published($periodid)['groups'];
@@ -153,22 +154,27 @@ class schedule_board {
                 }, $jd)));
             }
             $weeks = $calweeks[$calkey];
-            // Sesion: la intensidad de la carga (horas por sesion) o la duracion estandar; sesiones = horas / duracion.
-            // Las asignaturas cortas usan solo las semanas que necesitan (se pueden poner seguidas en la misma franja);
-            // las que necesitan mas sesiones que semanas se parten en varias fichas semanales (varios dias por semana).
+            // Sesion: la intensidad de la carga (horas reloj por sesion) o la duracion estandar (120 min). El total de la carga
+            // esta en horas academicas de 45 min. La ultima semana de clase de cada bloque es de evaluacion (y la siguiente, de
+            // revalidas): el contenido se dicta en las semanas anteriores y se suma una sesion de evaluacion por bloque.
+            // P. ej. 16 h = 720 min = 6 sesiones de 120 + evaluacion = 7; cuatrimestral de 32 h = 12 + 2 evaluaciones = 14.
+            // Las asignaturas cortas usan solo las sesiones que necesitan (se pueden poner seguidas en la misma franja); las
+            // que no caben se parten en varias fichas semanales.
             $fixeddur = $h && $h['intensity'] > 0;
             $dur = $fixeddur ? (int)round($h['intensity'] * 60) : $defdur;
             $dur = max(30, min(480, $dur));
-            $sessions = $h && $h['total'] > 0 ? (int)ceil($h['total'] * 60 / $dur) : $weeks;
-            // Si con la duracion estandar no cabe en las semanas academicas y la carga no fija la intensidad, se alarga la
-            // sesion para dictarla una vez por semana (hasta 4 h): p. ej. 16 h en 7 semanas = 7 sesiones de 140 min.
-            if ($sessions > $weeks && !$fixeddur && $h && $h['total'] > 0) {
-                $longer = (int)(ceil($h['total'] * 60 / $weeks / 5) * 5);
+            $evals = max(1, (int)round($weeks / max(1, planning_config::class_weeks())));   // una por bloque
+            $cweeks = max(1, $weeks - $evals);   // semanas de contenido (sin las de evaluacion)
+            $content = $h && $h['total'] > 0 ? (int)ceil($h['total'] * $hm / $dur) : $cweeks;
+            // Si no cabe en las semanas de contenido y la carga no fija la intensidad, se alarga la sesion (hasta 4 h).
+            if ($content > $cweeks && !$fixeddur && $h && $h['total'] > 0) {
+                $longer = (int)(ceil($h['total'] * $hm / $cweeks / 5) * 5);
                 if ($longer <= 240) {
                     $dur = max($dur, $longer);
-                    $sessions = (int)ceil($h['total'] * 60 / $dur);
+                    $content = (int)ceil($h['total'] * $hm / $dur);
                 }
             }
+            $sessions = $content >= $cweeks ? $content + $evals : $content;
             $nparts = max(1, (int)ceil($sessions / $weeks));
             // Regla de la asignatura con veces por semana: una ficha por vez y sesiones del largo necesario para cubrir
             // la carga en las semanas del bloque (sin pasar de su franja). P. ej. 64 h, 1 vez, 14 semanas = 275 min.
@@ -184,7 +190,7 @@ class schedule_board {
             if ($rule) {
                 $nparts = $rule['times_per_week'];
                 if ($h && $h['total'] > 0) {
-                    $dur = (int)(ceil($h['total'] * 60 / ($weeks * $nparts) / 5) * 5);
+                    $dur = (int)(ceil($h['total'] * $hm / ($weeks * $nparts) / 5) * 5);
                     $span = ($rule['start'] !== '' && $rule['end'] !== '') ? self::to_min($rule['end']) - self::to_min($rule['start']) : 480;
                     $dur = max(30, min($dur, $span, 480));
                 }
