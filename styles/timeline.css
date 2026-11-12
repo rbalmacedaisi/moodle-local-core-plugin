@@ -2625,3 +2625,12 @@ button.tl-btn.tl-btn-primary:active:not(:disabled) {
 /* Sin ficha seleccionada: la cuadricula usa todo el ancho */
 .tl-sb-main.tl-sb-main-nosel { grid-template-columns: 220px minmax(0, 1fr); }
 @media (max-width: 1100px) { .tl-sb-main.tl-sb-main-nosel { grid-template-columns: 1fr; } }
+
+/* Juntar cohortes chicas (Proximos periodos) */
+.tl-proj-pool { border: 1px solid #C7D2FE; background: #F8FAFF; border-radius: 12px; padding: 8px 12px; margin-bottom: 10px; }
+.tl-proj-pool-head { display: flex; align-items: center; gap: 8px; cursor: pointer; flex-wrap: wrap; }
+.tl-proj-pool-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px dashed #E2E8F0; font-size: 12.5px; }
+.tl-proj-pool-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+.tl-proj-pool-open { font-weight: 700; color: #3730A3; font-size: 12px; }
+.tl-proj-mx-pool { font-size: 9.5px; color: #3730A3; font-weight: 700; }
+.tl-proj-pool-list { max-height: 360px; overflow: auto; }

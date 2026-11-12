@@ -98,6 +98,20 @@ class cohort_planning extends external_api {
             $result['period']['jornada_starts'] = (object)planning_config::jornada_starts($prow);
             $result['exceptions'] = array_values(planning_config::exceptions($pid));
             $result['costing'] = planning_config::costing($pid, (int)$result['period']['start']);
+            if ($params['horizon']) {
+                // Juntar cohortes chicas de periodos seguidos (solo lectura). Sin solucion: solo las del periodo que se
+                // planifica (las de periodos lejanos cambian con los nuevos ingresos).
+                $pool = (new \local_grupomakro_core\local\planning\cohort_pooling($result, planning_config::rules()))->build();
+                $later = array_filter($pool['unsolved'], function ($u) {
+                    return $u['k'] > 0;
+                });
+                $pool['unsolved'] = array_values(array_filter($pool['unsolved'], function ($u) {
+                    return $u['k'] === 0;
+                }));
+                $pool['unsolved_later'] = count($later);
+                $result['pooling'] = $pool;
+                unset($result['plan_courses'], $result['done'], $result['failed'], $result['course_names']);
+            }
             if ($params['groups']) {
                 $result['grouping'] = (new \local_grupomakro_core\local\planning\group_builder($result, planning_config::rules()))->build();
                 $saved = planning_config::saved_proposal($pid);

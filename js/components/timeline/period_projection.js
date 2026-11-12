@@ -209,6 +209,75 @@ Vue.component('period-projection', {
                 los estudiantes que ingresen se suman solos. Los periodos que aún no existen en el calendario van como "estimado".
                 Celda verde: alguna jornada alcanza {{ min }}; ámbar: entre {{ Math.ceil(min / 2) }} y {{ min - 1 }}; roja: menos.
             </div>
+            <div v-if="future && future.pooling && !futureLoading" class="tl-proj-pool">
+                <div class="tl-proj-pool-head" @click="poolOpen = !poolOpen">
+                    <v-icon size="16" color="#4F46E5">mdi-account-multiple-plus-outline</v-icon>
+                    <b>Juntar cohortes chicas</b>
+                    <span class="tl-proj-sub">{{ poolStats.now }} abren en {{ result.period.name }} juntando cohortes · {{ poolStats.wait }} esperan para juntarse
+                        · {{ poolStats.unsolved }} sin solución en {{ result.period.name }}</span>
+                    <v-spacer></v-spacer>
+                    <v-icon size="18">{{ poolOpen ? 'mdi-chevron-up' : 'mdi-chevron-down' }}</v-icon>
+                </div>
+                <template v-if="poolOpen">
+                    <div class="tl-cfg-help mb-2">Asignaturas que periodo a periodo llegan con pocos estudiantes por jornada y no alcanzan el mínimo de {{ min }}.
+                        El sistema busca el periodo de apertura que lo alcanza moviendo a la menor cantidad de estudiantes el menor tiempo:
+                        <b>esperan</b> (la ven después) o <b>adelantan</b> (la ven antes). Nadie espera si la asignatura es prelación de otra que ve antes,
+                        nadie adelanta si no habrá aprobado sus prelaciones, y nadie espera si egresa antes. No se juntan jornadas.</div>
+                    <div class="tl-plan-tabs mb-2" style="max-width:720px">
+                        <button v-for="t in poolTabs" :key="t.key" class="tl-plan-tab" :class="{ 'tl-plan-tab-active': poolTab === t.key }" @click="poolTab = t.key"
+                                :title="t.help">{{ t.label }}<span class="tl-plan-tab-count">{{ t.count }}</span></button>
+                    </div>
+                    <div v-if="poolTab !== 'unsolved'" class="tl-proj-pool-list">
+                        <div v-for="pl in poolRows" :key="pl.key" class="tl-proj-pool-row">
+                            <div style="flex:1;min-width:0">
+                                <div><b>{{ pl.name }}</b> <span class="tl-cfg-help">· {{ pl.jornada || 'sin jornada' }}<template v-if="pl.isolated_plan"> · solo {{ careerName(pl.isolated_plan) }}</template></span></div>
+                                <div class="tl-proj-pool-chips">
+                                    <span class="tl-proj-pool-open">abre en {{ pl.open_period }} con {{ pl.total }}</span>
+                                    <span v-if="pl.base" class="tl-plan-tag tl-plan-tag-nivel">se suma a un grupo de {{ pl.base }} que ya abre</span>
+                                    <span v-for="c in pl.cohorts" :key="c.k" class="tl-plan-tag" :class="poolTag(c.action)">{{ c.period }}: {{ c.students.length }} {{ poolAction(c) }}</span>
+                                    <span v-if="pl.blocked.length" class="tl-plan-tag tl-plan-tag-lock">{{ pl.blocked.length }} no se pueden mover</span>
+                                </div>
+                            </div>
+                            <button class="tl-proj-flexbtn" @click="poolDetail = pl">Ver</button>
+                            <button v-if="canEdit && poolApplicable(pl)" class="tl-cfg-btn" @click="applyPool(pl)">Aplicar en {{ result.period.name }}</button>
+                        </div>
+                        <div v-if="!poolRows.length" class="tl-plan-empty">Nada que juntar con este filtro.</div>
+                    </div>
+                    <div v-else class="tl-proj-pool-list">
+                        <div class="tl-cfg-help mb-1">No llegan a {{ min }} ni juntando los periodos en que pueden moverse sin romper prelaciones. Se pueden abrir por
+                            excepción o como módulo desde "Próximo periodo".<template v-if="future.pooling.unsolved_later"> Hay además {{ future.pooling.unsolved_later }}
+                            casos en periodos lejanos: cambian con los nuevos ingresos.</template></div>
+                        <div v-for="u in poolUnsolved" :key="u.key" class="tl-proj-pool-row">
+                            <div style="flex:1"><b>{{ u.name }}</b> <span class="tl-cfg-help">· {{ u.jornada || 'sin jornada' }} · {{ u.students.length }} estudiante(s)</span></div>
+                            <button class="tl-proj-flexbtn" @click="poolDetail = Object.assign({ unsolved: true, cohorts: [{ k: 0, period: u.period, action: 'a_tiempo', shift: 0, students: u.students }], blocked: [] }, u)">Ver</button>
+                        </div>
+                    </div>
+                </template>
+            </div>
+            <v-dialog :value="!!poolDetail" @input="v => { if (!v) poolDetail = null; }" max-width="720" scrollable>
+                <v-card v-if="poolDetail">
+                    <v-card-title class="d-flex">
+                        <div><div class="text-subtitle-1 font-weight-bold">{{ poolDetail.name }}</div>
+                            <div class="tl-cfg-help">{{ poolDetail.jornada || 'Sin jornada' }} ·
+                                <template v-if="poolDetail.unsolved">sin solución: {{ poolDetail.reason }}</template>
+                                <template v-else>abre en {{ poolDetail.open_period }} con {{ poolDetail.total }}</template></div></div>
+                        <v-spacer></v-spacer><v-btn icon @click="poolDetail = null"><v-icon>mdi-close</v-icon></v-btn>
+                    </v-card-title>
+                    <v-card-text>
+                        <div v-if="poolDetail.base" class="tl-cfg-help mb-2">Se suma a un grupo de {{ poolDetail.base }} estudiantes que ya abre en {{ poolDetail.open_period }}.</div>
+                        <div v-for="c in poolDetail.cohorts" :key="c.k" class="mb-2">
+                            <div class="tl-plan-detail-block">{{ c.period }} · {{ c.students.length }} {{ poolAction(c) }}</div>
+                            <div v-for="k in c.students" :key="k" class="tl-plan-name-row tl-proj-stu">
+                                <span class="tl-proj-stu-name">{{ stuName(k) }}</span><span class="tl-proj-stu-meta">{{ stuMeta(k) }}</span></div>
+                        </div>
+                        <template v-if="poolDetail.blocked.length">
+                            <div class="tl-plan-detail-block">No se pueden mover ({{ poolDetail.blocked.length }}): siguen en su periodo</div>
+                            <div v-for="b in poolDetail.blocked" :key="'b' + b.key" class="tl-plan-name-row tl-proj-stu">
+                                <span class="tl-proj-stu-name">{{ stuName(b.key) }}</span><span class="tl-proj-stu-meta">{{ future.pooling.periods[b.k] }} · {{ b.reason }}</span></div>
+                        </template>
+                    </v-card-text>
+                </v-card>
+            </v-dialog>
             <div v-if="futureLoading" class="tl-plan-empty" style="padding:16px">Calculando periodos siguientes…</div>
             <div v-else-if="futureError" class="tl-cfg-msg tl-cfg-msg-error">{{ futureError }}</div>
             <div v-else-if="future" class="tl-proj-matrix-wrap">
@@ -231,6 +300,7 @@ Vue.component('period-projection', {
                                     <b>{{ r.cells[c.key].count }}</b>
                                     <span v-if="r.cells[c.key].flex" class="tl-proj-mx-flex">+{{ r.cells[c.key].flex }}</span>
                                     <div class="tl-proj-mx-g">{{ cellGroupsLabel(r.cells[c.key]) }}</div>
+                                    <div v-if="poolMarks[r.key + '@' + c.key]" class="tl-proj-mx-pool" :title="poolMarks[r.key + '@' + c.key]">↔ se junta</div>
                                 </template>
                             </td>
                         </tr>
@@ -466,7 +536,7 @@ Vue.component('period-projection', {
     },
     data() {
         return { q: '', filter: 'all', jornada: '', careerFilter: 0, open: {}, selected: {},
-            view: 'next', boardOpened: false, future: null, futureLoading: false, futureError: '', cellDetail: null, costOpen: false, openRep: {},
+            view: 'next', boardOpened: false, future: null, poolOpen: true, poolTab: 'next', poolDetail: null, futureLoading: false, futureError: '', cellDetail: null, costOpen: false, openRep: {},
             grouping: null, groupsLoading: false, groupsError: '', groupTab: 'list', groupDetail: null, alertType: 'all', alertLimit: 200,
             savedProposal: null, proposalSaving: false,
             exc: { show: false, mode: 'grupo', items: [], note: '', error: '', saving: false },
@@ -606,6 +676,48 @@ Vue.component('period-projection', {
             return { subjects, groups, covered, uncovered, finishingShort: finishing.size };
         },
         selectedList() { return Object.values(this.selected); },
+        // Juntar cohortes: filtros de carrera, jornada y busqueda.
+        poolVisible() {
+            if (!this.future || !this.future.pooling) return [];
+            const cf = this.careerFilter, jf = this.jornada, q = this.q.toLowerCase(), st = this.future.students || {};
+            return this.future.pooling.pools.filter(p => (!jf || (p.jornada || 'Sin jornada') === jf) && (!q || p.name.toLowerCase().includes(q))
+                && (!cf || p.cohorts.some(c => c.students.some(k => st[k] && st[k].planid === cf))));
+        },
+        poolStats() {
+            const v = this.poolVisible;
+            return { now: v.filter(p => p.open_k === 0 && !p.base).length, wait: v.filter(p => p.open_k > 0 && p.affects_next).length,
+                join: v.filter(p => p.open_k === 0 && p.base).length, unsolved: this.poolUnsolved.length };
+        },
+        poolTabs() {
+            const v = this.poolVisible;
+            return [
+                { key: 'next', label: 'Afectan a ' + this.result.period.name, count: v.filter(p => p.affects_next && !p.base).length,
+                    help: 'Abren ahora juntando cohortes chicas, o esperan para juntarse con el periodo siguiente' },
+                { key: 'join', label: 'Se suman a grupos que ya abren', count: this.poolStats.join, help: 'Cohortes chicas de periodos siguientes que pueden adelantar a un grupo que ya abre (opcional)' },
+                { key: 'later', label: 'Periodos siguientes', count: v.filter(p => !p.affects_next).length, help: 'Para planificar más adelante' },
+                { key: 'unsolved', label: 'Sin solución', count: this.poolUnsolved.length, help: 'Ni juntando alcanzan el mínimo' },
+            ];
+        },
+        poolRows() {
+            const t = this.poolTab;
+            return this.poolVisible.filter(p => t === 'next' ? (p.affects_next && !p.base) : t === 'join' ? (p.open_k === 0 && p.base) : !p.affects_next);
+        },
+        poolUnsolved() {
+            if (!this.future || !this.future.pooling) return [];
+            const jf = this.jornada, q = this.q.toLowerCase();
+            return this.future.pooling.unsolved.filter(u => (!jf || (u.jornada || 'Sin jornada') === jf) && (!q || u.name.toLowerCase().includes(q)));
+        },
+        // Celdas de la matriz que participan en un grupo por juntar: clave fila@columna -> texto.
+        poolMarks() {
+            const out = {};
+            if (!this.future || !this.future.pooling) return out;
+            this.future.pooling.pools.forEach(p => p.cohorts.forEach(c => {
+                const key = p.courseid + '|' + (p.isolated_plan || 0) + '@' + (c.k === 0 ? 'next' : 'h' + c.k);
+                const txt = (p.jornada || 'sin jornada') + ': ' + c.students.length + ' ' + this.poolAction(c) + ' → abre en ' + p.open_period + ' con ' + p.total;
+                out[key] = out[key] ? out[key] + '\n' + txt : txt;
+            }));
+            return out;
+        },
         hasBoard() { return !!window.GmkBoard && !!Vue.options.components['schedule-board']; },
         // Grupos filtrados por carrera, jornada y busqueda, agrupados por asignatura + jornada.
         groupRows() {
@@ -648,10 +760,11 @@ Vue.component('period-projection', {
                 { key: 'carga_baja', label: 'Carga baja', count: c.carga_baja || 0, help: 'Quedan con menos de la carga mínima teniendo más pendientes' },
                 { key: 'prelacion', label: 'Prelación pendiente', count: c.prelacion || 0, help: 'Les toca pero no tienen aprobada la prelación' },
                 { key: 'no_abre', label: 'No abre (decisión)', count: c.no_abre || 0, help: 'Se decidió no abrir la asignatura en esa jornada' },
+                { key: 'espera', label: 'Esperan para juntarse', count: c.espera || 0, help: 'La ven en un periodo siguiente junto con otra cohorte (Próximos periodos → Juntar cohortes)' },
             ];
         },
         alertRows() {
-            const order = { egresa_sin_quorum: 0, sin_quorum: 1, no_abre: 2, carga_baja: 3, prelacion: 4 };
+            const order = { egresa_sin_quorum: 0, sin_quorum: 1, no_abre: 2, espera: 3, carga_baja: 4, prelacion: 5 };
             return this.filteredAlerts.filter(a => this.alertType === 'all' || a.type === this.alertType)
                 .sort((a, b) => (order[a.type] - order[b.type]) || (b.finishing - a.finishing) || a.name.localeCompare(b.name));
         },
@@ -834,7 +947,7 @@ Vue.component('period-projection', {
             return Object.keys(g.levels || {}).slice(0, 3).map(l => l + ' (' + g.levels[l] + ')').join(' · ');
         },
         exportAlerts() {
-            const label = { egresa_sin_quorum: 'Egresa sin quórum', sin_quorum: 'Sin quórum', carga_baja: 'Carga baja', prelacion: 'Prelación pendiente', no_abre: 'No abre (decisión)' };
+            const label = { egresa_sin_quorum: 'Egresa sin quórum', sin_quorum: 'Sin quórum', carga_baja: 'Carga baja', prelacion: 'Prelación pendiente', no_abre: 'No abre (decisión)', espera: 'Espera para juntarse' };
             const esc = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
             const lines = [['Tipo', 'Estudiante', 'Carrera', 'Nivel', 'Asignatura', 'Jornada', 'Egresa', 'Detalle'].map(esc).join(',')];
             this.alertRows.forEach(a => lines.push([label[a.type] || a.type, a.name, a.plan, a.level, a.course, a.jornada, a.finishing ? 'Sí' : '', a.detail].map(esc).join(',')));
@@ -855,7 +968,7 @@ Vue.component('period-projection', {
                     periodid: this.result.period.id, planids: this.planIds, horizon: 18 } });
                 if (r.data && r.data.exception) throw new Error(r.data.message || r.data.errorcode);
                 const d = JSON.parse(r.data.data);
-                this.future = { horizon: d.result.horizon || [], students: d.result.students || {} };
+                this.future = { horizon: d.result.horizon || [], students: d.result.students || {}, pooling: d.result.pooling || null };
             } catch (e) { this.futureError = 'No se pudo calcular: ' + (e.message || e); }
             finally { this.futureLoading = false; }
         },
@@ -940,8 +1053,57 @@ Vue.component('period-projection', {
                             .map(x => x.s.userid)).filter((v, i, a) => a.indexOf(v) === i) })) };
         },
         uniq(a) { return a.filter((v, i) => a.indexOf(v) === i); },
+        poolAction(c) {
+            if (c.action === 'espera') return 'esperan ' + c.shift + (c.shift === 1 ? ' periodo' : ' periodos');
+            if (c.action === 'adelanta') return 'adelantan ' + c.shift + (c.shift === 1 ? ' periodo' : ' periodos');
+            return 'a tiempo';
+        },
+        poolTag(a) { return a === 'espera' ? 'tl-plan-tag-atrasada' : a === 'adelanta' ? 'tl-plan-tag-adelanto' : 'tl-plan-tag-nivel'; },
+        stuName(k) { const s = this.future && this.future.students[k]; return s ? s.name : k; },
+        stuMeta(k) { const s = this.future && this.future.students[k]; return s ? this.shortPlan(s.plan) + ' · ' + s.level + ' · ingreso ' + (s.ingreso || '?') : ''; },
+        // Se puede aplicar al periodo que se planifica si abre ahora (con cohorte o grupo de este periodo) o si la cohorte de este periodo espera.
+        poolApplicable(p) {
+            const has0 = p.cohorts.some(c => c.k === 0);
+            return (p.open_k === 0 && (has0 || p.base)) || (p.open_k > 0 && has0);
+        },
+        async applyPool(p) {
+            const name = this.result.period.name;
+            const item = { courseid: p.courseid, jornada: p.jornada || '', isolated_plan: p.isolated_plan || 0 };
+            let mode, note, msg;
+            const others = p.cohorts.filter(c => c.k !== 0).map(c => c.students.length + ' de ' + c.period
+                + (c.action === 'a_tiempo' ? '' : ' (' + this.poolAction(c) + ')')).join(', ');
+            if (p.open_k === 0) {
+                const adv = [];
+                p.cohorts.filter(c => c.action === 'adelanta').forEach(c => c.students.forEach(k => adv.push(k)));
+                mode = 'grupo';
+                item.add_keys = adv;
+                note = 'Juntar cohortes: abre en ' + name + ' con ' + p.total + '; se suman ' + others + '.';
+                msg = '¿Abrir ' + p.name + ' (' + (p.jornada || 'sin jornada') + ') en ' + name + ' con ' + p.total + ' estudiantes?\n\nSe suman ' + adv.length
+                    + ' estudiante(s) que la adelantan: ' + others + '. Todos tienen sus prelaciones para entonces. Queda como decisión en el periodo (se puede volver a automático).';
+            } else {
+                const c0 = p.cohorts.find(c => c.k === 0);
+                const blocked0 = p.blocked.filter(b => b.k === 0);
+                const st = this.future.students || {};
+                mode = blocked0.length ? 'modulo' : 'cerrar';
+                if (blocked0.length) item.userids = blocked0.map(b => st[b.key] ? st[b.key].userid : 0).filter(Boolean);
+                note = 'Juntar cohortes: ' + c0.students.length + ' esperan para verla en ' + p.open_period + ' con ' + p.total + ' (se suman ' + others + ').'
+                    + (blocked0.length ? ' ' + blocked0.length + ' no pueden esperar (egresan o la necesitan como prelación) y van como módulo.' : '');
+                msg = '¿Dejar ' + p.name + ' (' + (p.jornada || 'sin jornada') + ') para ' + p.open_period + '?\n\n' + c0.students.length + ' estudiante(s) de ' + name
+                    + ' esperan para juntarse con ' + others + ' y abrir con ' + p.total + '. Ninguno la necesita como prelación antes de esa fecha.'
+                    + (blocked0.length ? '\n\n' + blocked0.length + ' no pueden esperar: se registran como módulo (sin pago) en ' + name + '.' : '');
+            }
+            if (!window.confirm(msg)) return;
+            try {
+                const r = await this.ws('exception_add', { periodid: this.result.period.id, mode, note, pool: 1, items: [item] });
+                if (!r.ok) { window.alert(r.message); return; }
+                this.$emit('changed', 'Decisión registrada: ' + note);
+            } catch (e) { window.alert('Error: ' + (e.message || e)); }
+        },
         decisionLabel(e) {
             if (!e) return '';
+            if (e.pool && e.mode === 'grupo') return 'Abre juntando cohortes (' + (e.add_keys || []).length + ' adelantan)';
+            if (e.pool && e.mode === 'cerrar') return 'Espera para juntarse con un periodo siguiente';
+            if (e.pool && e.mode === 'modulo') return 'Espera para juntarse; ' + e.userids.length + ' que no pueden esperar van como módulo';
             if (e.mode === 'modulo') return 'Módulo (sin horario ni pago) para ' + e.userids.length + ' estudiante(s)';
             if (e.mode === 'cerrar') return 'No abre por decisión';
             return 'Abre como grupo por decisión';

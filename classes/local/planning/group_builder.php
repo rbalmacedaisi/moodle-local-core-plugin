@@ -62,6 +62,7 @@ class group_builder {
         $groups = [];
         $alerts = [];
         $pending = [];       // filas que no abrieron: rowkey => fila con listas
+        $protected = [];     // studentkey => [courseid => true]: adelantos decididos para juntar cohortes
 
         // 1. Filas: separar quien se carga, quien puede adelantar y quien queda con prelacion pendiente.
         $rows = [];
@@ -125,8 +126,19 @@ class group_builder {
                 continue;
             }
             $n = count($row['ready']);
-            if ($n >= $this->min || ($exc && $n > 0)) {
-                $this->split($groups, $assigned, $row, $row['ready'], $exc ? 'excepcion' : 'grupo');
+            // Juntar cohortes: estudiantes de periodos siguientes que la adelantan (ya validados con sus prelaciones).
+            $extra = [];
+            if ($exc && $exc['mode'] === 'grupo') {
+                foreach ((array)($exc['add_keys'] ?? []) as $ak) {
+                    if (isset($students[$ak]) && !in_array($ak, $row['ready'], true) && !isset($assigned[$ak][$row['courseid']])) {
+                        $extra[] = $ak;
+                        // Se adelanta para juntar cohortes: la limpieza de adelantos no lo quita.
+                        $protected[$ak][$row['courseid']] = true;
+                    }
+                }
+            }
+            if ($n >= $this->min || ($exc && $n + count($extra) > 0)) {
+                $this->split($groups, $assigned, $row, array_merge($row['ready'], $extra), $exc ? 'excepcion' : 'grupo', count($extra));
             } else if ($n > 0) {
                 $pending[$rk] = $row;
             }
@@ -189,6 +201,9 @@ class group_builder {
         };
         foreach ($groups as $gid => &$g) {
             foreach ($g['adel'] as $k) {
+                if (isset($protected[$k][$g['courseid']])) {
+                    continue;
+                }
                 if ($base($k) >= $this->minload && count($g['students']) - 1 >= $this->min) {
                     $g['students'] = array_values(array_diff($g['students'], [$k]));
                     $g['adel'] = array_values(array_diff($g['adel'], [$k]));
@@ -204,6 +219,11 @@ class group_builder {
             $closed = $row['exception'] && $row['exception']['mode'] === 'cerrar';
             foreach ($row['ready'] as $k) {
                 $s = $students[$k];
+                if (!empty($row['exception']['pool'])) {
+                    // Espera para juntarse con la cohorte de un periodo siguiente (decidido en Proximos periodos).
+                    $alerts[] = $this->alert('espera', $k, $s, $row, $row['exception']['note']);
+                    continue;
+                }
                 if ($closed) {
                     $alerts[] = $this->alert('no_abre', $k, $s, $row, 'Se decidió no abrir: ' . $row['exception']['note']);
                     continue;

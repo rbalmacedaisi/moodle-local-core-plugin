@@ -149,9 +149,29 @@ class planning_config {
                         return self::fail('Uno de los estudiantes elegidos no existe.');
                     }
                 }
+                // Juntar cohortes: estudiantes que la adelantan (clave usuario-plan; deben ser estudiantes activos de un
+                // plan que tenga la asignatura) y marca de que la decision viene de juntar cohortes.
+                $addkeys = [];
+                foreach ((array)($it['add_keys'] ?? []) as $ak) {
+                    if (!preg_match('/^(\d+)-(\d+)$/', (string)$ak, $mm)) {
+                        return self::fail('Estudiante no válido en ' . $course . '.');
+                    }
+                    $ok = $DB->record_exists_sql("SELECT 1 FROM {local_learning_users} u
+                        JOIN {local_learning_courses} c ON c.learningplanid = u.learningplanid AND c.courseid = ?
+                        WHERE u.userid = ? AND u.learningplanid = ? AND u.userrolename = 'student' AND u.status = 'activo'",
+                        [$cid, (int)$mm[1], (int)$mm[2]]);
+                    if (!$ok) {
+                        return self::fail('Uno de los estudiantes que adelantan ' . $course . ' no es estudiante activo de una carrera con esa asignatura.');
+                    }
+                    $addkeys[] = $mm[1] . '-' . $mm[2];
+                }
+                if ($addkeys && $mode !== 'grupo') {
+                    return self::fail('Solo se pueden sumar estudiantes que adelantan cuando la asignatura abre como grupo.');
+                }
                 $key = self::exception_key($cid, $jornada, (int)($it['isolated_plan'] ?? 0));
                 $current[$key] = ['key' => $key, 'courseid' => $cid, 'course' => $course, 'jornada' => $jornada,
                     'isolated_plan' => (int)($it['isolated_plan'] ?? 0), 'mode' => $mode, 'userids' => $userids,
+                    'add_keys' => array_values(array_unique($addkeys)), 'pool' => !empty($d['pool']),
                     'note' => $note, 'by' => (int)$USER->id, 'byname' => fullname($USER), 'time' => time()];
             }
         }

@@ -494,8 +494,31 @@ class demand_engine {
         }
 
         $horizon = $this->horizon ? $this->project_horizon($students, $plancourses, $planperiods, $hist, $flex, $iso, $start) : [];
+        // Con horizonte: estructura de planes (nivel y prelaciones por asignatura) e historial resumido, para juntar
+        // cohortes chicas de periodos seguidos respetando prelaciones (cohort_pooling).
+        $extra = [];
+        if ($this->horizon) {
+            $pcs = [];
+            foreach ($plancourses as $pid => $list) {
+                foreach ($list as $cid => $pc) {
+                    $pcs[$pid][$cid] = [(int)$pc->ord, array_values(array_map('intval', $pc->prereqs))];
+                }
+            }
+            $done = [];
+            $failed = [];
+            foreach ($students as $key => $st) {
+                foreach ($hist[$st['userid']] ?? [] as $cid => $code) {
+                    if (in_array($code, [self::ST_APPROVED, self::ST_COMPLETED, self::ST_IN_PROGRESS, self::ST_MIGRATION, 6, 7], true)) {
+                        $done[$key][$cid] = 1;
+                    } else if ($code === self::ST_FAILED) {
+                        $failed[$key][$cid] = 1;
+                    }
+                }
+            }
+            $extra = ['plan_courses' => $pcs, 'done' => $done, 'failed' => $failed, 'course_names' => $coursename];
+        }
 
-        return [
+        return $extra + [
             'period' => $period,
             'horizon' => $horizon,
             'students' => $students,
