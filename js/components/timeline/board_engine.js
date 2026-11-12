@@ -56,6 +56,7 @@
         };
         s.pad = Math.max(0, Number(s.cfg.interval || 0));
         s.prefs = { subjects: ((board.preferences || {}).subjects || []) };
+        s.names = board.students || {};
         (board.groups || []).forEach(function (g) {
             var from = Number((s.period.jornada_starts || {})[g.jornada] || s.period.start || 0);
             var cal = (board.calendars || {})[g.cal] || null;
@@ -137,6 +138,12 @@
     function timesOverlap(a, b, pad) {
         return a.start < b.end + pad && b.start < a.end + pad;
     }
+    /** Nombres de los estudiantes en comun (hasta 3) para el texto del choque. */
+    function sharedNames(s, setA, setB) {
+        var out = [], small = setA.size < setB.size ? setA : setB, big = small === setA ? setB : setA;
+        small.forEach(function (u) { if (big.has(u) && out.length < 4) out.push((s.names && s.names[u]) || ('usuario ' + u)); });
+        return out.length > 3 ? out.slice(0, 3).join(', ') + '…' : out.join(', ');
+    }
     function shared(setA, setB) {
         var n = 0, small = setA.size < setB.size ? setA : setB, big = small === setA ? setB : setA;
         small.forEach(function (u) { if (big.has(u)) n++; });
@@ -212,7 +219,8 @@
                     : n + ' estudiante(s) no tendrán ' + o.name) + ' (' + when + ').' });
                 return;
             }
-            if (n) out.push({ type: 'estudiantes', sev: 'hard', n: n, with: o.id, msg: n + ' estudiante(s) también tienen ' + o.name + ' (' + when + ').' });
+            if (n) out.push({ type: 'estudiantes', sev: 'hard', n: n, with: o.id, msg: n + ' estudiante(s) también tienen ' + o.name + ' (' + when + '): '
+                + sharedNames(s, g.users, o.users) + '.' });
             if (p.teacherid && o.teacherid === p.teacherid) {
                 if (pf && pf.parallel && (pf.parallel.indexOf(Number(o.courseid)) !== -1 || Number(o.courseid) === Number(g.courseid))) {
                     parallelWith.push(o);

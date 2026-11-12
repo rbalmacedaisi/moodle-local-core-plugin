@@ -489,6 +489,10 @@ class schedule_board {
             'teachers' => array_values($teachers),
             'rooms' => $rooms,
             'fixed' => $fixed,
+            // Nombres de los estudiantes de las fichas (para decir quien choca).
+            'students' => (object)array_map(function ($list) {
+                return $list[0]['name'];
+            }, $byuser),
             'holidays' => $holidays,
             'config' => [
                 'shiftWindows' => $cfg->shiftWindows ?? (object)[],
