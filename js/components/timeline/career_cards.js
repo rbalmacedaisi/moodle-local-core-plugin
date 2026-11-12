@@ -265,7 +265,7 @@ Vue.component('career-cards', {
                 if (r.data && r.data.exception) throw new Error(r.data.message || r.data.errorcode);
                 const d = JSON.parse(r.data.data);
                 this.projection = (d.result && !d.result.error)
-                    ? { result: d.result, careers: d.careers, rules: d.rules || { min_group: 12, max_group: 30 } } : null;
+                    ? { result: Object.freeze(d.result), careers: d.careers, rules: d.rules || { min_group: 12, max_group: 30 } } : null;
             } catch (e) {
                 console.error('[timeline] proyeccion:', e);
             } finally {

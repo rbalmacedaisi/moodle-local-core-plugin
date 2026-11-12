@@ -696,7 +696,7 @@ Vue.component('intake-timeline', {
             try {
                 // Periodo por defecto: el proximo por iniciar (un periodo = un bimestre de clases).
                 const first = await this.callDemand(0);
-                this.planResults = (first.result && !first.result.error) ? [first.result] : [];
+                this.planResults = (first.result && !first.result.error) ? [Object.freeze(first.result)] : [];
                 this.planRules = first.rules || this.planRules;
                 this.planCareers = first.careers || [];
             } catch (e) {

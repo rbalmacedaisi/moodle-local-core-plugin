@@ -599,9 +599,10 @@ Vue.component('period-projection', {
         max: { type: Number, default: 30 },
     },
     watch: {
-        result() { this.resetGroups(); },
+        // Tras una decision se recalcula: los grupos y los periodos siguientes se vuelven a precargar.
+        result() { this.prefetch(true); },
     },
-    mounted() { this.loadGrouping(); },
+    mounted() { this.prefetch(); },
     data() {
         return { q: '', filter: 'all', jornada: '', careerFilter: 0, open: {}, selected: {},
             view: 'next', boardOpened: false, future: null, poolOpen: true, poolTab: 'next', poolDetail: null, poolDlg: null, futureLoading: false, futureError: '', cellDetail: null, costOpen: false, openRep: {},
@@ -992,18 +993,21 @@ Vue.component('period-projection', {
             await this.loadGrouping();
         },
         // Arma la propuesta de grupos (solo lectura). Tambien se usa en "Próximo periodo" para mostrar el tamaño real de cada grupo.
-        async loadGrouping() {
-            if (this.grouping || this.groupsLoading || !this.result || !this.result.period) return;
-            this.groupsLoading = true; this.groupsError = '';
+        async loadGrouping(force) {
+            if ((this.grouping && !force) || this.groupsLoading || !this.result || !this.result.period) return;
+            if (!this.grouping) this.groupsLoading = true;
+            this.groupsError = '';
+            const pid = this.result.period.id;
             try {
                 const r = await window.axios.get(window.location.origin + '/webservice/rest/server.php', { params: {
                     wstoken: window.userToken, moodlewsrestformat: 'json', wsfunction: 'local_grupomakro_planning_get_demand',
                     periodid: this.result.period.id, planids: this.planIds, groups: 1 } });
                 if (r.data && r.data.exception) throw new Error(r.data.message || r.data.errorcode);
                 const d = JSON.parse(r.data.data);
+                if (!this.result || this.result.period.id !== pid) return;
                 const byUser = {};
                 Object.values(d.result.students || {}).forEach(s => { byUser[s.userid] = s; });
-                this.grouping = Object.assign({ st: d.result.students || {}, byUser }, d.result.grouping || { groups: [], alerts: [] });
+                this.grouping = Object.freeze(Object.assign({ st: d.result.students || {}, byUser }, d.result.grouping || { groups: [], alerts: [] }));
                 this.savedProposal = d.result.saved_proposal || null;
             } catch (e) { this.groupsError = 'No se pudo armar la propuesta: ' + (e.message || e); }
             finally { this.groupsLoading = false; }
@@ -1048,15 +1052,19 @@ Vue.component('period-projection', {
         openBoard() { this.view = 'board'; this.boardOpened = true; },
         async openFuture() {
             this.view = 'future';
-            if (this.future || this.futureLoading) return;
-            this.futureLoading = true; this.futureError = '';
+            await this.loadFuture();
+        },
+        async loadFuture(force) {
+            if ((this.future && !force) || this.futureLoading || !this.result || !this.result.period) return;
+            if (!this.future) this.futureLoading = true;
+            this.futureError = '';
             try {
                 const r = await window.axios.get(window.location.origin + '/webservice/rest/server.php', { params: {
                     wstoken: window.userToken, moodlewsrestformat: 'json', wsfunction: 'local_grupomakro_planning_get_demand',
                     periodid: this.result.period.id, planids: this.planIds, horizon: 18 } });
                 if (r.data && r.data.exception) throw new Error(r.data.message || r.data.errorcode);
                 const d = JSON.parse(r.data.data);
-                this.future = { horizon: d.result.horizon || [], students: d.result.students || {}, pooling: d.result.pooling || null };
+                this.future = Object.freeze({ horizon: d.result.horizon || [], students: d.result.students || {}, pooling: d.result.pooling || null });
             } catch (e) { this.futureError = 'No se pudo calcular: ' + (e.message || e); }
             finally { this.futureLoading = false; }
         },
@@ -1288,7 +1296,12 @@ Vue.component('period-projection', {
             if (r.data && r.data.exception) throw new Error(r.data.message || r.data.errorcode);
             return r.data;
         },
-        resetGroups() { this.grouping = null; if (this.view === 'groups' || this.view === 'next') this.loadGrouping(); },
+        resetGroups() { this.grouping = null; this.loadGrouping(); },
+        // force: recalcula en silencio y reemplaza al llegar (se sigue viendo lo anterior mientras tanto).
+        async prefetch(force) {
+            await this.loadGrouping(force);
+            await this.loadFuture(force);
+        },
         // Grupos propuestos de una jornada: tamaños, cuántos les toca, cuántos adelantan y quiénes adelantan.
         gsize(j) { return (this.groupSizes && this.groupSizes[j.ekey]) || null; },
         gsizeLabel(j) {
