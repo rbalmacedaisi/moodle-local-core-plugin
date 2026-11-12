@@ -37,6 +37,8 @@ class cohort_pooling {
     protected $min;
     protected $periodnames = [];
     protected $maxk = 0;
+    /** @var array asignaturas que quedaron fuera por ser de cuatrimestre completo: courseid => nombre */
+    protected $excluded = [];
 
     public function __construct(array $res, array $rules) {
         $this->res = $res;
@@ -146,14 +148,26 @@ class cohort_pooling {
                 }
             }
         }
+        // No se juntan: sin horario (practica profesional) ni las de cuatrimestre completo (Ingles, Acondicionamiento...):
+        // se dictan el cuatrimestre entero con su propia secuencia y no se mueven de periodo.
         $unsched = planning_config::unscheduled_subjects()['ids'];
-        return array_filter($out, function ($x) use ($unsched) {
-            return !isset($unsched[$x['courseid']]) && !empty($x['cells']);
-        });
+        $long = planning_config::long_subjects()['ids'];
+        $keep = [];
+        foreach ($out as $rk => $x) {
+            if (isset($long[$x['courseid']])) {
+                $this->excluded[$x['courseid']] = $x['name'];
+                continue;
+            }
+            if (!isset($unsched[$x['courseid']]) && !empty($x['cells'])) {
+                $keep[$rk] = $x;
+            }
+        }
+        return $keep;
     }
 
     /**
-     * @return array ['pools' => [...], 'unsolved' => [...], 'min' => int, 'periods' => [k => nombre]]
+     * @return array ['pools' => [...], 'unsolved' => [...], 'min' => int, 'periods' => [k => nombre],
+     *               'excluded_long' => [nombres de las de cuatrimestre completo, que no se juntan]]
      */
     public function build() {
         $pools = [];
@@ -271,6 +285,8 @@ class cohort_pooling {
         usort($pools, function ($a, $b) {
             return [$a['open_k'], $a['name']] <=> [$b['open_k'], $b['name']];
         });
-        return ['pools' => $pools, 'unsolved' => $unsolved, 'min' => $this->min, 'periods' => $this->periodnames];
+        asort($this->excluded);
+        return ['pools' => $pools, 'unsolved' => $unsolved, 'min' => $this->min, 'periods' => $this->periodnames,
+            'excluded_long' => array_values($this->excluded)];
     }
 }
