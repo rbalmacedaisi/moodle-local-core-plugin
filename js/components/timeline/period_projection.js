@@ -396,7 +396,8 @@ Vue.component('period-projection', {
                                     <b>{{ r.cells[c.key].count }}</b>
                                     <span v-if="r.cells[c.key].flex" class="tl-proj-mx-flex">+{{ r.cells[c.key].flex }}</span>
                                     <div class="tl-proj-mx-g">{{ cellGroupsLabel(r.cells[c.key]) }}</div>
-                                    <div v-if="poolMarks[r.key + '@' + c.key]" class="tl-proj-mx-pool" :title="poolMarks[r.key + '@' + c.key]">↔ se junta</div>
+                                    <div v-if="poolMarks[r.key + '@' + c.key]" class="tl-proj-mx-pool" :class="{ 'tl-proj-mx-pool-done': poolMarks[r.key + '@' + c.key].applied }"
+                                         :title="poolMarks[r.key + '@' + c.key].text">{{ poolMarks[r.key + '@' + c.key].label }}</div>
                                 </template>
                             </td>
                         </tr>
@@ -502,6 +503,7 @@ Vue.component('period-projection', {
                         <template v-else>{{ j.ready }}</template>
                         <template v-if="j.flexWaiting && !j.ready"></template>
                         <template v-else-if="r.unscheduled"> → se carga sin horario</template>
+                        <template v-else-if="poolWait(j)"> → <b>{{ poolWait(j) }}</b></template>
                         <template v-else-if="j.closed"> → no abre (decisión)</template>
                         <template v-else-if="j.exception && j.exception.mode === 'modulo'"> → módulo ({{ j.exception.userids.length }})</template>
                         <template v-else-if="gsize(j)"> → <b class="tl-proj-gsize">{{ gsizeLabel(j) }}</b><template v-if="j.exception"> (decisión)</template></template>
@@ -835,14 +837,24 @@ Vue.component('period-projection', {
             return this.future.pooling.unsolved.filter(u => (!jf || (u.jornada || 'Sin jornada') === jf) && (!q || u.name.toLowerCase().includes(q)));
         },
         // Celdas de la matriz que participan en un grupo por juntar: clave fila@columna -> texto.
+        // Marcas de la matriz por celda: sugerencia de juntar cohortes o decision ya aplicada en el periodo que se planifica.
         poolMarks() {
             const out = {};
             if (!this.future || !this.future.pooling) return out;
-            this.future.pooling.pools.forEach(p => p.cohorts.forEach(c => {
-                const key = p.courseid + '|' + (p.isolated_plan || 0) + '@' + (c.k === 0 ? 'next' : 'h' + c.k);
-                const txt = (p.jornada || 'sin jornada') + ': ' + c.students.length + ' ' + this.poolAction(c) + ' → abre en ' + p.open_period + ' con ' + p.total;
-                out[key] = out[key] ? out[key] + '\n' + txt : txt;
-            }));
+            this.future.pooling.pools.forEach(p => {
+                const applied = this.poolApplied(p);
+                p.cohorts.forEach(c => {
+                    const key = p.courseid + '|' + (p.isolated_plan || 0) + '@' + (c.k === 0 ? 'next' : 'h' + c.k);
+                    const opens = c.k === p.open_k;
+                    const txt = (applied ? 'DECIDIDO — ' : 'Sugerencia — ') + (p.jornada || 'sin jornada') + ': ' + c.students.length + ' ' + this.poolAction(c)
+                        + ' → abre en ' + p.open_period + ' con ' + p.total;
+                    const m = out[key] || { text: '', applied: false, label: '' };
+                    m.text = m.text ? m.text + '\n' + txt : txt;
+                    m.applied = m.applied || applied;
+                    m.label = applied ? (opens ? '✓ abre con ' + p.total : '✓ se junta en ' + p.open_period) : '↔ se junta';
+                    out[key] = m;
+                });
+            });
             return out;
         },
         // Lo que se carga sin clase (modulos y sin horario), de la propuesta de grupos.
@@ -1108,6 +1120,17 @@ Vue.component('period-projection', {
             const link = document.createElement('a');
             link.href = url; link.download = 'alertas_' + this.result.period.name + '.csv';
             document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(url);
+        },
+        // Texto de una jornada de "Proximo periodo" cuando se aplico "esperar para juntarse" (cerrar o modulo con pool).
+        poolWait(j) {
+            const e = j.exception || j.closed;
+            if (!e || !e.pool || (e.mode !== 'cerrar' && e.mode !== 'modulo')) return '';
+            const p = this.future && this.future.pooling
+                ? this.future.pooling.pools.find(x => this.poolEkey(x) === j.ekey && x.open_k > 0) : null;
+            const mod = e.mode === 'modulo' ? e.userids.length : 0;
+            const wait = Math.max(0, j.ready - mod);
+            return (wait ? wait + ' esperan para juntarse' + (p ? ' (abre en ' + p.open_period + ' con ' + p.total + ')' : '') : 'no abre')
+                + (mod ? ' · ' + mod + ' como módulo' : '');
         },
         openBoard() { this.view = 'board'; this.boardOpened = true; },
         async openModules() { this.view = 'modules'; await this.loadGrouping(); },

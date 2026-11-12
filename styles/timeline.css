@@ -2675,3 +2675,4 @@ button.tl-btn.tl-btn-primary:active:not(:disabled) {
 .tl-proj-mods-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 13px; }
 .tl-proj-mods-row { border-bottom: 1px dashed #E2E8F0; padding: 7px 0; font-size: 13px; }
 .tl-proj-mods-list { margin: 6px 0 2px 24px; max-height: 320px; overflow: auto; }
+.tl-proj-mx-pool-done { color: #15803D !important; font-weight: 700; }
