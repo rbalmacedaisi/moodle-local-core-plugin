@@ -636,10 +636,36 @@ Vue.component('planning-config', {
             try {
                 const r = await this.ws('local_grupomakro_planning_save_config', { section, data: JSON.stringify(data) });
                 this.flash(r.ok, r.ok ? r.message + ' Verificado en la base.' : r.message);
-                if (r.ok) { await this.load(); this.$emit('saved', section); }
+                if (r.ok) {
+                    // Se relee lo guardado, pero se conservan los cambios sin guardar de las demas secciones.
+                    const keep = this.unsaved(section);
+                    await this.load();
+                    this.restoreUnsaved(keep);
+                    this.$emit('saved', section);
+                }
             } catch (e) {
                 this.flash(false, 'Error al guardar: ' + (e.message || e));
             } finally { this.saving = false; }
+        },
+        unsaved(section) {
+            const c = x => JSON.parse(JSON.stringify(x));
+            const k = {};
+            if (section !== 'costs' && this.costsDirty) k.costs = c(this.costs);
+            if (section !== 'flexible' && this.flexDirty) k.flex = c(this.flex);
+            if (section !== 'scheduler' && this.schedDirty) k.sched = c(this.sched);
+            if (section !== 'isolation' && this.isoDirty) k.iso = c(this.iso);
+            if (section !== 'rules' && this.rulesDiff().length) k.rules = c(this.rules);
+            k.periods = this.periods.filter(p => this.periodDirty(p)).map(p => ({ id: p.id, e: c(p.e) }));
+            k.prefs = this.subjPrefs.filter(p => p.dirty).map(c);
+            return k;
+        },
+        restoreUnsaved(k) {
+            ['costs', 'flex', 'sched', 'iso', 'rules'].forEach(f => { if (k[f]) this[f] = k[f]; });
+            (k.periods || []).forEach(x => { const p = this.periods.find(y => y.id === x.id); if (p) p.e = x.e; });
+            (k.prefs || []).forEach(x => {
+                const i = this.subjPrefs.findIndex(y => y.courseid === x.courseid && y.planid === x.planid && y.jornada === x.jornada);
+                if (i >= 0) this.$set(this.subjPrefs, i, x); else this.subjPrefs.push(x);
+            });
         },
         flash(ok, text) { this.msg = { ok, text }; clearTimeout(this._t); this._t = setTimeout(() => { this.msg = null; }, 6000); },
         fmtLong(ts) { return new Date(ts * 1000).toLocaleDateString('es-PA', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }); },

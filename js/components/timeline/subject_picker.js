@@ -5,10 +5,10 @@ Vue.component('subject-picker', {
     <div class="tl-picker">
         <v-select dense outlined hide-details class="tl-picker-career" :items="careerItems" item-text="text" item-value="value"
                   v-model="career" :label="requireCareer ? 'Carrera (obligatoria)' : 'Filtrar por carrera'"></v-select>
-        <v-autocomplete dense outlined hide-details multiple small-chips deletable-chips clearable class="tl-picker-search"
+        <v-autocomplete dense outlined hide-details multiple class="tl-picker-search"
                         :items="items" item-text="name" item-value="courseid" v-model="picked"
-                        :disabled="requireCareer && !career" :search-input.sync="search" @change="search = ''"
-                        :label="requireCareer && !career ? 'Elija primero la carrera' : 'Escriba para buscar asignaturas…'"
+                        :disabled="requireCareer && !career" :search-input.sync="search" @change="search = ''; add()"
+                        :label="requireCareer && !career ? 'Elija primero la carrera' : 'Escriba y elija: se agrega a la lista de arriba'"
                         no-data-text="Sin resultados" :menu-props="{ maxHeight: 320 }">
             <template v-slot:item="{ item, attrs, on }">
                 <v-list-item v-bind="attrs" v-on="on" dense>
@@ -21,7 +21,6 @@ Vue.component('subject-picker', {
                 </v-list-item>
             </template>
         </v-autocomplete>
-        <button class="tl-cfg-btn" :disabled="!picked.length" @click="add">Agregar{{ picked.length ? ' (' + picked.length + ')' : '' }}</button>
     </div>
     `,
     props: {
@@ -62,6 +61,7 @@ Vue.component('subject-picker', {
     },
     methods: {
         add() {
+            if (!this.picked.length) return;
             const names = {};
             this.items.forEach(x => { names[x.courseid] = x.name; });
             this.$emit('add', this.picked.map(cid => ({ planid: this.career || 0, courseid: cid, name: names[cid] || ('Curso ' + cid) })));
