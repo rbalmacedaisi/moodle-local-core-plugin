@@ -199,10 +199,13 @@ Vue.component('planning-config', {
                     franja que vale para todas las jornadas (p. ej. Acondicionamiento en la mañana también para la nocturna), docente fijo, veces por
                     semana (la sesión se ajusta para cubrir la carga) y asignaturas que el mismo docente puede dictar a la vez.</div></div></div>
                 <table v-if="subjPrefs.length" class="tl-cfg-table">
-                    <thead><tr><th>Asignatura</th><th>Carrera</th><th>Días</th><th>Franja</th><th></th></tr></thead>
+                    <thead><tr><th>Asignatura</th><th>Carrera</th><th>Jornada</th><th>Días</th><th>Franja</th><th></th></tr></thead>
                     <tbody>
-                        <tr v-for="p in subjPrefs" :key="p.courseid + '-' + p.planid">
+                        <tr v-for="p in subjPrefs" :key="p.courseid + '-' + p.planid + '-' + p.jornada">
                             <td>{{ subjName(p.courseid) }}</td><td class="tl-cfg-help">{{ p.planid ? planName(p.planid) : 'Todas' }}</td>
+                            <td><select v-if="p.isnew" class="tl-cfg-input" v-model="p.jornada" @change="p.dirty = true">
+                                    <option value="">Todas</option><option v-for="j in jornadas" :key="j" :value="j">{{ j }}</option></select>
+                                <span v-else class="tl-cfg-help">{{ p.jornada || 'Todas' }}</span></td>
                             <td><button v-for="d in [1, 2, 3, 4, 5, 6]" :key="d" type="button" class="tl-cfg-daybtn" :class="{ 'tl-cfg-daybtn-on': p.days.includes(d) }"
                                         @click.prevent="toggleDay(p, d, 'days'); p.dirty = true">{{ dayShort[d] }}</button></td>
                             <td><span class="tl-cfg-range"><input type="time" class="tl-cfg-input" v-model="p.start" @input="p.dirty = true"> a
@@ -213,9 +216,11 @@ Vue.component('planning-config', {
                                 <button v-if="!p.isnew" class="tl-cfg-btn tl-cfg-btn-ghost" :disabled="saving" @click="removePref(p)">Quitar</button>
                                 <button v-else class="tl-cfg-btn tl-cfg-btn-ghost" @click="subjPrefs = subjPrefs.filter(x => x !== p)">Cancelar</button></td>
                         </tr>
-                        <tr v-for="p in subjPrefs.filter(x => x.open)" :key="'o' + p.courseid + '-' + p.planid" class="tl-cfg-prefopts-row">
-                            <td colspan="5"><div class="tl-cfg-prefopts"><b>{{ subjName(p.courseid) }}</b>
+                        <tr v-for="p in subjPrefs.filter(x => x.open)" :key="'o' + p.courseid + '-' + p.planid + '-' + p.jornada" class="tl-cfg-prefopts-row">
+                            <td colspan="6"><div class="tl-cfg-prefopts"><b>{{ subjName(p.courseid) }}</b>
                                 <label class="tl-cfg-check"><input type="checkbox" v-model="p.strict" @change="p.dirty = true"> Obligatoria (no solo preferencia: fuera de días o franja es choque)</label>
+                                <label class="tl-cfg-check"><input type="checkbox" v-model="p.first_slot" @change="p.dirty = true"> Empieza a primera hora
+                                    (al inicio de su franja o de la franja de la jornada; sin importar cuánto dure la sesión)</label>
                                 <label class="tl-cfg-check"><input type="checkbox" v-model="p.override_window" @change="p.dirty = true"> La franja de la asignatura vale para todas las jornadas
                                     (reemplaza la franja de la jornada; requiere franja)</label>
                                 <label>Docente fijo
@@ -472,14 +477,15 @@ Vue.component('planning-config', {
             return c ? c.name : 'Carrera ' + pid;
         },
         prefRow(p, isnew) {
-            return { courseid: Number(p.courseid), planid: Number(p.planid || 0), days: (p.days || []).map(Number), start: p.start || '', end: p.end || '',
-                strict: !!p.strict, override_window: !!p.override_window, teacherid: Number(p.teacherid || 0), times_per_week: Number(p.times_per_week || 0),
+            return { courseid: Number(p.courseid), planid: Number(p.planid || 0), jornada: p.jornada || '', days: (p.days || []).map(Number), start: p.start || '', end: p.end || '',
+                strict: !!p.strict, override_window: !!p.override_window, first_slot: !!p.first_slot, teacherid: Number(p.teacherid || 0), times_per_week: Number(p.times_per_week || 0),
                 parallel: (p.parallel || []).map(Number), parallel_max: Number(p.parallel_max || 4), dirty: false, isnew: isnew, open: false };
         },
         ruleSummary(p) {
             const out = [];
             if (p.strict) out.push('obligatoria');
             if (p.override_window) out.push('todas las jornadas');
+            if (p.first_slot) out.push('primera hora');
             if (p.teacherid) out.push('docente fijo');
             if (p.times_per_week) out.push(p.times_per_week + '/sem');
             if (p.parallel.length) out.push('paralelo ' + p.parallel_max);
@@ -488,7 +494,7 @@ Vue.component('planning-config', {
         prefAdd(items) {
             items.forEach(it => {
                 const pid = Number(it.planid || 0), cid = Number(it.courseid);
-                if (this.subjPrefs.some(p => p.courseid === cid && p.planid === pid)) return;
+                if (this.subjPrefs.some(p => p.courseid === cid && p.planid === pid && p.jornada === '' && p.isnew)) return;
                 this.subjPrefs.push(Object.assign(this.prefRow({ courseid: cid, planid: pid }, true), { dirty: true }));
             });
         },
@@ -499,8 +505,8 @@ Vue.component('planning-config', {
             if (!window.confirm('¿Guardar la preferencia de ' + what + ': ' + days + (p.start ? ', ' + p.start + '–' + p.end : '') + '? Es una preferencia: si no cabe, el tablero usa otro día y lo anota.')) return;
             this.saving = true;
             try {
-                const r = await this.ws('local_grupomakro_planning_save_config', { section: 'subject_pref_set', data: JSON.stringify({ courseid: p.courseid, planid: p.planid, days: p.days, start: p.start, end: p.end,
-                    strict: p.strict, override_window: p.override_window, teacherid: p.teacherid, times_per_week: p.times_per_week,
+                const r = await this.ws('local_grupomakro_planning_save_config', { section: 'subject_pref_set', data: JSON.stringify({ courseid: p.courseid, planid: p.planid, jornada: p.jornada, days: p.days, start: p.start, end: p.end,
+                    strict: p.strict, override_window: p.override_window, first_slot: p.first_slot, teacherid: p.teacherid, times_per_week: p.times_per_week,
                     parallel: p.parallel, parallel_max: p.parallel_max }) });
                 this.prefMsg = r.message; this.prefErr = !r.ok;
                 if (r.ok) { p.dirty = false; p.isnew = false; }
@@ -511,7 +517,7 @@ Vue.component('planning-config', {
             if (!window.confirm('¿Quitar la preferencia de ' + this.subjName(p.courseid) + '?')) return;
             this.saving = true;
             try {
-                const r = await this.ws('local_grupomakro_planning_save_config', { section: 'subject_pref_remove', data: JSON.stringify({ courseid: p.courseid, planid: p.planid }) });
+                const r = await this.ws('local_grupomakro_planning_save_config', { section: 'subject_pref_remove', data: JSON.stringify({ courseid: p.courseid, planid: p.planid, jornada: p.jornada }) });
                 this.prefMsg = r.message; this.prefErr = !r.ok;
                 if (r.ok) this.subjPrefs = this.subjPrefs.filter(x => x !== p);
             } catch (e) { this.prefMsg = 'Error: ' + (e.message || e); this.prefErr = true; }

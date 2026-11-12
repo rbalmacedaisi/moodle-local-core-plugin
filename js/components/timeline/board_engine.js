@@ -170,6 +170,13 @@
                 + g.sessions + ' sesiones en el bloque. Empiece antes o use otro día.' });
         }
         var ruleWin = pf && pf.override && pf.start >= 0;
+        if (pf && pf.firstSlot) {
+            var fs = pf.start >= 0 ? pf.start : w.start;
+            if (p.start !== fs) {
+                out.push({ type: pf.strict ? 'regla' : 'preferencia', sev: pf.strict ? 'hard' : 'soft',
+                    msg: 'La regla de la asignatura pide empezar a primera hora (' + E.hhmm(fs) + ').' });
+            }
+        }
         if (E.daysFor(s, k).indexOf(p.day) === -1) {
             out.push({ type: 'jornada', sev: 'hard', msg: E.DAYS[p.day] + ' no es día ' + (ruleWin ? 'de la regla de la asignatura' : 'de la jornada ' + g.jornada) + '.' });
         } else if (p.start < w.start || p.end > w.end) {
@@ -251,13 +258,15 @@
      */
     E.prefFor = function (s, k) {
         var g = s.groups[k];
+        var spec = function (x) { return (x.jornada ? 2 : 0) + (Number(x.planid) ? 1 : 0); };
         var cands = (s.prefs.subjects || []).filter(function (x) {
-            return Number(x.courseid) === Number(g.courseid) && (!Number(x.planid) || (g.plans || []).indexOf(Number(x.planid)) !== -1);
-        }).sort(function (a, b) { return Number(b.planid || 0) - Number(a.planid || 0); });
+            return Number(x.courseid) === Number(g.courseid) && (!Number(x.planid) || (g.plans || []).indexOf(Number(x.planid)) !== -1)
+                && (!x.jornada || x.jornada === g.jornada);
+        }).sort(function (a, b) { return spec(b) - spec(a); });
         if (cands.length) {
             var c = cands[0];
             return { days: (c.days || []).map(Number), start: c.start ? E.toMin(c.start) : -1, end: c.end ? E.toMin(c.end) : -1, source: 'asignatura', raw: c,
-                strict: !!c.strict, override: !!c.override_window, teacherid: Number(c.teacherid || 0),
+                strict: !!c.strict, override: !!c.override_window, firstSlot: !!c.first_slot, teacherid: Number(c.teacherid || 0),
                 parallel: (c.parallel || []).map(Number), parallelMax: Number(c.parallel_max || 4) };
         }
         var w = (s.cfg.shiftWindows || {})[g.jornada] || {};
@@ -498,6 +507,8 @@
     function starts(s, k, day, dur) {
         var g = s.groups[k];
         var w = E.windowFor(s, k);
+        var fpf = E.prefFor(s, k);
+        if (fpf && fpf.firstSlot && fpf.strict) return [fpf.start >= 0 ? fpf.start : w.start];
         dur = dur || g.duration;
         var set = {};
         for (var t = w.start; t + dur <= w.end; t += 30) set[t] = true;

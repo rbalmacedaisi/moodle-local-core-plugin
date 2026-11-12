@@ -321,6 +321,10 @@ Vue.component('schedule-board', {
                             <select class="tl-cfg-input" v-model.number="prefDlg.planid">
                                 <option :value="0">Todas las carreras</option>
                                 <option v-for="pid in info.g.plans" :key="pid" :value="pid">Solo {{ planName(pid) }}</option>
+                            </select>
+                            <select class="tl-cfg-input" v-model="prefDlg.jornada">
+                                <option value="">En todas las jornadas</option>
+                                <option :value="info.g.jornada">Solo jornada {{ info.g.jornada }}</option>
                             </select></div>
                         <div v-if="prefDlg.msg" class="tl-cfg-msg tl-cfg-msg-error">{{ prefDlg.msg }}</div>
                     </v-card-text>
@@ -493,7 +497,7 @@ Vue.component('schedule-board', {
     data() {
         return { loading: false, error: '', board: null, tick: 0, jornada: 'Diurna', q: '', tq: '', onlyIssues: false, sel: null, fixedSel: null,
             hover: null, failedOpen: false, dirty: false, weekSel: 0,
-            prefDlg: { show: false, days: [], start: '', end: '', planid: 0, saving: false, msg: '' }, history: [], saving: false, saveDlg: false, showHelp: true, lastAction: null, version: 0,
+            prefDlg: { show: false, days: [], start: '', end: '', planid: 0, jornada: '', saving: false, msg: '' }, history: [], saving: false, saveDlg: false, showHelp: true, lastAction: null, version: 0,
             draftInfo: { saved_at: 0, byname: '' }, ppm: 1.1,
             pub: { show: false, loading: false, error: '', plan: null, sel: {}, mods: {}, uns: {}, confirm: false, showBlocked: false,
                 running: false, done: 0, total: 0, result: null },
@@ -918,13 +922,13 @@ Vue.component('schedule-board', {
             const pf = this.prefInfo;
             const raw = pf && pf.source === 'asignatura' ? pf.raw : null;
             this.prefDlg = { show: true, days: raw ? raw.days.map(Number) : (this.placedSel ? [this.info.p.day] : []), start: raw ? raw.start : '',
-                end: raw ? raw.end : '', planid: raw ? Number(raw.planid || 0) : 0, saving: false, msg: '' };
+                end: raw ? raw.end : '', planid: raw ? Number(raw.planid || 0) : 0, jornada: raw ? (raw.jornada || '') : '', saving: false, msg: '' };
         },
         async savePref(remove) {
             const g = this.info.g;
             this.prefDlg.saving = true; this.prefDlg.msg = '';
             try {
-                const r = await this.ws(remove ? 'subject_pref_remove' : 'subject_pref_set', { courseid: g.courseid, planid: this.prefDlg.planid,
+                const r = await this.ws(remove ? 'subject_pref_remove' : 'subject_pref_set', { courseid: g.courseid, planid: this.prefDlg.planid, jornada: this.prefDlg.jornada,
                     days: this.prefDlg.days, start: this.prefDlg.start, end: this.prefDlg.end });
                 if (!r.ok) { this.prefDlg.msg = r.message; return; }
                 this.S.prefs.subjects = r.saved || [];

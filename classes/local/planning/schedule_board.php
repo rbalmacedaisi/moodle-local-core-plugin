@@ -174,8 +174,9 @@ class schedule_board {
             // la carga en las semanas del bloque (sin pasar de su franja). P. ej. 64 h, 1 vez, 14 semanas = 275 min.
             $rule = null;
             foreach ($prefs as $rp) {
-                if ($rp['courseid'] === $cid && $rp['times_per_week'] > 0 && (!$rp['planid'] || in_array($rp['planid'], $gplans, true))) {
-                    if (!$rule || $rp['planid']) {
+                if ($rp['courseid'] === $cid && $rp['times_per_week'] > 0 && (!$rp['planid'] || in_array($rp['planid'], $gplans, true))
+                        && ($rp['jornada'] === '' || $rp['jornada'] === $g['jornada'])) {
+                    if (!$rule || $rp['planid'] || $rp['jornada'] !== '') {
                         $rule = $rp;
                     }
                 }

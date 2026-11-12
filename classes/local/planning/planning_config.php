@@ -962,11 +962,13 @@ class planning_config {
         foreach ((array)($cfg->subjectPreferences ?? []) as $p) {
             $p = (array)$p;
             $out[] = ['courseid' => (int)($p['courseid'] ?? 0), 'planid' => (int)($p['planid'] ?? 0),
+                'jornada' => (string)($p['jornada'] ?? ''),
                 'days' => array_values(array_map('intval', (array)($p['days'] ?? []))),
                 'start' => (string)($p['start'] ?? ''), 'end' => (string)($p['end'] ?? ''),
                 // Regla (no solo preferencia): obligatoria, su franja vale para todas las jornadas, docente fijo,
                 // veces por semana, y asignaturas que el mismo docente puede dictar en paralelo (hasta un maximo).
                 'strict' => !empty($p['strict']), 'override_window' => !empty($p['override_window']),
+                'first_slot' => !empty($p['first_slot']),
                 'teacherid' => (int)($p['teacherid'] ?? 0), 'times_per_week' => (int)($p['times_per_week'] ?? 0),
                 'parallel' => array_values(array_map('intval', (array)($p['parallel'] ?? []))),
                 'parallel_max' => (int)($p['parallel_max'] ?? 0) ?: 4];
@@ -978,26 +980,30 @@ class planning_config {
         global $DB;
         $cid = (int)($d['courseid'] ?? 0);
         $pid = (int)($d['planid'] ?? 0);
+        $jor = trim((string)($d['jornada'] ?? ''));
         $course = $DB->get_field('course', 'fullname', ['id' => $cid]);
         if (!$course) {
             return self::fail('La asignatura no existe.');
         }
+        if ($jor !== '' && !in_array($jor, self::JORNADAS, true)) {
+            return self::fail('Jornada no válida: ' . $jor);
+        }
         if ($pid && !$DB->record_exists('local_learning_courses', ['learningplanid' => $pid, 'courseid' => $cid])) {
             return self::fail('La asignatura no pertenece a esa carrera.');
         }
-        $list = array_values(array_filter(self::subject_prefs(), function ($p) use ($cid, $pid) {
-            return !($p['courseid'] === $cid && $p['planid'] === $pid);
+        $list = array_values(array_filter(self::subject_prefs(), function ($p) use ($cid, $pid, $jor) {
+            return !($p['courseid'] === $cid && $p['planid'] === $pid && $p['jornada'] === $jor);
         }));
         $item = null;
         // Lo que no venga en los datos conserva su valor (p. ej. guardar dia y franja desde el tablero no borra el
         // docente fijo ni el paralelo definidos en Configuracion).
         $prev = null;
         foreach (self::subject_prefs() as $p) {
-            if ($p['courseid'] === $cid && $p['planid'] === $pid) {
+            if ($p['courseid'] === $cid && $p['planid'] === $pid && $p['jornada'] === $jor) {
                 $prev = $p;
             }
         }
-        foreach (['strict', 'override_window', 'teacherid', 'times_per_week', 'parallel', 'parallel_max'] as $f) {
+        foreach (['strict', 'override_window', 'first_slot', 'teacherid', 'times_per_week', 'parallel', 'parallel_max'] as $f) {
             if (!array_key_exists($f, $d) && $prev) {
                 $d[$f] = $prev[$f];
             }
@@ -1014,8 +1020,8 @@ class planning_config {
                     || ($start !== '' && $end !== '' && $start >= $end) || (($start === '') !== ($end === ''))) {
                 return self::fail('Indique la franja con hora de inicio y de fin (la de fin mayor), o déjela vacía.');
             }
-            if (!$days && $start === '') {
-                return self::fail('Elija al menos un día o una franja horaria.');
+            if (!$days && $start === '' && empty($d['first_slot'])) {
+                return self::fail('Elija al menos un día, una franja horaria o "empieza a primera hora".');
             }
             $tid = (int)($d['teacherid'] ?? 0);
             if ($tid && !$DB->record_exists('user', ['id' => $tid, 'deleted' => 0])) {
@@ -1038,8 +1044,9 @@ class planning_config {
             if (!empty($d['override_window']) && $start === '') {
                 return self::fail('Para que la franja de la asignatura valga en todas las jornadas, indique la franja.');
             }
-            $item = ['courseid' => $cid, 'planid' => $pid, 'days' => $days, 'start' => $start, 'end' => $end,
-                'strict' => !empty($d['strict']), 'override_window' => !empty($d['override_window']), 'teacherid' => $tid,
+            $item = ['courseid' => $cid, 'planid' => $pid, 'jornada' => $jor, 'days' => $days, 'start' => $start, 'end' => $end,
+                'strict' => !empty($d['strict']), 'override_window' => !empty($d['override_window']),
+                'first_slot' => !empty($d['first_slot']), 'teacherid' => $tid,
                 'times_per_week' => $times, 'parallel' => array_values(array_diff($parallel, [$cid])), 'parallel_max' => $pmax];
             $list[] = $item;
         }

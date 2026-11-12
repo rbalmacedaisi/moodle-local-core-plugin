@@ -254,11 +254,18 @@ class publisher {
         }
         $sw = json_decode(json_encode($cfg['shiftWindows']), true) ?: [];
         $prefs = planning_config::subject_prefs();
-        $rulefor = function ($cid, $plans) use ($prefs) {
+        $rulefor = function ($cid, $plans, $jornada) use ($prefs) {
             $best = null;
+            $bestscore = -1;
             foreach ($prefs as $rp) {
-                if ($rp['courseid'] === (int)$cid && (!$rp['planid'] || in_array($rp['planid'], $plans, true)) && (!$best || $rp['planid'])) {
+                if ($rp['courseid'] !== (int)$cid || ($rp['planid'] && !in_array($rp['planid'], $plans, true))
+                        || ($rp['jornada'] !== '' && $rp['jornada'] !== $jornada)) {
+                    continue;
+                }
+                $score = ($rp['jornada'] !== '' ? 2 : 0) + ($rp['planid'] ? 1 : 0);
+                if ($score > $bestscore) {
                     $best = $rp;
+                    $bestscore = $score;
                 }
             }
             return $best;
@@ -270,7 +277,7 @@ class publisher {
             if (!$c['day'] || !$c['dates']) {
                 continue;
             }
-            $rule = $rulefor($r['courseid'], $r['plans']);
+            $rule = $rulefor($r['courseid'], $r['plans'], $r['jornada']);
             $w = isset($sw[$r['jornada']]) ? (array)$sw[$r['jornada']] : null;
             $days = stripos($r['jornada'], 'sab') !== false ? [6] : [1, 2, 3, 4, 5];
             // Regla de la asignatura cuya franja vale para todas las jornadas: dias y franja de la regla.
@@ -282,6 +289,12 @@ class publisher {
                 $rows[$k]['blocks'][] = 'El día no corresponde a la jornada ' . $r['jornada'] . ' ni a la regla de la asignatura.';
             } else if ($w && ($c['start'] < schedule_board::to_min($w['start']) || $c['end'] > schedule_board::to_min($w['end']))) {
                 $rows[$k]['blocks'][] = 'Fuera de la franja permitida.';
+            }
+            if ($rule && $rule['strict'] && $rule['first_slot']) {
+                $fs = $rule['start'] !== '' ? schedule_board::to_min($rule['start']) : ($w ? schedule_board::to_min($w['start']) : -1);
+                if ($fs >= 0 && $c['start'] !== $fs) {
+                    $rows[$k]['blocks'][] = 'La regla de la asignatura pide empezar a primera hora (' . schedule_board::to_hhmm($fs) . ').';
+                }
             }
             if ($rule && $rule['strict'] && !$rule['override_window']) {
                 if ($rule['days'] && !in_array($c['day'], $rule['days'], true)) {
