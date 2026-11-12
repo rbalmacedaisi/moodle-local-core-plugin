@@ -18,6 +18,24 @@ Vue.component('schedule-board', {
             </div>
         </template>
         <template v-else-if="board">
+            <!-- propuesta guardada desactualizada -->
+            <div v-if="board.proposal_changes" class="tl-sb-stale">
+                <div><v-icon size="16" color="#B45309">mdi-alert-outline</v-icon>
+                    <b>El tablero usa la propuesta de grupos guardada el {{ fmtLong(board.proposal_changes.saved_at) }}</b><template
+                        v-if="board.proposal_changes.byname"> por {{ board.proposal_changes.byname }}</template>,
+                    y desde entonces cambiaron decisiones o la configuración.
+                    <button class="tl-proj-flexbtn" @click="staleOpen = !staleOpen">{{ staleOpen ? 'Ocultar' : 'Ver qué cambió' }}</button>
+                    <button v-if="canEdit" class="tl-cfg-btn" :disabled="saving" @click="saveProposal"
+                            title="Recalcula los grupos con las decisiones y la configuración de hoy. Las fichas que siguen igual conservan su día, hora, docente y aula.">
+                        Actualizar la propuesta</button></div>
+                <div v-if="board.proposal_changes.dropped.length" class="tl-cfg-help mt-1">Ya no se muestran en el tablero
+                    ({{ board.proposal_changes.dropped.length }}): {{ board.proposal_changes.dropped.map(d => d.name + ' · ' + d.jornada + ' (' + d.reason + ')').join('; ') }}.</div>
+                <div v-if="staleOpen" class="tl-sb-stale-list">
+                    <div v-for="d in board.proposal_changes.gone" :key="'g' + d.name + d.jornada">✕ <b>{{ d.name }}</b> · {{ d.jornada }}: {{ d.reason }}</div>
+                    <div v-for="d in board.proposal_changes.added" :key="'a' + d.name + d.jornada">＋ <b>{{ d.name }}</b> · {{ d.jornada }}: nueva, {{ d.now }}</div>
+                    <div v-for="d in board.proposal_changes.changed" :key="'c' + d.name + d.jornada">↻ <b>{{ d.name }}</b> · {{ d.jornada }}: antes {{ d.was }}, hoy {{ d.now }}</div>
+                </div>
+            </div>
             <!-- ayuda -->
             <div class="tl-sb-help" v-if="showHelp">
                 <div><b>Cómo usar el tablero</b> <button class="tl-proj-unx" style="color:#64748B" @click="showHelp = false" title="Ocultar">×</button></div>
@@ -498,7 +516,7 @@ Vue.component('schedule-board', {
         return { loading: false, error: '', board: null, tick: 0, jornada: 'Diurna', q: '', tq: '', onlyIssues: false, sel: null, fixedSel: null,
             hover: null, failedOpen: false, dirty: false, weekSel: 0,
             prefDlg: { show: false, days: [], start: '', end: '', planid: 0, jornada: '', saving: false, msg: '' }, history: [], saving: false, saveDlg: false, showHelp: true, lastAction: null, version: 0,
-            draftInfo: { saved_at: 0, byname: '' }, ppm: 1.1,
+            draftInfo: { saved_at: 0, byname: '' }, ppm: 1.1, staleOpen: false,
             pub: { show: false, loading: false, error: '', plan: null, sel: {}, mods: {}, uns: {}, confirm: false, showBlocked: false,
                 running: false, done: 0, total: 0, result: null },
             teacherDlg: { show: false, id: 0, q: '', addSkill: null, msg: '', err: false,
@@ -767,7 +785,10 @@ Vue.component('schedule-board', {
             finally { this.loading = false; }
         },
         async saveProposal() {
-            if (!window.confirm('¿Guardar la propuesta de grupos actual para armar el tablero? Se guarda aparte en el periodo; no crea clases.')) return;
+            const upd = !!(this.board && this.board.proposal_changes);
+            if (!window.confirm(upd
+                ? '¿Actualizar la propuesta de grupos con las decisiones y la configuración de hoy? Los grupos que ya no van salen del tablero y los nuevos quedan sin ubicar; las fichas que siguen igual conservan su día, hora, docente y aula. No crea clases.'
+                : '¿Guardar la propuesta de grupos actual para armar el tablero? Se guarda aparte en el periodo; no crea clases.')) return;
             this.saving = true;
             try {
                 const r = await this.ws('proposal_save', { periodid: this.periodid });

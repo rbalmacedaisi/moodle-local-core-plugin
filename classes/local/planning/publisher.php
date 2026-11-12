@@ -193,6 +193,13 @@ class publisher {
                 'plans' => $g['plans'], 'long' => $g['long'], 'hours' => $g['hours'], 'from' => $from, 'to' => $to,
                 'cards' => [], 'day' => 0, 'start' => 0, 'end' => 0, 'teacherid' => 0, 'roomid' => 0, 'teacher' => '', 'room' => '',
                 'dates' => [], 'classid' => (int)($pub['groups'][$g['key']] ?? 0), 'blocks' => [], 'warnings' => []];
+            $rk = (int)$g['courseid'] . '|' . trim((string)$g['jornada']) . '|' . (int)($g['isolated_plan'] ?? 0);
+            foreach ($res['exceptions'] as $e) {
+                if ($e['key'] === $rk && in_array($e['mode'], ['cerrar', 'modulo'], true) && !$row['classid']) {
+                    $row['blocks'][] = $e['mode'] === 'cerrar' ? 'Se decidió no abrir esta asignatura en esta jornada (Próximo periodo).'
+                        : 'Se decidió como módulo sin horario (Próximo periodo): no se crea como clase.';
+                }
+            }
             if ($row['classid'] && !$DB->record_exists('gmk_class', ['id' => $row['classid']])) {
                 $row['warnings'][] = 'Se había publicado como clase ' . $row['classid'] . ' pero esa clase ya no existe (fue borrada); no se vuelve a crear sola.';
             }

@@ -2667,3 +2667,6 @@ button.tl-btn.tl-btn-primary:active:not(:disabled) {
 .tl-proj-gsize { font-weight: 700; }
 .tl-proj-gsize-note { background: #EEF2FF; border-radius: 8px; padding: 5px 8px; margin: 4px 0 6px; font-size: 12px; color: #312E81; line-height: 1.45; }
 .tl-proj-tag-in { background: #E0E7FF; color: #3730A3; }
+.tl-sb-stale { background: #FFFBEB; border: 1px solid #FCD34D; border-radius: 10px; padding: 8px 12px; margin-bottom: 8px; font-size: 12.5px; }
+.tl-sb-stale .tl-cfg-btn { margin-left: 6px; }
+.tl-sb-stale-list { margin-top: 6px; max-height: 220px; overflow: auto; font-size: 12px; line-height: 1.6; }

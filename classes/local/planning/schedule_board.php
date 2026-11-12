@@ -68,6 +68,56 @@ class schedule_board {
             'items' => (array)($d['items'] ?? [])];
     }
 
+    /**
+     * Diferencias entre la propuesta guardada (la que usa el tablero) y la que sale hoy con las decisiones y la
+     * configuracion vigentes, por asignatura + jornada: las que ya no tienen grupo, las nuevas y las que cambian de numero
+     * de grupos o de tamano. Solo lectura. Devuelve null si no hay diferencias.
+     */
+    protected static function proposal_changes($periodid, array $saved, array $demand, array $dropped) {
+        $info = planning_config::saved_proposal($periodid);
+        $rk = function ($g) {
+            return (int)$g['courseid'] . '|' . trim((string)$g['jornada']) . '|' . (int)($g['isolated_plan'] ?? 0);
+        };
+        $old = [];
+        foreach ($saved as $g) {
+            $k = $rk($g);
+            $old[$k] = ['name' => $g['name'], 'jornada' => $g['jornada'], 'n' => ($old[$k]['n'] ?? 0) + 1,
+                'size' => ($old[$k]['size'] ?? 0) + count($g['userids'] ?? [])];
+        }
+        $gone = [];
+        $added = [];
+        $changed = [];
+        if (isset($demand['grouping'])) {
+            $new = [];
+            foreach ((array)$demand['grouping']['groups'] as $g) {
+                if (in_array($g['type'] ?? 'grupo', ['modulo', 'sin_horario'], true)) {
+                    continue;
+                }
+                $k = $rk($g);
+                $new[$k] = ['name' => $g['name'], 'jornada' => $g['jornada'], 'n' => ($new[$k]['n'] ?? 0) + 1,
+                    'size' => ($new[$k]['size'] ?? 0) + count($g['students'] ?? [])];
+            }
+            foreach ($old as $k => $o) {
+                if (!isset($new[$k])) {
+                    $gone[] = ['name' => $o['name'], 'jornada' => $o['jornada'], 'reason' => 'ya no tiene grupo en la propuesta de hoy'];
+                } else if ($new[$k]['n'] !== $o['n'] || abs($new[$k]['size'] - $o['size']) >= 3) {
+                    $changed[] = ['name' => $o['name'], 'jornada' => $o['jornada'], 'was' => $o['n'] . ' grupo(s), ' . $o['size'] . ' est.',
+                        'now' => $new[$k]['n'] . ' grupo(s), ' . $new[$k]['size'] . ' est.'];
+                }
+            }
+            foreach ($new as $k => $n) {
+                if (!isset($old[$k])) {
+                    $added[] = ['name' => $n['name'], 'jornada' => $n['jornada'], 'now' => $n['n'] . ' grupo(s), ' . $n['size'] . ' est.'];
+                }
+            }
+        }
+        if (!$dropped && !$gone && !$added && !$changed) {
+            return null;
+        }
+        return ['saved_at' => (int)($info['saved_at'] ?? 0), 'byname' => (string)($info['byname'] ?? ''),
+            'dropped' => $dropped, 'gone' => $gone, 'added' => $added, 'changed' => $changed];
+    }
+
     /** Clave estable de un grupo de la propuesta guardada. */
     public static function group_key(array $g) {
         return (int)$g['courseid'] . '|' . trim((string)$g['jornada']) . '|' . (int)($g['isolated_plan'] ?? 0) . '|' . (int)($g['number'] ?? 1);
@@ -115,6 +165,26 @@ class schedule_board {
         $published = publisher::published($periodid)['groups'];
         $groups = [];
         $saved = static::board_groups($periodid);
+        // Decisiones de apertura vigentes: lo decidido "no abrir" o "modulo" despues de guardar la propuesta no va al
+        // tablero (salvo que ya se haya publicado como clase).
+        $decided = [];
+        foreach (planning_config::exceptions($periodid) as $e) {
+            if (in_array($e['mode'], ['cerrar', 'modulo'], true)) {
+                $decided[$e['key']] = $e['mode'];
+            }
+        }
+        $dropped = [];
+        if ($saved) {
+            foreach ($saved as $key => $g) {
+                $rk = (int)$g['courseid'] . '|' . trim((string)$g['jornada']) . '|' . (int)($g['isolated_plan'] ?? 0);
+                if (isset($decided[$rk]) && empty($published[$key])) {
+                    $dropped[] = ['key' => $key, 'name' => $g['name'], 'jornada' => $g['jornada'],
+                        'reason' => $decided[$rk] === 'cerrar' ? 'se decidió no abrirla' : 'se decidió como módulo (sin horario)'];
+                    unset($saved[$key]);
+                }
+            }
+        }
+        $stale = $saved !== null ? self::proposal_changes($periodid, (array)$saved, $demand, $dropped) : null;
         $byuser = [];
         foreach ($demand['students'] ?? [] as $k => $s) {
             $byuser[(int)$s['userid']][] = $s;
@@ -334,6 +404,7 @@ class schedule_board {
                 return ['id' => (int)$r->id, 'name' => $r->name];
             }, $DB->get_records('local_learning_plans', null, 'name', 'id, name'))),
             'needs_proposal' => $saved === null,
+            'proposal_changes' => $stale,
             'calendars' => $calendars,
             'skills_catalog' => $catalog,
             'groups' => $groups,
