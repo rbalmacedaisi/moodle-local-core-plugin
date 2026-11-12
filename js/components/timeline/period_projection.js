@@ -1199,9 +1199,12 @@ Vue.component('period-projection', {
             const advN = adv.reduce((a, c) => a + c.students.length, 0);
             const b0 = p.blocked.filter(b => b.k === 0).length;
             if (p.open_k === 0 && p.base) {
-                return 'En ' + now + ' ya abre el grupo propuesto de ' + p.base
-                    + ' (el de "Grupos propuestos", con los que ya la adelantan). Se le pueden sumar ' + advN + ' más que la adelantan desde '
-                    + adv.map(c => c.period).join(', ') + ', y así no quedan solos más adelante (' + p.total + ' en total).';
+                const ba = p.base_adel || 0;
+                return 'En ' + now + ' ya abre el grupo propuesto de ' + p.base + ' (el de "Grupos propuestos": '
+                    + (ba ? (p.base - ba) + ' a los que les toca + ' + ba + ' que ya la adelantan' : 'todos a los que les toca') + '). '
+                    + 'Se le pueden sumar ' + advN + ' que la adelantan desde ' + adv.map(c => c.period).join(', ') + ' (' + p.total + ' en total), '
+                    + 'porque en su periodo serían ' + adv.map(c => 'solo ' + c.students.length + ' en ' + c.period).join(' y ')
+                    + ' y no llegarían al mínimo de ' + this.min + '.';
             }
             if (p.open_k === 0) {
                 return 'Propuesta: abrirla ahora en ' + now + ' con ' + p.total + ' estudiantes: ' + (c0 ? c0.students.length + ' a los que les toca' : 'ninguno a los que les toca')

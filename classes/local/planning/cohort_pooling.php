@@ -196,7 +196,9 @@ class cohort_pooling {
             if (!isset($out[$rk])) {
                 continue;
             }
-            $out[$rk]['cells'][0] = array_values(array_unique(array_merge($out[$rk]['cells'][0] ?? [], array_keys($keys))));
+            $own = $out[$rk]['cells'][0] ?? [];
+            $out[$rk]['planned_adel'] = count(array_diff(array_keys($keys), $own));   // los que ya adelantan en el grupo
+            $out[$rk]['cells'][0] = array_values(array_unique(array_merge($own, array_keys($keys))));
             foreach ($out[$rk]['cells'] as $k => $list) {
                 if ($k > 0) {
                     $out[$rk]['cells'][$k] = array_values(array_filter($list, function ($key) use ($keys) {
@@ -231,6 +233,7 @@ class cohort_pooling {
      */
     public function build() {
         $pools = [];
+        $poolidx = [];
         $unsolved = [];
         foreach ($this->series() as $rk => $ser) {
             $cells = $ser['cells'];
@@ -335,9 +338,33 @@ class cohort_pooling {
                 foreach ($blocked as $b) {
                     unset($remaining[$b['key']]);
                 }
-                $pools[] = ['key' => $rk . '|' . $best['t'], 'rowkey' => $rk, 'courseid' => $cid, 'name' => $ser['name'],
+                // Varias cohortes que se suman al mismo grupo que ya abre van en UNA sola sugerencia (si fueran dos, aplicar la
+                // segunda reemplazaria a la primera).
+                $pkey = $rk . '|' . $best['t'];
+                if (isset($poolidx[$pkey]) && !$best['base']) {
+                    $pkey .= '|' . count($pools);   // otro grupo nuevo en el mismo periodo: sugerencia aparte
+                }
+                if (isset($poolidx[$pkey])) {
+                    $i = $poolidx[$pkey];
+                    $pools[$i]['cohorts'] = array_merge($pools[$i]['cohorts'], array_values(array_filter($cohorts, function ($c) use ($best) {
+                        return $c['k'] !== $best['t'];   // el grupo que ya abre no se repite
+                    })));
+                    usort($pools[$i]['cohorts'], function ($a, $b) {
+                        return $a['k'] <=> $b['k'];
+                    });
+                    $pools[$i]['blocked'] = array_merge($pools[$i]['blocked'], $blocked);
+                    $pools[$i]['total'] += $best['total'] - count($best['base']);
+                    $pools[$i]['moved'] = array_sum(array_map(function ($c) {
+                        return $c['action'] === 'a_tiempo' ? 0 : count($c['students']);
+                    }, $pools[$i]['cohorts']));
+                    $pools[$i]['affects_next'] = $pools[$i]['affects_next'] || in_array(0, array_column($cohorts, 'k'), true);
+                    continue;
+                }
+                $poolidx[$pkey] = count($pools);
+                $pools[] = ['key' => $pkey, 'rowkey' => $rk, 'courseid' => $cid, 'name' => $ser['name'],
                     'jornada' => $ser['jornada'], 'isolated_plan' => $ser['isolated_plan'], 'open_k' => $best['t'],
                     'open_period' => $this->periodnames[$best['t']], 'total' => $best['total'], 'base' => count($best['base']),
+                    'base_adel' => $best['t'] === 0 && $best['base'] ? (int)($ser['planned_adel'] ?? 0) : 0,
                     'moved' => array_sum(array_map(function ($c) {
                         return $c['action'] === 'a_tiempo' ? 0 : count($c['students']);
                     }, $cohorts)), 'cohorts' => $cohorts, 'blocked' => $blocked,
