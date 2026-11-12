@@ -93,7 +93,16 @@
     // Entre fichas del tablero, las fechas exactas de sus sesiones; con clases ya creadas, una semana de tolerancia.
     function datesOverlap(a, b) {
         if (!a.from || !b.from || !a.to || !b.to) return true;
-        if (a.isCard && b.isCard) return a.from < b.to && b.from < a.to;
+        if (a.isCard && b.isCard) {
+            // Con las fechas exactas de ambas fichas: solo chocan si comparten una fecha (p. ej. un seminario en el sabado de
+            // revalidas no choca con una cuatrimestral que ese sabado no tiene clase aunque su rango lo abarque).
+            if (a.dates && b.dates && a.dates.length && b.dates.length) {
+                var set = {};
+                a.dates.forEach(function (d) { set[d] = true; });
+                return b.dates.some(function (d) { return set[d]; });
+            }
+            return a.from < b.to && b.from < a.to;
+        }
         return a.from < b.to - 7 * DAY && b.from < a.to - 7 * DAY;
     }
     function ymdEpoch(ymd) {
@@ -146,7 +155,7 @@
                 var r = E.range(s, o, p);
                 out.push({ id: o, name: g.name + ' G' + g.number + (g.parts > 1 ? ' (' + g.part + '/' + g.parts + ')' : ''), day: p.day,
                     start: p.start, end: p.end, teacherid: p.teacherid, roomid: p.roomid, users: g.users, from: r.from, to: r.to,
-                    isCard: r.isCard, isGroup: true, gkey: g.gkey, courseid: Number(g.courseid) });
+                    isCard: r.isCard, dates: r.dates, isGroup: true, gkey: g.gkey, courseid: Number(g.courseid) });
             }
         });
         s.fixed.forEach(function (f) { if (f.day === day) out.push(f); });
@@ -183,7 +192,7 @@
             out.push({ type: 'jornada', sev: 'hard', msg: 'Fuera de la franja ' + (ruleWin ? 'de la asignatura' : 'de la jornada ' + g.jornada) + ' (' + E.hhmm(w.start) + '–' + E.hhmm(w.end) + ').' });
         }
         var ls = E.toMin(s.cfg.lunchStart), le = E.toMin(s.cfg.lunchEnd);
-        if (ls >= 0 && le > ls && p.start < le && ls < p.end) {
+        if (ls >= 0 && le > ls && p.start < le && ls < p.end && !g.event) {   // los de dia completo ya incluyen el almuerzo
             out.push({ type: 'almuerzo', sev: 'soft', msg: 'Se cruza con la hora de almuerzo (' + s.cfg.lunchStart + '–' + s.cfg.lunchEnd + ').' });
         }
         var me = { start: p.start, end: p.end };
@@ -196,6 +205,13 @@
             }
             var n = shared(g.users, o.users);
             var when = E.hhmm(o.start) + '–' + E.hhmm(o.end);
+            var og = s.groups[o.id];
+            if (n && og && ((g.yields && og.event) || (g.event && og.yields))) {
+                // Natacion cede: ese dia no se da (el publicador quita la fecha); no es un choque.
+                out.push({ type: 'cede', sev: 'info', with: o.id, msg: 'Ese día ' + (g.yields ? 'no hay sesión: sus estudiantes tienen ' + o.name
+                    : n + ' estudiante(s) no tendrán ' + o.name) + ' (' + when + ').' });
+                return;
+            }
             if (n) out.push({ type: 'estudiantes', sev: 'hard', n: n, with: o.id, msg: n + ' estudiante(s) también tienen ' + o.name + ' (' + when + ').' });
             if (p.teacherid && o.teacherid === p.teacherid) {
                 if (pf && pf.parallel && (pf.parallel.indexOf(Number(o.courseid)) !== -1 || Number(o.courseid) === Number(g.courseid))) {

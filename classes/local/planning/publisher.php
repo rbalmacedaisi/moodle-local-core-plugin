@@ -89,7 +89,7 @@ class publisher {
             $blocks[] = [$b2start, $b2end - 7 * 86400];
         }
         $days = [];
-        foreach ([1, 2, 3, 4, 5, 6] as $dn) {
+        foreach ([1, 2, 3, 4, 5, 6, 7] as $dn) {
             $days[$dn] = [];
             foreach ($blocks as $b) {
                 $days[$dn] = array_merge($days[$dn], array_slice(self::session_dates($dn, $b[0], $b[1], 0, 0, $holidays), 0, $weeks));
@@ -102,6 +102,13 @@ class publisher {
     }
 
     /** Fechas (Y-m-d) del dia de la semana entre inicio y fin, sin festivos, hasta cubrir las horas de la carga. */
+    /** Fechas de la semana de revalidas (ultima semana del bloque 1) para un dia de la semana. */
+    public static function revalida_dates($period, $calendar, $jornada, $day, array $holidays) {
+        list($from) = self::dates($period, $calendar, $jornada, false);
+        $b1end = $calendar && $calendar->block1end ? (int)$calendar->block1end : $from + 8 * 7 * 86400 - 1;
+        return self::session_dates($day, $b1end - 7 * 86400 + 1, $b1end, 0, 0, $holidays);
+    }
+
     public static function session_dates($day, $from, $to, $minutes, $hours, array $holidays) {
         $out = [];
         $d = usergetmidnight($from);
@@ -192,7 +199,8 @@ class publisher {
                 'number' => $g['number'], 'of' => $g['of'], 'size' => $g['size'], 'userids' => $g['userids'], 'levels' => $g['levels'],
                 'plans' => $g['plans'], 'long' => $g['long'], 'hours' => $g['hours'], 'from' => $from, 'to' => $to,
                 'cards' => [], 'day' => 0, 'start' => 0, 'end' => 0, 'teacherid' => 0, 'roomid' => 0, 'teacher' => '', 'room' => '',
-                'dates' => [], 'classid' => (int)($pub['groups'][$g['key']] ?? 0), 'blocks' => [], 'warnings' => []];
+                'dates' => [], 'classid' => (int)($pub['groups'][$g['key']] ?? 0), 'blocks' => [], 'warnings' => [],
+                'event' => (string)($g['event'] ?? ''), 'yields' => !empty($g['yields'])];
             $rk = (int)$g['courseid'] . '|' . trim((string)$g['jornada']) . '|' . (int)($g['isolated_plan'] ?? 0);
             foreach ($res['exceptions'] as $e) {
                 if ($e['key'] === $rk && in_array($e['mode'], ['cerrar', 'modulo'], true) && !$row['classid']) {
@@ -256,11 +264,12 @@ class publisher {
                 $entries[] = ['id' => $c['key'], 'row' => $x['row'], 'card' => true, 'courseid' => (int)$r['courseid'], 'name' => $r['name'] . ' G' . $r['number']
                     . ($c['parts'] > 1 ? ' (' . $c['part'] . '/' . $c['parts'] . ')' : ''), 'day' => $c['day'], 'start' => $c['start'], 'end' => $c['end'],
                     'teacherid' => $c['teacherid'], 'roomid' => $c['roomid'], 'users' => array_flip($r['userids']),
-                    'from' => $ymd($c['dates'][0]), 'to' => $ymd(end($c['dates'])) + 86400];
+                    'from' => $ymd($c['dates'][0]), 'to' => $ymd(end($c['dates'])) + 86400, 'dates' => $c['dates']];
             }
         }
         $sw = json_decode(json_encode($cfg['shiftWindows']), true) ?: [];
-        $prefs = planning_config::subject_prefs();
+        // Las del tablero: las configuradas mas las de los seminarios de un dia (su dia y hora salen de su configuracion).
+        $prefs = $board['preferences']['subjects'] ?? planning_config::subject_prefs();
         $rulefor = function ($cid, $plans, $jornada) use ($prefs) {
             $best = null;
             $bestscore = -1;
@@ -322,10 +331,17 @@ class publisher {
                     if (!($cfrom < $o['to'] && $o['from'] < $cto)) {
                         continue; // fichas en semanas distintas de la misma franja: no chocan
                     }
+                    if (!empty($o['dates']) && !array_intersect($c['dates'], $o['dates'])) {
+                        continue; // sin fechas en comun (p. ej. seminario del sabado de revalidas y una cuatrimestral)
+                    }
                 } else if ($o['from'] && $o['to'] && !($cfrom < $o['to'] - 7 * 86400 && $o['from'] < $cto - 7 * 86400)) {
                     continue;
                 }
                 $n = count(array_intersect_key(array_flip($r['userids']), $o['users']));
+                $orow = !empty($o['card']) ? ($rows[$o['row']] ?? null) : null;
+                if ($n && $orow && (($r['yields'] && $orow['event'] !== '') || ($r['event'] !== '' && $orow['yields']))) {
+                    $n = 0;   // natacion cede ese dia (se quita la fecha mas abajo): no es choque
+                }
                 if ($n) {
                     $rows[$k]['blocks'][] = $n . ' estudiante(s) también tienen ' . $o['name'] . ' a esa hora.';
                 }
@@ -373,6 +389,37 @@ class publisher {
                 $rows[$k]['warnings'][] = 'Las sesiones suman ' . round($mins / planning_config::hour_minutes(), 1) . ' h académicas y la carga es de '
                     . $r['hours'] . ' h.';
             }
+        }
+        // Asignaturas que ceden (natacion): no tienen sesion el dia de un seminario de un dia de sus mismos estudiantes.
+        foreach ($rows as $k => $r) {
+            if (empty($r['yields'])) {
+                continue;
+            }
+            $users = array_flip($r['userids']);
+            $drop = [];
+            foreach ($rows as $o) {
+                if ($o['event'] === '' || !array_intersect_key(array_flip($o['userids']), $users)) {
+                    continue;
+                }
+                foreach ($o['cards'] as $oc) {
+                    foreach ($oc['dates'] as $d) {
+                        $drop[$d] = $o['name'];
+                    }
+                }
+            }
+            if (!$drop) {
+                continue;
+            }
+            foreach ($rows[$k]['cards'] as $ci => $c) {
+                $keep = array_values(array_filter($c['dates'], function ($d) use ($drop) {
+                    return !isset($drop[$d]);
+                }));
+                foreach (array_diff($c['dates'], $keep) as $d) {
+                    $rows[$k]['warnings'][] = 'El ' . $d . ' no hay sesión: sus estudiantes tienen ' . $drop[$d] . '.';
+                }
+                $rows[$k]['cards'][$ci]['dates'] = $keep;
+            }
+            $rows[$k]['dates'] = $rows[$k]['cards'][0]['dates'] ?? [];
         }
         foreach ($rows as $k => $r) {
             $rows[$k]['blocks'] = array_values(array_unique($r['blocks']));

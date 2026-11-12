@@ -236,6 +236,18 @@ class demand_engine {
         // por defecto; solo si se activan para este periodo (planning_config::flexible / flexible_enabled).
         $flex = planning_config::flexible();
         $flexon = planning_config::flexible_enabled((int)$this->period->id);
+        // Asignaturas especiales: por cuatrimestre (seminarios) o solo nuevos ingresos miembros de un plan (TPC).
+        $special = planning_config::special_subjects();
+        $members = [];
+        $spname = [];
+        foreach ($special as $scid => $sp) {
+            $spname[$scid] = (string)$DB->get_field('course', 'fullname', ['id' => $scid]);
+            if ($sp['who'] === 'nuevo_ingreso' && $sp['plan'] && !isset($members[$sp['plan']])) {
+                $members[$sp['plan']] = array_flip(array_map('intval', $DB->get_fieldset_select('local_learning_users', 'userid',
+                    "learningplanid = ? AND userrolename = 'student' AND status = 'activo'", [$sp['plan']])));
+            }
+        }
+        $periodname = trim((string)$this->period->name);
 
         // 5. Por estudiante: nivel, cohorte y asignaturas del periodo.
         $students = [];
@@ -289,6 +301,23 @@ class demand_engine {
                     continue;
                 }
                 $isfail = ($st === self::ST_FAILED);
+                $sp = $special[$cid] ?? null;
+                if ($sp && $sp['who'] === 'cuatrimestre') {
+                    // Por cuatrimestre: se programa solo a los que estan en el cuatrimestre donde esta en el plan (B1 y B2
+                    // juntos), aunque sea de creditos 0. A quien ya paso ese cuatrimestre el area academica le carga el registro.
+                    $cq = (int)ceil($ord / 2);
+                    $sq = (int)ceil($pc->ord / 2);
+                    $cat = $isfail ? self::CAT_REPITE : ($cq === $sq ? self::CAT_NIVEL : '');
+                    if ($cat === '') {
+                        continue;
+                    }
+                    $subjects[$cid] = (object)[
+                        'courseid' => $cid, 'llcid' => $pc->llcid, 'name' => $pc->name, 'ord' => $pc->ord,
+                        'level' => self::ord_label($pc->ord), 'category' => $cat,
+                        'prereq' => 'ok', 'missing' => [], 'conditional' => [], 'flexible' => false, 'flex_on' => false,
+                        'special' => true];
+                    continue;
+                }
                 if ($isfail) {
                     $cat = self::CAT_REPITE;            // reprobada: cuenta en cualquier nivel
                 } else if ($pc->ord === $ord) {
@@ -308,9 +337,26 @@ class demand_engine {
                     'flexible' => $isflex, 'flex_on' => $isflex && isset($flexon[$cid]),
                 ];
             }
+            // Solo nuevos ingresos: asignaturas de otro plan (p. ej. TPC, excluido del avance) para quien ingresa en este
+            // periodo y es miembro activo de ese plan.
+            $isnew = trim((string)$r->ingreso) === $periodname || (trim((string)$r->ingreso) === '' && $ord === 1);
+            foreach ($special as $scid => $sp) {
+                if ($sp['who'] !== 'nuevo_ingreso' || !$isnew || isset($subjects[$scid]) || $approved($scid)
+                        || !isset($members[$sp['plan']][$uid])) {
+                    continue;
+                }
+                $sst = $h[$scid] ?? null;
+                if ($sst === self::ST_IN_PROGRESS || in_array($sst, self::ST_REVALIDA, true)) {
+                    continue;
+                }
+                $subjects[$scid] = (object)[
+                    'courseid' => $scid, 'llcid' => 0, 'name' => $spname[$scid], 'ord' => $ord, 'level' => self::ord_label($ord),
+                    'category' => self::CAT_NIVEL, 'prereq' => 'ok', 'missing' => [], 'conditional' => [],
+                    'flexible' => false, 'flex_on' => false, 'special' => true];
+            }
             // Prelaciones: cumplida si esta aprobada; condicionada si se esta cursando o en reválida.
             foreach ($subjects as $cid => $s) {
-                foreach ($plancourses[$pid][$cid]->prereqs as $pre) {
+                foreach ((isset($plancourses[$pid][$cid]) ? $plancourses[$pid][$cid]->prereqs : []) as $pre) {
                     if ($approved($pre)) {
                         continue;
                     }
@@ -351,8 +397,8 @@ class demand_engine {
             $load = 0;
             $available = 0;
             foreach ($subjects as $s) {
-                if ($s->prereq === 'no' || $s->category === self::CAT_REPITE || ($s->flexible && !$s->flex_on)) {
-                    continue;
+                if ($s->prereq === 'no' || $s->category === self::CAT_REPITE || ($s->flexible && !$s->flex_on) || !empty($s->special)) {
+                    continue;   // las especiales (seminarios, natacion) no cuentan como carga del bimestre
                 }
                 $available++;
                 if ($s->category !== self::CAT_ADELANTO) {

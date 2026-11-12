@@ -303,6 +303,76 @@ class planning_config {
         return ['configured' => false, 'ids' => $ids];
     }
 
+    /** Valores validos de las asignaturas especiales. */
+    const SPECIAL_WHO = ['cuatrimestre', 'nuevo_ingreso'];
+    const SPECIAL_MERGE = ['none', 'nocturna', 'todas'];
+    const SPECIAL_SAB = ['sabado_tarde', 'domingo', 'revalida'];
+    const SPECIAL_DIU = ['jueves', 'sabatina'];
+
+    /**
+     * Asignaturas con tratamiento especial (config planning_special_subjects), por curso:
+     *  - who: 'cuatrimestre' = la ven los del cuatrimestre del plan donde esta (B1 y B2 juntos) que no la aprobaron;
+     *         'nuevo_ingreso' = solo los nuevos ingresos del periodo que son miembros activos del plan 'plan' (p. ej. TPC).
+     *  - merge: 'nocturna' = si Nocturna no llega al minimo se suma a Sabatina o Diurna; 'todas' = un solo grupo para todas
+     *           las jornadas, en la jornada 'merge_into'.
+     *  - event_hours > 0: se dicta en un solo dia (horas reloj). sab_slot: sabado desde las 15:00 / domingo 08:00-17:00 /
+     *    sabado de la semana de revalidas; diu_slot: jueves 08:00-12:00 o con el horario sabatino.
+     *  - max: tope de estudiantes por grupo (0 = el general). yields: cede su sesion el dia de un seminario de un dia de
+     *    los mismos estudiantes (p. ej. natacion el jueves del seminario).
+     *
+     * @return array courseid => item
+     */
+    public static function special_subjects() {
+        $raw = json_decode((string)get_config('local_grupomakro_core', 'planning_special_subjects'), true);
+        $out = [];
+        foreach ((array)$raw as $it) {
+            $cid = (int)($it['courseid'] ?? 0);
+            if (!$cid) {
+                continue;
+            }
+            $out[$cid] = self::special_clean($it);
+        }
+        return $out;
+    }
+
+    protected static function special_clean(array $it) {
+        $pick = function ($v, $allowed, $def) {
+            return in_array($v, $allowed, true) ? $v : $def;
+        };
+        return ['courseid' => (int)($it['courseid'] ?? 0),
+            'who' => $pick((string)($it['who'] ?? ''), self::SPECIAL_WHO, 'cuatrimestre'),
+            'plan' => (int)($it['plan'] ?? 0),
+            'merge' => $pick((string)($it['merge'] ?? ''), self::SPECIAL_MERGE, 'none'),
+            'merge_into' => in_array((string)($it['merge_into'] ?? ''), self::JORNADAS, true) ? (string)$it['merge_into'] : 'Diurna',
+            'event_hours' => max(0, min(12, (float)($it['event_hours'] ?? 0))),
+            'sab_slot' => $pick((string)($it['sab_slot'] ?? ''), self::SPECIAL_SAB, 'sabado_tarde'),
+            'diu_slot' => $pick((string)($it['diu_slot'] ?? ''), self::SPECIAL_DIU, 'jueves'),
+            'max' => max(0, min(200, (int)($it['max'] ?? 0))),
+            'yields' => !empty($it['yields'])];
+    }
+
+    protected static function save_special(array $d, $remove) {
+        global $DB;
+        $cid = (int)($d['courseid'] ?? 0);
+        $name = $DB->get_field('course', 'fullname', ['id' => $cid]);
+        if (!$name) {
+            return self::fail('La asignatura no existe.');
+        }
+        $list = self::special_subjects();
+        if ($remove) {
+            unset($list[$cid]);
+        } else {
+            $it = self::special_clean($d);
+            if ($it['who'] === 'nuevo_ingreso' && (!$it['plan'] || !$DB->record_exists('local_learning_plans', ['id' => $it['plan']]))) {
+                return self::fail('Indique el plan cuyos miembros son los nuevos ingresos (p. ej. CURSOS COMPLEMENTARIOS TPC).');
+            }
+            $list[$cid] = $it;
+        }
+        set_config('planning_special_subjects', json_encode(array_values($list)), 'local_grupomakro_core');
+        return self::ok(($remove ? 'Se quitó el tratamiento especial de ' : 'Guardado el tratamiento especial de ') . $name . '.',
+            ['special' => array_values(self::special_subjects())]);
+    }
+
     /** Minutos de una hora academica (config planning_hour_minutes; 45 por defecto): las cargas horarias estan en horas academicas. */
     public static function hour_minutes() {
         $v = (int)get_config('local_grupomakro_core', 'planning_hour_minutes');
@@ -572,7 +642,17 @@ class planning_config {
         usort($teachers, function ($a, $b) {
             return strcmp($a['name'], $b['name']);
         });
+        $special = [];
+        foreach (self::special_subjects() as $sp) {
+            $special[] = $sp + ['name' => (string)$DB->get_field('course', 'fullname', ['id' => $sp['courseid']])];
+        }
+        $allplans = [];
+        foreach ($DB->get_records('local_learning_plans', null, 'name', 'id, name') as $lp) {
+            $allplans[] = ['id' => (int)$lp->id, 'name' => $lp->name];
+        }
         return [
+            'special' => $special,
+            'all_plans' => $allplans,
             'teachers' => $teachers,
             'costs' => ['hour_rate' => self::hour_rate(), 'long' => $longlist, 'fixed' => $fixedlist, 'long_configured' => $long['configured'],
                 'long_suggested' => $long['suggested'], 'all_courses' => $allcourses,
@@ -611,6 +691,9 @@ class planning_config {
             case 'flex_toggle':
                 return self::toggle_flexible($data);
 
+            case 'special_set':
+            case 'special_remove':
+                return self::save_special($data, $section === 'special_remove');
             case 'proposal_save':
                 return self::save_proposal($data, false);
 
@@ -730,6 +813,16 @@ class planning_config {
                 foreach ($cfg['shiftWindows'] as $j => $w) {
                     if (!self::is_time($w['start'] ?? '') || !self::is_time($w['end'] ?? '') || $w['start'] >= $w['end']) {
                         return self::fail("La franja de la jornada $j no es válida (la hora de inicio debe ser menor que la de fin).");
+                    }
+                    // Duracion de sesion propia de la jornada (p. ej. Sabatina 90 min); vacio = la general.
+                    if (isset($w['sessionMinutes']) && $w['sessionMinutes'] !== '' && $w['sessionMinutes'] !== null) {
+                        $sm = (int)$w['sessionMinutes'];
+                        if ($sm < 30 || $sm > 480) {
+                            return self::fail("La duración de sesión de la jornada $j debe estar entre 30 y 480 minutos.");
+                        }
+                        $cfg['shiftWindows'][$j]['sessionMinutes'] = $sm;
+                    } else {
+                        unset($cfg['shiftWindows'][$j]['sessionMinutes']);
                     }
                     // Dias preferidos de la jornada (preferencia, no obligatorio): 1 = lunes ... 6 = sabado.
                     if (isset($w['preferredDays'])) {

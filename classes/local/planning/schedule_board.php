@@ -118,6 +118,40 @@ class schedule_board {
             'dropped' => $dropped, 'gone' => $gone, 'added' => $added, 'changed' => $changed];
     }
 
+    /**
+     * Dia y hora de un seminario de un dia segun su configuracion y la jornada del grupo (minutos desde las 00:00).
+     * Diurna: jueves 08:00-12:00 (si asi se configuro); el resto, el horario sabatino: sabado desde las 15:00, domingo
+     * 08:00-17:00 o sabado de la semana de revalidas desde las 08:00.
+     */
+    protected static function event_slot(array $sp, $jornada, $mins) {
+        $kind = ($jornada === 'Diurna' && $sp['diu_slot'] === 'jueves') ? 'jueves' : $sp['sab_slot'];
+        switch ($kind) {
+            case 'jueves':
+                // Hasta 4 h: 08:00-12:00; mas largo: desde las 08:00 con una hora de almuerzo, hasta las 17:00.
+                return ['kind' => 'jueves', 'day' => 4, 'start' => 480, 'end' => $mins <= 240 ? 480 + $mins : min(1020, 480 + $mins + 60),
+                    'base' => 'Diurna'];
+            case 'domingo':
+                return ['kind' => 'domingo', 'day' => 7, 'start' => 480, 'end' => 1020, 'base' => 'Sabatina'];
+            case 'revalida':
+                return ['kind' => 'revalida', 'day' => 6, 'start' => 480, 'end' => 480 + $mins, 'base' => 'Sabatina'];
+            default:
+                return ['kind' => 'sabado_tarde', 'day' => 6, 'start' => 900, 'end' => 900 + $mins, 'base' => 'Sabatina'];
+        }
+    }
+
+    /** Fechas posibles de un seminario de un dia: las semanas de clase de su dia, o el sabado de la semana de revalidas. */
+    protected static function event_calendar($p, $calendar, array $slot, array $holidays) {
+        if ($slot['kind'] === 'revalida') {
+            $dates = publisher::revalida_dates($p, $calendar, $slot['base'], $slot['day'], $holidays);
+        } else {
+            list(, , $cal) = publisher::class_calendar($p, $calendar, $slot['base'], false, $holidays);
+            $dates = array_values($cal[$slot['day']] ?? []);
+        }
+        $from = $dates ? strtotime($dates[0] . ' 00:00:00') : (int)$p->startdate;
+        $to = $dates ? strtotime(end($dates) . ' 23:59:59') : (int)$p->enddate;
+        return ['from' => $from, 'to' => $to, 'days' => [$slot['day'] => array_values($dates)]];
+    }
+
     /** Clave estable de un grupo de la propuesta guardada. */
     public static function group_key(array $g) {
         return (int)$g['courseid'] . '|' . trim((string)$g['jornada']) . '|' . (int)($g['isolated_plan'] ?? 0) . '|' . (int)($g['number'] ?? 1);
@@ -160,6 +194,9 @@ class schedule_board {
         $cfg = scheduler_settings::get_config();
         $defdur = (int)($cfg->sessionDuration ?? 120) ?: 120;
         $hm = planning_config::hour_minutes();   // minutos por hora academica (45)
+        $cfga = json_decode(json_encode($cfg), true);
+        $special = planning_config::special_subjects();
+        $evprefs = [];   // reglas de dia y hora de los seminarios de un dia (no se guardan: salen de su configuracion)
 
         // Grupos (de la propuesta guardada). Los ya publicados quedan marcados con su clase.
         $published = publisher::published($periodid)['groups'];
@@ -278,6 +315,34 @@ class schedule_board {
                 }
                 $sessions = $weeks * $nparts;
             }
+            // Duracion propia de la jornada (p. ej. Sabatina 90 min): una sesion por semana hasta la ultima semana de clase,
+            // sin alargar ni partir (la semana siguiente es de revalidas).
+            $sp = $special[$cid] ?? null;
+            $isevent = $sp && $sp['event_hours'] > 0;
+            $jw = $cfga['shiftWindows'][$g['jornada']] ?? [];
+            if (!$isevent && !$rule && !$fixeddur && !empty($jw['sessionMinutes'])) {
+                $dur = (int)$jw['sessionMinutes'];
+                $content = $h && $h['total'] > 0 ? (int)ceil($h['total'] * $hm / $dur) : $cweeks;
+                $sessions = min($weeks, $content >= $cweeks ? $content + $evals : $content);
+                $nparts = 1;
+            }
+            // Seminario de un dia: una sola sesion en su dia y hora (sabado desde las 15:00, domingo, sabado de revalidas o
+            // jueves en la manana para Diurna), con su propio calendario de fechas posibles.
+            if ($isevent) {
+                $slot = self::event_slot($sp, $g['jornada'], (int)round($sp['event_hours'] * 60));
+                $dur = $slot['end'] - $slot['start'];
+                $sessions = 1;
+                $nparts = 1;
+                $calkey = $g['jornada'] . '|ev:' . $slot['kind'];
+                if (!isset($calendars[$calkey])) {
+                    $calendars[$calkey] = self::event_calendar($p, $calendar, $slot, $holidaymap);
+                }
+                $weeks = count($calendars[$calkey]['days'][$slot['day']] ?? []);
+                $evprefs[] = ['courseid' => $cid, 'planid' => 0, 'jornada' => $g['jornada'], 'days' => [$slot['day']],
+                    'start' => self::to_hhmm($slot['start']), 'end' => self::to_hhmm($slot['end']), 'strict' => true,
+                    'override_window' => true, 'first_slot' => true, 'teacherid' => 0, 'times_per_week' => 0,
+                    'parallel' => [], 'parallel_max' => 4, 'event' => $slot['kind']];
+            }
             $parts = [];
             for ($i = 1; $i <= $nparts; $i++) {
                 $parts[] = ['key' => $nparts === 1 ? $key : $key . '#' . $i,
@@ -298,7 +363,8 @@ class schedule_board {
                 'adelantos' => count($g['adelantos'] ?? []), 'levels' => $levels, 'plans' => array_keys($plans),
                 'duration' => $dur, 'hours' => $h ? $h['total'] : 0, 'long' => $islong,
                 'cal' => $calkey, 'weeks' => $weeks, 'sessions' => $sessions, 'parts' => $parts,
-                'published' => (int)($published[$key] ?? 0)];
+                'published' => (int)($published[$key] ?? 0),
+                'event' => $isevent ? $slot['kind'] : '', 'yields' => $sp ? $sp['yields'] : false];
         }
 
         // Docentes: instructores de la plataforma + quien tiene disponibilidad registrada.
@@ -432,7 +498,7 @@ class schedule_board {
                 'classWeeks' => planning_config::class_weeks(),
             ],
             // Preferencias de dia y hora (no obligatorias): por jornada (shiftWindows[j].preferredDays) y por asignatura.
-            'preferences' => ['subjects' => planning_config::subject_prefs()],
+            'preferences' => ['subjects' => array_merge(planning_config::subject_prefs(), $evprefs)],
             'period' => ['start' => $start, 'end' => $end, 'jornada_starts' => (object)planning_config::jornada_starts($p)],
             'draft' => self::draft($periodid),
         ];

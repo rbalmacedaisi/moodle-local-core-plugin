@@ -554,7 +554,13 @@ Vue.component('schedule-board', {
             return out;
         },
         groupsMap() { this.tick; return this.S ? this.S.groups : {}; },
-        days() { return this.S ? this.E.jornadaDays(this.S.cfg, this.jornada) : []; },
+        // Dias de la jornada mas los que usan sus fichas (p. ej. el domingo de un seminario).
+        days() {
+            if (!this.S) return [];
+            const d = new Set(this.E.jornadaDays(this.S.cfg, this.jornada));
+            Object.keys(this.S.groups).forEach(k => { if (this.S.groups[k].jornada === this.jornada) this.E.daysFor(this.S, k).forEach(x => d.add(x)); });
+            return [...d].sort((a, b) => a - b);
+        },
         // Franja visible: la de la jornada, ampliada si algo quedo afuera.
         win() {
             this.tick;

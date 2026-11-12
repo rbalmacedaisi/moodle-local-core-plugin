@@ -183,7 +183,11 @@ Vue.component('planning-config', {
                             <small>Días preferidos:</small>
                             <button v-for="d in daysOf(j)" :key="d" type="button" class="tl-cfg-daybtn" :class="{ 'tl-cfg-daybtn-on': (sched.shiftWindows[j].preferredDays || []).includes(d) }"
                                     @click.prevent="toggleDay(sched.shiftWindows[j], d)">{{ dayShort[d] }}</button>
-                        </span></label>
+                        </span>
+                        <span class="tl-cfg-days" title="Duración de las sesiones de esta jornada. Vacío = la general. Con duración propia se da una sesión por semana hasta la última semana de clase (la siguiente es de reválidas).">
+                            <small>Sesión propia (min):</small>
+                            <input type="number" min="30" max="480" step="5" class="tl-cfg-input" style="width:80px" placeholder="general"
+                                   v-model="sched.shiftWindows[j].sessionMinutes"></span></label>
                     <label>Duración de cada sesión (minutos)<input type="number" min="30" step="5" class="tl-cfg-input" v-model.number="sched.sessionDuration"></label>
                     <label>Receso entre clases (minutos)<input type="number" min="0" step="5" class="tl-cfg-input" v-model.number="sched.intervalMinutes"></label>
                     <label>Almuerzo<span class="tl-cfg-range"><input type="time" class="tl-cfg-input" v-model="sched.lunchStart"> a
@@ -241,6 +245,51 @@ Vue.component('planning-config', {
                 <div class="tl-cfg-help mt-2">Agregar: elija la carrera (o deje todas) y las asignaturas; luego marque días y franja y guarde cada una.</div>
                 <subject-picker :careers="careers" :exclude="[]" @add="prefAdd"></subject-picker>
                 <div v-if="prefMsg" class="tl-cfg-msg mt-2" :class="prefErr ? 'tl-cfg-msg-error' : 'tl-cfg-msg-ok'">{{ prefMsg }}</div>
+            </div>
+
+            <div v-if="section === 'scheduler'" class="tl-cfg-card">
+                <div class="tl-cfg-card-head"><div><b>Seminarios y cursos con tratamiento especial</b>
+                    <div class="tl-cfg-help">Asignaturas que no siguen la regla normal del plan. <b>Quiénes:</b> "por cuatrimestre" = la ven los del cuatrimestre
+                    donde está en el plan (B1 y B2 juntos) que no la aprobaron; "solo nuevos ingresos" = solo quienes ingresan en el periodo y son miembros
+                    activos del plan indicado (p. ej. CURSOS COMPLEMENTARIOS TPC). <b>Un día:</b> si tiene horas, se dicta en un solo día: Sabatina el sábado
+                    desde las 15:00, el domingo de 08:00 a 17:00 o el sábado de reválidas; Diurna el jueves de 08:00 a 12:00. <b>Juntar:</b> Nocturna se suma a
+                    Sabatina o Diurna si no alcanza el mínimo, o un solo grupo para todas. <b>Cede:</b> no tiene sesión el día de un seminario de sus mismos
+                    estudiantes (natación).</div></div></div>
+                <table v-if="special.length" class="tl-cfg-table">
+                    <thead><tr><th>Asignatura</th><th>Quiénes</th><th>Juntar jornadas</th><th>Un día (horas)</th><th>Sabatina / Nocturna</th><th>Diurna</th><th>Máx.</th><th>Cede</th><th></th></tr></thead>
+                    <tbody>
+                        <tr v-for="sp in special" :key="sp.courseid">
+                            <td>{{ sp.name }}</td>
+                            <td><select class="tl-cfg-input" v-model="sp.who" @change="sp.dirty = true">
+                                    <option value="cuatrimestre">Por cuatrimestre</option><option value="nuevo_ingreso">Solo nuevos ingresos</option></select>
+                                <select v-if="sp.who === 'nuevo_ingreso'" class="tl-cfg-input mt-1" v-model.number="sp.plan" @change="sp.dirty = true">
+                                    <option :value="0">— plan —</option><option v-for="p in allPlans" :key="p.id" :value="p.id">{{ p.name }}</option></select></td>
+                            <td><select class="tl-cfg-input" v-model="sp.merge" @change="sp.dirty = true">
+                                    <option value="none">No</option><option value="nocturna">Nocturna si no alcanza</option><option value="todas">Todas en un grupo</option></select>
+                                <select v-if="sp.merge === 'todas'" class="tl-cfg-input mt-1" v-model="sp.merge_into" @change="sp.dirty = true">
+                                    <option v-for="j in jornadas" :key="j" :value="j">en {{ j }}</option></select></td>
+                            <td><input type="number" min="0" max="12" step="0.5" class="tl-cfg-input" style="width:70px" v-model.number="sp.event_hours" @input="sp.dirty = true"
+                                       title="0 = sesiones semanales normales"></td>
+                            <td><select class="tl-cfg-input" v-model="sp.sab_slot" :disabled="!sp.event_hours" @change="sp.dirty = true">
+                                    <option value="sabado_tarde">Sábado desde 15:00</option><option value="domingo">Domingo 08:00–17:00</option>
+                                    <option value="revalida">Sábado de reválidas</option></select></td>
+                            <td><select class="tl-cfg-input" v-model="sp.diu_slot" :disabled="!sp.event_hours" @change="sp.dirty = true">
+                                    <option value="jueves">Jueves 08:00–12:00</option><option value="sabatina">Como Sabatina</option></select></td>
+                            <td><input type="number" min="0" max="200" class="tl-cfg-input" style="width:60px" v-model.number="sp.max" @input="sp.dirty = true" title="0 = el máximo general"></td>
+                            <td><input type="checkbox" v-model="sp.yields" @change="sp.dirty = true"></td>
+                            <td style="white-space:nowrap"><button class="tl-cfg-btn" :disabled="!sp.dirty || specialSaving" @click="specialSave(sp)">Guardar</button>
+                                <button v-if="!sp.isnew" class="tl-cfg-btn tl-cfg-btn-ghost" :disabled="specialSaving" @click="specialRemove(sp)">Quitar</button>
+                                <button v-else class="tl-cfg-btn tl-cfg-btn-ghost" @click="special = special.filter(x => x !== sp)">Cancelar</button></td>
+                        </tr>
+                    </tbody>
+                </table>
+                <div v-else class="tl-plan-empty">Ninguna.</div>
+                <div class="tl-cfg-fields mt-2"><label>Agregar asignatura
+                    <select class="tl-cfg-input" v-model.number="specialPick" @change="specialAdd">
+                        <option :value="0">— elegir —</option>
+                        <option v-for="c in costs.all_courses.filter(c => !special.some(x => x.courseid === c.courseid))" :key="c.courseid" :value="c.courseid">{{ c.name }}</option>
+                    </select></label></div>
+                <div v-if="specialMsg" class="tl-cfg-msg mt-2" :class="specialErr ? 'tl-cfg-msg-error' : 'tl-cfg-msg-ok'">{{ specialMsg }}</div>
             </div>
 
             <!-- AULAS -->
@@ -339,6 +388,7 @@ Vue.component('planning-config', {
             dayShort: { 1: 'Lun', 2: 'Mar', 3: 'Mié', 4: 'Jue', 5: 'Vie', 6: 'Sáb' }, classrooms: [], holidays: [], loads: [],
             newHoliday: { date: '', name: '' },
             careers: [], iso: { careers: [], subjects: [] }, isoOrig: '', isoPick: { planid: 0, courseid: 0 },
+            special: [], allPlans: [], specialPick: 0, specialSaving: false, specialMsg: '', specialErr: false,
             flexAuto: [], flex: { add: [], remove: [] }, flexOrig: '', flexPick: { planid: 0, courseid: 0 },
             costs: { hour_rate: 18, long: [], fixed: [], unscheduled: [], unscheduled_configured: false, long_configured: false, long_suggested: [], all_courses: [] }, costsOrig: '', longPick: 0, fixedPick: 0,
             confirm: { show: false, title: '', changes: [], note: '', danger: false, run: null },
@@ -404,6 +454,8 @@ Vue.component('planning-config', {
                 this.classrooms = d.classrooms.map(c => Object.assign(c, { dirty: false }));
                 this.holidays = d.holidays; this.loads = d.loads;
                 this.careers = d.careers || [];
+                this.allPlans = d.all_plans || [];
+                this.special = (d.special || []).map(sp => Object.assign({}, sp, { dirty: false, isnew: false }));
                 const iso = d.isolation || { careers: [], subjects: [] };
                 this.iso = { careers: (iso.careers || []).map(Number), subjects: (iso.subjects || []).map(s => ({ planid: Number(s.planid), courseid: Number(s.courseid) })) };
                 this.isoOrig = JSON.stringify(this.isoNorm(this.iso));
@@ -454,6 +506,8 @@ Vue.component('planning-config', {
                 const a = (o.shiftWindows[j] || {}), b = s.shiftWindows[j];
                 if (a.start !== b.start || a.end !== b.end) out.push({ label: j, before: (a.start || '') + '–' + (a.end || ''), after: b.start + '–' + b.end });
                 if (dl(a.preferredDays) !== dl(b.preferredDays)) out.push({ label: 'Días preferidos ' + j, before: dl(a.preferredDays), after: dl(b.preferredDays) });
+                const sm = v => (v === undefined || v === null || v === '') ? 'general' : v + ' min';
+                if (sm(a.sessionMinutes) !== sm(b.sessionMinutes)) out.push({ label: 'Sesión propia ' + j, before: sm(a.sessionMinutes), after: sm(b.sessionMinutes) });
             });
             [['sessionDuration', 'Duración de sesión'], ['intervalMinutes', 'Receso'], ['lunchStart', 'Inicio almuerzo'], ['lunchEnd', 'Fin almuerzo']]
                 .forEach(([k, l]) => { if (o[k] !== s[k]) out.push({ label: l, before: o[k], after: s[k] }); });
@@ -537,6 +591,33 @@ Vue.component('planning-config', {
         isoAdd(items) { items.forEach(it => this.iso.subjects.push({ planid: it.planid, courseid: it.courseid })); },
         longAdd(items) { items.forEach(it => this.costs.long.push({ courseid: it.courseid, name: it.name })); },
         fixedAdd(items) { items.forEach(it => this.costs.fixed.push({ courseid: it.courseid, name: it.name })); },
+        specialAdd() {
+            const c = (this.costs.all_courses || []).find(x => x.courseid === this.specialPick);
+            if (c) this.special.push({ courseid: c.courseid, name: c.name, who: 'cuatrimestre', plan: 0, merge: 'nocturna', merge_into: 'Diurna',
+                event_hours: 0, sab_slot: 'sabado_tarde', diu_slot: 'jueves', max: 0, yields: false, dirty: true, isnew: true });
+            this.specialPick = 0;
+        },
+        async specialSave(sp) {
+            this.specialSaving = true; this.specialMsg = '';
+            try {
+                const data = { courseid: sp.courseid, who: sp.who, plan: Number(sp.plan || 0), merge: sp.merge, merge_into: sp.merge_into,
+                    event_hours: Number(sp.event_hours || 0), sab_slot: sp.sab_slot, diu_slot: sp.diu_slot, max: Number(sp.max || 0), yields: !!sp.yields };
+                const r = await this.ws('local_grupomakro_planning_save_config', { section: 'special_set', data: JSON.stringify(data) });
+                this.specialErr = !r.ok; this.specialMsg = r.message;
+                if (r.ok) { sp.dirty = false; sp.isnew = false; }
+            } catch (e) { this.specialErr = true; this.specialMsg = 'Error: ' + (e.message || e); }
+            finally { this.specialSaving = false; }
+        },
+        async specialRemove(sp) {
+            if (!window.confirm('¿Quitar el tratamiento especial de ' + sp.name + '? Vuelve a la regla normal del plan.')) return;
+            this.specialSaving = true; this.specialMsg = '';
+            try {
+                const r = await this.ws('local_grupomakro_planning_save_config', { section: 'special_remove', data: JSON.stringify({ courseid: sp.courseid }) });
+                this.specialErr = !r.ok; this.specialMsg = r.message;
+                if (r.ok) this.special = this.special.filter(x => x !== sp);
+            } catch (e) { this.specialErr = true; this.specialMsg = 'Error: ' + (e.message || e); }
+            finally { this.specialSaving = false; }
+        },
         unschedAdd(items) { items.forEach(it => this.costs.unscheduled.push({ courseid: it.courseid, name: it.name })); },
         flexAdd(kind, items) {
             items.forEach(it => {

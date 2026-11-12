@@ -91,6 +91,44 @@ class group_builder {
             }
             $rows[$rk] = $row;
         }
+        // 1b. Asignaturas especiales: un solo grupo para todas las jornadas, o Nocturna se suma a Sabatina/Diurna si no alcanza.
+        foreach (planning_config::special_subjects() as $scid => $sp) {
+            if ($sp['merge'] === 'none') {
+                continue;
+            }
+            $mine = array_filter($rows, function ($r) use ($scid) {
+                return $r['courseid'] === $scid && !$r['unscheduled'];
+            });
+            foreach ($mine as $rk => $r) {
+                $target = null;
+                if ($sp['merge'] === 'todas' && $r['jornada'] !== $sp['merge_into']) {
+                    $target = $sp['merge_into'];
+                } else if ($sp['merge'] === 'nocturna' && $r['jornada'] === 'Nocturna' && count($r['ready']) < $this->min) {
+                    // A la jornada (Sabatina o Diurna) con mas estudiantes.
+                    $best = -1;
+                    foreach (['Sabatina', 'Diurna'] as $j) {
+                        $n = count($rows[$scid . '|' . $j . '|' . $r['isolated_plan']]['ready'] ?? []);
+                        if ($n > $best) {
+                            $best = $n;
+                            $target = $j;
+                        }
+                    }
+                }
+                if ($target === null) {
+                    continue;
+                }
+                $tk = $scid . '|' . $target . '|' . $r['isolated_plan'];
+                if (!isset($rows[$tk])) {
+                    $rows[$tk] = array_merge($r, ['key' => $tk, 'jornada' => $target, 'ready' => [], 'adelanto' => [], 'blocked' => [],
+                        'exception' => $exceptions[$tk] ?? null]);
+                }
+                foreach (['ready', 'adelanto', 'blocked'] as $f) {
+                    $rows[$tk][$f] = array_values(array_unique(array_merge($rows[$tk][$f], $r[$f])));
+                }
+                $rows[$tk]['merged_from'][] = $r['jornada'];
+                unset($rows[$rk]);
+            }
+        }
 
         // 2. Primera pasada: abrir lo que alcanza el minimo o tiene excepcion.
         foreach ($rows as $rk => $row) {
@@ -310,7 +348,9 @@ class group_builder {
             return [$sa['planid'], $sa['ingreso'], $sa['ord'], $sa['name']] <=> [$sb['planid'], $sb['ingreso'], $sb['ord'], $sb['name']];
         });
         $n = count($members);
-        $k = max(1, (int)ceil($n / $this->max));
+        $sp = planning_config::special_subjects()[(int)$row['courseid']] ?? null;
+        $cap = ($sp && $sp['max'] > 0) ? $sp['max'] : $this->max;   // tope propio (p. ej. supervivencia en agua: 30)
+        $k = max(1, (int)ceil($n / $cap));
         $base = intdiv($n, $k);
         $rest = $n % $k;
         $pos = 0;
