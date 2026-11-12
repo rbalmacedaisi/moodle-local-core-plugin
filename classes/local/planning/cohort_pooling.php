@@ -204,12 +204,13 @@ class cohort_pooling {
             $cells = $ser['cells'];
             ksort($cells);
             $cid = $ser['courseid'];
-            // Celdas que ya abren solas: no se tocan, pero los grupos chicos pueden sumarse a ellas.
+            // Celdas que ya abren solas: no se tocan, pero los grupos chicos pueden sumarse a ellas. En el periodo que se
+            // planifica tambien abre lo que ya tiene grupo propuesto aunque no llegue al minimo (decision "abrir como grupo").
             $open = [];
             $remaining = [];
             foreach ($cells as $k => $keys) {
                 $keys = array_values(array_unique($keys));
-                if (count($keys) >= $this->min) {
+                if (count($keys) >= $this->min || ($k === 0 && !empty($this->planned[$rk]))) {
                     $open[$k] = $keys;
                 } else {
                     foreach ($keys as $key) {
