@@ -2664,3 +2664,6 @@ button.tl-btn.tl-btn-primary:active:not(:disabled) {
 .tl-proj-pool-sec { margin: 8px 0 2px; }
 .tl-proj-pool-ul { margin: 0 0 6px 0; padding-left: 22px; font-size: 13px; }
 .tl-proj-pool-ul li { margin: 2px 0; }
+.tl-proj-gsize { font-weight: 700; }
+.tl-proj-gsize-note { background: #EEF2FF; border-radius: 8px; padding: 5px 8px; margin: 4px 0 6px; font-size: 12px; color: #312E81; line-height: 1.45; }
+.tl-proj-tag-in { background: #E0E7FF; color: #3730A3; }

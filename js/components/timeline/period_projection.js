@@ -462,6 +462,7 @@ Vue.component('period-projection', {
                         <template v-else-if="r.unscheduled"> → se carga sin horario</template>
                         <template v-else-if="j.closed"> → no abre (decisión)</template>
                         <template v-else-if="j.exception && j.exception.mode === 'modulo'"> → módulo ({{ j.exception.userids.length }})</template>
+                        <template v-else-if="gsize(j)"> → <b class="tl-proj-gsize">{{ gsizeLabel(j) }}</b><template v-if="j.exception"> (decisión)</template></template>
                         <template v-else-if="j.exception"> → excepción: abre</template>
                         <template v-else-if="j.groups"> → {{ j.groups }} {{ j.groups === 1 ? 'grupo' : 'grupos' }}</template>
                         <template v-else-if="j.ready + j.adelanto >= min"> → con adelantos</template>
@@ -472,15 +473,26 @@ Vue.component('period-projection', {
                             <v-icon size="12">mdi-tune-variant</v-icon></button>
                     </span>
                 </div>
-                <div class="tl-proj-num" :title="(careerFilter ? r.mine : r.ready) + ' se cargan + ' + r.adelanto + ' pueden adelantar'">
+                <div v-if="rowGroups(r)" class="tl-proj-num" :title="rowGroupsHelp(r)">
+                    <b>{{ rowGroups(r).total }}</b>
+                    <div class="tl-proj-num-sub">en {{ rowGroups(r).n === 1 ? 'el grupo' : rowGroups(r).n + ' grupos' }}<template v-if="rowGroups(r).adel"> · {{ rowGroups(r).total - rowGroups(r).adel }} + {{ rowGroups(r).adel }} adel.</template></div>
+                </div>
+                <div v-else class="tl-proj-num" :title="(careerFilter ? r.mine : r.ready) + ' se cargan + ' + r.adelanto + ' pueden adelantar'">
                     <b>{{ (careerFilter ? r.mine : r.ready) + r.adelanto }}</b>
                     <div v-if="r.adelanto" class="tl-proj-num-sub">{{ careerFilter ? r.mine : r.ready }} + {{ r.adelanto }} adel.</div>
+                    <div v-else-if="groupsLoading" class="tl-proj-num-sub">calculando grupos…</div>
                 </div>
             </div>
             <div v-if="open[r.key]" class="tl-proj-detail">
                 <div v-for="j in r.jornadas.filter(visibleJ)" :key="j.jornada" class="tl-proj-detail-col">
-                    <div class="tl-plan-detail-block">{{ j.jornada }} • {{ j.ready }} estudiantes
-                        <template v-if="j.adelanto"> (+{{ j.adelanto }} pueden adelantar)</template></div>
+                    <div class="tl-plan-detail-block">{{ j.jornada }} • {{ j.ready }} les toca
+                        <template v-if="j.adelanto"> · {{ j.adelanto }} podrían adelantar</template></div>
+                    <div v-if="gsize(j)" class="tl-proj-gsize-note">
+                        <v-icon size="13" color="#4F46E5">mdi-account-group</v-icon>
+                        <b>{{ gsizeLabel(j) }}</b>: {{ gsize(j).ready }} a los que les toca + {{ gsize(j).adel }} que adelantan<template v-if="j.adelanto > gsize(j).adel">.
+                        Los otros {{ j.adelanto - gsize(j).adel }} que podrían adelantar no entran: ya tienen carga suficiente sin ella</template>.
+                        Los que entran llevan la marca <span class="tl-plan-tag tl-proj-tag-in">en el grupo</span>.
+                    </div>
                     <div v-if="j.exception || j.closed" class="tl-proj-exc-note">
                         <v-icon size="12" color="#1D4ED8">mdi-shield-check-outline</v-icon>
                         {{ decisionLabel(j.exception || j.closed) }}
@@ -499,6 +511,7 @@ Vue.component('period-projection', {
                         <span v-if="j.exception && j.exception.mode === 'modulo' && j.exception.userids.includes(x.s.userid)" class="tl-plan-tag tl-plan-tag-nivel">módulo</span>
                         <span class="tl-proj-stu-meta" :title="x.s.plan">{{ showCareers && !r.isolated ? shortPlan(x.s.plan) + ' · ' : '' }}{{ x.s.level }}</span>
                         <span class="tl-plan-tag" :class="'tl-plan-tag-' + x.cat">{{ catLabel[x.cat] }}</span>
+                        <span v-if="x.cat === 'adelanto' && gsize(j) && gsize(j).keys[x.key]" class="tl-plan-tag tl-proj-tag-in" title="Esta adelantando y entra en el grupo propuesto">en el grupo</span>
                         <span v-if="x.prereq === 'no'" class="tl-plan-tag tl-plan-tag-lock">prelación</span>
                     </div>
                 </div>
@@ -586,8 +599,9 @@ Vue.component('period-projection', {
         max: { type: Number, default: 30 },
     },
     watch: {
-        result() { if (this.grouping) this.resetGroups(); },
+        result() { this.resetGroups(); },
     },
+    mounted() { this.loadGrouping(); },
     data() {
         return { q: '', filter: 'all', jornada: '', careerFilter: 0, open: {}, selected: {},
             view: 'next', boardOpened: false, future: null, poolOpen: true, poolTab: 'next', poolDetail: null, poolDlg: null, futureLoading: false, futureError: '', cellDetail: null, costOpen: false, openRep: {},
@@ -612,6 +626,20 @@ Vue.component('period-projection', {
             return this.careers.map(c => ({ id: Number(c.id), short: this.shortPlan(c.name) }))
                 .sort((a, b) => a.short.localeCompare(b.short));
         },
+        // Grupos de la propuesta automática por asignatura + jornada (clave igual a la de las decisiones).
+        groupSizes() {
+            if (!this.grouping || !this.grouping.groups) return null;
+            const out = {};
+            this.grouping.groups.forEach(g => {
+                if (g.type === 'modulo' || g.type === 'sin_horario') return;
+                const k = g.courseid + '|' + (g.jornada || '') + '|' + (g.isolated_plan || 0);
+                const o = out[k] || (out[k] = { sizes: [], total: 0, adel: 0, ready: 0, keys: {} });
+                const n = (g.students || []).length, a = (g.adel || []).length;
+                o.sizes.push(n); o.total += n; o.adel += a; o.ready += n - a;
+                (g.adel || []).forEach(x => { o.keys[x] = true; });
+            });
+            return out;
+        },
         exceptionMap() {
             const m = {};
             (this.result.exceptions || []).forEach(e => { m[e.key] = e; });
@@ -626,7 +654,7 @@ Vue.component('period-projection', {
                 const key = d.courseid + '|' + iso;
                 const r = by[key] || (by[key] = { key, courseid: d.courseid, name: d.name, isolated: iso, ready: 0, adelanto: 0,
                     blocked: 0, repite: 0, atrasada: 0, levels: {}, plans: {}, planIds: {}, jornadas: [] });
-                const studs = d.students.map(x => ({ s: students[x.key], cat: x.category, prereq: x.prereq, flex: !!x.flex }))
+                const studs = d.students.map(x => ({ key: x.key, s: students[x.key], cat: x.category, prereq: x.prereq, flex: !!x.flex }))
                     .filter(x => x.s).sort((a, b) => (b.s.finishing - a.s.finishing) || a.s.name.localeCompare(b.s.name));
                 const byPlan = {};
                 let finishing = 0;
@@ -961,7 +989,11 @@ Vue.component('period-projection', {
         money(v) { return '$' + Number(v || 0).toLocaleString('es-PA', { minimumFractionDigits: 0, maximumFractionDigits: 0 }); },
         async openGroups() {
             this.view = 'groups';
-            if (this.grouping || this.groupsLoading) return;
+            await this.loadGrouping();
+        },
+        // Arma la propuesta de grupos (solo lectura). Tambien se usa en "Próximo periodo" para mostrar el tamaño real de cada grupo.
+        async loadGrouping() {
+            if (this.grouping || this.groupsLoading || !this.result || !this.result.period) return;
             this.groupsLoading = true; this.groupsError = '';
             try {
                 const r = await window.axios.get(window.location.origin + '/webservice/rest/server.php', { params: {
@@ -1256,7 +1288,25 @@ Vue.component('period-projection', {
             if (r.data && r.data.exception) throw new Error(r.data.message || r.data.errorcode);
             return r.data;
         },
-        resetGroups() { this.grouping = null; if (this.view === 'groups') this.openGroups(); },
+        resetGroups() { this.grouping = null; if (this.view === 'groups' || this.view === 'next') this.loadGrouping(); },
+        // Grupos propuestos de una jornada: tamaños, cuántos les toca, cuántos adelantan y quiénes adelantan.
+        gsize(j) { return (this.groupSizes && this.groupSizes[j.ekey]) || null; },
+        gsizeLabel(j) {
+            const g = this.gsize(j);
+            if (!g) return '';
+            return g.sizes.length === 1 ? '1 grupo de ' + g.sizes[0] : g.sizes.length + ' grupos: ' + g.sizes.join(' + ');
+        },
+        rowGroups(r) {
+            if (!this.groupSizes) return null;
+            let total = 0, adel = 0, n = 0;
+            r.jornadas.filter(this.visibleJ).forEach(j => { const g = this.gsize(j); if (g) { total += g.total; adel += g.adel; n += g.sizes.length; } });
+            return n ? { total, adel, n } : null;
+        },
+        rowGroupsHelp(r) {
+            const g = this.rowGroups(r);
+            return g.total + ' estudiantes en los grupos propuestos: ' + (g.total - g.adel) + ' a los que les toca + ' + g.adel + ' que adelantan. '
+                + 'Pueden adelantar ' + r.adelanto + ' en total; solo entran los que hacen falta o tienen poca carga.';
+        },
         async saveException() {
             this.exc.error = '';
             if (this.exc.mode === 'auto') {
