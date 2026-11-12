@@ -113,7 +113,7 @@ class schedule_board {
         // Grupos (de la propuesta guardada). Los ya publicados quedan marcados con su clase.
         $published = publisher::published($periodid)['groups'];
         $groups = [];
-        $saved = self::board_groups($periodid);
+        $saved = static::board_groups($periodid);
         $byuser = [];
         foreach ($demand['students'] ?? [] as $k => $s) {
             $byuser[(int)$s['userid']][] = $s;
@@ -136,11 +136,7 @@ class schedule_board {
             $islong = isset($long[$cid]);
             $calkey = $g['jornada'] . '|' . ($islong ? 1 : 0);
             if (!isset($calendars[$calkey])) {
-                list($cfrom, $cto) = publisher::dates($p, $calendar, $g['jornada'], $islong);
-                $cal = [];
-                foreach ([1, 2, 3, 4, 5, 6] as $dn) {
-                    $cal[$dn] = publisher::session_dates($dn, $cfrom, $cto, 0, 0, $holidaymap);
-                }
+                list($cfrom, $cto, $cal) = publisher::class_calendar($p, $calendar, $g['jornada'], $islong, $holidaymap);
                 $calendars[$calkey] = ['from' => $cfrom, 'to' => $cto, 'days' => $cal];
                 // Semanas utiles: el dia de la jornada con menos fechas.
                 $jd = stripos($g['jornada'], 'sab') !== false ? [6] : [1, 2, 3, 4, 5];
@@ -152,9 +148,19 @@ class schedule_board {
             // Sesion: la intensidad de la carga (horas por sesion) o la duracion estandar; sesiones = horas / duracion.
             // Las asignaturas cortas usan solo las semanas que necesitan (se pueden poner seguidas en la misma franja);
             // las que necesitan mas sesiones que semanas se parten en varias fichas semanales (varios dias por semana).
-            $dur = $h && $h['intensity'] > 0 ? (int)round($h['intensity'] * 60) : $defdur;
+            $fixeddur = $h && $h['intensity'] > 0;
+            $dur = $fixeddur ? (int)round($h['intensity'] * 60) : $defdur;
             $dur = max(30, min(480, $dur));
             $sessions = $h && $h['total'] > 0 ? (int)ceil($h['total'] * 60 / $dur) : $weeks;
+            // Si con la duracion estandar no cabe en las semanas academicas y la carga no fija la intensidad, se alarga la
+            // sesion para dictarla una vez por semana (hasta 4 h): p. ej. 16 h en 7 semanas = 7 sesiones de 140 min.
+            if ($sessions > $weeks && !$fixeddur && $h && $h['total'] > 0) {
+                $longer = (int)(ceil($h['total'] * 60 / $weeks / 5) * 5);
+                if ($longer <= 240) {
+                    $dur = max($dur, $longer);
+                    $sessions = (int)ceil($h['total'] * 60 / $dur);
+                }
+            }
             $nparts = max(1, (int)ceil($sessions / $weeks));
             $parts = [];
             for ($i = 1; $i <= $nparts; $i++) {
@@ -279,6 +285,9 @@ class schedule_board {
             $catalog[] = ['courseid' => (int)$r->courseid, 'name' => $r->fullname];
         }
         return [
+            'careers' => array_values(array_map(function ($r) {
+                return ['id' => (int)$r->id, 'name' => $r->name];
+            }, $DB->get_records('local_learning_plans', null, 'name', 'id, name'))),
             'needs_proposal' => $saved === null,
             'calendars' => $calendars,
             'skills_catalog' => $catalog,
@@ -292,7 +301,10 @@ class schedule_board {
                 'startTime' => $cfg->startTime ?? '07:00', 'endTime' => $cfg->endTime ?? '22:00',
                 'lunchStart' => $cfg->lunchStart ?? '', 'lunchEnd' => $cfg->lunchEnd ?? '',
                 'interval' => (int)($cfg->intervalMinutes ?? 30), 'sessionDuration' => $defdur,
+                'classWeeks' => planning_config::class_weeks(),
             ],
+            // Preferencias de dia y hora (no obligatorias): por jornada (shiftWindows[j].preferredDays) y por asignatura.
+            'preferences' => ['subjects' => planning_config::subject_prefs()],
             'period' => ['start' => $start, 'end' => $end, 'jornada_starts' => (object)planning_config::jornada_starts($p)],
             'draft' => self::draft($periodid),
         ];

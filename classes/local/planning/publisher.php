@@ -71,6 +71,36 @@ class publisher {
         return [usergetmidnight($start), usergetmidnight($end) + 86399];
     }
 
+    /**
+     * Calendario de clases de una jornada: por dia de la semana, las primeras N semanas academicas (planning_config::
+     * class_weeks, 7 por defecto) sin contar festivos, desde el inicio de la jornada y antes de la ultima semana del
+     * bloque, que es de revalidas. Las de cuatrimestre completo suman las del segundo bloque.
+     *
+     * @return array [desde, hasta, [dia => [Y-m-d, ...]]]
+     */
+    public static function class_calendar($period, $calendar, $jornada, $long, array $holidays) {
+        $weeks = planning_config::class_weeks();
+        list($from) = self::dates($period, $calendar, $jornada, false);
+        $b1end = $calendar && $calendar->block1end ? (int)$calendar->block1end : $from + 8 * 7 * 86400 - 1;
+        $blocks = [[$from, $b1end - 7 * 86400]];
+        if ($long) {
+            $b2start = $calendar && $calendar->block2start ? (int)$calendar->block2start : $b1end + 1;
+            $b2end = $calendar && $calendar->block2end ? (int)$calendar->block2end : $b2start + 8 * 7 * 86400 - 1;
+            $blocks[] = [$b2start, $b2end - 7 * 86400];
+        }
+        $days = [];
+        foreach ([1, 2, 3, 4, 5, 6] as $dn) {
+            $days[$dn] = [];
+            foreach ($blocks as $b) {
+                $days[$dn] = array_merge($days[$dn], array_slice(self::session_dates($dn, $b[0], $b[1], 0, 0, $holidays), 0, $weeks));
+            }
+        }
+        $all = array_merge(...array_values($days));
+        sort($all);
+        $to = $all ? strtotime(end($all) . ' 23:59:59') : $b1end;
+        return [$from, $to, $days];
+    }
+
     /** Fechas (Y-m-d) del dia de la semana entre inicio y fin, sin festivos, hasta cubrir las horas de la carga. */
     public static function session_dates($day, $from, $to, $minutes, $hours, array $holidays) {
         $out = [];

@@ -303,6 +303,12 @@ class planning_config {
         return ['configured' => false, 'ids' => $ids];
     }
 
+    /** Semanas academicas de clase por bloque (sin festivos); la semana siguiente del bloque es de revalidas. */
+    public static function class_weeks() {
+        $v = (int)get_config('local_grupomakro_core', 'planning_class_weeks');
+        return $v > 0 ? $v : 7;
+    }
+
     /** Tarifa por hora docente para proyectar el gasto (config planning_hour_rate; 18 por defecto, igual que financial_planning). */
     public static function hour_rate() {
         $v = (float)get_config('local_grupomakro_core', 'planning_hour_rate');
@@ -706,6 +712,15 @@ class planning_config {
                     if (!self::is_time($w['start'] ?? '') || !self::is_time($w['end'] ?? '') || $w['start'] >= $w['end']) {
                         return self::fail("La franja de la jornada $j no es válida (la hora de inicio debe ser menor que la de fin).");
                     }
+                    // Dias preferidos de la jornada (preferencia, no obligatorio): 1 = lunes ... 6 = sabado.
+                    if (isset($w['preferredDays'])) {
+                        $pd = array_values(array_unique(array_map('intval', (array)$w['preferredDays'])));
+                        if (array_diff($pd, [1, 2, 3, 4, 5, 6])) {
+                            return self::fail("Días preferidos no válidos en la jornada $j.");
+                        }
+                        sort($pd);
+                        $cfg['shiftWindows'][$j]['preferredDays'] = $pd;
+                    }
                 }
                 foreach (['startTime', 'endTime', 'lunchStart', 'lunchEnd'] as $k) {
                     if (isset($cfg[$k]) && $cfg[$k] !== '' && !self::is_time($cfg[$k])) {
@@ -713,13 +728,20 @@ class planning_config {
                     }
                 }
                 $before = scheduler_settings::get_config();
-                // Conserva las claves que esta pantalla no edita (p. ej. isolatedCareers).
+                // Conserva las claves que esta pantalla no edita y que se guardan por su cuenta (mezcla de carreras y
+                // preferencias por asignatura): lo que venga del navegador para esas claves se ignora, para no pisar
+                // cambios hechos despues de abrir la pantalla.
+                unset($cfg['isolatedCareers'], $cfg['isolatedSubjects'], $cfg['subjectPreferences']);
                 $merged = array_merge(json_decode(json_encode($before), true) ?: [], $cfg);
                 if (!scheduler_settings::save_config($merged)) {
                     return self::fail('No se pudo guardar la configuración de jornadas.');
                 }
                 self::backup('jornadas', ['antes' => $before, 'despues' => scheduler_settings::get_config()]);
                 return self::ok('Jornadas y horarios guardados.', scheduler_settings::get_config());
+
+            case 'subject_pref_set':
+            case 'subject_pref_remove':
+                return self::save_subject_pref($data, $section === 'subject_pref_remove');
 
             case 'isolation':
                 $careerids = array_values(array_unique(array_map('intval', (array)($data['careers'] ?? []))));
@@ -913,6 +935,67 @@ class planning_config {
             }
         }
         return self::ok($upd || !empty($cupd) ? 'Periodo guardado.' : 'Sin cambios.', $saved);
+    }
+
+    /**
+     * Preferencias de dia y hora por asignatura (y opcionalmente por carrera), en la configuracion del generador de
+     * horarios (clave subjectPreferences). Son preferencias: si no se pueden cumplir se usa otro dia u hora con aviso.
+     *
+     * @return array [['courseid', 'planid' (0 = todas), 'days' => [1..6], 'start' => 'HH:MM'|'', 'end' => 'HH:MM'|'']]
+     */
+    public static function subject_prefs() {
+        $cfg = scheduler_settings::get_config();
+        $out = [];
+        foreach ((array)($cfg->subjectPreferences ?? []) as $p) {
+            $p = (array)$p;
+            $out[] = ['courseid' => (int)($p['courseid'] ?? 0), 'planid' => (int)($p['planid'] ?? 0),
+                'days' => array_values(array_map('intval', (array)($p['days'] ?? []))),
+                'start' => (string)($p['start'] ?? ''), 'end' => (string)($p['end'] ?? '')];
+        }
+        return $out;
+    }
+
+    protected static function save_subject_pref(array $d, $remove) {
+        global $DB;
+        $cid = (int)($d['courseid'] ?? 0);
+        $pid = (int)($d['planid'] ?? 0);
+        $course = $DB->get_field('course', 'fullname', ['id' => $cid]);
+        if (!$course) {
+            return self::fail('La asignatura no existe.');
+        }
+        if ($pid && !$DB->record_exists('local_learning_courses', ['learningplanid' => $pid, 'courseid' => $cid])) {
+            return self::fail('La asignatura no pertenece a esa carrera.');
+        }
+        $list = array_values(array_filter(self::subject_prefs(), function ($p) use ($cid, $pid) {
+            return !($p['courseid'] === $cid && $p['planid'] === $pid);
+        }));
+        $item = null;
+        if (!$remove) {
+            $days = array_values(array_unique(array_map('intval', (array)($d['days'] ?? []))));
+            sort($days);
+            if (array_diff($days, [1, 2, 3, 4, 5, 6])) {
+                return self::fail('Días no válidos.');
+            }
+            $start = trim((string)($d['start'] ?? ''));
+            $end = trim((string)($d['end'] ?? ''));
+            if (($start !== '' && !self::is_time($start)) || ($end !== '' && !self::is_time($end))
+                    || ($start !== '' && $end !== '' && $start >= $end) || (($start === '') !== ($end === ''))) {
+                return self::fail('Indique la franja con hora de inicio y de fin (la de fin mayor), o déjela vacía.');
+            }
+            if (!$days && $start === '') {
+                return self::fail('Elija al menos un día o una franja horaria.');
+            }
+            $item = ['courseid' => $cid, 'planid' => $pid, 'days' => $days, 'start' => $start, 'end' => $end];
+            $list[] = $item;
+        }
+        $before = scheduler_settings::get_config();
+        $merged = json_decode(json_encode($before), true) ?: [];
+        $merged['subjectPreferences'] = $list;
+        if (!scheduler_settings::save_config($merged)) {
+            return self::fail('No se pudo guardar la preferencia.');
+        }
+        self::backup('preferencia_asignatura', ['antes' => $before->subjectPreferences ?? [], 'despues' => $list]);
+        return self::ok($remove ? 'Preferencia de ' . $course . ' quitada.' : 'Preferencia de ' . $course . ' guardada.', self::subject_prefs());
     }
 
     /** Columnas de $new que difieren de $old. */

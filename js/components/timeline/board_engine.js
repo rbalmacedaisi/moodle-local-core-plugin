@@ -55,6 +55,7 @@
             holidays: board.holidays || [], place: {},
         };
         s.pad = Math.max(0, Number(s.cfg.interval || 0));
+        s.prefs = { subjects: ((board.preferences || {}).subjects || []) };
         (board.groups || []).forEach(function (g) {
             var from = Number((s.period.jornada_starts || {})[g.jornada] || s.period.start || 0);
             var cal = (board.calendars || {})[g.cal] || null;
@@ -204,10 +205,177 @@
                 }
             }
         }
+        var pf = E.prefFor(s, k);
+        if (pf) {
+            if (pf.days.length && pf.days.indexOf(p.day) === -1) {
+                out.push({ type: 'preferencia', sev: 'soft', msg: 'Fuera de los días preferidos ' + (pf.source === 'asignatura' ? 'de la asignatura' : 'de la jornada ' + g.jornada)
+                    + ' (' + pf.days.map(function (d) { return E.DAYS_SHORT[d]; }).join(', ') + ').' });
+            }
+            if (pf.start >= 0 && pf.end > pf.start && (p.start < pf.start || p.end > pf.end)) {
+                out.push({ type: 'preferencia', sev: 'soft', msg: 'Fuera de la franja preferida de la asignatura (' + E.hhmm(pf.start) + '–' + E.hhmm(pf.end) + ').' });
+            }
+        }
         if (p.roomid && s.rooms[p.roomid] && s.rooms[p.roomid].capacity < g.size) {
             out.push({ type: 'capacidad', sev: 'soft', msg: 'El aula tiene capacidad para ' + s.rooms[p.roomid].capacity + ' y el grupo tiene ' + g.size + '.' });
         }
         return out;
+    };
+
+    /**
+     * Preferencia de dia y hora de una ficha: la de la asignatura (de su carrera si hay, si no la general) o, si no hay,
+     * los dias preferidos de su jornada. Es preferencia: si no se cumple, queda un aviso.
+     * @return null | { days: [1..6], start, end (minutos o -1), source: 'asignatura'|'jornada' }
+     */
+    E.prefFor = function (s, k) {
+        var g = s.groups[k];
+        var cands = (s.prefs.subjects || []).filter(function (x) {
+            return Number(x.courseid) === Number(g.courseid) && (!Number(x.planid) || (g.plans || []).indexOf(Number(x.planid)) !== -1);
+        }).sort(function (a, b) { return Number(b.planid || 0) - Number(a.planid || 0); });
+        if (cands.length) {
+            var c = cands[0];
+            return { days: (c.days || []).map(Number), start: c.start ? E.toMin(c.start) : -1, end: c.end ? E.toMin(c.end) : -1, source: 'asignatura', raw: c };
+        }
+        var w = (s.cfg.shiftWindows || {})[g.jornada] || {};
+        if (Array.isArray(w.preferredDays) && w.preferredDays.length) {
+            return { days: w.preferredDays.map(Number), start: -1, end: -1, source: 'jornada' };
+        }
+        return null;
+    };
+
+    /** Tramo de semanas de una ficha en su dia: { w0, w1, total } (indices en el calendario de ese dia). */
+    E.weekSpan = function (s, k, p) {
+        p = p || s.place[k];
+        var r = E.range(s, k, p);
+        var w0 = Math.max(0, p.week || 0);
+        return { w0: w0, w1: w0 + Math.max(1, r.dates.length) - 1, total: Math.max(r.total, 1), partial: r.isCard && r.dates.length < r.total };
+    };
+
+    /**
+     * Acomodo secuencial: cada ficha corta que esta sola en su franja se intenta encadenar en la franja (dia y hora) de
+     * otra ficha corta de los mismos estudiantes o del mismo docente, en las semanas libres, sin choques y sin sumar
+     * avisos. Asi dos asignaturas de 2 y 5 sesiones ocupan una sola franja en las 7 semanas. Devuelve { moved }.
+     */
+    E.compact = function (s) {
+        var moved = 0;
+        var mates = function (k, p) {
+            return s.order.filter(function (o) {
+                var q = s.place[o];
+                return o !== k && E.placed(q) && q.day === p.day && q.start === p.start && s.groups[o].jornada === s.groups[k].jornada;
+            });
+        };
+        for (var round = 0; round < 4; round++) {
+            var changed = false;
+            var shorts = s.order.filter(function (k) {
+                var p = s.place[k];
+                return E.placed(p) && !p.locked && !s.groups[k].published && E.weekSpan(s, k, p).partial;
+            }).sort(function (a, b) { return (s.groups[a].sessions || 0) - (s.groups[b].sessions || 0); });
+            shorts.forEach(function (k) {
+                var p = s.place[k], g = s.groups[k];
+                if (mates(k, p).length) return;
+                var cur = E.conflicts(s, k, p);
+                if (cur.some(function (c) { return c.sev === 'hard'; })) return;
+                var curSoft = cur.filter(function (c) { return c.sev === 'soft'; }).length;
+                var best = null;
+                s.order.forEach(function (o) {
+                    var op = s.place[o], og = s.groups[o];
+                    if (o === k || og.jornada !== g.jornada || !E.placed(op) || !E.weekSpan(s, o, op).partial) return;
+                    var link = shared(g.users, og.users) + (p.teacherid && p.teacherid === op.teacherid ? 5 : 0);
+                    if (!link) return;
+                    for (var wk = 0; wk <= E.maxWeek(s, k, op.day); wk++) {
+                        var test = { day: op.day, start: op.start, end: op.start + (p.end - p.start), week: wk,
+                            teacherid: p.teacherid, roomid: op.roomid || p.roomid, locked: false };
+                        var cs = E.conflicts(s, k, test);
+                        if (cs.some(function (c) { return c.sev === 'hard'; })) continue;
+                        var so = cs.filter(function (c) { return c.sev === 'soft'; }).length;
+                        if (so > curSoft) continue;
+                        var sc = so * 5 - link + wk * 0.01;
+                        if (!best || sc < best.sc) best = { sc: sc, test: test };
+                    }
+                });
+                if (best) {
+                    s.place[k] = Object.assign({}, p, best.test);
+                    moved++;
+                    changed = true;
+                }
+            });
+            if (!changed) break;
+        }
+        return { moved: moved };
+    };
+
+    /** Semanas del bloque para una ficha (el dia de su jornada con menos fechas). */
+    function blockWeeks(s, k) {
+        var g = s.groups[k];
+        var days = E.jornadaDays(s.cfg, g.jornada);
+        if (!g.calendar || !g.calendar.days) return 0;
+        return Math.min.apply(null, days.map(function (d) { return (g.calendar.days[d] || g.calendar.days[String(d)] || []).length; }));
+    }
+
+    /**
+     * Cadenas de asignaturas cortas: por jornada, las fichas que usan menos semanas que el bloque se empaquetan en
+     * secuencias que llenan las semanas (de mayor a menor, prefiriendo las de los mismos estudiantes) y cada secuencia se
+     * ubica como un solo bloque en una franja libre. Devuelve { chains: [[keys]], placed: [keys] }.
+     */
+    E.chainPlace = function (s) {
+        var shorts = s.order.filter(function (k) {
+            var g = s.groups[k], p = s.place[k];
+            var W = blockWeeks(s, k);
+            return !p.locked && !E.placed(p) && g.sessions > 0 && W > 0 && g.sessions < W;
+        });
+        var byJ = {};
+        shorts.forEach(function (k) { (byJ[s.groups[k].jornada] = byJ[s.groups[k].jornada] || []).push(k); });
+        var chains = [], placed = [];
+        Object.keys(byJ).forEach(function (j) {
+            var list = byJ[j].sort(function (a, b) { return s.groups[b].sessions - s.groups[a].sessions || a.localeCompare(b); });
+            var W = blockWeeks(s, list[0]);
+            var bins = [];
+            list.forEach(function (k) {
+                var g = s.groups[k], best = null;
+                bins.forEach(function (bin) {
+                    if (bin.used + g.sessions > W) return;
+                    if (bin.keys.some(function (o) { return s.groups[o].gkey === g.gkey; })) return; // partes de la misma: dias distintos
+                    var aff = bin.keys.reduce(function (a, o) { return a + shared(g.users, s.groups[o].users); }, 0);
+                    if (!best || aff > best.aff || (aff === best.aff && bin.used > best.bin.used)) best = { bin: bin, aff: aff };
+                });
+                if (best) { best.bin.keys.push(k); best.bin.used += g.sessions; }
+                else bins.push({ keys: [k], used: g.sessions });
+            });
+            bins.filter(function (bin) { return bin.keys.length > 1; }).sort(function (a, b) { return b.used - a.used; }).forEach(function (bin) {
+                var w = E.window(s.cfg, j), bestSlot = null;
+                var maxdur = Math.max.apply(null, bin.keys.map(function (k) { return s.groups[k].duration; }));
+                E.jornadaDays(s.cfg, j).forEach(function (day) {
+                    starts(s, bin.keys[0], day, maxdur).forEach(function (st) {
+                        var off = 0, soft = 0, ok = true, tests = [];
+                        bin.keys.forEach(function (k) {
+                            if (!ok) return;
+                            var g = s.groups[k];
+                            var p = { day: day, start: st, end: st + g.duration, week: off, teacherid: 0, roomid: 0, locked: false };
+                            var cs = E.conflicts(s, k, p);
+                            if (cs.some(function (c) { return c.sev === 'hard'; })) { ok = false; return; }
+                            soft += cs.reduce(function (a, c) { return a + (c.sev !== 'soft' ? 0 : c.type === 'preferencia' ? 25 : 20); }, 0);
+                            tests.push([k, p]);
+                            off += g.sessions;
+                        });
+                        if (!ok) return;
+                        var sc = soft + (st - w.start) * 0.001;
+                        if (!bestSlot || sc < bestSlot.sc) bestSlot = { sc: sc, tests: tests };
+                    });
+                });
+                if (!bestSlot) return;
+                // Se ubica la cadena; docente y aula por ficha (cada asignatura puede tener su docente).
+                bestSlot.tests.forEach(function (t) { s.place[t[0]] = t[1]; });
+                bestSlot.tests.forEach(function (t) {
+                    var k = t[0], p = s.place[k];
+                    var tt = E.bestTeacher(s, k, p, true);
+                    p.teacherid = tt ? tt.id : 0;
+                    var r = E.bestRoom(s, k, p);
+                    p.roomid = r ? r.id : 0;
+                    placed.push(k);
+                });
+                chains.push(bin.keys.slice());
+            });
+        });
+        return { chains: chains, placed: placed };
     };
 
     /** Disponibilidad: el dia debe tener una franja que cubra toda la sesion (un dia sin franjas NO esta disponible). */
@@ -318,7 +486,8 @@
                     var hard = cs.filter(function (c) { return c.sev === 'hard'; });
                     var soft = cs.filter(function (c) { return c.sev === 'soft'; });
                     var studentsHit = hard.filter(function (c) { return c.type === 'estudiantes'; }).reduce(function (a, c) { return a + c.n; }, 0);
-                    out.push({ day: day, start: st, end: st + dur, week: wk, conflicts: cs, hard: hard.length, soft: soft.length, studentsHit: studentsHit });
+                    var pref = soft.filter(function (c) { return c.type === 'preferencia'; }).length;
+                    out.push({ day: day, start: st, end: st + dur, week: wk, conflicts: cs, hard: hard.length, soft: soft.length, pref: pref, studentsHit: studentsHit });
                 }
             });
         });
@@ -395,6 +564,9 @@
             return !p.locked && (!E.placed(p) || opts.all);
         });
         if (opts.all) todo.forEach(function (k) { s.place[k] = { day: 0, start: 0, end: 0, teacherid: 0, roomid: 0, locked: false, week: 0 }; });
+        // Primero las cadenas de asignaturas cortas (ocupan una franja en todas las semanas, como una asignatura completa).
+        var chained = opts.chains === false ? { chains: [], placed: [] } : E.chainPlace(s);
+        todo = todo.filter(function (k) { return chained.placed.indexOf(k) === -1; });
         // Primero los mas dificiles: los que menos ubicaciones libres tienen, los que ocupan mas semanas y los mas grandes.
         var freeCount = {};
         todo.forEach(function (k) {
@@ -429,7 +601,7 @@
                 var p = { day: c.day, start: c.start, end: c.end, week: c.week, teacherid: keepTeacher, roomid: 0 };
                 var t = keepTeacher ? null : E.bestTeacher(s, k, p, true);
                 var room = E.bestRoom(s, k, p);
-                var score = c.soft * 20 + (keepTeacher || t ? 0 : 15) + (room ? 0 : 10) + sameDayLoad(s, k, c.day, E.range(s, k, p)) * 0.3
+                var score = (c.soft - (c.pref || 0)) * 20 + (c.pref || 0) * 25 + (keepTeacher || t ? 0 : 15) + (room ? 0 : 10) + sameDayLoad(s, k, c.day, E.range(s, k, p)) * 0.3
                     + c.week * 0.05 - seqBonus(s, k, Object.assign({}, p, { teacherid: keepTeacher || (t ? t.id : 0) })) + i * 0.001;
                 if (!best || score < best.score) best = { c: c, t: t, room: room, score: score };
             });
@@ -438,7 +610,9 @@
             s.place[k] = np;
             placed.push(k);
         });
-        return { placed: placed, failed: failed };
+        var compacted = opts.compact === false ? { moved: 0 } : E.compact(s);
+        return { placed: chained.placed.concat(placed), failed: failed, chained: compacted.moved + chained.placed.length,
+            chains: chained.chains };
     };
 
     function siblingTeacher(s, k) {

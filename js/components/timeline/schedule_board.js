@@ -41,6 +41,10 @@ Vue.component('schedule-board', {
                     <v-icon size="14" color="#94A3B8">mdi-magnify</v-icon>
                     <input v-model="q" type="text" placeholder="Buscar asignatura o docente…" class="tl-panel-search-input"/>
                 </div>
+                <select class="tl-cfg-input" style="width:auto" v-model.number="weekSel" title="Ver solo las clases de una semana académica">
+                    <option :value="0">Todas las semanas</option>
+                    <option v-for="w in weekOpts" :key="w" :value="w">Semana {{ w }}</option>
+                </select>
                 <v-spacer></v-spacer>
                 <template v-if="canEdit">
                     <v-menu offset-y>
@@ -120,12 +124,28 @@ Vue.component('schedule-board', {
                             <div v-if="outside.after" class="tl-sb-out" :style="{ bottom: 0, height: outside.after * ppm + 'px' }"></div>
                             <div v-for="c in cardsByDay[d] || []" :key="c.id" class="tl-sb-card"
                                  :class="['tl-sb-card-' + c.sev, { 'tl-sb-card-fixed': c.fixed, 'tl-sb-card-sel': sel === c.id, 'tl-sb-card-dim': c.dim, 'tl-sb-card-rel': related[c.id] }]"
-                                 :style="cardStyle(c)" :draggable="canEdit && !c.fixed && !c.locked"
-                                 @dragstart="dragStart($event, c.id, true)" @dragend="dragEnd" @click.stop="c.fixed ? (fixedSel = c) : select(c.id)"
+                                 :style="cardStyle(c)" :draggable="canEdit && !c.fixed && !c.locked && !c.chain"
+                                 @dragstart="dragStart($event, c.id, true)" @dragend="dragEnd" @click.stop="c.chain ? null : (c.fixed ? (fixedSel = c) : select(c.id))"
                                  :title="c.title">
-                                <div class="tl-sb-card-name"><v-icon v-if="c.locked" size="10">mdi-lock</v-icon>{{ c.name }}</div>
-                                <div class="tl-sb-card-meta">{{ c.line1 }}</div>
-                                <div class="tl-sb-card-meta">{{ c.line2 }}</div>
+                                <template v-if="c.chain">
+                                    <div class="tl-sb-card-name"><v-icon size="11">mdi-link-variant</v-icon> {{ c.chain.length }} asignaturas seguidas · {{ hhmm(c.start) }}–{{ hhmm(c.end) }}</div>
+                                    <div class="tl-sb-chain">
+                                        <div v-for="seg in c.chain" :key="seg.id" class="tl-sb-seg" :class="['tl-sb-seg-' + seg.sev, { 'tl-sb-seg-sel': sel === seg.id }]"
+                                             :style="{ left: (seg.w0 / seg.total * 100) + '%', width: ((seg.w1 - seg.w0 + 1) / seg.total * 100) + '%' }"
+                                             :draggable="canEdit && !seg.locked" @dragstart.stop="dragStart($event, seg.id, true)" @dragend="dragEnd"
+                                             @click.stop="select(seg.id)" :title="seg.title">
+                                            <div class="tl-sb-seg-name">{{ seg.name }}</div>
+                                            <div class="tl-sb-seg-w">s{{ seg.w0 + 1 }}<template v-if="seg.w1 > seg.w0">–{{ seg.w1 + 1 }}</template></div>
+                                        </div>
+                                    </div>
+                                </template>
+                                <template v-else>
+                                    <div class="tl-sb-card-name"><v-icon v-if="c.locked" size="10">mdi-lock</v-icon>{{ c.name }}</div>
+                                    <div class="tl-sb-card-meta">{{ c.line1 }}</div>
+                                    <div class="tl-sb-card-meta">{{ c.line2 }}</div>
+                                    <div v-if="c.span && c.span.partial" class="tl-sb-wbar" :title="'Semanas ' + (c.span.w0 + 1) + ' a ' + (c.span.w1 + 1) + ' de ' + c.span.total">
+                                        <div :style="{ left: (c.span.w0 / c.span.total * 100) + '%', width: ((c.span.w1 - c.span.w0 + 1) / c.span.total * 100) + '%' }"></div></div>
+                                </template>
                             </div>
                             <div v-if="hover && hover.day === d" class="tl-sb-ghost" :class="'tl-sb-ghost-' + hover.sev"
                                  :style="{ top: (hover.start - win.start) * ppm + 'px', height: (hover.end - hover.start) * ppm + 'px' }">
@@ -176,6 +196,17 @@ Vue.component('schedule-board', {
                             <label class="tl-cfg-check"><input type="checkbox" :checked="info.p.locked" @change="setLock($event.target.checked)"> Bloquear</label>
                             <button v-if="placedSel" class="tl-proj-flexbtn" @click="unplace(sel)">Quitar del horario</button>
                         </div>
+                    </div>
+                    <div class="tl-sb-sec">
+                        <div class="tl-sb-sec-title">Preferencia de día y hora</div>
+                        <div v-if="prefInfo" class="tl-cfg-help">
+                            {{ prefInfo.source === 'asignatura' ? 'De la asignatura' : 'De la jornada ' + info.g.jornada }}:
+                            {{ prefInfo.days.length ? prefInfo.days.map(d => dayName(d)).join(', ') : 'cualquier día' }}<template v-if="prefInfo.start >= 0">
+                            · {{ hhmm(prefInfo.start) }}–{{ hhmm(prefInfo.end) }}</template>
+                            <span v-if="info.conf.some(c => c.type === 'preferencia')" style="color:#B45309"> · esta ficha está fuera de la preferencia</span>
+                        </div>
+                        <div v-else class="tl-cfg-help">Sin preferencia (se puede definir por jornada en Configuración o aquí para la asignatura).</div>
+                        <button v-if="canEdit" class="tl-proj-flexbtn mt-1" @click="openPref">{{ prefInfo && prefInfo.source === 'asignatura' ? 'Cambiar' : 'Guardar' }} preferencia de esta asignatura</button>
                     </div>
                     <div class="tl-sb-sec">
                         <div class="tl-sb-sec-title">Docente</div>
@@ -263,6 +294,33 @@ Vue.component('schedule-board', {
                     <v-card-actions><v-spacer></v-spacer>
                         <v-btn text @click="saveDlg = false">Cancelar</v-btn>
                         <v-btn color="primary" depressed :loading="saving" @click="save">Guardar borrador</v-btn>
+                    </v-card-actions>
+                </v-card>
+            </v-dialog>
+
+            <!-- preferencia de dia y hora de la asignatura -->
+            <v-dialog v-model="prefDlg.show" max-width="520">
+                <v-card v-if="info">
+                    <v-card-title class="text-subtitle-1 font-weight-bold">Preferencia de {{ info.g.name }}</v-card-title>
+                    <v-card-text>
+                        <div class="tl-cfg-help mb-2">El acomodo automático y las sugerencias la usan primero. Si no cabe sin choques, se usa otro día u hora
+                            y la ficha queda anotada. Vale para los próximos periodos (Configuración → Jornadas y horarios).</div>
+                        <div class="mb-2"><b>Días:</b>
+                            <button v-for="d in [1, 2, 3, 4, 5, 6]" :key="d" type="button" class="tl-cfg-daybtn" :class="{ 'tl-cfg-daybtn-on': prefDlg.days.includes(d) }"
+                                    @click="prefDlg.days = prefDlg.days.includes(d) ? prefDlg.days.filter(x => x !== d) : prefDlg.days.concat([d]).sort()">{{ E.DAYS_SHORT[d] }}</button></div>
+                        <div class="mb-2"><b>Franja (opcional):</b> <input type="time" class="tl-cfg-input" v-model="prefDlg.start"> a <input type="time" class="tl-cfg-input" v-model="prefDlg.end">
+                            <button v-if="placedSel" class="tl-proj-flexbtn" @click="prefDlg.days = [info.p.day]; prefDlg.start = hhmm(info.p.start); prefDlg.end = hhmm(info.p.end)">usar la ubicación actual</button></div>
+                        <div class="mb-2"><b>Para:</b>
+                            <select class="tl-cfg-input" v-model.number="prefDlg.planid">
+                                <option :value="0">Todas las carreras</option>
+                                <option v-for="pid in info.g.plans" :key="pid" :value="pid">Solo {{ planName(pid) }}</option>
+                            </select></div>
+                        <div v-if="prefDlg.msg" class="tl-cfg-msg tl-cfg-msg-error">{{ prefDlg.msg }}</div>
+                    </v-card-text>
+                    <v-card-actions><v-spacer></v-spacer>
+                        <v-btn v-if="prefInfo && prefInfo.source === 'asignatura'" text color="error" :loading="prefDlg.saving" @click="savePref(true)">Quitar</v-btn>
+                        <v-btn text @click="prefDlg.show = false">Cancelar</v-btn>
+                        <v-btn color="primary" depressed :loading="prefDlg.saving" @click="savePref(false)">Guardar preferencia</v-btn>
                     </v-card-actions>
                 </v-card>
             </v-dialog>
@@ -427,7 +485,8 @@ Vue.component('schedule-board', {
     },
     data() {
         return { loading: false, error: '', board: null, tick: 0, jornada: 'Diurna', q: '', tq: '', onlyIssues: false, sel: null, fixedSel: null,
-            hover: null, failedOpen: false, dirty: false, history: [], saving: false, saveDlg: false, showHelp: true, lastAction: null, version: 0,
+            hover: null, failedOpen: false, dirty: false, weekSel: 0,
+            prefDlg: { show: false, days: [], start: '', end: '', planid: 0, saving: false, msg: '' }, history: [], saving: false, saveDlg: false, showHelp: true, lastAction: null, version: 0,
             draftInfo: { saved_at: 0, byname: '' }, ppm: 1.1,
             pub: { show: false, loading: false, error: '', plan: null, sel: {}, mods: {}, uns: {}, confirm: false, showBlocked: false,
                 running: false, done: 0, total: 0, result: null },
@@ -506,7 +565,9 @@ Vue.component('schedule-board', {
                 const wl = this.E.weeksLabel(this.S, k, p);
                 const partial = wl && wl.indexOf('todo') !== 0;
                 const dim = (this.onlyIssues && sev === 'ok') || !this.matchQ(g.name, p.teacherid);
-                out[p.day].push({ id: k, name: g.name, start: p.start, end: p.end, sev, locked: p.locked, dim,
+                const span = this.E.weekSpan(this.S, k, p);
+                if (this.weekSel && (this.weekSel - 1 < span.w0 || this.weekSel - 1 > span.w1)) return;
+                out[p.day].push({ id: k, name: g.name, start: p.start, end: p.end, sev, locked: p.locked, dim, span,
                     line1: (g.published ? '✓ publicada · ' : '') + 'G' + g.number + (g.parts > 1 ? ' (' + g.part + '/' + g.parts + ')' : '') + ' · ' + g.size + ' est · '
                         + (partial ? wl.split(' · ')[0] + ' · ' + wl.split(' · ')[1] : this.E.hhmm(p.start) + '–' + this.E.hhmm(p.end)),
                     line2: (p.teacherid ? this.teacherName(p.teacherid) : 'Sin docente') + ' · ' + (p.roomid ? this.roomName(p.roomid) : 'sin aula'),
@@ -526,14 +587,43 @@ Vue.component('schedule-board', {
                     line2: (f.teacherid ? this.teacherName(f.teacherid) : 'Sin docente') + ' · ' + (f.roomid ? this.roomName(f.roomid) : 'sin aula'),
                     title: f.name + '\nClase ya creada: cuenta para los choques, no se mueve desde aquí.' });
             });
+            // Cadenas: fichas de semanas distintas en la misma franja (mismo inicio) se dibujan como un solo bloque.
+            Object.keys(out).forEach(d => {
+                const byStart = {};
+                out[d].forEach(c => { if (!c.fixed && c.span && c.span.partial) (byStart[c.start] = byStart[c.start] || []).push(c); });
+                Object.keys(byStart).forEach(st => {
+                    const list = byStart[st].sort((a, b) => a.span.w0 - b.span.w0);
+                    if (list.length < 2) return;
+                    const disjoint = list.every((c, i) => !i || c.span.w0 > list[i - 1].span.w1);
+                    if (!disjoint) return;
+                    out[d] = out[d].filter(c => !list.includes(c));
+                    out[d].push({ id: 'chain:' + d + ':' + st, chain: list.map(c => Object.assign({}, c, { w0: c.span.w0, w1: c.span.w1, total: c.span.total })),
+                        start: Number(st), end: Math.max(...list.map(c => c.end)), sev: list.some(c => c.sev === 'hard') ? 'hard' : (list.some(c => c.sev === 'soft') ? 'soft' : 'ok'),
+                        dim: list.every(c => c.dim), title: list.map(c => c.title).join('\n\n') });
+                });
+            });
             Object.keys(out).forEach(d => { out[d] = this.E.lanes(out[d]); });
             return out;
+        },
+        weekOpts() {
+            this.tick;
+            if (!this.S) return [];
+            const k = this.S.order.find(x => this.S.groups[x].jornada === this.jornada && !this.S.groups[x].long);
+            const n = k ? Math.max(...this.days.map(d => ((this.S.groups[k].calendar || {}).days || {})[d] ? this.S.groups[k].calendar.days[d].length : 0)) : 0;
+            return Array.from({ length: n }, (_, i) => i + 1);
+        },
+        prefInfo() {
+            if (!this.info) return null;
+            return this.E.prefFor(this.S, this.sel);
         },
         // Columnas mas anchas en los dias con varios grupos en paralelo, para que se lean las tarjetas.
         gridCols() {
             return '52px ' + this.days.map(d => {
-                const lanes = Math.max(1, ...(this.cardsByDay[d] || []).map(c => c.lanes || 1));
-                return 'minmax(' + Math.max(150, lanes * 92) + 'px, 1fr)';
+                const cards = this.cardsByDay[d] || [];
+                const lanes = Math.max(1, ...cards.map(c => c.lanes || 1));
+                // Las cadenas necesitan mas ancho para leer cada tramo de semanas.
+                const chainW = Math.max(0, ...cards.filter(c => c.chain).map(c => c.chain.length * 90));
+                return 'minmax(' + Math.max(150, lanes * 92 + (chainW ? Math.max(0, chainW - 92) : 0)) + 'px, 1fr)';
             }).join(' ');
         },
         // Grupos que chocan con el seleccionado (se resaltan).
@@ -738,7 +828,8 @@ Vue.component('schedule-board', {
             this.remember();
             const r = this.E.autoPlace(this.S, { all });
             this.tick++;
-            this.lastAction = { text: 'Acomodo automático: ' + r.placed.length + ' grupo(s) ubicados sin choques'
+            this.lastAction = { text: 'Acomodo automático: ' + r.placed.length + ' ficha(s) ubicadas sin choques'
+                + (r.chained ? ' (' + r.chained + ' encadenadas en secuencia con otras asignaturas cortas)' : '')
                 + (r.failed.length ? '; ' + r.failed.length + ' sin hora libre (ver detalle).' : '.'), failed: r.failed, error: false };
         },
         autoAssign() {
@@ -810,6 +901,31 @@ Vue.component('schedule-board', {
                 this.lastAction = { text: r.message, error: false };
             } catch (e) { window.alert('Error al guardar: ' + (e.message || e)); }
             finally { this.saving = false; }
+        },
+        // ---- preferencia de la asignatura (se guarda al momento en la configuracion) ----
+        planName(pid) {
+            const c = (this.board.careers || []).find(x => Number(x.id) === Number(pid));
+            return c ? c.name : 'Carrera ' + pid;
+        },
+        openPref() {
+            const pf = this.prefInfo;
+            const raw = pf && pf.source === 'asignatura' ? pf.raw : null;
+            this.prefDlg = { show: true, days: raw ? raw.days.map(Number) : (this.placedSel ? [this.info.p.day] : []), start: raw ? raw.start : '',
+                end: raw ? raw.end : '', planid: raw ? Number(raw.planid || 0) : 0, saving: false, msg: '' };
+        },
+        async savePref(remove) {
+            const g = this.info.g;
+            this.prefDlg.saving = true; this.prefDlg.msg = '';
+            try {
+                const r = await this.ws(remove ? 'subject_pref_remove' : 'subject_pref_set', { courseid: g.courseid, planid: this.prefDlg.planid,
+                    days: this.prefDlg.days, start: this.prefDlg.start, end: this.prefDlg.end });
+                if (!r.ok) { this.prefDlg.msg = r.message; return; }
+                this.S.prefs.subjects = r.saved || [];
+                this.prefDlg.show = false;
+                this.tick++;
+                this.lastAction = { text: r.message + ' Use "Acomodar automáticamente" para aplicarla a lo que no está bloqueado.', error: false };
+            } catch (e) { this.prefDlg.msg = 'Error: ' + (e.message || e); }
+            finally { this.prefDlg.saving = false; }
         },
         // ---- publicar (fase D) ----
         async openPublish() {
