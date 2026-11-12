@@ -75,7 +75,7 @@
         (board.fixed || []).forEach(function (f) {
             var users = new Set(f.userids || []);
             (f.sessions || []).forEach(function (x) {
-                s.fixed.push({ id: 'c' + f.id, classid: f.id, name: f.name, day: x.day, start: x.start, end: x.end, teacherid: f.teacherid || 0,
+                s.fixed.push({ id: 'c' + f.id, classid: f.id, courseid: Number(f.courseid || 0), name: f.name, day: x.day, start: x.start, end: x.end, teacherid: f.teacherid || 0,
                     roomid: x.roomid || 0, users: users, from: f.initdate || 0, to: f.enddate || 0, jornada: f.jornada, samePeriod: f.samePeriod });
             });
         });
@@ -146,7 +146,7 @@
                 var r = E.range(s, o, p);
                 out.push({ id: o, name: g.name + ' G' + g.number + (g.parts > 1 ? ' (' + g.part + '/' + g.parts + ')' : ''), day: p.day,
                     start: p.start, end: p.end, teacherid: p.teacherid, roomid: p.roomid, users: g.users, from: r.from, to: r.to,
-                    isCard: r.isCard, isGroup: true, gkey: g.gkey });
+                    isCard: r.isCard, isGroup: true, gkey: g.gkey, courseid: Number(g.courseid) });
             }
         });
         s.fixed.forEach(function (f) { if (f.day === day) out.push(f); });
@@ -163,21 +163,24 @@
         var out = [];
         if (!g || !E.placed(p)) return out;
         var range = E.range(s, k, p);
-        var w = E.window(s.cfg, g.jornada);
+        var w = E.windowFor(s, k);
+        var pf = E.prefFor(s, k);
         if (range.isCard && range.missing > 0) {
             out.push({ type: 'fechas', sev: 'hard', msg: 'Desde la semana ' + ((p.week || 0) + 1) + ' solo caben ' + range.dates.length + ' de sus '
                 + g.sessions + ' sesiones en el bloque. Empiece antes o use otro día.' });
         }
-        if (E.jornadaDays(s.cfg, g.jornada).indexOf(p.day) === -1) {
-            out.push({ type: 'jornada', sev: 'hard', msg: E.DAYS[p.day] + ' no es día de la jornada ' + g.jornada + '.' });
+        var ruleWin = pf && pf.override && pf.start >= 0;
+        if (E.daysFor(s, k).indexOf(p.day) === -1) {
+            out.push({ type: 'jornada', sev: 'hard', msg: E.DAYS[p.day] + ' no es día ' + (ruleWin ? 'de la regla de la asignatura' : 'de la jornada ' + g.jornada) + '.' });
         } else if (p.start < w.start || p.end > w.end) {
-            out.push({ type: 'jornada', sev: 'hard', msg: 'Fuera de la franja de la jornada ' + g.jornada + ' (' + E.hhmm(w.start) + '–' + E.hhmm(w.end) + ').' });
+            out.push({ type: 'jornada', sev: 'hard', msg: 'Fuera de la franja ' + (ruleWin ? 'de la asignatura' : 'de la jornada ' + g.jornada) + ' (' + E.hhmm(w.start) + '–' + E.hhmm(w.end) + ').' });
         }
         var ls = E.toMin(s.cfg.lunchStart), le = E.toMin(s.cfg.lunchEnd);
         if (ls >= 0 && le > ls && p.start < le && ls < p.end) {
             out.push({ type: 'almuerzo', sev: 'soft', msg: 'Se cruza con la hora de almuerzo (' + s.cfg.lunchStart + '–' + s.cfg.lunchEnd + ').' });
         }
         var me = { start: p.start, end: p.end };
+        var parallelWith = [];
         others(s, k, p.day).forEach(function (o) {
             if (!timesOverlap(me, o, s.pad) || !datesOverlap(range, o)) return;
             if (o.gkey && o.gkey === g.gkey && o.id !== k) {
@@ -188,12 +191,30 @@
             var when = E.hhmm(o.start) + '–' + E.hhmm(o.end);
             if (n) out.push({ type: 'estudiantes', sev: 'hard', n: n, with: o.id, msg: n + ' estudiante(s) también tienen ' + o.name + ' (' + when + ').' });
             if (p.teacherid && o.teacherid === p.teacherid) {
-                out.push({ type: 'docente', sev: 'hard', with: o.id, msg: 'El docente ya dicta ' + o.name + ' (' + when + ').' });
+                if (pf && pf.parallel && (pf.parallel.indexOf(Number(o.courseid)) !== -1 || Number(o.courseid) === Number(g.courseid))) {
+                    parallelWith.push(o);
+                } else {
+                    out.push({ type: 'docente', sev: 'hard', with: o.id, msg: 'El docente ya dicta ' + o.name + ' (' + when + ').' });
+                }
             }
             if (p.roomid && o.roomid === p.roomid) {
                 out.push({ type: 'aula', sev: 'hard', with: o.id, msg: 'El aula está ocupada por ' + o.name + ' (' + when + ').' });
             }
         });
+        if (parallelWith.length) {
+            // Grupos del mismo docente a la vez: permitido entre asignaturas en paralelo, hasta el maximo.
+            if (parallelWith.length + 1 > pf.parallelMax) {
+                out.push({ type: 'docente', sev: 'hard', with: parallelWith[0].id, msg: 'El docente tendría ' + (parallelWith.length + 1)
+                    + ' grupos a la vez y la regla permite ' + pf.parallelMax + ' (' + parallelWith.map(function (o) { return o.name; }).join(', ') + ').' });
+            } else {
+                out.push({ type: 'paralelo', sev: 'info', msg: 'En paralelo con el mismo docente: ' + parallelWith.map(function (o) { return o.name; }).join(', ') + '.' });
+            }
+        }
+        if (pf && pf.teacherid && p.teacherid !== pf.teacherid) {
+            var tn = s.teachers[pf.teacherid] ? s.teachers[pf.teacherid].name : 'otro docente';
+            out.push({ type: 'docente_fijo', sev: 'soft', msg: p.teacherid ? 'La regla de la asignatura indica a ' + tn + '.'
+                : 'Sin docente: la regla indica a ' + tn + ', pero a esta hora ya tiene el máximo de grupos en paralelo u otra clase.' });
+        }
         if (p.teacherid) {
             var t = s.teachers[p.teacherid];
             if (t) {
@@ -205,15 +226,17 @@
                 }
             }
         }
-        var pf = E.prefFor(s, k);
-        if (pf) {
+        if (pf && !ruleWin) {
+            var sev = pf.strict ? 'hard' : 'soft', kind = pf.strict ? 'obligatorios' : 'preferidos';
             if (pf.days.length && pf.days.indexOf(p.day) === -1) {
-                out.push({ type: 'preferencia', sev: 'soft', msg: 'Fuera de los días preferidos ' + (pf.source === 'asignatura' ? 'de la asignatura' : 'de la jornada ' + g.jornada)
+                out.push({ type: pf.strict ? 'regla' : 'preferencia', sev: sev, msg: 'Fuera de los días ' + kind + ' ' + (pf.source === 'asignatura' ? 'de la asignatura' : 'de la jornada ' + g.jornada)
                     + ' (' + pf.days.map(function (d) { return E.DAYS_SHORT[d]; }).join(', ') + ').' });
             }
             if (pf.start >= 0 && pf.end > pf.start && (p.start < pf.start || p.end > pf.end)) {
-                out.push({ type: 'preferencia', sev: 'soft', msg: 'Fuera de la franja preferida de la asignatura (' + E.hhmm(pf.start) + '–' + E.hhmm(pf.end) + ').' });
+                out.push({ type: pf.strict ? 'regla' : 'preferencia', sev: sev, msg: 'Fuera de la franja ' + (pf.strict ? 'obligatoria' : 'preferida') + ' de la asignatura (' + E.hhmm(pf.start) + '–' + E.hhmm(pf.end) + ').' });
             }
+        } else if (pf && ruleWin && !pf.strict && pf.days.length && pf.days.indexOf(p.day) === -1) {
+            out.push({ type: 'preferencia', sev: 'soft', msg: 'Fuera de los días preferidos de la asignatura.' });
         }
         if (p.roomid && s.rooms[p.roomid] && s.rooms[p.roomid].capacity < g.size) {
             out.push({ type: 'capacidad', sev: 'soft', msg: 'El aula tiene capacidad para ' + s.rooms[p.roomid].capacity + ' y el grupo tiene ' + g.size + '.' });
@@ -233,13 +256,32 @@
         }).sort(function (a, b) { return Number(b.planid || 0) - Number(a.planid || 0); });
         if (cands.length) {
             var c = cands[0];
-            return { days: (c.days || []).map(Number), start: c.start ? E.toMin(c.start) : -1, end: c.end ? E.toMin(c.end) : -1, source: 'asignatura', raw: c };
+            return { days: (c.days || []).map(Number), start: c.start ? E.toMin(c.start) : -1, end: c.end ? E.toMin(c.end) : -1, source: 'asignatura', raw: c,
+                strict: !!c.strict, override: !!c.override_window, teacherid: Number(c.teacherid || 0),
+                parallel: (c.parallel || []).map(Number), parallelMax: Number(c.parallel_max || 4) };
         }
         var w = (s.cfg.shiftWindows || {})[g.jornada] || {};
         if (Array.isArray(w.preferredDays) && w.preferredDays.length) {
             return { days: w.preferredDays.map(Number), start: -1, end: -1, source: 'jornada' };
         }
         return null;
+    };
+
+    /** Dias posibles de una ficha: los de la regla si su franja vale para todas las jornadas y es obligatoria; si no, los de su jornada. */
+    E.daysFor = function (s, k) {
+        var pf = E.prefFor(s, k);
+        if (pf && pf.override && pf.start >= 0 && pf.strict && pf.days.length) return pf.days.slice();
+        if (pf && pf.override && pf.start >= 0) {
+            var base = E.jornadaDays(s.cfg, s.groups[k].jornada);
+            return base.concat(pf.days.filter(function (d) { return base.indexOf(d) === -1; })).sort();
+        }
+        return E.jornadaDays(s.cfg, s.groups[k].jornada);
+    };
+    /** Franja posible de una ficha: la de la asignatura si vale para todas las jornadas; si no, la de su jornada. */
+    E.windowFor = function (s, k) {
+        var pf = E.prefFor(s, k);
+        if (pf && pf.override && pf.start >= 0 && pf.end > pf.start) return { start: pf.start, end: pf.end };
+        return E.window(s.cfg, s.groups[k].jornada);
     };
 
     /** Tramo de semanas de una ficha en su dia: { w0, w1, total } (indices en el calendario de ese dia). */
@@ -455,7 +497,7 @@
     /** Horas de inicio posibles en un dia: cada 30 min desde el inicio de la franja y justo despues de lo que ya hay. */
     function starts(s, k, day, dur) {
         var g = s.groups[k];
-        var w = E.window(s.cfg, g.jornada);
+        var w = E.windowFor(s, k);
         dur = dur || g.duration;
         var set = {};
         for (var t = w.start; t + dur <= w.end; t += 30) set[t] = true;
@@ -476,7 +518,7 @@
         var cur = s.place[k];
         var out = [];
         var dur = E.placed(cur) ? cur.end - cur.start : g.duration;
-        E.jornadaDays(s.cfg, g.jornada).forEach(function (day) {
+        E.daysFor(s, k).forEach(function (day) {
             var maxw = E.maxWeek(s, k, day);
             starts(s, k, day, dur).forEach(function (st) {
                 for (var wk = 0; wk <= maxw; wk++) {
@@ -542,6 +584,11 @@
 
     /** Mejor docente libre, con habilidad y disponibilidad (o null). */
     E.bestTeacher = function (s, k, p, strict) {
+        var rpf = E.prefFor(s, k);
+        if (rpf && rpf.teacherid && s.teachers[rpf.teacherid]) {
+            var fixed = E.teacherOptions(s, k, p).find(function (o) { return o.id === rpf.teacherid; });
+            if (fixed && !fixed.busy) return fixed;
+        }
         var opts = E.teacherOptions(s, k, p);
         var best = opts.find(function (o) { return o.skill && o.avail && !o.busy; });
         if (best || strict) return best || null;
@@ -580,7 +627,8 @@
         todo.forEach(function (k) {
             var g = s.groups[k];
             // El docente es de la clase: si otra parte ya lo tiene, se intenta el mismo.
-            var keepTeacher = s.place[k].teacherid || siblingTeacher(s, k);
+            var rpf = E.prefFor(s, k);
+            var keepTeacher = s.place[k].teacherid || (rpf && rpf.teacherid) || siblingTeacher(s, k);
             s.place[k].teacherid = keepTeacher;
             var cands = E.candidates(s, k, { ignoreRoom: true, ignoreTeacher: !keepTeacher }).filter(function (c) { return !c.hard; });
             if (!cands.length && keepTeacher && !s.place[k].locked) {
@@ -601,7 +649,7 @@
                 var p = { day: c.day, start: c.start, end: c.end, week: c.week, teacherid: keepTeacher, roomid: 0 };
                 var t = keepTeacher ? null : E.bestTeacher(s, k, p, true);
                 var room = E.bestRoom(s, k, p);
-                var score = (c.soft - (c.pref || 0)) * 20 + (c.pref || 0) * 25 + (keepTeacher || t ? 0 : 15) + (room ? 0 : 10) + sameDayLoad(s, k, c.day, E.range(s, k, p)) * 0.3
+                var score = (c.soft - (c.pref || 0)) * 20 + (c.pref || 0) * 25 - pairBonus(s, k, c) + (keepTeacher || t ? 0 : 15) + (room ? 0 : 10) + sameDayLoad(s, k, c.day, E.range(s, k, p)) * 0.3
                     + c.week * 0.05 - seqBonus(s, k, Object.assign({}, p, { teacherid: keepTeacher || (t ? t.id : 0) })) + i * 0.001;
                 if (!best || score < best.score) best = { c: c, t: t, room: room, score: score };
             });
@@ -614,6 +662,26 @@
         return { placed: chained.placed.concat(placed), failed: failed, chained: compacted.moved + chained.placed.length,
             chains: chained.chains };
     };
+
+    /**
+     * Paralelo con el mismo docente: se prefiere el dia y la hora donde ya corre la OTRA asignatura del paralelo (p. ej.
+     * si los martes sigue piscina del periodo anterior, el grupo nuevo de scuba entra el martes) y se evita juntar
+     * grupos de la misma asignatura.
+     */
+    function pairBonus(s, k, c) {
+        var pf = E.prefFor(s, k);
+        if (!pf || !pf.parallel || !pf.parallel.length) return 0;
+        var b = 0, g = s.groups[k];
+        var rg = E.range(s, k, Object.assign({}, s.place[k], c));
+        others(s, k, c.day).forEach(function (o) {
+            if (!timesOverlap(c, o, 0) || !datesOverlap(rg, o)) return;
+            var tid = pf.teacherid || s.place[k].teacherid;
+            if (tid && o.teacherid !== tid) return;
+            if (pf.parallel.indexOf(Number(o.courseid)) !== -1) b += 30;
+            else if (Number(o.courseid) === Number(g.courseid)) b -= 10;
+        });
+        return b;
+    }
 
     function siblingTeacher(s, k) {
         var g = s.groups[k];

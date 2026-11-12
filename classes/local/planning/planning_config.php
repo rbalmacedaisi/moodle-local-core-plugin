@@ -554,7 +554,20 @@ class planning_config {
                 JOIN {local_learning_courses} l ON l.courseid = c.id ORDER BY c.fullname") as $c) {
             $allcourses[] = ['courseid' => (int)$c->id, 'name' => $c->fullname];
         }
+        // Docentes para la regla de "docente fijo" de una asignatura.
+        global $CFG;
+        require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
+        $teachers = [];
+        foreach (list_instructors() as $i) {
+            if (empty($i->suspended)) {
+                $teachers[] = ['id' => (int)$i->id, 'name' => trim(preg_replace('/\s+/', ' ', $i->fullname))];
+            }
+        }
+        usort($teachers, function ($a, $b) {
+            return strcmp($a['name'], $b['name']);
+        });
         return [
+            'teachers' => $teachers,
             'costs' => ['hour_rate' => self::hour_rate(), 'long' => $longlist, 'fixed' => $fixedlist, 'long_configured' => $long['configured'],
                 'long_suggested' => $long['suggested'], 'all_courses' => $allcourses,
                 'unscheduled' => $unschedlist, 'unscheduled_configured' => $unsched['configured']],
@@ -950,7 +963,13 @@ class planning_config {
             $p = (array)$p;
             $out[] = ['courseid' => (int)($p['courseid'] ?? 0), 'planid' => (int)($p['planid'] ?? 0),
                 'days' => array_values(array_map('intval', (array)($p['days'] ?? []))),
-                'start' => (string)($p['start'] ?? ''), 'end' => (string)($p['end'] ?? '')];
+                'start' => (string)($p['start'] ?? ''), 'end' => (string)($p['end'] ?? ''),
+                // Regla (no solo preferencia): obligatoria, su franja vale para todas las jornadas, docente fijo,
+                // veces por semana, y asignaturas que el mismo docente puede dictar en paralelo (hasta un maximo).
+                'strict' => !empty($p['strict']), 'override_window' => !empty($p['override_window']),
+                'teacherid' => (int)($p['teacherid'] ?? 0), 'times_per_week' => (int)($p['times_per_week'] ?? 0),
+                'parallel' => array_values(array_map('intval', (array)($p['parallel'] ?? []))),
+                'parallel_max' => (int)($p['parallel_max'] ?? 0) ?: 4];
         }
         return $out;
     }
@@ -970,6 +989,19 @@ class planning_config {
             return !($p['courseid'] === $cid && $p['planid'] === $pid);
         }));
         $item = null;
+        // Lo que no venga en los datos conserva su valor (p. ej. guardar dia y franja desde el tablero no borra el
+        // docente fijo ni el paralelo definidos en Configuracion).
+        $prev = null;
+        foreach (self::subject_prefs() as $p) {
+            if ($p['courseid'] === $cid && $p['planid'] === $pid) {
+                $prev = $p;
+            }
+        }
+        foreach (['strict', 'override_window', 'teacherid', 'times_per_week', 'parallel', 'parallel_max'] as $f) {
+            if (!array_key_exists($f, $d) && $prev) {
+                $d[$f] = $prev[$f];
+            }
+        }
         if (!$remove) {
             $days = array_values(array_unique(array_map('intval', (array)($d['days'] ?? []))));
             sort($days);
@@ -985,7 +1017,30 @@ class planning_config {
             if (!$days && $start === '') {
                 return self::fail('Elija al menos un día o una franja horaria.');
             }
-            $item = ['courseid' => $cid, 'planid' => $pid, 'days' => $days, 'start' => $start, 'end' => $end];
+            $tid = (int)($d['teacherid'] ?? 0);
+            if ($tid && !$DB->record_exists('user', ['id' => $tid, 'deleted' => 0])) {
+                return self::fail('El docente fijo no existe.');
+            }
+            $times = (int)($d['times_per_week'] ?? 0);
+            if ($times < 0 || $times > 5) {
+                return self::fail('Las veces por semana deben estar entre 0 (automático) y 5.');
+            }
+            $parallel = array_values(array_unique(array_map('intval', (array)($d['parallel'] ?? []))));
+            foreach ($parallel as $pc) {
+                if (!$DB->record_exists('course', ['id' => $pc])) {
+                    return self::fail('Una de las asignaturas en paralelo no existe.');
+                }
+            }
+            $pmax = (int)($d['parallel_max'] ?? 4) ?: 4;
+            if ($pmax < 1 || $pmax > 10) {
+                return self::fail('El máximo de grupos en paralelo debe estar entre 1 y 10.');
+            }
+            if (!empty($d['override_window']) && $start === '') {
+                return self::fail('Para que la franja de la asignatura valga en todas las jornadas, indique la franja.');
+            }
+            $item = ['courseid' => $cid, 'planid' => $pid, 'days' => $days, 'start' => $start, 'end' => $end,
+                'strict' => !empty($d['strict']), 'override_window' => !empty($d['override_window']), 'teacherid' => $tid,
+                'times_per_week' => $times, 'parallel' => array_values(array_diff($parallel, [$cid])), 'parallel_max' => $pmax];
             $list[] = $item;
         }
         $before = scheduler_settings::get_config();

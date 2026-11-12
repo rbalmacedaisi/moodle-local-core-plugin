@@ -119,6 +119,7 @@ class schedule_board {
             $byuser[(int)$s['userid']][] = $s;
         }
         $names = [];
+        $prefs = planning_config::subject_prefs();
         // Calendario de cada jornada (y cuatrimestral): fechas de clase por dia de la semana, sin festivos.
         $calendar = $DB->get_record('gmk_academic_calendar', ['academicperiodid' => $periodid]);
         $holidaymap = [];
@@ -134,6 +135,13 @@ class schedule_board {
             }
             $h = $hours[self::norm($names[$cid] ?: $g['name'])] ?? null;
             $islong = isset($long[$cid]);
+            $gplans = [];
+            foreach ($g['userids'] as $u) {
+                foreach ($byuser[(int)$u] ?? [] as $s) {
+                    $gplans[(int)$s['planid']] = (int)$s['planid'];
+                }
+            }
+            $gplans = array_values($gplans);
             $calkey = $g['jornada'] . '|' . ($islong ? 1 : 0);
             if (!isset($calendars[$calkey])) {
                 list($cfrom, $cto, $cal) = publisher::class_calendar($p, $calendar, $g['jornada'], $islong, $holidaymap);
@@ -162,6 +170,25 @@ class schedule_board {
                 }
             }
             $nparts = max(1, (int)ceil($sessions / $weeks));
+            // Regla de la asignatura con veces por semana: una ficha por vez y sesiones del largo necesario para cubrir
+            // la carga en las semanas del bloque (sin pasar de su franja). P. ej. 64 h, 1 vez, 14 semanas = 275 min.
+            $rule = null;
+            foreach ($prefs as $rp) {
+                if ($rp['courseid'] === $cid && $rp['times_per_week'] > 0 && (!$rp['planid'] || in_array($rp['planid'], $gplans, true))) {
+                    if (!$rule || $rp['planid']) {
+                        $rule = $rp;
+                    }
+                }
+            }
+            if ($rule) {
+                $nparts = $rule['times_per_week'];
+                if ($h && $h['total'] > 0) {
+                    $dur = (int)(ceil($h['total'] * 60 / ($weeks * $nparts) / 5) * 5);
+                    $span = ($rule['start'] !== '' && $rule['end'] !== '') ? self::to_min($rule['end']) - self::to_min($rule['start']) : 480;
+                    $dur = max(30, min($dur, $span, 480));
+                }
+                $sessions = $weeks * $nparts;
+            }
             $parts = [];
             for ($i = 1; $i <= $nparts; $i++) {
                 $parts[] = ['key' => $nparts === 1 ? $key : $key . '#' . $i,

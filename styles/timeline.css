@@ -2650,3 +2650,7 @@ button.tl-btn.tl-btn-primary:active:not(:disabled) {
 .tl-sb-seg-w { opacity: .8; }
 .tl-sb-wbar { position: relative; height: 4px; background: rgba(100, 116, 139, .18); border-radius: 2px; margin-top: 2px; }
 .tl-sb-wbar > div { position: absolute; top: 0; bottom: 0; background: #4F46E5; border-radius: 2px; }
+.tl-cfg-prefopts { display: flex; flex-direction: column; gap: 6px; padding: 6px 4px 10px; font-size: 12.5px; background: #F8FAFF; border-radius: 8px; }
+.tl-cfg-prefopts label { display: flex; flex-direction: column; gap: 2px; }
+.tl-cfg-prefopts label.tl-cfg-check { flex-direction: row; align-items: center; gap: 6px; }
+.tl-sb-rule { margin-top: 3px; padding: 3px 6px; background: #EEF2FF; border-radius: 6px; color: #3730A3; }

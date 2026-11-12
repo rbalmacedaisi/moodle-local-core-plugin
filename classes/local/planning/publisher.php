@@ -177,7 +177,7 @@ class publisher {
                 continue;
             }
             foreach ($f['sessions'] as $x) {
-                $occ[] = ['id' => 'c' . $f['id'], 'name' => $f['name'], 'day' => $x['day'], 'start' => $x['start'], 'end' => $x['end'],
+                $occ[] = ['id' => 'c' . $f['id'], 'courseid' => (int)$f['courseid'], 'name' => $f['name'], 'day' => $x['day'], 'start' => $x['start'], 'end' => $x['end'],
                     'teacherid' => (int)$f['teacherid'], 'roomid' => (int)$x['roomid'], 'users' => array_flip($f['userids']),
                     'from' => (int)$f['initdate'], 'to' => (int)$f['enddate']];
             }
@@ -246,13 +246,23 @@ class publisher {
             $c = $x['card'];
             if ($c['day'] && $c['dates']) {
                 $r = $rows[$x['row']];
-                $entries[] = ['id' => $c['key'], 'row' => $x['row'], 'card' => true, 'name' => $r['name'] . ' G' . $r['number']
+                $entries[] = ['id' => $c['key'], 'row' => $x['row'], 'card' => true, 'courseid' => (int)$r['courseid'], 'name' => $r['name'] . ' G' . $r['number']
                     . ($c['parts'] > 1 ? ' (' . $c['part'] . '/' . $c['parts'] . ')' : ''), 'day' => $c['day'], 'start' => $c['start'], 'end' => $c['end'],
                     'teacherid' => $c['teacherid'], 'roomid' => $c['roomid'], 'users' => array_flip($r['userids']),
                     'from' => $ymd($c['dates'][0]), 'to' => $ymd(end($c['dates'])) + 86400];
             }
         }
         $sw = json_decode(json_encode($cfg['shiftWindows']), true) ?: [];
+        $prefs = planning_config::subject_prefs();
+        $rulefor = function ($cid, $plans) use ($prefs) {
+            $best = null;
+            foreach ($prefs as $rp) {
+                if ($rp['courseid'] === (int)$cid && (!$rp['planid'] || in_array($rp['planid'], $plans, true)) && (!$best || $rp['planid'])) {
+                    $best = $rp;
+                }
+            }
+            return $best;
+        };
         foreach ($cards as $x) {
             $k = $x['row'];
             $r = $rows[$k];
@@ -260,13 +270,28 @@ class publisher {
             if (!$c['day'] || !$c['dates']) {
                 continue;
             }
+            $rule = $rulefor($r['courseid'], $r['plans']);
             $w = isset($sw[$r['jornada']]) ? (array)$sw[$r['jornada']] : null;
             $days = stripos($r['jornada'], 'sab') !== false ? [6] : [1, 2, 3, 4, 5];
-            if (!in_array($c['day'], $days, true)) {
-                $rows[$k]['blocks'][] = 'El día no corresponde a la jornada ' . $r['jornada'] . '.';
-            } else if ($w && ($c['start'] < schedule_board::to_min($w['start']) || $c['end'] > schedule_board::to_min($w['end']))) {
-                $rows[$k]['blocks'][] = 'Fuera de la franja de la jornada ' . $r['jornada'] . '.';
+            // Regla de la asignatura cuya franja vale para todas las jornadas: dias y franja de la regla.
+            if ($rule && $rule['override_window'] && $rule['start'] !== '') {
+                $w = ['start' => $rule['start'], 'end' => $rule['end']];
+                $days = ($rule['strict'] && $rule['days']) ? $rule['days'] : array_values(array_unique(array_merge($days, $rule['days'])));
             }
+            if (!in_array($c['day'], $days, true)) {
+                $rows[$k]['blocks'][] = 'El día no corresponde a la jornada ' . $r['jornada'] . ' ni a la regla de la asignatura.';
+            } else if ($w && ($c['start'] < schedule_board::to_min($w['start']) || $c['end'] > schedule_board::to_min($w['end']))) {
+                $rows[$k]['blocks'][] = 'Fuera de la franja permitida.';
+            }
+            if ($rule && $rule['strict'] && !$rule['override_window']) {
+                if ($rule['days'] && !in_array($c['day'], $rule['days'], true)) {
+                    $rows[$k]['blocks'][] = 'Fuera de los días obligatorios de la asignatura.';
+                }
+                if ($rule['start'] !== '' && ($c['start'] < schedule_board::to_min($rule['start']) || $c['end'] > schedule_board::to_min($rule['end']))) {
+                    $rows[$k]['blocks'][] = 'Fuera de la franja obligatoria de la asignatura.';
+                }
+            }
+            $parallel = [];
             $cfrom = $ymd($c['dates'][0]);
             $cto = $ymd(end($c['dates'])) + 86400;
             foreach ($entries as $o) {
@@ -285,11 +310,20 @@ class publisher {
                     $rows[$k]['blocks'][] = $n . ' estudiante(s) también tienen ' . $o['name'] . ' a esa hora.';
                 }
                 if ($c['teacherid'] && $o['teacherid'] === $c['teacherid']) {
-                    $rows[$k]['blocks'][] = 'El docente ya dicta ' . $o['name'] . ' a esa hora.';
+                    if ($rule && (in_array((int)($o['courseid'] ?? 0), $rule['parallel'], true) || (int)($o['courseid'] ?? 0) === (int)$r['courseid'])) {
+                        $parallel[] = $o['name']; // mismo docente en paralelo, permitido por la regla
+                    } else {
+                        $rows[$k]['blocks'][] = 'El docente ya dicta ' . $o['name'] . ' a esa hora.';
+                    }
                 }
                 if ($c['roomid'] && $o['roomid'] === $c['roomid']) {
                     $rows[$k]['blocks'][] = 'El aula está ocupada por ' . $o['name'] . ' a esa hora.';
                 }
+            }
+            if ($parallel && count($parallel) + 1 > $rule['parallel_max']) {
+                $rows[$k]['blocks'][] = 'El docente tendría ' . (count($parallel) + 1) . ' grupos a la vez y la regla permite ' . $rule['parallel_max'] . '.';
+            } else if ($parallel) {
+                $rows[$k]['warnings'][] = 'En paralelo con el mismo docente: ' . implode(', ', $parallel) . '.';
             }
         }
         foreach ($rows as $k => $r) {

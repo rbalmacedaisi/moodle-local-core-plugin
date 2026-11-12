@@ -204,6 +204,13 @@ Vue.component('schedule-board', {
                             {{ prefInfo.days.length ? prefInfo.days.map(d => dayName(d)).join(', ') : 'cualquier día' }}<template v-if="prefInfo.start >= 0">
                             · {{ hhmm(prefInfo.start) }}–{{ hhmm(prefInfo.end) }}</template>
                             <span v-if="info.conf.some(c => c.type === 'preferencia')" style="color:#B45309"> · esta ficha está fuera de la preferencia</span>
+                            <div v-if="prefInfo.source === 'asignatura' && (prefInfo.strict || prefInfo.override || prefInfo.teacherid || prefInfo.parallel.length || prefInfo.raw.times_per_week)" class="tl-sb-rule">
+                                Regla: <template v-if="prefInfo.strict">obligatoria</template><template v-else>preferencia</template>
+                                <template v-if="prefInfo.override"> · su franja vale para todas las jornadas</template>
+                                <template v-if="prefInfo.teacherid"> · docente fijo: {{ teacherName(prefInfo.teacherid) }}</template>
+                                <template v-if="prefInfo.raw.times_per_week"> · {{ prefInfo.raw.times_per_week }} vez/veces por semana</template>
+                                <template v-if="prefInfo.parallel.length"> · en paralelo hasta {{ prefInfo.parallelMax }} grupos con: {{ prefInfo.parallel.map(c => courseName(c)).join(', ') }}</template>
+                            </div>
                         </div>
                         <div v-else class="tl-cfg-help">Sin preferencia (se puede definir por jornada en Configuración o aquí para la asignatura).</div>
                         <button v-if="canEdit" class="tl-proj-flexbtn mt-1" @click="openPref">{{ prefInfo && prefInfo.source === 'asignatura' ? 'Cambiar' : 'Guardar' }} preferencia de esta asignatura</button>

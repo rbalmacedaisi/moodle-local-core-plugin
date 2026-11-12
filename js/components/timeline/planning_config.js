@@ -192,22 +192,43 @@ Vue.component('planning-config', {
                 <div class="tl-cfg-footer"><button class="tl-cfg-btn" :disabled="!schedDirty || saving" @click="askSave('scheduler', { config: sched }, schedDiff())">Guardar jornadas</button></div>
             </div>
             <div v-if="section === 'scheduler'" class="tl-cfg-card">
-                <div class="tl-cfg-card-head"><div><b>Preferencias de día y hora por asignatura</b>
+                <div class="tl-cfg-card-head"><div><b>Preferencias y reglas de horario por asignatura</b>
                     <div class="tl-cfg-help">Días y franja en que se prefiere dictar una asignatura (de una carrera o de todas). Mandan sobre los días preferidos
                     de la jornada. Son preferencias: si en el tablero no caben sin choques, se usa otro día u hora y queda anotado en la ficha.
-                    También se pueden guardar desde el panel de una ficha en el tablero.</div></div></div>
+                    También se pueden guardar desde el panel de una ficha en el tablero. En "Más opciones" se convierte en regla: obligatoria,
+                    franja que vale para todas las jornadas (p. ej. Acondicionamiento en la mañana también para la nocturna), docente fijo, veces por
+                    semana (la sesión se ajusta para cubrir la carga) y asignaturas que el mismo docente puede dictar a la vez.</div></div></div>
                 <table v-if="subjPrefs.length" class="tl-cfg-table">
                     <thead><tr><th>Asignatura</th><th>Carrera</th><th>Días</th><th>Franja</th><th></th></tr></thead>
                     <tbody>
                         <tr v-for="p in subjPrefs" :key="p.courseid + '-' + p.planid">
-                            <td>{{ courseName(p.courseid) }}</td><td class="tl-cfg-help">{{ p.planid ? planName(p.planid) : 'Todas' }}</td>
+                            <td>{{ subjName(p.courseid) }}</td><td class="tl-cfg-help">{{ p.planid ? planName(p.planid) : 'Todas' }}</td>
                             <td><button v-for="d in [1, 2, 3, 4, 5, 6]" :key="d" type="button" class="tl-cfg-daybtn" :class="{ 'tl-cfg-daybtn-on': p.days.includes(d) }"
                                         @click.prevent="toggleDay(p, d, 'days'); p.dirty = true">{{ dayShort[d] }}</button></td>
                             <td><span class="tl-cfg-range"><input type="time" class="tl-cfg-input" v-model="p.start" @input="p.dirty = true"> a
                                 <input type="time" class="tl-cfg-input" v-model="p.end" @input="p.dirty = true"></span></td>
-                            <td style="white-space:nowrap"><button class="tl-cfg-btn" :disabled="!p.dirty || saving" @click="savePref(p)">Guardar</button>
+                            <td style="white-space:nowrap"><button class="tl-proj-flexbtn" @click="p.open = !p.open">{{ p.open ? 'Menos' : 'Más opciones' }}
+                                    <template v-if="!p.open && ruleSummary(p)"> · {{ ruleSummary(p) }}</template></button>
+                                <button class="tl-cfg-btn" :disabled="!p.dirty || saving" @click="savePref(p)">Guardar</button>
                                 <button v-if="!p.isnew" class="tl-cfg-btn tl-cfg-btn-ghost" :disabled="saving" @click="removePref(p)">Quitar</button>
                                 <button v-else class="tl-cfg-btn tl-cfg-btn-ghost" @click="subjPrefs = subjPrefs.filter(x => x !== p)">Cancelar</button></td>
+                        </tr>
+                        <tr v-for="p in subjPrefs.filter(x => x.open)" :key="'o' + p.courseid + '-' + p.planid" class="tl-cfg-prefopts-row">
+                            <td colspan="5"><div class="tl-cfg-prefopts"><b>{{ subjName(p.courseid) }}</b>
+                                <label class="tl-cfg-check"><input type="checkbox" v-model="p.strict" @change="p.dirty = true"> Obligatoria (no solo preferencia: fuera de días o franja es choque)</label>
+                                <label class="tl-cfg-check"><input type="checkbox" v-model="p.override_window" @change="p.dirty = true"> La franja de la asignatura vale para todas las jornadas
+                                    (reemplaza la franja de la jornada; requiere franja)</label>
+                                <label>Docente fijo
+                                    <select class="tl-cfg-input" v-model.number="p.teacherid" @change="p.dirty = true"><option :value="0">— ninguno —</option>
+                                        <option v-for="t in teachers" :key="t.id" :value="t.id">{{ t.name }}</option></select></label>
+                                <label>Veces por semana <input type="number" min="0" max="5" class="tl-cfg-input" style="width:70px" v-model.number="p.times_per_week" @input="p.dirty = true">
+                                    <small>0 = automático. Con 1 o más, la sesión se alarga lo necesario para cubrir la carga (dentro de la franja).</small></label>
+                                <label>Se dicta en paralelo (mismo docente, a la vez) con
+                                    <v-autocomplete dense outlined hide-details multiple small-chips deletable-chips :items="(costs.all_courses || []).filter(c => c.courseid !== p.courseid)"
+                                        item-text="name" item-value="courseid" v-model="p.parallel" @change="p.dirty = true" label="Asignaturas" style="max-width:520px"></v-autocomplete></label>
+                                <label v-if="p.parallel.length">Máximo de grupos a la vez con ese docente <input type="number" min="1" max="10" class="tl-cfg-input" style="width:70px"
+                                    v-model.number="p.parallel_max" @input="p.dirty = true"></label>
+                            </div></td>
                         </tr>
                     </tbody>
                 </table>
@@ -309,7 +330,7 @@ Vue.component('planning-config', {
                 { key: 'holidays', label: 'Festivos', icon: 'mdi-calendar-remove-outline' },
                 { key: 'loads', label: 'Cargas horarias', icon: 'mdi-timer-sand' },
             ],
-            periods: [], rules: {}, rulesOrig: {}, sched: null, schedOrig: '', subjPrefs: [], prefMsg: '', prefErr: false,
+            periods: [], rules: {}, rulesOrig: {}, sched: null, schedOrig: '', subjPrefs: [], prefMsg: '', prefErr: false, teachers: [],
             dayShort: { 1: 'Lun', 2: 'Mar', 3: 'Mié', 4: 'Jue', 5: 'Vie', 6: 'Sáb' }, classrooms: [], holidays: [], loads: [],
             newHoliday: { date: '', name: '' },
             careers: [], iso: { careers: [], subjects: [] }, isoOrig: '', isoPick: { planid: 0, courseid: 0 },
@@ -370,8 +391,8 @@ Vue.component('planning-config', {
                     s.shiftWindows[j] = s.shiftWindows[j] || { start: '', end: '' };
                     s.shiftWindows[j].preferredDays = (s.shiftWindows[j].preferredDays || []).map(Number);
                 });
-                this.subjPrefs = (s.subjectPreferences || []).map(p => ({ courseid: Number(p.courseid), planid: Number(p.planid || 0),
-                    days: (p.days || []).map(Number), start: p.start || '', end: p.end || '', dirty: false, isnew: false }));
+                this.subjPrefs = (s.subjectPreferences || []).map(p => this.prefRow(p, false));
+                this.teachers = d.teachers || [];
                 // Las preferencias por asignatura y la mezcla de carreras se guardan aparte (no viajan con "Guardar jornadas").
                 delete s.subjectPreferences; delete s.isolatedCareers; delete s.isolatedSubjects;
                 this.sched = s; this.schedOrig = JSON.stringify(s);
@@ -442,7 +463,7 @@ Vue.component('planning-config', {
             if (i === -1) cur.push(d); else cur.splice(i, 1);
             this.$set(obj, key, cur.sort());
         },
-        courseName(cid) {
+        subjName(cid) {
             const c = (this.costs.all_courses || []).find(x => Number(x.courseid) === Number(cid));
             return c ? c.name : 'Asignatura ' + cid;
         },
@@ -450,28 +471,44 @@ Vue.component('planning-config', {
             const c = this.careers.find(x => Number(x.id) === Number(pid));
             return c ? c.name : 'Carrera ' + pid;
         },
+        prefRow(p, isnew) {
+            return { courseid: Number(p.courseid), planid: Number(p.planid || 0), days: (p.days || []).map(Number), start: p.start || '', end: p.end || '',
+                strict: !!p.strict, override_window: !!p.override_window, teacherid: Number(p.teacherid || 0), times_per_week: Number(p.times_per_week || 0),
+                parallel: (p.parallel || []).map(Number), parallel_max: Number(p.parallel_max || 4), dirty: false, isnew: isnew, open: false };
+        },
+        ruleSummary(p) {
+            const out = [];
+            if (p.strict) out.push('obligatoria');
+            if (p.override_window) out.push('todas las jornadas');
+            if (p.teacherid) out.push('docente fijo');
+            if (p.times_per_week) out.push(p.times_per_week + '/sem');
+            if (p.parallel.length) out.push('paralelo ' + p.parallel_max);
+            return out.join(', ');
+        },
         prefAdd(items) {
             items.forEach(it => {
                 const pid = Number(it.planid || 0), cid = Number(it.courseid);
                 if (this.subjPrefs.some(p => p.courseid === cid && p.planid === pid)) return;
-                this.subjPrefs.push({ courseid: cid, planid: pid, days: [], start: '', end: '', dirty: true, isnew: true });
+                this.subjPrefs.push(Object.assign(this.prefRow({ courseid: cid, planid: pid }, true), { dirty: true }));
             });
         },
         async savePref(p) {
             this.prefMsg = ''; this.prefErr = false;
-            const what = this.courseName(p.courseid) + (p.planid ? ' (' + this.planName(p.planid) + ')' : '');
+            const what = this.subjName(p.courseid) + (p.planid ? ' (' + this.planName(p.planid) + ')' : '');
             const days = p.days.map(d => this.dayShort[d]).join(', ') || 'cualquier día';
             if (!window.confirm('¿Guardar la preferencia de ' + what + ': ' + days + (p.start ? ', ' + p.start + '–' + p.end : '') + '? Es una preferencia: si no cabe, el tablero usa otro día y lo anota.')) return;
             this.saving = true;
             try {
-                const r = await this.ws('local_grupomakro_planning_save_config', { section: 'subject_pref_set', data: JSON.stringify({ courseid: p.courseid, planid: p.planid, days: p.days, start: p.start, end: p.end }) });
+                const r = await this.ws('local_grupomakro_planning_save_config', { section: 'subject_pref_set', data: JSON.stringify({ courseid: p.courseid, planid: p.planid, days: p.days, start: p.start, end: p.end,
+                    strict: p.strict, override_window: p.override_window, teacherid: p.teacherid, times_per_week: p.times_per_week,
+                    parallel: p.parallel, parallel_max: p.parallel_max }) });
                 this.prefMsg = r.message; this.prefErr = !r.ok;
                 if (r.ok) { p.dirty = false; p.isnew = false; }
             } catch (e) { this.prefMsg = 'Error: ' + (e.message || e); this.prefErr = true; }
             finally { this.saving = false; }
         },
         async removePref(p) {
-            if (!window.confirm('¿Quitar la preferencia de ' + this.courseName(p.courseid) + '?')) return;
+            if (!window.confirm('¿Quitar la preferencia de ' + this.subjName(p.courseid) + '?')) return;
             this.saving = true;
             try {
                 const r = await this.ws('local_grupomakro_planning_save_config', { section: 'subject_pref_remove', data: JSON.stringify({ courseid: p.courseid, planid: p.planid }) });
