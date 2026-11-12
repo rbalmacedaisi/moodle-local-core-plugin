@@ -40,8 +40,18 @@ class cohort_pooling {
     /** @var array asignaturas que quedaron fuera por ser de cuatrimestre completo: courseid => nombre */
     protected $excluded = [];
 
-    public function __construct(array $res, array $rules) {
+    /** @var array grupos propuestos del periodo que se planifica: fila (asignatura|jornada|carrera) => [clave => true] */
+    protected $planned = [];
+
+    /**
+     * @param array $res resultado de demand_engine con horizonte
+     * @param array $rules reglas (min_group)
+     * @param array $planned estudiantes de los grupos ya propuestos en el periodo que se planifica (incluye los que adelantan),
+     *              por fila asignatura|jornada|carrera: se cuentan como el grupo que ya abre y no se vuelven a sugerir despues.
+     */
+    public function __construct(array $res, array $rules, array $planned = []) {
         $this->res = $res;
+        $this->planned = $planned;
         $this->min = max(1, (int)$rules['min_group']);
         $this->periodnames[0] = $res['period']['name'];
         foreach ((array)($res['horizon'] ?? []) as $h) {
@@ -145,6 +155,24 @@ class cohort_pooling {
                 if (isset($out[$rk])) {
                     $out[$rk] += ['courseid' => (int)$r['courseid'], 'name' => $r['name'], 'jornada' => $r['jornada'],
                         'isolated_plan' => (int)$r['isolated_plan']];
+                }
+            }
+        }
+        // Grupos ya propuestos para el periodo que se planifica: la celda del periodo es el grupo real (con los que ya
+        // adelantan) y esos estudiantes salen de los periodos siguientes (no se sugiere sumarlos otra vez).
+        foreach ($this->planned as $rk => $keys) {
+            if (!isset($out[$rk])) {
+                continue;
+            }
+            $out[$rk]['cells'][0] = array_values(array_unique(array_merge($out[$rk]['cells'][0] ?? [], array_keys($keys))));
+            foreach ($out[$rk]['cells'] as $k => $list) {
+                if ($k > 0) {
+                    $out[$rk]['cells'][$k] = array_values(array_filter($list, function ($key) use ($keys) {
+                        return !isset($keys[$key]);
+                    }));
+                    if (!$out[$rk]['cells'][$k]) {
+                        unset($out[$rk]['cells'][$k]);
+                    }
                 }
             }
         }

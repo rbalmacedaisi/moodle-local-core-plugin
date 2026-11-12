@@ -1179,7 +1179,8 @@ Vue.component('period-projection', {
             const advN = adv.reduce((a, c) => a + c.students.length, 0);
             const b0 = p.blocked.filter(b => b.k === 0).length;
             if (p.open_k === 0 && p.base) {
-                return 'Ya abre un grupo de ' + p.base + ' en ' + now + '. Se le pueden sumar ' + advN + ' que la adelantan desde '
+                return 'En ' + now + ' ya abre el grupo propuesto de ' + p.base
+                    + ' (el de "Grupos propuestos", con los que ya la adelantan). Se le pueden sumar ' + advN + ' más que la adelantan desde '
                     + adv.map(c => c.period).join(', ') + ', y así no quedan solos más adelante (' + p.total + ' en total).';
             }
             if (p.open_k === 0) {

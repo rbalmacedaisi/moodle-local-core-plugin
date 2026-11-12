@@ -101,7 +101,17 @@ class cohort_planning extends external_api {
             if ($params['horizon']) {
                 // Juntar cohortes chicas de periodos seguidos (solo lectura). Sin solucion: solo las del periodo que se
                 // planifica (las de periodos lejanos cambian con los nuevos ingresos).
-                $pool = (new \local_grupomakro_core\local\planning\cohort_pooling($result, planning_config::rules()))->build();
+                // Parte de los grupos que ya propone el periodo (con los que adelantan), para no sugerir lo que ya esta resuelto.
+                $planned = [];
+                $gb = (new \local_grupomakro_core\local\planning\group_builder($result, planning_config::rules()))->build();
+                foreach ($gb['groups'] as $g) {
+                    if (in_array($g['type'], ['grupo', 'excepcion'], true)) {
+                        foreach ($g['students'] as $key) {
+                            $planned[(int)$g['courseid'] . '|' . $g['jornada'] . '|' . (int)$g['isolated_plan']][$key] = true;
+                        }
+                    }
+                }
+                $pool = (new \local_grupomakro_core\local\planning\cohort_pooling($result, planning_config::rules(), $planned))->build();
                 $later = array_filter($pool['unsolved'], function ($u) {
                     return $u['k'] > 0;
                 });
