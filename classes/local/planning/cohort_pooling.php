@@ -80,6 +80,38 @@ class cohort_pooling {
     }
 
     /**
+     * Por que no se abre ya en el periodo que se planifica juntando a todos: cuantos llegarian (los del periodo + los de
+     * periodos siguientes que pueden adelantarla) y los motivos de los que no pueden, agrupados.
+     *
+     * @return array ['now' => int, 'can' => int, 'cannot' => int, 'min' => int, 'reasons' => [['text' => string, 'n' => int]]]
+     */
+    protected function why_not_now($cid, array $cells) {
+        $now = count(array_unique($cells[0] ?? []));
+        $can = 0;
+        $reasons = [];
+        foreach ($cells as $k => $keys) {
+            if ($k === 0) {
+                continue;
+            }
+            foreach (array_unique($keys) as $key) {
+                $why = $this->movable($key, $cid, $k, 0);
+                if ($why === '') {
+                    $can++;
+                } else {
+                    $why = preg_replace('/^no podría adelantarla: /u', '', $why);
+                    $reasons[$why] = ($reasons[$why] ?? 0) + 1;
+                }
+            }
+        }
+        arsort($reasons);
+        $list = [];
+        foreach ($reasons as $text => $n) {
+            $list[] = ['text' => $text, 'n' => $n];
+        }
+        return ['now' => $now, 'can' => $can, 'cannot' => array_sum($reasons), 'min' => $this->min, 'reasons' => $list];
+    }
+
+    /**
      * Puede el estudiante ver la asignatura en el periodo t (la tenia en k)? Devuelve '' si puede o el motivo.
      */
     public function movable($key, $cid, $k, $t) {
@@ -309,7 +341,9 @@ class cohort_pooling {
                     'moved' => array_sum(array_map(function ($c) {
                         return $c['action'] === 'a_tiempo' ? 0 : count($c['students']);
                     }, $cohorts)), 'cohorts' => $cohorts, 'blocked' => $blocked,
-                    'affects_next' => $best['t'] === 0 || in_array(0, array_column($cohorts, 'k'), true)];
+                    'affects_next' => $best['t'] === 0 || in_array(0, array_column($cohorts, 'k'), true),
+                    'why_not_now' => $best['t'] > 0 && in_array(0, array_column($cohorts, 'k'), true)
+                        ? $this->why_not_now($cid, $cells) : null];
             }
         }
         usort($pools, function ($a, $b) {

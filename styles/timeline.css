@@ -2670,3 +2670,4 @@ button.tl-btn.tl-btn-primary:active:not(:disabled) {
 .tl-sb-stale { background: #FFFBEB; border: 1px solid #FCD34D; border-radius: 10px; padding: 8px 12px; margin-bottom: 8px; font-size: 12.5px; }
 .tl-sb-stale .tl-cfg-btn { margin-left: 6px; }
 .tl-sb-stale-list { margin-top: 6px; max-height: 220px; overflow: auto; font-size: 12px; line-height: 1.6; }
+.tl-proj-pool-why { color: #475569; font-size: 12px; margin: 2px 0 3px; line-height: 1.45; }

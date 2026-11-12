@@ -246,6 +246,8 @@ Vue.component('period-projection', {
                             <div style="flex:1;min-width:0">
                                 <div><b>{{ pl.name }}</b> <span class="tl-cfg-help">· {{ pl.jornada || 'sin jornada' }}<template v-if="pl.isolated_plan"> · solo {{ careerName(pl.isolated_plan) }}</template></span></div>
                                 <div class="tl-proj-pool-say">{{ poolSentence(pl) }}</div>
+                                <div v-if="pl.why_not_now" class="tl-proj-pool-why"><v-icon size="13" color="#64748B">mdi-help-circle-outline</v-icon>
+                                    <b>¿Por qué no abrirla ahora juntando a todos?</b> {{ whyNotNow(pl) }}</div>
                                 <div class="tl-proj-pool-chips">
                                     <span v-for="c in pl.cohorts" :key="c.k" class="tl-plan-tag" :class="poolTag(c.action)">{{ c.period }}: {{ c.students.length }} {{ poolAction(c) }}</span>
                                     <span v-if="pl.base" class="tl-plan-tag tl-plan-tag-nivel">grupo que ya abre: {{ pl.base }}</span>
@@ -1172,6 +1174,23 @@ Vue.component('period-projection', {
                 : 'Muestra qué cambia antes de confirmar: no se abre en ' + this.result.period.name + ' y estos estudiantes la ven en ' + p.open_period;
         },
         poolParts(list) { return list.map(c => c.students.length + ' de ' + c.period).join(', '); },
+        // Motivo en lenguaje simple de por que no se abre en el periodo que se planifica juntando a todos.
+        whyNotNow(p) {
+            const w = p.why_not_now, now = this.result.period.name;
+            const reach = w.now + w.can;
+            const parts = w.now + ' a los que les toca' + (w.can ? ' + ' + w.can + ' que pueden adelantarla' : '');
+            if (reach >= w.min) {
+                return 'Se podría abrir en ' + now + ' con ' + reach + ' (' + parts + '), pero habría que adelantar a más estudiantes o por más '
+                    + 'tiempo; la propuesta es la que menos mueve. Si se prefiere abrir ya, se puede decidir desde "Próximo periodo".';
+            }
+            let txt = 'En ' + now + ' llegarían ' + reach + ' (' + parts + ') y el mínimo es ' + w.min + '.';
+            if (w.cannot) {
+                const top = w.reasons.slice(0, 3).map(r => r.text + (r.n > 1 ? ' (' + r.n + ')' : '')).join('; ');
+                txt += ' Otros ' + w.cannot + ' de periodos siguientes no pueden adelantarla: ' + top
+                    + (w.reasons.length > 3 ? '; y otros motivos' : '') + '.';
+            }
+            return txt;
+        },
         // Una frase en lenguaje simple con lo que propone el sistema.
         poolSentence(p) {
             const now = this.result.period.name;
