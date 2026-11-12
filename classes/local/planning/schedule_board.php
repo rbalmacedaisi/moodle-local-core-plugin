@@ -256,7 +256,9 @@ class schedule_board {
             return strcmp($a['name'], $b['name']);
         });
 
-        // Ocupacion fija: clases del periodo y clases de otros periodos que siguen corriendo en sus fechas.
+        // Ocupacion fija: clases del periodo y clases de otros periodos que siguen corriendo en sus fechas. Una clase de otro
+        // periodo solo ocupa si le quedan sesiones desde el inicio de este (una fecha de fin mal puesta no la vuelve ocupada;
+        // las cuatrimestrales que siguen en curso si).
         $fixed = [];
         $horizonend = $end + 70 * 86400;
         $classes = $DB->get_records_select('gmk_class',
@@ -266,7 +268,13 @@ class schedule_board {
         if ($classes) {
             list($insql, $inparams) = $DB->get_in_or_equal(array_keys($classes));
             $sess = [];
+            $lastdate = [];   // classid => ultima fecha agendada (Y-m-d), si el horario tiene fechas
             foreach ($DB->get_records_select('gmk_class_schedules', "classid $insql", $inparams) as $s) {
+                $dates = array_diff((array)json_decode((string)($s->assigned_dates ?? ''), true),
+                    (array)json_decode((string)($s->excluded_dates ?? ''), true));
+                if ($dates) {
+                    $lastdate[(int)$s->classid] = max($lastdate[(int)$s->classid] ?? '', max($dates));
+                }
                 $dn = self::day_num($s->day);
                 $a = self::to_min($s->start_time);
                 $b = self::to_min($s->end_time);
@@ -288,6 +296,9 @@ class schedule_board {
             foreach ($classes as $c) {
                 if (empty($sess[(int)$c->id]) || isset($pubids[(int)$c->id])) {
                     continue;
+                }
+                if ((int)$c->periodid !== (int)$periodid && isset($lastdate[(int)$c->id]) && $lastdate[(int)$c->id] < date('Y-m-d', $start)) {
+                    continue; // ya no tiene sesiones en este periodo
                 }
                 $fixed[] = ['id' => (int)$c->id, 'name' => $c->name, 'courseid' => (int)$c->corecourseid,
                     'teacherid' => (int)$c->instructorid, 'jornada' => (string)$c->shift, 'samePeriod' => (int)$c->periodid === (int)$periodid,
