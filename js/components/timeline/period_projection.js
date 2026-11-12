@@ -50,6 +50,8 @@ Vue.component('period-projection', {
                 <v-icon size="14">mdi-calendar-multiple</v-icon> Próximos periodos</button>
             <button v-if="hasBoard" class="tl-plan-tab" :class="{ 'tl-plan-tab-active': view === 'board' }" @click="openBoard">
                 <v-icon size="14">mdi-calendar-edit</v-icon> Tablero de horarios</button>
+            <button class="tl-plan-tab" :class="{ 'tl-plan-tab-active': view === 'modules' }" @click="openModules">
+                <v-icon size="14">mdi-briefcase-outline</v-icon> Módulos y sin horario<span v-if="modRowsAll.length" class="tl-plan-tab-count">{{ modRowsAll.length }}</span></button>
         </div>
 
         <div class="tl-proj-toolbar" v-show="view !== 'board'">
@@ -73,6 +75,43 @@ Vue.component('period-projection', {
         <!-- TABLERO DE HORARIOS (se mantiene vivo al cambiar de pestana para no perder cambios sin guardar) -->
         <schedule-board v-if="boardOpened" v-show="view === 'board'" :periodid="result.period.id" :period-name="result.period.name"
                         :plan-ids="planIds" :can-edit="canEdit" @proposal-saved="grouping = null"></schedule-board>
+        <!-- MODULOS Y SIN HORARIO: lo que se carga sin clase (no va al tablero) -->
+        <div v-if="view === 'modules'" class="tl-proj-mods">
+            <div class="tl-cfg-help mb-2">Asignaturas que se cargan <b>sin clase</b>: no tienen docente, aula ni horario y no aparecen en el tablero.
+                <b>Sin horario</b> = práctica profesional y similares (Configuración → Costos y duración); se carga a todos los que les toca.
+                <b>Módulo</b> = decidido en "Próximo periodo" (o al juntar cohortes) para estudiantes puntuales; cada uno avanza por su cuenta y no pasa por pago.
+                Se inscriben al publicar, desde la ventana "Publicar" del tablero de horarios.</div>
+            <div v-if="groupsLoading && !grouping" class="tl-plan-empty" style="padding:16px">Calculando…</div>
+            <div v-else-if="groupsError" class="tl-cfg-msg tl-cfg-msg-error">{{ groupsError }}</div>
+            <template v-else-if="grouping">
+                <div class="tl-proj-mods-head">
+                    <span><b>{{ modRows.length }}</b> asignatura(s) · <b>{{ modRows.reduce((a, r) => a + r.students.length, 0) }}</b> estudiante(s)</span>
+                    <v-spacer></v-spacer>
+                    <button class="tl-proj-flexbtn" :disabled="!modRows.length" @click="exportModules">
+                        <v-icon size="13">mdi-download</v-icon> Exportar (Excel)</button>
+                </div>
+                <div v-for="r in modRows" :key="r.key" class="tl-proj-mods-row">
+                    <div class="d-flex align-center" style="gap:8px;cursor:pointer" @click="$set(modOpen, r.key, !modOpen[r.key])">
+                        <v-icon size="16">{{ modOpen[r.key] ? 'mdi-chevron-down' : 'mdi-chevron-right' }}</v-icon>
+                        <span class="tl-plan-tag" :class="r.type === 'modulo' ? 'tl-plan-tag-nivel' : 'tl-plan-tag-muted'">{{ r.type === 'modulo' ? 'Módulo · sin pago' : 'Sin horario' }}</span>
+                        <b>{{ r.name }}</b>
+                        <span class="tl-cfg-help">· {{ r.type === 'sin_horario' ? 'todas las jornadas' : r.jornada }}<template v-if="r.isolated"> · solo {{ careerName(r.isolated) }}</template></span>
+                        <v-spacer></v-spacer>
+                        <b>{{ r.students.length }}</b>&nbsp;<span class="tl-cfg-help">estudiante(s)</span>
+                    </div>
+                    <div v-if="r.decision" class="tl-cfg-help" style="margin:2px 0 0 24px">Decisión: {{ decisionLabel(r.decision) }}<template v-if="r.decision.note"> — {{ r.decision.note }}</template>
+                        <template v-if="r.decision.byname"> ({{ r.decision.byname }}, {{ fmt(r.decision.time) }})</template></div>
+                    <div v-if="modOpen[r.key]" class="tl-proj-mods-list">
+                        <div v-for="s in r.students" :key="s.key" class="tl-plan-name-row tl-proj-stu">
+                            <span class="tl-proj-stu-name">{{ s.name }}</span>
+                            <span v-if="s.finishing" class="tl-plan-tag tl-proj-tag-finish">egresa</span>
+                            <span class="tl-proj-stu-meta">{{ shortPlan(s.plan) }} · {{ s.level }} · {{ s.jornada || 'sin jornada' }} · {{ s.documento }}</span>
+                        </div>
+                    </div>
+                </div>
+                <div v-if="!modRows.length" class="tl-plan-empty">Nada que cargar como módulo o sin horario con este filtro.</div>
+            </template>
+        </div>
         <div v-if="careerFilter && view !== 'board'" class="tl-proj-filter-note">
             Mostrando las asignaturas que necesita <b>{{ careerName(careerFilter) }}</b>. En cada jornada se ve cuántos son de esta
             carrera y, si el grupo se completa con otras carreras, el total del grupo.
@@ -609,7 +648,7 @@ Vue.component('period-projection', {
     data() {
         return { q: '', filter: 'all', jornada: '', careerFilter: 0, open: {}, selected: {},
             view: 'next', boardOpened: false, future: null, poolOpen: true, poolTab: 'next', poolDetail: null, poolDlg: null, futureLoading: false, futureError: '', cellDetail: null, costOpen: false, openRep: {},
-            grouping: null, groupsLoading: false, groupsError: '', groupTab: 'list', groupDetail: null, alertType: 'all', alertLimit: 200,
+            grouping: null, groupsLoading: false, groupsError: '', modOpen: {}, groupTab: 'list', groupDetail: null, alertType: 'all', alertLimit: 200,
             savedProposal: null, proposalSaving: false,
             exc: { show: false, mode: 'grupo', items: [], note: '', error: '', saving: false },
             catLabel: { nivel: 'nivel', atrasada: 'atrasada', repite: 'repite', adelanto: 'adelanto' },
@@ -805,6 +844,24 @@ Vue.component('period-projection', {
                 out[key] = out[key] ? out[key] + '\n' + txt : txt;
             }));
             return out;
+        },
+        // Lo que se carga sin clase (modulos y sin horario), de la propuesta de grupos.
+        modRowsAll() {
+            if (!this.grouping || !this.grouping.groups) return [];
+            const st = this.grouping.st || {};
+            return this.grouping.groups.filter(g => g.type === 'modulo' || g.type === 'sin_horario').map(g => ({
+                key: g.courseid + '|' + g.jornada + '|' + (g.isolated_plan || 0) + '|' + g.number, type: g.type, courseid: g.courseid,
+                name: g.name, jornada: g.jornada, isolated: g.isolated_plan || 0,
+                decision: g.type === 'modulo' ? (this.exceptionMap[g.courseid + '|' + g.jornada + '|' + (g.isolated_plan || 0)] || null) : null,
+                students: (g.students || []).map(k => Object.assign({ key: k }, st[k] || { name: k }))
+                    .sort((a, b) => String(a.name).localeCompare(String(b.name))),
+            })).sort((a, b) => (a.type === b.type ? 0 : a.type === 'sin_horario' ? -1 : 1) || a.name.localeCompare(b.name));
+        },
+        modRows() {
+            const q = this.q.toLowerCase(), jf = this.jornada, cf = this.careerFilter;
+            return this.modRowsAll.filter(r => (!q || r.name.toLowerCase().includes(q)) && (!jf || r.type === 'sin_horario' || r.jornada === jf))
+                .map(r => cf ? Object.assign({}, r, { students: r.students.filter(s => s.planid === cf) }) : r)
+                .filter(r => r.students.length);
         },
         hasBoard() { return !!window.GmkBoard && !!Vue.options.components['schedule-board']; },
         // Grupos filtrados por carrera, jornada y busqueda, agrupados por asignatura + jornada.
@@ -1053,6 +1110,19 @@ Vue.component('period-projection', {
             document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(url);
         },
         openBoard() { this.view = 'board'; this.boardOpened = true; },
+        async openModules() { this.view = 'modules'; await this.loadGrouping(); },
+        exportModules() {
+            const esc = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+            const lines = [['Tipo', 'Asignatura', 'Jornada', 'Estudiante', 'Documento', 'Correo', 'Carrera', 'Nivel', 'Egresa', 'Decisión'].map(esc).join(',')];
+            this.modRows.forEach(r => r.students.forEach(s => lines.push([r.type === 'modulo' ? 'Módulo' : 'Sin horario', r.name,
+                r.type === 'sin_horario' ? 'Todas' : r.jornada, s.name, s.documento, s.email, s.plan, s.level, s.finishing ? 'Sí' : '',
+                r.decision ? this.decisionLabel(r.decision) + (r.decision.note ? ' — ' + r.decision.note : '') : ''].map(esc).join(','))));
+            const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url; link.download = 'modulos_sin_horario_' + this.result.period.name + '.csv';
+            document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(url);
+        },
         async openFuture() {
             this.view = 'future';
             await this.loadFuture();
