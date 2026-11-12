@@ -1045,7 +1045,11 @@ class planning_config {
         }
         $before = scheduler_settings::get_config();
         $merged = json_decode(json_encode($before), true) ?: [];
-        $merged['subjectPreferences'] = $list;
+        if ($list) {
+            $merged['subjectPreferences'] = $list;
+        } else {
+            unset($merged['subjectPreferences']); // sin reglas: la configuracion queda como estaba
+        }
         if (!scheduler_settings::save_config($merged)) {
             return self::fail('No se pudo guardar la preferencia.');
         }
