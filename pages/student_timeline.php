@@ -6,6 +6,9 @@ require_once($CFG->libdir . '/externallib.php');
 
 $plugin_name = 'local_grupomakro_core';
 $assetversion = !empty($CFG->themerev) ? (int)$CFG->themerev : 1;
+// Tambien cambia con cada despliegue: fecha del JS/CSS mas reciente del plugin (si no, el navegador usa la version vieja).
+$assetfiles = array_merge(glob(__DIR__ . '/../js/components/*/*.js') ?: [], glob(__DIR__ . '/../js/*.js') ?: [], glob(__DIR__ . '/../styles/*.css') ?: []);
+$assetversion .= '-' . ($assetfiles ? max(array_map('filemtime', $assetfiles)) : 0);
 require_login();
 require_capability('local/grupomakro_core:view_student_timeline', context_system::instance());
 

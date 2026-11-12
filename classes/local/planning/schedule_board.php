@@ -99,7 +99,7 @@ class schedule_board {
             }
             foreach ($old as $k => $o) {
                 if (!isset($new[$k])) {
-                    $gone[] = ['name' => $o['name'], 'jornada' => $o['jornada'], 'reason' => 'ya no tiene grupo en la propuesta de hoy'];
+                    continue; // ya salio del tablero (va en $dropped)
                 } else if ($new[$k]['n'] !== $o['n'] || abs($new[$k]['size'] - $o['size']) >= 3) {
                     $changed[] = ['name' => $o['name'], 'jornada' => $o['jornada'], 'was' => $o['n'] . ' grupo(s), ' . $o['size'] . ' est.',
                         'now' => $new[$k]['n'] . ' grupo(s), ' . $new[$k]['size'] . ' est.'];
@@ -173,13 +173,25 @@ class schedule_board {
                 $decided[$e['key']] = $e['mode'];
             }
         }
+        // Igual con lo que ya no tiene grupo en la propuesta de hoy (paso a no obligatoria, ya no alcanza el minimo, etc.).
+        $today = null;
+        if (isset($demand['grouping'])) {
+            $today = [];
+            foreach ((array)$demand['grouping']['groups'] as $tg) {
+                $today[(int)$tg['courseid'] . '|' . trim((string)$tg['jornada']) . '|' . (int)($tg['isolated_plan'] ?? 0)] = true;
+            }
+        }
         $dropped = [];
         if ($saved) {
             foreach ($saved as $key => $g) {
                 $rk = (int)$g['courseid'] . '|' . trim((string)$g['jornada']) . '|' . (int)($g['isolated_plan'] ?? 0);
-                if (isset($decided[$rk]) && empty($published[$key])) {
-                    $dropped[] = ['key' => $key, 'name' => $g['name'], 'jornada' => $g['jornada'],
-                        'reason' => $decided[$rk] === 'cerrar' ? 'se decidió no abrirla' : 'se decidió como módulo (sin horario)'];
+                if (!empty($published[$key])) {
+                    continue;
+                }
+                $why = isset($decided[$rk]) ? ($decided[$rk] === 'cerrar' ? 'se decidió no abrirla' : 'se decidió como módulo (sin horario)')
+                    : ($today !== null && !isset($today[$rk]) ? 'ya no abre: no obligatoria, sin quórum u otro cambio' : '');
+                if ($why !== '') {
+                    $dropped[] = ['key' => $key, 'name' => $g['name'], 'jornada' => $g['jornada'], 'reason' => $why];
                     unset($saved[$key]);
                 }
             }
