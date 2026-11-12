@@ -269,7 +269,8 @@ Vue.component('period-projection', {
                             excepción o como módulo desde "Próximo periodo".<template v-if="future.pooling.unsolved_later"> Hay además {{ future.pooling.unsolved_later }}
                             casos en periodos lejanos: cambian con los nuevos ingresos.</template></div>
                         <div v-for="u in poolUnsolved" :key="u.key" class="tl-proj-pool-row">
-                            <div style="flex:1"><b>{{ u.name }}</b> <span class="tl-cfg-help">· {{ u.jornada || 'sin jornada' }} · {{ u.students.length }} estudiante(s)</span></div>
+                            <div style="flex:1"><b>{{ u.name }}</b> <span class="tl-cfg-help">· {{ u.jornada || 'sin jornada' }} · {{ u.students.length }} estudiante(s)</span>
+                                <span v-if="poolException(u)" class="tl-plan-tag tl-plan-tag-nivel">ya decidido: {{ decisionLabel(poolException(u)).toLowerCase() }}</span></div>
                             <button class="tl-proj-flexbtn" @click="poolDetail = Object.assign({ unsolved: true, cohorts: [{ k: 0, period: u.period, action: 'a_tiempo', shift: 0, students: u.students }], blocked: [] }, u)">Ver estudiantes</button>
                         </div>
                     </div>
@@ -1189,7 +1190,11 @@ Vue.component('period-projection', {
             }
             if (c0) {
                 const others = p.cohorts.filter(c => c.k !== 0);
-                return 'Propuesta: no abrirla en ' + now + '. Los ' + c0.students.length + ' de ' + now + ' esperan y la ven en ' + p.open_period
+                const dec = this.poolException(p);
+                const pre = dec && !dec.pool && dec.mode === 'grupo'
+                    ? 'Hoy está decidido abrirla en ' + now + ' bajo el mínimo (decisión de ' + (dec.byname || 'Dirección Académica') + '). Alternativa: no abrirla en ' + now + '. Los '
+                    : 'Propuesta: no abrirla en ' + now + '. Los ';
+                return pre + c0.students.length + ' de ' + now + ' esperan y la ven en ' + p.open_period
                     + ' junto con ' + this.poolParts(others) + ' (' + p.total + ' en total).'
                     + (b0 ? ' ' + b0 + ' no pueden esperar y se cargarían como módulo sin pago en ' + now + '.' : '');
             }
