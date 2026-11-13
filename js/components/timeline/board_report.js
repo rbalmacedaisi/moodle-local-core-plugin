@@ -85,7 +85,8 @@
         var st = ctx.dirty ? 'Incluye cambios sin guardar' : (ctx.draftInfo && ctx.draftInfo.saved_at
             ? 'Borrador guardado el ' + stampTxt(new Date(ctx.draftInfo.saved_at * 1000)) + (ctx.draftInfo.byname ? ' por ' + ctx.draftInfo.byname : '')
             : 'Borrador sin guardar');
-        return '<div class="hd"><div><b>' + esc(title) + '</b> · Periodo ' + esc(ctx.periodName) + '</div><div class="sm">' + esc(st)
+        var logo = window.gmkReportLogo ? '<img class="logo" src="' + esc(window.gmkReportLogo) + '" alt="">' : '';
+        return '<div class="hd"><div class="hl">' + logo + '<div><b>' + esc(title) + '</b> · Periodo ' + esc(ctx.periodName) + '</div></div><div class="sm">' + esc(st)
             + ' · Impreso ' + esc(nowTxt()) + ' · Propuesta: no son clases creadas salvo las marcadas "ya creada"</div></div>';
     }
 
@@ -165,7 +166,7 @@
     function css() {
         return '*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;font-size:10px;color:#111;margin:0}'
             + '.pg{page-break-after:always;padding:4px}.pg:last-child{page-break-after:auto}'
-            + '.hd{display:flex;justify-content:space-between;align-items:baseline;border-bottom:2px solid #333;margin-bottom:6px;padding-bottom:3px;font-size:12px}'
+            + '.hl{display:flex;align-items:center;gap:8px;white-space:nowrap;margin-right:12px}.hd>.sm{text-align:right}.logo{height:40px;width:auto}.hd{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #333;margin-bottom:6px;padding-bottom:3px;font-size:12px}'
             + '.sm{font-size:9px;color:#555}h2{font-size:14px;margin:4px 0 6px}h3{font-size:12px;margin:10px 0 4px}'
             + '.grid{display:grid;gap:0;border:1px solid #999}.dh{text-align:center;font-weight:bold;background:#eee;border-left:1px solid #999;padding:3px}'
             + '.ax{position:relative;border-top:1px solid #999}.hr{position:absolute;right:3px;font-size:8px;color:#555;transform:translateY(-50%)}'
@@ -247,22 +248,30 @@
             + '<div class="bar"><button onclick="window.print()">Imprimir</button><button onclick="window.close()">Cerrar</button>'
             + '<span class="sm">Consejo: en la ventana de impresión elija horizontal y "Gráficos de fondo" para ver los colores.</span></div>'
             + (pages.length ? pages : ['<div>No hay nada que imprimir.</div>']).map(function (p) { return '<div class="pg">' + header(ctx, title) + p + '</div>'; }).join('')
-            + '</body></html>');
+            + '<script>window.addEventListener("load",function(){setTimeout(function(){window.print();},200);});<\/script></body></html>');
         w.document.close();
         w.focus();
-        setTimeout(function () { try { w.print(); } catch (e) { /* el usuario puede usar el boton */ } }, 400);
     };
 
+    // En Moodle hay RequireJS: la libreria se registra como modulo AMD 'xlsx' y window.XLSX queda vacio.
     function loadXLSX() {
-        if (window.XLSX) return Promise.resolve(window.XLSX);
+        var ready = function () { return window.XLSX && window.XLSX.utils ? window.XLSX : null; };
+        var viaAmd = function (ok, fail) {
+            if (typeof window.require === 'function' && typeof window.define === 'function' && window.define.amd) {
+                window.require(['xlsx'], function (X) { if (X && X.utils) ok(X); else fail(new Error('La librería de Excel no cargó bien.')); },
+                    function () { fail(new Error('No se pudo cargar la librería de Excel.')); });
+            } else fail(new Error('La librería de Excel no cargó bien.'));
+        };
+        if (ready()) return Promise.resolve(ready());
         if (R._loading) return R._loading;
         R._loading = new Promise(function (ok, fail) {
+            if (window.XLSX && !window.XLSX.utils) { viaAmd(ok, fail); return; }   // ya inyectada antes
             var sc = document.createElement('script');
             sc.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
-            sc.onload = function () { ok(window.XLSX); };
-            sc.onerror = function () { R._loading = null; fail(new Error('No se pudo cargar la librería de Excel.')); };
+            sc.onload = function () { if (ready()) ok(ready()); else viaAmd(ok, fail); };
+            sc.onerror = function () { fail(new Error('No se pudo cargar la librería de Excel (¿sin internet?).')); };
             document.head.appendChild(sc);
-        });
+        }).catch(function (e) { R._loading = null; throw e; });
         return R._loading;
     }
     function sheet(X, aoa, widths) {

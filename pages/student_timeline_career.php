@@ -74,6 +74,22 @@ echo $OUTPUT->header();
 <script src="<?php echo $CFG->wwwroot; ?>/local/grupomakro_core/js/components/panels/cohort_plan_panel.js?v=<?php echo $assetversion; ?>"></script>
 <script src="<?php echo $CFG->wwwroot; ?>/local/grupomakro_core/js/components/timeline/board_engine.js?v=<?php echo $assetversion; ?>"></script>
 <script src="<?php echo $CFG->wwwroot; ?>/local/grupomakro_core/js/components/timeline/schedule_board.js?v=<?php echo $assetversion; ?>"></script>
+<?php
+// Logo de los informes impresos: el mismo del Reporte de Notas (logo del tema); si no hay, el del plugin.
+$reportlogo = $OUTPUT->get_logo_url();
+if (!$reportlogo) {
+    try {
+        $th = theme_config::load($CFG->theme);
+        if (!empty($th->settings->logo)) {
+            $reportlogo = new moodle_url('/theme/' . $CFG->theme . '/pix/static/' . basename($th->settings->logo));
+        }
+    } catch (\Throwable $e) {
+        $reportlogo = null;
+    }
+}
+$reportlogo = $reportlogo ? $reportlogo->out(false) : $CFG->wwwroot . '/local/grupomakro_core/pix/institute-logo.png';
+?>
+<script>window.gmkReportLogo = <?php echo json_encode($reportlogo); ?>;</script>
 <script src="<?php echo $CFG->wwwroot; ?>/local/grupomakro_core/js/components/timeline/board_report.js?v=<?php echo $assetversion; ?>"></script>
 <script src="<?php echo $CFG->wwwroot; ?>/local/grupomakro_core/js/components/timeline/period_projection.js?v=<?php echo $assetversion; ?>"></script>
 <script src="<?php echo $CFG->wwwroot; ?>/local/grupomakro_core/js/components/timeline/intake_timeline.js?v=<?php echo $assetversion; ?>"></script>
