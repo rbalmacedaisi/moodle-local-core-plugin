@@ -37,12 +37,18 @@ class publisher {
     /** Nombres de dia como los guarda gmk_class_schedules (sin tilde). */
     const DAYKEY = [1 => 'Lunes', 2 => 'Martes', 3 => 'Miercoles', 4 => 'Jueves', 5 => 'Viernes', 6 => 'Sabado', 7 => 'Domingo'];
 
-    /** Lo ya publicado: ['groups' => [key => classid], 'modules' => [courseid => [userid => classid]]]. */
+    /** Tiempo maximo de trabajo por llamada (el servidor corta las peticiones a los 120 s). */
+    const TIME_BUDGET = 70;
+
+    /**
+     * Lo ya publicado: ['groups' => [key => classid], 'modules' => [courseid => [userid => classid]],
+     * 'pending' => [key => classid]] ('pending': clase empezada y aun no terminada; si queda ahi, la publicacion se corto a medias).
+     */
     public static function published($periodid) {
         global $DB;
         $cfg = json_decode((string)$DB->get_field('gmk_academic_periods', 'configsettings', ['id' => $periodid]), true);
         $p = is_array($cfg) && !empty($cfg['board_published']) ? $cfg['board_published'] : [];
-        return ['groups' => (array)($p['groups'] ?? []), 'modules' => (array)($p['modules'] ?? [])];
+        return ['groups' => (array)($p['groups'] ?? []), 'modules' => (array)($p['modules'] ?? []), 'pending' => (array)($p['pending'] ?? [])];
     }
 
     protected static function save_published($periodid, array $pub) {
@@ -51,7 +57,8 @@ class publisher {
         if (!is_array($cfg)) {
             $cfg = [];
         }
-        $cfg['board_published'] = ['groups' => (object)$pub['groups'], 'modules' => (object)$pub['modules'], 'updated' => time()];
+        $cfg['board_published'] = ['groups' => (object)$pub['groups'], 'modules' => (object)$pub['modules'],
+            'pending' => (object)($pub['pending'] ?? []), 'updated' => time()];
         $DB->update_record('gmk_academic_periods', (object)['id' => $periodid,
             'configsettings' => json_encode($cfg, JSON_UNESCAPED_UNICODE), 'usermodified' => $USER->id, 'timemodified' => time()]);
     }
@@ -207,6 +214,12 @@ class publisher {
                     $row['blocks'][] = $e['mode'] === 'cerrar' ? 'Se decidió no abrir esta asignatura en esta jornada (Próximo periodo).'
                         : 'Se decidió como módulo sin horario (Próximo periodo): no se crea como clase.';
                 }
+            }
+            $half = (int)($pub['pending'][$g['key']] ?? 0);
+            if ($half && !$row['classid'] && $DB->record_exists('gmk_class', ['id' => $half])) {
+                $row['blocks'][] = 'La publicación anterior de este grupo se cortó a medias (clase ' . $half . ', incompleta). '
+                    . 'Hay que revisarla y limpiarla antes de volver a publicarlo.';
+                $row['half'] = $half;
             }
             if ($row['classid'] && !$DB->record_exists('gmk_class', ['id' => $row['classid']])) {
                 $row['warnings'][] = 'Se había publicado como clase ' . $row['classid'] . ' pero esa clase ya no existe (fue borrada); no se vuelve a crear sola.';
@@ -527,14 +540,27 @@ class publisher {
         foreach ((new demand_engine($pid))->compute()['students'] as $s) {
             $studentsall[(int)$s['userid']][] = $s;
         }
+        $t0 = time();
+        $report['more'] = false;   // true: quedo trabajo para la siguiente llamada (se corto por tiempo, sin dejar nada a medias)
+        $report['skipped'] = [];
         foreach ($keys as $k) {
             $g = $byKey[$k];
+            if ($report['created'] && time() - $t0 > self::TIME_BUDGET) {
+                $report['skipped'][] = $k;   // no hay tiempo para otra clase completa: va en la siguiente llamada
+                $report['more'] = true;
+                continue;
+            }
             try {
                 // Control: crear la clase no inscribe a nadie, pero Moodle recalcula las notas del curso al crear sus
                 // actividades y eso dispara la sincronizacion de "ultima nota". Se compara el avance de TODO el curso
                 // antes y despues; si algo cambia se informa con detalle y queda en el respaldo.
                 $before = self::progress_rows((int)$g['courseid']);
-                $classid = self::create_group_class($period, $g, $studentsall);
+                // Marca 'pending' antes de crear las estructuras de Moodle: si el servidor corta la peticion a mitad,
+                // el plan lo detecta y no se vuelve a crear el grupo encima.
+                $classid = self::create_group_class($period, $g, $studentsall, function ($cid) use (&$pub, $pid, $k) {
+                    $pub['pending'][$k] = $cid;
+                    self::save_published($pid, $pub);
+                });
                 $after = self::progress_rows((int)$g['courseid']);
                 $changed = [];
                 foreach ($after as $id => $row) {
@@ -549,10 +575,16 @@ class publisher {
                     $report['progress_changed'][] = ['key' => $k, 'classid' => $classid, 'course' => $g['name'], 'rows' => $changed];
                 }
                 $pub['groups'][$k] = $classid;
+                unset($pub['pending'][$k]);
                 self::save_published($pid, $pub);
                 $report['created'][] = ['key' => $k, 'classid' => $classid, 'name' => $DB->get_field('gmk_class', 'name', ['id' => $classid]),
                     'queue' => count($g['userids'])];
             } catch (\Throwable $e) {
+                // create_group_class ya borro la clase incompleta: se quita la marca.
+                if (isset($pub['pending'][$k]) && !$DB->record_exists('gmk_class', ['id' => (int)$pub['pending'][$k]])) {
+                    unset($pub['pending'][$k]);
+                    self::save_published($pid, $pub);
+                }
                 $report['failed'][] = ['key' => $k, 'name' => $g['name'] . ' G' . $g['number'], 'error' => $e->getMessage()];
             }
         }
@@ -566,6 +598,10 @@ class publisher {
             }));
         foreach ($rowsets as $m) {
             foreach ($m['pending'] as $uid) {
+                if (time() - $t0 > self::TIME_BUDGET) {
+                    $report['more'] = true;   // el resto de inscripciones va en la siguiente llamada
+                    break 2;
+                }
                 $planid = 0;
                 foreach ($studentsall[$uid] ?? [] as $s) {
                     foreach ($s['subjects'] as $x) {
@@ -611,7 +647,7 @@ class publisher {
     }
 
     /** Crea una clase del tablero como el Planificador Academico (sin aprobar, con cola), y sus estructuras de Moodle. */
-    protected static function create_group_class($period, array $g, array $studentsall) {
+    protected static function create_group_class($period, array $g, array $studentsall, callable $started = null) {
         global $DB, $USER;
         $pid = (int)$period->id;
         // Plan (local_learning_courses) de la mayoria del grupo que tiene la asignatura.
@@ -703,6 +739,9 @@ class publisher {
                 'timemodified' => $now]);
         }
         $tx->allow_commit();
+        if ($started) {
+            $started((int)$c->id);
+        }
 
         // Fase 2: estructuras de Moodle (grupo, seccion, actividades). Si algo falla, la clase se borra completa.
         try {

@@ -1189,23 +1189,33 @@ Vue.component('schedule-board', {
             const keys = this.pubKeys.slice();
             const mods = Object.keys(this.pub.mods).filter(k => this.pub.mods[k]).map(Number);
             const uns = Object.keys(this.pub.uns).filter(k => this.pub.uns[k]).map(Number);
-            // Por tandas: 3 clases por llamada (cada una crea grupo, seccion y actividades) y luego los modulos.
+            // Una clase por llamada (cada una crea grupo, seccion, asistencia y sesiones virtuales; el servidor corta a los
+            // 120 s) y luego los modulos, una asignatura por llamada. Si el servidor avisa que quedo trabajo ('more'), se repite.
             const batches = [];
-            for (let i = 0; i < keys.length; i += 3) batches.push({ keys: keys.slice(i, i + 3), modules: [], unscheduled: [] });
-            if (mods.length || uns.length) batches.push({ keys: [], modules: mods, unscheduled: uns });
+            keys.forEach(k => batches.push({ keys: [k], modules: [], unscheduled: [] }));
+            mods.forEach(c => batches.push({ keys: [], modules: [c], unscheduled: [] }));
+            uns.forEach(c => batches.push({ keys: [], modules: [], unscheduled: [c] }));
             const res = { created: [], failed: [], modules: [], progress: [] };
             this.pub.running = true; this.pub.done = 0; this.pub.total = batches.length;
             try {
+                let stop = false;
                 for (const b of batches) {
-                    const r = await this.ws('publish', Object.assign({ periodid: this.periodid, version: this.pub.plan.version }, b));
-                    if (!r.ok) {
-                        res.failed.push({ key: '-', name: 'Tanda ' + (this.pub.done + 1), error: r.message });
-                        break;
+                    for (let rep = 0; rep < 40 && !stop; rep++) {
+                        const r = await this.ws('publish', Object.assign({ periodid: this.periodid, version: this.pub.plan.version }, b));
+                        if (!r.ok) {
+                            // Si lo pedido ya quedo publicado en una vuelta anterior, no es error.
+                            if (rep > 0 && /no está listo para publicar: ya publicado/.test(r.message)) break;
+                            res.failed.push({ key: '-', name: 'Paso ' + (this.pub.done + 1), error: r.message });
+                            stop = true;
+                            break;
+                        }
+                        res.created = res.created.concat(r.saved.created || []);
+                        res.failed = res.failed.concat(r.saved.failed || []);
+                        res.modules = res.modules.concat(r.saved.modules || []);
+                        res.progress = res.progress.concat(r.saved.progress_changed || []);
+                        if (!r.saved.more) break;
                     }
-                    res.created = res.created.concat(r.saved.created || []);
-                    res.failed = res.failed.concat(r.saved.failed || []);
-                    res.modules = res.modules.concat(r.saved.modules || []);
-                    res.progress = res.progress.concat(r.saved.progress_changed || []);
+                    if (stop) break;
                     this.pub.done++;
                 }
             } catch (e) {
