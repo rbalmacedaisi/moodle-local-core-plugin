@@ -213,6 +213,14 @@ class demand_engine {
         // sigue siendo lo planificado para el periodo: no se toma como "ya cursando" (si no, al publicar el periodo
         // se veria vacio). Las cursadas en clases de otros periodos (p. ej. cuatrimestrales que siguen) no cambian.
         $here = array_flip(array_map('intval', $DB->get_fieldset_select('gmk_class', 'id', 'periodid = ?', [(int)$this->period->id])));
+        $loaded = [];   // "userid|courseid" => cargada en una clase o modulo de este periodo (cursando o en la cola)
+        foreach ($DB->get_records_sql("SELECT q.id, q.userid, c.corecourseid FROM {gmk_class_queue} q
+                JOIN {gmk_class} c ON c.id = q.classid WHERE c.periodid = ? AND c.closed = 0", [(int)$this->period->id]) as $q) {
+            $loaded[(int)$q->userid . '|' . (int)$q->corecourseid] = true;
+        }
+        $pubcfg = json_decode((string)$this->period->configsettings, true);
+        // Periodo ya publicado desde el tablero: lo no cargado en el pasa a proyectarse en el periodo siguiente.
+        $published = is_array($pubcfg) && (!empty($pubcfg['board_published']['groups']) || !empty($pubcfg['board_published']['modules']));
         $rs = $DB->get_recordset_sql("SELECT id, userid, courseid, status, classid FROM {gmk_course_progre}");
         foreach ($rs as $r) {
             $u = (int)$r->userid;
@@ -222,6 +230,7 @@ class demand_engine {
             $c = (int)$r->courseid;
             $s = (int)$r->status;
             if ($s === self::ST_IN_PROGRESS && isset($here[(int)$r->classid])) {
+                $loaded[$u . '|' . $c] = true;
                 continue;
             }
             if (!isset($hist[$u][$c]) || ($rank[$s] ?? 0) > ($rank[$hist[$u][$c]] ?? 0)) {
@@ -498,7 +507,8 @@ class demand_engine {
                 }
                 $d =& $demand[$dk];
                 $d['students'][] = ['key' => $k, 'category' => $sub['category'], 'prereq' => $sub['prereq'],
-                    'flex' => !empty($sub['flexible']) && empty($sub['flex_on'])];
+                    'flex' => !empty($sub['flexible']) && empty($sub['flex_on']),
+                    'loaded' => isset($loaded[$s['userid'] . '|' . $sub['courseid']])];
                 if (!empty($sub['flexible'])) {
                     $d['flexible'] = true;
                     $d['flex_on'] = !empty($sub['flex_on']);
@@ -546,7 +556,8 @@ class demand_engine {
             $totals['suspendidos'] += in_array('suspendido', $s['flags'], true) ? 1 : 0;
         }
 
-        $horizon = $this->horizon ? $this->project_horizon($students, $plancourses, $planperiods, $hist, $flex, $iso, $start) : [];
+        $horizon = $this->horizon ? $this->project_horizon($students, $plancourses, $planperiods, $hist, $flex, $iso, $start,
+            $loaded, $published) : [];
         // Con horizonte: estructura de planes (nivel y prelaciones por asignatura) e historial resumido, para juntar
         // cohortes chicas de periodos seguidos respetando prelaciones (cohort_pooling).
         $extra = [];
@@ -561,7 +572,8 @@ class demand_engine {
             $failed = [];
             foreach ($students as $key => $st) {
                 foreach ($hist[$st['userid']] ?? [] as $cid => $code) {
-                    if (in_array($code, [self::ST_APPROVED, self::ST_COMPLETED, self::ST_IN_PROGRESS, self::ST_MIGRATION, 6, 7], true)) {
+                    if (in_array($code, [self::ST_APPROVED, self::ST_COMPLETED, self::ST_IN_PROGRESS, self::ST_MIGRATION, 6, 7], true)
+                            || isset($loaded[$st['userid'] . '|' . $cid])) {
                         $done[$key][$cid] = 1;
                     } else if ($code === self::ST_FAILED) {
                         $failed[$key][$cid] = 1;
@@ -573,6 +585,7 @@ class demand_engine {
 
         return $extra + [
             'period' => $period,
+            'published' => $published,
             'horizon' => $horizon,
             'students' => $students,
             'cohorts' => array_values($cohortout),
@@ -591,7 +604,7 @@ class demand_engine {
      * @return array [['k','name','start','estimated','rows' => [['courseid','name','jornada','isolated_plan','levels','count','flex','students']]]]
      */
     protected function project_horizon(array $students, array $plancourses, array $planperiods, array $hist, array $flex,
-            array $iso, $start) {
+            array $iso, $start, array $loaded = [], $published = false) {
         global $DB;
         $pslot = academic_progress::slot_index($this->period->name);
         if ($pslot === null) {
@@ -627,8 +640,8 @@ class demand_engine {
                     }
                     $st = $h[$cid] ?? null;
                     if (in_array($st, [self::ST_APPROVED, self::ST_COMPLETED, self::ST_IN_PROGRESS, self::ST_FAILED,
-                            self::ST_MIGRATION, 6, 7], true)) {
-                        continue;
+                            self::ST_MIGRATION, 6, 7], true) || isset($loaded[$s['userid'] . '|' . $cid])) {
+                        continue;   // aprobada, cursando o cargada en el periodo que se planifica (se da por cursada)
                     }
                     $isoplan = (isset($iso['plans'][$pid]) || isset($iso['subjects'][$pid . '|' . $cid])) ? $pid : 0;
                     $rk = $cid . '|' . $s['jornada'] . '|' . $isoplan;
@@ -644,6 +657,38 @@ class demand_engine {
                     }
                     $row['levels'][self::ord_label($ordk)] = true;
                     $row['students'][] = $key;
+                    unset($row);
+                }
+            }
+        }
+        // Periodo ya publicado: lo que le tocaba a cada estudiante (nivel o atrasada, con prelaciones) y no se le cargo en
+        // ninguna clase ni modulo del periodo, se proyecta en el periodo siguiente. Lo cargado se da por cursado.
+        if ($published && isset($out[1])) {
+            foreach ($students as $key => $s) {
+                foreach ($s['subjects'] as $sub) {
+                    if (!in_array($sub['category'], [self::CAT_NIVEL, self::CAT_ATRASADA], true) || $sub['prereq'] === 'no'
+                            || isset($loaded[$s['userid'] . '|' . $sub['courseid']])) {
+                        continue;
+                    }
+                    $cid = (int)$sub['courseid'];
+                    $pid = $s['planid'];
+                    $isoplan = (isset($iso['plans'][$pid]) || isset($iso['subjects'][$pid . '|' . $cid])) ? $pid : 0;
+                    $rk = $cid . '|' . $s['jornada'] . '|' . $isoplan;
+                    if (!isset($out[1]['rows'][$rk])) {
+                        $out[1]['rows'][$rk] = ['courseid' => $cid, 'name' => $sub['name'], 'jornada' => $s['jornada'],
+                            'isolated_plan' => $isoplan, 'levels' => [], 'count' => 0, 'flex' => 0, 'students' => [], 'carried' => 0];
+                    }
+                    $row =& $out[1]['rows'][$rk];
+                    if (!empty($sub['flexible']) && empty($sub['flex_on'])) {
+                        $row['flex']++;
+                    } else {
+                        $row['count']++;
+                    }
+                    $row['carried'] = ($row['carried'] ?? 0) + 1;
+                    $row['levels'][$sub['level']] = true;
+                    if (!in_array($key, $row['students'], true)) {
+                        $row['students'][] = $key;
+                    }
                     unset($row);
                 }
             }

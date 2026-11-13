@@ -382,6 +382,10 @@ Vue.component('period-projection', {
             <div v-if="futureLoading" class="tl-plan-empty" style="padding:16px">Calculando periodos siguientes…</div>
             <div v-else-if="futureError" class="tl-cfg-msg tl-cfg-msg-error">{{ futureError }}</div>
             <div v-else-if="future" class="tl-proj-matrix-wrap">
+                <div v-if="future.published" class="tl-cfg-msg mb-2" style="background:#EEF2FF;color:#312E81">
+                    <b>{{ result.period.name }} ya está publicado:</b> su columna muestra solo lo que quedó cargado en sus clases y módulos.
+                    Lo que le tocaba a cada estudiante y no se le cargó (grupos sin publicar, excluidos por choques, decisiones de no abrir)
+                    pasa a {{ futureCols[1] ? futureCols[1].name : 'el periodo siguiente' }}; lo cargado se da por cursado.</div>
                 <table class="tl-proj-matrix">
                     <thead><tr>
                         <th class="tl-proj-mx-subj">Asignatura</th>
@@ -1038,7 +1042,14 @@ Vue.component('period-projection', {
                 c.count += n; c.flex += fx; c.best = Math.max(c.best, c.byJ[jk]);
                 ks.forEach(k => c.keys.push({ k, jornada }));
             };
+            const pub = !!this.future.published;
             (this.result.demand || []).forEach(d => {
+                if (pub) {
+                    // Periodo publicado: solo lo que quedo cargado en sus clases o modulos; lo demas pasa al siguiente.
+                    const lk = d.students.filter(x => x.loaded).map(x => x.key);
+                    if (lk.length) add('next', d.courseid, d.name, Number(d.isolated_plan || 0), d.jornada, lk.length, 0, lk, Object.keys(d.levels), false, lk.length);
+                    return;
+                }
                 const keys = d.students.filter(x => x.prereq !== 'no' && (x.category === 'nivel' || x.category === 'atrasada' || x.category === 'adelanto')).map(x => x.key);
                 add('next', d.courseid, d.name, Number(d.isolated_plan || 0), d.jornada, d.ready + d.by_category.adelanto,
                     d.flex_waiting || 0, keys, Object.keys(d.levels), !!d.flexible && !d.flex_on, d.ready);
@@ -1168,7 +1179,8 @@ Vue.component('period-projection', {
                     periodid: this.result.period.id, planids: this.planIds, horizon: 18 } });
                 if (r.data && r.data.exception) throw new Error(r.data.message || r.data.errorcode);
                 const d = JSON.parse(r.data.data);
-                this.future = Object.freeze({ horizon: d.result.horizon || [], students: d.result.students || {}, pooling: d.result.pooling || null });
+                this.future = Object.freeze({ horizon: d.result.horizon || [], students: d.result.students || {}, pooling: d.result.pooling || null,
+                    published: !!d.result.published });
             } catch (e) { this.futureError = 'No se pudo calcular: ' + (e.message || e); }
             finally { this.futureLoading = false; }
         },
