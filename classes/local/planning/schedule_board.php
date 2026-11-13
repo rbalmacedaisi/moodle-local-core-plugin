@@ -238,19 +238,17 @@ class schedule_board {
             }
         }
         $stale = $saved !== null ? self::proposal_changes($periodid, (array)$saved, $demand, $dropped) : null;
-        // Estudiantes excluidos por choques: salen de los grupos sin publicar de esa asignatura.
+        // Estudiantes excluidos por choques: salen de los grupos de esa asignatura. Tambien de los ya publicados: la clase
+        // se creo sin ellos (solo se puede excluir antes de publicar), y si no se quitan el tablero ve choques que no existen.
         $exclusions = planning_config::board_exclusions($periodid);
         if ($saved && $exclusions) {
             foreach ($saved as $key => $g) {
-                if (!empty($published[$key])) {
-                    continue;
-                }
                 $keep = function ($u) use ($g, $exclusions) {
                     return !isset($exclusions[(int)$g['courseid'] . '|' . (int)$u]);
                 };
                 $saved[$key]['userids'] = array_values(array_filter($g['userids'], $keep));
                 $saved[$key]['adelantos'] = array_values(array_filter($g['adelantos'] ?? [], $keep));
-                if (!$saved[$key]['userids']) {
+                if (!$saved[$key]['userids'] && empty($published[$key])) {
                     $dropped[] = ['key' => $key, 'name' => $g['name'], 'jornada' => $g['jornada'],
                         'reason' => 'todos sus estudiantes fueron excluidos por choques'];
                     unset($saved[$key]);
