@@ -61,24 +61,35 @@ class cohort_planning extends external_api {
         // Periodos que se pueden planificar: abiertos y con fecha de inicio (bloque 1 del calendario
         // o fecha de inicio del periodo). Por defecto, el proximo en iniciar.
         $periods = [];
+        // Periodos para el selector: los activos y los cerrados que se planificaron con el tablero (para consultarlos).
+        // Por defecto, el primer periodo activo que todavia no empieza (o el ultimo activo).
         $rows = $DB->get_records_sql(
-            "SELECT p.id, p.name, p.startdate, p.enddate, p.status, c.block1start
+            "SELECT p.id, p.name, p.startdate, p.enddate, p.status, p.configsettings, c.block1start
                FROM {gmk_academic_periods} p
           LEFT JOIN {gmk_academic_calendar} c ON c.academicperiodid = p.id
-              WHERE p.status = 1
            ORDER BY p.startdate ASC");
         $now = time();
         $default = 0;
+        $active = [];
         foreach ($rows as $r) {
+            $cfg = json_decode((string)$r->configsettings, true);
+            $planned = is_array($cfg) && (!empty($cfg['auto_proposal']) || !empty($cfg['board_published']));
+            if ((int)$r->status !== 1 && !$planned) {
+                continue;
+            }
             $start = !empty($r->block1start) ? (int)$r->block1start : (int)$r->startdate;
-            $periods[] = ['id' => (int)$r->id, 'name' => $r->name, 'start' => $start,
-                'enddate' => (int)$r->enddate, 'has_calendar' => $start > 0];
-            if (!$default && $start > $now) {
-                $default = (int)$r->id;
+            $periods[] = ['id' => (int)$r->id, 'name' => $r->name, 'start' => $start, 'enddate' => (int)$r->enddate,
+                'has_calendar' => !empty($r->block1start), 'active' => (int)$r->status === 1, 'planned' => $planned,
+                'state' => $start > $now ? 'por_empezar' : ((int)$r->enddate >= $now ? 'en_curso' : 'terminado')];
+            if ((int)$r->status === 1) {
+                $active[] = (int)$r->id;
+                if (!$default && $start > $now) {
+                    $default = (int)$r->id;
+                }
             }
         }
-        if (!$default && $periods) {
-            $default = $periods[count($periods) - 1]['id'];
+        if (!$default && $active) {
+            $default = end($active);
         }
         $pid = $params['periodid'] ?: $default;
         $plans = $params['planids'] !== '' ? array_map('intval', explode(',', $params['planids'])) : [];
@@ -135,6 +146,7 @@ class cohort_planning extends external_api {
         return ['data' => json_encode([
             'periods' => $periods,
             'selected_period' => $pid,
+            'default_period' => $default,
             'careers' => $careers,
             'rules' => planning_config::rules(),
             'result' => $result,

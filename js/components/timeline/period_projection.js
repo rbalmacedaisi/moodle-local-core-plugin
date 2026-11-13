@@ -11,7 +11,12 @@ Vue.component('period-projection', {
         <div class="tl-proj-head">
             <div class="tl-proj-title">
                 <v-icon size="18" color="#4F46E5">mdi-calendar-star</v-icon>
-                <span>Proyección {{ result.period.name }}</span>
+                <span>Proyección</span>
+                <select v-if="periods.length" class="tl-cfg-input tl-proj-persel" :value="result.period.id" @change="changePeriod($event)"
+                        title="Periodo que se planifica o se consulta">
+                    <option v-for="p in periods" :key="p.id" :value="p.id">{{ p.name }} — {{ periodState(p) }}</option>
+                </select>
+                <span v-else>{{ result.period.name }}</span>
                 <span class="tl-proj-sub">
                     <template v-if="jornadaStarts.length">
                         <span v-for="(j, i) in jornadaStarts" :key="j.name">{{ i ? ' · ' : 'inicia ' }}{{ j.name }} {{ fmt(j.ts) }}</span>
@@ -73,7 +78,7 @@ Vue.component('period-projection', {
             </div>
         </div>
         <!-- TABLERO DE HORARIOS (se mantiene vivo al cambiar de pestana para no perder cambios sin guardar) -->
-        <schedule-board v-if="boardOpened" v-show="view === 'board'" :periodid="result.period.id" :period-name="result.period.name"
+        <schedule-board v-if="boardOpened" ref="board" v-show="view === 'board'" :periodid="result.period.id" :period-name="result.period.name"
                         :plan-ids="planIds" :can-edit="canEdit" @proposal-saved="grouping = null"></schedule-board>
         <!-- MODULOS Y SIN HORARIO: lo que se carga sin clase (no va al tablero) -->
         <div v-if="view === 'modules'" class="tl-proj-mods">
@@ -639,6 +644,9 @@ Vue.component('period-projection', {
         showCareers: { type: Boolean, default: true },
         canEdit: { type: Boolean, default: true },
         planIds: { type: String, default: '' },
+        // Periodos para el selector (del WS) y el que se abre por defecto (el proximo por empezar).
+        periods: { type: Array, default: () => [] },
+        defaultPeriod: { type: Number, default: 0 },
         min: { type: Number, default: 12 },
         max: { type: Number, default: 30 },
     },
@@ -1419,6 +1427,21 @@ Vue.component('period-projection', {
         },
         resetGroups() { this.grouping = null; this.loadGrouping(); },
         // force: recalcula en silencio y reemplaza al llegar (se sigue viendo lo anterior mientras tanto).
+        periodState(p) {
+            const s = p.state === 'por_empezar' ? 'por empezar' : (p.state === 'en_curso' ? 'en curso' : 'terminado');
+            return s + (p.id === this.defaultPeriod ? ' (el próximo)' : '') + (!p.active ? ' · cerrado' : '') + (!p.has_calendar ? ' · sin calendario' : '');
+        },
+        // Cambia el periodo: el componente padre vuelve a calcular la proyeccion de ese periodo.
+        changePeriod(ev) {
+            const id = Number(ev.target.value);
+            const b = this.$refs.board;
+            if (b && b.dirty && !window.confirm('El tablero de horarios de ' + this.result.period.name + ' tiene cambios sin guardar. '
+                    + 'Si cambia de periodo se pierden. ¿Cambiar de todos modos?')) {
+                ev.target.value = this.result.period.id;
+                return;
+            }
+            this.$emit('period', id);
+        },
         async prefetch(force) {
             await this.loadGrouping(force);
             await this.loadFuture(force);

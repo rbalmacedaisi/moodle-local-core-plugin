@@ -71,6 +71,10 @@ Vue.component('intake-timeline', {
         <template v-if="canPlan && mainTab === 'proj'">
             <period-projection
                 v-if="planResults.length"
+                :key="planResults[0].period.id"
+                :periods="planPeriods"
+                :default-period="planDefaultPeriod"
+                @period="p => { planPeriod = p; loadPlanning(); }"
                 :result="planResults[0]"
                 scope-label="solo esta carrera; los grupos pueden completarse con otras carreras (ver la línea de tiempo general)"
                 :show-careers="false"
@@ -491,6 +495,7 @@ Vue.component('intake-timeline', {
             planCareers: [],
             planLoading: false,
             planResults: [],
+            planPeriod: 0, planPeriods: [], planDefaultPeriod: 0,   // selector de periodo de la proyeccion
             planPanel: { visible: false, cohort: '', plan: null, tab: 'subjects' },
             planGroups: [
                 { key: 'nivel', title: 'Por su nivel', bg: '#E0E7FF', color: '#4338CA', empty: 'Nada pendiente de su nivel' },
@@ -695,7 +700,9 @@ Vue.component('intake-timeline', {
             this.planLoading = true;
             try {
                 // Periodo por defecto: el proximo por iniciar (un periodo = un bimestre de clases).
-                const first = await this.callDemand(0);
+                const first = await this.callDemand(this.planPeriod || 0);
+                this.planPeriods = first.periods || [];
+                this.planDefaultPeriod = first.default_period || 0;
                 this.planResults = (first.result && !first.result.error) ? [Object.freeze(first.result)] : [];
                 this.planRules = first.rules || this.planRules;
                 this.planCareers = first.careers || [];

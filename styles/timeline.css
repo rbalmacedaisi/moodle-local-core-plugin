@@ -2685,3 +2685,6 @@ button.tl-btn.tl-btn-primary:active:not(:disabled) {
 .tl-sb-conffix { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 2px 0 6px 18px; }
 .tl-sb-conffix-t { font-size: 11px; color: #64748B; font-weight: 600; }
 .tl-sb-conffix-x { color: #B91C1C !important; }
+
+/* Selector de periodo de la proyeccion */
+.tl-proj-persel { width: auto; min-width: 210px; font-weight: 700; color: #312E81; margin: 0 4px; }

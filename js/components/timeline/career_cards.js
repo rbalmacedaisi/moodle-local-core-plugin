@@ -79,6 +79,10 @@ Vue.component('career-cards', {
         <template v-if="canPlan && mainTab === 'proj'">
             <period-projection
                 v-if="projection"
+                :key="projection.result.period.id"
+                :periods="projection.periods"
+                :default-period="projection.defaultPeriod"
+                @period="p => { projPeriod = p; loadProjection(); }"
                 :result="projection.result"
                 :careers="projection.careers"
                 :min="projection.rules.min_group"
@@ -208,6 +212,7 @@ Vue.component('career-cards', {
             mainTab: ({ '#proyeccion': 'proj', '#configuracion': 'config' })[window.location.hash] || 'careers',
             projLoading: false,
             projection: null,
+            projPeriod: 0,   // periodo elegido en el selector de la proyeccion (0 = el proximo por empezar)
             palette: [
                 '#6366F1', // indigo
                 '#8B5CF6', // violet
@@ -260,12 +265,13 @@ Vue.component('career-cards', {
             try {
                 const r = await window.axios.get(this.wsUrl, { params: {
                     wstoken: this.token, moodlewsrestformat: 'json', wsfunction: 'local_grupomakro_planning_get_demand',
-                    periodid: 0, planids: '',
+                    periodid: this.projPeriod || 0, planids: '',
                 } });
                 if (r.data && r.data.exception) throw new Error(r.data.message || r.data.errorcode);
                 const d = JSON.parse(r.data.data);
                 this.projection = (d.result && !d.result.error)
-                    ? { result: Object.freeze(d.result), careers: d.careers, rules: d.rules || { min_group: 12, max_group: 30 } } : null;
+                    ? { result: Object.freeze(d.result), careers: d.careers, rules: d.rules || { min_group: 12, max_group: 30 },
+                        periods: d.periods || [], defaultPeriod: d.default_period || 0 } : null;
             } catch (e) {
                 console.error('[timeline] proyeccion:', e);
             } finally {
