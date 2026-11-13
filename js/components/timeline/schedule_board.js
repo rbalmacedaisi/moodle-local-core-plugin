@@ -64,6 +64,17 @@ Vue.component('schedule-board', {
                     <option v-for="w in weekOpts" :key="w" :value="w">Semana {{ w }}</option>
                 </select>
                 <v-spacer></v-spacer>
+                <v-menu offset-y>
+                    <template v-slot:activator="{ on }"><button class="tl-cfg-btn tl-cfg-btn-ghost" v-on="on" title="Imprimir el horario tal como está en el tablero">
+                        <v-icon size="14">mdi-printer</v-icon> Imprimir</button></template>
+                    <v-list dense>
+                        <v-list-item v-for="m in printModes" :key="m.id" @click="printReport(m.id)"><v-list-item-content>
+                            <v-list-item-title>{{ m.title }}</v-list-item-title><v-list-item-subtitle>{{ m.sub }}</v-list-item-subtitle></v-list-item-content></v-list-item>
+                    </v-list>
+                </v-menu>
+                <button class="tl-cfg-btn tl-cfg-btn-ghost" :disabled="exporting" @click="exportExcel"
+                        title="Excel con el horario, las fechas de cada sesión, los estudiantes de cada grupo, docentes, aulas y choques">
+                    <v-icon size="14">mdi-microsoft-excel</v-icon> {{ exporting ? 'Exportando…' : 'Excel' }}</button>
                 <template v-if="canEdit">
                     <v-menu offset-y>
                         <template v-slot:activator="{ on }"><button class="tl-cfg-btn" v-on="on"><v-icon size="14" color="#fff">mdi-auto-fix</v-icon> Acomodar automáticamente</button></template>
@@ -200,10 +211,10 @@ Vue.component('schedule-board', {
                         <div v-if="placedSel">{{ dayName(info.p.day) }} {{ hhmm(info.p.start) }}–{{ hhmm(info.p.end) }}
                             <span class="tl-cfg-help">({{ info.p.end - info.p.start }} min{{ info.g.hours ? ', carga ' + info.g.hours + ' h' : '' }})</span>
                             <div class="tl-cfg-help">{{ E.weeksLabel(S, sel, info.p) }}</div></div>
+                        <div v-else class="tl-cfg-help">Sin horario: arrástrelo a la cuadrícula o use una sugerencia.</div>
                         <div class="tl-cfg-help">{{ info.g.sessions || '?' }} sesiones<template v-if="info.g.parts > 1"> en esta parte (parte {{ info.g.part }} de {{ info.g.parts }}: tiene más sesiones que semanas tiene
                             el bloque, por eso va en {{ info.g.parts }} fichas, en días distintos o seguidas en la misma franja si caben)</template>. Las asignaturas cortas usan solo las semanas que necesitan
                             y pueden ir seguidas de otra en la misma franja.</div>
-                        <div v-else class="tl-cfg-help">Sin horario: arrástrelo a la cuadrícula o use una sugerencia.</div>
                         <div class="d-flex align-center mt-1" style="gap:6px;flex-wrap:wrap" v-if="canEdit">
                             <label class="tl-cfg-help">Duración
                                 <select class="tl-cfg-input" style="width:90px" :value="durSel" @change="setDuration(Number($event.target.value))">
@@ -516,7 +527,13 @@ Vue.component('schedule-board', {
         return { loading: false, error: '', board: null, tick: 0, jornada: 'Diurna', q: '', tq: '', onlyIssues: false, sel: null, fixedSel: null,
             hover: null, failedOpen: false, dirty: false, weekSel: 0,
             prefDlg: { show: false, days: [], start: '', end: '', planid: 0, jornada: '', saving: false, msg: '' }, history: [], saving: false, saveDlg: false, showHelp: true, lastAction: null, version: 0,
-            draftInfo: { saved_at: 0, byname: '' }, ppm: 1.1, staleOpen: false,
+            draftInfo: { saved_at: 0, byname: '' }, ppm: 1.1, staleOpen: false, exporting: false,
+            printModes: [
+                { id: 'jornada', title: 'Horario por jornada', sub: 'Una hoja por jornada con la cuadrícula semanal' },
+                { id: 'docente', title: 'Horario por docente', sub: 'Una hoja por docente: cuadrícula y detalle' },
+                { id: 'aula', title: 'Horario por aula', sub: 'Una hoja por aula: ocupación y detalle' },
+                { id: 'listado', title: 'Listado de horarios', sub: 'Tabla por jornada con fechas, docente, aula y estado' },
+                { id: 'listas', title: 'Listas de clase', sub: 'Cada grupo con sus estudiantes, documento y carrera' }],
             pub: { show: false, loading: false, error: '', plan: null, sel: {}, mods: {}, uns: {}, confirm: false, showBlocked: false,
                 running: false, done: 0, total: 0, result: null },
             teacherDlg: { show: false, id: 0, q: '', addSkill: null, msg: '', err: false,
@@ -739,6 +756,24 @@ Vue.component('schedule-board', {
         },
     },
     methods: {
+        reportCtx() {
+            return { S: this.S, E: this.E, board: this.board, conflicts: this.sum.conflicts, periodName: this.periodName || (this.board.period && this.board.period.name) || '',
+                dirty: this.dirty, draftInfo: this.draftInfo };
+        },
+        printReport(mode) {
+            if (!window.GmkBoardReport || !this.S) return;
+            window.GmkBoardReport.print(this.reportCtx(), mode);
+        },
+        async exportExcel() {
+            if (!window.GmkBoardReport || !this.S) return;
+            this.exporting = true;
+            try {
+                const r = await window.GmkBoardReport.excel(this.reportCtx());
+                this.lastAction = { text: 'Excel descargado: ' + r.groups + ' grupos, ' + r.sessions + ' sesiones con fecha y ' + r.students + ' filas de estudiantes.'
+                    + (this.dirty ? ' Incluye los cambios sin guardar.' : '') };
+            } catch (e) { this.lastAction = { error: true, text: 'No se pudo exportar: ' + (e.message || e) }; }
+            finally { this.exporting = false; }
+        },
         hhmm(m) { return this.E.hhmm(m); },
         dayName(d) { return this.E.DAYS[d] || ''; },
         fmt(ts) { return ts ? new Date(ts * 1000).toLocaleDateString('es-PA', { day: '2-digit', month: 'short' }) : '-'; },

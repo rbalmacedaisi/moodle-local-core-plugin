@@ -360,7 +360,7 @@ class schedule_board {
             $groups[] = ['key' => $key, 'courseid' => $cid, 'name' => $g['name'], 'jornada' => $g['jornada'],
                 'isolated_plan' => (int)$g['isolated_plan'], 'number' => (int)$g['number'], 'of' => (int)$g['of'],
                 'type' => $g['type'], 'userids' => array_map('intval', $g['userids']), 'size' => count($g['userids']),
-                'adelantos' => count($g['adelantos'] ?? []), 'levels' => $levels, 'plans' => array_keys($plans),
+                'adelantos' => count($g['adelantos'] ?? []), 'adelanto_ids' => array_map('intval', $g['adelantos'] ?? []), 'levels' => $levels, 'plans' => array_keys($plans),
                 'duration' => $dur, 'hours' => $h ? $h['total'] : 0, 'long' => $islong,
                 'cal' => $calkey, 'weeks' => $weeks, 'sessions' => $sessions, 'parts' => $parts,
                 'published' => (int)($published[$key] ?? 0),
@@ -493,6 +493,16 @@ class schedule_board {
             'students' => (object)array_map(function ($list) {
                 return $list[0]['name'];
             }, $byuser),
+            // Detalle de los estudiantes de las fichas (solo lectura), para imprimir y exportar.
+            'student_info' => (object)array_map(function ($list) {
+                return ['doc' => (string)$list[0]['documento'], 'email' => (string)$list[0]['email'],
+                    'phone' => (string)$list[0]['phone'], 'jornada' => (string)$list[0]['jornada'], 'ingreso' => (string)$list[0]['ingreso'],
+                    'plans' => array_values(array_map(function ($s) {
+                        return ['plan' => (string)$s['plan'], 'level' => (string)$s['level'], 'finishing' => !empty($s['finishing'])];
+                    }, $list))];
+            }, array_intersect_key($byuser, array_flip(array_merge([], ...array_map(function ($g) {
+                return $g['userids'];
+            }, $groups))))),
             'holidays' => $holidays,
             'config' => [
                 'shiftWindows' => $cfg->shiftWindows ?? (object)[],
