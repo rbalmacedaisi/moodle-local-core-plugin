@@ -403,9 +403,38 @@ Vue.component('schedule-board', {
                             </table>
                             <template v-if="pubBlocked.length">
                                 <div class="tl-sb-sec-title mt-3">No se pueden publicar ({{ pubBlocked.length }}) <button class="tl-proj-flexbtn" @click="pub.showBlocked = !pub.showBlocked">{{ pub.showBlocked ? 'ocultar' : 'ver por qué' }}</button></div>
+                                <div v-if="pubConflictCount" class="tl-cfg-help mb-1">Los choques de estudiantes se pueden resolver aquí: elija de qué clase
+                                    sale cada grupo de estudiantes. Quedan en el informe de excluidos (abajo) para cargarles esa asignatura después, por ejemplo como módulo.</div>
                                 <div v-if="pub.showBlocked" class="tl-sb-failed">
-                                    <div v-for="g in pubBlocked" :key="g.key" class="tl-sb-failed-row" @click="pub.show = false; goTo(g.key)"><b>{{ g.name }} G{{ g.number }} ({{ g.jornada }})</b>: {{ g.blocks.join(' ') }}</div>
+                                    <div v-for="g in pubBlocked" :key="g.key" class="tl-sb-failed-row">
+                                        <div style="cursor:pointer" @click="pub.show = false; goTo(g.key)" title="Ver en el tablero"><b>{{ g.name }} G{{ g.number }} ({{ g.jornada }})</b>: {{ g.blocks.join(' ') }}</div>
+                                        <div v-for="(c, i) in g.student_conflicts" :key="g.key + '|sc' + i" class="tl-sb-fix">
+                                            <span><b>{{ c.userids.length }}</b> también en {{ c.with }}: {{ stuNames(c.userids) }}</span>
+                                            <template v-if="canEdit">
+                                                <button class="tl-proj-flexbtn" :disabled="pub.busy" @click.stop="excludeConflict(g, c, 'this')">Quitarlos de {{ g.name }} G{{ g.number }}</button>
+                                                <button v-if="c.with_key && !c.with_published" class="tl-proj-flexbtn" :disabled="pub.busy"
+                                                        @click.stop="excludeConflict(g, c, 'other')">Quitarlos de {{ c.with }}</button>
+                                            </template>
+                                        </div>
+                                    </div>
                                 </div>
+                            </template>
+                            <template v-if="(pub.plan.exclusions || []).length">
+                                <div class="tl-sb-sec-title mt-3">Estudiantes excluidos por choques ({{ pub.plan.exclusions.length }})
+                                    <button class="tl-proj-flexbtn" @click="exportExclusions"><v-icon size="13">mdi-microsoft-excel</v-icon> Exportar informe</button></div>
+                                <div class="tl-cfg-help mb-1">No se cargan en esa asignatura en {{ periodName }}. Queda registrado quién y cuándo, para cargársela después
+                                    (por ejemplo como módulo). Se puede deshacer mientras su grupo no esté publicado.</div>
+                                <table class="tl-cfg-table tl-sb-pubtable">
+                                    <thead><tr><th>Estudiante</th><th>Documento</th><th>Asignatura que no se le carga</th><th>Jornada</th><th>Por el choque con</th><th>Registrado</th><th></th></tr></thead>
+                                    <tbody>
+                                        <tr v-for="e in pub.plan.exclusions" :key="'x' + e.courseid + '|' + e.userid">
+                                            <td>{{ e.name }}<div class="tl-cfg-help">{{ e.plans }}</div></td><td>{{ e.documento }}</td><td>{{ e.course }}</td><td>{{ e.jornada }}</td>
+                                            <td>{{ e.with }}</td><td class="tl-cfg-help">{{ e.byname }}, {{ fmtLong(e.time) }}</td>
+                                            <td><button v-if="canEdit && !e.locked" class="tl-proj-flexbtn" :disabled="pub.busy" @click="undoExclusion(e)">Deshacer</button>
+                                                <span v-else-if="e.locked" class="tl-cfg-help">ya publicada</span></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
                             </template>
                             <template v-if="pub.plan.modules.length">
                                 <div class="tl-sb-sec-title mt-3">Módulos decididos en la proyección</div>
@@ -534,7 +563,7 @@ Vue.component('schedule-board', {
                 { id: 'aula', title: 'Horario por aula', sub: 'Una hoja por aula: ocupación y detalle' },
                 { id: 'listado', title: 'Listado de horarios', sub: 'Tabla por jornada con fechas, docente, aula y estado' },
                 { id: 'listas', title: 'Listas de clase', sub: 'Cada grupo con sus estudiantes, documento y carrera' }],
-            pub: { show: false, loading: false, error: '', plan: null, sel: {}, mods: {}, uns: {}, confirm: false, showBlocked: false,
+            pub: { show: false, loading: false, error: '', plan: null, sel: {}, mods: {}, uns: {}, confirm: false, showBlocked: false, busy: false,
                 running: false, done: 0, total: 0, result: null },
             teacherDlg: { show: false, id: 0, q: '', addSkill: null, msg: '', err: false,
                 newRange: { 1: { a: '', b: '' }, 2: { a: '', b: '' }, 3: { a: '', b: '' }, 4: { a: '', b: '' }, 5: { a: '', b: '' }, 6: { a: '', b: '' } } } };
@@ -741,6 +770,7 @@ Vue.component('schedule-board', {
         pubReady() { return this.pub.plan ? this.pub.plan.groups.filter(g => g.status === 'listo') : []; },
         pubBlocked() { return this.pub.plan ? this.pub.plan.groups.filter(g => g.status === 'bloqueado') : []; },
         pubKeys() { return this.pubReady.filter(g => this.pub.sel[g.key]).map(g => g.key); },
+        pubConflictCount() { return this.pubBlocked.reduce((a, g) => a + (g.student_conflicts || []).length, 0); },
         pubSelQueue() { return this.pubReady.filter(g => this.pub.sel[g.key]).reduce((a, g) => a + g.size, 0); },
         pubModCount() {
             if (!this.pub.plan) return 0;
@@ -1020,6 +1050,45 @@ Vue.component('schedule-board', {
             finally { this.pub.loading = false; }
         },
         pubAll(v) { const sel = {}; this.pubReady.forEach(g => { sel[g.key] = v; }); this.pub.sel = sel; },
+        stuNames(ids) {
+            const n = (this.pub.plan && this.pub.plan.students) || (this.board && this.board.students) || {};
+            return ids.map(u => n[u] || ('#' + u)).join(', ');
+        },
+        // Excluye a los estudiantes de un choque de una de las dos clases. side: 'this' (el grupo bloqueado) u 'other'.
+        async excludeConflict(g, c, side) {
+            const other = side === 'other' ? (this.pub.plan.groups.find(x => x.key === c.with_key) || null) : null;
+            const target = side === 'this' ? g.key : c.with_key;
+            const tname = side === 'this' ? g.name + ' G' + g.number + ' (' + g.jornada + ')' : (other ? other.name + ' G' + other.number + ' (' + other.jornada + ')' : c.with);
+            const why = side === 'this' ? c.with : g.name + ' G' + g.number + ' (' + g.jornada + ')';
+            if (!window.confirm('¿Quitar a ' + c.userids.length + ' estudiante(s) de ' + tname + '?\n\n' + this.stuNames(c.userids)
+                + '\n\nNo se les cargará esa asignatura en ' + this.periodName + '. Quedan en el informe de excluidos (por el choque con '
+                + why + ') para cargársela después, por ejemplo como módulo. Se puede deshacer mientras ese grupo no esté publicado. No cambia ninguna clase ya creada.')) return;
+            await this.exclusionWrite('exclusion_add', { periodid: this.periodid, group: target, userids: c.userids, with: why,
+                with_key: side === 'this' ? (c.with_key || '') : g.key });
+        },
+        async undoExclusion(e) {
+            if (!window.confirm('¿Deshacer la exclusión de ' + e.name + ' en ' + e.course + '? Vuelve a su grupo y el choque puede volver a aparecer.')) return;
+            await this.exclusionWrite('exclusion_remove', { periodid: this.periodid, items: [{ courseid: e.courseid, userid: e.userid }] });
+        },
+        async exclusionWrite(section, data) {
+            this.pub.busy = true;
+            let msg = null;
+            try {
+                const r = await this.ws(section, data);
+                msg = { text: r.message, error: !r.ok };
+                if (!r.ok) { window.alert(r.message); return; }
+                // Los grupos cambiaron en el servidor: se recarga el tablero y la revision de la publicacion.
+                const open = this.pub.showBlocked;
+                await this.load();
+                await this.openPublish();
+                this.pub.showBlocked = open;
+            } catch (e) { msg = { text: 'No se pudo guardar: ' + (e.message || e), error: true }; window.alert(msg.text); }
+            finally { this.pub.busy = false; if (msg) this.lastAction = msg; }
+        },
+        async exportExclusions() {
+            try { await window.GmkBoardReport.exclusionsExcel(this.pub.plan.exclusions, this.periodName); }
+            catch (e) { window.alert('No se pudo exportar: ' + (e.message || e)); }
+        },
         async publish() {
             const keys = this.pubKeys.slice();
             const mods = Object.keys(this.pub.mods).filter(k => this.pub.mods[k]).map(Number);

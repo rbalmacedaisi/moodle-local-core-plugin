@@ -200,7 +200,7 @@ class publisher {
                 'plans' => $g['plans'], 'long' => $g['long'], 'hours' => $g['hours'], 'from' => $from, 'to' => $to,
                 'cards' => [], 'day' => 0, 'start' => 0, 'end' => 0, 'teacherid' => 0, 'roomid' => 0, 'teacher' => '', 'room' => '',
                 'dates' => [], 'classid' => (int)($pub['groups'][$g['key']] ?? 0), 'blocks' => [], 'warnings' => [],
-                'event' => (string)($g['event'] ?? ''), 'yields' => !empty($g['yields'])];
+                'event' => (string)($g['event'] ?? ''), 'yields' => !empty($g['yields']), 'student_conflicts' => []];
             $rk = (int)$g['courseid'] . '|' . trim((string)$g['jornada']) . '|' . (int)($g['isolated_plan'] ?? 0);
             foreach ($res['exceptions'] as $e) {
                 if ($e['key'] === $rk && in_array($e['mode'], ['cerrar', 'modulo'], true) && !$row['classid']) {
@@ -346,6 +346,11 @@ class publisher {
                 }
                 if ($n) {
                     $rows[$k]['blocks'][] = $n . ' estudiante(s) también tienen ' . $o['name'] . ' a esa hora.';
+                    // Detalle para resolverlo excluyendo estudiantes de una de las dos clases.
+                    $okey = !empty($o['card']) ? (string)$o['row'] : '';
+                    $rows[$k]['student_conflicts'][$okey !== '' ? $okey : (string)$o['id']] = ['with' => $o['name'], 'with_key' => $okey,
+                        'with_published' => $okey !== '' && !empty($rows[$okey]['classid']),
+                        'userids' => array_values(array_map('intval', array_keys(array_intersect_key(array_flip($r['userids']), $o['users']))))];
                 }
                 if ($c['teacherid'] && $o['teacherid'] === $c['teacherid']) {
                     if ($rule && (in_array((int)($o['courseid'] ?? 0), $rule['parallel'], true) || (int)($o['courseid'] ?? 0) === (int)$r['courseid'])) {
@@ -426,6 +431,7 @@ class publisher {
         foreach ($rows as $k => $r) {
             $rows[$k]['blocks'] = array_values(array_unique($r['blocks']));
             $rows[$k]['warnings'] = array_values(array_unique($r['warnings']));
+            $rows[$k]['student_conflicts'] = array_values($r['student_conflicts']);
             $rows[$k]['status'] = $r['classid'] ? 'publicado' : ($rows[$k]['blocks'] ? 'bloqueado' : 'listo');
         }
 
@@ -452,7 +458,8 @@ class publisher {
             }
         }
         return ['ok' => true, 'message' => '', 'version' => $draft['version'], 'groups' => array_values($rows),
-            'modules' => $modules, 'unscheduled' => $unsched, 'totals' => $tot, 'module_due' => $modend];
+            'modules' => $modules, 'unscheduled' => $unsched, 'totals' => $tot, 'module_due' => $modend,
+            'exclusions' => $board['exclusions'] ?? [], 'students' => $board['students'] ?? (object)[]];
     }
 
     /** Filas de avance (gmk_course_progre) de una asignatura, para comparar antes/despues. */

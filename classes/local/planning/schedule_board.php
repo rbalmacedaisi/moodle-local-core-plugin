@@ -238,6 +238,25 @@ class schedule_board {
             }
         }
         $stale = $saved !== null ? self::proposal_changes($periodid, (array)$saved, $demand, $dropped) : null;
+        // Estudiantes excluidos por choques: salen de los grupos sin publicar de esa asignatura.
+        $exclusions = planning_config::board_exclusions($periodid);
+        if ($saved && $exclusions) {
+            foreach ($saved as $key => $g) {
+                if (!empty($published[$key])) {
+                    continue;
+                }
+                $keep = function ($u) use ($g, $exclusions) {
+                    return !isset($exclusions[(int)$g['courseid'] . '|' . (int)$u]);
+                };
+                $saved[$key]['userids'] = array_values(array_filter($g['userids'], $keep));
+                $saved[$key]['adelantos'] = array_values(array_filter($g['adelantos'] ?? [], $keep));
+                if (!$saved[$key]['userids']) {
+                    $dropped[] = ['key' => $key, 'name' => $g['name'], 'jornada' => $g['jornada'],
+                        'reason' => 'todos sus estudiantes fueron excluidos por choques'];
+                    unset($saved[$key]);
+                }
+            }
+        }
         $byuser = [];
         foreach ($demand['students'] ?? [] as $k => $s) {
             $byuser[(int)$s['userid']][] = $s;
@@ -507,6 +526,20 @@ class schedule_board {
             }, array_intersect_key($byuser, array_flip(array_merge([], ...array_map(function ($g) {
                 return $g['userids'];
             }, $groups))))),
+            // Informe de excluidos por choques (con los datos del estudiante para cargarle la asignatura despues).
+            'exclusions' => array_values(array_map(function ($e) use ($byuser, $DB, $published) {
+                $s = $byuser[(int)$e['userid']][0] ?? null;
+                if (!$s) {
+                    $u = $DB->get_record('user', ['id' => $e['userid']], 'id, firstname, lastname, idnumber, email');
+                    $s = ['name' => $u ? fullname($u) : ('Usuario ' . $e['userid']), 'documento' => $u ? (string)$u->idnumber : '',
+                        'email' => $u ? (string)$u->email : '', 'plan' => '', 'level' => ''];
+                }
+                return $e + ['name' => (string)$s['name'], 'documento' => (string)$s['documento'], 'email' => (string)$s['email'],
+                    'plans' => implode('; ', array_map(function ($x) {
+                        return trim(($x['plan'] ?? '') . ' · ' . ($x['level'] ?? ''), ' ·');
+                    }, $byuser[(int)$e['userid']] ?? [$s])),
+                    'locked' => !empty($published[$e['group']])];
+            }, $exclusions)),
             'holidays' => $holidays,
             'config' => [
                 'shiftWindows' => $cfg->shiftWindows ?? (object)[],

@@ -399,8 +399,31 @@
             });
             X.utils.book_append_sheet(wb, sheet(X, CH, [10, 40, 12, 10, 12, 9, 14, 100]), 'Choques y avisos');
 
+            var xs = exclusionRows(ctx.board.exclusions || []);
+            X.utils.book_append_sheet(wb, sheet(X, xs, EXCL_W), 'Excluidos por choque');
+
             X.writeFile(wb, 'horarios_' + String(ctx.periodName || 'periodo').replace(/[^\w-]+/g, '_') + '.xlsx');
             return { groups: groups.length, sessions: ses.length, students: ST.length - 1 };
+        });
+    };
+
+    // Informe de estudiantes excluidos de grupos por choques (para cargarles la asignatura despues).
+    var EXCL_W = [32, 14, 30, 40, 40, 10, 40, 24, 16, 10];
+    function exclusionRows(list) {
+        var out = [['Estudiante', 'Documento', 'Correo', 'Carrera(s) · nivel', 'Asignatura que no se le carga', 'Jornada', 'Por el choque con',
+            'Registrado por', 'Fecha', 'Grupo publicado']];
+        list.slice().sort(function (a, b) { return String(a.name).localeCompare(String(b.name)) || String(a.course).localeCompare(String(b.course)); })
+            .forEach(function (e) {
+                out.push([e.name, e.documento || '', e.email || '', e.plans || '', e.course, e.jornada, e.with || '', e.byname || '',
+                    e.time ? stampTxt(new Date(e.time * 1000)) : '', e.locked ? 'Sí' : '']);
+            });
+        return out;
+    }
+    R.exclusionsExcel = function (list, periodName) {
+        return loadXLSX().then(function (X) {
+            var wb = X.utils.book_new();
+            X.utils.book_append_sheet(wb, sheet(X, exclusionRows(list || []), EXCL_W), 'Excluidos por choque');
+            X.writeFile(wb, 'excluidos_por_choque_' + String(periodName || 'periodo').replace(/[^\w-]+/g, '_') + '.xlsx');
         });
     };
 

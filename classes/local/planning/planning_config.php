@@ -99,6 +99,111 @@ class planning_config {
         return $out;
     }
 
+    /**
+     * Estudiantes excluidos de grupos del tablero por choques (configsettings.board_exclusions). Un estudiante excluido
+     * no se carga en ningun grupo sin publicar de esa asignatura en el periodo; queda en el informe para cargarle
+     * la asignatura despues (p. ej. como modulo).
+     *
+     * @return array ["courseid|userid" => ['courseid','course','userid','jornada','group','with','with_key','note','by','byname','time']]
+     */
+    public static function board_exclusions($periodid) {
+        global $DB;
+        $cfg = json_decode((string)$DB->get_field('gmk_academic_periods', 'configsettings', ['id' => $periodid]), true);
+        $out = [];
+        foreach ((is_array($cfg) ? ($cfg['board_exclusions'] ?? []) : []) as $e) {
+            if (!empty($e['courseid']) && !empty($e['userid'])) {
+                $out[(int)$e['courseid'] . '|' . (int)$e['userid']] = $e;
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * Excluye estudiantes de un grupo del tablero (por un choque) o deshace exclusiones. Solo configsettings.
+     * add:    ['periodid', 'group' => clave del grupo, 'userids' => [...], 'with' => texto del choque, 'with_key', 'note']
+     * remove: ['periodid', 'items' => [['courseid', 'userid'], ...]]
+     */
+    protected static function save_board_exclusions(array $d, $remove) {
+        global $DB, $USER;
+        $pid = (int)($d['periodid'] ?? 0);
+        $p = $DB->get_record('gmk_academic_periods', ['id' => $pid]);
+        if (!$p) {
+            return self::fail('El periodo no existe.');
+        }
+        $current = self::board_exclusions($pid);
+        $before = $current;
+        $published = publisher::published($pid)['groups'];
+        $groups = schedule_board::board_groups($pid) ?? [];
+        $pubcourse = [];   // asignaturas con algun grupo ya publicado: courseid => true
+        foreach ($groups as $k => $g) {
+            if (!empty($published[$k])) {
+                $pubcourse[(int)$g['courseid']] = true;
+            }
+        }
+        if ($remove) {
+            $n = 0;
+            foreach ((array)($d['items'] ?? []) as $it) {
+                $k = (int)($it['courseid'] ?? 0) . '|' . (int)($it['userid'] ?? 0);
+                if (!isset($current[$k])) {
+                    continue;
+                }
+                if (!empty($published[$current[$k]['group']])) {
+                    return self::fail('El grupo de ' . $current[$k]['course'] . ' ya se publicó sin ese estudiante: súmelo desde la gestión de clases.');
+                }
+                unset($current[$k]);
+                $n++;
+            }
+            if (!$n) {
+                return self::fail('No había nada que deshacer.');
+            }
+            $msg = $n . ' exclusión(es) deshecha(s): el estudiante vuelve a su grupo.';
+        } else {
+            $key = (string)($d['group'] ?? '');
+            if (!isset($groups[$key])) {
+                return self::fail('Ese grupo no está en el tablero.');
+            }
+            if (!empty($published[$key])) {
+                return self::fail('Ese grupo ya está publicado: se cambia desde la gestión de clases.');
+            }
+            $g = $groups[$key];
+            $ingroup = array_flip(array_map('intval', $g['userids']));
+            $userids = array_values(array_unique(array_map('intval', (array)($d['userids'] ?? []))));
+            if (!$userids) {
+                return self::fail('No se eligió ningún estudiante.');
+            }
+            foreach ($userids as $u) {
+                if (!isset($ingroup[$u])) {
+                    return self::fail('Un estudiante elegido no está en ese grupo.');
+                }
+            }
+            $with = trim((string)($d['with'] ?? ''));
+            foreach ($userids as $u) {
+                $current[(int)$g['courseid'] . '|' . $u] = ['courseid' => (int)$g['courseid'], 'course' => (string)$g['name'],
+                    'userid' => $u, 'jornada' => (string)$g['jornada'], 'group' => $key, 'with' => $with,
+                    'with_key' => (string)($d['with_key'] ?? ''), 'note' => trim((string)($d['note'] ?? '')),
+                    'by' => (int)$USER->id, 'byname' => fullname($USER), 'time' => time()];
+            }
+            $msg = count($userids) . ' estudiante(s) excluido(s) de ' . $g['name'] . ' (' . $g['jornada'] . '). Quedan en el informe para cargarles la asignatura después.';
+        }
+        $cfg = json_decode((string)$p->configsettings, true);
+        if (!is_array($cfg)) {
+            $cfg = [];
+        }
+        if ($current) {
+            $cfg['board_exclusions'] = array_values($current);
+        } else {
+            unset($cfg['board_exclusions']);
+        }
+        $tx = $DB->start_delegated_transaction();
+        $DB->update_record('gmk_academic_periods', (object)['id' => $pid,
+            'configsettings' => $cfg ? json_encode($cfg, JSON_UNESCAPED_UNICODE) : null,
+            'usermodified' => $USER->id, 'timemodified' => time()]);
+        $tx->allow_commit();
+        self::backup('exclusiones_tablero_' . $pid, ['accion' => $remove ? 'deshacer' : 'excluir', 'pedido' => $d,
+            'antes' => array_values($before), 'despues' => array_values($current)]);
+        return self::ok($msg, array_values(self::board_exclusions($pid)));
+    }
+
     public static function exception_key($courseid, $jornada, $isoplan) {
         return (int)$courseid . '|' . trim((string)$jornada) . '|' . (int)$isoplan;
     }
@@ -690,6 +795,10 @@ class planning_config {
 
             case 'flex_toggle':
                 return self::toggle_flexible($data);
+
+            case 'exclusion_add':
+            case 'exclusion_remove':
+                return self::save_board_exclusions($data, $section === 'exclusion_remove');
 
             case 'special_set':
             case 'special_remove':
