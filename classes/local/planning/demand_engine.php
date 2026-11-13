@@ -209,7 +209,11 @@ class demand_engine {
         $hist = []; // userid => courseid => status (el "mejor" estado si hay varias filas)
         $rank = [self::ST_APPROVED => 9, self::ST_COMPLETED => 8, self::ST_IN_PROGRESS => 7, 6 => 6, 7 => 6,
                  self::ST_MIGRATION => 5, self::ST_FAILED => 4, self::ST_AVAILABLE => 2, self::ST_NOT_AVAILABLE => 1];
-        $rs = $DB->get_recordset_sql("SELECT id, userid, courseid, status FROM {gmk_course_progre}");
+        // Lo que ya se cargo en clases (o modulos) de ESTE mismo periodo -al publicar el tablero y aprobar las clases-
+        // sigue siendo lo planificado para el periodo: no se toma como "ya cursando" (si no, al publicar el periodo
+        // se veria vacio). Las cursadas en clases de otros periodos (p. ej. cuatrimestrales que siguen) no cambian.
+        $here = array_flip(array_map('intval', $DB->get_fieldset_select('gmk_class', 'id', 'periodid = ?', [(int)$this->period->id])));
+        $rs = $DB->get_recordset_sql("SELECT id, userid, courseid, status, classid FROM {gmk_course_progre}");
         foreach ($rs as $r) {
             $u = (int)$r->userid;
             if (!isset($userids[$u])) {
@@ -217,6 +221,9 @@ class demand_engine {
             }
             $c = (int)$r->courseid;
             $s = (int)$r->status;
+            if ($s === self::ST_IN_PROGRESS && isset($here[(int)$r->classid])) {
+                continue;
+            }
             if (!isset($hist[$u][$c]) || ($rank[$s] ?? 0) > ($rank[$hist[$u][$c]] ?? 0)) {
                 $hist[$u][$c] = $s;
             }
