@@ -37,6 +37,10 @@ class schedule_board {
     /** Numero de dia (1-7) a partir del nombre, con o sin tilde, en espanol o ingles. 0 si no se reconoce. */
     public static function day_num($name) {
         $n = \core_text::strtolower(trim((string)$name));
+        // Algunos horarios guardan el dia como numero (1 = lunes ... 6 = sabado; 0 o 7 = domingo).
+        if (preg_match('/^[0-7]$/', $n)) {
+            return (int)$n === 0 ? 7 : (int)$n;
+        }
         $n = strtr($n, ['á' => 'a', 'é' => 'e', 'í' => 'i', 'ó' => 'o', 'ú' => 'u']);
         $map = ['lunes' => 1, 'martes' => 2, 'miercoles' => 3, 'jueves' => 4, 'viernes' => 5, 'sabado' => 6, 'domingo' => 7,
             'monday' => 1, 'tuesday' => 2, 'wednesday' => 3, 'thursday' => 4, 'friday' => 5, 'saturday' => 6, 'sunday' => 7];
