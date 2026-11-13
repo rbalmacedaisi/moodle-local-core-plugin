@@ -278,10 +278,18 @@ Vue.component('schedule-board', {
                     </div>
                     <div class="tl-sb-sec" v-if="info.conf.length">
                         <div class="tl-sb-sec-title">Choques y avisos</div>
-                        <div v-for="(c, i) in info.conf" :key="i" class="tl-sb-conf" :class="'tl-sb-conf-' + c.sev" @click="c.with && groupsMap[c.with] && goTo(c.with)">
-                            <v-icon size="13" :color="c.sev === 'hard' ? '#B91C1C' : (c.sev === 'soft' ? '#B45309' : '#64748B')">
-                                {{ c.sev === 'hard' ? 'mdi-close-octagon' : (c.sev === 'soft' ? 'mdi-alert' : 'mdi-information-outline') }}</v-icon>
-                            <span>{{ c.msg }}</span>
+                        <div v-for="(x, i) in confFixes" :key="i">
+                            <div class="tl-sb-conf" :class="'tl-sb-conf-' + x.c.sev" @click="x.c.with && groupsMap[x.c.with] && goTo(x.c.with)">
+                                <v-icon size="13" :color="x.c.sev === 'hard' ? '#B91C1C' : (x.c.sev === 'soft' ? '#B45309' : '#64748B')">
+                                    {{ x.c.sev === 'hard' ? 'mdi-close-octagon' : (x.c.sev === 'soft' ? 'mdi-alert' : 'mdi-information-outline') }}</v-icon>
+                                <span>{{ x.c.msg }}</span>
+                            </div>
+                            <div v-if="canEdit && x.fixes.length" class="tl-sb-conffix">
+                                <span class="tl-sb-conffix-t">Qué hacer:</span>
+                                <button v-for="(f, j) in x.fixes" :key="j" class="tl-proj-flexbtn" :class="{ 'tl-sb-conffix-x': f.kind === 'excluir' }"
+                                        :disabled="fixBusy" :title="f.why" @click.stop="runFix(f)">{{ f.label }}</button>
+                            </div>
+                            <div v-else-if="canEdit && x.hint" class="tl-sb-conffix"><span class="tl-sb-conffix-t">Qué hacer:</span> <span class="tl-cfg-help">{{ x.hint }}</span></div>
                         </div>
                     </div>
                     <div class="tl-sb-sec" v-if="canEdit && !info.sugg.some(x => x.kind === 'mover' || x.kind === 'reparar') && info.why">
@@ -556,7 +564,7 @@ Vue.component('schedule-board', {
         return { loading: false, error: '', board: null, tick: 0, jornada: 'Diurna', q: '', tq: '', onlyIssues: false, sel: null, fixedSel: null,
             hover: null, failedOpen: false, dirty: false, weekSel: 0,
             prefDlg: { show: false, days: [], start: '', end: '', planid: 0, jornada: '', saving: false, msg: '' }, history: [], saving: false, saveDlg: false, showHelp: true, lastAction: null, version: 0,
-            draftInfo: { saved_at: 0, byname: '' }, ppm: 1.1, staleOpen: false, exporting: false,
+            draftInfo: { saved_at: 0, byname: '' }, ppm: 1.1, staleOpen: false, exporting: false, fixBusy: false,
             printModes: [
                 { id: 'jornada', title: 'Horario por jornada', sub: 'Una hoja por jornada con la cuadrícula semanal' },
                 { id: 'docente', title: 'Horario por docente', sub: 'Una hoja por docente: cuadrícula y detalle' },
@@ -756,6 +764,45 @@ Vue.component('schedule-board', {
             return (q ? all.filter(o => o.name.toLowerCase().includes(q)) : all).slice(0, q ? 30 : 8);
         },
         roomOpts() { return this.info ? this.E.roomOptions(this.S, this.sel) : []; },
+        // Cada choque o aviso de la ficha con sus arreglos de un clic.
+        confFixes() {
+            if (!this.info) return [];
+            const k = this.sel, g = this.info.g, p = this.info.p;
+            const move = this.info.sugg.find(s => s.kind === 'mover') || this.info.sugg.find(s => s.kind === 'reparar');
+            const moveFix = move ? [Object.assign({}, move, { label: move.kind === 'mover' ? 'Mover a ' + this.dayName(move.day) + ' ' + this.hhmm(move.start) + '–'
+                + this.hhmm(move.end) : move.label, why: move.why || 'hora sin choques' })] : [];
+            const teachers = () => this.E.teacherOptions(this.S, k).filter(o => o.skill && o.avail && !o.busy && o.id !== p.teacherid).slice(0, 2)
+                .map(o => ({ kind: 'docente', teacherid: o.id, label: 'Asignar a ' + o.name, why: 'tiene la habilidad, está disponible y libre (' + o.load + ' h/sem)' }));
+            const rooms = () => this.E.roomOptions(this.S, k).filter(r => !r.busy && r.fits && r.id !== p.roomid).slice(0, 1)
+                .map(r => ({ kind: 'aula', roomid: r.id, label: 'Usar el aula ' + r.name, why: 'libre, capacidad ' + r.capacity }));
+            return this.info.conf.map(c => {
+                let fixes = [], hint = '';
+                const placed = this.E.placed(p);
+                if (c.type === 'aula' || c.type === 'capacidad') {
+                    fixes = rooms();
+                    if (!fixes.length) hint = 'No hay otra aula libre que alcance a esa hora: mueva la clase.';
+                    if (!fixes.length) fixes = moveFix;
+                } else if (c.type === 'docente' || c.type === 'docente_fijo') {
+                    fixes = teachers().concat(moveFix.slice(0, 1));
+                } else if (c.type === 'disponibilidad' || c.type === 'habilidad') {
+                    // Primero: registrarle al docente actual lo que le falta (un clic, con confirmacion); luego, otros docentes.
+                    const tn = p.teacherid ? this.teacherName(p.teacherid) : '';
+                    if (p.teacherid && c.type === 'habilidad') fixes.push({ kind: 'add_skill', teacherid: p.teacherid,
+                        label: 'Agregar la habilidad a ' + tn, why: 'registra que ' + tn + ' puede dictar ' + g.name + ' (vale para todos los periodos)' });
+                    if (p.teacherid && c.type === 'disponibilidad' && placed) fixes.push({ kind: 'add_avail', teacherid: p.teacherid,
+                        label: 'Agregar ' + this.dayName(p.day) + ' ' + this.hhmm(p.start) + '–' + this.hhmm(p.end) + ' a ' + tn,
+                        why: 'suma esa franja a la disponibilidad de ' + tn + ' (vale para todos los periodos)' });
+                    fixes = fixes.concat(teachers());
+                } else if (c.type === 'estudiantes') {
+                    fixes = this.studentFixes(c).concat(moveFix);
+                } else if (['jornada', 'fechas', 'preferencia', 'almuerzo'].includes(c.type) && placed) {
+                    fixes = moveFix;
+                    if (!fixes.length) hint = c.sev === 'hard' ? 'No hay otra hora libre sin choques: vea "Sin hora libre" más abajo.'
+                        : 'Es solo un aviso: no impide publicar. No hay otra hora mejor sin choques.';
+                }
+                return { c, fixes, hint };
+            });
+        },
         teacherList() {
             this.tick;
             if (!this.S) return [];
@@ -911,6 +958,55 @@ Vue.component('schedule-board', {
             this.tick++;
         },
         setRoom(id) { this.setPlace(this.sel, { roomid: id }); },
+        // Estudiantes que comparte la ficha con la del choque (grupo del tablero o clase ya creada).
+        sharedWith(c) {
+            const mine = this.info.g.userids || [];
+            let other = null;
+            if (this.groupsMap[c.with]) other = this.groupsMap[c.with].userids || [];
+            else { const f = this.S.fixed.find(x => x.id === c.with); if (f) other = [...f.users]; }
+            if (!other) return [];
+            const set = new Set(other.map(Number));
+            return mine.map(Number).filter(u => set.has(u));
+        },
+        studentFixes(c) {
+            const ids = this.sharedWith(c);
+            if (!ids.length || this.info.g.published) return [];
+            const out = [{ kind: 'excluir', group: this.info.g.gkey, userids: ids, with: c.with ? this.groupLabelOf(c.with) : '',
+                with_key: this.groupsMap[c.with] ? this.groupsMap[c.with].gkey : '', target: this.groupLabel(this.sel),
+                label: 'Quitar ' + (ids.length === 1 ? 'al estudiante' : 'a los ' + ids.length) + ' de esta clase',
+                why: this.stuNames(ids) + ': no se les carga esta asignatura; quedan en el informe de excluidos' }];
+            const og = this.groupsMap[c.with];
+            if (og && !og.published) {
+                out.push({ kind: 'excluir', group: og.gkey, userids: ids, with: this.groupLabel(this.sel), with_key: this.info.g.gkey,
+                    target: this.groupLabel(c.with), label: 'Quitarlos de ' + og.name + ' G' + og.number,
+                    why: this.stuNames(ids) + ': no se les carga ' + og.name + '; quedan en el informe de excluidos' });
+            }
+            return out;
+        },
+        groupLabelOf(id) {
+            if (this.groupsMap[id]) return this.groupLabel(id);
+            const f = this.S.fixed.find(x => x.id === id);
+            return f ? f.name : String(id);
+        },
+        async runFix(f) {
+            if (f.kind === 'add_skill') { this.quickSkill({ id: f.teacherid }); return; }
+            if (f.kind === 'add_avail') { this.quickAvail({ id: f.teacherid, name: this.teacherName(f.teacherid) }); return; }
+            if (f.kind !== 'excluir') { this.applySugg(f); return; }
+            if (this.dirty) { window.alert('Hay cambios sin guardar en el tablero. Guarde el borrador primero: excluir estudiantes recarga el tablero.'); return; }
+            if (!window.confirm('¿Quitar a ' + f.userids.length + ' estudiante(s) de ' + f.target + '?\n\n' + this.stuNames(f.userids)
+                + '\n\nNo se les cargará esa asignatura en ' + this.periodName + '. Quedan en el informe de excluidos (por el choque con ' + f.with
+                + ') para cargársela después, por ejemplo como módulo. Se puede deshacer en Publicar… mientras ese grupo no esté publicado.')) return;
+            this.fixBusy = true;
+            const keep = this.sel;
+            try {
+                const r = await this.ws('exclusion_add', { periodid: this.periodid, group: f.group, userids: f.userids, with: f.with, with_key: f.with_key });
+                if (!r.ok) { window.alert(r.message); this.lastAction = { text: r.message, error: true }; return; }
+                await this.load();
+                if (this.S && this.S.groups[keep]) this.goTo(keep);
+                this.lastAction = { text: r.message };
+            } catch (e) { this.lastAction = { text: 'No se pudo guardar: ' + (e.message || e), error: true }; window.alert(this.lastAction.text); }
+            finally { this.fixBusy = false; }
+        },
         applySugg(s) {
             if (s.kind === 'mover') {
                 const patch = { day: s.day, start: s.start, end: s.end, week: s.week || 0 };
