@@ -340,7 +340,9 @@ class publisher {
                 $n = count(array_intersect_key(array_flip($r['userids']), $o['users']));
                 $orow = !empty($o['card']) ? ($rows[$o['row']] ?? null) : null;
                 if ($n && $orow && (($r['yields'] && $orow['event'] !== '') || ($r['event'] !== '' && $orow['yields']))) {
-                    $n = 0;   // natacion cede ese dia (se quita la fecha mas abajo): no es choque
+                    // Natacion cede ese dia (se quita la fecha mas abajo): no hay choque de estudiantes, docente ni aula,
+                    // igual que en el tablero.
+                    continue;
                 }
                 if ($n) {
                     $rows[$k]['blocks'][] = $n . ' estudiante(s) también tienen ' . $o['name'] . ' a esa hora.';
