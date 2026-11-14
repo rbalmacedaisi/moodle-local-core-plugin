@@ -293,9 +293,10 @@ class schedule_board {
             if (!isset($calendars[$calkey])) {
                 list($cfrom, $cto, $cal) = publisher::class_calendar($p, $calendar, $g['jornada'], $islong, $holidaymap);
                 $calendars[$calkey] = ['from' => $cfrom, 'to' => $cto, 'days' => $cal];
-                // Semanas utiles: el dia de la jornada con menos fechas.
+                // Semanas utiles: las del dia de la jornada con mas fechas. Un feriado en un dia (p. ej. Año Nuevo en viernes)
+                // no parte en dos fichas todas las asignaturas: la ficha que se ponga en ese dia avisa que no le caben las sesiones.
                 $jd = stripos($g['jornada'], 'sab') !== false ? [6] : [1, 2, 3, 4, 5];
-                $calweeks[$calkey] = max(1, min(array_map(function ($dn) use ($cal) {
+                $calweeks[$calkey] = max(1, max(array_map(function ($dn) use ($cal) {
                     return count($cal[$dn]);
                 }, $jd)));
             }
@@ -394,6 +395,61 @@ class schedule_board {
                 'event' => $isevent ? $slot['kind'] : '', 'yields' => $sp ? $sp['yields'] : false,
                 'extra' => !empty($g['extra']), 'note' => (string)($g['note'] ?? ''), 'planid' => (int)($g['planid'] ?? 0),
                 'byname' => (string)($g['byname'] ?? '')];
+        }
+
+        // Lo ya publicado se dibuja con la clase real (sus sesiones, fechas, aula y docente), no con lo que se calcularia hoy:
+        // si despues cambia la configuracion o el calendario (un feriado nuevo, otra carga horaria) la ficha no pierde su lugar.
+        $draftout = self::draft($periodid);
+        $pubgroups = array_filter($groups, function ($g) {
+            return $g['published'] > 0;
+        });
+        if ($pubgroups) {
+            $pcids = array_map(function ($g) {
+                return (int)$g['published'];
+            }, $pubgroups);
+            list($pcsql, $pcparams) = $DB->get_in_or_equal(array_values($pcids));
+            $pclass = $DB->get_records_select('gmk_class', "id $pcsql", $pcparams, '', 'id, instructorid');
+            $psched = [];
+            foreach ($DB->get_records_select('gmk_class_schedules', "classid $pcsql", $pcparams, 'id') as $sc) {
+                $dn = self::day_num($sc->day);
+                $a = self::to_min($sc->start_time);
+                $b = self::to_min($sc->end_time);
+                if (!$dn || $a < 0 || $b <= $a) {
+                    continue;
+                }
+                $dl = array_values(array_diff((array)json_decode((string)($sc->assigned_dates ?? ''), true),
+                    (array)json_decode((string)($sc->excluded_dates ?? ''), true)));
+                sort($dl);
+                $psched[(int)$sc->classid][] = ['day' => $dn, 'start' => $a, 'end' => $b, 'roomid' => (int)$sc->classroomid, 'dates' => $dl];
+            }
+            foreach ($pubgroups as $gi => $g) {
+                $cid = (int)$g['published'];
+                $real = $psched[$cid] ?? [];
+                if (!isset($pclass[$cid]) || !$real) {
+                    continue; // clase borrada o sin horario: queda lo del borrador
+                }
+                usort($real, function ($x, $y) {
+                    return [$x['day'], $x['start']] <=> [$y['day'], $y['start']];
+                });
+                $key = $g['key'];
+                foreach (array_keys($draftout['items']) as $ik) {
+                    if ($ik === $key || strpos($ik, $key . '#') === 0) {
+                        unset($draftout['items'][$ik]);
+                    }
+                }
+                $n = count($real);
+                $parts = [];
+                foreach ($real as $i => $x) {
+                    $pk = $n === 1 ? $key : $key . '#' . ($i + 1);
+                    $parts[] = ['key' => $pk, 'sessions' => count($x['dates']), 'dates' => $x['dates']];
+                    $draftout['items'][$pk] = ['day' => $x['day'], 'start' => $x['start'], 'end' => $x['end'],
+                        'teacherid' => (int)$pclass[$cid]->instructorid, 'roomid' => $x['roomid'], 'locked' => true, 'week' => 0,
+                        'sessions' => count($x['dates']), 'real' => true];
+                }
+                $groups[$gi]['parts'] = $parts;
+                $groups[$gi]['sessions'] = array_sum(array_column($parts, 'sessions'));
+                $groups[$gi]['duration'] = $real[0]['end'] - $real[0]['start'];
+            }
         }
 
         // Docentes: instructores de la plataforma + quien tiene disponibilidad registrada.
@@ -557,7 +613,7 @@ class schedule_board {
             // Preferencias de dia y hora (no obligatorias): por jornada (shiftWindows[j].preferredDays) y por asignatura.
             'preferences' => ['subjects' => array_merge(planning_config::subject_prefs(), $evprefs)],
             'period' => ['start' => $start, 'end' => $end, 'jornada_starts' => (object)planning_config::jornada_starts($p)],
-            'draft' => self::draft($periodid),
+            'draft' => $draftout,
         ];
     }
 
@@ -581,6 +637,15 @@ class schedule_board {
                 . 'ni los de la otra persona.', 'saved' => ['conflict' => true, 'version' => $cur['version']]];
         }
         $items = [];
+        // Lo publicado no se edita desde el tablero: se conserva tal cual estaba en el borrador (aunque el tablero ya no lo
+        // envie con la misma clave porque ahora se dibuja con la clase real).
+        foreach (publisher::published($pid)['groups'] as $gk => $unused) {
+            foreach ($cur['items'] as $ik => $it) {
+                if ($ik === (string)$gk || strpos($ik, $gk . '#') === 0) {
+                    $items[$ik] = $it;
+                }
+            }
+        }
         if (!empty($d['clear']) && publisher::published($pid)['groups']) {
             return ['ok' => false, 'message' => 'Hay grupos ya publicados desde este tablero: el borrador no se puede vaciar.', 'saved' => null];
         }

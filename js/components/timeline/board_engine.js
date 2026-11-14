@@ -64,7 +64,7 @@
             var users = new Set(g.userids);
             parts.forEach(function (pt, i) {
                 s.groups[pt.key] = Object.assign({}, g, { key: pt.key, gkey: g.key, part: i + 1, parts: parts.length,
-                    sessions: Number(pt.sessions || 0), users: users, calendar: cal,
+                    sessions: Number(pt.sessions || 0), users: users, calendar: cal, realDates: pt.dates || null,
                     from: cal ? Number(cal.from) : from, to: cal ? Number(cal.to) : from + (g.long ? 16 : 8) * 7 * DAY });
                 s.order.push(pt.key);
             });
@@ -117,6 +117,11 @@
     E.range = function (s, k, p) {
         var g = s.groups[k];
         p = p || s.place[k];
+        // Publicado: las fechas reales de la clase.
+        if (g.realDates && g.realDates.length) {
+            var rd = g.realDates;
+            return { dates: rd, from: ymdEpoch(rd[0]), to: ymdEpoch(rd[rd.length - 1]) + DAY, missing: 0, total: rd.length, isCard: true };
+        }
         var all = g.calendar && g.calendar.days ? (g.calendar.days[p.day] || g.calendar.days[String(p.day)] || []) : null;
         if (!all) return { dates: [], from: g.from, to: g.to, missing: 0, total: 0, isCard: false };
         var n = g.sessions || all.length;

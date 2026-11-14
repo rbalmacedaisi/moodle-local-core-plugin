@@ -164,6 +164,7 @@ class publisher {
         $res['exceptions'] = array_values(planning_config::exceptions($periodid));
         $res['costing'] = planning_config::costing($periodid, (int)$res['period']['start']);
         $board = schedule_board::load($periodid, $res);
+        $draft['items'] = $board['draft']['items'];   // con lo publicado ubicado segun la clase real
         $pub = self::published($periodid);
         $cfg = $board['config'];
         $pad = max(0, (int)$cfg['interval']);
@@ -235,6 +236,9 @@ class publisher {
                 $week = (int)($it['week'] ?? 0);
                 $all = $day ? array_values((array)($cal[$day] ?? ($cal[(string)$day] ?? []))) : [];
                 $dates = $nses > 0 ? array_slice($all, $week, $nses) : $all;
+                if (isset($pt['dates'])) {
+                    $dates = $pt['dates'];   // publicado: las fechas reales de la clase
+                }
                 $card = ['key' => $pt['key'], 'part' => $pi + 1, 'parts' => count($g['parts']), 'day' => $day,
                     'start' => (int)($it['start'] ?? 0), 'end' => (int)($it['end'] ?? 0), 'week' => $week, 'sessions' => $nses,
                     'teacherid' => (int)($it['teacherid'] ?? 0), 'roomid' => (int)($it['roomid'] ?? 0), 'dates' => $dates];
