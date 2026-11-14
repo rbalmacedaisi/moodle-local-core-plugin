@@ -174,6 +174,10 @@ class schedule_board {
             }
             $out[self::group_key($g)] = $g;
         }
+        // Grupos adicionales (Proximo periodo -> "Agregar grupo al tablero"), aunque tengan 0 estudiantes.
+        foreach (late_changes::extras($periodid) as $k => $x) {
+            $out[$k] = $x;
+        }
         return $out;
     }
 
@@ -226,8 +230,8 @@ class schedule_board {
         if ($saved) {
             foreach ($saved as $key => $g) {
                 $rk = (int)$g['courseid'] . '|' . trim((string)$g['jornada']) . '|' . (int)($g['isolated_plan'] ?? 0);
-                if (!empty($published[$key])) {
-                    continue;
+                if (!empty($published[$key]) || !empty($g['extra'])) {
+                    continue; // publicado o adicional (decidido a mano): no sale del tablero
                 }
                 $why = isset($decided[$rk]) ? ($decided[$rk] === 'cerrar' ? 'se decidió no abrirla' : 'se decidió como módulo (sin horario)')
                     : ($today !== null && !isset($today[$rk]) ? 'ya no abre: no obligatoria, sin quórum u otro cambio' : '');
@@ -237,7 +241,9 @@ class schedule_board {
                 }
             }
         }
-        $stale = $saved !== null ? self::proposal_changes($periodid, (array)$saved, $demand, $dropped) : null;
+        $stale = $saved !== null ? self::proposal_changes($periodid, array_filter((array)$saved, function ($g) {
+            return empty($g['extra']);
+        }), $demand, $dropped) : null;
         // Estudiantes excluidos por choques: salen de los grupos de esa asignatura. Tambien de los ya publicados: la clase
         // se creo sin ellos (solo se puede excluir antes de publicar), y si no se quitan el tablero ve choques que no existen.
         $exclusions = planning_config::board_exclusions($periodid);
@@ -248,7 +254,7 @@ class schedule_board {
                 };
                 $saved[$key]['userids'] = array_values(array_filter($g['userids'], $keep));
                 $saved[$key]['adelantos'] = array_values(array_filter($g['adelantos'] ?? [], $keep));
-                if (!$saved[$key]['userids'] && empty($published[$key])) {
+                if (!$saved[$key]['userids'] && empty($published[$key]) && empty($g['extra'])) {
                     $dropped[] = ['key' => $key, 'name' => $g['name'], 'jornada' => $g['jornada'],
                         'reason' => 'todos sus estudiantes fueron excluidos por choques'];
                     unset($saved[$key]);
@@ -385,7 +391,9 @@ class schedule_board {
                 'duration' => $dur, 'hours' => $h ? $h['total'] : 0, 'long' => $islong,
                 'cal' => $calkey, 'weeks' => $weeks, 'sessions' => $sessions, 'parts' => $parts,
                 'published' => (int)($published[$key] ?? 0),
-                'event' => $isevent ? $slot['kind'] : '', 'yields' => $sp ? $sp['yields'] : false];
+                'event' => $isevent ? $slot['kind'] : '', 'yields' => $sp ? $sp['yields'] : false,
+                'extra' => !empty($g['extra']), 'note' => (string)($g['note'] ?? ''), 'planid' => (int)($g['planid'] ?? 0),
+                'byname' => (string)($g['byname'] ?? '')];
         }
 
         // Docentes: instructores de la plataforma + quien tiene disponibilidad registrada.

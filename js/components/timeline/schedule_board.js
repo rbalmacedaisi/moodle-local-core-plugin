@@ -199,7 +199,12 @@ Vue.component('schedule-board', {
                         <div style="flex:1">
                             <div class="tl-sb-panel-title">{{ info.g.name }}</div>
                             <div v-if="info.g.published" class="tl-cfg-msg tl-cfg-msg-ok" style="margin:4px 0">Publicada: es la clase {{ info.g.published }}
-                                (pendiente de aprobación o ya aprobada). Ya no se cambia desde el tablero, sino desde la gestión de clases.</div>
+                                (pendiente de aprobación o ya aprobada). Ya no se cambia desde el tablero, sino desde la gestión de clases.
+                                <button v-if="canEdit" class="tl-proj-flexbtn" style="margin-left:6px" :disabled="rev.busy" @click="revertCheck(info.g)">Revertir publicación</button></div>
+                            <div v-if="info.g.extra" class="tl-cfg-msg" style="margin:4px 0;background:#EFF6FF;color:#1D4ED8">
+                                Grupo adicional<template v-if="info.g.byname"> ({{ info.g.byname }})</template>: {{ info.g.note }}
+                                <template v-if="!info.g.size"> · sin estudiantes: se publica con su horario y se matriculan después</template>
+                                <button v-if="canEdit && !info.g.published" class="tl-proj-flexbtn" style="margin-left:6px" @click="removeExtra(info.g)">Quitar del tablero</button></div>
                             <div class="tl-cfg-help">Grupo {{ info.g.number }} de {{ info.g.of }} · {{ info.g.jornada }} · {{ info.g.size }} estudiantes
                                 <template v-if="info.g.adelantos"> ({{ info.g.adelantos }} adelantos)</template></div>
                             <div class="tl-cfg-help">{{ topLevels(info.g) }}</div>
@@ -571,6 +576,7 @@ Vue.component('schedule-board', {
                 { id: 'aula', title: 'Horario por aula', sub: 'Una hoja por aula: ocupación y detalle' },
                 { id: 'listado', title: 'Listado de horarios', sub: 'Tabla por jornada con fechas, docente, aula y estado' },
                 { id: 'listas', title: 'Listas de clase', sub: 'Cada grupo con sus estudiantes, documento y carrera' }],
+            rev: { busy: false },
             pub: { show: false, loading: false, error: '', plan: null, sel: {}, mods: {}, uns: {}, confirm: false, showBlocked: false, busy: false,
                 running: false, done: 0, total: 0, result: null },
             teacherDlg: { show: false, id: 0, q: '', addSkill: null, msg: '', err: false,
@@ -657,7 +663,7 @@ Vue.component('schedule-board', {
                 const span = this.E.weekSpan(this.S, k, p);
                 if (this.weekSel && (this.weekSel - 1 < span.w0 || this.weekSel - 1 > span.w1)) return;
                 out[p.day].push({ id: k, name: g.name, start: p.start, end: p.end, sev, locked: p.locked, dim, span,
-                    line1: (g.published ? '✓ publicada · ' : '') + 'G' + g.number + (g.parts > 1 ? ' (' + g.part + '/' + g.parts + ')' : '') + ' · ' + g.size + ' est · '
+                    line1: (g.published ? '✓ publicada · ' : '') + (g.extra ? '+ adicional · ' : '') + 'G' + g.number + (g.parts > 1 ? ' (' + g.part + '/' + g.parts + ')' : '') + ' · ' + g.size + ' est · '
                         + (partial ? wl.split(' · ')[0] + ' · ' + wl.split(' · ')[1] : this.E.hhmm(p.start) + '–' + this.E.hhmm(p.end)),
                     line2: (p.teacherid ? this.teacherName(p.teacherid) : 'Sin docente') + ' · ' + (p.roomid ? this.roomName(p.roomid) : 'sin aula'),
                     title: g.name + ' (G' + g.number + ')\n' + this.E.hhmm(p.start) + '–' + this.E.hhmm(p.end) + ' · ' + wl + '\n'
@@ -873,6 +879,42 @@ Vue.component('schedule-board', {
             const w = 100 / (c.lanes || 1);
             return { top: (c.start - this.win.start) * this.ppm + 'px', height: Math.max(18, (c.end - c.start) * this.ppm - 2) + 'px',
                 left: 'calc(' + (c.lane * w) + '% + 2px)', width: 'calc(' + w + '% - 4px)' };
+        },
+        async revertCheck(g) {
+            const key = g.gkey || g.key;
+            this.rev.busy = true;
+            try {
+                const r = await this.ws('revert_check', { periodid: this.periodid, key });
+                if (!r.ok) { window.alert(r.message); return; }
+                const c = r.saved;
+                if (c.blocks && c.blocks.length) {
+                    window.alert('No se puede revertir ' + (c.name || ('la clase ' + c.classid)) + ':\n• ' + c.blocks.join('\n• ')
+                        + '\n\nLa clase ya se empezó a dar: los cambios se hacen desde la gestión de clases.');
+                    return;
+                }
+                const what = c.missing ? 'La clase ' + c.classid + ' ya no existe: solo se quita de lo publicado.'
+                    : 'Se borrará la clase ' + c.classid + ' (' + c.name + '):\n• ' + c.sessions + ' sesiones de asistencia con sus salas virtuales\n• '
+                        + c.students + ' estudiante(s) matriculados en el grupo y ' + c.queue + ' en la cola (su avance vuelve a quedar sin clase)'
+                        + '\n• el grupo y la sección del curso\nEl grupo vuelve al tablero sin publicar. Queda respaldo de todo.';
+                const note = window.prompt(what + '\n\nMotivo (obligatorio):', '');
+                if (note === null) return;
+                if (!note.trim()) { window.alert('Indique el motivo.'); return; }
+                if (!window.confirm('¿Revertir la publicación? Esta acción borra la clase ' + c.classid + '.')) return;
+                const x = await this.ws('revert', { periodid: this.periodid, key, classid: c.classid, note: note.trim() });
+                window.alert(x.message);
+                if (x.ok) await this.load();
+            } catch (e) { window.alert('Error: ' + (e.message || e)); }
+            finally { this.rev.busy = false; }
+        },
+        async removeExtra(g) {
+            const key = g.gkey || g.key;
+            if (this.dirty && !window.confirm('Hay cambios sin guardar en el tablero; al quitar el grupo se recarga y se pierden. ¿Continuar?')) return;
+            if (!window.confirm('¿Quitar del tablero el grupo adicional de ' + g.name + ' (' + g.jornada + ' G' + g.number + ')? No se publicó, no se borra ninguna clase.')) return;
+            try {
+                const r = await this.ws('extra_remove', { periodid: this.periodid, key });
+                window.alert(r.message);
+                if (r.ok) await this.load();
+            } catch (e) { window.alert('Error: ' + (e.message || e)); }
         },
         async ws(section, data) {
             const body = new URLSearchParams({ wstoken: window.userToken, moodlewsrestformat: 'json',

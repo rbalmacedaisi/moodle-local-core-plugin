@@ -438,6 +438,17 @@ Vue.component('period-projection', {
         </template>
 
         <template v-if="view === 'next'">
+        <!-- PERIODO YA PUBLICADO: lo que se agregue se suma a lo publicado -->
+        <div v-if="result.published" class="tl-proj-pubnote">
+            <v-icon size="18" color="#1D4ED8">mdi-calendar-check</v-icon>
+            <div style="flex:1">
+                <b>{{ result.period.name }} ya está publicado{{ periodRunning ? ' y en curso' : '' }}.</b>
+                Lo que agregue aquí se suma a lo publicado sin cambiar lo que ya existe: con <v-icon size="12">mdi-tune-variant</v-icon>
+                en cada jornada puede <b>agregar un grupo al tablero</b> (aunque tenga 0 o pocos estudiantes) y publicarlo desde el
+                Tablero de horarios; solo se programan las fechas que quedan.
+            </div>
+            <button v-if="canEdit" class="tl-proj-flexbtn" @click="openEnrol">Sugerencias de matrícula</button>
+        </div>
         <!-- GASTO MENSUAL PROYECTADO -->
         <div v-if="cost" class="tl-proj-cost">
             <div class="tl-proj-cost-head" @click="costOpen = !costOpen">
@@ -521,7 +532,7 @@ Vue.component('period-projection', {
                         <template v-else-if="j.ready + j.adelanto >= min"> → con adelantos</template>
                         <template v-else> → no alcanza</template>
                         <v-icon v-if="j.finishing" size="11" :color="j.exception ? '#1D4ED8' : '#B91C1C'" title="Hay estudiantes que egresan">mdi-school</v-icon>
-                        <button v-if="canEdit && !r.unscheduled && (j.ready || j.adelanto || j.exception || j.closed)" class="tl-proj-decide"
+                        <button v-if="canEdit && !r.unscheduled" class="tl-proj-decide"
                                 @click.stop="decide(r, j)" title="Decidir cómo abre: automático, grupo, módulo o no abrir">
                             <v-icon size="12">mdi-tune-variant</v-icon></button>
                     </span>
@@ -619,6 +630,20 @@ Vue.component('period-projection', {
                             <button class="tl-proj-flexbtn" @click="it.userids = []">ninguno</button>
                             • {{ it.userids.length }} elegido(s)
                         </div>
+                        <template v-if="exc.mode === 'adicional'">
+                            <div class="tl-cfg-help" style="margin:4px 0">
+                                Estudiantes del grupo: <button class="tl-proj-flexbtn" @click="it.userids = uniq(it.students.filter(x => !x.loaded && x.cat !== 'adelanto').map(x => x.s.userid))">los que no están cargados</button>
+                                <button class="tl-proj-flexbtn" @click="it.userids = []">ninguno (grupo vacío)</button>
+                                • {{ it.userids.length }} elegido(s)<template v-if="!it.userids.length"> — se publica con su horario y advertencia; se matriculan después</template>
+                            </div>
+                            <div v-if="it.students.length" class="tl-proj-exc-students">
+                                <label v-for="x in it.students" :key="'a' + x.s.userid + '-' + x.s.planid" class="tl-cfg-check" :style="x.loaded ? 'opacity:.55' : ''">
+                                    <input type="checkbox" :value="x.s.userid" v-model="it.userids" :disabled="x.loaded">
+                                    {{ x.s.name }} <span class="tl-cfg-help">{{ shortPlan(x.s.plan) }} · {{ x.s.level }} · {{ catLabel[x.cat] || x.cat }}</span>
+                                    <span v-if="x.loaded" class="tl-plan-tag tl-plan-tag-muted">ya cargado</span>
+                                </label>
+                            </div>
+                        </template>
                         <div v-if="exc.mode === 'modulo'" class="tl-proj-exc-students">
                             <label v-for="x in it.students" :key="x.s.userid + '-' + x.s.planid" class="tl-cfg-check">
                                 <input type="checkbox" :value="x.s.userid" v-model="it.userids">
@@ -635,7 +660,60 @@ Vue.component('period-projection', {
                 </v-card-text>
                 <v-card-actions><v-spacer></v-spacer>
                     <v-btn text @click="exc.show = false">Cancelar</v-btn>
-                    <v-btn color="primary" depressed :loading="exc.saving" @click="saveException">{{ exc.mode === 'auto' ? 'Volver a automático' : 'Registrar decisión' }}</v-btn>
+                    <v-btn color="primary" depressed :loading="exc.saving" @click="saveException">{{ exc.mode === 'auto' ? 'Volver a automático' : (exc.mode === 'adicional' ? 'Enviar al tablero' : 'Registrar decisión') }}</v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
+
+        <!-- Sugerencias de matricula (periodo publicado) -->
+        <v-dialog v-model="enr.show" max-width="1100" scrollable>
+            <v-card>
+                <v-card-title class="text-subtitle-1 font-weight-bold">Sugerencias de matrícula · {{ result.period.name }}</v-card-title>
+                <v-card-text>
+                    <div class="tl-cfg-help mb-2">Estudiantes a los que les toca la asignatura en {{ result.period.name }} (nivel o atrasada, con
+                    prelaciones) y no están cargados en ninguna clase o módulo, con los grupos del periodo que les sirven. Se marca la sugerida:
+                    misma jornada, sin choque de horario y con cupo. Al aplicar, el estudiante entra a la cola de la clase y, si la clase ya
+                    está aprobada, queda matriculado en el grupo y en su avance (mismo camino que la gestión de clases).</div>
+                    <div v-if="enr.loading" class="tl-cfg-help">Buscando…</div>
+                    <div v-else-if="enr.error" class="tl-cfg-msg tl-cfg-msg-error">{{ enr.error }}</div>
+                    <template v-else>
+                        <div class="d-flex flex-wrap align-center mb-2" style="gap:6px">
+                            <button v-for="f in enrFilters" :key="f.key" class="tl-plan-tab" :class="{ 'tl-plan-tab-active': enr.filter === f.key }"
+                                    @click="enr.filter = f.key">{{ f.label }} <span class="tl-plan-tab-count">{{ f.count }}</span></button>
+                            <input v-model="enr.q" class="tl-cfg-input" style="width:220px" placeholder="Buscar estudiante o asignatura…">
+                        </div>
+                        <div v-if="enr.done" class="tl-cfg-msg" :class="enr.doneOk ? 'tl-cfg-msg-ok' : 'tl-cfg-msg-error'">{{ enr.done }}</div>
+                        <table class="tl-proj-enrtable">
+                            <thead><tr><th></th><th>Estudiante</th><th>Asignatura</th><th>Motivo</th><th>Grupo</th></tr></thead>
+                            <tbody>
+                                <tr v-for="r in enrRows" :key="r.userid + '-' + r.courseid" :class="{ 'tl-proj-enr-done': r.result }">
+                                    <td><input type="checkbox" v-model="r.pick" :disabled="!r.classid || !!r.result || enr.saving"></td>
+                                    <td><b>{{ r.name }}</b><div class="tl-cfg-help">{{ shortPlan(r.plan) }} · {{ r.level }} · {{ r.jornada }}</div></td>
+                                    <td>{{ r.course }}<div class="tl-cfg-help">{{ r.category }}</div></td>
+                                    <td><span class="tl-plan-tag" :class="r.is_new ? 'tl-plan-tag-nivel' : 'tl-plan-tag-muted'">{{ r.why }}</span></td>
+                                    <td>
+                                        <div v-if="r.result" :style="r.result.status === 'ok' ? 'color:#047857' : 'color:#B91C1C'">{{ r.result.message }}</div>
+                                        <template v-else>
+                                            <select class="tl-cfg-input" style="max-width:420px" v-model.number="r.classid" @change="r.pick = !!r.classid">
+                                                <option :value="0">— no matricular —</option>
+                                                <option v-for="o in r.options" :key="o.classid" :value="o.classid">{{ optLabel(o) }}</option>
+                                            </select>
+                                            <div v-if="optOf(r) && optOf(r).clash.length" class="tl-cfg-help" style="color:#B91C1C">Choca con {{ optOf(r).clash.join(', ') }}</div>
+                                            <div v-else-if="optOf(r) && optOf(r).full" class="tl-cfg-help" style="color:#B45309">Grupo lleno: no se matricula (cupo del aula)</div>
+                                            <div v-else-if="optOf(r) && !optOf(r).same_jornada" class="tl-cfg-help" style="color:#B45309">Otra jornada que la del estudiante</div>
+                                        </template>
+                                    </td>
+                                </tr>
+                                <tr v-if="!enrRows.length"><td colspan="5" class="tl-cfg-help">No hay sugerencias con este filtro.</td></tr>
+                            </tbody>
+                        </table>
+                    </template>
+                </v-card-text>
+                <v-card-actions>
+                    <span class="tl-cfg-help">{{ enrPicked.length }} marcada(s)</span>
+                    <v-spacer></v-spacer>
+                    <v-btn text @click="enr.show = false">Cerrar</v-btn>
+                    <v-btn color="primary" depressed :loading="enr.saving" :disabled="!enrPicked.length" @click="applyEnrol">Matricular marcadas</v-btn>
                 </v-card-actions>
             </v-card>
         </v-dialog>
@@ -655,6 +733,9 @@ Vue.component('period-projection', {
         max: { type: Number, default: 30 },
     },
     watch: {
+        'enr.show'(v) {
+            if (!v && this.enrChanged) { this.enrChanged = false; this.$emit('changed', 'Matrículas aplicadas: se recalcula la proyección.'); }
+        },
         // Tras una decision se recalcula: los grupos y los periodos siguientes se vuelven a precargar.
         result() { this.prefetch(true); },
     },
@@ -665,6 +746,7 @@ Vue.component('period-projection', {
             grouping: null, groupsLoading: false, groupsError: '', modOpen: {}, groupTab: 'list', groupDetail: null, alertType: 'all', alertLimit: 200,
             savedProposal: null, proposalSaving: false,
             exc: { show: false, mode: 'grupo', items: [], note: '', error: '', saving: false },
+            enr: { show: false, loading: false, error: '', rows: [], filter: 'sugeridas', q: '', saving: false, done: '', doneOk: true }, enrChanged: false,
             catLabel: { nivel: 'nivel', atrasada: 'atrasada', repite: 'repite', adelanto: 'adelanto' },
             decisionShort: { grupo: 'abre por decisión', modulo: 'módulo', cerrar: 'no abre' },
             decisionModes: [
@@ -672,9 +754,30 @@ Vue.component('period-projection', {
                 { key: 'grupo', label: 'Abrir como grupo', help: 'Abre con docente y horario aunque no alcance el mínimo.' },
                 { key: 'modulo', label: 'Abrir como módulo', help: 'Sin docente, horario ni sesiones: cada estudiante elegido avanza por su cuenta hasta el fin del periodo. No pasa por pago.' },
                 { key: 'cerrar', label: 'No abrir', help: 'No abre aunque alcance el mínimo. Sus estudiantes quedan en alertas para reubicarlos.' },
+                { key: 'adicional', label: 'Agregar grupo al tablero', help: 'Un grupo más de esta asignatura en esta jornada, con los estudiantes que elija (o ninguno), que va directo al Tablero de horarios para ubicarlo y publicarlo. Sirve con el periodo ya publicado (se suma sin tocar lo publicado) y para abrir con 0 o pocos estudiantes (se publica con advertencia).' },
             ] };
     },
     computed: {
+        periodRunning() {
+            const p = (this.periods || []).find(x => Number(x.id) === Number(this.result.period.id));
+            return !!p && p.state === 'en_curso';
+        },
+        enrFilters() {
+            const rows = this.enr.rows;
+            return [
+                { key: 'sugeridas', label: 'Con grupo sugerido', count: rows.filter(r => r.suggested).length },
+                { key: 'nuevos', label: 'Nuevos', count: rows.filter(r => r.is_new).length },
+                { key: 'todas', label: 'Todas', count: rows.length },
+            ];
+        },
+        enrRows() {
+            const q = (this.enr.q || '').toLowerCase();
+            return this.enr.rows.filter(r => (this.enr.filter === 'todas' || (this.enr.filter === 'nuevos' ? r.is_new : r.suggested))
+                && (!q || (r.name + ' ' + r.course).toLowerCase().includes(q)));
+        },
+        enrPicked() {
+            return this.enr.rows.filter(r => r.pick && r.classid && !r.result);
+        },
         jornadaStarts() {
             const js = this.result.period.jornada_starts || {};
             return Object.keys(js).map(k => ({ name: k, ts: js[k] })).sort((a, b) => a.ts - b.ts);
@@ -711,7 +814,7 @@ Vue.component('period-projection', {
                 const key = d.courseid + '|' + iso;
                 const r = by[key] || (by[key] = { key, courseid: d.courseid, name: d.name, isolated: iso, ready: 0, adelanto: 0,
                     blocked: 0, repite: 0, atrasada: 0, levels: {}, plans: {}, planIds: {}, jornadas: [] });
-                const studs = d.students.map(x => ({ key: x.key, s: students[x.key], cat: x.category, prereq: x.prereq, flex: !!x.flex }))
+                const studs = d.students.map(x => ({ key: x.key, s: students[x.key], cat: x.category, prereq: x.prereq, flex: !!x.flex, loaded: !!x.loaded }))
                     .filter(x => x.s).sort((a, b) => (b.s.finishing - a.s.finishing) || a.s.name.localeCompare(b.s.name));
                 const byPlan = {};
                 let finishing = 0;
@@ -1231,6 +1334,51 @@ Vue.component('period-projection', {
                 if (res.ok) this.$emit('changed', res.message); else window.alert(res.message);
             } catch (e) { window.alert('Error: ' + (e.message || e)); }
         },
+        async openEnrol() {
+            this.enr = Object.assign({}, this.enr, { show: true, loading: true, error: '', rows: [], done: '' });
+            try {
+                const r = await this.ws('enrol_suggest', { periodid: this.result.period.id });
+                if (!r.ok) { this.enr.error = r.message; return; }
+                const d = typeof r.saved === 'string' ? JSON.parse(r.saved) : r.saved;
+                this.enr.rows = (d.rows || []).map(x => Object.assign({}, x, { classid: x.suggested || 0, pick: !!x.suggested, result: null }));
+                if (!this.enr.rows.some(x => x.suggested)) this.enr.filter = 'todas';
+            } catch (e) { this.enr.error = 'No se pudieron cargar las sugerencias: ' + (e.message || e); }
+            finally { this.enr.loading = false; }
+        },
+        optOf(r) { return (r.options || []).find(o => o.classid === r.classid) || null; },
+        optLabel(o) {
+            return o.name.replace(/^\d{4}-[IVX]+ /, '') + ' · ' + o.schedule + ' · ' + o.taken + (o.capacity ? '/' + o.capacity : '') + ' est.'
+                + (o.approved ? '' : ' · sin aprobar') + (o.clash.length ? ' · CHOCA' : '') + (o.full ? ' · LLENO' : '');
+        },
+        async applyEnrol() {
+            const pick = this.enrPicked;
+            const bad = pick.filter(r => { const o = this.optOf(r); return o && (o.clash.length || o.full); });
+            if (bad.length && !window.confirm(bad.length + ' de las marcadas chocan con otra clase del estudiante o el grupo está lleno '
+                    + '(las llenas no se matriculan). ¿Continuar?')) return;
+            if (!window.confirm('¿Matricular ' + pick.length + ' estudiante(s) en los grupos elegidos? Quedan en la cola de la clase y, si está aprobada, en el grupo.')) return;
+            this.enr.saving = true; this.enr.done = '';
+            try {
+                let items = pick.map(r => ({ userid: r.userid, classid: r.classid }));
+                let okn = 0, total = 0;
+                while (items.length) {
+                    const r = await this.ws('enrol_apply', { periodid: this.result.period.id, items });
+                    if (!r.ok) { this.enr.done = r.message; this.enr.doneOk = false; return; }
+                    const d = typeof r.saved === 'string' ? JSON.parse(r.saved) : r.saved;
+                    const pending = [];
+                    (d.rows || []).forEach(x => {
+                        if (x.status === 'pending') { pending.push({ userid: x.userid, classid: x.classid }); return; }
+                        total++; if (x.status === 'ok') okn++;
+                        const row = this.enr.rows.find(y => y.userid === x.userid && y.classid === x.classid && !y.result);
+                        if (row) { row.result = { status: x.status, message: x.message }; row.pick = false; }
+                    });
+                    items = pending;
+                }
+                this.enr.done = okn + ' de ' + total + ' matrícula(s) hecha(s). La proyección se actualiza al cerrar.';
+                this.enr.doneOk = okn === total;
+                this.enrChanged = true;
+            } catch (e) { this.enr.done = 'Error: ' + (e.message || e); this.enr.doneOk = false; }
+            finally { this.enr.saving = false; }
+        },
         selItem(r, j) {
             // Para modulo se puede elegir entre los que se cargan y los que pueden adelantarla (con prelacion).
             const pick = j.students.filter(x => x.prereq !== 'no' && !x.flex && x.cat !== 'repite');
@@ -1256,11 +1404,12 @@ Vue.component('period-projection', {
             const items = list || this.selectedList;
             const fin = items.some(it => it.students.some(x => x.s.finishing));
             // Sin decision previa: si ya abre por quorum se parte de "Automatico".
-            this.exc = { show: true, mode: cur ? cur.mode : (items.every(it => it.opens) ? 'auto' : (fin ? 'modulo' : 'grupo')),
+            this.exc = { show: true, mode: cur ? cur.mode : (this.result.published ? 'adicional' : (items.every(it => it.opens) ? 'auto' : (fin ? 'modulo' : 'grupo'))),
                 note: cur ? cur.note : '', error: '', saving: false, current: cur || null,
                 items: items.map(it => Object.assign({}, it, {
                     // Por defecto se proponen para modulo los que egresan; si no hay, todos los que se cargan.
-                    userids: (cur && cur.mode === 'modulo' ? cur.userids.slice()
+                    userids: (this.result.published && !cur ? it.students.filter(x => !x.loaded && x.cat !== 'adelanto')
+                        : cur && cur.mode === 'modulo' ? cur.userids.slice()
                         : (it.students.some(x => x.s.finishing) ? it.students.filter(x => x.s.finishing) : it.students.filter(x => x.cat !== 'adelanto'))
                             .map(x => x.s.userid)).filter((v, i, a) => a.indexOf(v) === i) })) };
         },
@@ -1493,6 +1642,21 @@ Vue.component('period-projection', {
                 return;
             }
             if (!this.exc.note.trim()) { this.exc.error = 'Indique el motivo de la decisión.'; return; }
+            if (this.exc.mode === 'adicional') {
+                if (this.exc.items.some(it => it.jornada === 'Sin jornada')) { this.exc.error = 'Elija una jornada con nombre (Diurna, Nocturna o Sabatina).'; return; }
+                this.exc.saving = true;
+                try {
+                    const r = await this.ws('extra_add', { periodid: this.result.period.id, note: this.exc.note,
+                        items: this.exc.items.map(it => ({ courseid: it.courseid, jornada: it.jornada, isolated_plan: it.isolated, userids: it.userids })) });
+                    if (!r.ok) { this.exc.error = r.message; return; }
+                    this.exc.show = false; this.selected = {};
+                    const b = this.$refs.board;
+                    if (b && !b.dirty) b.load();
+                    this.$emit('changed', r.message);
+                } catch (e) { this.exc.error = 'Error al guardar: ' + (e.message || e); }
+                finally { this.exc.saving = false; }
+                return;
+            }
             if (this.exc.mode === 'modulo' && this.exc.items.some(it => !it.userids.length)) {
                 this.exc.error = 'Elija al menos un estudiante en cada asignatura para abrirla como módulo.'; return;
             }

@@ -822,6 +822,23 @@ class planning_config {
             case 'board_clear':
                 return schedule_board::save(['clear' => true] + $data);
 
+            case 'extra_add':
+            case 'extra_remove':
+                return late_changes::save_extra($data, $section === 'extra_remove');
+
+            case 'revert_check':
+                $chk = publisher::revert_check((int)($data['periodid'] ?? 0), (string)($data['key'] ?? ''));
+                return $chk['ok'] ? self::ok('Revisión (no se escribió nada).', $chk) : self::fail($chk['message']);
+
+            case 'revert':
+                return publisher::revert($data);
+
+            case 'enrol_suggest':
+                return late_changes::suggestions((int)($data['periodid'] ?? 0));
+
+            case 'enrol_apply':
+                return late_changes::enrol($data);
+
             case 'teacher_skill_add':
                 return teacher_admin::skill($data, true);
 

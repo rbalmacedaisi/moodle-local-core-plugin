@@ -199,6 +199,8 @@ class publisher {
         // Cada grupo tiene una o varias fichas (partes semanales); cada ficha, sus fechas exactas (semana de inicio + sesiones).
         $rows = [];
         $cards = [];
+        $today = date('Y-m-d');
+        $mingroup = (int)planning_config::rules()['min_group'];
         foreach ($board['groups'] as $g) {
             list($from, $to) = self::dates($period, $calendar, $g['jornada'], $g['long']);
             $cal = $board['calendars'][$g['cal']]['days'] ?? [];
@@ -207,7 +209,8 @@ class publisher {
                 'plans' => $g['plans'], 'long' => $g['long'], 'hours' => $g['hours'], 'from' => $from, 'to' => $to,
                 'cards' => [], 'day' => 0, 'start' => 0, 'end' => 0, 'teacherid' => 0, 'roomid' => 0, 'teacher' => '', 'room' => '',
                 'dates' => [], 'classid' => (int)($pub['groups'][$g['key']] ?? 0), 'blocks' => [], 'warnings' => [],
-                'event' => (string)($g['event'] ?? ''), 'yields' => !empty($g['yields']), 'student_conflicts' => []];
+                'event' => (string)($g['event'] ?? ''), 'yields' => !empty($g['yields']), 'student_conflicts' => [],
+                'extra' => !empty($g['extra']), 'planid' => (int)($g['planid'] ?? 0), 'isolated_plan' => (int)($g['isolated_plan'] ?? 0)];
             $rk = (int)$g['courseid'] . '|' . trim((string)$g['jornada']) . '|' . (int)($g['isolated_plan'] ?? 0);
             foreach ($res['exceptions'] as $e) {
                 if ($e['key'] === $rk && in_array($e['mode'], ['cerrar', 'modulo'], true) && !$row['classid']) {
@@ -239,6 +242,18 @@ class publisher {
                     $row['blocks'][] = (count($g['parts']) > 1 ? 'La parte ' . ($pi + 1) . ' no tiene' : 'No tiene') . ' horario en el tablero.';
                 } else if ($nses > 0 && count($dates) < $nses) {
                     $row['blocks'][] = 'Desde la semana ' . ($week + 1) . ' solo caben ' . count($dates) . ' de ' . $nses . ' sesiones.';
+                }
+                // Lo que se publica con el periodo en curso solo programa fechas desde hoy (nunca sesiones en el pasado).
+                if ($day && !$row['classid'] && $dates) {
+                    $future = array_values(array_filter($dates, function ($x) use ($today) {
+                        return $x >= $today;
+                    }));
+                    if (count($future) < count($dates)) {
+                        $row['warnings'][] = (count($dates) - count($future)) . ' fecha(s) ya pasaron: se programan solo las '
+                            . count($future) . ' sesión(es) que quedan' . ($future ? ' (desde el ' . $future[0] . ').' : '.');
+                        $dates = $future;
+                        $card['dates'] = $dates;
+                    }
                 }
                 if ($card['teacherid']) {
                     $tids[$card['teacherid']] = true;
@@ -383,6 +398,14 @@ class publisher {
             }
         }
         foreach ($rows as $k => $r) {
+            if (!$r['classid']) {
+                if (!$r['size']) {
+                    $rows[$k]['warnings'][] = 'Grupo sin estudiantes: se crea con su horario y la cola vacía; los estudiantes se matriculan '
+                        . 'después (Sugerencias de matrícula en Próximo periodo).';
+                } else if ($r['size'] < $mingroup) {
+                    $rows[$k]['warnings'][] = 'Grupo de ' . $r['size'] . ' estudiante(s), bajo el mínimo de ' . $mingroup . '.';
+                }
+            }
             if (!$r['day']) {
                 continue;
             }
@@ -473,6 +496,115 @@ class publisher {
         return ['ok' => true, 'message' => '', 'version' => $draft['version'], 'groups' => array_values($rows),
             'modules' => $modules, 'unscheduled' => $unsched, 'totals' => $tot, 'module_due' => $modend,
             'exclusions' => $board['exclusions'] ?? [], 'students' => $board['students'] ?? (object)[]];
+    }
+
+    /**
+     * Revision (SOLO LECTURA) para revertir la publicacion de un grupo del tablero: lo que se borraria y si se puede.
+     * No se puede si la clase ya se dio: asistencia tomada, sala virtual usada, notas o avance, o clase cerrada.
+     */
+    public static function revert_check($periodid, $key) {
+        global $DB, $CFG;
+        require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
+        $pub = self::published($periodid);
+        $cid = (int)($pub['groups'][$key] ?? 0);
+        if (!$cid) {
+            return ['ok' => false, 'message' => 'Ese grupo no está publicado desde el tablero.'];
+        }
+        $c = $DB->get_record('gmk_class', ['id' => $cid]);
+        if (!$c) {
+            return ['ok' => true, 'message' => '', 'classid' => $cid, 'missing' => true, 'blocks' => [], 'name' => '',
+                'students' => 0, 'queue' => 0, 'sessions' => 0, 'past' => 0];
+        }
+        $members = $c->groupid ? array_diff(array_map('intval', $DB->get_fieldset_select('groups_members', 'userid', 'groupid = ?',
+            [(int)$c->groupid])), [(int)$c->instructorid]) : [];
+        $sess = [];
+        $logs = 0;
+        $cm = $c->attendancemoduleid ? $DB->get_record('course_modules', ['id' => (int)$c->attendancemoduleid]) : null;
+        if ($cm) {
+            $sess = $DB->get_records('attendance_sessions', ['attendanceid' => (int)$cm->instance, 'groupid' => (int)$c->groupid], 'sessdate', 'id, sessdate');
+            if ($sess) {
+                list($ssql, $sparams) = $DB->get_in_or_equal(array_keys($sess));
+                $logs = $DB->count_records_select('attendance_log', "sessionid $ssql", $sparams);
+            }
+        }
+        $used = 0;
+        foreach ($DB->get_records('gmk_bbb_attendance_relation', ['classid' => $cid]) as $r) {
+            if ((int)$r->bbbmoduleid > 0 && gmk_bbb_cm_is_frozen((int)$r->bbbmoduleid, time())) {
+                $used++;
+            }
+        }
+        $graded = $DB->count_records_select('gmk_course_progre', 'classid = ? AND (grade > 0 OR progress > 0)', [$cid]);
+        $past = count(array_filter($sess, function ($s) {
+            return (int)$s->sessdate < time();
+        }));
+        $blocks = [];
+        if ($c->closed) {
+            $blocks[] = 'La clase está cerrada.';
+        }
+        if ($logs) {
+            $blocks[] = 'Ya tiene asistencia tomada (' . $logs . ' marca(s)).';
+        }
+        if ($used) {
+            $blocks[] = 'Su sala virtual ya se usó (' . $used . ' sesión(es) con reunión o grabación).';
+        }
+        if ($graded) {
+            $blocks[] = $graded . ' estudiante(s) ya tienen nota o avance en esta clase.';
+        }
+        return ['ok' => true, 'message' => '', 'classid' => $cid, 'missing' => false, 'name' => $c->name, 'approved' => (int)$c->approved,
+            'students' => count($members), 'queue' => $DB->count_records('gmk_class_queue', ['classid' => $cid]),
+            'sessions' => count($sess), 'past' => $past, 'blocks' => $blocks];
+    }
+
+    /**
+     * Revierte la publicacion de un grupo: borra la clase con delete_class (sesiones, salas, grupo, seccion, cola y
+     * vinculo de avance) y la quita de lo publicado. El grupo vuelve al tablero sin publicar. Respaldo completo antes.
+     * $d = ['periodid', 'key', 'classid' (confirmacion), 'note']
+     */
+    public static function revert(array $d) {
+        global $DB, $CFG;
+        require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
+        $pid = (int)($d['periodid'] ?? 0);
+        $key = (string)($d['key'] ?? '');
+        $note = trim((string)($d['note'] ?? ''));
+        if ($note === '') {
+            return ['ok' => false, 'message' => 'Indique el motivo para revertir la publicación.', 'saved' => null];
+        }
+        $chk = self::revert_check($pid, $key);
+        if (!$chk['ok']) {
+            return ['ok' => false, 'message' => $chk['message'], 'saved' => null];
+        }
+        if ((int)($d['classid'] ?? 0) !== (int)$chk['classid']) {
+            return ['ok' => false, 'message' => 'La clase publicada cambió. Recargue el tablero.', 'saved' => null];
+        }
+        if ($chk['blocks']) {
+            return ['ok' => false, 'message' => 'No se puede revertir: ' . implode(' ', $chk['blocks']), 'saved' => null];
+        }
+        $cid = (int)$chk['classid'];
+        if (!$chk['missing']) {
+            $c = $DB->get_record('gmk_class', ['id' => $cid], '*', MUST_EXIST);
+            planning_config::log_backup('revertir_grupo_' . $pid . '_' . $cid, ['motivo' => $note, 'clave' => $key, 'revision' => $chk,
+                'gmk_class' => $c,
+                'gmk_class_queue' => array_values($DB->get_records('gmk_class_queue', ['classid' => $cid])),
+                'gmk_class_pre_registration' => array_values($DB->get_records('gmk_class_pre_registration', ['classid' => $cid])),
+                'gmk_class_schedules' => array_values($DB->get_records('gmk_class_schedules', ['classid' => $cid])),
+                'groups_members' => $c->groupid ? array_values($DB->get_records('groups_members', ['groupid' => (int)$c->groupid])) : [],
+                'gmk_course_progre' => array_values($DB->get_records('gmk_course_progre', ['classid' => $cid])),
+                'gmk_bbb_attendance_relation' => array_values($DB->get_records('gmk_bbb_attendance_relation', ['classid' => $cid]))]);
+            try {
+                delete_class($cid, 'Revertir publicación del tablero de horarios: ' . $note);
+            } catch (\Throwable $e) {
+                return ['ok' => false, 'message' => 'No se pudo borrar la clase ' . $cid . ': ' . $e->getMessage(), 'saved' => null];
+            }
+            if ($DB->record_exists('gmk_class', ['id' => $cid])) {
+                return ['ok' => false, 'message' => 'La clase ' . $cid . ' no se borró. No se cambió lo publicado.', 'saved' => null];
+            }
+        }
+        $pub = self::published($pid);
+        unset($pub['groups'][$key], $pub['pending'][$key]);
+        self::save_published($pid, $pub);
+        return ['ok' => true, 'message' => $chk['missing'] ? 'La clase ya no existía: se quitó de lo publicado y el grupo vuelve al tablero.'
+            : 'Publicación revertida: se borró la clase ' . $cid . ' (' . $chk['sessions'] . ' sesiones, ' . $chk['students']
+                . ' estudiante(s) desvinculados). El grupo vuelve al tablero sin publicar.', 'saved' => ['classid' => $cid]];
     }
 
     /** Filas de avance (gmk_course_progre) de una asignatura, para comparar antes/despues. */
@@ -664,6 +796,11 @@ class publisher {
         arsort($count);
         $llcid = (int)key($count);
         $llc = $llcid ? $DB->get_record('local_learning_courses', ['id' => $llcid]) : null;
+        if (!$llc && !empty($g['planid'])) {
+            // Grupo sin estudiantes (adicional): la carrera elegida al crearlo.
+            $llc = $DB->get_record('local_learning_courses', ['courseid' => $g['courseid'], 'learningplanid' => (int)$g['planid']],
+                '*', IGNORE_MULTIPLE);
+        }
         if (!$llc) {
             $llc = $DB->get_record('local_learning_courses', ['courseid' => $g['courseid']], '*', IGNORE_MULTIPLE);
         }

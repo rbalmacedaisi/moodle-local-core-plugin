@@ -2688,3 +2688,11 @@ button.tl-btn.tl-btn-primary:active:not(:disabled) {
 
 /* Selector de periodo de la proyeccion */
 .tl-proj-persel { width: auto; min-width: 210px; font-weight: 700; color: #312E81; margin: 0 4px; }
+
+/* Periodo publicado: aviso en Proximo periodo y sugerencias de matricula */
+.tl-proj-pubnote { display: flex; align-items: center; gap: 10px; padding: 10px 14px; margin: 0 0 12px; border-radius: var(--tl-radius);
+    background: #EFF6FF; border: 1px solid #BFDBFE; color: #1E3A8A; font-size: 13px; }
+.tl-proj-enrtable { width: 100%; border-collapse: collapse; font-size: 13px; }
+.tl-proj-enrtable th { text-align: left; font-size: 11px; text-transform: uppercase; color: #64748B; padding: 6px; border-bottom: 1px solid #E2E8F0; }
+.tl-proj-enrtable td { padding: 6px; border-bottom: 1px solid #F1F5F9; vertical-align: top; }
+.tl-proj-enr-done { background: #F8FAFC; }
