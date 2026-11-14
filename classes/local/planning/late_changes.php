@@ -578,4 +578,158 @@ class late_changes {
         return self::ok(count($out) . ' clase(s); ' . $withc . ' estudiante(s) con asignaturas cargadas (no se escribió nada).',
             ['period' => ['id' => (int)$p->id, 'name' => (string)$p->name], 'classes' => $out, 'students' => $students]);
     }
+
+    /**
+     * Cursos complementarios (solo lectura). Los planes complementarios no entran en la proyeccion (no "les toca" nada), asi
+     * que sus cursos se cargan como grupo adicional. Sin $courseid devuelve los cursos de esos planes; con $courseid, los
+     * estudiantes activos de un plan que tiene el curso y su situacion:
+     *   disponible  - nunca lo curso (se marca por defecto)
+     *   reprobado   - lo reprobo (se puede marcar para repetir)
+     *   revalida    - tiene una revalida pendiente o en curso
+     *   cursando    - esta en una clase abierta de ese curso (de este u otro periodo) o su avance dice "en curso"
+     *   aprobado    - ya lo aprobo o completo
+     * Solo los "disponible" y "reprobado" se pueden enviar al tablero. Los cursos que tambien estan en una carrera no se
+     * listan: esos ya salen en la proyeccion.
+     */
+    public static function complementary($periodid, $courseid = 0) {
+        global $DB;
+        $p = $DB->get_record('gmk_academic_periods', ['id' => $periodid], 'id, name, enddate');
+        if (!$p) {
+            return self::fail('El periodo no existe.');
+        }
+        $plans = \local_grupomakro_core\local\academic_progress::EXCLUDED_PLANS;
+        list($psql, $pparams) = $DB->get_in_or_equal($plans);
+        $courses = [];
+        foreach ($DB->get_records_sql("SELECT lc.id, lc.courseid, lc.learningplanid, c.fullname, lp.name AS plan
+                FROM {local_learning_courses} lc JOIN {course} c ON c.id = lc.courseid
+                JOIN {local_learning_plans} lp ON lp.id = lc.learningplanid
+                WHERE lc.learningplanid $psql ORDER BY c.fullname", $pparams) as $r) {
+            $cid = (int)$r->courseid;
+            if (!isset($courses[$cid])) {
+                $courses[$cid] = ['courseid' => $cid, 'name' => (string)$r->fullname, 'plans' => []];
+            }
+            $courses[$cid]['plans'][(int)$r->learningplanid] = (string)$r->plan;
+        }
+        // Los que tambien estan en una carrera ya salen en la proyeccion (p. ej. un seminario de nivel): no se repiten aqui.
+        if ($courses) {
+            list($csql0, $cparams0) = $DB->get_in_or_equal(array_keys($courses));
+            list($nsql, $nparams) = $DB->get_in_or_equal($plans, SQL_PARAMS_QM, 'param', false);
+            foreach ($DB->get_fieldset_select('local_learning_courses', 'DISTINCT courseid',
+                    "courseid $csql0 AND learningplanid $nsql", array_merge($cparams0, $nparams)) as $cid) {
+                unset($courses[(int)$cid]);
+            }
+        }
+        foreach ($courses as $cid => $c) {
+            $courses[$cid]['plans'] = array_values($c['plans']);
+        }
+        $out = ['period' => ['id' => (int)$p->id, 'name' => (string)$p->name], 'courses' => array_values($courses)];
+        $courseid = (int)$courseid;
+        if (!$courseid) {
+            return self::ok(count($courses) . ' curso(s) complementario(s) (no se escribió nada).', $out);
+        }
+        if (!isset($courses[$courseid])) {
+            return self::fail('Ese curso no está en un plan complementario.');
+        }
+        $res = (new demand_engine($periodid))->compute();
+        if (!empty($res['error'])) {
+            return self::fail($res['error']);
+        }
+        $start = (int)$res['period']['start'];
+        // Estudiantes activos de un plan que tiene el curso (complementario o no).
+        $cplans = $DB->get_fieldset_select('local_learning_courses', 'DISTINCT learningplanid', 'courseid = ?', [$courseid]);
+        list($csql, $cparams) = $DB->get_in_or_equal(array_map('intval', $cplans));
+        $users = [];
+        foreach ($DB->get_records_sql("SELECT id, userid, learningplanid FROM {local_learning_users}
+                WHERE learningplanid $csql AND userrolename = 'student' AND status = 'activo'", $cparams) as $r) {
+            $users[(int)$r->userid][(int)$r->learningplanid] = (int)$r->learningplanid;
+        }
+        // Avance del curso (el peor caso manda: aprobado > cursando > revalida > reprobado).
+        $prog = [];
+        if ($users) {
+            list($usql, $uparams) = $DB->get_in_or_equal(array_keys($users));
+            foreach ($DB->get_records_select('gmk_course_progre', "courseid = ? AND userid $usql", array_merge([$courseid], $uparams),
+                    '', 'id, userid, status') as $r) {
+                $prog[(int)$r->userid][] = (int)$r->status;
+            }
+        }
+        // En una clase abierta del curso: de este periodo, o de otro que sigue dictandose al empezar este.
+        $inclass = [];
+        foreach ($DB->get_records_select('gmk_class', 'closed = 0 AND corecourseid = ? AND (periodid = ? OR enddate >= ?)',
+                [$courseid, $periodid, $start], '', 'id, name, groupid, instructorid') as $c) {
+            foreach ($DB->get_fieldset_select('gmk_class_queue', 'userid', 'classid = ?', [$c->id]) as $u) {
+                $inclass[(int)$u] = (string)$c->name;
+            }
+            if ($c->groupid) {
+                foreach ($DB->get_fieldset_select('groups_members', 'userid', 'groupid = ? AND userid <> ?',
+                        [$c->groupid, (int)$c->instructorid]) as $u) {
+                    $inclass[(int)$u] = (string)$c->name;
+                }
+            }
+        }
+        // En otro grupo adicional sin publicar de este curso.
+        $pub = publisher::published($periodid);
+        $inextra = [];
+        foreach (self::extras($periodid) as $k => $x) {
+            if ((int)$x['courseid'] === $courseid && empty($pub['groups'][$k])) {
+                foreach ($x['userids'] as $u) {
+                    $inextra[(int)$u] = $x['jornada'] . ' G' . (int)($x['number'] ?? 1);
+                }
+            }
+        }
+        $info = [];
+        foreach ($res['students'] as $s) {
+            $u = (int)$s['userid'];
+            if (!isset($users[$u])) {
+                continue;
+            }
+            if (!isset($info[$u])) {
+                $info[$u] = ['userid' => $u, 'name' => (string)$s['name'], 'doc' => (string)$s['documento'],
+                    'jornada' => (string)$s['jornada'], 'ingreso' => (string)$s['ingreso'], 'careers' => []];
+            }
+            $info[$u]['careers'][] = (string)$s['plan'] . ($s['level'] !== '' ? ' (' . $s['level'] . ')' : '');
+        }
+        // Activos solo en planes complementarios: sin jornada ni ingreso en el motor.
+        $missing = array_values(array_diff(array_keys($users), array_keys($info)));
+        if ($missing) {
+            list($msql, $mparams) = $DB->get_in_or_equal($missing);
+            foreach ($DB->get_records_select('user', "id $msql AND deleted = 0 AND suspended = 0", $mparams, '',
+                    'id, firstname, lastname, idnumber, username') as $u) {
+                $info[(int)$u->id] = ['userid' => (int)$u->id, 'name' => trim($u->firstname . ' ' . $u->lastname),
+                    'doc' => (string)($u->idnumber ?: $u->username), 'jornada' => '', 'ingreso' => '', 'careers' => []];
+            }
+        }
+        $students = [];
+        $count = [];
+        foreach ($info as $u => $x) {
+            $st = $prog[$u] ?? [];
+            if (array_intersect($st, [3, 4])) {
+                $x['status'] = 'aprobado';
+            } else if (isset($inclass[$u]) || in_array(2, $st, true)) {
+                $x['status'] = 'cursando';
+                $x['where'] = $inclass[$u] ?? '';
+            } else if (isset($inextra[$u])) {
+                $x['status'] = 'en grupo adicional';
+                $x['where'] = $inextra[$u];
+            } else if (array_intersect($st, [6, 7])) {
+                $x['status'] = 'revalida';
+            } else if (in_array(5, $st, true)) {
+                $x['status'] = 'reprobado';
+            } else {
+                $x['status'] = 'disponible';
+            }
+            $x['selectable'] = in_array($x['status'], ['disponible', 'reprobado'], true);
+            $count[$x['status']] = ($count[$x['status']] ?? 0) + 1;
+            $students[] = $x;
+        }
+        usort($students, function ($a, $b) {
+            return strcmp($a['name'], $b['name']);
+        });
+        $out['course'] = $courses[$courseid];
+        $out['students'] = $students;
+        $txt = [];
+        foreach ($count as $k => $v) {
+            $txt[] = "$v $k";
+        }
+        return self::ok(count($students) . ' estudiante(s) activos con el curso: ' . implode(', ', $txt) . ' (no se escribió nada).', $out);
+    }
 }

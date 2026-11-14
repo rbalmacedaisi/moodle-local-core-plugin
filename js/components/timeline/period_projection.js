@@ -79,7 +79,12 @@ Vue.component('period-projection', {
                 <button v-for="j in jornadaOpts" :key="j" class="tl-plan-tab" :class="{ 'tl-plan-tab-active': jornada === j }"
                         @click="jornada = j">{{ j || 'Todas' }}</button>
             </div>
+            <button v-if="canEdit && hasCompl && view === 'next'" class="tl-proj-flexbtn" @click="complOpen = true"
+                    title="Cargar un curso de los planes complementarios (inglés conversacional, natación, seminarios…) a una cohorte">
+                <v-icon size="13">mdi-plus-box-multiple-outline</v-icon> Curso complementario</button>
         </div>
+        <complementary-course v-if="hasCompl && canEdit" v-model="complOpen" :periodid="result.period.id" :period-name="result.period.name"
+                              @done="complDone"></complementary-course>
         <!-- TABLERO DE HORARIOS (se mantiene vivo al cambiar de pestana para no perder cambios sin guardar) -->
         <schedule-board v-if="boardOpened" ref="board" v-show="view === 'board'" :periodid="result.period.id" :period-name="result.period.name"
                         :plan-ids="planIds" :can-edit="canEdit" @proposal-saved="grouping = null"></schedule-board>
@@ -750,7 +755,7 @@ Vue.component('period-projection', {
         return { q: '', filter: 'all', jornada: '', careerFilter: 0, open: {}, selected: {},
             view: 'next', boardOpened: false, future: null, poolOpen: true, poolTab: 'next', poolDetail: null, poolDlg: null, futureLoading: false, futureError: '', cellDetail: null, costOpen: false, openRep: {},
             grouping: null, groupsLoading: false, groupsError: '', modOpen: {}, groupTab: 'list', groupDetail: null, alertType: 'all', alertLimit: 200,
-            savedProposal: null, proposalSaving: false,
+            savedProposal: null, proposalSaving: false, complOpen: false,
             exc: { show: false, mode: 'grupo', items: [], note: '', error: '', saving: false },
             enr: { show: false, loading: false, error: '', rows: [], filter: 'sugeridas', q: '', saving: false, done: '', doneOk: true }, enrChanged: false,
             catLabel: { nivel: 'nivel', atrasada: 'atrasada', repite: 'repite', adelanto: 'adelanto' },
@@ -998,6 +1003,7 @@ Vue.component('period-projection', {
         },
         hasBoard() { return !!window.GmkBoard && !!Vue.options.components['schedule-board']; },
         hasLoaded() { return !!Vue.options.components['loaded-schedules']; },
+        hasCompl() { return !!Vue.options.components['complementary-course']; },
         // Grupos filtrados por carrera, jornada y busqueda, agrupados por asignatura + jornada.
         groupRows() {
             if (!this.grouping) return [];
@@ -1585,6 +1591,12 @@ Vue.component('period-projection', {
             });
             m.groups = m.ready > 0 ? 1 : 0;
             return m;
+        },
+        // Curso complementario enviado al tablero: se recarga el tablero si no tiene cambios sin guardar.
+        complDone(msg) {
+            const b = this.$refs.board;
+            if (b && !b.dirty) b.load();
+            this.$emit('changed', msg);
         },
         async ws(section, data) {
             const body = new URLSearchParams({ wstoken: window.userToken, moodlewsrestformat: 'json',

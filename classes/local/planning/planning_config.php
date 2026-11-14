@@ -842,6 +842,9 @@ class planning_config {
             case 'loaded_view':
                 return late_changes::loaded_view((int)($data['periodid'] ?? 0));
 
+            case 'complement_list':
+                return late_changes::complementary((int)($data['periodid'] ?? 0), (int)($data['courseid'] ?? 0));
+
             case 'teacher_skill_add':
                 return teacher_admin::skill($data, true);
 
