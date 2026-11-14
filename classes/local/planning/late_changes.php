@@ -443,4 +443,139 @@ class late_changes {
         return self::ok($ok . ' de ' . count($out) . ' matrícula(s) hecha(s)' . ($more ? '; ' . $more . ' quedan para otra tanda' : '') . '.',
             ['rows' => $out, 'more' => $more > 0]);
     }
+
+    /**
+     * Horarios cargados (solo lectura): las clases reales del periodo (y las de otros periodos que siguen con sesiones en
+     * este), quien quedo en cada una (matriculado en el grupo o en la cola) y los datos de cada estudiante (carrera, nivel,
+     * ingreso, jornada) para ver e imprimir el horario por estudiante o por cohorte. Tambien lista a los estudiantes activos
+     * que no tienen ninguna asignatura cargada.
+     */
+    public static function loaded_view($periodid) {
+        global $DB;
+        $res = (new demand_engine($periodid))->compute();
+        if (!empty($res['error'])) {
+            return self::fail($res['error']);
+        }
+        $start = (int)$res['period']['start'];
+        $p = $DB->get_record('gmk_academic_periods', ['id' => $periodid], 'id, name, enddate', MUST_EXIST);
+        $classes = $DB->get_records_select('gmk_class',
+            'closed = 0 AND (periodid = ? OR (is_module = 0 AND approved = 1 AND enddate > ? AND initdate < ?))',
+            [$periodid, $start, (int)$p->enddate], 'id',
+            'id, name, corecourseid, periodid, shift, groupid, instructorid, approved, is_module, initdate, enddate');
+        $out = [];
+        $members = [];   // classid => userid => 'matriculado' | 'en cola'
+        if ($classes) {
+            list($insql, $inparams) = $DB->get_in_or_equal(array_keys($classes));
+            $rooms = $DB->get_records_menu('gmk_classrooms', null, '', 'id, name');
+            $slots = [];
+            $dates = [];
+            foreach ($DB->get_records_select('gmk_class_schedules', "classid $insql", $inparams) as $s) {
+                $cid = (int)$s->classid;
+                $dl = array_values(array_diff((array)json_decode((string)($s->assigned_dates ?? ''), true),
+                    (array)json_decode((string)($s->excluded_dates ?? ''), true)));
+                $dates[$cid] = array_merge($dates[$cid] ?? [], $dl);
+                $dn = schedule_board::day_num($s->day);
+                $a = schedule_board::to_min($s->start_time);
+                $b = schedule_board::to_min($s->end_time);
+                if ($dn && $a >= 0 && $b > $a) {
+                    $slots[$cid][] = ['day' => $dn, 'start' => $a, 'end' => $b, 'room' => (string)($rooms[(int)$s->classroomid] ?? '')];
+                }
+            }
+            foreach ($DB->get_records_select('gmk_class_queue', "classid $insql", $inparams, '', 'id, classid, userid') as $q) {
+                $members[(int)$q->classid][(int)$q->userid] = 'en cola';
+            }
+            $gid = [];
+            foreach ($classes as $c) {
+                if ($c->groupid) {
+                    $gid[(int)$c->groupid][] = $c;
+                }
+            }
+            if ($gid) {
+                list($gsql, $gparams) = $DB->get_in_or_equal(array_keys($gid));
+                foreach ($DB->get_records_select('groups_members', "groupid $gsql", $gparams, '', 'id, groupid, userid') as $m) {
+                    foreach ($gid[(int)$m->groupid] as $c) {
+                        if ((int)$m->userid !== (int)$c->instructorid) {
+                            $members[(int)$c->id][(int)$m->userid] = 'matriculado';
+                        }
+                    }
+                }
+            }
+            $cids = array_values(array_unique(array_map(function ($c) {
+                return (int)$c->corecourseid;
+            }, $classes)));
+            list($csql, $cparams) = $DB->get_in_or_equal($cids);
+            $courses = $DB->get_records_select_menu('course', "id $csql", $cparams, '', 'id, fullname');
+            $tids = array_filter(array_map(function ($c) {
+                return (int)$c->instructorid;
+            }, $classes));
+            $teachers = [];
+            if ($tids) {
+                list($tsql, $tparams) = $DB->get_in_or_equal(array_values(array_unique($tids)));
+                foreach ($DB->get_records_select('user', "id $tsql", $tparams, '', 'id, firstname, lastname') as $u) {
+                    $teachers[(int)$u->id] = trim($u->firstname . ' ' . $u->lastname);
+                }
+            }
+            $pstart = date('Y-m-d', $start);
+            foreach ($classes as $c) {
+                $cid = (int)$c->id;
+                $dl = array_values(array_unique($dates[$cid] ?? []));
+                sort($dl);
+                $prev = (int)$c->periodid !== (int)$periodid;
+                if ($prev && (!$dl || end($dl) < $pstart)) {
+                    continue; // de otro periodo y ya sin sesiones en este
+                }
+                $short = trim(preg_replace(['/^\s*\d{4}-[IVX]+\s*\([A-Z]\)\s*/u', '/\s*\(PRESENCIAL\)/iu'], '', (string)$c->name));
+                $out[] = ['id' => $cid, 'name' => (string)$c->name, 'short' => $short !== '' ? $short : (string)$c->name,
+                    'course' => (string)($courses[(int)$c->corecourseid] ?? ''), 'courseid' => (int)$c->corecourseid,
+                    'jornada' => trim((string)$c->shift), 'module' => (int)$c->is_module === 1, 'approved' => (int)$c->approved === 1,
+                    'prev' => $prev, 'teacher' => (string)($teachers[(int)$c->instructorid] ?? ''),
+                    'slots' => $slots[$cid] ?? [],
+                    'first' => $dl ? $dl[0] : ($c->initdate ? date('Y-m-d', (int)$c->initdate) : ''),
+                    'last' => $dl ? $dl[count($dl) - 1] : ($c->enddate ? date('Y-m-d', (int)$c->enddate) : ''),
+                    'sessions' => count($dl), 'size' => count($members[$cid] ?? [])];
+            }
+        }
+        $keep = array_flip(array_column($out, 'id'));
+        $byuser = [];
+        foreach ($members as $cid => $us) {
+            if (!isset($keep[$cid])) {
+                continue;
+            }
+            foreach ($us as $u => $st) {
+                $byuser[$u][] = ['id' => (int)$cid, 'st' => $st];
+            }
+        }
+        // Datos del estudiante: del motor de demanda (activos, con su nivel en este periodo); los demas, del usuario.
+        $info = [];
+        foreach ($res['students'] as $s) {
+            $u = (int)$s['userid'];
+            if (!isset($info[$u])) {
+                $info[$u] = ['userid' => $u, 'name' => (string)$s['name'], 'doc' => (string)$s['documento'], 'email' => (string)$s['email'],
+                    'jornada' => (string)$s['jornada'], 'ingreso' => (string)$s['ingreso'], 'plans' => [], 'active' => true];
+            }
+            $info[$u]['plans'][] = ['planid' => (int)$s['planid'], 'plan' => (string)$s['plan'], 'level' => (string)$s['level']];
+        }
+        $missing = array_values(array_diff(array_keys($byuser), array_keys($info)));
+        if ($missing) {
+            list($usql, $uparams) = $DB->get_in_or_equal($missing);
+            foreach ($DB->get_records_select('user', "id $usql", $uparams, '', 'id, firstname, lastname, idnumber, username, email') as $u) {
+                $info[(int)$u->id] = ['userid' => (int)$u->id, 'name' => trim($u->firstname . ' ' . $u->lastname),
+                    'doc' => (string)($u->idnumber ?: $u->username), 'email' => (string)$u->email, 'jornada' => '', 'ingreso' => '',
+                    'plans' => [], 'active' => false];
+            }
+        }
+        $students = [];
+        foreach ($info as $u => $x) {
+            $x['classes'] = $byuser[$u] ?? [];
+            $students[] = $x;
+        }
+        usort($students, function ($a, $b) {
+            return strcmp($a['name'], $b['name']);
+        });
+        $withc = count(array_filter($students, function ($x) {
+            return (bool)$x['classes'];
+        }));
+        return self::ok(count($out) . ' clase(s); ' . $withc . ' estudiante(s) con asignaturas cargadas (no se escribió nada).',
+            ['period' => ['id' => (int)$p->id, 'name' => (string)$p->name], 'classes' => $out, 'students' => $students]);
+    }
 }

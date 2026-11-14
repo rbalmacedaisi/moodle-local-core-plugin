@@ -57,9 +57,12 @@ Vue.component('period-projection', {
                 <v-icon size="14">mdi-calendar-edit</v-icon> Tablero de horarios</button>
             <button class="tl-plan-tab" :class="{ 'tl-plan-tab-active': view === 'modules' }" @click="openModules">
                 <v-icon size="14">mdi-briefcase-outline</v-icon> Módulos y sin horario<span v-if="modRowsAll.length" class="tl-plan-tab-count">{{ modRowsAll.length }}</span></button>
+            <button v-if="hasLoaded" class="tl-plan-tab" :class="{ 'tl-plan-tab-active': view === 'loaded' }" @click="view = 'loaded'"
+                    title="Clases reales del periodo y quién quedó en cada una: horario por estudiante, cohorte o clase, para imprimir">
+                <v-icon size="14">mdi-calendar-account</v-icon> Horarios cargados</button>
         </div>
 
-        <div class="tl-proj-toolbar" v-show="view !== 'board'">
+        <div class="tl-proj-toolbar" v-show="view !== 'board' && view !== 'loaded'">
             <select v-if="showCareers" v-model.number="careerFilter" class="tl-cfg-input tl-proj-career" title="Filtrar por carrera">
                 <option :value="0">Todas las carreras</option>
                 <option v-for="c in careerOpts" :key="c.id" :value="c.id">{{ c.short }}</option>
@@ -80,6 +83,9 @@ Vue.component('period-projection', {
         <!-- TABLERO DE HORARIOS (se mantiene vivo al cambiar de pestana para no perder cambios sin guardar) -->
         <schedule-board v-if="boardOpened" ref="board" v-show="view === 'board'" :periodid="result.period.id" :period-name="result.period.name"
                         :plan-ids="planIds" :can-edit="canEdit" @proposal-saved="grouping = null"></schedule-board>
+        <!-- HORARIOS CARGADOS: clases reales del periodo por estudiante, cohorte o clase (solo lectura, imprimible) -->
+        <loaded-schedules v-if="view === 'loaded'" :periodid="result.period.id" :period-name="result.period.name"
+                          :plan-ids="planIds" :show-careers="showCareers"></loaded-schedules>
         <!-- MODULOS Y SIN HORARIO: lo que se carga sin clase (no va al tablero) -->
         <div v-if="view === 'modules'" class="tl-proj-mods">
             <div class="tl-cfg-help mb-2">Asignaturas que se cargan <b>sin clase</b>: no tienen docente, aula ni horario y no aparecen en el tablero.
@@ -991,6 +997,7 @@ Vue.component('period-projection', {
                 .filter(r => r.students.length);
         },
         hasBoard() { return !!window.GmkBoard && !!Vue.options.components['schedule-board']; },
+        hasLoaded() { return !!Vue.options.components['loaded-schedules']; },
         // Grupos filtrados por carrera, jornada y busqueda, agrupados por asignatura + jornada.
         groupRows() {
             if (!this.grouping) return [];

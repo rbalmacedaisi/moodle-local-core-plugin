@@ -839,6 +839,9 @@ class planning_config {
             case 'enrol_apply':
                 return late_changes::enrol($data);
 
+            case 'loaded_view':
+                return late_changes::loaded_view((int)($data['periodid'] ?? 0));
+
             case 'teacher_skill_add':
                 return teacher_admin::skill($data, true);
 

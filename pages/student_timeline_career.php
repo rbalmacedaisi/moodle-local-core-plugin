@@ -91,6 +91,7 @@ $reportlogo = $reportlogo ? $reportlogo->out(false) : $CFG->wwwroot . '/local/gr
 ?>
 <script>window.gmkReportLogo = <?php echo json_encode($reportlogo); ?>;</script>
 <script src="<?php echo $CFG->wwwroot; ?>/local/grupomakro_core/js/components/timeline/board_report.js?v=<?php echo $assetversion; ?>"></script>
+<script src="<?php echo $CFG->wwwroot; ?>/local/grupomakro_core/js/components/timeline/loaded_schedules.js?v=<?php echo $assetversion; ?>"></script>
 <script src="<?php echo $CFG->wwwroot; ?>/local/grupomakro_core/js/components/timeline/period_projection.js?v=<?php echo $assetversion; ?>"></script>
 <script src="<?php echo $CFG->wwwroot; ?>/local/grupomakro_core/js/components/timeline/intake_timeline.js?v=<?php echo $assetversion; ?>"></script>
 
