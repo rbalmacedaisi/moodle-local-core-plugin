@@ -400,6 +400,7 @@ class schedule_board {
         // Lo ya publicado se dibuja con la clase real (sus sesiones, fechas, aula y docente), no con lo que se calcularia hoy:
         // si despues cambia la configuracion o el calendario (un feriado nuevo, otra carga horaria) la ficha no pierde su lugar.
         $draftout = self::draft($periodid);
+        $outside = [];
         $pubgroups = array_filter($groups, function ($g) {
             return $g['published'] > 0;
         });
@@ -408,7 +409,29 @@ class schedule_board {
                 return (int)$g['published'];
             }, $pubgroups);
             list($pcsql, $pcparams) = $DB->get_in_or_equal(array_values($pcids));
-            $pclass = $DB->get_records_select('gmk_class', "id $pcsql", $pcparams, '', 'id, instructorid');
+            $pclass = $DB->get_records_select('gmk_class', "id $pcsql", $pcparams, '', 'id, instructorid, groupid, approved');
+            // Estudiantes reales de la clase, sin el docente: el grupo de Moodle si ya esta aprobada (la cola no se vacia al
+            // aprobar y puede tener a quien despues se saco del grupo) o la cola si todavia no. Si alguien se movio a mano despues
+            // de guardar la propuesta, el tablero ve donde esta de verdad y no avisa choques que no existen.
+            $roster = [];
+            $g2c = [];
+            foreach ($pclass as $pc) {
+                $roster[(int)$pc->id] = [];
+                if ((int)$pc->approved && (int)$pc->groupid) {
+                    $g2c[(int)$pc->groupid] = (int)$pc->id;
+                }
+            }
+            if ($g2c) {
+                list($gmsql, $gmparams) = $DB->get_in_or_equal(array_keys($g2c));
+                foreach ($DB->get_records_select('groups_members', "groupid $gmsql", $gmparams, '', 'id, groupid, userid') as $m) {
+                    $roster[$g2c[(int)$m->groupid]][(int)$m->userid] = (int)$m->userid;
+                }
+            }
+            foreach ($DB->get_records_select('gmk_class_queue', "classid $pcsql", $pcparams, '', 'id, classid, userid') as $q) {
+                if (!(int)$pclass[(int)$q->classid]->approved) {
+                    $roster[(int)$q->classid][(int)$q->userid] = (int)$q->userid;
+                }
+            }
             $psched = [];
             foreach ($DB->get_records_select('gmk_class_schedules', "classid $pcsql", $pcparams, 'id') as $sc) {
                 $dn = self::day_num($sc->day);
@@ -447,6 +470,28 @@ class schedule_board {
                         'sessions' => count($x['dates']), 'real' => true];
                 }
                 $groups[$gi]['parts'] = $parts;
+                $real_uids = array_values(array_diff($roster[$cid] ?? [], [(int)$pclass[$cid]->instructorid]));
+                sort($real_uids);
+                $levels = [];
+                $plans = [];
+                foreach ($real_uids as $u) {
+                    foreach ($byuser[$u] ?? [] as $sx) {
+                        $levels[$sx['level']] = ($levels[$sx['level']] ?? 0) + 1;
+                        $plans[(int)$sx['planid']] = true;
+                    }
+                }
+                arsort($levels);
+                $groups[$gi]['userids'] = $real_uids;
+                $groups[$gi]['size'] = count($real_uids);
+                $groups[$gi]['adelanto_ids'] = array_values(array_intersect($groups[$gi]['adelanto_ids'], $real_uids));
+                $groups[$gi]['adelantos'] = count($groups[$gi]['adelanto_ids']);
+                $groups[$gi]['levels'] = $levels;
+                $groups[$gi]['plans'] = array_keys($plans);
+                foreach ($real_uids as $u) {
+                    if (!isset($byuser[$u])) {
+                        $outside[$u] = $u; // en la clase pero fuera de la proyeccion (otro plan, inactivo...): solo el nombre
+                    }
+                }
                 $groups[$gi]['sessions'] = array_sum(array_column($parts, 'sessions'));
                 $groups[$gi]['duration'] = $real[0]['end'] - $real[0]['start'];
             }
@@ -575,9 +620,11 @@ class schedule_board {
             'rooms' => $rooms,
             'fixed' => $fixed,
             // Nombres de los estudiantes de las fichas (para decir quien choca).
-            'students' => (object)array_map(function ($list) {
+            'students' => (object)(array_map(function ($list) {
                 return $list[0]['name'];
-            }, $byuser),
+            }, $byuser) + ($outside ? array_map(function ($u) {
+                return fullname($u);
+            }, $DB->get_records_list('user', 'id', array_values($outside), '', 'id, firstname, lastname, firstnamephonetic, lastnamephonetic, middlename, alternatename')) : [])),
             // Detalle de los estudiantes de las fichas (solo lectura), para imprimir y exportar.
             'student_info' => (object)array_map(function ($list) {
                 return ['doc' => (string)$list[0]['documento'], 'email' => (string)$list[0]['email'],
