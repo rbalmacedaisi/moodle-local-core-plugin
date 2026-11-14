@@ -187,6 +187,37 @@ class schedule_board {
      * @param int $periodid
      * @param array $demand resultado de demand_engine con 'grouping' (para niveles y cohortes de los grupos)
      */
+    /**
+     * Estudiantes que estan en el grupo de una clase regular solo porque cursan el MODULO de esa asignatura: al matricular un
+     * modulo se agrega al estudiante al grupo de la clase regular del periodo para que vea el contenido (enroll_module, 5b),
+     * pero no asiste a esa clase. Se reconocen porque tienen el modulo activo del mismo curso y no tienen nada propio de la
+     * clase regular: ni cola ni fila de progreso con esa clase. Quien esta inscrito en las dos se sigue contando.
+     *
+     * @param int[] $classids clases regulares (gmk_class.id)
+     * @return array classid => [userid => true]
+     */
+    private static function module_only(array $classids) {
+        global $DB;
+        $out = [];
+        if (!$classids) {
+            return $out;
+        }
+        list($insql, $params) = $DB->get_in_or_equal(array_values(array_map('intval', $classids)), SQL_PARAMS_NAMED, 'mo');
+        $rs = $DB->get_recordset_sql("SELECT k.id AS classid, gm.userid
+              FROM {gmk_class} k
+              JOIN {groups_members} gm ON gm.groupid = k.groupid
+              JOIN {gmk_module_enrollment} me ON me.userid = gm.userid AND me.status = 'active'
+              JOIN {gmk_class} mk ON mk.id = me.classid AND mk.is_module = 1 AND mk.closed = 0 AND mk.corecourseid = k.corecourseid
+             WHERE k.id $insql AND k.is_module = 0 AND k.groupid > 0
+               AND NOT EXISTS (SELECT 1 FROM {gmk_class_queue} q WHERE q.classid = k.id AND q.userid = gm.userid)
+               AND NOT EXISTS (SELECT 1 FROM {gmk_course_progre} cp WHERE cp.classid = k.id AND cp.userid = gm.userid)", $params);
+        foreach ($rs as $r) {
+            $out[(int)$r->classid][(int)$r->userid] = true;
+        }
+        $rs->close();
+        return $out;
+    }
+
     public static function load($periodid, array $demand) {
         global $DB, $CFG;
         require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
@@ -432,6 +463,9 @@ class schedule_board {
                     $roster[(int)$q->classid][(int)$q->userid] = (int)$q->userid;
                 }
             }
+            foreach (self::module_only(array_keys($pclass)) as $mcid => $mus) {
+                $roster[$mcid] = array_diff_key($roster[$mcid] ?? [], $mus);
+            }
             $psched = [];
             foreach ($DB->get_records_select('gmk_class_schedules', "classid $pcsql", $pcparams, 'id') as $sc) {
                 $dn = self::day_num($sc->day);
@@ -576,6 +610,7 @@ class schedule_board {
                     $members[(int)$m->groupid][] = (int)$m->userid;
                 }
             }
+            $modonly = self::module_only(array_keys($classes));
             $pubids = array_flip(array_map('intval', array_values($published)));
             foreach ($classes as $c) {
                 if (empty($sess[(int)$c->id]) || isset($pubids[(int)$c->id])) {
@@ -587,7 +622,7 @@ class schedule_board {
                 $fixed[] = ['id' => (int)$c->id, 'name' => $c->name, 'courseid' => (int)$c->corecourseid,
                     'teacherid' => (int)$c->instructorid, 'jornada' => (string)$c->shift, 'samePeriod' => (int)$c->periodid === (int)$periodid,
                     'initdate' => (int)$c->initdate, 'enddate' => (int)$c->enddate, 'sessions' => $sess[(int)$c->id],
-                    'userids' => $members[(int)$c->groupid] ?? []];
+                    'userids' => array_values(array_diff($members[(int)$c->groupid] ?? [], array_keys($modonly[(int)$c->id] ?? [])))];
             }
         }
 
