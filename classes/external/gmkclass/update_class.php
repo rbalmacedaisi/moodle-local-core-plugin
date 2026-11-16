@@ -72,6 +72,7 @@ class update_class extends external_api {
                 'classroomId' => new external_value(PARAM_TEXT, 'Classroom id', VALUE_DEFAULT, null, NULL_ALLOWED),
                 'classroomCapacity' => new external_value(PARAM_INT, 'Classroom capacity', VALUE_DEFAULT, 0),
                 'academicPeriodId' => new external_value(PARAM_INT, 'Institutional/lective period id (gmk_academic_periods.id)', VALUE_DEFAULT, 0),
+                'checkOnly' => new external_value(PARAM_INT, '1 = solo revisar choques (estudiantes, docentes, aula) sin guardar nada', VALUE_DEFAULT, 0),
             ]
         );
     }
@@ -98,7 +99,8 @@ int $courseId,
         string $classDays,
         ?string $classroomId = null,
         int $classroomCapacity = 0,
-        int $academicPeriodId = 0
+        int $academicPeriodId = 0,
+        int $checkOnly = 0
         ) {
 
 
@@ -119,8 +121,20 @@ int $courseId,
             'classDays'=>$classDays,
             'classroomId'=>$classroomId,
             'classroomCapacity'=>$classroomCapacity,
-            'academicPeriodId'=>$academicPeriodId
+            'academicPeriodId'=>$academicPeriodId,
+            'checkOnly'=>$checkOnly
         ]);
+        if (!empty($params['checkOnly'])) {
+            // Solo lectura: choques que tendria la clase con estos datos, en sus sesiones de hoy en adelante.
+            try {
+                $list = \local_grupomakro_core\local\planning\scenarios::edit_conflicts((int)$classId, array_values(array_filter([(int)$instructorId, (int)$supportTeacherId])),
+                    $classDays, $initTime, $endTime, (int)$classroomId, $initDate, $endDate);
+                return ['status' => 2, 'message' => json_encode($list, JSON_UNESCAPED_UNICODE)];
+            } catch (\Throwable $e) {
+                return ['status' => -1, 'message' => 'No se pudieron revisar los choques: ' . $e->getMessage()];
+            }
+        }
+        unset($params['checkOnly']);
 
         try{
             // Validate the support teacher is a real Moodle user (if set).

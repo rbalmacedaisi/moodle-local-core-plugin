@@ -305,6 +305,27 @@ window.Vue.component('editclass', {
             
         </div>
         <errormodal :show="showErrorDialog" :message="errorMessage" @close="closeErrorDialog"/>
+        <v-dialog v-model="clashDialog" max-width="720" scrollable persistent>
+            <v-card>
+                <v-card-title class="text-subtitle-1"><v-icon color="#B45309" class="mr-2">mdi-alert-outline</v-icon> Este cambio genera choques</v-card-title>
+                <v-card-text style="max-height:60vh">
+                    <div class="mb-2">Con el horario, docente y aula elegidos, desde hoy hasta el fin de la clase:</div>
+                    <template v-for="t in ['docente', 'estudiantes', 'aula']">
+                        <div v-if="clashList.filter(c => c.type === t).length" :key="t" class="mb-2">
+                            <b>{{ {docente: 'Docente', estudiantes: 'Estudiantes', aula: 'Aula'}[t] }}</b>
+                            <div v-for="(c, i) in clashList.filter(c => c.type === t)" :key="t + i" style="font-size:13px">• {{ c.msg }}</div>
+                        </div>
+                    </template>
+                    <div style="font-size:12px;color:#64748B">Revise antes de guardar: los estudiantes no pueden estar en dos clases a la vez y el docente o el aula
+                        no pueden estar ocupados. Si igual necesita guardar, quedará registrado quién hizo el cambio.</div>
+                </v-card-text>
+                <v-card-actions>
+                    <v-spacer></v-spacer>
+                    <v-btn small text @click="clashDialog = false">Volver y corregir</v-btn>
+                    <v-btn small color="warning" @click="clashDialog = false; saveClass(true)">Guardar de todos modos</v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
         <reschedulemodal :loading="rescheduling" :show="showRescheduleDialog" :message="rescheduleMessage" @close="closeRescheduleDialog" @confirm="rescheduleActivity"/>
     </div>
     `,
@@ -312,6 +333,8 @@ window.Vue.component('editclass', {
     data() {
         return {
             showErrorDialog: false,
+            clashDialog: false,
+            clashList: [],
             showRescheduleDialog: false,
             menuInitDate: false,
             menuEndDate: false,
@@ -571,12 +594,30 @@ filledInputs: false,
             }
             return true
         },
-        async saveClass() {
+        async saveClass(skipClashCheck) {
 
             if (!this.validateClassInputs()) {
                 return;
             }
             this.savingClass = true;
+
+            // Antes de guardar: choques con estudiantes, docentes y aulas de las demas clases (solo lectura).
+            if (skipClashCheck !== true) {
+                try {
+                    const { data: chk } = await window.axios.get(wsurl, { params: { ...this.saveClassParameters, checkOnly: 1 } });
+                    if (chk && Number(chk.status) === 2) {
+                        const list = JSON.parse(chk.message || '[]');
+                        if (Array.isArray(list) && list.length) {
+                            this.clashList = list;
+                            this.clashDialog = true;
+                            this.savingClass = false;
+                            return;
+                        }
+                    }
+                } catch (e) {
+                    console.error('No se pudieron revisar los choques', e);   // no bloquea el guardado
+                }
+            }
 
 
             try {

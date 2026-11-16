@@ -624,4 +624,79 @@ class scenarios {
         }
         return self::ok($msg . ' Verificación correcta.', ['classes' => count($plan['classes']), 'sessions' => $plan['sessions']]);
     }
+
+    /**
+     * Choques que tendria una clase si se guarda con estos datos (desde "Editar clase"), SOLO LECTURA.
+     * Revisa sus fechas de hoy en adelante (dias de la clase entre inicio y fin, sin feriados) contra TODAS las demas
+     * clases abiertas: estudiantes de la clase, docente(s) y aula.
+     *
+     * @return array [{type: estudiantes|docente|aula, msg}]
+     */
+    public static function edit_conflicts($classid, array $teacherids, $classdays, $inittime, $endtime, $roomid, $initdate, $enddate) {
+        global $DB;
+        $k = $DB->get_record('gmk_class', ['id' => (int)$classid]);
+        if (!$k) {
+            return [];
+        }
+        $a = schedule_board::to_min($inittime);
+        $b = schedule_board::to_min($endtime);
+        if ($a < 0 || $b <= $a) {
+            return [];
+        }
+        $mask = explode('/', (string)$classdays);
+        $from = max(strtotime(date('Y-m-d')), $initdate ? strtotime($initdate) : (int)$k->initdate);
+        $to = $enddate ? strtotime($enddate . ' 23:59') : (int)$k->enddate;
+        $holidays = [];
+        foreach (\local_grupomakro_core\local\scheduler_settings::get_holidays() as $h) {
+            $holidays[date('Y-m-d', (int)$h->date)] = true;
+        }
+        $mine = [];   // dia => [fechas]
+        for ($t = $from; $to && $t <= $to; $t = strtotime('+1 day', $t)) {
+            $dn = (int)date('N', $t);
+            $ymd = date('Y-m-d', $t);
+            if (($mask[$dn - 1] ?? '0') === '1' && !isset($holidays[$ymd])) {
+                $mine[$dn][$ymd] = true;
+            }
+        }
+        if (!$mine) {
+            return [];
+        }
+        // Estudiantes: el grupo si la clase esta aprobada; si no, la cola.
+        if ((int)$k->approved && (int)$k->groupid) {
+            $members = array_map('intval', $DB->get_fieldset_select('groups_members', 'userid', 'groupid = ?', [(int)$k->groupid]));
+        } else {
+            $members = array_map('intval', $DB->get_fieldset_select('gmk_class_queue', 'userid', 'classid = ?', [(int)$k->id]));
+        }
+        $teacherids = array_map('intval', $teacherids);
+        $members = array_values(array_diff(array_unique($members), [(int)$k->instructorid], $teacherids));
+        $out = [];
+        foreach (self::occupancy([]) as $o) {
+            if ((int)$o['classid'] === (int)$k->id || empty($mine[$o['day']]) || !($o['a'] < $b && $a < $o['b'])) {
+                continue;
+            }
+            $common = array_intersect_key($o['dates'], $mine[$o['day']]);
+            if (!$common) {
+                continue;
+            }
+            ksort($common);
+            $when = schedule_board::DAYNAMES[$o['day']] . ' ' . schedule_board::to_hhmm($o['a']) . '–' . schedule_board::to_hhmm($o['b'])
+                . ' (' . count($common) . ' fecha(s), desde el ' . date('d/m', strtotime(array_key_first($common))) . ')';
+            $who = '«' . $o['name'] . '» (clase ' . $o['classid'] . ') ' . $when;
+            if ($o['teacher'] && in_array($o['teacher'], $teacherids, true)) {
+                $out[] = ['type' => 'docente', 'msg' => fullname($DB->get_record('user', ['id' => $o['teacher']])) . ' ya dicta ' . $who . '.'];
+            }
+            if ($roomid && $o['room'] === (int)$roomid) {
+                $out[] = ['type' => 'aula', 'msg' => 'El aula ya está ocupada por ' . $who . '.'];
+            }
+            $sh = array_values(array_intersect($members, $o['members']));
+            if ($sh) {
+                $names = array_map(function ($u) use ($DB) {
+                    return fullname($DB->get_record('user', ['id' => $u]));
+                }, array_slice($sh, 0, 6));
+                $out[] = ['type' => 'estudiantes', 'msg' => count($sh) . ' estudiante(s) también tienen ' . $who . ': ' . implode(', ', $names)
+                    . (count($sh) > 6 ? '…' : '') . '.'];
+            }
+        }
+        return $out;
+    }
 }
