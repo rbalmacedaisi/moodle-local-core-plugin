@@ -883,6 +883,16 @@ class planning_config {
             case 'publish':
                 return publisher::publish($data);
 
+            case 'scenario_save':
+            case 'scenario_remove':
+                return scenarios::save($data, $section === 'scenario_remove');
+
+            case 'scenario_plan':
+                return scenarios::plan($data);
+
+            case 'scenario_apply':
+                return scenarios::apply($data);
+
             case 'board_clear':
                 return schedule_board::save(['clear' => true] + $data);
 

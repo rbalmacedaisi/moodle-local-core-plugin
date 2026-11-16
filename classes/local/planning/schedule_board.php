@@ -477,7 +477,7 @@ class schedule_board {
                 $dl = array_values(array_diff((array)json_decode((string)($sc->assigned_dates ?? ''), true),
                     (array)json_decode((string)($sc->excluded_dates ?? ''), true)));
                 sort($dl);
-                $psched[(int)$sc->classid][] = ['day' => $dn, 'start' => $a, 'end' => $b, 'roomid' => (int)$sc->classroomid, 'dates' => $dl];
+                $psched[(int)$sc->classid][] = ['sid' => (int)$sc->id, 'day' => $dn, 'start' => $a, 'end' => $b, 'roomid' => (int)$sc->classroomid, 'dates' => $dl];
             }
             foreach ($pubgroups as $gi => $g) {
                 $cid = (int)$g['published'];
@@ -498,7 +498,7 @@ class schedule_board {
                 $parts = [];
                 foreach ($real as $i => $x) {
                     $pk = $n === 1 ? $key : $key . '#' . ($i + 1);
-                    $parts[] = ['key' => $pk, 'sessions' => count($x['dates']), 'dates' => $x['dates']];
+                    $parts[] = ['key' => $pk, 'sessions' => count($x['dates']), 'dates' => $x['dates'], 'sid' => $x['sid'], 'classid' => $cid];
                     $draftout['items'][$pk] = ['day' => $x['day'], 'start' => $x['start'], 'end' => $x['end'],
                         'teacherid' => (int)$pclass[$cid]->instructorid, 'roomid' => $x['roomid'], 'locked' => true, 'week' => 0,
                         'sessions' => count($x['dates']), 'real' => true];
@@ -696,6 +696,7 @@ class schedule_board {
             'preferences' => ['subjects' => array_merge(planning_config::subject_prefs(), $evprefs)],
             'period' => ['start' => $start, 'end' => $end, 'jornada_starts' => (object)planning_config::jornada_starts($p)],
             'draft' => $draftout,
+            'scenarios' => array_values(scenarios::all($periodid)),
         ];
     }
 

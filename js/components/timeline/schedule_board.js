@@ -49,6 +49,23 @@ Vue.component('schedule-board', {
                     <li><b>Guarde</b> el borrador: queda aparte en el periodo. No se crea ninguna clase todavía.</li>
                 </ol>
             </div>
+            <!-- escenarios (periodo con clases publicadas) -->
+            <div v-if="hasPublished" class="tl-sb-scenbar" :class="{ 'tl-sb-scenbar-on': scen.on }">
+                <v-icon size="16" :color="scen.on ? '#7C3AED' : '#64748B'">mdi-flask-outline</v-icon>
+                <b>{{ scen.on ? 'Escenario' : 'Horario real' }}</b>
+                <select :key="(scen.on ? 1 : 0) + scen.id" class="tl-cfg-input" style="width:auto;max-width:260px" :value="scen.on ? (scen.id || '__cur') : ''" @change="pickScenario($event.target.value)">
+                    <option value="">Horario real (lo publicado)</option>
+                    <option v-if="scen.on && !scen.id" value="__cur">Escenario nuevo (sin guardar)</option>
+                    <option v-for="x in scen.list" :key="x.id" :value="x.id">Escenario: {{ x.name }}</option>
+                    <option v-if="canEdit" value="__new">+ Nuevo escenario…</option>
+                </select>
+                <template v-if="scen.on">
+                    <input v-model="scen.name" class="tl-cfg-input" style="width:200px" placeholder="Nombre del escenario" @input="dirty = true"/>
+                    <label class="tl-cfg-help">Rige desde <input v-model="scen.effective" type="date" class="tl-cfg-input" style="width:auto" :min="tomorrow" @change="onEffective"/></label>
+                    <span class="tl-cfg-help">Probar aquí no cambia ninguna clase.</span>
+                </template>
+                <span v-else class="tl-cfg-help">Para probar otras combinaciones sin tocar las clases, cree un escenario.</span>
+            </div>
             <!-- barra -->
             <div class="tl-sb-bar">
                 <div class="tl-plan-tabs" style="flex:0 0 auto">
@@ -75,7 +92,25 @@ Vue.component('schedule-board', {
                 <button class="tl-cfg-btn tl-cfg-btn-ghost" :disabled="exporting" @click="exportExcel"
                         title="Excel con el horario, las fechas de cada sesión, los estudiantes de cada grupo, docentes, aulas y choques">
                     <v-icon size="14">mdi-microsoft-excel</v-icon> {{ exporting ? 'Exportando…' : 'Excel' }}</button>
-                <template v-if="canEdit">
+                <template v-if="canEdit && scen.on">
+                    <v-menu offset-y>
+                        <template v-slot:activator="{ on }"><button class="tl-cfg-btn" v-on="on"><v-icon size="14" color="#fff">mdi-auto-fix</v-icon> Compactar</button></template>
+                        <v-list dense>
+                            <v-list-item @click="scenCompact(jornada)"><v-list-item-content><v-list-item-title>Compactar la jornada {{ jornada }}</v-list-item-title>
+                                <v-list-item-subtitle>Mueve primero lo que más ayuda (hasta 8 clases), sin choques ni avisos nuevos y con el mismo docente</v-list-item-subtitle></v-list-item-content></v-list-item>
+                            <v-list-item @click="scenCompact(null)"><v-list-item-content><v-list-item-title>Compactar todas las jornadas</v-list-item-title>
+                                <v-list-item-subtitle>Hasta 15 clases movidas</v-list-item-subtitle></v-list-item-content></v-list-item>
+                        </v-list>
+                    </v-menu>
+                    <button class="tl-cfg-btn tl-cfg-btn-ghost" :disabled="!history.length" @click="undo" title="Deshacer el último cambio"><v-icon size="14">mdi-undo</v-icon></button>
+                    <button class="tl-cfg-btn" :class="{ 'tl-sb-dirty': dirty }" :disabled="!dirty || saving" @click="saveScenario">
+                        <v-icon size="14" color="#fff">mdi-content-save</v-icon> {{ dirty ? 'Guardar escenario' : 'Escenario guardado' }}</button>
+                    <button v-if="scen.id" class="tl-cfg-btn tl-cfg-btn-ghost" :disabled="saving" @click="removeScenario" title="Borrar el escenario (no cambia ninguna clase)"><v-icon size="14">mdi-delete-outline</v-icon></button>
+                    <button class="tl-cfg-btn tl-sb-pubbtn" :disabled="!scenChanges.length" @click="openApply"
+                            title="Revisar sesión por sesión y aplicar los cambios de este escenario a las clases, desde la fecha indicada">
+                        <v-icon size="14" color="#fff">mdi-calendar-arrow-right</v-icon> Aplicar desde {{ fmtYmd(scen.effective) }}…</button>
+                </template>
+                <template v-if="canEdit && !scen.on">
                     <v-menu offset-y>
                         <template v-slot:activator="{ on }"><button class="tl-cfg-btn" v-on="on"><v-icon size="14" color="#fff">mdi-auto-fix</v-icon> Acomodar automáticamente</button></template>
                         <v-list dense>
@@ -149,6 +184,27 @@ Vue.component('schedule-board', {
                         <div v-if="!r.worst.length" class="tl-cfg-help">Todos los estudiantes de esta jornada tienen el horario compacto.</div>
                     </div>
                 </template>
+            </div>
+            <div v-if="scen.on" class="tl-sb-disp tl-sb-scenpanel">
+                <div class="tl-sb-disp-head"><b>Escenario frente al horario real</b>
+                    <span class="tl-cfg-help">Arrastre clases (también las publicadas) o use Compactar. Las sesiones antes del {{ fmtYmd(scen.effective) }} quedan
+                        como están; desde esa fecha las clases movidas toman el nuevo día y hora. El docente y los estudiantes no cambian.</span></div>
+                <div class="tl-sb-disp-row tl-sb-disp-th"><span>Jornada</span><span>Compactos</span><span>Estudiantes con días de más</span><span>Estudiantes con huecos (promedio)</span></div>
+                <div v-for="r in scenCompare" :key="r.j" class="tl-sb-disp-row" style="cursor:default">
+                    <span><b>{{ r.j }}</b><br><small>{{ r.n }} est</small></span>
+                    <span class="tl-sb-disp-big">{{ r.real.compact }}% → <span :class="deltaCls(r.esc.compact - r.real.compact, true)">{{ r.esc.compact }}%</span></span>
+                    <span>{{ r.real.extraN }} → <b :class="deltaCls(r.esc.extraN - r.real.extraN, false)">{{ r.esc.extraN }}</b></span>
+                    <span>{{ r.real.gapN }} ({{ Math.round(r.real.gap) }} min) → <b :class="deltaCls(r.esc.gapN - r.real.gapN, false)">{{ r.esc.gapN }}</b> ({{ Math.round(r.esc.gap) }} min)</span>
+                </div>
+                <div class="tl-sb-sec-title mt-2">Clases publicadas que cambian ({{ scenChanges.length }})</div>
+                <div v-if="!scenChanges.length" class="tl-cfg-help">Todavía ninguna: mueva clases o use Compactar.</div>
+                <div v-for="c in scenChanges" :key="c.key" class="tl-sb-scen-chg" @click="goTo(c.key)">
+                    <b>#{{ c.classid }} {{ c.name }}</b> G{{ c.number }} · {{ c.jornada }} · {{ c.size }} est:
+                    {{ E.DAYS[c.from.day] }} {{ E.hhmm(c.from.start) }}–{{ E.hhmm(c.from.end) }}{{ roomName(c.from.roomid) }}
+                    → <b>{{ E.DAYS[c.to.day] }} {{ E.hhmm(c.to.start) }}–{{ E.hhmm(c.to.end) }}</b>{{ roomName(c.to.roomid) }}
+                    <span v-if="c.teacherChanged" class="tl-sb-chip tl-sb-chip-soft">el docente no se cambia al aplicar</span>
+                </div>
+                <div v-if="scenUnpub" class="tl-cfg-help mt-1">Además hay {{ scenUnpub }} grupo(s) sin publicar movidos: eso no se aplica a ninguna clase.</div>
             </div>
             <div v-if="lastAction" class="tl-cfg-msg" :class="lastAction.error ? 'tl-cfg-msg-error' : 'tl-cfg-msg-ok'">{{ lastAction.text }}
                 <button v-if="lastAction.failed && lastAction.failed.length" class="tl-proj-flexbtn" @click="failedOpen = !failedOpen">
@@ -236,7 +292,9 @@ Vue.component('schedule-board', {
                     <div class="d-flex">
                         <div style="flex:1">
                             <div class="tl-sb-panel-title">{{ info.g.name }}</div>
-                            <div v-if="info.g.published" class="tl-cfg-msg tl-cfg-msg-ok" style="margin:4px 0">Publicada: es la clase {{ info.g.published }}
+                            <div v-if="info.g.published && scen.on" class="tl-cfg-msg" style="margin:4px 0;background:#F5F3FF;color:#5B21B6">Clase publicada {{ info.g.published }}:
+                                en este escenario puede moverla de día, hora o aula. Al aplicar conserva su docente y sus estudiantes.</div>
+                            <div v-else-if="info.g.published" class="tl-cfg-msg tl-cfg-msg-ok" style="margin:4px 0">Publicada: es la clase {{ info.g.published }}
                                 (pendiente de aprobación o ya aprobada). Ya no se cambia desde el tablero, sino desde la gestión de clases.
                                 <button v-if="canEdit" class="tl-proj-flexbtn" style="margin-left:6px" :disabled="rev.busy" @click="revertCheck(info.g)">Revertir publicación</button></div>
                             <div v-if="info.g.extra" class="tl-cfg-msg" style="margin:4px 0;background:#EFF6FF;color:#1D4ED8">
@@ -364,6 +422,45 @@ Vue.component('schedule-board', {
             </v-dialog>
 
             <!-- guardar -->
+            <v-dialog v-model="apl.show" max-width="980" scrollable :persistent="apl.busy">
+                <v-card>
+                    <v-card-title class="text-subtitle-1">Aplicar el escenario «{{ scen.name }}» desde el {{ fmtYmd(scen.effective) }}</v-card-title>
+                    <v-card-text style="max-height:70vh">
+                        <div v-if="apl.loading" class="tl-plan-empty">Revisando sesión por sesión contra todas las clases abiertas…</div>
+                        <div v-else-if="apl.error" class="tl-cfg-msg tl-cfg-msg-error">{{ apl.error }}</div>
+                        <template v-else-if="apl.plan">
+                            <div class="tl-cfg-help">Revisión: no se escribió nada. Se moverán <b>{{ apl.plan.sessions }}</b> sesión(es) de <b>{{ apl.plan.classes.length }}</b> clase(s).
+                                Nada antes del {{ fmtYmd(apl.plan.effective) }} cambia; no se borra ni se crea ninguna sesión ni sala (se mueven las mismas).</div>
+                            <div v-if="apl.plan.blocks.length" class="tl-cfg-msg tl-cfg-msg-error mt-2"><b>No se puede aplicar todavía:</b>
+                                <div v-for="(b, i) in apl.plan.blocks" :key="'b' + i">• {{ b }}</div>
+                                <div class="mt-1">Corrija en el escenario (otra hora, otra aula) y revise de nuevo.</div></div>
+                            <div v-if="apl.plan.warnings.length" class="tl-cfg-msg mt-2" style="background:#FEF3C7;color:#92400E"><b>Avisos:</b>
+                                <div v-for="(w, i) in apl.plan.warnings" :key="'w' + i">• {{ w }}</div></div>
+                            <div v-for="c in apl.plan.classes" :key="c.classid" class="tl-sb-apl-class">
+                                <div><b>#{{ c.classid }} {{ c.name }}</b> · {{ c.teacher }} · {{ c.students }} est</div>
+                                <div v-for="sc in c.schedules" :key="sc.sid" class="tl-cfg-help">
+                                    {{ sc.from }} → <b>{{ sc.to }}</b>
+                                    <span v-if="sc.clashes && sc.clashes.length" style="color:#B91C1C"> · choques: {{ sc.clashes.join('; ') }}</span>
+                                    <div class="tl-sb-apl-ses"><span v-for="x in sc.sessions" :key="x.sessionid">{{ fmtDt(x.old) }} → <b>{{ fmtDt(x.new) }}</b></span></div>
+                                </div>
+                            </div>
+                            <template v-if="!apl.plan.blocks.length && !apl.result">
+                                <div class="mt-3"><label class="tl-cfg-help">Motivo (queda en el respaldo)</label>
+                                    <textarea v-model="apl.note" class="tl-cfg-input" rows="2" style="width:100%" placeholder="Ej.: pedido de Dirección Académica para compactar la sabatina"></textarea></div>
+                                <label class="tl-cfg-check mt-1"><input type="checkbox" v-model="apl.confirm"> Entiendo que se cambia el día y la hora de estas clases desde el
+                                    {{ fmtYmd(apl.plan.effective) }} y que hay que avisar a docentes y estudiantes.</label>
+                            </template>
+                            <div v-if="apl.result" class="tl-cfg-msg mt-2" :class="apl.result.ok ? 'tl-cfg-msg-ok' : 'tl-cfg-msg-error'">{{ apl.result.message }}</div>
+                        </template>
+                    </v-card-text>
+                    <v-card-actions>
+                        <v-spacer></v-spacer>
+                        <button class="tl-cfg-btn tl-cfg-btn-ghost" :disabled="apl.busy" @click="apl.show = false">{{ apl.result ? 'Cerrar' : 'Cancelar' }}</button>
+                        <button v-if="apl.plan && !apl.plan.blocks.length && !apl.result" class="tl-cfg-btn tl-sb-pubbtn"
+                                :disabled="apl.busy || !apl.confirm || !apl.note.trim()" @click="doApply">{{ apl.busy ? 'Aplicando…' : 'Aplicar' }}</button>
+                    </v-card-actions>
+                </v-card>
+            </v-dialog>
             <v-dialog v-model="saveDlg" max-width="520">
                 <v-card>
                     <v-card-title class="text-subtitle-1 font-weight-bold">Guardar el borrador del tablero</v-card-title>
@@ -606,6 +703,8 @@ Vue.component('schedule-board', {
     data() {
         return { loading: false, error: '', board: null, tick: 0, jornada: 'Diurna', q: '', tq: '', onlyIssues: false, sel: null, fixedSel: null,
             hover: null, failedOpen: false, dirty: false, weekSel: 0, dispOpen: false, dispSel: '',
+            scen: { on: false, id: '', name: '', effective: '', saved_at: 0, list: [] },
+            apl: { show: false, loading: false, error: '', plan: null, note: '', confirm: false, busy: false, result: null },
             dispColors: ['#86b6ef', '#3987e5', '#1c5cab', '#0d366b'],
             prefDlg: { show: false, days: [], start: '', end: '', planid: 0, jornada: '', saving: false, msg: '' }, history: [], saving: false, saveDlg: false, showHelp: true, lastAction: null, version: 0,
             draftInfo: { saved_at: 0, byname: '' }, ppm: 1.1, staleOpen: false, exporting: false, fixBusy: false,
@@ -656,6 +755,25 @@ Vue.component('schedule-board', {
                 return Object.assign({ j, worst }, J);
             });
             return { total, compact: total ? Math.round(compact * 100 / total) : 0, rows };
+        },
+        hasPublished() { return !!(this.board && (this.board.groups || []).some(g => g.published)); },
+        tomorrow() { const d = new Date(Date.now() + 86400000); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); },
+        scenChanges() { this.tick; return this.scen.on && this.S ? this.E.scenarioChanges(this.S) : []; },
+        scenUnpub() {
+            this.tick; // eslint-disable-line no-unused-expressions
+            if (!this.scen.on || !this.S || !this.board) return 0;
+            const items = (this.board.draft || {}).items || {};
+            return this.S.order.filter(k => !this.S.groups[k].published && items[k] && JSON.stringify([items[k].day, items[k].start, items[k].end])
+                !== JSON.stringify([this.S.place[k].day, this.S.place[k].start, this.S.place[k].end])).length;
+        },
+        // Dispersion por jornada: horario real contra escenario.
+        scenCompare() {
+            this.tick; // eslint-disable-line no-unused-expressions
+            if (!this.scen.on || !this.S) return [];
+            if (!this._realDisp) this._realDisp = this.E.dispersion(this.E.create(this.board, (this.board.draft && this.board.draft.items) || {})).byJornada;
+            const esc = this.E.dispersion(this.S).byJornada, real = this._realDisp;
+            const pick = J => J ? { compact: J.compact, extraN: J.n - J.extraHist[0], gapN: J.n - J.gapHist[0], gap: J.gap } : { compact: 0, extraN: 0, gapN: 0, gap: 0 };
+            return ['Diurna', 'Nocturna', 'Sabatina'].filter(j => real[j] || esc[j]).map(j => ({ j, n: (esc[j] || real[j]).n, real: pick(real[j]), esc: pick(esc[j]) }));
         },
         sum() { this.tick; return this.S ? this.E.summary(this.S) : { total: 0, placed: 0, hard: 0, soft: 0, noTeacher: 0, noRoom: 0, conflicts: {} }; },
         jStats() {
@@ -996,6 +1114,8 @@ Vue.component('schedule-board', {
                 this.version = b.draft ? b.draft.version : 0;
                 this.draftInfo = { saved_at: b.draft ? b.draft.saved_at : 0, byname: b.draft ? b.draft.byname : '' };
                 this.history = []; this.dirty = false; this.sel = null; this.lastAction = null;
+                this.scen = Object.assign({}, this.scen, { on: false, id: '', name: '', effective: '', saved_at: 0, list: b.scenarios || [] });
+                this._realDisp = null;
                 if (this.jornadas.length && !this.jornadas.includes(this.jornada)) this.jornada = this.jornadas[0];
                 this.tick++;
                 if (this.jornadas.length && !this.jornadas.includes(this.jornada)) this.jornada = this.jornadas[0];
@@ -1035,8 +1155,9 @@ Vue.component('schedule-board', {
         },
         setPlace(k, patch) {
             if (!this.canEdit) return;
-            if (this.S.groups[k] && this.S.groups[k].published) {
-                this.lastAction = { text: 'Ese grupo ya está publicado: se cambia desde la gestión de clases, no desde el tablero.', error: true };
+            if (this.S.groups[k] && this.S.groups[k].published && (!this.scen.on || this.S.groups[k].event || ('teacherid' in patch && patch.teacherid !== this.S.place[k].teacherid))) {
+                this.lastAction = { text: this.scen.on ? 'En el escenario las clases publicadas conservan su docente (y los eventos no se mueven).'
+                    : 'Ese grupo ya está publicado: se cambia desde la gestión de clases o creando un escenario.', error: true };
                 return;
             }
             this.remember();
@@ -1143,6 +1264,119 @@ Vue.component('schedule-board', {
                 : 'No se encontró cómo compactar más sin crear choques o avisos (solo se mueven grupos sin candado y sin publicar).', error: false };
         },
         pct(v, n) { return n ? Math.round(v * 100 / n) : 0; },
+        // ---- escenarios ----
+        fmtYmd(ymd) { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd || ''); return m ? m[3] + '/' + m[2] + '/' + m[1] : '—'; },
+        fmtDt(x) { const m = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}:\d{2})$/.exec(x || ''); return m ? this.E.DAYS_SHORT[(new Date(m[1] + '-' + m[2] + '-' + m[3] + 'T12:00:00').getDay() || 7)] + ' ' + m[3] + '/' + m[2] + ' ' + m[4] : x; },
+        deltaCls(d, upGood) { return !d ? '' : ((d > 0) === upGood ? 'tl-sb-better' : 'tl-sb-worse'); },
+        roomName(id) { const r = this.S && this.S.rooms[id]; return r ? ' · ' + r.name : ''; },
+        nextMonday() { const d = new Date(); d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7)); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); },
+        // Arma el estado del motor para el modo actual (real o escenario) sin perder la jornada ni la seleccion.
+        buildState(items) {
+            const b = this.board;
+            const base = (b.draft && b.draft.items) || {};
+            this._realDisp = null;
+            this.S = this.scen.on ? this.E.create(b, Object.assign({}, base, items || {}), { scenario: { effective: this.scen.effective } }) : this.E.create(b, base);
+            this.history = []; this.dirty = false; this.sel = null; this.tick++;
+        },
+        pickScenario(id) {
+            if (id === '__cur') return;
+            if (this.dirty && !window.confirm('Hay cambios sin guardar. ¿Descartarlos?')) { this.tick++; return; }
+            if (id === '__new') {
+                const name = window.prompt('Nombre del escenario (por ejemplo: "Sabatina compacta")', '');
+                if (!name || !name.trim()) { this.tick++; return; }
+                this.scen = Object.assign({}, this.scen, { on: true, id: '', name: name.trim(), effective: this.nextMonday(), saved_at: 0 });
+                this.buildState({});
+                this.dirty = true;
+                this.lastAction = { text: 'Escenario nuevo: parte del horario real. Mueva clases o use Compactar; nada cambia hasta que use "Aplicar desde…".', error: false };
+                return;
+            }
+            const x = this.scen.list.find(y => y.id === id);
+            if (!x) { this.scen = Object.assign({}, this.scen, { on: false, id: '', name: '', effective: '' }); this.buildState(); this.lastAction = null; return; }
+            this.scen = Object.assign({}, this.scen, { on: true, id: x.id, name: x.name, effective: x.effective || this.nextMonday(), saved_at: x.saved_at });
+            this.buildState(x.items);
+            const last = (x.applied || []).slice(-1)[0];
+            this.lastAction = { text: 'Escenario «' + x.name + '» guardado por ' + x.byname + ' el ' + this.fmtLong(x.saved_at) + '.'
+                + (last ? ' Se aplicó por última vez el ' + this.fmtLong(last.at) + ' (' + last.by + ', desde ' + this.fmtYmd(last.effective) + ').' : ''), error: false };
+        },
+        onEffective() {
+            if (!this.scen.on) return;
+            if (this.scen.effective < this.tomorrow) this.scen.effective = this.tomorrow;
+            // Las fechas de las clases movidas dependen de la fecha: se recalcula conservando lo movido.
+            const items = this.E.serialize(this.S);
+            this.S = this.E.create(this.board, Object.assign({}, (this.board.draft && this.board.draft.items) || {}, items), { scenario: { effective: this.scen.effective } });
+            this.dirty = true; this.tick++;
+        },
+        scenCompact(j) {
+            this.remember();
+            const before = this.scenCompare.map(r => r.j + ' ' + r.esc.compact + '%').join(', ');
+            const r = this.E.densify(this.S, { jornada: j || undefined, bestFirst: true, minGain: 200, maxMoves: j ? 8 : 15 });
+            this.tick++;
+            if (!r.moved) { this.history.pop(); this.lastAction = { text: 'No se encontró cómo compactar ' + (j ? 'la ' + j : 'más') + ' sin choques, sin avisos nuevos y con los mismos docentes. Pruebe moviendo clases a mano.', error: false }; return; }
+            this.lastAction = { text: 'Compactar: ' + r.moved + ' clase(s) movidas en el escenario. Compactos: ' + before + ' → '
+                + this.scenCompare.map(x => x.j + ' ' + x.esc.compact + '%').join(', ') + '. Puede deshacer.', error: false };
+        },
+        async saveScenario() {
+            if (!this.scen.name.trim()) { window.alert('Ponga un nombre al escenario.'); return; }
+            this.saving = true;
+            try {
+                const items = {};
+                const all = this.E.serialize(this.S), base = (this.board.draft && this.board.draft.items) || {};
+                // Se guarda solo lo que difiere del horario real (lo demas sigue a lo real).
+                Object.keys(all).forEach(k => {
+                    const a = all[k], r = base[k];
+                    if (!r || a.day !== r.day || a.start !== r.start || a.end !== r.end || (a.roomid || 0) !== (r.roomid || 0) || (a.teacherid || 0) !== (r.teacherid || 0) || (a.week || 0) !== (r.week || 0)) items[k] = a;
+                });
+                const r = await this.ws('scenario_save', { periodid: this.periodid, id: this.scen.id, name: this.scen.name, effective: this.scen.effective,
+                    saved_at: this.scen.saved_at, items });
+                if (!r.ok) { window.alert(r.message); return; }
+                const x = r.saved;
+                const list = this.scen.list.filter(y => y.id !== x.id).concat([x]);
+                this.scen = Object.assign({}, this.scen, { id: x.id, saved_at: x.saved_at, list });
+                this.dirty = false;
+                this.lastAction = { text: r.message, error: false };
+            } catch (e) { window.alert('Error al guardar: ' + (e.message || e)); }
+            finally { this.saving = false; }
+        },
+        async removeScenario() {
+            if (!window.confirm('¿Borrar el escenario «' + this.scen.name + '»? No cambia ninguna clase.')) return;
+            this.saving = true;
+            try {
+                const r = await this.ws('scenario_remove', { periodid: this.periodid, id: this.scen.id });
+                if (!r.ok) { window.alert(r.message); return; }
+                this.scen = Object.assign({}, this.scen, { on: false, id: '', name: '', effective: '', list: this.scen.list.filter(y => y.id !== this.scen.id) });
+                this.buildState();
+                this.lastAction = { text: r.message, error: false };
+            } catch (e) { window.alert('Error: ' + (e.message || e)); }
+            finally { this.saving = false; }
+        },
+        scenPayload() {
+            return { periodid: this.periodid, effective: this.scen.effective, scenario: this.scen.id,
+                changes: this.scenChanges.filter(c => c.sid).map(c => ({ classid: c.classid, sid: c.sid, day: c.to.day, start: c.to.start, end: c.to.end, roomid: c.to.roomid })) };
+        },
+        async openApply() {
+            if (this.dirty && !window.confirm('El escenario tiene cambios sin guardar. Se revisa lo que ve en pantalla. ¿Continuar?')) return;
+            if (this.scenChanges.some(c => !c.sid)) { window.alert('Recargue la página: el tablero no tiene los datos de horario de alguna clase publicada.'); return; }
+            this.apl = { show: true, loading: true, error: '', plan: null, note: '', confirm: false, busy: false, result: null };
+            try {
+                const r = await this.ws('scenario_plan', this.scenPayload());
+                if (!r.ok) this.apl.error = r.message; else this.apl.plan = r.saved;
+            } catch (e) { this.apl.error = 'Error: ' + (e.message || e); }
+            finally { this.apl.loading = false; }
+        },
+        async doApply() {
+            if (!window.confirm('¿Aplicar ahora? Se moverán ' + this.apl.plan.sessions + ' sesión(es) de ' + this.apl.plan.classes.length + ' clase(s) desde el ' + this.fmtYmd(this.apl.plan.effective) + '.')) return;
+            this.apl.busy = true;
+            try {
+                const r = await this.ws('scenario_apply', Object.assign(this.scenPayload(), { token: this.apl.plan.token, note: this.apl.note }));
+                this.apl.result = { ok: r.ok, message: r.message };
+                if (r.ok) {
+                    const keep = this.scen.id;
+                    await this.load();
+                    if (keep && this.scen.list.some(y => y.id === keep)) this.pickScenario(keep);
+                }
+            } catch (e) { this.apl.result = { ok: false, message: 'Error: ' + (e.message || e) }; }
+            finally { this.apl.busy = false; }
+        },
         autoAssign() {
             this.remember();
             const r = this.E.autoAssign(this.S);

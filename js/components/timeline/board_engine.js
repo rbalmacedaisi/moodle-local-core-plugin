@@ -49,8 +49,14 @@
     /**
      * Estado del tablero. board = respuesta de schedule_board::load; placements = ubicaciones (del borrador o vacias).
      */
-    E.create = function (board, placements) {
+    /**
+     * opts.scenario = { effective: 'Y-m-d' }: escenario sobre un periodo publicado. Las clases publicadas (no los eventos)
+     * se pueden mover; sus sesiones antes de la fecha quedan como estan y desde la fecha toman el dia nuevo.
+     */
+    E.create = function (board, placements, opts) {
+        opts = opts || {};
         var s = {
+            scenario: opts.scenario || null, real: {},
             cfg: board.config || {}, period: board.period || {}, groups: {}, order: [], teachers: {}, rooms: {}, fixed: [],
             holidays: board.holidays || [], place: {},
         };
@@ -64,7 +70,7 @@
             var users = new Set(g.userids);
             parts.forEach(function (pt, i) {
                 s.groups[pt.key] = Object.assign({}, g, { key: pt.key, gkey: g.key, part: i + 1, parts: parts.length,
-                    sessions: Number(pt.sessions || 0), users: users, calendar: cal, realDates: pt.dates || null,
+                    sessions: Number(pt.sessions || 0), users: users, calendar: cal, realDates: pt.dates || null, sid: Number(pt.sid || 0), classid: Number(pt.classid || g.published || 0),
                     from: cal ? Number(cal.from) : from, to: cal ? Number(cal.to) : from + (g.long ? 16 : 8) * 7 * DAY });
                 s.order.push(pt.key);
             });
@@ -86,7 +92,13 @@
         s.order.forEach(function (k) {
             if (!s.place[k]) s.place[k] = { day: 0, start: 0, end: 0, teacherid: 0, roomid: 0, locked: false, week: 0 };
             // Ya publicado: queda fijo (la clase existe; se cambia desde la gestion de clases).
-            if (s.groups[k].published) s.place[k].locked = true;
+            if (s.groups[k].published) {
+                // Como esta de verdad (para comparar el escenario y saber que cambia).
+                var ri = ((board.draft || {}).items || {})[k];
+                if (ri) s.real[k] = { day: ri.day, start: ri.start, end: ri.end, roomid: ri.roomid || 0, teacherid: ri.teacherid || 0 };
+                if (!s.scenario || s.groups[k].event) s.place[k].locked = true;
+                else if (placements && placements[k] && placements[k].real) s.place[k].locked = false;   // el candado de lo publicado no aplica al escenario
+            }
         });
         return s;
     };
@@ -120,6 +132,18 @@
         // Publicado: las fechas reales de la clase.
         if (g.realDates && g.realDates.length) {
             var rd = g.realDates;
+            var rk = s.real[k];
+            if (s.scenario && s.scenario.effective && rk && p.day && p.day !== rk.day) {
+                // Escenario: lo dado antes de la fecha queda; desde la fecha, las siguientes fechas del dia nuevo.
+                var eff = s.scenario.effective;
+                var keep = rd.filter(function (d) { return d < eff; });
+                var need = rd.length - keep.length;
+                var cal = g.calendar && g.calendar.days ? (g.calendar.days[p.day] || g.calendar.days[String(p.day)] || []) : [];
+                var nd = cal.filter(function (d) { return d >= eff; }).slice(0, need);
+                var md = keep.concat(nd);
+                if (!md.length) return { dates: [], from: g.from, to: g.to, missing: need, total: rd.length, isCard: true };
+                return { dates: md, from: ymdEpoch(md[0]), to: ymdEpoch(md[md.length - 1]) + DAY, missing: need - nd.length, total: rd.length, isCard: true };
+            }
             return { dates: rd, from: ymdEpoch(rd[0]), to: ymdEpoch(rd[rd.length - 1]) + DAY, missing: 0, total: rd.length, isCard: true };
         }
         var all = g.calendar && g.calendar.days ? (g.calendar.days[p.day] || g.calendar.days[String(p.day)] || []) : null;
@@ -724,9 +748,13 @@
         var hardOf = function (cs) { return cs.filter(function (c) { return c.sev === 'hard'; }); };
         var movable = function (k) {
             var p = s.place[k], g = s.groups[k];
-            return !!(g && E.placed(p) && !p.locked && !g.published && !g.event);
+            return !!(g && E.placed(p) && !p.locked && (!g.published || s.scenario) && !g.event);
         };
-        var fixedTeacher = function (k) { var r = E.prefFor(s, k); return r && r.teacherid ? r.teacherid : 0; };
+        var fixedTeacher = function (k) {
+            // En un escenario las clases publicadas conservan su docente (aplicar no cambia docentes).
+            if (s.scenario && s.groups[k].published) return s.place[k].teacherid || -1;
+            var r = E.prefFor(s, k); return r && r.teacherid ? r.teacherid : 0;
+        };
         // Deja la ficha k en np con docente valido y aula; false si no se puede sin choques duros o con mas avisos.
         var settle = function (k, np, maxSoft, hadRoom) {
             var test = Object.assign({}, np, { roomid: 0 });
@@ -766,63 +794,84 @@
             }
             return false;
         };
-        for (var round = 0; round < (opts.rounds || 4); round++) {
-            var changed = false;
-            var keys = s.order.filter(function (k) {
+        // Mejor movida para la ficha k (sola o sacando a 1-2 fichas que estorban): { gain, place } o null. No cambia nada.
+        var bestFor = function (k) {
+            var p = s.place[k], g = s.groups[k];
+            var cur = E.conflicts(s, k, p);
+            if (hardOf(cur).length) return;
+            var curSoft = softOf(cur);
+            var curMarg = E.compactCost(s, k, p).cost;
+            var cands = E.candidates(s, k, { ignoreRoom: true }).filter(function (c) {
+                return !(c.day === p.day && c.start === p.start && (c.week || 0) === (p.week || 0)) && c.soft <= curSoft && !siblingSameDay(s, k, c);
+            }).map(function (c) {
+                var np = { day: c.day, start: c.start, end: c.end, week: c.week, teacherid: p.teacherid, roomid: p.roomid };
+                return { c: c, np: np, marg: E.compactCost(s, k, np).cost };
+            }).filter(function (x) { return x.marg < curMarg - 1; }).sort(function (a, b) { return a.marg - b.marg; });
+            var best = null;
+            for (var i = 0; i < cands.length && i < 12; i++) {
+                var x = cands[i], hard = hardOf(x.c.conflicts);
+                var blockers = {};
+                var ok = hard.every(function (h) {
+                    if (h.type === 'docente' && !fixedTeacher(k)) return true;
+                    if (h.type !== 'estudiantes' || !h.with || !movable(h.with)) return false;
+                    blockers[h.with] = true;
+                    return true;
+                });
+                var bl = Object.keys(blockers);
+                if (!ok || bl.length > 2) continue;
+                var users = [];
+                g.users.forEach(function (u) { users.push(u); });
+                bl.forEach(function (o) { s.groups[o].users.forEach(function (u) { users.push(u); }); });
+                var saved = {};
+                [k].concat(bl).forEach(function (o) { saved[o] = Object.assign({}, s.place[o]); });
+                var before = E.studentCost(s, users);
+                var done = true;
+                // Se sacan los que estorban, se ubica k y se reubica a cada uno donde menos cueste.
+                var bsoft = {};
+                bl.forEach(function (o) { bsoft[o] = softOf(E.conflicts(s, o)); s.place[o] = Object.assign({}, s.place[o], { day: 0, start: 0, end: 0 }); });
+                if (!settle(k, x.np, curSoft, !!p.roomid)) done = false;
+                for (var j = 0; done && j < bl.length; j++) {
+                    if (!relocate(bl[j], bsoft[bl[j]], !!saved[bl[j]].roomid)) done = false;
+                }
+                if (done) {
+                    done = [k].concat(bl).every(function (o) { return !hardOf(E.conflicts(s, o)).length; });
+                }
+                var after = done ? E.studentCost(s, users) : Infinity;
+                if (done && after < before - 1 && (!best || before - after > best.gain)) {
+                    best = { gain: before - after, place: {} };
+                    [k].concat(bl).forEach(function (o) { best.place[o] = Object.assign({}, s.place[o]); });
+                }
+                Object.keys(saved).forEach(function (o) { s.place[o] = saved[o]; });
+                if (best && !bl.length) break;   // movida simple que mejora: la mejor por costo marginal
+            }
+            return best;
+        };
+        var limit = opts.maxMoves || Infinity, minGain = opts.minGain || 1;
+        var pool = function () {
+            return s.order.filter(function (k) {
                 return movable(k) && s.groups[k].users.size && (!opts.jornada || s.groups[k].jornada === opts.jornada);
             }).sort(function (a, b) { return s.groups[b].size - s.groups[a].size || a.localeCompare(b); });
-            keys.forEach(function (k) {
-                var p = s.place[k], g = s.groups[k];
-                var cur = E.conflicts(s, k, p);
-                if (hardOf(cur).length) return;
-                var curSoft = softOf(cur);
-                var curMarg = E.compactCost(s, k, p).cost;
-                var cands = E.candidates(s, k, { ignoreRoom: true }).filter(function (c) {
-                    return !(c.day === p.day && c.start === p.start && (c.week || 0) === (p.week || 0)) && c.soft <= curSoft && !siblingSameDay(s, k, c);
-                }).map(function (c) {
-                    var np = { day: c.day, start: c.start, end: c.end, week: c.week, teacherid: p.teacherid, roomid: p.roomid };
-                    return { c: c, np: np, marg: E.compactCost(s, k, np).cost };
-                }).filter(function (x) { return x.marg < curMarg - 1; }).sort(function (a, b) { return a.marg - b.marg; });
-                var best = null;
-                for (var i = 0; i < cands.length && i < 12; i++) {
-                    var x = cands[i], hard = hardOf(x.c.conflicts);
-                    var blockers = {};
-                    var ok = hard.every(function (h) {
-                        if (h.type === 'docente' && !fixedTeacher(k)) return true;
-                        if (h.type !== 'estudiantes' || !h.with || !movable(h.with)) return false;
-                        blockers[h.with] = true;
-                        return true;
-                    });
-                    var bl = Object.keys(blockers);
-                    if (!ok || bl.length > 2) continue;
-                    var users = [];
-                    g.users.forEach(function (u) { users.push(u); });
-                    bl.forEach(function (o) { s.groups[o].users.forEach(function (u) { users.push(u); }); });
-                    var saved = {};
-                    [k].concat(bl).forEach(function (o) { saved[o] = Object.assign({}, s.place[o]); });
-                    var before = E.studentCost(s, users);
-                    var done = true;
-                    // Se sacan los que estorban, se ubica k y se reubica a cada uno donde menos cueste.
-                    var bsoft = {};
-                    bl.forEach(function (o) { bsoft[o] = softOf(E.conflicts(s, o)); s.place[o] = Object.assign({}, s.place[o], { day: 0, start: 0, end: 0 }); });
-                    if (!settle(k, x.np, curSoft, !!p.roomid)) done = false;
-                    for (var j = 0; done && j < bl.length; j++) {
-                        if (!relocate(bl[j], bsoft[bl[j]], !!saved[bl[j]].roomid)) done = false;
-                    }
-                    if (done) {
-                        done = [k].concat(bl).every(function (o) { return !hardOf(E.conflicts(s, o)).length; });
-                    }
-                    var after = done ? E.studentCost(s, users) : Infinity;
-                    if (done && after < before - 1 && (!best || before - after > best.gain)) {
-                        best = { gain: before - after, place: {} };
-                        [k].concat(bl).forEach(function (o) { best.place[o] = Object.assign({}, s.place[o]); });
-                    }
-                    Object.keys(saved).forEach(function (o) { s.place[o] = saved[o]; });
-                    if (best && !bl.length) break;   // movida simple que mejora: la mejor por costo marginal
-                }
-                if (!best) return;
-                Object.keys(best.place).forEach(function (o) { s.place[o] = best.place[o]; movedKeys[o] = true; moved++; });
-                gain += best.gain;
+        };
+        var take = function (best) {
+            Object.keys(best.place).forEach(function (o) { s.place[o] = best.place[o]; if (!movedKeys[o]) moved++; movedKeys[o] = true; });
+            gain += best.gain;
+        };
+        if (opts.bestFirst) {
+            // Primero lo que mas ayuda: en cada paso se aplica solo la mejor movida de todas (menos clases movidas).
+            while (Object.keys(movedKeys).length < limit) {
+                var top = null;
+                pool().forEach(function (k) { var b = bestFor(k); if (b && b.gain >= minGain && (!top || b.gain > top.gain)) top = b; });
+                if (!top) break;
+                take(top);
+            }
+            return { moved: moved, gain: Math.round(gain), keys: Object.keys(movedKeys) };
+        }
+        for (var round = 0; round < (opts.rounds || 4); round++) {
+            var changed = false;
+            pool().forEach(function (k) {
+                var best = bestFor(k);
+                if (!best || best.gain < minGain) return;
+                take(best);
                 changed = true;
             });
             if (!changed) break;
@@ -1221,6 +1270,22 @@
             if (!p.roomid) r.noRoom++;
         });
         return r;
+    };
+
+    /**
+     * Escenario: clases publicadas que cambian de dia, hora o aula frente a lo real. Para la revision de "Aplicar desde".
+     * @return [{ key, classid, sid, name, number, jornada, size, from: {day,start,end,roomid}, to: {...}, teacherChanged }]
+     */
+    E.scenarioChanges = function (s) {
+        var out = [];
+        s.order.forEach(function (k) {
+            var g = s.groups[k], r = s.real[k], p = s.place[k];
+            if (!g.published || !r || !E.placed(p)) return;
+            if (p.day === r.day && p.start === r.start && p.end === r.end && (p.roomid || 0) === (r.roomid || 0) && (p.teacherid || 0) === (r.teacherid || 0)) return;
+            out.push({ key: k, classid: g.classid || g.published, sid: g.sid, name: g.name, number: g.number, jornada: g.jornada, size: g.size,
+                from: r, to: { day: p.day, start: p.start, end: p.end, roomid: p.roomid || 0 }, teacherChanged: (p.teacherid || 0) !== (r.teacherid || 0) });
+        });
+        return out;
     };
 
     /** Ubicaciones listas para guardar (solo las que tienen algo). */
