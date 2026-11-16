@@ -35,6 +35,8 @@ defined('MOODLE_INTERNAL') || die();
 class publisher {
 
     /** Nombres de dia como los guarda gmk_class_schedules (sin tilde). */
+    /** Modalidades de clase (gmk_class.type): 0 presencial, 1 virtual, 2 mixta. */
+    const MODES = [0 => 'Presencial', 1 => 'Virtual', 2 => 'Mixta'];
     const DAYKEY = [1 => 'Lunes', 2 => 'Martes', 3 => 'Miercoles', 4 => 'Jueves', 5 => 'Viernes', 6 => 'Sabado', 7 => 'Domingo'];
 
     /** Tiempo maximo de trabajo por llamada (el servidor corta las peticiones a los 120 s). */
@@ -229,6 +231,11 @@ class publisher {
                 $row['warnings'][] = 'Se había publicado como clase ' . $row['classid'] . ' pero esa clase ya no existe (fue borrada); no se vuelve a crear sola.';
             }
             $tids = [];
+            // Modalidad del grupo (0 presencial, 1 virtual, 2 mixta): la de su primera ficha (el tablero la pone igual en todas).
+            $gmode = (int)($draft['items'][$g['parts'][0]['key']]['mode'] ?? 0);
+            $gmode = in_array($gmode, [1, 2], true) ? $gmode : 0;
+            $row['mode'] = $gmode;
+            $row['modelabel'] = self::MODES[$gmode];
             foreach ($g['parts'] as $pi => $pt) {
                 $it = $draft['items'][$pt['key']] ?? null;
                 $day = (int)($it['day'] ?? 0);
@@ -241,7 +248,7 @@ class publisher {
                 }
                 $card = ['key' => $pt['key'], 'part' => $pi + 1, 'parts' => count($g['parts']), 'day' => $day,
                     'start' => (int)($it['start'] ?? 0), 'end' => (int)($it['end'] ?? 0), 'week' => $week, 'sessions' => $nses,
-                    'teacherid' => (int)($it['teacherid'] ?? 0), 'roomid' => (int)($it['roomid'] ?? 0), 'dates' => $dates];
+                    'teacherid' => (int)($it['teacherid'] ?? 0), 'roomid' => $gmode === 1 ? 0 : (int)($it['roomid'] ?? 0), 'dates' => $dates];
                 if (!$day) {
                     $row['blocks'][] = (count($g['parts']) > 1 ? 'La parte ' . ($pi + 1) . ' no tiene' : 'No tiene') . ' horario en el tablero.';
                 } else if ($nses > 0 && count($dates) < $nses) {
@@ -423,7 +430,9 @@ class publisher {
             }
             $mins = 0;
             foreach ($r['cards'] as $c) {
-                if (!$c['roomid']) {
+                if ($r['mode'] === 1) {
+                    // virtual: no lleva aula
+                } else if (!$c['roomid']) {
                     $rows[$k]['warnings'][] = 'Sin aula.';
                 } else if (isset($rooms[$c['roomid']]) && $rooms[$c['roomid']]['capacity'] < $r['size']) {
                     $rows[$k]['warnings'][] = 'El aula es chica para el grupo.';
@@ -829,8 +838,16 @@ class publisher {
         }
         $c = new \stdClass();
         $c->name = $course->fullname;
-        $c->type = 0;
-        $c->typelabel = 'Presencial';
+        // Modalidad elegida en el tablero (por defecto presencial). Virtual: sin aula.
+        $mode = in_array((int)($g['mode'] ?? 0), [1, 2], true) ? (int)$g['mode'] : 0;
+        $c->type = $mode;
+        $c->typelabel = self::MODES[$mode];
+        if ($mode === 1) {
+            $g['roomid'] = 0;
+            foreach ($g['cards'] as $ci => $card) {
+                $g['cards'][$ci]['roomid'] = 0;
+            }
+        }
         $c->learningplanid = (int)$llc->learningplanid;
         $c->periodid = $pid;
         $c->courseid = (int)$llc->id;

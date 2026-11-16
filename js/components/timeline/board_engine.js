@@ -58,7 +58,7 @@
         var s = {
             scenario: opts.scenario || null, real: {},
             cfg: board.config || {}, period: board.period || {}, groups: {}, order: [], teachers: {}, rooms: {}, fixed: [],
-            holidays: board.holidays || [], place: {},
+            holidays: board.holidays || [], place: {}, mode: {},
         };
         s.pad = Math.max(0, Number(s.cfg.interval || 0));
         s.prefs = { subjects: ((board.preferences || {}).subjects || []) };
@@ -87,10 +87,18 @@
             });
         });
         Object.keys(placements || {}).forEach(function (k) {
-            if (s.groups[k]) s.place[k] = Object.assign({ day: 0, start: 0, end: 0, teacherid: 0, roomid: 0, locked: false, week: 0 }, placements[k]);
+            if (!s.groups[k]) return;
+            // La modalidad es del grupo (todas sus partes): se toma de la ficha y no queda en la ubicacion.
+            var m = Number(placements[k].mode || 0);
+            if (m === 1 || m === 2) s.mode[s.groups[k].gkey] = m;
+            var pl = Object.assign({ day: 0, start: 0, end: 0, teacherid: 0, roomid: 0, locked: false, week: 0 }, placements[k]);
+            delete pl.mode;
+            s.place[k] = pl;
         });
         s.order.forEach(function (k) {
             if (!s.place[k]) s.place[k] = { day: 0, start: 0, end: 0, teacherid: 0, roomid: 0, locked: false, week: 0 };
+            // Virtual: sin aula (lo publicado se dibuja como esta la clase real).
+            if (E.modeOf(s, k) === 1 && !s.groups[k].published) s.place[k].roomid = 0;
             // Ya publicado: queda fijo (la clase existe; se cambia desde la gestion de clases).
             if (s.groups[k].published) {
                 // Como esta de verdad (para comparar el escenario y saber que cambia).
@@ -564,6 +572,7 @@
     /** Aulas para un grupo en una ubicacion: libres primero, luego la mas chica que alcanza. */
     E.roomOptions = function (s, k, p) {
         var g = s.groups[k];
+        if (E.modeOf(s, k) === 1) return [];   // virtual: no lleva aula
         p = p || s.place[k];
         return Object.keys(s.rooms).map(function (id) {
             var r = s.rooms[id];
@@ -1289,14 +1298,34 @@
     };
 
     /** Ubicaciones listas para guardar (solo las que tienen algo). */
+    /** Modalidad del grupo de la ficha k: 0 presencial (por defecto), 1 virtual, 2 mixta. */
+    E.MODES = ['Presencial', 'Virtual', 'Mixta'];
+    E.modeOf = function (s, k) {
+        var g = s.groups[k];
+        return g ? Number(s.mode[g.gkey] || 0) : 0;
+    };
+    /** Cambia la modalidad de todo el grupo de la ficha k; virtual le quita el aula a todas sus partes. */
+    E.setMode = function (s, k, m) {
+        var g = s.groups[k];
+        if (!g) return;
+        m = Number(m) || 0;
+        if (m === 1 || m === 2) s.mode[g.gkey] = m; else delete s.mode[g.gkey];
+        if (m === 1) {
+            s.order.forEach(function (o) {
+                if (s.groups[o].gkey === g.gkey && s.place[o].roomid) s.place[o] = Object.assign({}, s.place[o], { roomid: 0 });
+            });
+        }
+    };
+
     E.serialize = function (s) {
         var out = {};
         s.order.forEach(function (k) {
-            var p = s.place[k];
-            if (E.placed(p) || p.teacherid || p.roomid) {
+            var p = s.place[k], m = E.modeOf(s, k);
+            if (E.placed(p) || p.teacherid || p.roomid || m) {
                 out[k] = { day: E.placed(p) ? p.day : 0, start: E.placed(p) ? p.start : 0, end: E.placed(p) ? p.end : 0,
-                    teacherid: p.teacherid || 0, roomid: p.roomid || 0, locked: !!p.locked, week: E.placed(p) ? (p.week || 0) : 0,
+                    teacherid: p.teacherid || 0, roomid: m === 1 ? 0 : (p.roomid || 0), locked: !!p.locked, week: E.placed(p) ? (p.week || 0) : 0,
                     sessions: s.groups[k].sessions || 0 };
+                if (m) out[k].mode = m;
             }
         });
         return out;

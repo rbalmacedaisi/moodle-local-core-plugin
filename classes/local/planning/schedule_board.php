@@ -440,7 +440,7 @@ class schedule_board {
                 return (int)$g['published'];
             }, $pubgroups);
             list($pcsql, $pcparams) = $DB->get_in_or_equal(array_values($pcids));
-            $pclass = $DB->get_records_select('gmk_class', "id $pcsql", $pcparams, '', 'id, instructorid, groupid, approved');
+            $pclass = $DB->get_records_select('gmk_class', "id $pcsql", $pcparams, '', 'id, instructorid, groupid, approved, type');
             // Estudiantes reales de la clase, sin el docente: el grupo de Moodle si ya esta aprobada (la cola no se vacia al
             // aprobar y puede tener a quien despues se saco del grupo) o la cola si todavia no. Si alguien se movio a mano despues
             // de guardar la propuesta, el tablero ve donde esta de verdad y no avisa choques que no existen.
@@ -502,6 +502,9 @@ class schedule_board {
                     $draftout['items'][$pk] = ['day' => $x['day'], 'start' => $x['start'], 'end' => $x['end'],
                         'teacherid' => (int)$pclass[$cid]->instructorid, 'roomid' => $x['roomid'], 'locked' => true, 'week' => 0,
                         'sessions' => count($x['dates']), 'real' => true];
+                    if (in_array((int)$pclass[$cid]->type, [1, 2], true)) {
+                        $draftout['items'][$pk]['mode'] = (int)$pclass[$cid]->type;   // modalidad real de la clase
+                    }
                 }
                 $groups[$gi]['parts'] = $parts;
                 $real_uids = array_values(array_diff($roster[$cid] ?? [], [(int)$pclass[$cid]->instructorid]));
@@ -704,7 +707,8 @@ class schedule_board {
      * Guarda el borrador del tablero (solo configsettings.board_draft del periodo).
      * Control de version: si otro usuario guardo despues de que se cargo el tablero, no se sobrescribe.
      *
-     * @param array $d ['periodid', 'version', 'items' => {key: {day, start, end, teacherid, roomid, locked}}, 'clear' => bool]
+     * @param array $d ['periodid', 'version', 'items' => {key: {day, start, end, teacherid, roomid, locked, mode}}, 'clear' => bool]
+     *        mode: 0 presencial (por defecto), 1 virtual (sin aula), 2 mixta.
      */
     public static function save(array $d) {
         global $DB, $USER;
@@ -779,16 +783,23 @@ class schedule_board {
                     }
                     $tchecked[$tid] = true;
                 }
-                $rid = (int)($it['roomid'] ?? 0);
+                $mode = (int)($it['mode'] ?? 0);
+                if (!in_array($mode, [0, 1, 2], true)) {
+                    return ['ok' => false, 'message' => 'Modalidad no válida en ' . $groups[$gkey]['name'] . '.', 'saved' => null];
+                }
+                $rid = $mode === 1 ? 0 : (int)($it['roomid'] ?? 0);   // virtual: sin aula
                 if ($rid && !isset($rooms[$rid])) {
                     return ['ok' => false, 'message' => 'El aula asignada a ' . $groups[$gkey]['name'] . ' no existe.', 'saved' => null];
                 }
-                if (!$placed && !$tid && !$rid) {
+                if (!$placed && !$tid && !$rid && !$mode) {
                     continue; // nada que guardar
                 }
                 $items[$key] = ['day' => $placed ? $day : 0, 'start' => $placed ? $a : 0, 'end' => $placed ? $b : 0,
                     'teacherid' => $tid, 'roomid' => $rid, 'locked' => !empty($it['locked']), 'week' => $placed ? $week : 0,
                     'sessions' => $nses];
+                if ($mode) {
+                    $items[$key]['mode'] = $mode;
+                }
             }
         }
         $cfg = json_decode((string)$p->configsettings, true);

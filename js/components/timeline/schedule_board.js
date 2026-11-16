@@ -371,11 +371,23 @@ Vue.component('schedule-board', {
                         </div>
                     </div>
                     <div class="tl-sb-sec">
+                        <div class="tl-sb-sec-title">Modalidad</div>
+                        <select class="tl-cfg-input" style="width:100%" :value="E.modeOf(S, sel)" :disabled="!canEdit || !!info.g.published" @change="setMode(Number($event.target.value))"
+                                :title="info.g.published ? 'Clase ya publicada: la modalidad se cambia en la clase' : 'Aplica a todo el grupo (todas sus partes)'">
+                            <option v-for="(m, i) in E.MODES" :key="'m' + i" :value="i">{{ m }}</option>
+                        </select>
+                        <div v-if="E.modeOf(S, sel) === 2" class="tl-cfg-help" style="margin-top:2px">Mixta: con aula y sala virtual a la vez.</div>
+                    </div>
+                    <div class="tl-sb-sec" v-if="E.modeOf(S, sel) !== 1">
                         <div class="tl-sb-sec-title">Aula</div>
                         <select class="tl-cfg-input" style="width:100%" :value="info.p.roomid" :disabled="!canEdit" @change="setRoom(Number($event.target.value))">
                             <option :value="0">Sin aula</option>
                             <option v-for="r in roomOpts" :key="r.id" :value="r.id">{{ r.name }} · {{ r.capacity }} puestos{{ r.busy ? ' · ocupada' : '' }}{{ !r.fits ? ' · chica' : '' }}</option>
                         </select>
+                    </div>
+                    <div class="tl-sb-sec" v-else>
+                        <div class="tl-sb-sec-title">Aula</div>
+                        <div class="tl-cfg-help">Virtual: no lleva aula ni cuenta en los choques de aula.</div>
                     </div>
                     <div class="tl-sb-sec" v-if="info.conf.length">
                         <div class="tl-sb-sec-title">Choques y avisos</div>
@@ -550,7 +562,7 @@ Vue.component('schedule-board', {
                                         <td><input type="checkbox" v-model="pub.sel[g.key]"></td>
                                         <td>{{ g.name }} <span class="tl-cfg-help">G{{ g.number }}</span></td><td>{{ g.jornada }}</td>
                                         <td>{{ dayName(g.day) }} {{ hhmm(g.start) }}–{{ hhmm(g.end) }}</td>
-                                        <td>{{ g.teacher || 'Sin docente' }} · {{ g.room || 'sin aula' }}</td><td>{{ g.size }}</td>
+                                        <td>{{ g.teacher || 'Sin docente' }} · {{ g.mode === 1 ? 'virtual' : (g.room || 'sin aula') + (g.mode === 2 ? ' · mixta' : '') }}</td><td>{{ g.size }}</td>
                                         <td class="tl-cfg-help">{{ fmt(g.from) }} – {{ fmt(g.to) }} · {{ (g.dates || []).length }} sesiones</td>
                                         <td class="tl-cfg-help" style="color:#B45309">{{ g.warnings.join(' ') }}</td>
                                     </tr>
@@ -848,8 +860,8 @@ Vue.component('schedule-board', {
                 out[p.day].push({ id: k, name: g.name, start: p.start, end: p.end, sev, locked: p.locked, dim, span,
                     line1: (g.published ? '✓ publicada · ' : '') + (g.extra ? '+ adicional · ' : '') + 'G' + g.number + (g.parts > 1 ? ' (' + g.part + '/' + g.parts + ')' : '') + ' · ' + g.size + ' est · '
                         + (partial ? wl.split(' · ')[0] + ' · ' + wl.split(' · ')[1] : this.E.hhmm(p.start) + '–' + this.E.hhmm(p.end)),
-                    line2: (p.teacherid ? this.teacherName(p.teacherid) : 'Sin docente') + ' · ' + (p.roomid ? this.roomName(p.roomid) : 'sin aula'),
-                    title: g.name + ' (G' + g.number + ')\n' + this.E.hhmm(p.start) + '–' + this.E.hhmm(p.end) + ' · ' + wl + '\n'
+                    line2: (p.teacherid ? this.teacherName(p.teacherid) : 'Sin docente') + ' · ' + this.roomMode(k, p.roomid),
+                    title: this.E.MODES[this.E.modeOf(this.S, k)] + ' · ' + g.name + ' (G' + g.number + ')\n' + this.E.hhmm(p.start) + '–' + this.E.hhmm(p.end) + ' · ' + wl + '\n'
                         + (conf[k] || []).map(c => '• ' + c.msg).join('\n') });
             });
             // Clases ya creadas de esta jornada (o con estudiantes de los grupos de esta jornada).
@@ -1145,14 +1157,16 @@ Vue.component('schedule-board', {
         },
         // ---- cambios (con deshacer) ----
         remember() {
-            this.history.push(JSON.stringify(this.S.place));
+            this.history.push(JSON.stringify({ place: this.S.place, mode: this.S.mode }));
             if (this.history.length > 60) this.history.shift();
             this.dirty = true;
         },
         undo() {
             const prev = this.history.pop();
             if (!prev) return;
-            this.S.place = JSON.parse(prev);
+            const h = JSON.parse(prev);
+            this.S.place = h.place || h;
+            if (h.mode) this.S.mode = h.mode;
             this.dirty = true; this.tick++;
         },
         select(k) { this.sel = this.sel === k ? null : k; this.tq = ''; },
@@ -1186,6 +1200,17 @@ Vue.component('schedule-board', {
             this.tick++;
         },
         setRoom(id) { this.setPlace(this.sel, { roomid: id }); },
+        // Modalidad del grupo (todas sus partes). Virtual le quita el aula.
+        setMode(m) {
+            this.remember();
+            this.E.setMode(this.S, this.sel, m);
+            this.tick++;
+        },
+        roomMode(k, roomid) {
+            const m = this.E.modeOf(this.S, k);
+            if (m === 1) return 'virtual';
+            return (roomid ? this.roomName(roomid) : 'sin aula') + (m === 2 ? ' · mixta' : '');
+        },
         // Estudiantes que comparte la ficha con la del choque (grupo del tablero o clase ya creada).
         sharedWith(c) {
             const mine = this.info.g.userids || [];

@@ -46,7 +46,8 @@
                 dates: r.dates || [], first: (r.dates || [])[0] || '', last: (r.dates || []).slice(-1)[0] || '',
                 weeks: placed ? E.weeksLabel(S, k, p) : '',
                 teacherid: placed ? p.teacherid : 0, teacher: placed ? tName(p.teacherid) : '',
-                roomid: placed ? p.roomid : 0, room: rm ? rm.name : '', roomCap: rm ? (rm.capacity || '') : '',
+                roomid: placed ? p.roomid : 0, room: E.modeOf(S, k) === 1 ? 'Virtual' : (rm ? rm.name : ''), roomCap: rm ? (rm.capacity || '') : '',
+                modality: E.MODES[E.modeOf(S, k)],
                 size: g.size, adelantos: g.adelantos || 0, adelIds: g.adelanto_ids || [], userids: g.userids || [],
                 careers: (g.plans || []).map(function (id) { return careers[id] || ('Plan ' + id); }).join(', '),
                 levels: levels.join(', '), long: !!g.long, event: g.event || '', yields: !!g.yields,
@@ -309,12 +310,12 @@
 
             // Horario: una fila por ficha
             var H = [['Jornada', 'Asignatura', 'Id curso', 'Grupo', 'Parte', 'Tipo', 'Día', 'Inicio', 'Fin', 'Minutos por sesión', 'Sesiones',
-                'Primera fecha', 'Última fecha', 'Semanas', 'Docente', 'Aula', 'Capacidad aula', 'Estudiantes', 'Adelantos', 'Carreras', 'Niveles',
+                'Primera fecha', 'Última fecha', 'Semanas', 'Docente', 'Modalidad', 'Aula', 'Capacidad aula', 'Estudiantes', 'Adelantos', 'Carreras', 'Niveles',
                 'Solo carrera', 'Cede fecha (natación)', 'Bloqueada', 'Publicada', 'Choques', 'Avisos', 'Detalle de choques y avisos']];
             rows.forEach(function (r) {
                 H.push([r.jornada, r.fullname || r.name, r.courseid || '', r.group, r.part, r.type, r.dayName || 'Sin horario', r.startTxt, r.endTxt, r.placed ? r.minutes : '',
                     r.sessions || '', r.fixed ? epochDate(r.fromTs) : ymdDate(r.first), r.fixed ? epochDate(r.toTs) : ymdDate(r.last), r.fixed ? '' : r.weeks,
-                    r.teacher, r.room, r.roomCap, r.size, r.adelantos || '', r.careers, r.levels, r.isolated, r.yields ? 'Sí' : '',
+                    r.teacher, r.modality || '', r.room, r.roomCap, r.size, r.adelantos || '', r.careers, r.levels, r.isolated, r.yields ? 'Sí' : '',
                     r.locked ? 'Sí' : '', r.published ? 'Sí' : '', r.hard || '', r.soft || '',
                     r.conflicts.filter(function (c) { return c.sev !== 'info'; }).map(function (c) { return (c.sev === 'hard' ? '✗ ' : '! ') + c.msg; }).join(' | ')]);
             });
