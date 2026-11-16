@@ -350,7 +350,17 @@ class scenarios {
             if (!$sch) {
                 continue;
             }
-            $classes[] = ['classid' => $cid, 'name' => $cls['name'], 'teacher' => $cls['teacher'], 'students' => $cls['students'], 'schedules' => $sch];
+            // Para el informe de notificacion: correo del docente y lista de estudiantes de la clase.
+            $tu = (int)$cls['class']->instructorid ? $DB->get_record('user', ['id' => (int)$cls['class']->instructorid], 'id, email') : null;
+            $roster = [];
+            if ($cls['members']) {
+                list($in, $pp) = $DB->get_in_or_equal($cls['members']);
+                foreach ($DB->get_records_select('user', "id $in AND deleted = 0", $pp, 'lastname, firstname', 'id, firstname, lastname, firstnamephonetic, lastnamephonetic, middlename, alternatename, email, idnumber') as $u) {
+                    $roster[] = ['name' => fullname($u), 'email' => (string)$u->email, 'doc' => (string)$u->idnumber];
+                }
+            }
+            $classes[] = ['classid' => $cid, 'name' => $cls['name'], 'teacher' => $cls['teacher'], 'teacher_email' => $tu ? (string)$tu->email : '',
+                'students' => $cls['students'], 'roster' => $roster, 'schedules' => $sch];
         }
         if (!$classes && !$blocks) {
             return self::fail('Con esa fecha no cambia ninguna sesión.');

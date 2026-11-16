@@ -436,6 +436,13 @@ Vue.component('schedule-board', {
                                 <div class="mt-1">Corrija en el escenario (otra hora, otra aula) y revise de nuevo.</div></div>
                             <div v-if="apl.plan.warnings.length" class="tl-cfg-msg mt-2" style="background:#FEF3C7;color:#92400E"><b>Avisos:</b>
                                 <div v-for="(w, i) in apl.plan.warnings" :key="'w' + i">• {{ w }}</div></div>
+                            <div v-if="apl.plan.classes.length" class="tl-sb-apl-report">
+                                <v-icon size="16" color="#4F46E5">mdi-email-newsletter</v-icon>
+                                <span><b>Informe para notificar</b> a los docentes (una hoja por docente con el aviso listo) y la lista de estudiantes de cada clase.
+                                    {{ apl.result && apl.result.ok ? '' : 'Puede generarlo antes de aplicar.' }}</span>
+                                <button class="tl-cfg-btn tl-cfg-btn-ghost" @click="changesReport('print')"><v-icon size="14">mdi-printer</v-icon> Informe para docentes</button>
+                                <button class="tl-cfg-btn tl-cfg-btn-ghost" :disabled="exporting" @click="changesReport('excel')"><v-icon size="14">mdi-microsoft-excel</v-icon> Excel (docentes y estudiantes)</button>
+                            </div>
                             <div v-for="c in apl.plan.classes" :key="c.classid" class="tl-sb-apl-class">
                                 <div><b>#{{ c.classid }} {{ c.name }}</b> · {{ c.teacher }} · {{ c.students }} est</div>
                                 <div v-for="sc in c.schedules" :key="sc.sid" class="tl-cfg-help">
@@ -1362,6 +1369,15 @@ Vue.component('schedule-board', {
                 if (!r.ok) this.apl.error = r.message; else this.apl.plan = r.saved;
             } catch (e) { this.apl.error = 'Error: ' + (e.message || e); }
             finally { this.apl.loading = false; }
+        },
+        async changesReport(kind) {
+            if (!window.GmkBoardReport || !this.apl.plan) return;
+            const opts = { periodName: this.periodName, scenario: this.scen.name, applied: !!(this.apl.result && this.apl.result.ok) };
+            if (kind === 'print') { window.GmkBoardReport.changesPrint(this.apl.plan, opts); return; }
+            this.exporting = true;
+            try { await window.GmkBoardReport.changesExcel(this.apl.plan, opts); }
+            catch (e) { window.alert('No se pudo exportar: ' + (e.message || e)); }
+            finally { this.exporting = false; }
         },
         async doApply() {
             if (!window.confirm('¿Aplicar ahora? Se moverán ' + this.apl.plan.sessions + ' sesión(es) de ' + this.apl.plan.classes.length + ' clase(s) desde el ' + this.fmtYmd(this.apl.plan.effective) + '.')) return;

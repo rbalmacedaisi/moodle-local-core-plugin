@@ -2563,6 +2563,8 @@ button.tl-btn.tl-btn-primary:active:not(:disabled) {
 .tl-sb-scen-chg:hover { background: #F8FAFF; }
 .tl-sb-better { color: #047857; }
 .tl-sb-worse { color: #B91C1C; }
+.tl-sb-apl-report { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; padding: 8px 10px; border-radius: 8px; background: #EEF2FF; font-size: 12.5px; }
+.tl-sb-apl-report > span { flex: 1; min-width: 240px; }
 .tl-sb-apl-class { border: 1px solid #E2E8F0; border-radius: 8px; padding: 6px 8px; margin-top: 6px; font-size: 12.5px; }
 .tl-sb-apl-ses { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 2px 0 4px 10px; font-size: 11.5px; color: #475569; }
 .tl-sb-disp { background: #fff; border: 1px solid #E2E8F0; border-radius: 12px; padding: 10px 12px; font-size: 12.5px; color: #334155; }

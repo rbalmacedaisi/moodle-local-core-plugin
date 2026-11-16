@@ -427,5 +427,126 @@
         });
     };
 
+
+    // ---- Informe de cambios de horario (escenario aplicado desde una fecha) ----
+    // plan = revision del servidor (scenarios::plan): { effective, classes: [{ classid, name, teacher, teacher_email, students, roster,
+    //        schedules: [{ from, to, sessions: [{ old, new }] }] }], warnings }
+    var DOW = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+    function dtTxt(s) {   // 'Y-m-d H:i' -> 'sáb 05/12/2026 15:05'
+        var m = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}:\d{2})$/.exec(String(s || ''));
+        if (!m) return String(s || '');
+        var d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+        return DOW[d.getDay()].slice(0, 3) + ' ' + m[3] + '/' + m[2] + '/' + m[1] + ' ' + m[4];
+    }
+    function chHeader(periodName, title) {
+        var logo = window.gmkReportLogo ? '<img class="logo" src="' + esc(window.gmkReportLogo) + '" alt="">' : '';
+        return '<div class="hd"><div class="hl">' + logo + '<div><b>' + esc(title) + '</b> · Periodo ' + esc(periodName) + '</div></div><div class="sm">Impreso ' + esc(nowTxt()) + '</div></div>';
+    }
+    function byTeacher(plan) {
+        var m = {};
+        (plan.classes || []).forEach(function (c) {
+            var k = c.teacher || 'Sin docente';
+            (m[k] = m[k] || { name: k, email: c.teacher_email || '', classes: [] }).classes.push(c);
+        });
+        return Object.keys(m).sort(function (a, b) { return a.localeCompare(b); }).map(function (k) { return m[k]; });
+    }
+    /** Texto del aviso para un docente (para copiar en un correo o mensaje). */
+    R.teacherNotice = function (t, plan, periodName) {
+        var lines = ['Estimado(a) ' + t.name + ':', '',
+            'Le informamos que, a partir del ' + ymdTxt(plan.effective) + ', cambia el horario de las siguientes clases suyas del periodo ' + (periodName || '') + ':', ''];
+        t.classes.forEach(function (c) {
+            lines.push('• ' + c.name + ' (' + c.students + ' estudiantes)');
+            (c.schedules || []).forEach(function (s) {
+                lines.push('   Antes: ' + s.from);
+                lines.push('   Ahora: ' + s.to);
+                lines.push('   Sesiones que cambian: ' + (s.sessions || []).map(function (x) { return dtTxt(x.new); }).join(', '));
+            });
+            lines.push('');
+        });
+        lines.push('Las sesiones anteriores al ' + ymdTxt(plan.effective) + ' no cambian. Sus estudiantes también serán notificados.');
+        lines.push('Cualquier inconveniente con el nuevo horario, por favor avísenos.');
+        return lines.join('\n');
+    };
+    /** Ventana para imprimir: una hoja por docente con el aviso listo y el detalle sesion por sesion. */
+    R.changesPrint = function (plan, opts) {
+        opts = opts || {};
+        var teachers = byTeacher(plan);
+        var title = 'Cambios de horario desde el ' + ymdTxt(plan.effective);
+        var ctx = { periodName: opts.periodName || '' };
+        var pages = [];
+        // Resumen
+        pages.push('<h2>' + esc(title) + '</h2><div class="sm">Periodo ' + esc(ctx.periodName) + (opts.scenario ? ' · escenario «' + esc(opts.scenario) + '»' : '')
+            + ' · ' + (plan.classes || []).length + ' clase(s) · ' + teachers.length + ' docente(s) · generado ' + nowTxt()
+            + (opts.applied ? '' : ' · <b>REVISIÓN PREVIA: todavía no se aplicó</b>') + '</div>'
+            + '<table><thead><tr><th>Docente</th><th>Correo</th><th>Clase</th><th>Est.</th><th>Antes</th><th>Ahora</th><th>Sesiones</th></tr></thead><tbody>'
+            + teachers.map(function (t) {
+                return t.classes.map(function (c) {
+                    return (c.schedules || []).map(function (s) {
+                        return '<tr><td>' + esc(t.name) + '</td><td>' + esc(t.email) + '</td><td>' + esc(c.name) + '</td><td>' + c.students + '</td><td>' + esc(s.from)
+                            + '</td><td><b>' + esc(s.to) + '</b></td><td>' + (s.sessions || []).length + '</td></tr>';
+                    }).join('');
+                }).join('');
+            }).join('') + '</tbody></table>'
+            + ((plan.warnings || []).length ? '<h3>Avisos de la revisión</h3><ul>' + plan.warnings.map(function (w) { return '<li>' + esc(w) + '</li>'; }).join('') + '</ul>' : ''));
+        teachers.forEach(function (t) {
+            pages.push('<h2>' + esc(t.name) + (t.email ? ' · ' + esc(t.email) : '') + '</h2>'
+                + '<h3>Aviso para el docente</h3><pre class="notice">' + esc(R.teacherNotice(t, plan, ctx.periodName)) + '</pre>'
+                + '<h3>Detalle por sesión</h3>' + t.classes.map(function (c) {
+                    return '<div class="sm"><b>' + esc(c.name) + '</b> · clase ' + c.classid + ' · ' + c.students + ' estudiantes</div>'
+                        + (c.schedules || []).map(function (s) {
+                            return '<table><thead><tr><th>#</th><th>Antes</th><th>Ahora</th></tr></thead><tbody>' + (s.sessions || []).map(function (x, i) {
+                                return '<tr><td>' + (i + 1) + '</td><td>' + esc(dtTxt(x.old)) + '</td><td><b>' + esc(dtTxt(x.new)) + '</b></td></tr>';
+                            }).join('') + '</tbody></table>';
+                        }).join('');
+                }).join(''));
+        });
+        var w = window.open('', '_blank');
+        if (!w) { window.alert('El navegador bloqueó la ventana del informe. Permita las ventanas emergentes para este sitio e intente de nuevo.'); return; }
+        w.document.open();
+        w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>' + esc(title) + '</title><style>' + css()
+            + ' pre.notice{white-space:pre-wrap;font-family:inherit;font-size:12.5px;border:1px solid #CBD5E1;border-radius:8px;padding:10px;background:#F8FAFC}</style></head><body>'
+            + '<div class="bar"><button onclick="window.print()">Imprimir</button><button onclick="window.close()">Cerrar</button>'
+            + '<span class="sm">Una hoja por docente con el aviso listo para enviar.</span></div>'
+            + pages.map(function (p) { return '<div class="pg">' + chHeader(ctx.periodName, title) + p + '</div>'; }).join('')
+            + '</body></html>');
+        w.document.close();
+        w.focus();
+    };
+    /** Excel: hoja por docente (aviso), detalle por sesion y estudiantes de cada clase (para avisarles tambien). */
+    R.changesExcel = function (plan, opts) {
+        opts = opts || {};
+        return loadXLSX().then(function (X) {
+            var wb = X.utils.book_new();
+            var teachers = byTeacher(plan);
+            var a = [['Docente', 'Correo', 'Clase', 'Id clase', 'Estudiantes', 'Antes', 'Ahora', 'Rige desde', 'Sesiones que cambian', 'Aviso para el docente']];
+            teachers.forEach(function (t) {
+                var notice = R.teacherNotice(t, plan, opts.periodName);
+                t.classes.forEach(function (c) {
+                    (c.schedules || []).forEach(function (s) {
+                        a.push([t.name, t.email, c.name, c.classid, c.students, s.from, s.to, ymdDate(plan.effective),
+                            (s.sessions || []).map(function (x) { return dtTxt(x.new); }).join(', '), notice]);
+                    });
+                });
+            });
+            X.utils.book_append_sheet(wb, sheet(X, a, [28, 30, 46, 9, 11, 30, 30, 12, 60, 80]), 'Docentes');
+            var b = [['Docente', 'Clase', 'Id clase', '#', 'Antes', 'Ahora']];
+            teachers.forEach(function (t) {
+                t.classes.forEach(function (c) {
+                    (c.schedules || []).forEach(function (s) {
+                        (s.sessions || []).forEach(function (x, i) { b.push([t.name, c.name, c.classid, i + 1, dtTxt(x.old), dtTxt(x.new)]); });
+                    });
+                });
+            });
+            X.utils.book_append_sheet(wb, sheet(X, b, [28, 46, 9, 5, 22, 22]), 'Sesiones');
+            var st = [['Clase', 'Id clase', 'Docente', 'Nuevo horario', 'Rige desde', 'Estudiante', 'Documento', 'Correo']];
+            (plan.classes || []).forEach(function (c) {
+                var to = (c.schedules || []).map(function (s) { return s.to; }).join(' / ');
+                (c.roster || []).forEach(function (u) { st.push([c.name, c.classid, c.teacher, to, ymdDate(plan.effective), u.name, u.doc, u.email]); });
+            });
+            X.utils.book_append_sheet(wb, sheet(X, st, [46, 9, 28, 30, 12, 34, 14, 32]), 'Estudiantes');
+            X.writeFile(wb, 'cambios_horario_desde_' + plan.effective + '_' + String(opts.periodName || 'periodo').replace(/[^\w-]+/g, '_') + '.xlsx');
+        });
+    };
+
     window.GmkBoardReport = R;
 })();
