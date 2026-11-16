@@ -704,6 +704,26 @@ Vue.component('period-projection', {
                                 </label>
                             </div>
                         </template>
+                        <div v-if="exc.mode === 'grupo' && advOf(it).length" class="tl-proj-exc-students" style="border-color:#0D9488;max-height:320px;overflow-x:hidden">
+                            <div class="tl-cfg-help" style="margin:2px 0 4px;color:#0F766E">
+                                <b>Sumar estudiantes que pueden adelantarla ({{ advOf(it).length }})</b>: de esta jornada y carrera, con las
+                                prelaciones aprobadas. Marque un nivel completo o uno por uno.
+                                <button class="tl-proj-flexbtn" @click="it.addKeys = uniq(advOf(it).map(advKey))">todos</button>
+                                <button class="tl-proj-flexbtn" @click="it.addKeys = []">ninguno</button>
+                                • {{ it.addKeys.length }} elegido(s): grupo de {{ advTotal(it) }}<template v-if="advTotal(it) > max"> (pasa del máximo de {{ max }}: se parte en grupos)</template>
+                            </div>
+                            <div v-for="lv in advLevels(it)" :key="'lv' + lv.level" style="margin-bottom:6px">
+                                <label class="tl-cfg-check" style="font-weight:600">
+                                    <input type="checkbox" :checked="lvState(it, lv) === 2" :indeterminate.prop="lvState(it, lv) === 1"
+                                        @change="toggleLevel(it, lv, $event.target.checked)">
+                                    {{ lv.level }} <span class="tl-cfg-help">· {{ lv.list.length }} estudiante(s)</span>
+                                </label>
+                                <label v-for="x in lv.list" :key="'ad' + advKey(x)" class="tl-cfg-check" style="margin-left:22px">
+                                    <input type="checkbox" :value="advKey(x)" v-model="it.addKeys">
+                                    {{ x.s.name }} <span class="tl-cfg-help">{{ shortPlan(x.s.plan) }}</span>
+                                </label>
+                            </div>
+                        </div>
                         <div v-if="exc.mode === 'modulo'" class="tl-proj-exc-students">
                             <label v-for="x in it.students" :key="x.s.userid + '-' + x.s.planid" class="tl-cfg-check">
                                 <input type="checkbox" :value="x.s.userid" v-model="it.userids">
@@ -1510,6 +1530,8 @@ Vue.component('period-projection', {
                 jornadas: cur && cur.mode === 'juntar' ? (cur.jornadas || []).slice()
                     : (items[0].jornadaOpts || []).map(o => o.jornada).filter(x => x === items[0].jornada || items.length === 1),
                 items: items.map(it => Object.assign({}, it, {
+                    // Estudiantes que la adelantan sumados al grupo (abrir como grupo): los ya decididos, si los hay.
+                    addKeys: cur && cur.mode === 'grupo' && items.length === 1 ? (cur.add_keys || []).slice() : [],
                     // Por defecto se proponen para modulo los que egresan; si no hay, todos los que se cargan.
                     userids: (this.result.published && !cur ? it.students.filter(x => !x.loaded && x.cat !== 'adelanto')
                         : cur && cur.mode === 'modulo' ? cur.userids.slice()
@@ -1517,6 +1539,23 @@ Vue.component('period-projection', {
                             .map(x => x.s.userid)).filter((v, i, a) => a.indexOf(v) === i) })) };
         },
         uniq(a) { return a.filter((v, i) => a.indexOf(v) === i); },
+        // Abrir como grupo: estudiantes que pueden adelantarla, por nivel, para sumarlos al grupo (clave usuario-plan).
+        advKey(x) { return x.s.userid + '-' + x.s.planid; },
+        advOf(it) { return it.students.filter(x => x.cat === 'adelanto' && !x.loaded); },
+        advLevels(it) {
+            const by = {};
+            this.advOf(it).forEach(x => { (by[x.s.level || '?'] = by[x.s.level || '?'] || []).push(x); });
+            return Object.keys(by).sort().map(level => ({ level, list: by[level].sort((a, b) => a.s.name.localeCompare(b.s.name)) }));
+        },
+        lvState(it, lv) {
+            const n = lv.list.filter(x => it.addKeys.includes(this.advKey(x))).length;
+            return n === 0 ? 0 : (n === lv.list.length ? 2 : 1);
+        },
+        toggleLevel(it, lv, on) {
+            const keys = lv.list.map(x => this.advKey(x));
+            it.addKeys = on ? this.uniq(it.addKeys.concat(keys)) : it.addKeys.filter(k => !keys.includes(k));
+        },
+        advTotal(it) { return it.students.filter(x => x.cat !== 'adelanto').length + it.addKeys.length; },
         // Estudiantes marcados en "Agregar grupo al tablero" que no tienen aprobada la prelacion (excepcion).
         prereqPicked() {
             const out = [];
@@ -1668,7 +1707,7 @@ Vue.component('period-projection', {
             if (e.mode === 'modulo') return 'Módulo (sin horario ni pago) para ' + e.userids.length + ' estudiante(s)';
             if (e.mode === 'cerrar') return 'No abre por decisión';
             if (e.mode === 'juntar') return 'Junta ' + (e.jornadas || []).join(' + ') + ' en un grupo, en el horario de ' + e.jornada;
-            return 'Abre como grupo por decisión';
+            return 'Abre como grupo por decisión' + ((e.add_keys || []).length ? ' (+' + e.add_keys.length + ' que la adelantan)' : '');
         },
         groupTitle(g, long) {
             if (g.type === 'modulo') return 'Módulo · sin pago';
@@ -1796,9 +1835,12 @@ Vue.component('period-projection', {
             }
             this.exc.saving = true;
             try {
+                const grupo = this.exc.mode === 'grupo';
                 const r = await this.ws('exception_add', { periodid: this.result.period.id, mode: this.exc.mode, note: this.exc.note,
+                    pool: grupo && !!(this.exc.current && this.exc.current.pool),
                     items: this.exc.items.map(it => ({ courseid: it.courseid, jornada: it.jornada === 'Sin jornada' ? '' : it.jornada,
-                        isolated_plan: it.isolated, userids: this.exc.mode === 'modulo' ? it.userids : [] })) });
+                        isolated_plan: it.isolated, userids: this.exc.mode === 'modulo' ? it.userids : [],
+                        add_keys: grupo ? it.addKeys : [] })) });
                 if (!r.ok) { this.exc.error = r.message; return; }
                 this.exc.show = false; this.selected = {};
                 this.$emit('changed', r.message);
