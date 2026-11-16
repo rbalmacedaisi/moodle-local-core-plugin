@@ -507,6 +507,8 @@ class demand_engine {
                 }
                 $d =& $demand[$dk];
                 $d['students'][] = ['key' => $k, 'category' => $sub['category'], 'prereq' => $sub['prereq'],
+                    'missing' => array_values((array)($sub['missing'] ?? [])),          // prelaciones no aprobadas
+                    'conditional' => array_values((array)($sub['conditional'] ?? [])),  // prelaciones que esta cursando
                     'flex' => !empty($sub['flexible']) && empty($sub['flex_on']),
                     'loaded' => isset($loaded[$s['userid'] . '|' . $sub['courseid']])];
                 if (!empty($sub['flexible'])) {

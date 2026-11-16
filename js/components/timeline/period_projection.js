@@ -579,7 +579,8 @@ Vue.component('period-projection', {
                         Sin horario: se carga a todos los que les toca, en un solo grupo que junta las jornadas, sin mínimo, sin docente
                         ni aula y fuera del tablero de horarios (Configuración → Costos y duración).
                     </div>
-                    <div v-for="x in j.students.filter(y => y.cat !== 'repite')" :key="x.s.lluid" class="tl-plan-name-row tl-proj-stu"
+                    <template v-for="x in j.students.filter(y => y.cat !== 'repite')">
+                    <div :key="x.s.lluid" class="tl-plan-name-row tl-proj-stu"
                          :class="{ 'tl-proj-other': careerFilter && x.s.planid !== careerFilter }">
                         <span class="tl-proj-stu-name" :title="x.s.name + ' · ' + x.s.plan">{{ x.s.name }}</span>
                         <span v-if="x.s.finishing" class="tl-plan-tag tl-proj-tag-finish" title="Termina su plan con este periodo">egresa</span>
@@ -587,8 +588,14 @@ Vue.component('period-projection', {
                         <span class="tl-proj-stu-meta" :title="x.s.plan">{{ showCareers && !r.isolated ? shortPlan(x.s.plan) + ' · ' : '' }}{{ x.s.level }}</span>
                         <span class="tl-plan-tag" :class="'tl-plan-tag-' + x.cat">{{ catLabel[x.cat] }}</span>
                         <span v-if="x.cat === 'adelanto' && gsize(j) && gsize(j).keys[x.key]" class="tl-plan-tag tl-proj-tag-in" title="Esta adelantando y entra en el grupo propuesto">en el grupo</span>
-                        <span v-if="x.prereq === 'no'" class="tl-plan-tag tl-plan-tag-lock">prelación</span>
+                        <span v-if="x.prereq === 'no'" class="tl-plan-tag tl-plan-tag-lock" style="cursor:pointer" :title="'Prelación sin aprobar: ' + x.missing.join(', ') + ' (clic para ver)'"
+                              @click.stop="togglePre(r.key + '|' + j.jornada + '|' + x.key)">prelación <v-icon size="9" color="#B45309">{{ openPre[r.key + '|' + j.jornada + '|' + x.key] ? 'mdi-chevron-up' : 'mdi-chevron-down' }}</v-icon></span>
                     </div>
+                    <div :key="'pre' + x.s.lluid" v-if="x.prereq === 'no' && openPre[r.key + '|' + j.jornada + '|' + x.key]" class="tl-cfg-help" style="margin:-2px 0 4px 12px;color:#B45309">
+                        <v-icon size="11" color="#B45309">mdi-lock-outline</v-icon> No ha aprobado: <b>{{ x.missing.join(', ') || 'sin detalle' }}</b>
+                        <template v-if="x.conditional.length"> · cursándola ahora: {{ x.conditional.join(', ') }}</template>
+                    </div>
+                    </template>
                 </div>
                 <!-- Repitentes: gestion aparte, columna plegable -->
                 <div v-if="repeatersOf(r).length" class="tl-proj-detail-col tl-proj-rep-col">
@@ -598,12 +605,19 @@ Vue.component('period-projection', {
                     </button>
                     <div class="tl-cfg-help" style="margin:2px 0 6px">No se cargan solos: al aprobar el horario se les avisa que pueden solicitar el cargue en el área académica y pagarla.</div>
                     <template v-if="openRep[r.key]">
-                        <div v-for="x in repeatersOf(r)" :key="'rep' + x.s.lluid + x.jornada" class="tl-plan-name-row tl-proj-stu">
+                        <template v-for="x in repeatersOf(r)">
+                        <div :key="'rep' + x.s.lluid + x.jornada" class="tl-plan-name-row tl-proj-stu">
                             <span class="tl-proj-stu-name" :title="x.s.name + ' · ' + x.s.plan">{{ x.s.name }}</span>
                             <span v-if="x.s.finishing" class="tl-plan-tag tl-proj-tag-finish">egresa</span>
                             <span class="tl-proj-stu-meta">{{ x.jornada }} · {{ x.s.level }}</span>
-                            <span v-if="x.prereq === 'no'" class="tl-plan-tag tl-plan-tag-lock">prelación</span>
+                            <span v-if="x.prereq === 'no'" class="tl-plan-tag tl-plan-tag-lock" style="cursor:pointer" :title="'Prelación sin aprobar: ' + x.missing.join(', ') + ' (clic para ver)'"
+                              @click.stop="togglePre(r.key + '|rep|' + x.jornada + '|' + x.key)">prelación <v-icon size="9" color="#B45309">{{ openPre[r.key + '|rep|' + x.jornada + '|' + x.key] ? 'mdi-chevron-up' : 'mdi-chevron-down' }}</v-icon></span>
                         </div>
+                        <div :key="'reppre' + x.s.lluid + x.jornada" v-if="x.prereq === 'no' && openPre[r.key + '|rep|' + x.jornada + '|' + x.key]" class="tl-cfg-help" style="margin:-2px 0 4px 12px;color:#B45309">
+                            <v-icon size="11" color="#B45309">mdi-lock-outline</v-icon> No ha aprobado: <b>{{ x.missing.join(', ') || 'sin detalle' }}</b>
+                            <template v-if="x.conditional.length"> · cursándola ahora: {{ x.conditional.join(', ') }}</template>
+                        </div>
+                        </template>
                     </template>
                 </div>
             </div>
@@ -753,7 +767,7 @@ Vue.component('period-projection', {
     mounted() { this.prefetch(); },
     data() {
         return { q: '', filter: 'all', jornada: '', careerFilter: 0, open: {}, selected: {},
-            view: 'next', boardOpened: false, future: null, poolOpen: true, poolTab: 'next', poolDetail: null, poolDlg: null, futureLoading: false, futureError: '', cellDetail: null, costOpen: false, openRep: {},
+            view: 'next', boardOpened: false, future: null, poolOpen: true, poolTab: 'next', poolDetail: null, poolDlg: null, futureLoading: false, futureError: '', cellDetail: null, costOpen: false, openRep: {}, openPre: {},
             grouping: null, groupsLoading: false, groupsError: '', modOpen: {}, groupTab: 'list', groupDetail: null, alertType: 'all', alertLimit: 200,
             savedProposal: null, proposalSaving: false, complOpen: false,
             exc: { show: false, mode: 'grupo', items: [], note: '', error: '', saving: false },
@@ -825,7 +839,7 @@ Vue.component('period-projection', {
                 const key = d.courseid + '|' + iso;
                 const r = by[key] || (by[key] = { key, courseid: d.courseid, name: d.name, isolated: iso, ready: 0, adelanto: 0,
                     blocked: 0, repite: 0, atrasada: 0, levels: {}, plans: {}, planIds: {}, jornadas: [] });
-                const studs = d.students.map(x => ({ key: x.key, s: students[x.key], cat: x.category, prereq: x.prereq, flex: !!x.flex, loaded: !!x.loaded }))
+                const studs = d.students.map(x => ({ key: x.key, s: students[x.key], cat: x.category, prereq: x.prereq, missing: x.missing || [], conditional: x.conditional || [], flex: !!x.flex, loaded: !!x.loaded }))
                     .filter(x => x.s).sort((a, b) => (b.s.finishing - a.s.finishing) || a.s.name.localeCompare(b.s.name));
                 const byPlan = {};
                 let finishing = 0;
@@ -1183,6 +1197,7 @@ Vue.component('period-projection', {
     methods: {
         toggle(k) { this.$set(this.open, k, !this.open[k]); },
         toggleRep(k) { this.$set(this.openRep, k, !this.openRep[k]); },
+        togglePre(k) { this.$set(this.openPre, k, !this.openPre[k]); },
         // Una jornada se muestra si tiene a alguien que se carga, puede adelantar, espera (no obligatoria) o tiene excepcion;
         // las que solo tienen repitentes van en la columna de repitentes.
         visibleJ(j) { return j.ready > 0 || j.adelanto > 0 || (j.flexWaiting || 0) > 0 || j.blocked > 0 || !!j.exception; },
