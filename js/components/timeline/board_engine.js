@@ -595,16 +595,287 @@
         return best;
     };
 
-    /** Cuantos estudiantes del grupo ya tienen otra clase ese dia (para repartir la carga en la semana). */
-    function sameDayLoad(s, k, day, range) {
-        var g = s.groups[k];
-        range = range || { from: g.from, to: g.to };
-        var n = 0;
-        others(s, k, day).forEach(function (o) {
-            if (datesOverlap(range, o)) n += shared(g.users, o.users);
-        });
-        return n;
+    // ---- Compactacion del horario de los estudiantes (menos dias y sin huecos) ----
+    // Un dia mas de clase "vale" DAY_COST minutos de hueco: entre venir otro dia o esperar hora y media, se prefiere esperar.
+    var DAY_COST = 90;
+    /** Minutos de hueco de una lista de intervalos [ini, fin] de un dia (lo que pasa entre clases, sin el receso ni el almuerzo). */
+    function gapOf(s, iv) {
+        if (iv.length < 2) return 0;
+        iv = iv.slice().sort(function (a, b) { return a[0] - b[0]; });
+        var tol = Math.max(15, s.pad + 10), ls = E.toMin(s.cfg.lunchStart), le = E.toMin(s.cfg.lunchEnd);
+        var gap = 0, end = iv[0][1];
+        for (var i = 1; i < iv.length; i++) {
+            if (iv[i][0] > end + tol) {
+                var g = iv[i][0] - end;
+                if (ls >= 0 && le > ls) g -= Math.max(0, Math.min(iv[i][0], le) - Math.max(end, ls));
+                gap += Math.max(0, g);
+            }
+            end = Math.max(end, iv[i][1]);
+        }
+        return gap;
     }
+    /** Clases de los estudiantes del grupo k en el dia: { 'Y-m-d': { uid: [[ini, fin]] } } en las fechas dadas (sin k). */
+    function dayIndex(s, k, day, dates) {
+        var g = s.groups[k], idx = {};
+        dates.forEach(function (d) { idx[d] = {}; });
+        others(s, k, day).forEach(function (o) {
+            var us = [];
+            o.users.forEach(function (u) { if (g.users.has(u)) us.push(u); });
+            if (!us.length) return;
+            var set = null;
+            if (o.dates && o.dates.length) { set = {}; o.dates.forEach(function (d) { set[d] = true; }); }
+            dates.forEach(function (d) {
+                if (set ? !set[d] : (o.from && o.to && (ymdEpoch(d) < o.from || ymdEpoch(d) >= o.to))) return;
+                us.forEach(function (u) { (idx[d][u] = idx[d][u] || []).push([o.start, o.end, o.gkey === g.gkey]); });
+            });
+        });
+        return idx;
+    }
+    /**
+     * Lo que cuesta a los estudiantes del grupo k tenerlo en la ubicacion p (frente a no tenerlo): cuantos tendrian que
+     * venir un dia mas y cuantos minutos de hueco se suman, en todas sus fechas. Las partes de la misma asignatura el
+     * mismo dia cuentan como dia extra (deben ir en dias distintos).
+     * @return { newDays, gap, sibling, n (estudiantes x fechas), cost (minutos equivalentes) }
+     */
+    E.compactCost = function (s, k, p) {
+        var g = s.groups[k];
+        var r = E.range(s, k, p);
+        var dates = r.dates && r.dates.length ? r.dates : [];
+        var out = { newDays: 0, gap: 0, sibling: 0, n: 0, cost: 0 };
+        if (!dates.length || !g.users.size) return out;
+        var idx = dayIndex(s, k, p.day, dates);
+        dates.forEach(function (d) {
+            g.users.forEach(function (u) {
+                out.n++;
+                var iv = idx[d][u];
+                if (!iv || !iv.length) { out.newDays++; return; }
+                if (iv.some(function (x) { return x[2]; })) out.sibling++;
+                out.gap += gapOf(s, iv.concat([[p.start, p.end]])) - gapOf(s, iv);
+            });
+        });
+        out.cost = out.newDays * DAY_COST + out.gap + out.sibling * DAY_COST * 2;
+        return out;
+    };
+    /** Costo de compactacion por estudiante y fecha (para comparar ubicaciones de un mismo grupo junto a los avisos). */
+    function compactScore(s, k, p) {
+        var c = E.compactCost(s, k, p);
+        return c.n ? c.cost / c.n : 0;
+    }
+
+    /** Costo del horario de unos estudiantes: DAY_COST por cada dia con clase + minutos de hueco (en todas las fechas). */
+    E.studentCost = function (s, uids) {
+        var want = {}, per = {};
+        uids.forEach(function (u) { want[u] = true; });
+        s.order.forEach(function (k) {
+            var p = s.place[k];
+            if (!E.placed(p)) return;
+            var g = s.groups[k], us = [];
+            g.users.forEach(function (u) { if (want[u]) us.push(u); });
+            if (!us.length) return;
+            E.range(s, k, p).dates.forEach(function (d) {
+                us.forEach(function (u) { var x = (per[u] = per[u] || {}); (x[d] = x[d] || []).push([p.start, p.end]); });
+            });
+        });
+        var cost = 0;
+        Object.keys(per).forEach(function (u) {
+            Object.keys(per[u]).forEach(function (d) { cost += DAY_COST + gapOf(s, per[u][d]); });
+        });
+        return cost;
+    };
+    /** Otra parte de la misma asignatura ya va ese dia en esas fechas (las partes van en dias distintos). */
+    function siblingSameDay(s, k, p) {
+        var g = s.groups[k];
+        if (!g || g.parts < 2) return false;
+        var r = E.range(s, k, p);
+        return others(s, k, p.day).some(function (o) { return o.gkey === g.gkey && datesOverlap(r, o); });
+    }
+
+    /**
+     * Compactar: mueve fichas sin candado (no publicadas, no eventos) a otro dia, hora o semana donde sus estudiantes
+     * vengan menos dias y tengan menos huecos. Si la mejor hora la ocupan 1 o 2 grupos movibles con estudiantes en comun,
+     * prueba moverlos a ellos tambien. Cada ficha movida queda SIN choques duros, sin sumar avisos, con su docente (o
+     * otro con la habilidad, disponible y libre si el suyo no puede y la regla no lo fija) y con aula libre que alcance.
+     * Solo acepta un cambio si baja el costo total de los estudiantes afectados (dias + huecos).
+     * Devuelve { moved, gain (minutos equivalentes), keys }.
+     */
+    E.densify = function (s, opts) {
+        opts = opts || {};
+        var moved = 0, gain = 0, movedKeys = {};
+        var softOf = function (cs) { return cs.filter(function (c) { return c.sev === 'soft'; }).length; };
+        var hardOf = function (cs) { return cs.filter(function (c) { return c.sev === 'hard'; }); };
+        var movable = function (k) {
+            var p = s.place[k], g = s.groups[k];
+            return !!(g && E.placed(p) && !p.locked && !g.published && !g.event);
+        };
+        var fixedTeacher = function (k) { var r = E.prefFor(s, k); return r && r.teacherid ? r.teacherid : 0; };
+        // Deja la ficha k en np con docente valido y aula; false si no se puede sin choques duros o con mas avisos.
+        var settle = function (k, np, maxSoft, hadRoom) {
+            var test = Object.assign({}, np, { roomid: 0 });
+            var cs = E.conflicts(s, k, test);
+            var hard = hardOf(cs);
+            if (hard.length && hard.every(function (x) { return x.type === 'docente'; }) && !fixedTeacher(k)) {
+                var t = E.bestTeacher(s, k, Object.assign({}, test, { teacherid: 0 }), true);
+                if (!t) return false;
+                test.teacherid = t.id;
+                cs = E.conflicts(s, k, test);
+                hard = hardOf(cs);
+            }
+            if (hard.length || softOf(cs) > maxSoft) return false;
+            var keep = np.roomid && !E.conflicts(s, k, Object.assign({}, test, { roomid: np.roomid })).some(function (x) { return x.type === 'aula'; });
+            test.roomid = keep ? np.roomid : 0;
+            if (!keep) {
+                var r = E.bestRoom(s, k, test);
+                if (!r && hadRoom) return false;
+                test.roomid = r ? r.id : 0;
+            }
+            cs = E.conflicts(s, k, test);
+            if (hardOf(cs).length || softOf(cs) > maxSoft) return false;
+            s.place[k] = Object.assign({}, s.place[k], test, { locked: false });
+            return true;
+        };
+        // Mejor hora (sin choques duros) para una ficha que se desplaza, por su costo de compactacion.
+        var relocate = function (o, maxSoft, hadRoom) {
+            var op = s.place[o];
+            var list = E.candidates(s, o, { ignoreRoom: true }).filter(function (c) {
+                return !c.hard && c.soft <= maxSoft && !siblingSameDay(s, o, c);
+            }).map(function (c) {
+                var np = { day: c.day, start: c.start, end: c.end, week: c.week, teacherid: op.teacherid, roomid: op.roomid };
+                return { np: np, cost: E.compactCost(s, o, np).cost };
+            }).sort(function (a, b) { return a.cost - b.cost; });
+            for (var i = 0; i < list.length && i < 6; i++) {
+                if (settle(o, list[i].np, maxSoft, hadRoom)) return true;
+            }
+            return false;
+        };
+        for (var round = 0; round < (opts.rounds || 4); round++) {
+            var changed = false;
+            var keys = s.order.filter(function (k) {
+                return movable(k) && s.groups[k].users.size && (!opts.jornada || s.groups[k].jornada === opts.jornada);
+            }).sort(function (a, b) { return s.groups[b].size - s.groups[a].size || a.localeCompare(b); });
+            keys.forEach(function (k) {
+                var p = s.place[k], g = s.groups[k];
+                var cur = E.conflicts(s, k, p);
+                if (hardOf(cur).length) return;
+                var curSoft = softOf(cur);
+                var curMarg = E.compactCost(s, k, p).cost;
+                var cands = E.candidates(s, k, { ignoreRoom: true }).filter(function (c) {
+                    return !(c.day === p.day && c.start === p.start && (c.week || 0) === (p.week || 0)) && c.soft <= curSoft && !siblingSameDay(s, k, c);
+                }).map(function (c) {
+                    var np = { day: c.day, start: c.start, end: c.end, week: c.week, teacherid: p.teacherid, roomid: p.roomid };
+                    return { c: c, np: np, marg: E.compactCost(s, k, np).cost };
+                }).filter(function (x) { return x.marg < curMarg - 1; }).sort(function (a, b) { return a.marg - b.marg; });
+                var best = null;
+                for (var i = 0; i < cands.length && i < 12; i++) {
+                    var x = cands[i], hard = hardOf(x.c.conflicts);
+                    var blockers = {};
+                    var ok = hard.every(function (h) {
+                        if (h.type === 'docente' && !fixedTeacher(k)) return true;
+                        if (h.type !== 'estudiantes' || !h.with || !movable(h.with)) return false;
+                        blockers[h.with] = true;
+                        return true;
+                    });
+                    var bl = Object.keys(blockers);
+                    if (!ok || bl.length > 2) continue;
+                    var users = [];
+                    g.users.forEach(function (u) { users.push(u); });
+                    bl.forEach(function (o) { s.groups[o].users.forEach(function (u) { users.push(u); }); });
+                    var saved = {};
+                    [k].concat(bl).forEach(function (o) { saved[o] = Object.assign({}, s.place[o]); });
+                    var before = E.studentCost(s, users);
+                    var done = true;
+                    // Se sacan los que estorban, se ubica k y se reubica a cada uno donde menos cueste.
+                    var bsoft = {};
+                    bl.forEach(function (o) { bsoft[o] = softOf(E.conflicts(s, o)); s.place[o] = Object.assign({}, s.place[o], { day: 0, start: 0, end: 0 }); });
+                    if (!settle(k, x.np, curSoft, !!p.roomid)) done = false;
+                    for (var j = 0; done && j < bl.length; j++) {
+                        if (!relocate(bl[j], bsoft[bl[j]], !!saved[bl[j]].roomid)) done = false;
+                    }
+                    if (done) {
+                        done = [k].concat(bl).every(function (o) { return !hardOf(E.conflicts(s, o)).length; });
+                    }
+                    var after = done ? E.studentCost(s, users) : Infinity;
+                    if (done && after < before - 1 && (!best || before - after > best.gain)) {
+                        best = { gain: before - after, place: {} };
+                        [k].concat(bl).forEach(function (o) { best.place[o] = Object.assign({}, s.place[o]); });
+                    }
+                    Object.keys(saved).forEach(function (o) { s.place[o] = saved[o]; });
+                    if (best && !bl.length) break;   // movida simple que mejora: la mejor por costo marginal
+                }
+                if (!best) return;
+                Object.keys(best.place).forEach(function (o) { s.place[o] = best.place[o]; movedKeys[o] = true; moved++; });
+                gain += best.gain;
+                changed = true;
+            });
+            if (!changed) break;
+        }
+        return { moved: moved, gain: Math.round(gain), keys: Object.keys(movedKeys) };
+    };
+
+    /**
+     * Dispersion del horario de los estudiantes: por estudiante y semana, dias con clase, horas, dias de mas (frente a
+     * los minimos que necesitaria si su horario cupiera seguido en la franja de su jornada) y minutos de hueco entre
+     * clases (sin receso ni almuerzo). Cuenta las fichas ubicadas y las clases fijas (de otros periodos) que se cruzan.
+     * @return { students: [{ uid, jornada, days, hours, extra, gap }], byJornada: { j: { n, days, extra, gap,
+     *          extraHist: [0,1,2,3+], gapHist: [0, <1h, 1-2h, >2h], compact (% sin dias de mas ni huecos) } } }
+     */
+    E.dispersion = function (s) {
+        var per = {}, jor = {}, from = Infinity, to = 0;
+        var add = function (u, d, a, b, j) {
+            ((per[u] = per[u] || {})[d] = per[u][d] || []).push([a, b]);
+            var x = (jor[u] = jor[u] || {}); x[j] = (x[j] || 0) + (b - a);
+        };
+        s.order.forEach(function (k) {
+            var p = s.place[k];
+            if (!E.placed(p)) return;
+            var g = s.groups[k], r = E.range(s, k, p);
+            if (!r.dates.length) return;
+            from = Math.min(from, r.from); to = Math.max(to, r.to);
+            r.dates.forEach(function (d) { g.users.forEach(function (u) { add(u, d, p.start, p.end, g.jornada); }); });
+        });
+        if (to) {
+            s.fixed.forEach(function (f) {
+                var a = Math.max(f.from || from, from), b = Math.min(f.to || to, to);
+                for (var t = a; t < b; t += DAY) {
+                    var dt = new Date((t - 5 * 3600) * 1000), dn = dt.getUTCDay() || 7;
+                    if (dn !== f.day) continue;
+                    var ymd = dt.toISOString().slice(0, 10);
+                    f.users.forEach(function (u) { add(u, ymd, f.start, f.end, f.jornada); });
+                }
+            });
+        }
+        var monday = function (ymd) {
+            var d = new Date(ymd + 'T12:00:00Z');
+            d.setUTCDate(d.getUTCDate() - (d.getUTCDay() + 6) % 7);
+            return d.toISOString().slice(0, 10);
+        };
+        var students = [], byJ = {};
+        Object.keys(per).forEach(function (u) {
+            var j = Object.keys(jor[u]).sort(function (a, b) { return jor[u][b] - jor[u][a]; })[0];
+            var w = E.window(s.cfg, j), cap = Math.max(60, w.end - w.start);
+            var weeks = {};
+            Object.keys(per[u]).forEach(function (d) {
+                var iv = per[u][d].slice().sort(function (a, b) { return a[0] - b[0]; }), busy = 0, end = -1;
+                iv.forEach(function (x) { busy += Math.max(0, x[1] - Math.max(x[0], end)); end = Math.max(end, x[1]); });
+                var W = (weeks[monday(d)] = weeks[monday(d)] || { days: 0, mins: 0, gap: 0 });
+                W.days++; W.mins += busy; W.gap += gapOf(s, iv);
+            });
+            var ws = Object.keys(weeks).map(function (x) { return weeks[x]; }), n = ws.length;
+            var avg = function (f) { return ws.reduce(function (a, x) { return a + f(x); }, 0) / n; };
+            var row = { uid: Number(u), jornada: j, weeks: n, days: avg(function (x) { return x.days; }), hours: avg(function (x) { return x.mins; }) / 60,
+                extra: avg(function (x) { return Math.max(0, x.days - Math.max(1, Math.ceil(x.mins / cap))); }), gap: avg(function (x) { return x.gap; }) };
+            students.push(row);
+            var J = (byJ[j] = byJ[j] || { n: 0, days: 0, extra: 0, gap: 0, extraHist: [0, 0, 0, 0], gapHist: [0, 0, 0, 0], compact: 0 });
+            J.n++; J.days += row.days; J.extra += row.extra; J.gap += row.gap;
+            J.extraHist[Math.min(3, Math.round(row.extra))]++;
+            J.gapHist[row.gap < 10 ? 0 : row.gap < 60 ? 1 : row.gap <= 120 ? 2 : 3]++;
+            if (Math.round(row.extra) === 0 && row.gap < 10) J.compact++;
+        });
+        Object.keys(byJ).forEach(function (j) {
+            var J = byJ[j];
+            J.days = J.days / J.n; J.extra = J.extra / J.n; J.gap = J.gap / J.n; J.compact = Math.round(J.compact * 100 / J.n);
+        });
+        return { students: students, byJornada: byJ };
+    };
     /**
      * Bonificacion por encadenar: en la misma franja (dia y hora) justo antes o despues hay otra ficha de los mismos
      * estudiantes o del mismo docente (p. ej. una asignatura de 2 sesiones seguida de otra de 5 en 7 semanas).
@@ -689,7 +960,7 @@
                 var p = { day: c.day, start: c.start, end: c.end, week: c.week, teacherid: keepTeacher, roomid: 0 };
                 var t = keepTeacher ? null : E.bestTeacher(s, k, p, true);
                 var room = E.bestRoom(s, k, p);
-                var score = (c.soft - (c.pref || 0)) * 20 + (c.pref || 0) * 25 - pairBonus(s, k, c) + (keepTeacher || t ? 0 : 15) + (room ? 0 : 10) + sameDayLoad(s, k, c.day, E.range(s, k, p)) * 0.3
+                var score = (c.soft - (c.pref || 0)) * 20 + (c.pref || 0) * 25 - pairBonus(s, k, c) + (keepTeacher || t ? 0 : 15) + (room ? 0 : 10)
                     + c.week * 0.05 - seqBonus(s, k, Object.assign({}, p, { teacherid: keepTeacher || (t ? t.id : 0) })) + i * 0.001;
                 if (!best || score < best.score) best = { c: c, t: t, room: room, score: score };
             });
@@ -699,8 +970,9 @@
             placed.push(k);
         });
         var compacted = opts.compact === false ? { moved: 0 } : E.compact(s);
+        var dense = opts.densify === false ? { moved: 0, gain: 0 } : E.densify(s);
         return { placed: chained.placed.concat(placed), failed: failed, chained: compacted.moved + chained.placed.length,
-            chains: chained.chains };
+            chains: chained.chains, densified: dense.moved };
     };
 
     /**
@@ -845,7 +1117,7 @@
         var p = s.place[k];
         var out = [];
         var cands = E.candidates(s, k, { ignoreRoom: false }).filter(function (c) { return !c.hard; })
-            .map(function (c) { return Object.assign(c, { load: sameDayLoad(s, k, c.day, E.range(s, k, c)) }); })
+            .map(function (c) { return Object.assign(c, { load: compactScore(s, k, c) }); })
             .sort(function (a, b) { return a.soft - b.soft || a.load - b.load || a.week - b.week || a.day - b.day || a.start - b.start; });
         var curConf = E.conflicts(s, k);
         var curHard = curConf.filter(function (c) { return c.sev === 'hard'; }).length;

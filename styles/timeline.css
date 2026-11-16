@@ -2555,6 +2555,23 @@ button.tl-btn.tl-btn-primary:active:not(:disabled) {
 .tl-sb-chip-on { background: #4F46E5; color: #fff; }
 .tl-sb-count-hard { background: #FEE2E2 !important; color: #B91C1C !important; }
 .tl-sb-dirty { box-shadow: 0 0 0 3px #FDE68A; }
+.tl-sb-disp { background: #fff; border: 1px solid #E2E8F0; border-radius: 12px; padding: 10px 12px; font-size: 12.5px; color: #334155; }
+.tl-sb-disp-head { display: flex; gap: 8px; align-items: flex-start; }
+.tl-sb-disp-head .tl-cfg-help { flex: 1; }
+.tl-sb-disp-legend { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 6px 0; font-size: 12px; }
+.tl-sb-disp-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 4px; vertical-align: -1px; }
+.tl-sb-disp-row { display: grid; grid-template-columns: 150px 80px minmax(0, 1fr) minmax(0, 1fr); gap: 12px; align-items: center;
+    padding: 6px 4px; border-top: 1px solid #F1F5F9; cursor: pointer; }
+.tl-sb-disp-row:hover, .tl-sb-disp-sel { background: #F8FAFF; }
+.tl-sb-disp-th { font-size: 11px; color: #64748B; font-weight: 600; cursor: default; border-top: 0; }
+.tl-sb-disp-th:hover { background: none; }
+.tl-sb-disp-row small { color: #64748B; }
+.tl-sb-disp-big { font-size: 18px; font-weight: 700; color: #1E293B; }
+.tl-sb-disp-bar { display: flex; gap: 2px; height: 14px; margin-bottom: 2px; }
+.tl-sb-disp-bar i { display: block; min-width: 3px; border-radius: 4px; }
+.tl-sb-disp-list { margin: 0 0 6px 16px; max-height: 260px; overflow: auto; font-size: 12px; }
+.tl-sb-disp-li { display: grid; grid-template-columns: minmax(0, 1fr) 70px 70px 80px 80px; gap: 8px; padding: 2px 4px; border-bottom: 1px solid #F8FAFC; }
+@media (max-width: 700px) { .tl-sb-disp-row { grid-template-columns: 1fr 1fr; } }
 .tl-sb-failed { margin-top: 4px; font-size: 12px; max-height: 140px; overflow: auto; }
 .tl-sb-main { display: grid; grid-template-columns: 220px minmax(0, 1fr) 320px; gap: 10px; align-items: start; }
 .tl-sb-side, .tl-sb-panel { background: #fff; border: 1px solid #E2E8F0; border-radius: 12px; padding: 10px; max-height: 78vh; overflow: auto; position: sticky; top: 8px; }

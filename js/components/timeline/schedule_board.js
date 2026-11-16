@@ -83,6 +83,8 @@ Vue.component('schedule-board', {
                                 <v-list-item-subtitle>No mueve lo que ya está en el tablero</v-list-item-subtitle></v-list-item-content></v-list-item>
                             <v-list-item @click="autoPlace(true)"><v-list-item-content><v-list-item-title>Reacomodar todo (menos lo bloqueado)</v-list-item-title>
                                 <v-list-item-subtitle>Vuelve a ubicar todos los grupos sin candado</v-list-item-subtitle></v-list-item-content></v-list-item>
+                            <v-list-item @click="densify"><v-list-item-content><v-list-item-title>Compactar horarios de estudiantes</v-list-item-title>
+                                <v-list-item-subtitle>Menos días y sin huecos; mueve solo grupos sin candado y sin publicar, sin sumar choques ni avisos</v-list-item-subtitle></v-list-item-content></v-list-item>
                         </v-list>
                     </v-menu>
                     <button class="tl-cfg-btn tl-cfg-btn-ghost" @click="autoAssign" title="Docente con la habilidad, disponible y libre, el menos cargado; y aula libre que alcance">
@@ -104,6 +106,9 @@ Vue.component('schedule-board', {
                 <span class="tl-sb-chip">{{ sum.noTeacher }} sin docente</span>
                 <span class="tl-sb-chip">{{ sum.noRoom }} sin aula</span>
                 <span v-if="onlyIssues" class="tl-sb-chip tl-sb-chip-on" @click="onlyIssues = false">viendo solo con choques/avisos ×</span>
+                <span v-if="disp.total" class="tl-sb-chip" :class="{ 'tl-sb-chip-on': dispOpen }" @click="dispOpen = !dispOpen"
+                      title="Qué tan compacto queda el horario proyectado de los estudiantes (días de más y huecos). Clic para ver la gráfica.">
+                    <v-icon size="13" :color="dispOpen ? '#fff' : '#475569'">mdi-chart-bar-stacked</v-icon> Dispersión: {{ disp.compact }}% compactos</span>
                 <v-spacer></v-spacer>
                 <span class="tl-cfg-help">
                     <template v-if="dirty"><v-icon size="13" color="#B45309">mdi-alert-circle-outline</v-icon> Cambios sin guardar</template>
@@ -111,6 +116,39 @@ Vue.component('schedule-board', {
                     <template v-else>Aún no se guardó ningún borrador</template>
                     <button v-if="!showHelp" class="tl-proj-flexbtn" @click="showHelp = true">Ayuda</button>
                 </span>
+            </div>
+            <!-- dispersion del horario de los estudiantes -->
+            <div v-if="dispOpen && disp.total" class="tl-sb-disp">
+                <div class="tl-sb-disp-head"><b>Dispersión del horario proyectado</b>
+                    <span class="tl-cfg-help">Por estudiante y semana, con todo lo que hay en el tablero y sus clases de otros periodos que se cruzan.
+                        <b>Días de más</b>: días que viene por encima de los que necesitaría si su horario fuera seguido en la franja de su jornada.
+                        <b>Huecos</b>: tiempo libre entre clases el mismo día (sin el receso ni el almuerzo).
+                        <b>Compacto</b>: sin días de más ni huecos.</span>
+                    <button class="tl-proj-unx" style="color:#64748B" @click="dispOpen = false" title="Cerrar">×</button></div>
+                <div class="tl-sb-disp-legend">
+                    <span v-for="(c, i) in dispColors" :key="i"><i :style="{ background: c }"></i>{{ ['Ninguno', 'Poco', 'Medio', 'Mucho'][i] }}</span>
+                    <span class="tl-cfg-help">días de más: 0 · 1 · 2 · 3+ — huecos por semana: 0 · menos de 1 h · 1–2 h · más de 2 h</span>
+                </div>
+                <div class="tl-sb-disp-row tl-sb-disp-th"><span>Jornada</span><span>Compactos</span><span>Días de más</span><span>Huecos por semana</span></div>
+                <template v-for="r in disp.rows">
+                    <div :key="r.j" class="tl-sb-disp-row" :class="{ 'tl-sb-disp-sel': dispSel === r.j }" @click="dispSel = dispSel === r.j ? '' : r.j"
+                         title="Clic para ver los estudiantes más dispersos">
+                        <span><b>{{ r.j }}</b><br><small>{{ r.n }} est · {{ r.days.toFixed(1) }} días/sem</small></span>
+                        <span class="tl-sb-disp-big">{{ r.compact }}%</span>
+                        <span><span class="tl-sb-disp-bar"><i v-for="(v, i) in r.extraHist" :key="i" v-show="v" :style="{ flex: v, background: dispColors[i] }"
+                              :title="['Sin días de más', '1 día de más', '2 días de más', '3 o más días de más'][i] + ': ' + v + ' estudiante(s) (' + pct(v, r.n) + '%)'"></i></span>
+                            <small>promedio {{ r.extra.toFixed(2) }} día(s) · {{ r.n - r.extraHist[0] }} est con días de más</small></span>
+                        <span><span class="tl-sb-disp-bar"><i v-for="(v, i) in r.gapHist" :key="i" v-show="v" :style="{ flex: v, background: dispColors[i] }"
+                              :title="['Sin huecos', 'Menos de 1 h de hueco', '1 a 2 h de hueco', 'Más de 2 h de hueco'][i] + ' por semana: ' + v + ' estudiante(s) (' + pct(v, r.n) + '%)'"></i></span>
+                            <small>promedio {{ Math.round(r.gap) }} min · {{ r.n - r.gapHist[0] }} est con huecos</small></span>
+                    </div>
+                    <div v-if="dispSel === r.j" :key="r.j + '-l'" class="tl-sb-disp-list">
+                        <div class="tl-sb-disp-li tl-sb-disp-th"><span>Estudiante (los más dispersos)</span><span>Días/sem</span><span>Horas/sem</span><span>Días de más</span><span>Hueco/sem</span></div>
+                        <div v-for="x in r.worst" :key="x.uid" class="tl-sb-disp-li"><span>{{ x.name }}</span><span>{{ x.days.toFixed(1) }}</span>
+                            <span>{{ x.hours.toFixed(1) }}</span><span>{{ x.extra.toFixed(1) }}</span><span>{{ Math.round(x.gap) }} min</span></div>
+                        <div v-if="!r.worst.length" class="tl-cfg-help">Todos los estudiantes de esta jornada tienen el horario compacto.</div>
+                    </div>
+                </template>
             </div>
             <div v-if="lastAction" class="tl-cfg-msg" :class="lastAction.error ? 'tl-cfg-msg-error' : 'tl-cfg-msg-ok'">{{ lastAction.text }}
                 <button v-if="lastAction.failed && lastAction.failed.length" class="tl-proj-flexbtn" @click="failedOpen = !failedOpen">
@@ -567,7 +605,8 @@ Vue.component('schedule-board', {
     },
     data() {
         return { loading: false, error: '', board: null, tick: 0, jornada: 'Diurna', q: '', tq: '', onlyIssues: false, sel: null, fixedSel: null,
-            hover: null, failedOpen: false, dirty: false, weekSel: 0,
+            hover: null, failedOpen: false, dirty: false, weekSel: 0, dispOpen: false, dispSel: '',
+            dispColors: ['#86b6ef', '#3987e5', '#1c5cab', '#0d366b'],
             prefDlg: { show: false, days: [], start: '', end: '', planid: 0, jornada: '', saving: false, msg: '' }, history: [], saving: false, saveDlg: false, showHelp: true, lastAction: null, version: 0,
             draftInfo: { saved_at: 0, byname: '' }, ppm: 1.1, staleOpen: false, exporting: false, fixBusy: false,
             printModes: [
@@ -598,6 +637,25 @@ Vue.component('schedule-board', {
             const s = {};
             this.S.order.forEach(k => { s[this.S.groups[k].jornada] = true; });
             return ['Diurna', 'Nocturna', 'Sabatina'].filter(j => s[j]).concat(Object.keys(s).filter(j => !['Diurna', 'Nocturna', 'Sabatina'].includes(j)));
+        },
+        // Dispersion del horario de los estudiantes, por jornada (los mas dispersos primero en la lista).
+        disp() {
+            this.tick; // eslint-disable-line no-unused-expressions
+            if (!this.S || !this.E.dispersion) return { total: 0, compact: 0, rows: [] };
+            const d = this.E.dispersion(this.S), names = this.S.names || {};
+            const order = ['Diurna', 'Nocturna', 'Sabatina'];
+            const rank = j => (order.indexOf(j) === -1 ? 9 : order.indexOf(j));
+            const js = Object.keys(d.byJornada).sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
+            let total = 0, compact = 0;
+            const rows = js.map(j => {
+                const J = d.byJornada[j];
+                total += J.n; compact += Math.round(J.compact * J.n / 100);
+                const worst = d.students.filter(x => x.jornada === j && (Math.round(x.extra) > 0 || x.gap >= 10))
+                    .sort((a, b) => (b.extra * 90 + b.gap) - (a.extra * 90 + a.gap)).slice(0, 25)
+                    .map(x => Object.assign({ name: names[x.uid] || ('Estudiante ' + x.uid) }, x));
+                return Object.assign({ j, worst }, J);
+            });
+            return { total, compact: total ? Math.round(compact * 100 / total) : 0, rows };
         },
         sum() { this.tick; return this.S ? this.E.summary(this.S) : { total: 0, placed: 0, hard: 0, soft: 0, noTeacher: 0, noRoom: 0, conflicts: {} }; },
         jStats() {
@@ -1071,8 +1129,20 @@ Vue.component('schedule-board', {
             this.tick++;
             this.lastAction = { text: 'Acomodo automático: ' + r.placed.length + ' ficha(s) ubicadas sin choques'
                 + (r.chained ? ' (' + r.chained + ' encadenadas en secuencia con otras asignaturas cortas)' : '')
+                + (r.densified ? '; ' + r.densified + ' movida(s) para compactar el horario de los estudiantes' : '')
                 + (r.failed.length ? '; ' + r.failed.length + ' sin hora libre (ver detalle).' : '.'), failed: r.failed, error: false };
         },
+        densify() {
+            this.remember();
+            const before = this.disp.compact;
+            const r = this.E.densify(this.S);
+            this.tick++;
+            if (!r.moved) this.history.pop();
+            this.lastAction = { text: r.moved ? 'Compactación: ' + r.moved + ' ficha(s) movidas sin choques ni avisos nuevos; estudiantes con horario compacto: '
+                + before + '% → ' + this.disp.compact + '% (puede deshacerlo).'
+                : 'No se encontró cómo compactar más sin crear choques o avisos (solo se mueven grupos sin candado y sin publicar).', error: false };
+        },
+        pct(v, n) { return n ? Math.round(v * 100 / n) : 0; },
         autoAssign() {
             this.remember();
             const r = this.E.autoAssign(this.S);
