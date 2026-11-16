@@ -542,6 +542,7 @@ Vue.component('period-projection', {
                         <template v-else-if="j.exception && j.exception.mode === 'juntar'"> → junta {{ j.exception.jornadas.map(abbr).join('+') }}</template>
                         <template v-else-if="j.exception"> → excepción: abre</template>
                         <template v-else-if="j.groups"> → {{ j.groups }} {{ j.groups === 1 ? 'grupo' : 'grupos' }}</template>
+                        <template v-else-if="!j.ready && !j.adelanto && j.blockedLoad"> → {{ j.blockedLoad }} con prelación pendiente</template>
                         <template v-else-if="j.ready + j.adelanto >= min"> → con adelantos</template>
                         <template v-else> → no alcanza</template>
                         <v-icon v-if="j.finishing" size="11" :color="j.exception ? '#1D4ED8' : '#B91C1C'" title="Hay estudiantes que egresan">mdi-school</v-icon>
@@ -873,6 +874,8 @@ Vue.component('period-projection', {
                     .filter(x => x.s).sort((a, b) => (b.s.finishing - a.s.finishing) || a.s.name.localeCompare(b.s.name));
                 const byPlan = {};
                 let finishing = 0;
+                // A nivel o atrasados que no pueden cursarla porque les falta una prelación: la fila se muestra igual.
+                const blockedLoad = studs.filter(x => x.prereq === 'no' && (x.cat === 'nivel' || x.cat === 'atrasada')).length;
                 const loads = x => x.prereq !== 'no' && !x.flex && (x.cat === 'nivel' || x.cat === 'atrasada');
                 studs.forEach(x => {
                     if (loads(x)) {
@@ -891,12 +894,13 @@ Vue.component('period-projection', {
                 if (unscheduled) r.unscheduled = true;
                 if (d.flexible) { r.flexible = true; r.flexOn = !!d.flex_on; }
                 r.jornadas.push({ jornada, ekey, ready: d.ready, adelanto: d.by_category.adelanto, blocked: d.blocked, flexWaiting: d.flex_waiting || 0,
-                    students: studs, byPlan, finishing, exception, closed, merged, groups,
+                    students: studs, byPlan, finishing, exception, closed, merged, groups, blockedLoad,
                     readyStudents: studs.filter(loads), repite: d.by_category.repite });
                 r.ready += d.ready;
                 r.flexWaiting = (r.flexWaiting || 0) + (d.flex_waiting || 0);
                 r.adelanto += d.by_category.adelanto;
                 r.blocked += d.blocked;
+                r.blockedLoad = (r.blockedLoad || 0) + blockedLoad;
                 r.repite += d.by_category.repite;
                 r.atrasada += d.by_category.atrasada;
                 Object.keys(d.levels).forEach(l => { r.levels[l] = true; });
@@ -906,7 +910,7 @@ Vue.component('period-projection', {
                 levels: Object.keys(r.levels).sort(),
                 plans: Object.keys(r.plans),
                 jornadas: r.unscheduled ? [this.mergeJ(r.jornadas)] : r.jornadas.sort((a, b) => b.ready - a.ready),
-            })).filter(r => r.ready > 0 || r.adelanto > 0 || r.flexWaiting > 0);
+            })).filter(r => r.ready > 0 || r.adelanto > 0 || r.flexWaiting > 0 || r.blockedLoad > 0);
         },
         // Filas visibles: carrera, jornada y busqueda (los conteos se recalculan con lo visible).
         scoped() {
@@ -1792,6 +1796,7 @@ Vue.component('period-projection', {
             if (j.merged) return mine + this.decisionLabel(j.merged) + '. Motivo: ' + j.merged.note + fin;
             if (j.exception) return mine + this.decisionLabel(j.exception) + '. Motivo: ' + j.exception.note + fin;
             if (j.groups) return mine + j.ready + ' estudiantes en ' + j.jornada + ': ' + j.groups + ' grupo(s) de hasta ' + this.max + '.' + fin;
+            if (!j.ready && !j.adelanto && j.blockedLoad) return mine + j.blockedLoad + ' estudiante(s) a nivel o atrasados no pueden cursarla todavía: les falta aprobar una prelación (despliegue la fila y pulse «prelación» para ver cuál).' + fin;
             if (j.ready + j.adelanto >= this.min) return mine + 'No alcanza el mínimo de ' + this.min + ' por sí sola; sumando ' + j.adelanto + ' estudiantes que pueden adelantarla, sí.' + fin;
             return mine + 'No alcanza el mínimo de ' + this.min + '. Use el botón de ajustes para abrirla como grupo, como módulo o dejarla cerrada.' + fin;
         },
