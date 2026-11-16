@@ -128,7 +128,8 @@ if (!function_exists('local_grupomakro_translate_financial_filter')) {
      *
      *   'all'         -> sin filtro (string vacio)
      *   'active'      -> 1=1 (universo activo, sin filtro financiero)
-     *   'up_to_date'  -> fs.status IN ('al_dia', 'becado', 'convenio', 'contrato_especial')
+     *   'up_to_date'  -> fs.status IN ('al_dia', 'becado', 'convenio', 'contrato_especial',
+     *                                  'bypass_financiero', 'periodo_gracia')
      *   'in_arrears'  -> fs.status = 'mora'
      *   'pending'     -> fs.id IS NULL OR fs.status IN ('sin_contrato_o_usuario', 'sincontrato')
      *   cualquier otro valor -> fs.status = :value (compatibilidad con filtro
@@ -158,9 +159,11 @@ if (!function_exists('local_grupomakro_translate_financial_filter')) {
             // Incluye los aliases historicos de cada bucket para que el
             // filtro coincida exactamente con la suma de las cards
             // (get_financial_counts mapea contrato_especial -> convenio,
-            // sincontrato -> sin_contrato, etc).
+            // sincontrato -> sin_contrato, bypass_financiero y periodo_gracia
+            // -> al_dia, etc). Deben mantenerse iguales a $statustobucket de
+            // get_financial_counts::compute_counts().
             return [
-                "fs.status IN ('al_dia', 'becado', 'convenio', 'contrato_especial')",
+                "fs.status IN ('al_dia', 'becado', 'convenio', 'contrato_especial', 'bypass_financiero', 'periodo_gracia')",
                 [],
             ];
         }
@@ -239,7 +242,10 @@ if (!function_exists('local_grupomakro_active_universe_clause')) {
 
         // La clausula se devuelve SIN el "AND" inicial: el caller la concatena
         // con implode(' AND ', $conditions) en su WHERE.
-        $clause = "NOT EXISTS (
+        // u.deleted/u.suspended: igual que get_financial_counts (las tarjetas),
+        // para que tabla, Excel y tarjetas cuenten exactamente las mismas personas.
+        $clause = "u.deleted = 0 AND u.suspended = 0
+            AND NOT EXISTS (
                 SELECT 1 FROM {local_learning_users} lpu_chk
                  WHERE lpu_chk.userid = u.id
                    AND lpu_chk.userrolename = :lpu_chk_role

@@ -636,6 +636,7 @@ list($fsClause, $fsParams) = local_grupomakro_translate_financial_filter($params
         // las cards cuadren con los de la tabla cuando hay filtro activo.
         $activeuniverseql =
             "SELECT COUNT(DISTINCT u.id) $fromsql $whereclause
+             AND u.deleted = 0 AND u.suspended = 0
              AND NOT EXISTS (
                  SELECT 1 FROM {local_learning_users} lpu_chk
                   WHERE lpu_chk.userid = u.id
@@ -713,6 +714,7 @@ list($fsClause, $fsParams) = local_grupomakro_translate_financial_filter($params
             $pageusersSql = "SELECT DISTINCT u.id, u.firstname, u.lastname
                    $fromsql
                    $tableWhereclause
+                   AND u.deleted = 0 AND u.suspended = 0
                    AND NOT EXISTS (
                        SELECT 1 FROM {local_learning_users} lpu_chk
                         WHERE lpu_chk.userid = u.id

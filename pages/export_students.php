@@ -81,7 +81,7 @@ $query = "
     JOIN {local_learning_plans} lp ON (lpu.learningplanid = lp.id)
     LEFT JOIN {gmk_financial_status} fs ON (fs.userid = u.id)
     $whereClause
-    ORDER BY u.firstname";
+    ORDER BY u.firstname, u.lastname, u.id, lp.name, lpu.id";
 
     $recordset = $DB->get_recordset_sql($query, $sqlParams);
 
@@ -93,9 +93,58 @@ $fieldJourney = $DB->get_record('user_info_field', array('shortname' => 'gmkjour
 $columns = ['id', 'fullname', 'email', 'identification', 'journey', 'career', 'period', 'block', 'status', 'academic_status', 'financial_status'];
 $headers = ['ID Moodle', 'Nombre Completo', 'Email', 'Identificación', 'Jornada', 'Carrera', 'Cuatrimestre', 'Bloque', 'Estado', 'Estado Académico', 'Estado Financiero'];
 
-// Prepare Iterator
-$data = [];
+// Una fila por PERSONA (igual que la tabla y las tarjetas, que cuentan
+// personas distintas). Un estudiante con varias carreras aparece una sola
+// vez, con sus carreras / cuatrimestres / bloques unidos en la misma celda.
+$periodcache = [];
+$subperiodcache = [];
+$people = []; // userid => ['u' => primera fila, 'careers' => [], 'periods' => [], 'blocks' => [], 'acad' => []]
 foreach ($recordset as $user) {
+    $uid = (int)$user->userid;
+    if (!isset($people[$uid])) {
+        $people[$uid] = ['u' => $user, 'careers' => [], 'periods' => [], 'blocks' => [], 'acad' => []];
+    }
+    $p =& $people[$uid];
+
+    $career = trim((string)$user->career);
+    if ($career !== '' && !in_array($career, $p['careers'], true)) {
+        $p['careers'][] = $career;
+    }
+
+    $periodname = '';
+    if (!empty($user->periodid)) {
+        if (!array_key_exists($user->periodid, $periodcache)) {
+            $periodcache[$user->periodid] = (string)$DB->get_field('local_learning_periods', 'name', ['id' => $user->periodid]);
+        }
+        $periodname = $periodcache[$user->periodid];
+    }
+    if ($periodname !== '' && !in_array($periodname, $p['periods'], true)) {
+        $p['periods'][] = $periodname;
+    }
+
+    $subperiodname = '';
+    if (!empty($user->subperiodid)) {
+        if (!array_key_exists($user->subperiodid, $subperiodcache)) {
+            $subperiodcache[$user->subperiodid] = (string)$DB->get_field('local_learning_subperiods', 'name', ['id' => $user->subperiodid]);
+        }
+        $subperiodname = $subperiodcache[$user->subperiodid];
+    }
+    if ($subperiodname !== '' && !in_array($subperiodname, $p['blocks'], true)) {
+        $p['blocks'][] = $subperiodname;
+    }
+
+    $acad = $user->academic_status ?: 'activo';
+    if (!in_array($acad, $p['acad'], true)) {
+        $p['acad'][] = $acad;
+    }
+    unset($p);
+}
+$recordset->close();
+
+$data = [];
+foreach ($people as $uid => $p) {
+    $user = $p['u'];
+
     // Status Logic
     $status = 'Activo';
     if ($fieldStatus) {
@@ -125,7 +174,7 @@ foreach ($recordset as $user) {
         if ($val !== false && !empty($val)) $journey = $val;
     }
 
-    // Search filter matching JS
+    // Search filter matching JS (la carrera coincide si cualquiera de las suyas coincide).
     if (!empty($search)) {
         $fullName = $user->firstname . ' ' . $user->lastname;
         $match = (
@@ -133,7 +182,7 @@ foreach ($recordset as $user) {
             stripos((string)$user->email, $search) !== false ||
             stripos((string)$status, $search) !== false ||
             stripos((string)$finalID, $search) !== false ||
-            stripos((string)$user->career, $search) !== false
+            stripos(implode(' ', $p['careers']), $search) !== false
         );
         if (!$match) continue;
     }
@@ -144,31 +193,15 @@ foreach ($recordset as $user) {
     $row->email = $user->email;
     $row->identification = $finalID;
     $row->journey = $journey;
-    $row->career = $user->career;
-
-    // Period
-    $periodname = '';
-    if (!empty($user->periodid)) {
-        $period = $DB->get_record('local_learning_periods', array('id' => $user->periodid));
-        if ($period) $periodname = $period->name;
-    }
-    $row->period = $periodname;
-
-    // Block
-    $subperiodname = '';
-    if (!empty($user->subperiodid)) {
-        $subperiod = $DB->get_record('local_learning_subperiods', array('id' => $user->subperiodid));
-        if ($subperiod) $subperiodname = $subperiod->name;
-    }
-    $row->block = $subperiodname;
-
+    $row->career = implode(' | ', $p['careers']);
+    $row->period = implode(' | ', $p['periods']);
+    $row->block = implode(' | ', $p['blocks']);
     $row->status = $status;
-    $row->academic_status = $user->academic_status ?: 'activo';
+    $row->academic_status = implode(' | ', $p['acad']);
     $row->financial_status = $user->financial_status ?: 'Pendiente';
 
     $data[] = $row;
 }
-$recordset->close();
 
 // Correct approach for Moodle dataformat:
 // Columns should be [key => Label]
