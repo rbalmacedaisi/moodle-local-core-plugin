@@ -38,7 +38,7 @@ class enroll_module {
      * @param bool $bypassPayment  When true, skip the payment gate (admin override).
      * @param int $academicPeriodId Optional planned period (planificacion por cohortes): the module is created in that
      *                              period instead of the last started one, starts on the period start and the student
-     *                              is NOT added to regular class groups of that period (they are still pending approval).
+     *                              (like any module student) is NOT added to regular class groups.
      * @param int $dueDate          Optional explicit due date (e.g. end of the planned period). 0 = now + deadline days.
      * @return array {status, message, duedate, requires_payment}
      */
@@ -328,26 +328,6 @@ class enroll_module {
                 groups_add_member($groupId, $userId);
             }
 
-            // Ensure the student is still in the regular class group (retroactive fix)
-            // Use the same period logic: last started period
-            $retro_period = $DB->get_record_sql(
-                "SELECT id FROM {gmk_academic_periods}
-                  WHERE startdate > 0 AND startdate <= :now
-                  ORDER BY startdate DESC LIMIT 1",
-                ['now' => time()]
-            );
-            $retro_pid = $retro_period ? (int)$retro_period->id : (int)$academicPeriod->id;
-            $regularClassCheck = $DB->get_record_sql(
-                "SELECT groupid FROM {gmk_class}
-                  WHERE corecourseid = :cid AND periodid = :pid AND is_module = 0 AND groupid > 0
-                  ORDER BY id DESC LIMIT 1",
-                ['cid' => $coreCourseId, 'pid' => $retro_pid]
-            );
-            if ($regularClassCheck && !empty($regularClassCheck->groupid)) {
-                if (!groups_is_member((int)$regularClassCheck->groupid, $userId)) {
-                    groups_add_member((int)$regularClassCheck->groupid, $userId);
-                }
-            }
             $dueDateFormatted = userdate((int)$existing->duedate, get_string('strftimedatefullshort', 'langconfig'));
             return [
                 'status'     => 'warning',
@@ -370,34 +350,13 @@ class enroll_module {
             groups_add_member($groupId, $userId);
         }
 
-        // ── 5b. Add to the regular class group ONLY if the student does not already
-        //        belong to any class (regular or module) of this course. Otherwise
-        //        the module is a second enrollment on top of the regular class and
-        //        we must not flip the student's regular-class group membership.
-        //        Bug 2026-07-24: students showed up as "enrolled in both the module
-        //        and the regular class of the same subject" in LXP.
-        $alreadyMemberOfAnyClassForCourse = $DB->record_exists_select(
-            'groups_members',
-            "userid = :uid AND groupid IN (
-                SELECT groupid FROM {gmk_class}
-                 WHERE corecourseid = :cid AND groupid > 0 AND id <> :excludeid
-            )",
-            ['uid' => $userId, 'cid' => $coreCourseId, 'excludeid' => $classId]
-        );
-        if (!$alreadyMemberOfAnyClassForCourse && !$plannedPeriod) {
-            $regularClass = $DB->get_record_sql(
-                "SELECT groupid FROM {gmk_class}
-                  WHERE corecourseid = :cid AND periodid = :pid AND is_module = 0 AND groupid > 0
-                  ORDER BY id DESC
-                  LIMIT 1",
-                ['cid' => $coreCourseId, 'pid' => (int)$academicPeriod->id]
-            );
-            if ($regularClass && !empty($regularClass->groupid)) {
-                if (!groups_is_member((int)$regularClass->groupid, $userId)) {
-                    groups_add_member((int)$regularClass->groupid, $userId);
-                }
-            }
-        }
+        // ── 5b. The module student is NOT added to any regular class group. ─────
+        //        It used to join the newest regular class of the course in the
+        //        period (whatever its jornada/schedule) so the group-restricted class
+        //        sections stayed visible. That put module students in that class's
+        //        attendance (absence marks every session) and in the board's clash
+        //        checks, e.g. diurnos in a Saturday class. The module section (its
+        //        own group) holds the module work, so the module group is enough.
 
         // ── 6. Create enrollment record ───────────────────────────────────────────
         $now     = time();
