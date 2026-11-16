@@ -232,8 +232,24 @@ class planning_config {
                 return self::fail('Indique el motivo de la excepción: queda registrado para la revisión.');
             }
             // grupo: abre aunque no alcance el minimo; modulo: modulo sin horario ni pago para los elegidos;
-            // cerrar: no abre aunque alcance el minimo (sus estudiantes quedan como alerta).
-            $mode = in_array(($d['mode'] ?? ''), ['modulo', 'cerrar'], true) ? $d['mode'] : 'grupo';
+            // cerrar: no abre aunque alcance el minimo (sus estudiantes quedan como alerta);
+            // juntar: las jornadas elegidas de la asignatura forman un solo grupo, en el horario de una de ellas (solo este periodo).
+            $mode = in_array(($d['mode'] ?? ''), ['modulo', 'cerrar', 'juntar'], true) ? $d['mode'] : 'grupo';
+            if ($mode === 'juntar' && count($items) !== 1) {
+                return self::fail('Juntar jornadas se decide de a una asignatura.');
+            }
+            // Jornadas que ya estan juntadas en otra decision: su decision se cambia desde la jornada del horario.
+            $joinedin = [];
+            foreach ($current as $e) {
+                if (($e['mode'] ?? '') === 'juntar') {
+                    foreach ((array)($e['jornadas'] ?? []) as $jj) {
+                        if ($jj !== $e['jornada']) {
+                            $joinedin[self::exception_key($e['courseid'], $jj, (int)$e['isolated_plan'])] = $e;
+                        }
+                    }
+                }
+            }
+            $msgextra = '';
             foreach ($items as $it) {
                 $cid = (int)($it['courseid'] ?? 0);
                 $course = $DB->get_field('course', 'fullname', ['id' => $cid]);
@@ -273,11 +289,59 @@ class planning_config {
                 if ($addkeys && $mode !== 'grupo') {
                     return self::fail('Solo se pueden sumar estudiantes que adelantan cuando la asignatura abre como grupo.');
                 }
-                $key = self::exception_key($cid, $jornada, (int)($it['isolated_plan'] ?? 0));
+                $iso = (int)($it['isolated_plan'] ?? 0);
+                $key = self::exception_key($cid, $jornada, $iso);
+                $jornadas = [];
+                if ($mode === 'juntar') {
+                    if (!in_array($jornada, self::JORNADAS, true)) {
+                        return self::fail('Elija en qué jornada (horario) se da el grupo de ' . $course . '.');
+                    }
+                    foreach ((array)($it['jornadas'] ?? []) as $jj) {
+                        $jj = trim((string)$jj);
+                        if (!in_array($jj, self::JORNADAS, true)) {
+                            return self::fail('Jornada no válida: ' . $jj);
+                        }
+                        $jornadas[$jj] = $jj;
+                    }
+                    $jornadas[$jornada] = $jornada;
+                    $jornadas = array_values(array_intersect(self::JORNADAS, $jornadas));
+                    if (count($jornadas) < 2) {
+                        return self::fail('Elija al menos dos jornadas para juntar en ' . $course . '.');
+                    }
+                    // Lo publicado no se toca: si alguna de esas jornadas ya tiene su grupo publicado, no se junta.
+                    foreach (array_keys(publisher::published($pid)['groups']) as $gk) {
+                        foreach ($jornadas as $jj) {
+                            if (strpos((string)$gk, self::exception_key($cid, $jj, $iso) . '|') === 0) {
+                                return self::fail($course . ' ya tiene publicado su grupo de ' . $jj . ': no se puede juntar. '
+                                    . 'Para sumar estudiantes de otra jornada use "Agregar grupo al tablero" o mueva a los estudiantes a ese grupo.');
+                            }
+                        }
+                    }
+                    // Las decisiones que habia en esas jornadas (y otras juntas que las incluian) quedan reemplazadas.
+                    foreach ($current as $ck => $e) {
+                        if ((int)$e['courseid'] !== $cid || (int)$e['isolated_plan'] !== $iso) {
+                            continue;
+                        }
+                        $ej = array_merge([$e['jornada']], (array)($e['jornadas'] ?? []));
+                        if (array_intersect($ej, $jornadas)) {
+                            if ($ck !== $key) {
+                                $msgextra .= ' Se reemplazó la decisión que tenía ' . $e['jornada'] . ' («' . $e['mode'] . '»).';
+                            }
+                            unset($current[$ck]);
+                        }
+                    }
+                } else if (isset($joinedin[$key])) {
+                    $j0 = $joinedin[$key];
+                    return self::fail($course . ' (' . $jornada . ') está juntada con ' . implode(' + ', $j0['jornadas'])
+                        . ' en el horario de ' . $j0['jornada'] . '. Cambie esa decisión desde la jornada ' . $j0['jornada'] . '.');
+                }
                 $current[$key] = ['key' => $key, 'courseid' => $cid, 'course' => $course, 'jornada' => $jornada,
-                    'isolated_plan' => (int)($it['isolated_plan'] ?? 0), 'mode' => $mode, 'userids' => $userids,
+                    'isolated_plan' => $iso, 'mode' => $mode, 'userids' => $userids,
                     'add_keys' => array_values(array_unique($addkeys)), 'pool' => !empty($d['pool']),
                     'note' => $note, 'by' => (int)$USER->id, 'byname' => fullname($USER), 'time' => time()];
+                if ($jornadas) {
+                    $current[$key]['jornadas'] = $jornadas;
+                }
             }
         }
         $cfg = json_decode((string)$p->configsettings, true);
@@ -295,7 +359,7 @@ class planning_config {
             'usermodified' => $USER->id, 'timemodified' => time()]);
         $tx->allow_commit();
         self::backup('excepciones_periodo_' . $pid, ['antes' => array_values($before), 'despues' => array_values($current)]);
-        return self::ok($remove ? 'Excepción quitada.' : 'Excepción registrada.', array_values(self::exceptions($pid)));
+        return self::ok(($remove ? 'Excepción quitada.' : 'Excepción registrada.') . ($remove ? '' : $msgextra), array_values(self::exceptions($pid)));
     }
 
     /**

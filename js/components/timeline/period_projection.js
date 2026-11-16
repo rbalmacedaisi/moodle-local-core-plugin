@@ -526,7 +526,7 @@ Vue.component('period-projection', {
                 </div>
                 <div class="tl-proj-jornadas">
                     <span v-for="j in r.jornadas.filter(visibleJ)" :key="j.jornada" class="tl-proj-chip" :class="'tl-proj-chip-' + chipSem(j)" :title="chipHelp(j)">
-                        <input v-if="canEdit && !j.groups && !j.exception && !j.closed && !r.unscheduled && j.ready" type="checkbox" class="tl-proj-check"
+                        <input v-if="canEdit && !j.groups && !j.exception && !j.merged && !j.closed && !r.unscheduled && j.ready" type="checkbox" class="tl-proj-check"
                                :checked="!!selected[j.ekey]" @click.stop @change="toggleSel(r, j)" title="Marcar para decidir varias a la vez">
                         <b>{{ r.unscheduled ? 'Sin horario' : abbr(j.jornada) }}</b>
                         <template v-if="j.flexWaiting && !j.ready">{{ j.flexWaiting }} (no se carga)</template>
@@ -536,8 +536,10 @@ Vue.component('period-projection', {
                         <template v-else-if="r.unscheduled"> → se carga sin horario</template>
                         <template v-else-if="poolWait(j)"> → <b>{{ poolWait(j) }}</b></template>
                         <template v-else-if="j.closed"> → no abre (decisión)</template>
+                        <template v-else-if="j.merged"> → junta con <b>{{ abbr(j.merged.jornada) }}</b></template>
                         <template v-else-if="j.exception && j.exception.mode === 'modulo'"> → módulo ({{ j.exception.userids.length }})</template>
-                        <template v-else-if="gsize(j)"> → <b class="tl-proj-gsize">{{ gsizeLabel(j) }}</b><template v-if="j.exception"> (decisión)</template></template>
+                        <template v-else-if="gsize(j)"> → <b class="tl-proj-gsize">{{ gsizeLabel(j) }}</b><template v-if="j.exception && j.exception.mode === 'juntar'"> ({{ j.exception.jornadas.map(abbr).join('+') }})</template><template v-else-if="j.exception"> (decisión)</template></template>
+                        <template v-else-if="j.exception && j.exception.mode === 'juntar'"> → junta {{ j.exception.jornadas.map(abbr).join('+') }}</template>
                         <template v-else-if="j.exception"> → excepción: abre</template>
                         <template v-else-if="j.groups"> → {{ j.groups }} {{ j.groups === 1 ? 'grupo' : 'grupos' }}</template>
                         <template v-else-if="j.ready + j.adelanto >= min"> → con adelantos</template>
@@ -567,6 +569,11 @@ Vue.component('period-projection', {
                         <b>{{ gsizeLabel(j) }}</b>: {{ gsize(j).ready }} a los que les toca + {{ gsize(j).adel }} que adelantan<template v-if="j.adelanto > gsize(j).adel">.
                         Los otros {{ j.adelanto - gsize(j).adel }} que podrían adelantar no entran: ya tienen carga suficiente sin ella</template>.
                         Los que entran llevan la marca <span class="tl-plan-tag tl-proj-tag-in">en el grupo</span>.
+                    </div>
+                    <div v-if="j.merged" class="tl-proj-exc-note">
+                        <v-icon size="12" color="#1D4ED8">mdi-call-merge</v-icon>
+                        {{ decisionLabel(j.merged) }} — {{ j.merged.note }} <span class="tl-proj-exc-by">({{ j.merged.byname }}, {{ fmt(j.merged.time) }})</span>
+                        <button v-if="canEdit" class="tl-proj-flexbtn" @click.stop="decide(r, j)">Cambiar</button>
                     </div>
                     <div v-if="j.exception || j.closed" class="tl-proj-exc-note">
                         <v-icon size="12" color="#1D4ED8">mdi-shield-check-outline</v-icon>
@@ -649,6 +656,19 @@ Vue.component('period-projection', {
                     </div>
                     <div v-for="it in exc.items" :key="it.ekey" class="tl-proj-exc-item">
                         <div><b>{{ it.name }}</b> <span class="tl-cfg-help">• {{ it.jornada }}{{ it.isolated ? ' • solo ' + careerName(it.isolated) : '' }} • {{ it.students.length }} estudiantes</span></div>
+                        <div v-if="exc.mode === 'juntar'" class="tl-proj-exc-students" style="max-height:none">
+                            <div class="tl-cfg-help" style="margin:4px 0">Jornadas que forman un solo grupo:</div>
+                            <label v-for="o in it.jornadaOpts" :key="'jo' + o.jornada" class="tl-cfg-check">
+                                <input type="checkbox" :value="o.jornada" v-model="exc.jornadas" :disabled="o.jornada === exc.target">
+                                {{ o.jornada }} <span class="tl-cfg-help">· {{ o.ready }} les toca<template v-if="o.adelanto"> + {{ o.adelanto }} podrían adelantar</template></span>
+                            </label>
+                            <label class="tl-cfg-help" style="display:block;margin-top:6px">Se da en el horario de
+                                <select v-model="exc.target" class="tl-cfg-input" @change="exc.jornadas = uniq(exc.jornadas.concat([exc.target]))">
+                                    <option v-for="o in it.jornadaOpts" :key="'jt' + o.jornada" :value="o.jornada">{{ o.jornada }}</option>
+                                </select></label>
+                            <div class="tl-cfg-help" style="margin-top:4px">Grupo de {{ juntarCount(it) }} estudiante(s); si pasa del máximo ({{ max }}) se parte en grupos.
+                                Solo este periodo. En el Tablero de horarios se ven los choques de quien no pueda ir en ese horario.</div>
+                        </div>
                         <div v-if="exc.mode === 'modulo'" class="tl-cfg-help" style="margin:4px 0">
                             Elegir: <button class="tl-proj-flexbtn" @click="it.userids = uniq(it.students.map(x => x.s.userid))">todos</button>
                             <button class="tl-proj-flexbtn" @click="it.userids = uniq(it.students.filter(x => x.s.finishing).map(x => x.s.userid))">solo los que egresan</button>
@@ -773,12 +793,13 @@ Vue.component('period-projection', {
             exc: { show: false, mode: 'grupo', items: [], note: '', error: '', saving: false },
             enr: { show: false, loading: false, error: '', rows: [], filter: 'sugeridas', q: '', saving: false, done: '', doneOk: true }, enrChanged: false,
             catLabel: { nivel: 'nivel', atrasada: 'atrasada', repite: 'repite', adelanto: 'adelanto' },
-            decisionShort: { grupo: 'abre por decisión', modulo: 'módulo', cerrar: 'no abre' },
+            decisionShort: { grupo: 'abre por decisión', modulo: 'módulo', cerrar: 'no abre', juntar: 'junta jornadas' },
             decisionModes: [
                 { key: 'auto', label: 'Automático', help: 'Abre si alcanza el mínimo de estudiantes; si no, queda como alerta.' },
                 { key: 'grupo', label: 'Abrir como grupo', help: 'Abre con docente y horario aunque no alcance el mínimo.' },
                 { key: 'modulo', label: 'Abrir como módulo', help: 'Sin docente, horario ni sesiones: cada estudiante elegido avanza por su cuenta hasta el fin del periodo. No pasa por pago.' },
                 { key: 'cerrar', label: 'No abrir', help: 'No abre aunque alcance el mínimo. Sus estudiantes quedan en alertas para reubicarlos.' },
+                { key: 'juntar', label: 'Juntar jornadas', help: 'Los estudiantes de las jornadas que elija forman un solo grupo, en el horario de una de ellas. Solo este periodo.' },
                 { key: 'adicional', label: 'Agregar grupo al tablero', help: 'Un grupo más de esta asignatura en esta jornada, con los estudiantes que elija (o ninguno), que va directo al Tablero de horarios para ubicarlo y publicarlo. Sirve con el periodo ya publicado (se suma sin tocar lo publicado) y para abrir con 0 o pocos estudiantes (se publica con advertencia).' },
             ] };
     },
@@ -830,6 +851,15 @@ Vue.component('period-projection', {
             (this.result.exceptions || []).forEach(e => { m[e.key] = e; });
             return m;
         },
+        // Jornadas juntadas en otra (decision "juntar"): clave de la jornada -> decision (guardada en la jornada del horario).
+        mergedMap() {
+            const m = {};
+            (this.result.exceptions || []).forEach(e => {
+                if (e.mode !== 'juntar') return;
+                (e.jornadas || []).forEach(j => { if (j !== e.jornada) m[e.courseid + '|' + j + '|' + (e.isolated_plan || 0)] = e; });
+            });
+            return m;
+        },
         // Una fila por asignatura (curso Moodle) y, si esta aislada, por carrera; con su detalle por jornada.
         allRows() {
             const students = this.result.students || {};
@@ -852,15 +882,16 @@ Vue.component('period-projection', {
                 });
                 const jornada = d.jornada || 'Sin jornada';
                 const ekey = d.courseid + '|' + (d.jornada || '') + '|' + iso;
-                const dec = this.exceptionMap[ekey] || null;
+                const merged = this.mergedMap[ekey] || null;
+                const dec = merged ? null : (this.exceptionMap[ekey] || null);
                 const closed = dec && dec.mode === 'cerrar' ? dec : null;
                 const exception = closed ? null : dec;
                 const unscheduled = this.isUnscheduled(d.courseid);
-                const groups = closed ? 0 : (unscheduled ? (d.ready > 0 ? 1 : 0) : (d.ready >= this.min ? Math.ceil(d.ready / this.max) : 0));
+                const groups = (closed || merged) ? 0 : (unscheduled ? (d.ready > 0 ? 1 : 0) : (d.ready >= this.min ? Math.ceil(d.ready / this.max) : 0));
                 if (unscheduled) r.unscheduled = true;
                 if (d.flexible) { r.flexible = true; r.flexOn = !!d.flex_on; }
                 r.jornadas.push({ jornada, ekey, ready: d.ready, adelanto: d.by_category.adelanto, blocked: d.blocked, flexWaiting: d.flex_waiting || 0,
-                    students: studs, byPlan, finishing, exception, closed, groups,
+                    students: studs, byPlan, finishing, exception, closed, merged, groups,
                     readyStudents: studs.filter(loads), repite: d.by_category.repite });
                 r.ready += d.ready;
                 r.flexWaiting = (r.flexWaiting || 0) + (d.flex_waiting || 0);
@@ -884,7 +915,7 @@ Vue.component('period-projection', {
                 let js = r.jornadas;
                 if (this.jornada) js = js.filter(j => j.jornada === this.jornada);
                 js = js.map(j => Object.assign({}, j, { mine: cf ? (j.byPlan[cf] || 0) : j.ready,
-                    finishingShort: (!j.groups && !j.exception) ? j.readyStudents.filter(x => x.s.finishing && (!cf || x.s.planid === cf)).length : 0 }));
+                    finishingShort: (!j.groups && !j.exception && !j.merged) ? j.readyStudents.filter(x => x.s.finishing && (!cf || x.s.planid === cf)).length : 0 }));
                 if (cf) js = js.filter(j => j.mine > 0 || j.students.some(x => x.s.planid === cf));
                 const opens = js.filter(j => j.groups || j.exception);
                 return Object.assign({}, r, { jornadas: js, ready: js.reduce((s, j) => s + j.ready, 0),
@@ -900,7 +931,7 @@ Vue.component('period-projection', {
             return [
                 { key: 'all', label: 'Todas', count: this.scoped.length, help: 'Todas las asignaturas con demanda' },
                 { key: 'open', label: 'Abren', count: opens, help: 'Al menos una jornada alcanza el mínimo o tiene excepción' },
-                { key: 'short', label: 'No alcanzan', count: this.scoped.filter(r => r.jornadas.some(j => !j.groups && !j.exception)).length,
+                { key: 'short', label: 'No alcanzan', count: this.scoped.filter(r => r.jornadas.some(j => !j.groups && !j.exception && !j.merged)).length,
                     help: 'Tienen al menos una jornada sin quórum ni excepción' },
                 { key: 'finish', label: 'Egresan sin quórum', count: fin, help: 'Hay estudiantes que terminan su plan y la asignatura no alcanza el mínimo' },
                 { key: 'flex', label: 'No obligatorias', count: this.scoped.filter(r => r.flexible).length,
@@ -914,7 +945,7 @@ Vue.component('period-projection', {
             const f = this.filter;
             return this.scoped
                 .filter(r => f === 'all' || (f === 'open' ? r.opens > 0 : f === 'finish' ? r.finishingShort > 0
-                    : f === 'repite' ? r.repite > 0 : f === 'flex' ? r.flexible : r.jornadas.some(j => !j.groups && !j.exception)))
+                    : f === 'repite' ? r.repite > 0 : f === 'flex' ? r.flexible : r.jornadas.some(j => !j.groups && !j.exception && !j.merged)))
                 .filter(r => !q || r.name.toLowerCase().includes(q))
                 .sort((a, b) => (f === 'finish' ? b.finishingShort - a.finishingShort : 0) || b.groups - a.groups
                     || (b.mine - a.mine) || b.ready - a.ready || a.name.localeCompare(b.name));
@@ -1410,7 +1441,10 @@ Vue.component('period-projection', {
         selItem(r, j) {
             // Para modulo se puede elegir entre los que se cargan y los que pueden adelantarla (con prelacion).
             const pick = j.students.filter(x => x.prereq !== 'no' && !x.flex && x.cat !== 'repite');
-            return { ekey: j.ekey, courseid: r.courseid, name: r.name, jornada: j.jornada, isolated: r.isolated, students: pick, opens: j.groups > 0 };
+            const full = this.allRows.find(x => x.key === r.key) || r;
+            const jornadaOpts = full.jornadas.filter(x => x.jornada !== 'Sin jornada' && x.jornada !== 'Sin horario')
+                .map(x => ({ jornada: x.jornada, ready: x.ready, adelanto: x.adelanto }));
+            return { ekey: j.ekey, courseid: r.courseid, name: r.name, jornada: j.jornada, isolated: r.isolated, students: pick, opens: j.groups > 0, jornadaOpts };
         },
         toggleSel(r, j) {
             if (this.selected[j.ekey]) { this.$delete(this.selected, j.ekey); return; }
@@ -1418,8 +1452,17 @@ Vue.component('period-projection', {
         },
         // Decision de una sola asignatura + jornada (desde el chip o desde los grupos propuestos).
         decide(r, j) {
+            if (j.merged) {
+                const full = this.allRows.find(x => x.key === r.key) || r;
+                const t = full.jornadas.find(x => x.ekey === j.merged.key);
+                if (t) { this.decide(full, t); return; }
+            }
             const cur = j.exception || j.closed;
             this.openException([this.selItem(r, j)], cur);
+        },
+        // Estudiantes del grupo juntado: los que les toca en cada jornada elegida.
+        juntarCount(it) {
+            return (it.jornadaOpts || []).filter(o => this.exc.jornadas.includes(o.jornada)).reduce((s, o) => s + o.ready, 0);
         },
         decideKey(ekey) {
             for (const r of this.allRows) {
@@ -1434,6 +1477,9 @@ Vue.component('period-projection', {
             // Sin decision previa: si ya abre por quorum se parte de "Automatico".
             this.exc = { show: true, mode: cur ? cur.mode : (this.result.published ? 'adicional' : (items.every(it => it.opens) ? 'auto' : (fin ? 'modulo' : 'grupo'))),
                 note: cur ? cur.note : '', error: '', saving: false, current: cur || null,
+                target: cur && cur.mode === 'juntar' ? cur.jornada : items[0].jornada,
+                jornadas: cur && cur.mode === 'juntar' ? (cur.jornadas || []).slice()
+                    : (items[0].jornadaOpts || []).map(o => o.jornada).filter(x => x === items[0].jornada || items.length === 1),
                 items: items.map(it => Object.assign({}, it, {
                     // Por defecto se proponen para modulo los que egresan; si no hay, todos los que se cargan.
                     userids: (this.result.published && !cur ? it.students.filter(x => !x.loaded && x.cat !== 'adelanto')
@@ -1586,6 +1632,7 @@ Vue.component('period-projection', {
             if (e.pool && e.mode === 'modulo') return 'Espera para juntarse; ' + e.userids.length + ' que no pueden esperar van como módulo';
             if (e.mode === 'modulo') return 'Módulo (sin horario ni pago) para ' + e.userids.length + ' estudiante(s)';
             if (e.mode === 'cerrar') return 'No abre por decisión';
+            if (e.mode === 'juntar') return 'Junta ' + (e.jornadas || []).join(' + ') + ' en un grupo, en el horario de ' + e.jornada;
             return 'Abre como grupo por decisión';
         },
         groupTitle(g, long) {
@@ -1691,6 +1738,22 @@ Vue.component('period-projection', {
                 finally { this.exc.saving = false; }
                 return;
             }
+            if (this.exc.mode === 'juntar') {
+                if (this.exc.items.length !== 1) { this.exc.error = 'Juntar jornadas se decide de a una asignatura.'; return; }
+                const js = this.uniq(this.exc.jornadas.concat([this.exc.target]));
+                if (js.length < 2) { this.exc.error = 'Elija al menos dos jornadas para juntar.'; return; }
+                const it = this.exc.items[0];
+                this.exc.saving = true;
+                try {
+                    const r = await this.ws('exception_add', { periodid: this.result.period.id, mode: 'juntar', note: this.exc.note,
+                        items: [{ courseid: it.courseid, jornada: this.exc.target, isolated_plan: it.isolated, jornadas: js }] });
+                    if (!r.ok) { this.exc.error = r.message; return; }
+                    this.exc.show = false; this.selected = {};
+                    this.$emit('changed', r.message);
+                } catch (e) { this.exc.error = 'Error al guardar: ' + (e.message || e); }
+                finally { this.exc.saving = false; }
+                return;
+            }
             if (this.exc.mode === 'modulo' && this.exc.items.some(it => !it.userids.length)) {
                 this.exc.error = 'Elija al menos un estudiante en cada asignatura para abrirla como módulo.'; return;
             }
@@ -1721,11 +1784,12 @@ Vue.component('period-projection', {
             if (r.opens) return 'blue';
             return r.jornadas.some(j => j.ready + j.adelanto >= this.min) ? 'orange' : 'red';
         },
-        chipSem(j) { return j.closed ? 'grey' : j.groups ? 'green' : (j.exception ? 'blue' : (j.ready + j.adelanto >= this.min ? 'orange' : 'red')); },
+        chipSem(j) { return j.closed ? 'grey' : j.merged ? 'blue' : j.groups ? 'green' : (j.exception ? 'blue' : (j.ready + j.adelanto >= this.min ? 'orange' : 'red')); },
         chipHelp(j) {
             const mine = this.careerFilter && j.mine !== j.ready ? (j.mine + ' de esta carrera; ') : '';
             const fin = j.finishing ? ' ' + j.finishing + ' estudiante(s) egresan con este periodo.' : '';
             if (j.closed) return mine + 'No abre por decisión. Motivo: ' + j.closed.note + fin;
+            if (j.merged) return mine + this.decisionLabel(j.merged) + '. Motivo: ' + j.merged.note + fin;
             if (j.exception) return mine + this.decisionLabel(j.exception) + '. Motivo: ' + j.exception.note + fin;
             if (j.groups) return mine + j.ready + ' estudiantes en ' + j.jornada + ': ' + j.groups + ' grupo(s) de hasta ' + this.max + '.' + fin;
             if (j.ready + j.adelanto >= this.min) return mine + 'No alcanza el mínimo de ' + this.min + ' por sí sola; sumando ' + j.adelanto + ' estudiantes que pueden adelantarla, sí.' + fin;

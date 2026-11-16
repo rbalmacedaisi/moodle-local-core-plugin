@@ -130,6 +130,32 @@ class group_builder {
             }
         }
 
+        // 1c. Juntar jornadas por decision del periodo (Proximo periodo -> Decidir apertura -> Juntar jornadas): las
+        // jornadas elegidas pasan a la fila de la jornada del horario, que abre como grupo por decision.
+        foreach ($exceptions as $tk => $e) {
+            if (($e['mode'] ?? '') !== 'juntar') {
+                continue;
+            }
+            $cid = (int)$e['courseid'];
+            $iso = (int)$e['isolated_plan'];
+            foreach ((array)($e['jornadas'] ?? []) as $jj) {
+                $sk = $cid . '|' . $jj . '|' . $iso;
+                if ($jj === $e['jornada'] || !isset($rows[$sk]) || $rows[$sk]['unscheduled']) {
+                    continue;
+                }
+                $r = $rows[$sk];
+                if (!isset($rows[$tk])) {
+                    $rows[$tk] = array_merge($r, ['key' => $tk, 'jornada' => $e['jornada'], 'ready' => [], 'adelanto' => [],
+                        'blocked' => [], 'exception' => $e]);
+                }
+                foreach (['ready', 'adelanto', 'blocked'] as $f) {
+                    $rows[$tk][$f] = array_values(array_unique(array_merge($rows[$tk][$f], $r[$f])));
+                }
+                $rows[$tk]['merged_from'][] = $jj;
+                unset($rows[$sk]);
+            }
+        }
+
         // 2. Primera pasada: abrir lo que alcanza el minimo o tiene excepcion.
         foreach ($rows as $rk => $row) {
             $exc = $row['exception'];
