@@ -134,11 +134,30 @@
     E.weeksLabel = function (s, k, p) {
         var r = E.range(s, k, p);
         if (!r.dates.length) return '';
-        var w = Math.max(0, (p || s.place[k]).week || 0);
+        p = p || s.place[k];
+        var w = Math.max(0, p.week || 0);
+        var total = r.total;
+        var wk = '';
+        var g = s.groups[k];
+        if (g.realDates && g.realDates.length) {
+            // Publicada: la semana sale de las fechas reales dentro del calendario del dia (no de 'week', que va en 0).
+            var all = g.calendar && g.calendar.days ? (g.calendar.days[p.day] || g.calendar.days[String(p.day)] || []) : [];
+            var i0 = all.indexOf(r.dates[0]);
+            var i1 = all.indexOf(r.dates[r.dates.length - 1]);
+            if (i0 < 0 || i1 < 0) {
+                wk = 'fechas de la clase'; // fuera del calendario del bloque: solo las fechas
+            } else {
+                w = i0;
+                total = all.length;
+                wk = (i0 === 0 && r.dates.length >= total) ? 'todo el bloque' : 'sem ' + (i0 + 1) + (i1 > i0 ? '–' + (i1 + 1) : '');
+            }
+        }
         var f = function (ymd) { var m = ymd.split('-'); return Number(m[2]) + '/' + Number(m[1]); };
-        var full = w === 0 && r.dates.length >= r.total;
-        return (full ? 'todo el bloque' : 'sem ' + (w + 1) + (r.dates.length > 1 ? '–' + (w + r.dates.length) : ''))
-            + ' · ' + f(r.dates[0]) + (r.dates.length > 1 ? '–' + f(r.dates[r.dates.length - 1]) : '') + ' · ' + r.dates.length + ' ses.';
+        if (!wk) {
+            var full = w === 0 && r.dates.length >= total;
+            wk = full ? 'todo el bloque' : 'sem ' + (w + 1) + (r.dates.length > 1 ? '–' + (w + r.dates.length) : '');
+        }
+        return wk + ' · ' + f(r.dates[0]) + (r.dates.length > 1 ? '–' + f(r.dates[r.dates.length - 1]) : '') + ' · ' + r.dates.length + ' ses.';
     };
     function timesOverlap(a, b, pad) {
         return a.start < b.end + pad && b.start < a.end + pad;
