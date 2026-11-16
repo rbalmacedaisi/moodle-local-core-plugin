@@ -689,6 +689,20 @@ Vue.component('period-projection', {
                                     <span v-if="x.loaded" class="tl-plan-tag tl-plan-tag-muted">ya cargado</span>
                                 </label>
                             </div>
+                            <div v-if="it.blocked && it.blocked.length" class="tl-proj-exc-students" style="border-color:#F59E0B;margin-top:6px;max-height:260px;overflow-x:hidden">
+                                <div class="tl-cfg-help" style="margin:2px 0 4px;color:#B45309">
+                                    <v-icon size="12" color="#B45309">mdi-lock-open-outline</v-icon>
+                                    <b>Con prelación pendiente ({{ it.blocked.length }})</b>, de todas las jornadas: a nivel o atrasados que aún no tienen aprobada
+                                    la prelación. Se cargan solo por excepción y queda anotado en el motivo.
+                                    <button class="tl-proj-flexbtn" @click="it.userids = uniq(it.userids.concat(it.blocked.map(x => x.s.userid)))">marcar todos</button>
+                                    <button class="tl-proj-flexbtn" @click="it.userids = it.userids.filter(u => !it.blocked.some(x => x.s.userid === u))">ninguno</button>
+                                </div>
+                                <label v-for="x in it.blocked" :key="'b' + x.s.userid + '-' + x.s.planid" class="tl-cfg-check">
+                                    <input type="checkbox" :value="x.s.userid" v-model="it.userids">
+                                    {{ x.s.name }} <span class="tl-cfg-help">{{ x.jornada }} · {{ shortPlan(x.s.plan) }} · {{ x.s.level }} · {{ catLabel[x.cat] || x.cat }}</span>
+                                    <span class="tl-plan-tag tl-plan-tag-lock">falta: {{ x.missing.join(', ') || 'prelación' }}</span>
+                                </label>
+                            </div>
                         </template>
                         <div v-if="exc.mode === 'modulo'" class="tl-proj-exc-students">
                             <label v-for="x in it.students" :key="x.s.userid + '-' + x.s.planid" class="tl-cfg-check">
@@ -702,6 +716,8 @@ Vue.component('period-projection', {
                         <span style="font-size:13px;font-weight:600">Motivo (obligatorio)</span>
                         <textarea v-model="exc.note" rows="2" class="tl-cfg-input" style="width:100%" placeholder="Ej.: estudiantes por egresar; autorizado por Dirección Académica"></textarea>
                     </label>
+                    <div v-if="exc.mode === 'adicional' && prereqPicked().length" class="tl-cfg-msg mt-2" style="background:#FFFBEB;color:#92400E">
+                        {{ prereqPicked().length }} estudiante(s) se cargan por excepción sin tener aprobada la prelación. Queda anotado en el motivo.</div>
                     <div v-if="exc.error" class="tl-cfg-msg tl-cfg-msg-error mt-2">{{ exc.error }}</div>
                 </v-card-text>
                 <v-card-actions><v-spacer></v-spacer>
@@ -1448,7 +1464,16 @@ Vue.component('period-projection', {
             const full = this.allRows.find(x => x.key === r.key) || r;
             const jornadaOpts = full.jornadas.filter(x => x.jornada !== 'Sin jornada' && x.jornada !== 'Sin horario')
                 .map(x => ({ jornada: x.jornada, ready: x.ready, adelanto: x.adelanto }));
-            return { ekey: j.ekey, courseid: r.courseid, name: r.name, jornada: j.jornada, isolated: r.isolated, students: pick, opens: j.groups > 0, jornadaOpts };
+            const seen = {};
+            const blocked = [];
+            full.jornadas.forEach(x => x.students.forEach(y => {
+                if (y.prereq === 'no' && (y.cat === 'nivel' || y.cat === 'atrasada') && !y.loaded && !seen[y.s.userid]) {
+                    seen[y.s.userid] = true;
+                    blocked.push(Object.assign({ jornada: x.jornada }, y));
+                }
+            }));
+            blocked.sort((a, b) => a.s.name.localeCompare(b.s.name));
+            return { ekey: j.ekey, courseid: r.courseid, name: r.name, jornada: j.jornada, isolated: r.isolated, students: pick, opens: j.groups > 0, jornadaOpts, blocked };
         },
         toggleSel(r, j) {
             if (this.selected[j.ekey]) { this.$delete(this.selected, j.ekey); return; }
@@ -1492,6 +1517,12 @@ Vue.component('period-projection', {
                             .map(x => x.s.userid)).filter((v, i, a) => a.indexOf(v) === i) })) };
         },
         uniq(a) { return a.filter((v, i) => a.indexOf(v) === i); },
+        // Estudiantes marcados en "Agregar grupo al tablero" que no tienen aprobada la prelacion (excepcion).
+        prereqPicked() {
+            const out = [];
+            (this.exc.items || []).forEach(it => (it.blocked || []).forEach(x => { if (it.userids.includes(x.s.userid)) out.push(x); }));
+            return out;
+        },
         poolAction(c) {
             if (c.action === 'espera') return 'esperan ' + c.shift + (c.shift === 1 ? ' periodo' : ' periodos');
             if (c.action === 'adelanta') return 'adelantan ' + c.shift + (c.shift === 1 ? ' periodo' : ' periodos');
@@ -1731,7 +1762,9 @@ Vue.component('period-projection', {
                 if (this.exc.items.some(it => it.jornada === 'Sin jornada')) { this.exc.error = 'Elija una jornada con nombre (Diurna, Nocturna o Sabatina).'; return; }
                 this.exc.saving = true;
                 try {
-                    const r = await this.ws('extra_add', { periodid: this.result.period.id, note: this.exc.note,
+                    const pk = this.prereqPicked();
+                    const note = this.exc.note.trim() + (pk.length ? ' [Excepción de prelación: ' + pk.map(x => x.s.name + ' (falta ' + (x.missing.join(', ') || 'prelación') + ')').join('; ') + ']' : '');
+                    const r = await this.ws('extra_add', { periodid: this.result.period.id, note,
                         items: this.exc.items.map(it => ({ courseid: it.courseid, jornada: it.jornada, isolated_plan: it.isolated, userids: it.userids })) });
                     if (!r.ok) { this.exc.error = r.message; return; }
                     this.exc.show = false; this.selected = {};
