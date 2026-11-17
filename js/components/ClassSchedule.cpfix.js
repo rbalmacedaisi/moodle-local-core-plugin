@@ -709,6 +709,15 @@ window.Vue.component('classschedule', {
                         </v-card-text>
                         <v-card-actions class="d-flex justify-end">
                             <v-btn
+                              v-if="selectedEvent.classId"
+                              text
+                              :color="selectedEvent.color"
+                              @click="openClassStudents(selectedEvent)"
+                            >
+                              <v-icon left small>mdi-account-multiple-outline</v-icon>
+                              Ver estudiantes
+                            </v-btn>
+                            <v-btn
                               text
                               color="secondary"
                               @click="showSelectedEvent = false"
@@ -718,6 +727,69 @@ window.Vue.component('classschedule', {
                         </v-card-actions>
                     </v-card>
                 </v-menu>
+                <!-- Listado de estudiantes vinculados a la clase de la ficha -->
+                <v-dialog v-model="classStudentsDialog" max-width="1000" scrollable>
+                    <v-card>
+                        <v-card-title class="text-h6 white--text" :style="{ background: classStudentsColor || '#0277BD' }">
+                            <div style="min-width: 0">
+                                <div>Estudiantes de la clase</div>
+                                <div class="text-body-2" style="word-break: break-word" v-html="classStudentsTitle"></div>
+                            </div>
+                            <v-spacer></v-spacer>
+                            <v-btn icon dark @click="classStudentsDialog = false"><v-icon>mdi-close</v-icon></v-btn>
+                        </v-card-title>
+                        <v-card-text class="pt-4">
+                            <div class="d-flex align-center flex-wrap mb-3">
+                                <v-text-field
+                                  v-model="classStudentsSearch"
+                                  prepend-inner-icon="mdi-magnify"
+                                  label="Buscar por nombre o cédula"
+                                  dense outlined hide-details clearable
+                                  style="max-width: 340px"
+                                  class="mr-4 mb-2"
+                                ></v-text-field>
+                                <span class="text-body-2 mb-2">{{ classStudents.length }} estudiante(s)</span>
+                            </div>
+                            <v-alert v-if="classStudentsError" dense outlined type="error">{{ classStudentsError }}</v-alert>
+                            <v-data-table
+                              :headers="classStudentsHeaders"
+                              :items="classStudents"
+                              :search="classStudentsSearch"
+                              :loading="classStudentsLoading"
+                              loading-text="Cargando estudiantes..."
+                              no-data-text="La clase no tiene estudiantes vinculados."
+                              no-results-text="Ningún estudiante coincide con la búsqueda."
+                              :items-per-page="25"
+                              :footer-props="{ 'items-per-page-options': [25, 50, 100, -1], 'items-per-page-text': 'Filas por página' }"
+                              sort-by="name"
+                              dense
+                            >
+                                <template v-slot:item.academicstatus="{ item }">
+                                    <v-chip :color="classStudentAcademicColor(item.academicstatus)" dark x-small label class="text-uppercase font-weight-bold">
+                                        {{ item.academicstatus || '--' }}
+                                    </v-chip>
+                                </template>
+                                <template v-slot:item.absences="{ item }">
+                                    <span :class="item.absences > 0 ? 'error--text font-weight-bold' : ''">{{ item.absences }}</span>
+                                </template>
+                                <template v-slot:item.financial_status="{ item }">
+                                    <v-tooltip bottom :disabled="!item.financial_reason">
+                                        <template v-slot:activator="{ on, attrs }">
+                                            <v-chip v-bind="attrs" v-on="on" :color="classStudentFinancialColor(item.financial_status)" dark x-small label class="text-uppercase font-weight-bold">
+                                                {{ classStudentFinancialLabel(item.financial_status) }}
+                                            </v-chip>
+                                        </template>
+                                        <span>{{ item.financial_reason }}</span>
+                                    </v-tooltip>
+                                </template>
+                            </v-data-table>
+                        </v-card-text>
+                        <v-card-actions>
+                            <v-spacer></v-spacer>
+                            <v-btn text color="secondary" @click="classStudentsDialog = false">{{ strings.close }}</v-btn>
+                        </v-card-actions>
+                    </v-card>
+                </v-dialog>
                 <v-overlay :value="fetchingEvents">
                     <v-progress-circular
                         color="primary"
@@ -867,6 +939,21 @@ window.Vue.component('classschedule', {
             selectedEvent: {},
             selectedElement: null,
             showSelectedEvent: false,
+            classStudentsDialog: false,
+            classStudentsLoading: false,
+            classStudentsError: '',
+            classStudentsSearch: '',
+            classStudentsTitle: '',
+            classStudentsColor: '',
+            classStudents: [],
+            classStudentsRequest: 0,
+            classStudentsHeaders: [
+                { text: 'Nombre', value: 'name' },
+                { text: 'Cédula', value: 'documentnumber', width: '140px' },
+                { text: 'Estado académico', value: 'academicstatus', width: '150px' },
+                { text: 'Fallas', value: 'absences', align: 'center', width: '80px' },
+                { text: 'Estado financiero', value: 'financial_status', width: '170px' },
+            ],
             strings: safeStrings,
             value: '',
             causes: [],
@@ -939,6 +1026,77 @@ window.Vue.component('classschedule', {
         this.updateTime()
     },
     methods: {
+        // Abre el popup con los estudiantes vinculados a la clase de la ficha
+        // (mismo servicio que la tabla de estudiantes: miembros del grupo de la
+        // clase, con fallas de esa clase y estado financiero).
+        async openClassStudents(event) {
+            if (!event || !event.classId) return;
+            const requestId = ++this.classStudentsRequest;
+            this.classStudentsTitle = event.className || event.name || '';
+            this.classStudentsColor = event.color || '';
+            this.classStudentsSearch = '';
+            this.classStudentsError = '';
+            this.classStudents = [];
+            this.classStudentsLoading = true;
+            this.classStudentsDialog = true;
+            try {
+                const params = new URLSearchParams();
+                params.append('action', 'local_grupomakro_get_student_info');
+                params.append('sesskey', M.cfg.sesskey);
+                params.append('page', 1);
+                params.append('resultsperpage', 1000);
+                params.append('classid', event.classId);
+                const { data } = await window.axios.post(window.location.origin + '/local/grupomakro_core/ajax.php', params);
+                if (requestId !== this.classStudentsRequest) return;
+                if (!data || data.status !== 'success' || !data.data) {
+                    throw new Error((data && data.message) || 'Respuesta inválida del servidor.');
+                }
+                let users = data.data.dataUsers;
+                if (typeof users === 'string') {
+                    try { users = JSON.parse(users); } catch (e) { users = []; }
+                }
+                this.classStudents = (Array.isArray(users) ? users : []).map(u => ({
+                    userid: u.userid,
+                    name: u.nameuser || '--',
+                    documentnumber: u.documentnumber || '--',
+                    academicstatus: u.academicstatus || '',
+                    absences: Number(u.absences) || 0,
+                    financial_status: u.financial_status || 'none',
+                    financial_reason: u.financial_reason || '',
+                }));
+            } catch (error) {
+                if (requestId !== this.classStudentsRequest) return;
+                console.error('openClassStudents failed', error);
+                this.classStudentsError = 'No se pudo cargar el listado: ' + (error.message || error);
+            } finally {
+                if (requestId === this.classStudentsRequest) this.classStudentsLoading = false;
+            }
+        },
+        classStudentAcademicColor(status) {
+            const s = (status || '').toLowerCase();
+            const map = {
+                activo: 'success', aplazado: 'warning', retirado: 'red darken-2', suspendido: 'error',
+                desertor: 'deep-orange darken-3', graduado: 'primary', egresado: 'blue darken-1',
+            };
+            return map[s] || 'grey';
+        },
+        classStudentFinancialColor(status) {
+            const s = (status || '').toLowerCase();
+            if (s === 'al_dia' || s === 'up_to_date') return 'success';
+            if (s === 'mora' || s === 'arrears') return 'error';
+            if (s === 'becado' || s === 'scholarship') return 'info';
+            if (s === 'convenio' || s === 'contrato_especial') return 'teal';
+            return 'grey';
+        },
+        classStudentFinancialLabel(status) {
+            const s = (status || '').toLowerCase();
+            const map = {
+                al_dia: 'Al día', mora: 'En mora', becado: 'Becado', convenio: 'Convenio',
+                contrato_especial: 'Contrato especial', sin_contrato_o_usuario: 'Sin contrato',
+                sincontrato: 'Sin contrato', none: 'Pendiente', unknown: 'Pendiente',
+            };
+            return map[s] || status || 'Pendiente';
+        },
         // This method makes an HTTP GET request to retrieve calendar events from the Moodle server. 
         // The received data is processed and relevant information is extracted from each event, which is added to the events array. 
         printSchedule() {
