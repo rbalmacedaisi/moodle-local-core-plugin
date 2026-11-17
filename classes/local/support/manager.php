@@ -586,26 +586,62 @@ class manager {
         $p = self::profile($userid);
         $notify = null;
 
+        // Every check that can refuse the action runs here, before the
+        // transaction: an exception inside a nested delegated transaction
+        // would roll back the caller's whole transaction too.
+        $mayassign = $p->supervisor || (int)$ticket->assignedto === $userid;
+        switch ($action) {
+            case 'take':
+                if ((int)$ticket->assignedto > 0 && (int)$ticket->assignedto !== $userid && !$p->supervisor) {
+                    throw new moodle_exception('tkt_err_alreadyassigned', 'local_grupomakro_core');
+                }
+                break;
+            case 'assign':
+                if (!$mayassign) {
+                    throw new moodle_exception('tkt_err_cannotassign', 'local_grupomakro_core');
+                }
+                if ($targetuserid <= 0 || !self::can_be_assigned($ticket, $targetuserid)) {
+                    throw new moodle_exception('tkt_err_badagent', 'local_grupomakro_core');
+                }
+                break;
+            case 'unassign':
+                if (!$mayassign) {
+                    throw new moodle_exception('tkt_err_cannotassign', 'local_grupomakro_core');
+                }
+                break;
+            case 'resolve':
+            case 'close':
+                if ((int)$ticket->first_response_at === 0) {
+                    throw new moodle_exception('tkt_err_noresponse', 'local_grupomakro_core');
+                }
+                break;
+            case 'set_priority':
+                if (!in_array($priority, [self::PRIORITY_LOW, self::PRIORITY_NORMAL, self::PRIORITY_HIGH], true)) {
+                    throw new \invalid_parameter_exception('priority');
+                }
+                break;
+            case 'set_category':
+                $newcategory = $DB->get_record('gmk_tkt_category', ['id' => $categoryid, 'active' => 1]);
+                $newarea = $newcategory ? $DB->get_record('gmk_tkt_area', ['id' => (int)$newcategory->areaid]) : null;
+                if (!$newcategory || !$newarea || trim((string)$newarea->external_url) !== '') {
+                    throw new moodle_exception('tkt_err_badcategory', 'local_grupomakro_core');
+                }
+                break;
+            default:
+                throw new \invalid_parameter_exception('Unknown action ' . $action);
+        }
+
         $transaction = $DB->start_delegated_transaction();
         switch ($action) {
             case 'take':
                 if ((int)$ticket->assignedto === $userid) {
                     break;
                 }
-                if ((int)$ticket->assignedto > 0 && !$p->supervisor) {
-                    throw new moodle_exception('tkt_err_alreadyassigned', 'local_grupomakro_core');
-                }
                 self::apply_assignment($ticket, $userid, $userid, 'take');
                 self::system_message($ticket, 'assigned', self::template_vars($ticket));
                 break;
 
             case 'assign':
-                if (!$p->supervisor && (int)$ticket->assignedto !== $userid) {
-                    throw new moodle_exception('tkt_err_cannotassign', 'local_grupomakro_core');
-                }
-                if ($targetuserid <= 0 || !self::can_be_assigned($ticket, $targetuserid)) {
-                    throw new moodle_exception('tkt_err_badagent', 'local_grupomakro_core');
-                }
                 if ((int)$ticket->assignedto === $targetuserid) {
                     break;
                 }
@@ -617,9 +653,6 @@ class manager {
                 break;
 
             case 'unassign':
-                if (!$p->supervisor && (int)$ticket->assignedto !== $userid) {
-                    throw new moodle_exception('tkt_err_cannotassign', 'local_grupomakro_core');
-                }
                 if ((int)$ticket->assignedto === 0) {
                     break;
                 }
@@ -635,25 +668,16 @@ class manager {
                 break;
 
             case 'resolve':
-                if ((int)$ticket->first_response_at === 0) {
-                    throw new moodle_exception('tkt_err_noresponse', 'local_grupomakro_core');
-                }
                 self::set_status($ticket, self::S_RESOLVED, $userid, ['resolved_at' => time(), 'waiting_since' => 0]);
                 self::system_message($ticket, 'resolved', self::template_vars($ticket));
                 $notify = ['support_resolved', [(int)$ticket->userid]];
                 break;
 
             case 'close':
-                if ((int)$ticket->first_response_at === 0) {
-                    throw new moodle_exception('tkt_err_noresponse', 'local_grupomakro_core');
-                }
                 self::close($ticket, $userid, 'staff');
                 break;
 
             case 'set_priority':
-                if (!in_array($priority, [self::PRIORITY_LOW, self::PRIORITY_NORMAL, self::PRIORITY_HIGH], true)) {
-                    throw new \invalid_parameter_exception('priority');
-                }
                 if ((int)$ticket->priority !== $priority) {
                     self::log_event((int)$ticket->id, 'priority', (string)$ticket->priority, (string)$priority, $userid);
                     self::update_ticket($ticket, ['priority' => $priority]);
@@ -661,26 +685,18 @@ class manager {
                 break;
 
             case 'set_category':
-                $category = $DB->get_record('gmk_tkt_category', ['id' => $categoryid, 'active' => 1]);
-                $area = $category ? $DB->get_record('gmk_tkt_area', ['id' => (int)$category->areaid]) : null;
-                if (!$category || !$area || trim((string)$area->external_url) !== '') {
-                    throw new moodle_exception('tkt_err_badcategory', 'local_grupomakro_core');
-                }
                 if ((int)$ticket->categoryid === $categoryid) {
                     break;
                 }
                 self::log_event((int)$ticket->id, 'category', (string)$ticket->categoryid, (string)$categoryid, $userid,
-                    ['oldareaid' => (int)$ticket->areaid, 'newareaid' => (int)$area->id]);
+                    ['oldareaid' => (int)$ticket->areaid, 'newareaid' => (int)$newarea->id]);
                 self::update_ticket($ticket, [
                     'categoryid' => $categoryid,
-                    'areaid' => (int)$area->id,
+                    'areaid' => (int)$newarea->id,
                     // Sticky: a confidential ticket never becomes public by moving it.
-                    'confidential' => (int)(!empty($ticket->confidential) || !empty($category->confidential)),
+                    'confidential' => (int)(!empty($ticket->confidential) || !empty($newcategory->confidential)),
                 ]);
                 break;
-
-            default:
-                throw new \invalid_parameter_exception('Unknown action ' . $action);
         }
         $transaction->allow_commit();
 
