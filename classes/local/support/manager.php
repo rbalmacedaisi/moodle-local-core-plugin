@@ -698,13 +698,12 @@ class manager {
      */
     public static function assignable_staff(stdClass $ticket): array {
         global $DB;
-        $ids = [];
         $sql = "SELECT DISTINCT a.userid
                   FROM {gmk_tkt_agent} a
                   JOIN {gmk_tkt_category} c ON c.id = a.categoryid
-                 WHERE " . (!empty($ticket->confidential) ? 'a.categoryid = :cat' : 'c.areaid = :area');
+                 WHERE " . (!empty($ticket->confidential) ? 'a.categoryid = :id' : 'c.areaid = :id');
         $ids = array_map('intval', $DB->get_fieldset_sql($sql,
-            ['cat' => (int)$ticket->categoryid, 'area' => (int)$ticket->areaid]));
+            ['id' => !empty($ticket->confidential) ? (int)$ticket->categoryid : (int)$ticket->areaid]));
         $agentids = $ids;
         if ($agentids) {
             [$in, $params] = $DB->get_in_or_equal($agentids);
@@ -912,65 +911,55 @@ class manager {
      */
     private static function desk_where(int $userid, stdClass $p, string $tab, string $search): array {
         global $DB;
-        static $n = 0;
-        $n++;
+        // Moodle rejects named params that are unused or repeated, so every
+        // fragment below adds exactly the params it uses, with fresh names.
         $params = [];
-        $pre = 'dw' . $n . '_';
+        $uid = function() use (&$params, $userid): string {
+            static $n = 0;
+            $name = 'dwu' . (++$n);
+            $params[$name] = $userid;
+            return ':' . $name;
+        };
+        $in = function(string $column, array $values, bool $equal = true) use (&$params, $DB): string {
+            if (!$values) {
+                return $equal ? '1 = 0' : '1 = 1';
+            }
+            [$sql, $inparams] = $DB->get_in_or_equal($values, SQL_PARAMS_NAMED, 'dw', $equal);
+            $params += $inparams;
+            return "$column $sql";
+        };
 
-        $areasql = '1 = 0';
-        if ($p->areas) {
-            [$in, $inparams] = $DB->get_in_or_equal($p->areas, SQL_PARAMS_NAMED, $pre . 'ar');
-            $areasql = "t.areaid $in";
-            $params += $inparams;
-        }
-        $catsql = '1 = 0';
-        if ($p->cats) {
-            [$in, $inparams] = $DB->get_in_or_equal($p->cats, SQL_PARAMS_NAMED, $pre . 'ct');
-            $catsql = "t.categoryid $in";
-            $params += $inparams;
-        }
-        $params[$pre . 'u1'] = $userid;
-        $params[$pre . 'u2'] = $userid;
-        $public = $p->supervisor ? '1 = 1' : "(t.assignedto = :{$pre}u1 OR $areasql)";
-        $private = $p->viewconf ? '1 = 1' : "(t.assignedto = :{$pre}u2 OR $catsql)";
+        $public = $p->supervisor ? '1 = 1' : '(t.assignedto = ' . $uid() . ' OR ' . $in('t.areaid', $p->areas) . ')';
+        $private = $p->viewconf ? '1 = 1' : '(t.assignedto = ' . $uid() . ' OR ' . $in('t.categoryid', $p->cats) . ')';
         $where = ["((t.confidential = 0 AND $public) OR (t.confidential = 1 AND $private))"];
 
-        [$openin, $openparams] = $DB->get_in_or_equal(self::open_statuses(), SQL_PARAMS_NAMED, $pre . 'op');
-        [$closedin, $closedparams] = $DB->get_in_or_equal(self::open_statuses(), SQL_PARAMS_NAMED, $pre . 'cl', false);
         switch ($tab) {
             case 'unassigned':
-                $where[] = "t.status $openin AND t.assignedto = 0";
-                $params += $openparams;
+                $where[] = $in('t.status', self::open_statuses()) . ' AND t.assignedto = 0';
                 break;
             case 'mine':
-                $where[] = "t.status $openin AND t.assignedto = :{$pre}me";
-                $params += $openparams;
-                $params[$pre . 'me'] = $userid;
+                $where[] = $in('t.status', self::open_statuses()) . ' AND t.assignedto = ' . $uid();
                 break;
             case 'area':
-                $where[] = "t.status $openin AND $areasql";
-                $params += $openparams;
+                $where[] = $in('t.status', self::open_statuses()) . ' AND ' . $in('t.areaid', $p->areas);
                 break;
             case 'overdue':
-                $where[] = "t.status $openin AND t.waiting_since > 0 AND t.waiting_since < :{$pre}lim";
-                $params += $openparams;
-                $params[$pre . 'lim'] = time() - config::get_int('tkt_sla_red') * MINSECS;
+                $where[] = $in('t.status', self::open_statuses()) . ' AND t.waiting_since > 0 AND t.waiting_since < :dwlim';
+                $params['dwlim'] = time() - config::get_int('tkt_sla_red') * MINSECS;
                 break;
             case 'all':
-                $where[] = "t.status $openin";
-                $params += $openparams;
+                $where[] = $in('t.status', self::open_statuses());
                 break;
             case 'closed':
-                $where[] = "t.status $closedin";
-                $params += $closedparams;
+                $where[] = $in('t.status', self::open_statuses(), false);
                 break;
         }
         $search = trim($search);
         if ($search !== '') {
             $like = [];
             foreach (['t.number', 't.subject', 's.firstname', 's.lastname', 's.idnumber'] as $i => $field) {
-                $like[] = $DB->sql_like($field, ":{$pre}q$i", false, false);
-                $params[$pre . 'q' . $i] = '%' . $DB->sql_like_escape($search) . '%';
+                $like[] = $DB->sql_like($field, ':dwq' . $i, false, false);
+                $params['dwq' . $i] = '%' . $DB->sql_like_escape($search) . '%';
             }
             $where[] = '(' . implode(' OR ', $like) . ')';
         }
