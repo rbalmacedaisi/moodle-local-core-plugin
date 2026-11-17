@@ -839,7 +839,9 @@ if (!isloggedin() || isguestuser()) {
     if ($qrpass !== '') {
         $vueparams['qrpass'] = $qrpass;
     }
-    header('Location: ' . $vuebase . '/attendance/qr?' . http_build_query($vueparams));
+    // Separador explícito: Moodle fija arg_separator.output en "&amp;" y el
+    // LXP recibía el token como "amp;gmkqr" (lo perdía).
+    header('Location: ' . $vuebase . '/attendance/qr?' . http_build_query($vueparams, '', '&'));
     exit;
 }
 
@@ -894,7 +896,7 @@ if (!is_siteadmin() && !gmk_qr_institute_origin_allowed()) {
     $vueparams['reasoncode'] = 'not_in_institute';
     $vueparams['traceid'] = gmk_qr_trace_id();
     $vueparams['markedat'] = (string)time();
-    header('Location: ' . $vuebase . '/attendance/scan-result?' . http_build_query($vueparams));
+    header('Location: ' . $vuebase . '/attendance/scan-result?' . http_build_query($vueparams, '', '&'));
     exit;
 }
 
