@@ -39,14 +39,14 @@ class acknowledge_admin_message extends external_api {
 
     public static function execute_parameters() {
         return new external_function_parameters([
-            'userid'    => new external_value(PARAM_INT,  'User ID acknowledging the broadcast',  VALUE_REQUIRED),
+            'userid'    => new external_value(PARAM_INT,  'Ignorado: se usa el usuario de la sesion. Si se envia debe coincidir con el.', VALUE_DEFAULT, 0),
             'messageid' => new external_value(PARAM_INT,  'Message id',                            VALUE_REQUIRED),
             'accept'    => new external_value(PARAM_BOOL, 'True when the user clicked accept; false for informational dismiss only.', VALUE_DEFAULT, true),
         ]);
     }
 
     public static function execute($userid, $messageid, $accept = true) {
-        global $DB;
+        global $USER;
         $params = self::validate_parameters(self::execute_parameters(), [
             'userid'    => $userid,
             'messageid' => $messageid,
@@ -56,12 +56,19 @@ class acknowledge_admin_message extends external_api {
         $context = context_system::instance();
         self::validate_context($context);
 
-        if (!$DB->record_exists('user', ['id' => $params['userid'], 'deleted' => 0])) {
-            throw new \Exception('user_not_found');
+        // Seguridad: solo se confirma en nombre del usuario de la sesion/token.
+        // Antes se confiaba en el userid del cliente y se podia aceptar un
+        // aviso en nombre de otro estudiante.
+        $sessionuserid = (int)$USER->id;
+        if ($sessionuserid <= 0 || isguestuser()) {
+            throw new \moodle_exception('nopermissions', 'error', '', 'acknowledge_admin_message');
+        }
+        if ((int)$params['userid'] > 0 && (int)$params['userid'] !== $sessionuserid) {
+            throw new \moodle_exception('nopermissions', 'error', '', 'acknowledge_admin_message');
         }
 
         $ok = \local_grupomakro_core\local\announcement_manager::acknowledge(
-            (int)$params['userid'],
+            $sessionuserid,
             (int)$params['messageid'],
             (bool)$params['accept']
         );
@@ -72,7 +79,7 @@ class acknowledge_admin_message extends external_api {
 
         return [
             'success' => true,
-            'userid'  => (int)$params['userid'],
+            'userid'  => $sessionuserid,
             'messageid' => (int)$params['messageid'],
             'accepted' => (bool)$params['accept'],
         ];

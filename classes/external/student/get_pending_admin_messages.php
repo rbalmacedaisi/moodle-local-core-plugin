@@ -42,22 +42,29 @@ class get_pending_admin_messages extends external_api {
 
     public static function execute_parameters() {
         return new external_function_parameters([
-            'userid' => new external_value(PARAM_INT, 'User ID', VALUE_REQUIRED),
+            'userid' => new external_value(PARAM_INT, 'Ignorado: se usa el usuario de la sesion. Se acepta solo por compatibilidad y debe coincidir con el.', VALUE_DEFAULT, 0),
         ]);
     }
 
-    public static function execute($userid) {
-        global $DB;
+    public static function execute($userid = 0) {
+        global $USER;
         $params = self::validate_parameters(self::execute_parameters(), ['userid' => $userid]);
 
         $context = context_system::instance();
         self::validate_context($context);
 
-        if (!$DB->record_exists('user', ['id' => $params['userid'], 'deleted' => 0])) {
-            throw new \Exception('user_not_found');
+        // Seguridad: el destinatario es SIEMPRE el usuario de la sesion/token.
+        // Antes se confiaba en el userid enviado por el cliente y cualquier
+        // usuario autenticado podia leer los avisos de otro.
+        $sessionuserid = (int)$USER->id;
+        if ($sessionuserid <= 0 || isguestuser()) {
+            throw new \moodle_exception('nopermissions', 'error', '', 'get_pending_admin_messages');
+        }
+        if ((int)$params['userid'] > 0 && (int)$params['userid'] !== $sessionuserid) {
+            throw new \moodle_exception('nopermissions', 'error', '', 'get_pending_admin_messages');
         }
 
-        $messages = \local_grupomakro_core\local\announcement_manager::get_pending_for_user((int)$params['userid']);
+        $messages = \local_grupomakro_core\local\announcement_manager::get_pending_for_user($sessionuserid);
 
         $highest = null;
         if (!empty($messages)) {
