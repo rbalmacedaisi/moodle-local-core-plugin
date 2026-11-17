@@ -17,7 +17,10 @@ Alcance: plugin `local_grupomakro_core` (Moodle 4.0) y portal de estudiantes (Nu
 | Mensajes | El sistema manda **mensajes automáticos** en cada etapa y un **mensaje de calificación de la atención** al cerrar (ver §7.1). |
 | Seguridad | Corregidos los servicios de avisos que aceptaban un `userid` del cliente (ver §11). |
 
-Pendiente de confirmar: quién atiende **Soporte Tecnológico** (en Moodle el rol de Soporte TI lo tiene **Esteban Montoya**) y quién atiende **Psicología** (en Moodle el rol de Psicólogo/a lo tiene **Dulce Jurado**).
+Confirmado el 17-nov-2026:
+- **Soporte Tecnológico** lo atiende **Esteban Montoya** (TI).
+- **Psicología** la atiende **Dulce Jurado**. Sus tickets son **confidenciales**: solo los ven Dulce y gerencia (Joyce Muñoz); ni Secretaría ni Bienestar.
+- **El semáforo corre solo en horario hábil.** Se descuentan las horas fuera de horario, los domingos y los feriados de `gmk_holidays`.
 
 ---
 
@@ -63,7 +66,7 @@ Lo que **no** existe y hay que construir:
 | Estudiante | Crea tickets, chatea, confirma la solución y califica. Solo ve los suyos. | Usuario del portal |
 | Agente académico | Toma y atiende tickets del área Académica | Rol `gmk_secretaria_academica` (y quien se agregue como agente) |
 | Agente TI | Toma y atiende tickets del área TI | Rol `gmk_soporte_ti` |
-| Supervisor (vista constante) | Ve **todas** las bandejas en vivo, reasigna, responde y recibe alertas de vencimiento | Secretaría Académica, Dirección Académica, Psicología, Bienestar |
+| Supervisor (vista constante) | Ve **todas** las bandejas en vivo, excepto los tickets confidenciales de Psicología. Reasigna, responde y recibe alertas de vencimiento. | Secretaría Académica, Dirección Académica, Psicología, Bienestar |
 | Gerencia | Recibe alertas de tickets desatendidos (rojo, 5 h) y un resumen diario. Ve los indicadores. | **Joyce Muñoz** (2886). Se le da la capacidad `support_receive_escalations` con un rol nuevo `gmk_gerencia`, para no darle permisos de otros roles. |
 
 Capacidades nuevas en `db/access.php`:
@@ -137,8 +140,8 @@ Ruteo por categoría y tema. Lo elige el estudiante al crear la solicitud; el ag
 | Académico | Horarios, asignaturas y matrícula, notas, gestión con docentes, otro | Reparto entre **Jean Remice** (2732) y **Lizbeth Aizprua** (2912) |
 | Académico | Asistencia a clases (faltas, QR, justificaciones) | **Jorge Oviedo** (2737) |
 | Bienestar | Bienestar institucional (eventos, carné, apoyo, etc.) | **Jorge Oviedo** (2737) |
-| Psicología | Quejas y temas personales. **Confidencial.** | Psicología (por confirmar; hoy el rol lo tiene **Dulce Jurado**, 2765) |
-| Soporte Tecnológico | Acceso y contraseña, plataforma y aula virtual, app, correo | Por confirmar (hoy el rol lo tiene **Esteban Montoya**, 2756) |
+| Psicología | Quejas y temas personales. **Confidencial**: solo Psicología y gerencia. | **Dulce Jurado** (2765) |
+| Soporte Tecnológico | Acceso y contraseña, plataforma y aula virtual, app, correo | **Esteban Montoya** (2756, TI) |
 | Finanzas | — | **No abre ticket.** Muestra el botón "Escribir a Finanzas por WhatsApp" (`https://wa.me/50768920543`). |
 
 Reglas generales:
@@ -163,7 +166,12 @@ Se detiene cuando el personal responde. Así cubre la primera respuesta y tambi�
 | 3 h – 5 h | 🟠 Naranja | Tirando a rojo |
 | 5 h o más | 🔴 Rojo | Desatendido |
 
-Por definir: si el reloj corre solo en horario de atención, descontando noches, domingos y los feriados de `gmk_holidays`, o en tiempo corrido. Recomendado: horario de atención, para que un mensaje de las 23:00 no amanezca en rojo.
+**Decidido: el reloj corre solo en horario hábil.** Se descuentan las noches, los domingos y los feriados de `gmk_holidays`. Un mensaje enviado fuera de horario empieza a contar al abrir la jornada siguiente, y el estudiante recibe el mensaje automático de "fuera de horario".
+
+El horario hábil es configurable por área. Valor inicial propuesto, a confirmar:
+- **Académico y Bienestar:** lunes a viernes de 8:00 a 21:00 y sábados de 8:00 a 16:00.
+- **Psicología:** lunes a viernes de 8:00 a 17:00.
+- **Soporte Tecnológico:** lunes a viernes de 8:00 a 21:00 y sábados de 8:00 a 16:00.
 
 ### 6.3 Escalera de escalamiento
 Una tarea programada cada 5 minutos revisa los relojes:
@@ -341,10 +349,9 @@ Reutilizar la mensajería y el patrón de avisos reduce bastante el trabajo de l
 
 ## 13. Decisiones pendientes
 
-Las de la fase 0 ya están tomadas (§0). Quedan:
-
-1. **Soporte Tecnológico:** ¿lo atiende Esteban Montoya, que hoy tiene el rol de Soporte TI, u otra persona?
-2. **Psicología:** ¿atiende Dulce Jurado? ¿Las quejas son confidenciales? Es decir, ¿solo las ven Psicología y gerencia, y no Secretaría ni Bienestar?
-3. **Horario de atención:** ¿el semáforo corre solo en horario de atención, que es lo recomendado? ¿Cuál es ese horario por área y los sábados?
-4. **Docentes:** ¿también pueden abrir tickets a Soporte Tecnológico? (El modelo lo soporta sin cambios.)
-5. **Respaldo por ausencia:** si Jorge Oviedo o Psicología están ausentes, ¿a quién pasan sus tickets? Sugerencia: a Jean y Lizbeth para asistencia, y a Dirección Académica para quejas.
+1. **Horario hábil exacto por área**, incluidos los sábados. El valor propuesto está en §6.2.
+2. **Respaldo por ausencia:** ¿a quién pasan los tickets si Jorge Oviedo, Dulce Jurado o Esteban Montoya están ausentes? Sugerencia:
+   - asistencia de Jorge → Jean y Lizbeth;
+   - Psicología → gerencia (Joyce), por la confidencialidad;
+   - TI → cola visible para supervisores.
+3. **Docentes:** ¿también pueden abrir tickets a Soporte Tecnológico? (El modelo lo soporta sin cambios.)
