@@ -1087,6 +1087,7 @@ function assign_capabilities_to_internal_roles() {
             'local/grupomakro_core:manage_wdr_requests',
         ],
         'gmk_gerencia' => [
+            'local/grupomakro_core:support_agent',
             'local/grupomakro_core:support_supervise',
             'local/grupomakro_core:support_viewconfidential',
             'local/grupomakro_core:support_receive_escalations',
