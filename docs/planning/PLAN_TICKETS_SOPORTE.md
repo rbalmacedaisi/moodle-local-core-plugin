@@ -168,7 +168,7 @@ Se detiene cuando el personal responde. Así cubre la primera respuesta y tambi�
 
 **Decidido: el reloj corre solo en horario hábil.** Se descuentan las noches, los domingos y los feriados de `gmk_holidays`. Un mensaje enviado fuera de horario empieza a contar al abrir la jornada siguiente, y el estudiante recibe el mensaje automático de "fuera de horario".
 
-El horario hábil es configurable por área. Valor inicial propuesto, a confirmar:
+El horario hábil es configurable por área (§12-bis). Valor inicial aprobado el 17-nov-2026:
 - **Académico y Bienestar:** lunes a viernes de 8:00 a 21:00 y sábados de 8:00 a 16:00.
 - **Psicología:** lunes a viernes de 8:00 a 17:00.
 - **Soporte Tecnológico:** lunes a viernes de 8:00 a 21:00 y sábados de 8:00 a 16:00.
@@ -347,11 +347,35 @@ Reutilizar la mensajería y el patrón de avisos reduce bastante el trabajo de l
 
 ---
 
+## 12-bis. Todo configurable desde el sistema
+
+Requisito de Ramiro (17-nov-2026): nada de lo decidido queda fijo en el código. Habrá una página de configuración `pages/support_settings.php`, con la capacidad `support_manage`.
+
+Cada cambio deja un evento de auditoría con quién, cuándo, valor anterior y valor nuevo.
+
+| Sección | Qué se configura | Valor inicial |
+|---|---|---|
+| Áreas | Nombre, activa o inactiva, **horario hábil por día** (varios tramos por día) | Académico y Bienestar: L–V 8:00–21:00 y S 8:00–16:00 · Psicología: L–V 8:00–17:00 · Soporte Tecnológico: L–V 8:00–21:00 y S 8:00–16:00 |
+| Categorías y temas | Nombre, área, descripción para el estudiante, orden, confidencial sí o no, adjunto obligatorio, activa | Académico (horarios, asignaturas y matrícula, notas, gestión con docentes, asistencia a clases, otro), Soporte Tecnológico, Bienestar, Psicología (confidencial), Finanzas |
+| Categoría de enlace externo | Una categoría puede no abrir ticket y mostrar un botón con enlace, texto del botón y mensaje inicial | Finanzas → WhatsApp `https://wa.me/50768920543` |
+| Agentes por tema | Uno o varios agentes por tema, reparto equilibrado sí o no, tope de tickets abiertos, disponible o ausente | Académico: Jean Remice y Lizbeth Aizprua · Asistencia y Bienestar: Jorge Oviedo · Psicología: Dulce Jurado · TI: Esteban Montoya |
+| Respaldo por ausencia | Para cada agente o tema, a quién pasan sus tickets si está ausente | Asistencia (Jorge) → Jean y Lizbeth · Psicología (Dulce) → Joyce Muñoz · TI (Esteban) → cola visible para supervisores |
+| Supervisores | Quién tiene vista constante (por rol o por persona) | Secretaría Académica, Dirección Académica, Psicología, Bienestar |
+| Gerencia | Personas que reciben escalamientos y el resumen diario | Joyce Muñoz |
+| Semáforo | Umbrales en minutos hábiles para verde, amarillo, naranja y rojo; repetición del aviso en rojo | 20 / 60 / 180 / 300 min; repetir cada 120 min |
+| Escalamiento | Para cada umbral: a quién avisar (agente, supervisores, gerencia) y si reasigna | Según §6.3 |
+| Cierre | Horas sin respuesta del estudiante para el recordatorio y para el cierre | Recordatorio a las 12 h, cierre a las 24 h |
+| Mensajes automáticos | Texto editable de cada mensaje automático, con variables `{numero}`, `{categoria}`, `{agente}`, `{horario}` y `{estudiante}` | Borradores de §7.1 |
+| Calificación | Activa o no, umbral de calificación baja que avisa a supervisores, reaparición si la descarta | Activa; 1–2 estrellas avisan; reaparece una vez |
+| Límites | Tickets abiertos por estudiante, tickets por día, tamaño y tipos de adjuntos | 5 abiertos, 10 por día, 10 MB, pdf/jpg/png/docx |
+| Resumen diario | Hora de envío y destinatarios | 7:00 · Joyce Muñoz y supervisores |
+
+Notas de implementación:
+- Estos valores viven en tablas (`gmk_tkt_area`, `gmk_tkt_category`, `gmk_tkt_agent`, nueva `gmk_tkt_backup` y nueva `gmk_tkt_template`) y en `config_plugins`; no en constantes.
+- La instalación carga los valores iniciales una sola vez.
+- La tarea de escalamiento y el cálculo de horas hábiles leen la configuración en cada pasada, así que un cambio aplica sin desplegar.
+- El cálculo de horas hábiles es una función única (`business_time::elapsed($from, $to, $areaid)`) con pruebas: cruce de medianoche, sábado, domingo, feriado y cambio de horario.
+
 ## 13. Decisiones pendientes
 
-1. **Horario hábil exacto por área**, incluidos los sábados. El valor propuesto está en §6.2.
-2. **Respaldo por ausencia:** ¿a quién pasan los tickets si Jorge Oviedo, Dulce Jurado o Esteban Montoya están ausentes? Sugerencia:
-   - asistencia de Jorge → Jean y Lizbeth;
-   - Psicología → gerencia (Joyce), por la confidencialidad;
-   - TI → cola visible para supervisores.
-3. **Docentes:** ¿también pueden abrir tickets a Soporte Tecnológico? (El modelo lo soporta sin cambios.)
+1. **Docentes:** ¿también pueden abrir tickets a Soporte Tecnológico? (El modelo lo soporta sin cambios.)
