@@ -263,7 +263,7 @@ class manager {
             if ($external && $user) {
                 $message = strtr((string)$area->external_message, [
                     '{estudiante}' => fullname($user),
-                    '{cedula}' => (string)$user->idnumber,
+                    '{cedula}' => self::document_number($user),
                 ]);
             }
             $out[] = [
@@ -279,6 +279,45 @@ class manager {
                 'external_label' => (string)$area->external_label,
                 'topics' => $topics,
             ];
+        }
+        return $out;
+    }
+
+    /**
+     * Cedula of the user: custom profile field documentnumber, else idnumber.
+     */
+    public static function document_number(stdClass $user): string {
+        global $DB;
+        $value = $DB->get_field_sql(
+            "SELECT d.data
+               FROM {user_info_data} d
+               JOIN {user_info_field} f ON f.id = d.fieldid
+              WHERE f.shortname = :sn AND d.userid = :u",
+            ['sn' => 'documentnumber', 'u' => (int)$user->id]);
+        $value = trim((string)$value);
+        return $value !== '' ? $value : (string)($user->idnumber ?? '');
+    }
+
+    /**
+     * @return array userid => non-empty documentnumber
+     */
+    private static function document_numbers(array $userids): array {
+        global $DB;
+        $userids = array_values(array_unique(array_filter($userids)));
+        if (!$userids) {
+            return [];
+        }
+        [$in, $params] = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED, 'dn');
+        $params['sn'] = 'documentnumber';
+        $out = [];
+        $rows = $DB->get_records_sql("SELECT d.userid, d.data
+                                        FROM {user_info_data} d
+                                        JOIN {user_info_field} f ON f.id = d.fieldid
+                                       WHERE f.shortname = :sn AND d.userid $in", $params);
+        foreach ($rows as $r) {
+            if (trim((string)$r->data) !== '') {
+                $out[(int)$r->userid] = trim((string)$r->data);
+            }
         }
         return $out;
     }
@@ -975,6 +1014,9 @@ class manager {
         $users = self::load_users($ids, true);
         $now = time();
         $isrequester = $role === self::ROLE_REQUESTER;
+        $docs = $isrequester ? [] : self::document_numbers(array_map(function($r) {
+            return (int)$r->userid;
+        }, $rows));
         $out = [];
         foreach ($rows as $r) {
             $requester = $users[(int)$r->userid] ?? null;
@@ -999,7 +1041,8 @@ class manager {
                 'confidential' => (bool)$r->confidential,
                 'userid' => (int)$r->userid,
                 'requestername' => $requester ? fullname($requester) : '',
-                'requesteridnumber' => (!$isrequester && $requester) ? (string)$requester->idnumber : '',
+                'requesteridnumber' => (!$isrequester && $requester)
+                    ? ($docs[(int)$requester->id] ?? (string)$requester->idnumber) : '',
                 'requesteremail' => (!$isrequester && $requester) ? (string)$requester->email : '',
                 'assignedto' => (int)$r->assignedto,
                 'assignedname' => $agent ? fullname($agent) : '',
