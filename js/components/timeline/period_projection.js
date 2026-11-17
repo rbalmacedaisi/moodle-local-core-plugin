@@ -43,6 +43,8 @@ Vue.component('period-projection', {
                 <div class="tl-proj-kpi tl-proj-kpi-alert" :class="{ 'tl-proj-kpi-click': summary.finishingShort }" @click="summary.finishingShort && (filter = 'finish')"
                      title="Estudiantes que terminan su plan con este periodo y tienen al menos una asignatura sin quórum ni excepción. Clic para verlas.">
                     <b>{{ summary.finishingShort }}</b><span>egresan sin quórum</span></div>
+                <div v-if="summary.mora" class="tl-proj-kpi tl-proj-kpi-alert" title="Estudiantes activos que se cargan en el próximo periodo y están en mora (estado financiero de Odoo). Aparecen con la etiqueta «mora».">
+                    <b>{{ summary.mora }}</b><span>en mora</span></div>
             </div>
         </div>
 
@@ -121,6 +123,7 @@ Vue.component('period-projection', {
                         <div v-for="s in r.students" :key="s.key" class="tl-plan-name-row tl-proj-stu">
                             <span class="tl-proj-stu-name">{{ s.name }}</span>
                             <span v-if="s.finishing" class="tl-plan-tag tl-proj-tag-finish">egresa</span>
+                            <span v-if="s.mora" class="tl-plan-tag tl-proj-tag-mora" title="En mora (estado financiero sincronizado con Odoo)">mora</span>
                             <span class="tl-proj-stu-meta">{{ shortPlan(s.plan) }} · {{ s.level }} · {{ s.jornada || 'sin jornada' }} · {{ s.documento }}</span>
                         </div>
                     </div>
@@ -355,7 +358,7 @@ Vue.component('period-projection', {
                         <template v-for="grp in poolDlg.lists">
                             <div :key="'h' + grp.label" class="tl-plan-detail-block">{{ grp.label }} ({{ grp.keys.length }})</div>
                             <div v-for="k in grp.keys" :key="grp.label + k" class="tl-plan-name-row tl-proj-stu">
-                                <span class="tl-proj-stu-name">{{ stuName(k) }}</span><span class="tl-proj-stu-meta">{{ stuMeta(k) }}</span></div>
+                                <span class="tl-proj-stu-name">{{ stuName(k) }}</span><span v-if="stuMora(k)" class="tl-plan-tag tl-proj-tag-mora" title="En mora (estado financiero sincronizado con Odoo)">mora</span><span class="tl-proj-stu-meta">{{ stuMeta(k) }}</span></div>
                         </template>
                         <div v-if="poolDlg.error" class="tl-cfg-msg tl-cfg-msg-error mt-2">{{ poolDlg.error }}</div>
                     </v-card-text>
@@ -380,12 +383,12 @@ Vue.component('period-projection', {
                         <div v-for="c in poolDetail.cohorts" :key="c.k" class="mb-2">
                             <div class="tl-plan-detail-block">{{ c.period }} · {{ c.students.length }} {{ poolAction(c) }}</div>
                             <div v-for="k in c.students" :key="k" class="tl-plan-name-row tl-proj-stu">
-                                <span class="tl-proj-stu-name">{{ stuName(k) }}</span><span class="tl-proj-stu-meta">{{ stuMeta(k) }}</span></div>
+                                <span class="tl-proj-stu-name">{{ stuName(k) }}</span><span v-if="stuMora(k)" class="tl-plan-tag tl-proj-tag-mora" title="En mora (estado financiero sincronizado con Odoo)">mora</span><span class="tl-proj-stu-meta">{{ stuMeta(k) }}</span></div>
                         </div>
                         <template v-if="poolDetail.blocked.length">
                             <div class="tl-plan-detail-block">No se pueden mover ({{ poolDetail.blocked.length }}): siguen en su periodo</div>
                             <div v-for="b in poolDetail.blocked" :key="'b' + b.key" class="tl-plan-name-row tl-proj-stu">
-                                <span class="tl-proj-stu-name">{{ stuName(b.key) }}</span><span class="tl-proj-stu-meta">{{ future.pooling.periods[b.k] }} · {{ b.reason }}</span></div>
+                                <span class="tl-proj-stu-name">{{ stuName(b.key) }}</span><span v-if="stuMora(b.key)" class="tl-plan-tag tl-proj-tag-mora" title="En mora (estado financiero sincronizado con Odoo)">mora</span><span class="tl-proj-stu-meta">{{ future.pooling.periods[b.k] }} · {{ b.reason }}</span></div>
                         </template>
                     </v-card-text>
                 </v-card>
@@ -592,6 +595,7 @@ Vue.component('period-projection', {
                          :class="{ 'tl-proj-other': careerFilter && x.s.planid !== careerFilter }">
                         <span class="tl-proj-stu-name" :title="x.s.name + ' · ' + x.s.plan">{{ x.s.name }}</span>
                         <span v-if="x.s.finishing" class="tl-plan-tag tl-proj-tag-finish" title="Termina su plan con este periodo">egresa</span>
+                        <span v-if="x.s.mora" class="tl-plan-tag tl-proj-tag-mora" title="En mora (estado financiero sincronizado con Odoo)">mora</span>
                         <span v-if="j.exception && j.exception.mode === 'modulo' && j.exception.userids.includes(x.s.userid)" class="tl-plan-tag tl-plan-tag-nivel">módulo</span>
                         <span class="tl-proj-stu-meta" :title="x.s.plan">{{ showCareers && !r.isolated ? shortPlan(x.s.plan) + ' · ' : '' }}{{ x.s.level }}</span>
                         <span class="tl-plan-tag" :class="'tl-plan-tag-' + x.cat">{{ catLabel[x.cat] }}</span>
@@ -617,6 +621,7 @@ Vue.component('period-projection', {
                         <div :key="'rep' + x.s.lluid + x.jornada" class="tl-plan-name-row tl-proj-stu">
                             <span class="tl-proj-stu-name" :title="x.s.name + ' · ' + x.s.plan">{{ x.s.name }}</span>
                             <span v-if="x.s.finishing" class="tl-plan-tag tl-proj-tag-finish">egresa</span>
+                            <span v-if="x.s.mora" class="tl-plan-tag tl-proj-tag-mora" title="En mora (estado financiero sincronizado con Odoo)">mora</span>
                             <span class="tl-proj-stu-meta">{{ x.jornada }} · {{ x.s.level }}</span>
                             <span v-if="x.prereq === 'no'" class="tl-plan-tag tl-plan-tag-lock" style="cursor:pointer" :title="'Prelación sin aprobar: ' + x.missing.join(', ') + ' (clic para ver)'"
                               @click.stop="togglePre(r.key + '|rep|' + x.jornada + '|' + x.key)">prelación <v-icon size="9" color="#B45309">{{ openPre[r.key + '|rep|' + x.jornada + '|' + x.key] ? 'mdi-chevron-up' : 'mdi-chevron-down' }}</v-icon></span>
@@ -687,6 +692,7 @@ Vue.component('period-projection', {
                                     <input type="checkbox" :value="x.s.userid" v-model="it.userids" :disabled="x.loaded">
                                     {{ x.s.name }} <span class="tl-cfg-help">{{ shortPlan(x.s.plan) }} · {{ x.s.level }} · {{ catLabel[x.cat] || x.cat }}</span>
                                     <span v-if="x.loaded" class="tl-plan-tag tl-plan-tag-muted">ya cargado</span>
+                                    <span v-if="x.s.mora" class="tl-plan-tag tl-proj-tag-mora" title="En mora (estado financiero sincronizado con Odoo)">mora</span>
                                 </label>
                             </div>
                             <div v-if="it.blocked && it.blocked.length" class="tl-proj-exc-students" style="border-color:#F59E0B;margin-top:6px;max-height:260px;overflow-x:hidden">
@@ -701,6 +707,7 @@ Vue.component('period-projection', {
                                     <input type="checkbox" :value="x.s.userid" v-model="it.userids">
                                     {{ x.s.name }} <span class="tl-cfg-help">{{ x.jornada }} · {{ shortPlan(x.s.plan) }} · {{ x.s.level }} · {{ catLabel[x.cat] || x.cat }}</span>
                                     <span class="tl-plan-tag tl-plan-tag-lock">falta: {{ x.missing.join(', ') || 'prelación' }}</span>
+                                    <span v-if="x.s.mora" class="tl-plan-tag tl-proj-tag-mora" title="En mora (estado financiero sincronizado con Odoo)">mora</span>
                                 </label>
                             </div>
                         </template>
@@ -721,6 +728,7 @@ Vue.component('period-projection', {
                                 <label v-for="x in lv.list" :key="'ad' + advKey(x)" class="tl-cfg-check" style="margin-left:22px">
                                     <input type="checkbox" :value="advKey(x)" v-model="it.addKeys">
                                     {{ x.s.name }} <span class="tl-cfg-help">{{ shortPlan(x.s.plan) }}</span>
+                                    <span v-if="x.s.mora" class="tl-plan-tag tl-proj-tag-mora" title="En mora (estado financiero sincronizado con Odoo)">mora</span>
                                 </label>
                             </div>
                         </div>
@@ -729,6 +737,7 @@ Vue.component('period-projection', {
                                 <input type="checkbox" :value="x.s.userid" v-model="it.userids">
                                 {{ x.s.name }} <span class="tl-cfg-help">{{ shortPlan(x.s.plan) }} · {{ x.s.level }}</span>
                                 <span v-if="x.s.finishing" class="tl-plan-tag tl-proj-tag-finish">egresa</span>
+                                <span v-if="x.s.mora" class="tl-plan-tag tl-proj-tag-mora" title="En mora (estado financiero sincronizado con Odoo)">mora</span>
                             </label>
                         </div>
                     </div>
@@ -999,10 +1008,12 @@ Vue.component('period-projection', {
             let subjects = 0, groups = 0, covered = 0, uncovered = 0;
             const cf = this.careerFilter;
             const finishing = new Set();
+            const mora = new Set();
             this.scoped.forEach(r => {
                 if (r.opens) subjects++;
                 r.jornadas.forEach(j => {
                     const n = cf ? j.mine : j.ready;
+                    j.readyStudents.forEach(x => { if (x.s.mora && (!cf || x.s.planid === cf)) mora.add(x.s.userid); });
                     if (j.groups) { groups += j.groups; covered += n; }
                     else if (j.exception) { groups += 1; covered += j.exception.mode === 'modulo' ? j.exception.userids.length : n; }
                     else {
@@ -1011,7 +1022,7 @@ Vue.component('period-projection', {
                     }
                 });
             });
-            return { subjects, groups, covered, uncovered, finishingShort: finishing.size };
+            return { subjects, groups, covered, uncovered, finishingShort: finishing.size, mora: mora.size };
         },
         selectedList() { return Object.values(this.selected); },
         // Juntar cohortes: filtros de carrera, jornada y busqueda.
@@ -1357,9 +1368,9 @@ Vue.component('period-projection', {
         async openModules() { this.view = 'modules'; await this.loadGrouping(); },
         exportModules() {
             const esc = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
-            const lines = [['Tipo', 'Asignatura', 'Jornada', 'Estudiante', 'Documento', 'Correo', 'Carrera', 'Nivel', 'Egresa', 'Decisión'].map(esc).join(',')];
+            const lines = [['Tipo', 'Asignatura', 'Jornada', 'Estudiante', 'Documento', 'Correo', 'Carrera', 'Nivel', 'Egresa', 'En mora', 'Decisión'].map(esc).join(',')];
             this.modRows.forEach(r => r.students.forEach(s => lines.push([r.type === 'modulo' ? 'Módulo' : 'Sin horario', r.name,
-                r.type === 'sin_horario' ? 'Todas' : r.jornada, s.name, s.documento, s.email, s.plan, s.level, s.finishing ? 'Sí' : '',
+                r.type === 'sin_horario' ? 'Todas' : r.jornada, s.name, s.documento, s.email, s.plan, s.level, s.finishing ? 'Sí' : '', s.mora ? 'Sí' : '',
                 r.decision ? this.decisionLabel(r.decision) + (r.decision.note ? ' — ' + r.decision.note : '') : ''].map(esc).join(','))));
             const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
             const url = URL.createObjectURL(blob);
@@ -1569,6 +1580,7 @@ Vue.component('period-projection', {
         },
         poolTag(a) { return a === 'espera' ? 'tl-plan-tag-atrasada' : a === 'adelanta' ? 'tl-plan-tag-adelanto' : 'tl-plan-tag-nivel'; },
         stuName(k) { const s = this.future && this.future.students[k]; return s ? s.name : k; },
+        stuMora(k) { const s = this.future && this.future.students[k]; return !!(s && s.mora); },
         stuMeta(k) { const s = this.future && this.future.students[k]; return s ? this.shortPlan(s.plan) + ' · ' + s.level + ' · ingreso ' + (s.ingreso || '?') : ''; },
         // Se puede aplicar al periodo que se planifica si abre ahora (con cohorte o grupo de este periodo) o si la cohorte de este periodo espera.
         poolApplicable(p) {

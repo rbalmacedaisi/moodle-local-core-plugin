@@ -264,6 +264,8 @@ class demand_engine {
             }
         }
         $periodname = trim((string)$this->period->name);
+        // Estado financiero (sincronizado desde Odoo): los activos en mora se resaltan en la planificacion.
+        $mora = array_flip(array_map('intval', $DB->get_fieldset_select('gmk_financial_status', 'userid', "status = 'mora'")));
 
         // 5. Por estudiante: nivel, cohorte y asignaturas del periodo.
         $students = [];
@@ -455,7 +457,7 @@ class demand_engine {
                 'email' => (string)$r->email, 'phone' => trim((string)$r->phone1), 'phone2' => trim((string)$r->phone2),
                 'jornada' => $jornada, 'ingreso' => trim((string)$r->ingreso), 'cohort' => $cohortkey,
                 'ord' => $ord, 'level' => self::ord_label($ord), 'registered' => self::ord_label((int)$lv['curord']),
-                'last' => $last, 'finishing' => $finishing, 'flags' => $flags,
+                'last' => $last, 'finishing' => $finishing, 'flags' => $flags, 'mora' => isset($mora[$uid]),
                 'subjects' => array_values(array_map(function ($s) {
                     return (array)$s;
                 }, $subjects)),
@@ -546,7 +548,7 @@ class demand_engine {
         // 8. Totales.
         $totals = ['estudiantes' => count($students), 'cohortes' => count($cohortout), 'repitentes' => 0,
             'con_bloqueos' => 0, 'carga_baja' => 0, 'ultimo_bimestre' => 0, 'egresan' => 0, 'sin_jornada' => 0,
-            'sin_ingreso' => 0, 'suspendidos' => 0];
+            'sin_ingreso' => 0, 'suspendidos' => 0, 'en_mora' => 0];
         foreach ($students as $s) {
             $totals['repitentes'] += $s['repite'] ? 1 : 0;
             $totals['con_bloqueos'] += $s['blocked'] ? 1 : 0;
@@ -556,6 +558,7 @@ class demand_engine {
                 $totals[$f] += in_array($f, $s['flags'], true) ? 1 : 0;
             }
             $totals['suspendidos'] += in_array('suspendido', $s['flags'], true) ? 1 : 0;
+            $totals['en_mora'] += $s['mora'] ? 1 : 0;
         }
 
         $horizon = $this->horizon ? $this->project_horizon($students, $plancourses, $planperiods, $hist, $flex, $iso, $start,
