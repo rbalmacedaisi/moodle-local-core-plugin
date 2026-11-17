@@ -280,6 +280,37 @@ Interruptor "Disponible / Ausente" en la píldora. Cada cambio queda registrado 
 
 ---
 
+### 8.4 Docentes también abren tickets (a TI)
+Decidido el 17-nov-2026. El docente no usa el portal de estudiantes, así que en Moodle tiene su propio botón "Ayuda TI":
+- lo agrega el mismo `before_footer` que el indicador flotante, visible a quien tenga rol de profesor en algún curso;
+- también aparece en el panel docente (`teacher_dashboard`).
+
+El docente solo ve las categorías marcadas "disponible para docentes" (por defecto, Soporte Tecnológico). El resto funciona igual: chat, semáforo y calificación. Sus respuestas le llegan con el aviso persistente y la campanita de Moodle.
+
+### 8.5 Modo "incisivo" para TI y administradores
+Objetivo: que para Esteban (TI) y los administradores sea imposible no enterarse de un mensaje. Se logra con **capas**: cada una cubre el hueco de la anterior, desde la pestaña abierta hasta el celular con el navegador cerrado.
+
+| Capa | Dónde llega | Cómo funciona |
+|---|---|---|
+| 1. Bloqueo en pantalla | Cualquier página de Moodle abierta | Con un mensaje nuevo sin atender, aparece una **ventana a pantalla completa** que no se cierra con clic fuera ni con Esc. Opciones: "Abrir chat", "Tomar", o "Posponer 5 min" (máximo 2 veces). Tras posponer, vuelve. |
+| 2. Sonido y título | Pestaña abierta, aunque esté en segundo plano | Suena una alerta que se repite cada 30 s hasta abrirlo. El título de la pestaña parpadea: "🔴 (2) Ticket nuevo – TI". El favicon lleva un punto rojo. |
+| 3. Notificación del sistema operativo | Navegador abierto, aunque esté minimizado o en otra aplicación | API `Notification` del navegador. El sistema pide el permiso la primera vez y lo vuelve a pedir si fue denegado. Se usa la opción `requireInteraction`, para que la notificación **no desaparezca sola** en Windows y macOS. |
+| 4. Push web | Navegador cerrado (Chrome o Edge corriendo en segundo plano) y Android | Service worker del plugin + Web Push con claves VAPID, guardando la suscripción de cada agente. Llega como notificación nativa aunque Moodle no esté abierto. |
+| 5. Celular por Telegram | Teléfono, en cualquier lugar | Bot de Telegram de la institución: gratis, inmediato y fácil de integrar. Cada agente vincula su cuenta con un código desde Moodle. El mensaje dice *"TKT-2026-0123 · Soporte Tecnológico · Docente: Juan Pérez · espera 12 min"* con botón "Abrir". **No incluye el contenido del chat.** |
+| 6. Escalamiento por falta de acuse | Respaldo y supervisores | Si el agente no abre ni toma el ticket en **5 min hábiles**, el aviso pasa a su respaldo y a los administradores. El tiempo es configurable y es aparte del semáforo de 20 min. |
+
+Detalles importantes:
+- **Acuse obligatorio.** El aviso solo se apaga cuando el agente **abre** el ticket o lo **toma**. Ver la píldora no cuenta. Así se mide el "tiempo hasta acuse" y se sabe si alguien ignora avisos.
+- **Respeta la disponibilidad.** El modo incisivo se activa solo si el agente está "Disponible" y en su horario hábil. Fuera de horario solo hay campanita, y el ticket espera la jornada siguiente según §6.2.
+- **Configurable por persona y rol** (§12-bis): cada capa se activa o desactiva y el sonido se elige, con valores por defecto para TI y administradores:
+  - **Agente de TI:** todas las capas.
+  - **Administradores:** bloqueo solo con tickets en naranja o rojo; Telegram activo.
+  - **Agentes académicos:** sin bloqueo a pantalla completa. Les llegan sonido, notificación del sistema y Telegram.
+- **Privacidad:** las capas 3, 4 y 5 nunca muestran el texto del mensaje, solo número, categoría, quién y tiempo de espera. En Psicología ni siquiera el nombre del estudiante: dicen "Ticket confidencial".
+- **WhatsApp como alternativa a Telegram:** se puede, con la API oficial de WhatsApp Business (Meta Cloud API). Tiene costo por mensaje, requiere plantillas aprobadas por Meta y un número dedicado. Recomendado empezar con Telegram y evaluar WhatsApp después.
+
+Fase sugerida: las capas 1 a 3 entran en la fase 2, con el indicador flotante. Las capas 4 y 5 (push web y Telegram) son una fase 2-bis corta, porque necesitan las claves VAPID y crear el bot.
+
 ## 9. Indicadores y tablero de supervisión
 
 Tablero con filtros por fecha, área, categoría y agente:
@@ -378,4 +409,6 @@ Notas de implementación:
 
 ## 13. Decisiones pendientes
 
-1. **Docentes:** ¿también pueden abrir tickets a Soporte Tecnológico? (El modelo lo soporta sin cambios.)
+Ninguna de la fase 0. Por confirmar al llegar a la fase 2-bis:
+1. Crear el bot de Telegram de la institución (nombre y cuenta dueña).
+2. ¿WhatsApp Business más adelante?
