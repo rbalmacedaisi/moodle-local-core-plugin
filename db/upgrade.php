@@ -4471,6 +4471,233 @@ if ($oldversion < 20261001093) {
         upgrade_plugin_savepoint(true, 20261001111, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20261001120) {
+        // Mesa de ayuda con tickets, fase 1 (docs/planning/PLAN_TICKETS_SOPORTE.md):
+        // tablas gmk_tkt_*, rol gmk_gerencia, capacidades support_* y carga
+        // inicial de la configuracion (una sola vez, ver local\support\setup).
+        $t = new xmldb_table('gmk_tkt_area');
+        $t->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $t->add_field('code', XMLDB_TYPE_CHAR, '30', null, XMLDB_NOTNULL, null, '');
+        $t->add_field('name', XMLDB_TYPE_CHAR, '100', null, XMLDB_NOTNULL, null, '');
+        $t->add_field('description', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $t->add_field('icon', XMLDB_TYPE_CHAR, '60', null, XMLDB_NOTNULL, null, '');
+        $t->add_field('hours', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $t->add_field('external_url', XMLDB_TYPE_CHAR, '255', null, XMLDB_NOTNULL, null, '');
+        $t->add_field('external_label', XMLDB_TYPE_CHAR, '100', null, XMLDB_NOTNULL, null, '');
+        $t->add_field('external_message', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $t->add_field('teacher_visible', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('active', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '1');
+        $t->add_field('sortorder', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $t->add_index('idx_tktarea_code', XMLDB_INDEX_UNIQUE, ['code']);
+        if (!$dbman->table_exists($t)) {
+            $dbman->create_table($t);
+        }
+
+        $t = new xmldb_table('gmk_tkt_category');
+        $t->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $t->add_field('areaid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('name', XMLDB_TYPE_CHAR, '150', null, XMLDB_NOTNULL, null, '');
+        $t->add_field('description', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $t->add_field('confidential', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('requires_attachment', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('autoassign', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '1');
+        $t->add_field('priority_default', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '1');
+        $t->add_field('sla_first_response_min', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('sla_resolution_min', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('active', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '1');
+        $t->add_field('sortorder', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $t->add_index('idx_tktcat_area', XMLDB_INDEX_NOTUNIQUE, ['areaid', 'sortorder']);
+        if (!$dbman->table_exists($t)) {
+            $dbman->create_table($t);
+        }
+
+        $t = new xmldb_table('gmk_tkt_agent');
+        $t->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $t->add_field('categoryid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('can_auto_assign', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '1');
+        $t->add_field('max_open', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $t->add_index('idx_tktagent_cat_user', XMLDB_INDEX_UNIQUE, ['categoryid', 'userid']);
+        $t->add_index('idx_tktagent_user', XMLDB_INDEX_NOTUNIQUE, ['userid']);
+        if (!$dbman->table_exists($t)) {
+            $dbman->create_table($t);
+        }
+
+        $t = new xmldb_table('gmk_tkt_backup');
+        $t->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $t->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('backupuserid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('categoryid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('sortorder', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $t->add_index('idx_tktbackup_user', XMLDB_INDEX_NOTUNIQUE, ['userid']);
+        if (!$dbman->table_exists($t)) {
+            $dbman->create_table($t);
+        }
+
+        $t = new xmldb_table('gmk_tkt_person');
+        $t->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $t->add_field('kind', XMLDB_TYPE_CHAR, '20', null, XMLDB_NOTNULL, null, '');
+        $t->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $t->add_index('idx_tktperson_kind_user', XMLDB_INDEX_UNIQUE, ['kind', 'userid']);
+        if (!$dbman->table_exists($t)) {
+            $dbman->create_table($t);
+        }
+
+        $t = new xmldb_table('gmk_tkt_presence');
+        $t->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $t->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('available', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '1');
+        $t->add_field('modifiedby', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $t->add_index('idx_tktpresence_user', XMLDB_INDEX_UNIQUE, ['userid']);
+        if (!$dbman->table_exists($t)) {
+            $dbman->create_table($t);
+        }
+
+        $t = new xmldb_table('gmk_tkt_template');
+        $t->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $t->add_field('code', XMLDB_TYPE_CHAR, '40', null, XMLDB_NOTNULL, null, '');
+        $t->add_field('name', XMLDB_TYPE_CHAR, '150', null, XMLDB_NOTNULL, null, '');
+        $t->add_field('body', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $t->add_field('enabled', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '1');
+        $t->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $t->add_index('idx_tkttpl_code', XMLDB_INDEX_UNIQUE, ['code']);
+        if (!$dbman->table_exists($t)) {
+            $dbman->create_table($t);
+        }
+
+        $t = new xmldb_table('gmk_tkt_ticket');
+        $t->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $t->add_field('number', XMLDB_TYPE_CHAR, '20', null, XMLDB_NOTNULL, null, '');
+        $t->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('requesterrole', XMLDB_TYPE_CHAR, '10', null, XMLDB_NOTNULL, null, 'student');
+        $t->add_field('areaid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('categoryid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('subject', XMLDB_TYPE_CHAR, '255', null, XMLDB_NOTNULL, null, '');
+        $t->add_field('status', XMLDB_TYPE_CHAR, '30', null, XMLDB_NOTNULL, null, 'nuevo');
+        $t->add_field('priority', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '1');
+        $t->add_field('confidential', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('assignedto', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('classid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('learningplanid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('first_response_at', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('first_response_due', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('resolution_due', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('waiting_since', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('resolved_at', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('closed_at', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('reopened_count', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('escalation_level', XMLDB_TYPE_INTEGER, '2', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('last_student_msg_at', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('last_staff_msg_at', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('lastmessageid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('lastmessageat', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('rating', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('rating_comment', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $t->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $t->add_index('idx_tkt_number', XMLDB_INDEX_UNIQUE, ['number']);
+        $t->add_index('idx_tkt_status_area', XMLDB_INDEX_NOTUNIQUE, ['status', 'areaid']);
+        $t->add_index('idx_tkt_assigned_status', XMLDB_INDEX_NOTUNIQUE, ['assignedto', 'status']);
+        $t->add_index('idx_tkt_user_status', XMLDB_INDEX_NOTUNIQUE, ['userid', 'status']);
+        $t->add_index('idx_tkt_frdue', XMLDB_INDEX_NOTUNIQUE, ['first_response_due']);
+        $t->add_index('idx_tkt_resdue', XMLDB_INDEX_NOTUNIQUE, ['resolution_due']);
+        $t->add_index('idx_tkt_category', XMLDB_INDEX_NOTUNIQUE, ['categoryid']);
+        if (!$dbman->table_exists($t)) {
+            $dbman->create_table($t);
+        }
+
+        $t = new xmldb_table('gmk_tkt_message');
+        $t->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $t->add_field('ticketid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('senderid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('senderrole', XMLDB_TYPE_CHAR, '12', null, XMLDB_NOTNULL, null, 'student');
+        $t->add_field('body', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $t->add_field('internal', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('hasattachments', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('deleted', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $t->add_index('idx_tktmsg_ticket', XMLDB_INDEX_NOTUNIQUE, ['ticketid', 'id']);
+        $t->add_index('idx_tktmsg_sender_time', XMLDB_INDEX_NOTUNIQUE, ['senderid', 'timecreated']);
+        if (!$dbman->table_exists($t)) {
+            $dbman->create_table($t);
+        }
+
+        $t = new xmldb_table('gmk_tkt_read');
+        $t->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $t->add_field('ticketid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('lastreadmessageid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('timeread', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $t->add_index('idx_tktread_ticket_user', XMLDB_INDEX_UNIQUE, ['ticketid', 'userid']);
+        if (!$dbman->table_exists($t)) {
+            $dbman->create_table($t);
+        }
+
+        $t = new xmldb_table('gmk_tkt_event');
+        $t->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $t->add_field('ticketid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('eventtype', XMLDB_TYPE_CHAR, '40', null, XMLDB_NOTNULL, null, '');
+        $t->add_field('oldvalue', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $t->add_field('newvalue', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $t->add_field('actorid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('metadata', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $t->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $t->add_index('idx_tktevt_ticket', XMLDB_INDEX_NOTUNIQUE, ['ticketid', 'id']);
+        $t->add_index('idx_tktevt_type_time', XMLDB_INDEX_NOTUNIQUE, ['eventtype', 'timecreated']);
+        if (!$dbman->table_exists($t)) {
+            $dbman->create_table($t);
+        }
+
+        $t = new xmldb_table('gmk_tkt_seq');
+        $t->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $t->add_field('year', XMLDB_TYPE_INTEGER, '4', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('lastnumber', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $t->add_index('idx_tktseq_year', XMLDB_INDEX_UNIQUE, ['year']);
+        if (!$dbman->table_exists($t)) {
+            $dbman->create_table($t);
+        }
+
+        $t = new xmldb_table('gmk_tkt_canned');
+        $t->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $t->add_field('areaid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('title', XMLDB_TYPE_CHAR, '150', null, XMLDB_NOTNULL, null, '');
+        $t->add_field('body', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $t->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $t->add_index('idx_tktcanned_area', XMLDB_INDEX_NOTUNIQUE, ['areaid']);
+        if (!$dbman->table_exists($t)) {
+            $dbman->create_table($t);
+        }
+
+        create_roles();
+        assign_capabilities_to_internal_roles();
+        \local_grupomakro_core\local\support\setup::seed_defaults();
+
+        upgrade_plugin_savepoint(true, 20261001120, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

@@ -1534,3 +1534,62 @@ $string['msg_err_toolong'] = 'El mensaje supera el máximo de {$a} caracteres.';
 $string['msg_err_ratelimit'] = 'Enviaste demasiados mensajes en poco tiempo. Intenta de nuevo en unos minutos.';
 $string['msg_err_noteacher'] = 'Esta clase no tiene docente asignado.';
 $string['msg_err_notstudent'] = 'El usuario no es estudiante de esta clase.';
+
+// Mesa de ayuda con tickets (20261001120).
+$string['grupomakro_core:support_create'] = 'Abrir solicitudes en la mesa de ayuda';
+$string['grupomakro_core:support_agent'] = 'Atender tickets de la mesa de ayuda';
+$string['grupomakro_core:support_supervise'] = 'Supervisar todas las bandejas de la mesa de ayuda';
+$string['grupomakro_core:support_viewconfidential'] = 'Ver tickets confidenciales de la mesa de ayuda';
+$string['grupomakro_core:support_manage'] = 'Configurar la mesa de ayuda';
+$string['grupomakro_core:support_receive_escalations'] = 'Recibir escalamientos y el resumen diario de la mesa de ayuda';
+$string['messageprovider:support_reply'] = 'Mesa de ayuda: respuesta del personal a tu solicitud';
+$string['messageprovider:support_resolved'] = 'Mesa de ayuda: tu solicitud se marcó resuelta';
+$string['messageprovider:support_new_ticket'] = 'Mesa de ayuda: ticket nuevo sin asignar';
+$string['messageprovider:support_assigned'] = 'Mesa de ayuda: se te asignó un ticket';
+$string['messageprovider:support_student_message'] = 'Mesa de ayuda: el estudiante escribió en un ticket';
+$string['task_support_autoclose'] = 'Mesa de ayuda: cierre de tickets sin respuesta del estudiante';
+$string['tkt_desk_title'] = 'Mesa de ayuda';
+$string['tkt_settings_title'] = 'Configuración de la mesa de ayuda';
+$string['tkt_err_noaccess'] = 'No tienes acceso a esta solicitud.';
+$string['tkt_err_notfound'] = 'La solicitud no existe.';
+$string['tkt_err_nostaff'] = 'No formas parte del personal de la mesa de ayuda.';
+$string['tkt_err_badcategory'] = 'El tema elegido no está disponible.';
+$string['tkt_err_empty'] = 'El mensaje está vacío.';
+$string['tkt_err_toolong'] = 'El mensaje supera el máximo de {$a} caracteres.';
+$string['tkt_err_maxopen'] = 'Ya tienes {$a} solicitudes abiertas. Espera a que se resuelva alguna antes de abrir otra.';
+$string['tkt_err_maxdaily'] = 'Llegaste al máximo de {$a} solicitudes por día. Intenta mañana o escribe en una solicitud abierta.';
+$string['tkt_err_ratelimit'] = 'Enviaste demasiados mensajes en poco tiempo. Intenta de nuevo en unos minutos.';
+$string['tkt_err_closed'] = 'La solicitud está cerrada y no admite cambios.';
+$string['tkt_err_badstatus'] = 'Esta acción no está disponible en el estado actual de la solicitud.';
+$string['tkt_err_badtransition'] = 'Cambio de estado no permitido ({$a->from} → {$a->to}).';
+$string['tkt_err_alreadyassigned'] = 'El ticket ya está asignado. Solo un supervisor puede tomarlo.';
+$string['tkt_err_cannotassign'] = 'Solo un supervisor o el agente asignado puede reasignar el ticket.';
+$string['tkt_err_badagent'] = 'Esa persona no puede atender este ticket.';
+$string['tkt_err_noresponse'] = 'No se puede resolver ni cerrar un ticket sin al menos una respuesta del personal.';
+$string['tkt_err_sequence'] = 'No se pudo generar el número de la solicitud. Intenta de nuevo.';
+$string['tkt_notif_support_reply_subject'] = '{$a->number}: tienes una respuesta de {$a->area}';
+$string['tkt_notif_support_reply_body'] = '{$a->area} respondió tu solicitud {$a->number}.
+
+{$a->excerpt}
+
+Ver la respuesta: {$a->url}';
+$string['tkt_notif_support_resolved_subject'] = '{$a->number}: marcamos tu solicitud como resuelta';
+$string['tkt_notif_support_resolved_body'] = 'Marcamos tu solicitud {$a->number} como resuelta. Cuéntanos si se resolvió tu caso: {$a->url}';
+$string['tkt_notif_support_new_ticket_subject'] = 'Ticket sin asignar {$a->number} · {$a->category}';
+$string['tkt_notif_support_new_ticket_body'] = 'Hay un ticket sin asignar en {$a->area} / {$a->category}: {$a->number} ({$a->student}).
+
+{$a->excerpt}
+
+Tomarlo: {$a->url}';
+$string['tkt_notif_support_assigned_subject'] = 'Se te asignó {$a->number} · {$a->category}';
+$string['tkt_notif_support_assigned_body'] = 'Se te asignó el ticket {$a->number} de {$a->student} ({$a->area} / {$a->category}).
+
+{$a->excerpt}
+
+Abrirlo: {$a->url}';
+$string['tkt_notif_support_student_message_subject'] = '{$a->number}: mensaje nuevo de {$a->student}';
+$string['tkt_notif_support_student_message_body'] = '{$a->student} escribió en el ticket {$a->number} ({$a->category}).
+
+{$a->excerpt}
+
+Abrirlo: {$a->url}';

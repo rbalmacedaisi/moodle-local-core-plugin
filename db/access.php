@@ -378,4 +378,38 @@ $capabilities = array(
         'captype' => 'write', 'contextlevel' => CONTEXT_SYSTEM,
         'archetypes' => array('manager' => CAP_ALLOW),
     ),
+    // Mesa de ayuda con tickets (20261001120). Ver docs/planning/PLAN_TICKETS_SOPORTE.md §3.
+    // support_create: cualquier usuario autenticado abre tickets. El resto se
+    // reparte por rol en db/upgradelib.php (assign_capabilities_to_internal_roles).
+    'local/grupomakro_core:support_create' => array(
+        'captype' => 'write', 'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array('user' => CAP_ALLOW),
+    ),
+    'local/grupomakro_core:support_agent' => array(
+        'riskbitmask' => RISK_PERSONAL,
+        'captype' => 'write', 'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array('manager' => CAP_ALLOW),
+    ),
+    'local/grupomakro_core:support_supervise' => array(
+        'riskbitmask' => RISK_PERSONAL,
+        'captype' => 'write', 'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array('manager' => CAP_ALLOW),
+    ),
+    // Sin archetype a proposito: los tickets confidenciales (Psicologia) solo
+    // los ven sus agentes y gerencia. El codigo la evalua sin "doanything",
+    // asi que ser administrador del sitio no basta.
+    'local/grupomakro_core:support_viewconfidential' => array(
+        'riskbitmask' => RISK_PERSONAL,
+        'captype' => 'read', 'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array(),
+    ),
+    'local/grupomakro_core:support_manage' => array(
+        'riskbitmask' => RISK_CONFIG,
+        'captype' => 'write', 'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array('manager' => CAP_ALLOW),
+    ),
+    'local/grupomakro_core:support_receive_escalations' => array(
+        'captype' => 'read', 'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array(),
+    ),
 );

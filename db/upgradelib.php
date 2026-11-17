@@ -91,6 +91,9 @@ function create_roles() {
         // bandeja administrativa del modulo de Retiro del Programa (RET-01),
         // no comparte las demas capacidades de los directores de area.
         'gmk_director_general'     => 'Director General del ISI',
+        // Gerencia de la mesa de ayuda (20261001120): alertas de desatencion,
+        // resumen diario y tickets confidenciales, sin los permisos de otros roles.
+        'gmk_gerencia'             => 'Gerencia (mesa de ayuda)',
     ];
     foreach ($operational_roles as $shortname => $name) {
         $role = $DB->get_record('role', ['shortname' => $shortname]);
@@ -450,6 +453,11 @@ function assign_capabilities_to_internal_roles() {
     // local/grupomakro_core:import_grades cap declared in db/access.php.
     $role_caps = [
         'gmk_director_academico' => [
+            // Mesa de ayuda (20261001120): atiende y tiene vista constante de todas
+            // las bandejas, salvo los tickets confidenciales de Psicologia.
+            'local/grupomakro_core:support_agent',
+            'local/grupomakro_core:support_supervise',
+            'local/grupomakro_core:support_manage',
             // CORE: cada clase vive en una seccion restringida a SU grupo
             // (create_class_activities escribe availability {"type":"group"} en
             // las 141 secciones de clase abiertas). Quien no pertenece al grupo
@@ -653,6 +661,10 @@ function assign_capabilities_to_internal_roles() {
             'local/grupomakro_core:manage_wdr_requests',
         ],
         'gmk_secretaria_academica' => [
+            // Mesa de ayuda (20261001120): atiende y tiene vista constante de todas
+            // las bandejas, salvo los tickets confidenciales de Psicologia.
+            'local/grupomakro_core:support_agent',
+            'local/grupomakro_core:support_supervise',
             // CORE: cada clase vive en una seccion restringida a SU grupo
             // (create_class_activities escribe availability {"type":"group"} en
             // las 141 secciones de clase abiertas). Quien no pertenece al grupo
@@ -917,6 +929,8 @@ function assign_capabilities_to_internal_roles() {
             'local/grupomakro_core:manage_wdr_requests',
         ],
         'gmk_soporte_ti' => [
+            // Mesa de ayuda (20261001120): atiende sus temas (TI).
+            'local/grupomakro_core:support_agent',
             // Everyone on staff lands on the academic panel after login, so the
             // view capability goes to every operational role even when the rest
             // of that workflow does not.
@@ -931,6 +945,10 @@ function assign_capabilities_to_internal_roles() {
             'local/grupomakro_core:manage_meetings',
         ],
         'gmk_bienestar' => [
+            // Mesa de ayuda (20261001120): atiende y tiene vista constante de todas
+            // las bandejas, salvo los tickets confidenciales de Psicologia.
+            'local/grupomakro_core:support_agent',
+            'local/grupomakro_core:support_supervise',
             // Export the student list from the academic panel. The same
             // capability also covers export_consolidated_grades.php, the other
             // export button on that table - both pages check export_students,
@@ -1037,6 +1055,10 @@ function assign_capabilities_to_internal_roles() {
             // covers the management side only.
         ],
         'gmk_psicologo' => [
+            // Mesa de ayuda (20261001120): atiende y tiene vista constante de todas
+            // las bandejas, salvo los tickets confidenciales de Psicologia.
+            'local/grupomakro_core:support_agent',
+            'local/grupomakro_core:support_supervise',
             // Everyone on staff lands on the academic panel after login, so the
             // view capability goes to every operational role even when the rest
             // of that workflow does not.
@@ -1063,6 +1085,12 @@ function assign_capabilities_to_internal_roles() {
             // amplia aqui.
             'local/grupomakro_core:view_wdr_requests',
             'local/grupomakro_core:manage_wdr_requests',
+        ],
+        'gmk_gerencia' => [
+            'local/grupomakro_core:support_supervise',
+            'local/grupomakro_core:support_viewconfidential',
+            'local/grupomakro_core:support_receive_escalations',
+            'local/grupomakro_core:support_manage',
         ],
     ];
 

@@ -202,4 +202,14 @@ $tasks = [
         'month' => '*',
         'dayofweek' => '0',
     ],
+    [
+        // Mesa de ayuda (20261001120): cierre por falta de respuesta del estudiante.
+        'classname' => 'local_grupomakro_core\task\support_autoclose',
+        'blocking' => 0,
+        'minute' => '*/15',
+        'hour' => '*',
+        'day' => '*',
+        'month' => '*',
+        'dayofweek' => '*',
+    ],
 ];
