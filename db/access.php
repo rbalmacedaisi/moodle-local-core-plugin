@@ -412,4 +412,12 @@ $capabilities = array(
         'captype' => 'read', 'contextlevel' => CONTEXT_SYSTEM,
         'archetypes' => array(),
     ),
+    // 20261001122: reasignar cualquier ticket no confidencial (incluso a otra
+    // area). Supervisores, gerencia y TI (gmk_soporte_ti); ver upgradelib.php.
+    // Los confidenciales solo los reasignan Psicologia y gerencia (codigo).
+    'local/grupomakro_core:support_reassign' => array(
+        'riskbitmask' => RISK_PERSONAL,
+        'captype' => 'write', 'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array('manager' => CAP_ALLOW),
+    ),
 );

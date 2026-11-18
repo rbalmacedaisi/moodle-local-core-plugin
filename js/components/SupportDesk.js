@@ -177,10 +177,15 @@ Vue.component('support-desk', {
         <v-card>
           <v-card-title>Reasignar {{ active && active.number }}</v-card-title>
           <v-card-text>
+            <v-select v-model="assignDialog.categoryid" :items="assignDialog.categories" item-text="label" item-value="id"
+              label="Tema" outlined dense hide-details class="mb-1" @change="loadAssignable"></v-select>
+            <p v-if="active && assignDialog.categoryid !== active.categoryid" class="text-caption orange--text text--darken-3 mb-2">
+              El ticket pasará a {{ assignDialog.categoryLabel }}: queda en el historial y el estudiante recibe un mensaje automático.
+            </p>
             <v-progress-linear v-if="assignDialog.loading" indeterminate></v-progress-linear>
             <v-list dense>
               <v-list-item v-for="u in assignDialog.users" :key="u.id" @click="assignTo(u.id)"
-                :disabled="active && u.id === active.assignedto">
+                :disabled="active && u.id === active.assignedto && assignDialog.categoryid === active.categoryid">
                 <v-list-item-content>
                   <v-list-item-title>{{ u.fullname }}</v-list-item-title>
                   <v-list-item-subtitle>{{ u.openload }} abiertos · {{ u.available ? 'Disponible' : 'Ausente' }}</v-list-item-subtitle>
@@ -225,7 +230,7 @@ Vue.component('support-desk', {
             ],
             tabIndex: 1,
             counts: {},
-            me: { supervisor: false, available: true, manage: false },
+            me: { supervisor: false, available: true, manage: false, reassign: false },
             available: true,
             tickets: [],
             total: 0,
@@ -243,7 +248,7 @@ Vue.component('support-desk', {
             sending: false,
             sendError: '',
             busy: '',
-            assignDialog: { open: false, loading: false, users: [] },
+            assignDialog: { open: false, loading: false, users: [], categoryid: 0, categories: [] },
             categoryDialog: { open: false, categoryid: 0, items: [] },
             snack: { show: false, text: '', color: 'error' },
             timers: [],
@@ -252,7 +257,7 @@ Vue.component('support-desk', {
     },
     computed: {
         visibleTabs() {
-            return this.allTabs.filter(t => t.key !== 'all' || this.me.supervisor);
+            return this.allTabs.filter(t => t.key !== 'all' || this.me.supervisor || this.me.reassign);
         },
         currentTab() {
             const t = this.visibleTabs[this.tabIndex];
@@ -331,12 +336,12 @@ Vue.component('support-desk', {
                 const counts = {};
                 (data.counts || []).forEach(c => { counts[c.tab] = c.count; });
                 this.counts = counts;
-                const wassupervisor = this.me.supervisor;
+                const hadall = this.me.supervisor || this.me.reassign;
                 this.me = data.me;
                 this.available = data.me.available;
                 this.tickets = data.tickets || [];
                 this.total = data.total || 0;
-                if (!wassupervisor && data.me.supervisor && this.tabIndex >= 4) {
+                if (!hadall && (data.me.supervisor || data.me.reassign) && this.tabIndex >= 4) {
                     // "Todos" appeared: keep the same tab selected.
                     this.tabIndex++;
                 }
@@ -458,9 +463,28 @@ Vue.component('support-desk', {
             await this.act(action);
         },
         async openAssign() {
-            this.assignDialog = { open: true, loading: true, users: [] };
+            this.assignDialog = { open: true, loading: true, users: [], categoryid: this.active.categoryid, categories: [], categoryLabel: '' };
             try {
-                const data = await this.call('get_assignable', { ticketid: this.active.id });
+                const data = await this.call('get_assignable', { ticketid: this.active.id, categoryid: 0 });
+                this.assignDialog.users = data.users || [];
+                // Confidential topics are only offered for tickets that already are confidential.
+                this.assignDialog.categories = (data.categories || [])
+                    .filter(c => !c.confidential || this.active.confidential || c.id === this.active.categoryid)
+                    .map(c => ({ id: c.id, label: c.areaname + ' / ' + c.name + (c.confidential ? ' (confidencial)' : '') }));
+            } catch (e) {
+                this.notify(e.message);
+            } finally {
+                this.assignDialog.loading = false;
+            }
+        },
+        async loadAssignable() {
+            const cat = this.assignDialog.categories.find(c => c.id === this.assignDialog.categoryid);
+            this.assignDialog.categoryLabel = cat ? cat.label : '';
+            this.assignDialog.loading = true;
+            this.assignDialog.users = [];
+            try {
+                const data = await this.call('get_assignable', { ticketid: this.active.id,
+                    categoryid: this.assignDialog.categoryid === this.active.categoryid ? 0 : this.assignDialog.categoryid });
                 this.assignDialog.users = data.users || [];
             } catch (e) {
                 this.notify(e.message);
@@ -470,7 +494,8 @@ Vue.component('support-desk', {
         },
         async assignTo(userid) {
             this.assignDialog.open = false;
-            await this.act('assign', { targetuserid: userid });
+            const move = this.assignDialog.categoryid && this.assignDialog.categoryid !== this.active.categoryid;
+            await this.act('assign', { targetuserid: userid, categoryid: move ? this.assignDialog.categoryid : 0 });
         },
         async openCategory() {
             try {

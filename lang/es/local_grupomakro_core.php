@@ -1630,3 +1630,4 @@ $string['tkt_notif_support_low_rating_subject'] = 'Calificación baja: {$a->numb
 $string['tkt_notif_support_low_rating_body'] = 'El solicitante calificó la atención del ticket {$a->number} ({$a->area} / {$a->category}, {$a->student}) con {$a->rating}. Atendió: {$a->agent}.
 
 Revisar el caso: {$a->url}';
+$string['grupomakro_core:support_reassign'] = 'Reasignar tickets de la mesa de ayuda (cualquier área, salvo confidenciales)';

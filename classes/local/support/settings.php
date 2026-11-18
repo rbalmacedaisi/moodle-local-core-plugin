@@ -34,7 +34,7 @@ defined('MOODLE_INTERNAL') || die();
 
 class settings {
 
-    const SECTIONS = ['area', 'category', 'agent', 'backup', 'person', 'template', 'config', 'presence'];
+    const SECTIONS = ['area', 'category', 'agent', 'backup', 'person', 'template', 'config', 'presence', 'agenthours'];
 
     public static function export(): array {
         global $DB;
@@ -102,6 +102,7 @@ class settings {
                     'enabled' => (int)$t->enabled];
             }, $DB->get_records('gmk_tkt_template', null, 'id'))),
             'config' => config::all(),
+            'agenthours' => self::export_agent_hours(),
             // Names for the per-person incisive profiles (phase 2).
             'usernames' => (function() {
                 $users = manager::load_users(array_keys((array)(config::get_json('tkt_incisive')['users'] ?? [])));
@@ -114,6 +115,50 @@ class settings {
             'variables' => ['{numero}', '{categoria}', '{area}', '{agente}', '{horario}', '{estudiante}'],
             'audit' => self::recent_audit(),
         ];
+        return $out;
+    }
+
+    /**
+     * Every agent (or backup) with their own hours, or the areas they inherit from.
+     */
+    private static function export_agent_hours(): array {
+        global $DB;
+        $areasof = [];
+        foreach ($DB->get_records_sql("SELECT a.id, a.userid, c.areaid
+                                           FROM {gmk_tkt_agent} a
+                                           JOIN {gmk_tkt_category} c ON c.id = a.categoryid") as $r) {
+            $areasof[(int)$r->userid][(int)$r->areaid] = true;
+        }
+        $ids = array_keys($areasof);
+        foreach ($DB->get_records_select('gmk_tkt_presence', 'hours IS NOT NULL', [], '', 'id, userid') as $r) {
+            $ids[] = (int)$r->userid;
+        }
+        $users = manager::load_users($ids);
+        $presence = [];
+        foreach ($DB->get_records('gmk_tkt_presence') as $r) {
+            $presence[(int)$r->userid] = $r;
+        }
+        $out = [];
+        foreach ($users as $u) {
+            $own = trim((string)($presence[(int)$u->id]->hours ?? ''));
+            $areanames = [];
+            foreach (array_keys($areasof[(int)$u->id] ?? []) as $aid) {
+                $area = policy::area($aid);
+                if ($area) {
+                    $areanames[] = format_string($area->name) . ($area->hours ? ' (' . business_hours::describe($area) . ')' : '');
+                }
+            }
+            $out[] = [
+                'userid' => (int)$u->id,
+                'fullname' => fullname($u),
+                'hours' => $own !== '' ? (json_decode($own, true) ?: new stdClass()) : null,
+                'hourstext' => $own !== '' ? business_hours::describe((object)['hours' => $own]) : '',
+                'inherits' => implode('; ', $areanames),
+            ];
+        }
+        usort($out, function($a, $b) {
+            return strcmp($a['fullname'], $b['fullname']);
+        });
         return $out;
     }
 
@@ -341,6 +386,35 @@ class settings {
         $new = !empty($d['available']);
         manager::set_availability($userid, $new, $actorid);
         return [['userid' => $userid, 'available' => $old], ['userid' => $userid, 'available' => $new]];
+    }
+
+    /**
+     * Own business hours of an agent; empty = back to the area's hours.
+     */
+    private static function save_agenthours(array $d, int $actorid): array {
+        global $DB;
+        $userid = self::user($d['userid'] ?? 0);
+        $raw = $d['hours'] ?? '';
+        $hours = null;
+        if ($raw !== '' && $raw !== null) {
+            $hours = business_hours::normalise(is_string($raw) ? $raw : json_encode($raw));
+            if (!business_hours::parse($hours)) {
+                // An agent "closed every day" makes no sense: treat it as "use the area".
+                $hours = null;
+            }
+        }
+        $row = $DB->get_record('gmk_tkt_presence', ['userid' => $userid]);
+        $old = $row ? ($row->hours === null ? null : (string)$row->hours) : null;
+        if ($row) {
+            $DB->update_record('gmk_tkt_presence', (object)['id' => $row->id, 'hours' => $hours, 'modifiedby' => $actorid,
+                'timemodified' => time()]);
+        } else {
+            $DB->insert_record('gmk_tkt_presence', (object)['userid' => $userid, 'available' => 1, 'hours' => $hours,
+                'modifiedby' => $actorid, 'timemodified' => time()]);
+        }
+        policy::reset_caches();
+        badge::invalidate($userid);
+        return [['userid' => $userid, 'hours' => $old], ['userid' => $userid, 'hours' => $hours]];
     }
 
     // --- Templates and parameters ---------------------------------------------

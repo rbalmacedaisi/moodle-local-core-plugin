@@ -95,6 +95,26 @@ Vue.component('support-settings', {
                 </v-simple-table>
                 <v-btn x-small text color="primary" @click="editTopic({ areaid: a.id })"><v-icon x-small left>mdi-plus</v-icon>Nuevo tema</v-btn>
               </div>
+
+              <v-divider class="my-4"></v-divider>
+              <div class="text-subtitle-1 font-weight-medium mb-1">Horario hábil por agente</div>
+              <p class="text--secondary">Con un ticket asignado, el semáforo, el escalamiento, el plazo de acuse y el modo incisivo cuentan solo las horas hábiles de su agente. Sin horario propio, el agente trabaja el horario del área del ticket. Si el asignado está fuera de su horario y el área está abierta, el ticket pasa a otro agente del tema o a su respaldo que esté en horario.</p>
+              <v-simple-table dense>
+                <thead><tr><th>Agente</th><th>Horario</th><th></th></tr></thead>
+                <tbody>
+                  <tr v-for="h in s.agenthours" :key="h.userid">
+                    <td>{{ h.fullname }}</td>
+                    <td class="text-caption">
+                      <span v-if="h.hours">{{ h.hourstext }}</span>
+                      <span v-else class="text--secondary">Hereda del área: {{ h.inherits || '—' }}</span>
+                    </td>
+                    <td class="text-right">
+                      <v-btn x-small text color="primary" @click="editAgentHours(h)">Editar</v-btn>
+                      <v-btn v-if="h.hours" x-small text color="error" @click="save('agenthours', { userid: h.userid, hours: '' })">Usar el del área</v-btn>
+                    </td>
+                  </tr>
+                </tbody>
+              </v-simple-table>
             </v-card-text>
           </v-tab-item>
 
@@ -338,6 +358,26 @@ Vue.component('support-settings', {
         </v-card>
       </v-dialog>
 
+      <!-- Agent hours dialog -->
+      <v-dialog v-model="agentHoursDialog.open" max-width="640" scrollable>
+        <v-card v-if="agentHoursDialog.row">
+          <v-card-title>Horario de {{ agentHoursDialog.row.fullname }}</v-card-title>
+          <v-card-text>
+            <p class="text-caption text--secondary mb-2">Tramos por día, separados por coma: 08:00-12:00, 13:00-17:00. Vacío = no trabaja ese día. Todo vacío = vuelve al horario del área.</p>
+            <v-row dense>
+              <v-col v-for="d in days" :key="d.n" cols="12" md="6">
+                <v-text-field v-model="agentHoursDialog.hours[d.n]" :label="d.label" outlined dense placeholder="no trabaja"></v-text-field>
+              </v-col>
+            </v-row>
+          </v-card-text>
+          <v-card-actions>
+            <v-spacer></v-spacer>
+            <v-btn text @click="agentHoursDialog.open = false">Cancelar</v-btn>
+            <v-btn color="primary" depressed @click="saveAgentHours">Guardar</v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-dialog>
+
       <v-snackbar v-model="snack.show" :color="snack.color" timeout="5000">{{ snack.text }}</v-snackbar>
     </v-container>
     `,
@@ -350,6 +390,7 @@ Vue.component('support-settings', {
             days: [{ n: 1, label: 'Lunes' }, { n: 2, label: 'Martes' }, { n: 3, label: 'Miércoles' }, { n: 4, label: 'Jueves' },
                 { n: 5, label: 'Viernes' }, { n: 6, label: 'Sábado' }, { n: 7, label: 'Domingo' }],
             areaDialog: { open: false, row: null, hours: {} },
+            agentHoursDialog: { open: false, row: null, hours: {} },
             topicDialog: { open: false, row: null },
             agentDialog: { open: false, row: null },
             newBackup: { userid: null, backupuserid: null, categoryid: 0 },
@@ -505,10 +546,31 @@ Vue.component('support-settings', {
             });
             this.areaDialog = { open: true, row: row, hours: hours };
         },
-        hoursToJson() {
+        editAgentHours(h) {
+            const hours = {};
+            this.days.forEach(d => {
+                const ranges = (h.hours && h.hours[d.n]) || [];
+                hours[d.n] = ranges.map(r => r[0] + '-' + r[1]).join(', ');
+            });
+            this.agentHoursDialog = { open: true, row: h, hours: hours };
+        },
+        async saveAgentHours() {
+            let hours;
+            try {
+                hours = this.hoursToJson(this.agentHoursDialog.hours);
+            } catch (e) {
+                this.notify(e.message, 'error');
+                return;
+            }
+            const empty = Object.keys(hours).length === 0;
+            const ok = await this.save('agenthours', { userid: this.agentHoursDialog.row.userid, hours: empty ? '' : JSON.stringify(hours) });
+            if (ok) this.agentHoursDialog.open = false;
+        },
+        hoursToJson(source) {
+            const src = source || this.areaDialog.hours;
             const out = {};
             for (const d of this.days) {
-                const text = (this.areaDialog.hours[d.n] || '').trim();
+                const text = (src[d.n] || '').trim();
                 if (!text) continue;
                 out[d.n] = text.split(',').map(part => {
                     const m = part.trim().match(/^(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})$/);

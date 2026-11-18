@@ -47,7 +47,7 @@ class escalation {
     public static function run(int $now = 0): array {
         global $DB;
         $now = $now ?: time();
-        $stats = ['tickets' => 0, 'escalated' => 0, 'repeated' => 0, 'noack' => 0, 'errors' => 0];
+        $stats = ['tickets' => 0, 'escalated' => 0, 'repeated' => 0, 'noack' => 0, 'handoff' => 0, 'errors' => 0];
         if (!config::get_int('tkt_escalation_enabled')) {
             return $stats;
         }
@@ -58,6 +58,9 @@ class escalation {
         foreach ($rows as $ticket) {
             $stats['tickets']++;
             try {
+                if (self::handoff_off_hours($ticket, $now)) {
+                    $stats['handoff']++;
+                }
                 $r = self::process_ticket($ticket, $now);
                 if ($r === 'escalated') {
                     $stats['escalated']++;
@@ -119,7 +122,7 @@ class escalation {
         $repeat = config::get_int('tkt_red_repeat');
         if ($current >= policy::LEVEL_RED && $target >= policy::LEVEL_RED && $repeat > 0
                 && (int)$ticket->escalated_at > 0
-                && business_hours::elapsed((int)$ticket->escalated_at, $now, policy::area((int)$ticket->areaid)) >= $repeat) {
+                && business_hours::elapsed((int)$ticket->escalated_at, $now, policy::clock($ticket)) >= $repeat) {
             $actions = policy::escalation_actions(policy::LEVEL_RED);
             $done = [];
             if (!empty($actions['gerencia'])) {
@@ -194,12 +197,13 @@ class escalation {
         return $done;
     }
 
-    private static function notify_group(string $provider, array $recipients, stdClass $ticket, int $minutes, int $level): int {
+    private static function notify_group(string $provider, array $recipients, stdClass $ticket, int $minutes, int $level,
+            string $levellabel = ''): int {
         $recipients = array_values(array_unique(array_filter(array_map('intval', $recipients))));
         if ($recipients) {
             manager::queue_notification($provider, $recipients, $ticket, null, [
                 'minutes' => self::format_minutes($minutes),
-                'level' => self::LEVEL_LABELS[$level] ?? (string)$level,
+                'level' => $levellabel !== '' ? $levellabel : (self::LEVEL_LABELS[$level] ?? (string)$level),
             ]);
         }
         return count($recipients);
@@ -219,7 +223,8 @@ class escalation {
         if ($limit <= 0 || $since <= 0) {
             return false;
         }
-        $area = policy::area((int)$ticket->areaid);
+        // Assigned: the agent's own business hours; in the queue: the area's.
+        $area = policy::clock($ticket);
         if (business_hours::elapsed($since, $now, $area) < $limit) {
             return false;
         }
@@ -263,6 +268,86 @@ class escalation {
             manager::queue_notification('support_noack', array_values($recipients), $ticket, null, [
                 'minutes' => self::format_minutes(business_hours::elapsed($since, $now, $area)),
             ]);
+        }
+        return true;
+    }
+
+    /**
+     * Horario por agente: the assignee works their own hours, is outside them
+     * now, the area is open and the requester has already waited
+     * tkt_ack_minutes (area business minutes). Hand the ticket to a topic agent
+     * that is within hours, else to one of the assignee's backups (same rule as
+     * absences). If nobody is, tell the supervisors once per wait.
+     *
+     * @return bool whether the ticket changed hands
+     */
+    public static function handoff_off_hours(stdClass $ticket, int $now): bool {
+        global $DB;
+        $agent = (int)$ticket->assignedto;
+        if (!config::get_int('tkt_offhours_handoff') || $agent <= 0 || (int)$ticket->waiting_since <= 0
+                || !manager::is_open_status((string)$ticket->status) || policy::agent_hours($agent) === '') {
+            return false;
+        }
+        $area = policy::area((int)$ticket->areaid);
+        if (business_hours::is_open(policy::user_clock($agent, (int)$ticket->areaid), $now)
+                || !business_hours::is_open($area, $now)
+                || business_hours::elapsed((int)$ticket->waiting_since, $now, $area) < max(1, config::get_int('tkt_ack_minutes'))) {
+            return false;
+        }
+
+        $topic = [];
+        foreach ($DB->get_records('gmk_tkt_agent', ['categoryid' => (int)$ticket->categoryid]) as $a) {
+            if ((int)$a->userid !== $agent) {
+                $topic[(int)$a->userid] = (int)$a->max_open;
+            }
+        }
+        $active = function(array $c) use ($DB) {
+            if (!$c) {
+                return [];
+            }
+            [$in, $params] = $DB->get_in_or_equal(array_keys($c));
+            $ok = array_flip(array_map('intval', $DB->get_fieldset_select('user', 'id',
+                "id $in AND deleted = 0 AND suspended = 0", $params)));
+            return array_intersect_key($c, $ok);
+        };
+        $target = manager::least_loaded($active($topic), (int)$ticket->areaid, true, $now);
+        if ($target <= 0) {
+            $backups = [];
+            foreach ($DB->get_records_select('gmk_tkt_backup', 'userid = :u AND (categoryid = 0 OR categoryid = :c)',
+                    ['u' => $agent, 'c' => (int)$ticket->categoryid], 'sortorder, id') as $b) {
+                if ((int)$b->backupuserid !== $agent) {
+                    $backups[(int)$b->backupuserid] = 0;
+                }
+            }
+            $target = manager::least_loaded($active($backups), (int)$ticket->areaid, true, $now);
+        }
+        if ($target > 0 && !manager::staff_can_view($ticket, $target) && !array_key_exists($target, $topic)) {
+            $target = 0;
+        }
+
+        if ($target <= 0) {
+            $done = $DB->record_exists_select('gmk_tkt_event',
+                "ticketid = :t AND eventtype = 'offhours_nohandoff' AND " . $DB->sql_compare_text('newvalue') . " = :v",
+                ['t' => (int)$ticket->id, 'v' => (string)$ticket->waiting_since]);
+            if (!$done) {
+                manager::log_event((int)$ticket->id, 'offhours_nohandoff', (string)$agent, (string)$ticket->waiting_since, 0);
+                self::notify_group('support_sla_breach', manager::supervisors_for($ticket), $ticket,
+                    business_hours::elapsed((int)$ticket->waiting_since, $now, $area), 0, 'agente fuera de su horario');
+            }
+            return false;
+        }
+
+        $mark = manager::outbox_size();
+        $transaction = $DB->start_delegated_transaction();
+        try {
+            manager::log_event((int)$ticket->id, 'offhours_handoff', (string)$agent, (string)$target, 0);
+            manager::apply_assignment($ticket, $target, 0, 'offhours');
+            manager::system_message($ticket, 'assigned', manager::template_vars($ticket));
+            manager::queue_notification('support_assigned', [$target], $ticket, null);
+            $transaction->allow_commit();
+        } catch (\Throwable $e) {
+            manager::outbox_truncate($mark);
+            $transaction->rollback($e);
         }
         return true;
     }

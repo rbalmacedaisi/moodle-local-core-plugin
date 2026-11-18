@@ -39,6 +39,11 @@
  * calificacion ("Ahora no" y calificacion baja) y tickets de docentes. El
  * feriado y el horario temporal tambien se revierten.
  *
+ * 20261001122: horario propio del agente (reloj, sin asignar = area, modo
+ * incisivo, herencia, reparto en horario, traspaso fuera de horario) y
+ * reasignacion: TI reasigna un ticket academico (a Jorge) y a otra area, no ve
+ * ni reasigna Psicologia, y un agente sin support_reassign no reasigna uno ajeno.
+ *
  * @package    local_grupomakro_core
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -454,6 +459,161 @@ try {
         $check('docentes: ticket con requesterrole=teacher y enlace a Moodle',
             $tt->requesterrole === 'teacher' && strpos(manager::requester_url($tt), 'support_my.php') !== false,
             $fullname($teacherid));
+    }
+
+    // =====================================================================
+    // 20261001122: horario por agente y reasignacion (supervisores, gerencia, TI).
+    // =====================================================================
+    cli_writeln('');
+    cli_writeln('Horario por agente y reasignacion');
+    // Free slots under the open-tickets limit: close / cancel the phase 2 tickets.
+    if (isset($e1) && manager::is_open_status((string)$DB->get_field('gmk_tkt_ticket', 'status', ['id' => $e1->id]))) {
+        manager::staff_action((int)$e1->id, (int)$DB->get_field('gmk_tkt_ticket', 'assignedto', ['id' => $e1->id]) ?: $agents[0], 'close');
+    }
+    if (isset($e2) && (int)$DB->get_field('gmk_tkt_ticket', 'first_response_at', ['id' => $e2->id]) === 0
+            && manager::is_open_status((string)$DB->get_field('gmk_tkt_ticket', 'status', ['id' => $e2->id]))) {
+        manager::cancel((int)$e2->id, $studentid);
+    }
+    foreach ($agents as $a) {
+        manager::set_availability($a, true, 0);
+    }
+    $DB->set_field('gmk_tkt_area', 'hours', $alwaysopen, ['id' => (int)$academic->areaid]);
+    manager::reset_caches();
+    $now = time();
+    $today = (int)(new \DateTimeImmutable('@' . $now))->setTimezone($tz)->format('N');
+    $otherday = (string)($today % 7 + 1);
+    $offhours = json_encode([$otherday => [['00:00', '24:00']]]);
+    $sethours = function(int $userid, ?string $hours) use ($DB) {
+        $row = $DB->get_record('gmk_tkt_presence', ['userid' => $userid]);
+        if ($row) {
+            $DB->set_field('gmk_tkt_presence', 'hours', $hours, ['id' => $row->id]);
+        } else {
+            $DB->insert_record('gmk_tkt_presence', (object)['userid' => $userid, 'available' => 1, 'hours' => $hours,
+                'modifiedby' => 0, 'timemodified' => time()]);
+        }
+        manager::reset_caches();
+    };
+
+    if (!$todayholiday) {
+        // 21. Own hours of the assigned agent rule the clock.
+        $h1 = manager::create($studentid, (int)$academic->id, 'Prueba horario de agente', 'Horario del agente (selftest)');
+        $agenta = (int)$h1->assignedto;
+        if ($agenta > 0) {
+            $sethours($agenta, $offhours);
+            $DB->update_record('gmk_tkt_ticket', (object)['id' => $h1->id, 'waiting_since' => $now - 30 * MINSECS]);
+            $h1 = $DB->get_record('gmk_tkt_ticket', ['id' => $h1->id]);
+            $check('horario del agente: fuera de su horario el reloj no corre', policy::waiting_minutes($h1, $now) === 0,
+                policy::waiting_minutes($h1, $now) . ' min');
+            $queue = clone $h1;
+            $queue->assignedto = 0;
+            $w = policy::waiting_minutes($queue, $now);
+            $check('sin asignar: cuenta el horario del area', $w >= 29 && $w <= 31, $w . ' min');
+            $check('modo incisivo: apagado fuera del horario del agente',
+                !\local_grupomakro_core\local\support\badge::in_hours($agenta, manager::profile($agenta), $now));
+            $sethours($agenta, null);
+            $check('sin horario propio hereda el del area', policy::waiting_minutes($h1, $now) >= 29);
+            $sethours($agenta, $offhours);
+
+            // Auto-assignment prefers someone within hours.
+            $others = array_values(array_diff($agents, [$agenta]));
+            if ($others) {
+                $h2 = manager::create($studentid, (int)$academic->id, 'Prueba reparto en horario', 'Reparto (selftest)');
+                $check('reparto: prefiere a un agente en horario', (int)$h2->assignedto > 0 && (int)$h2->assignedto !== $agenta,
+                    $fullname((int)$h2->assignedto));
+            }
+
+            // Assignee outside their hours, area open: hand it to someone in hours.
+            if (\local_grupomakro_core\local\support\config::get_int('tkt_offhours_handoff')) {
+                $past = $now - (max(1, \local_grupomakro_core\local\support\config::get_int('tkt_ack_minutes')) + 2) * MINSECS;
+                $DB->update_record('gmk_tkt_ticket', (object)['id' => $h1->id, 'waiting_since' => $past]);
+                $h1 = $DB->get_record('gmk_tkt_ticket', ['id' => $h1->id]);
+                $moved = escalation::handoff_off_hours($h1, $now);
+                $h1 = $DB->get_record('gmk_tkt_ticket', ['id' => $h1->id]);
+                $check('agente fuera de horario: el ticket pasa a quien esta en horario',
+                    $others ? ($moved && (int)$h1->assignedto !== $agenta && (int)$h1->assignedto > 0)
+                        : (!$moved || (int)$h1->assignedto !== $agenta),
+                    $moved ? '-> ' . $fullname((int)$h1->assignedto) : 'nadie del tema ni respaldo en horario: aviso a supervisores');
+                $check('traspaso o aviso queda en el historial', $DB->record_exists_select('gmk_tkt_event',
+                    "ticketid = ? AND eventtype IN ('offhours_handoff', 'offhours_nohandoff')", [$h1->id]));
+            }
+            $sethours($agenta, null);
+        }
+    }
+
+    // 22. Reassign: TI (gmk_soporte_ti) without being supervisor.
+    $tiuser = $DB->record_exists('user', ['id' => 2756, 'deleted' => 0]) ? 2756
+        : (int)$DB->get_field_sql("SELECT MIN(ra.userid) FROM {role_assignments} ra JOIN {role} r ON r.id = ra.roleid
+                                    WHERE r.shortname = 'gmk_soporte_ti'");
+    $tirole = $DB->get_record('role', ['shortname' => 'gmk_soporte_ti']);
+    if ($tiuser > 0 && $tirole) {
+        $sys = \context_system::instance();
+        if (!has_capability('local/grupomakro_core:support_reassign', $sys, $tiuser)) {
+            role_assign($tirole->id, $tiuser, $sys->id);
+            accesslib_clear_all_caches(false);
+            manager::reset_caches();
+        }
+        $tip = manager::profile($tiuser);
+        $check('TI tiene support_reassign y ve la pestana Todos', $tip->reassign
+            && isset(manager::desk_list($tiuser, 'all')['counts']['all']), $fullname($tiuser));
+        $check('TI no es supervisor (no recibe alertas de 1 h y 3 h)', !$tip->supervisor
+            || has_capability('local/grupomakro_core:support_supervise', $sys, $tiuser));
+
+        $rt = isset($h2) ? $DB->get_record('gmk_tkt_ticket', ['id' => $h2->id])
+            : manager::create($studentid, (int)$academic->id, 'Prueba reasignar', 'Reasignar (selftest)');
+        $jorge = $DB->record_exists('user', ['id' => 2737, 'deleted' => 0, 'suspended' => 0]) ? 2737 : 0;
+        $assignable = manager::assignable_staff($rt);
+        if (!$jorge || !isset($assignable[$jorge]) || (int)$rt->assignedto === $jorge) {
+            $jorge = 0;
+            foreach (array_keys($assignable) as $uid) {
+                if ((int)$uid !== (int)$rt->assignedto) {
+                    $jorge = (int)$uid;
+                    break;
+                }
+            }
+        }
+        if ($jorge) {
+            $rt = manager::staff_action((int)$rt->id, $tiuser, 'assign', $jorge);
+            $check('TI reasigna un ticket academico a ' . $fullname($jorge), (int)$rt->assignedto === $jorge);
+        }
+        $titopic2 = $topicbyarea('ti');
+        if ($titopic2 && (int)$titopic2->areaid !== (int)$rt->areaid) {
+            $dest = array_keys(manager::assignable_staff(manager::transfer_target($rt, (int)$titopic2->id)->ticket));
+            if ($dest) {
+                $before = $DB->count_records('gmk_tkt_message', ['ticketid' => $rt->id, 'senderrole' => 'system']);
+                $rt = manager::staff_action((int)$rt->id, $tiuser, 'assign', (int)$dest[0], -1, (int)$titopic2->id);
+                $check('reasignar a otra area con su tema: cambia area, asigna y avisa al estudiante',
+                    (int)$rt->areaid === (int)$titopic2->areaid && (int)$rt->assignedto === (int)$dest[0]
+                    && $DB->count_records('gmk_tkt_message', ['ticketid' => $rt->id, 'senderrole' => 'system']) > $before
+                    && $DB->record_exists_select('gmk_tkt_event', "ticketid = ? AND eventtype = 'category'", [$rt->id]));
+            }
+        }
+        if (isset($t4) && !empty($t4->confidential) && !manager::profile($tiuser)->viewconf) {
+            $psyagent = (int)$DB->get_field('gmk_tkt_ticket', 'assignedto', ['id' => $t4->id]);
+            $check('TI no ve un ticket de Psicologia', !manager::staff_can_view($t4, $tiuser));
+            $check('TI no reasigna un ticket de Psicologia', $throws(function() use ($t4, $tiuser, $psyagent) {
+                manager::staff_action((int)$t4->id, $tiuser, 'assign', $psyagent ?: $tiuser);
+            }, 'tkt_err_noaccess'));
+        }
+    } else {
+        cli_writeln('  (omito reasignacion por TI: no hay usuario 2756 ni con rol gmk_soporte_ti)');
+    }
+    // An agent without the capability cannot reassign someone else's ticket.
+    $plain = 0;
+    foreach ($agents as $a) {
+        if (!manager::profile($a)->reassign) {
+            $plain = $a;
+            break;
+        }
+    }
+    $foreign = $DB->get_record_select('gmk_tkt_ticket', 'userid = :u AND areaid = :a AND assignedto > 0 AND assignedto <> :p
+        AND status NOT IN (:c1, :c2)', ['u' => $studentid, 'a' => (int)$academic->areaid, 'p' => $plain,
+        'c1' => 'cerrado', 'c2' => 'cancelado'], '*', IGNORE_MULTIPLE);
+    if ($plain && $foreign) {
+        $check('un agente sin la capacidad no reasigna un ticket ajeno', $throws(function() use ($foreign, $plain) {
+            manager::staff_action((int)$foreign->id, $plain, 'assign', $plain);
+        }, 'tkt_err_cannotassign'), $fullname($plain));
+    } else {
+        cli_writeln('  (omito "agente sin capacidad": todos los agentes academicos pueden reasignar o no hay ticket ajeno)');
     }
 
     // 9. Open-tickets limit.

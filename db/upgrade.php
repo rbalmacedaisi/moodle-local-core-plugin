@@ -4749,6 +4749,32 @@ if ($oldversion < 20261001093) {
         upgrade_plugin_savepoint(true, 20261001121, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20261001122) {
+        // Mesa de ayuda, fase 2 (ampliacion): horario habil propio por agente
+        // (gmk_tkt_presence.hours, vacio = hereda el del area: es la carga
+        // inicial, sin copiar datos) y capacidad support_reassign para
+        // supervisores, gerencia y TI. Mensaje automatico "transferred".
+        $table = new xmldb_table('gmk_tkt_presence');
+        $field = new xmldb_field('hours', XMLDB_TYPE_TEXT, null, null, null, null, null, 'available');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+        require_once(__DIR__ . '/upgradelib.php');
+        // Register support_reassign now (Moodle would do it after this step)
+        // so it can be given to the roles in the same upgrade.
+        update_capabilities('local_grupomakro_core');
+        assign_capabilities_to_internal_roles();
+        if ($dbman->table_exists('gmk_tkt_template')
+                && !$DB->record_exists('gmk_tkt_template', ['code' => 'transferred'])
+                && get_config('local_grupomakro_core', 'tkt_seeded')) {
+            $DB->insert_record('gmk_tkt_template', (object)['code' => 'transferred',
+                'name' => 'Al pasar a otra área o tema',
+                'body' => 'Pasamos tu solicitud {numero} a {area} ({categoria}). Te atenderá {agente}.',
+                'enabled' => 1, 'timemodified' => time()]);
+        }
+        upgrade_plugin_savepoint(true, 20261001122, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

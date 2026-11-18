@@ -457,6 +457,7 @@ function assign_capabilities_to_internal_roles() {
             // las bandejas, salvo los tickets confidenciales de Psicologia.
             'local/grupomakro_core:support_agent',
             'local/grupomakro_core:support_supervise',
+            'local/grupomakro_core:support_reassign',
             'local/grupomakro_core:support_manage',
             // CORE: cada clase vive en una seccion restringida a SU grupo
             // (create_class_activities escribe availability {"type":"group"} en
@@ -665,6 +666,7 @@ function assign_capabilities_to_internal_roles() {
             // las bandejas, salvo los tickets confidenciales de Psicologia.
             'local/grupomakro_core:support_agent',
             'local/grupomakro_core:support_supervise',
+            'local/grupomakro_core:support_reassign',
             // CORE: cada clase vive en una seccion restringida a SU grupo
             // (create_class_activities escribe availability {"type":"group"} en
             // las 141 secciones de clase abiertas). Quien no pertenece al grupo
@@ -931,6 +933,9 @@ function assign_capabilities_to_internal_roles() {
         'gmk_soporte_ti' => [
             // Mesa de ayuda (20261001120): atiende sus temas (TI).
             'local/grupomakro_core:support_agent',
+            // 20261001122: reasigna tickets no confidenciales de cualquier area
+            // (sin volverse supervisor: no recibe las alertas de 1 h y 3 h).
+            'local/grupomakro_core:support_reassign',
             // Everyone on staff lands on the academic panel after login, so the
             // view capability goes to every operational role even when the rest
             // of that workflow does not.
@@ -949,6 +954,7 @@ function assign_capabilities_to_internal_roles() {
             // las bandejas, salvo los tickets confidenciales de Psicologia.
             'local/grupomakro_core:support_agent',
             'local/grupomakro_core:support_supervise',
+            'local/grupomakro_core:support_reassign',
             // Export the student list from the academic panel. The same
             // capability also covers export_consolidated_grades.php, the other
             // export button on that table - both pages check export_students,
@@ -1059,6 +1065,7 @@ function assign_capabilities_to_internal_roles() {
             // las bandejas, salvo los tickets confidenciales de Psicologia.
             'local/grupomakro_core:support_agent',
             'local/grupomakro_core:support_supervise',
+            'local/grupomakro_core:support_reassign',
             // Everyone on staff lands on the academic panel after login, so the
             // view capability goes to every operational role even when the rest
             // of that workflow does not.
@@ -1089,6 +1096,7 @@ function assign_capabilities_to_internal_roles() {
         'gmk_gerencia' => [
             'local/grupomakro_core:support_agent',
             'local/grupomakro_core:support_supervise',
+            'local/grupomakro_core:support_reassign',
             'local/grupomakro_core:support_viewconfidential',
             'local/grupomakro_core:support_receive_escalations',
             'local/grupomakro_core:support_manage',

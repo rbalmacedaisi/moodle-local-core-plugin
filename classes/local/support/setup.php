@@ -53,6 +53,8 @@ class setup {
             'Recibimos tu mensaje fuera del horario de atención ({horario}). Te responderemos al inicio de la siguiente jornada.'],
         'resolved' => ['Al resolver',
             'Marcamos tu solicitud como resuelta. ¿Se resolvió tu caso? Responde Sí o No en esta misma ventana.'],
+        'transferred' => ['Al pasar a otra área o tema',
+            'Pasamos tu solicitud {numero} a {area} ({categoria}). Te atenderá {agente}.'],
         'reopened' => ['Al reabrir', 'Reabrimos tu solicitud {numero}. {agente} la retomará con prioridad.'],
         'closed' => ['Al cerrar',
             'Tu solicitud {numero} fue cerrada. Si necesitas algo más, puedes abrir una nueva solicitud.'],

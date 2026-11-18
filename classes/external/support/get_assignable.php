@@ -43,12 +43,14 @@ class get_assignable extends external_api {
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters([
             'ticketid' => new external_value(PARAM_INT, 'Ticket id'),
+            'categoryid' => new external_value(PARAM_INT, 'Destination topic when moving it (0 = current)', VALUE_DEFAULT, 0),
         ]);
     }
 
-    public static function execute($ticketid): array {
+    public static function execute($ticketid, $categoryid = 0): array {
         global $USER;
-        $params = self::validate_parameters(self::execute_parameters(), ['ticketid' => $ticketid]);
+        $params = self::validate_parameters(self::execute_parameters(), ['ticketid' => $ticketid,
+            'categoryid' => $categoryid]);
         self::validate_context(context_system::instance());
         $userid = (int)$USER->id;
         global $DB;
@@ -56,8 +58,20 @@ class get_assignable extends external_api {
         if ($role === manager::ROLE_REQUESTER) {
             throw new \moodle_exception('tkt_err_noaccess', 'local_grupomakro_core');
         }
+        $target = $ticket;
+        if ((int)$params['categoryid'] > 0 && (int)$params['categoryid'] !== (int)$ticket->categoryid) {
+            // 20261001122: agents of another topic/area, for "Reasignar" with a move.
+            if (!manager::may_reassign($ticket, $userid)) {
+                throw new \moodle_exception('tkt_err_cannotassign', 'local_grupomakro_core');
+            }
+            $transfer = manager::transfer_target($ticket, (int)$params['categoryid']);
+            if (!$transfer) {
+                throw new \moodle_exception('tkt_err_badcategory', 'local_grupomakro_core');
+            }
+            $target = $transfer->ticket;
+        }
         $users = [];
-        foreach (manager::assignable_staff($ticket) as $u) {
+        foreach (manager::assignable_staff($target) as $u) {
             $users[] = ['id' => (int)$u->id, 'fullname' => fullname($u), 'openload' => (int)$u->openload,
                 'available' => (bool)$u->available];
         }

@@ -135,19 +135,61 @@ class policy {
         return self::$areas[$areaid];
     }
 
+    /** @var array|null userid => own business hours JSON (gmk_tkt_presence.hours), loaded once per request */
+    private static $agenthours = null;
+
     public static function reset_caches(): void {
         self::$areas = [];
+        self::$agenthours = null;
         business_hours::reset_cache();
     }
 
     /**
-     * Business minutes the requester has been waiting for staff (0 when not waiting).
+     * Own business hours of $userid ('' = none: they work the area's hours).
+     */
+    public static function agent_hours(int $userid): string {
+        global $DB;
+        if (self::$agenthours === null) {
+            self::$agenthours = [];
+            try {
+                $rows = $DB->get_records_select('gmk_tkt_presence', 'hours IS NOT NULL', [], '', 'id, userid, hours');
+                foreach ($rows as $r) {
+                    if (trim((string)$r->hours) !== '' && business_hours::parse((string)$r->hours)) {
+                        self::$agenthours[(int)$r->userid] = (string)$r->hours;
+                    }
+                }
+            } catch (\dml_exception $e) {
+                self::$agenthours = [];
+            }
+        }
+        return self::$agenthours[$userid] ?? '';
+    }
+
+    /**
+     * Schedule that measures $userid's time on tickets of $areaid: their own
+     * hours when they have them, else the area's (§6.2, horario por agente).
+     */
+    public static function user_clock(int $userid, int $areaid): ?stdClass {
+        $own = $userid > 0 ? self::agent_hours($userid) : '';
+        return $own !== '' ? (object)['hours' => $own] : self::area($areaid);
+    }
+
+    /**
+     * Clock of a ticket: the assigned agent's hours; unassigned, the area's.
+     */
+    public static function clock(stdClass $ticket): ?stdClass {
+        return self::user_clock((int)($ticket->assignedto ?? 0), (int)$ticket->areaid);
+    }
+
+    /**
+     * Business minutes the requester has been waiting for staff (0 when not
+     * waiting), on the assigned agent's clock (or the area's when unassigned).
      */
     public static function waiting_minutes(stdClass $ticket, int $now = 0): int {
         if ((int)$ticket->waiting_since <= 0 || !manager::is_open_status((string)$ticket->status)) {
             return 0;
         }
-        return business_hours::elapsed((int)$ticket->waiting_since, $now ?: time(), self::area((int)$ticket->areaid));
+        return business_hours::elapsed((int)$ticket->waiting_since, $now ?: time(), self::clock($ticket));
     }
 
     // ---------------------------------------------------------------------

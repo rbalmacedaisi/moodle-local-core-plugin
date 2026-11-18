@@ -52,6 +52,7 @@ class config {
         'tkt_escalation_enabled' => [1,   'int',  'Escalamiento automático activo (1 sí, 0 no)'],
         'tkt_ack_minutes'       => [5,    'int',  'Sin acuse (abrir o tomar): avisar al respaldo a los (min hábiles, 0 = no)'],
         'tkt_ack_admins'        => [1,    'int',  'Sin acuse: avisar también a los administradores del sitio (1 sí, 0 no)'],
+        'tkt_offhours_handoff'  => [1,    'int',  'Agente fuera de su horario: pasar el ticket a quien esté en horario (1 sí, 0 no)'],
         'tkt_mail_gap'          => [10,   'int',  'Correo: como máximo uno cada (min) por ticket y persona'],
         'tkt_badge_poll'        => [30,   'int',  'Indicador flotante: consultar cada (segundos, pestaña visible)'],
         'tkt_snooze_minutes'    => [5,    'int',  'Bloqueo en pantalla: posponer (min)'],

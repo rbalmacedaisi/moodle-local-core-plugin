@@ -1,6 +1,6 @@
 # Pruebas: mesa de ayuda, fase 2 ("que nadie se quede sin atención")
 
-Rama del plugin: `feat/tickets-soporte-fase2` (versión `20261001121`, sale de master `713b17e1`).
+Rama del plugin: `feat/tickets-soporte-fase2` (versión `20261001122`, sale de master `713b17e1`). La 20261001121 ya está en staging (autotest 71/71); la 20261001122 agrega el horario por agente y la reasignación (§9).
 Rama del portal: `feat/tickets-soporte-fase2` sobre `isi-prod` `23bbfd0` (repo `isi_moodle_lxp`).
 
 Staging (`/opt/moodle_staging`, base `isidb_staging`) se trata como producción: **cada paso marcado ✋ escribe y necesita el OK explícito de Ramiro**. Staging es solo CLI: la lógica se prueba ahí con el autotest; las pantallas (indicador flotante, bloqueo, portal) necesitan un Moodle con navegador (producción con usuarios de prueba, o local).
@@ -25,7 +25,7 @@ Parámetros nuevos (pestaña **Parámetros** de `support_settings.php`): `tkt_es
 
 ## 0. Antes de empezar (solo lectura)
 
-1. Versión instalada: `SELECT value FROM mdl_config_plugins WHERE plugin='local_grupomakro_core' AND name='version';` → debe ser `20261001120` (fase 1).
+1. Versión instalada: `SELECT value FROM mdl_config_plugins WHERE plugin='local_grupomakro_core' AND name='version';` → `20261001120` (producción) o `20261001121` (staging).
 2. Ninguna rama pendiente con número entre `20261001121` y el de esta rama.
 3. Feriados que afectan las pruebas: `SELECT FROM_UNIXTIME(date), name FROM mdl_gmk_holidays ORDER BY date DESC LIMIT 20;`
 4. Quién recibe qué:
@@ -139,3 +139,39 @@ y decidir con Ramiro (✋) si se apaga `tkt_escalation_enabled` un día o se res
 ## 8. Limpieza ✋
 
 Restaurar parámetros cambiados (están en la pestaña **Auditoría** con antes y después) y borrar los tickets de prueba o restaurar el respaldo, según prefiera Ramiro.
+
+## 9. Ampliación 20261001122: horario por agente y reasignación ✋
+
+Pedido de Ramiro (18-nov-2026): "las horas ten en cuenta que sean horas hábiles para el agente" y "necesito que el supervisor, gerencia o tecnología puedan reasignar tickets o conversaciones".
+
+### Qué cambia
+
+| Pieza | Comportamiento |
+|---|---|
+| Horario propio del agente | `gmk_tkt_presence.hours` (JSON igual al del área). Vacío = trabaja el horario del área del ticket; esa es la carga inicial: no se copia nada, así que un cambio de horario del área sigue aplicando a quien no tiene horario propio. Se edita en **Temas y agentes → Horario hábil por agente** y queda en **Auditoría** (`config_agenthours`). |
+| Reloj del ticket | Asignado: horas hábiles del agente asignado (semáforo, Vencidos, escalamiento, repetición en rojo y plazo de acuse de 5 min). Sin asignar: horario del área. |
+| Modo incisivo | Solo dentro del horario propio del agente (si no tiene, el de sus áreas). Fuera de él: solo píldora y campanita. |
+| Reparto automático | Prefiere a los agentes que están en horario; si nadie lo está, el de menos carga como antes. |
+| Agente fuera de horario | Si el asignado tiene horario propio, está fuera de él, el área está abierta y el estudiante ya esperó `tkt_ack_minutes` minutos hábiles del área, la tarea de escalamiento pasa el ticket a otro agente del tema en horario o, si no hay, a un respaldo del agente en horario (evento `offhours_handoff`). Si no hay nadie, avisa una vez por espera a los supervisores (`offhours_nohandoff`). Se apaga con `tkt_offhours_handoff = 0`. |
+| Recordatorio | El aviso de 20 min al agente usa su reloj (es parte de la escalera). El recordatorio de 12 h al estudiante y el cierre de 24 h siguen en horas de reloj (decisión de la fase 0, "1 día sin respuesta"). |
+| Capacidad `support_reassign` | Dada a `gmk_secretaria_academica`, `gmk_director_academico`, `gmk_bienestar`, `gmk_psicologo`, `gmk_gerencia`, `gmk_soporte_ti` y al arquetipo `manager`. Quien la tiene ve la pestaña **Todos** y reasigna cualquier ticket no confidencial. TI no se vuelve supervisor: no recibe las alertas de 1 h y 3 h ni el resumen. |
+| Reasignar a otra área | En **Reasignar** se elige el tema destino (cualquier área); la lista de agentes cambia con el tema. Quedan los eventos `category` y `assigned` (how `transfer`) y el mensaje automático nuevo `transferred` ("Pasamos tu solicitud … a {área} ({categoría}). Te atenderá {agente}."). |
+| Confidenciales | Solo los reasignan los agentes de Psicología y gerencia; un ticket confidencial nunca se vuelve público al moverlo. |
+
+### Despliegue ✋
+
+1. Respaldo de `mdl_gmk_tkt_presence`, `mdl_gmk_tkt_template`, `mdl_role_capabilities`.
+2. Upgrade a `20261001122`. Revisar: `DESCRIBE mdl_gmk_tkt_presence;` (columna `hours`, todo NULL); `SELECT r.shortname FROM mdl_role_capabilities rc JOIN mdl_role r ON r.id = rc.roleid WHERE rc.capability = 'local/grupomakro_core:support_reassign';` → los 6 roles gmk_* más manager; plantilla `transferred` en `mdl_gmk_tkt_template`.
+3. Autotest: mismas instrucciones del §2. Pruebas nuevas:
+
+| # | Prueba |
+|---|---|
+| 21 | Agente con horario propio fuera de horario: el reloj no corre; sin asignar cuenta el área; modo incisivo apagado; sin horario propio hereda el del área; el reparto prefiere a otro agente en horario; con el área abierta y la espera cumplida, el ticket pasa a quien está en horario (o queda el aviso a supervisores) |
+| 22 | TI (Esteban 2756, o quien tenga `gmk_soporte_ti`; si no tiene la capacidad se le asigna el rol dentro de la transacción) tiene `support_reassign` y la pestaña Todos sin ser supervisor; reasigna un ticket académico a Jorge (2737); lo pasa a Soporte Tecnológico con mensaje al estudiante; no ve ni reasigna el de Psicología; un agente académico sin la capacidad no reasigna un ticket ajeno (se omite si todos los agentes académicos la tienen, como Secretaría) |
+
+### En pantalla
+
+1. Configuración → Temas y agentes → Horario hábil por agente: poner a Esteban L–V 14:00–20:00, guardar, recargar (se mantiene; Auditoría muestra antes y después). "Usar el del área" lo devuelve a heredar.
+2. Con Esteban fuera de su horario: sin bloqueo ni sonido; su ticket no avanza el semáforo; si el área está abierta, a los 5 min hábiles pasa a otro agente de TI en horario o se avisa a supervisores.
+3. Como Esteban (TI): pestaña **Todos**, abrir un ticket académico, **Reasignar** a Jorge; luego Reasignar eligiendo otro tema de otra área: el estudiante ve el mensaje automático y el historial muestra el cambio.
+4. Como Esteban: un ticket de Psicología no aparece en Todos; como Secretaría tampoco.

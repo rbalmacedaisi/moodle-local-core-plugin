@@ -72,6 +72,7 @@ class desk_list extends external_api {
                 'viewconfidential' => (bool)$p->viewconf,
                 'manage' => (bool)$p->manage,
                 'isagent' => !empty($p->agentcats),
+                'reassign' => (bool)$p->reassign,
             ],
         ];
     }
@@ -91,6 +92,7 @@ class desk_list extends external_api {
                 'viewconfidential' => new external_value(PARAM_BOOL, 'Sees confidential tickets'),
                 'manage' => new external_value(PARAM_BOOL, 'May configure'),
                 'isagent' => new external_value(PARAM_BOOL, 'Listed as agent of a topic'),
+                'reassign' => new external_value(PARAM_BOOL, 'May reassign any non-confidential ticket (Todos tab)'),
             ]),
         ]);
     }

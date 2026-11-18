@@ -108,7 +108,7 @@ class badge {
     private static function staff_part(int $userid, stdClass $p, int $now): array {
         global $DB;
         $available = manager::is_available($userid);
-        $inhours = self::in_hours($p, $now);
+        $inhours = self::in_hours($userid, $p, $now);
         $profile = policy::incisive_profile($userid);
         $active = $available && $inhours;
 
@@ -158,9 +158,14 @@ class badge {
     }
 
     /**
-     * Whether at least one of the user's areas is within business hours now.
+     * Whether the user is within business hours now: their own hours when they
+     * have them (horario por agente), else at least one of their areas.
      */
-    private static function in_hours(stdClass $p, int $now): bool {
+    public static function in_hours(int $userid, stdClass $p, int $now): bool {
+        $own = policy::agent_hours($userid);
+        if ($own !== '') {
+            return business_hours::is_open((object)['hours' => $own], $now);
+        }
         if (!$p->areas) {
             return true;
         }

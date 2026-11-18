@@ -1624,3 +1624,4 @@ $string['tkt_notif_support_low_rating_subject'] = 'Low rating: {$a->number} ({$a
 $string['tkt_notif_support_low_rating_body'] = 'The requester rated ticket {$a->number} ({$a->area} / {$a->category}, {$a->student}) with {$a->rating}. Handled by: {$a->agent}.
 
 Review the case: {$a->url}';
+$string['grupomakro_core:support_reassign'] = 'Reassign help desk tickets (any area, except confidential ones)';

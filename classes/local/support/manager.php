@@ -166,7 +166,11 @@ class manager {
         $p->viewconf = $isgerencia
             || has_capability('local/grupomakro_core:support_viewconfidential', $context, $userid, false);
         $p->manage = has_capability('local/grupomakro_core:support_manage', $context, $userid);
-        $p->isstaff = !empty($cats) || $p->supervisor || $p->viewconf
+        // Reasignar cualquier ticket no confidencial (supervisores, gerencia y TI).
+        // No convierte en supervisor: no recibe alertas de 1 h y 3 h.
+        $p->reassign = $p->supervisor
+            || has_capability('local/grupomakro_core:support_reassign', $context, $userid);
+        $p->isstaff = !empty($cats) || $p->supervisor || $p->viewconf || $p->reassign
             || has_capability('local/grupomakro_core:support_agent', $context, $userid);
         self::$profiles[$userid] = $p;
         return $p;
@@ -192,7 +196,20 @@ class manager {
         if (!empty($ticket->confidential)) {
             return $p->viewconf || in_array((int)$ticket->categoryid, $p->cats, true);
         }
-        return $p->supervisor || in_array((int)$ticket->areaid, $p->areas, true);
+        return $p->supervisor || $p->reassign || in_array((int)$ticket->areaid, $p->areas, true);
+    }
+
+    /**
+     * Whether $userid may (re)assign $ticket. Confidential tickets: only their
+     * topic agents (Psicologia) and gerencia. Others: the assignee, supervisors
+     * and whoever has support_reassign (gerencia, TI...).
+     */
+    public static function may_reassign(stdClass $ticket, int $userid): bool {
+        $p = self::profile($userid);
+        if (!empty($ticket->confidential)) {
+            return $p->viewconf || in_array((int)$ticket->categoryid, $p->agentcats, true);
+        }
+        return $p->reassign || (int)$ticket->assignedto === $userid;
     }
 
     /**
@@ -614,7 +631,8 @@ class manager {
         // Every check that can refuse the action runs here, before the
         // transaction: an exception inside a nested delegated transaction
         // would roll back the caller's whole transaction too.
-        $mayassign = $p->supervisor || (int)$ticket->assignedto === $userid;
+        $mayassign = self::may_reassign($ticket, $userid);
+        $transfer = null;
         switch ($action) {
             case 'take':
                 if ((int)$ticket->assignedto > 0 && (int)$ticket->assignedto !== $userid && !$p->supervisor) {
@@ -625,7 +643,21 @@ class manager {
                 if (!$mayassign) {
                     throw new moodle_exception('tkt_err_cannotassign', 'local_grupomakro_core');
                 }
-                if ($targetuserid <= 0 || !self::can_be_assigned($ticket, $targetuserid)) {
+                if ($categoryid > 0 && $categoryid !== (int)$ticket->categoryid) {
+                    // Pasarlo a otro tema (y quiza otra area): el destino se elige al reasignar.
+                    $transfer = self::transfer_target($ticket, $categoryid);
+                    if (!$transfer) {
+                        throw new moodle_exception('tkt_err_badcategory', 'local_grupomakro_core');
+                    }
+                    if (!empty($ticket->confidential) && empty($transfer->category->confidential)
+                            && !self::profile($userid)->viewconf) {
+                        // A confidential conversation is never made public by moving it.
+                        throw new moodle_exception('tkt_err_cannotassign', 'local_grupomakro_core');
+                    }
+                    if ($targetuserid <= 0 || !array_key_exists($targetuserid, self::assignable_staff($transfer->ticket))) {
+                        throw new moodle_exception('tkt_err_badagent', 'local_grupomakro_core');
+                    }
+                } else if ($targetuserid <= 0 || !self::can_be_assigned($ticket, $targetuserid)) {
                     throw new moodle_exception('tkt_err_badagent', 'local_grupomakro_core');
                 }
                 break;
@@ -668,6 +700,24 @@ class manager {
                 break;
 
             case 'assign':
+                if ($transfer) {
+                    self::log_event((int)$ticket->id, 'category', (string)$ticket->categoryid, (string)$categoryid, $userid,
+                        ['oldareaid' => (int)$ticket->areaid, 'newareaid' => (int)$transfer->ticket->areaid, 'how' => 'transfer']);
+                    self::update_ticket($ticket, [
+                        'categoryid' => (int)$transfer->ticket->categoryid,
+                        'areaid' => (int)$transfer->ticket->areaid,
+                        'confidential' => (int)$transfer->ticket->confidential,
+                    ]);
+                    self::apply_assignment($ticket, $targetuserid, $userid, 'transfer');
+                    $vars = self::template_vars($ticket);
+                    if (!self::system_message($ticket, 'transferred', $vars)) {
+                        self::system_message($ticket, 'assigned', $vars);
+                    }
+                    if ($targetuserid !== $userid) {
+                        $notify = ['support_assigned', [$targetuserid]];
+                    }
+                    break;
+                }
                 if ((int)$ticket->assignedto === $targetuserid) {
                     break;
                 }
@@ -731,6 +781,26 @@ class manager {
             self::flush_notifications();
         }
         return $DB->get_record('gmk_tkt_ticket', ['id' => (int)$ticket->id]);
+    }
+
+    /**
+     * The ticket as it would look in topic $categoryid (another area included).
+     *
+     * @return stdClass|null {ticket, category, area}
+     */
+    public static function transfer_target(stdClass $ticket, int $categoryid): ?stdClass {
+        global $DB;
+        $category = $DB->get_record('gmk_tkt_category', ['id' => $categoryid, 'active' => 1]);
+        $area = $category ? $DB->get_record('gmk_tkt_area', ['id' => (int)$category->areaid, 'active' => 1]) : null;
+        if (!$category || !$area || trim((string)$area->external_url) !== '') {
+            return null;
+        }
+        $clone = clone $ticket;
+        $clone->categoryid = (int)$category->id;
+        $clone->areaid = (int)$area->id;
+        // Sticky: a confidential ticket stays confidential wherever it goes.
+        $clone->confidential = (int)(!empty($ticket->confidential) || !empty($category->confidential));
+        return (object)['ticket' => $clone, 'category' => $category, 'area' => $area];
     }
 
     /**
@@ -1190,7 +1260,7 @@ class manager {
         }
         $counts = [];
         foreach ($tabs as $t) {
-            if ($t === 'all' && !$p->supervisor) {
+            if ($t === 'all' && !$p->reassign) {
                 continue;
             }
             if ($t === 'overdue') {
@@ -1201,7 +1271,7 @@ class manager {
             $counts[$t] = (int)$DB->count_records_sql("SELECT COUNT(1) FROM {gmk_tkt_ticket} t
                 JOIN {user} s ON s.id = t.userid WHERE $w", $params);
         }
-        if ($tab === 'all' && !$p->supervisor) {
+        if ($tab === 'all' && !$p->reassign) {
             $tab = 'area';
         }
         [$where, $params] = self::desk_where($userid, $p, $tab, $search);
@@ -1238,7 +1308,7 @@ class manager {
             return [];
         }
         [$where, $params] = self::desk_where($userid, $p, 'overdue', '');
-        $rows = $DB->get_records_sql("SELECT t.id, t.areaid, t.status, t.waiting_since
+        $rows = $DB->get_records_sql("SELECT t.id, t.areaid, t.assignedto, t.status, t.waiting_since
                                         FROM {gmk_tkt_ticket} t
                                         JOIN {user} s ON s.id = t.userid
                                        WHERE $where", $params);
@@ -1274,7 +1344,7 @@ class manager {
             return "$column $sql";
         };
 
-        $public = $p->supervisor ? '1 = 1' : '(t.assignedto = ' . $uid() . ' OR ' . $in('t.areaid', $p->areas) . ')';
+        $public = ($p->supervisor || $p->reassign) ? '1 = 1' : '(t.assignedto = ' . $uid() . ' OR ' . $in('t.areaid', $p->areas) . ')';
         $private = $p->viewconf ? '1 = 1' : '(t.assignedto = ' . $uid() . ' OR ' . $in('t.categoryid', $p->cats) . ')';
         $where = ["((t.confidential = 0 AND $public) OR (t.confidential = 1 AND $private))"];
 
@@ -1429,7 +1499,7 @@ class manager {
         if ((int)$t->assignedto !== $userid && ((int)$t->assignedto === 0 || $p->supervisor)) {
             $out[] = 'take';
         }
-        if ($p->supervisor || (int)$t->assignedto === $userid) {
+        if (self::may_reassign($t, $userid)) {
             $out[] = 'assign';
             if ((int)$t->assignedto > 0) {
                 $out[] = 'unassign';
@@ -1559,7 +1629,7 @@ class manager {
                 $candidates[(int)$a->userid] = (int)$a->max_open;
             }
         }
-        $best = self::least_loaded($candidates);
+        $best = self::least_loaded($candidates, (int)$category->areaid);
         if ($best > 0) {
             return $best;
         }
@@ -1581,20 +1651,26 @@ class manager {
         foreach ($backups as $uid) {
             $candidates[(int)$uid] = 0;
         }
-        return self::least_loaded($candidates);
+        return self::least_loaded($candidates, (int)$category->areaid);
     }
 
     /**
+     * Available candidate with fewer open tickets, preferring those within
+     * their own business hours now (fase 2: horario por agente). With
+     * $onlyinhours, nobody outside their hours is returned.
+     *
      * @param array $candidates userid => max_open (0 = no limit)
      */
-    private static function least_loaded(array $candidates): int {
+    public static function least_loaded(array $candidates, int $areaid = 0, bool $onlyinhours = false,
+            int $now = 0): int {
         if (!$candidates) {
             return 0;
         }
+        $now = $now ?: time();
         $loads = self::open_loads(array_keys($candidates));
         $presence = self::presence_map(array_keys($candidates));
-        $best = 0;
-        $bestload = PHP_INT_MAX;
+        $best = [0, 0];
+        $bestload = [PHP_INT_MAX, PHP_INT_MAX];
         foreach ($candidates as $uid => $max) {
             if (!($presence[$uid] ?? true)) {
                 continue;
@@ -1603,12 +1679,14 @@ class manager {
             if ($max > 0 && $load >= $max) {
                 continue;
             }
-            if ($load < $bestload) {
-                $best = $uid;
-                $bestload = $load;
+            $inhours = $areaid <= 0 || business_hours::is_open(policy::user_clock((int)$uid, $areaid), $now);
+            $slot = $inhours ? 0 : 1;
+            if ($load < $bestload[$slot]) {
+                $best[$slot] = $uid;
+                $bestload[$slot] = $load;
             }
         }
-        return $best;
+        return $best[0] ?: ($onlyinhours ? 0 : $best[1]);
     }
 
     /**
