@@ -343,6 +343,12 @@ function local_grupomakro_core_extend_navigation(global_navigation $navigation) 
                 ['manage_wellness', 'wellness_teacher_evals.php', '⭐ Evaluación Docente'],
                 ['manageannouncements', 'announcements.php', get_string('announcements_menu', $pluginname)],
             ],
+            // Mesa de ayuda (20261001120). Los agentes que solo figuran en
+            // gmk_tkt_agent (sin rol) entran por el enlace de sus notificaciones.
+            'Mesa de ayuda' => [
+                ['support_agent', 'support_desk.php', '🛟 ' . get_string('tkt_desk_title', $pluginname)],
+                ['support_manage', 'support_settings.php', '⚙️ ' . get_string('tkt_settings_title', $pluginname)],
+            ],
             'Sistema' => [
                 ['manage_debug', 'check_webservices.php', '🔌 Verificar Web Services'],
                 ['view_log', 'view_log.php', '📜 Registro del Sistema'],

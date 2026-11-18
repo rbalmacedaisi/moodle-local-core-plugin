@@ -1528,3 +1528,62 @@ $string['msg_err_toolong'] = 'The message exceeds the maximum of {$a} characters
 $string['msg_err_ratelimit'] = 'You sent too many messages in a short time. Try again in a few minutes.';
 $string['msg_err_noteacher'] = 'This class has no teacher assigned.';
 $string['msg_err_notstudent'] = 'The user is not a student of this class.';
+
+// Help desk tickets (20261001120).
+$string['grupomakro_core:support_create'] = 'Open help desk requests';
+$string['grupomakro_core:support_agent'] = 'Handle help desk tickets';
+$string['grupomakro_core:support_supervise'] = 'Supervise every help desk queue';
+$string['grupomakro_core:support_viewconfidential'] = 'View confidential help desk tickets';
+$string['grupomakro_core:support_manage'] = 'Configure the help desk';
+$string['grupomakro_core:support_receive_escalations'] = 'Receive help desk escalations and the daily digest';
+$string['messageprovider:support_reply'] = 'Help desk: staff replied to your request';
+$string['messageprovider:support_resolved'] = 'Help desk: your request was marked resolved';
+$string['messageprovider:support_new_ticket'] = 'Help desk: new unassigned ticket';
+$string['messageprovider:support_assigned'] = 'Help desk: a ticket was assigned to you';
+$string['messageprovider:support_student_message'] = 'Help desk: the student wrote on a ticket';
+$string['task_support_autoclose'] = 'Help desk: close tickets the student did not answer';
+$string['tkt_desk_title'] = 'Help desk';
+$string['tkt_settings_title'] = 'Help desk settings';
+$string['tkt_err_noaccess'] = 'You do not have access to this request.';
+$string['tkt_err_notfound'] = 'The request does not exist.';
+$string['tkt_err_nostaff'] = 'You are not part of the help desk staff.';
+$string['tkt_err_badcategory'] = 'The selected topic is not available.';
+$string['tkt_err_empty'] = 'The message is empty.';
+$string['tkt_err_toolong'] = 'The message exceeds {$a} characters.';
+$string['tkt_err_maxopen'] = 'You already have {$a} open requests. Wait until one is resolved before opening another.';
+$string['tkt_err_maxdaily'] = 'You reached the limit of {$a} requests per day.';
+$string['tkt_err_ratelimit'] = 'Too many messages in a short time. Try again in a few minutes.';
+$string['tkt_err_closed'] = 'The request is closed.';
+$string['tkt_err_badstatus'] = 'This action is not available in the current status.';
+$string['tkt_err_badtransition'] = 'Status change not allowed ({$a->from} → {$a->to}).';
+$string['tkt_err_alreadyassigned'] = 'The ticket is already assigned. Only a supervisor can take it.';
+$string['tkt_err_cannotassign'] = 'Only a supervisor or the assigned agent can reassign the ticket.';
+$string['tkt_err_badagent'] = 'That person cannot handle this ticket.';
+$string['tkt_err_noresponse'] = 'A ticket cannot be resolved or closed without at least one staff reply.';
+$string['tkt_err_sequence'] = 'Could not generate the request number. Try again.';
+$string['tkt_notif_support_reply_subject'] = '{$a->number}: {$a->area} replied';
+$string['tkt_notif_support_reply_body'] = '{$a->area} replied to your request {$a->number}.
+
+{$a->excerpt}
+
+See the reply: {$a->url}';
+$string['tkt_notif_support_resolved_subject'] = '{$a->number}: your request was marked resolved';
+$string['tkt_notif_support_resolved_body'] = 'Your request {$a->number} was marked resolved. Tell us whether it was solved: {$a->url}';
+$string['tkt_notif_support_new_ticket_subject'] = 'Unassigned ticket {$a->number} · {$a->category}';
+$string['tkt_notif_support_new_ticket_body'] = 'There is an unassigned ticket in {$a->area} / {$a->category}: {$a->number} ({$a->student}).
+
+{$a->excerpt}
+
+Take it: {$a->url}';
+$string['tkt_notif_support_assigned_subject'] = '{$a->number} assigned to you · {$a->category}';
+$string['tkt_notif_support_assigned_body'] = 'Ticket {$a->number} from {$a->student} ({$a->area} / {$a->category}) was assigned to you.
+
+{$a->excerpt}
+
+Open it: {$a->url}';
+$string['tkt_notif_support_student_message_subject'] = '{$a->number}: new message from {$a->student}';
+$string['tkt_notif_support_student_message_body'] = '{$a->student} wrote on ticket {$a->number} ({$a->category}).
+
+{$a->excerpt}
+
+Open it: {$a->url}';
