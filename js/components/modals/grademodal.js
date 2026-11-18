@@ -340,7 +340,7 @@ Vue.component('grademodal', {
                                                     </td>
                                                     <td class="text-center py-1" style="white-space:nowrap;">
                                                         <template v-if="canWithdrawFromCourse(course) && !isStudentReactivable()">
-                                                            <v-menu v-if="hasBothEnrollments(course)" offset-y>
+                                                            <v-menu v-if="hasActiveModule(course)" offset-y>
                                                                 <template v-slot:activator="{ on, attrs }">
                                                                     <v-btn
                                                                         x-small
@@ -359,11 +359,11 @@ Vue.component('grademodal', {
                                                                         <v-icon small class="mr-2" color="teal darken-1">mdi-book-education-outline</v-icon>
                                                                         <v-list-item-title>Retirar del módulo</v-list-item-title>
                                                                     </v-list-item>
-                                                                    <v-list-item @click="withdrawFromCourse(course, 'regular')">
+                                                                    <v-list-item v-if="hasBothEnrollments(course)" @click="withdrawFromCourse(course, 'regular')">
                                                                         <v-icon small class="mr-2" color="blue darken-1">mdi-school-outline</v-icon>
                                                                         <v-list-item-title>Retirar de clase regular</v-list-item-title>
                                                                     </v-list-item>
-                                                                    <v-list-item @click="withdrawFromCourse(course, 'course')">
+                                                                    <v-list-item v-if="isCursando(course)" @click="withdrawFromCourse(course, 'course')">
                                                                         <v-icon small class="mr-2" color="error">mdi-close-circle-outline</v-icon>
                                                                         <v-list-item-title>Retirar asignatura completa</v-list-item-title>
                                                                     </v-list-item>
@@ -3355,11 +3355,18 @@ Vue.component('grademodal', {
             return Number(item.enrolled || 0) > cap;
         },
         canWithdrawFromCourse(course) {
-            const label = String((course && course.statusLabel) ? course.statusLabel : '').trim().toLowerCase();
-            if (label !== 'cursando') return false;
-            if (this._regularClassId(course) > 0) return true;
-            if (Number(course && course.module_classid ? course.module_classid : 0) > 0) return true;
-            return false;
+            // An active module enrollment can always be withdrawn, whatever the subject
+            // shows (a reactivated module keeps the old Reválida/Reprobada until graded).
+            if (this.hasActiveModule(course)) return true;
+            if (!this.isCursando(course)) return false;
+            return this._regularClassId(course) > 0;
+        },
+        isCursando(course) {
+            return String((course && course.statusLabel) ? course.statusLabel : '').trim().toLowerCase() === 'cursando';
+        },
+        // module_classid only carries ACTIVE module enrollments (pensum backend).
+        hasActiveModule(course) {
+            return Number(course && course.module_classid ? course.module_classid : 0) > 0;
         },
         /**
          * True when the student is in a terminal academic status that
@@ -3734,7 +3741,9 @@ Vue.component('grademodal', {
                         bodyText = `<b>${studentName}</b> será <b>retirado del módulo</b> de <b>${courseName}</b>.<br><br>` +
                             (bothEnrollments
                                 ? `Se conservará su inscripción en la <b>clase regular</b> y su acceso al curso.`
-                                : `Se eliminará la inscripción del módulo y el estado volverá a <em>Disponible</em>.`);
+                                : `Se eliminará la inscripción del módulo, saldrá de su grupo y la asignatura ` +
+                                  `volverá al estado que tenía antes de inscribirse en el módulo. ` +
+                                  `El retiro queda registrado en su historial académico.`);
                     } else {
                         bodyText = `<b>${studentName}</b> será <b>retirado de la clase regular</b> de <b>${courseName}</b>.<br><br>` +
                             (bothEnrollments
