@@ -174,6 +174,8 @@ class manager {
 
     public static function reset_caches(): void {
         self::$profiles = [];
+        self::$teachers = [];
+        policy::reset_caches();
     }
 
     /**
@@ -235,9 +237,14 @@ class manager {
     /**
      * Active areas with their active topics, as the requester sees them.
      */
-    public static function catalog(int $userid): array {
+    public static function catalog(int $userid, string $audience = 'student'): array {
         global $DB;
-        $areas = $DB->get_records('gmk_tkt_area', ['active' => 1], 'sortorder ASC, id ASC');
+        $conditions = ['active' => 1];
+        if ($audience === 'teacher') {
+            // Docentes (§8.4): solo las areas marcadas "disponible para docentes".
+            $conditions['teacher_visible'] = 1;
+        }
+        $areas = $DB->get_records('gmk_tkt_area', $conditions, 'sortorder ASC, id ASC');
         $cats = $DB->get_records('gmk_tkt_category', ['active' => 1], 'sortorder ASC, id ASC');
         $user = \core_user::get_user($userid);
         $out = [];
@@ -340,7 +347,8 @@ class manager {
     /**
      * Creates a ticket for $userid, assigns it and posts the automatic messages.
      */
-    public static function create(int $userid, int $categoryid, string $subject, string $body, int $classid = 0): stdClass {
+    public static function create(int $userid, int $categoryid, string $subject, string $body, int $classid = 0,
+            string $audience = 'student'): stdClass {
         global $DB;
         require_capability('local/grupomakro_core:support_create', context_system::instance(), $userid);
 
@@ -348,6 +356,14 @@ class manager {
         $area = $category ? $DB->get_record('gmk_tkt_area', ['id' => (int)$category->areaid, 'active' => 1]) : null;
         if (!$category || !$area || trim((string)$area->external_url) !== '') {
             throw new moodle_exception('tkt_err_badcategory', 'local_grupomakro_core');
+        }
+        if ($audience === 'teacher') {
+            // Docentes (§8.4): solo areas "disponible para docentes" y solo quien es profesor.
+            if (empty($area->teacher_visible) || !self::is_teacher($userid)) {
+                throw new moodle_exception('tkt_err_badcategory', 'local_grupomakro_core');
+            }
+        } else {
+            $audience = 'student';
         }
 
         $body = self::clean_body($body);
@@ -386,7 +402,7 @@ class manager {
         $ticket = (object)[
             'number' => self::next_number($year),
             'userid' => $userid,
-            'requesterrole' => 'student',
+            'requesterrole' => $audience,
             'areaid' => (int)$area->id,
             'categoryid' => (int)$category->id,
             'subject' => $subject,
@@ -404,6 +420,8 @@ class manager {
             'closed_at' => 0,
             'reopened_count' => 0,
             'escalation_level' => 0,
+            'escalated_at' => 0,
+            'assigned_at' => 0,
             'last_student_msg_at' => $now,
             'last_staff_msg_at' => 0,
             'lastmessageid' => 0,
@@ -484,7 +502,10 @@ class manager {
         if ($isrequester) {
             $update = ['last_student_msg_at' => $now];
             if ((int)$ticket->waiting_since === 0) {
+                // A new wait starts: the escalation ladder starts over too.
                 $update['waiting_since'] = $now;
+                $update['escalation_level'] = 0;
+                $update['escalated_at'] = 0;
             }
             if ($ticket->status === self::S_RESOLVED) {
                 // Writing on a resolved ticket means "not solved": reopen it.
@@ -501,7 +522,7 @@ class manager {
                 : ($category ? self::category_staff($category) : []);
             $notify = ['support_student_message', $recipients];
         } else if (!$internal) {
-            $update = ['last_staff_msg_at' => $now, 'waiting_since' => 0];
+            $update = ['last_staff_msg_at' => $now, 'waiting_since' => 0, 'escalation_level' => 0, 'escalated_at' => 0];
             if ((int)$ticket->first_response_at === 0) {
                 $update['first_response_at'] = $now;
             }
@@ -511,6 +532,10 @@ class manager {
             }
             self::set_status($ticket, $askinfo ? self::S_WAITING : self::S_INPROGRESS, $userid, $update);
             $notify = ['support_reply', [(int)$ticket->userid]];
+        }
+        if (!$isrequester) {
+            // Answering (or writing a note) also acknowledges the alert.
+            self::ack((int)$ticket->id, $userid, 'reply');
         }
         $transaction->allow_commit();
 
@@ -634,6 +659,7 @@ class manager {
         $transaction = $DB->start_delegated_transaction();
         switch ($action) {
             case 'take':
+                self::ack((int)$ticket->id, $userid, 'take');
                 if ((int)$ticket->assignedto === $userid) {
                     break;
                 }
@@ -763,6 +789,7 @@ class manager {
         if ($old !== $available) {
             self::log_event(0, 'availability', $old ? '1' : '0', $available ? '1' : '0', $actorid, ['userid' => $userid]);
         }
+        badge::invalidate($userid);
     }
 
     public static function is_available(int $userid): bool {
@@ -794,6 +821,268 @@ class manager {
             $closed++;
         }
         return $closed;
+    }
+
+    /**
+     * Sends the 12 h reminder ("¿Sigues necesitando ayuda?") once per staff
+     * message to requesters who did not answer. Idempotent (auto_message event).
+     *
+     * @return int reminders sent
+     */
+    public static function remind_stale(int $now = 0): int {
+        global $DB;
+        $hours = config::get_int('tkt_remind_hours');
+        if ($hours <= 0) {
+            return 0;
+        }
+        $now = $now ?: time();
+        $close = config::get_int('tkt_close_hours');
+        if (config::get_int('tkt_autoclose_enabled') && $close > 0 && $close <= $hours) {
+            // The ticket closes before (or when) the reminder would be due: nothing to remind.
+            return 0;
+        }
+        $rows = $DB->get_records_select('gmk_tkt_ticket',
+            "status IN (:s1, :s2) AND first_response_at > 0 AND last_staff_msg_at > 0
+             AND last_staff_msg_at < :lim AND last_student_msg_at < last_staff_msg_at",
+            ['s1' => self::S_WAITING, 's2' => self::S_RESOLVED, 'lim' => $now - $hours * HOURSECS], 'id ASC', '*', 0, 500);
+        $sent = 0;
+        foreach ($rows as $ticket) {
+            $done = $DB->record_exists_select('gmk_tkt_event',
+                "ticketid = :t AND eventtype = 'auto_message' AND " . $DB->sql_compare_text('newvalue') . " = :c
+                 AND timecreated >= :since",
+                ['t' => (int)$ticket->id, 'c' => 'reminder', 'since' => (int)$ticket->last_staff_msg_at]);
+            if ($done) {
+                continue;
+            }
+            $transaction = $DB->start_delegated_transaction();
+            $message = self::system_message($ticket, 'reminder', self::template_vars($ticket));
+            if (!$message) {
+                // Template disabled: remember it anyway so we do not retry every pass.
+                self::log_event((int)$ticket->id, 'auto_message', '', 'reminder', 0, ['disabled' => 1]);
+            }
+            $transaction->allow_commit();
+            if ($message) {
+                self::queue_notification('support_reply', [(int)$ticket->userid], $ticket, $message);
+                $sent++;
+            }
+        }
+        self::flush_notifications();
+        return $sent;
+    }
+
+    // ---------------------------------------------------------------------
+    // Acknowledgement (§8.5: the alert only goes away when the agent opens or takes)
+    // ---------------------------------------------------------------------
+
+    public static function ack(int $ticketid, int $userid, string $how): void {
+        global $DB;
+        if ($ticketid <= 0 || $userid <= 0) {
+            return;
+        }
+        $now = time();
+        $row = $DB->get_record('gmk_tkt_ack', ['ticketid' => $ticketid, 'userid' => $userid]);
+        if ($row) {
+            $DB->update_record('gmk_tkt_ack', (object)['id' => $row->id, 'timeack' => $now, 'how' => $how]);
+        } else {
+            $DB->insert_record('gmk_tkt_ack', (object)['ticketid' => $ticketid, 'userid' => $userid, 'timeack' => $now,
+                'how' => $how, 'snoozekey' => 0, 'snoozes' => 0, 'snoozeduntil' => 0]);
+        }
+        badge::invalidate($userid);
+    }
+
+    /**
+     * Moment the current alert of $ticket started for its responsible people:
+     * the last requester message, the assignment, or reaching a new escalation
+     * level, whichever is later. 0 = nothing to acknowledge.
+     */
+    public static function alert_since(stdClass $ticket): int {
+        if (!self::is_open_status((string)$ticket->status) || (int)$ticket->waiting_since <= 0) {
+            return 0;
+        }
+        return max((int)$ticket->last_student_msg_at, (int)($ticket->assigned_at ?? 0), (int)($ticket->escalated_at ?? 0));
+    }
+
+    // ---------------------------------------------------------------------
+    // Teachers (§8.4)
+    // ---------------------------------------------------------------------
+
+    /** @var array per-request cache userid => bool */
+    private static $teachers = [];
+
+    /**
+     * Whether $userid holds a teacher role (editingteacher or teacher) in some context.
+     */
+    public static function is_teacher(int $userid): bool {
+        global $DB;
+        if (!array_key_exists($userid, self::$teachers)) {
+            self::$teachers[$userid] = $userid > 0 && $DB->record_exists_sql(
+                "SELECT 1
+                   FROM {role_assignments} ra
+                   JOIN {role} r ON r.id = ra.roleid
+                  WHERE ra.userid = :u AND r.shortname IN ('editingteacher', 'teacher')",
+                ['u' => $userid]);
+        }
+        return self::$teachers[$userid];
+    }
+
+    // ---------------------------------------------------------------------
+    // Recipients for escalations
+    // ---------------------------------------------------------------------
+
+    /**
+     * Supervisors (gmk_tkt_person 'supervisor' + support_supervise) that may see $ticket.
+     *
+     * @return int[]
+     */
+    public static function supervisors_for(stdClass $ticket): array {
+        global $DB;
+        $ids = array_map('intval', $DB->get_fieldset_select('gmk_tkt_person', 'userid', "kind = 'supervisor'"));
+        $users = get_users_by_capability(context_system::instance(), 'local/grupomakro_core:support_supervise', 'u.id');
+        $ids = array_merge($ids, array_map('intval', array_keys($users)));
+        return self::visible_to(array_values(array_unique($ids)), $ticket);
+    }
+
+    /**
+     * Gerencia (gmk_tkt_person 'gerencia' + support_receive_escalations) that may see $ticket.
+     *
+     * @return int[]
+     */
+    public static function gerencia_for(?stdClass $ticket): array {
+        global $DB;
+        $ids = array_map('intval', $DB->get_fieldset_select('gmk_tkt_person', 'userid', "kind = 'gerencia'"));
+        $users = get_users_by_capability(context_system::instance(), 'local/grupomakro_core:support_receive_escalations', 'u.id');
+        $ids = array_values(array_unique(array_merge($ids, array_map('intval', array_keys($users)))));
+        return $ticket ? self::visible_to($ids, $ticket) : $ids;
+    }
+
+    /**
+     * @return int[] those of $ids that are active users allowed to read $ticket
+     */
+    public static function visible_to(array $ids, stdClass $ticket): array {
+        global $DB;
+        $ids = array_values(array_unique(array_filter(array_map('intval', $ids))));
+        if (!$ids) {
+            return [];
+        }
+        [$in, $params] = $DB->get_in_or_equal($ids);
+        $active = array_map('intval', $DB->get_fieldset_select('user', 'id', "id $in AND deleted = 0 AND suspended = 0",
+            $params));
+        return array_values(array_filter($active, function($uid) use ($ticket) {
+            return (int)$ticket->userid !== $uid && self::staff_can_view($ticket, $uid);
+        }));
+    }
+
+    // ---------------------------------------------------------------------
+    // Rating (§7.1)
+    // ---------------------------------------------------------------------
+
+    public static function rate(int $ticketid, int $userid, int $stars, bool $solved, string $comment): stdClass {
+        global $DB;
+        [$ticket, $role] = self::require_ticket($ticketid, $userid);
+        if ($role !== self::ROLE_REQUESTER) {
+            throw new moodle_exception('tkt_err_noaccess', 'local_grupomakro_core');
+        }
+        if ($ticket->status !== self::S_CLOSED || (int)$ticket->rating > 0 || (int)$ticket->first_response_at === 0
+                || !config::get_int('tkt_rating_enabled')) {
+            throw new moodle_exception('tkt_err_badstatus', 'local_grupomakro_core');
+        }
+        if ($stars < 1 || $stars > 5) {
+            throw new \invalid_parameter_exception('rating');
+        }
+        $comment = \core_text::substr(self::clean_body($comment), 0, 1000);
+        $transaction = $DB->start_delegated_transaction();
+        self::update_ticket($ticket, ['rating' => $stars, 'rating_solved' => $solved ? 1 : 2,
+            'rating_comment' => $comment === '' ? null : $comment, 'rated_at' => time()]);
+        self::log_event((int)$ticket->id, 'rating', '', (string)$stars, $userid, ['solved' => $solved ? 1 : 0]);
+        $transaction->allow_commit();
+        if ($stars <= config::get_int('tkt_rating_low')) {
+            $recipients = self::supervisors_for($ticket);
+            if (!empty($ticket->confidential)) {
+                $recipients = array_merge($recipients, self::gerencia_for($ticket));
+            }
+            self::queue_notification('support_low_rating', $recipients, $ticket, null, [
+                'rating' => $stars . ' de 5' . ($solved ? '' : ', no se resolvió'),
+            ]);
+            self::flush_notifications();
+        }
+        return $DB->get_record('gmk_tkt_ticket', ['id' => (int)$ticket->id]);
+    }
+
+    /**
+     * "Ahora no": the dialog comes back once, the next day.
+     */
+    public static function dismiss_rating(int $ticketid, int $userid): void {
+        [$ticket, $role] = self::require_ticket($ticketid, $userid);
+        if ($role !== self::ROLE_REQUESTER || (int)$ticket->rating > 0) {
+            return;
+        }
+        self::update_ticket($ticket, ['rating_dismissed' => (int)$ticket->rating_dismissed + 1, 'rating_dismissed_at' => time()]);
+        self::log_event((int)$ticket->id, 'rating_dismissed', '', (string)((int)$ticket->rating_dismissed), $userid);
+    }
+
+    /**
+     * Closed tickets of $userid waiting for a rating.
+     */
+    public static function pending_ratings(int $userid, int $now = 0, string $requesterrole = ''): array {
+        global $DB;
+        if (!config::get_int('tkt_rating_enabled')) {
+            return [];
+        }
+        $now = $now ?: time();
+        $rows = $DB->get_records_sql(
+            "SELECT t.id, t.number, t.subject, t.closed_at, t.requesterrole, a.name AS areaname, c.name AS categoryname
+               FROM {gmk_tkt_ticket} t
+          LEFT JOIN {gmk_tkt_area} a ON a.id = t.areaid
+          LEFT JOIN {gmk_tkt_category} c ON c.id = t.categoryid
+              WHERE t.userid = :u AND t.status = :st AND t.rating = 0 AND t.first_response_at > 0
+                AND t.closed_at > :since AND t.rating_dismissed < 2
+                AND (t.rating_dismissed = 0 OR t.rating_dismissed_at < :again)
+                " . ($requesterrole !== '' ? 'AND t.requesterrole = :rrole' : '') . "
+           ORDER BY t.closed_at DESC",
+            ['u' => $userid, 'st' => self::S_CLOSED, 'since' => $now - config::get_int('tkt_rating_days') * DAYSECS,
+                'again' => $now - DAYSECS] + ($requesterrole !== '' ? ['rrole' => $requesterrole] : []), 0, 5);
+        $out = [];
+        foreach ($rows as $r) {
+            $out[] = ['id' => (int)$r->id, 'number' => (string)$r->number, 'subject' => (string)$r->subject,
+                'areaname' => format_string((string)$r->areaname), 'categoryname' => format_string((string)$r->categoryname),
+                'closed_at' => (int)$r->closed_at];
+        }
+        return $out;
+    }
+
+    /**
+     * Requester tickets with unread staff replies, or waiting for their answer
+     * (persistent notice in the portal and for teachers in Moodle, §7.5).
+     */
+    public static function requester_replies(int $userid, string $requesterrole = ''): array {
+        global $DB;
+        [$in, $params] = $DB->get_in_or_equal(self::open_statuses(), SQL_PARAMS_NAMED, 'rr');
+        $params += ['u0' => $userid, 'u1' => $userid, 'u2' => $userid];
+        $rolesql = '';
+        if ($requesterrole !== '') {
+            $rolesql = 'AND t.requesterrole = :rrole';
+            $params['rrole'] = $requesterrole;
+        }
+        $rows = $DB->get_records_sql(
+            "SELECT t.id, t.number, t.status, t.subject, a.name AS areaname,
+                    (SELECT COUNT(1) FROM {gmk_tkt_message} m
+                      WHERE m.ticketid = t.id AND m.internal = 0 AND m.deleted = 0 AND m.senderid > 0
+                        AND m.senderid <> :u0 AND m.id > COALESCE(r.lastreadmessageid, 0)) AS unread
+               FROM {gmk_tkt_ticket} t
+          LEFT JOIN {gmk_tkt_area} a ON a.id = t.areaid
+          LEFT JOIN {gmk_tkt_read} r ON r.ticketid = t.id AND r.userid = :u1
+              WHERE t.userid = :u2 AND t.status $in $rolesql
+           ORDER BY t.lastmessageat DESC", $params, 0, 20);
+        $out = [];
+        foreach ($rows as $r) {
+            $waiting = $r->status === self::S_WAITING;
+            if ((int)$r->unread === 0 && !$waiting) {
+                continue;
+            }
+            $out[] = ['id' => (int)$r->id, 'number' => (string)$r->number, 'subject' => (string)$r->subject,
+                'areaname' => format_string((string)$r->areaname), 'unread' => (int)$r->unread, 'waiting' => $waiting];
+        }
+        return $out;
     }
 
     // ---------------------------------------------------------------------
@@ -904,6 +1193,10 @@ class manager {
             if ($t === 'all' && !$p->supervisor) {
                 continue;
             }
+            if ($t === 'overdue') {
+                $counts[$t] = count(self::overdue_ids($userid, $p));
+                continue;
+            }
             [$w, $params] = self::desk_where($userid, $p, $t, '');
             $counts[$t] = (int)$DB->count_records_sql("SELECT COUNT(1) FROM {gmk_tkt_ticket} t
                 JOIN {user} s ON s.id = t.userid WHERE $w", $params);
@@ -915,6 +1208,17 @@ class manager {
         $order = $tab === 'closed'
             ? 't.closed_at DESC, t.id DESC'
             : 't.priority DESC, CASE WHEN t.waiting_since = 0 THEN 1 ELSE 0 END, t.waiting_since ASC, t.lastmessageat DESC';
+        if ($tab === 'overdue') {
+            // Vencido = rojo en minutos habiles: se filtra en PHP tras el prefiltro en reloj.
+            $rows = array_values(array_filter(self::ticket_rows($where, $params, $userid, self::ROLE_AGENT, $order),
+                function($r) {
+                    return policy::level_for(policy::waiting_minutes($r)) >= policy::LEVEL_RED;
+                }));
+            $total = count($rows);
+            $rows = array_slice($rows, max(0, $page) * $perpage, $perpage);
+            return ['tickets' => self::export_tickets($rows, $userid, self::ROLE_AGENT), 'total' => $total,
+                'counts' => $counts, 'tab' => $tab];
+        }
         $total = (int)$DB->count_records_sql("SELECT COUNT(1) FROM {gmk_tkt_ticket} t
             JOIN {user} s ON s.id = t.userid WHERE $where", $params);
         $rows = self::ticket_rows($where, $params, $userid, self::ROLE_AGENT, $order, max(0, $page) * $perpage, $perpage);
@@ -923,9 +1227,34 @@ class manager {
     }
 
     /**
+     * Ids of open tickets visible to $userid that are red in business minutes.
+     *
+     * @return int[]
+     */
+    public static function overdue_ids(int $userid, ?stdClass $p = null): array {
+        global $DB;
+        $p = $p ?: self::profile($userid);
+        if (!$p->isstaff) {
+            return [];
+        }
+        [$where, $params] = self::desk_where($userid, $p, 'overdue', '');
+        $rows = $DB->get_records_sql("SELECT t.id, t.areaid, t.status, t.waiting_since
+                                        FROM {gmk_tkt_ticket} t
+                                        JOIN {user} s ON s.id = t.userid
+                                       WHERE $where", $params);
+        $out = [];
+        foreach ($rows as $r) {
+            if (policy::level_for(policy::waiting_minutes($r)) >= policy::LEVEL_RED) {
+                $out[] = (int)$r->id;
+            }
+        }
+        return $out;
+    }
+
+    /**
      * Visibility + tab filter for desk queries (alias t = ticket, s = requester).
      */
-    private static function desk_where(int $userid, stdClass $p, string $tab, string $search): array {
+    public static function desk_where(int $userid, stdClass $p, string $tab, string $search): array {
         global $DB;
         // Moodle rejects named params that are unused or repeated, so every
         // fragment below adds exactly the params it uses, with fresh names.
@@ -960,6 +1289,8 @@ class manager {
                 $where[] = $in('t.status', self::open_statuses()) . ' AND ' . $in('t.areaid', $p->areas);
                 break;
             case 'overdue':
+                // Prefiltro en reloj: los minutos habiles nunca superan a los de
+                // reloj. desk_list() y overdue_ids() terminan en minutos habiles.
                 $where[] = $in('t.status', self::open_statuses()) . ' AND t.waiting_since > 0 AND t.waiting_since < :dwlim';
                 $params['dwlim'] = time() - config::get_int('tkt_sla_red') * MINSECS;
                 break;
@@ -1027,8 +1358,9 @@ class manager {
             $requester = $users[(int)$r->userid] ?? null;
             $agent = $users[(int)$r->assignedto] ?? null;
             $myrole = $isrequester ? self::ROLE_REQUESTER : self::resolve_role($r, $userid);
-            $waiting = (int)$r->waiting_since > 0 && self::is_open_status((string)$r->status)
-                ? (int)floor(($now - (int)$r->waiting_since) / MINSECS) : 0;
+            $iswaiting = (int)$r->waiting_since > 0 && self::is_open_status((string)$r->status);
+            // Semaforo en minutos habiles del area (fase 2, §6.2).
+            $waiting = $iswaiting ? policy::waiting_minutes($r, $now) : 0;
             $lastbody = (!$isrequester || empty($r->lastinternal)) ? (string)($r->lastbody ?? '') : '';
             $out[] = [
                 'id' => (int)$r->id,
@@ -1055,7 +1387,11 @@ class manager {
                 'canwrite' => self::is_open_status((string)$r->status),
                 'actions' => self::allowed_actions($r, $userid, $myrole),
                 'waitingminutes' => $waiting,
-                'semaphore' => self::semaphore($waiting, (int)$r->waiting_since > 0 && self::is_open_status((string)$r->status)),
+                'waitingclock' => $iswaiting ? (int)floor(($now - (int)$r->waiting_since) / MINSECS) : 0,
+                'semaphore' => policy::semaphore_for($waiting, $iswaiting),
+                'escalationlevel' => (int)$r->escalation_level,
+                'requesterrole' => (string)$r->requesterrole,
+                'rating' => (int)$r->rating,
                 'unread' => (int)($r->unread ?? 0),
                 'lastmessage' => self::excerpt($lastbody),
                 'lastmessageat' => (int)$r->lastmessageat,
@@ -1068,25 +1404,6 @@ class manager {
             ];
         }
         return $out;
-    }
-
-    /**
-     * Wall-clock traffic light (phase 1). Phase 2 switches to business minutes.
-     */
-    private static function semaphore(int $minutes, bool $waiting): string {
-        if (!$waiting) {
-            return 'none';
-        }
-        if ($minutes >= config::get_int('tkt_sla_red')) {
-            return 'red';
-        }
-        if ($minutes >= config::get_int('tkt_sla_orange')) {
-            return 'orange';
-        }
-        if ($minutes >= config::get_int('tkt_sla_yellow')) {
-            return 'yellow';
-        }
-        return $minutes >= config::get_int('tkt_sla_green') ? 'green_warn' : 'green';
     }
 
     /**
@@ -1160,7 +1477,7 @@ class manager {
     /**
      * Validated status change + event. $extra holds other columns to update.
      */
-    private static function set_status(stdClass $ticket, string $to, int $actorid, array $extra = []): void {
+    public static function set_status(stdClass $ticket, string $to, int $actorid, array $extra = []): void {
         $from = (string)$ticket->status;
         if (!self::can_transition($from, $to)) {
             throw new moodle_exception('tkt_err_badtransition', 'local_grupomakro_core', '', (object)['from' => $from, 'to' => $to]);
@@ -1172,7 +1489,7 @@ class manager {
         self::update_ticket($ticket, $extra);
     }
 
-    private static function update_ticket(stdClass $ticket, array $fields): void {
+    public static function update_ticket(stdClass $ticket, array $fields): void {
         global $DB;
         if (empty($fields)) {
             return;
@@ -1197,6 +1514,8 @@ class manager {
             'priority' => self::PRIORITY_HIGH,
             'resolved_at' => 0,
             'waiting_since' => $now,
+            'escalation_level' => 0,
+            'escalated_at' => 0,
         ];
         self::set_status($ticket, self::S_REOPENED, $actorid, $extra);
         self::system_message($ticket, 'reopened', self::template_vars($ticket));
@@ -1205,10 +1524,10 @@ class manager {
     /**
      * Sets assignedto (+ status asignado when still new) and logs it.
      */
-    private static function apply_assignment(stdClass $ticket, int $agentid, int $actorid, string $how): void {
+    public static function apply_assignment(stdClass $ticket, int $agentid, int $actorid, string $how): void {
         $old = (int)$ticket->assignedto;
         self::log_event((int)$ticket->id, 'assigned', (string)$old, (string)$agentid, $actorid, ['how' => $how]);
-        $update = ['assignedto' => $agentid];
+        $update = ['assignedto' => $agentid, 'assigned_at' => time()];
         if ($ticket->status === self::S_NEW) {
             self::set_status($ticket, self::S_ASSIGNED, $actorid, $update);
         } else {
@@ -1220,9 +1539,9 @@ class manager {
      * Balanced auto-assignment: available topic agent with fewer open tickets
      * (respecting max_open), else the backups of the topic agents, else 0 (queue).
      */
-    public static function pick_agent(stdClass $category): int {
+    public static function pick_agent(stdClass $category, bool $force = false): int {
         global $DB;
-        if (empty($category->autoassign)) {
+        if (empty($category->autoassign) && !$force) {
             return 0;
         }
         $agents = $DB->get_records_sql(
@@ -1236,7 +1555,7 @@ class manager {
         }
         $candidates = [];
         foreach ($agents as $a) {
-            if (!empty($a->can_auto_assign)) {
+            if (!empty($a->can_auto_assign) || $force) {
                 $candidates[(int)$a->userid] = (int)$a->max_open;
             }
         }
@@ -1295,7 +1614,7 @@ class manager {
     /**
      * @return array userid => open tickets assigned
      */
-    private static function open_loads(array $userids): array {
+    public static function open_loads(array $userids): array {
         global $DB;
         $userids = array_values(array_filter(array_map('intval', $userids)));
         if (!$userids) {
@@ -1315,7 +1634,7 @@ class manager {
     /**
      * @return array userid => bool (missing row = available)
      */
-    private static function presence_map(array $userids): array {
+    public static function presence_map(array $userids): array {
         global $DB;
         $userids = array_values(array_filter(array_map('intval', $userids)));
         $out = [];
@@ -1338,7 +1657,7 @@ class manager {
      *
      * @return int[]
      */
-    private static function category_staff(stdClass $category): array {
+    public static function category_staff(stdClass $category): array {
         global $DB;
         $agents = array_map('intval', $DB->get_fieldset_select('gmk_tkt_agent', 'userid', 'categoryid = ?',
             [(int)$category->id]));
@@ -1380,7 +1699,7 @@ class manager {
     /**
      * Posts the automatic message $code (when enabled) as "system".
      */
-    private static function system_message(stdClass $ticket, string $code, array $vars): ?stdClass {
+    public static function system_message(stdClass $ticket, string $code, array $vars): ?stdClass {
         $body = self::render_template($code, $vars);
         if ($body === null || $body === '') {
             return null;
@@ -1409,7 +1728,7 @@ class manager {
         return trim(strtr((string)$tpl->body, $vars));
     }
 
-    private static function template_vars(stdClass $ticket, ?stdClass $area = null, ?stdClass $category = null): array {
+    public static function template_vars(stdClass $ticket, ?stdClass $area = null, ?stdClass $category = null): array {
         global $DB;
         $area = $area ?: $DB->get_record('gmk_tkt_area', ['id' => (int)$ticket->areaid]);
         $category = $category ?: $DB->get_record('gmk_tkt_category', ['id' => (int)$ticket->categoryid]);
@@ -1468,6 +1787,19 @@ class manager {
                 return 'Cerrado (' . ($reasons[$e->newvalue] ?? $e->newvalue) . ')';
             case 'auto_message':
                 return 'Mensaje automático: ' . $e->newvalue;
+            case 'escalation':
+                $meta = json_decode((string)$e->metadata, true) ?: [];
+                $colors = [1 => 'verde con aviso', 2 => 'amarillo', 3 => 'naranja', 4 => 'rojo'];
+                return 'Escalamiento ' . ($meta['repeat'] ?? false ? '(repetición) ' : '') . 'a ' . ($colors[(int)$e->newvalue] ?? $e->newvalue)
+                    . (isset($meta['minutes']) ? ' · ' . (int)$meta['minutes'] . ' min hábiles de espera' : '')
+                    . (!empty($meta['actions']) ? ' · ' . implode(', ', (array)$meta['actions']) : '');
+            case 'noack':
+                $meta = json_decode((string)$e->metadata, true) ?: [];
+                return 'Sin acuse del responsable: aviso a ' . (int)($meta['recipients'] ?? 0) . ' persona(s) de respaldo';
+            case 'rating':
+                return 'Calificación: ' . (int)$e->newvalue . ' de 5';
+            case 'rating_dismissed':
+                return 'El solicitante pospuso la calificación';
             default:
                 return (string)$e->eventtype;
         }
@@ -1521,7 +1853,7 @@ class manager {
         return \local_grupomakro_core\local\messaging\manager::clean_body($body);
     }
 
-    private static function excerpt(string $body): string {
+    public static function excerpt(string $body): string {
         $body = trim(preg_replace('/\s+/u', ' ', $body) ?? '');
         if (\core_text::strlen($body) > self::EXCERPT_LENGTH) {
             $body = \core_text::substr($body, 0, self::EXCERPT_LENGTH - 1) . '…';
@@ -1552,20 +1884,29 @@ class manager {
     // Notifications
     // ---------------------------------------------------------------------
 
-    private static function queue_notification(string $provider, array $recipients, stdClass $ticket, ?stdClass $message): void {
-        self::$outbox[] = [$provider, $recipients, clone $ticket, $message];
+    public static function outbox_size(): int {
+        return count(self::$outbox);
+    }
+
+    public static function outbox_truncate(int $size): void {
+        self::$outbox = array_slice(self::$outbox, 0, max(0, $size));
+    }
+
+    public static function queue_notification(string $provider, array $recipients, stdClass $ticket, ?stdClass $message,
+            array $extra = []): void {
+        self::$outbox[] = [$provider, $recipients, clone $ticket, $message, $extra];
     }
 
     /**
      * Sends queued notifications. Never throws: a failed notification must not
      * lose what was already stored.
      */
-    private static function flush_notifications(): void {
+    public static function flush_notifications(): void {
         $queue = self::$outbox;
         self::$outbox = [];
-        foreach ($queue as [$provider, $recipients, $ticket, $message]) {
+        foreach ($queue as [$provider, $recipients, $ticket, $message, $extra]) {
             try {
-                self::notify($provider, $recipients, $ticket, $message);
+                self::notify($provider, $recipients, $ticket, $message, $extra);
             } catch (\Throwable $e) {
                 if (function_exists('gmk_log')) {
                     gmk_log('support notify ' . $provider . ' failed for ticket ' . $ticket->id . ': ' . $e->getMessage());
@@ -1574,7 +1915,41 @@ class manager {
         }
     }
 
-    private static function notify(string $provider, array $recipients, stdClass $ticket, ?stdClass $message): void {
+    /**
+     * Requester-facing link: the portal for students, Moodle for teachers (§8.4).
+     */
+    public static function requester_url(stdClass $ticket): string {
+        if ((string)($ticket->requesterrole ?? 'student') === 'teacher') {
+            return (new \moodle_url('/local/grupomakro_core/pages/support_my.php', ['ticket' => (int)$ticket->id]))->out(false);
+        }
+        return config::portal_url('/soporte?ticket=' . (int)$ticket->id);
+    }
+
+    /**
+     * Whether $userid may get another e-mail about $ticketid now (tkt_mail_gap
+     * minutes per ticket and person, §10). Records the send when allowed.
+     */
+    public static function mail_gate(int $ticketid, int $userid, int $now = 0): bool {
+        global $DB;
+        $gap = config::get_int('tkt_mail_gap') * MINSECS;
+        if ($gap <= 0 || $ticketid <= 0) {
+            return true;
+        }
+        $now = $now ?: time();
+        $row = $DB->get_record('gmk_tkt_mailgate', ['ticketid' => $ticketid, 'userid' => $userid]);
+        if ($row && (int)$row->timesent > $now - $gap) {
+            return false;
+        }
+        if ($row) {
+            $DB->update_record('gmk_tkt_mailgate', (object)['id' => $row->id, 'timesent' => $now]);
+        } else {
+            $DB->insert_record('gmk_tkt_mailgate', (object)['ticketid' => $ticketid, 'userid' => $userid, 'timesent' => $now]);
+        }
+        return true;
+    }
+
+    private static function notify(string $provider, array $recipients, stdClass $ticket, ?stdClass $message,
+            array $extra = []): void {
         global $CFG, $DB;
         require_once($CFG->dirroot . '/message/lib.php');
         $recipients = array_values(array_unique(array_filter(array_map('intval', $recipients))));
@@ -1587,8 +1962,9 @@ class manager {
         $area = $DB->get_record('gmk_tkt_area', ['id' => (int)$ticket->areaid]);
         $torequester = in_array($provider, ['support_reply', 'support_resolved'], true);
         $url = $torequester
-            ? config::portal_url('/soporte?ticket=' . (int)$ticket->id)
+            ? self::requester_url($ticket)
             : (new \moodle_url('/local/grupomakro_core/pages/support_desk.php', ['ticket' => (int)$ticket->id]))->out(false);
+        $agent = (int)$ticket->assignedto > 0 ? \core_user::get_user((int)$ticket->assignedto) : null;
         $student = \core_user::get_user((int)$ticket->userid);
         $a = (object)[
             'number' => (string)$ticket->number,
@@ -1599,7 +1975,14 @@ class manager {
             'excerpt' => (!empty($ticket->confidential) || !$message || !empty($message->internal))
                 ? '' : self::excerpt((string)$message->body),
             'url' => $url,
+            'agent' => $agent ? fullname($agent) : 'sin asignar',
+            'minutes' => '',
+            'level' => '',
+            'rating' => '',
         ];
+        foreach ($extra as $k => $v) {
+            $a->$k = (string)$v;
+        }
         $subject = get_string('tkt_notif_' . $provider . '_subject', 'local_grupomakro_core', $a);
         $body = get_string('tkt_notif_' . $provider . '_body', 'local_grupomakro_core', $a);
         $from = $actor > 0 ? \core_user::get_user($actor) : \core_user::get_noreply_user();
@@ -1611,7 +1994,8 @@ class manager {
             }
             $msg = new \core\message\message();
             $msg->component = 'local_grupomakro_core';
-            $msg->name = $provider;
+            // Same ticket and person within tkt_mail_gap: popup only (support_live has no e-mail).
+            $msg->name = self::mail_gate((int)$ticket->id, (int)$to->id) ? $provider : 'support_live';
             $msg->userfrom = $from ?: \core_user::get_noreply_user();
             $msg->userto = $to;
             $msg->subject = $subject;

@@ -16,6 +16,7 @@
 
 /**
  * local_grupomakro_support_get_unread_count: Mensajes sin leer en las solicitudes del usuario (distintivo del portal).
+ * Fase 2: respuestas sin leer y calificaciones pendientes.
  *
  * Mesa de ayuda (20261001120). Identidad = $USER siempre; el acceso lo decide
  * local\support\manager.
@@ -51,10 +52,34 @@ class get_unread_count extends external_api {
         $params = self::validate_parameters(self::execute_parameters(), []);
         self::validate_context(context_system::instance());
         $userid = (int)$USER->id;
-        return ['count' => manager::requester_unread($userid)];
+        // Fase 2: tambien las solicitudes con respuesta sin leer (aviso persistente
+        // del portal) y las calificaciones pendientes, para no sumar otra consulta.
+        return [
+            'count' => manager::requester_unread($userid),
+            'replies' => manager::requester_replies($userid),
+            'ratings' => manager::pending_ratings($userid),
+        ];
     }
 
     public static function execute_returns(): external_single_structure {
-        return new external_single_structure(['count' => new external_value(PARAM_INT, 'Unread')]);
+        return new external_single_structure([
+            'count' => new external_value(PARAM_INT, 'Unread'),
+            'replies' => new external_multiple_structure(new external_single_structure([
+                'id' => new external_value(PARAM_INT, 'Ticket id'),
+                'number' => new external_value(PARAM_TEXT, 'Number'),
+                'subject' => new external_value(PARAM_TEXT, 'Subject'),
+                'areaname' => new external_value(PARAM_TEXT, 'Area'),
+                'unread' => new external_value(PARAM_INT, 'Unread staff messages'),
+                'waiting' => new external_value(PARAM_BOOL, 'Staff asked for information'),
+            ]), 'Requests with unread staff replies or waiting for the requester', VALUE_OPTIONAL),
+            'ratings' => new external_multiple_structure(new external_single_structure([
+                'id' => new external_value(PARAM_INT, 'Ticket id'),
+                'number' => new external_value(PARAM_TEXT, 'Number'),
+                'subject' => new external_value(PARAM_TEXT, 'Subject'),
+                'areaname' => new external_value(PARAM_TEXT, 'Area'),
+                'categoryname' => new external_value(PARAM_TEXT, 'Topic'),
+                'closed_at' => new external_value(PARAM_INT, 'Closed'),
+            ]), 'Closed requests waiting for a rating', VALUE_OPTIONAL),
+        ]);
     }
 }

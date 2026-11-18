@@ -44,7 +44,7 @@ Vue.component('support-settings', {
       <v-card outlined v-if="s">
         <v-tabs v-model="tab" show-arrows>
           <v-tab>Áreas</v-tab><v-tab>Temas y agentes</v-tab><v-tab>Respaldos</v-tab>
-          <v-tab>Supervisores y gerencia</v-tab><v-tab>Mensajes automáticos</v-tab><v-tab>Parámetros</v-tab><v-tab>Auditoría</v-tab>
+          <v-tab>Supervisores y gerencia</v-tab><v-tab>Mensajes automáticos</v-tab><v-tab>Avisos y escalamiento</v-tab><v-tab>Parámetros</v-tab><v-tab>Auditoría</v-tab>
         </v-tabs>
         <v-divider></v-divider>
         <v-tabs-items v-model="tab">
@@ -158,11 +158,79 @@ Vue.component('support-settings', {
             </v-card-text>
           </v-tab-item>
 
+          <!-- Alerts and escalation (phase 2) -->
+          <v-tab-item>
+            <v-card-text v-if="esc && inc">
+              <div class="text-subtitle-1 font-weight-medium">Escalera de escalamiento</div>
+              <p class="text--secondary mb-2">Se cuenta en minutos hábiles del área desde que el solicitante espera una respuesta del personal. Los umbrales están en Parámetros (verde {{ cfg('tkt_sla_green') }}, amarillo {{ cfg('tkt_sla_yellow') }}, naranja {{ cfg('tkt_sla_orange') }}, rojo {{ cfg('tkt_sla_red') }} min). En rojo, el aviso a gerencia se repite cada {{ cfg('tkt_red_repeat') }} min hábiles.</p>
+              <v-simple-table dense class="mb-2">
+                <thead><tr><th>Al llegar a</th><th v-for="a in escActions" :key="a.key" class="text-center" :title="a.help">{{ a.label }}</th></tr></thead>
+                <tbody>
+                  <tr v-for="l in escLevels" :key="l.n">
+                    <td>{{ l.label }} ({{ cfg(l.cfg) }} min)</td>
+                    <td v-for="a in escActions" :key="a.key" class="text-center">
+                      <v-simple-checkbox :value="!!esc[l.n][a.key]" @input="esc[l.n][a.key] = $event ? 1 : 0"></v-simple-checkbox>
+                    </td>
+                  </tr>
+                </tbody>
+              </v-simple-table>
+              <v-btn small depressed color="primary" @click="saveJson('tkt_escalation', esc)">Guardar escalera</v-btn>
+
+              <v-divider class="my-5"></v-divider>
+              <div class="text-subtitle-1 font-weight-medium">Modo incisivo: perfiles</div>
+              <p class="text--secondary mb-2">Solo actúa si la persona está Disponible y dentro del horario hábil de su área; si no, solo queda la píldora y la campanita. El aviso se apaga únicamente al abrir o tomar el ticket. Las notificaciones nunca muestran el texto del mensaje (Psicología: "Ticket confidencial").</p>
+              <v-simple-table dense>
+                <thead><tr><th>Perfil</th><th>Bloqueo a pantalla completa</th><th>Sonido</th><th>Tono</th><th>Título y favicon</th><th>Notificación del sistema</th><th></th></tr></thead>
+                <tbody>
+                  <tr v-for="(p, code) in inc.profiles" :key="code">
+                    <td><v-text-field v-model="p.label" dense hide-details style="min-width: 150px;"></v-text-field><span class="text-caption text--secondary">{{ code }}</span></td>
+                    <td><v-select v-model="p.lock" :items="lockItems" dense hide-details style="min-width: 190px;"></v-select></td>
+                    <td><v-simple-checkbox :value="!!p.sound" @input="p.sound = $event ? 1 : 0"></v-simple-checkbox></td>
+                    <td><v-select v-model="p.soundname" :items="['alarma', 'campana', 'pitido']" dense hide-details style="width: 110px;"></v-select></td>
+                    <td><v-simple-checkbox :value="!!p.title" @input="p.title = $event ? 1 : 0"></v-simple-checkbox></td>
+                    <td><v-simple-checkbox :value="!!p.osnotify" @input="p.osnotify = $event ? 1 : 0"></v-simple-checkbox></td>
+                    <td><v-btn x-small text color="error" @click="removeProfile(code)">Quitar</v-btn></td>
+                  </tr>
+                </tbody>
+              </v-simple-table>
+              <div class="d-flex align-center mt-2">
+                <v-text-field v-model="newProfile" label="Código del perfil nuevo" dense outlined hide-details style="max-width: 260px;"></v-text-field>
+                <v-btn small text color="primary" class="ml-2" @click="addProfile">Agregar perfil</v-btn>
+              </div>
+
+              <div class="text-subtitle-1 font-weight-medium mt-5">¿Quién usa cada perfil?</div>
+              <p class="text--secondary mb-2">Gana el perfil por persona; si no tiene, el más fuerte de las áreas donde es agente; si no es agente, el de administradores (administradores del sitio y supervisores); si no, el perfil por defecto.</p>
+              <v-row dense>
+                <v-col v-for="a in ticketAreas" :key="a.id" cols="12" sm="6" md="3">
+                  <v-select :value="inc.areas[a.code] || ''" @change="setAreaProfile(a.code, $event)" :items="profileItems(true)" :label="'Agentes de ' + a.name" outlined dense hide-details></v-select>
+                </v-col>
+                <v-col cols="12" sm="6" md="3"><v-select v-model="inc.admins" :items="profileItems(false)" label="Administradores y supervisores" outlined dense hide-details></v-select></v-col>
+                <v-col cols="12" sm="6" md="3"><v-select v-model="inc.others" :items="profileItems(false)" label="Por defecto" outlined dense hide-details></v-select></v-col>
+              </v-row>
+              <div class="text-subtitle-2 mt-4">Por persona</div>
+              <v-simple-table dense>
+                <tbody>
+                  <tr v-for="(code, uid) in inc.users" :key="uid">
+                    <td>{{ userName(uid) }}</td>
+                    <td><v-select v-model="inc.users[uid]" :items="profileItems(false)" dense hide-details style="max-width: 240px;"></v-select></td>
+                    <td class="text-right"><v-btn x-small text color="error" @click="removeUserProfile(uid)">Quitar</v-btn></td>
+                  </tr>
+                </tbody>
+              </v-simple-table>
+              <v-row dense class="mt-2" align="center">
+                <v-col cols="12" md="6"><support-user-picker v-model="newUserProfile.userid" label="Persona"></support-user-picker></v-col>
+                <v-col cols="8" md="4"><v-select v-model="newUserProfile.code" :items="profileItems(false)" label="Perfil" outlined dense hide-details></v-select></v-col>
+                <v-col cols="4" md="2"><v-btn small text color="primary" @click="addUserProfile">Agregar</v-btn></v-col>
+              </v-row>
+              <v-btn small depressed color="primary" class="mt-3" @click="saveJson('tkt_incisive', inc)">Guardar perfiles</v-btn>
+            </v-card-text>
+          </v-tab-item>
+
           <!-- Parameters -->
           <v-tab-item>
             <v-card-text>
               <v-row dense>
-                <v-col v-for="(c, name) in s.config" :key="name" cols="12" md="6">
+                <v-col v-for="(c, name) in plainConfig" :key="name" cols="12" md="6">
                   <div class="d-flex align-center">
                     <v-text-field v-model="c.value" :label="c.label" :hint="'Por defecto: ' + c.default" persistent-hint
                       outlined dense :type="c.type === 'int' ? 'number' : 'text'"></v-text-field>
@@ -287,9 +355,35 @@ Vue.component('support-settings', {
             newBackup: { userid: null, backupuserid: null, categoryid: 0 },
             newPerson: { kind: 'supervisor', userid: null },
             snack: { show: false, text: '', color: 'success' },
+            esc: null,
+            inc: null,
+            newProfile: '',
+            newUserProfile: { userid: null, code: null },
+            escLevels: [
+                { n: '1', label: 'Verde con aviso', cfg: 'tkt_sla_green' }, { n: '2', label: 'Amarillo', cfg: 'tkt_sla_yellow' },
+                { n: '3', label: 'Naranja', cfg: 'tkt_sla_orange' }, { n: '4', label: 'Rojo', cfg: 'tkt_sla_red' },
+            ],
+            escActions: [
+                { key: 'agent', label: 'Avisar al agente', help: 'Al asignado; si no hay, a los agentes del tema' },
+                { key: 'student', label: 'Mensaje al solicitante', help: 'Plantilla "20 min sin respuesta"' },
+                { key: 'supervisors', label: 'Avisar a supervisores', help: 'Solo los que pueden ver el ticket' },
+                { key: 'gerencia', label: 'Avisar a gerencia', help: 'En rojo se repite' },
+                { key: 'assign', label: 'Asignar si está en cola', help: 'Al agente disponible con menos carga' },
+                { key: 'priority', label: 'Prioridad alta', help: '' },
+                { key: 'requeue', label: 'A la cola si el agente está ausente', help: '' },
+            ],
+            lockItems: [
+                { value: 'none', text: 'No bloquear' }, { value: 'orange', text: 'Solo naranja o rojo' }, { value: 'all', text: 'Siempre' },
+            ],
         };
     },
     computed: {
+        plainConfig() {
+            const out = {};
+            if (!this.s) return out;
+            Object.keys(this.s.config).forEach(k => { if (this.s.config[k].type !== 'json') out[k] = this.s.config[k]; });
+            return out;
+        },
         ticketAreas() {
             return this.s ? this.s.areas.filter(a => !a.external_url) : [];
         },
@@ -307,6 +401,51 @@ Vue.component('support-settings', {
         },
         apply(data) {
             this.s = JSON.parse(data.json);
+            try {
+                this.esc = JSON.parse(this.s.config.tkt_escalation.value);
+                const inc = JSON.parse(this.s.config.tkt_incisive.value);
+                if (Array.isArray(inc.users)) inc.users = {};
+                if (Array.isArray(inc.areas)) inc.areas = {};
+                this.inc = inc;
+            } catch (e) {
+                this.esc = null;
+                this.inc = null;
+            }
+        },
+        cfg(name) {
+            return this.s && this.s.config[name] ? this.s.config[name].value : '';
+        },
+        profileItems(withNone) {
+            const items = Object.keys(this.inc ? this.inc.profiles : {}).map(code => ({ value: code, text: this.inc.profiles[code].label + ' (' + code + ')' }));
+            return withNone ? [{ value: '', text: 'Sin perfil propio' }].concat(items) : items;
+        },
+        setAreaProfile(code, value) {
+            if (value) this.$set(this.inc.areas, code, value); else this.$delete(this.inc.areas, code);
+        },
+        addProfile() {
+            const code = (this.newProfile || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
+            if (!code || this.inc.profiles[code]) return;
+            this.$set(this.inc.profiles, code, { label: code, lock: 'none', sound: 1, title: 1, osnotify: 1, soundname: 'campana' });
+            this.newProfile = '';
+        },
+        removeProfile(code) {
+            if (Object.keys(this.inc.profiles).length <= 1) return;
+            this.$delete(this.inc.profiles, code);
+        },
+        addUserProfile() {
+            if (!this.newUserProfile.userid || !this.newUserProfile.code) return;
+            this.$set(this.inc.users, String(this.newUserProfile.userid), this.newUserProfile.code);
+            this.newUserProfile = { userid: null, code: null };
+        },
+        removeUserProfile(uid) {
+            this.$delete(this.inc.users, uid);
+        },
+        userName(uid) {
+            const n = this.s && this.s.usernames ? this.s.usernames[uid] : null;
+            return n || ('Usuario ' + uid);
+        },
+        saveJson(name, value) {
+            return this.save('config', { name: name, value: JSON.stringify(value) });
         },
         async load() {
             this.loading = true;

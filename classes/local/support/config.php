@@ -41,19 +41,31 @@ class config {
     const SETTINGS = [
         'tkt_max_open'          => [5,    'int',  'Tickets abiertos por estudiante (máximo)'],
         'tkt_max_daily'         => [10,   'int',  'Tickets nuevos por estudiante por día (máximo)'],
-        'tkt_remind_hours'      => [12,   'int',  'Horas sin respuesta del estudiante para el recordatorio (fase 2)'],
+        'tkt_remind_hours'      => [12,   'int',  'Horas sin respuesta del estudiante para el recordatorio (0 = no)'],
         'tkt_close_hours'       => [24,   'int',  'Horas sin respuesta del estudiante para el cierre automático'],
         'tkt_autoclose_enabled' => [1,    'int',  'Cierre automático activo (1 sí, 0 no)'],
         'tkt_sla_green'         => [20,   'int',  'Semáforo: meta de respuesta (min hábiles)'],
         'tkt_sla_yellow'        => [60,   'int',  'Semáforo: amarillo desde (min hábiles)'],
         'tkt_sla_orange'        => [180,  'int',  'Semáforo: naranja desde (min hábiles)'],
-        'tkt_sla_red'           => [300,  'int',  'Semáforo: rojo / vencido desde (min)'],
-        'tkt_red_repeat'        => [120,  'int',  'Repetir aviso en rojo cada (min, fase 2)'],
+        'tkt_sla_red'           => [300,  'int',  'Semáforo: rojo / vencido desde (min hábiles)'],
+        'tkt_red_repeat'        => [120,  'int',  'Repetir aviso a gerencia en rojo cada (min hábiles, 0 = no)'],
+        'tkt_escalation_enabled' => [1,   'int',  'Escalamiento automático activo (1 sí, 0 no)'],
+        'tkt_ack_minutes'       => [5,    'int',  'Sin acuse (abrir o tomar): avisar al respaldo a los (min hábiles, 0 = no)'],
+        'tkt_ack_admins'        => [1,    'int',  'Sin acuse: avisar también a los administradores del sitio (1 sí, 0 no)'],
+        'tkt_mail_gap'          => [10,   'int',  'Correo: como máximo uno cada (min) por ticket y persona'],
+        'tkt_badge_poll'        => [30,   'int',  'Indicador flotante: consultar cada (segundos, pestaña visible)'],
+        'tkt_snooze_minutes'    => [5,    'int',  'Bloqueo en pantalla: posponer (min)'],
+        'tkt_snooze_max'        => [2,    'int',  'Bloqueo en pantalla: veces que se puede posponer'],
         'tkt_attach_maxmb'      => [10,   'int',  'Tamaño máximo de adjunto (MB, fase 3)'],
         'tkt_attach_types'      => ['pdf,jpg,png,docx', 'text', 'Tipos de adjunto permitidos (fase 3)'],
-        'tkt_rating_enabled'    => [1,    'int',  'Calificación de la atención activa (fase 2)'],
-        'tkt_rating_low'        => [2,    'int',  'Calificación baja que avisa a supervisores (fase 2)'],
-        'tkt_digest_hour'       => [7,    'int',  'Hora del resumen diario a gerencia (fase 2)'],
+        'tkt_rating_enabled'    => [1,    'int',  'Calificación de la atención activa (1 sí, 0 no)'],
+        'tkt_rating_low'        => [2,    'int',  'Calificación igual o menor que avisa a supervisores'],
+        'tkt_rating_days'       => [7,    'int',  'Pedir calificación de tickets cerrados en los últimos (días)'],
+        'tkt_digest_hour'       => [7,    'int',  'Hora del resumen diario a gerencia y supervisores (0-23)'],
+        'tkt_digest_enabled'    => [1,    'int',  'Resumen diario activo (1 sí, 0 no)'],
+        // JSON: se editan en la pestaña "Avisos y escalamiento" (ver policy).
+        'tkt_escalation'        => ['', 'json', 'Escalera de escalamiento por nivel'],
+        'tkt_incisive'          => ['', 'json', 'Perfiles de aviso incisivo por área, administradores y persona'],
     ];
 
     /**
@@ -65,10 +77,20 @@ class config {
         }
         [$default, $type] = self::SETTINGS[$name];
         $value = get_config(self::COMPONENT, $name);
+        if ($type === 'json') {
+            return json_encode(policy::normalise($name, $value === false ? null : json_decode((string)$value, true)));
+        }
         if ($value === false || $value === null || $value === '') {
             return $default;
         }
         return $type === 'int' ? (int)$value : (string)$value;
+    }
+
+    /**
+     * Decoded JSON setting, always complete (defaults filled in).
+     */
+    public static function get_json(string $name): array {
+        return json_decode((string)self::get($name), true) ?: [];
     }
 
     public static function get_int(string $name): int {
@@ -81,6 +103,9 @@ class config {
     public static function all(): array {
         $out = [];
         foreach (self::SETTINGS as $name => [$default, $type, $label]) {
+            if ($type === 'json') {
+                $default = json_encode(policy::normalise($name, null));
+            }
             $out[$name] = ['value' => self::get($name), 'default' => $default, 'type' => $type, 'label' => $label];
         }
         return $out;
@@ -98,7 +123,13 @@ class config {
         }
         $old = self::get($name);
         $type = self::SETTINGS[$name][1];
-        if ($type === 'int') {
+        if ($type === 'json') {
+            $decoded = is_array($value) ? $value : json_decode((string)$value, true);
+            if (!is_array($decoded)) {
+                throw new \invalid_parameter_exception('JSON inválido en ' . $name);
+            }
+            $value = json_encode(policy::normalise($name, $decoded, true));
+        } else if ($type === 'int') {
             $value = (int)$value;
             if ($value < 0) {
                 throw new \invalid_parameter_exception('Negative value for ' . $name);

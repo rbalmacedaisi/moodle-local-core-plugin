@@ -1587,3 +1587,40 @@ $string['tkt_notif_support_student_message_body'] = '{$a->student} wrote on tick
 {$a->excerpt}
 
 Open it: {$a->url}';
+
+// Help desk, phase 2 (20261001121).
+$string['messageprovider:support_sla_warning'] = 'Help desk: a requester has been waiting 20 min';
+$string['messageprovider:support_sla_breach'] = 'Help desk: overdue ticket (supervisors)';
+$string['messageprovider:support_escalation'] = 'Help desk: unattended ticket (management)';
+$string['messageprovider:support_noack'] = 'Help desk: nobody acknowledged a ticket in time';
+$string['messageprovider:support_daily_digest'] = 'Help desk: daily digest';
+$string['messageprovider:support_low_rating'] = 'Help desk: low service rating';
+$string['messageprovider:support_live'] = 'Help desk: on-screen notices (no e-mail, to avoid repeated e-mails about the same ticket)';
+$string['task_support_escalate'] = 'Help desk: escalation by waiting time and missing acknowledgement';
+$string['task_support_digest'] = 'Help desk: daily digest to management and supervisors';
+$string['tkt_my_title'] = 'IT help';
+$string['tkt_err_nosnooze'] = 'You already postponed this alert {$a} times: open or take it.';
+$string['tkt_notif_support_sla_warning_subject'] = '{$a->number}: waiting {$a->minutes}';
+$string['tkt_notif_support_sla_warning_body'] = 'Ticket {$a->number} ({$a->area} / {$a->category}, {$a->student}) has been waiting {$a->minutes} (business time) for a staff reply. Owner: {$a->agent}.
+
+Open it: {$a->url}';
+$string['tkt_notif_support_sla_breach_subject'] = 'Overdue ({$a->level}): {$a->number} · {$a->category}';
+$string['tkt_notif_support_sla_breach_body'] = 'Ticket {$a->number} of {$a->area} / {$a->category} ({$a->student}) has had no staff reply for {$a->minutes} (business time). Level: {$a->level}. Owner: {$a->agent}.
+
+Review it: {$a->url}';
+$string['tkt_notif_support_escalation_subject'] = 'UNATTENDED: {$a->number} · {$a->minutes} without reply';
+$string['tkt_notif_support_escalation_body'] = 'Ticket {$a->number} has had no staff reply for {$a->minutes} (business time, level {$a->level}).
+
+Requester: {$a->student}
+Area and topic: {$a->area} / {$a->category}
+Owner: {$a->agent}
+
+Review it: {$a->url}';
+$string['tkt_notif_support_noack_subject'] = 'Not acknowledged: {$a->number} · {$a->category}';
+$string['tkt_notif_support_noack_body'] = 'Nobody opened or took ticket {$a->number} ({$a->area} / {$a->category}, {$a->student}) within {$a->minutes} (business time). Owner: {$a->agent}. You get this as backup or administrator.
+
+Open it: {$a->url}';
+$string['tkt_notif_support_low_rating_subject'] = 'Low rating: {$a->number} ({$a->rating})';
+$string['tkt_notif_support_low_rating_body'] = 'The requester rated ticket {$a->number} ({$a->area} / {$a->category}, {$a->student}) with {$a->rating}. Handled by: {$a->agent}.
+
+Review the case: {$a->url}';

@@ -42,18 +42,18 @@ class get_catalog extends external_api {
 
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters([
-
+            'audience' => new external_value(PARAM_ALPHA, 'student (portal) | teacher (Moodle, §8.4)', VALUE_DEFAULT, 'student'),
         ]);
     }
 
-    public static function execute(): array {
+    public static function execute($audience = 'student'): array {
         global $USER;
-        $params = self::validate_parameters(self::execute_parameters(), []);
+        $params = self::validate_parameters(self::execute_parameters(), ['audience' => $audience]);
         self::validate_context(context_system::instance());
         $userid = (int)$USER->id;
         require_capability('local/grupomakro_core:support_create', context_system::instance());
         return [
-            'areas' => manager::catalog($userid),
+            'areas' => manager::catalog($userid, $params['audience'] === 'teacher' ? 'teacher' : 'student'),
             'max_open' => \local_grupomakro_core\local\support\config::get_int('tkt_max_open'),
             'max_body' => manager::MAX_BODY,
         ];

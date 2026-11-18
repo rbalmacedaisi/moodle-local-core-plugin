@@ -36,7 +36,9 @@ class support_autoclose extends \core\task\scheduled_task {
     }
 
     public function execute() {
+        // Fase 2: primero el recordatorio de tkt_remind_hours, luego el cierre.
+        $reminded = manager::remind_stale();
         $closed = manager::autoclose_stale();
-        mtrace('support_autoclose: ' . $closed . ' ticket(s) closed');
+        mtrace('support_autoclose: ' . $reminded . ' reminder(s), ' . $closed . ' ticket(s) closed');
     }
 }

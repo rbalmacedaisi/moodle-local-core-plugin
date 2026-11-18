@@ -58,7 +58,7 @@ Vue.component('support-desk', {
                     </v-list-item-subtitle>
                   </v-list-item-content>
                   <v-list-item-action class="align-self-start mt-3">
-                    <v-list-item-action-text>{{ fmt.waiting(t.waitingminutes) || shortDate(t.lastmessageat || t.timecreated) }}</v-list-item-action-text>
+                    <v-list-item-action-text :title="t.semaphore !== 'none' ? 'Minutos hábiles de espera (reloj: ' + (fmt.waiting(t.waitingclock) || '0 min') + ')' : ''">{{ fmt.waiting(t.waitingminutes) || shortDate(t.lastmessageat || t.timecreated) }}</v-list-item-action-text>
                     <v-chip v-if="t.unread > 0" x-small color="pink" dark class="mt-1">{{ t.unread }}</v-chip>
                   </v-list-item-action>
                 </v-list-item>
@@ -80,8 +80,9 @@ Vue.component('support-desk', {
                 <span class="text-h6 mr-2">{{ active.number }}</span>
                 <v-chip small label :color="fmt.statusColor(active.status)" dark class="mr-2">{{ active.statuslabel }}</v-chip>
                 <v-chip v-if="active.confidential" small label color="purple" dark class="mr-2"><v-icon x-small left>mdi-lock</v-icon>Confidencial</v-chip>
-                <v-chip v-if="active.semaphore !== 'none'" small label outlined :color="fmt.semaphoreColor(active.semaphore)" class="mr-2">
-                  <v-icon x-small left>mdi-timer-sand</v-icon>Esperando {{ fmt.waiting(active.waitingminutes) || '0 min' }}
+                <v-chip v-if="active.semaphore !== 'none'" small label outlined :color="fmt.semaphoreColor(active.semaphore)" class="mr-2"
+                  :title="'Solo cuenta el horario hábil del área. En reloj: ' + (fmt.waiting(active.waitingclock) || '0 min')">
+                  <v-icon x-small left>mdi-timer-sand</v-icon>Esperando {{ fmt.waiting(active.waitingminutes) || '0 min' }} hábiles
                 </v-chip>
                 <v-spacer></v-spacer>
                 <v-btn icon small title="Actualizar" @click="refreshActive(true)"><v-icon small>mdi-refresh</v-icon></v-btn>
@@ -273,6 +274,14 @@ Vue.component('support-desk', {
     },
     async mounted() {
         await this.loadList();
+        if (this.config.tab) {
+            // Enlace desde el indicador flotante (?tab=unassigned|mine|overdue).
+            const idx = this.visibleTabs.findIndex(t => t.key === this.config.tab);
+            if (idx >= 0 && idx !== this.tabIndex) {
+                this.tabIndex = idx;
+                await this.loadList();
+            }
+        }
         if (this.config.ticketid) {
             await this.openTicket(parseInt(this.config.ticketid, 10));
         }

@@ -1,6 +1,7 @@
 # Plan: Mesa de ayuda con tickets y chat (Gestión Académica y TI)
 
 Estado: decisiones de la fase 0 tomadas por Ramiro el 17-nov-2026 (ver §0); el resto del documento ya las refleja.
+Fase 1 en producción desde el 18-nov-2026 (20261001120). Fase 2 implementada el 18-nov-2026 en la rama `feat/tickets-soporte-fase2` (20261001121), pendiente de staging; pruebas en `PRUEBAS_TICKETS_FASE2.md`. Push web y Telegram (capas 4 y 5) quedan para la fase 2-bis.
 Alcance: plugin `local_grupomakro_core` (Moodle 4.0) y portal de estudiantes (Nuxt, `isi_moodle_lxp`).
 
 ---

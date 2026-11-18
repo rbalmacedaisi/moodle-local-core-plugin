@@ -606,3 +606,46 @@ function local_grupomakro_core_pluginfile($course, $cm, $context, $filearea, arr
     send_stored_file($file, 0, 0, $forcedownload, $options);
     return true;
 }
+
+/**
+ * Mesa de ayuda, fase 2 (§8.2, §8.4 y §8.5 del plan): indicador flotante en
+ * todas las paginas de Moodle para el personal de la mesa de ayuda (agentes,
+ * respaldos y supervisores) y boton "Ayuda TI" para quien tiene rol de
+ * profesor. Nunca para estudiantes ni para docentes sin rol de soporte (salvo
+ * su boton de ayuda). La decision se cachea en la sesion 5 minutos y los datos
+ * los trae js/support_badge.js por el WS local_grupomakro_support_get_badge.
+ *
+ * @return string
+ */
+function local_grupomakro_core_before_footer() {
+    global $CFG, $PAGE, $USER;
+
+    if (during_initial_install() || !isloggedin() || isguestuser() || empty($USER->id)
+            || (defined('AJAX_SCRIPT') && AJAX_SCRIPT) || (defined('CLI_SCRIPT') && CLI_SCRIPT)) {
+        return '';
+    }
+    if (in_array($PAGE->pagelayout, ['embedded', 'popup', 'frametop', 'print', 'redirect', 'maintenance', 'login'], true)) {
+        return '';
+    }
+    if (!class_exists('\local_grupomakro_core\local\support\badge')
+            || (int)get_config('local_grupomakro_core', 'version') < 20261001121) {
+        return '';
+    }
+    $flags = \local_grupomakro_core\local\support\badge::session_flags((int)$USER->id);
+    if (empty($flags['staff']) && empty($flags['teacher'])) {
+        return '';
+    }
+    $path = $PAGE->has_set_url() ? $PAGE->url->get_path() : '';
+    $config = [
+        'staff' => !empty($flags['staff']),
+        'teacher' => !empty($flags['teacher']),
+        'ondesk' => strpos($path, '/local/grupomakro_core/pages/support_desk.php') !== false,
+        'onmy' => strpos($path, '/local/grupomakro_core/pages/support_my.php') !== false,
+        'deskurl' => (new moodle_url('/local/grupomakro_core/pages/support_desk.php'))->out(false),
+        'myurl' => (new moodle_url('/local/grupomakro_core/pages/support_my.php'))->out(false),
+    ];
+    $rev = !empty($CFG->themerev) ? (int)$CFG->themerev : 1;
+    $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/support_badge.js', ['v' => $rev]));
+    return '<script>window.gmkSupportBadgeConfig = ' . json_encode($config, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS
+        | JSON_HEX_QUOT) . ';</script>';
+}

@@ -57,6 +57,10 @@ class get_ticket extends external_api {
         $page = manager::messages($ticket, $userid, $role, (int)$params['beforeid'], (int)$params['limit']);
         $isstaff = $role !== manager::ROLE_REQUESTER;
         $previous = 0;
+        if ($isstaff && (int)$params['beforeid'] === 0) {
+            // Opening the ticket in the desk is the acknowledgement of its alert (§8.5).
+            manager::ack((int)$ticket->id, $userid, 'open');
+        }
         if ($isstaff) {
             global $DB;
             $previous = $DB->count_records_select('gmk_tkt_ticket', 'userid = ? AND id <> ?',

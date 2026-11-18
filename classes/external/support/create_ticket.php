@@ -46,16 +46,18 @@ class create_ticket extends external_api {
             'subject' => new external_value(PARAM_TEXT, 'Subject (optional)', VALUE_DEFAULT, ''),
             'body' => new external_value(PARAM_RAW, 'Description, plain text'),
             'classid' => new external_value(PARAM_INT, 'Optional gmk_class context', VALUE_DEFAULT, 0),
+            'audience' => new external_value(PARAM_ALPHA, 'student (portal) | teacher (Moodle, §8.4)', VALUE_DEFAULT, 'student'),
         ]);
     }
 
-    public static function execute($categoryid, $subject, $body, $classid): array {
+    public static function execute($categoryid, $subject, $body, $classid, $audience = 'student'): array {
         global $USER;
-        $params = self::validate_parameters(self::execute_parameters(), ['categoryid' => $categoryid, 'subject' => $subject, 'body' => $body, 'classid' => $classid]);
+        $params = self::validate_parameters(self::execute_parameters(), ['categoryid' => $categoryid, 'subject' => $subject,
+            'body' => $body, 'classid' => $classid, 'audience' => $audience]);
         self::validate_context(context_system::instance());
         $userid = (int)$USER->id;
         $ticket = manager::create($userid, (int)$params['categoryid'], (string)$params['subject'],
-            (string)$params['body'], (int)$params['classid']);
+            (string)$params['body'], (int)$params['classid'], $params['audience'] === 'teacher' ? 'teacher' : 'student');
         return ['ticket' => manager::export_ticket($ticket, $userid, manager::ROLE_REQUESTER)];
     }
 

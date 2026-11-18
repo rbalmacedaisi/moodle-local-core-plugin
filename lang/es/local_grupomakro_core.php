@@ -1593,3 +1593,40 @@ $string['tkt_notif_support_student_message_body'] = '{$a->student} escribió en 
 {$a->excerpt}
 
 Abrirlo: {$a->url}';
+
+// Mesa de ayuda, fase 2 (20261001121).
+$string['messageprovider:support_sla_warning'] = 'Mesa de ayuda: un solicitante lleva 20 min esperando';
+$string['messageprovider:support_sla_breach'] = 'Mesa de ayuda: ticket atrasado (supervisores)';
+$string['messageprovider:support_escalation'] = 'Mesa de ayuda: ticket desatendido (gerencia)';
+$string['messageprovider:support_noack'] = 'Mesa de ayuda: nadie acusó un ticket a tiempo';
+$string['messageprovider:support_daily_digest'] = 'Mesa de ayuda: resumen diario';
+$string['messageprovider:support_low_rating'] = 'Mesa de ayuda: calificación baja de la atención';
+$string['messageprovider:support_live'] = 'Mesa de ayuda: avisos en pantalla (sin correo, para no repetir correos del mismo ticket)';
+$string['task_support_escalate'] = 'Mesa de ayuda: escalamiento por tiempo de espera y falta de acuse';
+$string['task_support_digest'] = 'Mesa de ayuda: resumen diario a gerencia y supervisores';
+$string['tkt_my_title'] = 'Ayuda TI';
+$string['tkt_err_nosnooze'] = 'Ya pospusiste este aviso {$a} veces: ábrelo o tómalo.';
+$string['tkt_notif_support_sla_warning_subject'] = '{$a->number}: {$a->minutes} esperando respuesta';
+$string['tkt_notif_support_sla_warning_body'] = 'El ticket {$a->number} ({$a->area} / {$a->category}, {$a->student}) lleva {$a->minutes} hábiles esperando una respuesta del personal. Responsable: {$a->agent}.
+
+Abrirlo: {$a->url}';
+$string['tkt_notif_support_sla_breach_subject'] = 'Atrasado ({$a->level}): {$a->number} · {$a->category}';
+$string['tkt_notif_support_sla_breach_body'] = 'El ticket {$a->number} de {$a->area} / {$a->category} ({$a->student}) lleva {$a->minutes} hábiles sin respuesta del personal. Semáforo: {$a->level}. Responsable: {$a->agent}.
+
+Revisarlo: {$a->url}';
+$string['tkt_notif_support_escalation_subject'] = 'DESATENDIDO: {$a->number} · {$a->minutes} sin respuesta';
+$string['tkt_notif_support_escalation_body'] = 'El ticket {$a->number} lleva {$a->minutes} hábiles sin respuesta del personal (semáforo {$a->level}).
+
+Solicitante: {$a->student}
+Área y tema: {$a->area} / {$a->category}
+Responsable: {$a->agent}
+
+Revisarlo: {$a->url}';
+$string['tkt_notif_support_noack_subject'] = 'Sin acuse: {$a->number} · {$a->category}';
+$string['tkt_notif_support_noack_body'] = 'Nadie abrió ni tomó el ticket {$a->number} ({$a->area} / {$a->category}, {$a->student}) en {$a->minutes} hábiles. Responsable: {$a->agent}. Te llega porque eres su respaldo o administrador.
+
+Abrirlo: {$a->url}';
+$string['tkt_notif_support_low_rating_subject'] = 'Calificación baja: {$a->number} ({$a->rating})';
+$string['tkt_notif_support_low_rating_body'] = 'El solicitante calificó la atención del ticket {$a->number} ({$a->area} / {$a->category}, {$a->student}) con {$a->rating}. Atendió: {$a->agent}.
+
+Revisar el caso: {$a->url}';

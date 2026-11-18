@@ -33,6 +33,7 @@ use local_grupomakro_core\local\support\manager;
 require_login();
 $context = context_system::instance();
 $ticketid = optional_param('ticket', 0, PARAM_INT);
+$tab = optional_param('tab', '', PARAM_ALPHA);
 
 $PAGE->set_url(new moodle_url('/local/grupomakro_core/pages/support_desk.php'));
 $PAGE->set_context($context);
@@ -47,7 +48,7 @@ if (!manager::profile((int)$USER->id)->isstaff) {
 $assetversion = !empty($CFG->themerev) ? (int)$CFG->themerev : 1;
 $settingsurl = has_capability('local/grupomakro_core:support_manage', $context)
     ? (new moodle_url('/local/grupomakro_core/pages/support_settings.php'))->out(false) : '';
-$config = json_encode(['ticketid' => $ticketid, 'settingsurl' => $settingsurl, 'userid' => (int)$USER->id],
+$config = json_encode(['ticketid' => $ticketid, 'tab' => $tab, 'settingsurl' => $settingsurl, 'userid' => (int)$USER->id],
     JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
 
 echo $OUTPUT->header();

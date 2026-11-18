@@ -2357,4 +2357,30 @@ $functions = array(
         'capabilities'  => '',
         'ajax'        => true,
     ),
+    // Mesa de ayuda, fase 2 (20261001121).
+    'local_grupomakro_support_get_badge' => array(
+        'classname'   => 'local_grupomakro_core\external\support\get_badge',
+        'methodname'  => 'execute',
+        'description' => 'Indicador flotante de Moodle: contadores, alertas por acusar y perfil incisivo (cacheado 20 s).',
+        'type'        => 'read',
+        'capabilities'  => '',
+        'ajax'        => true,
+    ),
+    'local_grupomakro_support_snooze' => array(
+        'classname'   => 'local_grupomakro_core\external\support\snooze',
+        'methodname'  => 'execute',
+        'description' => 'Pospone el bloqueo en pantalla de una alerta (maximo configurable).',
+        'type'        => 'write',
+        'capabilities'  => '',
+        'ajax'        => true,
+    ),
+    'local_grupomakro_support_rate_ticket' => array(
+        'classname'   => 'local_grupomakro_core\external\support\rate_ticket',
+        'methodname'  => 'execute',
+        'description' => 'El solicitante califica la atencion de un ticket cerrado o la pospone.',
+        'type'        => 'write',
+        'capabilities'  => '',
+        'ajax'        => true,
+        'services'    => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
 );

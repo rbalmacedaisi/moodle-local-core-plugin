@@ -102,6 +102,15 @@ class settings {
                     'enabled' => (int)$t->enabled];
             }, $DB->get_records('gmk_tkt_template', null, 'id'))),
             'config' => config::all(),
+            // Names for the per-person incisive profiles (phase 2).
+            'usernames' => (function() {
+                $users = manager::load_users(array_keys((array)(config::get_json('tkt_incisive')['users'] ?? [])));
+                $out = new stdClass();
+                foreach ($users as $u) {
+                    $out->{(string)$u->id} = fullname($u);
+                }
+                return $out;
+            })(),
             'variables' => ['{numero}', '{categoria}', '{area}', '{agente}', '{horario}', '{estudiante}'],
             'audit' => self::recent_audit(),
         ];

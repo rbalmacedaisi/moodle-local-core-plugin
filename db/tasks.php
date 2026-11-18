@@ -212,4 +212,24 @@ $tasks = [
         'month' => '*',
         'dayofweek' => '*',
     ],
+    [
+        // Mesa de ayuda, fase 2 (20261001121): escalera de escalamiento y acuse.
+        'classname' => 'local_grupomakro_core\task\support_escalate',
+        'blocking' => 0,
+        'minute' => '*/5',
+        'hour' => '*',
+        'day' => '*',
+        'month' => '*',
+        'dayofweek' => '*',
+    ],
+    [
+        // Resumen diario: corre cada hora y envia una vez al dia desde tkt_digest_hour.
+        'classname' => 'local_grupomakro_core\task\support_digest',
+        'blocking' => 0,
+        'minute' => '5',
+        'hour' => '*',
+        'day' => '*',
+        'month' => '*',
+        'dayofweek' => '*',
+    ],
 ];

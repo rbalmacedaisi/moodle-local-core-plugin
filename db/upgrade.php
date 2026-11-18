@@ -4698,6 +4698,57 @@ if ($oldversion < 20261001093) {
         upgrade_plugin_savepoint(true, 20261001120, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20261001121) {
+        // Mesa de ayuda, fase 2: columnas de escalamiento, acuse y calificacion,
+        // tablas gmk_tkt_ack y gmk_tkt_mailgate. Sin cambios de datos: los
+        // parametros nuevos (tkt_*) toman su valor por defecto de config::SETTINGS
+        // hasta que alguien los guarde en la pagina de configuracion.
+        $table = new xmldb_table('gmk_tkt_ticket');
+        $fields = [
+            ['escalated_at', '10', 'escalation_level'],
+            ['assigned_at', '10', 'escalated_at'],
+            ['rating_solved', '1', 'rating_comment'],
+            ['rated_at', '10', 'rating_solved'],
+            ['rating_dismissed', '2', 'rated_at'],
+            ['rating_dismissed_at', '10', 'rating_dismissed'],
+        ];
+        foreach ($fields as [$name, $length, $after]) {
+            $field = new xmldb_field($name, XMLDB_TYPE_INTEGER, $length, null, XMLDB_NOTNULL, null, '0', $after);
+            if (!$dbman->field_exists($table, $field)) {
+                $dbman->add_field($table, $field);
+            }
+        }
+
+        $t = new xmldb_table('gmk_tkt_ack');
+        $t->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $t->add_field('ticketid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('timeack', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('how', XMLDB_TYPE_CHAR, '10', null, XMLDB_NOTNULL, null, '');
+        $t->add_field('snoozekey', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('snoozes', XMLDB_TYPE_INTEGER, '2', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('snoozeduntil', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $t->add_index('idx_tktack_ticket_user', XMLDB_INDEX_UNIQUE, ['ticketid', 'userid']);
+        $t->add_index('idx_tktack_user', XMLDB_INDEX_NOTUNIQUE, ['userid']);
+        if (!$dbman->table_exists($t)) {
+            $dbman->create_table($t);
+        }
+
+        $t = new xmldb_table('gmk_tkt_mailgate');
+        $t->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $t->add_field('ticketid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('timesent', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $t->add_index('idx_tktmail_ticket_user', XMLDB_INDEX_UNIQUE, ['ticketid', 'userid']);
+        if (!$dbman->table_exists($t)) {
+            $dbman->create_table($t);
+        }
+
+        upgrade_plugin_savepoint(true, 20261001121, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

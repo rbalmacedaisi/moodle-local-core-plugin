@@ -103,4 +103,12 @@ $definitions = [
         'simpledata' => true,
         'ttl' => 120,
     ],
+    // Mesa de ayuda, fase 2: datos del indicador flotante por persona (20 s;
+    // badge::invalidate() lo borra al acusar, tomar, posponer o cambiar la disponibilidad).
+    'supportbadge' => [
+        'mode' => cache_store::MODE_APPLICATION,
+        'simplekeys' => true,
+        'simpledata' => false,
+        'ttl' => 20,
+    ],
 ];
