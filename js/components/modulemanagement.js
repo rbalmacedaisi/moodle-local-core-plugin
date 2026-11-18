@@ -95,6 +95,7 @@ Vue.component('modulemanagement', {
             // Revisión de entregas
             pendingByClass:     {},      // { classid: n entregas por calificar }
             onlyPending:        false,
+            studentsOnlyPending: false,
             reviewDialog:       false,
             reviewEnrollment:   null,
             reviewDetail:       null,
@@ -117,8 +118,8 @@ Vue.component('modulemanagement', {
                 due: 'Fecha límite para terminar el módulo. Se puede ampliar con "Extender".',
                 days: 'Días que le quedan al estudiante antes de la fecha límite. Rojo: 7 días o menos; naranja: 15 o menos.',
                 status: 'Activo: cursando el módulo.\nCompletado: ya se registró su nota final.\nVencido: pasó la fecha límite sin completar.',
-                submission: 'Entregado · por calificar: el estudiante envió la actividad y falta la nota.\nCalificado: la actividad ya tiene nota.\nBorrador: subió archivos pero no pulsó "Enviar".\nSin entrega: no ha subido nada.',
-                studentActions: '"Revisar": abre la entrega (archivos), permite poner nota y comentario y completar el módulo.\n"Extender": suma días a la fecha límite.\n"Completado": cierra el módulo con la nota que ya tenga.\n"Desvincular": quita al estudiante del módulo.',
+                submission: 'Entregado · por calificar: el estudiante envió la actividad y falta la nota. Esas filas salen primero, resaltadas en naranja, con los días que llevan esperando (borde rojo si pasan de 7 días).\nCalificado: la actividad ya tiene nota.\nBorrador: subió archivos pero no pulsó "Enviar".\nSin entrega: no ha subido nada.',
+                studentActions: '"Calificar" (naranja, si ya entregó) o "Revisar": abre la entrega (archivos), permite poner nota y comentario y completar el módulo.\n"Extender": suma días a la fecha límite.\n"Completado": cierra el módulo con la nota que ya tenga.\n"Desvincular": quita al estudiante del módulo.',
                 reviewFiles: 'Pulse el nombre del archivo para abrirlo en otra pestaña, o el ícono de descarga para guardarlo.',
                 reviewGrade: 'Nota de 0 a 100. Se guarda en la actividad y en el libro de calificaciones, igual que si la pusiera el docente.',
                 reviewFeedback: 'Comentario opcional para el estudiante. Lo verá junto a su nota en la actividad.',
@@ -137,6 +138,12 @@ Vue.component('modulemanagement', {
     },
 
     computed: {
+        pendingStudents() {
+            return this.students.filter(s => s._submission === 'pending');
+        },
+        visibleStudents() {
+            return this.studentsOnlyPending ? this.pendingStudents : this.students;
+        },
         visibleModules() {
             const list = this.modules.map(m => ({ ...m, _pending: this.pendingByClass[m.id] || 0 }));
             return this.onlyPending ? list.filter(m => m._pending > 0) : list;
@@ -211,6 +218,22 @@ Vue.component('modulemanagement', {
         gradeCanSave() {
             return this.gradeAllFilled && this.gradeWeightValid && this.gradeActivities.length > 0;
         },
+    },
+
+    created() {
+        if (!document.getElementById('mm-priority-css')) {
+            const css = document.createElement('style');
+            css.id = 'mm-priority-css';
+            css.textContent = [
+                'tr.mm-row-pending td { background: #FFF3E0 !important; }',
+                'tr.mm-row-pending td:first-child { box-shadow: inset 4px 0 0 #EF6C00; }',
+                'tr.mm-row-pending:hover td { background: #FFE0B2 !important; }',
+                'tr.mm-row-urgent td:first-child { box-shadow: inset 4px 0 0 #C62828; }',
+                '@keyframes mmPulse { 0%,100% { opacity: 1; } 50% { opacity: .45; } }',
+                '.mm-pulse { animation: mmPulse 1.6s ease-in-out infinite; }',
+            ].join('\n');
+            document.head.appendChild(css);
+        }
     },
 
     mounted() {
@@ -295,6 +318,23 @@ Vue.component('modulemanagement', {
                 _draft:           draft,
                 _gradeLabel:      graded.length === 1 ? graded[0].grade : (graded.length ? graded.length + '/' + acts.length : null),
             };
+        },
+
+        // Días que lleva esperando nota una entrega.
+        waitingDays(item) {
+            if (!item._lastsubmission) return 0;
+            return Math.max(0, Math.floor((Date.now() / 1000 - item._lastsubmission) / 86400));
+        },
+        waitingText(item) {
+            const d = this.waitingDays(item);
+            return d === 0 ? 'Enviado hoy' : (d === 1 ? 'Esperando hace 1 día' : 'Esperando hace ' + d + ' días');
+        },
+        studentRowClass(item) {
+            if (item._submission !== 'pending') return '';
+            return this.waitingDays(item) > 7 ? 'mm-row-pending mm-row-urgent' : 'mm-row-pending';
+        },
+        moduleRowClass(item) {
+            return item._pending > 0 ? 'mm-row-pending' : '';
         },
 
         submissionLabel(item) {
@@ -448,6 +488,7 @@ Vue.component('modulemanagement', {
         async openStudents(module) {
             this.selectedModule  = module;
             this.students        = [];
+            this.studentsOnlyPending = false;
             this.studentsDialog  = true;
             this.loadingStudents = true;
             try {
@@ -712,6 +753,7 @@ Vue.component('modulemanagement', {
                         });
                     }
                     this.showMessage('success', ((payload.data || {}).message) || 'Inscripción marcada como completada.');
+                    this.loadPendingCounts();
                     return true;
                 }
                 this.showMessage('error', ((payload.data || payload).message) || 'No se pudo actualizar.');
@@ -972,9 +1014,28 @@ Vue.component('modulemanagement', {
       </v-card-title>
 
       <v-card-text class="pa-0">
+        <v-alert v-if="pendingStudents.length" color="orange darken-2" dark tile dense class="mb-0">
+          <div class="d-flex align-center flex-wrap">
+            <v-icon dark class="mr-2 mm-pulse">mdi-file-clock-outline</v-icon>
+            <span>
+              <strong>{{ pendingStudents.length }}</strong>
+              {{ pendingStudents.length === 1 ? 'estudiante ya envió y espera calificación' : 'estudiantes ya enviaron y esperan calificación' }}.
+              Aparecen primero y resaltados en naranja (borde rojo si llevan más de 7 días).
+            </span>
+            <v-spacer></v-spacer>
+            <v-btn small light class="mr-2 mt-1 mt-sm-0" @click="studentsOnlyPending = !studentsOnlyPending">
+              <v-icon small left>{{ studentsOnlyPending ? 'mdi-account-group' : 'mdi-filter-variant' }}</v-icon>
+              {{ studentsOnlyPending ? 'Ver todos' : 'Ver solo pendientes' }}
+            </v-btn>
+            <v-btn small light class="mt-1 mt-sm-0" @click="openReview(pendingStudents[0])">
+              <v-icon small left>mdi-pencil-box-outline</v-icon> Calificar el primero
+            </v-btn>
+          </div>
+        </v-alert>
         <v-data-table
           :headers="studentHeaders"
-          :items="students"
+          :items="visibleStudents"
+          :item-class="studentRowClass"
           :loading="loadingStudents"
           loading-text="Cargando estudiantes..."
           no-data-text="No hay estudiantes inscritos en este módulo."
@@ -998,8 +1059,19 @@ Vue.component('modulemanagement', {
           </template>
           <!-- Student name -->
           <template v-slot:item._fullname="{ item }">
-            <span class="font-weight-medium">{{ item._fullname }}</span>
-            <div class="text-caption grey--text">{{ item.email }}</div>
+            <div class="d-flex align-center">
+              <v-icon v-if="item._submission === 'pending'" small
+                :color="waitingDays(item) > 7 ? 'red darken-2' : 'orange darken-2'" class="mr-1"
+                title="Entregó y espera calificación">mdi-alert-circle</v-icon>
+              <div>
+                <span :class="item._submission === 'pending' ? 'font-weight-bold' : 'font-weight-medium'">{{ item._fullname }}</span>
+                <div class="text-caption grey--text">{{ item.email }}</div>
+                <div v-if="item._submission === 'pending'" class="text-caption font-weight-bold"
+                  :class="waitingDays(item) > 7 ? 'red--text text--darken-2' : 'orange--text text--darken-3'">
+                  {{ waitingText(item) }}
+                </div>
+              </div>
+            </div>
           </template>
 
           <!-- Enrollment date -->
@@ -1034,7 +1106,8 @@ Vue.component('modulemanagement', {
                 @click="openReview(item)"
                 title="Ver la entrega, calificar y completar"
               >
-                <v-icon x-small left>mdi-file-eye-outline</v-icon> Revisar
+                <v-icon x-small left>{{ item._submission === 'pending' ? 'mdi-pencil-box-outline' : 'mdi-file-eye-outline' }}</v-icon>
+                {{ item._submission === 'pending' ? 'Calificar' : 'Revisar' }}
               </v-btn>
               <template v-if="item.status === 'active'">
                 <v-btn x-small outlined color="orange darken-2"
@@ -1362,6 +1435,9 @@ Vue.component('modulemanagement', {
           <v-data-table
             :headers="moduleHeaders"
             :items="visibleModules"
+            :item-class="moduleRowClass"
+            sort-by="_pending"
+            sort-desc
             :loading="loadingModules"
             :search="moduleSearch"
             loading-text="Cargando módulos..."
@@ -1385,7 +1461,9 @@ Vue.component('modulemanagement', {
             </template>
             <!-- Asignatura -->
             <template v-slot:item.coursename="{ item }">
-              <span class="font-weight-medium">{{ item.coursename }}</span>
+              <v-icon v-if="item._pending > 0" small color="orange darken-2" class="mr-1"
+                title="Tiene entregas esperando calificación">mdi-alert-circle</v-icon>
+              <span :class="item._pending > 0 ? 'font-weight-bold' : 'font-weight-medium'">{{ item.coursename }}</span>
             </template>
 
             <!-- Período -->

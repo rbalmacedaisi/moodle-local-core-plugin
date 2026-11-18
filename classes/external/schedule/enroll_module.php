@@ -230,7 +230,7 @@ class enroll_module {
 
         // ── 3. Find or create the module class ────────────────────────────────────
         $moduleClass = $DB->get_record_sql(
-            "SELECT id, name, corecourseid, groupid, coursesectionid, module_deadline_days
+            "SELECT id, name, corecourseid, groupid, coursesectionid, module_deadline_days, closed
                FROM {gmk_class}
               WHERE is_module = 1
                 AND corecourseid = :cid
@@ -294,6 +294,14 @@ class enroll_module {
         if (!gmk_is_valid_class_section($moduleClass, $sectionReason)) {
             $moduleClass->coursesectionid = create_class_section($moduleClass);
             $DB->set_field('gmk_class', 'coursesectionid', (int)$moduleClass->coursesectionid, ['id' => (int)$moduleClass->id]);
+        }
+
+        // The module class is shared by every student of the subject in the period and is
+        // closed once its last active student completes. Enrolling someone new into it must
+        // reopen it: a closed class makes the grade resolver treat the module as finished.
+        if (!empty($moduleClass->closed)) {
+            $DB->set_field('gmk_class', 'closed', 0, ['id' => (int)$moduleClass->id]);
+            $moduleClass->closed = 0;
         }
 
         $classId     = (int)$moduleClass->id;

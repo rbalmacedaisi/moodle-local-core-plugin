@@ -2666,10 +2666,13 @@ try {
                 $DB->set_field('gmk_module_enrollment', 'status',       'completed', ['id' => $enrollment_id]);
                 $DB->set_field('gmk_module_enrollment', 'timemodified', $now_t,      ['id' => $enrollment_id]);
 
-                // Close the module class so it stops appearing in module_management and any
-                // pending-grade widgets. Without this, approved modules stay listed as
-                // open even after every student has been completed.
-                if ($mod_class && (int)$mod_class->id > 0 && empty($mod_class->closed)) {
+                // Close the module class only once NO student remains active in it. The class
+                // is shared by every student of the subject in the period (enroll_module reuses
+                // it), so closing it on the first completion made the grade resolver treat the
+                // module as finished for the students still working on it.
+                if ($mod_class && (int)$mod_class->id > 0 && empty($mod_class->closed)
+                        && !$DB->record_exists('gmk_module_enrollment',
+                            ['classid' => (int)$mod_class->id, 'status' => 'active'])) {
                     $DB->set_field('gmk_class', 'closed', 1, ['id' => (int)$mod_class->id]);
                 }
 
