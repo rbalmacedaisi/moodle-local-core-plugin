@@ -100,9 +100,38 @@ Vue.component('support-requester', {
       <!-- New request -->
       <v-dialog v-model="newDialog.open" max-width="560" :fullscreen="$vuetify.breakpoint.xsOnly" persistent>
         <v-card>
-          <v-card-title>Nueva solicitud</v-card-title>
+          <v-card-title class="gmk-wrap">
+            <v-btn v-if="newDialog.stage === 'answer' || (newDialog.stage === 'form' && faqs.length)" icon class="mr-1" aria-label="Volver" @click="faqBack">
+              <v-icon>mdi-arrow-left</v-icon></v-btn>
+            {{ { faq: '¿Qué problema tienes?', answer: 'Prueba esto', thanks: '¡Listo!', form: 'Nueva solicitud' }[newDialog.stage] }}
+          </v-card-title>
           <v-card-text>
             <v-progress-linear v-if="!catalog" indeterminate></v-progress-linear>
+            <!-- Problemas comunes: primero la respuesta guiada -->
+            <template v-else-if="newDialog.stage === 'faq'">
+              <p class="text--secondary">Elige el problema que más se parece al tuyo:</p>
+              <v-btn v-for="f in faqs" :key="f.id" outlined block class="gmk-faq-option mb-2" @click="openFaq(f)">
+                <v-icon left color="primary">mdi-lightbulb-on-outline</v-icon>{{ f.problem }}
+              </v-btn>
+              <v-btn outlined block class="gmk-faq-option mb-2" @click="faqOther"><v-icon left>mdi-help-circle-outline</v-icon>Mi problema es otro</v-btn>
+            </template>
+            <template v-else-if="newDialog.stage === 'answer' && newDialog.faq">
+              <div class="font-weight-medium mb-2 gmk-wrap">{{ newDialog.faq.problem }}</div>
+              <div class="gmk-faq-answer pa-3 mb-3" v-html="newDialog.faq.answerhtml"></div>
+              <v-btn v-for="(l, i) in newDialog.faq.links" :key="i" block depressed color="primary" class="mb-2 gmk-faq-option"
+                :href="l.url" target="_blank" rel="noopener">
+                <v-icon left>{{ { appstore: 'mdi-apple', playstore: 'mdi-google-play', web: 'mdi-open-in-new' }[l.kind] || 'mdi-open-in-new' }}</v-icon>{{ l.label }}
+              </v-btn>
+              <div class="font-weight-medium mt-4 mb-2">¿Se solucionó?</div>
+              <v-btn block depressed color="success" class="mb-2" @click="faqSolved"><v-icon left>mdi-check</v-icon>Sí, se solucionó</v-btn>
+              <v-btn block outlined color="error" @click="faqNotSolved"><v-icon left>mdi-close</v-icon>No, sigo con el problema</v-btn>
+            </template>
+            <template v-else-if="newDialog.stage === 'thanks'">
+              <div class="text-center py-6">
+                <v-icon size="56" color="success">mdi-check-circle-outline</v-icon>
+                <p class="mt-3 mb-0">¡Qué bueno! Si vuelve a pasar o necesitas algo más, aquí estamos.</p>
+              </div>
+            </template>
             <template v-else>
               <v-alert v-if="!topics.length" type="warning" text dense>No hay temas disponibles para docentes en este momento.</v-alert>
               <v-select v-model="newDialog.categoryid" :items="topics" item-text="label" item-value="id" label="Tema" outlined dense></v-select>
@@ -111,13 +140,19 @@ Vue.component('support-requester', {
               </v-alert>
               <v-text-field v-model="newDialog.subject" label="Asunto (opcional)" outlined dense maxlength="200"></v-text-field>
               <v-textarea v-model="newDialog.body" label="Describe lo que necesitas" outlined auto-grow rows="4" :maxlength="catalog.max_body"></v-textarea>
+              <v-alert type="info" text dense icon="mdi-camera-outline" class="mb-2">
+                Para ayudarte más rápido, adjunta una <b>captura de pantalla</b> o un <b>video</b> del error.
+              </v-alert>
+              <support-attach-picker ref="newpicker" :limits="catalog.attachlimits" :ticketid="0" :disabled="newDialog.busy"
+                @state="newAttach = $event" @error="newDialog.error = $event"></support-attach-picker>
               <v-alert v-if="newDialog.error" type="error" text dense>{{ newDialog.error }}</v-alert>
             </template>
           </v-card-text>
           <v-card-actions>
             <v-spacer></v-spacer>
-            <v-btn text @click="newDialog.open = false">Cancelar</v-btn>
-            <v-btn color="primary" depressed :loading="newDialog.busy" :disabled="!newDialog.categoryid || !newDialog.body.trim()" @click="create">Enviar</v-btn>
+            <v-btn text @click="newDialog.open = false">{{ newDialog.stage === 'thanks' ? 'Cerrar' : 'Cancelar' }}</v-btn>
+            <v-btn v-if="newDialog.stage === 'form'" color="primary" depressed :loading="newDialog.busy || newAttach.busy"
+              :disabled="!newDialog.categoryid || !newDialog.body.trim() || newAttach.busy || newAttach.failed" @click="create">Enviar</v-btn>
           </v-card-actions>
         </v-card>
       </v-dialog>
@@ -157,10 +192,11 @@ Vue.component('support-requester', {
             sending: false,
             busy: false,
             catalog: null,
-            newDialog: { open: false, categoryid: null, subject: '', body: '', busy: false, error: '' },
+            newDialog: { open: false, stage: 'form', categoryid: null, subject: '', body: '', busy: false, error: '', faq: null },
             rateDialog: { open: false, rating: 0, solved: true, comment: '', busy: false },
             attachlimits: null,
             attach: { busy: false, failed: false, count: 0, draftitemid: 0 },
+            newAttach: { busy: false, failed: false, count: 0, draftitemid: 0 },
             snack: { show: false, text: '', color: 'error' },
             timers: [],
         };
@@ -171,6 +207,12 @@ Vue.component('support-requester', {
         },
         canSend() {
             return !this.sending && !this.attach.busy && !this.attach.failed && (!!this.draft.trim() || this.attach.count > 0);
+        },
+        faqs() {
+            if (!this.catalog) return [];
+            const out = [];
+            this.catalog.areas.filter(a => !a.external).forEach(a => (a.faqs || []).forEach(f => out.push(Object.assign({ areaid: a.id }, f))));
+            return out;
         },
         topics() {
             if (!this.catalog) return [];
@@ -311,16 +353,47 @@ Vue.component('support-requester', {
             }
         },
         async openNew() {
-            this.newDialog = { open: true, categoryid: null, subject: '', body: '', busy: false, error: '' };
+            this.newDialog = { open: true, stage: 'form', categoryid: null, subject: '', body: '', busy: false, error: '', faq: null };
+            this.newAttach = { busy: false, failed: false, count: 0, draftitemid: 0 };
+            if (this.$refs.newpicker) this.$refs.newpicker.reset();
             if (!this.catalog) {
                 try {
                     this.catalog = await this.call('get_catalog', { audience: 'teacher' });
-                    if (this.topics.length === 1) this.newDialog.categoryid = this.topics[0].id;
                 } catch (e) {
                     this.newDialog.error = e.message;
                     this.catalog = { areas: [], max_body: 4000 };
                 }
             }
+            if (this.topics.length === 1) this.newDialog.categoryid = this.topics[0].id;
+            // Problemas comunes primero (respuesta guiada), si el area tiene.
+            if (this.faqs.length) this.newDialog.stage = 'faq';
+        },
+        faqFeedback(faq, outcome) {
+            this.call('faq_feedback', { faqid: faq.id, outcome: outcome, audience: 'teacher' }).catch(() => {});
+        },
+        openFaq(f) {
+            this.newDialog.faq = f;
+            this.newDialog.stage = 'answer';
+            this.faqFeedback(f, 'view');
+        },
+        faqBack() {
+            this.newDialog.stage = this.newDialog.stage === 'form' && this.newDialog.faq ? 'answer' : 'faq';
+        },
+        faqSolved() {
+            this.faqFeedback(this.newDialog.faq, 'solved');
+            this.newDialog.stage = 'thanks';
+        },
+        faqNotSolved() {
+            const f = this.newDialog.faq;
+            this.faqFeedback(f, 'notsolved');
+            const topic = this.topics.find(t => t.id === f.categoryid) || this.topics.find(t => t.areaid === f.areaid);
+            if (topic) this.newDialog.categoryid = topic.id;
+            this.newDialog.subject = f.problem.slice(0, 200);
+            this.newDialog.stage = 'form';
+        },
+        faqOther() {
+            this.newDialog.faq = null;
+            this.newDialog.stage = 'form';
         },
         async create() {
             this.newDialog.busy = true;
@@ -329,7 +402,10 @@ Vue.component('support-requester', {
                 const data = await this.call('create_ticket', {
                     categoryid: this.newDialog.categoryid, subject: this.newDialog.subject, body: this.newDialog.body,
                     classid: 0, audience: 'teacher',
+                    draftitemid: this.newAttach.count > 0 ? this.newAttach.draftitemid : 0,
+                    faqid: this.newDialog.faq ? this.newDialog.faq.id : 0,
                 });
+                if (this.$refs.newpicker) this.$refs.newpicker.reset();
                 this.newDialog.open = false;
                 this.filterIndex = 0;
                 await this.loadList();

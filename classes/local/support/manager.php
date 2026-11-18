@@ -302,6 +302,8 @@ class manager {
                 'external_url' => $external ? self::external_link($area, $message) : '',
                 'external_label' => (string)$area->external_label,
                 'topics' => $topics,
+                // Problemas comunes antes del formulario (respuesta guiada).
+                'faqs' => $external ? [] : faq::for_area((int)$area->id, $audience),
             ];
         }
         return $out;
@@ -365,7 +367,7 @@ class manager {
      * Creates a ticket for $userid, assigns it and posts the automatic messages.
      */
     public static function create(int $userid, int $categoryid, string $subject, string $body, int $classid = 0,
-            string $audience = 'student', int $draftitemid = 0): stdClass {
+            string $audience = 'student', int $draftitemid = 0, int $faqid = 0): stdClass {
         global $DB;
         require_capability('local/grupomakro_core:support_create', context_system::instance(), $userid);
 
@@ -459,6 +461,12 @@ class manager {
         $message = self::insert_message($ticket, $userid, self::ROLE_REQUESTER, $body, false);
         if ($drafts) {
             attachments::attach($message, $userid, $draftitemid);
+        }
+        $tried = faq::for_ticket($faqid, (int)$area->id);
+        if ($tried) {
+            // Nota interna para el agente: ya probo la respuesta guiada.
+            self::insert_message($ticket, 0, self::ROLE_SYSTEM, 'Ya probó la solución sugerida: ' . $tried->problem, true);
+            self::log_event((int)$ticket->id, 'faq_tried', '', (string)$tried->id, $userid);
         }
         self::set_read_pointer((int)$ticket->id, $userid, (int)$message->id);
 

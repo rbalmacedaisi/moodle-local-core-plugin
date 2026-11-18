@@ -80,6 +80,17 @@ class get_catalog extends external_api {
                     'confidential' => new external_value(PARAM_BOOL, 'Confidential'),
                     'requires_attachment' => new external_value(PARAM_BOOL, 'Attachment required (phase 3)'),
                 ])),
+                'faqs' => new external_multiple_structure(new external_single_structure([
+                    'id' => new external_value(PARAM_INT, 'Common problem id'),
+                    'categoryid' => new external_value(PARAM_INT, 'Topic to preselect (0 = first of the area)'),
+                    'problem' => new external_value(PARAM_TEXT, 'What the person selects'),
+                    'answerhtml' => new external_value(PARAM_RAW, 'Answer as safe HTML (escaped text, lists, bold)'),
+                    'links' => new external_multiple_structure(new external_single_structure([
+                        'label' => new external_value(PARAM_TEXT, 'Button text'),
+                        'url' => new external_value(PARAM_URL, 'https link'),
+                        'kind' => new external_value(PARAM_ALPHA, 'web | appstore | playstore'),
+                    ])),
+                ]), 'Common problems (guided answers)', VALUE_DEFAULT, []),
             ])),
             'max_open' => new external_value(PARAM_INT, 'Max open requests per student'),
             'max_body' => new external_value(PARAM_INT, 'Max characters per message'),

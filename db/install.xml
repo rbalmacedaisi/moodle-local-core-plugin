@@ -2105,6 +2105,30 @@
         <INDEX NAME="idx_tktcanned_area" UNIQUE="false" FIELDS="areaid"/>
       </INDEXES>
     </TABLE>
+    <TABLE NAME="gmk_tkt_faq" COMMENT="Mesa de ayuda: problemas comunes con respuesta guiada antes de abrir una solicitud.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="areaid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="categoryid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Tema preseleccionado si no se soluciona (0 = el primero del area)"/>
+        <FIELD NAME="problem" TYPE="char" LENGTH="255" NOTNULL="true" DEFAULT="" SEQUENCE="false"/>
+        <FIELD NAME="answer" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Texto con formato simple: 1. lista, - vinetas, **negrita**"/>
+        <FIELD NAME="links" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="JSON [{label, url, kind: web|appstore|playstore}]"/>
+        <FIELD NAME="audience" TYPE="char" LENGTH="10" NOTNULL="true" DEFAULT="all" SEQUENCE="false" COMMENT="all, student o teacher"/>
+        <FIELD NAME="sortorder" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="active" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="1" SEQUENCE="false"/>
+        <FIELD NAME="views" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="solved" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="notsolved" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_tktfaq_area" UNIQUE="false" FIELDS="areaid, active, sortorder"/>
+      </INDEXES>
+    </TABLE>
     <TABLE NAME="gmk_tkt_ack" COMMENT="Mesa de ayuda: acuse de alertas por persona (abrir, tomar, responder) y posposiciones del bloqueo.">
       <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>

@@ -1641,3 +1641,6 @@ $string['tkt_err_attachcount'] = 'Puedes adjuntar como máximo {$a} archivos por
 $string['tkt_err_attachdisabled'] = 'Los adjuntos están desactivados en la mesa de ayuda.';
 $string['tkt_err_attachserver'] = 'El archivo supera el máximo que acepta el servidor ({$a}).';
 $string['tkt_err_attachupload'] = 'No se pudo subir el archivo (código {$a}). Intenta de nuevo.';
+
+// Mesa de ayuda: problemas comunes (20261001125).
+$string['tkt_err_faq'] = 'Ese problema común ya no está disponible.';

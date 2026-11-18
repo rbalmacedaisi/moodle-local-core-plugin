@@ -54,6 +54,10 @@
  * solicitante, borrador ajeno no, Psicologia confidencial no). Los archivos
  * de prueba se revierten con la transaccion.
  *
+ * 20261001125: problemas comunes (carga inicial de TI, publico por audiencia,
+ * HTML seguro, enlaces solo https, contadores, nota interna al abrir la
+ * solicitud tras "No, sigo con el problema").
+ *
  * @package    local_grupomakro_core
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -793,6 +797,73 @@ try {
                 break;
             }
         }
+    }
+
+    // =====================================================================
+    // 25. 20261001125: problemas comunes (respuesta guiada antes del ticket).
+    // =====================================================================
+    cli_writeln('');
+    cli_writeln('Problemas comunes');
+    $faqc = '\local_grupomakro_core\local\support\faq';
+    $tiarea = $DB->get_record('gmk_tkt_area', ['code' => 'ti']);
+    if ($tiarea) {
+        $seeded = $DB->count_records('gmk_tkt_faq', ['areaid' => $tiarea->id]);
+        $check('carga inicial de Soporte Tecnologico (Chrome y buscar la clase)', $seeded >= 2, $seeded . ' problema(s)');
+        $chrome = $DB->get_record_select('gmk_tkt_faq', 'areaid = ? AND ' . $DB->sql_like('links', '?'),
+            [$tiarea->id, '%play.google.com%'], '*', IGNORE_MULTIPLE);
+        $check('Chrome trae los botones de App Store, Play Store y Windows', $chrome
+            && count($faqc::links($chrome->links)) === 3, $chrome ? implode(' | ', array_column($faqc::links($chrome->links), 'label')) : '');
+    }
+    // Test items on the academic area (rolled back): one per audience.
+    [, $fs1] = $faqc::save(['areaid' => (int)$academic->areaid, 'categoryid' => (int)$academic->id,
+        'problem' => 'Prueba estudiantes (selftest)', 'answer' => "1. Paso uno\n2. Paso **dos**", 'audience' => 'student',
+        'sortorder' => 1, 'active' => 1, 'links' => [['label' => 'Web', 'url' => 'https://www.google.com/chrome/', 'kind' => 'web']]]);
+    [, $ft1] = $faqc::save(['areaid' => (int)$academic->areaid, 'categoryid' => 0, 'problem' => 'Prueba docentes (selftest)',
+        'answer' => 'Solo docentes', 'audience' => 'teacher', 'sortorder' => 2, 'active' => 1, 'links' => []]);
+    $catalogstudent = manager::catalog($studentid, 'student');
+    $acad = array_values(array_filter($catalogstudent, function($a) use ($academic) {
+        return (int)$a['id'] === (int)$academic->areaid;
+    }));
+    $ids = $acad ? array_column($acad[0]['faqs'], 'id') : [];
+    $check('el catalogo del estudiante trae los problemas para estudiantes y no los de docentes',
+        in_array((int)$fs1->id, $ids, true) && !in_array((int)$ft1->id, $ids, true));
+    $check('la respuesta se entrega como HTML seguro (texto escapado, lista y negrita)',
+        strpos($faqc::render('<b>x</b> **y**'), '&lt;b&gt;') !== false
+        && strpos($faqc::render("1. a\n2. **b**"), '<ol><li>a</li><li><strong>b</strong></li></ol>') !== false);
+    $check('un enlace que no es https se rechaza', $throws(function() use ($faqc, $academic) {
+        try {
+            $faqc::save(['areaid' => (int)$academic->areaid, 'problem' => 'x', 'answer' => 'y', 'audience' => 'all',
+                'links' => [['label' => 'Inseguro', 'url' => 'http://example.com', 'kind' => 'web']]]);
+        } catch (\invalid_parameter_exception $e) {
+            throw new \moodle_exception('invalidparameter');
+        }
+    }, 'invalidparameter'));
+    $faqc::record((int)$fs1->id, 'view', $studentid, 'student');
+    $faqc::record((int)$fs1->id, 'notsolved', $studentid, 'student');
+    $faqc::record((int)$fs1->id, 'solved', $studentid, 'student');
+    $counts = $DB->get_record('gmk_tkt_faq', ['id' => $fs1->id]);
+    $check('cuenta vistas, "se soluciono" y "sigue el problema"', (int)$counts->views === 1 && (int)$counts->solved === 1
+        && (int)$counts->notsolved === 1);
+    $check('un estudiante no puede contar un problema solo para docentes', $throws(function() use ($faqc, $ft1, $studentid) {
+        $faqc::record((int)$ft1->id, 'view', $studentid, 'student');
+    }, 'tkt_err_faq'));
+    // Not solved -> ticket with the topic and an internal note for the agent.
+    $openfaq = $DB->count_records_select('gmk_tkt_ticket', 'userid = ? AND status NOT IN (?, ?)',
+        [$studentid, 'cerrado', 'cancelado']);
+    $todayfaq = $DB->count_records_select('gmk_tkt_ticket', 'userid = ? AND timecreated > ?', [$studentid, time() - DAYSECS]);
+    if ($openfaq < \local_grupomakro_core\local\support\config::get_int('tkt_max_open')
+            && $todayfaq < \local_grupomakro_core\local\support\config::get_int('tkt_max_daily')) {
+        $tf = manager::create($studentid, (int)$academic->id, 'Prueba estudiantes (selftest)', 'Sigo con el problema', 0,
+            'student', 0, (int)$fs1->id);
+        $notes = $DB->get_records('gmk_tkt_message', ['ticketid' => $tf->id, 'internal' => 1]);
+        $note = $notes ? reset($notes) : null;
+        $check('"No, sigo con el problema": nota interna "Ya probó la solución sugerida"', $note
+            && strpos($note->body, 'Ya probó la solución sugerida: Prueba estudiantes') === 0);
+        $check('esa nota no la ve el estudiante', !in_array((int)($note->id ?? 0),
+            array_column(manager::messages($tf, $studentid, manager::ROLE_REQUESTER)['messages'], 'id'), true));
+        $check('un problema de otra area no se anota', $faqc::for_ticket((int)$fs1->id, (int)$academic->areaid + 100000) === null);
+    } else {
+        cli_writeln('  (omito el ticket con problema comun: el estudiante llego al maximo de abiertos o del dia)');
     }
 
     // 9. Open-tickets limit.

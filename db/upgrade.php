@@ -4802,6 +4802,33 @@ if ($oldversion < 20261001093) {
         upgrade_plugin_savepoint(true, 20261001124, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20261001125) {
+        // Problemas comunes (respuestas guiadas antes de abrir una solicitud) y
+        // su carga inicial para Soporte Tecnologico (solo si la tabla esta vacia).
+        $t = new xmldb_table('gmk_tkt_faq');
+        $t->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $t->add_field('areaid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('categoryid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('problem', XMLDB_TYPE_CHAR, '255', null, XMLDB_NOTNULL, null, '');
+        $t->add_field('answer', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $t->add_field('links', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $t->add_field('audience', XMLDB_TYPE_CHAR, '10', null, XMLDB_NOTNULL, null, 'all');
+        $t->add_field('sortorder', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('active', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '1');
+        $t->add_field('views', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('solved', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('notsolved', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $t->add_index('idx_tktfaq_area', XMLDB_INDEX_NOTUNIQUE, ['areaid', 'active', 'sortorder']);
+        if (!$dbman->table_exists($t)) {
+            $dbman->create_table($t);
+        }
+        \local_grupomakro_core\local\support\faq::seed();
+        upgrade_plugin_savepoint(true, 20261001125, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

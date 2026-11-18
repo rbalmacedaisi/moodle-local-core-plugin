@@ -1635,3 +1635,6 @@ $string['tkt_err_attachcount'] = 'You can attach at most {$a} files per message.
 $string['tkt_err_attachdisabled'] = 'Attachments are disabled in the help desk.';
 $string['tkt_err_attachserver'] = 'The file is larger than the server accepts ({$a}).';
 $string['tkt_err_attachupload'] = 'The file could not be uploaded (code {$a}). Please try again.';
+
+// Help desk: common problems (20261001125).
+$string['tkt_err_faq'] = 'That common problem is no longer available.';
