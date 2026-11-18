@@ -175,3 +175,18 @@ Pedido de Ramiro (18-nov-2026): "las horas ten en cuenta que sean horas hábiles
 2. Con Esteban fuera de su horario: sin bloqueo ni sonido; su ticket no avanza el semáforo; si el área está abierta, a los 5 min hábiles pasa a otro agente de TI en horario o se avisa a supervisores.
 3. Como Esteban (TI): pestaña **Todos**, abrir un ticket académico, **Reasignar** a Jorge; luego Reasignar eligiendo otro tema de otra área: el estudiante ve el mensaje automático y el historial muestra el cambio.
 4. Como Esteban: un ticket de Psicología no aparece en Todos; como Secretaría tampoco.
+
+## 10. Mobile first en Moodle (bandeja, configuración, indicador y Ayuda TI) ✋
+
+Pedido de Ramiro (18-nov-2026): "Necesito que toda la ux se adapte a mobile first". Estilos base para 360–400 px en `js/components/SupportApi.js` (compartidos por las tres páginas) y el escritorio agregado con `min-width` (600 y 960 px). Revisado en el navegador con datos simulados a 375 px y a 1280 px: sin scroll horizontal.
+
+| Pantalla | Celular (≤ 959 px) | Escritorio |
+|---|---|---|
+| Bandeja | Lista a ancho completo; pestañas desplazables con el dedo. Al abrir un ticket, el chat ocupa toda la pantalla (respeta el área segura) con flecha de volver; el botón "atrás" del teléfono también vuelve a la lista. Acción principal a la vista (Tomar o Resolver) y el resto en el menú ⋮ (Reasignar, Devolver, Pedir información, Cerrar, Prioridad, Cambiar tema, Historial, Datos del solicitante). Modos del mensaje como chips. | Lista de 420 px y chat al lado, botones en línea, como antes. |
+| Configuración | Tablas convertidas en tarjetas apiladas (cada dato con su etiqueta); formularios a una columna; diálogos a pantalla completa. | Tablas normales. |
+| Ayuda TI (docentes) | Igual que la bandeja: lista y chat a pantalla completa con volver. | Lista y chat lado a lado. |
+| Indicador | Píldora compacta (solo números, 44 px de alto) que respeta el área segura; reserva espacio al final de la página para no tapar contenido; un aviso a la vez con "+N avisos más". El bloqueo apila los botones a lo ancho (52 px). El aviso al docente sale como hoja inferior. | Píldora con etiquetas, hasta 4 avisos, bloqueo con botones en fila. |
+
+Comunes: botones e íconos de al menos 44 px de alto en el celular; campos con letra de 16 px (iOS no hace zoom).
+
+Prueba en un teléfono real (iPhone y Android) con un agente de prueba: abrir la bandeja, abrir un ticket, responder, usar el menú ⋮, volver con el botón del teléfono, abrir la configuración y recorrer las pestañas, y provocar el bloqueo con Esteban.

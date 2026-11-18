@@ -7,46 +7,46 @@
 Vue.component('support-desk', {
     props: { config: { type: Object, default: () => ({}) } },
     template: `
-    <v-container fluid class="pa-2 pa-md-4">
-      <div class="d-flex align-center flex-wrap mb-3">
-        <v-icon color="primary" class="mr-2">mdi-lifebuoy</v-icon>
-        <span class="text-h6 mr-4">Mesa de ayuda</span>
-        <v-switch v-model="available" inset hide-details dense class="mt-0 mr-4" color="success"
-          :label="available ? 'Disponible' : 'Ausente'" @change="setAvailability"></v-switch>
-        <v-spacer></v-spacer>
+    <v-container fluid class="gmk-sup pa-2 pa-md-4">
+      <div class="gmk-desk-head mb-2 mb-md-3">
+        <div class="d-flex align-center">
+          <v-icon color="primary" class="mr-2">mdi-lifebuoy</v-icon>
+          <span class="text-subtitle-1 text-sm-h6 font-weight-medium mr-2 text-no-wrap">Mesa de ayuda</span>
+          <v-spacer></v-spacer>
+          <v-switch v-model="available" inset hide-details dense class="mt-0 mr-1" color="success"
+            :label="available ? 'Disponible' : 'Ausente'" @change="setAvailability"></v-switch>
+          <v-btn v-if="config.settingsurl" icon :href="config.settingsurl" title="Configuración" aria-label="Configuración">
+            <v-icon>mdi-cog</v-icon></v-btn>
+        </div>
         <v-text-field v-model="search" dense outlined hide-details clearable prepend-inner-icon="mdi-magnify"
-          placeholder="Número, asunto o estudiante" style="max-width: 320px" class="mr-2"
+          placeholder="Número, asunto o estudiante" class="gmk-desk-search mt-2 mt-md-0"
           @input="debouncedList"></v-text-field>
-        <v-btn v-if="config.settingsurl" small outlined color="primary" :href="config.settingsurl">
-          <v-icon left small>mdi-cog</v-icon> Configuración
-        </v-btn>
       </div>
 
-      <v-card outlined class="d-flex" style="min-height: 560px; height: calc(100vh - 220px); overflow: hidden;">
-        <!-- Lista -->
-        <div class="d-flex flex-column" :style="{ width: isMobile && active ? '0' : (isMobile ? '100%' : '420px'),
-             borderRight: '1px solid rgba(0,0,0,0.12)', display: isMobile && active ? 'none' : 'flex' }">
-          <v-tabs v-model="tabIndex" show-arrows height="40" @change="onTab">
-            <v-tab v-for="t in visibleTabs" :key="t.key" class="px-2 text-none">
+      <div class="gmk-desk" :class="{ 'gmk-desk--open': !!active }">
+        <!-- Lista: ancho completo en el celular, columna de 420 px en escritorio -->
+        <div class="gmk-desk__list">
+          <v-tabs v-model="tabIndex" :show-arrows="!isMobile" height="44" @change="onTab" class="gmk-desk-tabs">
+            <v-tab v-for="t in visibleTabs" :key="t.key" class="px-3 text-none">
               <span :class="{ 'red--text font-weight-bold': t.key === 'unassigned' && count(t.key) > 0 }">{{ t.label }}</span>
               <v-chip x-small class="ml-1" :color="chipColor(t.key)" :dark="count(t.key) > 0 && t.key !== 'closed'">{{ count(t.key) }}</v-chip>
             </v-tab>
           </v-tabs>
           <v-divider></v-divider>
           <v-progress-linear v-if="loadingList" indeterminate color="primary"></v-progress-linear>
-          <div class="flex-grow-1" style="overflow-y: auto;">
+          <div class="gmk-desk__scroll">
             <div v-if="!loadingList && tickets.length === 0" class="pa-6 text-center text--secondary">
               <v-icon large>mdi-inbox-outline</v-icon>
               <p class="mt-2 mb-0">No hay tickets en esta pestaña.</p>
             </div>
-            <v-list two-line dense class="py-0">
+            <v-list two-line class="py-0">
               <template v-for="t in tickets">
-                <v-list-item :key="t.id" @click="openTicket(t.id)" :input-value="active && active.id === t.id">
+                <v-list-item :key="t.id" @click="openTicket(t.id)" :input-value="active && active.id === t.id" class="px-3">
                   <v-list-item-avatar size="14" class="mr-3 align-self-start mt-4">
                     <v-icon small :color="fmt.semaphoreColor(t.semaphore)">mdi-circle</v-icon>
                   </v-list-item-avatar>
                   <v-list-item-content>
-                    <v-list-item-title :class="{ 'font-weight-bold': t.unread > 0 }">
+                    <v-list-item-title :class="{ 'font-weight-bold': t.unread > 0 }" class="gmk-wrap">
                       <v-icon v-if="t.confidential" x-small color="purple" class="mr-1">mdi-lock</v-icon>
                       {{ t.number }} · {{ t.requestername }}
                     </v-list-item-title>
@@ -57,7 +57,7 @@ Vue.component('support-desk', {
                       <span v-if="t.assignedname">{{ t.assignedname }}</span><span v-else class="red--text">Sin asignar</span>
                     </v-list-item-subtitle>
                   </v-list-item-content>
-                  <v-list-item-action class="align-self-start mt-3">
+                  <v-list-item-action class="align-self-start mt-3 ml-2">
                     <v-list-item-action-text :title="t.semaphore !== 'none' ? 'Minutos hábiles de espera (reloj: ' + (fmt.waiting(t.waitingclock) || '0 min') + ')' : ''">{{ fmt.waiting(t.waitingminutes) || shortDate(t.lastmessageat || t.timecreated) }}</v-list-item-action-text>
                     <v-chip v-if="t.unread > 0" x-small color="pink" dark class="mt-1">{{ t.unread }}</v-chip>
                   </v-list-item-action>
@@ -65,30 +65,55 @@ Vue.component('support-desk', {
                 <v-divider :key="'d' + t.id"></v-divider>
               </template>
             </v-list>
-          </div>
-          <div v-if="total > tickets.length" class="pa-2 text-caption text-center text--secondary">
-            Mostrando {{ tickets.length }} de {{ total }}. Usa la búsqueda para acotar.
+            <div v-if="total > tickets.length" class="pa-2 text-caption text-center text--secondary">
+              Mostrando {{ tickets.length }} de {{ total }}. Usa la búsqueda para acotar.
+            </div>
           </div>
         </div>
 
-        <!-- Ticket -->
-        <div class="d-flex flex-column flex-grow-1" style="min-width: 0;" v-if="!isMobile || active">
+        <!-- Ticket: pantalla completa en el celular (botón volver), panel derecho en escritorio -->
+        <div class="gmk-desk__chat">
           <template v-if="active">
-            <div class="pa-3">
-              <div class="d-flex align-center flex-wrap">
-                <v-btn v-if="isMobile" icon class="mr-1" @click="active = null"><v-icon>mdi-arrow-left</v-icon></v-btn>
-                <span class="text-h6 mr-2">{{ active.number }}</span>
-                <v-chip small label :color="fmt.statusColor(active.status)" dark class="mr-2">{{ active.statuslabel }}</v-chip>
-                <v-chip v-if="active.confidential" small label color="purple" dark class="mr-2"><v-icon x-small left>mdi-lock</v-icon>Confidencial</v-chip>
-                <v-chip v-if="active.semaphore !== 'none'" small label outlined :color="fmt.semaphoreColor(active.semaphore)" class="mr-2"
-                  :title="'Solo cuenta el horario hábil del área. En reloj: ' + (fmt.waiting(active.waitingclock) || '0 min')">
-                  <v-icon x-small left>mdi-timer-sand</v-icon>Esperando {{ fmt.waiting(active.waitingminutes) || '0 min' }} hábiles
-                </v-chip>
-                <v-spacer></v-spacer>
-                <v-btn icon small title="Actualizar" @click="refreshActive(true)"><v-icon small>mdi-refresh</v-icon></v-btn>
+            <div class="gmk-desk-bar px-1 px-md-3 pt-1 pt-md-3">
+              <div class="d-flex align-center">
+                <v-btn v-if="isMobile" icon @click="closeTicket" aria-label="Volver a la lista"><v-icon>mdi-arrow-left</v-icon></v-btn>
+                <div class="gmk-min0 flex-grow-1">
+                  <div class="d-flex align-center flex-wrap" style="gap: 4px 8px;">
+                    <span class="text-subtitle-1 text-md-h6 font-weight-medium">{{ active.number }}</span>
+                    <v-chip small label :color="fmt.statusColor(active.status)" dark>{{ active.statuslabel }}</v-chip>
+                    <v-chip v-if="active.confidential" small label color="purple" dark><v-icon x-small left>mdi-lock</v-icon>Confidencial</v-chip>
+                    <v-chip v-if="active.semaphore !== 'none'" small label outlined :color="fmt.semaphoreColor(active.semaphore)"
+                      :title="'Solo cuenta el horario hábil. En reloj: ' + (fmt.waiting(active.waitingclock) || '0 min')">
+                      <v-icon x-small left>mdi-timer-sand</v-icon>{{ fmt.waiting(active.waitingminutes) || '0 min' }} hábiles
+                    </v-chip>
+                  </div>
+                </div>
+                <v-btn icon title="Actualizar" aria-label="Actualizar" @click="refreshActive(true)"><v-icon>mdi-refresh</v-icon></v-btn>
+                <!-- Celular: todas las acciones en un menú -->
+                <v-menu v-if="isMobile" offset-y left>
+                  <template v-slot:activator="{ on }">
+                    <v-btn icon v-on="on" aria-label="Acciones del ticket"><v-icon>mdi-dots-vertical</v-icon></v-btn>
+                  </template>
+                  <v-list>
+                    <v-list-item v-if="can('take')" @click="act('take')"><v-list-item-icon><v-icon>mdi-hand-back-right</v-icon></v-list-item-icon><v-list-item-title>Tomar</v-list-item-title></v-list-item>
+                    <v-list-item v-if="can('assign')" @click="openAssign"><v-list-item-icon><v-icon>mdi-account-switch</v-icon></v-list-item-icon><v-list-item-title>Reasignar</v-list-item-title></v-list-item>
+                    <v-list-item v-if="can('unassign')" @click="act('unassign')"><v-list-item-icon><v-icon>mdi-tray-arrow-up</v-icon></v-list-item-icon><v-list-item-title>Devolver a la cola</v-list-item-title></v-list-item>
+                    <v-list-item v-if="active.canwrite" @click="mode = 'askinfo'"><v-list-item-icon><v-icon>mdi-help-circle-outline</v-icon></v-list-item-icon><v-list-item-title>Pedir información</v-list-item-title></v-list-item>
+                    <v-list-item v-if="can('resolve')" @click="confirmAct('resolve', '¿Marcar como resuelto? El estudiante confirmará si se resolvió.')"><v-list-item-icon><v-icon color="success">mdi-check-circle</v-icon></v-list-item-icon><v-list-item-title>Resolver</v-list-item-title></v-list-item>
+                    <v-list-item v-if="can('close')" @click="confirmAct('close', '¿Cerrar el ticket sin esperar la confirmación del estudiante?')"><v-list-item-icon><v-icon>mdi-close-circle-outline</v-icon></v-list-item-icon><v-list-item-title>Cerrar</v-list-item-title></v-list-item>
+                    <template v-if="can('set_priority')">
+                      <v-subheader>Prioridad (ahora: {{ fmt.priorityLabel(active.priority) }})</v-subheader>
+                      <v-list-item v-for="p in [0, 1, 2]" :key="'p' + p" :disabled="p === active.priority" @click="act('set_priority', { priority: p })">
+                        <v-list-item-icon><v-icon>mdi-flag-outline</v-icon></v-list-item-icon><v-list-item-title>{{ fmt.priorityLabel(p) }}</v-list-item-title></v-list-item>
+                    </template>
+                    <v-list-item v-if="can('set_category')" @click="openCategory"><v-list-item-icon><v-icon>mdi-tag-outline</v-icon></v-list-item-icon><v-list-item-title>Cambiar tema</v-list-item-title></v-list-item>
+                    <v-list-item @click="showHistory = !showHistory"><v-list-item-icon><v-icon>mdi-history</v-icon></v-list-item-icon><v-list-item-title>{{ showHistory ? 'Ocultar' : 'Ver' }} historial</v-list-item-title></v-list-item>
+                    <v-list-item @click="showInfo = !showInfo"><v-list-item-icon><v-icon>mdi-account-details-outline</v-icon></v-list-item-icon><v-list-item-title>{{ showInfo ? 'Ocultar' : 'Ver' }} datos del solicitante</v-list-item-title></v-list-item>
+                  </v-list>
+                </v-menu>
               </div>
-              <div class="text-subtitle-2 mt-1">{{ active.subject }}</div>
-              <div class="text-caption text--secondary">
+              <div class="text-subtitle-2 mt-1 px-2 px-md-0 gmk-wrap">{{ active.subject }}</div>
+              <div v-if="!isMobile || showInfo" class="text-caption text--secondary px-2 px-md-0 gmk-wrap">
                 {{ active.requestername }}<span v-if="active.requesteridnumber"> · {{ active.requesteridnumber }}</span>
                 <span v-if="active.requesteremail"> · {{ active.requesteremail }}</span>
                 · {{ active.areaname }} / {{ active.categoryname }}
@@ -96,7 +121,19 @@ Vue.component('support-desk', {
                 · Creado {{ fmt.date(active.timecreated) }}
                 <span v-if="previoustickets"> · {{ previoustickets }} ticket(s) anteriores</span>
               </div>
-              <div class="mt-2 d-flex flex-wrap" style="gap: 6px;">
+              <div v-else class="text-caption text--secondary px-2 gmk-wrap">
+                {{ active.requestername }} · Atiende: <b>{{ active.assignedname || 'Sin asignar' }}</b>
+              </div>
+              <!-- Celular: la acción principal a la vista; el resto en el menú -->
+              <div v-if="isMobile && (can('take') || can('resolve'))" class="px-2 pt-2">
+                <v-btn v-if="can('take')" block color="primary" depressed :loading="busy === 'take'" @click="act('take')">
+                  <v-icon left>mdi-hand-back-right</v-icon>Tomar</v-btn>
+                <v-btn v-else block outlined color="success" :loading="busy === 'resolve'"
+                  @click="confirmAct('resolve', '¿Marcar como resuelto? El estudiante confirmará si se resolvió.')">
+                  <v-icon left>mdi-check-circle</v-icon>Resolver</v-btn>
+              </div>
+              <!-- Escritorio: botones en línea -->
+              <div v-if="!isMobile" class="mt-2 d-flex flex-wrap" style="gap: 6px;">
                 <v-btn v-if="can('take')" small color="primary" depressed :loading="busy === 'take'" @click="act('take')">
                   <v-icon left small>mdi-hand-back-right</v-icon>Tomar</v-btn>
                 <v-btn v-if="can('assign')" small outlined @click="openAssign"><v-icon left small>mdi-account-switch</v-icon>Reasignar</v-btn>
@@ -120,49 +157,49 @@ Vue.component('support-desk', {
                 <v-btn small text @click="showHistory = !showHistory">{{ showHistory ? 'Ocultar' : 'Ver' }} historial</v-btn>
               </div>
             </div>
-            <v-divider></v-divider>
-            <div v-if="showHistory" class="pa-3 grey lighten-4" style="max-height: 180px; overflow-y: auto;">
+            <v-divider class="mt-2"></v-divider>
+            <div v-if="showHistory" class="pa-3 grey lighten-4 gmk-wrap" style="max-height: 180px; overflow-y: auto;">
               <div v-for="e in events" :key="e.id" class="text-caption">
                 <b>{{ fmt.date(e.timecreated) }}</b> · {{ e.actorname }} · {{ e.description }}
               </div>
             </div>
-            <div ref="scroller" class="flex-grow-1 pa-3" style="overflow-y: auto; background: rgba(0,0,0,0.02);">
+            <div ref="scroller" class="gmk-desk__messages pa-2 pa-md-3">
               <div v-if="hasMore" class="text-center mb-2">
                 <v-btn small text color="primary" :loading="loadingOlder" @click="loadOlder">Ver mensajes anteriores</v-btn>
               </div>
               <div v-for="m in messages" :key="m.id" class="d-flex mb-2"
                    :class="m.senderrole === 'system' ? 'justify-center' : (m.senderrole === 'student' ? 'justify-start' : 'justify-end')">
-                <div v-if="m.senderrole === 'system'" class="text-caption text--secondary px-3 py-1 rounded grey lighten-3" style="max-width: 80%; white-space: pre-wrap;">
+                <div v-if="m.senderrole === 'system'" class="text-caption text--secondary px-3 py-1 rounded grey lighten-3 gmk-bubble">
                   <v-icon x-small class="mr-1">mdi-robot-outline</v-icon>{{ m.body }}
                 </div>
-                <div v-else class="px-3 py-2 rounded-lg" style="max-width: 78%;"
+                <div v-else class="px-3 py-2 rounded-lg gmk-bubble"
                      :class="m.internal ? 'amber lighten-4' : (m.senderrole === 'student' ? 'white elevation-1' : 'blue lighten-5')">
                   <div class="text-caption font-weight-medium mb-1">
                     {{ m.sendername }}<span v-if="m.internal" class="ml-1 amber--text text--darken-4">· Nota interna (el estudiante no la ve)</span>
                   </div>
-                  <div style="white-space: pre-wrap; word-break: break-word;">{{ m.body }}</div>
+                  <div>{{ m.body }}</div>
                   <div class="text-right mt-1" style="font-size: 11px; opacity: .7;">{{ fmt.date(m.timecreated) }}</div>
                 </div>
               </div>
             </div>
             <v-divider></v-divider>
-            <div class="pa-3">
+            <div class="gmk-desk__composer pa-2 pa-md-3">
               <v-alert v-if="!active.canwrite" dense text type="info" class="mb-0">El ticket está {{ active.statuslabel.toLowerCase() }}; no admite mensajes.</v-alert>
               <template v-else>
-                <v-btn-toggle v-model="mode" mandatory dense class="mb-2">
-                  <v-btn small value="reply">Responder</v-btn>
-                  <v-btn small value="askinfo">Pedir información</v-btn>
-                  <v-btn small value="note">Nota interna</v-btn>
-                </v-btn-toggle>
+                <v-chip-group v-model="mode" mandatory active-class="primary--text" class="gmk-modes">
+                  <v-chip value="reply" filter outlined>Responder</v-chip>
+                  <v-chip value="askinfo" filter outlined>Pedir información</v-chip>
+                  <v-chip value="note" filter outlined>Nota interna</v-chip>
+                </v-chip-group>
                 <v-alert v-if="sendError" dense text type="error" class="mb-2" dismissible @input="sendError = ''">{{ sendError }}</v-alert>
                 <div class="d-flex align-end">
-                  <v-textarea v-model="draft" outlined dense hide-details auto-grow rows="2" maxlength="4000"
+                  <v-textarea v-model="draft" outlined dense hide-details auto-grow rows="1" maxlength="4000"
                     :background-color="mode === 'note' ? 'amber lighten-5' : ''"
                     :placeholder="placeholder" @keydown.enter.ctrl.prevent="send"></v-textarea>
-                  <v-btn color="primary" class="ml-2" fab small depressed :loading="sending"
+                  <v-btn color="primary" class="ml-2" fab small depressed :loading="sending" aria-label="Enviar"
                     :disabled="!draft || !draft.trim()" @click="send"><v-icon>mdi-send</v-icon></v-btn>
                 </div>
-                <div class="text-caption text--secondary mt-1">Ctrl+Enter envía. {{ modeHelp }}</div>
+                <div class="text-caption text--secondary mt-1"><span class="d-none d-md-inline">Ctrl+Enter envía. </span>{{ modeHelp }}</div>
               </template>
             </div>
           </template>
@@ -171,9 +208,9 @@ Vue.component('support-desk', {
             <p class="mt-2">Selecciona un ticket de la lista.</p>
           </div>
         </div>
-      </v-card>
+      </div>
 
-      <v-dialog v-model="assignDialog.open" max-width="480">
+      <v-dialog v-model="assignDialog.open" max-width="480" :fullscreen="$vuetify.breakpoint.xsOnly" scrollable>
         <v-card>
           <v-card-title>Reasignar {{ active && active.number }}</v-card-title>
           <v-card-text>
@@ -198,7 +235,7 @@ Vue.component('support-desk', {
         </v-card>
       </v-dialog>
 
-      <v-dialog v-model="categoryDialog.open" max-width="480">
+      <v-dialog v-model="categoryDialog.open" max-width="480" :fullscreen="$vuetify.breakpoint.xsOnly">
         <v-card>
           <v-card-title>Cambiar tema</v-card-title>
           <v-card-text>
@@ -243,6 +280,7 @@ Vue.component('support-desk', {
             hasMore: false,
             loadingOlder: false,
             showHistory: false,
+            showInfo: false,
             draft: '',
             mode: 'reply',
             sending: false,
@@ -293,7 +331,18 @@ Vue.component('support-desk', {
         this.timers.push(setInterval(() => { if (!document.hidden) this.loadList(true); }, 30000));
         this.timers.push(setInterval(() => { if (!document.hidden && this.active) this.refreshActive(false); }, 15000));
     },
+    created() {
+        this.onPopState = () => {
+            if (this.active && !(window.history.state && window.history.state.gmkTicket)) {
+                this.active = null;
+                this.showHistory = false;
+                this.showInfo = false;
+            }
+        };
+        window.addEventListener('popstate', this.onPopState);
+    },
     beforeDestroy() {
+        window.removeEventListener('popstate', this.onPopState);
         this.timers.forEach(clearInterval);
         clearTimeout(this.searchTimer);
     },
@@ -321,6 +370,15 @@ Vue.component('support-desk', {
                 return d.toLocaleTimeString('es-PA', { hour: '2-digit', minute: '2-digit' });
             }
             return d.toLocaleDateString('es-PA', { day: '2-digit', month: 'short' });
+        },
+        closeTicket() {
+            if (window.history.state && window.history.state.gmkTicket) {
+                window.history.back(); // onPopState cierra.
+                return;
+            }
+            this.active = null;
+            this.showHistory = false;
+            this.showInfo = false;
         },
         onTab() {
             this.loadList();
@@ -358,6 +416,10 @@ Vue.component('support-desk', {
             try {
                 const data = await this.call('get_ticket', { ticketid: id, beforeid: 0, limit: 50 });
                 this.applyTicket(data);
+                if (this.isMobile && !(window.history.state && window.history.state.gmkTicket)) {
+                    // Celular: el boton "atras" del telefono vuelve a la lista, no sale de la pagina.
+                    window.history.pushState({ gmkTicket: id }, '');
+                }
                 this.scrollToBottom();
                 await this.markRead();
             } catch (e) {

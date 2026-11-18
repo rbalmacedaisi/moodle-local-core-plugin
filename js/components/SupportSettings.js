@@ -33,12 +33,12 @@ Vue.component('support-user-picker', {
 Vue.component('support-settings', {
     props: { config: { type: Object, default: () => ({}) } },
     template: `
-    <v-container fluid class="pa-2 pa-md-4">
+    <v-container fluid class="gmk-sup pa-2 pa-md-4">
       <div class="d-flex align-center mb-3">
         <v-icon color="primary" class="mr-2">mdi-cog-outline</v-icon>
-        <span class="text-h6">Configuración de la mesa de ayuda</span>
+        <span class="text-subtitle-1 text-sm-h6 font-weight-medium">Configuración<span class="d-none d-sm-inline"> de la mesa de ayuda</span></span>
         <v-spacer></v-spacer>
-        <v-btn small outlined color="primary" :href="config.deskurl"><v-icon left small>mdi-lifebuoy</v-icon>Ir a la bandeja</v-btn>
+        <v-btn small outlined color="primary" :href="config.deskurl" aria-label="Ir a la bandeja"><v-icon :left="!$vuetify.breakpoint.xsOnly" small>mdi-lifebuoy</v-icon><span class="d-none d-sm-inline">Ir a la bandeja</span></v-btn>
       </div>
       <v-progress-linear v-if="loading" indeterminate></v-progress-linear>
       <v-card outlined v-if="s">
@@ -52,7 +52,7 @@ Vue.component('support-settings', {
           <v-tab-item>
             <v-card-text>
               <p class="text--secondary">Lo primero que elige el estudiante. Un área con enlace externo (Finanzas) no abre ticket: muestra un botón con el enlace y un mensaje inicial (admite {estudiante} y {cedula}).</p>
-              <v-simple-table dense>
+              <v-simple-table dense class="gmk-stack">
                 <thead><tr><th>Orden</th><th>Área</th><th>Horario hábil</th><th>Enlace externo</th><th>Activa</th><th></th></tr></thead>
                 <tbody>
                   <tr v-for="a in s.areas" :key="a.id">
@@ -74,7 +74,7 @@ Vue.component('support-settings', {
               <p class="text--secondary">Los temas confidenciales solo los ven sus agentes, el asignado y gerencia. "Reparto automático" asigna al agente disponible con menos tickets abiertos.</p>
               <div v-for="a in ticketAreas" :key="a.id" class="mb-5">
                 <div class="text-subtitle-1 font-weight-medium mb-1">{{ a.name }}</div>
-                <v-simple-table dense>
+                <v-simple-table dense class="gmk-stack">
                   <thead><tr><th>Tema</th><th>Agentes</th><th>Reparto</th><th>Activo</th><th></th></tr></thead>
                   <tbody>
                     <tr v-for="c in topicsOf(a.id)" :key="c.id">
@@ -99,7 +99,7 @@ Vue.component('support-settings', {
               <v-divider class="my-4"></v-divider>
               <div class="text-subtitle-1 font-weight-medium mb-1">Horario hábil por agente</div>
               <p class="text--secondary">Con un ticket asignado, el semáforo, el escalamiento, el plazo de acuse y el modo incisivo cuentan solo las horas hábiles de su agente. Sin horario propio, el agente trabaja el horario del área del ticket. Si el asignado está fuera de su horario y el área está abierta, el ticket pasa a otro agente del tema o a su respaldo que esté en horario.</p>
-              <v-simple-table dense>
+              <v-simple-table dense class="gmk-stack">
                 <thead><tr><th>Agente</th><th>Horario</th><th></th></tr></thead>
                 <tbody>
                   <tr v-for="h in s.agenthours" :key="h.userid">
@@ -122,7 +122,7 @@ Vue.component('support-settings', {
           <v-tab-item>
             <v-card-text>
               <p class="text--secondary">Si todos los agentes de un tema están ausentes o llenos, el ticket pasa a sus respaldos. Sin respaldo queda en la cola del área, visible para los supervisores.</p>
-              <v-simple-table dense>
+              <v-simple-table dense class="gmk-stack">
                 <thead><tr><th>Agente</th><th>Respaldo</th><th>Temas</th><th></th></tr></thead>
                 <tbody>
                   <tr v-for="b in s.backups" :key="b.id">
@@ -145,7 +145,7 @@ Vue.component('support-settings', {
           <v-tab-item>
             <v-card-text>
               <p class="text--secondary">Supervisores por rol: Secretaría Académica, Dirección Académica, Psicología y Bienestar (capacidad support_supervise). Aquí se agregan personas sueltas. Gerencia recibe escalamientos y ve los tickets confidenciales.</p>
-              <v-simple-table dense>
+              <v-simple-table dense class="gmk-stack">
                 <thead><tr><th>Tipo</th><th>Persona</th><th></th></tr></thead>
                 <tbody>
                   <tr v-for="p in s.persons" :key="p.id">
@@ -183,7 +183,7 @@ Vue.component('support-settings', {
             <v-card-text v-if="esc && inc">
               <div class="text-subtitle-1 font-weight-medium">Escalera de escalamiento</div>
               <p class="text--secondary mb-2">Se cuenta en minutos hábiles del área desde que el solicitante espera una respuesta del personal. Los umbrales están en Parámetros (verde {{ cfg('tkt_sla_green') }}, amarillo {{ cfg('tkt_sla_yellow') }}, naranja {{ cfg('tkt_sla_orange') }}, rojo {{ cfg('tkt_sla_red') }} min). En rojo, el aviso a gerencia se repite cada {{ cfg('tkt_red_repeat') }} min hábiles.</p>
-              <v-simple-table dense class="mb-2">
+              <v-simple-table dense class="gmk-stack mb-2">
                 <thead><tr><th>Al llegar a</th><th v-for="a in escActions" :key="a.key" class="text-center" :title="a.help">{{ a.label }}</th></tr></thead>
                 <tbody>
                   <tr v-for="l in escLevels" :key="l.n">
@@ -199,7 +199,7 @@ Vue.component('support-settings', {
               <v-divider class="my-5"></v-divider>
               <div class="text-subtitle-1 font-weight-medium">Modo incisivo: perfiles</div>
               <p class="text--secondary mb-2">Solo actúa si la persona está Disponible y dentro del horario hábil de su área; si no, solo queda la píldora y la campanita. El aviso se apaga únicamente al abrir o tomar el ticket. Las notificaciones nunca muestran el texto del mensaje (Psicología: "Ticket confidencial").</p>
-              <v-simple-table dense>
+              <v-simple-table dense class="gmk-stack">
                 <thead><tr><th>Perfil</th><th>Bloqueo a pantalla completa</th><th>Sonido</th><th>Tono</th><th>Título y favicon</th><th>Notificación del sistema</th><th></th></tr></thead>
                 <tbody>
                   <tr v-for="(p, code) in inc.profiles" :key="code">
@@ -228,7 +228,7 @@ Vue.component('support-settings', {
                 <v-col cols="12" sm="6" md="3"><v-select v-model="inc.others" :items="profileItems(false)" label="Por defecto" outlined dense hide-details></v-select></v-col>
               </v-row>
               <div class="text-subtitle-2 mt-4">Por persona</div>
-              <v-simple-table dense>
+              <v-simple-table dense class="gmk-stack">
                 <tbody>
                   <tr v-for="(code, uid) in inc.users" :key="uid">
                     <td>{{ userName(uid) }}</td>
@@ -264,7 +264,7 @@ Vue.component('support-settings', {
           <!-- Audit -->
           <v-tab-item>
             <v-card-text>
-              <v-simple-table dense>
+              <v-simple-table dense class="gmk-stack">
                 <thead><tr><th>Cuándo</th><th>Quién</th><th>Cambio</th><th>Antes</th><th>Después</th></tr></thead>
                 <tbody>
                   <tr v-for="e in s.audit" :key="e.id">
@@ -280,7 +280,7 @@ Vue.component('support-settings', {
       </v-card>
 
       <!-- Area dialog -->
-      <v-dialog v-model="areaDialog.open" max-width="720" scrollable>
+      <v-dialog v-model="areaDialog.open" max-width="720" :fullscreen="$vuetify.breakpoint.xsOnly" scrollable>
         <v-card v-if="areaDialog.row">
           <v-card-title>{{ areaDialog.row.id ? 'Editar área' : 'Nueva área' }}</v-card-title>
           <v-card-text>
@@ -317,7 +317,7 @@ Vue.component('support-settings', {
       </v-dialog>
 
       <!-- Topic dialog -->
-      <v-dialog v-model="topicDialog.open" max-width="560">
+      <v-dialog v-model="topicDialog.open" max-width="560" :fullscreen="$vuetify.breakpoint.xsOnly">
         <v-card v-if="topicDialog.row">
           <v-card-title>{{ topicDialog.row.id ? 'Editar tema' : 'Nuevo tema' }}</v-card-title>
           <v-card-text>
@@ -342,7 +342,7 @@ Vue.component('support-settings', {
       </v-dialog>
 
       <!-- Agent dialog -->
-      <v-dialog v-model="agentDialog.open" max-width="520">
+      <v-dialog v-model="agentDialog.open" max-width="520" :fullscreen="$vuetify.breakpoint.xsOnly">
         <v-card v-if="agentDialog.row">
           <v-card-title>{{ agentDialog.row.id ? agentDialog.row.fullname : 'Agregar agente a ' + topicName(agentDialog.row.categoryid) }}</v-card-title>
           <v-card-text>
@@ -359,7 +359,7 @@ Vue.component('support-settings', {
       </v-dialog>
 
       <!-- Agent hours dialog -->
-      <v-dialog v-model="agentHoursDialog.open" max-width="640" scrollable>
+      <v-dialog v-model="agentHoursDialog.open" max-width="640" :fullscreen="$vuetify.breakpoint.xsOnly" scrollable>
         <v-card v-if="agentHoursDialog.row">
           <v-card-title>Horario de {{ agentHoursDialog.row.fullname }}</v-card-title>
           <v-card-text>
@@ -435,6 +435,20 @@ Vue.component('support-settings', {
     },
     mounted() {
         this.load();
+        // Celular: etiquetas de columna para mostrar las tablas como tarjetas.
+        // Un observer cubre tambien las pestanas que Vuetify pinta al abrirlas.
+        let pending = null;
+        this.labelObserver = new MutationObserver(() => {
+            if (pending) return;
+            pending = setTimeout(() => {
+                pending = null;
+                window.gmkSupportLabelTables(this.$el);
+            }, 50);
+        });
+        this.labelObserver.observe(this.$el, { childList: true, subtree: true });
+    },
+    beforeDestroy() {
+        if (this.labelObserver) this.labelObserver.disconnect();
     },
     methods: {
         notify(text, color) {
