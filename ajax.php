@@ -2352,6 +2352,35 @@ try {
             $response = ['status' => 'success', 'data' => array_values($module_students)];
             break;
 
+        // ── Revisión y calificación de entregas de módulos (module_management) ──
+        case 'local_grupomakro_get_module_submissions':
+            // Con classId: estado de entrega por inscripción de ese módulo.
+            // Sin classId: cantidad de entregas por calificar por módulo.
+            require_capability('local/grupomakro_core:manage_modules', $context);
+            $classid_s = optional_param('classId', 0, PARAM_INT);
+            $response = ['status' => 'success', 'data' => $classid_s > 0
+                ? ['enrollments' => \local_grupomakro_core\module_grading::class_overview($classid_s)]
+                : ['pending' => \local_grupomakro_core\module_grading::pending_counts()]];
+            break;
+
+        case 'local_grupomakro_get_module_submission_detail':
+            require_capability('local/grupomakro_core:manage_modules', $context);
+            $response = ['status' => 'success', 'data' =>
+                \local_grupomakro_core\module_grading::enrollment_detail(required_param('enrollmentId', PARAM_INT))];
+            break;
+
+        case 'local_grupomakro_save_module_grades':
+            require_sesskey();
+            require_capability('local/grupomakro_core:manage_modules', $context);
+            $grades_s = json_decode(required_param('grades', PARAM_RAW), true);
+            if (!is_array($grades_s) || !$grades_s) {
+                $response = ['status' => 'error', 'data' => ['message' => 'No se recibieron notas para guardar.']];
+                break;
+            }
+            $response = ['status' => 'success', 'data' =>
+                \local_grupomakro_core\module_grading::save_grades(required_param('enrollmentId', PARAM_INT), $grades_s)];
+            break;
+
         case 'local_grupomakro_get_module_activities':
             // Returns the gradable activities of a module (course/grade category) with the
             // student's current grade normalized to 0-100. Used to decide whether the grading

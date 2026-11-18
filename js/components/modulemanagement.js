@@ -2,6 +2,19 @@
  * Module Management component — admin page for managing independent study modules.
  * Lists all module classes grouped by period; shows enrolled students with deadline info.
  */
+// Ícono ⓘ con una explicación breve de cómo se usa cada parte de la pantalla.
+Vue.component('mm-info', {
+    props: { text: { type: String, required: true }, color: { type: String, default: 'grey' } },
+    template: `
+<v-tooltip bottom max-width="340" open-on-click>
+  <template v-slot:activator="{ on, attrs }">
+    <v-icon x-small :color="color" class="ml-1" style="cursor:help; vertical-align:middle"
+      v-bind="attrs" v-on="on" @click.stop>mdi-information-outline</v-icon>
+  </template>
+  <span style="white-space:pre-line">{{ text }}</span>
+</v-tooltip>`,
+});
+
 Vue.component('modulemanagement', {
     data() {
         return {
@@ -21,6 +34,7 @@ Vue.component('modulemanagement', {
                 { text: 'Grupo Moodle',  value: 'name',                 sortable: false },
                 { text: 'Plazo (días)',  value: 'module_deadline_days', sortable: true, align: 'center' },
                 { text: 'Inscritos',     value: 'enrolled_count',       sortable: true, align: 'center' },
+                { text: 'Por calificar', value: '_pending',             sortable: true, align: 'center' },
                 { text: 'Acciones',      value: '_actions',             sortable: false, align: 'center' },
             ],
 
@@ -35,6 +49,7 @@ Vue.component('modulemanagement', {
                 { text: 'Fecha límite',     value: 'duedate',      sortable: true  },
                 { text: 'Días restantes',   value: '_daysremaining', sortable: true, align: 'center' },
                 { text: 'Estado',           value: 'status',       sortable: true, align: 'center'  },
+                { text: 'Entrega',          value: '_submissionorder', sortable: true, align: 'center' },
                 { text: 'Acciones',         value: '_actions',     sortable: false, align: 'center' },
             ],
 
@@ -76,10 +91,84 @@ Vue.component('modulemanagement', {
             gradeActivities:    [],   // [{ itemid, name, grade, weight }]
             loadingGrade:       false,
             savingGrade:        false,
+
+            // Revisión de entregas
+            pendingByClass:     {},      // { classid: n entregas por calificar }
+            onlyPending:        false,
+            reviewDialog:       false,
+            reviewEnrollment:   null,
+            reviewDetail:       null,
+            reviewForm:         [],      // [{ itemid, grade, feedback, weight }]
+            loadingReview:      false,
+            savingReview:       false,
+
+            // Textos de ayuda (íconos ⓘ)
+            help: {
+                page: 'Cómo se trabaja un módulo:\n1. Filtre por período o busque la asignatura.\n2. La columna "Por calificar" indica cuántos estudiantes ya enviaron la actividad y esperan nota.\n3. Pulse "Estudiantes" para ver los inscritos y el estado de su entrega.\n4. Pulse "Revisar" en el estudiante: verá sus archivos, podrá poner la nota y el comentario y completarlo en el mismo paso.',
+                period: 'Muestra solo los módulos del período académico elegido. "Todos los períodos" incluye los recién creados.',
+                search: 'Escriba parte del nombre de la asignatura para filtrar la tabla.',
+                onlyPending: 'Al activarlo, la tabla muestra solo los módulos que tienen entregas esperando calificación.',
+                refresh: 'Vuelve a cargar los módulos y el conteo de entregas por calificar.',
+                group: 'Grupo de Moodle del módulo. El enlace abre la lista de miembros del grupo en Moodle.',
+                deadline: 'Días que tiene cada estudiante para terminar el módulo desde que se inscribe.',
+                enrolled: 'Estudiantes con inscripción activa (aún no completados ni vencidos).',
+                pending: 'Estudiantes que ya enviaron la actividad y todavía no tienen nota (o la reenviaron después de calificada). Pulse "Estudiantes" y luego "Revisar" para calificarlos.',
+                moduleActions: '"Estudiantes": abre la lista de inscritos con el estado de su entrega.\n"Eliminar": borra el módulo, su grupo y las inscripciones (no desmatricula del curso).',
+                due: 'Fecha límite para terminar el módulo. Se puede ampliar con "Extender".',
+                days: 'Días que le quedan al estudiante antes de la fecha límite. Rojo: 7 días o menos; naranja: 15 o menos.',
+                status: 'Activo: cursando el módulo.\nCompletado: ya se registró su nota final.\nVencido: pasó la fecha límite sin completar.',
+                submission: 'Entregado · por calificar: el estudiante envió la actividad y falta la nota.\nCalificado: la actividad ya tiene nota.\nBorrador: subió archivos pero no pulsó "Enviar".\nSin entrega: no ha subido nada.',
+                studentActions: '"Revisar": abre la entrega (archivos), permite poner nota y comentario y completar el módulo.\n"Extender": suma días a la fecha límite.\n"Completado": cierra el módulo con la nota que ya tenga.\n"Desvincular": quita al estudiante del módulo.',
+                reviewFiles: 'Pulse el nombre del archivo para abrirlo en otra pestaña, o el ícono de descarga para guardarlo.',
+                reviewGrade: 'Nota de 0 a 100. Se guarda en la actividad y en el libro de calificaciones, igual que si la pusiera el docente.',
+                reviewFeedback: 'Comentario opcional para el estudiante. Lo verá junto a su nota en la actividad.',
+                reviewWeight: 'Solo cuando el módulo tiene varias actividades: porcentaje de cada una en la nota final. Deben sumar 100%.',
+                reviewSave: '"Guardar calificación": registra la nota y el comentario; el estudiante sigue activo en el módulo.\n"Guardar y completar": además cierra el módulo y pasa la nota final a su historial académico (aprobado con 70 o más).',
+                reviewMoodle: 'Abre el calificador de Moodle para este estudiante (útil para anotar sobre el PDF).',
+                reqStatusFilter: 'Filtra las solicitudes por su estado. "Pagado (por inscribir)" son las que ya pagaron y faltan por inscribir.',
+                reqSearch: 'Escriba el nombre o el correo del estudiante y pulse Enter.',
+                reqPayment: 'Estado del pago de la factura en Odoo. Si aparece "Pendiente" pero el estudiante ya pagó, use "Verificar pago".',
+                reqStatus: 'Esperando pago: factura emitida sin pagar.\nPagado: listo para inscribir.\nInscrito: ya está en el módulo.\nExpirado/Cancelado: la solicitud ya no es válida.',
+                reqExpires: 'Fecha en que vence la solicitud si no se paga.',
+                reqActions: '"Verificar pago": consulta Odoo y actualiza el estado.\n"Inscribir": matricula al estudiante en el módulo (solo cuando está pagado).\n"Cancelar": anula la solicitud.',
+                gradeDialog: 'Ingrese la nota de cada actividad. Al guardar se cierra el módulo del estudiante y la nota final pasa a su historial académico.',
+            },
         };
     },
 
     computed: {
+        visibleModules() {
+            const list = this.modules.map(m => ({ ...m, _pending: this.pendingByClass[m.id] || 0 }));
+            return this.onlyPending ? list.filter(m => m._pending > 0) : list;
+        },
+        totalPending() {
+            return Object.values(this.pendingByClass).reduce((s, n) => s + (Number(n) || 0), 0);
+        },
+        reviewIsMulti() {
+            return !!(this.reviewDetail && this.reviewDetail.activities.length > 1);
+        },
+        reviewWeightSum() {
+            return this.reviewForm.reduce((s, a) => s + (Number(a.weight) || 0), 0);
+        },
+        reviewGradesValid() {
+            return this.reviewForm.length > 0 && this.reviewForm.every(a =>
+                a.grade === '' || a.grade === null || (Number(a.grade) >= 0 && Number(a.grade) <= 100));
+        },
+        reviewAnyGrade() {
+            return this.reviewForm.some(a => a.grade !== '' && a.grade !== null);
+        },
+        reviewCanComplete() {
+            if (!this.reviewGradesValid) return false;
+            if (!this.reviewForm.every(a => a.grade !== '' && a.grade !== null)) return false;
+            return !this.reviewIsMulti || Math.abs(this.reviewWeightSum - 100) < 0.01;
+        },
+        reviewFinalPreview() {
+            if (!this.reviewForm.length || !this.reviewForm.every(a => a.grade !== '' && a.grade !== null)) return null;
+            if (!this.reviewIsMulti) return Math.round(Number(this.reviewForm[0].grade) * 100) / 100;
+            let w = 0, gw = 0;
+            this.reviewForm.forEach(a => { w += Number(a.weight) || 0; gw += Number(a.grade) * (Number(a.weight) || 0); });
+            return w > 0 ? Math.round((gw / w) * 100) / 100 : null;
+        },
         periodItems() {
             const all = [{ id: 0, label: 'Todos los períodos' }];
             return all.concat(
@@ -162,6 +251,198 @@ Vue.component('modulemanagement', {
             } finally {
                 this.loadingModules = false;
             }
+            this.loadPendingCounts();
+        },
+
+        // Cantidad de entregas por calificar por módulo (columna "Por calificar").
+        async loadPendingCounts() {
+            try {
+                const res = await window.axios.get(ajaxUrl, { params: {
+                    action: 'local_grupomakro_get_module_submissions', sesskey,
+                }});
+                const d = (res.data || {}).data || {};
+                this.pendingByClass = (d.pending && typeof d.pending === 'object') ? d.pending : {};
+            } catch (e) {
+                console.error('Error loading pending submissions:', e);
+            }
+        },
+
+        // Estado de entrega de cada inscrito del módulo abierto.
+        async loadSubmissions(classId) {
+            try {
+                const res = await window.axios.get(ajaxUrl, { params: {
+                    action: 'local_grupomakro_get_module_submissions', sesskey, classId,
+                }});
+                const map = (((res.data || {}).data || {}).enrollments) || {};
+                this.students = this.students.map(s => this.withSubmission(s, map[s.id]));
+            } catch (e) {
+                console.error('Error loading module submissions:', e);
+            }
+        },
+
+        withSubmission(student, info) {
+            const summary = info ? info.summary : 'none';
+            // Orden para la columna: primero lo que espera nota.
+            const order = { pending: 0, partial: 1, none: 2, graded: 3 };
+            const acts = info ? (info.activities || []) : [];
+            const graded = acts.filter(a => a.grade !== null);
+            const draft = acts.some(a => a.submission === 'draft');
+            return {
+                ...student,
+                _submission:      summary,
+                _submissionorder: order[summary] !== undefined ? order[summary] : 9,
+                _lastsubmission:  info ? info.lastsubmission : 0,
+                _draft:           draft,
+                _gradeLabel:      graded.length === 1 ? graded[0].grade : (graded.length ? graded.length + '/' + acts.length : null),
+            };
+        },
+
+        submissionLabel(item) {
+            if (item._submission === 'pending') return 'Entregado · por calificar';
+            if (item._submission === 'graded')  return 'Calificado' + (item._gradeLabel !== null ? ' (' + item._gradeLabel + ')' : '');
+            if (item._submission === 'partial') return 'Calificado parcial (' + item._gradeLabel + ')';
+            if (item._draft) return 'Borrador sin enviar';
+            return 'Sin entrega';
+        },
+
+        submissionColor(item) {
+            return { pending: 'orange darken-2', graded: 'green darken-1', partial: 'light-green darken-2' }[item._submission]
+                || (item._draft ? 'blue-grey' : 'grey');
+        },
+
+        // ── Revisión de la entrega ───────────────────────────────────────────
+        async openReview(enrollment) {
+            this.reviewEnrollment = enrollment;
+            this.reviewDetail = null;
+            this.reviewForm = [];
+            this.reviewDialog = true;
+            this.loadingReview = true;
+            try {
+                const res = await window.axios.get(ajaxUrl, { params: {
+                    action: 'local_grupomakro_get_module_submission_detail', sesskey, enrollmentId: enrollment.id,
+                }});
+                const payload = res.data || {};
+                if (payload.status !== 'success') {
+                    throw new Error(((payload.data || payload).message) || 'No se pudo cargar la entrega.');
+                }
+                this.reviewDetail = payload.data;
+                const acts = this.reviewDetail.activities || [];
+                const equalW = acts.length ? Math.round((100 / acts.length) * 100) / 100 : 0;
+                this.reviewForm = acts.map(a => ({
+                    itemid:   a.itemid,
+                    grade:    a.grade !== null ? a.grade : '',
+                    feedback: a.feedback || '',
+                    weight:   equalW,
+                }));
+                if (this.reviewForm.length > 1) {
+                    const last = this.reviewForm.length - 1;
+                    const drift = 100 - this.reviewForm.reduce((s, a) => s + a.weight, 0);
+                    this.reviewForm[last].weight = Math.round((this.reviewForm[last].weight + drift) * 100) / 100;
+                }
+            } catch (e) {
+                console.error('Error loading submission detail:', e);
+                this.reviewDialog = false;
+                this.showMessage('error', e.message || 'No se pudo cargar la entrega.');
+            } finally {
+                this.loadingReview = false;
+            }
+        },
+
+        async saveReview(complete) {
+            if (!this.reviewEnrollment || !this.reviewGradesValid || !this.reviewAnyGrade) return;
+            if (complete && !this.reviewCanComplete) return;
+            if (complete) {
+                const ok = await window.Swal.fire({
+                    title: 'Guardar y completar',
+                    html: `Se guardará la nota y se cerrará el módulo de <b>${this.reviewEnrollment._fullname}</b>.<br>` +
+                          `<small class="grey--text">Nota final: <b>${this.reviewFinalPreview}/100</b>. ` +
+                          `La nota pasa a su historial académico.</small>`,
+                    icon: 'question', showCancelButton: true,
+                    confirmButtonText: 'Sí, completar', cancelButtonText: 'Cancelar', confirmButtonColor: '#4CAF50',
+                });
+                if (!ok.isConfirmed) return;
+            }
+            this.savingReview = true;
+            const enrollment = this.reviewEnrollment;
+            try {
+                const params = new URLSearchParams();
+                params.append('action', 'local_grupomakro_save_module_grades');
+                params.append('sesskey', sesskey);
+                params.append('enrollmentId', enrollment.id);
+                params.append('grades', JSON.stringify(this.reviewForm
+                    .filter(a => a.grade !== '' && a.grade !== null)
+                    .map(a => ({ itemid: a.itemid, grade: Number(a.grade), feedback: a.feedback || '' }))));
+                const res = await window.axios.post(ajaxUrl, params);
+                const payload = res.data || {};
+                if (payload.status !== 'success') {
+                    throw new Error(((payload.data || payload).message) || 'No se pudo guardar la calificación.');
+                }
+                const saved = payload.data || {};
+                const idx = this.students.findIndex(s => s.id === enrollment.id);
+                if (idx !== -1) {
+                    this.$set(this.students, idx, this.withSubmission(this.students[idx],
+                        { summary: saved.summary, lastsubmission: this.students[idx]._lastsubmission, activities: saved.activities || [] }));
+                }
+
+                if (complete) {
+                    // Una actividad: el cierre toma la nota recién guardada en la tarea.
+                    // Varias: se envían notas y ponderaciones para calcular la final.
+                    const gradesPayload = this.reviewIsMulti
+                        ? this.reviewForm.map(a => ({ itemid: a.itemid, grade: Number(a.grade), weight: Number(a.weight) || 0 }))
+                        : null;
+                    const done = await this._sendComplete(enrollment, gradesPayload);
+                    if (!done) return;
+                } else {
+                    this.showMessage('success', 'Calificación guardada.');
+                }
+                this.reviewDialog = false;
+                this.loadPendingCounts();
+            } catch (e) {
+                console.error('Error saving module grades:', e);
+                this.showMessage('error', e.message || 'No se pudo guardar la calificación.');
+            } finally {
+                this.savingReview = false;
+            }
+        },
+
+        formatDateTime(ts) {
+            if (!ts) return '—';
+            return new Date(ts * 1000).toLocaleString('es-PA', {
+                day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+            });
+        },
+
+        formatSize(bytes) {
+            const n = Number(bytes) || 0;
+            if (n < 1024) return n + ' B';
+            if (n < 1048576) return (n / 1024).toFixed(0) + ' KB';
+            return (n / 1048576).toFixed(1) + ' MB';
+        },
+
+        fileIcon(mime) {
+            const m = String(mime || '');
+            if (m.indexOf('pdf') !== -1) return 'mdi-file-pdf-box';
+            if (m.indexOf('image') === 0) return 'mdi-file-image';
+            if (m.indexOf('word') !== -1 || m.indexOf('document') !== -1) return 'mdi-file-word';
+            if (m.indexOf('sheet') !== -1 || m.indexOf('excel') !== -1) return 'mdi-file-excel';
+            if (m.indexOf('presentation') !== -1 || m.indexOf('powerpoint') !== -1) return 'mdi-file-powerpoint';
+            return 'mdi-file-document-outline';
+        },
+
+        activityStatusLabel(a) {
+            if (a.needsgrading) return 'Entregado · por calificar';
+            if (a.grade !== null) return 'Calificado';
+            if (a.submission === 'submitted') return 'Entregado';
+            if (a.submission === 'draft') return 'Borrador sin enviar';
+            if (a.submission === 'reopened') return 'Reabierto';
+            return 'Sin entrega';
+        },
+
+        activityStatusColor(a) {
+            if (a.needsgrading) return 'orange darken-2';
+            if (a.grade !== null) return 'green darken-1';
+            if (a.submission === 'draft') return 'blue-grey';
+            return 'grey';
         },
 
         async openStudents(module) {
@@ -181,11 +462,16 @@ Vue.component('modulemanagement', {
                     ...s,
                     _fullname:      s.lastname + ', ' + s.firstname,
                     _daysremaining: Math.max(0, Math.ceil((s.duedate - now) / 86400)),
+                    _submission:      'loading',
+                    _submissionorder: 9,
                 }));
             } catch (e) {
                 console.error('Error loading module students:', e);
             } finally {
                 this.loadingStudents = false;
+            }
+            if (this.students.length) {
+                await this.loadSubmissions(module.id);
             }
         },
 
@@ -663,15 +949,16 @@ Vue.component('modulemanagement', {
       <div class="d-flex align-center">
         <v-icon large color="teal darken-2" class="mr-2">mdi-book-education-outline</v-icon>
         <span class="text-h5 font-weight-bold">Gestión de Módulos Independientes</span>
+        <mm-info :text="help.page" color="teal darken-2"></mm-info>
       </div>
       <div class="text-caption grey--text mt-1">
-        Administre los módulos de estudio autónomo: consulte inscritos, extienda plazos y marque completados.
+        Administre los módulos de estudio autónomo: consulte inscritos, revise sus entregas, califique, extienda plazos y marque completados.
       </div>
     </v-col>
   </v-row>
 
   <!-- ── Students dialog ───────────────────────────────────────────────── -->
-  <v-dialog v-model="studentsDialog" max-width="900" scrollable>
+  <v-dialog v-model="studentsDialog" max-width="1150" scrollable>
     <v-card>
       <v-card-title class="teal darken-2 white--text">
         <v-icon left dark>mdi-account-group</v-icon>
@@ -679,6 +966,7 @@ Vue.component('modulemanagement', {
           Estudiantes — {{ selectedModule.coursename }}
           <v-chip x-small class="ml-2" outlined dark>{{ selectedModule.periodcode }}</v-chip>
         </span>
+        <mm-info color="white" text="Lista de inscritos del módulo. Los que ya enviaron la actividad y esperan nota aparecen primero, en naranja. Pulse &quot;Revisar&quot; para ver lo que entregó, calificarlo y completarlo."></mm-info>
         <v-spacer></v-spacer>
         <v-btn icon dark @click="studentsDialog = false"><v-icon>mdi-close</v-icon></v-btn>
       </v-card-title>
@@ -691,8 +979,23 @@ Vue.component('modulemanagement', {
           loading-text="Cargando estudiantes..."
           no-data-text="No hay estudiantes inscritos en este módulo."
           :footer-props="{ 'items-per-page-options': [10, 25, 50] }"
+          sort-by="_submissionorder"
           dense
         >
+          <template v-slot:header.duedate="{ header }">{{ header.text }}<mm-info :text="help.due"></mm-info></template>
+          <template v-slot:header._daysremaining="{ header }">{{ header.text }}<mm-info :text="help.days"></mm-info></template>
+          <template v-slot:header.status="{ header }">{{ header.text }}<mm-info :text="help.status"></mm-info></template>
+          <template v-slot:header._submissionorder="{ header }">{{ header.text }}<mm-info :text="help.submission"></mm-info></template>
+          <template v-slot:header._actions="{ header }">{{ header.text }}<mm-info :text="help.studentActions"></mm-info></template>
+
+          <!-- Entrega -->
+          <template v-slot:item._submissionorder="{ item }">
+            <v-progress-circular v-if="item._submission === 'loading'" indeterminate size="14" width="2" color="grey"></v-progress-circular>
+            <template v-else>
+              <v-chip x-small :color="submissionColor(item)" dark>{{ submissionLabel(item) }}</v-chip>
+              <div v-if="item._lastsubmission" class="text-caption grey--text">{{ formatDateTime(item._lastsubmission) }}</div>
+            </template>
+          </template>
           <!-- Student name -->
           <template v-slot:item._fullname="{ item }">
             <span class="font-weight-medium">{{ item._fullname }}</span>
@@ -725,6 +1028,14 @@ Vue.component('modulemanagement', {
           <!-- Row actions -->
           <template v-slot:item._actions="{ item }">
             <div style="white-space:nowrap">
+              <v-btn x-small :color="item._submission === 'pending' ? 'orange darken-2' : 'blue darken-2'" dark
+                class="mr-1"
+                :disabled="!!updatingMap[item.id]"
+                @click="openReview(item)"
+                title="Ver la entrega, calificar y completar"
+              >
+                <v-icon x-small left>mdi-file-eye-outline</v-icon> Revisar
+              </v-btn>
               <template v-if="item.status === 'active'">
                 <v-btn x-small outlined color="orange darken-2"
                   class="mr-1"
@@ -758,10 +1069,123 @@ Vue.component('modulemanagement', {
     </v-card>
   </v-dialog>
 
+  <!-- ── Revisar entrega, calificar y completar ─────────────────────────── -->
+  <v-dialog v-model="reviewDialog" max-width="820" persistent scrollable>
+    <v-card>
+      <v-card-title class="blue darken-2 white--text">
+        <v-icon left dark>mdi-file-eye-outline</v-icon>
+        Revisar entrega
+        <mm-info color="white" text="Aquí ve lo que entregó el estudiante, pone la nota y el comentario. Puede solo guardar la calificación o guardarla y completar el módulo en el mismo paso."></mm-info>
+        <v-spacer></v-spacer>
+        <v-btn icon dark @click="reviewDialog = false" :disabled="savingReview"><v-icon>mdi-close</v-icon></v-btn>
+      </v-card-title>
+
+      <v-card-text class="pt-4">
+        <div v-if="loadingReview" class="text-center py-8">
+          <v-progress-circular indeterminate color="blue darken-2"></v-progress-circular>
+        </div>
+        <template v-else-if="reviewDetail">
+          <div class="mb-3">
+            Estudiante: <strong>{{ reviewDetail.fullname }}</strong>
+            <span class="grey--text text-caption ml-1">{{ reviewDetail.email }}</span>
+            <v-chip x-small class="ml-2" :color="statusColor(reviewDetail.status)" dark>{{ statusLabel(reviewDetail.status) }}</v-chip>
+            <div class="text-caption grey--text">Fecha límite: {{ formatDate(reviewDetail.duedate) }}</div>
+          </div>
+
+          <v-alert v-if="!reviewDetail.activities.length" dense outlined type="warning">
+            El módulo no tiene actividades calificables configuradas.
+          </v-alert>
+
+          <v-card v-for="(a, i) in reviewDetail.activities" :key="a.itemid" outlined class="mb-3">
+            <v-card-subtitle class="pb-1 d-flex align-center flex-wrap">
+              <span class="font-weight-bold black--text mr-2">{{ a.name }}</span>
+              <v-chip x-small :color="activityStatusColor(a)" dark class="mr-2">{{ activityStatusLabel(a) }}</v-chip>
+              <span v-if="a.submittedat && a.submission !== 'new'" class="text-caption">
+                {{ a.submission === 'submitted' ? 'Enviado' : 'Modificado' }}: {{ formatDateTime(a.submittedat) }}
+              </span>
+              <v-spacer></v-spacer>
+              <v-btn v-if="a.gradeurl" x-small text color="blue darken-2" :href="a.gradeurl" target="_blank">
+                <v-icon x-small left>mdi-open-in-new</v-icon> Abrir en Moodle
+              </v-btn>
+              <mm-info v-if="a.gradeurl" :text="help.reviewMoodle"></mm-info>
+            </v-card-subtitle>
+
+            <v-card-text class="pt-1">
+              <div class="text-caption font-weight-medium mb-1">
+                Archivos entregados <mm-info :text="help.reviewFiles"></mm-info>
+              </div>
+              <div v-if="!a.files.length && !a.onlinetext" class="text-caption grey--text mb-2">
+                {{ a.module === 'assign' ? 'El estudiante no ha subido archivos.' : 'Esta actividad no recibe archivos; solo se califica.' }}
+              </div>
+              <v-list v-if="a.files.length" dense class="py-0 mb-2">
+                <v-list-item v-for="f in a.files" :key="f.id" class="px-1" style="min-height:30px">
+                  <v-icon small class="mr-2" color="blue-grey">{{ fileIcon(f.mimetype) }}</v-icon>
+                  <a :href="f.url" target="_blank" class="text-body-2" style="text-decoration:none">{{ f.filename }}</a>
+                  <span class="text-caption grey--text ml-2">{{ formatSize(f.filesize) }}</span>
+                  <v-btn icon x-small class="ml-1" :href="f.url + '&download=1'" title="Descargar">
+                    <v-icon x-small>mdi-download</v-icon>
+                  </v-btn>
+                </v-list-item>
+              </v-list>
+              <div v-if="a.onlinetext" class="pa-2 mb-2 grey lighten-4 rounded text-body-2" v-html="a.onlinetext"></div>
+
+              <v-row dense align="start">
+                <v-col cols="12" sm="3">
+                  <v-text-field v-model="reviewForm[i].grade" type="number" min="0" max="100" step="0.01"
+                    label="Nota (0–100)" outlined dense hide-details="auto"
+                    :rules="[v => v === '' || v === null || (Number(v) >= 0 && Number(v) <= 100) || 'Entre 0 y 100']">
+                    <template v-slot:append-outer><mm-info :text="help.reviewGrade"></mm-info></template>
+                  </v-text-field>
+                </v-col>
+                <v-col cols="12" sm="3" v-if="reviewIsMulti">
+                  <v-text-field v-model.number="reviewForm[i].weight" type="number" min="0" max="100" step="0.01"
+                    label="Ponderación" suffix="%" outlined dense hide-details>
+                    <template v-slot:append-outer><mm-info :text="help.reviewWeight"></mm-info></template>
+                  </v-text-field>
+                </v-col>
+                <v-col cols="12" :sm="reviewIsMulti ? 6 : 9">
+                  <v-textarea v-model="reviewForm[i].feedback" label="Comentario para el estudiante (opcional)"
+                    outlined dense rows="2" auto-grow hide-details>
+                    <template v-slot:append-outer><mm-info :text="help.reviewFeedback"></mm-info></template>
+                  </v-textarea>
+                </v-col>
+              </v-row>
+              <div v-if="a.overridden" class="text-caption orange--text mt-1">
+                La nota actual fue puesta directamente en el libro de calificaciones; al guardar se reemplaza por la nueva.
+              </div>
+            </v-card-text>
+          </v-card>
+
+          <div v-if="reviewIsMulti" class="text-caption">
+            Suma de ponderaciones:
+            <strong :class="Math.abs(reviewWeightSum - 100) < 0.01 ? 'green--text' : 'red--text'">{{ reviewWeightSum.toFixed(2) }}%</strong>
+          </div>
+          <v-chip v-if="reviewFinalPreview !== null" color="green darken-2" dark label class="mt-2">
+            Nota final del módulo: <strong class="ml-1">{{ reviewFinalPreview }}/100</strong>
+          </v-chip>
+        </template>
+      </v-card-text>
+
+      <v-card-actions>
+        <mm-info :text="help.reviewSave"></mm-info>
+        <v-spacer></v-spacer>
+        <v-btn text @click="reviewDialog = false" :disabled="savingReview">Cancelar</v-btn>
+        <v-btn outlined color="blue darken-2" :loading="savingReview"
+          :disabled="loadingReview || !reviewGradesValid || !reviewAnyGrade" @click="saveReview(false)">
+          <v-icon small left>mdi-content-save-outline</v-icon> Guardar calificación
+        </v-btn>
+        <v-btn v-if="reviewDetail && reviewDetail.status === 'active'" color="green darken-2" dark :loading="savingReview"
+          :disabled="loadingReview || !reviewCanComplete" @click="saveReview(true)">
+          <v-icon small left>mdi-check-circle-outline</v-icon> Guardar y completar
+        </v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
+
   <!-- ── Extend deadline dialog ─────────────────────────────────────────── -->
   <v-dialog v-model="extendDialog" max-width="420">
     <v-card>
-      <v-card-title>Extender plazo</v-card-title>
+      <v-card-title>Extender plazo <mm-info text="Escriba cuántos días agregar. Se suman a la fecha límite actual del estudiante, no a la fecha de hoy."></mm-info></v-card-title>
       <v-card-text>
         <div class="mb-3" v-if="selectedEnrollment">
           Estudiante: <strong>{{ selectedEnrollment._fullname }}</strong><br>
@@ -794,6 +1218,7 @@ Vue.component('modulemanagement', {
       <v-card-title class="green darken-2 white--text">
         <v-icon left dark>mdi-check-circle-outline</v-icon>
         Calificar y completar
+        <mm-info color="white" :text="help.gradeDialog"></mm-info>
         <v-spacer></v-spacer>
         <v-btn icon dark @click="gradeDialog = false" :disabled="savingGrade"><v-icon>mdi-close</v-icon></v-btn>
       </v-card-title>
@@ -876,6 +1301,8 @@ Vue.component('modulemanagement', {
     <v-tabs v-model="activeTab" background-color="transparent" color="teal darken-2">
       <v-tab>
         <v-icon left small>mdi-book-multiple</v-icon> Módulos
+        <v-chip v-if="totalPending > 0" x-small color="orange darken-2" dark class="ml-2"
+          title="Entregas esperando calificación">{{ totalPending }}</v-chip>
       </v-tab>
       <v-tab @click="loadRequests">
         <v-icon left small>mdi-receipt-text-outline</v-icon> Solicitudes de módulo
@@ -900,7 +1327,9 @@ Vue.component('modulemanagement', {
                   dense
                   hide-details
                   @change="loadModules"
-                ></v-select>
+                >
+                  <template v-slot:append-outer><mm-info :text="help.period"></mm-info></template>
+                </v-select>
               </v-col>
               <v-col cols="12" sm="5" md="4">
                 <v-text-field
@@ -911,12 +1340,20 @@ Vue.component('modulemanagement', {
                   dense
                   hide-details
                   clearable
-                ></v-text-field>
+                >
+                  <template v-slot:append-outer><mm-info :text="help.search"></mm-info></template>
+                </v-text-field>
+              </v-col>
+              <v-col cols="12" sm="3" class="d-flex align-center">
+                <v-switch v-model="onlyPending" color="orange darken-2" dense hide-details class="mt-0"
+                  :label="'Solo con entregas por calificar' + (totalPending ? ' (' + totalPending + ')' : '')"></v-switch>
+                <mm-info :text="help.onlyPending"></mm-info>
               </v-col>
               <v-col class="text-right">
                 <v-btn small outlined color="teal darken-2" @click="loadModules" :loading="loadingModules">
                   <v-icon small left>mdi-refresh</v-icon> Actualizar
                 </v-btn>
+                <mm-info :text="help.refresh"></mm-info>
               </v-col>
             </v-row>
           </v-card-text>
@@ -924,7 +1361,7 @@ Vue.component('modulemanagement', {
           <!-- Modules table -->
           <v-data-table
             :headers="moduleHeaders"
-            :items="modules"
+            :items="visibleModules"
             :loading="loadingModules"
             :search="moduleSearch"
             loading-text="Cargando módulos..."
@@ -932,6 +1369,20 @@ Vue.component('modulemanagement', {
             :footer-props="{ 'items-per-page-options': [10, 25, 50] }"
             dense
           >
+            <template v-slot:header.name="{ header }">{{ header.text }}<mm-info :text="help.group"></mm-info></template>
+            <template v-slot:header.module_deadline_days="{ header }">{{ header.text }}<mm-info :text="help.deadline"></mm-info></template>
+            <template v-slot:header.enrolled_count="{ header }">{{ header.text }}<mm-info :text="help.enrolled"></mm-info></template>
+            <template v-slot:header._pending="{ header }">{{ header.text }}<mm-info :text="help.pending"></mm-info></template>
+            <template v-slot:header._actions="{ header }">{{ header.text }}<mm-info :text="help.moduleActions"></mm-info></template>
+
+            <!-- Por calificar -->
+            <template v-slot:item._pending="{ item }">
+              <v-chip v-if="item._pending > 0" x-small color="orange darken-2" dark style="cursor:pointer"
+                @click="openStudents(item)" title="Abrir estudiantes para calificar">
+                <v-icon x-small left>mdi-file-clock-outline</v-icon>{{ item._pending }}
+              </v-chip>
+              <span v-else class="grey--text">—</span>
+            </template>
             <!-- Asignatura -->
             <template v-slot:item.coursename="{ item }">
               <span class="font-weight-medium">{{ item.coursename }}</span>
@@ -1011,7 +1462,9 @@ Vue.component('modulemanagement', {
                   label="Estado"
                   outlined dense hide-details
                   @change="loadRequests"
-                ></v-select>
+                >
+                  <template v-slot:append-outer><mm-info :text="help.reqStatusFilter"></mm-info></template>
+                </v-select>
               </v-col>
               <v-col cols="12" sm="5" md="5">
                 <v-text-field
@@ -1020,7 +1473,9 @@ Vue.component('modulemanagement', {
                   label="Buscar estudiante (nombre o email)"
                   outlined dense hide-details clearable
                   @keyup.enter="loadRequests"
-                ></v-text-field>
+                >
+                  <template v-slot:append-outer><mm-info :text="help.reqSearch"></mm-info></template>
+                </v-text-field>
               </v-col>
               <v-col cols="auto" class="text-right">
                 <v-btn small outlined color="teal darken-2" @click="loadRequests" :loading="loadingRequests">
@@ -1039,6 +1494,10 @@ Vue.component('modulemanagement', {
               :footer-props="{ 'items-per-page-options': [10, 25, 50] }"
               dense
             >
+              <template v-slot:header._payment_state="{ header }">{{ header.text }}<mm-info :text="help.reqPayment"></mm-info></template>
+              <template v-slot:header._status="{ header }">{{ header.text }}<mm-info :text="help.reqStatus"></mm-info></template>
+              <template v-slot:header.expires_at="{ header }">{{ header.text }}<mm-info :text="help.reqExpires"></mm-info></template>
+              <template v-slot:header._actions="{ header }">{{ header.text }}<mm-info :text="help.reqActions"></mm-info></template>
               <!-- Estudiante -->
               <template v-slot:item.fullname="{ item }">
                 <div class="font-weight-medium">{{ item.fullname }}</div>
