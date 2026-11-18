@@ -41,8 +41,8 @@ class config {
     const SETTINGS = [
         'tkt_max_open'          => [5,    'int',  'Tickets abiertos por estudiante (máximo)'],
         'tkt_max_daily'         => [10,   'int',  'Tickets nuevos por estudiante por día (máximo)'],
-        'tkt_remind_hours'      => [12,   'int',  'Horas sin respuesta del estudiante para el recordatorio (0 = no)'],
-        'tkt_close_hours'       => [24,   'int',  'Horas sin respuesta del estudiante para el cierre automático'],
+        'tkt_remind_hours'      => [12,   'int',  'Horas hábiles sin respuesta del estudiante para el recordatorio (0 = no)'],
+        'tkt_close_hours'       => [24,   'int',  'Horas hábiles sin respuesta del estudiante para el cierre automático'],
         'tkt_autoclose_enabled' => [1,    'int',  'Cierre automático activo (1 sí, 0 no)'],
         'tkt_sla_green'         => [20,   'int',  'Semáforo: meta de respuesta (min hábiles)'],
         'tkt_sla_yellow'        => [60,   'int',  'Semáforo: amarillo desde (min hábiles)'],

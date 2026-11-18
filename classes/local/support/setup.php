@@ -61,8 +61,8 @@ class setup {
         // Fase 2 (los usa la tarea de escalamiento); se cargan ya para poder editarlos.
         'sla_warning' => ['20 min sin respuesta (fase 2)',
             'Tu solicitud sigue en cola; te responderemos en breve. Gracias por tu paciencia.'],
-        'reminder' => ['12 h sin respuesta del estudiante (fase 2)',
-            '¿Sigues necesitando ayuda? Si no recibimos respuesta, cerraremos tu solicitud en 12 h.'],
+        'reminder' => ['Recordatorio al estudiante sin respuesta (horas hábiles)',
+            '¿Sigues necesitando ayuda? Si no recibimos respuesta, cerraremos tu solicitud en {horas_cierre} horas hábiles.'],
     ];
 
     /**

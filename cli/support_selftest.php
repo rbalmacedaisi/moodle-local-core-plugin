@@ -35,7 +35,7 @@
  * semaforo, escalera completa 20 min / 1 h / 3 h / 5 h y repeticion en rojo
  * (con un horario 24/7 temporal en el area academica), idempotencia, Vencidos
  * en minutos habiles, indicador (contadores, alertas, sin texto de mensajes,
- * acuse), recordatorio de 12 h, falta de acuse, posponer, tope de correos,
+ * acuse), recordatorio en horas habiles, falta de acuse, posponer, tope de correos,
  * calificacion ("Ahora no" y calificacion baja) y tickets de docentes. El
  * feriado y el horario temporal tambien se revierten.
  *
@@ -43,6 +43,10 @@
  * incisivo, herencia, reparto en horario, traspaso fuera de horario) y
  * reasignacion: TI reasigna un ticket academico (a Jorge) y a otra area, no ve
  * ni reasigna Psicologia, y un agente sin support_reassign no reasigna uno ajeno.
+ *
+ * 20261001123: recordatorio y cierre automatico en horas habiles (un ticket
+ * esperando al estudiante desde el viernes 16:00 no se cierra el fin de semana;
+ * recordatorio y cierre justo al cumplirse las horas habiles).
  *
  * @package    local_grupomakro_core
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -387,7 +391,7 @@ try {
         if ($remind > 0) {
             $e1 = $set($e1, ['last_staff_msg_at' => $now - ($remind * HOURSECS + 60), 'last_student_msg_at' => $now - ($remind * HOURSECS + 120)]);
             $sent = manager::remind_stale($now);
-            $check('recordatorio de ' . $remind . ' h al solicitante', $sent >= 1);
+            $check('recordatorio de ' . $remind . ' horas habiles al solicitante (area 24/7)', $sent >= 1);
             $check('recordatorio: no se repite', manager::remind_stale($now) === 0);
         }
 
@@ -614,6 +618,59 @@ try {
         }, 'tkt_err_cannotassign'), $fullname($plain));
     } else {
         cli_writeln('  (omito "agente sin capacidad": todos los agentes academicos pueden reasignar o no hay ticket ajeno)');
+    }
+
+    // 23. 20261001123: reminder and auto-close count BUSINESS hours (agent's or area's clock).
+    $range = ['2030-01-11', '2030-01-12', '2030-01-13', '2030-01-14', '2030-01-15', '2030-01-16', '2030-01-17', '2030-01-18',
+        '2030-01-21', '2030-01-22'];
+    $busy = array_filter($range, function($d) use ($holidaydates) {
+        return isset($holidaydates[$d]);
+    });
+    if ($busy) {
+        cli_writeln('  (omito horas habiles del cierre: hay feriados cargados en ' . implode(', ', $busy) . ')');
+    } else {
+        $office = json_encode(array_fill_keys(['1', '2', '3', '4', '5'], [['08:00', '17:00']]));
+        $DB->set_field('gmk_tkt_area', 'hours', $office, ['id' => (int)$academic->areaid]);
+        manager::reset_caches();
+        $wk = (isset($h1) && manager::is_open_status((string)$DB->get_field('gmk_tkt_ticket', 'status', ['id' => $h1->id])))
+            ? $DB->get_record('gmk_tkt_ticket', ['id' => $h1->id])
+            : manager::create($studentid, (int)$academic->id, 'Prueba cierre en horas habiles', 'Cierre (selftest)');
+        if ((int)$wk->assignedto > 0) {
+            $sethours((int)$wk->assignedto, null); // Agent without own hours: the area's clock.
+        }
+        $fri = $at('2030-01-11 16:00'); // Friday afternoon.
+        $DB->update_record('gmk_tkt_ticket', (object)['id' => $wk->id, 'status' => manager::S_WAITING,
+            'first_response_at' => $fri - HOURSECS, 'last_staff_msg_at' => $fri, 'last_student_msg_at' => $fri - 1800,
+            'waiting_since' => 0]);
+        $ids = [(int)$wk->id];
+        $clockarea = (object)['hours' => $office];
+        $closeh = \local_grupomakro_core\local\support\config::get_int('tkt_close_hours');
+        $remindh = \local_grupomakro_core\local\support\config::get_int('tkt_remind_hours');
+        if (\local_grupomakro_core\local\support\config::get_int('tkt_autoclose_enabled') && $closeh > 0) {
+            $check('cierre en horas habiles: esperando desde el viernes 16:00 no se cierra el sabado ni el domingo',
+                manager::autoclose_stale($at('2030-01-12 12:00'), $ids) === 0
+                && manager::autoclose_stale($at('2030-01-13 20:00'), $ids) === 0
+                && $DB->get_field('gmk_tkt_ticket', 'status', ['id' => $wk->id]) === manager::S_WAITING);
+            if ($remindh > 0 && $remindh < $closeh) {
+                $due = business_hours::add_minutes($fri, $remindh * 60, $clockarea);
+                $check('recordatorio a las ' . $remindh . ' horas habiles (' . userdate($due, '%A %d %H:%M') . ')',
+                    manager::remind_stale($due - 120, $ids) === 0 && manager::remind_stale($due + 60, $ids) === 1);
+                $msg = $DB->get_field_sql("SELECT body FROM {gmk_tkt_message} WHERE ticketid = ? AND senderrole = 'system'
+                                            ORDER BY id DESC", [$wk->id], IGNORE_MULTIPLE);
+                $check('el recordatorio dice horas habiles', strpos((string)$msg, 'hábiles') !== false
+                    || !$DB->record_exists_select('gmk_tkt_template', "code = 'reminder' AND " . $DB->sql_like('body', ':b'),
+                        ['b' => '%{horas_cierre}%']), (string)$msg);
+            }
+            $closedue = business_hours::add_minutes($fri, $closeh * 60, $clockarea);
+            $weekday = (int)(new \DateTimeImmutable('@' . $closedue))->setTimezone($tz)->format('N');
+            $check('el cierre cae en dia habil (' . userdate($closedue, '%A %d %H:%M') . ')', $weekday <= 5);
+            $before = manager::autoclose_stale($closedue - 120, $ids);
+            $after = manager::autoclose_stale($closedue + 60, $ids);
+            $check('cierre a las ' . $closeh . ' horas habiles exactas', $before === 0 && $after === 1
+                && $DB->get_field('gmk_tkt_ticket', 'status', ['id' => $wk->id]) === manager::S_CLOSED);
+        }
+        $DB->set_field('gmk_tkt_area', 'hours', $alwaysopen, ['id' => (int)$academic->areaid]);
+        manager::reset_caches();
     }
 
     // 9. Open-tickets limit.

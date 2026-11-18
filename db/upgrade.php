@@ -4775,6 +4775,22 @@ if ($oldversion < 20261001093) {
         upgrade_plugin_savepoint(true, 20261001122, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20261001123) {
+        // Recordatorio (12) y cierre automatico (24) del estudiante en horas
+        // HABILES (decision de Ramiro, 18-nov-2026). Solo cambia el texto de la
+        // plantilla si nadie la edito; la logica no necesita datos nuevos.
+        if ($dbman->table_exists('gmk_tkt_template')) {
+            $tpl = $DB->get_record('gmk_tkt_template', ['code' => 'reminder']);
+            if ($tpl && trim((string)$tpl->body) === '¿Sigues necesitando ayuda? Si no recibimos respuesta, cerraremos tu solicitud en 12 h.') {
+                $DB->update_record('gmk_tkt_template', (object)['id' => $tpl->id,
+                    'name' => 'Recordatorio al estudiante sin respuesta (horas hábiles)',
+                    'body' => '¿Sigues necesitando ayuda? Si no recibimos respuesta, cerraremos tu solicitud en {horas_cierre} horas hábiles.',
+                    'timemodified' => time()]);
+            }
+        }
+        upgrade_plugin_savepoint(true, 20261001123, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

@@ -14,7 +14,7 @@ Alcance: plugin `local_grupomakro_core` (Moodle 4.0) y portal de estudiantes (Nu
 | Tiempos (semáforo) | **Verde** hasta 20 min (meta) · **Amarillo** desde 1 h ("ya se va atrasando") · **Naranja** desde 3 h · **Rojo** desde 5 h. Ver §6.2. |
 | Categorías | **Académico**, **Soporte Tecnológico**, **Bienestar**, **Psicología** y **Finanzas**. Finanzas no abre ticket: muestra un botón de WhatsApp al número de Finanzas, +507 6892-0543. |
 | Asignación | Se rutea por tema (ver §6.1):<br>• Gestión académica (horarios, asignaturas, notas, gestión con docentes): reparto entre **Jean Remice** y **Lizbeth Aizprua**.<br>• Asistencia a clases y bienestar institucional: **Jorge Oviedo**.<br>• Quejas: **Psicología**. |
-| Cierre | Se cierra si el estudiante confirma que está resuelto, o si pasa **1 día sin respuesta del estudiante** después del último mensaje del personal. |
+| Cierre | Se cierra si el estudiante confirma que está resuelto, o si pasan **24 horas hábiles sin respuesta del estudiante** después del último mensaje del personal (decidido el 18-nov-2026: horas hábiles, con el reloj del agente asignado o del área). |
 | Mensajes | El sistema manda **mensajes automáticos** en cada etapa y un **mensaje de calificación de la atención** al cerrar (ver §7.1). |
 | Seguridad | Corregidos los servicios de avisos que aceptaban un `userid` del cliente (ver §11). |
 
@@ -121,11 +121,11 @@ Reglas de cada transición. Se validan en el servidor, como en cartas, y cada un
 1. **Nuevo.** Al crearlo se fijan las fechas límite de primera respuesta y de solución, según la categoría y en horas hábiles.
 2. **Asignado.** Ocurre automáticamente al crearse (ver §6) o cuando un agente pulsa "Tomar".
 3. **En atención.** El agente envió su primera respuesta. Ahí se registra `first_response_at`.
-4. **Esperando estudiante.** El agente pidió información o respondió. El semáforo se **detiene**. A las 12 h sin respuesta del estudiante se le envía un recordatorio automático: "Si no recibimos respuesta, cerraremos tu solicitud en 12 h".
+4. **Esperando estudiante.** El agente pidió información o respondió. El semáforo se **detiene**. A las 12 horas hábiles sin respuesta del estudiante se le envía un recordatorio automático: "Si no recibimos respuesta, cerraremos tu solicitud en 12 horas hábiles".
 5. **Resuelto.** El agente marca la solución. El estudiante ve "¿Se resolvió tu caso?" y tiene dos opciones:
    - **Sí:** el ticket se cierra y se le pide la calificación.
    - **No:** el ticket se reabre y vuelve al mismo agente con prioridad alta.
-6. **Cerrado.** Ocurre si el estudiante confirma, o si pasa **1 día** sin respuesta suya tras el último mensaje del personal. Un ticket cerrado no admite mensajes; el estudiante puede abrir otro vinculado.
+6. **Cerrado.** Ocurre si el estudiante confirma, o si pasan **24 horas hábiles** sin respuesta suya tras el último mensaje del personal. Un ticket cerrado no admite mensajes; el estudiante puede abrir otro vinculado.
 
 Un ticket **no se puede cerrar sin al menos una respuesta del personal**. Así nadie "limpia" la bandeja sin atender.
 
@@ -227,7 +227,7 @@ Aparecen en el chat como mensajes del "Sistema" y llegan también por campanita 
 | Al asignar o reasignar | "*{Agente}* está atendiendo tu solicitud." |
 | 20 min sin respuesta | "Tu solicitud sigue en cola; te responderemos en breve. Gracias por tu paciencia." |
 | Fuera de horario | "Recibimos tu mensaje fuera del horario de atención (*{horario}*). Te responderemos al inicio de la siguiente jornada." |
-| 12 h sin respuesta del estudiante | "¿Sigues necesitando ayuda? Si no recibimos respuesta, cerraremos tu solicitud en 12 h." |
+| 12 horas hábiles sin respuesta del estudiante | "¿Sigues necesitando ayuda? Si no recibimos respuesta, cerraremos tu solicitud en {horas_cierre} horas hábiles." |
 | Al resolver | "Marcamos tu solicitud como resuelta. ¿Se resolvió tu caso? [Sí] [No]" |
 | Al cerrar | "Tu solicitud **TKT-2026-0123** fue cerrada. ¿Cómo calificarías la atención recibida?" |
 
@@ -396,7 +396,7 @@ Cada cambio deja un evento de auditoría con quién, cuándo, valor anterior y v
 | Gerencia | Personas que reciben escalamientos y el resumen diario | Joyce Muñoz |
 | Semáforo | Umbrales en minutos hábiles para verde, amarillo, naranja y rojo; repetición del aviso en rojo | 20 / 60 / 180 / 300 min; repetir cada 120 min |
 | Escalamiento | Para cada umbral: a quién avisar (agente, supervisores, gerencia) y si reasigna | Según §6.3 |
-| Cierre | Horas sin respuesta del estudiante para el recordatorio y para el cierre | Recordatorio a las 12 h, cierre a las 24 h |
+| Cierre | Horas sin respuesta del estudiante para el recordatorio y para el cierre | Recordatorio a las 12 horas hábiles, cierre a las 24 horas hábiles |
 | Mensajes automáticos | Texto editable de cada mensaje automático, con variables `{numero}`, `{categoria}`, `{agente}`, `{horario}` y `{estudiante}` | Borradores de §7.1 |
 | Calificación | Activa o no, umbral de calificación baja que avisa a supervisores, reaparición si la descarta | Activa; 1–2 estrellas avisan; reaparece una vez |
 | Límites | Tickets abiertos por estudiante, tickets por día, tamaño y tipos de adjuntos | 5 abiertos, 10 por día, 10 MB, pdf/jpg/png/docx |

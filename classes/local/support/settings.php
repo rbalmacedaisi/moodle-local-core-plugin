@@ -112,7 +112,7 @@ class settings {
                 }
                 return $out;
             })(),
-            'variables' => ['{numero}', '{categoria}', '{area}', '{agente}', '{horario}', '{estudiante}'],
+            'variables' => ['{numero}', '{categoria}', '{area}', '{agente}', '{horario}', '{estudiante}', '{horas_cierre}'],
             'audit' => self::recent_audit(),
         ];
         return $out;

@@ -14,7 +14,7 @@ Staging (`/opt/moodle_staging`, base `isidb_staging`) se trata como producción:
 | Escalera cada 5 min: 20 min agente + mensaje al estudiante · 1 h supervisores (+ asignar si está en cola) · 3 h supervisores + prioridad alta + vuelve a la cola si el agente está ausente · 5 h gerencia, repite cada 2 h | tarea `support_escalate`, `escalation::process_ticket()` |
 | Sin acuse en 5 min hábiles → respaldo (o supervisores si no hay) + administradores | `escalation::check_ack()`, proveedor `support_noack` |
 | Resumen diario a gerencia y supervisores (7:00) | tarea `support_digest` (cada hora, envía una vez al día) |
-| Recordatorio de 12 h al solicitante (verificado: **no existía** en la fase 1; ahora lo manda `support_autoclose` antes del cierre de 24 h) | `manager::remind_stale()` |
+| Recordatorio a las 12 horas hábiles al solicitante (verificado: **no existía** en la fase 1; ahora lo manda `support_autoclose` antes del cierre a las 24 horas hábiles, ver §11) | `manager::remind_stale()` |
 | Tope de 1 correo cada 10 min por ticket y persona (la campanita sigue inmediata) | `manager::mail_gate()`, tabla `gmk_tkt_mailgate`, proveedor `support_live` sin correo |
 | Indicador flotante en todas las páginas de Moodle (solo personal de soporte) | `local_grupomakro_core_before_footer()`, `js/support_badge.js`, WS `support_get_badge` (caché 20 s) |
 | Modo incisivo capas 1–3 con acuse obligatorio y perfiles | `badge.php`, `policy::incisive_profile()`, tabla `gmk_tkt_ack`, WS `support_snooze` |
@@ -62,7 +62,7 @@ Todo corre en una transacción que siempre se revierte (incluidos el feriado de 
 | 13 | La bandeja exporta minutos hábiles y semáforo `green_warn` a los 25 min |
 | 14 | Escalera: 20 min (nivel 1 + mensaje `sla_warning`), idempotencia, 1 h (asigna si estaba en cola), 3 h (prioridad alta + vuelve a la cola con agente ausente), 5 h (gerencia), sin repetición antes de `tkt_red_repeat` y repetición después |
 | 15 | **Vencidos** en minutos hábiles (aparece con el área abierta, desaparece si esas horas eran fuera de horario); indicador: contadores, alerta por acusar, **sin texto de mensajes**, acuse al abrir, nada para un estudiante |
-| 16 | La respuesta del personal reinicia la escalera; recordatorio de 12 h una sola vez |
+| 16 | La respuesta del personal reinicia la escalera; recordatorio una sola vez |
 | 17 | Sin acuse en 5 min: avisa una vez por alerta; con acuse no avisa; posponer máximo 2 veces |
 | 18 | Tope de correo: uno cada `tkt_mail_gap` min por ticket y persona |
 | 19 | Calificación: pendiente al cerrar, "Ahora no" (no reaparece el mismo día, sí al siguiente), calificación baja con "no se resolvió", no se califica dos veces |
@@ -121,7 +121,7 @@ Nota: el plan pide sondeo solo con la pestaña visible (§8.2) pero también son
 | 2 | Ver respuesta | Abre `/soporte?ticket=…`, marca leído y el aviso desaparece sin esperar el siguiente sondeo. |
 | 3 | El personal pide información | Diálogo "Te pedimos información" una vez por sesión del navegador hasta que responda o se cierre. |
 | 4 | Reproductor de cursos | Botón Ayuda compacto (solo el ícono) que no tapa el contenido; el aviso de respuesta también aparece ahí. |
-| 5 | Recordatorio a las 12 h y cierre a las 24 h | Con `tkt_remind_hours`/`tkt_close_hours` bajados a 1 y 2: mensaje "¿Sigues necesitando ayuda?" y luego "cerrada". |
+| 5 | Recordatorio a las 12 y cierre a las 24 horas hábiles | Con `tkt_remind_hours`/`tkt_close_hours` bajados a 1 y 2 (horas hábiles) y dentro del horario: mensaje "¿Sigues necesitando ayuda? … en 1 horas hábiles" y luego "cerrada". Fuera de horario no avanza. |
 | 6 | Calificación al cerrar | 1–5 estrellas, "¿Te resolvimos?" Sí/No, comentario. "Ahora no" → reaparece una vez al día siguiente y nunca más. 1–2 estrellas → aviso `support_low_rating` a supervisores. |
 
 ## 7. Tickets abiertos desde la fase 1
@@ -153,7 +153,7 @@ Pedido de Ramiro (18-nov-2026): "las horas ten en cuenta que sean horas hábiles
 | Modo incisivo | Solo dentro del horario propio del agente (si no tiene, el de sus áreas). Fuera de él: solo píldora y campanita. |
 | Reparto automático | Prefiere a los agentes que están en horario; si nadie lo está, el de menos carga como antes. |
 | Agente fuera de horario | Si el asignado tiene horario propio, está fuera de él, el área está abierta y el estudiante ya esperó `tkt_ack_minutes` minutos hábiles del área, la tarea de escalamiento pasa el ticket a otro agente del tema en horario o, si no hay, a un respaldo del agente en horario (evento `offhours_handoff`). Si no hay nadie, avisa una vez por espera a los supervisores (`offhours_nohandoff`). Se apaga con `tkt_offhours_handoff = 0`. |
-| Recordatorio | El aviso de 20 min al agente usa su reloj (es parte de la escalera). El recordatorio de 12 h al estudiante y el cierre de 24 h siguen en horas de reloj (decisión de la fase 0, "1 día sin respuesta"). |
+| Recordatorio | El aviso de 20 min al agente usa su reloj (es parte de la escalera). Desde 20261001123 el recordatorio y el cierre al estudiante también cuentan horas hábiles (ver §11). |
 | Capacidad `support_reassign` | Dada a `gmk_secretaria_academica`, `gmk_director_academico`, `gmk_bienestar`, `gmk_psicologo`, `gmk_gerencia`, `gmk_soporte_ti` y al arquetipo `manager`. Quien la tiene ve la pestaña **Todos** y reasigna cualquier ticket no confidencial. TI no se vuelve supervisor: no recibe las alertas de 1 h y 3 h ni el resumen. |
 | Reasignar a otra área | En **Reasignar** se elige el tema destino (cualquier área); la lista de agentes cambia con el tema. Quedan los eventos `category` y `assigned` (how `transfer`) y el mensaje automático nuevo `transferred` ("Pasamos tu solicitud … a {área} ({categoría}). Te atenderá {agente}."). |
 | Confidenciales | Solo los reasignan los agentes de Psicología y gerencia; un ticket confidencial nunca se vuelve público al moverlo. |
@@ -190,3 +190,16 @@ Pedido de Ramiro (18-nov-2026): "Necesito que toda la ux se adapte a mobile firs
 Comunes: botones e íconos de al menos 44 px de alto en el celular; campos con letra de 16 px (iOS no hace zoom).
 
 Prueba en un teléfono real (iPhone y Android) con un agente de prueba: abrir la bandeja, abrir un ticket, responder, usar el menú ⋮, volver con el botón del teléfono, abrir la configuración y recorrer las pestañas, y provocar el bloqueo con Esteban.
+
+## 11. 20261001123: recordatorio y cierre en horas hábiles ✋
+
+Decisión de Ramiro (18-nov-2026): "sí, pásalos a horas hábiles".
+
+- `tkt_remind_hours` (12) y `tkt_close_hours` (24) ahora son **horas hábiles**, con el mismo reloj que el semáforo: el horario propio del agente asignado o, si no tiene o no hay agente, el del área. Un área sin horario cuenta horas de reloj.
+- Plantilla `reminder`: "¿Sigues necesitando ayuda? Si no recibimos respuesta, cerraremos tu solicitud en {horas_cierre} horas hábiles." La variable nueva `{horas_cierre}` vale `tkt_close_hours − tkt_remind_hours` (12 por defecto). El upgrade solo cambia el texto si nadie lo había editado; si fue editado, hay que ajustarlo a mano en **Mensajes automáticos**.
+- Etiquetas de **Parámetros**: "Horas hábiles sin respuesta del estudiante…".
+- Ejemplo con el horario académico (L–V 8:00–21:00, S 8:00–16:00, domingo cerrado): el personal escribe el viernes a las 20:00 → recordatorio el lunes a las 11:00 (1 h el viernes + 8 h el sábado + 3 h el lunes) y cierre el martes a las 10:00 (1 + 8 + 13 + 2 = 24 horas hábiles).
+
+Despliegue: upgrade a `20261001123` (sin tablas nuevas). Revisar `SELECT body FROM mdl_gmk_tkt_template WHERE code = 'reminder';`.
+
+Autotest §23 (con un horario L–V 8:00–17:00 temporal en el área académica, revertido): un ticket esperando al estudiante desde el viernes 11-ene-2030 16:00 no se cierra el sábado ni el domingo; el recordatorio sale justo al cumplirse las horas hábiles (no antes); el cierre cae en día hábil y ocurre justo al cumplirse `tkt_close_hours`. Se omite si hay feriados cargados del 11 al 22 de enero de 2030.

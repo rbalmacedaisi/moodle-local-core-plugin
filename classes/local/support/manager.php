@@ -867,22 +867,52 @@ class manager {
     }
 
     /**
-     * Closes tickets whose requester did not answer within tkt_close_hours
-     * after the last staff message. Idempotent; used by the scheduled task.
+     * Tickets waiting for the requester (esperando estudiante or resuelto)
+     * whose last staff message is at least $hours BUSINESS hours old, on the
+     * same clock as the semaphore: the assigned agent's hours, else the area's
+     * (decision de Ramiro, 18-nov-2026). An area without hours counts wall time.
      *
+     * @param int[] $ids restrict to these tickets (tests); empty = all
+     * @return stdClass[]
+     */
+    public static function waiting_requester_for(int $hours, int $now, array $ids = []): array {
+        global $DB;
+        // Prefilter on wall time: business hours never exceed wall hours.
+        $params = ['s1' => self::S_WAITING, 's2' => self::S_RESOLVED, 'lim' => $now - $hours * HOURSECS];
+        $where = "status IN (:s1, :s2) AND first_response_at > 0 AND last_staff_msg_at > 0
+                  AND last_staff_msg_at < :lim AND last_student_msg_at < last_staff_msg_at";
+        if ($ids) {
+            [$in, $inparams] = $DB->get_in_or_equal(array_map('intval', $ids), SQL_PARAMS_NAMED, 'wr');
+            $where .= " AND id $in";
+            $params += $inparams;
+        }
+        $rows = $DB->get_records_select('gmk_tkt_ticket', $where, $params, 'id ASC', '*', 0, 2000);
+        $out = [];
+        foreach ($rows as $t) {
+            if (business_hours::elapsed((int)$t->last_staff_msg_at, $now, policy::clock($t)) >= $hours * 60) {
+                $out[] = $t;
+            }
+            if (count($out) >= 500) {
+                break;
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * Closes tickets whose requester did not answer within tkt_close_hours
+     * BUSINESS hours after the last staff message. Idempotent; scheduled task.
+     *
+     * @param int[] $ids restrict to these tickets (tests)
      * @return int tickets closed
      */
-    public static function autoclose_stale(int $now = 0): int {
+    public static function autoclose_stale(int $now = 0, array $ids = []): int {
         global $DB;
         if (!config::get_int('tkt_autoclose_enabled')) {
             return 0;
         }
         $now = $now ?: time();
-        $limit = $now - config::get_int('tkt_close_hours') * HOURSECS;
-        $rows = $DB->get_records_select('gmk_tkt_ticket',
-            "status IN (:s1, :s2) AND first_response_at > 0 AND last_staff_msg_at > 0
-             AND last_staff_msg_at < :lim AND last_student_msg_at < last_staff_msg_at",
-            ['s1' => self::S_WAITING, 's2' => self::S_RESOLVED, 'lim' => $limit], 'id ASC', '*', 0, 500);
+        $rows = self::waiting_requester_for(config::get_int('tkt_close_hours'), $now, $ids);
         $closed = 0;
         foreach ($rows as $ticket) {
             $transaction = $DB->start_delegated_transaction();
@@ -894,12 +924,14 @@ class manager {
     }
 
     /**
-     * Sends the 12 h reminder ("¿Sigues necesitando ayuda?") once per staff
-     * message to requesters who did not answer. Idempotent (auto_message event).
+     * Sends the reminder ("¿Sigues necesitando ayuda?") tkt_remind_hours
+     * BUSINESS hours after the last staff message, once per staff message, to
+     * requesters who did not answer. Idempotent (auto_message event).
      *
+     * @param int[] $ids restrict to these tickets (tests)
      * @return int reminders sent
      */
-    public static function remind_stale(int $now = 0): int {
+    public static function remind_stale(int $now = 0, array $ids = []): int {
         global $DB;
         $hours = config::get_int('tkt_remind_hours');
         if ($hours <= 0) {
@@ -911,10 +943,7 @@ class manager {
             // The ticket closes before (or when) the reminder would be due: nothing to remind.
             return 0;
         }
-        $rows = $DB->get_records_select('gmk_tkt_ticket',
-            "status IN (:s1, :s2) AND first_response_at > 0 AND last_staff_msg_at > 0
-             AND last_staff_msg_at < :lim AND last_student_msg_at < last_staff_msg_at",
-            ['s1' => self::S_WAITING, 's2' => self::S_RESOLVED, 'lim' => $now - $hours * HOURSECS], 'id ASC', '*', 0, 500);
+        $rows = self::waiting_requester_for($hours, $now, $ids);
         $sent = 0;
         foreach ($rows as $ticket) {
             $done = $DB->record_exists_select('gmk_tkt_event',
@@ -1820,6 +1849,8 @@ class manager {
             '{agente}' => $agent ? fullname($agent) : ('el equipo de ' . $areaname),
             '{horario}' => $area ? business_hours::describe($area) : '',
             '{estudiante}' => $student ? fullname($student) : '',
+            // Hours left between the reminder and the automatic close (business hours).
+            '{horas_cierre}' => (string)max(1, config::get_int('tkt_close_hours') - config::get_int('tkt_remind_hours')),
         ];
     }
 

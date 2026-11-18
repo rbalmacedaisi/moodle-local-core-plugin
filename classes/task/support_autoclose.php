@@ -16,7 +16,8 @@
 
 /**
  * Mesa de ayuda: cierra los tickets en "esperando estudiante" o "resuelto"
- * cuando el estudiante no responde en tkt_close_hours (24 h por defecto)
+ * cuando el estudiante no responde en tkt_close_hours horas HABILES (24 por
+ * defecto; reloj del agente asignado o del area, como el semaforo)
  * tras el ultimo mensaje del personal (§5 del plan). Idempotente.
  *
  * @package    local_grupomakro_core
