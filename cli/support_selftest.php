@@ -48,6 +48,12 @@
  * esperando al estudiante desde el viernes 16:00 no se cierra el fin de semana;
  * recordatorio y cierre justo al cumplirse las horas habiles).
  *
+ * 20261001124: adjuntos (tipos y contenido real, tamanos, cantidad, envio de
+ * imagen y video sin texto, exportacion, marcador en avisos, acceso: el
+ * solicitante y el agente si, otro usuario no, notas internas no al
+ * solicitante, borrador ajeno no, Psicologia confidencial no). Los archivos
+ * de prueba se revierten con la transaccion.
+ *
  * @package    local_grupomakro_core
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -56,6 +62,7 @@ define('CLI_SCRIPT', true);
 
 require(__DIR__ . '/../../../config.php');
 require_once($CFG->libdir . '/clilib.php');
+require_once($CFG->libdir . '/filelib.php');
 
 use local_grupomakro_core\local\support\business_hours;
 use local_grupomakro_core\local\support\escalation;
@@ -671,6 +678,116 @@ try {
         }
         $DB->set_field('gmk_tkt_area', 'hours', $alwaysopen, ['id' => (int)$academic->areaid]);
         manager::reset_caches();
+    }
+
+    // =====================================================================
+    // 24. 20261001124: adjuntos del chat (imagenes, videos y PDF).
+    // =====================================================================
+    cli_writeln('');
+    cli_writeln('Adjuntos');
+    $png = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==');
+    $mp4 = "\x00\x00\x00\x18ftypmp42\x00\x00\x00\x00mp42isom" . str_repeat("\x00", 64);
+    $pdf = "%PDF-1.4\n%selftest\n";
+    $fsx = get_file_storage();
+    $mkdraft = function(int $userid, array $files) use ($fsx) {
+        $itemid = file_get_unused_draft_itemid();
+        $ctx = \context_user::instance($userid);
+        foreach ($files as $name => $content) {
+            $fsx->create_file_from_string(['contextid' => $ctx->id, 'component' => 'user', 'filearea' => 'draft',
+                'itemid' => $itemid, 'filepath' => '/', 'filename' => $name, 'userid' => $userid], $content);
+        }
+        return $itemid;
+    };
+    $att = '\local_grupomakro_core\local\support\attachments';
+
+    // Type and content validation (explicit limits: no config changes).
+    $lim = ['types' => ['jpg', 'png', 'mp4', 'mov', 'pdf'], 'maxfiles' => 2, 'imagebytes' => 1000, 'videobytes' => 5000,
+        'serverbytes' => 0, 'accept' => ''];
+    $ok = true;
+    try {
+        $att::validate('foto.png', strlen($png), substr($png, 0, 32), $lim);
+        $att::validate('video.mp4', strlen($mp4), substr($mp4, 0, 32), $lim);
+        $att::validate('doc.pdf', strlen($pdf), substr($pdf, 0, 32), $lim);
+    } catch (\moodle_exception $e) {
+        $ok = false;
+    }
+    $check('adjuntos: png, mp4 y pdf validos por su contenido', $ok);
+    $check('adjuntos: extension no permitida (exe)', $throws(function() use ($att, $lim) {
+        $att::validate('virus.exe', 10, 'MZ' . str_repeat("\0", 30), $lim);
+    }, 'tkt_err_attachtype'));
+    $check('adjuntos: un texto renombrado a .png se rechaza', $throws(function() use ($att, $lim) {
+        $att::validate('falso.png', 10, 'hola mundo, no soy imagen', $lim);
+    }, 'tkt_err_attachcontent'));
+    $check('adjuntos: tipo no habilitado aunque sea imagen (webp fuera de la lista)', $throws(function() use ($att, $lim) {
+        $att::validate('a.webp', 10, 'RIFF....WEBPVP8 ', $lim);
+    }, 'tkt_err_attachtype'));
+    $check('adjuntos: imagen mas grande que el maximo', $throws(function() use ($att, $lim, $png) {
+        $att::validate('grande.png', 2000, substr($png, 0, 32), $lim);
+    }, 'tkt_err_attachsize'));
+    $check('adjuntos: video mas grande que el maximo', $throws(function() use ($att, $lim, $mp4) {
+        $att::validate('largo.mp4', 6000, substr($mp4, 0, 32), $lim);
+    }, 'tkt_err_attachsize'));
+    $three = $mkdraft($studentid, ['a.png' => $png, 'b.png' => $png, 'c.png' => $png]);
+    $check('adjuntos: mas archivos que el maximo por mensaje', $throws(function() use ($att, $lim, $three, $studentid) {
+        $att::check_set($att::draft_files($studentid, $three), $lim);
+    }, 'tkt_err_attachcount'));
+    $check('adjuntos: sniff de mov, webm, gif, webp, heic y jpg',
+        $att::sniff("\x00\x00\x00\x14ftypqt  ") === 'mov' && $att::sniff("\x1A\x45\xDF\xA3abc") === 'webm'
+        && $att::sniff('GIF89a') === 'gif' && $att::sniff('RIFF1234WEBP') === 'webp'
+        && $att::sniff("\x00\x00\x00\x18ftypheic") === 'heic' && $att::sniff("\xFF\xD8\xFF\xE0") === 'jpg');
+
+    $real = $att::limits();
+    $chat = isset($t3) ? $DB->get_record('gmk_tkt_ticket', ['id' => $t3->id]) : null;
+    if ($real['maxfiles'] >= 2 && in_array('png', $real['types'], true) && in_array('mp4', $real['types'], true)
+            && $chat && manager::is_open_status((string)$chat->status)) {
+        // Student sends an image and a video without text.
+        $item = $mkdraft($studentid, ['captura.png' => $png, 'pantalla.mp4' => $mp4]);
+        [$m1] = manager::send((int)$chat->id, $studentid, '', false, false, $item);
+        $files = $att::for_messages([(int)$m1->id])[(int)$m1->id] ?? [];
+        $kinds = array_column($files, 'kind');
+        sort($kinds);
+        $check('adjuntos: el estudiante envia imagen y video sin texto', (int)$m1->hasattachments === 2
+            && $kinds === ['image', 'video'] && !$att::draft_files($studentid, $item), implode(',', $kinds));
+        $exported = manager::messages($chat, $studentid, manager::ROLE_REQUESTER)['messages'];
+        $last = end($exported);
+        $check('adjuntos: el chat los exporta con enlace a support_file.php', count($last['attachments']) === 2
+            && strpos($last['attachments'][0]['url'], 'support_file.php?id=') !== false);
+        $check('adjuntos: avisos y listas dicen "🎬 Video" / "📎 Adjunto", nunca el archivo',
+            $att::marker((int)$m1->id) === '🎬 Video'
+            && manager::export_ticket($chat, (int)$chat->assignedto ?: $agents[0], manager::ROLE_AGENT)['lastmessage'] === '📎 Adjunto');
+
+        $fileid = (int)$files[0]['id'];
+        $staffer = (int)$chat->assignedto ?: $agents[0];
+        $check('adjuntos: lo descarga el solicitante', $att::file_for($fileid, $studentid) !== null);
+        $check('adjuntos: lo descarga el agente', $att::file_for($fileid, $staffer) !== null, $fullname($staffer));
+        if (isset($other) && $other && !manager::profile($other)->isstaff) {
+            $check('adjuntos: otro usuario NO lo descarga', $att::file_for($fileid, $other) === null, $fullname($other));
+        }
+        // Internal note with a file: the requester never gets it.
+        $noteitem = $mkdraft($staffer, ['interna.pdf' => $pdf]);
+        [$m2] = manager::send((int)$chat->id, $staffer, 'Nota con adjunto', true, false, $noteitem);
+        $notefile = (int)(($att::for_messages([(int)$m2->id])[(int)$m2->id] ?? [['id' => 0]])[0]['id']);
+        $check('adjuntos: el de una nota interna no lo descarga el solicitante',
+            $notefile > 0 && $att::file_for($notefile, $studentid) === null && $att::file_for($notefile, $staffer) !== null);
+        // Someone else's draft cannot be attached.
+        $foreign = $mkdraft($staffer, ['ajeno.png' => $png]);
+        [$m3] = manager::send((int)$chat->id, $studentid, 'Intento con borrador ajeno', false, false, $foreign);
+        $check('adjuntos: no se puede usar el borrador de otro usuario', (int)$m3->hasattachments === 0);
+    } else {
+        cli_writeln('  (omito el envio de adjuntos: tkt_attach_maxfiles < 2, png/mp4 no permitidos o no hay ticket abierto)');
+    }
+    // Confidential (Psychology): an academic agent cannot download its files.
+    if (isset($t4) && !empty($t4->confidential) && $real['maxfiles'] >= 1 && in_array('png', $real['types'], true)
+            && manager::is_open_status((string)$DB->get_field('gmk_tkt_ticket', 'status', ['id' => $t4->id]))) {
+        $psyitem = $mkdraft($studentid, ['personal.png' => $png]);
+        [$m4] = manager::send((int)$t4->id, $studentid, 'Adjunto confidencial', false, false, $psyitem);
+        $psyfile = (int)(($att::for_messages([(int)$m4->id])[(int)$m4->id] ?? [['id' => 0]])[0]['id']);
+        foreach ($agents as $a) {
+            if (!manager::staff_can_view($t4, $a)) {
+                $check('adjuntos: Psicologia confidencial no la descarga ' . $fullname($a), $att::file_for($psyfile, $a) === null);
+                break;
+            }
+        }
     }
 
     // 9. Open-tickets limit.

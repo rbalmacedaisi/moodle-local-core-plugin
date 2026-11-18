@@ -4791,6 +4791,17 @@ if ($oldversion < 20261001093) {
         upgrade_plugin_savepoint(true, 20261001123, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20261001124) {
+        // Adjuntos del chat (imagenes, videos y PDF). Los archivos van en la
+        // File API (contexto sistema, filearea tkt_attachment, itemid = mensaje);
+        // no hay tablas nuevas. La carga inicial guardo los tipos de la fase 3
+        // (pdf,jpg,png,docx): si nadie los cambio, pasan a los nuevos.
+        if (get_config('local_grupomakro_core', 'tkt_attach_types') === 'pdf,jpg,png,docx') {
+            set_config('tkt_attach_types', 'jpg,jpeg,png,webp,gif,heic,mp4,mov,webm,pdf', 'local_grupomakro_core');
+        }
+        upgrade_plugin_savepoint(true, 20261001124, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

@@ -56,6 +56,7 @@ class get_catalog extends external_api {
             'areas' => manager::catalog($userid, $params['audience'] === 'teacher' ? 'teacher' : 'student'),
             'max_open' => \local_grupomakro_core\local\support\config::get_int('tkt_max_open'),
             'max_body' => manager::MAX_BODY,
+            'attachlimits' => structures::export_attachlimits(),
         ];
     }
 
@@ -82,6 +83,7 @@ class get_catalog extends external_api {
             ])),
             'max_open' => new external_value(PARAM_INT, 'Max open requests per student'),
             'max_body' => new external_value(PARAM_INT, 'Max characters per message'),
+            'attachlimits' => structures::attachlimits(),
         ]);
     }
 }

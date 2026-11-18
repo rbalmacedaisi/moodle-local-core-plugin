@@ -86,6 +86,14 @@ class structures {
             'internal' => new external_value(PARAM_BOOL, 'Internal note'),
             'timecreated' => new external_value(PARAM_INT, 'Sent'),
             'mine' => new external_value(PARAM_BOOL, 'Sent by the caller'),
+            'attachments' => new external_multiple_structure(new external_single_structure([
+                'id' => new external_value(PARAM_INT, 'File id'),
+                'filename' => new external_value(PARAM_FILE, 'File name'),
+                'filesize' => new external_value(PARAM_INT, 'Bytes'),
+                'mimetype' => new external_value(PARAM_RAW, 'Mime type'),
+                'kind' => new external_value(PARAM_ALPHA, 'image | video | file'),
+                'url' => new external_value(PARAM_URL, 'support_file.php?id= (portal adds &token=)'),
+            ]), 'Attachments', VALUE_DEFAULT, []),
         ]);
     }
 
@@ -97,6 +105,34 @@ class structures {
             'actorname' => new external_value(PARAM_TEXT, 'Who'),
             'timecreated' => new external_value(PARAM_INT, 'When'),
         ]);
+    }
+
+    /**
+     * Attachment limits for the composer (support_upload.php enforces them again).
+     */
+    public static function attachlimits(): external_single_structure {
+        return new external_single_structure([
+            'enabled' => new external_value(PARAM_BOOL, 'Attachments allowed'),
+            'types' => new external_multiple_structure(new external_value(PARAM_ALPHANUM, 'Extension')),
+            'accept' => new external_value(PARAM_RAW, 'Value for <input accept>'),
+            'maxfiles' => new external_value(PARAM_INT, 'Files per message'),
+            'imagebytes' => new external_value(PARAM_INT, 'Max bytes per image or PDF'),
+            'videobytes' => new external_value(PARAM_INT, 'Max bytes per video'),
+            'uploadurl' => new external_value(PARAM_URL, 'support_upload.php'),
+        ]);
+    }
+
+    public static function export_attachlimits(): array {
+        $l = \local_grupomakro_core\local\support\attachments::limits();
+        return [
+            'enabled' => $l['maxfiles'] > 0 && !empty($l['types']),
+            'types' => $l['types'],
+            'accept' => $l['accept'],
+            'maxfiles' => $l['maxfiles'],
+            'imagebytes' => $l['imagebytes'],
+            'videobytes' => $l['videobytes'],
+            'uploadurl' => (new \moodle_url('/local/grupomakro_core/support_upload.php'))->out(false),
+        ];
     }
 
     public static function tickets(): external_multiple_structure {

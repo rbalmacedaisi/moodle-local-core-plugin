@@ -61,7 +61,8 @@ Vue.component('support-requester', {
               <div v-for="m in messages" :key="m.id" class="d-flex mb-2" :class="m.mine ? 'justify-end' : 'justify-start'">
                 <div :style="bubble(m)" class="gmk-bubble">
                   <div class="text-caption font-weight-medium">{{ m.senderrole === 'system' ? 'Mesa de ayuda' : m.sendername }}</div>
-                  <div>{{ m.body }}</div>
+                  <div v-if="m.body">{{ m.body }}</div>
+                  <support-attachments :items="m.attachments"></support-attachments>
                   <div class="text-caption text--secondary text-right">{{ fmt.date(m.timecreated) }}</div>
                 </div>
               </div>
@@ -79,10 +80,12 @@ Vue.component('support-requester', {
               </v-alert>
               <v-btn v-if="!active.isopen && !active.rating && active.status === 'cerrado'" block depressed color="amber" class="mb-2"
                 @click="rateDialog.open = true"><v-icon left>mdi-star</v-icon>Calificar la atención</v-btn>
+              <support-attach-picker v-if="active.canwrite" ref="picker" :key="'pk' + active.id" :limits="attachlimits"
+                :ticketid="active.id" :disabled="sending" @state="attach = $event" @error="notify($event)"></support-attach-picker>
               <div v-if="active.canwrite" class="d-flex align-end">
                 <v-textarea v-model="draft" outlined dense auto-grow rows="1" hide-details placeholder="Escribe tu mensaje"
                   class="mr-2" :maxlength="4000"></v-textarea>
-                <v-btn color="primary" fab small depressed :loading="sending" :disabled="!draft.trim()" aria-label="Enviar" @click="send">
+                <v-btn color="primary" fab small depressed :loading="sending || attach.busy" :disabled="!canSend" aria-label="Enviar" @click="send">
                   <v-icon>mdi-send</v-icon></v-btn>
               </div>
             </div>
@@ -156,6 +159,8 @@ Vue.component('support-requester', {
             catalog: null,
             newDialog: { open: false, categoryid: null, subject: '', body: '', busy: false, error: '' },
             rateDialog: { open: false, rating: 0, solved: true, comment: '', busy: false },
+            attachlimits: null,
+            attach: { busy: false, failed: false, count: 0, draftitemid: 0 },
             snack: { show: false, text: '', color: 'error' },
             timers: [],
         };
@@ -163,6 +168,9 @@ Vue.component('support-requester', {
     computed: {
         isMobile() {
             return this.$vuetify.breakpoint.smAndDown;
+        },
+        canSend() {
+            return !this.sending && !this.attach.busy && !this.attach.failed && (!!this.draft.trim() || this.attach.count > 0);
         },
         topics() {
             if (!this.catalog) return [];
@@ -232,6 +240,7 @@ Vue.component('support-requester', {
                 const data = await this.call('get_ticket', { ticketid: id, beforeid: 0, limit: 50 });
                 this.active = data.ticket;
                 this.messages = data.messages;
+                if (data.attachlimits) this.attachlimits = data.attachlimits;
                 if (this.isMobile && !(window.history.state && window.history.state.gmkTicket)) {
                     // Celular: el boton "atras" del telefono vuelve a la lista.
                     window.history.pushState({ gmkTicket: id }, '');
@@ -250,6 +259,7 @@ Vue.component('support-requester', {
                 const grew = data.messages.length && (!this.messages.length || data.messages[data.messages.length - 1].id !== this.messages[this.messages.length - 1].id);
                 this.active = data.ticket;
                 this.messages = data.messages;
+                if (data.attachlimits) this.attachlimits = data.attachlimits;
                 if (grew) {
                     await this.call('mark_read', { ticketid: this.active.id });
                     this.scrollDown();
@@ -262,10 +272,13 @@ Vue.component('support-requester', {
             this.$nextTick(() => { const el = this.$refs.scroll; if (el) el.scrollTop = el.scrollHeight; });
         },
         async send() {
+            if (!this.canSend) return;
             this.sending = true;
             try {
-                await this.call('send_message', { ticketid: this.active.id, body: this.draft });
+                await this.call('send_message', { ticketid: this.active.id, body: this.draft,
+                    draftitemid: this.attach.count > 0 ? this.attach.draftitemid : 0 });
                 this.draft = '';
+                if (this.$refs.picker) this.$refs.picker.reset();
                 await this.refreshActive();
                 this.scrollDown();
             } catch (e) {

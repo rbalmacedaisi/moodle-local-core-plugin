@@ -76,6 +76,7 @@ echo <<<EOT
 EOT;
 
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/SupportApi.js?v=' . $assetversion));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/SupportAttach.js?v=' . $assetversion));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/SupportDesk.js?v=' . $assetversion));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/app.js?v=' . $assetversion));
 

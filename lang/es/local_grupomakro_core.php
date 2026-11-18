@@ -1631,3 +1631,13 @@ $string['tkt_notif_support_low_rating_body'] = 'El solicitante calificó la aten
 
 Revisar el caso: {$a->url}';
 $string['grupomakro_core:support_reassign'] = 'Reasignar tickets de la mesa de ayuda (cualquier área, salvo confidenciales)';
+
+// Mesa de ayuda: adjuntos (20261001124).
+$string['tkt_err_attachtype'] = 'Ese tipo de archivo no se puede adjuntar. Tipos permitidos: {$a}.';
+$string['tkt_err_attachcontent'] = 'El archivo {$a} no es lo que dice su extensión (o está dañado).';
+$string['tkt_err_attachsize'] = '{$a->name} supera el máximo de {$a->max}.';
+$string['tkt_err_attachempty'] = 'El archivo está vacío o no llegó.';
+$string['tkt_err_attachcount'] = 'Puedes adjuntar como máximo {$a} archivos por mensaje.';
+$string['tkt_err_attachdisabled'] = 'Los adjuntos están desactivados en la mesa de ayuda.';
+$string['tkt_err_attachserver'] = 'El archivo supera el máximo que acepta el servidor ({$a}).';
+$string['tkt_err_attachupload'] = 'No se pudo subir el archivo (código {$a}). Intenta de nuevo.';

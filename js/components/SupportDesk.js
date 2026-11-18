@@ -177,7 +177,8 @@ Vue.component('support-desk', {
                   <div class="text-caption font-weight-medium mb-1">
                     {{ m.sendername }}<span v-if="m.internal" class="ml-1 amber--text text--darken-4">· Nota interna (el estudiante no la ve)</span>
                   </div>
-                  <div>{{ m.body }}</div>
+                  <div v-if="m.body">{{ m.body }}</div>
+                  <support-attachments :items="m.attachments"></support-attachments>
                   <div class="text-right mt-1" style="font-size: 11px; opacity: .7;">{{ fmt.date(m.timecreated) }}</div>
                 </div>
               </div>
@@ -192,12 +193,14 @@ Vue.component('support-desk', {
                   <v-chip value="note" filter outlined>Nota interna</v-chip>
                 </v-chip-group>
                 <v-alert v-if="sendError" dense text type="error" class="mb-2" dismissible @input="sendError = ''">{{ sendError }}</v-alert>
+                <support-attach-picker ref="picker" :key="'pk' + active.id" :limits="attachlimits" :ticketid="active.id"
+                  :disabled="sending" @state="attach = $event" @error="sendError = $event"></support-attach-picker>
                 <div class="d-flex align-end">
                   <v-textarea v-model="draft" outlined dense hide-details auto-grow rows="1" maxlength="4000"
                     :background-color="mode === 'note' ? 'amber lighten-5' : ''"
                     :placeholder="placeholder" @keydown.enter.ctrl.prevent="send"></v-textarea>
-                  <v-btn color="primary" class="ml-2" fab small depressed :loading="sending" aria-label="Enviar"
-                    :disabled="!draft || !draft.trim()" @click="send"><v-icon>mdi-send</v-icon></v-btn>
+                  <v-btn color="primary" class="ml-2" fab small depressed :loading="sending || attach.busy" aria-label="Enviar"
+                    :disabled="!canSend" @click="send"><v-icon>mdi-send</v-icon></v-btn>
                 </div>
                 <div class="text-caption text--secondary mt-1"><span class="d-none d-md-inline">Ctrl+Enter envía. </span>{{ modeHelp }}</div>
               </template>
@@ -281,6 +284,8 @@ Vue.component('support-desk', {
             loadingOlder: false,
             showHistory: false,
             showInfo: false,
+            attachlimits: null,
+            attach: { busy: false, failed: false, count: 0, draftitemid: 0 },
             draft: '',
             mode: 'reply',
             sending: false,
@@ -303,6 +308,10 @@ Vue.component('support-desk', {
         },
         isMobile() {
             return this.$vuetify.breakpoint.smAndDown;
+        },
+        canSend() {
+            const text = !!(this.draft && this.draft.trim());
+            return !this.sending && !this.attach.busy && !this.attach.failed && (text || this.attach.count > 0);
         },
         placeholder() {
             return { reply: 'Respuesta al estudiante', askinfo: 'Qué información necesitas del estudiante', note: 'Nota interna para el equipo' }[this.mode];
@@ -432,6 +441,7 @@ Vue.component('support-desk', {
             this.events = data.events || [];
             this.previoustickets = data.previoustickets || 0;
             this.hasMore = !!data.hasmore;
+            if (data.attachlimits) this.attachlimits = data.attachlimits;
         },
         async refreshActive(manual) {
             if (!this.active) return;
@@ -476,16 +486,18 @@ Vue.component('support-desk', {
         },
         async send() {
             const body = (this.draft || '').trim();
-            if (!body || this.sending || !this.active) return;
+            if (!this.canSend || !this.active) return;
             this.sending = true;
             this.sendError = '';
             try {
                 const data = await this.call('send_message', {
                     ticketid: this.active.id, body: body,
                     internal: this.mode === 'note', askinfo: this.mode === 'askinfo',
+                    draftitemid: this.attach.count > 0 ? this.attach.draftitemid : 0,
                 });
                 this.draft = '';
                 this.mode = 'reply';
+                if (this.$refs.picker) this.$refs.picker.reset();
                 await this.refreshActive(true);
                 this.loadList(true);
             } catch (e) {

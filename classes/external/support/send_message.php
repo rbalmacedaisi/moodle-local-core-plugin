@@ -46,16 +46,18 @@ class send_message extends external_api {
             'body' => new external_value(PARAM_RAW, 'Plain text message'),
             'internal' => new external_value(PARAM_BOOL, 'Internal note (staff only)', VALUE_DEFAULT, false),
             'askinfo' => new external_value(PARAM_BOOL, 'Ask the requester for information (staff only)', VALUE_DEFAULT, false),
+            'draftitemid' => new external_value(PARAM_INT, 'Draft area with the attachments (support_upload.php)', VALUE_DEFAULT, 0),
         ]);
     }
 
-    public static function execute($ticketid, $body, $internal, $askinfo): array {
+    public static function execute($ticketid, $body, $internal, $askinfo, $draftitemid = 0): array {
         global $USER;
-        $params = self::validate_parameters(self::execute_parameters(), ['ticketid' => $ticketid, 'body' => $body, 'internal' => $internal, 'askinfo' => $askinfo]);
+        $params = self::validate_parameters(self::execute_parameters(), ['ticketid' => $ticketid, 'body' => $body,
+            'internal' => $internal, 'askinfo' => $askinfo, 'draftitemid' => $draftitemid]);
         self::validate_context(context_system::instance());
         $userid = (int)$USER->id;
         [$message, $ticket] = manager::send((int)$params['ticketid'], $userid, (string)$params['body'],
-            (bool)$params['internal'], (bool)$params['askinfo']);
+            (bool)$params['internal'], (bool)$params['askinfo'], (int)$params['draftitemid']);
         [, $role] = manager::require_ticket((int)$ticket->id, $userid);
         return [
             'message' => manager::export_message($message, $userid),

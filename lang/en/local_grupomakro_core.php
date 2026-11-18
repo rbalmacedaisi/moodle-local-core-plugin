@@ -1625,3 +1625,13 @@ $string['tkt_notif_support_low_rating_body'] = 'The requester rated ticket {$a->
 
 Review the case: {$a->url}';
 $string['grupomakro_core:support_reassign'] = 'Reassign help desk tickets (any area, except confidential ones)';
+
+// Help desk: attachments (20261001124).
+$string['tkt_err_attachtype'] = 'That file type cannot be attached. Allowed types: {$a}.';
+$string['tkt_err_attachcontent'] = 'The file {$a} is not what its extension says (or it is damaged).';
+$string['tkt_err_attachsize'] = '{$a->name} is larger than the maximum of {$a->max}.';
+$string['tkt_err_attachempty'] = 'The file is empty or did not arrive.';
+$string['tkt_err_attachcount'] = 'You can attach at most {$a} files per message.';
+$string['tkt_err_attachdisabled'] = 'Attachments are disabled in the help desk.';
+$string['tkt_err_attachserver'] = 'The file is larger than the server accepts ({$a}).';
+$string['tkt_err_attachupload'] = 'The file could not be uploaded (code {$a}). Please try again.';
