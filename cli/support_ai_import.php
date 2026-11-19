@@ -22,7 +22,7 @@
  *   php support_ai_import.php --file=/ruta/resultados.json [--dry-run]
  *
  * Idempotente: el mismo runkey no se importa dos veces y un ticket ya
- * tipificado se omite. --dry-run valida y cuenta todo y lo revierte.
+ * tipificado se omite. --dry-run valida y cuenta todo sin escribir nada.
  * Formato: docs/agents/analisis_semanal_tickets.md. Respaldo manual del WS
  * local_grupomakro_support_ai_submit (mismo codigo).
  *

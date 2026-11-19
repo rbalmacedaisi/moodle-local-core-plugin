@@ -185,7 +185,7 @@ try {
     // 3. Export.
     $ids = array_filter([(int)$t1->id, $psychticket]);
     $export = assistant::export(['ids' => $ids]);
-    $json = json_encode($export, JSON_UNESCAPED_UNICODE);
+    $json = json_encode($export, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     $exported = array_column($export['tickets'], 'id');
     $check('exporta el ticket cerrado', in_array((int)$t1->id, $exported, true));
     if ($psychticket) {
@@ -206,9 +206,11 @@ try {
     }
     $check('marcadores presentes', strpos($json, '[SOLICITANTE]') !== false && strpos($json, '[AGENTE]') !== false
         && strpos($json, '[CORREO]') !== false && strpos($json, '[CEDULA]') !== false && strpos($json, '[TELEFONO]') !== false);
-    $check('el número TKT y el enlace (sin token) sobreviven', strpos($json, 'TKT-2026-0042') !== false
-        && strpos($json, 'https://lms.isi.edu.pa/mod/bigbluebuttonbn/view.php') !== false);
     $row = $export['tickets'][array_search((int)$t1->id, $exported, true)] ?? [];
+    $texts = implode(' | ', array_column($row['messages'] ?? [], 'text'));
+    $check('el número TKT sobrevive', strpos($texts, 'TKT-2026-0042') !== false, \core_text::substr($texts, 0, 300));
+    $check('el enlace institucional sobrevive sin el token', strpos($texts, 'https://lms.isi.edu.pa/mod/bigbluebuttonbn/view.php') !== false
+        && strpos($texts, 'token=') === false, \core_text::substr($texts, 0, 600));
     $check('trae calificación, "se resolvió" y mensajes', ($row['rating'] ?? 0) === 2 && ($row['rating_solved'] ?? '') === 'no'
         && count($row['messages'] ?? []) >= 2);
     $check('contexto sin Psicología', !in_array('psicologia', array_column($export['context']['areas'], 'code'), true));

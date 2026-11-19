@@ -18,7 +18,7 @@
  * Mesa de ayuda (20261001126): endpoint del agente semanal en la nube.
  * Recibe la ejecucion (resumen, tipificaciones y sugerencias por area), la
  * valida y sanea (assistant::import) y la guarda en gmk_tkt_ai_*. Nada llega a
- * estudiantes hasta que alguien pulsa "Anadir". dryrun=1 valida y revierte.
+ * estudiantes hasta que alguien pulsa "Anadir". dryrun=1 valida y cuenta sin escribir nada.
  * Idempotente por runkey.
  *
  * @package    local_grupomakro_core

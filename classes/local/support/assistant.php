@@ -364,12 +364,22 @@ class assistant {
         if ($text === '') {
             return '';
         }
+        // Links: keep the site and path (useful for answers), drop query and fragment (tokens, ids).
+        $text = preg_replace('#\b(https?://[^\s?\#<>"]+)[?\#][^\s<>"]*#iu', '$1', $text) ?? $text;
+        // Ticket numbers (TKT-2026-0012) and institutional links (*.isi.edu.pa, already
+        // without query) are not personal data: park them so that no rule below
+        // (names, usernames, phones, long numbers) can mangle them. Placeholders
+        // are control characters only, which no rule matches.
+        $kept = [];
+        $text = preg_replace_callback('#\bTKT-\d{4}-\d{3,6}\b|\bhttps?://(?:[a-z0-9-]+\.)*isi\.edu\.pa(?:[/:][^\s<>"]*)?#iu',
+            function($m) use (&$kept) {
+                $kept[] = $m[0];
+                return "\x01" . str_repeat("\x02", count($kept)) . "\x03";
+            }, $text) ?? $text;
         foreach ($map as $needle => $marker) {
             $text = preg_replace('/(?<![\p{L}\p{N}])' . preg_quote((string)$needle, '/') . '(?![\p{L}\p{N}])/iu', $marker, $text)
                 ?? $text;
         }
-        // Links: keep the site and path (useful for answers), drop query and fragment (tokens, ids).
-        $text = preg_replace('#\b(https?://[^\s?\#<>"]+)[?\#][^\s<>"]*#iu', '$1', $text) ?? $text;
         $text = preg_replace('/[\p{L}\p{N}._%+-]+@[\p{L}\p{N}.-]+\.[\p{L}]{2,}/u', '[CORREO]', $text) ?? $text;
         // Panama cedula: 8-123-4567, PE-12-345, E-8-12345, N-19-123, 1AV-12-345, 3PI-1-123.
         $text = preg_replace('/(?<![\p{L}\p{N}])(?:\d{1,2}|PE|E|N|\d{1,2}AV|\d{1,2}PI)-\d{1,4}-\d{1,6}(?![\p{N}])/iu', '[CEDULA]',
@@ -386,6 +396,10 @@ class assistant {
                 return isset($names[$key]) ? '[NOMBRE]' : $m[0];
             }, $text) ?? $text;
             $text = preg_replace('/\[NOMBRE\](?:\s+(?:de\s+(?:la\s+|los\s+)?|del\s+)?\[NOMBRE\])+/u', '[NOMBRE]', $text) ?? $text;
+        }
+        // Put back what was parked, longest placeholder first (n=10 contains n=1).
+        for ($i = count($kept); $i >= 1; $i--) {
+            $text = str_replace("\x01" . str_repeat("\x02", $i) . "\x03", $kept[$i - 1], $text);
         }
         return trim($text);
     }
@@ -453,7 +467,10 @@ class assistant {
                 'suggestions_new' => 0, 'suggestions_updated' => 0, 'suggestions_skipped' => []];
         }
         $usage = (array)($data['usage'] ?? []);
-        $transaction = $DB->start_delegated_transaction();
+        // A dry run validates and counts WITHOUT writing anything: no
+        // transaction to roll back, so it is safe inside a caller's transaction
+        // (in Moodle a rollback at any level rolls back everything).
+        $transaction = $dryrun ? null : $DB->start_delegated_transaction();
         $now = time();
         $run = (object)[
             'runkey' => $runkey,
@@ -470,7 +487,7 @@ class assistant {
             'importedby' => $actorid,
             'timecreated' => $now,
         ];
-        $run->id = $DB->insert_record('gmk_tkt_ai_run', $run);
+        $run->id = $dryrun ? 0 : $DB->insert_record('gmk_tkt_ai_run', $run);
         $allowed = self::allowed_areas();
         $report = ['status' => $dryrun ? 'dry_run' : 'ok', 'runid' => (int)$run->id, 'classified' => 0, 'skipped' => [],
             'suggestions_new' => 0, 'suggestions_updated' => 0, 'suggestions_skipped' => []];
@@ -503,6 +520,11 @@ class assistant {
             }
             $t = $valid[$tid];
             $resolved = is_scalar($c['resolved'] ?? '') ? (string)($c['resolved'] ?? '') : '';
+            $seen[$tid] = (int)$t->areaid;
+            $report['classified']++;
+            if ($dryrun) {
+                continue;
+            }
             $DB->insert_record('gmk_tkt_ai_class', (object)[
                 'runid' => $run->id, 'ticketid' => $tid, 'areaid' => (int)$t->areaid, 'categoryid' => (int)$t->categoryid,
                 'problemtype' => $ptype, 'problemlabel' => self::plain(($c['problemlabel'] ?? $ptype), 255),
@@ -513,14 +535,12 @@ class assistant {
                 'faqid' => (int)($faqtried[$tid] ?? 0),
                 'timeclosed' => max((int)$t->resolved_at, (int)$t->closed_at), 'timecreated' => $now,
             ]);
-            $seen[$tid] = true;
-            $report['classified']++;
         }
 
         // Suggestions.
         foreach ((array)($data['suggestions'] ?? []) as $i => $s) {
             try {
-                $r = self::import_suggestion((array)$s, (int)$run->id, $allowed);
+                $r = self::import_suggestion((array)$s, (int)$run->id, $allowed, $seen, $dryrun);
                 $report[$r === 'updated' ? 'suggestions_updated' : 'suggestions_new']++;
             } catch (invalid_parameter_exception $e) {
                 $report['suggestions_skipped'][] = ['index' => $i, 'title' => self::plain(($s['title'] ?? $s['problem'] ?? ''), 80),
@@ -531,18 +551,12 @@ class assistant {
         $run->skipped = count($report['skipped']);
         $run->suggestions = $report['suggestions_new'] + $report['suggestions_updated'];
         $run->report = json_encode($report);
-        $DB->update_record('gmk_tkt_ai_run', $run);
-        manager::log_event(0, 'ai_import', '', $runkey, $actorid, ['classified' => $run->classified,
-            'suggestions' => $run->suggestions, 'skipped' => $run->skipped, 'dryrun' => $dryrun ? 1 : 0]);
         if ($dryrun) {
-            try {
-                $transaction->rollback(new \moodle_exception('ai_import_dryrun'));
-            } catch (\moodle_exception $e) {
-                // Expected: rollback rethrows.
-            }
-            $report['runid'] = 0;
             return $report;
         }
+        $DB->update_record('gmk_tkt_ai_run', $run);
+        manager::log_event(0, 'ai_import', '', $runkey, $actorid, ['classified' => $run->classified,
+            'suggestions' => $run->suggestions, 'skipped' => $run->skipped]);
         $transaction->allow_commit();
         return $report;
     }
@@ -568,7 +582,12 @@ class assistant {
     /**
      * @return string 'new' | 'updated'
      */
-    private static function import_suggestion(array $s, int $runid, array $allowed): string {
+    /**
+     * @param array $current ticketid => areaid classified in this same run
+     * @param bool $dryrun validate and answer new/updated without writing
+     */
+    private static function import_suggestion(array $s, int $runid, array $allowed, array $current = [],
+            bool $dryrun = false): string {
         global $DB;
         $kind = is_scalar($s['kind'] ?? '') ? (string)($s['kind'] ?? '') : '';
         if (!in_array($kind, self::KINDS, true)) {
@@ -621,8 +640,13 @@ class assistant {
         if ($tids) {
             [$in, $params] = $DB->get_in_or_equal($tids);
             $params[] = $areaid;
-            $tids = array_map('intval', $DB->get_fieldset_select('gmk_tkt_ai_class', 'ticketid', "ticketid $in AND areaid = ?",
+            $before = array_map('intval', $DB->get_fieldset_select('gmk_tkt_ai_class', 'ticketid', "ticketid $in AND areaid = ?",
                 $params));
+            // Plus the ones classified in this same run (not written yet in a dry run).
+            $thisrun = array_keys(array_filter($current, function($a) use ($areaid) {
+                return $a === $areaid;
+            }));
+            $tids = array_values(array_intersect($tids, array_unique(array_merge($before, $thisrun))));
         }
         $examples = [];
         foreach (array_slice((array)($s['examples'] ?? []), 0, self::MAX_EXAMPLES) as $ex) {
@@ -660,6 +684,9 @@ class assistant {
             'stats' => json_encode(self::evidence_stats($tids, $faqid)),
             'timemodified' => $now,
         ];
+        if ($dryrun) {
+            return $pending ? 'updated' : 'new';
+        }
         if ($pending) {
             $row->id = $pending->id;
             $DB->update_record('gmk_tkt_ai_sugg', $row);
