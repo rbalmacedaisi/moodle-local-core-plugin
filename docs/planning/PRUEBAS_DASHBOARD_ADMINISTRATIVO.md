@@ -45,6 +45,40 @@ sudo -u www-data php /opt/moodle_staging/moodle/admin/cli/upgrade.php --non-inte
 sudo -u www-data php /opt/moodle_staging/moodle/local/grupomakro_core/cli/dashboard_selftest.php --staff=<id> --student=<id>
 ```
 
+### Resultado en staging (19-nov-2026, con OK de Ramiro)
+
+**Despliegue:**
+- Archivos de la rama (commit `a1884f1b`) copiados a `/opt/moodle_staging/moodle/local/grupomakro_core`.
+- Antes de copiar se comprobó que los 12 archivos modificados eran idénticos a master en staging.
+- Respaldo en `/opt/backups/dash_staging_20261119_1629`: archivos anteriores, tablas de capacidades, config,
+  proveedores, tareas y funciones, y esquemas de las 4 tablas que reciben índices.
+
+**Upgrade 127 → 129:** 4,5 s. Quedaron creadas la tabla, los 6 índices y las capacidades: gerencia (u2886) tiene vista
+y equipo, y 9 usuarios tienen `view_admin_dashboard`. Los interruptores están apagados.
+
+**Autotest:** 47/47 con `--staff=2886` (gerencia) y 47/47 con `--staff=2732` (secretaría académica). Todo revertido:
+0 filas en `gmk_dash_alert`, `dash_alerts_primed` sin definir.
+- Primera pasada: 877 pendientes, 874 niveles registrados en silencio. La segunda pasada no registró nada nuevo.
+- Pendiente crítico que vuelve a la cola: 5 mensajes (cola de 4 personas + 1 supervisor + gerencia, sin duplicados).
+- Armado del dashboard: 163–297 ms.
+
+**Lo que muestran los datos de staging** (copia de producción del 12-nov):
+
+| Fuente | Pendientes | Críticos |
+|---|---|---|
+| Pagos de Odoo sin aplicar | 439 | 438 (el más reciente del 21-sep) |
+| Bloqueos por inasistencia | 387 | 387 |
+| Cartas | 29 | 29 |
+| Clases sin cerrar | 11 | 6 |
+| Retiros | 5 | 5 |
+| Clases sin aprobar | 3 | 3 |
+| Citas de psicología | 2 | — |
+| Módulos pagados sin matricular | 1 | — |
+
+Planificación no muestra nada porque staging no tiene un periodo futuro. Con estos volúmenes conviene decidir antes de
+encender el inicio: depurar la cola de Odoo y decidir qué hacer con los bloqueos por inasistencia, o apagar esas dos
+fuentes.
+
 ## 3. Después de publicar en producción (todo llega apagado)
 
 1. **Upgrade fuera de horario.** Agrega 3 índices a `gmk_class` y 3 a otras tablas. No hay que cancelarlo a mitad.
