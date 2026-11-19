@@ -246,10 +246,28 @@ este contrato, para que el dashboard la consuma sin duplicar reglas:
 //         'items'  => [ {type, ref, title, subtitle, since, due, level, owner_userid, url}, ... ]]
 ```
 
-- Si esa función existe cuando se implemente, `sources/letters.php` solo la envuelve.
-- Si no existe, el dashboard usa sus propias consultas sobre `status` + `timemodified` y se cambia después.
-- **Las alertas de cartas viven en un solo lado.** Si su sesión crea alertas de ANS para cartas, la tarea del
-  dashboard las ignora (como los tickets). Hay que acordarlo para no avisar dos veces.
+**Acordado con la sesión de cartas (19-nov-2026)**, según su plan `PLAN_CARTAS_OPTIMIZACION.md` §4.3:
+
+- La firma se acepta tal cual.
+- **Alcance:**
+  - `mine`: cartas con `assignedto = $userid`. Es una columna nueva de su rama.
+  - `team`: todas las cartas abiertas, si el usuario tiene `managerequests`. Incluye las que no tienen responsable
+    (`owner_userid = null`). Si no tiene esa capacidad, devuelve `[]`.
+- **Nivel:** lo guarda la carta en `sla_level`, con los mismos cortes de este plan (75 %, 100 % y 200 %).
+  - Lo calcula su tarea `letters_sla` cada 15 minutos.
+  - **El dashboard lo lee; no lo recalcula.**
+- **Tipos:**
+  - `elaborar`: estado `pendiente_gestion`.
+  - `sin_recoger`: estado `pendiente_recoleccion`.
+  - `atascada`: estados `pagada` o `solicitada`.
+  - `pendiente_pago` no entra, porque espera al estudiante.
+- **Referencia y enlace:** `ref = 'CARTA-<id>'`; `url` apunta a la bandeja nueva `pages/letter_desk.php?request=<id>`.
+  El orden es `level DESC, due ASC`.
+- **Las alertas de cartas las envía su tarea `letters_sla`**: responsable, luego supervisores y luego gerencia. La
+  tarea del dashboard **ignora las cartas**, igual que los tickets. Por eso los ANS de cartas de la tabla §2.2 se
+  configuran en su pantalla, no en la del dashboard.
+- **Respaldo:** si su rama no está en master cuando se implemente este dashboard, `sources/letters.php` cuenta por
+  `status` + `timemodified`, sin alertas. Cuando su rama entre, pasa a envolver su función.
 
 ---
 
