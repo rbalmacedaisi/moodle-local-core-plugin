@@ -46,19 +46,20 @@ $PAGE->set_pagelayout('admin');
 $errors = [];
 if (data_submitted() && confirm_sesskey()) {
     try {
+        $values = [];
         foreach (['dash_home_enabled', 'dash_alerts_enabled', 'dash_digest_enabled'] as $name) {
-            config::set($name, optional_param($name, 0, PARAM_BOOL) ? 1 : 0);
+            $values[$name] = optional_param($name, 0, PARAM_BOOL) ? 1 : 0;
         }
         $hour = optional_param('dash_digest_hour', 7, PARAM_INT);
         if ($hour < 0 || $hour > 23) {
             throw new invalid_parameter_exception('La hora del resumen va de 0 a 23.');
         }
-        config::set('dash_digest_hour', $hour);
+        $values['dash_digest_hour'] = $hour;
         $hours = trim(optional_param('dash_hours', '', PARAM_RAW));
         if ($hours === '' || !business_hours::parse($hours)) {
             throw new invalid_parameter_exception('El horario no es válido (formato {"1":[["08:00","17:00"]], ...}).');
         }
-        config::set('dash_hours', business_hours::normalise($hours));
+        $values['dash_hours'] = business_hours::normalise($hours);
         $on = optional_param_array('source_on', [], PARAM_BOOL);
         $off = [];
         foreach (registry::sources(true) as $key => $s) {
@@ -66,7 +67,7 @@ if (data_submitted() && confirm_sesskey()) {
                 $off[] = $key;
             }
         }
-        config::set('dash_sources_off', implode(',', $off));
+        $values['dash_sources_off'] = implode(',', $off);
         $sla = [];
         $warn = optional_param_array('warn', [], PARAM_INT);
         $due = optional_param_array('due', [], PARAM_INT);
@@ -78,10 +79,23 @@ if (data_submitted() && confirm_sesskey()) {
             $sla[$type] = ['warn' => $warn[$k] ?? null, 'due' => $due[$k] ?? null, 'crit' => $crit[$k] ?? null,
                 'sup' => (string)($sup[$k] ?? ''), 'on' => !empty($slaon[$k])];
         }
-        config::set('dash_sla', $sla);
+        $values['dash_sla'] = $sla;
+        // Validate everything first: nothing is saved if one value is wrong.
+        foreach ($values as $name => $value) {
+            config::validate($name, $value);
+        }
+        // Switching the alerts on again re-arms the silent first pass: what piled up while they
+        // were off is recorded without notifying anyone.
+        if ($values['dash_alerts_enabled'] && !config::get_int('dash_alerts_enabled')) {
+            config::set('dash_alerts_primed', 0);
+        }
+        foreach ($values as $name => $value) {
+            config::set($name, $value);
+        }
         redirect($url, 'Configuración guardada.', null, \core\output\notification::NOTIFY_SUCCESS);
     } catch (moodle_exception $e) {
-        $errors[] = $e->getMessage();
+        // invalid_parameter_exception keeps the detail in debuginfo.
+        $errors[] = !empty($e->debuginfo) ? $e->debuginfo : $e->getMessage();
     }
 }
 

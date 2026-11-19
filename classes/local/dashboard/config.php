@@ -101,6 +101,26 @@ class config {
     ];
 
     /**
+     * @var array|null in-memory settings for the selftest: when set, get() and set() use ONLY this
+     * array. set_config() inside a rolled back transaction would still leave the test values in the
+     * shared MUC config cache, where cron in another process could read them.
+     */
+    private static $override = null;
+
+    /**
+     * Test mode: every dash_* setting is read from and written to memory (defaults + $values).
+     */
+    public static function use_memory(array $values): void {
+        self::$override = $values;
+        self::reset_cache();
+    }
+
+    public static function use_database(): void {
+        self::$override = null;
+        self::reset_cache();
+    }
+
+    /**
      * @return int|string
      */
     public static function get(string $name) {
@@ -108,7 +128,9 @@ class config {
             throw new \coding_exception('Unknown dashboard setting ' . $name);
         }
         [$default, $type] = self::SETTINGS[$name];
-        $value = get_config(self::COMPONENT, $name);
+        $value = self::$override !== null
+            ? (array_key_exists($name, self::$override) ? self::$override[$name] : false)
+            : get_config(self::COMPONENT, $name);
         if ($type === 'json') {
             return json_encode(self::normalise_sla($value === false ? null : json_decode((string)$value, true)));
         }
@@ -120,6 +142,27 @@ class config {
 
     public static function get_int(string $name): int {
         return (int)self::get($name);
+    }
+
+    /**
+     * Validates without saving (settings page validates everything before saving anything).
+     *
+     * @throws \invalid_parameter_exception
+     */
+    public static function validate(string $name, $value): void {
+        if (!isset(self::SETTINGS[$name])) {
+            throw new \invalid_parameter_exception('Unknown dashboard setting ' . $name);
+        }
+        $type = self::SETTINGS[$name][1];
+        if ($type === 'json') {
+            $decoded = is_array($value) ? $value : json_decode((string)$value, true);
+            if (!is_array($decoded)) {
+                throw new \invalid_parameter_exception('JSON inválido en ' . $name);
+            }
+            self::normalise_sla($decoded, true);
+        } else if ($type === 'int' && (int)$value < 0) {
+            throw new \invalid_parameter_exception('Valor negativo en ' . $name);
+        }
     }
 
     public static function set(string $name, $value): void {
@@ -141,7 +184,13 @@ class config {
         } else {
             $value = (string)$value;
         }
+        if (self::$override !== null) {
+            self::$override[$name] = $value;
+            self::reset_cache();
+            return;
+        }
         set_config($name, $value, self::COMPONENT);
+        self::reset_cache();
         dashboard::invalidate_all();
     }
 

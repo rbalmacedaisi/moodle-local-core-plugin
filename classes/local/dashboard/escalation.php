@@ -165,10 +165,11 @@ class escalation {
         if ($inserts) {
             $DB->insert_records('gmk_dash_alert', $inserts);
         }
-        if ($silent) {
-            set_config('dash_alerts_primed', 1, config::COMPONENT);
-        }
         $transaction->allow_commit();
+        // A source that failed would otherwise "speak" everything on the next pass: stay silent until all were read.
+        if ($silent && $stats['errors'] === 0) {
+            config::set('dash_alerts_primed', 1);
+        }
 
         foreach ($bucket as $rid => $entries) {
             $msg = self::compose((int)$rid, $entries);
@@ -244,7 +245,7 @@ class escalation {
         $subject = 'Pendientes con ANS: ' . implode(', ', $parts);
         $lines = [];
         foreach (array_slice($entries, 0, self::MAX_LINES) as [$it, $label]) {
-            $due = (int)$it->due > 0 ? ' (vence ' . userdate((int)$it->due, '%d/%m %H:%M') . ')' : '';
+            $due = (int)$it->due > 0 ? ' (vence ' . userdate((int)$it->due, '%d/%m %H:%M', \core_date::get_server_timezone()) . ')' : '';
             $lines[] = '• [' . self::LEVEL_TEXT[min(3, (int)$it->level)] . '] ' . $label . ': ' . $it->title . $due;
         }
         if (count($entries) > self::MAX_LINES) {
@@ -302,8 +303,9 @@ class escalation {
             $stats['skipped'] = 'apagado';
             return $stats;
         }
-        $today = userdate($now, '%Y-%m-%d');
-        if ((int)userdate($now, '%H') < config::get_int('dash_digest_hour')) {
+        $tz = \core_date::get_server_timezone();
+        $today = userdate($now, '%Y-%m-%d', $tz);
+        if ((int)userdate($now, '%H', $tz) < config::get_int('dash_digest_hour')) {
             $stats['skipped'] = 'antes de la hora';
             return $stats;
         }
@@ -316,7 +318,7 @@ class escalation {
             return $stats;
         }
         // Marked first: a crash halfway must not send twice.
-        set_config('dash_digest_last', $today, config::COMPONENT);
+        config::set('dash_digest_last', $today);
         $users = get_users_by_capability(context_system::instance(), 'local/grupomakro_core:view_admin_dashboard',
             'u.id', '', '', '', '', '', false);
         $url = (new moodle_url('/local/grupomakro_core/pages/admin_dashboard.php'))->out(false);

@@ -50,6 +50,7 @@ Vue.component('admin-dashboard', {
             error: '',
             expanded: {},
             timer: null,
+            seq: 0,
         };
     },
     computed: {
@@ -88,14 +89,24 @@ Vue.component('admin-dashboard', {
                 this.loading = true;
             }
             this.error = '';
+            // Only the latest request may paint: an auto-refresh that comes back after a change
+            // of view must not overwrite it.
+            const seq = ++this.seq;
             try {
                 const res = await window.gmkSupportCall('local_grupomakro_dashboard_get', { scope: this.scope, refresh: !!refresh });
+                if (seq !== this.seq) {
+                    return;
+                }
                 this.data = JSON.parse(res.json);
                 this.scope = this.data.scope;
             } catch (e) {
-                this.error = e.message || 'No se pudieron cargar los pendientes.';
+                if (seq === this.seq) {
+                    this.error = e.message || 'No se pudieron cargar los pendientes.';
+                }
             } finally {
-                this.loading = false;
+                if (seq === this.seq) {
+                    this.loading = false;
+                }
             }
         },
         setScope(s) {

@@ -20,7 +20,8 @@
  *   php dashboard_selftest.php --staff=<userid de un administrativo> [--student=<userid de prueba>]
  *
  * Todo corre dentro de UNA transaccion que al final se revierte siempre
- * (pendientes de prueba, filas de gmk_dash_alert y la configuracion dash_*).
+ * (pendientes de prueba y filas de gmk_dash_alert). La configuracion dash_* de la prueba vive solo
+ * en memoria (config::use_memory): el cron que corra mientras tanto sigue leyendo la real.
  * No se envia ningun mensaje: la escalera y el resumen se corren con
  * $send = false y solo se revisan los mensajes que se habrian enviado.
  * Lo unico que avanza son los contadores AUTO_INCREMENT de las tablas usadas.
@@ -110,11 +111,9 @@ cli_writeln('Dashboard administrativo - prueba con rollback. Personal: ' . $full
     . '; estudiante de prueba: ' . $fullname($studentid));
 $transaction = $DB->start_delegated_transaction();
 try {
-    // Known configuration for the whole test.
-    set_config('dash_hours', config::DEFAULT_HOURS, config::COMPONENT);
-    set_config('dash_sla', '', config::COMPONENT);
-    set_config('dash_sources_off', '', config::COMPONENT);
-    config::reset_cache();
+    // Known configuration for the whole test, IN MEMORY: nothing goes to config_plugins nor to the
+    // shared config cache, so cron running meanwhile keeps reading the real (switched off) values.
+    config::use_memory(['dash_hours' => config::DEFAULT_HOURS]);
 
     // ------------------------------------------------------------------
     // 1. ANS
@@ -167,8 +166,7 @@ try {
     config::reset_cache();
     [$level] = sla::evaluate($mk('wdr.receive', $wed), $wed + 40 * DAYSECS);
     $check('un tipo apagado no tiene semáforo', $level === 0);
-    set_config('dash_sla', '', config::COMPONENT);
-    config::reset_cache();
+    config::set('dash_sla', []);
 
     // ------------------------------------------------------------------
     // 2. Sources with test data (ages relative to the real now)
@@ -224,15 +222,16 @@ try {
     // ------------------------------------------------------------------
     cli_writeln('4. Escalera');
     $DB->delete_records('gmk_dash_alert');
-    set_config('dash_alerts_enabled', 0, config::COMPONENT);
+    config::set('dash_alerts_enabled', 0);
     $r = escalation::run($now, false);
     $check('alertas apagadas: no hace nada', $r['items'] === 0 && $r['new'] === 0);
-    set_config('dash_alerts_enabled', 1, config::COMPONENT);
-    set_config('dash_alerts_primed', 0, config::COMPONENT);
+    config::set('dash_alerts_enabled', 1);
+    config::set('dash_alerts_primed', 0);
+    $check('la configuración de prueba no llega a la base ni a la caché compartida (el cron no la ve)',
+        !get_config('local_grupomakro_core', 'dash_alerts_enabled') && config::get_int('dash_alerts_enabled') === 1);
     $r = escalation::run($now, false);
     $check('primera pasada en silencio: registra niveles sin mensajes', $r['silent'] === 1 && $r['messages'] === 0
         && $DB->record_exists('gmk_dash_alert', ['srckey' => 'withdrawals', 'itemref' => $tag]), json_encode($r));
-    config::reset_cache();
     $check('primera pasada marcada', config::get_int('dash_alerts_primed') === 1);
     $r = escalation::run($now, false);
     $check('segunda pasada: nada nuevo, ningún mensaje', $r['new'] === 0 && $r['messages'] === 0, json_encode($r));
@@ -276,9 +275,9 @@ try {
     // 5. Digest
     // ------------------------------------------------------------------
     cli_writeln('5. Resumen diario');
-    set_config('dash_digest_enabled', 1, config::COMPONENT);
-    set_config('dash_digest_hour', 0, config::COMPONENT);
-    set_config('dash_digest_last', '', config::COMPONENT);
+    config::set('dash_digest_enabled', 1);
+    config::set('dash_digest_hour', 0);
+    config::set('dash_digest_last', '');
     $d = escalation::digest($now, false);
     if ($d['skipped'] === 'día no hábil') {
         $check('hoy no es día hábil: no se envía', $d['messages'] === 0);
@@ -323,10 +322,8 @@ try {
 } catch (\moodle_exception $e) {
     // Expected: rollback() rethrows.
 }
-// set_config() inside the rolled back transaction left the config cache with test values.
-\cache_helper::purge_by_definition('core', 'config');
+config::use_database();
 dashboard::invalidate_all();
-config::reset_cache();
 
 $failed = count(array_filter($results, function($r) {
     return !$r[0];
