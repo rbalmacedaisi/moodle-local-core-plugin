@@ -2374,6 +2374,15 @@ $functions = array(
         'capabilities'  => '',
         'ajax'        => true,
     ),
+    'local_grupomakro_support_faq_feedback' => array(
+        'classname'   => 'local_grupomakro_core\\external\\support\\faq_feedback',
+        'methodname'  => 'execute',
+        'description' => 'Problemas comunes: cuenta vista, se soluciono o sigue el problema.',
+        'type'        => 'write',
+        'capabilities'  => '',
+        'ajax'        => true,
+        'services'    => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
     'local_grupomakro_support_rate_ticket' => array(
         'classname'   => 'local_grupomakro_core\external\support\rate_ticket',
         'methodname'  => 'execute',

@@ -302,6 +302,8 @@ class manager {
                 'external_url' => $external ? self::external_link($area, $message) : '',
                 'external_label' => (string)$area->external_label,
                 'topics' => $topics,
+                // Problemas comunes antes del formulario (respuesta guiada).
+                'faqs' => $external ? [] : faq::for_area((int)$area->id, $audience),
             ];
         }
         return $out;
@@ -365,7 +367,7 @@ class manager {
      * Creates a ticket for $userid, assigns it and posts the automatic messages.
      */
     public static function create(int $userid, int $categoryid, string $subject, string $body, int $classid = 0,
-            string $audience = 'student'): stdClass {
+            string $audience = 'student', int $draftitemid = 0, int $faqid = 0): stdClass {
         global $DB;
         require_capability('local/grupomakro_core:support_create', context_system::instance(), $userid);
 
@@ -384,7 +386,11 @@ class manager {
         }
 
         $body = self::clean_body($body);
-        if ($body === '') {
+        // Adjuntos: se validan antes de abrir la transaccion (un error adentro
+        // revertiria tambien la del llamador).
+        $drafts = attachments::draft_files($userid, $draftitemid);
+        attachments::check_set($drafts);
+        if ($body === '' && !$drafts) {
             throw new moodle_exception('tkt_err_empty', 'local_grupomakro_core');
         }
         if (\core_text::strlen($body) > self::MAX_BODY) {
@@ -453,6 +459,15 @@ class manager {
             ['categoryid' => (int)$category->id, 'areaid' => (int)$area->id]);
 
         $message = self::insert_message($ticket, $userid, self::ROLE_REQUESTER, $body, false);
+        if ($drafts) {
+            attachments::attach($message, $userid, $draftitemid);
+        }
+        $tried = faq::for_ticket($faqid, (int)$area->id);
+        if ($tried) {
+            // Nota interna para el agente: ya probo la respuesta guiada.
+            self::insert_message($ticket, 0, self::ROLE_SYSTEM, 'Ya probó la solución sugerida: ' . $tried->problem, true);
+            self::log_event((int)$ticket->id, 'faq_tried', '', (string)$tried->id, $userid);
+        }
         self::set_read_pointer((int)$ticket->id, $userid, (int)$message->id);
 
         $agentid = self::pick_agent($category);
@@ -482,7 +497,7 @@ class manager {
      * @return array [message, ticket]
      */
     public static function send(int $ticketid, int $userid, string $body, bool $internal = false,
-            bool $askinfo = false): array {
+            bool $askinfo = false, int $draftitemid = 0): array {
         global $DB;
         [$ticket, $role] = self::require_ticket($ticketid, $userid);
         if (!self::is_open_status((string)$ticket->status)) {
@@ -495,7 +510,9 @@ class manager {
         }
 
         $body = self::clean_body($body);
-        if ($body === '') {
+        $drafts = attachments::draft_files($userid, $draftitemid);
+        attachments::check_set($drafts);
+        if ($body === '' && !$drafts) {
             throw new moodle_exception('tkt_err_empty', 'local_grupomakro_core');
         }
         if (\core_text::strlen($body) > self::MAX_BODY) {
@@ -514,6 +531,9 @@ class manager {
 
         $transaction = $DB->start_delegated_transaction();
         $message = self::insert_message($ticket, $userid, $role, $body, $internal);
+        if ($drafts) {
+            attachments::attach($message, $userid, $draftitemid);
+        }
         self::set_read_pointer((int)$ticket->id, $userid, (int)$message->id);
 
         if ($isrequester) {
@@ -1211,9 +1231,12 @@ class manager {
         $users = self::load_users(array_map(function($m) {
             return (int)$m->senderid;
         }, $rows));
+        $files = attachments::for_messages(array_map(function($m) {
+            return !empty($m->hasattachments) ? (int)$m->id : 0;
+        }, $rows));
         $out = [];
         foreach ($rows as $m) {
-            $out[] = self::export_message($m, $userid, $users);
+            $out[] = self::export_message($m, $userid, $users, $files[(int)$m->id] ?? []);
         }
         return ['messages' => $out, 'hasmore' => $hasmore];
     }
@@ -1418,7 +1441,7 @@ class manager {
         $internal = $role === self::ROLE_REQUESTER ? 'AND um.internal = 0' : '';
         $params['rd0'] = $userid;
         $params['rd1'] = $userid;
-        $sql = "SELECT t.*, a.name AS areaname, c.name AS categoryname, m.body AS lastbody, m.internal AS lastinternal,
+        $sql = "SELECT t.*, a.name AS areaname, c.name AS categoryname, m.body AS lastbody, m.internal AS lastinternal, m.hasattachments AS lasthasatt,
                        (SELECT COUNT(1) FROM {gmk_tkt_message} um
                          WHERE um.ticketid = t.id AND um.deleted = 0 AND um.senderid <> :rd1 $internal
                            AND um.id > COALESCE(r.lastreadmessageid, 0)) AS unread
@@ -1461,6 +1484,9 @@ class manager {
             // Semaforo en minutos habiles del area (fase 2, §6.2).
             $waiting = $iswaiting ? policy::waiting_minutes($r, $now) : 0;
             $lastbody = (!$isrequester || empty($r->lastinternal)) ? (string)($r->lastbody ?? '') : '';
+            if (trim($lastbody) === '' && !empty($r->lasthasatt) && (!$isrequester || empty($r->lastinternal))) {
+                $lastbody = '📎 Adjunto';
+            }
             $out[] = [
                 'id' => (int)$r->id,
                 'number' => (string)$r->number,
@@ -1543,9 +1569,12 @@ class manager {
         return $out;
     }
 
-    public static function export_message(stdClass $m, int $userid, array $users = null): array {
+    public static function export_message(stdClass $m, int $userid, array $users = null, ?array $files = null): array {
         if ($users === null) {
             $users = self::load_users([(int)$m->senderid]);
+        }
+        if ($files === null) {
+            $files = !empty($m->hasattachments) ? (attachments::for_messages([(int)$m->id])[(int)$m->id] ?? []) : [];
         }
         $sender = $users[(int)$m->senderid] ?? null;
         return [
@@ -1558,6 +1587,7 @@ class manager {
             'internal' => (bool)$m->internal,
             'timecreated' => (int)$m->timecreated,
             'mine' => (int)$m->senderid === $userid && $userid > 0,
+            'attachments' => $files,
         ];
     }
 
@@ -2082,7 +2112,8 @@ class manager {
             // Confidential tickets never carry names or text in notifications.
             'student' => !empty($ticket->confidential) ? 'Ticket confidencial' : ($student ? fullname($student) : ''),
             'excerpt' => (!empty($ticket->confidential) || !$message || !empty($message->internal))
-                ? '' : self::excerpt((string)$message->body),
+                ? '' : trim(self::excerpt((string)$message->body) . (!empty($message->hasattachments)
+                    ? ' ' . attachments::marker((int)$message->id) : '')),
             'url' => $url,
             'agent' => $agent ? fullname($agent) : 'sin asignar',
             'minutes' => '',

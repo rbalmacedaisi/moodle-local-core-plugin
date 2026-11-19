@@ -34,7 +34,7 @@ defined('MOODLE_INTERNAL') || die();
 
 class settings {
 
-    const SECTIONS = ['area', 'category', 'agent', 'backup', 'person', 'template', 'config', 'presence', 'agenthours'];
+    const SECTIONS = ['area', 'category', 'agent', 'backup', 'person', 'template', 'config', 'presence', 'agenthours', 'faq'];
 
     public static function export(): array {
         global $DB;
@@ -103,6 +103,7 @@ class settings {
             }, $DB->get_records('gmk_tkt_template', null, 'id'))),
             'config' => config::all(),
             'agenthours' => self::export_agent_hours(),
+            'faqs' => faq::export_all(),
             // Names for the per-person incisive profiles (phase 2).
             'usernames' => (function() {
                 $users = manager::load_users(array_keys((array)(config::get_json('tkt_incisive')['users'] ?? [])));
@@ -415,6 +416,16 @@ class settings {
         policy::reset_caches();
         badge::invalidate($userid);
         return [['userid' => $userid, 'hours' => $old], ['userid' => $userid, 'hours' => $hours]];
+    }
+
+    // --- Common problems (respuestas guiadas) --------------------------------
+
+    private static function save_faq(array $d): array {
+        return faq::save($d);
+    }
+
+    private static function delete_faq(array $d): array {
+        return faq::delete($d);
     }
 
     // --- Templates and parameters ---------------------------------------------

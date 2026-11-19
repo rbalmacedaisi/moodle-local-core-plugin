@@ -192,6 +192,7 @@ class setup {
         }
 
         set_config('tkt_seeded', $now, 'local_grupomakro_core');
+        faq::seed();
         manager::log_event(0, 'config_seed', '', 'initial', 0, ['missingusers' => $missing]);
         $result['seeded'] = true;
         $result['missingusers'] = $missing;

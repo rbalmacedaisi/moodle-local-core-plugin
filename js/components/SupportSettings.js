@@ -44,7 +44,7 @@ Vue.component('support-settings', {
       <v-card outlined v-if="s">
         <v-tabs v-model="tab" show-arrows>
           <v-tab>Áreas</v-tab><v-tab>Temas y agentes</v-tab><v-tab>Respaldos</v-tab>
-          <v-tab>Supervisores y gerencia</v-tab><v-tab>Mensajes automáticos</v-tab><v-tab>Avisos y escalamiento</v-tab><v-tab>Parámetros</v-tab><v-tab>Auditoría</v-tab>
+          <v-tab>Supervisores y gerencia</v-tab><v-tab>Mensajes automáticos</v-tab><v-tab>Problemas comunes</v-tab><v-tab>Avisos y escalamiento</v-tab><v-tab>Parámetros</v-tab><v-tab>Auditoría</v-tab>
         </v-tabs>
         <v-divider></v-divider>
         <v-tabs-items v-model="tab">
@@ -174,6 +174,35 @@ Vue.component('support-settings', {
                   <v-btn x-small depressed color="primary" @click="save('template', { id: t.id, body: t.body, enabled: t.enabled })">Guardar</v-btn>
                 </div>
                 <v-textarea v-model="t.body" outlined dense auto-grow rows="2" hide-details class="mt-1"></v-textarea>
+              </div>
+            </v-card-text>
+          </v-tab-item>
+
+          <!-- Common problems (respuestas guiadas) -->
+          <v-tab-item>
+            <v-card-text>
+              <p class="text--secondary">Antes de abrir una solicitud, la persona elige su problema y ve la respuesta con sus botones. Si se le soluciona, no se abre ticket. Si no, la solicitud se abre con el tema y el problema como asunto, el agente ve una nota interna y se le pide una captura o un video. Formato de la respuesta: una línea «1. …» por paso, «- …» para viñetas y **negrita**.</p>
+              <div v-for="a in ticketAreas" :key="'faq' + a.id" class="mb-5">
+                <div class="d-flex align-center mb-1">
+                  <span class="text-subtitle-1 font-weight-medium">{{ a.name }}</span>
+                  <v-spacer></v-spacer>
+                  <v-btn small text color="primary" @click="editFaq({ areaid: a.id })"><v-icon left small>mdi-plus</v-icon>Problema</v-btn>
+                </div>
+                <p v-if="!faqsOf(a.id).length" class="text-caption text--secondary mb-0">Sin problemas comunes.</p>
+                <v-card v-for="f in faqsOf(a.id)" :key="f.id" outlined class="mb-2 pa-3">
+                  <div class="d-flex align-start">
+                    <div class="flex-grow-1 gmk-min0">
+                      <div class="font-weight-medium gmk-wrap">{{ f.problem }}</div>
+                      <div class="text-caption text--secondary gmk-wrap">
+                        {{ audienceLabel(f.audience) }} · {{ f.categoryid ? topicName(f.categoryid) : 'Primer tema del área' }}
+                        · {{ f.links.length }} botón(es) · orden {{ f.sortorder }}
+                        · <span :class="f.active ? 'success--text' : 'red--text'">{{ f.active ? 'Activo' : 'Inactivo' }}</span>
+                      </div>
+                      <div class="text-caption">Vistas {{ f.views }} · Se solucionó {{ f.solved }} · Siguió con el problema {{ f.notsolved }}</div>
+                    </div>
+                    <v-btn small text color="primary" @click="editFaq(f)">Editar</v-btn>
+                  </div>
+                </v-card>
               </div>
             </v-card-text>
           </v-tab-item>
@@ -358,6 +387,42 @@ Vue.component('support-settings', {
         </v-card>
       </v-dialog>
 
+      <!-- Common problem dialog -->
+      <v-dialog v-model="faqDialog.open" max-width="760" scrollable :fullscreen="$vuetify.breakpoint.xsOnly">
+        <v-card v-if="faqDialog.row">
+          <v-card-title>{{ faqDialog.row.id ? 'Editar problema común' : 'Nuevo problema común' }} · {{ areaName(faqDialog.row.areaid) }}</v-card-title>
+          <v-card-text>
+            <v-text-field v-model="faqDialog.row.problem" label="Problema (lo que la persona elige)" outlined dense counter="255" maxlength="255"></v-text-field>
+            <v-textarea v-model="faqDialog.row.answer" label="Respuesta" outlined auto-grow rows="5"
+              hint="Una línea «1. …» por paso, «- …» para viñetas, **negrita**." persistent-hint></v-textarea>
+            <div class="text-caption text--secondary mt-3 mb-1">Vista previa</div>
+            <div class="gmk-faq-preview pa-3 mb-3" v-html="faqRender(faqDialog.row.answer)"></div>
+            <div class="font-weight-medium mb-1">Botones con enlace</div>
+            <div v-for="(l, i) in faqDialog.row.links" :key="i" class="gmk-faq-link mb-2">
+              <v-select v-model="l.kind" :items="linkKinds" label="Tipo" outlined dense hide-details class="gmk-faq-link__kind"></v-select>
+              <v-text-field v-model="l.label" label="Texto del botón" outlined dense hide-details class="gmk-faq-link__label"></v-text-field>
+              <v-text-field v-model="l.url" label="Enlace https" outlined dense hide-details class="gmk-faq-link__url"></v-text-field>
+              <v-btn icon aria-label="Quitar botón" @click="faqDialog.row.links.splice(i, 1)"><v-icon>mdi-delete-outline</v-icon></v-btn>
+            </div>
+            <v-btn small text color="primary" class="mb-3" :disabled="faqDialog.row.links.length >= 6"
+              @click="faqDialog.row.links.push({ kind: 'web', label: '', url: '' })"><v-icon left small>mdi-plus</v-icon>Botón</v-btn>
+            <v-row dense>
+              <v-col cols="12" sm="6"><v-select v-model="faqDialog.row.audience" :items="audiences" label="Lo ven" outlined dense></v-select></v-col>
+              <v-col cols="12" sm="6"><v-select v-model="faqDialog.row.categoryid" :items="faqTopics(faqDialog.row.areaid)" item-text="label" item-value="id"
+                label="Tema si no se soluciona" outlined dense></v-select></v-col>
+              <v-col cols="6"><v-text-field v-model="faqDialog.row.sortorder" type="number" label="Orden" outlined dense></v-text-field></v-col>
+              <v-col cols="6"><v-switch v-model="faqDialog.row.active" :true-value="1" :false-value="0" label="Activo" dense class="mt-1"></v-switch></v-col>
+            </v-row>
+          </v-card-text>
+          <v-card-actions class="flex-wrap">
+            <v-btn v-if="faqDialog.row.id" text color="error" @click="removeFaq">Borrar</v-btn>
+            <v-spacer></v-spacer>
+            <v-btn text @click="faqDialog.open = false">Cancelar</v-btn>
+            <v-btn color="primary" depressed @click="saveFaq">Guardar</v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-dialog>
+
       <!-- Agent hours dialog -->
       <v-dialog v-model="agentHoursDialog.open" max-width="640" :fullscreen="$vuetify.breakpoint.xsOnly" scrollable>
         <v-card v-if="agentHoursDialog.row">
@@ -391,6 +456,10 @@ Vue.component('support-settings', {
                 { n: 5, label: 'Viernes' }, { n: 6, label: 'Sábado' }, { n: 7, label: 'Domingo' }],
             areaDialog: { open: false, row: null, hours: {} },
             agentHoursDialog: { open: false, row: null, hours: {} },
+            faqDialog: { open: false, row: null },
+            audiences: [{ value: 'all', text: 'Estudiantes y docentes' }, { value: 'student', text: 'Solo estudiantes' },
+                { value: 'teacher', text: 'Solo docentes' }],
+            linkKinds: [{ value: 'web', text: 'Web' }, { value: 'appstore', text: 'App Store' }, { value: 'playstore', text: 'Play Store' }],
             topicDialog: { open: false, row: null },
             agentDialog: { open: false, row: null },
             newBackup: { userid: null, backupuserid: null, categoryid: 0 },
@@ -559,6 +628,56 @@ Vue.component('support-settings', {
                 hours[d.n] = ranges.map(r => r[0] + '-' + r[1]).join(', ');
             });
             this.areaDialog = { open: true, row: row, hours: hours };
+        },
+        faqsOf(areaid) {
+            return (this.s && this.s.faqs ? this.s.faqs : []).filter(f => f.areaid === areaid);
+        },
+        audienceLabel(a) {
+            return { all: 'Estudiantes y docentes', student: 'Solo estudiantes', teacher: 'Solo docentes' }[a] || a;
+        },
+        faqTopics(areaid) {
+            return [{ id: 0, label: 'Primer tema del área' }].concat(this.topicsOf(areaid).map(c => ({ id: c.id, label: c.name })));
+        },
+        editFaq(f) {
+            const row = Object.assign({ id: 0, categoryid: 0, problem: '', answer: '', audience: 'all', sortorder: 10, active: 1, links: [] },
+                JSON.parse(JSON.stringify(f)));
+            this.faqDialog = { open: true, row: row };
+        },
+        async saveFaq() {
+            const r = this.faqDialog.row;
+            const ok = await this.save('faq', {
+                id: r.id || 0, areaid: r.areaid, categoryid: r.categoryid || 0, problem: r.problem, answer: r.answer,
+                audience: r.audience, sortorder: parseInt(r.sortorder, 10) || 0, active: r.active ? 1 : 0,
+                links: r.links.filter(l => (l.label || '').trim() || (l.url || '').trim()),
+            });
+            if (ok) this.faqDialog.open = false;
+        },
+        async removeFaq() {
+            if (!(await this.confirm('¿Borrar este problema común? Se pierden sus contadores. Para ocultarlo sin perderlos, desactívalo.'))) return;
+            const ok = await this.save('faq', { id: this.faqDialog.row.id }, 'delete');
+            if (ok) this.faqDialog.open = false;
+        },
+        faqRender(text) {
+            // Misma regla que faq::render() en el servidor (texto escapado).
+            const esc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+            const bold = t => esc(t).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+            let html = '';
+            let list = '';
+            let para = [];
+            const flush = () => { if (para.length) { html += '<p>' + para.join('<br>') + '</p>'; para = []; } };
+            const close = () => { if (list) { html += '</' + list + '>'; list = ''; } };
+            String(text || '').trim().split(/\r?\n/).forEach(raw => {
+                const line = raw.trim();
+                let m;
+                if (!line) { flush(); close(); return; }
+                if ((m = line.match(/^\d+[.)]\s+(.*)$/))) { flush(); if (list !== 'ol') { close(); html += '<ol>'; list = 'ol'; } html += '<li>' + bold(m[1]) + '</li>'; return; }
+                if ((m = line.match(/^[-•]\s+(.*)$/))) { flush(); if (list !== 'ul') { close(); html += '<ul>'; list = 'ul'; } html += '<li>' + bold(m[1]) + '</li>'; return; }
+                close();
+                para.push(bold(line));
+            });
+            flush();
+            close();
+            return html;
         },
         editAgentHours(h) {
             const hours = {};

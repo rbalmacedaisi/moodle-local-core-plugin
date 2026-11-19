@@ -47,17 +47,21 @@ class create_ticket extends external_api {
             'body' => new external_value(PARAM_RAW, 'Description, plain text'),
             'classid' => new external_value(PARAM_INT, 'Optional gmk_class context', VALUE_DEFAULT, 0),
             'audience' => new external_value(PARAM_ALPHA, 'student (portal) | teacher (Moodle, §8.4)', VALUE_DEFAULT, 'student'),
+            'draftitemid' => new external_value(PARAM_INT, 'Draft area with the attachments (support_upload.php)', VALUE_DEFAULT, 0),
+            'faqid' => new external_value(PARAM_INT, 'Common problem already tried (gmk_tkt_faq)', VALUE_DEFAULT, 0),
         ]);
     }
 
-    public static function execute($categoryid, $subject, $body, $classid, $audience = 'student'): array {
+    public static function execute($categoryid, $subject, $body, $classid, $audience = 'student', $draftitemid = 0,
+            $faqid = 0): array {
         global $USER;
         $params = self::validate_parameters(self::execute_parameters(), ['categoryid' => $categoryid, 'subject' => $subject,
-            'body' => $body, 'classid' => $classid, 'audience' => $audience]);
+            'body' => $body, 'classid' => $classid, 'audience' => $audience, 'draftitemid' => $draftitemid, 'faqid' => $faqid]);
         self::validate_context(context_system::instance());
         $userid = (int)$USER->id;
         $ticket = manager::create($userid, (int)$params['categoryid'], (string)$params['subject'],
-            (string)$params['body'], (int)$params['classid'], $params['audience'] === 'teacher' ? 'teacher' : 'student');
+            (string)$params['body'], (int)$params['classid'], $params['audience'] === 'teacher' ? 'teacher' : 'student',
+            (int)$params['draftitemid'], (int)$params['faqid']);
         return ['ticket' => manager::export_ticket($ticket, $userid, manager::ROLE_REQUESTER)];
     }
 

@@ -72,6 +72,7 @@ class get_ticket extends external_api {
             'hasmore' => $page['hasmore'],
             'events' => $isstaff ? manager::events($ticket) : [],
             'previoustickets' => $previous,
+            'attachlimits' => structures::export_attachlimits(),
         ];
     }
 
@@ -82,6 +83,7 @@ class get_ticket extends external_api {
             'hasmore' => new external_value(PARAM_BOOL, 'Older messages exist'),
             'events' => new external_multiple_structure(structures::event()),
             'previoustickets' => new external_value(PARAM_INT, 'Other tickets of the requester (staff only)'),
+            'attachlimits' => structures::attachlimits(),
         ]);
     }
 }
