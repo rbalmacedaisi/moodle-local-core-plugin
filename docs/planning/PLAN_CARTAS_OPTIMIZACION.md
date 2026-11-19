@@ -205,6 +205,21 @@ metrics::summary(int $from, int $to): array
 // por tipo: creadas, terminadas, % dentro del ANS, mediana y p90 del ciclo (hábiles), rechazos y motivos
 ```
 
+**Contrato acordado con la sesión del dashboard administrativo** (19-nov-2026; ella lo consume, no duplica reglas):
+
+```php
+\local_grupomakro_core\local\letters\manager::get_pending_for_staff(int $userid, string $scope = 'mine', int $limit = 3): array
+// scope 'mine': cartas con assignedto = $userid.
+// scope 'team': todas las abiertas si $userid tiene managerequests (incluye "sin asignar"); si no, [].
+// => ['counts' => ['total', 'warning', 'breached', 'critical'],
+//     'items'  => [['type', 'ref', 'title', 'subtitle', 'since', 'due', 'level', 'owner_userid'|null, 'url'], ...]]
+// level = sla_level: 0 en plazo, 1 por vencer (75 %), 2 vencida (100 %), 3 crítica (200 %).
+// type: 'elaborar' (pendiente_gestion), 'sin_recoger' (pendiente_recoleccion), 'atascada' (pagada/solicitada).
+// pendiente_pago no entra (espera al estudiante). Orden: level DESC, due ASC. Delegará en metrics.
+```
+
+Las **alertas de ANS de cartas las envía solo la tarea `letters_sla`** de este módulo; la tarea de escalamiento del dashboard las ignora (igual que con los tickets).
+
 Servicio web `local_grupomakro_letters_sla_metrics` (lectura, capacidad nueva `local/grupomakro_core:letters_viewmetrics`, que se da a gerencia, dirección académica y a quien tenga `viewallletterrequests`). Dejo la firma documentada en el traspaso para la sesión del dashboard.
 
 ---
