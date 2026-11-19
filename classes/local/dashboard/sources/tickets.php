@@ -36,6 +36,9 @@ defined('MOODLE_INTERNAL') || die();
 
 class tickets extends source {
 
+    /** Statuses that are still work for the desk. */
+    const PENDING = [manager::S_NEW, manager::S_ASSIGNED, manager::S_INPROGRESS, manager::S_REOPENED];
+
     public function key(): string {
         return 'tickets';
     }
@@ -86,6 +89,12 @@ class tickets extends source {
         $red = support_config::get_int('tkt_sla_red');
         $out = [];
         foreach ($rows as $r) {
+            // Only what the staff still has to do (Ramiro, 19-nov-2026): resolved
+            // tickets waiting for the requester's confirmation and tickets waiting
+            // for the student are not pending for the desk.
+            if (!in_array((string)$r->status, self::PENDING, true)) {
+                continue;
+            }
             $minutes = policy::waiting_minutes($r, $now);
             $tl = policy::level_for($minutes);
             if ($tl >= policy::LEVEL_RED) {

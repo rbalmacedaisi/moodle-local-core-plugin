@@ -48,11 +48,12 @@ class planning extends source {
     }
 
     public function page(): string {
-        return 'academic_planning.php';
+        // academic_planning.php is deprecated (19-nov-2026): planning lives in the timeline.
+        return 'student_timeline.php';
     }
 
     public function capabilities(): array {
-        return ['manage_academic_planning'];
+        return ['view_student_timeline'];
     }
 
     /** First upcoming period, or null. */
@@ -82,7 +83,7 @@ class planning extends source {
         }
         $name = format_string($period->name);
         $sub = $name . ' · inicia el ' . self::date($deadline);
-        $url = $this->url(['periodid' => $pid]);
+        $url = $this->url();
         $out = [];
         $add = function(string $check, string $title) use (&$out, $pid, $sub, $deadline, $url) {
             $out[] = $this->item('planning.next', 'PLAN-' . $pid . '-' . $check, $title, $sub, 0, $deadline, 0, $url);

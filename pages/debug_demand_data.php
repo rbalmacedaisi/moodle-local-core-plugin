@@ -75,7 +75,7 @@ echo $OUTPUT->header();
     <!-- Quick Links -->
     <div class="card">
         <h3>Accesos Rápidos</h3>
-        <a href="../pages/academic_planning.php" class="quick-link">📋 Academic Planning</a>
+        <a href="../pages/student_timeline.php" class="quick-link">🧭 Línea de Tiempo</a>
         <a href="debug_demand_data.php" class="quick-link">🔄 Debug Demand Data</a>
     </div>
 

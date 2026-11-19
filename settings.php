@@ -400,13 +400,8 @@ if (isloggedin() && !isguestuser()) {
     // aqui, cada una con la misma capability que la propia pagina exige,
     // para que aparezcan a quien corresponde y no a los demas.
     // ------------------------------------------------------------------
-    $gmkAcademicPlanningPage = new admin_externalpage(
-        'grupomakro_core_academic_planning',
-        $emojititle("\u{1F5D3}", 'Planificador Académico'),
-        new moodle_url('/local/grupomakro_core/pages/academic_planning.php'),
-        'local/grupomakro_core:manage_academic_planning'
-    );
-    $ADMIN->add('grupomakrocore_plugin', $gmkAcademicPlanningPage);
+    // academic_planning.php (Planificador Academico) esta DEPRECADA desde el
+    // 19-nov-2026: la planificacion se hace en la linea de tiempo. No se enlaza.
     $gmkAcademicCalendarPage = new admin_externalpage(
         'grupomakro_core_academic_calendar',
         $emojititle("\u{1F4C5}", 'Calendario Académico'),

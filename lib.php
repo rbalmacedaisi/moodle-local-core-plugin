@@ -292,7 +292,6 @@ function local_grupomakro_core_extend_navigation(global_navigation $navigation) 
         // carry no prefix here — adding one renders it twice.
         $menu = [
             'Planificación' => [
-                ['manage_academic_planning', 'academic_planning.php', '📅 Planificación Académica'],
                 ['manage_academic_calendar', 'academiccalendar.php', '🗓️ Calendario Académico'],
                 ['view_academic_demand_gaps', 'academic_demand_gaps.php', '📉 Brechas de Demanda'],
                 ['view_overlap_analytics', 'overlap_analytics.php', '🔍 Analítica de Solapamientos'],

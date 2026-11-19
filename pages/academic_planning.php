@@ -4,6 +4,14 @@ global $DB, $PAGE, $OUTPUT, $CFG;
 
 $context = context_system::instance();
 require_login();
+
+// DEPRECADA (Ramiro, 19-nov-2026): la planificacion se hace en la linea de tiempo
+// (student_timeline.php). Esta pagina queda bloqueada para todos y se quito de los
+// menus; el codigo de abajo se conserva solo como referencia. No volver a enlazarla.
+redirect(new moodle_url('/local/grupomakro_core/pages/student_timeline.php'),
+    'El Planificador Académico ya no se usa: la planificación se hace en la Línea de Tiempo.', null,
+    \core\output\notification::NOTIFY_WARNING);
+
 require_capability('local/grupomakro_core:manage_academic_planning', $context);
 
 $PAGE->set_url('/local/grupomakro_core/pages/academic_planning.php');

@@ -368,7 +368,7 @@ async function clearDraft() {
 }
 
 function closeOverlay() {
-    window.location.href = '/local/grupomakro_core/pages/academic_planning.php';
+    window.location.href = '/local/grupomakro_core/pages/student_timeline.php';
 }
 </script>";
 

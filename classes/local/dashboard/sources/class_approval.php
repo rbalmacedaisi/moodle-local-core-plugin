@@ -43,7 +43,8 @@ class class_approval extends source {
     }
 
     public function page(): string {
-        return 'scheduleapproval.php';
+        // scheduleapproval.php needs id + periodsid: the panel lists them.
+        return 'schedulepanel.php';
     }
 
     public function capabilities(): array {
