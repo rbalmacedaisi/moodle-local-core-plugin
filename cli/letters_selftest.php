@@ -130,6 +130,23 @@ try {
     $tm = $mk('selftest_fisica_' . $now, 'fisica', 'manual', 0);
     $td = $mk('selftest_digital_' . $now, 'digital', 'auto', 10);
 
+    // Punto de partida: en una base real el personal ya tiene cartas (p. ej. las 14
+    // anteriores repartidas el 19-nov). Todo conteo se mide relativo a esto.
+    $ownercritical = function() use ($staffid, $now) {
+        foreach (metrics::pending_by_owner([], $now) as $o) {
+            if ($o['userid'] === $staffid) {
+                return (int)$o['critical'];
+            }
+        }
+        return 0;
+    };
+    $base = [
+        'desk' => desk::listing($staffid, 'mine', [], 0, 1)['counts'],
+        'mine' => metrics::pending_for_staff($staffid, 'mine', 0)['counts'],
+        'team' => metrics::pending_for_staff($staffid, 'team', 0)['counts'],
+        'owner_critical' => $ownercritical(),
+    ];
+
     // 1) Alta: responsable, plazo y aviso.
     $detail = manager::create_request($studentid, $tm, 'Prueba automática');
     $r1 = $get((int)$detail['id']);
@@ -169,9 +186,11 @@ try {
         && ($exps['letter']['sla_level'] ?? -1) === 0, $exps['letter']['statuslabel'] ?? '');
 
     // 3) Bandeja de cartas.
-    $list = desk::listing($staffid, 'mine');
-    $check('la carta aparece en "Mías"', in_array((int)$r1->id, array_column($list['items'], 'id'), true),
-        json_encode($list['counts']));
+    $list = desk::listing($staffid, 'mine', ['search' => '#' . $r1->id]);
+    $check('la carta aparece en "Mías" y el contador sube en 1',
+        in_array((int)$r1->id, array_column($list['items'], 'id'), true)
+        && $list['counts']['mine'] === $base['desk']['mine'] + 1,
+        'mías ' . $base['desk']['mine'] . ' -> ' . $list['counts']['mine']);
     $row = $list['items'][array_search((int)$r1->id, array_column($list['items'], 'id'))];
     $check('la bandeja muestra el ticket ligado', (int)$row['ticketid'] === (int)$tk->id);
     $check('acciones válidas: cargar, lista para retirar, entregada, rechazar; no "eliminar" salvo admin',
@@ -208,18 +227,21 @@ try {
     $DB->set_field('gmk_letter_request', 'status_since', $now - 3200 * MINSECS, ['id' => (int)$r1->id]);
     $s4 = sla::run($now, [(int)$r1->id]);
     $check('205 % del plazo: "crítica" (una vez)', (int)$get((int)$r1->id)->sla_level === 3 && $s4['raised'] === 1);
-    $pf = metrics::pending_for_staff($staffid, 'mine', 3);
-    $check('dashboard: la cuenta como crítica en "mías"', $pf['counts']['critical'] >= 1
-        && in_array('CARTA-' . $r1->id, array_column($pf['items'], 'ref'), true), json_encode($pf['counts']));
+    // Sin tope de items: con cartas reales criticas la de prueba puede no estar entre las 3 primeras.
+    $pf = metrics::pending_for_staff($staffid, 'mine', 1000);
+    $check('dashboard: "mías" suma 1 crítica y la incluye',
+        $pf['counts']['critical'] === $base['mine']['critical'] + 1
+        && $pf['counts']['total'] === $base['mine']['total'] + 1
+        && in_array('CARTA-' . $r1->id, array_column($pf['items'], 'ref'), true),
+        json_encode($base['mine']) . ' -> ' . json_encode($pf['counts']));
     $team = metrics::pending_for_staff($staffid, 'team', 0);
-    $check('dashboard: "equipo" cuenta todas', $team['counts']['total'] >= $pf['counts']['total']);
+    $check('dashboard: "equipo" suma 1 y cuenta al menos las mías',
+        $team['counts']['total'] === $base['team']['total'] + 1 && $team['counts']['total'] >= $pf['counts']['total'],
+        $base['team']['total'] . ' -> ' . $team['counts']['total']);
     $check('dashboard: el estudiante no ve el equipo', metrics::pending_for_staff($studentid, 'team')['counts']['total'] === 0
         || has_capability('local/grupomakro_core:managerequests', context_system::instance(), $studentid));
-    $owners = metrics::pending_by_owner([], $now);
-    $mine = array_values(array_filter($owners, function($o) use ($staffid) {
-        return $o['userid'] === $staffid;
-    }));
-    $check('pendientes por responsable con su ANS', $mine && $mine[0]['critical'] >= 1, json_encode($mine[0] ?? []));
+    $check('pendientes por responsable: suma 1 crítica', $ownercritical() === $base['owner_critical'] + 1,
+        $base['owner_critical'] . ' -> ' . $ownercritical());
 
     // 5) Carta cargada: PDF ok, otro tipo no; lista para retirar reinicia el plazo.
     $check('un archivo que no es PDF/Word se rechaza', $throws(function() use ($r1, $staffid) {
@@ -253,8 +275,11 @@ try {
     $s5 = sla::run($now, [$legacy]);
     $check('una anterior sin responsable se asigna y alerta como crítica', (int)$get($legacy)->assignedto === $staffid
         && (int)$get($legacy)->sla_level === 3, json_encode($s5));
-    $check('aparece en la pestaña "Anteriores"', in_array($legacy, array_column(desk::listing($staffid, 'legacy')['items'], 'id'),
-        true));
+    $leg = desk::listing($staffid, 'legacy', ['search' => '#' . $legacy]);
+    $check('aparece en la pestaña "Anteriores" y el contador sube en 1',
+        in_array($legacy, array_column($leg['items'], 'id'), true)
+        && $leg['counts']['legacy'] === $base['desk']['legacy'] + 1,
+        'anteriores ' . $base['desk']['legacy'] . ' -> ' . $leg['counts']['legacy']);
     desk::action($legacy, $staffid, 'handled');
     $check('"Sí, ya se entregó" la cierra sin documento', $get($legacy)->status === 'entregada'
         && (int)$get($legacy)->legacy === 0);
