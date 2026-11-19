@@ -111,9 +111,8 @@ fuentes.
 
 ## 5. Riesgos conocidos
 
-- **Número de versión:** la rama de cartas usa 20261001128. Si este dashboard (129) se fusiona antes que cartas, el
-  paso 128 de cartas **no correría**. Cartas debe entrar primero, o la que entre de segunda debe subir su número por
-  encima de la otra.
+- **Número de versión:** acordado el 19-nov. El dashboard queda en 20261001129 (ya aplicado en staging) y entra
+  **primero**. La rama de cartas se rebasa sobre esta y pasa a 20261001130.
 - **Bloqueos por inasistencia:** puede haber muchos bloqueos legítimos que nadie va a "resolver". Si generan ruido, se
   apaga el tipo `absence.block` o la fuente.
 - **Revalidas sin nota:** la nota la pone el docente. El aviso de nivel 1 va a la cola del rol (seguimiento), no al

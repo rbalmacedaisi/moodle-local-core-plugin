@@ -329,7 +329,7 @@ Las dos fases van en la misma rama, en commits separados. Se pueden publicar jun
 
 ## 6. Riesgos
 
-- **Versión:** origin/master ya va en 20261001127 y la rama de cartas (`feat/cartas-tickets-ans`) toma 128. Este dashboard usará 129 o la siguiente libre sobre master al fusionar. El número se decide justo
+- **Versión:** el dashboard usa 20261001129 (ya aplicado en staging) y entra primero a master. La rama de cartas (`feat/cartas-tickets-ans`) se rebasa sobre esta y pasa a 20261001130. El número se decide justo
   antes del commit final, mirando `origin/master`.
 - **Índices en `gmk_class`:** es una tabla grande. Agregar 3 índices en el upgrade tarda unos segundos y bloquea la
   tabla. Hay que desplegar fuera de horario (memoria: no cancelar en pleno upgrade).
