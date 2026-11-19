@@ -79,6 +79,18 @@ Planificación no muestra nada porque staging no tiene un periodo futuro. Con es
 encender el inicio: depurar la cola de Odoo y decidir qué hacer con los bloqueos por inasistencia, o apagar esas dos
 fuentes.
 
+### Segunda corrida en staging (19-nov-2026, con OK de Ramiro), con las correcciones de la revisión
+
+- **Estado de staging:** la sesión de cartas ya había desplegado su rama, rebasada sobre `924cf041`, en la versión
+  20261001130. Los archivos corregidos del dashboard estaban idénticos; `db/messages.php` solo difiere por los avisos
+  que agrega cartas. No hubo que copiar nada.
+- **Resultado:** 48/48 con `--staff=2886` y 48/48 con `--staff=2732`. Todo quedó revertido.
+  - Prueba nueva: la configuración del autotest no llega a la base ni a la caché compartida.
+- **Cartas ya usa su función** `get_pending_for_staff`: se escalan 10 fuentes en lugar de 11, porque las alertas de
+  cartas las envía su propia tarea. Hay 14 cartas en nivel 0, porque su tarea `letters_sla` no corre en staging (no
+  hay cron).
+- **Tiempos de armado:** 136–305 ms.
+
 ## 3. Después de publicar en producción (todo llega apagado)
 
 1. **Upgrade fuera de horario.** Agrega 3 índices a `gmk_class` y 3 a otras tablas. No hay que cancelarlo a mitad.
