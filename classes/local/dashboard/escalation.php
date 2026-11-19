@@ -199,8 +199,13 @@ class escalation {
                 $ids = array_merge($ids, array_map('intval', $DB->get_fieldset_select('gmk_wellness_staff_role', 'userid',
                     'rolekey = :k AND active = 1 AND userid > 0', ['k' => substr($part, 9)])));
             } else if ($role = $DB->get_record('role', ['shortname' => $part], 'id')) {
-                $ids = array_merge($ids, array_map('intval', array_keys(get_role_users($role->id, $context, false, 'u.id',
-                    'u.id ASC', false))));
+                // Role holders at system level (where the gmk_* roles are assigned).
+                $ids = array_merge($ids, array_map('intval', $DB->get_fieldset_sql(
+                    "SELECT DISTINCT ra.userid
+                       FROM {role_assignments} ra
+                       JOIN {user} u ON u.id = ra.userid AND u.deleted = 0 AND u.suspended = 0
+                      WHERE ra.roleid = :r AND ra.contextid = :c",
+                    ['r' => (int)$role->id, 'c' => (int)$context->id])));
             }
         }
         return array_values(array_unique(array_filter($ids)));
