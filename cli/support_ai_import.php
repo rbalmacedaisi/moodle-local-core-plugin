@@ -23,7 +23,8 @@
  *
  * Idempotente: el mismo runkey no se importa dos veces y un ticket ya
  * tipificado se omite. --dry-run valida y cuenta todo y lo revierte.
- * Formato: docs/asistente/AGENTE_SEMANAL.md.
+ * Formato: docs/agents/analisis_semanal_tickets.md. Respaldo manual del WS
+ * local_grupomakro_support_ai_submit (mismo codigo).
  *
  * @package    local_grupomakro_core
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later

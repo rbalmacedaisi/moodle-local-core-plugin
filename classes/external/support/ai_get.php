@@ -16,7 +16,7 @@
 
 /**
  * Mesa de ayuda (20261001126): sugerencias, tipificaciones e historial del
- * asistente semanal para la pestana "Asistente IA" de la configuracion.
+ * asistente semanal para la pestana "Asistente en la nube" de la configuracion.
  *
  * @package    local_grupomakro_core
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later

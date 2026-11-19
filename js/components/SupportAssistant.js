@@ -1,9 +1,11 @@
 /**
  * SupportAssistant.js
- * Mesa de ayuda (20261001126): pestana "Asistente IA" de la configuracion.
- * Muestra lo que el asistente semanal (agente externo, ver
- * docs/asistente/AGENTE_SEMANAL.md) dejo importado: sugerencias por area con
- * su evidencia, tipificacion de los tickets e historial de ejecuciones.
+ * Mesa de ayuda (20261001126): pestana "Asistente en la nube" de la configuracion.
+ * Muestra lo que el agente semanal (rutina de Claude Code en la nube, ver
+ * docs/agents/analisis_semanal_tickets.md) dejo por local_grupomakro_support_ai_submit:
+ * "Sugerencias del asistente" por area con su evidencia, tipificacion
+ * acumulada (por tipo, area y semana), historial de ejecuciones y la
+ * conexion (token del usuario dedicado: generar, revocar, endpoint).
  * Anadir / Descartar / Recuperar llaman a local_grupomakro_support_ai_action;
  * "Editar y anadir" de un problema comun lo abre el dialogo de problemas
  * comunes del padre (evento edit); el de una respuesta rapida, el de aqui.
@@ -14,7 +16,7 @@ Vue.component('support-assistant', {
     template: `
     <div class="gmk-ai">
       <v-progress-linear v-if="loading" indeterminate class="mb-2"></v-progress-linear>
-      <p class="text--secondary">Cada semana el asistente lee cómo se cerraron los tickets (ya anonimizados en el servidor, sin notas internas y sin Psicología), los tipifica y propone mejoras. Nada llega a estudiantes ni docentes hasta que alguien pulsa <strong>Añadir</strong>.</p>
+      <p class="text--secondary">Cada semana un agente en la nube de Claude lee cómo se cerraron los tickets (ya anonimizados en el servidor, sin notas internas y sin Psicología), los tipifica y propone mejoras. Nada llega a estudiantes ni docentes hasta que alguien pulsa <strong>Añadir</strong>.</p>
       <div v-if="d && lastRun" class="text-caption mb-3">
         Última ejecución: {{ fmt.date(lastRun.timecreated) }} · {{ lastRun.classified }} ticket(s) tipificados · {{ lastRun.suggestions }} sugerencia(s)
         <span v-if="lastRun.model"> · {{ lastRun.model }}</span>
@@ -22,9 +24,10 @@ Vue.component('support-assistant', {
       <v-alert v-if="d && !d.runs.length" type="info" text dense>Todavía no hay ejecuciones del asistente.</v-alert>
 
       <v-btn-toggle v-model="view" mandatory dense class="mb-3 gmk-ai-toggle" color="primary">
-        <v-btn value="pending" small>Sugerencias<v-chip v-if="pending.length" x-small class="ml-1">{{ pending.length }}</v-chip></v-btn>
+        <v-btn value="pending" small>Sugerencias<span v-if="pending.length" class="ml-1">({{ pending.length }})</span></v-btn>
         <v-btn value="types" small>Tipificación</v-btn>
         <v-btn value="runs" small>Historial</v-btn>
+        <v-btn value="conn" small>Conexión</v-btn>
       </v-btn-toggle>
 
       <template v-if="d && view === 'pending'">
@@ -99,10 +102,13 @@ Vue.component('support-assistant', {
           <div class="text-subtitle-1 font-weight-medium mb-1">{{ a.name }}</div>
           <p v-if="!typesOf(a.id).length" class="text-caption text--secondary mb-0">Sin tickets tipificados.</p>
           <v-simple-table v-else dense class="gmk-stack">
-            <thead><tr><th>Problema</th><th>4 semanas</th><th>Total</th><th>Resuelto</th><th>Calificación</th><th>Cómo se resolvió</th></tr></thead>
+            <thead><tr><th>Problema</th><th>Últimas 8 semanas</th><th>4 semanas</th><th>Total</th><th>Resuelto</th><th>Calificación</th><th>Cómo se resolvió</th></tr></thead>
             <tbody>
               <tr v-for="t in typesOf(a.id)" :key="t.problemtype">
                 <td class="gmk-wrap">{{ t.problemlabel || t.problemtype }}</td>
+                <td><span class="gmk-ai-weeks" :title="'Semana actual a la derecha: ' + t.weeks.slice().reverse().join(', ')">
+                  <span v-for="(n, i) in t.weeks.slice().reverse()" :key="i" class="gmk-ai-week" :style="{ height: (4 + 22 * n / maxWeek(t)) + 'px' }"></span>
+                </span></td>
                 <td>{{ t.recent }}</td><td>{{ t.total }}</td>
                 <td>{{ t.resolvedpct }}%</td>
                 <td>{{ t.avgrating !== null ? t.avgrating + '/5' : '—' }}</td>
@@ -133,6 +139,51 @@ Vue.component('support-assistant', {
         </div>
       </template>
 
+      <template v-if="d && view === 'conn'">
+        <p class="text-caption text--secondary">El agente es una rutina programada en la nube de Claude (Claude Code). Entra a Moodle solo con el token de un usuario técnico dedicado ({{ d.connection.user ? d.connection.user.username : 'gmk_ia_asistente' }}), que solo puede leer tickets cerrados ya anonimizados y enviar sugerencias. Revocar lo corta al instante.</p>
+        <v-alert v-if="!d.connection.wsenabled || !d.connection.restenabled" type="warning" text dense>
+          Los servicios web o el protocolo REST están desactivados en Moodle: el agente no podrá conectarse hasta que un administrador los active.
+        </v-alert>
+        <v-alert v-if="d.connection.service !== 1" type="warning" text dense>El servicio «gmk_support_ai» no existe o está desactivado.</v-alert>
+        <v-card outlined class="pa-3 mb-3">
+          <div class="text-subtitle-2 mb-1">Token del agente</div>
+          <div v-if="d.connection.token && !(d.connection.user && d.connection.user.suspended)" class="text-body-2">
+            Activo: ••••{{ d.connection.token.last4 }} · creado {{ fmt.date(d.connection.token.timecreated) }}<span v-if="d.connection.token.creator"> por {{ d.connection.token.creator }}</span><br>
+            Último uso: {{ d.connection.token.lastaccess ? fmt.date(d.connection.token.lastaccess) : 'nunca' }}
+          </div>
+          <div v-else class="text-body-2 text--secondary">Sin token activo: el agente no puede conectarse.</div>
+          <div class="gmk-ai-actions mt-3">
+            <v-btn depressed color="primary" :loading="busy === -1" @click="generateToken"><v-icon left small>mdi-key-plus</v-icon>{{ d.connection.token ? 'Generar token nuevo' : 'Generar token' }}</v-btn>
+            <v-btn v-if="d.connection.token" outlined color="error" :disabled="busy === -1" @click="revokeToken"><v-icon left small>mdi-key-remove</v-icon>Revocar</v-btn>
+          </div>
+        </v-card>
+        <v-card outlined class="pa-3 mb-3">
+          <div class="text-subtitle-2 mb-1">Endpoint</div>
+          <div class="text-caption gmk-wrap"><code>{{ d.connection.endpoint }}</code></div>
+          <div class="text-caption mt-1">Funciones: <code v-for="f in d.connection.functions" :key="f" class="mr-1 gmk-wrap">{{ f }}</code></div>
+          <div class="text-caption mt-1">Formato: <code>moodlewsrestformat=json</code>; el token va en <code>wstoken</code> y vive como secreto de la rutina, nunca en el repositorio.</div>
+        </v-card>
+        <div v-if="d.connection.lastexport" class="text-caption">
+          Última lectura del agente: {{ fmt.date(d.connection.lastexport.time) }} · {{ d.connection.lastexport.tickets }} ticket(s) · último ticket #{{ d.connection.lastexport.lastticketid }}
+        </div>
+        <div v-if="lastRun" class="text-caption">Último envío: {{ fmt.date(lastRun.timecreated) }} · {{ lastRun.classified }} tipificados · {{ lastRun.suggestions }} sugerencias</div>
+      </template>
+
+      <v-dialog v-model="tokenDialog.open" max-width="560" persistent :fullscreen="$vuetify.breakpoint.xsOnly">
+        <v-card>
+          <v-card-title>Token nuevo del agente</v-card-title>
+          <v-card-text>
+            <v-alert type="warning" text dense>Cópialo ahora y guárdalo como secreto de la rutina en la nube (variable MOODLE_AI_TOKEN). No se vuelve a mostrar. El token anterior dejó de funcionar.</v-alert>
+            <v-text-field :value="tokenDialog.token" readonly outlined dense label="Token" class="gmk-ai-token"></v-text-field>
+          </v-card-text>
+          <v-card-actions>
+            <v-btn text color="primary" @click="copyToken"><v-icon left small>mdi-content-copy</v-icon>{{ tokenDialog.copied ? 'Copiado' : 'Copiar' }}</v-btn>
+            <v-spacer></v-spacer>
+            <v-btn depressed color="primary" @click="tokenDialog = { open: false, token: '', copied: false }">Listo, ya lo guardé</v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-dialog>
+
       <v-dialog v-model="cannedDialog.open" max-width="640" :fullscreen="$vuetify.breakpoint.xsOnly" scrollable>
         <v-card v-if="cannedDialog.row">
           <v-card-title>Respuesta rápida · {{ areaName(cannedDialog.row.areaid) }}</v-card-title>
@@ -152,6 +203,7 @@ Vue.component('support-assistant', {
         return {
             fmt: window.gmkSupportFormat, d: null, loading: false, busy: 0, view: 'pending', areaFilter: 0,
             cannedDialog: { open: false, row: null },
+            tokenDialog: { open: false, token: '', copied: false },
         };
     },
     computed: {
@@ -223,6 +275,40 @@ Vue.component('support-assistant', {
             await this.call(sg, 'dismiss', null);
         },
         async restore(sg) { await this.call(sg, 'restore', null); },
+        maxWeek(t) { return Math.max(1, ...t.weeks); },
+        async tokenOp(op) {
+            this.busy = -1;
+            try {
+                const r = await window.gmkSupportCall('local_grupomakro_support_ai_token', { op: op });
+                this.setData(r);
+                return r.token || '';
+            } catch (e) {
+                this.$emit('notify', e.message, 'error');
+                return null;
+            } finally {
+                this.busy = 0;
+            }
+        },
+        async generateToken() {
+            const text = this.d.connection.token
+                ? 'Se generará un token nuevo y el actual dejará de funcionar: habrá que actualizar el secreto de la rutina. ¿Continuar?'
+                : 'Se creará el usuario técnico del agente (si no existe) y un token para la rutina en la nube. ¿Continuar?';
+            if (!(await this.confirm(text))) return;
+            const token = await this.tokenOp('generate');
+            if (token) this.tokenDialog = { open: true, token: token, copied: false };
+        },
+        async revokeToken() {
+            if (!(await this.confirm('El agente dejará de poder conectarse de inmediato (se borra el token y se suspende su usuario). ¿Revocar?'))) return;
+            if ((await this.tokenOp('revoke')) !== null) this.$emit('notify', 'Token revocado');
+        },
+        async copyToken() {
+            try {
+                await navigator.clipboard.writeText(this.tokenDialog.token);
+                this.tokenDialog.copied = true;
+            } catch (e) {
+                this.$emit('notify', 'No se pudo copiar: selecciónalo y cópialo a mano', 'error');
+            }
+        },
         async confirm(text) {
             if (this.$swal) {
                 const r = await this.$swal.fire({ text: text, icon: 'question', showCancelButton: true, confirmButtonText: 'Sí', cancelButtonText: 'Cancelar' });

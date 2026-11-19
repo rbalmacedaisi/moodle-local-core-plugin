@@ -20,22 +20,28 @@
  * Pedido de Ramiro (19-nov-2026): un agente que cada semana lea como se
  * cerraron los tickets, los tipifique y cuantifique, y proponga problemas
  * comunes, mejoras a respuestas y respuestas rapidas que se apliquen con un
- * clic por area. Por decision de Ramiro el agente NO corre dentro de Moodle:
- * es una tarea programada de Claude Code (docs/asistente/AGENTE_SEMANAL.md)
- * que usa esta clase por CLI:
+ * clic por area. Por decision de Ramiro no hay proveedor de IA ni API key en
+ * Moodle: el agente es una rutina programada en la nube de Claude (Claude
+ * Code, prompt en docs/agents/analisis_semanal_tickets.md) que entra con el
+ * token de un usuario tecnico dedicado (servicio gmk_support_ai):
  *
- *   1. export(): tickets resueltos/cerrados aun no analizados, YA anonimizados
- *      en el servidor (sin nombres, correos, telefonos ni cedulas), sin notas
- *      internas y sin nada confidencial (Psicologia y temas confidenciales se
- *      excluyen por completo, decision de Ramiro). Ningun dato personal sale
- *      del servidor.
- *   2. El agente analiza ese JSON y escribe un JSON de resultados.
- *   3. import(): valida todo (tickets existentes, cerrados, no confidenciales,
- *      no analizados), guarda tipificaciones y sugerencias. La evidencia (cuantos
- *      tickets la respaldan) la calcula el servidor, no el agente. Idempotente
- *      por runkey y por ticket.
+ *   1. export() (WS support_ai_export_closed): tickets resueltos/cerrados aun
+ *      no analizados, YA anonimizados en el servidor (sin nombres, correos,
+ *      telefonos ni cedulas), sin notas internas y sin nada confidencial
+ *      (Psicologia y temas confidenciales se excluyen por completo, decision
+ *      de Ramiro). Ningun dato personal sale del servidor.
+ *   2. El agente analiza ese JSON y arma la ejecucion.
+ *   3. import() (WS support_ai_submit): entrada no confiable; valida y sanea
+ *      todo (tickets existentes, cerrados, no confidenciales, no analizados;
+ *      textos sin etiquetas; botones solo https), guarda tipificaciones y
+ *      sugerencias. La evidencia la calcula el servidor. Idempotente por
+ *      runkey y por ticket.
  *   4. action(): Anadir / Editar y anadir / Descartar desde la configuracion.
  *      Anadir pasa por settings::apply (misma validacion y auditoria que a mano).
+ *   5. generate_token() / revoke_token(): conexion del agente, revocable.
+ *
+ * Los CLI support_ai_export.php / support_ai_import.php hacen lo mismo a mano
+ * (revision de la anonimizacion, respaldo si la rutina no puede conectarse).
  *
  * @package    local_grupomakro_core
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -61,6 +67,14 @@ class assistant {
     const MAX_EXAMPLE_CHARS = 300;
     /** A dismissed suggestion with the same key is not proposed again for this long. */
     const DISMISS_QUIET_DAYS = 60;
+    const MAX_CLASSIFICATIONS = 600;
+    const MAX_SUGGESTIONS = 60;
+    /** Max bytes of a submitted run (web service). */
+    const MAX_SUBMIT_BYTES = 2097152;
+    /** Cloud agent: dedicated user, role and external service. */
+    const AGENT_USERNAME = 'gmk_ia_asistente';
+    const AGENT_ROLE = 'gmk_ia_asistente';
+    const SERVICE = 'gmk_support_ai';
 
     /** Capitalised words that are also first/last names but appear in normal support text. */
     const NAME_ALLOW = ['moodle', 'chrome', 'google', 'teams', 'zoom', 'windows', 'android', 'iphone', 'apple', 'mesa', 'ayuda',
@@ -172,8 +186,14 @@ class assistant {
                 'truncated' => $truncated,
             ];
         }
+        // Pointer for the screen and the log: what the agent last took. The real
+        // idempotency is "not classified yet" (a ticket exported but never
+        // submitted comes again next week).
+        $lastid = $out ? max(array_column($out, 'id')) : 0;
+        set_config('tkt_ai_last_export', json_encode(['time' => time(), 'tickets' => count($out), 'lastticketid' => $lastid,
+            'from' => $from, 'to' => $to]), 'local_grupomakro_core');
         manager::log_event(0, 'ai_export', '', (string)count($out), 0,
-            ['tickets' => count($out), 'from' => $from, 'to' => $to]);
+            ['tickets' => count($out), 'from' => $from, 'to' => $to, 'lastticketid' => $lastid]);
         return [
             'format' => 'gmk-support-ai-export/1',
             'generated' => time(),
@@ -405,12 +425,26 @@ class assistant {
     // ---------------------------------------------------------------------
 
     /**
-     * @param array $data decoded results JSON (see docs/asistente/AGENTE_SEMANAL.md)
+     * @param array $data decoded run JSON (see docs/agents/analisis_semanal_tickets.md)
      * @return array report {status, runid, classified, skipped[], suggestions_new, suggestions_updated, suggestions_skipped[]}
      */
     public static function import(array $data, int $actorid, bool $dryrun = false): array {
         global $DB;
-        $runkey = clean_param((string)($data['runkey'] ?? ''), PARAM_ALPHANUMEXT);
+        // Untrusted input (cloud agent): shapes and sizes first.
+        foreach (['classifications', 'suggestions'] as $list) {
+            if (isset($data[$list]) && !is_array($data[$list])) {
+                throw new invalid_parameter_exception($list . ' debe ser una lista');
+            }
+        }
+        $data['classifications'] = array_values(array_filter((array)($data['classifications'] ?? []), 'is_array'));
+        $data['suggestions'] = array_values(array_filter((array)($data['suggestions'] ?? []), 'is_array'));
+        $data['period'] = is_array($data['period'] ?? null) ? $data['period'] : [];
+        $data['usage'] = is_array($data['usage'] ?? null) ? $data['usage'] : [];
+        if (count($data['classifications']) > self::MAX_CLASSIFICATIONS || count($data['suggestions']) > self::MAX_SUGGESTIONS) {
+            throw new invalid_parameter_exception('Demasiadas tipificaciones (máx. ' . self::MAX_CLASSIFICATIONS
+                . ') o sugerencias (máx. ' . self::MAX_SUGGESTIONS . ')');
+        }
+        $runkey = is_scalar($data['runkey'] ?? '') ? clean_param((string)($data['runkey'] ?? ''), PARAM_ALPHANUMEXT) : '';
         if ($runkey === '' || \core_text::strlen($runkey) > 64) {
             throw new invalid_parameter_exception('runkey vacío o inválido (letras, números, guiones; máx. 64)');
         }
@@ -423,14 +457,14 @@ class assistant {
         $now = time();
         $run = (object)[
             'runkey' => $runkey,
-            'model' => \core_text::substr(clean_param((string)($data['model'] ?? ''), PARAM_TEXT), 0, 80),
+            'model' => self::plain($data['model'] ?? '', 80),
             'periodfrom' => max(0, (int)($data['period']['from'] ?? 0)),
             'periodto' => max(0, (int)($data['period']['to'] ?? 0)),
             'tickets' => 0, 'classified' => 0, 'suggestions' => 0, 'skipped' => 0,
             'tokensin' => max(0, (int)($usage['input_tokens'] ?? 0)),
             'tokensout' => max(0, (int)($usage['output_tokens'] ?? 0)),
             'costusd' => isset($usage['cost_usd']) && is_numeric($usage['cost_usd']) ? round((float)$usage['cost_usd'], 4) : null,
-            'summary' => self::plain((string)($data['summary'] ?? ''), 4000),
+            'summary' => self::plain(($data['summary'] ?? ''), 4000),
             'report' => '',
             'status' => 'ok',
             'importedby' => $actorid,
@@ -468,11 +502,11 @@ class assistant {
                 continue;
             }
             $t = $valid[$tid];
-            $resolved = (string)($c['resolved'] ?? '');
+            $resolved = is_scalar($c['resolved'] ?? '') ? (string)($c['resolved'] ?? '') : '';
             $DB->insert_record('gmk_tkt_ai_class', (object)[
                 'runid' => $run->id, 'ticketid' => $tid, 'areaid' => (int)$t->areaid, 'categoryid' => (int)$t->categoryid,
-                'problemtype' => $ptype, 'problemlabel' => self::plain((string)($c['problemlabel'] ?? $ptype), 255),
-                'resolutiontype' => $rtype, 'resolutionlabel' => self::plain((string)($c['resolutionlabel'] ?? $rtype), 255),
+                'problemtype' => $ptype, 'problemlabel' => self::plain(($c['problemlabel'] ?? $ptype), 255),
+                'resolutiontype' => $rtype, 'resolutionlabel' => self::plain(($c['resolutionlabel'] ?? $rtype), 255),
                 'resolved' => $resolved === 'si' || $resolved === '1' || $resolved === 'yes' ? 1
                     : ($resolved === 'no' || $resolved === '0' ? 0 : 2),
                 'rating' => (int)$t->rating, 'ratingsolved' => (int)$t->rating_solved,
@@ -489,7 +523,7 @@ class assistant {
                 $r = self::import_suggestion((array)$s, (int)$run->id, $allowed);
                 $report[$r === 'updated' ? 'suggestions_updated' : 'suggestions_new']++;
             } catch (invalid_parameter_exception $e) {
-                $report['suggestions_skipped'][] = ['index' => $i, 'title' => self::plain((string)($s['title'] ?? $s['problem'] ?? ''), 80),
+                $report['suggestions_skipped'][] = ['index' => $i, 'title' => self::plain(($s['title'] ?? $s['problem'] ?? ''), 80),
                     'reason' => $e->debuginfo ?: $e->getMessage()];
             }
         }
@@ -536,7 +570,7 @@ class assistant {
      */
     private static function import_suggestion(array $s, int $runid, array $allowed): string {
         global $DB;
-        $kind = (string)($s['kind'] ?? '');
+        $kind = is_scalar($s['kind'] ?? '') ? (string)($s['kind'] ?? '') : '';
         if (!in_array($kind, self::KINDS, true)) {
             throw new invalid_parameter_exception('tipo de sugerencia desconocido');
         }
@@ -559,8 +593,8 @@ class assistant {
             $categoryid = 0;
         }
         $ptype = self::slug($s['problemtype'] ?? '');
-        $title = self::plain((string)($kind === 'canned' ? ($s['title'] ?? '') : ($s['problem'] ?? $s['title'] ?? '')), 255);
-        $body = self::plain((string)($kind === 'canned' ? ($s['body'] ?? '') : ($s['answer'] ?? '')), 8000, true);
+        $title = self::plain(($kind === 'canned' ? ($s['title'] ?? '') : ($s['problem'] ?? $s['title'] ?? '')), 255);
+        $body = self::plain(($kind === 'canned' ? ($s['body'] ?? '') : ($s['answer'] ?? '')), 8000, true);
         if ($kind === 'faq_improve' && $title === '') {
             $title = (string)$f->problem;
         }
@@ -569,15 +603,18 @@ class assistant {
         }
         $links = [];
         foreach ((array)($s['links'] ?? []) as $l) {
-            $url = trim((string)($l['url'] ?? ''));
-            $label = self::plain((string)($l['label'] ?? ''), 80);
+            if (!is_array($l)) {
+                continue;
+            }
+            $url = trim(is_scalar($l['url'] ?? '') ? (string)($l['url'] ?? '') : '');
+            $label = self::plain(($l['label'] ?? ''), 80);
             if ($label !== '' && preg_match('#^https://#i', $url) && clean_param($url, PARAM_URL) === $url) {
                 $links[] = ['label' => $label, 'url' => \core_text::substr($url, 0, 500),
                     'kind' => in_array($l['kind'] ?? 'web', faq::LINK_KINDS, true) ? $l['kind'] : 'web'];
             }
         }
         $links = array_slice($links, 0, faq::MAX_LINKS);
-        $audience = in_array($s['audience'] ?? 'all', faq::AUDIENCES, true) ? $s['audience'] : 'all';
+        $audience = in_array($s['audience'] ?? 'all', faq::AUDIENCES, true) ? (string)($s['audience'] ?? 'all') : 'all';
 
         // Evidence: only tickets of this area that were analysed (now or before).
         $tids = array_values(array_unique(array_filter(array_map('intval', (array)($s['ticketids'] ?? [])))));
@@ -589,7 +626,7 @@ class assistant {
         }
         $examples = [];
         foreach (array_slice((array)($s['examples'] ?? []), 0, self::MAX_EXAMPLES) as $ex) {
-            $ex = self::plain(self::anonymize((string)$ex), self::MAX_EXAMPLE_CHARS);
+            $ex = self::plain(self::anonymize(is_scalar($ex) ? (string)$ex : ''), self::MAX_EXAMPLE_CHARS);
             if ($ex !== '') {
                 $examples[] = $ex;
             }
@@ -618,7 +655,7 @@ class assistant {
         $row = (object)[
             'runid' => $runid, 'kind' => $kind, 'areaid' => $areaid, 'categoryid' => $categoryid, 'faqid' => $faqid,
             'problemtype' => $ptype, 'title' => $title, 'body' => $body, 'links' => json_encode($links), 'audience' => $audience,
-            'rationale' => self::plain((string)($s['rationale'] ?? ''), 2000),
+            'rationale' => self::plain(($s['rationale'] ?? ''), 2000),
             'ticketids' => json_encode($tids), 'evidence' => count($tids), 'examples' => json_encode($examples),
             'stats' => json_encode(self::evidence_stats($tids, $faqid)),
             'timemodified' => $now,
@@ -660,12 +697,16 @@ class assistant {
     }
 
     private static function slug($value): string {
-        $value = self::fold(trim((string)$value));
+        $value = self::fold(trim(is_scalar($value) ? (string)$value : ''));
         $value = preg_replace('/[^a-z0-9]+/', '_', $value) ?? '';
         return \core_text::substr(trim($value, '_'), 0, 100);
     }
 
-    private static function plain(string $value, int $max, bool $multiline = false): string {
+    /**
+     * Untrusted value to plain text: non-scalars become '', tags are stripped, length capped.
+     */
+    private static function plain($value, int $max, bool $multiline = false): string {
+        $value = is_scalar($value) ? (string)$value : '';
         $value = clean_param(str_replace("\r\n", "\n", $value), PARAM_TEXT);
         $value = $multiline ? trim($value) : trim(preg_replace('/\s+/u', ' ', $value) ?? '');
         return \core_text::substr($value, 0, $max);
@@ -718,6 +759,7 @@ class assistant {
             'suggestions' => $sugg,
             'runs' => $runs,
             'taxonomy' => self::taxonomy(),
+            'connection' => self::connection(),
             'canned' => array_values(array_map(function($c) {
                 return ['id' => (int)$c->id, 'areaid' => (int)$c->areaid, 'title' => $c->title, 'body' => (string)$c->body];
             }, $DB->get_records('gmk_tkt_canned', null, 'areaid, title'))),
@@ -740,6 +782,20 @@ class assistant {
                                         FROM {gmk_tkt_ai_class}
                                     GROUP BY areaid, problemtype
                                     ORDER BY areaid, total DESC", ['since' => $since]);
+        // Last 8 weeks (index 0 = the current week), counted by close date.
+        $weeks = [];
+        $monday = strtotime('monday this week', time());
+        $rs = $DB->get_recordset_select('gmk_tkt_ai_class', 'timeclosed >= ?', [$monday - 7 * WEEKSECS], '',
+            'id, areaid, problemtype, timeclosed');
+        foreach ($rs as $c) {
+            $i = (int)$c->timeclosed >= $monday ? 0 : (int)floor(($monday - (int)$c->timeclosed) / WEEKSECS) + 1;
+            if ($i < 8) {
+                $key = $c->areaid . '|' . $c->problemtype;
+                $weeks[$key] = $weeks[$key] ?? array_fill(0, 8, 0);
+                $weeks[$key][$i]++;
+            }
+        }
+        $rs->close();
         $res = [];
         foreach ($DB->get_records_sql("SELECT MIN(id) AS id, areaid, problemtype, resolutiontype, MAX(resolutionlabel) AS label,
                                               COUNT(1) AS n
@@ -754,6 +810,7 @@ class assistant {
                 return $b['n'] <=> $a['n'];
             });
             $out[] = ['areaid' => (int)$r->areaid, 'problemtype' => $r->problemtype, 'problemlabel' => $r->problemlabel,
+                'weeks' => $weeks[$r->areaid . '|' . $r->problemtype] ?? array_fill(0, 8, 0),
                 'total' => (int)$r->total, 'recent' => (int)$r->recent,
                 'resolvedpct' => (int)$r->total ? (int)round(100 * (int)$r->resolved / (int)$r->total) : 0,
                 'avgrating' => $r->avgrating !== null ? round((float)$r->avgrating, 1) : null,
@@ -826,5 +883,115 @@ class assistant {
         global $DB;
         $DB->update_record('gmk_tkt_ai_sugg', (object)['id' => $s->id, 'status' => $status, 'resultid' => $resultid,
             'resolvedby' => $actorid, 'timeresolved' => $status === 'pending' ? 0 : time(), 'timemodified' => time()]);
+    }
+
+    // ---------------------------------------------------------------------
+    // 5. Cloud agent connection (dedicated user + token)
+    // ---------------------------------------------------------------------
+
+    private static function agent_user(): ?stdClass {
+        global $CFG, $DB;
+        return $DB->get_record('user', ['username' => self::AGENT_USERNAME, 'mnethostid' => $CFG->mnet_localhost_id,
+            'deleted' => 0]) ?: null;
+    }
+
+    /**
+     * What the "Asistente en la nube" section shows. Never the token itself.
+     */
+    public static function connection(): array {
+        global $CFG, $DB;
+        $service = $DB->get_record('external_services', ['shortname' => self::SERVICE]);
+        $user = self::agent_user();
+        $token = null;
+        if ($service && $user) {
+            $tokens = $DB->get_records('external_tokens', ['userid' => $user->id, 'externalserviceid' => $service->id],
+                'timecreated DESC', '*', 0, 1);
+            if ($t = reset($tokens)) {
+                $creator = (int)$t->creatorid ? \core_user::get_user((int)$t->creatorid) : null;
+                $token = ['last4' => substr((string)$t->token, -4), 'timecreated' => (int)$t->timecreated,
+                    'lastaccess' => (int)$t->lastaccess, 'creator' => $creator ? fullname($creator) : ''];
+            }
+        }
+        $protocols = array_filter(explode(',', (string)($CFG->webserviceprotocols ?? '')));
+        return [
+            'wsenabled' => !empty($CFG->enablewebservices),
+            'restenabled' => in_array('rest', $protocols, true),
+            'service' => $service ? (int)$service->enabled : -1,
+            'user' => $user ? ['id' => (int)$user->id, 'username' => $user->username, 'suspended' => (int)$user->suspended] : null,
+            'token' => $token,
+            'endpoint' => $CFG->wwwroot . '/webservice/rest/server.php',
+            'functions' => ['local_grupomakro_support_ai_export_closed', 'local_grupomakro_support_ai_submit'],
+            'lastexport' => json_decode((string)get_config('local_grupomakro_core', 'tkt_ai_last_export'), true) ?: null,
+        ];
+    }
+
+    /**
+     * Creates (once) the dedicated user and role, authorises the user on the
+     * service, revokes any previous token and returns a new permanent one.
+     * The token is returned only here: it is never shown again.
+     */
+    public static function generate_token(int $actorid): string {
+        global $CFG, $DB;
+        require_once($CFG->libdir . '/externallib.php');
+        require_once($CFG->dirroot . '/user/lib.php');
+        $service = $DB->get_record('external_services', ['shortname' => self::SERVICE]);
+        if (!$service) {
+            throw new invalid_parameter_exception('Falta el servicio ' . self::SERVICE . ': corre la actualización del plugin');
+        }
+        $sys = \context_system::instance();
+        $transaction = $DB->start_delegated_transaction();
+        $user = self::agent_user();
+        if (!$user) {
+            $id = user_create_user((object)[
+                'username' => self::AGENT_USERNAME, 'auth' => 'manual', 'confirmed' => 1, 'mnethostid' => $CFG->mnet_localhost_id,
+                // Random password nobody knows: the account only works through its token.
+                'password' => random_string(40) . 'Aa1!', 'firstname' => 'Asistente', 'lastname' => 'Mesa de ayuda (IA)',
+                'email' => 'noreply+ia-asistente@isi.edu.pa', 'emailstop' => 1, 'policyagreed' => 1,
+                'description' => 'Usuario técnico del agente semanal en la nube. Solo usa el servicio ' . self::SERVICE . '.',
+            ], true, false);
+            $user = $DB->get_record('user', ['id' => $id], '*', MUST_EXIST);
+        } else if ((int)$user->suspended) {
+            $DB->set_field('user', 'suspended', 0, ['id' => $user->id]);
+        }
+        $roleid = (int)$DB->get_field('role', 'id', ['shortname' => self::AGENT_ROLE]);
+        if (!$roleid) {
+            $roleid = create_role('Asistente IA de la mesa de ayuda', self::AGENT_ROLE,
+                'Rol técnico del agente en la nube: leer tickets cerrados anonimizados y enviar sugerencias.', '');
+            set_role_contextlevels($roleid, [CONTEXT_SYSTEM]);
+        }
+        assign_capability('webservice/rest:use', CAP_ALLOW, $roleid, $sys->id, true);
+        assign_capability('local/grupomakro_core:support_ai_agent', CAP_ALLOW, $roleid, $sys->id, true);
+        if (!user_has_role_assignment((int)$user->id, $roleid, $sys->id)) {
+            role_assign($roleid, (int)$user->id, $sys->id);
+        }
+        if (!$DB->record_exists('external_services_users', ['externalserviceid' => $service->id, 'userid' => $user->id])) {
+            $DB->insert_record('external_services_users', (object)['externalserviceid' => $service->id, 'userid' => $user->id,
+                'iprestriction' => null, 'validuntil' => null, 'timecreated' => time()]);
+        }
+        $old = $DB->count_records('external_tokens', ['userid' => $user->id]);
+        $DB->delete_records('external_tokens', ['userid' => $user->id]);
+        $token = external_generate_token(EXTERNAL_TOKEN_PERMANENT, $service, (int)$user->id, $sys, 0, '');
+        manager::log_event(0, 'ai_token_generate', (string)$old, '…' . substr($token, -4), $actorid, ['userid' => (int)$user->id]);
+        $transaction->allow_commit();
+        accesslib_clear_all_caches(false);
+        return $token;
+    }
+
+    /**
+     * Deletes the agent's tokens and suspends its user: the routine stops
+     * working at once. "Generar token" turns it on again.
+     */
+    public static function revoke_token(int $actorid): int {
+        global $DB;
+        $user = self::agent_user();
+        if (!$user) {
+            return 0;
+        }
+        $n = $DB->count_records('external_tokens', ['userid' => $user->id]);
+        $DB->delete_records('external_tokens', ['userid' => $user->id]);
+        $DB->set_field('user', 'suspended', 1, ['id' => $user->id]);
+        \core\session\manager::kill_user_sessions((int)$user->id);
+        manager::log_event(0, 'ai_token_revoke', (string)$n, '', $actorid, ['userid' => (int)$user->id]);
+        return $n;
     }
 }

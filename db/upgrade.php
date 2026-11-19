@@ -4832,8 +4832,10 @@ if ($oldversion < 20261001093) {
     if ($oldversion < 20261001126) {
         // Asistente semanal de la mesa de ayuda: ejecuciones, tipificaciones y
         // sugerencias (problemas comunes nuevos, mejoras y respuestas rapidas)
-        // que un agente externo (tarea de Claude Code) importa por CLI. Capacidad
-        // support_assistant para los mismos roles que support_manage.
+        // que envia el agente semanal en la nube (rutina de Claude Code) por el
+        // servicio gmk_support_ai (WS support_ai_export_closed / submit). Capacidades
+        // support_ai_agent (solo el usuario tecnico del agente) y
+        // support_assistant (mismos roles que support_manage).
         $t = new xmldb_table('gmk_tkt_ai_run');
         $t->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
         $t->add_field('runkey', XMLDB_TYPE_CHAR, '64', null, XMLDB_NOTNULL, null, '');

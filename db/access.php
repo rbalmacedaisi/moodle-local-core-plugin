@@ -416,6 +416,13 @@ $capabilities = array(
         'captype' => 'write', 'contextlevel' => CONTEXT_SYSTEM,
         'archetypes' => array('manager' => CAP_ALLOW),
     ),
+    // 20261001126: lo usa SOLO el usuario dedicado del agente en la nube (rol
+    // gmk_ia_asistente, que crea "Generar token"). Ningun arquetipo.
+    'local/grupomakro_core:support_ai_agent' => array(
+        'riskbitmask' => RISK_PERSONAL,
+        'captype' => 'write', 'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array(),
+    ),
     'local/grupomakro_core:support_receive_escalations' => array(
         'captype' => 'read', 'contextlevel' => CONTEXT_SYSTEM,
         'archetypes' => array(),

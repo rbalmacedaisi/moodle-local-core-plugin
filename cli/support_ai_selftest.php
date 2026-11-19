@@ -34,6 +34,14 @@
  * Descartar (no se vuelve a proponer), Recuperar, doble accion rechazada,
  * pantalla (export_ui) y capacidad.
  *
+ * Agente en la nube: generar token (usuario tecnico, rol minimo, servicio
+ * restringido), la pantalla nunca devuelve el token, regenerar invalida el
+ * anterior, export_closed y submit llamados COMO el usuario tecnico, datos
+ * maliciosos en submit (etiquetas, javascript:/data:/http, tipos raros,
+ * areas confidenciales, tamano, JSON roto, demasiadas sugerencias), el
+ * agente no entra a la configuracion, un estudiante no entra a los
+ * endpoints, revocar borra el token y suspende al usuario.
+ *
  * @package    local_grupomakro_core
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -42,6 +50,7 @@ define('CLI_SCRIPT', true);
 
 require(__DIR__ . '/../../../config.php');
 require_once($CFG->libdir . '/clilib.php');
+require_once($CFG->libdir . '/externallib.php');
 
 use local_grupomakro_core\local\support\assistant;
 use local_grupomakro_core\local\support\manager;
@@ -298,6 +307,94 @@ try {
     $check('el estudiante no tiene support_assistant', !has_capability('local/grupomakro_core:support_assistant',
         context_system::instance(), $studentid));
 
+    // 10. Cloud agent: token, endpoints as the dedicated user, malicious data.
+    $sys = context_system::instance();
+    $token = assistant::generate_token($adminid);
+    $agentuser2 = $DB->get_record('user', ['username' => assistant::AGENT_USERNAME, 'deleted' => 0]);
+    $service = $DB->get_record('external_services', ['shortname' => assistant::SERVICE]);
+    $check('token: usuario técnico, servicio restringido y token permanente', $agentuser2 && $service && strlen($token) >= 32
+        && $DB->record_exists('external_tokens', ['token' => $token, 'userid' => $agentuser2->id, 'externalserviceid' => $service->id])
+        && $DB->record_exists('external_services_users', ['externalserviceid' => $service->id, 'userid' => $agentuser2->id]));
+    $check('el usuario técnico solo tiene lo del agente', has_capability('local/grupomakro_core:support_ai_agent', $sys, $agentuser2)
+        && has_capability('webservice/rest:use', $sys, $agentuser2)
+        && !has_capability('local/grupomakro_core:support_manage', $sys, $agentuser2)
+        && !has_capability('local/grupomakro_core:support_agent', $sys, $agentuser2));
+    $ui = assistant::export_ui();
+    $check('la pantalla nunca devuelve el token', strpos(json_encode($ui), $token) === false
+        && ($ui['connection']['token']['last4'] ?? '') === substr($token, -4));
+    $token2 = assistant::generate_token($adminid);
+    $check('generar de nuevo invalida el anterior', !$DB->record_exists('external_tokens', ['token' => $token])
+        && $DB->record_exists('external_tokens', ['token' => $token2]));
+
+    $realuser = $USER;
+    \core\session\manager::set_user($agentuser2);
+    try {
+        $r = \local_grupomakro_core\external\support\ai_export_closed::execute(0, 3);
+        $exp = json_decode($r['json'], true);
+        $check('endpoint export_closed como el agente', ($exp['format'] ?? '') === 'gmk-support-ai-export/1'
+            && $r['tickets'] === count($exp['tickets']) && strpos($r['json'], 'NOTA INTERNA') === false);
+        $evil = [
+            'runkey' => '../../etc/passwd<script>', 'model' => ['x' => 1], 'period' => 'nope', 'usage' => 'nope',
+            'summary' => '<script>alert(1)</script>Resumen' . str_repeat('x', 9000),
+            'classifications' => ['texto', ['ticketid' => ['1'], 'problemtype' => ['a'], 'resolutiontype' => 'b'],
+                ['ticketid' => -5, 'problemtype' => 'a', 'resolutiontype' => 'b']],
+            'suggestions' => [
+                ['kind' => 'faq_new', 'areaid' => $areaid, 'problemtype' => 'xss', 'problem' => '<img src=x onerror=alert(1)>Prueba IA XSS',
+                    'answer' => "<script>alert(1)</script>1. Paso **uno**", 'audience' => 'admin',
+                    'links' => ['no-array', ['label' => 'JS', 'url' => 'javascript:alert(1)'], ['label' => 'Data', 'url' => 'data:text/html,x'],
+                        ['label' => 'Http', 'url' => 'http://isi.edu.pa'], ['label' => ['a'], 'url' => ['b']],
+                        ['label' => 'Bien', 'url' => 'https://isi.edu.pa/ok']],
+                    'ticketids' => [[$t1->id], 'x', -1], 'examples' => [['a'], '<b>hola</b> 6123-4567']],
+                ['kind' => 'delete_everything', 'areaid' => $areaid],
+                ['kind' => 'faq_improve', 'faqid' => 999999999, 'answer' => 'x'],
+                ['kind' => 'canned', 'areaid' => $psychareaid ?: -1, 'title' => 'x', 'body' => 'y'],
+                'no-array',
+            ],
+        ];
+        $r = \local_grupomakro_core\external\support\ai_submit::execute(json_encode($evil), false);
+        $rep = json_decode($r['report'], true);
+        $run = $DB->get_record('gmk_tkt_ai_run', ['id' => $r['runid']]);
+        $x = $DB->get_record('gmk_tkt_ai_sugg', ['runid' => $r['runid'], 'problemtype' => 'xss']);
+        $xlinks = $x ? json_decode((string)$x->links, true) : [];
+        $check('datos maliciosos: runkey saneado, sin etiquetas, textos acotados', $run && strpos($run->runkey, '/') === false
+            && strpos($run->runkey, '<') === false && strpos((string)$run->summary, '<script') === false
+            && \core_text::strlen((string)$run->summary) <= 4000 && $run->model === '', $run ? $run->runkey : '-');
+        $check('datos maliciosos: tipificaciones inválidas omitidas', ($rep['classified'] ?? -1) === 0, json_encode($rep['skipped'] ?? []));
+        $check('datos maliciosos: solo la sugerencia válida entra, saneada', $x && strpos($x->title . $x->body, '<') === false
+            && $x->audience === 'all' && count($xlinks) === 1 && $xlinks[0]['url'] === 'https://isi.edu.pa/ok'
+            && count($rep['suggestions_skipped'] ?? []) === 3 && strpos((string)$x->examples, '6123-4567') === false,
+            json_encode($rep['suggestions_skipped'] ?? []));
+        $check('envío demasiado grande rechazado', $throws(function() {
+            \local_grupomakro_core\external\support\ai_submit::execute(str_repeat(' ', assistant::MAX_SUBMIT_BYTES + 1), false);
+        }));
+        $check('JSON inválido rechazado', $throws(function() {
+            \local_grupomakro_core\external\support\ai_submit::execute('{no es json', false);
+        }));
+        $check('demasiadas sugerencias rechazadas', $throws(function() {
+            \local_grupomakro_core\external\support\ai_submit::execute(json_encode(['runkey' => 'muchas',
+                'suggestions' => array_fill(0, assistant::MAX_SUGGESTIONS + 1, ['kind' => 'canned'])]), false);
+        }));
+        $check('el agente no puede usar la configuración', $throws(function() {
+            \local_grupomakro_core\external\support\ai_get::execute();
+        }));
+    } finally {
+        \core\session\manager::set_user($realuser);
+    }
+    \core\session\manager::set_user($student);
+    try {
+        $check('un estudiante no puede llamar a los endpoints del agente', $throws(function() {
+            \local_grupomakro_core\external\support\ai_export_closed::execute(0, 1);
+        }) && $throws(function() {
+            \local_grupomakro_core\external\support\ai_submit::execute('{"runkey":"x"}', true);
+        }));
+    } finally {
+        \core\session\manager::set_user($realuser);
+    }
+    $n = assistant::revoke_token($adminid);
+    $check('revocar: borra el token y suspende al usuario técnico', $n === 1
+        && !$DB->record_exists('external_tokens', ['userid' => $agentuser2->id])
+        && (int)$DB->get_field('user', 'suspended', ['id' => $agentuser2->id]) === 1);
+
     // 9. Anonymiser edge cases.
     $a = assistant::anonymize('Llamar al 507-123-4567 o 66667777; ver TKT-2026-0012; id 12345678; https://x.isi.edu.pa/a?b=c#d');
     $check('anonimizador: teléfonos, números largos, TKT y query', strpos($a, '[TELEFONO]') !== false
@@ -314,6 +411,10 @@ try {
 }
 manager::reset_caches();
 assistant::reset_caches();
+// The rollback undoes the rows, not the caches: config (last export pointer)
+// and access (the agent role created and dropped inside the transaction).
+\cache_helper::purge_by_definition('core', 'config');
+accesslib_clear_all_caches(true);
 
 $failed = count(array_filter($results, function($r) {
     return !$r[0];
