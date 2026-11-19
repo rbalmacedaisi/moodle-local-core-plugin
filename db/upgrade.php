@@ -4970,5 +4970,76 @@ if ($oldversion < 20261001093) {
         upgrade_plugin_savepoint(true, 20261001129, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20261001130) {
+        // Cartas: bandeja con responsable, plazos (ANS) y alertas, carta cargada por
+        // el personal (PDF/Word) y vinculo con la mesa de ayuda. Todo aditivo.
+        $table = new xmldb_table('gmk_letter_request');
+        $fields = [
+            new xmldb_field('assignedto', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0', 'extra_data'),
+            new xmldb_field('assigned_at', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0', 'assignedto'),
+            new xmldb_field('status_since', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0', 'assigned_at'),
+            new xmldb_field('due_at', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0', 'status_since'),
+            new xmldb_field('sla_level', XMLDB_TYPE_INTEGER, '2', null, XMLDB_NOTNULL, null, '0', 'due_at'),
+            new xmldb_field('sla_notified_at', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0', 'sla_level'),
+            new xmldb_field('reminders', XMLDB_TYPE_INTEGER, '4', null, XMLDB_NOTNULL, null, '0', 'sla_notified_at'),
+            new xmldb_field('legacy', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0', 'reminders'),
+        ];
+        foreach ($fields as $field) {
+            if (!$dbman->field_exists($table, $field)) {
+                $dbman->add_field($table, $field);
+            }
+        }
+        foreach ([new xmldb_index('assignedstatusidx', XMLDB_INDEX_NOTUNIQUE, ['assignedto', 'status']),
+                new xmldb_index('userstatusidx', XMLDB_INDEX_NOTUNIQUE, ['userid', 'status'])] as $index) {
+            if (!$dbman->index_exists($table, $index)) {
+                $dbman->add_index($table, $index);
+            }
+        }
+        $table = new xmldb_table('gmk_letter_type');
+        foreach ([new xmldb_field('sla_json', XMLDB_TYPE_TEXT, null, null, null, null, null, 'template_html'),
+                new xmldb_field('pickup_note', XMLDB_TYPE_TEXT, null, null, null, null, null, 'sla_json')] as $field) {
+            if (!$dbman->field_exists($table, $field)) {
+                $dbman->add_field($table, $field);
+            }
+        }
+        $table = new xmldb_table('gmk_letter_document');
+        $field = new xmldb_field('source', XMLDB_TYPE_CHAR, '20', null, XMLDB_NOTNULL, null, 'generated', 'verificationurl');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+        $table = new xmldb_table('gmk_tkt_ticket');
+        $field = new xmldb_field('letterrequestid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0', 'rating_dismissed_at');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+        $index = new xmldb_index('idx_tkt_letter', XMLDB_INDEX_NOTUNIQUE, ['letterrequestid']);
+        if (!$dbman->index_exists($table, $index)) {
+            $dbman->add_index($table, $index);
+        }
+
+        // Capacidad de metricas: a quien ya ve todas las cartas y a gerencia.
+        update_capabilities('local_grupomakro_core');
+        $syscontext = context_system::instance();
+        $roleids = $DB->get_fieldset_select('role_capabilities', 'DISTINCT roleid',
+            'capability = :c AND permission = :p AND contextid = :ctx',
+            ['c' => 'local/grupomakro_core:viewallletterrequests', 'p' => CAP_ALLOW, 'ctx' => $syscontext->id]);
+        foreach (['gmk_gerencia', 'gmk_director_general'] as $shortname) {
+            if ($rid = $DB->get_field('role', 'id', ['shortname' => $shortname])) {
+                $roleids[] = $rid;
+            }
+        }
+        foreach (array_unique(array_map('intval', $roleids)) as $rid) {
+            assign_capability('local/grupomakro_core:letters_viewmetrics', CAP_ALLOW, $rid, $syscontext->id);
+        }
+
+        // Atraso: duplicadas anuladas en silencio (reversible, ver letters\setup), y
+        // despues la carga inicial (tema, equipo, problema comun, plantillas, plazos).
+        $cancelled = \local_grupomakro_core\local\letters\setup::dedupe(true);
+        mtrace('  cartas duplicadas anuladas: ' . $cancelled);
+        mtrace('  cartas: ' . implode('; ', \local_grupomakro_core\local\letters\setup::seed()));
+
+        upgrade_plugin_savepoint(true, 20261001130, 'local', 'grupomakro_core');
+    }
+
     return true;
 }

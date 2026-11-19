@@ -42,7 +42,8 @@ defined('MOODLE_INTERNAL') || die();
 class faq {
 
     const AUDIENCES = ['all', 'student', 'teacher'];
-    const LINK_KINDS = ['web', 'appstore', 'playstore'];
+    /** 'portal' (20261001130): ruta interna del portal ("/solicitudes-cartas"), abre en la misma pestaña. */
+    const LINK_KINDS = ['web', 'appstore', 'playstore', 'portal'];
     const OUTCOMES = ['view' => 'views', 'solved' => 'solved', 'notsolved' => 'notsolved'];
     const MAX_LINKS = 6;
 
@@ -227,10 +228,14 @@ class faq {
             if ($label === '' && $url === '') {
                 continue;
             }
-            if ($label === '' || !preg_match('#^https://#i', $url) || clean_param($url, PARAM_URL) !== $url) {
+            $kind = in_array($l['kind'] ?? 'web', self::LINK_KINDS, true) ? $l['kind'] : 'web';
+            if ($kind === 'portal') {
+                if ($label === '' || !preg_match('#^/[a-z0-9\-_/]*(\?[a-z0-9=&_\-]*)?$#i', $url)) {
+                    throw new invalid_parameter_exception('Un botón del portal necesita texto y una ruta como /solicitudes-cartas');
+                }
+            } else if ($label === '' || !preg_match('#^https://#i', $url) || clean_param($url, PARAM_URL) !== $url) {
                 throw new invalid_parameter_exception('Cada botón necesita texto y un enlace https válido');
             }
-            $kind = in_array($l['kind'] ?? 'web', self::LINK_KINDS, true) ? $l['kind'] : 'web';
             $links[] = ['label' => $label, 'url' => \core_text::substr($url, 0, 500), 'kind' => $kind];
         }
         if (count($links) > self::MAX_LINKS) {

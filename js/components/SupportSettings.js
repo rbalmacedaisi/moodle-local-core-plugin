@@ -409,7 +409,7 @@ Vue.component('support-settings', {
             <div v-for="(l, i) in faqDialog.row.links" :key="i" class="gmk-faq-link mb-2">
               <v-select v-model="l.kind" :items="linkKinds" label="Tipo" outlined dense hide-details class="gmk-faq-link__kind"></v-select>
               <v-text-field v-model="l.label" label="Texto del botón" outlined dense hide-details class="gmk-faq-link__label"></v-text-field>
-              <v-text-field v-model="l.url" label="Enlace https" outlined dense hide-details class="gmk-faq-link__url"></v-text-field>
+              <v-text-field v-model="l.url" :label="l.kind === 'portal' ? 'Ruta del portal (/solicitudes-cartas)' : 'Enlace https'" outlined dense hide-details class="gmk-faq-link__url"></v-text-field>
               <v-btn icon aria-label="Quitar botón" @click="faqDialog.row.links.splice(i, 1)"><v-icon>mdi-delete-outline</v-icon></v-btn>
             </div>
             <v-btn small text color="primary" class="mb-3" :disabled="faqDialog.row.links.length >= 6"
@@ -467,7 +467,8 @@ Vue.component('support-settings', {
             faqDialog: { open: false, row: null, aiSugg: 0 },
             audiences: [{ value: 'all', text: 'Estudiantes y docentes' }, { value: 'student', text: 'Solo estudiantes' },
                 { value: 'teacher', text: 'Solo docentes' }],
-            linkKinds: [{ value: 'web', text: 'Web' }, { value: 'appstore', text: 'App Store' }, { value: 'playstore', text: 'Play Store' }],
+            linkKinds: [{ value: 'web', text: 'Web' }, { value: 'appstore', text: 'App Store' }, { value: 'playstore', text: 'Play Store' },
+                { value: 'portal', text: 'Página del portal' }],
             topicDialog: { open: false, row: null },
             agentDialog: { open: false, row: null },
             newBackup: { userid: null, backupuserid: null, categoryid: 0 },

@@ -46,6 +46,12 @@ $capabilities = array(
         'contextlevel' => CONTEXT_SYSTEM,
         'archetypes' => array(),
     ),
+    // Cartas (20261001130): metricas de pendientes y ANS (dashboard administrativo).
+    'local/grupomakro_core:letters_viewmetrics' => array(
+        'captype' => 'read',
+        'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array('manager' => CAP_ALLOW),
+    ),
     'local/grupomakro_core:viewabsencedashboard' => array(
         'captype' => 'read',
         'contextlevel' => CONTEXT_SYSTEM,

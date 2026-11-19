@@ -2009,6 +2009,7 @@
         <FIELD NAME="rated_at" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="rating_dismissed" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Veces que eligio Ahora no"/>
         <FIELD NAME="rating_dismissed_at" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="letterrequestid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Solicitud de carta de la que trata (0 = ninguna)"/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
       </FIELDS>
@@ -2023,6 +2024,7 @@
         <INDEX NAME="idx_tkt_frdue" UNIQUE="false" FIELDS="first_response_due"/>
         <INDEX NAME="idx_tkt_resdue" UNIQUE="false" FIELDS="resolution_due"/>
         <INDEX NAME="idx_tkt_category" UNIQUE="false" FIELDS="categoryid"/>
+        <INDEX NAME="idx_tkt_letter" UNIQUE="false" FIELDS="letterrequestid"/>
       </INDEXES>
     </TABLE>
 
@@ -2276,5 +2278,161 @@
       </INDEXES>
     </TABLE>
 
+    <TABLE NAME="gmk_letter_type" COMMENT="Cartas: catalogo de tipos">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="code" TYPE="char" LENGTH="100" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="name" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="warningtext" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="cost" TYPE="number" LENGTH="10" NOTNULL="true" DEFAULT="0.00" SEQUENCE="false" DECIMALS="2"/>
+        <FIELD NAME="active" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="1" SEQUENCE="false"/>
+        <FIELD NAME="deliverymode" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="digital" SEQUENCE="false"/>
+        <FIELD NAME="generationmode" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="auto" SEQUENCE="false"/>
+        <FIELD NAME="autostamp" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="autosignature" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="stampimageurl" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="signatureimageurl" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="odoo_product_id" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="template_html" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="sla_json" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Plazos en minutos habiles por estado (JSON)"/>
+        <FIELD NAME="pickup_note" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Lugar y horario de retiro"/>
+        <FIELD NAME="usermodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="codeuniq" TYPE="unique" FIELDS="code"/>
+        <KEY NAME="usermodifiedfk" TYPE="foreign" FIELDS="usermodified" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="activeidx" UNIQUE="false" FIELDS="active"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="gmk_letter_dataset_def" COMMENT="Cartas: datasets predefinidos">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="code" TYPE="char" LENGTH="100" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="name" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="description" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="enabled" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="1" SEQUENCE="false"/>
+        <FIELD NAME="usermodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="codeuniq" TYPE="unique" FIELDS="code"/>
+        <KEY NAME="usermodifiedfk" TYPE="foreign" FIELDS="usermodified" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+    </TABLE>
+    <TABLE NAME="gmk_letter_type_dataset" COMMENT="Cartas: datasets de cada tipo">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="lettertypeid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="datasetdefid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="sortorder" TYPE="int" LENGTH="4" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="usermodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="uniq" TYPE="unique" FIELDS="lettertypeid, datasetdefid"/>
+        <KEY NAME="letterfk" TYPE="foreign" FIELDS="lettertypeid" REFTABLE="gmk_letter_type" REFFIELDS="id"/>
+        <KEY NAME="datasetfk" TYPE="foreign" FIELDS="datasetdefid" REFTABLE="gmk_letter_dataset_def" REFFIELDS="id"/>
+        <KEY NAME="usermodifiedfk" TYPE="foreign" FIELDS="usermodified" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+    </TABLE>
+    <TABLE NAME="gmk_letter_request" COMMENT="Cartas: solicitudes de estudiantes">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="lettertypeid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="status" TYPE="char" LENGTH="50" NOTNULL="true" DEFAULT="solicitada" SEQUENCE="false"/>
+        <FIELD NAME="observation" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="warning_snapshot" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="cost_snapshot" TYPE="number" LENGTH="10" NOTNULL="true" DEFAULT="0.00" SEQUENCE="false" DECIMALS="2"/>
+        <FIELD NAME="deliverymode_snapshot" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="digital" SEQUENCE="false"/>
+        <FIELD NAME="generationmode_snapshot" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="auto" SEQUENCE="false"/>
+        <FIELD NAME="invoice_id" TYPE="char" LENGTH="64" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="invoice_number" TYPE="char" LENGTH="64" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="payment_link" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="paid_at" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="rejection_reason" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="cancel_reason" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="extra_data" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="assignedto" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Responsable (0 = sin asignar)"/>
+        <FIELD NAME="assigned_at" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="status_since" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Entrada al estado actual"/>
+        <FIELD NAME="due_at" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Vence el plazo del estado actual (0 = sin plazo)"/>
+        <FIELD NAME="sla_level" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="0 en plazo, 1 por vencer, 2 vencida, 3 critica"/>
+        <FIELD NAME="sla_notified_at" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="reminders" TYPE="int" LENGTH="4" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Recordatorios al estudiante ya enviados (bits)"/>
+        <FIELD NAME="legacy" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Anterior a la bandeja: preguntar si ya se gestiono"/>
+        <FIELD NAME="usermodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="userfk" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+        <KEY NAME="lettertypefk" TYPE="foreign" FIELDS="lettertypeid" REFTABLE="gmk_letter_type" REFFIELDS="id"/>
+        <KEY NAME="usermodifiedfk" TYPE="foreign" FIELDS="usermodified" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="statusidx" UNIQUE="false" FIELDS="status"/>
+        <INDEX NAME="invoiceidx" UNIQUE="false" FIELDS="invoice_id"/>
+        <INDEX NAME="assignedstatusidx" UNIQUE="false" FIELDS="assignedto, status"/>
+        <INDEX NAME="userstatusidx" UNIQUE="false" FIELDS="userid, status"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="gmk_letter_request_event" COMMENT="Cartas: historial de cada solicitud">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="requestid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="oldstatus" TYPE="char" LENGTH="50" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="newstatus" TYPE="char" LENGTH="50" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="eventtype" TYPE="char" LENGTH="50" NOTNULL="true" DEFAULT="status_change" SEQUENCE="false"/>
+        <FIELD NAME="message" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="metadata" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="usermodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="requestfk" TYPE="foreign" FIELDS="requestid" REFTABLE="gmk_letter_request" REFFIELDS="id"/>
+        <KEY NAME="usermodifiedfk" TYPE="foreign" FIELDS="usermodified" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="eventidx" UNIQUE="false" FIELDS="eventtype"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="gmk_letter_document" COMMENT="Cartas: documentos generados o cargados">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="requestid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="versionno" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="1" SEQUENCE="false"/>
+        <FIELD NAME="filename" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="mimetype" TYPE="char" LENGTH="100" NOTNULL="true" DEFAULT="application/pdf" SEQUENCE="false"/>
+        <FIELD NAME="filesize" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="fileitemid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="odoo_attachment_id" TYPE="char" LENGTH="64" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="verificationtoken" TYPE="char" LENGTH="64" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="verificationurl" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="source" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="generated" SEQUENCE="false" COMMENT="generated | uploaded"/>
+        <FIELD NAME="usermodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="requestfk" TYPE="foreign" FIELDS="requestid" REFTABLE="gmk_letter_request" REFFIELDS="id"/>
+        <KEY NAME="usermodifiedfk" TYPE="foreign" FIELDS="usermodified" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="verificationtokenux" UNIQUE="true" FIELDS="verificationtoken"/>
+      </INDEXES>
+    </TABLE>
   </TABLES>
 </XMLDB>
