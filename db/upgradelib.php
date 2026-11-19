@@ -1179,3 +1179,83 @@ function delete_custom_fields() {
 
     return true;
 }
+
+/**
+ * 20261001127: quita lo que usaba el agente semanal en la nube de 20261001126
+ * (decision de Ramiro, 19-nov-2026: el analisis es una tarea programada local
+ * de la app de Claude por SSH + CLI, sin token ni servicio web).
+ *
+ * Borra SOLO: el servicio gmk_support_ai de este plugin, sus tokens, usuarios
+ * autorizados y funciones; las funciones support_ai_export_closed / submit /
+ * token; los tokens del usuario tecnico gmk_ia_asistente. El usuario se borra
+ * con delete_user si no dejo datos en la mesa de ayuda; si dejo, se suspende.
+ * El rol gmk_ia_asistente se borra si no lo tiene nadie mas. Ningun otro
+ * servicio ni token se toca. Idempotente: la segunda vez no hace nada y no
+ * deja evento. Deja un evento ai_service_removed en gmk_tkt_event con el detalle.
+ *
+ * @param int $actorid Quien lo corre (0 = actualizacion del sitio).
+ * @return array Que se quito.
+ */
+function local_grupomakro_core_remove_support_ai_service(int $actorid = 0): array {
+    global $CFG, $DB;
+    $done = ['service' => 0, 'tokens' => 0, 'serviceusers' => 0, 'functions' => 0, 'user' => '', 'userid' => 0,
+        'role' => 0];
+    $service = $DB->get_record('external_services', ['shortname' => 'gmk_support_ai',
+        'component' => 'local_grupomakro_core']);
+    if ($service) {
+        $sid = (int)$service->id;
+        $done['tokens'] = $DB->count_records('external_tokens', ['externalserviceid' => $sid]);
+        $DB->delete_records('external_tokens', ['externalserviceid' => $sid]);
+        $done['serviceusers'] = $DB->count_records('external_services_users', ['externalserviceid' => $sid]);
+        $DB->delete_records('external_services_users', ['externalserviceid' => $sid]);
+        $DB->delete_records('external_services_functions', ['externalserviceid' => $sid]);
+        $DB->delete_records('external_services', ['id' => $sid]);
+        $done['service'] = 1;
+    }
+    $names = ['local_grupomakro_support_ai_export_closed', 'local_grupomakro_support_ai_submit',
+        'local_grupomakro_support_ai_token'];
+    list($in, $params) = $DB->get_in_or_equal($names, SQL_PARAMS_NAMED);
+    $done['functions'] = $DB->count_records_select('external_functions', "name $in", $params);
+    $DB->delete_records_select('external_services_functions', "functionname $in", $params);
+    $DB->delete_records_select('external_functions', "name $in", $params);
+
+    $user = $DB->get_record('user', ['username' => 'gmk_ia_asistente', 'mnethostid' => $CFG->mnet_localhost_id,
+        'deleted' => 0]);
+    if ($user) {
+        $uid = (int)$user->id;
+        $done['userid'] = $uid;
+        $n = $DB->count_records('external_tokens', ['userid' => $uid]);
+        $DB->delete_records('external_tokens', ['userid' => $uid]);
+        $done['tokens'] += $n;
+        $dbman = $DB->get_manager();
+        $hasdata = false;
+        foreach (['gmk_tkt_ai_run' => 'importedby', 'gmk_tkt_ai_sugg' => 'resolvedby', 'gmk_tkt_event' => 'actorid'] as $t => $f) {
+            if ($dbman->table_exists($t) && $DB->record_exists($t, [$f => $uid])) {
+                $hasdata = true;
+            }
+        }
+        if (!$hasdata) {
+            delete_user($user);
+            $done['user'] = 'deleted';
+        } else if (!(int)$user->suspended) {
+            $DB->set_field('user', 'suspended', 1, ['id' => $uid]);
+            \core\session\manager::kill_user_sessions($uid);
+            $done['user'] = 'suspended';
+        } else if ($n) {
+            $done['user'] = 'already_suspended';
+        }
+    }
+    $role = $DB->get_record('role', ['shortname' => 'gmk_ia_asistente']);
+    if ($role && !$DB->record_exists_select('role_assignments', 'roleid = ? AND userid <> ?',
+            [$role->id, $user ? (int)$user->id : 0])) {
+        delete_role((int)$role->id);
+        $done['role'] = 1;
+    }
+    if ($done['service'] || $done['tokens'] || $done['serviceusers'] || $done['functions'] || $done['user'] !== ''
+            || $done['role']) {
+        $DB->insert_record('gmk_tkt_event', (object)['ticketid' => 0, 'eventtype' => 'ai_service_removed',
+            'oldvalue' => 'gmk_support_ai', 'newvalue' => (string)$done['tokens'], 'actorid' => $actorid,
+            'metadata' => json_encode($done), 'timecreated' => time()]);
+    }
+    return $done;
+}

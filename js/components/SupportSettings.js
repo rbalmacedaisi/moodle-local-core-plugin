@@ -44,7 +44,7 @@ Vue.component('support-settings', {
       <v-card outlined v-if="s">
         <v-tabs v-model="tab" show-arrows>
           <v-tab>Áreas</v-tab><v-tab>Temas y agentes</v-tab><v-tab>Respaldos</v-tab>
-          <v-tab>Supervisores y gerencia</v-tab><v-tab>Mensajes automáticos</v-tab><v-tab>Problemas comunes</v-tab><v-tab v-if="config.assistant">Asistente en la nube</v-tab><v-tab>Avisos y escalamiento</v-tab><v-tab>Parámetros</v-tab><v-tab>Auditoría</v-tab>
+          <v-tab>Supervisores y gerencia</v-tab><v-tab>Mensajes automáticos</v-tab><v-tab>Problemas comunes</v-tab><v-tab v-if="config.assistant">Asistente semanal</v-tab><v-tab>Avisos y escalamiento</v-tab><v-tab>Parámetros</v-tab><v-tab>Auditoría</v-tab>
         </v-tabs>
         <v-divider></v-divider>
         <v-tabs-items v-model="tab">

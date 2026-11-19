@@ -1542,7 +1542,6 @@ $string['grupomakro_core:support_supervise'] = 'Supervisar todas las bandejas de
 $string['grupomakro_core:support_viewconfidential'] = 'Ver tickets confidenciales de la mesa de ayuda';
 $string['grupomakro_core:support_manage'] = 'Configurar la mesa de ayuda';
 $string['grupomakro_core:support_assistant'] = 'Gestionar las sugerencias del asistente semanal de la mesa de ayuda';
-$string['grupomakro_core:support_ai_agent'] = 'Agente en la nube de la mesa de ayuda: leer tickets cerrados anonimizados y enviar sugerencias';
 $string['grupomakro_core:support_receive_escalations'] = 'Recibir escalamientos y el resumen diario de la mesa de ayuda';
 $string['messageprovider:support_reply'] = 'Mesa de ayuda: respuesta del personal a tu solicitud';
 $string['messageprovider:support_resolved'] = 'Mesa de ayuda: tu solicitud se marcó resuelta';

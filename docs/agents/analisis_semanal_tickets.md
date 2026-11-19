@@ -1,34 +1,40 @@
-# Agente semanal en la nube: análisis de tickets de la mesa de ayuda
+# Análisis semanal de tickets de la mesa de ayuda (tarea programada local)
 
-Este archivo **es el prompt** de la rutina programada de Claude Code en la nube
-(creada con `/schedule`, cron semanal). La rutina clona este repositorio y sigue estas
-instrucciones. Escribe todo lo visible en español.
+Este archivo **es el prompt** de la tarea programada local de la app de Claude
+`analisis-semanal-mesa-ayuda` (lunes 7:00, hora de Panamá). La tarea corre en el
+equipo de Ramiro, entra por SSH al servidor de Moodle y usa dos CLI del plugin. Escribe
+todo lo visible en español.
 
 Pedido de Ramiro (19-nov-2026): un agente que cada semana revise cómo se cerraron los
 tickets, identifique cómo se solucionó cada problema, lo tipifique y cuantifique, y deje
 sugerencias (problemas comunes, mejoras a respuestas, respuestas rápidas) que se añaden
-con un clic por área en Moodle > Configuración de la mesa de ayuda > Asistente en la nube.
+con un clic por área en Moodle > Configuración de la mesa de ayuda > Asistente semanal.
 
-## Entorno de la rutina
+No hay proveedor de IA, API key, token ni servicio web en Moodle para esto: la versión
+20261001127 quitó el servicio `gmk_support_ai`, sus tokens y el usuario técnico.
 
-- Red: solo hace falta salida HTTPS a `lms.isi.edu.pa` (lista de dominios permitidos del
-  entorno en la nube).
-- Secreto: variable de entorno `MOODLE_AI_TOKEN` con el token que se genera en
-  Configuración > Asistente en la nube > Conexión. **Nunca** se escribe en el repositorio,
-  en archivos, en commits ni en la salida.
-- Endpoint: `https://lms.isi.edu.pa/webservice/rest/server.php` (REST, `moodlewsrestformat=json`).
-- La rutina **no** modifica el repositorio: no hace commits, ramas ni PR.
+## Entorno de la tarea
+
+- Acceso: SSH al servidor de Moodle de producción con el usuario y la llave de
+  `RUNBOOK-HOSTINGER.md` (repositorio de infraestructura). La llave nunca se copia al
+  repositorio, a archivos temporales compartidos ni a la salida.
+- Los CLI se corren desde la raíz de Moodle del servidor como `www-data`:
+  `sudo -u www-data php7.4 local/grupomakro_core/cli/<script>.php …`.
+- Archivos de trabajo: solo en `/tmp/gmk_ai_<semana>/` del servidor (creado con
+  `umask 077`) y en el directorio temporal local de la tarea. Se borran al terminar.
+- La tarea **no** modifica el repositorio: no hace commits, ramas ni PR.
 
 ## Reglas duras
 
-1. Solo llamas a dos funciones: `local_grupomakro_support_ai_export_closed` y
-   `local_grupomakro_support_ai_submit`. Ninguna otra URL ni función.
+1. En el servidor solo corres `support_ai_export.php` y `support_ai_import.php` (más
+   `mkdir`, `cat`, `rm` de tus archivos de trabajo). Ningún otro comando que escriba,
+   ninguna consulta directa a la base de datos.
 2. Los datos ya vienen anonimizados por el servidor (marcadores `[SOLICITANTE]`,
    `[AGENTE]`, `[NOMBRE]`, `[CORREO]`, `[TELEFONO]`, `[CEDULA]`, `[NUMERO]`). No intentes
-   deducir identidades. Nunca escribas nombres ni datos personales en lo que envías.
+   deducir identidades. Nunca escribas nombres ni datos personales en lo que importas.
 3. Psicología y los temas confidenciales no vienen y no se tratan.
-4. Si una llamada devuelve `exception`/`errorcode`, o el JSON no es válido, **detente** y
-   reporta el error tal cual (sin el token). No reintentes más de una vez.
+4. Si un CLI termina con error o el JSON no es válido, **detente** y reporta el error tal
+   cual. No reintentes más de una vez.
 5. No imprimas el contenido de los tickets en tu respuesta final: solo conteos y títulos
    de sugerencias.
 
@@ -37,15 +43,12 @@ con un clic por área en Moodle > Configuración de la mesa de ayuda > Asistente
 ### 1. Leer los tickets
 
 ```bash
-curl -sS --fail-with-body "https://lms.isi.edu.pa/webservice/rest/server.php" \
-  --data-urlencode "wstoken=${MOODLE_AI_TOKEN}" \
-  -d wsfunction=local_grupomakro_support_ai_export_closed \
-  -d moodlewsrestformat=json -d limit=200 > respuesta.json
-python3 -c "import json;r=json.load(open('respuesta.json'));assert 'json' in r, r;open('export.json','w').write(r['json'])"
+ssh <servidor-moodle> 'cd <raíz de Moodle> && sudo -u www-data php7.4 \
+  local/grupomakro_core/cli/support_ai_export.php --limit=200' > export.json
 ```
 
-`export.json` tiene `format: gmk-support-ai-export/1`, `period {from,to}`, `tickets[]` y
-`context`. Cada ticket: `id, areaid, area, categoryid, category, requester
+`export.json` (copia local) tiene `format: gmk-support-ai-export/1`, `period {from,to}`,
+`tickets[]` y `context`. Cada ticket: `id, areaid, area, categoryid, category, requester
 (estudiante|docente), status, subject, created, hours_to_first_response,
 hours_to_resolution, reopened, rating (0-5), rating_solved (si|no|sin respuesta),
 rating_comment, faq_tried {id, problem} | null, messages [{from: solicitante|agente,
@@ -53,8 +56,8 @@ text, attachments}], truncated`. `context`: `areas` (con `topics`), `faqs` (prob
 comunes con `views/solved/notsolved`), `canned`, `taxonomy` (tipos usados antes, con
 conteo) y `previous_suggestions` (pendientes o atendidas hace poco).
 
-Solo trae tickets aún no tipificados: si una semana falla el envío, la siguiente los vuelve
-a traer.
+Solo trae tickets aún no tipificados: si una semana falla la importación, la siguiente
+los vuelve a traer.
 
 ### 2. Tipificar cada ticket
 
@@ -99,14 +102,14 @@ apps.apple.com, play.google.com o google.com. Nunca inventes URLs.
 `examples`: hasta 3 frases cortas copiadas de `export.json` (ya anonimizadas, máx. 300
 caracteres).
 
-### 4. Enviar
+### 4. Importar
 
 Arma `run.json`:
 
 ```json
 {
   "runkey": "2026-W47",
-  "model": "Claude (rutina en la nube de Claude Code)",
+  "model": "Claude (tarea programada local de la app de Claude)",
   "period": {"from": 0, "to": 0},
   "usage": {"input_tokens": 0, "output_tokens": 0},
   "summary": "1 a 3 frases sobre la semana.",
@@ -128,26 +131,30 @@ Arma `run.json`:
 - `runkey` = semana ISO actual (`AAAA-Wnn`).
 - `period` = el de `export.json`.
 
-Si no hubo tickets, envía `classifications` y `suggestions` vacíos: la ejecución queda en
-el historial igual.
+Si no hubo tickets, importa `classifications` y `suggestions` vacíos: la ejecución queda
+en el historial igual.
 
-Primero valida sin guardar:
+Súbelo al servidor y valida primero sin guardar:
 
 ```bash
-curl -sS --fail-with-body "https://lms.isi.edu.pa/webservice/rest/server.php" \
-  --data-urlencode "wstoken=${MOODLE_AI_TOKEN}" \
-  -d wsfunction=local_grupomakro_support_ai_submit -d moodlewsrestformat=json \
-  -d dryrun=1 --data-urlencode "run@run.json"
+ssh <servidor-moodle> 'umask 077 && mkdir -p /tmp/gmk_ai_2026-W47 && cat > /tmp/gmk_ai_2026-W47/run.json' < run.json
+ssh <servidor-moodle> 'cd <raíz de Moodle> && sudo -u www-data php7.4 \
+  local/grupomakro_core/cli/support_ai_import.php --file=/tmp/gmk_ai_2026-W47/run.json --dry-run'
 ```
 
-Revisa `report`:
+(Si `www-data` no puede leer el archivo, usa `chmod 644` solo sobre `run.json`; no tiene
+datos personales.)
 
-- `classified` debe ser igual al número de tickets exportados.
-- Revisa los motivos de `skipped` y `suggestions_skipped`.
+Revisa el informe (JSON):
+
+- `status` debe ser `dry_run`;
+- `classified` debe ser igual al número de tickets exportados;
+- revisa los motivos de `skipped` y `suggestions_skipped`.
 
 Si el rechazo es un error tuyo, corrige `run.json` y valida una sola vez más. Después
-envía con `dryrun=0`. Si la respuesta es `already_imported`, esa semana ya se envió: no
-hagas nada más.
+importa sin `--dry-run`. Si `status` es `already_imported`, esa semana ya se importó: no
+hagas nada más. Al final borra `/tmp/gmk_ai_<semana>/` en el servidor y tus copias
+locales de `export.json` y `run.json`.
 
 ### 5. Respuesta final
 
@@ -157,7 +164,7 @@ Cinco líneas como máximo:
 - los 3 problemas más frecuentes;
 - sugerencias nuevas por área (tipo y título);
 - rechazos, si los hubo;
-- recordatorio: se revisan en Configuración > Asistente en la nube.
+- recordatorio: se revisan en Configuración de la mesa de ayuda > Asistente semanal.
 
 ## Qué valida el servidor (para no depender del agente)
 
@@ -167,7 +174,7 @@ Cinco líneas como máximo:
   las tipificaciones válidas del área.
 - Sanea todos los textos (sin etiquetas, con largo máximo) y descarta los botones que no
   sean `https`, los tipos desconocidos y las áreas confidenciales.
-- Rechaza envíos de más de 2 MB, más de 600 tipificaciones o más de 60 sugerencias.
+- Rechaza archivos de más de 2 MB, más de 600 tipificaciones o más de 60 sugerencias.
 - Vuelve a anonimizar los ejemplos.
 - No vuelve a proponer, durante 60 días, lo que alguien descartó.
 - Nada llega a estudiantes ni a docentes hasta que una persona pulsa **Añadir**. Añadir
