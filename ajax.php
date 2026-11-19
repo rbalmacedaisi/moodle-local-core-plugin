@@ -2331,6 +2331,30 @@ try {
                   ORDER BY gap.id DESC, c.fullname ASC",
                 $params_q
             );
+            // Estudiantes de cada módulo (cualquier estado) para el filtro por cédula o nombre.
+            foreach ($module_list as $ml) {
+                $ml->students = [];
+            }
+            if ($module_list) {
+                list($in_ml, $p_ml) = $DB->get_in_or_equal(array_keys($module_list), SQL_PARAMS_NAMED, 'mlc');
+                $ml_students = $DB->get_recordset_sql(
+                    "SELECT gme.id, gme.classid, gme.userid, gme.status, u.username, u.firstname, u.lastname
+                       FROM {gmk_module_enrollment} gme
+                       JOIN {user} u ON u.id = gme.userid AND u.deleted = 0
+                      WHERE gme.classid $in_ml
+                      ORDER BY u.lastname, u.firstname",
+                    $p_ml
+                );
+                foreach ($ml_students as $mls) {
+                    $module_list[$mls->classid]->students[] = [
+                        'userid'   => (int)$mls->userid,
+                        'username' => (string)$mls->username,
+                        'fullname' => trim($mls->firstname . ' ' . $mls->lastname),
+                        'status'   => (string)$mls->status,
+                    ];
+                }
+                $ml_students->close();
+            }
             $response = ['status' => 'success', 'data' => array_values($module_list)];
             break;
 
@@ -2339,7 +2363,7 @@ try {
             $classid_m = required_param('classId', PARAM_INT);
             $module_students = $DB->get_records_sql(
                 "SELECT gme.id, gme.userid, gme.enrolldate, gme.duedate, gme.status,
-                        u.firstname, u.lastname, u.email,
+                        u.firstname, u.lastname, u.email, u.username,
                         c.fullname AS coursename
                    FROM {gmk_module_enrollment} gme
                    JOIN {user} u ON u.id = gme.userid

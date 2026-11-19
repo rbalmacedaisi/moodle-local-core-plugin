@@ -28,6 +28,7 @@ Vue.component('modulemanagement', {
             modules: [],
             loadingModules: false,
             moduleSearch: '',
+            studentSearch: '',
             moduleHeaders: [
                 { text: 'Asignatura',    value: 'coursename',           sortable: true  },
                 { text: 'Período',       value: 'periodcode',           sortable: true  },
@@ -96,6 +97,7 @@ Vue.component('modulemanagement', {
             pendingByClass:     {},      // { classid: n entregas por calificar }
             onlyPending:        false,
             studentsOnlyPending: false,
+            studentsDialogSearch: '',
             reviewDialog:       false,
             reviewEnrollment:   null,
             reviewDetail:       null,
@@ -108,6 +110,8 @@ Vue.component('modulemanagement', {
                 page: 'Cómo se trabaja un módulo:\n1. Filtre por período o busque la asignatura.\n2. La columna "Por calificar" indica cuántos estudiantes ya enviaron la actividad y esperan nota.\n3. Pulse "Estudiantes" para ver los inscritos y el estado de su entrega.\n4. Pulse "Revisar" en el estudiante: verá sus archivos, podrá poner la nota y el comentario y completarlo en el mismo paso.',
                 period: 'Muestra solo los módulos del período académico elegido. "Todos los períodos" incluye los recién creados.',
                 search: 'Escriba parte del nombre de la asignatura para filtrar la tabla.',
+                studentSearch: 'Escriba la cédula (con o sin guiones) o parte del nombre del estudiante. La tabla muestra solo los módulos donde está inscrito y su nombre aparece debajo de la asignatura. Si no sale, elija "Todos los períodos".',
+                studentsDialogSearch: 'Filtra la lista de este módulo por cédula o nombre.',
                 onlyPending: 'Al activarlo, la tabla muestra solo los módulos que tienen entregas esperando calificación.',
                 refresh: 'Vuelve a cargar los módulos y el conteo de entregas por calificar.',
                 group: 'Grupo de Moodle del módulo. El enlace abre la lista de miembros del grupo en Moodle.',
@@ -142,10 +146,18 @@ Vue.component('modulemanagement', {
             return this.students.filter(s => s._submission === 'pending');
         },
         visibleStudents() {
-            return this.studentsOnlyPending ? this.pendingStudents : this.students;
+            const base = this.studentsOnlyPending ? this.pendingStudents : this.students;
+            const q = (this.studentsDialogSearch || '').trim();
+            return q ? base.filter(s => this.studentMatches(s._fullname, s.username, q)) : base;
         },
         visibleModules() {
-            const list = this.modules.map(m => ({ ...m, _pending: this.pendingByClass[m.id] || 0 }));
+            const q = (this.studentSearch || '').trim();
+            let list = this.modules.map(m => ({
+                ...m,
+                _pending: this.pendingByClass[m.id] || 0,
+                _matched: q ? (m.students || []).filter(s => this.studentMatches(s.fullname, s.username, q)) : [],
+            }));
+            if (q) list = list.filter(m => m._matched.length > 0);
             return this.onlyPending ? list.filter(m => m._pending > 0) : list;
         },
         totalPending() {
@@ -485,10 +497,26 @@ Vue.component('modulemanagement', {
             return 'grey';
         },
 
+        // Texto sin tildes ni mayúsculas, para comparar nombres.
+        normText(s) {
+            return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+        },
+        // Coincide por nombre (todas las palabras, en cualquier orden) o por cédula (sin guiones ni espacios).
+        studentMatches(fullname, username, q) {
+            const nq = this.normText(q);
+            if (!nq) return true;
+            const doc  = String(username || '').replace(/[\s-]/g, '').toLowerCase();
+            const docq = nq.replace(/[\s-]/g, '');
+            if (docq && /\d/.test(docq) && doc.indexOf(docq) !== -1) return true;
+            const name = this.normText(fullname);
+            return nq.split(/\s+/).every(w => name.indexOf(w) !== -1);
+        },
+
         async openStudents(module) {
             this.selectedModule  = module;
             this.students        = [];
             this.studentsOnlyPending = false;
+            this.studentsDialogSearch = (this.studentSearch || '').trim();
             this.studentsDialog  = true;
             this.loadingStudents = true;
             try {
@@ -1014,6 +1042,16 @@ Vue.component('modulemanagement', {
       </v-card-title>
 
       <v-card-text class="pa-0">
+        <div class="d-flex align-center px-4 pt-3 pb-2">
+          <v-text-field
+            v-model="studentsDialogSearch"
+            prepend-inner-icon="mdi-account-search"
+            label="Buscar por cédula o nombre..."
+            outlined dense hide-details clearable
+            style="max-width: 380px"
+          ></v-text-field>
+          <mm-info :text="help.studentsDialogSearch"></mm-info>
+        </div>
         <v-alert v-if="pendingStudents.length" color="orange darken-2" dark tile dense class="mb-0">
           <div class="d-flex align-center flex-wrap">
             <v-icon dark class="mr-2 mm-pulse">mdi-file-clock-outline</v-icon>
@@ -1065,7 +1103,9 @@ Vue.component('modulemanagement', {
                 title="Entregó y espera calificación">mdi-alert-circle</v-icon>
               <div>
                 <span :class="item._submission === 'pending' ? 'font-weight-bold' : 'font-weight-medium'">{{ item._fullname }}</span>
-                <div class="text-caption grey--text">{{ item.email }}</div>
+                <div class="text-caption grey--text">
+                  <span v-if="item.username">{{ item.username }} · </span>{{ item.email }}
+                </div>
                 <div v-if="item._submission === 'pending'" class="text-caption font-weight-bold"
                   :class="waitingDays(item) > 7 ? 'red--text text--darken-2' : 'orange--text text--darken-3'">
                   {{ waitingText(item) }}
@@ -1404,7 +1444,7 @@ Vue.component('modulemanagement', {
                   <template v-slot:append-outer><mm-info :text="help.period"></mm-info></template>
                 </v-select>
               </v-col>
-              <v-col cols="12" sm="5" md="4">
+              <v-col cols="12" sm="4" md="3">
                 <v-text-field
                   v-model="moduleSearch"
                   prepend-inner-icon="mdi-magnify"
@@ -1417,7 +1457,20 @@ Vue.component('modulemanagement', {
                   <template v-slot:append-outer><mm-info :text="help.search"></mm-info></template>
                 </v-text-field>
               </v-col>
-              <v-col cols="12" sm="3" class="d-flex align-center">
+              <v-col cols="12" sm="4" md="3">
+                <v-text-field
+                  v-model="studentSearch"
+                  prepend-inner-icon="mdi-account-search"
+                  label="Estudiante (cédula o nombre)..."
+                  outlined
+                  dense
+                  hide-details
+                  clearable
+                >
+                  <template v-slot:append-outer><mm-info :text="help.studentSearch"></mm-info></template>
+                </v-text-field>
+              </v-col>
+              <v-col cols="12" sm="4" md="3" class="d-flex align-center">
                 <v-switch v-model="onlyPending" color="orange darken-2" dense hide-details class="mt-0"
                   :label="'Solo con entregas por calificar' + (totalPending ? ' (' + totalPending + ')' : '')"></v-switch>
                 <mm-info :text="help.onlyPending"></mm-info>
@@ -1441,7 +1494,9 @@ Vue.component('modulemanagement', {
             :loading="loadingModules"
             :search="moduleSearch"
             loading-text="Cargando módulos..."
-            no-data-text="No hay módulos registrados para el período seleccionado."
+            :no-data-text="studentSearch && studentSearch.trim()
+              ? ('Ese estudiante no está en ningún módulo' + (selectedPeriodId ? ' de este período. Pruebe con Todos los períodos.' : '.'))
+              : 'No hay módulos registrados para el período seleccionado.'"
             :footer-props="{ 'items-per-page-options': [10, 25, 50] }"
             dense
           >
@@ -1464,6 +1519,14 @@ Vue.component('modulemanagement', {
               <v-icon v-if="item._pending > 0" small color="orange darken-2" class="mr-1"
                 title="Tiene entregas esperando calificación">mdi-alert-circle</v-icon>
               <span :class="item._pending > 0 ? 'font-weight-bold' : 'font-weight-medium'">{{ item.coursename }}</span>
+              <div v-if="item._matched && item._matched.length" class="mt-1">
+                <v-chip v-for="s in item._matched" :key="s.userid" x-small class="mr-1 mb-1"
+                  :color="s.status === 'active' ? 'teal' : 'grey'" outlined
+                  style="cursor:pointer" @click="openStudents(item)" :title="'Inscripción: ' + s.status">
+                  <v-icon x-small left>mdi-account</v-icon>{{ s.fullname }} · {{ s.username }}
+                  <span v-if="s.status !== 'active'" class="ml-1">({{ s.status === 'completed' ? 'completado' : s.status }})</span>
+                </v-chip>
+              </div>
             </template>
 
             <!-- Período -->
