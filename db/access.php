@@ -428,4 +428,27 @@ $capabilities = array(
         'captype' => 'write', 'contextlevel' => CONTEXT_SYSTEM,
         'archetypes' => array('manager' => CAP_ALLOW),
     ),
+    // 20261001129: dashboard administrativo "Mis pendientes" (pages/admin_dashboard.php).
+    // Roles en upgradelib.php (local_grupomakro_core_assign_dashboard_caps).
+    'local/grupomakro_core:view_admin_dashboard' => array(
+        'captype' => 'read', 'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array('manager' => CAP_ALLOW),
+    ),
+    // Vista "Mi equipo": la cola completa de todas las fuentes (supervisores y gerencia).
+    'local/grupomakro_core:view_admin_dashboard_team' => array(
+        'riskbitmask' => RISK_PERSONAL,
+        'captype' => 'read', 'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array('manager' => CAP_ALLOW),
+    ),
+    // Configurar ANS, horario, alertas y que el dashboard sea el inicio.
+    'local/grupomakro_core:dashboard_manage' => array(
+        'riskbitmask' => RISK_CONFIG,
+        'captype' => 'write', 'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array('manager' => CAP_ALLOW),
+    ),
+    // Recibe las alertas criticas del dashboard ademas del rol gmk_gerencia.
+    'local/grupomakro_core:dashboard_receive_escalations' => array(
+        'captype' => 'read', 'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array(),
+    ),
 );

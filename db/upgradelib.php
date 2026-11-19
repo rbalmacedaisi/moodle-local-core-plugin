@@ -1118,6 +1118,8 @@ function assign_capabilities_to_internal_roles() {
             assign_capability($capability, $permission, $role->id, $context->id);
         }
     }
+    // Dashboard administrativo (20261001129).
+    local_grupomakro_core_assign_dashboard_caps();
 
     // The "Add an activity or resource" picker is filled from the
     // mod/<modname>:addinstance capabilities, one per installed module. They are
@@ -1258,4 +1260,40 @@ function local_grupomakro_core_remove_support_ai_service(int $actorid = 0): arra
             'metadata' => json_encode($done), 'timecreated' => time()]);
     }
     return $done;
+}
+
+/**
+ * Dashboard administrativo (20261001129): capacidades por rol. Aparte del
+ * bundle principal para no chocar con otras ramas que lo editan; tambien se
+ * llama al final de assign_capabilities_to_internal_roles(). Idempotente.
+ *
+ * @return void
+ */
+function local_grupomakro_core_assign_dashboard_caps() {
+    global $DB;
+    $context = context_system::instance();
+    $view = 'local/grupomakro_core:view_admin_dashboard';
+    $team = 'local/grupomakro_core:view_admin_dashboard_team';
+    $map = [
+        'gmk_director_academico'   => [$view, $team],
+        'gmk_secretaria_academica' => [$view, $team],
+        'gmk_registros_academicos' => [$view],
+        'gmk_soporte_ti'           => [$view],
+        'gmk_bienestar'            => [$view],
+        'gmk_psicologo'            => [$view],
+        'gmk_director_general'     => [$view, $team],
+        'gmk_gerencia'             => [$view, $team, 'local/grupomakro_core:dashboard_manage'],
+        'administrative'           => [$view],
+    ];
+    foreach ($map as $shortname => $caps) {
+        $role = $DB->get_record('role', ['shortname' => $shortname]);
+        if (!$role) {
+            continue;
+        }
+        foreach ($caps as $capability) {
+            if ($DB->record_exists('capabilities', ['name' => $capability])) {
+                assign_capability($capability, CAP_ALLOW, $role->id, $context->id);
+            }
+        }
+    }
 }

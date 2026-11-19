@@ -128,6 +128,16 @@ function local_grupomakro_core_guard_financial_block(int $courseid): void {
 function local_grupomakro_core_get_staff_landing_url(): ?moodle_url {
     $context = context_system::instance();
 
+    // Dashboard administrativo "Mis pendientes" (20261001129): el inicio de
+    // todos los administrativos cuando dash_home_enabled = 1. Los
+    // administradores del sitio siguen como antes (decision de Ramiro,
+    // 19-nov-2026): has_capability() les daria true por doanything. Estudiantes
+    // y docentes no tienen la capacidad y siguen su propio camino.
+    if (get_config('local_grupomakro_core', 'dash_home_enabled') && !is_siteadmin()
+            && has_capability('local/grupomakro_core:view_admin_dashboard', $context)) {
+        return new moodle_url('/local/grupomakro_core/pages/admin_dashboard.php');
+    }
+
     // capability => page, in priority order.
     $candidates = [
         'view_academic_panel'            => 'academicpanel.php',
@@ -276,6 +286,7 @@ function local_grupomakro_core_extend_navigation(global_navigation $navigation) 
                 ['view_overlap_analytics', 'overlap_analytics.php', '🔍 Analítica de Solapamientos'],
             ],
             get_string('admin_category_label', $pluginname) => [
+                ['view_admin_dashboard', 'admin_dashboard.php', '🏠 ' . get_string('admindash_title', $pluginname)],
                 ['view_academic_panel', 'academicpanel.php', '🎯 ' . get_string('academic_director_panel', $pluginname)],
                 ['view_classmanagement', 'classmanagement.php', '📘 ' . get_string('class_management', $pluginname)],
                 // Las 3 paginas de horarios exponen la misma informacion (calendario

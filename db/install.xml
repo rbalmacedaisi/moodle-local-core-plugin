@@ -103,6 +103,11 @@
         <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
         <KEY NAME="usermodified" TYPE="foreign" FIELDS="usermodified" REFTABLE="user" REFFIELDS="id"/>
       </KEYS>
+      <INDEXES>
+        <INDEX NAME="closed_enddate_idx" UNIQUE="false" FIELDS="closed, enddate" COMMENT="Dashboard: clases sin cerrar"/>
+        <INDEX NAME="approved_closed_idx" UNIQUE="false" FIELDS="approved, closed" COMMENT="Dashboard: clases sin aprobar"/>
+        <INDEX NAME="periodid_idx" UNIQUE="false" FIELDS="periodid" COMMENT="Dashboard: planificacion del proximo periodo"/>
+      </INDEXES>
     </TABLE>
     <TABLE NAME="gmk_teacher_disponibility" COMMENT="This table holds the disponibility records of the teachers">
       <FIELDS>
@@ -390,6 +395,7 @@
         <INDEX NAME="userclass_uix" UNIQUE="true" FIELDS="userid, classid"/>
         <INDEX NAME="alert_idx" UNIQUE="false" FIELDS="userid, alert_level"/>
         <INDEX NAME="class_idx" UNIQUE="false" FIELDS="classid, alert_level"/>
+        <INDEX NAME="level_blocked_idx" UNIQUE="false" FIELDS="alert_level, blocked_at" COMMENT="Dashboard: bloqueos sin resolver"/>
       </INDEXES>
     </TABLE>
     <TABLE NAME="gmk_class_absence_history" COMMENT="Append-only audit log of per-class absence state transitions">
@@ -904,6 +910,7 @@
         <INDEX NAME="class_user_uix" UNIQUE="true" FIELDS="classid, userid"/>
         <INDEX NAME="userid_idx" UNIQUE="false" FIELDS="userid"/>
         <INDEX NAME="invoice_extref_idx" UNIQUE="false" FIELDS="invoice_extref"/>
+        <INDEX NAME="status_sessionend_idx" UNIQUE="false" FIELDS="status, sessionend" COMMENT="Dashboard: revalidas sin nota"/>
       </INDEXES>
     </TABLE>
     <TABLE NAME="gmk_academic_alerts" COMMENT="Persistent academic alerts for students in critical states (e.g. finished cycle with pending courses)">
@@ -1447,6 +1454,7 @@
              non-unique indexes collided at xmldb time. -->
         <INDEX NAME="status_idx"       UNIQUE="false" FIELDS="status"/>
         <INDEX NAME="when_idx"         UNIQUE="false" FIELDS="appointment_at"/>
+        <INDEX NAME="psy_status_idx" UNIQUE="false" FIELDS="psychologist_userid, status" COMMENT="Dashboard: citas por psicologo"/>
       </INDEXES>
     </TABLE>
     <TABLE NAME="gmk_wellness_staff_role" COMMENT="Editable mapping of wellness operational rolekeys to Moodle users + explicit institutional email. Replaces the legacy wellness_psychology_email_dulce / _jorge settings. UNIQUE (rolekey, active) ensures at most one active row per rolekey.">
@@ -2246,6 +2254,25 @@
       <INDEXES>
         <INDEX NAME="idx_tktaisug_status" UNIQUE="false" FIELDS="status, areaid"/>
         <INDEX NAME="idx_tktaisug_key" UNIQUE="false" FIELDS="kind, areaid, problemtype"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="gmk_dash_alert" COMMENT="Dashboard administrativo: niveles de ANS ya avisados por pendiente (una fila por nivel; se borran cuando el pendiente sale de la cola o cambia su ancla).">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="srckey" TYPE="char" LENGTH="40" NOTNULL="true" SEQUENCE="false" COMMENT="Clave de la fuente (registry)"/>
+        <FIELD NAME="itemref" TYPE="char" LENGTH="100" NOTNULL="true" SEQUENCE="false" COMMENT="Identificador del pendiente dentro de la fuente"/>
+        <FIELD NAME="slatype" TYPE="char" LENGTH="40" NOTNULL="true" SEQUENCE="false" COMMENT="Tipo de ANS"/>
+        <FIELD NAME="alertlevel" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="1 por vencer, 2 vencido, 3 critico"/>
+        <FIELD NAME="anchor" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="since o deadline del pendiente al avisar"/>
+        <FIELD NAME="silent" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="1 = registrado en la primera pasada sin avisar"/>
+        <FIELD NAME="timesent" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="source_ref_level_uix" UNIQUE="true" FIELDS="srckey, itemref, alertlevel"/>
       </INDEXES>
     </TABLE>
 

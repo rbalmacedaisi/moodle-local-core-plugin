@@ -111,4 +111,11 @@ $definitions = [
         'simpledata' => false,
         'ttl' => 20,
     ],
+    // Dashboard administrativo: tarjetas por usuario y vista (20261001129).
+    'admindash' => [
+        'mode' => cache_store::MODE_APPLICATION,
+        'simplekeys' => true,
+        'simpledata' => false,
+        'ttl' => 60,
+    ],
 ];
