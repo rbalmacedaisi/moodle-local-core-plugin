@@ -57,6 +57,8 @@ class get_lp_students extends external_api {
                         llu.currentperiodid    AS periodid,
                         llu.currentsubperiodid AS subperiodid,
                         llu.groupname,
+                        u.username,
+                        u.idnumber,
                         u.firstname,
                         u.lastname,
                         u.email,
@@ -81,6 +83,9 @@ class get_lp_students extends external_api {
                     'periodid'      => (int)($r->periodid ?? 0),
                     'subperiodid'   => (int)($r->subperiodid ?? 0),
                     'groupname'     => (string)($r->groupname ?? ''),
+                    // Cedula: con ella Odoo enlaza al estudiante para traer su cuatrimestre academico.
+                    'username'      => (string)$r->username,
+                    'idnumber'      => (string)($r->idnumber ?? ''),
                     'fullname'      => trim($r->firstname . ' ' . $r->lastname),
                     'email'         => (string)$r->email,
                     'planname'      => (string)$r->planname,
