@@ -34,7 +34,7 @@ defined('MOODLE_INTERNAL') || die();
 
 class settings {
 
-    const SECTIONS = ['area', 'category', 'agent', 'backup', 'person', 'template', 'config', 'presence', 'agenthours', 'faq'];
+    const SECTIONS = ['area', 'category', 'agent', 'backup', 'person', 'template', 'config', 'presence', 'agenthours', 'faq', 'canned'];
 
     public static function export(): array {
         global $DB;
@@ -178,7 +178,10 @@ class settings {
         return $out;
     }
 
-    public static function apply(string $section, string $op, array $data, int $actorid): void {
+    /**
+     * @return mixed the new row (null on delete), for callers that need its id (assistant)
+     */
+    public static function apply(string $section, string $op, array $data, int $actorid) {
         global $DB;
         if (!in_array($section, self::SECTIONS, true) || !in_array($op, ['save', 'delete'], true)) {
             throw new invalid_parameter_exception('Unknown section or op');
@@ -193,6 +196,7 @@ class settings {
             $actorid, ['op' => $op]);
         $transaction->allow_commit();
         manager::reset_caches();
+        return $new;
     }
 
     // --- Areas ------------------------------------------------------------
@@ -426,6 +430,39 @@ class settings {
 
     private static function delete_faq(array $d): array {
         return faq::delete($d);
+    }
+
+    // --- Quick replies for agents (gmk_tkt_canned; the assistant proposes them) ---
+
+    private static function save_canned(array $d): array {
+        global $DB;
+        $areaid = (int)($d['areaid'] ?? 0);
+        if (!$DB->record_exists('gmk_tkt_area', ['id' => $areaid])) {
+            throw new invalid_parameter_exception('Área inválida');
+        }
+        $body = trim(str_replace("\r\n", "\n", clean_param((string)($d['body'] ?? ''), PARAM_TEXT)));
+        if ($body === '') {
+            throw new invalid_parameter_exception('El texto de la respuesta rápida es obligatorio');
+        }
+        $row = (object)['areaid' => $areaid, 'title' => self::text($d, 'title', 150, true), 'body' => $body,
+            'timemodified' => time()];
+        $id = (int)($d['id'] ?? 0);
+        if ($id > 0) {
+            $old = $DB->get_record('gmk_tkt_canned', ['id' => $id], '*', MUST_EXIST);
+            $row->id = $id;
+            $DB->update_record('gmk_tkt_canned', $row);
+            return [$old, $row];
+        }
+        $row->timecreated = $row->timemodified;
+        $row->id = $DB->insert_record('gmk_tkt_canned', $row);
+        return [null, $row];
+    }
+
+    private static function delete_canned(array $d): array {
+        global $DB;
+        $old = $DB->get_record('gmk_tkt_canned', ['id' => (int)($d['id'] ?? 0)], '*', MUST_EXIST);
+        $DB->delete_records('gmk_tkt_canned', ['id' => $old->id]);
+        return [$old, null];
     }
 
     // --- Templates and parameters ---------------------------------------------

@@ -2349,6 +2349,22 @@ $functions = array(
         'capabilities'  => '',
         'ajax'        => true,
     ),
+    'local_grupomakro_support_ai_get' => array(
+        'classname'   => 'local_grupomakro_core\external\support\ai_get',
+        'methodname'  => 'execute',
+        'description' => 'Sugerencias, tipificaciones e historial del asistente semanal de la mesa de ayuda.',
+        'type'        => 'read',
+        'capabilities'  => 'local/grupomakro_core:support_assistant',
+        'ajax'        => true,
+    ),
+    'local_grupomakro_support_ai_action' => array(
+        'classname'   => 'local_grupomakro_core\external\support\ai_action',
+        'methodname'  => 'execute',
+        'description' => 'Anade (con o sin edicion), descarta o recupera una sugerencia del asistente semanal.',
+        'type'        => 'write',
+        'capabilities'  => 'local/grupomakro_core:support_assistant',
+        'ajax'        => true,
+    ),
     'local_grupomakro_support_search_users' => array(
         'classname'   => 'local_grupomakro_core\external\support\search_users',
         'methodname'  => 'execute',

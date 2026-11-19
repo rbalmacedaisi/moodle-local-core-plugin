@@ -1535,6 +1535,7 @@ $string['grupomakro_core:support_agent'] = 'Handle help desk tickets';
 $string['grupomakro_core:support_supervise'] = 'Supervise every help desk queue';
 $string['grupomakro_core:support_viewconfidential'] = 'View confidential help desk tickets';
 $string['grupomakro_core:support_manage'] = 'Configure the help desk';
+$string['grupomakro_core:support_assistant'] = 'Manage the help desk weekly assistant suggestions';
 $string['grupomakro_core:support_receive_escalations'] = 'Receive help desk escalations and the daily digest';
 $string['messageprovider:support_reply'] = 'Help desk: staff replied to your request';
 $string['messageprovider:support_resolved'] = 'Help desk: your request was marked resolved';

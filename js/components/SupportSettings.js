@@ -44,7 +44,7 @@ Vue.component('support-settings', {
       <v-card outlined v-if="s">
         <v-tabs v-model="tab" show-arrows>
           <v-tab>Áreas</v-tab><v-tab>Temas y agentes</v-tab><v-tab>Respaldos</v-tab>
-          <v-tab>Supervisores y gerencia</v-tab><v-tab>Mensajes automáticos</v-tab><v-tab>Problemas comunes</v-tab><v-tab>Avisos y escalamiento</v-tab><v-tab>Parámetros</v-tab><v-tab>Auditoría</v-tab>
+          <v-tab>Supervisores y gerencia</v-tab><v-tab>Mensajes automáticos</v-tab><v-tab>Problemas comunes</v-tab><v-tab v-if="config.assistant">Asistente IA</v-tab><v-tab>Avisos y escalamiento</v-tab><v-tab>Parámetros</v-tab><v-tab>Auditoría</v-tab>
         </v-tabs>
         <v-divider></v-divider>
         <v-tabs-items v-model="tab">
@@ -204,6 +204,14 @@ Vue.component('support-settings', {
                   </div>
                 </v-card>
               </div>
+            </v-card-text>
+          </v-tab-item>
+
+          <!-- Weekly assistant (20261001126) -->
+          <v-tab-item v-if="config.assistant">
+            <v-card-text>
+              <support-assistant ref="assistant" :areas="s.areas" :categories="s.categories" @edit="editFromSuggestion"
+                @changed="load" @notify="notify"></support-assistant>
             </v-card-text>
           </v-tab-item>
 
@@ -390,7 +398,7 @@ Vue.component('support-settings', {
       <!-- Common problem dialog -->
       <v-dialog v-model="faqDialog.open" max-width="760" scrollable :fullscreen="$vuetify.breakpoint.xsOnly">
         <v-card v-if="faqDialog.row">
-          <v-card-title>{{ faqDialog.row.id ? 'Editar problema común' : 'Nuevo problema común' }} · {{ areaName(faqDialog.row.areaid) }}</v-card-title>
+          <v-card-title class="gmk-wrap">{{ faqDialog.aiSugg ? 'Sugerencia del asistente: ' : '' }}{{ faqDialog.row.id ? 'Editar problema común' : 'Nuevo problema común' }} · {{ areaName(faqDialog.row.areaid) }}</v-card-title>
           <v-card-text>
             <v-text-field v-model="faqDialog.row.problem" label="Problema (lo que la persona elige)" outlined dense counter="255" maxlength="255"></v-text-field>
             <v-textarea v-model="faqDialog.row.answer" label="Respuesta" outlined auto-grow rows="5"
@@ -415,10 +423,10 @@ Vue.component('support-settings', {
             </v-row>
           </v-card-text>
           <v-card-actions class="flex-wrap">
-            <v-btn v-if="faqDialog.row.id" text color="error" @click="removeFaq">Borrar</v-btn>
+            <v-btn v-if="faqDialog.row.id && !faqDialog.aiSugg" text color="error" @click="removeFaq">Borrar</v-btn>
             <v-spacer></v-spacer>
             <v-btn text @click="faqDialog.open = false">Cancelar</v-btn>
-            <v-btn color="primary" depressed @click="saveFaq">Guardar</v-btn>
+            <v-btn color="primary" depressed @click="saveFaq">{{ faqDialog.aiSugg ? 'Añadir' : 'Guardar' }}</v-btn>
           </v-card-actions>
         </v-card>
       </v-dialog>
@@ -456,7 +464,7 @@ Vue.component('support-settings', {
                 { n: 5, label: 'Viernes' }, { n: 6, label: 'Sábado' }, { n: 7, label: 'Domingo' }],
             areaDialog: { open: false, row: null, hours: {} },
             agentHoursDialog: { open: false, row: null, hours: {} },
-            faqDialog: { open: false, row: null },
+            faqDialog: { open: false, row: null, aiSugg: 0 },
             audiences: [{ value: 'all', text: 'Estudiantes y docentes' }, { value: 'student', text: 'Solo estudiantes' },
                 { value: 'teacher', text: 'Solo docentes' }],
             linkKinds: [{ value: 'web', text: 'Web' }, { value: 'appstore', text: 'App Store' }, { value: 'playstore', text: 'Play Store' }],
@@ -641,15 +649,44 @@ Vue.component('support-settings', {
         editFaq(f) {
             const row = Object.assign({ id: 0, categoryid: 0, problem: '', answer: '', audience: 'all', sortorder: 10, active: 1, links: [] },
                 JSON.parse(JSON.stringify(f)));
-            this.faqDialog = { open: true, row: row };
+            this.faqDialog = { open: true, row: row, aiSugg: 0 };
+        },
+        /** "Editar y añadir" de una sugerencia del asistente: mismo dialogo, guarda por ai_action. */
+        editFromSuggestion(sg) {
+            const copy = x => JSON.parse(JSON.stringify(x));
+            let row = { id: 0, areaid: sg.areaid, categoryid: sg.categoryid || 0, problem: sg.title, answer: sg.body,
+                audience: sg.audience || 'all', sortorder: 50, active: 1, links: copy(sg.links || []) };
+            if (sg.kind === 'faq_improve') {
+                const f = (this.s.faqs || []).find(x => x.id === sg.faqid);
+                if (f) {
+                    row = Object.assign(copy(f), { problem: sg.title || f.problem, answer: sg.body,
+                        links: sg.links && sg.links.length ? copy(sg.links) : copy(f.links) });
+                }
+            }
+            this.faqDialog = { open: true, row: row, aiSugg: sg.id };
         },
         async saveFaq() {
             const r = this.faqDialog.row;
-            const ok = await this.save('faq', {
+            const payload = {
                 id: r.id || 0, areaid: r.areaid, categoryid: r.categoryid || 0, problem: r.problem, answer: r.answer,
                 audience: r.audience, sortorder: parseInt(r.sortorder, 10) || 0, active: r.active ? 1 : 0,
                 links: r.links.filter(l => (l.label || '').trim() || (l.url || '').trim()),
-            });
+            };
+            if (this.faqDialog.aiSugg) {
+                try {
+                    const res = await window.gmkSupportCall('local_grupomakro_support_ai_action', {
+                        id: this.faqDialog.aiSugg, op: 'add', payload: JSON.stringify(payload),
+                    });
+                    if (this.$refs.assistant) this.$refs.assistant.setData(res);
+                    this.faqDialog.open = false;
+                    this.notify('Añadido');
+                    await this.load();
+                } catch (e) {
+                    this.notify(e.message, 'error');
+                }
+                return;
+            }
+            const ok = await this.save('faq', payload);
             if (ok) this.faqDialog.open = false;
         },
         async removeFaq() {

@@ -459,6 +459,7 @@ function assign_capabilities_to_internal_roles() {
             'local/grupomakro_core:support_supervise',
             'local/grupomakro_core:support_reassign',
             'local/grupomakro_core:support_manage',
+            'local/grupomakro_core:support_assistant',
             // CORE: cada clase vive en una seccion restringida a SU grupo
             // (create_class_activities escribe availability {"type":"group"} en
             // las 141 secciones de clase abiertas). Quien no pertenece al grupo
@@ -1100,6 +1101,7 @@ function assign_capabilities_to_internal_roles() {
             'local/grupomakro_core:support_viewconfidential',
             'local/grupomakro_core:support_receive_escalations',
             'local/grupomakro_core:support_manage',
+            'local/grupomakro_core:support_assistant',
         ],
     ];
 
