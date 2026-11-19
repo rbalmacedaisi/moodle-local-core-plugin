@@ -618,9 +618,10 @@ class assistant {
             }
             $url = trim(is_scalar($l['url'] ?? '') ? (string)($l['url'] ?? '') : '');
             $label = self::plain(($l['label'] ?? ''), 80);
+            $lkind = $l['kind'] ?? 'web';
             if ($label !== '' && preg_match('#^https://#i', $url) && clean_param($url, PARAM_URL) === $url) {
                 $links[] = ['label' => $label, 'url' => \core_text::substr($url, 0, 500),
-                    'kind' => in_array($l['kind'] ?? 'web', faq::LINK_KINDS, true) ? $l['kind'] : 'web'];
+                    'kind' => in_array($lkind, faq::LINK_KINDS, true) ? $lkind : 'web'];
             }
         }
         $links = array_slice($links, 0, faq::MAX_LINKS);
