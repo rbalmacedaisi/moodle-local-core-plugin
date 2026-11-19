@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Mesa de ayuda (20261001126): importa los resultados del asistente semanal
+ * Mesa de ayuda (20261001126, 20261001127): importa los resultados del asistente semanal
  * (tipificaciones y sugerencias). Solo escribe en gmk_tkt_ai_*: nada llega a
  * los estudiantes hasta que alguien pulsa "Anadir" en la configuracion.
  *
@@ -23,8 +23,8 @@
  *
  * Idempotente: el mismo runkey no se importa dos veces y un ticket ya
  * tipificado se omite. --dry-run valida y cuenta todo sin escribir nada.
- * Formato: docs/agents/analisis_semanal_tickets.md. Respaldo manual del WS
- * local_grupomakro_support_ai_submit (mismo codigo).
+ * Formato: docs/agents/analisis_semanal_tickets.md. Lo usa la tarea programada
+ * local del analisis semanal (por SSH); 20261001127 quito el servicio web.
  *
  * @package    local_grupomakro_core
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -45,11 +45,15 @@ if ($options['help'] || $options['file'] === '') {
 if (!assistant::enabled()) {
     cli_error('Faltan las tablas gmk_tkt_ai_*: corre primero admin/cli/upgrade.php.');
 }
+$size = @filesize((string)$options['file']);
+if ($size !== false && $size > 2097152) {
+    cli_error('El archivo supera 2 MB.');
+}
 $raw = @file_get_contents((string)$options['file']);
 if ($raw === false) {
     cli_error('No se pudo leer ' . $options['file']);
 }
-$data = json_decode($raw, true);
+$data = json_decode($raw, true, 32);
 if (!is_array($data)) {
     cli_error('JSON inválido: ' . json_last_error_msg());
 }

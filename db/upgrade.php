@@ -4916,5 +4916,18 @@ if ($oldversion < 20261001093) {
         upgrade_plugin_savepoint(true, 20261001126, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20261001127) {
+        // El asistente semanal ya no es una rutina en la nube con token: es una
+        // tarea programada local (SSH + CLI). Se quitan el servicio gmk_support_ai,
+        // sus tokens y funciones y el usuario tecnico gmk_ia_asistente (borrado si no
+        // dejo datos, suspendido si dejo). Solo eso: ningun otro servicio ni token.
+        // Idempotente; queda el evento ai_service_removed en gmk_tkt_event.
+        require_once(__DIR__ . '/upgradelib.php');
+        $done = local_grupomakro_core_remove_support_ai_service(0);
+        mtrace('  gmk_support_ai: ' . json_encode($done));
+        update_capabilities('local_grupomakro_core');
+        upgrade_plugin_savepoint(true, 20261001127, 'local', 'grupomakro_core');
+    }
+
     return true;
 }

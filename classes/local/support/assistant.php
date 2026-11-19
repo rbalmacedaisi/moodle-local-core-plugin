@@ -20,28 +20,25 @@
  * Pedido de Ramiro (19-nov-2026): un agente que cada semana lea como se
  * cerraron los tickets, los tipifique y cuantifique, y proponga problemas
  * comunes, mejoras a respuestas y respuestas rapidas que se apliquen con un
- * clic por area. Por decision de Ramiro no hay proveedor de IA ni API key en
- * Moodle: el agente es una rutina programada en la nube de Claude (Claude
- * Code, prompt en docs/agents/analisis_semanal_tickets.md) que entra con el
- * token de un usuario tecnico dedicado (servicio gmk_support_ai):
+ * clic por area. Por decision de Ramiro no hay proveedor de IA, API key, token
+ * ni servicio web para esto en Moodle: el analisis es una tarea programada
+ * LOCAL de la app de Claude (lunes 7:00) que entra por SSH y usa los CLI
+ * (prompt en docs/agents/analisis_semanal_tickets.md). 20261001127 quito el
+ * servicio gmk_support_ai, sus tokens y el usuario tecnico de la version anterior.
  *
- *   1. export() (WS support_ai_export_closed): tickets resueltos/cerrados aun
+ *   1. export() (cli/support_ai_export.php): tickets resueltos/cerrados aun
  *      no analizados, YA anonimizados en el servidor (sin nombres, correos,
  *      telefonos ni cedulas), sin notas internas y sin nada confidencial
  *      (Psicologia y temas confidenciales se excluyen por completo, decision
  *      de Ramiro). Ningun dato personal sale del servidor.
  *   2. El agente analiza ese JSON y arma la ejecucion.
- *   3. import() (WS support_ai_submit): entrada no confiable; valida y sanea
+ *   3. import() (cli/support_ai_import.php): entrada no confiable; valida y sanea
  *      todo (tickets existentes, cerrados, no confidenciales, no analizados;
  *      textos sin etiquetas; botones solo https), guarda tipificaciones y
  *      sugerencias. La evidencia la calcula el servidor. Idempotente por
  *      runkey y por ticket.
  *   4. action(): Anadir / Editar y anadir / Descartar desde la configuracion.
  *      Anadir pasa por settings::apply (misma validacion y auditoria que a mano).
- *   5. generate_token() / revoke_token(): conexion del agente, revocable.
- *
- * Los CLI support_ai_export.php / support_ai_import.php hacen lo mismo a mano
- * (revision de la anonimizacion, respaldo si la rutina no puede conectarse).
  *
  * @package    local_grupomakro_core
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -69,12 +66,6 @@ class assistant {
     const DISMISS_QUIET_DAYS = 60;
     const MAX_CLASSIFICATIONS = 600;
     const MAX_SUGGESTIONS = 60;
-    /** Max bytes of a submitted run (web service). */
-    const MAX_SUBMIT_BYTES = 2097152;
-    /** Cloud agent: dedicated user, role and external service. */
-    const AGENT_USERNAME = 'gmk_ia_asistente';
-    const AGENT_ROLE = 'gmk_ia_asistente';
-    const SERVICE = 'gmk_support_ai';
 
     /** Capitalised words that are also first/last names but appear in normal support text. */
     const NAME_ALLOW = ['moodle', 'chrome', 'google', 'teams', 'zoom', 'windows', 'android', 'iphone', 'apple', 'mesa', 'ayuda',
@@ -627,9 +618,10 @@ class assistant {
             }
             $url = trim(is_scalar($l['url'] ?? '') ? (string)($l['url'] ?? '') : '');
             $label = self::plain(($l['label'] ?? ''), 80);
+            $lkind = $l['kind'] ?? 'web';
             if ($label !== '' && preg_match('#^https://#i', $url) && clean_param($url, PARAM_URL) === $url) {
                 $links[] = ['label' => $label, 'url' => \core_text::substr($url, 0, 500),
-                    'kind' => in_array($l['kind'] ?? 'web', faq::LINK_KINDS, true) ? $l['kind'] : 'web'];
+                    'kind' => in_array($lkind, faq::LINK_KINDS, true) ? $lkind : 'web'];
             }
         }
         $links = array_slice($links, 0, faq::MAX_LINKS);
@@ -786,7 +778,7 @@ class assistant {
             'suggestions' => $sugg,
             'runs' => $runs,
             'taxonomy' => self::taxonomy(),
-            'connection' => self::connection(),
+            'lastexport' => json_decode((string)get_config('local_grupomakro_core', 'tkt_ai_last_export'), true) ?: null,
             'canned' => array_values(array_map(function($c) {
                 return ['id' => (int)$c->id, 'areaid' => (int)$c->areaid, 'title' => $c->title, 'body' => (string)$c->body];
             }, $DB->get_records('gmk_tkt_canned', null, 'areaid, title'))),
@@ -910,115 +902,5 @@ class assistant {
         global $DB;
         $DB->update_record('gmk_tkt_ai_sugg', (object)['id' => $s->id, 'status' => $status, 'resultid' => $resultid,
             'resolvedby' => $actorid, 'timeresolved' => $status === 'pending' ? 0 : time(), 'timemodified' => time()]);
-    }
-
-    // ---------------------------------------------------------------------
-    // 5. Cloud agent connection (dedicated user + token)
-    // ---------------------------------------------------------------------
-
-    private static function agent_user(): ?stdClass {
-        global $CFG, $DB;
-        return $DB->get_record('user', ['username' => self::AGENT_USERNAME, 'mnethostid' => $CFG->mnet_localhost_id,
-            'deleted' => 0]) ?: null;
-    }
-
-    /**
-     * What the "Asistente en la nube" section shows. Never the token itself.
-     */
-    public static function connection(): array {
-        global $CFG, $DB;
-        $service = $DB->get_record('external_services', ['shortname' => self::SERVICE]);
-        $user = self::agent_user();
-        $token = null;
-        if ($service && $user) {
-            $tokens = $DB->get_records('external_tokens', ['userid' => $user->id, 'externalserviceid' => $service->id],
-                'timecreated DESC', '*', 0, 1);
-            if ($t = reset($tokens)) {
-                $creator = (int)$t->creatorid ? \core_user::get_user((int)$t->creatorid) : null;
-                $token = ['last4' => substr((string)$t->token, -4), 'timecreated' => (int)$t->timecreated,
-                    'lastaccess' => (int)$t->lastaccess, 'creator' => $creator ? fullname($creator) : ''];
-            }
-        }
-        $protocols = array_filter(explode(',', (string)($CFG->webserviceprotocols ?? '')));
-        return [
-            'wsenabled' => !empty($CFG->enablewebservices),
-            'restenabled' => in_array('rest', $protocols, true),
-            'service' => $service ? (int)$service->enabled : -1,
-            'user' => $user ? ['id' => (int)$user->id, 'username' => $user->username, 'suspended' => (int)$user->suspended] : null,
-            'token' => $token,
-            'endpoint' => $CFG->wwwroot . '/webservice/rest/server.php',
-            'functions' => ['local_grupomakro_support_ai_export_closed', 'local_grupomakro_support_ai_submit'],
-            'lastexport' => json_decode((string)get_config('local_grupomakro_core', 'tkt_ai_last_export'), true) ?: null,
-        ];
-    }
-
-    /**
-     * Creates (once) the dedicated user and role, authorises the user on the
-     * service, revokes any previous token and returns a new permanent one.
-     * The token is returned only here: it is never shown again.
-     */
-    public static function generate_token(int $actorid): string {
-        global $CFG, $DB;
-        require_once($CFG->libdir . '/externallib.php');
-        require_once($CFG->dirroot . '/user/lib.php');
-        $service = $DB->get_record('external_services', ['shortname' => self::SERVICE]);
-        if (!$service) {
-            throw new invalid_parameter_exception('Falta el servicio ' . self::SERVICE . ': corre la actualización del plugin');
-        }
-        $sys = \context_system::instance();
-        $transaction = $DB->start_delegated_transaction();
-        $user = self::agent_user();
-        if (!$user) {
-            $id = user_create_user((object)[
-                'username' => self::AGENT_USERNAME, 'auth' => 'manual', 'confirmed' => 1, 'mnethostid' => $CFG->mnet_localhost_id,
-                // Random password nobody knows: the account only works through its token.
-                'password' => random_string(40) . 'Aa1!', 'firstname' => 'Asistente', 'lastname' => 'Mesa de ayuda (IA)',
-                'email' => 'noreply+ia-asistente@isi.edu.pa', 'emailstop' => 1, 'policyagreed' => 1,
-                'description' => 'Usuario técnico del agente semanal en la nube. Solo usa el servicio ' . self::SERVICE . '.',
-            ], true, false);
-            $user = $DB->get_record('user', ['id' => $id], '*', MUST_EXIST);
-        } else if ((int)$user->suspended) {
-            $DB->set_field('user', 'suspended', 0, ['id' => $user->id]);
-        }
-        $roleid = (int)$DB->get_field('role', 'id', ['shortname' => self::AGENT_ROLE]);
-        if (!$roleid) {
-            $roleid = create_role('Asistente IA de la mesa de ayuda', self::AGENT_ROLE,
-                'Rol técnico del agente en la nube: leer tickets cerrados anonimizados y enviar sugerencias.', '');
-            set_role_contextlevels($roleid, [CONTEXT_SYSTEM]);
-        }
-        assign_capability('webservice/rest:use', CAP_ALLOW, $roleid, $sys->id, true);
-        assign_capability('local/grupomakro_core:support_ai_agent', CAP_ALLOW, $roleid, $sys->id, true);
-        if (!user_has_role_assignment((int)$user->id, $roleid, $sys->id)) {
-            role_assign($roleid, (int)$user->id, $sys->id);
-        }
-        if (!$DB->record_exists('external_services_users', ['externalserviceid' => $service->id, 'userid' => $user->id])) {
-            $DB->insert_record('external_services_users', (object)['externalserviceid' => $service->id, 'userid' => $user->id,
-                'iprestriction' => null, 'validuntil' => null, 'timecreated' => time()]);
-        }
-        $old = $DB->count_records('external_tokens', ['userid' => $user->id]);
-        $DB->delete_records('external_tokens', ['userid' => $user->id]);
-        $token = external_generate_token(EXTERNAL_TOKEN_PERMANENT, $service, (int)$user->id, $sys, 0, '');
-        manager::log_event(0, 'ai_token_generate', (string)$old, '…' . substr($token, -4), $actorid, ['userid' => (int)$user->id]);
-        $transaction->allow_commit();
-        accesslib_clear_all_caches(false);
-        return $token;
-    }
-
-    /**
-     * Deletes the agent's tokens and suspends its user: the routine stops
-     * working at once. "Generar token" turns it on again.
-     */
-    public static function revoke_token(int $actorid): int {
-        global $DB;
-        $user = self::agent_user();
-        if (!$user) {
-            return 0;
-        }
-        $n = $DB->count_records('external_tokens', ['userid' => $user->id]);
-        $DB->delete_records('external_tokens', ['userid' => $user->id]);
-        $DB->set_field('user', 'suspended', 1, ['id' => $user->id]);
-        \core\session\manager::kill_user_sessions((int)$user->id);
-        manager::log_event(0, 'ai_token_revoke', (string)$n, '', $actorid, ['userid' => (int)$user->id]);
-        return $n;
     }
 }
