@@ -61,7 +61,7 @@ class absence_blocks extends source {
     public function fetch(int $userid, bool $team, int $now): array {
         global $DB;
         cases::sync($now);
-        $rows = $DB->get_records_sql("SELECT k.id, k.blocked_at, k.actions, k.next_followup, k.last_result,
+        $rows = $DB->get_records_sql("SELECT k.id, k.blocked_at, k.timecreated, k.actions, k.next_followup, k.last_result,
                                              u.firstname, u.lastname, c.name AS classname, a.absence_count
                                         FROM {gmk_abs_case} k
                                         JOIN {user} u ON u.id = k.userid
@@ -77,7 +77,7 @@ class absence_blocks extends source {
             if ((int)$r->actions === 0) {
                 $out[] = $this->item('absence.block', 'ABS-' . $r->id, $who,
                     (int)$r->absence_count . ' inasistencia(s) · bloqueado el ' . self::date((int)$r->blocked_at)
-                    . ' · sin gestión', (int)$r->blocked_at, 0, 0, cases::url((int)$r->id));
+                    . ' · sin gestión', cases::clock_start($r), 0, 0, cases::url((int)$r->id));
             } else {
                 $out[] = $this->item('absence.followup', 'ABS-' . $r->id, $who,
                     'Seguimiento programado para el ' . self::date((int)$r->next_followup)

@@ -482,12 +482,13 @@ class cases {
                 $ind[$c->closed_reason === 'auto_desbloqueado' ? 'auto_closed' : 'closed'][] = $id;
                 $reasons[$c->closed_reason] = ($reasons[$c->closed_reason] ?? 0) + 1;
             }
-            // First contact within FIRST_CONTACT_DAYS business days of the block.
-            $limit = \local_grupomakro_core\local\support\business_hours::add_minutes((int)$c->blocked_at,
+            // First contact within FIRST_CONTACT_DAYS business days of the block, or of the
+            // case opening for blocks that existed before this feature (clock starts at the later).
+            $limit = \local_grupomakro_core\local\support\business_hours::add_minutes(self::clock_start($c),
                 self::FIRST_CONTACT_DAYS * 1440, $area);
             if ((int)$c->first_contact_at > 0) {
                 $ind[(int)$c->first_contact_at <= $limit ? 'ontime' : 'late'][] = $id;
-                $firsthours[] = max(0, (int)$c->first_contact_at - (int)$c->timecreated) / HOURSECS;
+                $firsthours[] = max(0, (int)$c->first_contact_at - self::clock_start($c)) / HOURSECS;
             } else if ($now > $limit && $c->closed_reason !== 'auto_desbloqueado') {
                 $ind['late'][] = $id;
             }
@@ -536,6 +537,11 @@ class cases {
             'byauthor' => $byauthor,
             'first_contact_days' => self::FIRST_CONTACT_DAYS,
         ];
+    }
+
+    /** Start of the first-contact clock: the block, or the case opening if later. */
+    public static function clock_start(stdClass $c): int {
+        return max((int)$c->blocked_at, (int)$c->timecreated);
     }
 
     public static function url(int $caseid = 0): string {
