@@ -160,7 +160,7 @@ class manager {
         $observation = \core_text::substr(trim($observation), 0, 2000);
 
         $now = time();
-        $request = (object)[
+        $request = (object)([
             'userid' => $userid,
             'lettertypeid' => $lettertypeid,
             'status' => self::STATUS_SOLICITADA,
@@ -179,7 +179,7 @@ class manager {
             'usermodified' => $userid,
             'timecreated' => $now,
             'timemodified' => $now,
-        ] + sla::enter_fields($lettertype, self::STATUS_SOLICITADA, $now);
+        ] + sla::enter_fields($lettertype, self::STATUS_SOLICITADA, $now));
 
         if ((float)$lettertype->cost > 0) {
             // T2: o queda en pendiente_pago con su factura, o no queda nada (si Odoo
