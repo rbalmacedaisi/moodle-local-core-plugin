@@ -5041,5 +5041,55 @@ if ($oldversion < 20261001093) {
         upgrade_plugin_savepoint(true, 20261001130, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20261001131) {
+        // Seguimiento de inasistencias (pages/absence_cases.php): casos por bloqueo
+        // activo y su historial de gestiones (solo agregar). Capacidades nuevas
+        // manage_absence_cases (Bienestar) y supervise_absence_cases (gerencia).
+        $t = new xmldb_table('gmk_abs_case');
+        $t->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $t->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $t->add_field('classid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $t->add_field('blocked_at', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('status', XMLDB_TYPE_CHAR, '20', null, XMLDB_NOTNULL, null, 'nuevo');
+        $t->add_field('next_followup', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('first_contact_at', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('last_action_at', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('last_result', XMLDB_TYPE_CHAR, '30', null, XMLDB_NOTNULL, null, '');
+        $t->add_field('actions', XMLDB_TYPE_INTEGER, '5', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('closed_reason', XMLDB_TYPE_CHAR, '30', null, XMLDB_NOTNULL, null, '');
+        $t->add_field('closedat', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('closedby', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $t->add_index('episode_uix', XMLDB_INDEX_UNIQUE, ['userid', 'classid', 'blocked_at']);
+        $t->add_index('status_followup_idx', XMLDB_INDEX_NOTUNIQUE, ['status', 'next_followup']);
+        if (!$dbman->table_exists($t)) {
+            $dbman->create_table($t);
+        }
+        $t = new xmldb_table('gmk_abs_case_log');
+        $t->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $t->add_field('caseid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $t->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $t->add_field('channel', XMLDB_TYPE_CHAR, '20', null, XMLDB_NOTNULL, null, '');
+        $t->add_field('result', XMLDB_TYPE_CHAR, '30', null, XMLDB_NOTNULL, null, '');
+        $t->add_field('note', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $t->add_field('next_followup', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('newstatus', XMLDB_TYPE_CHAR, '20', null, XMLDB_NOTNULL, null, '');
+        $t->add_field('closed_reason', XMLDB_TYPE_CHAR, '30', null, XMLDB_NOTNULL, null, '');
+        $t->add_field('correctsid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $t->add_index('case_time_idx', XMLDB_INDEX_NOTUNIQUE, ['caseid', 'timecreated']);
+        $t->add_index('time_idx', XMLDB_INDEX_NOTUNIQUE, ['timecreated']);
+        if (!$dbman->table_exists($t)) {
+            $dbman->create_table($t);
+        }
+        require_once(__DIR__ . '/upgradelib.php');
+        update_capabilities('local_grupomakro_core');
+        local_grupomakro_core_assign_absence_case_caps();
+        upgrade_plugin_savepoint(true, 20261001131, 'local', 'grupomakro_core');
+    }
+
     return true;
 }

@@ -2474,4 +2474,37 @@ $functions = array(
         'capabilities'  => 'local/grupomakro_core:view_admin_dashboard',
         'ajax'        => true,
     ),
+    // Seguimiento de inasistencias (20261001131).
+    'local_grupomakro_absence_cases_list' => array(
+        'classname'   => 'local_grupomakro_core\\external\\absence\\cases_list',
+        'methodname'  => 'execute',
+        'description' => 'Seguimiento de inasistencias: casos (sincroniza con los bloqueos activos).',
+        'type'        => 'read',
+        'capabilities'  => '',
+        'ajax'        => true,
+    ),
+    'local_grupomakro_absence_cases_get' => array(
+        'classname'   => 'local_grupomakro_core\\external\\absence\\cases_get',
+        'methodname'  => 'execute',
+        'description' => 'Seguimiento de inasistencias: un caso con su historial.',
+        'type'        => 'read',
+        'capabilities'  => '',
+        'ajax'        => true,
+    ),
+    'local_grupomakro_absence_cases_log' => array(
+        'classname'   => 'local_grupomakro_core\\external\\absence\\cases_log',
+        'methodname'  => 'execute',
+        'description' => 'Seguimiento de inasistencias: registra una gestion (solo agregar).',
+        'type'        => 'write',
+        'capabilities'  => '',
+        'ajax'        => true,
+    ),
+    'local_grupomakro_absence_cases_stats' => array(
+        'classname'   => 'local_grupomakro_core\\external\\absence\\cases_stats',
+        'methodname'  => 'execute',
+        'description' => 'Seguimiento de inasistencias: indicadores de supervision.',
+        'type'        => 'read',
+        'capabilities'  => '',
+        'ajax'        => true,
+    ),
 );

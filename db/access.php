@@ -457,4 +457,17 @@ $capabilities = array(
         'captype' => 'read', 'contextlevel' => CONTEXT_SYSTEM,
         'archetypes' => array(),
     ),
+    // 20261001131: seguimiento de inasistencias (pages/absence_cases.php).
+    // Registrar gestiones de contacto en los casos (Bienestar).
+    'local/grupomakro_core:manage_absence_cases' => array(
+        'riskbitmask' => RISK_PERSONAL,
+        'captype' => 'write', 'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array('manager' => CAP_ALLOW),
+    ),
+    // Pestana de supervision con indicadores (gerencia y administradores).
+    'local/grupomakro_core:supervise_absence_cases' => array(
+        'riskbitmask' => RISK_PERSONAL,
+        'captype' => 'read', 'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array('manager' => CAP_ALLOW),
+    ),
 );

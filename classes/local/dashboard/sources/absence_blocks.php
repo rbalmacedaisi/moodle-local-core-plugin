@@ -15,12 +15,15 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Fuente: estudiantes bloqueados por inasistencia en clases EN CURSO, sin
- * revisar (alert_level 3, blocked_at sin unblocked_at posterior).
+ * Fuente: casos de seguimiento de inasistencias (local\absence\cases).
  *
- * Solo clases que aun no terminan (decision de Ramiro, 19-nov-2026): en una
- * clase ya terminada el bloqueo es el resultado normal (perdio la clase por
- * faltas) y no queda nada que revisar; contarlos solo metia ruido (91 de 137).
+ * Desde 20261001131 el pendiente ya no es el bloqueo sino la GESTION del caso
+ * (Ramiro, 19-nov-2026: "que desaparezcan del dashboard los que se les ha hecho
+ * seguimiento hasta la nueva fecha de seguimiento"):
+ *  - caso sin ninguna gestion -> 'absence.block' desde el bloqueo;
+ *  - caso con el proximo seguimiento vencido -> 'absence.followup' desde esa fecha;
+ *  - caso gestionado y al dia, o cerrado -> no cuenta.
+ * Solo bloqueos de clases en curso (los casos se abren y cierran solos).
  *
  * @package    local_grupomakro_core
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -28,6 +31,7 @@
 
 namespace local_grupomakro_core\local\dashboard\sources;
 
+use local_grupomakro_core\local\absence\cases;
 use local_grupomakro_core\local\dashboard\source;
 
 defined('MOODLE_INTERNAL') || die();
@@ -39,7 +43,7 @@ class absence_blocks extends source {
     }
 
     public function label(): string {
-        return 'Bloqueos por inasistencia';
+        return 'Seguimiento de inasistencias';
     }
 
     public function icon(): string {
@@ -47,30 +51,39 @@ class absence_blocks extends source {
     }
 
     public function page(): string {
-        return 'absence_dashboard.php';
+        return 'absence_cases.php';
     }
 
     public function capabilities(): array {
-        return ['viewabsencedashboard'];
+        return ['manage_absence_cases'];
     }
 
     public function fetch(int $userid, bool $team, int $now): array {
         global $DB;
-        $rows = $DB->get_records_sql("SELECT a.id, a.classid, a.absence_count, a.blocked_at, u.firstname, u.lastname,
-                                             c.name AS classname
-                                        FROM {gmk_class_absence_state} a
-                                        JOIN {gmk_class} c ON c.id = a.classid AND c.closed = 0
-                                             AND (c.enddate IS NULL OR c.enddate = 0 OR c.enddate > :now)
-                                        JOIN {user} u ON u.id = a.userid AND u.deleted = 0
-                                       WHERE a.alert_level = 3 AND a.blocked_at > 0
-                                         AND (a.unblocked_at IS NULL OR a.unblocked_at < a.blocked_at)
-                                    ORDER BY a.blocked_at ASC", ['now' => $now], 0, self::MAX_ROWS);
+        cases::sync($now);
+        $rows = $DB->get_records_sql("SELECT k.id, k.blocked_at, k.actions, k.next_followup, k.last_result,
+                                             u.firstname, u.lastname, c.name AS classname, a.absence_count
+                                        FROM {gmk_abs_case} k
+                                        JOIN {user} u ON u.id = k.userid
+                                        JOIN {gmk_class} c ON c.id = k.classid
+                                   LEFT JOIN {gmk_class_absence_state} a ON a.userid = k.userid AND a.classid = k.classid
+                                       WHERE k.status <> :closed
+                                         AND (k.actions = 0 OR (k.next_followup > 0 AND k.next_followup <= :now))
+                                    ORDER BY k.blocked_at ASC",
+            ['closed' => cases::S_CLOSED, 'now' => $now], 0, self::MAX_ROWS);
         $out = [];
         foreach ($rows as $r) {
-            $out[] = $this->item('absence.block', 'ABS-' . $r->id,
-                trim($r->firstname . ' ' . $r->lastname) . ' · ' . format_string($r->classname),
-                (int)$r->absence_count . ' inasistencia(s) · bloqueado el ' . self::date((int)$r->blocked_at),
-                (int)$r->blocked_at, 0, 0, $this->url(['classid' => (int)$r->classid]));
+            $who = trim($r->firstname . ' ' . $r->lastname) . ' · ' . format_string($r->classname);
+            if ((int)$r->actions === 0) {
+                $out[] = $this->item('absence.block', 'ABS-' . $r->id, $who,
+                    (int)$r->absence_count . ' inasistencia(s) · bloqueado el ' . self::date((int)$r->blocked_at)
+                    . ' · sin gestión', (int)$r->blocked_at, 0, 0, cases::url((int)$r->id));
+            } else {
+                $out[] = $this->item('absence.followup', 'ABS-' . $r->id, $who,
+                    'Seguimiento programado para el ' . self::date((int)$r->next_followup)
+                    . ($r->last_result ? ' · último resultado: ' . (cases::RESULTS[$r->last_result] ?? $r->last_result) : ''),
+                    (int)$r->next_followup, 0, 0, cases::url((int)$r->id));
+            }
         }
         return $out;
     }

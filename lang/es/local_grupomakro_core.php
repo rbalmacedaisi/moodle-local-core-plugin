@@ -1689,3 +1689,9 @@ $string['letter_student_status_pendiente_recoleccion'] = 'Lista para retirar';
 $string['letter_student_status_entregada'] = 'Entregada';
 $string['letter_student_status_rechazada'] = 'Rechazada';
 $string['letter_student_status_cancelada'] = 'Anulada';
+
+// Seguimiento de inasistencias (20261001131).
+$string['absence_cases_title'] = 'Seguimiento de inasistencias';
+$string['grupomakro_core:manage_absence_cases'] = 'Gestionar los casos de seguimiento de inasistencias';
+$string['grupomakro_core:supervise_absence_cases'] = 'Supervisar el seguimiento de inasistencias (indicadores)';
+$string['event_absence_case_logged'] = 'Gestión registrada en un caso de inasistencia';

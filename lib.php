@@ -341,6 +341,7 @@ function local_grupomakro_core_extend_navigation(global_navigation $navigation) 
             ],
             'Asistencia y Notas' => [
                 ['viewabsencedashboard', 'absence_dashboard.php', '📊 ' . get_string('absence_dashboard', $pluginname)],
+                ['viewabsencedashboard', 'absence_cases.php', '📞 ' . get_string('absence_cases_title', $pluginname)],
                 ['view_grade_report', 'grade_report.php', '📈 Informe de Calificaciones'],
                 ['view_failed_subjects_report', 'failed_subjects_report.php', '📝 ' . get_string('fsr_menu', $pluginname)],
                 ['view_revalidations_dashboard', 'revalidations_director.php', get_string('revalidations_director_menu', $pluginname)],

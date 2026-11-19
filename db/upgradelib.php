@@ -1120,6 +1120,8 @@ function assign_capabilities_to_internal_roles() {
     }
     // Dashboard administrativo (20261001129).
     local_grupomakro_core_assign_dashboard_caps();
+    // Seguimiento de inasistencias (20261001131).
+    local_grupomakro_core_assign_absence_case_caps();
 
     // The "Add an activity or resource" picker is filled from the
     // mod/<modname>:addinstance capabilities, one per installed module. They are
@@ -1284,6 +1286,32 @@ function local_grupomakro_core_assign_dashboard_caps() {
         'gmk_director_general'     => [$view, $team],
         'gmk_gerencia'             => [$view, $team, 'local/grupomakro_core:dashboard_manage'],
         'administrative'           => [$view],
+    ];
+    foreach ($map as $shortname => $caps) {
+        $role = $DB->get_record('role', ['shortname' => $shortname]);
+        if (!$role) {
+            continue;
+        }
+        foreach ($caps as $capability) {
+            if ($DB->record_exists('capabilities', ['name' => $capability])) {
+                assign_capability($capability, CAP_ALLOW, $role->id, $context->id);
+            }
+        }
+    }
+}
+
+/**
+ * Seguimiento de inasistencias (20261001131): gestionar casos = Bienestar;
+ * supervisar = gerencia (los administradores del sitio ya lo tienen). Idempotente.
+ *
+ * @return void
+ */
+function local_grupomakro_core_assign_absence_case_caps() {
+    global $DB;
+    $context = context_system::instance();
+    $map = [
+        'gmk_bienestar' => ['local/grupomakro_core:manage_absence_cases'],
+        'gmk_gerencia' => ['local/grupomakro_core:supervise_absence_cases'],
     ];
     foreach ($map as $shortname => $caps) {
         $role = $DB->get_record('role', ['shortname' => $shortname]);

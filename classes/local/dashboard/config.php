@@ -84,8 +84,11 @@ class config {
             'label' => 'Revalidas sin nota tras la sesión'],
         'revalida.invoice'   => ['kind' => 'h', 'warn' => 3, 'due' => 4, 'crit' => 16, 'sup' => 'gmk_soporte_ti',
             'label' => 'Revalidas con la factura fallida'],
-        'absence.block'      => ['kind' => 'h', 'warn' => 12, 'due' => 16, 'crit' => 40, 'sup' => 'gmk_secretaria_academica',
-            'label' => 'Bloqueos por inasistencia sin resolver'],
+        // 20261001131: el plazo es para el PRIMER CONTACTO del caso (2 dias habiles, acordado con Ramiro).
+        'absence.block'      => ['kind' => 'd', 'warn' => 1, 'due' => 2, 'crit' => 4, 'sup' => 'gmk_secretaria_academica',
+            'label' => 'Inasistencias: caso sin primer contacto'],
+        'absence.followup'   => ['kind' => 'h', 'warn' => 1, 'due' => 8, 'crit' => 24, 'sup' => 'gmk_secretaria_academica',
+            'label' => 'Inasistencias: seguimiento programado vencido'],
         'wellness.attendance' => ['kind' => 'd', 'warn' => 1, 'due' => 2, 'crit' => 5, 'sup' => 'wellness:bienestar_jefe',
             'label' => 'Eventos de Bienestar sin asistencia'],
         'wellness.waitlist'  => ['kind' => 'before', 'warn' => 3, 'due' => 1, 'crit' => -1, 'sup' => 'wellness:bienestar_jefe',
