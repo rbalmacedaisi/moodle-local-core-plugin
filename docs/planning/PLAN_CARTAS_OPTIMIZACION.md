@@ -1,6 +1,6 @@
 # Plan: Solicitudes de cartas — diagnóstico, vínculo con la mesa de ayuda, bandeja y ANS
 
-Estado: **propuesta, pendiente del OK de Ramiro** (19-nov-2026). No se ha tocado código, staging ni producción.
+Estado: **implementado en ramas locales** (19-nov-2026, versión 20261001130), pendiente de staging y push. Decisiones de Ramiro en §8; pruebas en `PRUEBAS_CARTAS.md`.
 Alcance: plugin `local_grupomakro_core` (base en `origin/master` 2bb26bac, versión 20261001126) y portal Nuxt `isi_moodle_lxp` (`origin/isi-prod` 3f54d43).
 Datos: consulta de solo lectura (agregados, sin datos personales) a `isidb` el 19-nov-2026.
 
@@ -258,3 +258,28 @@ Rama propia en cada repositorio (`feat/cartas-tickets-ans` desde `origin/master`
 Cada entrega con: `cli/letters_selftest.php` (flujo completo dentro de una transacción con *rollback*: crear, asignar, ticket ligado, mensajes automáticos, vencer plazos, alertas sin duplicar, métricas), plan de pruebas `docs/planning/PRUEBAS_CARTAS.md`, `php -l`, `nuxt build` y revisión a 375 px.
 
 **Nada se publica sin OK explícito**: ni staging (selftest), ni push a `master` / `isi-prod`, ni los cambios de datos de §5 y decisión 3.
+
+---
+
+## 8. Decisiones de Ramiro (19-nov-2026) y cómo quedaron
+
+Ramiro aprobó las propuestas de §6, salvo las alertas: **"necesito que se empiecen a generar de una vez"**. Además pidió que, por ahora, la generación automática no sea el camino principal: **la bandeja funciona como buzón y el área académica carga la carta que hizo (Word o PDF), con lo que la solicitud se cierra; para las solicitudes anteriores, solo preguntar si ya se gestionaron.**
+
+| # | Decisión | Implementado |
+|---|---|---|
+| 1 | Responsables: Secretaría Académica (2) y Registros Académicos (1) | El upgrade crea el tema "Cartas y constancias" y pone como agentes a quienes tienen esos roles (en prod: Jean Remice, Veronica Rangel, Lizbeth Aizprua). Supervisores y gerencia: los de la mesa de ayuda. |
+| 2 | Plazo 2 días hábiles para preparar | Por defecto 1.560 min hábiles (2 × 08:00–21:00), editable por tipo en el catálogo. Aviso al personal si no se retira a los 15 días hábiles. |
+| 3 | Atraso: alertas desde ya, sin triage previo | Verificado antes: las 32 abiertas son de estudiantes reales (sin cuentas ni textos de prueba, todos con plan y activos). El upgrade anula en silencio las **15 duplicadas** (conserva la más reciente, reversible) y marca las **14 restantes** como "anteriores": su plazo corre desde la fecha real, así que alertan como críticas en la primera pasada, en **un solo mensaje agrupado** por persona. En la bandeja cada una pregunta "¿Ya se gestionó?" → "Sí, ya se entregó" (la cierra sin documento) o "No, gestionar ahora". |
+| 4 | Anular a los 15 días sin pago | Sí, con recordatorio a los 3 días. Si el estudiante paga después, el webhook la reactiva. La factura en Odoo no se toca. |
+| 5 | Ticket a "resuelto" al terminar la carta | Sí (lista para descargar, entregada, rechazada o anulada), con mensaje automático. |
+| 6 | Sello y firma | El upgrade apaga `autostamp`/`autosignature` donde no hay imagen (no salían igual). Falta que alguien entregue las imágenes. |
+| 7 | Quitar "Eliminar" al personal | Solo administradores del sitio, con confirmación; el personal usa "Anular" con motivo. |
+| — | Cargar la carta hecha por el personal | "Cargar carta (PDF/Word)" (máx. 10 MB) con destino: el estudiante la descarga / lista para retirar / ya se entregó. "Generar desde la plantilla" queda como opción secundaria. |
+
+### Diferencias con la propuesta (§2–§4)
+
+- Proveedores de mensajes: 3 en vez de 6 (`letter_new_request`, `letter_sla_alert` para los tres niveles y el resumen, `letter_student_reminder`).
+- El resumen diario de cartas lo manda la tarea `letters_sla` (mismo horario `tkt_digest_hour`), aparte del resumen de tickets.
+- No se agregó la píldora del indicador flotante ni la descarga por enlace firmado (`pluginfile`): la descarga del portal sigue por el servicio existente (ahora también sirve Word).
+- Si hay ticket abierto, el aviso normal de la carta al estudiante se mantiene: el mensaje automático del ticket no notifica por sí solo, así que no hay duplicado.
+- El servicio `local_grupomakro_letters_sla_metrics` devuelve `-1` donde no hay dato (porcentajes y ciclos).

@@ -148,13 +148,23 @@ class manager {
         if (!$lettertype) {
             throw new moodle_exception('letter_type_not_found', 'local_grupomakro_core');
         }
+        // Una abierta por estudiante y tipo (20261001130): antes se repetian hasta 6
+        // veces porque nadie las atendia.
+        [$openin, $openparams] = $DB->get_in_or_equal(self::OPEN_STATUSES, SQL_PARAMS_NAMED, 'os');
+        $existing = $DB->get_records_select('gmk_letter_request',
+            "userid = :u AND lettertypeid = :t AND status $openin",
+            ['u' => $userid, 't' => $lettertypeid] + $openparams, 'id DESC', 'id', 0, 1);
+        if ($existing) {
+            throw new moodle_exception('letter_err_duplicate', 'local_grupomakro_core', '', (int)reset($existing)->id);
+        }
+        $observation = \core_text::substr(trim($observation), 0, 2000);
 
         $now = time();
         $request = (object)[
             'userid' => $userid,
             'lettertypeid' => $lettertypeid,
             'status' => self::STATUS_SOLICITADA,
-            'observation' => trim($observation),
+            'observation' => $observation,
             'warning_snapshot' => (string)($lettertype->warningtext ?? ''),
             'cost_snapshot' => (float)$lettertype->cost,
             'deliverymode_snapshot' => (string)$lettertype->deliverymode,
@@ -169,19 +179,33 @@ class manager {
             'usermodified' => $userid,
             'timecreated' => $now,
             'timemodified' => $now,
-        ];
-        $requestid = $DB->insert_record('gmk_letter_request', $request);
+        ] + sla::enter_fields($lettertype, self::STATUS_SOLICITADA, $now);
 
-        self::add_event($requestid, null, self::STATUS_SOLICITADA, 'request_created', 'Request created by student', $userid);
-
-        $request = $DB->get_record('gmk_letter_request', ['id' => $requestid], '*', MUST_EXIST);
+        if ((float)$lettertype->cost > 0) {
+            // T2: o queda en pendiente_pago con su factura, o no queda nada (si Odoo
+            // falla, la transaccion se revierte y el estudiante ve el error).
+            $transaction = $DB->start_delegated_transaction();
+            try {
+                $requestid = $DB->insert_record('gmk_letter_request', $request);
+                self::add_event($requestid, null, self::STATUS_SOLICITADA, 'request_created', 'Request created by student',
+                    $userid);
+                $request = $DB->get_record('gmk_letter_request', ['id' => $requestid], '*', MUST_EXIST);
+                $invoice = self::create_invoice_for_request($request, $lettertype, $userid);
+                $request->invoice_id = (string)($invoice['invoice_id'] ?? '');
+                $request->invoice_number = (string)($invoice['invoice_number'] ?? '');
+                $request->payment_link = (string)($invoice['payment_link'] ?? '');
+                $DB->update_record('gmk_letter_request', $request);
+                $transaction->allow_commit();
+            } catch (\Throwable $e) {
+                $transaction->rollback($e);
+            }
+        } else {
+            $requestid = $DB->insert_record('gmk_letter_request', $request);
+            self::add_event($requestid, null, self::STATUS_SOLICITADA, 'request_created', 'Request created by student', $userid);
+            $request = $DB->get_record('gmk_letter_request', ['id' => $requestid], '*', MUST_EXIST);
+        }
 
         if ((float)$request->cost_snapshot > 0) {
-            $invoice = self::create_invoice_for_request($request, $lettertype, $userid);
-            $request->invoice_id = (string)($invoice['invoice_id'] ?? '');
-            $request->invoice_number = (string)($invoice['invoice_number'] ?? '');
-            $request->payment_link = (string)($invoice['payment_link'] ?? '');
-            $DB->update_record('gmk_letter_request', $request);
             $request = self::set_request_status(
                 (int)$request->id,
                 self::STATUS_PENDIENTE_PAGO,
@@ -194,13 +218,7 @@ class manager {
             }
         } else if ($request->deliverymode_snapshot === self::DELIVERY_DIGITAL
             && $request->generationmode_snapshot === self::GENERATION_AUTO) {
-            self::generate_document_for_request((int)$request->id, $userid);
-            $request = self::set_request_status(
-                (int)$request->id,
-                self::STATUS_GENERADA_DIGITAL,
-                $userid,
-                'Carta digital sin costo generada automáticamente'
-            );
+            $request = self::auto_generate((int)$request->id, $userid, 'Carta digital sin costo generada automáticamente');
         } else {
             $request = self::set_request_status(
                 (int)$request->id,
@@ -259,6 +277,14 @@ class manager {
             return ['success' => true, 'idempotent' => true, 'requestid' => (int)$request->id];
         }
 
+        if ((string)$request->status === self::STATUS_RECHAZADA) {
+            self::add_event((int)$request->id, self::STATUS_RECHAZADA, self::STATUS_RECHAZADA, 'payment_webhook_ignored',
+                'Pago recibido de una solicitud rechazada: revisar con Finanzas', 0, $payload);
+            return ['success' => true, 'ignored' => true, 'reason' => 'request_rejected', 'requestid' => (int)$request->id];
+        }
+        // Anulada por falta de pago y pagada despues: se reactiva (20261001130).
+        $reactivate = (string)$request->status === self::STATUS_CANCELADA;
+
         $request->invoice_id = $invoiceid !== '' ? $invoiceid : (string)$request->invoice_id;
         $request->invoice_number = $invoicenumber !== '' ? $invoicenumber : (string)$request->invoice_number;
         $request->paid_at = time();
@@ -270,20 +296,15 @@ class manager {
             (int)$request->id,
             self::STATUS_PAGADA,
             0,
-            'Pago confirmado por webhook',
-            $payload
+            $reactivate ? 'Pago confirmado por webhook: se reactiva la solicitud anulada' : 'Pago confirmado por webhook',
+            $payload,
+            ['force' => $reactivate]
         );
 
         if ($request->deliverymode_snapshot === self::DELIVERY_DIGITAL
             && $request->generationmode_snapshot === self::GENERATION_AUTO) {
-            self::generate_document_for_request((int)$request->id, 0);
-            $request = self::set_request_status(
-                (int)$request->id,
-                self::STATUS_GENERADA_DIGITAL,
-                0,
-                'Carta digital generada automáticamente tras pago',
-                $payload
-            );
+            $request = self::auto_generate((int)$request->id, 0, 'Carta digital generada automáticamente tras pago',
+                $payload);
         } else {
             $request = self::set_request_status(
                 (int)$request->id,
@@ -314,7 +335,8 @@ class manager {
         string $newstatus,
         int $actorid,
         string $message = '',
-        array $metadata = []
+        array $metadata = [],
+        array $opts = []
     ): stdClass {
         global $DB;
         $request = $DB->get_record('gmk_letter_request', ['id' => $requestid], '*', MUST_EXIST);
@@ -322,7 +344,12 @@ class manager {
         if ($oldstatus === $newstatus) {
             return $request;
         }
-        self::assert_valid_transition($oldstatus, $newstatus);
+        if (empty($opts['force'])) {
+            self::assert_valid_transition($oldstatus, $newstatus);
+        }
+        $notify = !array_key_exists('notify', $opts) || !empty($opts['notify']);
+        $type = $DB->get_record('gmk_letter_type', ['id' => $request->lettertypeid], '*', IGNORE_MISSING);
+        $now = time();
 
         $request->status = $newstatus;
         if ($newstatus === self::STATUS_RECHAZADA) {
@@ -331,22 +358,375 @@ class manager {
         if ($newstatus === self::STATUS_CANCELADA) {
             $request->cancel_reason = $message;
         }
+        // Plazo del nuevo estado (20261001130); "legacy" solo vale para la gestion pendiente.
+        foreach (sla::enter_fields($type ?: null, $newstatus, $now) as $field => $value) {
+            $request->$field = $value;
+        }
+        if (!in_array($newstatus, team::OWNED_STATUSES, true)) {
+            $request->legacy = 0;
+        }
         $request->usermodified = $actorid;
-        $request->timemodified = time();
+        $request->timemodified = $now;
         $DB->update_record('gmk_letter_request', $request);
 
         self::add_event($requestid, $oldstatus, $newstatus, 'status_change', $message, $actorid, $metadata);
 
-        $type = $DB->get_record('gmk_letter_type', ['id' => $request->lettertypeid], '*', IGNORE_MISSING);
-        if ($newstatus === self::STATUS_PENDIENTE_RECOLECCION) {
-            self::send_ready_for_pickup_notification((int)$request->userid, $request, $type);
-        } else if ($newstatus === self::STATUS_GENERADA_DIGITAL) {
-            self::send_generated_notification((int)$request->userid, $request, $type);
-        } else if ($newstatus !== self::STATUS_PENDIENTE_PAGO) {
-            self::send_status_changed_notification((int)$request->userid, $request, $type);
+        // Entra a gestion sin responsable: se asigna y se avisa al equipo (antes nadie se enteraba).
+        if ($newstatus === self::STATUS_PENDIENTE_GESTION && (int)$request->assignedto === 0) {
+            $agent = team::pick($now);
+            if ($agent > 0) {
+                $request = self::assign($requestid, $agent, 0, 'auto', false);
+            }
+            self::notify_staff_new($request, $type ?: null);
         }
 
+        if ($notify) {
+            if ($newstatus === self::STATUS_PENDIENTE_RECOLECCION) {
+                self::send_ready_for_pickup_notification((int)$request->userid, $request, $type ?: null);
+            } else if ($newstatus === self::STATUS_GENERADA_DIGITAL) {
+                self::send_generated_notification((int)$request->userid, $request, $type ?: null);
+            } else if ($newstatus !== self::STATUS_PENDIENTE_PAGO) {
+                self::send_status_changed_notification((int)$request->userid, $request, $type ?: null);
+            }
+        }
+        $request = $DB->get_record('gmk_letter_request', ['id' => $requestid], '*', MUST_EXIST);
+        tickets::on_status_change($request, $oldstatus, $newstatus);
+        return $request;
+    }
+
+    /** Statuses still in progress (not finished). */
+    const OPEN_STATUSES = ['solicitada', 'pendiente_pago', 'pagada', 'pendiente_gestion', 'pendiente_recoleccion'];
+
+    /**
+     * Sets the owner of a letter. $notify: tell the new owner.
+     */
+    public static function assign(int $requestid, int $agentid, int $actorid, string $how = 'manual',
+            bool $notify = true): stdClass {
+        global $DB;
+        $request = $DB->get_record('gmk_letter_request', ['id' => $requestid], '*', MUST_EXIST);
+        if ((int)$request->assignedto === $agentid) {
+            return $request;
+        }
+        if ($agentid > 0 && !has_capability('local/grupomakro_core:managerequests', context_system::instance(), $agentid)
+                && !in_array($agentid, team::agents(), true)) {
+            throw new moodle_exception('letter_err_notmanager', 'local_grupomakro_core');
+        }
+        $old = (int)$request->assignedto;
+        $DB->update_record('gmk_letter_request', (object)['id' => $requestid, 'assignedto' => $agentid,
+            'assigned_at' => $agentid > 0 ? time() : 0, 'timemodified' => time(), 'usermodified' => $actorid]);
+        self::add_event($requestid, (string)$request->status, (string)$request->status, 'assigned',
+            $agentid > 0 ? 'Responsable: ' . (self::user_names([$agentid])[$agentid] ?? $agentid) : 'Sin responsable',
+            $actorid, ['from' => $old, 'to' => $agentid, 'how' => $how]);
+        $request = $DB->get_record('gmk_letter_request', ['id' => $requestid], '*', MUST_EXIST);
+        if ($agentid > 0) {
+            if ($notify && $agentid !== $actorid) {
+                $type = $DB->get_record('gmk_letter_type', ['id' => (int)$request->lettertypeid]);
+                self::notify_staff_new($request, $type ?: null, [$agentid], true);
+            }
+            tickets::on_assigned($request);
+        }
+        return $request;
+    }
+
+    /**
+     * Auto generation; if the PDF fails the letter goes to manual management
+     * instead of staying stuck (T3).
+     */
+    private static function auto_generate(int $requestid, int $actorid, string $message, array $metadata = []): stdClass {
+        try {
+            self::generate_document_for_request($requestid, $actorid);
+        } catch (\Throwable $e) {
+            self::add_event($requestid, null, null, 'generation_failed', 'No se pudo generar el PDF: ' . $e->getMessage(),
+                $actorid);
+            return self::set_request_status($requestid, self::STATUS_PENDIENTE_GESTION, $actorid,
+                'La generación automática falló: pasa a gestión académica', $metadata);
+        }
+        return self::set_request_status($requestid, self::STATUS_GENERADA_DIGITAL, $actorid, $message, $metadata);
+    }
+
+    /**
+     * Public event logger (desk notes, SLA, reminders).
+     */
+    public static function log(string $eventtype, int $requestid, ?string $oldstatus, ?string $newstatus, string $message,
+            int $actorid, array $metadata = []): void {
+        self::add_event($requestid, $oldstatus, $newstatus, $eventtype, $message, $actorid, $metadata);
+    }
+
+    /**
+     * New letter to manage: to its owner, else to the team.
+     */
+    private static function notify_staff_new(stdClass $request, ?stdClass $type, ?array $to = null,
+            bool $assigned = false): void {
+        $recipients = $to ?? ((int)$request->assignedto > 0 ? [(int)$request->assignedto] : team::recipients_unassigned());
+        $student = \core_user::get_user((int)$request->userid);
+        $name = $type ? format_string($type->name) : ('#' . (int)$request->lettertypeid);
+        $url = (new \moodle_url('/local/grupomakro_core/pages/letter_desk.php', ['request' => (int)$request->id]))->out(false);
+        $subject = ($assigned ? 'Carta asignada: ' : 'Nueva solicitud de carta: ') . $name . ' (#' . (int)$request->id . ')';
+        $body = ($assigned ? 'Tienes a tu cargo la solicitud de carta' : 'Llegó una solicitud de carta para gestionar')
+            . ":\n\n• Carta #" . (int)$request->id . ' · ' . $name . "\n• Estudiante: " . ($student ? fullname($student) : '')
+            . ((int)$request->due_at > 0 ? "\n• Plazo: " . userdate((int)$request->due_at, '%d/%m/%Y %H:%M') : '')
+            . (trim((string)$request->observation) !== '' ? "\n• Observación: " . trim((string)$request->observation) : '')
+            . "\n\nGestionarla: " . $url;
+        foreach (team::active($recipients) as $uid) {
+            $user = \core_user::get_user($uid);
+            if ($user) {
+                self::send_message('letter_new_request', $user, $subject, $body, $url, 'Bandeja de cartas');
+            }
+        }
+    }
+
+    /**
+     * Plain-text staff notification through $provider. Never throws.
+     */
+    public static function send_message(string $provider, stdClass $to, string $subject, string $body, string $url,
+            string $urlname): void {
+        try {
+            $msg = new message();
+            $msg->component = 'local_grupomakro_core';
+            $msg->name = $provider;
+            $msg->userfrom = core_user::get_noreply_user();
+            $msg->userto = $to;
+            $msg->subject = $subject;
+            $msg->fullmessage = $body;
+            $msg->fullmessageformat = FORMAT_PLAIN;
+            $msg->fullmessagehtml = nl2br(s($body));
+            $msg->smallmessage = $subject;
+            $msg->notification = 1;
+            $msg->contexturl = $url;
+            $msg->contexturlname = $urlname;
+            $msg->courseid = SITEID;
+            message_send($msg);
+        } catch (\Throwable $e) {
+            debugging('letters notify ' . $provider . ': ' . $e->getMessage(), DEBUG_DEVELOPER);
+        }
+    }
+
+    /**
+     * Reminders to the student: 'payment_reminder' | 'pickup_reminder'.
+     */
+    public static function notify_student(stdClass $request, string $kind): void {
+        global $DB;
+        $type = $DB->get_record('gmk_letter_type', ['id' => (int)$request->lettertypeid]);
+        $name = $type ? format_string($type->name) : ('#' . (int)$request->lettertypeid);
+        $a = (object)['lettername' => $name, 'requestid' => (int)$request->id,
+            'amount' => number_format((float)$request->cost_snapshot, 2), 'paymentlink' => (string)$request->payment_link,
+            'days' => sla::setting('letters_pay_cancel_days'),
+            'pickup' => $type && trim((string)$type->pickup_note) !== '' ? trim((string)$type->pickup_note) : ''];
+        $subject = get_string('letter_' . $kind . '_subject', 'local_grupomakro_core', $a);
+        $body = get_string('letter_' . $kind . '_body', 'local_grupomakro_core', $a);
+        self::send_notification((int)$request->userid, 'letter_student_reminder', $subject, $body,
+            $kind === 'payment_reminder' ? (string)$request->payment_link : '');
+    }
+
+    /**
+     * @return array userid => full name
+     */
+    public static function user_names(array $ids): array {
+        global $DB;
+        $ids = array_values(array_unique(array_filter(array_map('intval', $ids))));
+        if (!$ids) {
+            return [];
+        }
+        [$in, $params] = $DB->get_in_or_equal($ids);
+        $out = [];
+        foreach ($DB->get_records_select('user', "id $in", $params, '',
+                'id, firstname, lastname, firstnamephonetic, lastnamephonetic, middlename, alternatename') as $u) {
+            $out[(int)$u->id] = fullname($u);
+        }
+        return $out;
+    }
+
+    /**
+     * Student-facing status words.
+     */
+    public static function student_status_label(string $status): string {
+        $key = 'letter_student_status_' . $status;
+        return get_string_manager()->string_exists($key, 'local_grupomakro_core')
+            ? get_string($key, 'local_grupomakro_core') : (self::get_status_labels()[$status] ?? $status);
+    }
+
+    /**
+     * Steps shown to the student: [label, state done|current|todo|failed].
+     */
+    public static function student_steps(stdClass $request): array {
+        $status = (string)$request->status;
+        $paid = (float)$request->cost_snapshot > 0;
+        $physical = (string)$request->deliverymode_snapshot === self::DELIVERY_FISICA;
+        $steps = ['solicitada' => 'Recibida'];
+        if ($paid) {
+            $steps['pago'] = 'Pago';
+        }
+        $steps['gestion'] = 'En preparación';
+        if ($physical || in_array($status, [self::STATUS_PENDIENTE_RECOLECCION, self::STATUS_ENTREGADA], true)) {
+            $steps['retiro'] = 'Lista para retirar';
+            $steps['entregada'] = 'Entregada';
+        } else {
+            $steps['lista'] = 'Lista para descargar';
+        }
+        $position = [
+            self::STATUS_SOLICITADA => 'solicitada', self::STATUS_PENDIENTE_PAGO => 'pago',
+            self::STATUS_PAGADA => 'gestion', self::STATUS_PENDIENTE_GESTION => 'gestion',
+            self::STATUS_GENERADA_DIGITAL => 'lista', self::STATUS_PENDIENTE_RECOLECCION => 'retiro',
+            self::STATUS_ENTREGADA => 'entregada',
+        ];
+        $failed = in_array($status, [self::STATUS_RECHAZADA, self::STATUS_CANCELADA], true);
+        $current = $position[$status] ?? null;
+        $keys = array_keys($steps);
+        $idx = $current !== null ? array_search($current, $keys, true) : false;
+        $final = in_array($status, [self::STATUS_GENERADA_DIGITAL, self::STATUS_ENTREGADA], true);
+        $out = [];
+        foreach ($keys as $i => $k) {
+            if ($failed) {
+                $state = $i === 0 ? 'done' : 'todo';
+            } else if ($idx === false) {
+                $state = 'todo';
+            } else if ($i < $idx || ($i === $idx && $final)) {
+                $state = 'done';
+            } else {
+                $state = $i === $idx ? 'current' : 'todo';
+            }
+            $out[] = ['label' => $steps[$k], 'state' => $state];
+        }
+        if ($failed) {
+            $out[] = ['label' => self::student_status_label($status), 'state' => 'failed'];
+        }
+        return $out;
+    }
+
+    /**
+     * Student cancels their own request while nobody has worked on it.
+     */
+    public static function student_cancel(int $requestid, int $userid, string $reason = ''): stdClass {
+        global $DB;
+        $request = $DB->get_record('gmk_letter_request', ['id' => $requestid], '*', MUST_EXIST);
+        if ((int)$request->userid !== $userid) {
+            throw new moodle_exception('nopermissions', 'error', '', 'cancel letter request');
+        }
+        if (!self::student_can_cancel($request)) {
+            throw new moodle_exception('letter_err_cannotcancel', 'local_grupomakro_core');
+        }
+        $reason = \core_text::substr(trim($reason), 0, 500);
+        return self::set_request_status($requestid, self::STATUS_CANCELADA, $userid,
+            'Anulada por el estudiante' . ($reason !== '' ? ': ' . $reason : ''), [], ['notify' => false]);
+    }
+
+    public static function student_can_cancel(stdClass $request): bool {
+        global $DB;
+        if (!in_array((string)$request->status, [self::STATUS_PENDIENTE_PAGO, self::STATUS_PENDIENTE_GESTION,
+                self::STATUS_SOLICITADA], true)) {
+            return false;
+        }
+        return !$DB->record_exists('gmk_letter_document', ['requestid' => (int)$request->id]);
+    }
+
+    /**
+     * Staff loads the letter they made (PDF or Word) and closes the request:
+     * $next = 'available' (el estudiante la descarga), 'pickup' (lista para
+     * retirar) or 'delivered' (entregada). Pedido de Ramiro, 19-nov-2026.
+     */
+    public static function upload_document(int $requestid, int $actorid, string $filename, string $content,
+            string $next = 'available'): stdClass {
+        global $DB;
+        $request = $DB->get_record('gmk_letter_request', ['id' => $requestid], '*', MUST_EXIST);
+        $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+        if (!isset(self::UPLOAD_TYPES[$ext])) {
+            throw new moodle_exception('letter_err_filetype', 'local_grupomakro_core');
+        }
+        if ($content === '' || strlen($content) > self::UPLOAD_MAX_BYTES) {
+            throw new moodle_exception('letter_err_filesize', 'local_grupomakro_core', '', self::UPLOAD_MAX_BYTES / 1048576);
+        }
+        $targets = ['available' => self::STATUS_GENERADA_DIGITAL, 'pickup' => self::STATUS_PENDIENTE_RECOLECCION,
+            'delivered' => self::STATUS_ENTREGADA];
+        if (!isset($targets[$next])) {
+            throw new \invalid_parameter_exception('next');
+        }
+        $target = $targets[$next];
+        $status = (string)$request->status;
+        $sametarget = $status === $target;
+        if (!$sametarget && !in_array($target, self::allowed_next($status), true)) {
+            throw new moodle_exception('letter_invalid_transition', 'local_grupomakro_core', '', $status . ' -> ' . $target);
+        }
+        $version = self::get_next_document_version($requestid);
+        $base = preg_replace('/[^a-zA-Z0-9_\-]/', '_', pathinfo($filename, PATHINFO_FILENAME));
+        $stored = 'carta_req_' . $requestid . '_v' . $version . '_' . \core_text::substr($base, 0, 60) . '.' . $ext;
+
+        $transaction = $DB->start_delegated_transaction();
+        try {
+            $doc = self::save_document($requestid, $stored, $content, $actorid, '', '', self::UPLOAD_TYPES[$ext], 'uploaded');
+            self::add_event($requestid, $status, $status, 'document_uploaded', 'Carta cargada: ' . $filename, $actorid,
+                ['documentid' => (int)$doc->id, 'version' => (int)$doc->versionno]);
+            if ($status === self::STATUS_PAGADA && $target !== self::STATUS_GENERADA_DIGITAL) {
+                // pagada -> pendiente_gestion -> destino.
+                self::set_request_status($requestid, self::STATUS_PENDIENTE_GESTION, $actorid, 'Carta cargada', [],
+                    ['notify' => false]);
+            }
+            if (!$sametarget) {
+                $request = self::set_request_status($requestid, $target, $actorid, 'Carta cargada por el personal');
+            }
+            $transaction->allow_commit();
+        } catch (\Throwable $e) {
+            $transaction->rollback($e);
+        }
+        self::queue_odoo_copy((int)$doc->id);
         return $DB->get_record('gmk_letter_request', ['id' => $requestid], '*', MUST_EXIST);
+    }
+
+    /** Files staff may upload: extension => mimetype. */
+    const UPLOAD_TYPES = [
+        'pdf' => 'application/pdf',
+        'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'doc' => 'application/msword',
+    ];
+
+    const UPLOAD_MAX_BYTES = 10485760;
+
+    /**
+     * Valid next statuses from $status.
+     *
+     * @return string[]
+     */
+    public static function allowed_next(string $status): array {
+        return self::TRANSITIONS[$status] ?? [];
+    }
+
+    /**
+     * Pending letters with ANS for the admin dashboard (contract, see metrics).
+     */
+    public static function get_pending_for_staff(int $userid, string $scope = 'mine', int $limit = 3): array {
+        return metrics::pending_for_staff($userid, $scope, $limit);
+    }
+
+    /**
+     * Copies a document to Odoo in the background (T6).
+     */
+    public static function queue_odoo_copy(int $documentid): void {
+        $task = new \local_grupomakro_core\task\letters_odoo_copy();
+        $task->set_custom_data(['documentid' => $documentid]);
+        \core\task\manager::queue_adhoc_task($task, true);
+    }
+
+    /**
+     * Sends one stored document to Odoo (adhoc task). Returns true when Odoo
+     * confirmed the attachment.
+     */
+    public static function copy_document_to_odoo(int $documentid): bool {
+        global $DB;
+        $document = $DB->get_record('gmk_letter_document', ['id' => $documentid]);
+        if (!$document || !empty($document->odoo_attachment_id)) {
+            return true;
+        }
+        $request = $DB->get_record('gmk_letter_request', ['id' => (int)$document->requestid]);
+        if (!$request) {
+            return true;
+        }
+        $fs = get_file_storage();
+        $file = $fs->get_file(context_system::instance()->id, 'local_grupomakro_core', 'letter_document',
+            (int)$document->fileitemid, '/', (string)$document->filename);
+        if (!$file) {
+            return true;
+        }
+        self::duplicate_document_to_odoo($request, $document, base64_encode($file->get_content()));
+        return (bool)$DB->get_field('gmk_letter_document', 'odoo_attachment_id', ['id' => $documentid]);
     }
 
     /**
@@ -452,17 +832,38 @@ class manager {
             $params['status'] = $statusfilter;
         }
         $wheresql = $where ? ('WHERE ' . implode(' AND ', $where)) : '';
-        $sql = "SELECT r.*, t.name AS lettertypename, t.code AS lettertypecode
+        $sql = "SELECT r.*, t.name AS lettertypename, t.code AS lettertypecode, t.pickup_note
                   FROM {gmk_letter_request} r
                   JOIN {gmk_letter_type} t ON t.id = r.lettertypeid
                   $wheresql
               ORDER BY r.timecreated DESC";
         $records = $DB->get_records_sql($sql, $params);
         $labels = self::get_status_labels();
+        // Una consulta para los documentos y otra para los tickets (antes, 1 por fila).
+        $docs = self::latest_documents(array_keys($records));
+        $tickets = tickets::summaries(array_keys($records), $userid, !$canviewall || $userid > 0);
         $result = [];
         foreach ($records as $record) {
-            $document = self::get_latest_document((int)$record->id);
+            $document = $docs[(int)$record->id] ?? null;
+            $ticket = $tickets[(int)$record->id] ?? null;
+            $isfinal = !in_array((string)$record->status, self::OPEN_STATUSES, true);
             $result[] = [
+                'studentlabel' => self::student_status_label((string)$record->status),
+                'steps' => self::student_steps($record),
+                'observation' => (string)($record->observation ?? ''),
+                'deliverymode' => (string)$record->deliverymode_snapshot,
+                'due_at' => $isfinal ? 0 : (int)$record->due_at,
+                'rejection_reason' => (string)($record->rejection_reason ?? ''),
+                'cancel_reason' => (string)($record->cancel_reason ?? ''),
+                'pickup_note' => (string)$record->status === self::STATUS_PENDIENTE_RECOLECCION
+                    ? trim((string)($record->pickup_note ?? '')) : '',
+                'can_cancel' => self::student_can_cancel($record) ? 1 : 0,
+                'can_pay' => ((string)$record->status === self::STATUS_PENDIENTE_PAGO
+                    && trim((string)$record->payment_link) !== '') ? 1 : 0,
+                'document_mimetype' => $document ? (string)$document->mimetype : '',
+                'ticket' => $ticket ?? ['id' => 0, 'number' => '', 'status' => '', 'statuslabel' => '', 'isopen' => false,
+                    'unread' => 0],
+                'timeupdated' => (int)$record->timemodified,
                 'id' => (int)$record->id,
                 'userid' => (int)$record->userid,
                 'lettertypeid' => (int)$record->lettertypeid,
@@ -566,7 +967,8 @@ class manager {
         $filename = 'carta_' . $safe . '_req_' . $requestid . '_v' . (self::get_next_document_version($requestid)) . '.pdf';
         $docrecord = self::save_document($requestid, $filename, $pdfcontent, $actorid, $verificationtoken, $verificationurl);
 
-        self::duplicate_document_to_odoo($request, $docrecord, base64_encode($pdfcontent));
+        // T6: la copia a Odoo va en segundo plano con reintentos (antes esperaba hasta 30 s).
+        self::queue_odoo_copy((int)$docrecord->id);
         self::add_event($requestid, $request->status, $request->status, 'document_generated', 'Documento de carta generado', $actorid);
 
         return [
@@ -642,18 +1044,24 @@ class manager {
      * @return void
      * @throws moodle_exception
      */
+    /**
+     * Valid transitions. 20261001130: pendiente_gestion -> entregada (carta
+     * cargada y entregada, o "ya se gestiono" de las anteriores a la bandeja).
+     */
+    const TRANSITIONS = [
+        self::STATUS_SOLICITADA => [self::STATUS_PENDIENTE_PAGO, self::STATUS_GENERADA_DIGITAL, self::STATUS_PENDIENTE_GESTION, self::STATUS_CANCELADA, self::STATUS_RECHAZADA],
+        self::STATUS_PENDIENTE_PAGO => [self::STATUS_PAGADA, self::STATUS_CANCELADA, self::STATUS_RECHAZADA],
+        self::STATUS_PAGADA => [self::STATUS_GENERADA_DIGITAL, self::STATUS_PENDIENTE_GESTION, self::STATUS_CANCELADA, self::STATUS_RECHAZADA],
+        self::STATUS_GENERADA_DIGITAL => [self::STATUS_ENTREGADA, self::STATUS_CANCELADA],
+        self::STATUS_PENDIENTE_GESTION => [self::STATUS_PENDIENTE_RECOLECCION, self::STATUS_RECHAZADA, self::STATUS_CANCELADA, self::STATUS_GENERADA_DIGITAL, self::STATUS_ENTREGADA],
+        self::STATUS_PENDIENTE_RECOLECCION => [self::STATUS_ENTREGADA, self::STATUS_RECHAZADA, self::STATUS_CANCELADA],
+        self::STATUS_ENTREGADA => [],
+        self::STATUS_RECHAZADA => [],
+        self::STATUS_CANCELADA => [],
+    ];
+
     private static function assert_valid_transition(string $oldstatus, string $newstatus): void {
-        $allowed = [
-            self::STATUS_SOLICITADA => [self::STATUS_PENDIENTE_PAGO, self::STATUS_GENERADA_DIGITAL, self::STATUS_PENDIENTE_GESTION, self::STATUS_CANCELADA, self::STATUS_RECHAZADA],
-            self::STATUS_PENDIENTE_PAGO => [self::STATUS_PAGADA, self::STATUS_CANCELADA, self::STATUS_RECHAZADA],
-            self::STATUS_PAGADA => [self::STATUS_GENERADA_DIGITAL, self::STATUS_PENDIENTE_GESTION, self::STATUS_CANCELADA, self::STATUS_RECHAZADA],
-            self::STATUS_GENERADA_DIGITAL => [self::STATUS_ENTREGADA, self::STATUS_CANCELADA],
-            self::STATUS_PENDIENTE_GESTION => [self::STATUS_PENDIENTE_RECOLECCION, self::STATUS_RECHAZADA, self::STATUS_CANCELADA, self::STATUS_GENERADA_DIGITAL],
-            self::STATUS_PENDIENTE_RECOLECCION => [self::STATUS_ENTREGADA, self::STATUS_RECHAZADA, self::STATUS_CANCELADA],
-            self::STATUS_ENTREGADA => [],
-            self::STATUS_RECHAZADA => [],
-            self::STATUS_CANCELADA => [],
-        ];
+        $allowed = self::TRANSITIONS;
         if (!array_key_exists($oldstatus, $allowed) || !in_array($newstatus, $allowed[$oldstatus], true)) {
             throw new moodle_exception('letter_invalid_transition', 'local_grupomakro_core', '', $oldstatus . ' -> ' . $newstatus);
         }
@@ -1083,7 +1491,9 @@ class manager {
         string $content,
         int $actorid,
         string $verificationtoken = '',
-        string $verificationurl = ''
+        string $verificationurl = '',
+        string $mimetype = 'application/pdf',
+        string $source = 'generated'
     ): stdClass {
         global $DB;
         $now = time();
@@ -1091,7 +1501,8 @@ class manager {
             'requestid' => $requestid,
             'versionno' => self::get_next_document_version($requestid),
             'filename' => $filename,
-            'mimetype' => 'application/pdf',
+            'mimetype' => $mimetype,
+            'source' => $source,
             'filesize' => strlen($content),
             'fileitemid' => 0,
             'verificationtoken' => $verificationtoken !== '' ? $verificationtoken : null,
@@ -1139,13 +1550,32 @@ class manager {
      * @param int $requestid
      * @return stdClass|null
      */
-    private static function get_latest_document(int $requestid): ?stdClass {
+    public static function get_latest_document(int $requestid): ?stdClass {
         global $DB;
         $records = $DB->get_records('gmk_letter_document', ['requestid' => $requestid], 'versionno DESC', '*', 0, 1);
         if (empty($records)) {
             return null;
         }
         return reset($records);
+    }
+
+    /**
+     * Latest document of each request in one query.
+     *
+     * @return array requestid => document
+     */
+    public static function latest_documents(array $requestids): array {
+        global $DB;
+        $requestids = array_values(array_filter(array_map('intval', $requestids)));
+        if (!$requestids) {
+            return [];
+        }
+        [$in, $params] = $DB->get_in_or_equal($requestids);
+        $out = [];
+        foreach ($DB->get_records_select('gmk_letter_document', "requestid $in", $params, 'requestid, versionno') as $d) {
+            $out[(int)$d->requestid] = $d;
+        }
+        return $out;
     }
 
     /**

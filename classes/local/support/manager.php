@@ -367,8 +367,13 @@ class manager {
      * Creates a ticket for $userid, assigns it and posts the automatic messages.
      */
     public static function create(int $userid, int $categoryid, string $subject, string $body, int $classid = 0,
-            string $audience = 'student', int $draftitemid = 0, int $faqid = 0): stdClass {
+            string $audience = 'student', int $draftitemid = 0, int $faqid = 0, int $letterrequestid = 0): stdClass {
         global $DB;
+        // Cartas (20261001130): solo una carta propia puede ligarse al ticket.
+        if ($letterrequestid > 0 && (int)$DB->get_field('gmk_letter_request', 'userid', ['id' => $letterrequestid])
+                !== $userid) {
+            $letterrequestid = 0;
+        }
         require_capability('local/grupomakro_core:support_create', context_system::instance(), $userid);
 
         $category = $DB->get_record('gmk_tkt_category', ['id' => $categoryid, 'active' => 1]);
@@ -451,12 +456,14 @@ class manager {
             'lastmessageat' => 0,
             'rating' => 0,
             'rating_comment' => null,
+            'letterrequestid' => $letterrequestid,
             'timecreated' => $now,
             'timemodified' => $now,
         ];
         $ticket->id = $DB->insert_record('gmk_tkt_ticket', $ticket);
         self::log_event((int)$ticket->id, 'created', '', self::S_NEW, $userid,
-            ['categoryid' => (int)$category->id, 'areaid' => (int)$area->id]);
+            ['categoryid' => (int)$category->id, 'areaid' => (int)$area->id]
+            + ($letterrequestid > 0 ? ['letterrequestid' => $letterrequestid] : []));
 
         $message = self::insert_message($ticket, $userid, self::ROLE_REQUESTER, $body, false);
         if ($drafts) {
@@ -470,7 +477,11 @@ class manager {
         }
         self::set_read_pointer((int)$ticket->id, $userid, (int)$message->id);
 
-        $agentid = self::pick_agent($category);
+        // Ticket de una carta: va a quien gestiona esa carta (si es del equipo).
+        $agentid = $letterrequestid > 0 ? \local_grupomakro_core\local\letters\tickets::preferred_agent($letterrequestid) : 0;
+        if ($agentid <= 0) {
+            $agentid = self::pick_agent($category);
+        }
         if ($agentid > 0) {
             self::apply_assignment($ticket, $agentid, 0, 'auto');
         }
@@ -487,6 +498,57 @@ class manager {
         } else {
             self::queue_notification('support_new_ticket', self::category_staff($category), $ticket, $message);
         }
+        self::flush_notifications();
+        return $DB->get_record('gmk_tkt_ticket', ['id' => (int)$ticket->id]);
+    }
+
+    /**
+     * Cartas (20261001130): the staff opens a ticket on behalf of the student
+     * ("Escribir al estudiante" from the letters desk). The first message is the
+     * staff's, the ticket is theirs and waits for the student.
+     */
+    public static function create_by_staff(int $staffid, int $studentid, int $categoryid, string $subject, string $body,
+            int $letterrequestid = 0): stdClass {
+        global $DB;
+        self::require_staff($staffid);
+        $category = $DB->get_record('gmk_tkt_category', ['id' => $categoryid, 'active' => 1], '*', MUST_EXIST);
+        $area = $DB->get_record('gmk_tkt_area', ['id' => (int)$category->areaid], '*', MUST_EXIST);
+        $student = \core_user::get_user($studentid, '*', MUST_EXIST);
+        $body = self::clean_body($body);
+        if ($body === '') {
+            throw new moodle_exception('tkt_err_empty', 'local_grupomakro_core');
+        }
+        if (\core_text::strlen($body) > self::MAX_BODY) {
+            throw new moodle_exception('tkt_err_toolong', 'local_grupomakro_core', '', self::MAX_BODY);
+        }
+        $subject = \core_text::substr(trim(preg_replace('/\s+/u', ' ', strip_tags($subject)) ?? ''), 0, self::MAX_SUBJECT)
+            ?: (string)$category->name;
+        $now = time();
+        $year = (int)self::local_datetime($now)->format('Y');
+        self::ensure_seq_row($year);
+
+        $transaction = $DB->start_delegated_transaction();
+        $ticket = (object)[
+            'number' => self::next_number($year), 'userid' => (int)$student->id, 'requesterrole' => 'student',
+            'areaid' => (int)$area->id, 'categoryid' => (int)$category->id, 'subject' => $subject,
+            'status' => self::S_WAITING, 'priority' => (int)$category->priority_default,
+            'confidential' => (int)!empty($category->confidential), 'assignedto' => $staffid, 'classid' => 0,
+            'learningplanid' => 0, 'first_response_at' => $now, 'first_response_due' => 0, 'resolution_due' => 0,
+            'waiting_since' => 0, 'resolved_at' => 0, 'closed_at' => 0, 'reopened_count' => 0, 'escalation_level' => 0,
+            'escalated_at' => 0, 'assigned_at' => $now, 'last_student_msg_at' => 0, 'last_staff_msg_at' => $now,
+            'lastmessageid' => 0, 'lastmessageat' => 0, 'rating' => 0, 'rating_comment' => null,
+            'letterrequestid' => $letterrequestid, 'timecreated' => $now, 'timemodified' => $now,
+        ];
+        $ticket->id = $DB->insert_record('gmk_tkt_ticket', $ticket);
+        self::log_event((int)$ticket->id, 'created', '', self::S_WAITING, $staffid,
+            ['categoryid' => (int)$category->id, 'areaid' => (int)$area->id, 'bystaff' => 1,
+                'letterrequestid' => $letterrequestid]);
+        self::log_event((int)$ticket->id, 'assigned', '0', (string)$staffid, $staffid, ['how' => 'bystaff']);
+        $message = self::insert_message($ticket, $staffid, self::ROLE_AGENT, $body, false);
+        self::set_read_pointer((int)$ticket->id, $staffid, (int)$message->id);
+        $transaction->allow_commit();
+
+        self::queue_notification('support_reply', [(int)$student->id], $ticket, $message);
         self::flush_notifications();
         return $DB->get_record('gmk_tkt_ticket', ['id' => (int)$ticket->id]);
     }
@@ -1621,8 +1683,13 @@ class manager {
         $docs = $isrequester ? [] : self::document_numbers(array_map(function($r) {
             return (int)$r->userid;
         }, $rows));
+        // Cartas (20261001130): la carta de la que habla cada ticket.
+        $letters = \local_grupomakro_core\local\letters\tickets::letters_for(array_map(function($r) {
+            return (int)($r->letterrequestid ?? 0);
+        }, $rows));
         $out = [];
         foreach ($rows as $r) {
+            $letter = $letters[(int)($r->letterrequestid ?? 0)] ?? null;
             $requester = $users[(int)$r->userid] ?? null;
             $agent = $users[(int)$r->assignedto] ?? null;
             $myrole = $isrequester ? self::ROLE_REQUESTER : self::resolve_role($r, $userid);
@@ -1670,6 +1737,16 @@ class manager {
                 'resolved_at' => (int)$r->resolved_at,
                 'closed_at' => (int)$r->closed_at,
                 'reopened_count' => (int)$r->reopened_count,
+                'letter' => $letter ? [
+                    'id' => $letter['id'],
+                    'typename' => $letter['typename'],
+                    'status' => $letter['status'],
+                    'statuslabel' => $isrequester ? $letter['studentlabel'] : $letter['statuslabel'],
+                    'due_at' => $letter['due_at'],
+                    'sla_level' => $isrequester ? 0 : $letter['sla_level'],
+                    'url' => $isrequester ? config::portal_url('/solicitudes-cartas') : $letter['url'],
+                ] : ['id' => 0, 'typename' => '', 'status' => '', 'statuslabel' => '', 'due_at' => 0, 'sla_level' => 0,
+                    'url' => ''],
                 'timecreated' => (int)$r->timecreated,
                 'timemodified' => (int)$r->timemodified,
             ];

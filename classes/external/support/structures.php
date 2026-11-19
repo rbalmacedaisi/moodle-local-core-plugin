@@ -70,6 +70,16 @@ class structures {
             'resolved_at' => new external_value(PARAM_INT, 'Resolved time'),
             'closed_at' => new external_value(PARAM_INT, 'Closed time'),
             'reopened_count' => new external_value(PARAM_INT, 'Times reopened'),
+            // Cartas (20261001130): carta de la que habla el ticket (id 0 = ninguna).
+            'letter' => new external_single_structure([
+                'id' => new external_value(PARAM_INT, 'Letter request id (0 = none)'),
+                'typename' => new external_value(PARAM_TEXT, 'Letter type'),
+                'status' => new external_value(PARAM_ALPHANUMEXT, 'Letter status'),
+                'statuslabel' => new external_value(PARAM_TEXT, 'Letter status for the caller'),
+                'due_at' => new external_value(PARAM_INT, 'Estimated date / deadline (0 = none)'),
+                'sla_level' => new external_value(PARAM_INT, 'Letter SLA level (staff only)'),
+                'url' => new external_value(PARAM_RAW, 'Where to see the letter'),
+            ], 'Letter of the ticket', VALUE_OPTIONAL),
             'timecreated' => new external_value(PARAM_INT, 'Created'),
             'timemodified' => new external_value(PARAM_INT, 'Modified'),
         ]);

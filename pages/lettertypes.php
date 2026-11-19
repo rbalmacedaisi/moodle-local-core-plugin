@@ -34,6 +34,16 @@ if ($action === 'save' && data_submitted()) {
     $record->signatureimageurl = optional_param('signatureimageurl', '', PARAM_RAW_TRIMMED);
     $record->odoo_product_id = optional_param('odoo_product_id', 0, PARAM_INT);
     $record->template_html = optional_param('template_html', '', PARAM_RAW);
+    // Cartas (20261001130): lugar/horario de retiro y plazos en dias habiles (1 dia = 780 min, 08:00-21:00).
+    $record->pickup_note = \core_text::substr(trim(optional_param('pickup_note', '', PARAM_TEXT)), 0, 500);
+    $sla = [];
+    foreach (['pendiente_gestion' => 'sla_gestion_days', 'pendiente_recoleccion' => 'sla_pickup_days'] as $st => $field) {
+        $days = optional_param($field, '', PARAM_RAW_TRIMMED);
+        if ($days !== '' && is_numeric(str_replace(',', '.', $days))) {
+            $sla[$st] = max(0, (int)round((float)str_replace(',', '.', $days) * 780));
+        }
+    }
+    $record->sla_json = $sla ? json_encode($sla) : null;
     $record->usermodified = $USER->id;
     $record->timemodified = time();
 
@@ -154,6 +164,30 @@ echo html_writer::tag('textarea', $editing ? s($editing->warningtext) : '', [
     'rows' => 3,
     'class' => 'form-control',
 ]);
+echo html_writer::end_div();
+
+// Cartas (20261001130): plazos (ANS) y retiro.
+$budgets = \local_grupomakro_core\local\letters\sla::budgets($editing ?: null);
+$fmtdays = function(int $minutes): string {
+    return rtrim(rtrim(number_format($minutes / 780, 1, '.', ''), '0'), '.');
+};
+echo html_writer::start_div('row');
+echo html_writer::start_div('col-md-3 mb-3');
+echo html_writer::label('Plazo para dejarla lista (días hábiles)', 'id_sla_gestion_days');
+echo html_writer::empty_tag('input', ['id' => 'id_sla_gestion_days', 'type' => 'number', 'step' => '0.5', 'min' => '0',
+    'name' => 'sla_gestion_days', 'value' => $fmtdays((int)($budgets['pendiente_gestion'] ?? 0)), 'class' => 'form-control']);
+echo html_writer::end_div();
+echo html_writer::start_div('col-md-3 mb-3');
+echo html_writer::label('Aviso al personal si no se retira (días hábiles)', 'id_sla_pickup_days');
+echo html_writer::empty_tag('input', ['id' => 'id_sla_pickup_days', 'type' => 'number', 'step' => '0.5', 'min' => '0',
+    'name' => 'sla_pickup_days', 'value' => $fmtdays((int)($budgets['pendiente_recoleccion'] ?? 0)), 'class' => 'form-control']);
+echo html_writer::end_div();
+echo html_writer::start_div('col-md-6 mb-3');
+echo html_writer::label('Dónde y cuándo se retira (lo ve el estudiante)', 'id_pickup_note');
+echo html_writer::empty_tag('input', ['id' => 'id_pickup_note', 'type' => 'text', 'maxlength' => 500, 'name' => 'pickup_note',
+    'value' => $editing ? s((string)($editing->pickup_note ?? '')) : '',
+    'placeholder' => 'Ej.: Secretaría Académica, lunes a viernes de 8:00 a 17:00', 'class' => 'form-control']);
+echo html_writer::end_div();
 echo html_writer::end_div();
 
 echo html_writer::start_div('row');

@@ -90,6 +90,9 @@ Vue.component('support-desk', {
                     <v-list-item-subtitle class="text-caption">
                       <v-chip x-small label :color="fmt.statusColor(t.status)" dark class="mr-1">{{ t.statuslabel }}</v-chip>
                       <v-chip v-if="t.priority === 2" x-small label color="red" outlined class="mr-1">Alta</v-chip>
+                      <v-chip v-if="t.letter && t.letter.id" x-small label outlined color="indigo" class="mr-1">
+                        <v-icon x-small left>mdi-email-newsletter</v-icon>Carta #{{ t.letter.id }} · {{ t.letter.statuslabel }}
+                      </v-chip>
                       <span v-if="t.assignedname">{{ t.assignedname }}</span><span v-else class="red--text">Sin asignar</span>
                     </v-list-item-subtitle>
                   </v-list-item-content>
@@ -121,6 +124,10 @@ Vue.component('support-desk', {
                     <v-chip v-if="active.semaphore !== 'none'" small label outlined :color="fmt.semaphoreColor(active.semaphore)"
                       :title="'Solo cuenta el horario hábil. En reloj: ' + (fmt.waiting(active.waitingclock) || '0 min')">
                       <v-icon x-small left>mdi-timer-sand</v-icon>{{ fmt.waiting(active.waitingminutes) || '0 min' }} hábiles
+                    </v-chip>
+                    <v-chip v-if="active.letter && active.letter.id" small label outlined color="indigo" :href="active.letter.url"
+                      :title="'Abrir la carta en la bandeja de cartas'">
+                      <v-icon x-small left>mdi-email-newsletter</v-icon>Carta #{{ active.letter.id }} · {{ active.letter.typename }} · {{ active.letter.statuslabel }}
                     </v-chip>
                   </div>
                 </div>

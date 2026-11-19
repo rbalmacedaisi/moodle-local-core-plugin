@@ -252,4 +252,14 @@ $tasks = [
         'month' => '*',
         'dayofweek' => '*',
     ],
+    [
+        // Cartas (20261001130): asignacion, alertas de plazo, recordatorios y resumen diario.
+        'classname' => 'local_grupomakro_core\task\letters_sla',
+        'blocking' => 0,
+        'minute' => '*/15',
+        'hour' => '*',
+        'day' => '*',
+        'month' => '*',
+        'dayofweek' => '*',
+    ],
 ];

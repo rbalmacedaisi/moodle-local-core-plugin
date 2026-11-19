@@ -284,7 +284,7 @@ if (isloggedin() && !isguestuser()) {
     $letterRequestsPage = new admin_externalpage(
         'grupomakro_core_letter_requests',
         $emojititle("\u{1F4EC}", 'Bandeja Solicitudes de Cartas'),
-        new moodle_url('/local/grupomakro_core/pages/letterrequests.php'),
+        new moodle_url('/local/grupomakro_core/pages/letter_desk.php'),
         'local/grupomakro_core:managerequests'
     );
     $bulkEnrollPage = new admin_externalpage(

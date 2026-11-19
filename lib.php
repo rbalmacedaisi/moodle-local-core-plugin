@@ -143,7 +143,7 @@ function local_grupomakro_core_get_staff_landing_url(): ?moodle_url {
         'view_academic_panel'            => 'academicpanel.php',
         'manage_wellness'                => 'wellness_dashboard.php',
         'manage_psychology_appointments' => 'wellness_psychology_panel.php',
-        'managerequests'                 => 'letterrequests.php',
+        'managerequests'                 => 'letter_desk.php',
         'manageletters'                  => 'lettertypes.php',
         'view_student_population'        => 'student_population.php',
         'viewabsencedashboard'           => 'absence_dashboard.php',
@@ -335,7 +335,7 @@ function local_grupomakro_core_extend_navigation(global_navigation $navigation) 
                 ['view_revalidations_dashboard', 'revalidations_director.php', get_string('revalidations_director_menu', $pluginname)],
             ],
             'Cartas, Contratos y Diplomas' => [
-                ['managerequests', 'letterrequests.php', '📬 Bandeja de Cartas'],
+                ['managerequests', 'letter_desk.php', '📬 Bandeja de Cartas'],
                 ['manageletters', 'lettertypes.php', '🗂️ Catálogo de Cartas'],
                 ['manage_orders', 'orders.php', '🧾 Órdenes'],
                 ['manage_institutions', 'institutionmanagement.php', '🏢 Instituciones'],
