@@ -1,8 +1,18 @@
 # Dashboard administrativo: "Mis pendientes"
 
-Estado: **propuesta para aprobar**. No hay código escrito.
-Rama: `feat/dashboard-administrativo`, sale de `origin/master` `2bb26bac` (versión 20261001126).
-Fecha: 19-nov-2026.
+Estado: **aprobado por Ramiro el 19-nov-2026** ("OK al plan, usa tus recomendaciones en las 7 decisiones") e
+**implementado** en la rama `feat/dashboard-administrativo` (versión 20261001129). Falta probarlo contra una base real
+(autotest en staging, con OK) y publicarlo. Plan de pruebas: `PRUEBAS_DASHBOARD_ADMINISTRATIVO.md`.
+
+Decisiones tomadas (§7):
+
+1. Las 12 fuentes.
+2. Horario de lunes a viernes de 08:00 a 17:00 y sábado de 08:00 a 12:00.
+3. Los ANS de la tabla §2.2.
+4. Los supervisores de esa misma tabla.
+5. La primera pasada de alertas va en silencio.
+6. Los administradores del sitio **no** se redirigen.
+7. Las alertas van solo como notificación web; el correo queda a elección de cada persona.
 
 Pedido de Ramiro: *"un dashboard donde caigan todos los administrativos indicándoles qué tienen pendiente, si cartas,
 tickets, planificación de próximo periodo, gestión de eventos, todo en una sola página con los accesos directos a cada

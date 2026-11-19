@@ -2408,4 +2408,13 @@ $functions = array(
         'ajax'        => true,
         'services'    => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
     ),
+    // Dashboard administrativo "Mis pendientes" (20261001129).
+    'local_grupomakro_dashboard_get' => array(
+        'classname'   => 'local_grupomakro_core\external\dashboard\get_dashboard',
+        'methodname'  => 'execute',
+        'description' => 'Dashboard administrativo: pendientes por fuente con ANS y semaforo (lo mio / mi equipo, cacheado 60 s).',
+        'type'        => 'read',
+        'capabilities'  => 'local/grupomakro_core:view_admin_dashboard',
+        'ajax'        => true,
+    ),
 );

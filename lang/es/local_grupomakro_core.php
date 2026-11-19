@@ -1645,3 +1645,18 @@ $string['tkt_err_attachupload'] = 'No se pudo subir el archivo (código {$a}). I
 
 // Mesa de ayuda: problemas comunes (20261001125).
 $string['tkt_err_faq'] = 'Ese problema común ya no está disponible.';
+
+// Dashboard administrativo "Mis pendientes" (20261001129).
+$string['admindash_title'] = 'Mis pendientes';
+$string['admindash_settings_title'] = 'Mis pendientes: configuración';
+$string['grupomakro_core:view_admin_dashboard'] = 'Ver el dashboard administrativo (Mis pendientes)';
+$string['grupomakro_core:view_admin_dashboard_team'] = 'Ver los pendientes de todo el equipo en el dashboard administrativo';
+$string['grupomakro_core:dashboard_manage'] = 'Configurar el dashboard administrativo (ANS, horario, alertas e inicio)';
+$string['grupomakro_core:dashboard_receive_escalations'] = 'Recibir las alertas críticas del dashboard administrativo';
+$string['messageprovider:dashboard_sla_warning'] = 'Mis pendientes: pendiente por vencer';
+$string['messageprovider:dashboard_sla_breach'] = 'Mis pendientes: pendiente vencido (responsable y supervisores)';
+$string['messageprovider:dashboard_escalation'] = 'Mis pendientes: pendiente crítico (gerencia)';
+$string['messageprovider:dashboard_daily_digest'] = 'Mis pendientes: resumen diario';
+$string['task_dashboard_escalate'] = 'Mis pendientes: alertas de ANS';
+$string['task_dashboard_digest'] = 'Mis pendientes: resumen diario';
+$string['cachedef_admindash'] = 'Dashboard administrativo: tarjetas por usuario';

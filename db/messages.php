@@ -302,4 +302,48 @@ $messageproviders = [
         )
     ],
 
+    // Dashboard administrativo (20261001129): Responsable: pendiente por vencer.
+    // Solo notificacion web por defecto (limite de correos de Bluehost); el
+    // correo queda permitido para quien lo encienda en sus preferencias.
+    'dashboard_sla_warning' => [
+        'capability' => 'local/grupomakro_core:view_admin_dashboard',
+        'defaults' => array(
+            'popup' => MESSAGE_PERMITTED + MESSAGE_DEFAULT_LOGGEDIN + MESSAGE_DEFAULT_LOGGEDOFF,
+            'email' => MESSAGE_PERMITTED,
+            'airnotifier' => MESSAGE_PERMITTED,
+        )
+    ],
+    // Dashboard administrativo (20261001129): Responsable y supervisores: pendiente vencido.
+    // Solo notificacion web por defecto (limite de correos de Bluehost); el
+    // correo queda permitido para quien lo encienda en sus preferencias.
+    'dashboard_sla_breach' => [
+        'capability' => 'local/grupomakro_core:view_admin_dashboard',
+        'defaults' => array(
+            'popup' => MESSAGE_PERMITTED + MESSAGE_DEFAULT_LOGGEDIN + MESSAGE_DEFAULT_LOGGEDOFF,
+            'email' => MESSAGE_PERMITTED,
+            'airnotifier' => MESSAGE_PERMITTED,
+        )
+    ],
+    // Dashboard administrativo (20261001129): Gerencia: pendiente critico.
+    // Solo notificacion web por defecto (limite de correos de Bluehost); el
+    // correo queda permitido para quien lo encienda en sus preferencias.
+    'dashboard_escalation' => [
+        'capability' => 'local/grupomakro_core:view_admin_dashboard',
+        'defaults' => array(
+            'popup' => MESSAGE_PERMITTED + MESSAGE_DEFAULT_LOGGEDIN + MESSAGE_DEFAULT_LOGGEDOFF,
+            'email' => MESSAGE_PERMITTED,
+            'airnotifier' => MESSAGE_PERMITTED,
+        )
+    ],
+    // Dashboard administrativo (20261001129): Resumen diario de pendientes.
+    // Solo notificacion web por defecto (limite de correos de Bluehost); el
+    // correo queda permitido para quien lo encienda en sus preferencias.
+    'dashboard_daily_digest' => [
+        'capability' => 'local/grupomakro_core:view_admin_dashboard',
+        'defaults' => array(
+            'popup' => MESSAGE_PERMITTED + MESSAGE_DEFAULT_LOGGEDIN + MESSAGE_DEFAULT_LOGGEDOFF,
+            'email' => MESSAGE_PERMITTED,
+            'airnotifier' => MESSAGE_PERMITTED,
+        )
+    ],
 ];

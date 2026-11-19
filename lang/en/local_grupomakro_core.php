@@ -1639,3 +1639,18 @@ $string['tkt_err_attachupload'] = 'The file could not be uploaded (code {$a}). P
 
 // Help desk: common problems (20261001125).
 $string['tkt_err_faq'] = 'That common problem is no longer available.';
+
+// Admin dashboard "My pending items" (20261001129).
+$string['admindash_title'] = 'My pending items';
+$string['admindash_settings_title'] = 'My pending items: settings';
+$string['grupomakro_core:view_admin_dashboard'] = 'View the admin dashboard (my pending items)';
+$string['grupomakro_core:view_admin_dashboard_team'] = 'View the whole team\'s pending items in the admin dashboard';
+$string['grupomakro_core:dashboard_manage'] = 'Configure the admin dashboard (SLAs, hours, alerts and home page)';
+$string['grupomakro_core:dashboard_receive_escalations'] = 'Receive the critical alerts of the admin dashboard';
+$string['messageprovider:dashboard_sla_warning'] = 'Pending items: about to be overdue';
+$string['messageprovider:dashboard_sla_breach'] = 'Pending items: overdue (owner and supervisors)';
+$string['messageprovider:dashboard_escalation'] = 'Pending items: critical (management)';
+$string['messageprovider:dashboard_daily_digest'] = 'Pending items: daily digest';
+$string['task_dashboard_escalate'] = 'Pending items: SLA alerts';
+$string['task_dashboard_digest'] = 'Pending items: daily digest';
+$string['cachedef_admindash'] = 'Admin dashboard: cards per user';

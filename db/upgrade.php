@@ -4929,5 +4929,46 @@ if ($oldversion < 20261001093) {
         upgrade_plugin_savepoint(true, 20261001127, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20261001129) {
+        // Dashboard administrativo "Mis pendientes" (PLAN_DASHBOARD_ADMINISTRATIVO.md):
+        // tabla de niveles de ANS ya avisados, indices para las consultas del
+        // dashboard y capacidades nuevas. Todo llega APAGADO: dash_home_enabled,
+        // dash_alerts_enabled y dash_digest_enabled = 0. Idempotente.
+        $t = new xmldb_table('gmk_dash_alert');
+        $t->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $t->add_field('srckey', XMLDB_TYPE_CHAR, '40', null, XMLDB_NOTNULL, null, null);
+        $t->add_field('itemref', XMLDB_TYPE_CHAR, '100', null, XMLDB_NOTNULL, null, null);
+        $t->add_field('slatype', XMLDB_TYPE_CHAR, '40', null, XMLDB_NOTNULL, null, null);
+        $t->add_field('alertlevel', XMLDB_TYPE_INTEGER, '2', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('anchor', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('silent', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('timesent', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $t->add_index('source_ref_level_uix', XMLDB_INDEX_UNIQUE, ['srckey', 'itemref', 'alertlevel']);
+        if (!$dbman->table_exists($t)) {
+            $dbman->create_table($t);
+        }
+        // Indices (gmk_class es grande: unos segundos de bloqueo; desplegar fuera de horario).
+        $indexes = [
+            ['gmk_class', 'closed_enddate_idx', ['closed', 'enddate']],
+            ['gmk_class', 'approved_closed_idx', ['approved', 'closed']],
+            ['gmk_class', 'periodid_idx', ['periodid']],
+            ['gmk_revalidations', 'status_sessionend_idx', ['status', 'sessionend']],
+            ['gmk_wellness_psy_appts', 'psy_status_idx', ['psychologist_userid', 'status']],
+            ['gmk_class_absence_state', 'level_blocked_idx', ['alert_level', 'blocked_at']],
+        ];
+        foreach ($indexes as [$tablename, $indexname, $fields]) {
+            $table = new xmldb_table($tablename);
+            $index = new xmldb_index($indexname, XMLDB_INDEX_NOTUNIQUE, $fields);
+            if ($dbman->table_exists($table) && !$dbman->index_exists($table, $index)) {
+                $dbman->add_index($table, $index);
+            }
+        }
+        require_once(__DIR__ . '/upgradelib.php');
+        update_capabilities('local_grupomakro_core');
+        local_grupomakro_core_assign_dashboard_caps();
+        upgrade_plugin_savepoint(true, 20261001129, 'local', 'grupomakro_core');
+    }
+
     return true;
 }

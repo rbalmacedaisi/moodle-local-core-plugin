@@ -232,4 +232,24 @@ $tasks = [
         'month' => '*',
         'dayofweek' => '*',
     ],
+    [
+        // Dashboard administrativo (20261001129): alertas de ANS (apagadas con dash_alerts_enabled = 0).
+        'classname' => 'local_grupomakro_core\task\dashboard_escalate',
+        'blocking' => 0,
+        'minute' => '*/15',
+        'hour' => '*',
+        'day' => '*',
+        'month' => '*',
+        'dayofweek' => '*',
+    ],
+    [
+        // Resumen diario: cada hora, envia una vez por dia habil desde dash_digest_hour.
+        'classname' => 'local_grupomakro_core\task\dashboard_digest',
+        'blocking' => 0,
+        'minute' => '10',
+        'hour' => '*',
+        'day' => '*',
+        'month' => '*',
+        'dayofweek' => '*',
+    ],
 ];
