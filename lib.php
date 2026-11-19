@@ -170,7 +170,19 @@ function local_grupomakro_core_get_staff_landing_url(): ?moodle_url {
 function local_grupomakro_core_user_home_redirect(&$url) {
     global $DB, $USER;
 
-    if (!isloggedin() || isguestuser() || is_siteadmin()) {
+    if (!isloggedin() || isguestuser()) {
+        return;
+    }
+    if (is_siteadmin()) {
+        // Site admins only go to "Mis pendientes" (dash_home_enabled), also when
+        // they come back to / or /my/ (Ramiro, 19-nov-2026); otherwise they keep
+        // Moodle's home as before. Nothing else of the staff/teacher logic applies.
+        $landing = local_grupomakro_core_get_staff_landing_url();
+        if ($landing !== null && get_config('local_grupomakro_core', 'dash_home_enabled')
+                && strpos($landing->get_path(), '/pages/admin_dashboard.php') !== false
+                && strpos($_SERVER['SCRIPT_NAME'], 'admin_dashboard.php') === false) {
+            redirect($landing);
+        }
         return;
     }
 
