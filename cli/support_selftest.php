@@ -689,9 +689,14 @@ try {
     $mp4 = "\x00\x00\x00\x18ftypmp42\x00\x00\x00\x00mp42isom" . str_repeat("\x00", 64);
     $pdf = "%PDF-1.4\n%selftest\n";
     $fsx = get_file_storage();
-    $mkdraft = function(int $userid, array $files) use ($fsx) {
-        $itemid = file_get_unused_draft_itemid();
+    $mkdraft = function(int $userid, array $files) use ($fsx, $DB) {
+        // Not file_get_unused_draft_itemid(): it needs a logged-in $USER (CLI = no one -> "No guests here!").
+        // Same logic, for the given user: a random itemid not used in that user's draft area.
         $ctx = \context_user::instance($userid);
+        do {
+            $itemid = rand(1, 999999999);
+        } while ($DB->record_exists('files', ['contextid' => $ctx->id, 'component' => 'user', 'filearea' => 'draft',
+            'itemid' => $itemid]));
         foreach ($files as $name => $content) {
             $fsx->create_file_from_string(['contextid' => $ctx->id, 'component' => 'user', 'filearea' => 'draft',
                 'itemid' => $itemid, 'filepath' => '/', 'filename' => $name, 'userid' => $userid], $content);
