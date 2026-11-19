@@ -303,7 +303,7 @@ Vue.component('schedule-board', {
                                 <button v-if="canEdit && !info.g.published" class="tl-proj-flexbtn" style="margin-left:6px" @click="removeExtra(info.g)">Quitar del tablero</button></div>
                             <div class="tl-cfg-help">Grupo {{ info.g.number }} de {{ info.g.of }} · {{ info.g.jornada }} · {{ info.g.size }} estudiantes
                                 <template v-if="info.g.adelantos"> ({{ info.g.adelantos }} adelantos)</template>
-                                <button v-if="info.g.size" class="tl-proj-flexbtn" style="margin-left:4px" @click="openStudents(info.g.name + ' · grupo ' + info.g.number, info.g.userids)">ver estudiantes</button></div>
+                                <button v-if="info.g.size" class="tl-proj-flexbtn" style="margin-left:4px" @click="openStudents(info.g.name + ' · grupo ' + info.g.number, info.g.userids, info.g.courseid, info.g.published)">ver estudiantes</button></div>
                             <div v-if="info.g.size && stuAlerts(info.g.userids)" class="tl-cfg-help" style="color:#B45309">{{ stuAlerts(info.g.userids) }}</div>
                             <div class="tl-cfg-help">{{ topLevels(info.g) }}</div>
                         </div>
@@ -430,7 +430,7 @@ Vue.component('schedule-board', {
                             pero sus estudiantes, docente y aula cuentan para los choques.</div>
                         <div class="mt-2">{{ dayName(fixedSel.day) }} {{ hhmm(fixedSel.start) }}–{{ hhmm(fixedSel.end) }} · {{ fixedSel.line2 }}</div>
                         <div class="tl-cfg-help">Del {{ fmt(fixedSel.from) }} al {{ fmt(fixedSel.to) }} · {{ fixedSel.size }} estudiantes
-                            <button v-if="fixedSel.size" class="tl-proj-flexbtn" style="margin-left:4px" @click="openStudents(fixedSel.name, fixedSel.userids)">ver estudiantes</button></div>
+                            <button v-if="fixedSel.size" class="tl-proj-flexbtn" style="margin-left:4px" @click="openStudents(fixedSel.name, fixedSel.userids, fixedSel.courseid, fixedSel.classid)">ver estudiantes</button></div>
                         <div v-if="fixedSel.size && stuAlerts(fixedSel.userids)" class="tl-cfg-help" style="color:#B45309">{{ stuAlerts(fixedSel.userids) }}</div>
                     </v-card-text>
                     <v-card-actions><v-spacer></v-spacer><v-btn text @click="fixedSel = null">Cerrar</v-btn></v-card-actions>
@@ -442,7 +442,7 @@ Vue.component('schedule-board', {
                 <v-card>
                     <v-card-title class="text-subtitle-1 font-weight-bold">Estudiantes · {{ stu.title }}</v-card-title>
                     <v-card-text style="max-height:70vh">
-                        <div class="tl-cfg-help mb-2">{{ stu.ids.length }} estudiante(s). Estado académico: estado del estudiante en cada carrera.
+                        <div class="tl-cfg-help mb-2">{{ stu.ids.length }} estudiante(s). En la asignatura: su avance en esta asignatura (y si apunta a un módulo u otra clase). Estado académico: estado del estudiante en cada carrera.
                             Estado financiero: el último sincronizado desde Odoo<template v-if="stuFinOld"> (hay datos de más de 7 días)</template>.</div>
                         <div class="d-flex flex-wrap align-center mb-2" style="gap:6px">
                             <input class="tl-cfg-input" style="width:220px" v-model="stu.q" placeholder="Buscar nombre o documento">
@@ -451,12 +451,18 @@ Vue.component('schedule-board', {
                                     @click="stu.f = stu.f === c.key ? '' : c.key">{{ c.label }} ({{ c.n }})</button>
                         </div>
                         <table class="tl-sb-stutable">
-                            <thead><tr><th>#</th><th>Estudiante</th><th>Documento</th><th>Estado académico</th><th>Estado financiero</th></tr></thead>
+                            <thead><tr><th>#</th><th>Estudiante</th><th>Documento</th><th v-if="stu.courseid">En la asignatura</th><th>Estado académico</th><th>Estado financiero</th></tr></thead>
                             <tbody>
                                 <tr v-for="(r, i) in stuShown" :key="r.uid">
                                     <td>{{ i + 1 }}</td>
                                     <td>{{ r.name }}</td>
                                     <td>{{ r.doc }}</td>
+                                    <td v-if="stu.courseid">
+                                        <div v-if="!r.subj.length"><span class="tl-sb-stpill" :style="pillStyle('#64748B')">Sin registro</span></div>
+                                        <div v-for="(a, j) in r.subj" :key="j" style="margin:1px 0">
+                                            <span class="tl-sb-stpill" :style="pillStyle(subjColor(a.status))">{{ subjLabel(a.status) }}<template v-if="(a.status === 4 || a.status === 5 || a.status === 3) && a.grade"> · {{ a.grade }}</template></span>
+                                            <span v-if="subjWhere(a)" class="tl-cfg-help" :style="a.module || subjWhere(a).startsWith('en la') ? 'color:#B45309' : ''"> {{ subjWhere(a) }}</span></div>
+                                    </td>
                                     <td>
                                         <div v-if="!r.acad.length"><span class="tl-sb-stpill" :style="pillStyle('#64748B')">Sin carrera</span></div>
                                         <div v-for="(a, j) in r.acad" :key="j" style="margin:1px 0">
@@ -466,7 +472,7 @@ Vue.component('schedule-board', {
                                     <td><span class="tl-sb-stpill" :style="pillStyle(finColor(r.fin))">{{ finLabel(r.fin) }}</span>
                                         <span v-if="r.fin_at" class="tl-cfg-help"> {{ fmt(r.fin_at) }}</span></td>
                                 </tr>
-                                <tr v-if="!stuShown.length"><td colspan="5" class="tl-cfg-help">Nadie con ese filtro.</td></tr>
+                                <tr v-if="!stuShown.length"><td :colspan="stu.courseid ? 6 : 5" class="tl-cfg-help">Nadie con ese filtro.</td></tr>
                             </tbody>
                         </table>
                     </v-card-text>
@@ -761,7 +767,7 @@ Vue.component('schedule-board', {
     },
     data() {
         return { loading: false, error: '', board: null, tick: 0, jornada: 'Diurna', q: '', tq: '', onlyIssues: false, sel: null, fixedSel: null,
-            stu: { show: false, title: '', ids: [], q: '', f: '' },
+            stu: { show: false, title: '', ids: [], q: '', f: '', courseid: 0, classid: 0 },
             hover: null, failedOpen: false, dirty: false, weekSel: 0, dispOpen: false, dispSel: '',
             scen: { on: false, id: '', name: '', effective: '', saved_at: 0, list: [] },
             apl: { show: false, loading: false, error: '', plan: null, note: '', confirm: false, busy: false, result: null },
@@ -796,7 +802,11 @@ Vue.component('schedule-board', {
                 const x = st[u] || {};
                 const acad = x.acad || [];
                 const main = acad.some(a => a.status === 'activo') ? 'activo' : (acad[0] ? acad[0].status : 'sin_carrera');
-                return { uid: u, name: x.name || names[u] || ('Estudiante ' + u), doc: x.doc || '', acad, main, fin: x.fin || '', fin_at: x.fin_at || 0 };
+                const ss = ((this.board && this.board.subject_status) || {})[u + '|' + this.stu.courseid] || [];
+                // Varias filas (una por carrera) con el mismo estado se muestran una vez.
+                const subj = ss.filter((a, i) => ss.findIndex(b => b.status === a.status && b.classid === a.classid) === i);
+                const smain = subj.length ? subj[0].status : -1;
+                return { uid: u, name: x.name || names[u] || ('Estudiante ' + u), doc: x.doc || '', acad, main, fin: x.fin || '', fin_at: x.fin_at || 0, subj, smain };
             }).sort((a, b) => a.name.localeCompare(b.name, 'es'));
         },
         stuCounts() {
@@ -805,13 +815,14 @@ Vue.component('schedule-board', {
             this.stuRows.forEach(r => {
                 add('fin:' + r.fin, this.finLabel(r.fin), this.finColor(r.fin));
                 if (r.main !== 'activo') add('acad:' + r.main, this.acadLabel(r.main), this.acadColor(r.main));
+                if (this.stu.courseid) add('subj:' + r.smain, this.subjLabel(r.smain), this.subjColor(r.smain));
             });
             return Object.values(c).sort((a, b) => a.key.localeCompare(b.key));
         },
         stuShown() {
             const q = (this.stu.q || '').trim().toLowerCase(), f = this.stu.f;
             return this.stuRows.filter(r => (!q || (r.name + ' ' + r.doc).toLowerCase().includes(q))
-                && (!f || (f.startsWith('fin:') ? 'fin:' + r.fin === f : 'acad:' + r.main === f)));
+                && (!f || (f.startsWith('fin:') ? 'fin:' + r.fin === f : (f.startsWith('subj:') ? 'subj:' + r.smain === f : 'acad:' + r.main === f))));
         },
         stuFinOld() {
             const lim = Date.now() / 1000 - 7 * 86400;
@@ -941,7 +952,7 @@ Vue.component('schedule-board', {
                 if (f.jornada !== this.jornada && ![...f.users].some(u => users.has(u))) return;
                 if (f.to && f.to < (this.S.period.start || 0) + 7 * 86400) return;
                 out[f.day].push({ id: f.id, name: f.name, start: f.start, end: f.end, sev: 'fixed', fixed: true, locked: true,
-                    dim: this.onlyIssues || !this.matchQ(f.name, f.teacherid), from: f.from, to: f.to, day: f.day, samePeriod: f.samePeriod, size: f.users.size, userids: [...f.users],
+                    dim: this.onlyIssues || !this.matchQ(f.name, f.teacherid), from: f.from, to: f.to, day: f.day, samePeriod: f.samePeriod, size: f.users.size, userids: [...f.users], courseid: f.courseid, classid: f.classid,
                     line1: this.E.hhmm(f.start) + '–' + this.E.hhmm(f.end) + ' · ya creada',
                     line2: (f.teacherid ? this.teacherName(f.teacherid) : 'Sin docente') + ' · ' + (f.roomid ? this.roomName(f.roomid) : 'sin aula'),
                     title: f.name + '\nClase ya creada: cuenta para los choques, no se mueve desde aquí.' });
@@ -1103,8 +1114,22 @@ Vue.component('schedule-board', {
         },
     },
     methods: {
-        openStudents(title, ids) {
-            this.stu = { show: true, title, ids: (ids || []).map(Number), q: '', f: '' };
+        openStudents(title, ids, courseid, classid) {
+            this.stu = { show: true, title, ids: (ids || []).map(Number), q: '', f: '', courseid: Number(courseid || 0), classid: Number(classid || 0) };
+        },
+        subjLabel(s) {
+            return { 0: 'No disponible', 1: 'Disponible', 2: 'Cursando', 3: 'Completado', 4: 'Aprobada', 5: 'Reprobada',
+                6: 'Pendiente reválida', 7: 'Revalidando', '-1': 'Sin registro' }[s] || ('Estado ' + s);
+        },
+        subjColor(s) {
+            return { 2: '#1D4ED8', 3: '#15803D', 4: '#15803D', 5: '#B91C1C', 6: '#B45309', 7: '#B45309', 1: '#64748B', 0: '#64748B' }[s] || '#64748B';
+        },
+        // Nota sobre la clase a la que apunta el avance: por modulo, u otra clase distinta de esta.
+        subjWhere(x) {
+            if (!x.classid) return x.status === 2 ? 'sin clase' : '';
+            if (x.module) return 'por módulo #' + x.classid;
+            if (this.stu.classid && x.classid !== this.stu.classid) return 'en la clase #' + x.classid;
+            return '';
         },
         // Resumen corto de alertas (mora / no activos) para mostrar bajo el grupo.
         stuAlerts(ids) {

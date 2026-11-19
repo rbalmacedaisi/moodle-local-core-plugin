@@ -189,6 +189,56 @@ class schedule_board {
      * @param array $demand resultado de demand_engine con 'grouping' (para niveles y cohortes de los grupos)
      */
     /**
+     * Estado de cada estudiante en una asignatura (gmk_course_progre: estado, nota y clase a la que apunta). SOLO LECTURA.
+     *
+     * @param array $pairs claves "userid|courseid"
+     * @return array "userid|courseid" => [['status' => int, 'grade' => float, 'classid' => int, 'module' => bool]]
+     */
+    public static function subject_status(array $pairs) {
+        global $DB;
+        $bycourse = [];
+        foreach (array_keys($pairs) as $k) {
+            list($u, $c) = array_map('intval', explode('|', $k));
+            if ($u && $c) {
+                $bycourse[$c][$u] = true;
+            }
+        }
+        $out = [];
+        $classids = [];
+        foreach ($bycourse as $cid => $users) {
+            foreach (array_chunk(array_keys($users), 1000) as $chunk) {
+                list($in, $params) = $DB->get_in_or_equal($chunk, SQL_PARAMS_NAMED, 'su');
+                $params['cid'] = $cid;
+                foreach ($DB->get_records_sql("SELECT p.id, p.userid, p.status, p.grade, p.classid
+                          FROM {gmk_course_progre} p
+                         WHERE p.courseid = :cid AND p.userid $in
+                      ORDER BY p.id", $params) as $r) {
+                    $key = (int)$r->userid . '|' . $cid;
+                    $out[$key][] = ['status' => (int)$r->status, 'grade' => round((float)$r->grade, 2),
+                        'classid' => (int)$r->classid, 'module' => false];
+                    if ((int)$r->classid > 0) {
+                        $classids[(int)$r->classid] = true;
+                    }
+                }
+            }
+        }
+        if ($classids) {
+            $mods = [];
+            foreach (array_chunk(array_keys($classids), 1000) as $chunk) {
+                $mods += $DB->get_records_list('gmk_class', 'id', $chunk, '', 'id, is_module');
+            }
+            foreach ($out as &$rows) {
+                foreach ($rows as &$r) {
+                    $r['module'] = !empty($mods[$r['classid']]->is_module);
+                }
+                unset($r);
+            }
+            unset($rows);
+        }
+        return $out;
+    }
+
+    /**
      * Estado academico (estado en cada carrera) y financiero (gmk_financial_status, sincronizado desde Odoo) de unos
      * estudiantes. SOLO LECTURA.
      *
@@ -698,17 +748,21 @@ class schedule_board {
         }
         // Estado academico (por carrera) y financiero (Odoo) de los estudiantes de las fichas y de las clases fijas.
         $statusids = [];
+        $pairs = [];   // estudiante|asignatura de cada ficha y clase fija (estado en la asignatura)
         foreach ($groups as $g) {
             foreach ($g['userids'] as $u) {
                 $statusids[(int)$u] = true;
+                $pairs[(int)$u . '|' . (int)$g['courseid']] = true;
             }
         }
         foreach ($fixed as $f) {
             foreach ($f['userids'] as $u) {
                 $statusids[(int)$u] = true;
+                $pairs[(int)$u . '|' . (int)$f['courseid']] = true;
             }
         }
         $studentstatus = self::student_status(array_keys($statusids));
+        $subjectstatus = self::subject_status($pairs);
         return [
             'careers' => array_values(array_map(function ($r) {
                 return ['id' => (int)$r->id, 'name' => $r->name];
@@ -739,6 +793,8 @@ class schedule_board {
             }, $groups))))),
             // Estado academico y financiero de cada estudiante (para el listado del grupo).
             'student_status' => (object)$studentstatus,
+            // Estado del estudiante en la asignatura de la ficha (gmk_course_progre), clave "userid|courseid".
+            'subject_status' => (object)$subjectstatus,
             // Informe de excluidos por choques (con los datos del estudiante para cargarle la asignatura despues).
             'exclusions' => array_values(array_map(function ($e) use ($byuser, $DB, $published) {
                 $s = $byuser[(int)$e['userid']][0] ?? null;
