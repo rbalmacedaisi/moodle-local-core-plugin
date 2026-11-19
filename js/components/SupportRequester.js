@@ -21,14 +21,22 @@ Vue.component('support-requester', {
             <v-tab class="text-none">Abiertas</v-tab><v-tab class="text-none">Cerradas</v-tab>
           </v-tabs>
           <v-divider></v-divider>
+          <!-- Buscar en mis solicitudes (filtro local: son solo las propias) -->
+          <div v-if="tickets.length > 5 || filterText" class="px-2 pt-2">
+            <v-text-field v-model="filterText" dense outlined hide-details clearable prepend-inner-icon="mdi-magnify"
+              placeholder="Buscar por número o asunto" aria-label="Buscar en mis solicitudes"></v-text-field>
+          </div>
           <v-progress-linear v-if="loading" indeterminate></v-progress-linear>
           <div class="gmk-desk__scroll">
+            <div v-if="!loading && tickets.length && !shownTickets.length" class="pa-6 text-center text--secondary">
+              No hay solicitudes que coincidan con «{{ filterText }}».
+            </div>
             <div v-if="!loading && !tickets.length" class="pa-6 text-center text--secondary">
               <v-icon large>mdi-inbox-outline</v-icon>
               <p class="mt-2 mb-0">No tienes solicitudes {{ filterIndex === 0 ? 'abiertas' : 'cerradas' }}.</p>
             </div>
             <v-list two-line class="py-0">
-              <v-list-item v-for="t in tickets" :key="t.id" @click="openTicket(t.id)" :input-value="active && active.id === t.id">
+              <v-list-item v-for="t in shownTickets" :key="t.id" @click="openTicket(t.id)" :input-value="active && active.id === t.id">
                 <v-list-item-content>
                   <v-list-item-title :class="{ 'font-weight-bold': t.unread > 0 }" class="gmk-wrap">{{ t.number }} · {{ t.subject }}</v-list-item-title>
                   <v-list-item-subtitle>
@@ -184,6 +192,7 @@ Vue.component('support-requester', {
         return {
             fmt: window.gmkSupportFormat,
             filterIndex: 0,
+            filterText: '',
             tickets: [],
             loading: false,
             active: null,
@@ -202,6 +211,14 @@ Vue.component('support-requester', {
         };
     },
     computed: {
+        shownTickets() {
+            const words = (this.filterText || '').toLowerCase().replace(/-/g, '').split(/\s+/).filter(Boolean);
+            if (!words.length) return this.tickets;
+            return this.tickets.filter(t => {
+                const hay = [t.number, t.number.replace(/-/g, ''), t.subject, t.areaname, t.categoryname].join(' ').toLowerCase();
+                return words.every(w => hay.indexOf(w) !== -1);
+            });
+        },
         isMobile() {
             return this.$vuetify.breakpoint.smAndDown;
         },

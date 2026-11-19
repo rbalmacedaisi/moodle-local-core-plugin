@@ -46,22 +46,33 @@ class desk_list extends external_api {
             'search' => new external_value(PARAM_TEXT, 'Number, subject or student', VALUE_DEFAULT, ''),
             'page' => new external_value(PARAM_INT, 'Page', VALUE_DEFAULT, 0),
             'perpage' => new external_value(PARAM_INT, 'Per page', VALUE_DEFAULT, 50),
+            'areaid' => new external_value(PARAM_INT, 'Quick filter: area (0 = all)', VALUE_DEFAULT, 0),
+            'level' => new external_value(PARAM_ALPHA, 'Quick filter: red | orange | yellow | green (open tabs)', VALUE_DEFAULT, ''),
         ]);
     }
 
-    public static function execute($tab, $search, $page, $perpage): array {
+    public static function execute($tab, $search, $page, $perpage, $areaid = 0, $level = ''): array {
         global $USER;
-        $params = self::validate_parameters(self::execute_parameters(), ['tab' => $tab, 'search' => $search, 'page' => $page, 'perpage' => $perpage]);
+        $params = self::validate_parameters(self::execute_parameters(), ['tab' => $tab, 'search' => $search, 'page' => $page,
+            'perpage' => $perpage, 'areaid' => $areaid, 'level' => $level]);
         self::validate_context(context_system::instance());
         $userid = (int)$USER->id;
         $perpage = max(1, min(200, (int)$params['perpage']));
-        $data = manager::desk_list($userid, (string)$params['tab'], (string)$params['search'], (int)$params['page'], $perpage);
+        $data = manager::desk_list($userid, (string)$params['tab'], (string)$params['search'], (int)$params['page'], $perpage,
+            (int)$params['areaid'], (string)$params['level']);
         $p = manager::profile($userid);
         $counts = [];
         foreach ($data['counts'] as $tab => $n) {
             $counts[] = ['tab' => $tab, 'count' => $n];
         }
+        $levels = [];
+        foreach ($data['levels'] as $level => $n) {
+            $levels[] = ['level' => $level, 'count' => $n];
+        }
         return [
+            'areas' => $data['areas'],
+            'levels' => $levels,
+            'searchmin' => manager::SEARCH_MIN,
             'tickets' => $data['tickets'],
             'total' => $data['total'],
             'tab' => $data['tab'],
@@ -81,7 +92,17 @@ class desk_list extends external_api {
         return new external_single_structure([
             'tickets' => structures::tickets(),
             'total' => new external_value(PARAM_INT, 'Total in the tab'),
-            'tab' => new external_value(PARAM_ALPHA, 'Effective tab'),
+            'tab' => new external_value(PARAM_ALPHA, 'Effective tab (search = searching all visible tickets)'),
+            'searchmin' => new external_value(PARAM_INT, 'Minimum characters for the search'),
+            'areas' => new external_multiple_structure(new external_single_structure([
+                'id' => new external_value(PARAM_INT, 'Area id'),
+                'name' => new external_value(PARAM_TEXT, 'Area'),
+                'count' => new external_value(PARAM_INT, 'Tickets of the view in this area'),
+            ])),
+            'levels' => new external_multiple_structure(new external_single_structure([
+                'level' => new external_value(PARAM_ALPHA, 'red | orange | yellow | green'),
+                'count' => new external_value(PARAM_INT, 'Tickets of the view (and area) at this level'),
+            ])),
             'counts' => new external_multiple_structure(new external_single_structure([
                 'tab' => new external_value(PARAM_ALPHA, 'Tab'),
                 'count' => new external_value(PARAM_INT, 'Tickets'),

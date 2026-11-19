@@ -885,6 +885,75 @@ try {
     $check('el estudiante no entra a la bandeja', $throws(function() use ($studentid) {
         manager::desk_list($studentid, 'mine');
     }, 'tkt_err_nostaff') || manager::profile($studentid)->isstaff);
+
+    // =====================================================================
+    // 26. 20261001128: busqueda (cedula, nombre, numero, asunto) y filtros rapidos.
+    // =====================================================================
+    cli_writeln('');
+    cli_writeln('Busqueda y filtros de la bandeja');
+    $found = function(int $staff, string $q, int $ticketid, int $areaid = 0) {
+        $r = manager::desk_list($staff, 'mine', $q, 0, 200, $areaid);
+        return $r['tab'] === 'search' && in_array($ticketid, array_column($r['tickets'], 'id'), true);
+    };
+    $student = \core_user::get_user($studentid);
+    $doc = manager::document_number($student);
+    if ($doc !== '') {
+        $check('busca por cedula exacta en todas las vistas (abiertos y cerrados)', $found($agent, $doc, (int)$t1->id), $doc);
+        $plain = preg_replace('/[\s\-\.]+/u', '', $doc);
+        $check('busca por cedula sin guiones', $found($agent, $plain, (int)$t1->id), $plain);
+        $parts = preg_split('/[\s\-\.]+/u', $doc, -1, PREG_SPLIT_NO_EMPTY);
+        usort($parts, function($a, $b) {
+            return strlen($b) - strlen($a);
+        });
+        if ($parts && strlen($parts[0]) >= 3) {
+            $check('busca por una parte de la cedula', $found($agent, $parts[0], (int)$t1->id), $parts[0]);
+        }
+    } else {
+        cli_writeln('  (el estudiante de prueba no tiene cedula: omito esa busqueda)');
+    }
+    $check('busca por nombre y apellido', $found($agent, $student->firstname . ' ' . $student->lastname, (int)$t1->id));
+    $check('busca por numero TKT, con y sin guiones', $found($agent, $t1->number, (int)$t1->id)
+        && $found($agent, str_replace('-', '', substr($t1->number, 4)), (int)$t1->id), $t1->number);
+    $check('busca por asunto', $found($agent, 'Prueba automática', (int)$t1->id));
+    $short = manager::desk_list($agent, 'mine', 'P');
+    $check('un solo caracter no busca (se queda en la vista)', $short['tab'] === 'mine');
+    $none = manager::desk_list($agent, 'mine', 'zzqx-selftest-nada');
+    $check('una busqueda sin coincidencias devuelve 0', $none['total'] === 0 && !$none['tickets']);
+    $check('el filtro de area acota la busqueda', !$found($agent, $t1->number, (int)$t1->id, (int)$academic->areaid + 100000));
+    if (isset($t4) && !empty($t4->confidential)) {
+        $psyagents = array_map('intval', $DB->get_fieldset_select('gmk_tkt_agent', 'userid', 'categoryid = ?', [$psy->id]));
+        foreach (array_diff($agents, $psyagents) as $a) {
+            if (!manager::profile($a)->viewconf && !manager::staff_can_view($t4, $a)) {
+                $check('Psicologia: quien no tiene permiso no la encuentra ni por numero ni por cedula ' . $fullname($a),
+                    !$found($a, $t4->number, (int)$t4->id) && ($doc === '' || !$found($a, $doc, (int)$t4->id)));
+                break;
+            }
+        }
+        foreach ($psyagents as $a) {
+            $check('Psicologia: su agente si la encuentra ' . $fullname($a), $found($a, $t4->number, (int)$t4->id));
+            break;
+        }
+    }
+    // Quick filters on the agent's open views.
+    $mine = manager::desk_list($agent, 'area');
+    $check('la vista trae los filtros de area y semaforo', is_array($mine['areas'])
+        && array_keys($mine['levels']) === ['red', 'orange', 'yellow', 'green']);
+    $check('los contadores por area suman el total de la vista', array_sum(array_column($mine['areas'], 'count')) === $mine['total'],
+        array_sum(array_column($mine['areas'], 'count')) . ' / ' . $mine['total']);
+    $byarea = manager::desk_list($agent, 'area', '', 0, 200, (int)$academic->areaid);
+    $check('filtro por area: solo esa area', !array_filter($byarea['tickets'], function($t) use ($academic) {
+        return (int)$t['areaid'] !== (int)$academic->areaid;
+    }));
+    $ok = true;
+    foreach (['red' => ['red'], 'orange' => ['orange'], 'yellow' => ['yellow'], 'green' => ['green', 'green_warn']] as $lv => $sems) {
+        $r = manager::desk_list($agent, 'area', '', 0, 200, 0, $lv);
+        $ok = $ok && $r['total'] === (int)$mine['levels'][$lv] && !array_filter($r['tickets'], function($t) use ($sems) {
+            return !in_array($t['semaphore'], $sems, true);
+        });
+    }
+    $check('filtro por semaforo: solo ese color y cuadra con su contador', $ok, json_encode($mine['levels']));
+    $closed = manager::desk_list($agent, 'closed', '', 0, 50, 0, 'red');
+    $check('en Cerrados el semaforo no filtra', $closed['levels'] === [] && $closed['total'] === $closed['counts']['closed']);
 } catch (\Throwable $e) {
     $check('excepcion inesperada', false, get_class($e) . ': ' . $e->getMessage() . ' @ ' . basename($e->getFile()) . ':' . $e->getLine());
 }

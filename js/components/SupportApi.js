@@ -89,6 +89,28 @@ window.gmkSupportFormat = {
 #gmk-app .gmk-desk__composer { padding-bottom: calc(8px + env(safe-area-inset-bottom)) !important; background: #fff; }
 #gmk-app .gmk-modes .v-slide-group__content { padding: 0 0 4px; }
 #gmk-app .gmk-desk-tabs .v-slide-group__prev, #gmk-app .gmk-desk-tabs .v-slide-group__next { min-width: 0; flex-basis: 0; }
+/* Bandeja: vistas en tarjetas con contador (20261001128) */
+#gmk-app .gmk-views { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+#gmk-app .gmk-view {
+  display: flex; flex-direction: column; align-items: flex-start; justify-content: center; min-height: 54px; min-width: 0;
+  padding: 6px 10px; border: 1px solid rgba(0,0,0,0.14); border-radius: 10px; background: #fff; color: rgba(0,0,0,0.78);
+  text-align: left; cursor: pointer; transition: background-color .15s, border-color .15s;
+}
+#gmk-app .gmk-view:hover { background: rgba(25,118,210,0.06); }
+#gmk-app .gmk-view:focus-visible { outline: 2px solid var(--v-primary-base, #1976d2); outline-offset: 2px; }
+#gmk-app .gmk-view__count { font-size: 1.25rem; font-weight: 700; line-height: 1.2; }
+#gmk-app .gmk-view__label { font-size: .78rem; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+#gmk-app .gmk-view--zero .gmk-view__count { color: rgba(0,0,0,0.38); }
+#gmk-app .gmk-view--alert { border-color: #e53935; background: #ffebee; }
+#gmk-app .gmk-view--alert .gmk-view__count { color: #c62828; }
+#gmk-app .gmk-view--active, #gmk-app .gmk-view--active:hover { background: var(--v-primary-base, #1976d2); border-color: var(--v-primary-base, #1976d2); color: #fff; }
+#gmk-app .gmk-view--active .gmk-view__count { color: #fff; }
+#gmk-app .gmk-view--active.gmk-view--alert { box-shadow: inset 0 -3px 0 #e53935; }
+#gmk-app .gmk-quick { display: flex; flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+#gmk-app .gmk-quick::-webkit-scrollbar { display: none; }
+#gmk-app .gmk-quick .v-chip { flex: 0 0 auto; min-height: 32px; }
+#gmk-app .gmk-searchbar { background: #e3f2fd; }
+#gmk-app .gmk-quick__sep { flex: 0 0 1px; align-self: stretch; margin: 4px 6px 4px 2px; background: rgba(0,0,0,0.18); }
 
 /* Tablas que se apilan como tarjetas */
 #gmk-app .gmk-stack table, #gmk-app .gmk-stack tbody, #gmk-app .gmk-stack tr, #gmk-app .gmk-stack td { display: block; width: 100%; }

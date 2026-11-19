@@ -1298,12 +1298,29 @@ class manager {
             ['u0' => $userid, 'u1' => $userid, 'u2' => $userid]);
     }
 
+    /** Minimum characters before the desk search runs (shorter = ignored). */
+    const SEARCH_MIN = 2;
+
+    /** Semaphore filters of the desk: filter => semaphores it includes. */
+    const LEVEL_FILTERS = [
+        'red' => ['red'],
+        'orange' => ['orange'],
+        'yellow' => ['yellow'],
+        'green' => ['green', 'green_warn'],
+    ];
+
     /**
      * Desk listing for staff.
      *
-     * @return array ['tickets' => exported, 'total' => int, 'counts' => [tab => int]]
+     * With a search of SEARCH_MIN+ characters the tab is ignored: it looks in
+     * every ticket the user may see (open and closed), effective tab "search".
+     * $areaid and $level are quick filters; $level only applies to open tabs.
+     *
+     * @return array ['tickets', 'total', 'counts' => [tab => int], 'tab', 'areas' => [[id, name, count]],
+     *                'levels' => [filter => int]]
      */
-    public static function desk_list(int $userid, string $tab, string $search = '', int $page = 0, int $perpage = 50): array {
+    public static function desk_list(int $userid, string $tab, string $search = '', int $page = 0, int $perpage = 50,
+            int $areaid = 0, string $level = ''): array {
         global $DB;
         $p = self::require_staff($userid);
         $tabs = ['unassigned', 'mine', 'area', 'overdue', 'all', 'closed'];
@@ -1326,26 +1343,91 @@ class manager {
         if ($tab === 'all' && !$p->reassign) {
             $tab = 'area';
         }
-        [$where, $params] = self::desk_where($userid, $p, $tab, $search);
-        $order = $tab === 'closed'
-            ? 't.closed_at DESC, t.id DESC'
-            : 't.priority DESC, CASE WHEN t.waiting_since = 0 THEN 1 ELSE 0 END, t.waiting_since ASC, t.lastmessageat DESC';
-        if ($tab === 'overdue') {
-            // Vencido = rojo en minutos habiles: se filtra en PHP tras el prefiltro en reloj.
-            $rows = array_values(array_filter(self::ticket_rows($where, $params, $userid, self::ROLE_AGENT, $order),
-                function($r) {
-                    return policy::level_for(policy::waiting_minutes($r)) >= policy::LEVEL_RED;
-                }));
-            $total = count($rows);
-            $rows = array_slice($rows, max(0, $page) * $perpage, $perpage);
-            return ['tickets' => self::export_tickets($rows, $userid, self::ROLE_AGENT), 'total' => $total,
-                'counts' => $counts, 'tab' => $tab];
+        $search = trim($search);
+        $searching = \core_text::strlen($search) >= self::SEARCH_MIN;
+        $efftab = $searching ? 'search' : $tab;
+        $openview = !in_array($efftab, ['closed', 'search'], true);
+        if (!$openview || !isset(self::LEVEL_FILTERS[$level])) {
+            $level = '';
         }
-        $total = (int)$DB->count_records_sql("SELECT COUNT(1) FROM {gmk_tkt_ticket} t
-            JOIN {user} s ON s.id = t.userid WHERE $where", $params);
-        $rows = self::ticket_rows($where, $params, $userid, self::ROLE_AGENT, $order, max(0, $page) * $perpage, $perpage);
+        [$where, $params] = self::desk_where($userid, $p, $efftab, $searching ? $search : '');
+        $from = 'FROM {gmk_tkt_ticket} t JOIN {user} s ON s.id = t.userid';
+
+        // Facets. Open views: light rows (bounded by the open tickets the user
+        // sees) so the semaphore is in business minutes, like the list.
+        // Closed / search: area counts in SQL, no semaphore.
+        $areacounts = [];
+        $levels = [];
+        $keep = null; // Ids that pass the PHP filters (overdue / semaphore), null = no PHP filter.
+        if ($openview) {
+            $light = $DB->get_records_sql("SELECT t.id, t.areaid, t.assignedto, t.status, t.waiting_since $from WHERE $where",
+                $params);
+            $levels = array_fill_keys(array_keys(self::LEVEL_FILTERS), 0);
+            $keep = [];
+            foreach ($light as $r) {
+                $waiting = (int)$r->waiting_since > 0;
+                $sem = policy::semaphore_for($waiting ? policy::waiting_minutes($r) : 0, $waiting);
+                if ($efftab === 'overdue' && $sem !== 'red') {
+                    continue;
+                }
+                $areacounts[(int)$r->areaid] = ($areacounts[(int)$r->areaid] ?? 0) + 1;
+                if ($areaid > 0 && (int)$r->areaid !== $areaid) {
+                    continue;
+                }
+                foreach (self::LEVEL_FILTERS as $key => $sems) {
+                    if (in_array($sem, $sems, true)) {
+                        $levels[$key]++;
+                    }
+                }
+                if ($level === '' || in_array($sem, self::LEVEL_FILTERS[$level], true)) {
+                    $keep[] = (int)$r->id;
+                }
+            }
+            if ($efftab !== 'overdue' && $level === '') {
+                $keep = null; // SQL alone filters (plus the area below).
+            }
+        } else {
+            foreach ($DB->get_records_sql("SELECT t.areaid, COUNT(1) AS n $from WHERE $where GROUP BY t.areaid", $params) as $r) {
+                $areacounts[(int)$r->areaid] = (int)$r->n;
+            }
+        }
+        if ($areaid > 0) {
+            $where .= ' AND t.areaid = :dlarea';
+            $params['dlarea'] = $areaid;
+        }
+        $areas = [];
+        if ($areacounts) {
+            $names = $DB->get_records_list('gmk_tkt_area', 'id', array_keys($areacounts), 'sortorder ASC, id ASC', 'id, name');
+            foreach ($names as $a) {
+                $areas[] = ['id' => (int)$a->id, 'name' => format_string((string)$a->name),
+                    'count' => (int)$areacounts[(int)$a->id]];
+            }
+        }
+
+        if ($efftab === 'closed') {
+            $order = 't.closed_at DESC, t.id DESC';
+        } else if ($efftab === 'search') {
+            $order = 'CASE WHEN t.lastmessageat > 0 THEN t.lastmessageat ELSE t.timecreated END DESC, t.id DESC';
+        } else {
+            $order = 't.priority DESC, CASE WHEN t.waiting_since = 0 THEN 1 ELSE 0 END, t.waiting_since ASC, t.lastmessageat DESC';
+        }
+        if ($keep !== null) {
+            if (!$keep) {
+                $total = 0;
+                $rows = [];
+            } else {
+                [$in, $inparams] = $DB->get_in_or_equal($keep, SQL_PARAMS_NAMED, 'dlk');
+                $where .= " AND t.id $in";
+                $params += $inparams;
+                $total = (int)$DB->count_records_sql("SELECT COUNT(1) $from WHERE $where", $params);
+                $rows = self::ticket_rows($where, $params, $userid, self::ROLE_AGENT, $order, max(0, $page) * $perpage, $perpage);
+            }
+        } else {
+            $total = (int)$DB->count_records_sql("SELECT COUNT(1) $from WHERE $where", $params);
+            $rows = self::ticket_rows($where, $params, $userid, self::ROLE_AGENT, $order, max(0, $page) * $perpage, $perpage);
+        }
         return ['tickets' => self::export_tickets($rows, $userid, self::ROLE_AGENT), 'total' => $total,
-            'counts' => $counts, 'tab' => $tab];
+            'counts' => $counts, 'tab' => $efftab, 'areas' => $areas, 'levels' => $levels];
     }
 
     /**
@@ -1422,17 +1504,81 @@ class manager {
             case 'closed':
                 $where[] = $in('t.status', self::open_statuses(), false);
                 break;
+            case 'search':
+                // Busqueda: todo lo visible (abiertos y cerrados), sin filtro de pestana.
+                break;
         }
         $search = trim($search);
         if ($search !== '') {
-            $like = [];
-            foreach (['t.number', 't.subject', 's.firstname', 's.lastname', 's.idnumber'] as $i => $field) {
-                $like[] = $DB->sql_like($field, ':dwq' . $i, false, false);
-                $params['dwq' . $i] = '%' . $DB->sql_like_escape($search) . '%';
-            }
-            $where[] = '(' . implode(' OR ', $like) . ')';
+            [$sql, $sparams] = self::search_sql($search);
+            $where[] = $sql;
+            $params += $sparams;
         }
         return [implode(' AND ', $where), $params];
+    }
+
+    /**
+     * WHERE fragment of the desk search (alias t = ticket, s = requester).
+     *
+     * - Every word must appear in the number, subject, name, last name,
+     *   cedula (profile field documentnumber) or idnumber: "juan perez" works.
+     * - Cedula and ticket number also match without hyphens, spaces or dots,
+     *   and partially: "8-1061-1927", "810611927", "1061" or "0042".
+     * Cheap enough per keystroke: it is ANDed to the visibility filter, the
+     * cedula is an EXISTS on user_info_data (unique index userid+fieldid) and
+     * the client waits 400 ms and SEARCH_MIN characters.
+     *
+     * @return array [sql, params]
+     */
+    public static function search_sql(string $search): array {
+        global $DB;
+        static $n = 0;
+        $params = [];
+        $p = function($value) use (&$params, &$n): string {
+            $name = 'dsq' . (++$n);
+            $params[$name] = $value;
+            return ':' . $name;
+        };
+        $fieldid = (int)$DB->get_field('user_info_field', 'id', ['shortname' => 'documentnumber']);
+        $strip = function(string $col): string {
+            return "REPLACE(REPLACE(REPLACE($col, '-', ''), ' ', ''), '.', '')";
+        };
+        $like = function(string $col, string $value) use ($DB, $p): string {
+            return $DB->sql_like($col, $p('%' . $DB->sql_like_escape($value) . '%'), false, false);
+        };
+        $doc = function(string $value, bool $normalized) use ($fieldid, $strip, $like): string {
+            if (!$fieldid) {
+                return '1 = 0';
+            }
+            $col = $normalized ? $strip('d.data') : 'd.data';
+            return "EXISTS (SELECT 1 FROM {user_info_data} d WHERE d.userid = s.id AND d.fieldid = $fieldid AND "
+                . $like($col, $value) . ')';
+        };
+        $words = array_slice(preg_split('/\s+/u', \core_text::substr($search, 0, 100), -1, PREG_SPLIT_NO_EMPTY), 0, 6);
+        $all = [];
+        foreach ($words as $word) {
+            $or = [];
+            foreach (['t.number', 't.subject', 's.firstname', 's.lastname', 's.idnumber'] as $col) {
+                $or[] = $like($col, $word);
+            }
+            $or[] = $doc($word, false);
+            $plain = preg_replace('/[\s\-\.]+/u', '', $word);
+            if ($plain !== '' && preg_match('/\d/', $plain)) {
+                // Con o sin guiones: "810611927" encuentra "8-1061-1927", "PE12345" a "PE-12-345".
+                $or[] = $doc($plain, true);
+                $or[] = $like($strip('s.idnumber'), $plain);
+                $or[] = $like($strip('t.number'), $plain);
+            }
+            $all[] = '(' . implode(' OR ', $or) . ')';
+        }
+        $sql = '(' . implode(' AND ', $all) . ')';
+        // "8 1061 1927" (with spaces) or a cedula pasted with odd separators: whole text, normalized.
+        $whole = preg_replace('/[\s\-\.]+/u', '', $search);
+        if (count($words) > 1 && $whole !== '' && preg_match('/\d/', $whole)) {
+            $sql = '(' . $sql . ' OR ' . $doc($whole, true) . ' OR ' . $like($strip('s.idnumber'), $whole)
+                . ' OR ' . $like($strip('t.number'), $whole) . ')';
+        }
+        return [$sql, $params];
     }
 
     private static function ticket_rows(string $where, array $params, int $userid, string $role, string $order,

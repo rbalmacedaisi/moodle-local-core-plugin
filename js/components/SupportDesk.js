@@ -19,25 +19,58 @@ Vue.component('support-desk', {
             <v-icon>mdi-cog</v-icon></v-btn>
         </div>
         <v-text-field v-model="search" dense outlined hide-details clearable prepend-inner-icon="mdi-magnify"
-          placeholder="Número, asunto o estudiante" class="gmk-desk-search mt-2 mt-md-0"
-          @input="debouncedList"></v-text-field>
+          placeholder="Cédula, nombre, número o asunto" class="gmk-desk-search mt-2 mt-md-0"
+          aria-label="Buscar solicitudes por cédula, nombre, número o asunto"
+          @input="debouncedList" @click:clear="clearSearch"></v-text-field>
       </div>
 
       <div class="gmk-desk" :class="{ 'gmk-desk--open': !!active }">
         <!-- Lista: ancho completo en el celular, columna de 420 px en escritorio -->
         <div class="gmk-desk__list">
-          <v-tabs v-model="tabIndex" :show-arrows="!isMobile" height="44" @change="onTab" class="gmk-desk-tabs">
-            <v-tab v-for="t in visibleTabs" :key="t.key" class="px-3 text-none">
-              <span :class="{ 'red--text font-weight-bold': t.key === 'unassigned' && count(t.key) > 0 }">{{ t.label }}</span>
-              <v-chip x-small class="ml-1" :color="chipColor(t.key)" :dark="count(t.key) > 0 && t.key !== 'closed'">{{ count(t.key) }}</v-chip>
-            </v-tab>
-          </v-tabs>
+          <!-- Vistas: tarjetas con contador (3 por fila), la activa resaltada -->
+          <div class="gmk-views pa-2" role="tablist" aria-label="Vistas de la bandeja">
+            <button v-for="t in visibleTabs" :key="t.key" type="button" role="tab" class="gmk-view"
+              :class="viewClass(t.key)" :aria-selected="String(!searching && tab === t.key)" @click="selectTab(t.key)">
+              <span class="gmk-view__count">{{ count(t.key) }}</span>
+              <span class="gmk-view__label"><v-icon x-small class="mr-1" :color="iconColor(t.key)">{{ t.icon }}</v-icon>{{ t.label }}</span>
+            </button>
+          </div>
+          <!-- Buscando: en todas las solicitudes visibles -->
+          <div v-if="searching" class="gmk-searchbar px-3 py-2 d-flex align-center">
+            <v-icon small class="mr-2">mdi-magnify</v-icon>
+            <span class="gmk-min0 flex-grow-1 text-body-2">
+              {{ total }} resultado{{ total === 1 ? '' : 's' }} en todas tus solicitudes (abiertas y cerradas)
+            </span>
+            <v-btn text small color="primary" class="px-1" @click="clearSearch">Limpiar</v-btn>
+          </div>
+          <div v-else-if="search && search.trim().length > 0 && search.trim().length < searchmin" class="px-3 py-1 text-caption text--secondary">
+            Escribe al menos {{ searchmin }} caracteres para buscar.
+          </div>
+          <!-- Filtros rápidos: área y semáforo (toca otra vez para quitarlo) -->
+          <div v-if="areaOptions.length > 1 || showLevels" class="gmk-quick px-2 pb-2">
+            <template v-if="areaOptions.length > 1">
+              <v-chip v-for="a in areaOptions" :key="'a' + a.id" small class="mr-1" :outlined="areaid !== a.id"
+                :color="areaid === a.id ? 'primary' : ''" :input-value="areaid === a.id" @click="toggleArea(a.id)">
+                {{ a.name }}<span class="ml-1 font-weight-bold">{{ a.count }}</span>
+              </v-chip>
+            </template>
+            <span v-if="areaOptions.length > 1 && showLevels" class="gmk-quick__sep" aria-hidden="true"></span>
+            <template v-if="showLevels">
+              <v-chip v-for="l in levelOptions" :key="'l' + l.key" small class="mr-1" :outlined="level !== l.key"
+                :color="level === l.key ? l.color : ''" :dark="level === l.key" @click="toggleLevel(l.key)"
+                :title="l.help">
+                <v-icon x-small left :color="level === l.key ? 'white' : l.color">mdi-circle</v-icon>{{ l.label }}
+                <span class="ml-1 font-weight-bold">{{ levels[l.key] || 0 }}</span>
+              </v-chip>
+            </template>
+          </div>
           <v-divider></v-divider>
           <v-progress-linear v-if="loadingList" indeterminate color="primary"></v-progress-linear>
           <div class="gmk-desk__scroll">
             <div v-if="!loadingList && tickets.length === 0" class="pa-6 text-center text--secondary">
               <v-icon large>mdi-inbox-outline</v-icon>
-              <p class="mt-2 mb-0">No hay tickets en esta pestaña.</p>
+              <p class="mt-2 mb-0">{{ emptyText }}</p>
+              <v-btn v-if="areaid || level" text small color="primary" class="mt-1" @click="clearFilters">Quitar filtros</v-btn>
             </div>
             <v-list two-line class="py-0">
               <template v-for="t in tickets">
@@ -50,6 +83,9 @@ Vue.component('support-desk', {
                       <v-icon v-if="t.confidential" x-small color="purple" class="mr-1">mdi-lock</v-icon>
                       {{ t.number }} · {{ t.requestername }}
                     </v-list-item-title>
+                    <v-list-item-subtitle v-if="searching && t.requesteridnumber" class="text-caption">
+                      <v-icon x-small class="mr-1">mdi-card-account-details-outline</v-icon>Cédula {{ t.requesteridnumber }}
+                    </v-list-item-subtitle>
                     <v-list-item-subtitle>{{ t.areaname }} / {{ t.categoryname }}</v-list-item-subtitle>
                     <v-list-item-subtitle class="text-caption">
                       <v-chip x-small label :color="fmt.statusColor(t.status)" dark class="mr-1">{{ t.statuslabel }}</v-chip>
@@ -260,15 +296,28 @@ Vue.component('support-desk', {
     data() {
         return {
             fmt: window.gmkSupportFormat,
+            // Orden pensado para el día a día: lo mío, lo que nadie tomó y lo vencido primero.
             allTabs: [
-                { key: 'unassigned', label: 'Sin asignar' },
-                { key: 'mine', label: 'Míos' },
-                { key: 'area', label: 'Mi área' },
-                { key: 'overdue', label: 'Vencidos' },
-                { key: 'all', label: 'Todos' },
-                { key: 'closed', label: 'Cerrados' },
+                { key: 'mine', label: 'Míos', icon: 'mdi-account' },
+                { key: 'unassigned', label: 'Sin asignar', icon: 'mdi-account-question' },
+                { key: 'overdue', label: 'Vencidos', icon: 'mdi-alarm' },
+                { key: 'area', label: 'Mi área', icon: 'mdi-account-group' },
+                { key: 'all', label: 'Todos', icon: 'mdi-inbox-multiple' },
+                { key: 'closed', label: 'Cerrados', icon: 'mdi-check-all' },
             ],
-            tabIndex: 1,
+            levelOptions: [
+                { key: 'red', label: 'Rojo', color: 'red', help: 'Superó el tiempo de respuesta' },
+                { key: 'orange', label: 'Naranja', color: 'orange', help: 'Cerca de vencer' },
+                { key: 'yellow', label: 'Amarillo', color: 'amber', help: 'Esperando más de lo ideal' },
+                { key: 'green', label: 'Verde', color: 'green', help: 'En tiempo' },
+            ],
+            tab: 'mine',
+            areaid: 0,
+            level: '',
+            areas: [],
+            levels: {},
+            searchmin: 2,
+            searching: false,
             counts: {},
             me: { supervisor: false, available: true, manage: false, reassign: false },
             available: true,
@@ -296,15 +345,35 @@ Vue.component('support-desk', {
             snack: { show: false, text: '', color: 'error' },
             timers: [],
             searchTimer: null,
+            areaname: '',
         };
     },
     computed: {
         visibleTabs() {
             return this.allTabs.filter(t => t.key !== 'all' || this.me.supervisor || this.me.reassign);
         },
-        currentTab() {
-            const t = this.visibleTabs[this.tabIndex];
-            return t ? t.key : 'mine';
+        showLevels() {
+            // Semáforo: solo en vistas de abiertos (en Vencidos todo es rojo).
+            return !this.searching && ['mine', 'unassigned', 'area', 'all'].indexOf(this.tab) !== -1;
+        },
+        areaOptions() {
+            const list = this.areas.slice();
+            if (this.areaid && !list.some(a => a.id === this.areaid)) {
+                list.push({ id: this.areaid, name: this.areaname || 'Área', count: 0 });
+            }
+            return list;
+        },
+        emptyText() {
+            if (this.searching) return 'No encontramos solicitudes con esa búsqueda.';
+            if (this.areaid || this.level) return 'No hay solicitudes con estos filtros.';
+            return {
+                mine: 'No tienes solicitudes asignadas abiertas.',
+                unassigned: 'No hay solicitudes sin asignar.',
+                overdue: 'No hay solicitudes vencidas.',
+                area: 'No hay solicitudes abiertas en tu área.',
+                all: 'No hay solicitudes abiertas.',
+                closed: 'No hay solicitudes cerradas.',
+            }[this.tab] || 'No hay solicitudes.';
         },
         isMobile() {
             return this.$vuetify.breakpoint.smAndDown;
@@ -325,15 +394,16 @@ Vue.component('support-desk', {
         },
     },
     async mounted() {
-        await this.loadList();
-        if (this.config.tab) {
-            // Enlace desde el indicador flotante (?tab=unassigned|mine|overdue).
-            const idx = this.visibleTabs.findIndex(t => t.key === this.config.tab);
-            if (idx >= 0 && idx !== this.tabIndex) {
-                this.tabIndex = idx;
-                await this.loadList();
-            }
+        // Vista inicial: la del enlace (?tab= desde el indicador flotante), si no la
+        // última que usó esta persona en este navegador, si no "Míos".
+        const keys = this.allTabs.map(t => t.key);
+        const remembered = this.storage('get');
+        if (keys.indexOf(this.config.tab) !== -1) {
+            this.tab = this.config.tab;
+        } else if (keys.indexOf(remembered) !== -1) {
+            this.tab = remembered;
         }
+        await this.loadList();
         if (this.config.ticketid) {
             await this.openTicket(parseInt(this.config.ticketid, 10));
         }
@@ -365,9 +435,60 @@ Vue.component('support-desk', {
         count(key) {
             return this.counts[key] || 0;
         },
-        chipColor(key) {
-            if (!this.count(key) || key === 'closed') return '';
-            return { unassigned: 'red', overdue: 'red', mine: 'primary' }[key] || 'blue-grey';
+        viewClass(key) {
+            return {
+                'gmk-view--active': !this.searching && this.tab === key,
+                'gmk-view--alert': (key === 'unassigned' || key === 'overdue') && this.count(key) > 0,
+                'gmk-view--zero': !this.count(key),
+            };
+        },
+        iconColor(key) {
+            if (!this.searching && this.tab === key) return 'white';
+            return (key === 'unassigned' || key === 'overdue') && this.count(key) > 0 ? 'red' : '';
+        },
+        storage(op, value) {
+            // Recordar la última vista (solo comodidad: si el navegador no deja, se ignora).
+            const k = 'gmkSupportDeskTab:' + (this.config.userid || 0);
+            try {
+                if (op === 'set') window.localStorage.setItem(k, value);
+                else return window.localStorage.getItem(k);
+            } catch (e) {
+                return null;
+            }
+            return null;
+        },
+        selectTab(key) {
+            const same = this.tab === key && !this.searching;
+            this.tab = key;
+            this.storage('set', key);
+            if (this.searching || (this.search && this.search.trim())) {
+                this.search = '';
+                this.searching = false;
+            }
+            if (!this.showLevels) this.level = '';
+            if (!same) this.tickets = [];
+            this.loadList();
+        },
+        toggleArea(id) {
+            const a = this.areas.find(x => x.id === id);
+            this.areaname = a ? a.name : this.areaname;
+            this.areaid = this.areaid === id ? 0 : id;
+            this.loadList();
+        },
+        toggleLevel(key) {
+            this.level = this.level === key ? '' : key;
+            this.loadList();
+        },
+        clearFilters() {
+            this.areaid = 0;
+            this.level = '';
+            this.loadList();
+        },
+        clearSearch() {
+            this.search = '';
+            this.searching = false;
+            clearTimeout(this.searchTimer);
+            this.loadList();
         },
         can(action) {
             return !!(this.active && this.active.actions && this.active.actions.indexOf(action) !== -1);
@@ -389,29 +510,38 @@ Vue.component('support-desk', {
             this.showHistory = false;
             this.showInfo = false;
         },
-        onTab() {
-            this.loadList();
-        },
         debouncedList() {
             clearTimeout(this.searchTimer);
+            const q = (this.search || '').trim();
+            // Menos de N caracteres: no se consulta (salvo para volver a la vista si se borró la búsqueda).
+            if (q.length > 0 && q.length < this.searchmin && !this.searching) return;
             this.searchTimer = setTimeout(() => this.loadList(), 400);
         },
         async loadList(silent) {
             if (!silent) this.loadingList = true;
             try {
-                const data = await this.call('desk_list', { tab: this.currentTab, search: this.search || '', page: 0, perpage: 100 });
+                const q = (this.search || '').trim();
+                const data = await this.call('desk_list', {
+                    tab: this.tab, search: q.length >= this.searchmin ? q : '', page: 0, perpage: 100,
+                    areaid: this.areaid, level: this.showLevels || !q ? this.level : '',
+                });
+                if ((this.search || '').trim() !== q) return; // Llegó tarde: ya se escribió otra cosa.
                 const counts = {};
                 (data.counts || []).forEach(c => { counts[c.tab] = c.count; });
                 this.counts = counts;
-                const hadall = this.me.supervisor || this.me.reassign;
                 this.me = data.me;
                 this.available = data.me.available;
+                this.searchmin = data.searchmin || 2;
+                this.searching = data.tab === 'search';
+                if (!this.searching && data.tab !== this.tab) {
+                    this.tab = data.tab; // El servidor corrigió la vista (p. ej. "Todos" sin permiso).
+                }
+                this.areas = data.areas || [];
+                const levels = {};
+                (data.levels || []).forEach(l => { levels[l.level] = l.count; });
+                this.levels = levels;
                 this.tickets = data.tickets || [];
                 this.total = data.total || 0;
-                if (!hadall && (data.me.supervisor || data.me.reassign) && this.tabIndex >= 4) {
-                    // "Todos" appeared: keep the same tab selected.
-                    this.tabIndex++;
-                }
             } catch (e) {
                 if (!silent) this.notify(e.message);
             } finally {
